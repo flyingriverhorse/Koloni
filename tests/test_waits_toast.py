@@ -129,7 +129,7 @@ def test_at_full_auto_a_question_the_lead_takes_is_told_only_once_it_did_not_ans
     clock.set.remove(waits)
     fire(client, waits)  # (before the Lead has answered: not told)
     fire(client, lead_timers(clock, 0.0)[0])
-    until(lambda: len(model.calls) == 3)
+    until(lambda: len(model.calls) >= 3)  # (answered, the Coder's and the Lead's ends follow at once)
     if told:
         assert [said for _title, said in tell(client, clock, shown)] == told
         client.post(f"/api/questions/{question_of(client, cid)['id']}/answer",
