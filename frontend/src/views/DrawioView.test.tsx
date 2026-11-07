@@ -21,7 +21,9 @@ async function opened() {
   const posted = vi.spyOn(frame.contentWindow!, 'postMessage')
   act(() => frame.dispatchEvent(new Event('load')))
   await vi.waitFor(() => expect(posted).toHaveBeenCalledWith({ xml: XML }, '*'))
-  const say = (data: unknown, source: Window | null = frame.contentWindow) => act(() => window.dispatchEvent(new MessageEvent('message', { data, source })))
+  // (The sandboxed frame is of no origin: its messages come from 'null'.)
+  const say = (data: unknown, source: Window | null = frame.contentWindow, origin = 'null') =>
+    act(() => window.dispatchEvent(new MessageEvent('message', { data, source, origin })))
   return { frame, posted, say }
 }
 
@@ -38,7 +40,7 @@ test('the viewer is framed sandboxed, with scripts and no same origin; the file 
 
 test('Save as PNG asks the frame, and what it draws is written beside the diagram; another window is not heard', async () => {
   const written = vi.spyOn(api, 'post').mockResolvedValue({ path: 'docs/flow.png' })
-  const { posted, say } = await opened()
+  const { frame, posted, say } = await opened()
   const png = screen.getByRole('button', { name: 'Save as PNG' })
   expect(png).toBeDisabled()
   say({ shown: true })
@@ -46,6 +48,8 @@ test('Save as PNG asks the frame, and what it draws is written beside the diagra
   await userEvent.click(png)
   expect(posted).toHaveBeenCalledWith({ save: 'png' }, '*')
   say({ saved: 'png', data: 'data:image/png;base64,QUJD' }, window)
+  // Nor its own frame's window with an origin: that is not the sandboxed viewer.
+  say({ saved: 'png', data: 'data:image/png;base64,QUJD' }, frame.contentWindow, location.origin)
   expect(written).not.toHaveBeenCalled()
   say({ saved: 'png', data: 'data:image/png;base64,QUJD' })
   expect(written).toHaveBeenCalledWith('/projects/p1/diagram-picture', { path: 'docs/flow.drawio', format: 'png', data: 'QUJD' })

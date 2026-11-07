@@ -45,14 +45,15 @@ export function DrawioView({ src, path, projectId }: { src: string; path: string
     }
   }, [src])
 
+  // (To '*': a frame of no origin cannot be named as postMessage's target; a frame gone elsewhere is taken off at its second load.)
   useEffect(() => {
     if (loaded && text !== null) frame.current?.contentWindow?.postMessage({ xml: text }, '*')
   }, [loaded, text])
 
   useEffect(() => {
-    // Only its own frame is heard: no other page, no other frame.
+    // Only its own frame is heard: no other page, no other frame. (Sandboxed, it is of no origin: 'null' - one of an origin is not it.)
     function heard(event: MessageEvent) {
-      if (event.source !== frame.current?.contentWindow || !event.data || typeof event.data !== 'object') return
+      if (event.source !== frame.current?.contentWindow || event.origin !== 'null' || !event.data || typeof event.data !== 'object') return
       const said = event.data as Said
       if ('failed' in said) setLine(String(said.failed))
       else if ('shown' in said) setDrawn(true)
