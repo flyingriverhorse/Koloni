@@ -58,6 +58,13 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True)
+def no_name_lookup_for_a_test_server(monkeypatch):
+    """A test's own HTTPServer asks DNS for 127.0.0.1's name when it binds (`getfqdn`): on a
+    macOS runner some 35 s each. Its name is never used, so it is not asked."""
+    monkeypatch.setattr("http.server.socket.getfqdn", lambda name="": name or "localhost")
+
+
+@pytest.fixture(autouse=True)
 def codex_settings_of_the_test(request, tmp_path, monkeypatch):
     """Codex's own settings are read from a folder of the test's, never this machine's -
     and so are the skills in the user's home (`~/.agents/skills`): home is the test's.
