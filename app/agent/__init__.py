@@ -1334,8 +1334,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._opening: dict[str, asyncio.Future[str]] = {}
         self._slot_lent: set[str] = set()  # (`_lend_slot`)
         # (project as it resolves, path) -> the digest of what KOLONİ wrote there for an agent
-        # (None: removed), until it is seen to hold anything else (`_seen_by_watchers`).
+        # (None: removed), until it is seen to hold anything else (`_seen_by_watchers`) or no
+        # native agent there is left to look; and how many such agents look there now.
         self._wrote_for: dict[tuple[str, str], str | None] = {}
+        self._native_in: dict[str, int] = {}  # (`_native_looks`)
         # Sub-agents whose opener went on beside them (`_see_through`), until the turn's end.
         self._went_on: set[str] = set()
         self._later_work: dict[str, list[tuple[str, str, str, asyncio.Future]]] = {}

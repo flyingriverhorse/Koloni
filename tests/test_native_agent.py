@@ -970,17 +970,32 @@ def test_what_koloni_wrote_for_another_agent_is_no_native_change_however_the_loo
     async def nothing(*_args):
         pass
 
-    runner = SimpleNamespace(_wrote_for={}, seen_in_project=nothing, _watches={})
+    runner = SimpleNamespace(_wrote_for={}, _native_in={}, seen_in_project=nothing, _watches={})
     runner._still_wrote_for = partial(ObserveMixin._still_wrote_for, runner)
+    looks = partial(ObserveMixin._native_looks, runner)
     (tmp_path / "made.txt").write_bytes(b"new\n")
-    ctx = SimpleNamespace(folder=str(tmp_path), model=None, tools=[])
-    asyncio.run(ObserveMixin._seen_by_watchers(runner, ctx, {"made.txt", "gone.txt"}))
+    ctx = SimpleNamespace(folder=str(tmp_path), root=str(tmp_path), model=None, tools=[])
+    took = {"made.txt", "gone.txt"}
     found = [("made.txt", None, "new\n"), ("gone.txt", "old\n", None)]
-    assert ObserveMixin._record_found(runner, ctx, None, found, "changed by the CLI") == set()
+
+    def recorded():
+        return ObserveMixin._record_found(runner, ctx, None, list(found), "changed by the CLI")
+
+    asyncio.run(ObserveMixin._seen_by_watchers(runner, ctx, took))
+    assert runner._wrote_for == {}  # no native agent looks there: nothing to keep
+    looks(ctx.root, 1)
+    asyncio.run(ObserveMixin._seen_by_watchers(runner, ctx, took))
+    assert recorded() == set()
     # Once it holds anything else, it is no longer KOLONİ's write.
     here = str(tmp_path.resolve())
     assert not runner._still_wrote_for(here, ("made.txt", "new\n", "mine\n"))
     assert list(runner._wrote_for) == [(here, "gone.txt")]
+    # Its last look had, nothing of it is held over to a later turn: there a native agent
+    # that removes gone.txt (the user made it again meanwhile) is on record for it.
+    looks(ctx.root, -1)
+    assert runner._wrote_for == {} and runner._native_in == {}
+    looks(ctx.root, 1)
+    assert not runner._still_wrote_for(here, ("gone.txt", "again\n", None))
 
 
 # --- discussions (slice 10) ---------------------------------------------------------
