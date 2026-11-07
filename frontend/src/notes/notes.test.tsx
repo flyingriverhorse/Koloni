@@ -250,12 +250,16 @@ test('before any turn has started there is nothing to write on', () => {
 })
 
 test('the chat panel has the notebook as a tab, and what you write goes to the turn at work', async () => {
-  const fetched = vi.fn(async () => new Response(JSON.stringify(second), { status: 201 }))
+  // Only the note's POST is answered: the files of a worker share the store (isolate: false), and on a slow
+  // runner a timer left by an earlier file read the conversation here - answered with a note, the
+  // snapshot it made had no notes, and the tab lost its count.
+  const fetched = vi.fn(async (url: string, init?: RequestInit) => url === '/api/runs/r/notes' && init?.method === 'POST'
+    ? new Response(JSON.stringify(second), { status: 201 })
+    : new Response('{}', { status: 404 }))
   vi.stubGlobal('fetch', fetched)
   useApp.setState({ conv: state })
   render(<ChatPanel />)
-  // (Awaited: on a slow CI runner the count in the tab's name comes a moment after the first paint.)
-  const tab = await screen.findByRole('tab', { name: /^Notes\s*2$/ }, { timeout: 5000 })
+  const tab = await screen.findByRole('tab', { name: /^Notes\s*2$/ })
   expect(screen.queryByText('hello.py is mine')).not.toBeInTheDocument()
   await userEvent.click(tab)
   expect(screen.getByText('hello.py is mine')).toBeInTheDocument()
