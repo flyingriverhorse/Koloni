@@ -151,12 +151,13 @@ window.koloniDraw = function (xml, format) {
 }
 
 // In the Workspace: the app posts the file's text ({xml}), then asks for a picture of it ({save: 'png' | 'svg'}).
-// Only the frame's own parent is heard, and answered.
+// Only the frame's own parent is heard, and answered - at the origin this page is served from (`location.origin`, its
+// address's: the page itself is of no origin).
 window.addEventListener('message', function (event) {
   var said = event.data
-  if (event.source !== window.parent || !said || typeof said !== 'object') return
+  if (event.source !== window.parent || event.origin !== location.origin || !said || typeof said !== 'object') return
   var answer = function (message) {
-    window.parent.postMessage(message, '*')
+    window.parent.postMessage(message, location.origin)
   }
   if (typeof said.xml === 'string') {
     try {

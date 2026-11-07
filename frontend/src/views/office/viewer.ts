@@ -53,13 +53,14 @@ export async function draw({ kind, data }: Asked, into: HTMLElement): Promise<vo
   }
 }
 
-/** Hears the app - its parent alone - and draws what it posts. */
+/** Hears the app - its parent alone, of the origin this page is served from - and draws what it posts. */
 export function listen(into: HTMLElement): void {
   window.addEventListener('message', event => {
-    if (event.source !== window.parent || !event.data || typeof event.data !== 'object') return
+    if (event.source !== window.parent || event.origin !== location.origin || !event.data || typeof event.data !== 'object') return
     const asked = event.data as Asked
     if (!['docx', 'xlsx', 'pptx'].includes(asked.kind) || !(asked.data instanceof ArrayBuffer)) return
-    const tell = (said: Said) => window.parent.postMessage(said, '*')
+    // (`location.origin` is its address's - the app's - though the page itself is of no origin.)
+    const tell = (said: Said) => window.parent.postMessage(said, location.origin)
     draw(asked, into).then(
       () => tell({ shown: true }),
       error => tell({ failed: error instanceof Error ? error.message : String(error) }),
