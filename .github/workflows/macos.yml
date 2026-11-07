@@ -1,0 +1,40 @@
+# The backend on macOS (Python 3.12), in backend.yml's six parts: on each pull request to main
+# and by hand on any branch (Actions -> macOS -> Run workflow, `gh workflow run macos.yml --ref
+# <branch>`). Kept apart from PR Check while macOS is new to KOLONİ: a failure here shows on the
+# pull request but holds neither a merge nor a release (release.yml waits for PR Check only).
+# full.yml runs the same job with everything else.
+name: macOS
+
+on:
+  pull_request:
+    branches: [main]
+    paths:  # (as pr-check.yml's: the guide and notes do not change what the tests see)
+      - '**'
+      - '!docs/**'
+      - '!pages/**'
+      - 'docs/settings.md'
+      - '!README.md'
+      - '!SECURITY.md'
+      - '!CHANGELOG.md'
+      - '!THIRD-PARTY-NOTICES.md'
+      - '!.github/CI.md'
+      - '!.github/SUPPORT.md'
+      - '!.github/ISSUE_TEMPLATE/**'
+      - '!.github/pull_request_template.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (macOS)
+    uses: ./.github/workflows/backend.yml
+    with:
+      python-version: '3.12'
+      os: macos-latest
+      lint: false  # (PR Check lints)
