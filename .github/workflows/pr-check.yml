@@ -1,0 +1,140 @@
+# The one entry point for pushes and pull requests: each check once, on Linux, Python 3.12, and the
+# SonarQube Cloud scan when SONAR_TOKEN is set. The heavier set (e2e, Windows, Python 3.13 / 3.14,
+# Docker) is in heavy.yml. See .github/CI.md.
+name: PR Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Plans, notes and the guide do not change what the tests see; docs-check.yml checks the guide
+      # and the three .md files it reads. Later lines win.
+      - '**'
+      - '.github/**'  # (in '**' too; explicit, as workflow edits must run actionlint)
+      - '!docs/**'
+      - '!pages/**'
+      - 'docs/settings.md'  # tests/test_koloni_guide_knowledge.py reads the real one
+      - '!README.md'
+      - '!SECURITY.md'
+      - '!CHANGELOG.md'
+      - '!THIRD-PARTY-NOTICES.md'
+      - '!.github/CI.md'
+      - '!.github/SUPPORT.md'
+      - '!.github/ISSUE_TEMPLATE/**'
+      - '!.github/pull_request_template.md'
+  pull_request:
+    branches: [main]
+    paths:
+      # Plans, notes and the guide do not change what the tests see; docs-check.yml checks the guide
+      # and the three .md files it reads. Later lines win.
+      - '**'
+      - '.github/**'  # (in '**' too; explicit, as workflow edits must run actionlint)
+      - '!docs/**'
+      - '!pages/**'
+      - 'docs/settings.md'  # tests/test_koloni_guide_knowledge.py reads the real one
+      - '!README.md'
+      - '!SECURITY.md'
+      - '!CHANGELOG.md'
+      - '!THIRD-PARTY-NOTICES.md'
+      - '!.github/CI.md'
+      - '!.github/SUPPORT.md'
+      - '!.github/ISSUE_TEMPLATE/**'
+      - '!.github/pull_request_template.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-check-${{ github.ref }}
+  # A newer push cancels an older run, except on main, where each push keeps its result.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  actionlint:
+    name: Workflow validation (actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install actionlint 1.7.12
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output actionlint.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint.tar.gz" | sha256sum --check --strict
+          mkdir -p actionlint-bin
+          tar -xzf actionlint.tar.gz -C actionlint-bin actionlint
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
+      - name: Validate every workflow
+        # Syntax, expressions and reusable-workflow contracts; embedded shell is not linted.
+        run: actionlint -color -shellcheck= -pyflakes=
+
+  # SonarQube Cloud runs only when the SONAR_TOKEN secret exists (not on a fork's pull request
+  # either); without it this gate says no in seconds and the backend measures no coverage.
+  sonar-gate:
+    name: Sonar token gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      enabled: ${{ steps.detect.outputs.enabled }}
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - name: Detect SONAR_TOKEN
+        id: detect
+        if: ${{ env.SONAR_TOKEN != '' }}
+        run: echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+  backend:
+    name: Backend
+    needs: sonar-gate
+    uses: ./.github/workflows/backend.yml
+    with:
+      coverage: ${{ needs.sonar-gate.outputs.enabled == 'true' }}
+
+  frontend:
+    name: Frontend
+    uses: ./.github/workflows/frontend.yml
+
+  docs:
+    name: Guide
+    uses: ./.github/workflows/docs-check.yml
+
+  sonar:
+    name: SonarQube Cloud scan
+    needs: [sonar-gate, backend]
+    # Also after failed tests (the backend has known failures on Linux, CI.md): the parts that ran
+    # still left their coverage.
+    if: ${{ !cancelled() && needs.sonar-gate.outputs.enabled == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # SonarQube's new-code and blame need the history
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-part-*
+          merge-multiple: true
+      - name: Combine the parts' coverage
+        # All six parts, or no scan: a missing part would quietly lower the coverage shown.
+        # Paths come out relative to the checkout (app/...), as sonar-project.properties expects.
+        run: |
+          count=$(find . -maxdepth 1 -name '.coverage.part-*' | wc -l)
+          [ "$count" -eq 6 ] || { echo "expected 6 coverage parts, found $count"; exit 1; }
+          pip install 'pytest-cov>=6,<8'  # the coverage the parts were measured with
+          python -m coverage combine .coverage.part-*
+          python -m coverage xml -o coverage-backend.xml
+          sed -i 's|<source>.*</source>|<source>.</source>|' coverage-backend.xml
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

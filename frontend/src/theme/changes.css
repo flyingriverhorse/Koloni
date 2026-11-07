@@ -1,0 +1,324 @@
+/* Changes window, diff view and change decisions. */
+
+.changes {
+  position: absolute;
+  /* (As the chat and the view: the one used last is in front - base.css [data-front].) */
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  /* Wide enough for its files and a diff side by side, as far as beside the chat leaves room;
+     never narrower than before slice 42a. */
+  width: max(min(580px, calc(100% - 28px)), min(860px, calc(100% - var(--chat-w) - 42px)));
+  /* (ending above the view window, which stands in the canvas's lower half) */
+  height: min(560px, calc(50% - 21px));
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.changes-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 6px 0 14px;
+  background: var(--panel);
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.changes-title {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+}
+
+.changes-summary {
+  font-size: var(--text-meta);
+}
+
+.changes-spacer {
+  flex: 1;
+}
+
+.changes-bar .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+.changes-info {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-note);
+}
+
+.changes-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.change-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.change-actions-error {
+  width: 100%;
+}
+
+.diff {
+  width: max-content;
+  min-width: 100%;
+  padding: 6px 0;
+  font-size: var(--text-mono);
+  line-height: 1.65;
+}
+
+.diff-empty {
+  padding: 14px;
+}
+
+.diff-line {
+  display: flex;
+}
+
+.diff-no {
+  flex: none;
+  width: 40px;
+  padding-right: 8px;
+  color: var(--faint);
+  text-align: right;
+  user-select: none;
+}
+
+.diff-sign {
+  flex: none;
+  width: 16px;
+  user-select: none;
+}
+
+.diff-text {
+  padding-right: 14px;
+  white-space: pre;
+}
+
+.diff-add {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+.diff-add .diff-sign {
+  color: var(--ok);
+}
+
+.diff-del {
+  background: color-mix(in srgb, var(--del) 12%, transparent);
+}
+
+.diff-del .diff-sign {
+  color: var(--del);
+}
+
+.diff-hunk {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Side by side (slice 42a): before on the left, after on the right; a long line wraps on its side. */
+.diff-split {
+  width: auto;
+}
+
+.diff-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.diff-half {
+  display: flex;
+  min-width: 0;
+}
+
+.diff-half + .diff-half {
+  border-left: 1px solid var(--border);
+}
+
+.diff-split .diff-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-none {
+  background: var(--panel);
+}
+
+/* "n unchanged lines": opened by a click. */
+.diff-fold {
+  display: block;
+  width: 100%;
+  padding: 1px 14px 1px 64px;
+  border: 0;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.diff-fold:hover {
+  background: var(--hover);
+}
+
+.diff-note {
+  padding: 6px 14px 0;
+  font-size: var(--text-meta);
+}
+
+/* Coloured code: highlight.js's classes, in the palette's colours (tokens.css). */
+.hljs-keyword,
+.hljs-built_in,
+.hljs-literal,
+.hljs-selector-tag,
+.hljs-type {
+  color: var(--code-keyword);
+}
+
+.hljs-string,
+.hljs-regexp {
+  color: var(--code-string);
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--code-number);
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-meta {
+  color: var(--code-comment);
+}
+
+.hljs-comment,
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: var(--weight-title);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--code-title);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--code-attr);
+}
+
+/* A change shown inline in the chat, under the tool call that made it. */
+.chat-change {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-note);
+}
+
+.chat-change-waiting {
+  box-shadow: 0 0 0 1px var(--warn);
+}
+
+.chat-change-path {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* One card for what an agent changed in its working copy: its files, each with a diff to open. */
+.merge-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.merge-file > summary {
+  font-size: var(--text-note);
+  line-height: 1.6;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.merge-file > summary > * + * {
+  margin-left: 8px;
+}
+
+.merge-file-diff {
+  max-height: 240px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: auto;
+}
+
+/* A file both sides changed: what stands against what, and the choice between the two. */
+.merge-clash {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.merge-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.insp-diff {
+  margin: 0 -16px;
+  border-top: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+/* Undoing a turn, or restoring to before one (slice 50): the look ahead, then what was done. */
+.undo-card section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.undo-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--text-mono);
+  overflow-wrap: anywhere;
+}

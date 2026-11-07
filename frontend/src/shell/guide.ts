@@ -1,0 +1,51 @@
+/**
+ * Where the guide says more, for a hint's "Learn more →" (`Hint`'s `doc`): every place in one list, so guide.test.ts
+ * holds each to a heading of docs/. KOLONİ serves the guide at /guide/; Zensical makes `x.md` into `x/` and a
+ * heading into its slug.
+ */
+export const GUIDE = {
+  settingsApp: 'settings/#agents-in-every-project',
+  settingsAgents: 'settings/#agents',
+  settingsAsking: 'settings/#asking-and-away',
+  settingsNewChats: 'settings/#new-chats-start-with',
+  settingsLimits: 'settings/#limits-and-money',
+  settingsChecks: 'settings/#checks-and-git',
+  settingsCommands: 'settings/#commands-and-secrets',
+  settingsMemoryWeb: 'settings/#memory-and-web',
+  settingsNotifications: 'settings/#notifications',
+  answeringForYou: 'automation/answering-for-you/#switching-it-on',
+  discussionsEnd: 'agents/discussions/#when-it-ends',
+  observer: 'agents/observer/#what-it-does',
+  secrets: 'security/model/#secrets',
+  providerModels: 'models/providers/#the-models-of-a-provider',
+  cliRuns: 'models/setup-cli/#how-it-runs',
+  cliSignIn: 'models/setup-cli/#sign-in-for-claude-code-and-codex',
+  copilot: 'models/setup-cli/#github-copilot-cli',
+  limits: 'models/limits/',
+  tiers: 'models/tiers/#the-tier-lists',
+  autoModel: 'models/tiers/#orchestrator-model-automatic',
+  roleModel: 'models/tiers/#a-roles-model',
+  editingRole: 'agents/roles/#editing-a-role',
+  rolePanel: 'agents/roles/#a-roles-panel',
+  builtInTools: 'tools/built-in/#the-built-in-tab',
+  mcpAdding: 'tools/mcp/#adding-a-server',
+  mcpTrust: 'tools/mcp/#trust',
+  mcpTools: 'tools/mcp/#reading-its-tools',
+  skills: 'tools/skills/#giving-a-skill-to-roles',
+  memoryKinds: 'memory/#the-kinds-of-memory',
+  memoryWho: 'memory/#who-writes-what',
+  memorySearch: 'memory/#searching-memory',
+  triggers: 'automation/triggers/',
+  triggerMaking: 'automation/triggers/#making-a-trigger',
+  triggerWebhooks: 'automation/triggers/#webhooks',
+  todoRunning: 'automation/todo/#running-tasks',
+  todoRunSettings: 'automation/todo/#run-settings',
+  todoProposals: 'automation/todo/#follow-up-tasks',
+  knowledge: 'knowledge/#the-knowledge-page',
+  neverOpened: 'security/model/#places-agents-never-open',
+  planMeters: 'money/usage/#plan-meters',
+  prices: 'money/usage/#where-the-money-comes-from',
+  roomWindow: 'agents/rooms/#the-room-window',
+} as const
+
+export type GuidePlace = (typeof GUIDE)[keyof typeof GUIDE]

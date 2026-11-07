@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- The share card (pages/assets/og.jpg, 1200x630); rendered by og-image.mjs. Colours, hive and fonts are the landing page's. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Koloni share card</title>
+<style>
+@font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;src:url(../pages/assets/fonts/instrument-serif-latin.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:italic;font-weight:400;src:url(../pages/assets/fonts/instrument-serif-italic-latin.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 700;src:url(../pages/assets/fonts/instrument-sans-latin.woff2) format('woff2');unicode-range:U+0000-00FF}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 700;src:url(../pages/assets/fonts/instrument-sans-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 600;src:url(../pages/assets/fonts/jetbrains-mono-latin.woff2) format('woff2')}
+:root{--navy:#1a1a19;--bee:#FFC516}
+html,body{margin:0}
+body{width:1200px;height:630px;overflow:hidden;position:relative;background:var(--bee);color:var(--navy);-webkit-font-smoothing:antialiased}
+/* the hero's hive, unchanged: same tile, same size, same opacity */
+body::before{content:"";position:absolute;inset:0;opacity:.16;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48.4974' height='84' viewBox='0 0 48.4974 84'%3E%3Cpath d='M24.2487 0L48.4974 14V42L24.2487 56L0 42V14ZM24.2487 56V84' fill='none' stroke='%231a1a19' stroke-width='1.2'/%3E%3C/svg%3E");background-size:48.4974px 84px}
+.brand{position:absolute;left:64px;top:56px;display:flex;align-items:center;gap:14px;font:600 34px/1 'Instrument Sans',sans-serif;letter-spacing:.02em}
+.brand img{width:52px;height:52px}
+.brand small{font-size:22px;font-weight:400;letter-spacing:0;opacity:.62;margin-left:8px}
+h1{position:absolute;left:64px;top:158px;margin:0;font:400 92px/1.02 'Instrument Serif',Georgia,serif;letter-spacing:-.015em}
+h1 em{display:block}
+.line{position:absolute;left:64px;bottom:56px;font:400 19px/1 'JetBrains Mono',monospace}
+.shot{position:absolute;left:668px;top:110px;width:760px;height:auto;border-radius:12px;box-shadow:0 24px 60px rgba(26,26,25,.35),0 2px 6px rgba(26,26,25,.25)}
+</style>
+</head>
+<body>
+<div class="brand"><img src="../pages/assets/koloni.svg" alt="">KOLONİ<small>by Skyulf</small></div>
+<h1>Your AI workforce.<em>For real work.</em></h1>
+<img class="shot" src="../pages/assets/workspace.jpg" alt="">
+<div class="line">koloni.skyulf.com · open-source AI agents that work together on your machine</div>
+</body>
+</html>

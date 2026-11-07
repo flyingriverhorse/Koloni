@@ -1,0 +1,124 @@
+# Publishes a GitHub Release when a tag v<version> is pushed (git tag v0.1.0 && git push origin
+# v0.1.0). Fails before anything is published unless the tagged commit is on main, the tag is
+# v<the version in pyproject.toml> and CHANGELOG.md has a `## [X.Y.Z] - date` section with entries,
+# or when that release is already published (a re-run or a moved tag never replaces it). The
+# release carries the notes from that section and the source with the built frontend
+# (frontend/dist), as .tar.gz and .zip, so an install needs no Node. No PyPI, no image, no secret beyond GITHUB_TOKEN.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Check and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.notes.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # main's history, for the check below
+          persist-credentials: false
+      - name: The tagged commit is on main
+        # A tag on an unmerged branch's commit must not publish (CI.md: a tag ruleset limits who
+        # can push v* tags at all).
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main; tag a commit of main."
+            exit 1
+          }
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Tag, version and changelog agree
+        id: notes
+        run: |
+          mkdir release
+          python .github/scripts/release_notes.py --tag "$GITHUB_REF_NAME" > release/notes.md
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Install Python dependencies
+        run: |
+          uv venv .venv --python 3.12
+          uv pip install --python .venv/bin/python -r requirements-dev.lock
+          uv pip install --python .venv/bin/python --no-deps -e .
+      # The quick checks; the full suite ran on main (PR Check, Heavy) before the tag.
+      - name: ruff and ty
+        run: |
+          .venv/bin/python -m ruff check app tests scripts alembic
+          .venv/bin/python -m ty check app
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the frontend
+        # --ignore-scripts: no package's install script runs (only fsevents, macOS-only, has one).
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run lint
+          npm run build
+      - name: Source archive with frontend/dist
+        env:
+          NAME: koloni-${{ steps.notes.outputs.version }}
+        run: |
+          stage="$RUNNER_TEMP/stage"
+          mkdir -p "$stage/$NAME"
+          git archive HEAD | tar -x -C "$stage/$NAME"
+          cp -r frontend/dist "$stage/$NAME/frontend/dist"
+          tar -czf "release/$NAME.tar.gz" -C "$stage" "$NAME"
+          (cd "$stage" && python -m zipfile -c "$GITHUB_WORKSPACE/release/$NAME.zip" "$NAME")
+          (cd release && sha256sum "$NAME.tar.gz" "$NAME.zip" > SHA256SUMS)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: release/
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    name: Publish the GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # create or publish the release, upload its files
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: release
+      # release-drafter.yml may have left a draft for this tag: publish that one, else create it.
+      # A release already published is never touched (a re-run, or the tag moved after it).
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          NAME: koloni-${{ needs.build.outputs.version }}
+        run: |
+          files=("release/$NAME.tar.gz" "release/$NAME.zip" release/SHA256SUMS)
+          draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          case "$draft" in
+            true)
+              gh release upload "$TAG" "${files[@]}" --clobber
+              gh release edit "$TAG" --title "$TAG" --notes-file release/notes.md --draft=false ;;
+            false)
+              echo "::error::$TAG is already published; delete it on GitHub first to publish again."
+              exit 1 ;;
+            *)
+              gh release create "$TAG" "${files[@]}" --verify-tag --title "$TAG" --notes-file release/notes.md ;;
+          esac
+      # A PyPI upload would go here, as its own job with `environment: pypi` and
+      # `permissions: id-token: write` (Trusted Publishing, no token), after `uv build`.
+      # A container image would be a job with `packages: write` pushing to ghcr.io.

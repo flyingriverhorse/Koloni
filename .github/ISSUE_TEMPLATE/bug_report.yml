@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in KOLONİ does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem? Do not open an issue: use the Security tab (Report a vulnerability), see SECURITY.md.
+  - type: textarea
+    id: did
+    attributes:
+      label: What you did
+      description: The steps, so someone else can do the same.
+      placeholder: |
+        1. Opened a chat in a folder
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What you saw instead. A screenshot helps.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `git log -1 --oneline` in your KOLONİ folder.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11, Ubuntu 24.04, macOS 15, Docker
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider or CLI
+      description: The model provider or CLI the agent ran on, and its model.
+      placeholder: llama.cpp (Qwen3), Anthropic API, Claude Code, Codex, Copilot, Qoder, agy
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        The lines around the error from KOLONİ's log or the browser console.
+        **Read them before you paste:** remove API keys, tokens, file paths and chat content you do not want public. This issue is public.
+      render: text

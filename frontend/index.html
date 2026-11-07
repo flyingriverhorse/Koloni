@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- No picture or font comes from elsewhere: a model's diagram (an image shape, a CSS url()) cannot fetch an address (slice 68). -->
+    <meta http-equiv="Content-Security-Policy" content="img-src 'self' data: blob:; font-src 'self' data:" />
+    <title>KOLONİ</title>
+    <script>
+      // Apply the stored theme before first paint.
+      ;(function () {
+        var t = localStorage.getItem('koloni-theme')
+        if (t !== 'light' && t !== 'dark')
+          t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        if (t === 'dark') document.documentElement.classList.add('dark')
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

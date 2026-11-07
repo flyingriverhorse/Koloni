@@ -1,0 +1,5 @@
+/frontend/src/api/generated.ts text eol=lf
+*.sh text eol=lf
+# K-drawio: the vendored draw.io viewer is kept byte for byte as downloaded (its sha256 is checked).
+/frontend/public/drawio/viewer-static.min.js -text
+/frontend/public/drawio/LICENSE -text

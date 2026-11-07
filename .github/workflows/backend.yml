@@ -1,0 +1,145 @@
+# The backend's steps of scripts/verify.ps1, the same commands: pytest in six parallel parts
+# (one runner took 42 minutes for all of it), and a "lint" part with ruff, ty and the frontend's
+# generated API types (check:api needs this Python environment). Called by PR Check (3.12, with
+# coverage for SonarQube when SONAR_TOKEN is set) and heavy.yml (3.13, 3.14 on Ubuntu; 3.12 on
+# Windows); also by hand.
+name: Backend
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: '3.12'
+      os:
+        type: string
+        default: ubuntu-latest
+      lint:
+        description: Also run ruff, ty and check:api
+        type: boolean
+        default: true
+      coverage:
+        description: Measure app/ coverage, kept as artifacts coverage-part-N (SonarQube)
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      python-version:
+        type: string
+        default: '3.12'
+      os:
+        type: string
+        default: ubuntu-latest
+      lint:
+        description: Also run ruff, ty and check:api
+        type: boolean
+        default: true
+      coverage:
+        description: Measure app/ coverage, kept as artifacts coverage-part-N (SonarQube)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Backend ${{ matrix.part }} (Python ${{ inputs.python-version || '3.12' }}, ${{ inputs.os || 'ubuntu-latest' }})
+    runs-on: ${{ inputs.os || 'ubuntu-latest' }}
+    # Windows runs the same tests more slowly.
+    timeout-minutes: ${{ startsWith(inputs.os, 'windows') && 30 || 20 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 0-5: the pytest parts, each tests/test_*.py in exactly one, balanced by file size
+        # (.github/scripts/test_parts.py; tests/conftest.py and the helpers apply to each part).
+        # Six: about 8 minutes of tests a part against ~2 minutes of setup; more parts would add
+        # setup minutes faster than they cut the wait. pr-check.yml's sonar job expects 6 too.
+        part: ${{ fromJSON(inputs.lint == false && '["0", "1", "2", "3", "4", "5"]' || '["lint", "0", "1", "2", "3", "4", "5"]') }}
+    defaults:
+      run:
+        shell: bash  # Git Bash on Windows
+    env:
+      PY_VERSION: ${{ inputs.python-version || '3.12' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PY_VERSION }}
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false  # actions/cache below
+      - uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/uv-cache
+          key: ${{ runner.os }}-uv-${{ env.PY_VERSION }}-${{ hashFiles('requirements-dev.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ env.PY_VERSION }}-
+      - name: Install Python dependencies
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then py=.venv/Scripts/python.exe; else py=.venv/bin/python; fi
+          uv venv .venv --python "$PY_VERSION"
+          uv pip install --python "$py" -r requirements-dev.lock
+          uv pip install --python "$py" --no-deps -e .
+          echo "PY=$py" >> "$GITHUB_ENV"
+          # verify.ps1 sets it too: ty, and the tests, see this checkout's environment.
+          # (From Python itself, so it is a Windows path on Windows.)
+          echo "VIRTUAL_ENV=$("$py" -c 'import sys; print(sys.prefix)' | tr -d '\r')" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        # tests/test_notices.py reads node_modules; check:api runs openapi-typescript from it.
+        run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: frontend
+      - name: pytest (part ${{ matrix.part }} of 0-5)
+        if: matrix.part != 'lint'
+        env:
+          PART: ${{ matrix.part }}
+          COVERAGE: ${{ inputs.coverage }}
+          COVERAGE_FILE: .coverage.part-${{ matrix.part }}
+        # verify.ps1's pytest arguments; pyproject.toml's addopts apply as there.
+        run: |
+          mapfile -t files < <("$PY" .github/scripts/test_parts.py "$PART" 6 | tr -d '\r')
+          # (A failure inside <(...) does not stop the step: an empty list does.)
+          [ ${#files[@]} -gt 0 ] || { echo "no test files for part $PART"; exit 1; }
+          echo "${#files[@]} test files"
+          cov=()
+          if [ "$COVERAGE" = true ]; then
+            # shortcut: pytest-cov is installed here only, not locked; add it to the dev extra if
+            # coverage is wanted locally too.
+            uv pip install --python "$PY" 'pytest-cov>=6,<8'
+            cov=(--cov=app --cov-branch --cov-report=)
+          fi
+          "$PY" -m pytest -q -n auto --durations=25 "${cov[@]}" "${files[@]}"
+      - name: Keep the coverage
+        # Also when tests failed: SonarQube still gets what ran.
+        if: ${{ !cancelled() && inputs.coverage && matrix.part != 'lint' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-part-${{ matrix.part }}
+          path: .coverage.part-${{ matrix.part }}
+          include-hidden-files: true
+          retention-days: 3
+          if-no-files-found: error
+      - name: The lock satisfies pyproject.toml
+        # A Dependabot pull request bumps pyproject.toml, not the lock (CI.md): it fails here
+        # until the lock is rebuilt, instead of passing on the old versions.
+        if: matrix.part == 'lint'
+        run: '"$PY" .github/scripts/check_lock.py'
+      - name: ruff
+        if: matrix.part == 'lint'
+        run: '"$PY" -m ruff check app tests scripts alembic'
+      - name: ty
+        if: matrix.part == 'lint'
+        run: '"$PY" -m ty check app'
+      - name: API types (check:api)
+        if: matrix.part == 'lint'
+        run: npm run check:api
+        working-directory: frontend

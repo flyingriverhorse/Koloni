@@ -1,0 +1,719 @@
+/* The project's memory: its page, and what an agent was given from it. */
+
+.memory-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+.memory-page > * {
+  width: 100%;
+  max-width: var(--page-w);
+}
+
+.memory-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.memory-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.memory-head h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+.memory-hint {
+  font-size: var(--text-note);
+  line-height: 1.5;
+}
+
+.memory-record,
+.memory-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.memory-text {
+  font-size: var(--text-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.memory-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-meta);
+  overflow-wrap: anywhere;
+}
+
+/* An unchanged source is not good news, only no news: it is not coloured as a success. */
+.memory-state-unchanged,
+.memory-state-none {
+  color: var(--muted);
+}
+
+.memory-state-changed,
+.memory-state-moved {
+  color: var(--warn);
+}
+
+/* What a record says, and beside it the lines it says it on. */
+.memory-claim {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.memory-side .memory-claim {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.memory-said,
+.memory-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.memory-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.memory-lines figcaption {
+  font-size: var(--text-meta);
+}
+
+.memory-lines pre {
+  max-height: 220px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--border);
+  font-size: var(--text-mono);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .memory-claim {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A link that is one of the page's actions looks like the buttons beside it. */
+a.btn {
+  color: inherit;
+  text-decoration: none;
+}
+
+.memory-count {
+  font-size: var(--text-meta);
+}
+
+.memory-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.memory-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* The small heading of each side: on a card it takes the muted colour, as on the other cards. */
+.memory-side .kicker {
+  color: var(--muted);
+}
+
+.memory-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.memory-grow {
+  flex: 1;
+  min-width: 180px;
+}
+
+.memory-line {
+  width: 90px;
+}
+
+/* In an agent's window and in the inspector. */
+.memory-given {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.memory-given-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  font-size: var(--text-body);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.memory-found {
+  margin: 0;
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memory-decision {
+  font-size: var(--text-body);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* The one search on top: the box, Search deeper, by words / by meaning ▾, and what it found by tab. */
+.memory-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.memory-find-form {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+}
+
+.memory-find-form .input {
+  flex: 1;
+}
+
+.memory-meaning[hidden] {
+  display: none;
+}
+
+.memory-meaning-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-hit {
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-body);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.memory-hit:hover,
+.memory-hit:focus-visible {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* A row gone to from a search hit says where it is. */
+.memory-record:focus,
+.memory-decision:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The tabs, each a tab's one line and its own filters and buttons at the right. */
+.memory-tabs {
+  padding: 0;
+}
+
+.memory-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.memory-panel[hidden] {
+  display: none;
+}
+
+.memory-tab-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.memory-tab-head > :first-child {
+  flex: 1;
+  min-width: 220px;
+}
+
+.memory-filter {
+  width: auto;
+}
+
+/* One record, one row: what it says, and its buttons at the row's end. */
+.memory-row-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.memory-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.memory-look {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-found-head {
+  margin: 10px 0 6px;
+  font-size: 12px;
+}
+
+.memory-said-text {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The project's backlog (slice 52): its page is laid out as the memory's. */
+.backlog-grip {
+  display: inline-flex;
+  cursor: grab;
+}
+
+/* What was written in lines keeps them. */
+.backlog-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.backlog-status {
+  width: auto;
+}
+
+/* What waits for you, and your tasks: one row each, in one box. */
+.backlog-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.backlog-rows > * + * {
+  border-top: 1px solid var(--border);
+}
+
+.backlog-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.backlog-task > .memory-edit,
+.backlog-more {
+  padding: 4px 12px 12px;
+}
+
+.backlog-more {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.backlog-row-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-body);
+}
+
+.backlog-fold {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+/* A row's second line. What waits for your word is never cut: it is read whole before its button. */
+.backlog-sub {
+  color: var(--muted);
+  font-size: var(--text-meta);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A task's state line: cut at the row's end, whole once the row is opened. */
+.backlog-task:not(.backlog-open) .backlog-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.backlog-warn {
+  color: var(--warn);
+}
+
+/* Adding a task: one line, the rest of the task under it once a title is typed. */
+.backlog-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.backlog-add:focus-within {
+  border-color: var(--accent);
+}
+
+.backlog-add-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+/* (Its frame is the box's: the box shows the focus.) */
+.backlog-add-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-body);
+  outline: none;
+}
+
+/* What waits for your word: one line above the tabs, its notes unfolded under it. */
+.memory-waiting {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--warn);
+}
+
+.memory-waiting-line {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--warn);
+  font: inherit;
+  font-size: var(--text-note);
+  cursor: pointer;
+}
+
+.memory-waiting > .memory-section {
+  margin-top: 0;
+}
+
+.memory-section > h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+.memory-add {
+  align-items: flex-end;
+}
+
+.memory-form .more .memory-row {
+  margin-top: 8px;
+}
+
+/* While you're away (slice 106): the Lead's card in the chat, the night on the To-do page and in the top bar,
+   and the morning's report on the canvas. The night's colour is the Files tools' blue, which reads on every ground. */
+.away-card {
+  border: 1.5px solid var(--tool-files);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+  max-width: 640px;
+}
+.away-head {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-heading);
+}
+.away-moon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--tool-files);
+  color: var(--surface);
+  display: grid;
+  place-items: center;
+  font-size: var(--text-note);
+}
+.away-tasks,
+.away-jobs,
+.away-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.away-task,
+.away-job {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--c, var(--border-strong));
+  border-radius: var(--radius);
+  padding: 7px 10px;
+  background: var(--panel);
+}
+.away-n,
+.away-mark {
+  min-width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: var(--text-meta);
+  font-weight: 600;
+}
+.away-n {
+  background: var(--accent-fill);
+  color: var(--accent-fg);
+}
+.away-mark {
+  border: 1.5px solid currentColor;
+  color: var(--c, var(--muted));
+}
+.away-grow {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.away-line,
+.away-tag {
+  font-size: var(--text-note);
+}
+.away-tag {
+  color: var(--c, var(--muted));
+  font-weight: 600;
+  white-space: nowrap;
+}
+.away-done {
+  --c: var(--ok);
+}
+.away-working {
+  --c: var(--accent);
+}
+.away-waits {
+  --c: var(--warn);
+}
+.away-failed {
+  --c: var(--del);
+}
+.away-now {
+  font-size: var(--text-mono);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  justify-self: start;
+}
+.away-view {
+  font-style: italic;
+  font-size: var(--text-note);
+}
+.away-shared {
+  color: var(--warn);
+  font-size: var(--text-note);
+}
+.away-ask {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.away-add {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--accent);
+  padding: 5px;
+  font: inherit;
+  cursor: pointer;
+}
+.away-rules li {
+  font-size: var(--text-note);
+}
+.away-inline {
+  display: inline-block;
+  width: auto;
+  margin: 0 3px;
+  padding: 0 6px;
+}
+.away-said {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.away-from {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+}
+.away-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border: 1.5px solid var(--tool-files);
+  border-radius: var(--radius-lg);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+.away-strip > b {
+  color: var(--tool-files);
+}
+.away-meter {
+  width: 140px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+}
+.away-meter i {
+  display: block;
+  height: 100%;
+  background: var(--tool-files);
+}
+.away-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.away-pill {
+  border: 1px solid var(--tool-files);
+  color: var(--tool-files);
+  background: var(--surface);
+  border-radius: 99px;
+  padding: 2px 10px;
+  font: inherit;
+  font-size: var(--text-note);
+  font-weight: 500;
+  cursor: pointer;
+}
+.away-report {
+  display: grid;
+  gap: 8px;
+}
+.away-sums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.away-sums > span {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  color: var(--c);
+  font-size: var(--text-note);
+}
+.away-sums b {
+  font-size: var(--text-heading);
+}
+.away-sec h4 {
+  margin: 4px 0;
+  font-size: var(--text-body);
+}

@@ -1,0 +1,43 @@
+{
+  "codex": {
+    "label": "Codex",
+    "measured": ["0.163.0", "0.164.0"],
+    "names": [
+      "initialize", "thread/start", "turn/start", "turn/started", "turn/completed",
+      "turn/steer", "item/started", "item/completed", "item/commandExecution/requestApproval",
+      "item/fileChange/requestApproval", "item/fileChange/patchUpdated",
+      "mcpServer/elicitation/request", "thread/tokenUsage/updated", "account/rateLimits/read",
+      "account/rateLimits/updated", "approvalsReviewer", "writableRoots"
+    ]
+  },
+  "claude": {
+    "label": "Claude Code",
+    "measured": ["2.1.310", "2.1.311", "2.1.312"],
+    "names": [
+      "control_request", "control_response", "control_cancel_request", "initialize",
+      "hook_callback", "can_use_tool", "interrupt", "hooks_applied", "PreToolUse",
+      "permissionDecision", "updatedInput", "task_notification", "--input-format",
+      "--permission-prompt-tool", "--disable-slash-commands", "--setting-sources",
+      "--strict-mcp-config", "--no-session-persistence", "disableAllHooks"
+    ]
+  },
+  "copilot": {
+    "label": "GitHub Copilot CLI",
+    "measured": ["1.0.91", "1.0.103"],
+    "names": [
+      "ping", "protocolVersion", "sandbox.getHostSupport", "session.create", "session.send",
+      "session.event", "session.permissions.handlePendingPermissionRequest",
+      "permission.requested", "assistant.message", "tool.execution_start",
+      "tool.execution_complete", "session.idle", "session.error", "model.call_start",
+      "account.getQuota", "auth.getStatus", "--headless", "--stdio"
+    ]
+  },
+  "agy": {
+    "label": "agy",
+    "measured": ["1.3.3", "1.4.7", "1.4.8"],
+    "names": [
+      "PreToolUse", "toolCall", "step_update", "run_command", "view_file", "write_to_file",
+      "replace_file_content", "--output-format", "--add-dir"
+    ]
+  }
+}

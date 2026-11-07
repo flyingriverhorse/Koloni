@@ -1,0 +1,396 @@
+/* Triggers: their page, their place in the top bar, and what a turn nobody watched says in the chat.
+   Every colour is the theme's: nothing here is right in one theme only. */
+
+.triggers-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+.triggers-page > * {
+  width: 100%;
+  max-width: var(--page-w);
+}
+
+.trigger-card,
+.trigger-form,
+.trigger-key {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.trigger-form {
+  gap: 14px;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.trigger-key h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+  overflow-wrap: anywhere;
+}
+
+/* The page's one line, beside its title; the rest behind ⓘ. */
+.trigger-lede {
+  flex: 1;
+  margin: 0 14px;
+  font-size: var(--text-note);
+}
+
+/* A trigger as one sentence - when → what - with its switch before it, and Run now and ⋯ after it. */
+.trigger-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.trigger-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.trigger-sentence {
+  font-size: var(--text-body);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.trigger-sentence strong {
+  color: var(--accent);
+  font-weight: var(--weight-strong);
+}
+
+.trigger-sub {
+  color: var(--muted);
+  font-size: var(--text-note);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.trigger-sub .tag {
+  padding: 0 6px;
+}
+
+.trigger-name {
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}
+
+/* Switched off, a trigger starts nothing: its row steps back, but stays readable. */
+.trigger-off .trigger-sentence,
+.trigger-off .trigger-sentence strong {
+  color: var(--muted);
+}
+
+/* The New trigger list: a name and a line under it for each. */
+.menu-wide {
+  width: 400px;
+}
+
+.msg-menu.menu-wide button {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.msg-menu .menu-last {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+
+/* No trigger yet: the page says so, and the button to make one is right there. */
+.trigger-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.trigger-week {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.trigger-week legend {
+  margin-bottom: 5px;
+  padding: 0;
+  font-size: var(--text-note);
+  color: var(--muted);
+}
+
+.trigger-off-why {
+  font-size: var(--text-body);
+  line-height: 1.45;
+}
+
+.trigger-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px 14px;
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.45;
+}
+
+.trigger-facts dt {
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+.trigger-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* It may do more than read: said in the colour of a warning, not of a success. */
+.trigger-may {
+  color: var(--warn);
+}
+
+/* An agent's proposed message, whole (slice 69): what each run is told is read before it is approved. */
+.trigger-proposal-message {
+  margin: 4px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  font-size: var(--text-note);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.trigger-card .role-actions,
+.trigger-form .role-actions,
+.trigger-key .role-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.trigger-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.trigger-run {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-note);
+  text-align: left;
+}
+
+button.trigger-run {
+  cursor: pointer;
+}
+
+button.trigger-run:hover {
+  background: var(--hover);
+}
+
+/* What was made and changed: plain rows, under a card and for the whole project. */
+.trigger-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.trigger-changes li {
+  padding: 0 8px;
+  color: var(--text);
+  font-size: var(--text-note);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.trigger-record {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* --- the form --------------------------------------------------------------------------- */
+
+.trigger-leave {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.trigger-leave legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+.trigger-note {
+  margin: 0;
+  font-size: var(--text-note);
+  line-height: 1.5;
+}
+
+.trigger-number {
+  width: 120px;
+}
+
+.trigger-pair,
+.trigger-budget {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trigger-add {
+  display: flex;
+  gap: 8px;
+}
+
+.trigger-add .input {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .trigger-pair,
+  .trigger-budget {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- a webhook's address, shown once ------------------------------------------------------- */
+
+.trigger-key {
+  box-shadow: 0 0 0 1px var(--warn);
+}
+
+.trigger-address {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trigger-address code {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--border);
+  font-size: var(--text-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.trigger-key-warn {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+/* --- the top bar -------------------------------------------------------------------------- */
+
+.triggers-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.triggers-paused .triggers-count,
+.hold-held {
+  box-shadow: 0 0 0 1px var(--warn);
+  color: var(--warn);
+}
+
+/* Stop everything (shell/HoldStatus.tsx), and Pause all beside the triggers' count. Held, it always says so in words.
+   shortcut: under 1400 px, not held, each shows its icon alone (its name and title stay), so that the bar keeps to one
+   line while a turn runs (slice 65, B-174); give them a place in a menu if the icon alone is missed there. Held, it
+   says "Held" alone there - Resume is in its panel - and the lead's context gives way to it, as under 1100 px
+   (theme/base.css; B-180). B-195: 1400, not 1280 - with a turn that waits for you and a trigger on, the bar took two
+   lines from 1280 to 1389 px. */
+@media (max-width: 1399px) {
+  .btn:not(.hold-held) > .hold-words,
+  .hold-resume,
+  .topbar:has(.hold-held) .topbar-context {
+    display: none;
+  }
+}
+
+.hold-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+/* --- the chat ----------------------------------------------------------------------------- */
+
+.trigger-badge {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.would-ask ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.would-ask li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  overflow-wrap: anywhere;
+}
+
+.would-ask-allow {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-note);
+  text-decoration: underline;
+  cursor: pointer;
+}

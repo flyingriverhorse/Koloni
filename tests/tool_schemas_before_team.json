@@ -1,0 +1,81 @@
+{
+ "spawn_agent": {
+  "type": "function",
+  "function": {
+   "name": "spawn_agent",
+   "description": "Hand a separate part of the work to a sub-agent in one of the roles below and get its report back. The sub-agent starts with a clean context: it sees only the task you write, not this conversation. You wait while it works.\nAvailable roles:\n- Coder — Writes code.\n- Reviewer — Reads and reports.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "role": {
+      "type": "string",
+      "description": "Name of one of the available roles."
+     },
+     "task": {
+      "type": "string",
+      "description": "What the sub-agent should do, with everything it needs to know: the goal; what done looks like (a check it can run, or a question its report must answer); the files or part of the project; what it must not touch; the shape of the report you want."
+     }
+    },
+    "required": [
+     "role",
+     "task"
+    ]
+   }
+  }
+ },
+ "message_agent": {
+  "type": "function",
+  "function": {
+   "name": "message_agent",
+   "description": "Send a message to another agent of this turn and get its reply. It takes a turn in its own context while you wait; it remembers its own work, not yours, so say what it needs to know. An agent you open later can be messaged, once it has finished, by the name spawn_agent returns.\nNobody can be reached yet.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "to": {
+      "type": "string",
+      "description": "The agent's name, as listed."
+     },
+     "message": {
+      "type": "string",
+      "description": "What you want to tell or ask it."
+     }
+    },
+    "required": [
+     "to",
+     "message"
+    ]
+   }
+  }
+ },
+ "discuss": {
+  "type": "function",
+  "function": {
+   "name": "discuss",
+   "description": "Open a discussion: you and the agents you name talk about one topic in a shared place, in rounds, each reading what the others said. Nobody changes anything while it lasts. You speak last in each round. It ends when nobody has anything to add, at the round limit, when its speakers have used more tokens than the conversation's budget for a discussion, or when the user ends it; you get back everything that was said. Use it when a decision is better made with other views - how to fix something, which of two designs - before you hand out the work.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "topic": {
+      "type": "string",
+      "description": "What to talk about, with everything the others need to know to have a view."
+     },
+     "with": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "1 to 5 names: an agent of this turn that has finished or is waiting (e.g. Coder, Reviewer 2), or a role (a new agent is opened in that role for the discussion)."
+     },
+     "rounds": {
+      "type": "integer",
+      "description": "At most how many rounds, 1 to 20. Default 3."
+     }
+    },
+    "required": [
+     "topic",
+     "with"
+    ]
+   }
+  }
+ }
+}

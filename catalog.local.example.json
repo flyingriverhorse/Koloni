@@ -1,0 +1,16 @@
+{
+ "providers": {
+  "Local": [
+   {"name": "qwen3.8-27b", "tier": "balanced", "note": "Runs on this machine: free, and slower",
+    "inputs": ["image"]}
+  ],
+  "My service": [
+   {"name": "my-model", "tier": "strongest", "note": null, "efforts": ["low", "high"]}
+  ]
+ },
+ "models": {
+  "claude_cli": [
+   {"name": "sonnet", "tier": "strongest", "note": null}
+  ]
+ }
+}

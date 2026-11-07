@@ -1,0 +1,83 @@
+name: Guide
+
+# The site https://koloni.skyulf.com: pages/ at the root, the user guide (docs, zensical.toml) at
+# /manual/, pushed to the gh-pages branch. By hand (Actions -> Guide -> Run workflow), and on each
+# push to main that changes them once the repository variable PAGES_ENABLED is 'true'. Needs
+# Settings -> Pages -> Source: Deploy from a branch, gh-pages / (root). See .github/CI.md.
+# (Checking the guide on pull requests is docs-check.yml.)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'pages/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One publish at a time; one in progress is not cut off.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # Read-only: Zensical and its dependencies run without a token that can write.
+  build:
+    if: github.event_name == 'workflow_dispatch' || vars.PAGES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      # check_docs.py builds the site, then fails on a broken link or anchor, a diagram's missing
+      # source or a setting the app no longer shows: a stale guide is not published.
+      - name: Build and check the guide
+        run: |
+          pip install "zensical==0.0.74"
+          python scripts/check_docs.py
+      # The guide goes under manual/ (not site/, which GitHub Pages would hide). The guide's 404
+      # page is also the site's: its links start with /manual/, so it works at the root.
+      - name: Put the site together
+        run: |
+          mkdir deploy
+          cp -r pages/. deploy/
+          rm deploy/README.md
+          cp -r runtime/site deploy/manual
+          cp runtime/site/404.html deploy/404.html
+      - uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: deploy
+          include-hidden-files: true  # .nojekyll
+          retention-days: 1
+
+  deploy:
+    needs: build
+    # Only main is published; a hand run on another branch builds and checks only.
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # As in Skyulf's working docs.yml, peaceiris runs after a checkout (no token left in it).
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: site
+          path: deploy
+      # force_orphan: gh-pages holds one commit, the site as built now; the history is main's.
+      - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./deploy
+          publish_branch: gh-pages
+          force_orphan: true

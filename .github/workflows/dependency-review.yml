@@ -1,0 +1,36 @@
+# Blocks a pull request that adds a dependency with a known high or critical vulnerability, before
+# it merges (Dependabot and security.yml see only what is already on main). On a private repository
+# it needs GitHub Code Security, so it runs nothing until the repository variable CODE_SECURITY is
+# 'true' (see .github/CI.md).
+name: Dependency review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pyproject.toml'
+      - 'requirements-dev.lock'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Scan changed dependencies
+    if: vars.CODE_SECURITY == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write  # the summary comment
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

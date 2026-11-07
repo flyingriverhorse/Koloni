@@ -1,0 +1,59 @@
+# Keeps a draft GitHub Release for the version in pyproject.toml, its notes cut from CHANGELOG.md
+# (.github/scripts/release_notes.py --draft: the [X.Y.Z] section, or [Unreleased] until the version
+# is cut). Only a draft: release.yml publishes it when the tag v<version> is pushed, and a release
+# already published is never touched here.
+name: Release draft
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'CHANGELOG.md'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-draft
+  cancel-in-progress: true
+
+jobs:
+  draft:
+    name: Draft the release from the changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # create and edit the draft release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Cut the notes
+        id: notes
+        # Exit 3: no entries yet (an empty [Unreleased]); no draft to make, not a failure.
+        run: |
+          status=0
+          python .github/scripts/release_notes.py --draft > "$RUNNER_TEMP/notes.md" || status=$?
+          if [ "$status" = 3 ]; then
+            echo "::notice::CHANGELOG.md has no entries for the next version yet; no draft."
+          elif [ "$status" != 0 ]; then
+            exit "$status"
+          fi
+      - name: Create or update the draft
+        if: steps.notes.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ steps.notes.outputs.version }}
+        run: |
+          draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          case "$draft" in
+            true) gh release edit "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" ;;
+            false) echo "$TAG is already published; its notes are left as they are." ;;
+            *) gh release create "$TAG" --draft --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" ;;
+          esac

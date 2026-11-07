@@ -1,0 +1,1819 @@
+/* Canvas, node cards, tool rows and the inspector. */
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  /* The turn, and under it its timeline while that is open (slice 44). */
+  flex-direction: column;
+}
+
+/* Where the turn is drawn: the whole stage, less the timeline. */
+.canvas-flow {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+}
+
+.canvas-empty {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* The bee stands over the line, out of its flow: the first steps below keep their place. */
+.canvas-empty-bee {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.react-flow {
+  --xy-background-color: var(--bg);
+  --xy-node-border-radius: var(--radius);
+  --xy-handle-background-color: var(--bg);
+  --xy-handle-border-color: var(--border-strong);
+  --xy-controls-button-background-color: var(--panel);
+  --xy-controls-button-background-color-hover: var(--surface);
+  --xy-controls-button-color: var(--text);
+  --xy-controls-button-color-hover: var(--text);
+  --xy-controls-button-border-color: var(--border);
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  border-width: 1.5px;
+}
+
+.react-flow__controls {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.node {
+  width: 220px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow:
+    var(--shadow-sm),
+    0 4px 14px rgba(0, 0, 0, 0.08);
+  cursor: grab;
+}
+
+.node-running {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 5px var(--accent-soft);
+}
+
+.node-approval {
+  box-shadow:
+    0 0 0 1px var(--warn),
+    0 0 0 5px color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+.node-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* The user's (5 Nov): a node is three lines at most - its head, and two under it - in layout.ts's NODE_H (30 + 50). */
+.node-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.node-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.node-title {
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-label {
+  margin-left: auto;
+  max-width: 96px;
+  font-size: var(--text-meta);
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 50px;
+  padding: 6px 10px;
+}
+
+.node-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: var(--text-note);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.node-text-one {
+  -webkit-line-clamp: 1;
+}
+
+.node-line {
+  font-size: var(--text-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-meta {
+  font-size: var(--text-meta);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-meta .tag {
+  padding: 0 5px;
+  font-size: var(--text-kicker);
+}
+
+.node-meta .tag + .tag {
+  margin-left: 4px;
+}
+
+/* --- groups --------------------------------------------------------------
+   The files attached to a message, past a few, are a box: the canvas gives it its size and places them inside it
+   (FILES_HEAD in canvas/layout.ts). */
+
+.node.group {
+  width: 100%;
+  height: 100%;
+  cursor: default;
+}
+
+.group-head {
+  overflow: hidden;
+  cursor: grab;
+}
+
+.group .node-body {
+  min-height: 0;
+}
+
+/* A file the user attached (slice 85b): small, in its kind's colour (layout.ts FILE_H, FILES_HEAD). */
+.node-attachment {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  width: 220px;
+  height: 52px;
+  padding: 6px 9px;
+  border-left: 3px solid var(--c);
+}
+
+.node-attachment .file-ic {
+  width: 28px;
+  height: 28px;
+  font-size: 9.5px;
+}
+
+.node-attachment .node-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-attachment .att-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-group > .files-head {
+  height: 40px;
+  padding: 0 9px;
+}
+
+/* Open, it is a frame around its nodes rather than a card among them. */
+.group-open {
+  background: var(--panel);
+  box-shadow:
+    0 0 0 1px var(--border-strong),
+    0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.group-open.node-running {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 5px var(--accent-soft);
+}
+
+.group-open.node-approval {
+  box-shadow:
+    0 0 0 1px var(--warn),
+    0 0 0 5px color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+.group-open > .group-head > .node-head {
+  border-bottom-color: transparent;
+}
+
+.group-fold {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.group-fold:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Where findings handed on leave and come in (slice 84c), and where a team's line meets its card
+   (K-shared-bagli, its door drawn by the line): only the line shows. */
+.react-flow__handle.found-handle,
+.react-flow__handle.shared-handle {
+  opacity: 0;
+}
+
+/* K-canvas-dili (W). A team frame's door, by its header: where the Lead's line comes in and its work line starts. */
+.react-flow__handle.team-door {
+  top: 38px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--border-strong);
+  background: var(--bg);
+}
+
+/* batch-26: where a frame's line to Ready for you leaves it - low on its right edge (layout.ts TEAM_OUT), under the
+   card at its top-right; the layout makes a frame tall enough for that. */
+.react-flow__handle.team-out {
+  top: auto;
+  bottom: 18px;
+}
+
+/* A recipe's steps at once, round their agents in the frame: a dashed box, its name at its top. */
+.team-at-once {
+  position: absolute;
+  padding: 2px 8px;
+  border: 1px dashed color-mix(in srgb, var(--team) 60%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--team) 5%, var(--bg));
+  color: var(--muted);
+  font-size: var(--text-meta);
+  pointer-events: none;
+}
+
+/* Where a line across leaves one frame and comes into the other. */
+.edge-door {
+  fill: var(--bg);
+  stroke: var(--tool-team);
+  stroke-width: 2;
+}
+
+/* Talk on a line: the last words and how many messages, a button that shows who said what. */
+/* K-shared-bagli (mockup Z3; cards, batch-26): a small card by each team's frame (or agent, or the Lead): its rows by
+   kind - file, notebook, memory - at most two of each, its edge in its team's colour. Its heights are the layout's
+   (layout.ts BLOCK_WHO, BLOCK_ROW, BLOCK_PAD, CARD_EDGE). */
+.shared-block {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--k) 55%, var(--border));
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: var(--text-note);
+}
+
+.shared-who {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-meta);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* (Its team's colour: a mark, never text to read.) */
+.shared-who::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--k);
+}
+
+.shared-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  height: 20px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+}
+
+button.shared-row {
+  width: 100%;
+  cursor: pointer;
+}
+
+button.shared-row:hover,
+.shared-who:hover {
+  background: var(--hover);
+}
+
+.shared-kind {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.03em;
+}
+
+.shared-kind-file {
+  color: var(--request);
+}
+
+.shared-kind-notebook {
+  color: var(--tool-team);
+}
+
+.shared-kind-memory {
+  color: var(--tool-memory);
+}
+
+.shared-kind-output {
+  color: var(--accent);
+}
+
+.shared-said,
+.shared-row .shared-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shared-row .shared-name {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--text-mono);
+  text-align: left;
+}
+
+.shared-take,
+.shared-taken {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--text-meta);
+}
+
+.shared-taken {
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shared-more {
+  padding-left: 8px;
+  font-size: var(--text-meta);
+}
+
+/* A request between teams in the chat (K-takimlar-arasi): who asked which team for what, and how it stands. */
+.request-card {
+  margin: 6px 0;
+  padding: 7px 9px;
+  border: 1px solid var(--request);
+  border-radius: 9px;
+  font-size: var(--text-body);
+}
+
+.request-card-who {
+  color: var(--request);
+  text-transform: uppercase;
+}
+
+.request-card-line {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  text-align: left;
+}
+
+/* A request between teams (K-takimlar-arasi): its label on its line, dashed while it is at work; and its badges on the
+   agents - who asked whom. */
+.edge-request {
+  position: absolute;
+  padding: 1px 6px;
+  border: 1px dashed var(--request);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--request);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: all;
+}
+
+.edge-request-done {
+  border-style: solid;
+}
+
+.edge-talk {
+  position: absolute;
+  max-width: 220px;
+  padding: 1px 6px;
+  border: 1px solid var(--tool-team);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  pointer-events: all;
+}
+
+/* Its pair's colour (who talked with whom), beside the count. */
+.edge-talk-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+/* "Fold all", beside the canvas's controls in the corner rather than over the work. */
+.canvas-fold-all {
+  margin-right: 56px;
+}
+
+/* Findings handed back, said at the top (or foot) of their arc. */
+.edge-arc {
+  position: absolute;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--warn);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* An agent or a talk line picked: only its lines stay; what is not its fades, the frames a little. */
+.react-flow__node.canvas-faded,
+.edge-faded {
+  opacity: 0.2;
+}
+
+.react-flow__edge.edge-faded {
+  opacity: 0.12;
+}
+
+.react-flow__node.canvas-dim {
+  opacity: 0.55;
+}
+
+/* Who said what on what is picked (W's box). */
+/* Who said what (the user's, 5 Nov): a short conversation - a title bar, then a bubble a message, the two sides left and
+   right, the sender in its pair's colour (--pair, the line's), the words in the text colour; SAID_BOX big at most. */
+.canvas-said {
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  max-height: 320px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-note);
+  user-select: text;
+  cursor: auto;
+}
+
+/* Moved by the user (shell/move.ts): its left and foot, kept on a canvas grown smaller since - made shorter, its head
+   in view, rather than off its top. */
+.react-flow .react-flow__panel.canvas-said.moved {
+  top: auto;
+  right: auto;
+  margin: 0;
+  transform: none;
+  left: clamp(0px, var(--x), 100% - 360px);
+  bottom: clamp(0px, var(--y), 100% - 80px);
+  max-height: min(320px, 100% - clamp(0px, var(--y), 100% - 80px));
+}
+
+.canvas-said-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.canvas-said-head:active {
+  cursor: grabbing;
+}
+
+.canvas-said-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-said-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.said-bubble {
+  align-self: flex-start;
+  max-width: 85%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pair);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--pair) 7%, var(--surface));
+  color: var(--text);
+}
+
+.said-bubble.said-right {
+  align-self: flex-end;
+  border-left-width: 1px;
+  border-right: 3px solid var(--pair);
+}
+
+.said-who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+  font-size: var(--text-meta);
+}
+
+/* (Its pair's colour, toward the text colour: read at 4.5 or more in both themes.) */
+.said-who > b {
+  color: color-mix(in srgb, var(--pair) 55%, var(--text));
+}
+
+.said-bubble p,
+.said-findings {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.said-findings {
+  padding-left: 16px;
+  white-space: normal;
+}
+
+/* Its label stands beside the line, not over it (slice 84d): moved by its own width, ground and words alike. */
+.edge-findings .react-flow__edge-text,
+.edge-findings .react-flow__edge-textbg {
+  transform-box: fill-box;
+  transform: translateX(calc(50% + 6px));
+}
+
+/* An agent at work (slice 84d): the dot of what it does now blinks, and the lines of work at work flow. */
+.node-now .status::before {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-now .status::before,
+  .react-flow .react-flow__edge.animated path {
+    animation: none;
+  }
+}
+/* --- Recent (slice 107) ----------------------------------------------------
+   Opened in the top bar: the last few messages. The canvas draws the work of the one picked. */
+
+.turns {
+  position: relative;
+  flex: none;
+}
+
+.turns-button svg {
+  flex: none;
+}
+
+.turn-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 300px;
+  max-height: calc(100vh - 80px);
+  padding: 10px 8px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+  white-space: normal;
+}
+
+.turn-list-dot {
+  color: var(--warn);
+}
+
+.turn-list section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The small headings on the panel take the muted colour, as on the cards. */
+.turn-list .kicker {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--muted);
+}
+
+.turn-list-hint,
+.turn-list-empty {
+  margin: 0;
+  padding: 0 4px;
+  font-size: var(--text-meta);
+  line-height: 1.4;
+}
+
+/* The topic of the message drawn, renamed here. */
+.recent-topic {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.recent-topic span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-rename {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.topic-rename-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px;
+}
+
+.topic-rename-box .input {
+  min-height: 28px;
+  padding: 3px 6px;
+  font-size: var(--text-body);
+}
+
+.turn-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A message's row, and Restore to before it under it (slice 107). */
+.recent-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.recent-restore {
+  margin-left: 8px;
+  font-size: var(--text-meta);
+}
+
+.turn-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.turn-row:hover {
+  background: var(--hover);
+}
+
+.turn-row[aria-current='true'] {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.turn-row-text {
+  max-width: 100%;
+  font-size: var(--text-body);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.turn-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.turn-row-waits {
+  font-size: var(--text-kicker);
+}
+
+/* --- tool rows ----------------------------------------------------------- */
+
+.tool-row {
+  flex: none;
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.tool-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 9px;
+  border: 0;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* A command's row: its head, and Stop beside it while it runs. */
+.tool-row-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-row-top > .tool-row-head {
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-row-head:hover {
+  background: var(--hover);
+}
+
+.tool-row-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-row-status {
+  font-size: var(--text-meta);
+}
+
+.tool-row-note {
+  padding: 0 9px 5px 30px;
+  background: var(--surface);
+  font-size: var(--text-meta);
+  overflow-wrap: anywhere;
+}
+
+/* The agent's screenshot under its step (slice 51): small, a click opens it beside the chat. */
+.tool-row-shot {
+  display: block;
+  margin: 0 9px 6px 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: zoom-in;
+}
+
+.tool-row-shot img {
+  display: block;
+  max-width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+}
+
+.tool-row-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 9px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.tool-row-detail pre {
+  max-height: 240px;
+  margin: 0 0 4px;
+  font-size: var(--text-mono);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+/* An agent's calls in a row, one line (K-ozet-satiri); opened, its rows under the head, a step in. */
+.tool-run {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.tool-run-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-run-head:hover {
+  background: var(--hover);
+}
+
+.tool-run-what {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-run-count {
+  font-size: var(--text-meta);
+}
+
+.tool-run-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px 8px 30px;
+}
+
+/* --- inspector ----------------------------------------------------------- */
+
+/* It takes its room from the canvas at once, and slides in from the right into it. */
+/* The inspector's width, once: the stage's windows keep clear of it where it lies over the stage (B-157). */
+:root {
+  --inspector-size: 316px;
+}
+
+.inspector {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: var(--inspector-size);
+  min-height: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  animation: inspector-in 160ms ease-out;
+}
+
+@keyframes inspector-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector {
+    animation: none;
+  }
+}
+
+.insp-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px 10px 16px;
+}
+
+.insp-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.insp-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.insp-title {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.insp-sub {
+  font-size: var(--text-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.insp-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 14px 16px 20px;
+  overflow-y: auto;
+}
+
+.insp-request {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tabs {
+  flex: none;
+  display: flex;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-body);
+  cursor: pointer;
+}
+
+.tab[aria-selected='true'] {
+  color: var(--text);
+  box-shadow: inset 0 -1.5px 0 var(--accent);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px 16px;
+  margin: 0;
+  font-size: var(--text-body);
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  font-size: var(--text-note);
+  overflow-wrap: anywhere;
+}
+
+/* A list read as one line of text, its commas in its items (R167). */
+.inline-list,
+.inline-list li {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 1199px) {
+  .inspector {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 8;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* B-157: lying over the stage's right side, the inspector is kept clear of by the windows over the stage - the
+     agent's, a discussion's, a room's, Workspace - and the Teams button: they stand to its left (--inspector-w). */
+  .stage:has(~ .inspector) {
+    --inspector-w: var(--inspector-size);
+  }
+}
+
+/* An agent's first line: its name, read in full, then its model, muted, cut first. */
+.node-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  white-space: nowrap;
+}
+
+.node-names .node-title {
+  flex: none;
+  max-width: 100%;
+}
+
+.node-where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+/* "Follow running" while it is on: the honey of what is chosen. */
+.react-flow__controls-button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.canvas-legend {
+  width: 380px;
+}
+
+.legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-note);
+}
+
+.legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-list svg {
+  flex: none;
+}
+
+.legend-states {
+  flex-flow: row wrap;
+  gap: 4px 14px;
+}
+
+.legend-ring {
+  flex: none;
+  width: 22px;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.legend-ring-running {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+
+.legend-ring-approval {
+  box-shadow:
+    0 0 0 1px var(--warn),
+    0 0 0 4px color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+/* --- the timeline (slice 44) --------------------------------------------- */
+
+/* A strip under the canvas, as tall as its edge was left at: the turn's agents in time. The
+   windows over the stage stand on it (base.css --timeline-h); one opened over it lies over it. */
+.timeline {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* As TimelineStrip says the windows stand on: on a window made shorter since it was opened, too. */
+  max-height: 60%;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-note);
+}
+
+/* Its top edge: dragged, or moved with the arrow keys, it makes the strip taller or shorter. */
+.timeline-edge {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  height: 8px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.timeline-edge:hover,
+.timeline-edge:focus-visible {
+  background: var(--accent-soft);
+}
+
+.tl-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 8px 4px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tl-totals {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  margin: 0;
+}
+
+.tl-totals > div {
+  display: flex;
+  gap: 6px;
+}
+
+.tl-totals dt {
+  color: var(--muted);
+}
+
+.tl-totals dd {
+  margin: 0;
+}
+
+.tl-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* One row an agent, all of the same height: the line from an agent to one it opened is counted in rows. */
+.tl-table {
+  --lane-h: 30px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tl-table th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  padding: 4px 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: var(--weight-strong);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tl-table td {
+  height: var(--lane-h);
+  padding: 0 8px;
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.tl-row:hover td {
+  background: var(--hover);
+}
+
+.tl-name {
+  max-width: 220px;
+  overflow: hidden;
+  padding-block: 2px;
+  padding-inline-end: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tl-name:hover {
+  text-decoration: underline;
+}
+
+/* A CLI's own sub-agent, not one of KOLONİ's: its name slanted, its bar dashed. */
+.tl-cli .tl-name {
+  font-style: italic;
+}
+
+/* However many waits, one line no wider than this; the rest is in its title. */
+.tl-waits {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-waited + .tl-waited {
+  margin-left: 8px;
+}
+
+.tl-marked {
+  display: inline;
+  margin-left: 6px;
+  font-size: var(--text-meta);
+}
+
+.tl-axis::after {
+  content: attr(data-to);
+  float: right;
+  font-family: var(--mono);
+  font-weight: normal;
+}
+
+.tl-table .tl-track {
+  width: 50%;
+  min-width: 240px;
+  padding: 0 12px;
+  overflow: visible;
+  cursor: pointer;
+}
+
+.tl-lane {
+  position: relative;
+  height: var(--lane-h);
+}
+
+/* What it worked: in the colour of its state, its edge too, so the bar is seen on any ground. */
+.tl-bar {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  min-width: 2px;
+  border: 1px solid var(--c);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--c) 22%, var(--surface));
+}
+
+.tl-cli .tl-bar {
+  border-style: dashed;
+}
+
+.tl-bar-work {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Its calls: thin slices inside the bar; one that failed in red. */
+.tl-call {
+  position: absolute;
+  top: 13px;
+  bottom: 13px;
+  z-index: 1;
+  min-width: 2px;
+  background: var(--muted);
+}
+
+.tl-call-failed {
+  background: var(--del);
+}
+
+/* What it waited for: striped, its edge dashed, and said in words on it where there is room. */
+.tl-wait {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  z-index: 2;
+  min-width: 3px;
+  overflow: hidden;
+  border: 1px dashed var(--muted);
+  border-radius: 3px;
+  background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--muted) 30%, transparent) 4px 6px);
+}
+
+.tl-wait-you {
+  border-color: var(--warn);
+  background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--warn) 35%, transparent) 4px 6px);
+}
+
+.tl-wait .tag {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  padding: 0 4px;
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+/* From the agent that opened it, down to where this one begins. */
+.tl-spawn {
+  position: absolute;
+  bottom: 50%;
+  height: calc(var(--up) * var(--lane-h));
+  border-left: 1px dashed var(--border-strong);
+}
+
+.tl-mark {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+}
+
+.tl-mark-bad {
+  color: var(--del);
+}
+
+.tl-mark-stop {
+  color: var(--muted);
+}
+
+/* "Teams for this chat" (slice 84b): its button over the canvas's top right, its window under it. */
+.chat-teams {
+  position: absolute;
+  top: 14px;
+  right: calc(14px + var(--inspector-w, 0px));
+  z-index: 6;
+}
+
+/* An agent's or a discussion's window stands in the same corner (.agent-window): the button goes to its left, by its
+   width. shortcut: one resized wider, or a stage too narrow for both, still lies over the button; move the button into
+   the top bar if that is met. */
+.stage:has(> .agent-window) > .chat-teams {
+  --room: calc(100% - var(--inspector-w, 0px));
+  right: calc(22px + var(--inspector-w, 0px) + max(min(320px, calc(var(--room) - 28px)), min(520px, calc(var(--room) - min(480px, var(--room) - 28px) - 42px))));
+}
+
+.chat-teams > .btn {
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.chat-teams-panel {
+  width: 380px;
+}
+
+.chat-team-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.chat-team-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-team-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-team-picks .input {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chat-team-by {
+  font-size: var(--text-meta);
+}
+
+.chat-team-tools {
+  display: flex;
+  flex: none;
+}
+
+/* A row's run and its team's colour in "Teams for this chat" (slice 84b-2). */
+.chat-team-row {
+  flex-wrap: wrap;
+}
+
+.chat-team-row > .chat-team-by {
+  flex-basis: 100%;
+  order: 3;
+}
+
+.team-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 3px;
+  vertical-align: baseline;
+}
+
+/* An agent that works for a chat team's recipe: its team's colour, a strip on its left. */
+.group-team {
+  border-left: 4px solid var(--team);
+}
+
+/* The user's (4 Nov), in a step with rounds: a finished agent of the newest round is a chip - its name, how it ended -,
+   an earlier round one dashed line that opens its agents under it (layout.ts CHIP_H, ROUND_W, ROUND_H). */
+.node-chip,
+.node-round {
+  height: 32px;
+}
+
+.node-round {
+  width: 100%;
+}
+
+.node-chip-button,
+.node-round-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-round-button {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.node-round-button:hover {
+  border-color: var(--team, var(--accent));
+}
+
+.node-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A chat team's frame (slice 84b-2), behind its agents' boxes: a soft wash of its colour, its header above them. */
+.team-frame {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  border: 1.5px solid color-mix(in srgb, var(--team) 55%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--team) 6%, transparent);
+  cursor: default;
+}
+
+.team-frame.team-ready,
+.team-frame.team-done,
+.team-frame.team-in {
+  border-color: color-mix(in srgb, var(--ok) 60%, transparent);
+}
+
+.team-frame.team-stopped,
+.team-frame.team-failed,
+.team-frame.team-interrupted {
+  border-style: dashed;
+}
+
+.team-shut {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* (Scoped: the Agents page's .team-head, a flex row, came later and put the steps beside the title - B-139.) */
+.team-frame > .team-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+/* B-139: one line at the frame's width, whatever its buttons: the words give way (cut short), the buttons never do -
+   live, Stop and Finish now pushed it out of the frame and over the steps. */
+.team-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.team-title > * {
+  flex: none;
+}
+
+.team-title > .team-name,
+.team-title > .team-recipe,
+.team-title > .team-tokens {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-name {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.team-tick,
+.ready-ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.team-recipe {
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 99px;
+  background: var(--surface);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+
+.team-tokens {
+  margin-left: auto;
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+
+/* (On one line too, in the head's height the layout keeps: a long step's words are cut short, its name on hover.) */
+.team-steps {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-meta);
+}
+
+.team-step {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.team-step-done {
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  color: var(--ok);
+}
+
+/* B-83: a step its runner ended before - dashed and struck, its word said too. */
+.team-step-skipped {
+  border-style: dashed;
+  border-color: var(--warn);
+  text-decoration: line-through;
+}
+
+/* A step passed as no problem was found before it: dashed, quiet - nothing went wrong. */
+.team-step-unmet {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* The step now: filled. (The text is the theme's own on a wash of the team's colour: readable in both themes.) */
+.team-step-now {
+  border-color: var(--team);
+  background: color-mix(in srgb, var(--team) 30%, var(--surface));
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* A Room step (slice 84e): its roles meet in one room. */
+.team-step-room {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--team) 18%, transparent);
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+/* Under its agents' boxes, at the frame's foot. */
+.team-foot {
+  margin: auto 0 0;
+  padding: 0 12px 8px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.team-ready .team-foot,
+.team-done .team-foot,
+.team-in .team-foot {
+  color: var(--ok);
+}
+
+/* Where the teams meet: dashed while it waits, in the accent once it needs the user. */
+.ready-node {
+  width: 300px;
+  cursor: default;
+}
+
+/* Where the frames' lines come in: by its header, at a height the layout knows (layout.ts READY_DOOR), so that they pass
+   over the discussions' lane left of it. */
+.react-flow__handle.ready-door {
+  top: 24px;
+}
+
+.ready-waits {
+  box-shadow: none;
+  outline: 1.5px dashed var(--border-strong);
+}
+
+.ready-needs {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.ready-in {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ok) 60%, transparent);
+}
+
+.ready-node .node-body {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px 10px;
+}
+
+.ready-row {
+  padding: 5px 0 5px 8px;
+  border-left: 3px solid var(--team);
+  font-size: var(--text-meta);
+}
+
+.ready-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ready-check {
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+  border-radius: 99px;
+  color: var(--ok);
+  font-size: var(--text-meta);
+}
+
+.ready-check-left {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--warn);
+}
+
+.ready-check-none {
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+/* What waits for you, in one line, and the way to the chat's list where it is answered (K-bekleyenler). */
+.ready-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* The morning's report of a night while you were away (slice 106): wide, with what it says to do. */
+.away-node {
+  width: 560px;
+  cursor: default;
+  border: 2px dashed var(--tool-files);
+}
+.away-node .node-body {
+  padding: 8px 10px 10px;
+}
+/* Long, it scrolls in itself: never over the next turn's nodes. */
+.away-node .node-body {
+  max-height: 560px;
+  overflow-y: auto;
+}

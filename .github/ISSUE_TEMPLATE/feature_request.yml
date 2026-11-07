@@ -1,0 +1,23 @@
+name: Feature request
+description: Something KOLONİ should do, or do differently.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The job, and where KOLONİ gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: What you would like to see. A sketch or an example is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: else
+    attributes:
+      label: Anything else
+      description: Other ways you tried, or how another tool does it.

@@ -1,0 +1,56 @@
+{
+  "name": "koloni-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "build": "tsc -b && vite build && vite build -c vite.office.config.ts",
+    "test": "vitest run",
+    "lint": "oxlint",
+    "typecheck": "tsc -b --noEmit",
+    "generate:api": "node scripts/api-types.mjs",
+    "check:api": "node scripts/api-types.mjs --check",
+    "check:complexity": "node scripts/complexity.mjs",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "@xyflow/react": "^12.12.0",
+    "docx-preview": "^0.4.1",
+    "highlight.js": "^11.12.0",
+    "mermaid": "12.2.0",
+    "pptx-preview": "^1.0.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "three": "^0.186.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
+    "oxlint": "^1.81.0",
+    "typescript": "~5.9",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.3"
+  },
+  "overrides": {
+    "pptx-preview": {
+      "uuid": "^14.0.3"
+    }
+  }
+}
