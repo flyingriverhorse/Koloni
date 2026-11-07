@@ -573,11 +573,18 @@ class Workspace:
         return path == self.root or path.is_relative_to(self.root)
 
     @functools.cached_property
-    def _koloni_inside(self) -> list[tuple[PurePath, str]]:
+    def _koloni_inside(self) -> list[tuple[PurePath, str, str]]:
         """KOLONİ's own places the project holds (`_kept_out` lets it: the Desktop holding
-        KOLONİ) - not one the project is in itself (its e2e project, a working copy)."""
+        KOLONİ) - not one the project is in itself (its e2e project, a working copy) - each
+        compared as `_cased`, with its path in the project in its own case: on macOS a search
+        told to leave it out (`rg -g '!name'`) matches case by case. (By parts, not letters:
+        casefold makes "İ" two.)
+        shortcut: "its own case" is the case KOLONİ's own path was given in (REPO_ROOT, the
+        runtime root), not always the disk's; read the name off the disk if one is seen
+        started from a path in another case."""
         at = _cased(self.root)
-        return [(_cased(place), why) for place, why in _never_places()
+        return [(_cased(place), why, PurePosixPath(*place.parts[len(at.parts):]).as_posix())
+                for place, why in _never_places()
                 if why in (OWN_RECORD, OWN_CODE) and _cased(place) != at
                 and _cased(place).is_relative_to(at)]
 
@@ -585,20 +592,18 @@ class Workspace:
         """Why a resolved path in the project is never opened all the same: it is in
         KOLONİ's own code or record (`_koloni_inside`) - or None."""
         cased = _cased(path)
-        return next((why for place, why in self._koloni_inside if cased.is_relative_to(place)),
-                    None)
+        return next((why for place, why, _rel in self._koloni_inside
+                     if cased.is_relative_to(place)), None)
 
     def koloni_under(self, folder: Path) -> str | None:
         """The first of `koloni_places` a resolved folder holds, or is - or None."""
-        cased, at = _cased(folder), _cased(self.root)
-        return next((place.relative_to(at).as_posix() for place, _why in self._koloni_inside
+        cased = _cased(folder)
+        return next((rel for place, _why, rel in self._koloni_inside
                      if place.is_relative_to(cased)), None)
 
     def koloni_places(self) -> list[str]:
         """`_koloni_inside`, by their paths in the project."""
-        at = _cased(self.root)
-        return list(dict.fromkeys(place.relative_to(at).as_posix()
-                                  for place, _why in self._koloni_inside))
+        return list(dict.fromkeys(rel for _place, _why, rel in self._koloni_inside))
 
     def rel(self, path: Path) -> str:
         if not self.is_own(path):

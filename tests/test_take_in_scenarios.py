@@ -98,6 +98,9 @@ def repository(folder):
     git(folder, "config", "user.email", "user@example.com")
     git(folder, "config", "user.name", "The User")
     git(folder, "config", "commit.gpgsign", "false")
+    # (A newer git - macOS's - runs its upkeep after a commit, in the background: a copy of the
+    # git folder met its lock file come and go.)
+    git(folder, "config", "maintenance.auto", "false")
     git(folder, "add", "-A")
     git(folder, "commit", "-q", "-m", "as it was")
 

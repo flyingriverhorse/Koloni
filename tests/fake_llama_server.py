@@ -6,9 +6,12 @@ is shown in hides. Unknown arguments are taken as llama-server takes them, witho
 import http.server
 import json
 import pathlib
+import socket
 import sys
 
 args = sys.argv[1:]
+# HTTPServer names itself by a reverse lookup of its address: 35 s on a macOS runner.
+socket.getfqdn = lambda name="": name
 
 
 def value(*names: str, default: str = "") -> str:
