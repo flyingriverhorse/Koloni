@@ -482,8 +482,10 @@ class NativeMixin:
                     with contextlib.suppress(Exception):
                         if taken := done.result()[0]:
                             self._taken_back(ctx, taken, transcript.take(), ask=False)
-                            asyncio.ensure_future(self._stand_in_watches(
-                                ctx.folder, watch.standing, taken))
+                            # (Kept, as `shutdown` ends it: the loop holds a task weakly.)
+                            self._telling.add(standing := asyncio.ensure_future(
+                                self._stand_in_watches(ctx.folder, watch.standing, taken)))
+                            standing.add_done_callback(self._telling.discard)
 
                 putting.add_done_callback(said)
                 await asyncio.shield(putting)
