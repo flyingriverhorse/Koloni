@@ -1001,7 +1001,9 @@ def _hidden(value: object) -> object:
 
 
 MAX_JSON_DEPTH = 500  # (below Python's own recursion limit, 1000, which `_hidden` meets)
-_JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"', re.S)
+# (A string left open runs to the end: never a match given up and tried again from each
+# quote after, which took hours over 16 MiB of `\"`. Nothing in it is read as JSON anyway.)
+_JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*(?:"|\\?\Z)', re.S)
 
 
 def too_deep(text: str) -> bool:

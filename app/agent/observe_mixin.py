@@ -88,8 +88,9 @@ class ObserveMixin:
         if copy is None:
             # Before any await: a look whose thread read the project while these were being
             # written has its result taken only after this (`_record_found` leaves them out).
+            # Only while a native agent there is still to look (`_native_in`).
             here = Path(ctx.folder).resolve()
-            for path in paths:
+            for path in paths if str(here) in self._native_in else ():
                 data = copies._bytes(here / path)
                 self._wrote_for[(str(here), path)] = (
                     None if data is None else hashlib.sha256(data).hexdigest())
@@ -381,6 +382,19 @@ class ObserveMixin:
             # beside it (`_look_at_project`, `IN_THE_PROJECT`).
             await self.seen_in_project(str(watch.view.root), recorded)
         return recorded | blocked
+
+    def _native_looks(self: "AgentRunner", root: str | None, more: int) -> None:
+        """A native agent's watch of this project starts (+1), or has had its last look (-1).
+        Once none is left there, what KOLONİ wrote there for agents is forgotten: a later
+        turn's look is told apart from a snapshot taken after it (`_wrote_for`)."""
+        if root is None:
+            return
+        here = str(Path(root).resolve())
+        self._native_in[here] = self._native_in.get(here, 0) + more
+        if self._native_in[here] <= 0:
+            del self._native_in[here]
+            for key in [key for key in self._wrote_for if key[0] == here]:
+                del self._wrote_for[key]
 
     def _still_wrote_for(
         self: "AgentRunner", here: str, found: tuple[str, str | None, str | None]

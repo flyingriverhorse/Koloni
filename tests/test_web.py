@@ -6,6 +6,7 @@ address written as one is never handed to `resolve` at all.
 
 import asyncio
 import json
+import time
 
 import pytest
 
@@ -602,6 +603,11 @@ def test_json_too_deep_is_told_by_its_brackets_the_same_on_every_python():
     assert not web.too_deep("[" * (deep - 1) + "]" * (deep - 1))
     assert not web.too_deep(json.dumps({"a": ["[{" * deep + '"', "x"]}))  # in a string: none
     assert web.kept_body("[" * deep + '{"password": "S"}' + "]" * deep) == "***"
+    assert not web.too_deep('"' + "[" * deep)  # a string left open: to the end, as json reads it
+    # ... and read once: not tried again from each quote in it (once some seconds a 32K line)
+    started = time.monotonic()
+    assert not web.too_deep('"' + '\\"' * 200_000)
+    assert time.monotonic() - started < 2
 
 
 def test_what_is_kept_of_a_call_has_its_headers_hidden_too_and_stays_as_it_is():

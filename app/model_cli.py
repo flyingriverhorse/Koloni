@@ -909,8 +909,11 @@ class Exited:
         self._process, self._job, self._at = process, job, None
 
     def _open(self) -> bool:
-        """Whether its output or its errors' pipe has not reached its end yet."""
-        transport = getattr(self._process, "_transport")  # noqa: B009  (asyncio's own)
+        """Whether its output or its errors' pipe has not reached its end yet - taken to be
+        open where asyncio's own `_transport` is not there to say (given up after the grace)."""
+        transport = getattr(self._process, "_transport", None)
+        if transport is None:
+            return True
         pipes = (transport.get_pipe_transport(1), transport.get_pipe_transport(2))
         return any(pipe is not None and not pipe.is_closing() for pipe in pipes)
 

@@ -404,6 +404,7 @@ class NativeMixin:
         counted = 0 if asks or reads else 1
         self._native[ctx.cid] = self._native.get(ctx.cid, 0) + counted
         self._watches.setdefault(ctx.cid, []).append(watch)
+        self._native_looks(ctx.root, 1)  # (to its last look, below)
         effort = self._effort_sent(ctx, info)  # as a session's (`_session_loop`)
         self._set_agent(ctx.cid, ctx.agent_id, effort=effort)
         ended, before = False, transcript.opened
@@ -516,6 +517,7 @@ class NativeMixin:
                 pass
             finally:
                 transcript.end()
+                self._native_looks(ctx.root, -1)
         self._count_tokens(
             ctx, usage.input_tokens, usage.output_tokens,
             # (A result that has no word of a cache: not known.)
