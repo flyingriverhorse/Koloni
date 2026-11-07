@@ -140,6 +140,8 @@ async def test_a_server_that_went_away_has_no_group_signalled_at_its_end(tmp_pat
                         raising=False)
     with pytest.raises(McpError):
         await client.call("anything", {})
+    # (Gone, as long since: on Linux the exit is reaped a moment after its output closes.)
+    await asyncio.wait_for(client._process.wait(), 5)
     await client.end()
     assert client._process.pid not in signalled
 
