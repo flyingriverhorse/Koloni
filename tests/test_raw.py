@@ -5,6 +5,7 @@ changing what is said of a CLI that failed."""
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 import uuid
@@ -141,8 +142,10 @@ async def test_a_flood_of_short_lines_is_taken_reading_by_reading_not_line_by_li
     took = time.perf_counter() - began
     kept = raw._agents[agent]
     assert kept.written == 5_000_000 and kept.lines[-1] == (5_000_000, "stderr", b"ab")
-    # (Measured: half a second; line by line it was five to eight.)
-    assert took < 3.0, f"{took:.1f} s for five million short lines"
+    # (Measured: half a second; line by line it was five to eight. A CI runner is about six times
+    # slower - 3.1 s on GitHub's - so there line by line would take half a minute.)
+    limit = 12.0 if os.environ.get("CI") else 3.0
+    assert took < limit, f"{took:.1f} s for five million short lines"
 
 
 def test_a_line_too_long_is_cut_where_it_shows_and_a_secret_across_the_cut_is_hidden(
