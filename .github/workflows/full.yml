@@ -1,0 +1,29 @@
+# Everything a pull request runs, by hand, on any branch and without a pull request: PR Check
+# (actionlint, the backend in six parts, the frontend, the guide, SonarQube) and the heavy set
+# (e2e in three shards, the backend on Windows and on Python 3.13 / 3.14), side by side.
+# Actions -> Full check -> Run workflow, or `gh workflow run full.yml --ref <branch>`.
+# Like every hand-started workflow, it can be started only once this file is on main.
+name: Full check
+
+on:
+  workflow_dispatch:
+    inputs:
+      docker:
+        description: Also build the Docker image
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  pr-check:
+    name: PR Check
+    uses: ./.github/workflows/pr-check.yml
+    secrets: inherit  # SONAR_TOKEN for the scan
+
+  heavy:
+    name: Heavy
+    uses: ./.github/workflows/heavy.yml
+    with:
+      docker: ${{ inputs.docker }}

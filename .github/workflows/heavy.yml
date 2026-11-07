@@ -33,6 +33,11 @@ on:
         description: Also build the Docker image
         type: boolean
         default: false
+  workflow_call:  # (full.yml runs it with PR Check)
+    inputs:
+      docker:
+        type: boolean
+        default: false
 
 permissions:
   contents: read

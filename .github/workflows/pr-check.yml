@@ -41,6 +41,7 @@ on:
       - '!.github/ISSUE_TEMPLATE/**'
       - '!.github/pull_request_template.md'
   workflow_dispatch:
+  workflow_call:  # (full.yml runs it with the heavy set)
 
 permissions:
   contents: read
