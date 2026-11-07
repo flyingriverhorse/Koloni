@@ -113,7 +113,8 @@ def test_one_running_when_koloni_closes_is_recorded_so(settings_env, project_dir
 
 
 SERVER = """
-import http.server, sys
+import http.server, socket, sys
+socket.getfqdn = lambda name="": name  # (HTTPServer's reverse lookup: 35 s on a macOS runner)
 class Page(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)

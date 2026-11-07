@@ -8,7 +8,7 @@ import os
 import sqlite3
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 from alembic import command
@@ -237,6 +237,18 @@ def test_koloni_s_own_checkout_in_a_project_is_a_secret_to_a_search_and_never_co
     assert search_reason("grep -r sk- .", project_dir)
     files, _links, _size = copies._scan(project_dir)
     assert files == ["hello.py", "notes.md"]
+
+
+def test_on_a_disk_with_no_case_koloni_s_checkout_is_named_in_its_own_case(
+    project_dir, checkout, monkeypatch
+):
+    """macOS: `_cased` folds every path, and the checkout is found in any case - but named as
+    it is, since a search told to leave it out (`rg -g '!name'`) matches case by case."""
+    monkeypatch.setattr(workspace, "_cased", lambda path: PurePosixPath(path.as_posix().casefold()))
+    ws = Workspace(project_dir)
+    named = {checkout.name, f"{checkout.name}/runtime"}
+    assert named <= set(ws.koloni_places()) and ws.koloni_under(project_dir) in named
+    assert ws.koloni_s(project_dir / checkout.name.upper() / "app") is not None
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows' devices and streams")
