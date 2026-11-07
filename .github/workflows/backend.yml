@@ -106,7 +106,9 @@ jobs:
           COVERAGE_FILE: .coverage.part-${{ matrix.part }}
         # verify.ps1's pytest arguments; pyproject.toml's addopts apply as there.
         run: |
-          mapfile -t files < <("$PY" .github/scripts/test_parts.py "$PART" 6 | tr -d '\r')
+          files=()  # (no mapfile: macOS's bash is 3.2)
+          while IFS= read -r file; do files+=("$file"); done < <(
+            "$PY" .github/scripts/test_parts.py "$PART" 6 | tr -d '\r')
           # (A failure inside <(...) does not stop the step: an empty list does.)
           [ ${#files[@]} -gt 0 ] || { echo "no test files for part $PART"; exit 1; }
           echo "${#files[@]} test files"
