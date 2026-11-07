@@ -265,7 +265,7 @@ test('the chat panel has the notebook as a tab, and what you write goes to the t
     method: 'POST', body: JSON.stringify({ content: 'Mind the docs.' }),
   }))
   vi.unstubAllGlobals()
-})
+}, 15_000) // (the whole ChatPanel, typed into: past vitest's 5 s on a slow CI runner, which the 5 s wait above alone could fill)
 
 // --- the canvas ---------------------------------------------------------------------
 
