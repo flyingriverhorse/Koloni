@@ -329,3 +329,22 @@ def test_two_thousand_files_go_in_though_no_command_line_holds_them(tmp_path):
     assert in_repo(project, "show", f"{sha}:{paths[-1]}") == "two"
     assert in_repo(project, "rev-list", "--count", "HEAD") == "2"
     assert in_repo(project, "status", "--porcelain") == ""
+
+
+def test_a_rewrite_of_the_same_size_in_the_second_the_index_was_written_goes_in(tmp_path):
+    # Racy git: the user's index and a file it knows written in one second, and the file
+    # written again with as many bytes then. Its stat is as the index has it; git reads it
+    # again only because the index is as new as it. (Seen on macOS and Linux runners.)
+    project = tmp_path / "p"
+    project.mkdir()
+    file = project / "a.txt"
+    file.write_bytes(b"one\n")
+    then = (int(time.time()) - 10) * 10**9
+    os.utime(file, ns=(then, then))
+    repository(project)
+    file.write_bytes(b"two\n")
+    for written in (file, project / ".git" / "index"):
+        os.utime(written, ns=(then, then))
+    sha, _notes = git.commit(project, ["a.txt"], "Coder: two")
+    assert in_repo(project, "show", f"{sha}:a.txt") == "two"
+    assert in_repo(project, "status", "--porcelain") == ""

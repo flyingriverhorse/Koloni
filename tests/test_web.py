@@ -595,6 +595,15 @@ def test_a_field_named_like_a_secret_is_hidden_in_a_body():
     assert kept("[" * 100_000) == "***"         # too deep to look into: not kept as it came
 
 
+def test_json_too_deep_is_told_by_its_brackets_the_same_on_every_python():
+    # (3.14's json reads 100,000 deep on Linux's stack, and raises far sooner on Windows')
+    deep = web.MAX_JSON_DEPTH + 1
+    assert web.too_deep("[" * deep) and web.too_deep("[" * deep + "]" * deep)
+    assert not web.too_deep("[" * (deep - 1) + "]" * (deep - 1))
+    assert not web.too_deep(json.dumps({"a": ["[{" * deep + '"', "x"]}))  # in a string: none
+    assert web.kept_body("[" * deep + '{"password": "S"}' + "]" * deep) == "***"
+
+
 def test_what_is_kept_of_a_call_has_its_headers_hidden_too_and_stays_as_it_is():
     asked = json.dumps({"method": "POST", "url": "https://example.com/?token=T1&q=tea",
                         "headers": {"Authorization": "Bearer TOP"}, "body": '{"key": "K1"}'})

@@ -1000,9 +1000,28 @@ def _hidden(value: object) -> object:
     return [_hidden(inner) for inner in value] if isinstance(value, list) else value
 
 
+MAX_JSON_DEPTH = 500  # (below Python's own recursion limit, 1000, which `_hidden` meets)
+_JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"', re.S)
+
+
+def too_deep(text: str) -> bool:
+    """Whether text, read as JSON, opens more than MAX_JSON_DEPTH brackets at once (none in
+    a string counted) - read whole or not. Told the same on every Python: json.loads reads as
+    deep as the thread's stack lets it (3.14: some 100,000 deep on Linux, far fewer on
+    Windows), so its RecursionError alone says nothing the same everywhere."""
+    depth = 0
+    for bracket in re.findall(r"[\[\]{}]", _JSON_STRING.sub("", text)):
+        depth += 1 if bracket in "[{" else -1
+        if depth > MAX_JSON_DEPTH:
+            return True
+    return False
+
+
 def kept_body(body: str) -> str:
     """A body as it is kept: JSON, or a form's fields, with the value hidden of every
     field named like a secret - at any depth. Anything else is left as it is."""
+    if too_deep(body):
+        return "***"  # too deep to look into: not kept as it came
     try:
         given = json.loads(body)
         hidden = _hidden(given)
