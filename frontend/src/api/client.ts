@@ -56,12 +56,13 @@ export async function takeKey(): Promise<void> {
   const hash = new URLSearchParams(location.hash.slice(1))
   const code = hash.get('open')
   let given = hash.get('key')
+  if (given && !(await takes(given))) given = null
   if (!given && code) {
     const res = await fetch('/api/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) }).catch(() => null)
     // (Refused - used, late: the page says to open it from the link in KOLONİ's window, as for any missing key.)
     given = res?.ok ? ((await res.json()) as { key: string }).key : null
   }
-  if (code) history.replaceState(null, '', location.pathname + location.search)
+  if (code || hash.has('key')) history.replaceState(null, '', location.pathname + location.search)
   if (!given) return
   held = given
   try {
@@ -69,7 +70,19 @@ export async function takeKey(): Promise<void> {
   } catch {
     // (kept in `held` only)
   }
-  history.replaceState(null, '', location.pathname + location.search)
+}
+
+/**
+ * denetim-010 #20: whether a `#key=` may replace the key the page keeps - any link can carry one (a web page, a model's answer), and
+ * a wrong one kept would refuse every request. Yes where none is kept or it is the same; else only once the server takes it.
+ */
+async function takes(given: string): Promise<boolean> {
+  const kept = pageKey()
+  if (!kept || kept === given) return true
+  // (Not through `send`: its 401 would show the whole page as refused. Any answer but a yes - KOLONİ not reached, slow, a proxy's
+  // 500 - keeps the kept one.)
+  const res = await fetch('/api/answer-in', { headers: { 'X-KOLONI-Key': given }, signal: AbortSignal.timeout(5000) }).catch(() => null)
+  return !!res?.ok
 }
 
 function pageKey(): string | null {

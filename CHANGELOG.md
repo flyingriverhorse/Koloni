@@ -104,7 +104,10 @@ How to write an entry (every release looks the same):
 
 - **Install**: KOLONİ listens on 127.0.0.1 only and sends no telemetry; every request to its API needs the page key, so a plain or injected command an agent runs cannot approve its own cards ([docs](docs/security/model.md#the-page-key)).
 - **Install**: exports and backups are downloaded without the page key in their address, so it stays out of your browser's history.
+- **Settings**: an export without keys also leaves out secret files you attached to a chat (a `.env`, a key file); the chat keeps their name ([docs](docs/backup-and-update.md#export-everything)).
+- **Install**: a link with a wrong key, from a web page or an agent's answer, no longer locks the page out: the page keeps its key unless KOLONİ accepts the new one, and links in agents' answers and diagrams open in a new tab.
 - **Ready**: reading secret files, writing most files that steer agents, and commands that delete or send data off the machine stop at a card at every level, with a few exceptions for CLIs run with their own tools ([limits](docs/reference/known-limits.md#secrets)); at Full auto these checks are for honest commands, not a wall ([docs](docs/security/model.md#where-protection-ends)).
+- **Ready**: a command an agent runs is judged together with the folder it runs in, so a relative path inside `.claude` or another protected folder stops at a card as if it were named; Claude Code and Qoder don't say where their shell stands, so their commands are judged at the project root (a `cd` into a protected folder is itself a card).
 - **Ready**: KOLONİ's own cards have fixed titles and say **KOLONİ asks**; an agent's question says **The agent asks**, so it cannot pass for one of KOLONİ's.
 - **Workspace**: sub-agents work in working copies, not in your folder, until you take their work in.
 - **Agents**: your home folder and a drive's root cannot be a project, and KOLONİ's own folder is never opened, even inside a project; a CLI's own Grep and Glob cannot search it either ([docs](docs/security/model.md#places-agents-never-open)).

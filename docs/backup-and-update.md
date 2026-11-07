@@ -20,8 +20,9 @@ Not in the file: your project folders (with their `.koloni/` folders and Knowled
 logs, and the CLIs' own sign-ins.
 
 - **Include API keys and secrets (keep this file safe)**: without it, the keys KOLONİ stores in its
-  settings are left out. A key that was ever written in a chat, an agent's output or a command stays in
-  the file either way.
+  settings are left out, and so are secret files you attached to a chat (a `.env`, a key file: the chat
+  keeps their name, and the page lists them once you choose the file to restore). A key that was ever written in a chat, in
+  another file you attached, an agent's output or a command stays in the file either way.
 - **Export everything** downloads the file.
 
 ## Restore

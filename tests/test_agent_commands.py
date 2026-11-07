@@ -1,14 +1,16 @@
 """run_command through the agent loop, with a scripted executor."""
 
+import asyncio
 import json
 import re
 import time
+from types import SimpleNamespace
 
 import pytest
 
 from app import agent
 from app.agent import recover_interrupted
-from app.command_runner import PATCH_REJECTED, WRITE_REJECTED
+from app.command_runner import PATCH_REJECTED, WRITE_REJECTED, CommandRunner
 from app.db.models import Agent, Command, Conversation, Message, Project, Run, ToolCall
 from app.db.session import make_engine, make_session_factory, upgrade_db
 from app.model_client import StepResult, ToolCallRequest
@@ -378,6 +380,42 @@ def test_recovery_settles_commands(tmp_path):
         assert {c.id: c.status for c in s.query(Command)} == {
             "k1": "rejected", "k2": "interrupted", "k3": "exited"}
         assert s.get(Command, "k2").ended_at is not None
+
+
+def test_a_clis_command_is_judged_in_the_folder_it_says_it_runs_in(tmp_path):
+    # denetim-010 #18: `ask_for` judges a CLI's line with its cwd, as `run` does - `> settings.json`
+    # in `.claude` writes Claude Code's settings: a card at Full auto, though the line names none.
+    db = tmp_path / "r.db"
+    upgrade_db(db)
+    factory = make_session_factory(make_engine(db))
+    with factory() as s:
+        s.add(Project(id="p", name="p", root_path=str(tmp_path)))
+        s.flush()
+        s.add(Conversation(id="c", project_id="p", permission_mode="full_auto"))
+        s.flush()
+        s.add(Run(id="r", conversation_id="c", status="running"))
+        s.flush()
+        s.add(Agent(id="a", run_id="r", role_name="Lead", tools=[]))
+        s.flush()
+        s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
+        s.flush()
+        for n in (1, 2):
+            s.add(ToolCall(id=f"t{n}", run_id="r", agent_id="a", message_id="m", seq=n,
+                           provider_call_id=f"k{n}", name="run_command", arguments="{}",
+                           status="running"))
+        s.commit()
+    runner = CommandRunner(factory, SimpleNamespace(emit=lambda *_: None), None, lambda **_: None)
+    asked = []
+
+    async def no(run_id, cid, agent_id, command_id, rule):
+        asked.append(command_id)
+        return "reject"
+
+    runner._wait_for_decision = no
+    line = "echo x > settings.json"
+    assert asyncio.run(runner.ask_for("r", "c", "a", "t1", line, cwd="."))[0]
+    assert not asyncio.run(runner.ask_for("r", "c", "a", "t2", line, cwd=".claude"))[0]
+    assert len(asked) == 1
 
 
 def test_a_real_command_runs_on_this_machine_through_the_agent(make_client, wait_run, project_dir):

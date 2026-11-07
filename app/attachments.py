@@ -61,6 +61,13 @@ def clean_name(name: str) -> str:
     return last
 
 
+def secret_name(name: str) -> bool:
+    """Whether an attached file is a secret by its name (`secret_in_project`) - also as a
+    chat's second one is named: ".env (2)", "credentials (2).json" (`api.attachments`)."""
+    return secret_in_project(name) or secret_in_project(
+        re.sub(r"( \(\d+\))+(?=\.[^.]*$|$)", "", name))
+
+
 def kind_of(data: bytes, name: str) -> tuple[str, str]:  # noqa: C901
     """What a file is, and its media type, by its first bytes."""
     if data.startswith(PROGRAMS) or Path(name).suffix.lower() in RUNS:
@@ -222,7 +229,7 @@ def read(data: bytes, name: str) -> tuple[str, str, str, str | None]:
     kind, mime = kind_of(data, name)
     if kind == "executable":
         return kind, mime, "a program or script: only its name and size are kept", None
-    if kind in ("text", "docx", "pdf") and secret_in_project(name):
+    if kind in ("text", "docx", "pdf") and secret_name(name):
         # (the secret rule of slice 88: what it holds is never sent unasked)
         return kind, mime, "a secret file (keys, passwords): what it holds is not sent", None
     if kind == "text":

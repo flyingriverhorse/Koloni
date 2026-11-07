@@ -40,7 +40,8 @@ const components: Components = {
   ),
   a: ({ node: _node, href, children, ...props }) => {
     const inCopy = typeof href === 'string' ? IN_COPY.exec(href) : null
-    if (!inCopy) return <a href={href} {...props}>{children}</a>
+    // denetim-010 #20: in a tab of its own - in the app's, a link to it with `#key=` would offer the page another key.
+    if (!inCopy) return <a href={href} {...props} target="_blank" rel="noopener noreferrer">{children}</a>
     const path = inCopy[1].replaceAll('\\', '/')
     return (
       <code className="md-path" title={`${path}, in the project`}>
@@ -149,6 +150,11 @@ function Diagram({ text, children }: { text: string; children: ReactNode }) {
     const drawing = box.current?.querySelector('svg')
     if (!drawing || !drawn || !('type' in drawn)) return
     drawing.setAttribute('role', 'img')
+    // denetim-010 #20: a diagram's link (`click A href`) in a tab of its own, as any link in the words.
+    drawing.querySelectorAll('a').forEach(a => {
+      a.setAttribute('target', '_blank')
+      a.setAttribute('rel', 'noopener noreferrer')
+    })
     // (mermaid's own, e.g. "flowchart-v2", would be read out in place of "image")
     drawing.removeAttribute('aria-roledescription')
     // Its own title (mermaid's accTitle) if it was given one; else what kind of diagram it is.

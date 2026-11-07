@@ -42,9 +42,30 @@ and credit messages.
   Qoder and agy run Native were not measured. With KOLONİ's tools (as a session, or one run per step),
   the keys KOLONİ knows and values shaped or named like keys are masked before the model reads the
   output.
-- Copilot does not report which paths its PowerShell commands touch, so at Full auto such a command can
-  write a protected file without a card. The same goes for KOLONİ's own commands at Full auto (for example,
-  `echo … > .claude/settings.json`).
+- Copilot does not report which paths its PowerShell commands touch, so at Full auto a command that
+  writes a protected file without naming it (a script, a path it builds) runs without a card. The same
+  goes for KOLONİ's own commands at Full auto: one that names the file (`echo … > .claude/settings.json`)
+  is asked about, but a script that writes `~/.claude/settings.json` is not. Such a file in the project
+  is put back, and you are asked whether to keep it; one outside the project is not.
+- Claude Code, Qoder and agy run **Native** (and Copilot where it cannot sandbox its commands) have no
+  sandbox of KOLONİ's: it can stop what they do only at their hook. A write with their own file tools
+  outside the project and the folders it also works in (or that you allowed) is asked about on a card at
+  every level, Full auto too, and refused in a turn nobody watches (in a working copy, refused: it may
+  write only in the copy); one into a CLI's own folder (`.claude`, `.gemini`, `.codex` or `.copilot` in
+  your home folder) or another place KOLONİ never opens (`.ssh`, browser profiles) is refused. Their
+  commands are judged by what they name: a command that writes outside the project, for example to the
+  Startup folder or a PowerShell profile, runs without a card at Full auto, and at any level where an
+  allow rule covers it, unless it names a CLI's settings folder such as `.claude` or `.gemini`, or a
+  secret file, or it deletes or sends data off the machine.
+- Claude Code and Qoder run **Native** do not say where their commands run, so KOLONİ judges each one as
+  run in the project folder. If the CLI keeps a `cd` from an earlier command, later relative paths are
+  judged at the wrong place: after you approve `cd ..`, reading a file there by its name is taken for a
+  read in the project and is not asked about below Full auto. Whether Claude Code keeps a `cd` that
+  leaves the project is not measured.
+- A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
+  sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
+  script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it
+  as made in the project by an unknown maker.
 - Triggers do not start a turn on a CLI that works with its own tools (Native, or agy).
 - GitHub Copilot CLI's tokens and AI credits run as a session are counted from its usage checkpoint, as
   in **Native**; measured with `copilot -p` (CLI 1.0.103), not yet seen in a live session.

@@ -524,6 +524,53 @@ def test_a_command_said_to_run_outside_the_project_is_a_card_even_at_full_auto(
     assert answers(native_app) == [(RUN, DECLINE)]
 
 
+def card_for(client, cid, command):
+    """The command `command` waiting for the user, once it is shown; fails if it ran unasked."""
+    for _ in range(500):
+        snap = client.get(f"/api/conversations/{cid}").json()
+        mine = [c for c in snap["commands"] if c["command"] == command]
+        # (a new row is "proposed" for a moment even when it is not asked about)
+        if mine and mine[0]["status"] == "proposed" and (
+                snap["runs"][0]["status"] == "waiting_approval"):
+            return mine[0]
+        assert not mine or mine[0]["status"] in ("proposed", "approved"), mine[0]["status"]
+        time.sleep(0.02)
+    raise AssertionError(f"no card for {command}")
+
+
+def test_a_command_is_judged_in_the_folder_it_is_said_to_run_in_even_at_full_auto(
+    native_app, wait_run, project_dir  # noqa: F811
+):
+    # denetim-010 #18: `> settings.json` run in `.claude` writes Claude Code's settings, and
+    # `cat config` in `.ssh` reads a key's folder - though neither line names that folder.
+    for folder in (".claude", ".ssh"):
+        (project_dir / folder).mkdir()
+    lines = {".claude": "echo x > settings.json", ".ssh": "cat config"}
+    client, provider, _ = native_app([
+        *[{"run": line, "cwd": str(project_dir / folder)} for folder, line in lines.items()],
+        {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)
+    for folder, line in lines.items():
+        asked = card_for(client, cid, line)
+        assert asked["cwd"] == folder
+        client.post(f"/api/commands/{asked['id']}/reject")
+    wait_run(client, cid, run_id)
+    assert answers(native_app) == [(RUN, DECLINE), (RUN, DECLINE)]
+
+
+def test_a_projects_own_path_is_not_judged_as_a_protected_folder(
+    native_app, wait_run, tmp_path  # noqa: F811
+):
+    # Its cwd is judged inside the project: `.vscode` in the path to the project is no card.
+    project = tmp_path / ".vscode" / "extensions" / "x"
+    project.mkdir(parents=True)
+    client, provider, _ = native_app([{"run": "ls", "cwd": str(project)}, {"say": "ok"}])
+    cid, run_id = start(client, project, provider)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert answers(native_app) == [(RUN, ACCEPT)]
+
+
 # --- 11. Its PowerShell line is judged by the command inside it ------------------------------
 
 WRAPPED = '"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command \'{}\''

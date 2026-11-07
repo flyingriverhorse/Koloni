@@ -499,8 +499,10 @@ class CommandRunner:
         self.bus.emit(cid, run_id, "command.created", payload)
         # (as `run`'s: the user's own test command in its part's folder is not asked)
         own = project_map.own_test(tests, command, cwd)
-        if ask and (always or names_secret(command)
-                    or standing_asked(command, mode != "full_auto")
+        # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
+        judged = with_cwd(command, cwd)
+        if ask and (always or names_secret(judged)
+                    or standing_asked(judged, mode != "full_auto")
                     or (mode != "full_auto"
                         and not (is_allowed(command, prefixes) or reads or own))):
             decision = await self._wait_for_decision(

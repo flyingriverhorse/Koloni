@@ -133,6 +133,16 @@ test('an inline path and command are marked for their colours, bold kept; a fenc
   expect(fenced.map(code => code.className)).toEqual(['', 'language-sh'])
 })
 
+test('denetim-010 #20: a link in a model’s words opens in a tab of its own - never the app’s, where a #key= would replace the page’s key', () => {
+  const { container } = render(<Markdown>{'[the page](#key=bad), [the app](http://127.0.0.1:8790/#key=bad) and [docs](https://example.com)'}</Markdown>)
+  const links = within(container).getAllByRole('link')
+  expect(links).toHaveLength(3)
+  for (const link of links) {
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  }
+})
+
 test('B-182: a link into an agent’s working copy is the file’s path in the project, as text; any other link stays', () => {
   const copy = 'C:/Users/u/koloni/runtime/copies/coder-1/tree/docs/notes.md'
   const web = 'https://github.com/x/copies/y/tree/main/README.md'

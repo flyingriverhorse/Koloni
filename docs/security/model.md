@@ -127,7 +127,10 @@ What is not framed:
 
 ## Other walls
 
-- **Sub-agents** work in working copies, not in your folder, until you take their work in.
+- **Sub-agents** work in working copies, not in your folder, until you take their work in. The commands of
+  Claude Code or Qoder run **Native** there are not sandboxed: at Full auto, one that reaches the project by a path it does not
+  spell out changes it directly, and KOLONİ records that change at the end of the turn
+  ([Known limits](../reference/known-limits.md#clis)).
 - **Commands in Docker** (Settings › This project › Commands and secrets): a fresh container for each command, with only
   the folder mounted and the network off unless you allow it.
 - **Turns nobody watches** (triggers) may do only what the trigger allows.
@@ -149,6 +152,11 @@ What is not framed:
   project's `.git`, until git prunes them.
 - When a CLI runs **Native**, its model reads its commands' raw output; KOLONİ masks keys only in what it
   records and shows.
+- At Full auto, a command of Claude Code, Qoder or agy run **Native** (and Copilot where it cannot sandbox
+  its commands) can write outside the project (the Startup folder, a PowerShell profile) without a card,
+  unless it names a CLI's settings folder such as `.claude` or `.gemini`, or a secret file, or it deletes
+  or sends data off the machine. Their own file tools are asked about there at every level, outside the
+  folders the project also works in or that you allowed.
 - Some harmful commands are not on the list yet (`robocopy /MIR`, `mail`, `ssh host 'command'`,
   `kubectl delete`, `terraform destroy`, `rsync --delete`).
 - Keys are stored in plain text in KOLONİ's database. Keep `runtime/` private.

@@ -223,8 +223,9 @@ attachments. Not in it: your project folders (their `.koloni/` knowledge too), w
 logs, previews, the CLIs' own folders and the database's upgrade backups.
 
 - **Include API keys and secrets (keep this file safe)**: without this, the keys KOLONİ stores in
-  its settings are left out. A key that was ever written in a chat, an agent's output or a command
-  stays in the file either way, so keep the file private.
+  its settings and secret files you attached to a chat (a `.env`, a key file) are left out. A key that
+  was ever written in a chat, in another file you attached, an agent's output or a command stays in
+  the file either way, so keep the file private.
 - **Export everything** starts the download.
 
 **Restore**: "Restore only a file you exported yourself: it decides which programs KOLONİ may

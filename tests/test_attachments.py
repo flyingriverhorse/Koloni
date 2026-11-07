@@ -203,6 +203,16 @@ def test_a_secret_is_never_given_and_one_of_a_secrets_shape_is_masked(chat):
     assert "abcdefghijklmnop1234" not in text and "Bearer ***" in text
 
 
+@pytest.mark.parametrize(("name", "secret"), [
+    (".env", True), (".env (2)", True), ("id_rsa (3)", True), (".npmrc (2)", True),
+    ("credentials (2)", True), ("secrets (2).yaml", True), ("kubeconfig (2)", True),
+    (".env (2).local", True), (".env (2) (2)", True), (".env (1) (2)", True),
+    ("notes (2).txt", False), ("a (2).png", False), (".env (2).example", False),
+])
+def test_a_chats_second_secret_file_is_one_too(name, secret):
+    assert attachments.secret_name(name) is secret
+
+
 def test_only_an_image_a_video_or_a_pdf_is_shown_as_what_it_is(chat):
     client, cid = chat
     image = client.get(f"/api/attachments/{attach(client, cid, 'a.png', PNG).json()['id']}/file")

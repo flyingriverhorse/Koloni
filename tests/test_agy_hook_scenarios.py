@@ -21,7 +21,7 @@ from tests.keyed import TestClient
 from tests.test_agent_writes import wait_status
 from tests.test_agy_agent import FAKE, SKIP
 from tests.test_claude_native import NOBODY, ORIGIN, nothing_was_asked, unattended
-from tests.test_codex_app_server_scenarios import hello, watched
+from tests.test_codex_app_server_scenarios import card_for, hello, watched
 from tests.test_native_agent import start
 
 DOOR = "koloni-door.json"  # next to hooks.json: where the hook finds KOLONİ
@@ -124,6 +124,24 @@ def test_at_ask_a_rejected_command_is_denied_and_never_runs(hooked_app, wait_run
     assert not (project_dir / "made.txt").exists()
     assert [c["status"] for c in snap["commands"]] == ["rejected"]
     assert [(t["name"], t["status"]) for t in snap["tool_calls"]] == [("run_command", "denied")]
+
+
+def test_at_full_auto_a_command_is_judged_in_the_folder_it_runs_in(
+    hooked_app, wait_run, project_dir
+):
+    # denetim-010 #18: the line names no `.github`, its Cwd does - a workflow written there.
+    (project_dir / ".github" / "workflows").mkdir(parents=True)
+    line = "echo on > ci.yml"
+    client, provider = hooked_app([
+        run_command(line, parameters={"CommandLine": line,
+                                      "Cwd": str(project_dir / ".github" / "workflows")}),
+        {"say": "Left it."}])
+    cid, run_id = start(client, project_dir, provider, mode="full_auto")
+    asked = card_for(client, cid, line)
+    assert asked["cwd"] == ".github/workflows"
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+    assert decisions(hooked_app) == ["deny"]
 
 
 def test_a_card_left_open_longer_than_the_silence_limit_does_not_end_agy(

@@ -17,7 +17,7 @@ import app.main
 from app import backup, copies
 from app.backlog import HOLD
 from app.config import REPO_ROOT
-from app.db.models import Conversation, Flag, McpServer, Project, Provider, Run, Skill
+from app.db.models import Attachment, Conversation, Flag, McpServer, Project, Provider, Run, Skill
 from app.db.session import make_engine, make_session_factory
 from app.main import known_secrets
 from tests.keyed import TestClient
@@ -38,6 +38,10 @@ def _fill(app_) -> None:
                               env={"GITHUB_TOKEN": MCP_KEY}))
         session.add(Flag(name="gemini_key", value=VOICE))
         session.add(Flag(name="claude_session_key", value="c" * 64))
+        session.add(Conversation(id="c1"))
+        session.flush()
+        session.add(Attachment(id="a1", conversation_id="c1", name="a.png", kind="image",
+                               mime="image/png", size=12))
         session.commit()
     root = app_.state.settings.runtime_root
     (root / "skills" / "s1").mkdir(parents=True)
@@ -113,6 +117,36 @@ def test_export_with_the_secrets_keeps_them(client, tmp_path, settings):
     assert manifest["secrets"] is True and manifest["need_keys"] == []
     assert {KEY, HOOK, MCP_KEY, VOICE} <= set(_secrets_in(_snapshot(archive, tmp_path), settings))
     assert KEY in archive.read("local-server.json").decode()
+
+
+def test_an_attached_secret_file_is_left_out_without_the_secrets(client):
+    """denetim-010 #19: a .env once attached to a chat is not in the file in clear text."""
+    with client.app.state.session_factory() as session:
+        conversation = Conversation()
+        session.add(conversation)
+        session.commit()
+        cid = conversation.id
+    def attach(name: str, data: bytes) -> dict:
+        return client.post(f"/api/conversations/{cid}/attachments", params={"name": name},
+                           content=data, headers=OWN).json()
+
+    env = attach(".env", f"OPENAI_API_KEY={KEY}\n".encode())
+    again = attach(".env", f"OPENAI_API_KEY={KEY}\n".encode())  # kept as ".env (2)"
+    assert again["name"] == ".env (2)" and "secret file" in again["summary"]
+    note = attach("notes.txt", b"just notes\n")
+    store = client.app.state.settings.runtime_root / "attachments" / cid
+    # (one attached before the secret rule kept its text beside it too)
+    (store / f"{env['id']}.txt").write_text(f"OPENAI_API_KEY={KEY}\n", "utf-8")
+    (store / "left-by-a-failed-delete").write_text(KEY, "utf-8")  # no record names it
+    archive = _export(client)
+    names = set(archive.namelist())
+    assert {f"attachments/{cid}/{note['id']}", f"attachments/{cid}/{note['id']}.txt"} <= names
+    assert not [name for name in names if name.startswith("attachments/") and not
+                name.startswith(f"attachments/{cid}/{note['id']}")]
+    assert not any(KEY.encode() in archive.read(name) for name in names)
+    assert {"the secret file .env attached to a chat", "the secret file .env (2) attached to a "
+            "chat"} <= set(json.loads(archive.read(backup.MANIFEST))["need_keys"])
+    assert f"attachments/{cid}/{env['id']}" in _export(client, secrets=True).namelist()
 
 
 @pytest.mark.parametrize("origin", [{}, {"Origin": "null"}, {"Origin": "http://evil.test"}])

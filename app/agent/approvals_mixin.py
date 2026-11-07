@@ -146,7 +146,7 @@ class ApprovalsMixin:
         return not (web_off_reason(command, self._off()) or searched or copy is not None and (
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root))
             or self._branch_asks(ctx, command, copy is not None)
-            or self._night_asks(ctx, command, cwd))
+            or self._night_asks(ctx, command, where))
 
     async def _approve(  # noqa: C901
         self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", arguments: str
@@ -332,13 +332,16 @@ class ApprovalsMixin:
         # address the CLI says it may reach (Copilot's possibleUrls) counts as in the line.
         urls = [one for one in given.get("urls") or [] if isinstance(one, str)]
         web_off = web_off_reason(" ".join([command, *urls]), self._off())
+        where = inside(cwd)[1] if isinstance(cwd, str) and cwd else "."
+        # (Judged in its folder, as in the project: the path to the project names no protected
+        # folder. One out of it is asked at every level anyway: judged as the CLI gave it.)
         reason = web_off or reason or searched or (
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
             if copy is not None else "") or self._branch_asks(
-            ctx, command, copy is not None) or self._night_asks(ctx, command, cwd)
+            ctx, command, copy is not None) or self._night_asks(
+            ctx, command, cwd if where is None else where)
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
-        where = inside(cwd)[1] if isinstance(cwd, str) and cwd else "."
         noted = {"command": command, **({"reason": reason} if reason else {}),
                  **({"cwd": cwd} if cwd else {})}
         if "run_command" not in ctx.tools:
@@ -371,9 +374,10 @@ class ApprovalsMixin:
                 reads_here, command, root, where in ("", ".")),
             # (One out of the folder it works in: as the CLI gave it. None where it gave
             # none: KOLONİ does not know where its shell stood, and judges at the root.)
-            # shortcut: Claude Code gives no cwd (Codex, Copilot and agy do): its command is
-            # judged at the root, also after a `cd` an earlier Bash call kept; read its cwd
-            # from the hook input if it carries one.
+            # shortcut: Claude Code and Qoder (its client's) give no cwd (Codex, Copilot and
+            # agy do): their command is judged at the root, also after a `cd` an earlier Bash
+            # call kept - a `cd` into a protected folder is a card itself; read its cwd from
+            # the hook input if it carries one (measure first).
             cwd=(where if where is not None else cwd)
             if isinstance(cwd, str) and cwd else None,
         )

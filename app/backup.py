@@ -28,7 +28,7 @@ from pathlib import Path
 from alembic.script import ScriptDirectory
 from alembic.util import CommandError
 
-from app import copies
+from app import attachments, copies
 from app.api.providers import SESSION_KEY
 from app.api.voice import KEY as VOICE_KEY
 from app.backlog import HOLD
@@ -114,6 +114,20 @@ def _without_secrets(db: Path) -> list[str]:
     return need
 
 
+def _attachments_kept(db: Path) -> tuple[set[str], list[str]]:
+    """The attached files an export without the secrets holds, as their members in the .zip
+    (the file and its text beside it): only those a record names that are not secrets by
+    their name (`attachments.secret_name`: a .env, a key file) - a file no record names (one
+    a failed delete left) is not known, so not taken. And, in words, the secret ones left out.
+    Their records stay: the chat still shows a file was there."""
+    with closing(sqlite3.connect(db)) as conn:
+        rows = conn.execute("SELECT conversation_id, id, name FROM attachments").fetchall()
+    kept = {f"attachments/{cid}/{aid}{end}" for cid, aid, name in rows
+            if not attachments.secret_name(name) for end in ("", ".txt")}
+    return kept, list(dict.fromkeys(f"the secret file {name} attached to a chat"
+                                    for *_, name in rows if attachments.secret_name(name)))
+
+
 def export(runtime_root: Path, db_path: Path, out: Path, secrets: bool) -> dict:
     """The .zip at `out`; its manifest back. The live database is only read."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -121,7 +135,11 @@ def export(runtime_root: Path, db_path: Path, out: Path, secrets: bool) -> dict:
         with closing(sqlite3.connect(db_path)) as live, closing(sqlite3.connect(snapshot)) as copy:
             live.backup(copy)
             copy.execute("PRAGMA journal_mode=DELETE")  # one file, with no -wal beside it
-        need = [] if secrets else _without_secrets(snapshot)
+        kept: set[str] | None = None  # (None: every attached file)
+        need = []
+        if not secrets:
+            kept, need = _attachments_kept(snapshot)
+            need = _without_secrets(snapshot) + need
         parts = [DB]
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.write(snapshot, DB)
@@ -130,7 +148,9 @@ def export(runtime_root: Path, db_path: Path, out: Path, secrets: bool) -> dict:
                 files = sorted(p for p in folder.rglob("*") if p.is_file() and not p.is_symlink()) \
                     if folder.is_dir() else []
                 for path in files:
-                    archive.write(path, f"{name}/{path.relative_to(folder).as_posix()}")
+                    member = f"{name}/{path.relative_to(folder).as_posix()}"
+                    if name != "attachments" or kept is None or member in kept:
+                        archive.write(path, member)
                 parts += [name] if files else []
             for name in FILES:
                 if not (runtime_root / name).is_file():

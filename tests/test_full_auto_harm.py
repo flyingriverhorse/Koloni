@@ -4,6 +4,7 @@ watched Full auto turn as it is in a job while the user is away (`harms`), KOLON
 native CLI's alike, and its card offers no rule; an http_request that is not a bare GET or HEAD
 is asked too. What does neither runs as before."""
 
+import os
 import time
 
 import pytest
@@ -135,7 +136,8 @@ def test_a_line_padded_with_options_is_judged_at_once_and_asked(line):
     # value, looked into, doubled them at each)
     began = time.perf_counter()
     said = harms(line)
-    assert time.perf_counter() - began < 1.0 and "what runs is not seen" in said
+    limit = 3.0 if os.environ.get("CI") else 1.0  # (a shared CI runner took 1.0006 s; the bug was 24 s)
+    assert time.perf_counter() - began < limit and "what runs is not seen" in said
 
 
 @pytest.mark.parametrize("command", ASKED[1:3] + ASKED[4:] + SENDS)

@@ -16,7 +16,7 @@ from tests.test_agent_writes import wait_status
 from tests.test_agents_teams_scenarios import patch_role, spawn
 from tests.test_chat_flow import text
 from tests.test_claude_native import NOBODY, nothing_was_asked, unattended
-from tests.test_codex_app_server_scenarios import ADD_B, heredoc, proposed, watched
+from tests.test_codex_app_server_scenarios import ADD_B, card_for, heredoc, proposed, watched
 from tests.test_copilot_agent import copilot_native, start  # noqa: F401  (a fixture)
 from tests.test_secret_read import next_pending
 from tests.test_spawn import begin, step
@@ -478,6 +478,22 @@ def test_a_command_it_says_runs_outside_the_project_is_a_card_even_at_full_auto(
     cid, run_id = start(client, project_dir, provider)
     (asked,) = wait_status(client, cid, "waiting_approval")["commands"]
     assert asked["status"] == "proposed"
+    client.post(f"/api/commands/{asked['id']}/reject")
+    wait_run(client, cid, run_id)
+    assert answers(copilot_native) == [("shell", REJECT)]
+
+
+def test_a_command_is_judged_in_the_folder_it_says_it_runs_in_even_at_full_auto(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    # denetim-010 #18: the line names no `.claude`, its folder does.
+    (project_dir / ".claude").mkdir()
+    line = "Set-Content settings.json x"
+    client, provider = copilot_native([
+        {"shell": line, "cwd": str(project_dir / ".claude")}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)
+    asked = card_for(client, cid, line)
+    assert asked["cwd"] == ".claude"
     client.post(f"/api/commands/{asked['id']}/reject")
     wait_run(client, cid, run_id)
     assert answers(copilot_native) == [("shell", REJECT)]

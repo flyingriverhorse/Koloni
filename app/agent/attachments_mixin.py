@@ -40,7 +40,7 @@ from app.providers import CLI_NAMES, HTTP_KINDS, IMAGE_CLIS, mode_of
 from app.serialize import attachment_out, file_change_out
 from app.team import quoted
 from app.tools import MAX_LINE_CHARS, ToolError
-from app.workspace import Workspace, WorkspaceError, secret_in_project, stands_over_later_turns
+from app.workspace import Workspace, WorkspaceError, stands_over_later_turns
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -212,7 +212,8 @@ class AttachmentsMixin:
                     f"{without} is given no {what} by KOLONİ" if without
                     else f"its model is not known to see {what}")
             else:
-                shown = "Read it with read_attachment." if "read_attachment" not in off and (
+                shown = "Read it with read_attachment." if "read_attachment" not in off and not (
+                    attachments.secret_name(one.name)) and (
                     attachments.folder(
                     self.settings.runtime_root, one.conversation_id) / f"{one.id}.txt").is_file(
                 ) else ""
@@ -307,6 +308,8 @@ class AttachmentsMixin:
         start = start if isinstance(start, int) and not isinstance(start, bool) else 1
         if one.kind == "executable":
             return f"{one.name} is a program or script: only its name and size are known."
+        if attachments.secret_name(one.name):  # (a ".env (2)" kept its text before it was seen)
+            return f"{one.name} is a secret file (keys, passwords): what it holds is not given."
         if one.kind in ("image", "video"):
             return (f"{one.name} is {'an image' if one.kind == 'image' else 'a video'} and has no "
                     "text. Where your model sees it, it was shown to you with its message.")
@@ -393,7 +396,7 @@ class AttachmentsMixin:
         ws, taken = Workspace(ctx.folder), set()
         for one in wanted:
             source = attachments.path_of(self.settings.runtime_root, ctx.cid, one.id)
-            rel = None if source is None or one.kind == "executable" or secret_in_project(
+            rel = None if source is None or one.kind == "executable" or attachments.secret_name(
                 one.name) else _free_name(ws, one.name, taken)
             if rel is None or source is None:
                 continue

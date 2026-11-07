@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { App } from '../App'
-import { api, download, takeKey, withKey } from './client'
+import { api, download, keyRefused, takeKey, withKey } from './client'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -55,6 +55,44 @@ test('a download carries the key in its header, never in an address the browser 
   await expect(download('POST', '/backup/export')).rejects.toThrow('origin not allowed')
   expect(click).toHaveBeenCalledTimes(1)
   click.mockRestore()
+})
+
+test('denetim-010 #20: a new #key= replaces the kept key only once the server takes it; a wrong one never locks the page out', async () => {
+  localStorage.setItem('koloni-key', 'old')
+  history.replaceState(null, '', '/#key=bad')
+  const asked = vi.fn<typeof fetch>(async () => new Response('{}', { status: 401 }))
+  vi.stubGlobal('fetch', asked)
+  await takeKey()
+  expect(asked).toHaveBeenCalledWith('/api/answer-in', expect.objectContaining({ headers: { 'X-KOLONI-Key': 'bad' }, signal: expect.any(AbortSignal) }))
+  expect(localStorage.getItem('koloni-key')).toBe('old')
+  expect(withKey('/api/x')).toBe('/api/x?key=old')
+  expect(location.hash).toBe('')
+  expect(keyRefused.now()).toBe(false)
+  // Not a yes either: a proxy's 500 says nothing of the key.
+  history.replaceState(null, '', '/#key=bad')
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 500 })))
+  await takeKey()
+  expect(localStorage.getItem('koloni-key')).toBe('old')
+  expect(location.hash).toBe('')
+  // Not reached at all (KOLONİ stopped): the kept one stays.
+  history.replaceState(null, '', '/#key=other')
+  vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
+  await takeKey()
+  expect(localStorage.getItem('koloni-key')).toBe('old')
+  expect(location.hash).toBe('')
+  // KOLONİ's own new link (a new start makes a new key): taken.
+  history.replaceState(null, '', '/#key=new')
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{"answer_in":null}')))
+  await takeKey()
+  expect(localStorage.getItem('koloni-key')).toBe('new')
+  expect(location.hash).toBe('')
+  // The same key again asks nothing.
+  history.replaceState(null, '', '/#key=new')
+  const again = vi.fn<typeof fetch>()
+  vi.stubGlobal('fetch', again)
+  await takeKey()
+  expect(again).not.toHaveBeenCalled()
+  expect(location.hash).toBe('')
 })
 
 // Last in this file: once refused, the page stays so.

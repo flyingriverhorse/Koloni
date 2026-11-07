@@ -53,6 +53,15 @@ test('a diagram given a title is named by it', async () => {
   expect(await screen.findByRole('img', { name: 'Sign-in steps' })).toBeInTheDocument()
 })
 
+test('denetim-010 #20: a link in a diagram (`click A href`) opens in a tab of its own, never the app’s', async () => {
+  mermaid.render.mockResolvedValue({ svg: svg('<a xlink:href="#key=bad"><text>B</text></a>'), diagramType: 'flowchart-v2' })
+  const { container } = render(<Markdown>{block('flowchart LR\n  A --> B\n  click B href "#key=bad"\n')}</Markdown>)
+  await screen.findByRole('img', { name: 'Diagram: flowchart' })
+  const link = container.querySelector('svg a')!
+  expect(link).toHaveAttribute('target', '_blank')
+  expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+})
+
 test('a broken diagram stays code, with mermaid’s first error line under it', async () => {
   mermaid.render.mockRejectedValue(new Error('Parse error on line 2:\n...A -->\n---^\nExpecting something'))
   const { container } = render(<Markdown>{block('flowchart LR\n  A -->\n')}</Markdown>)

@@ -18,7 +18,7 @@ import httpx2
 import pytest
 
 from app.attachments import MAX_BYTES
-from app.db.models import FileChange, Provider
+from app.db.models import Attachment, FileChange, Provider
 from app.model_anthropic import to_anthropic
 from app.model_cli import ClaudeCliClient, CodexCliClient
 from app.model_client import (
@@ -219,6 +219,20 @@ def test_files_are_read_by_name_handed_on_and_the_receiver_reads_them(
     assert "that were handed to you" in handed["content"] and '"cart.ts"' in handed["content"]
     assert "(lines 2-2 of 2)\nconst y = 2" in next(
         c for c in snap["tool_calls"] if c["agent_id"] == coder["id"])["result"]
+
+
+def test_a_second_secret_file_kept_with_its_text_before_the_fix_is_not_read(
+        make_client, wait_run, project_dir):
+    client, model, _pid, cid = began(make_client, project_dir, [
+        step("read_attachment", {"name": ".env (2)"}), text("ok")])
+    old = attach(client, cid, "x.txt", b"API_KEY=abcdef1234567890\n").json()
+    with client.app.state.session_factory() as session:  # (as a ".env (2)" was once kept)
+        session.get_one(Attachment, old["id"]).name = ".env (2)"
+        session.commit()
+    snap = wait_run(client, cid, send(client, cid, "read it", old["id"]))
+    assert "Read it with read_attachment" not in told_of_files(model.calls[0])["content"]
+    (call,) = snap["tool_calls"]
+    assert "secret file" in call["result"] and "abcdef1234567890" not in call["result"]
 
 
 def test_saving_into_the_project_is_koloni_s_own_change_unasked_at_ask_and_undone_as_any(
