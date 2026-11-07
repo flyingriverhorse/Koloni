@@ -578,7 +578,10 @@ class Workspace:
         KOLONİ) - not one the project is in itself (its e2e project, a working copy) - each
         compared as `_cased`, with its path in the project in its own case: on macOS a search
         told to leave it out (`rg -g '!name'`) matches case by case. (By parts, not letters:
-        casefold makes "İ" two.)"""
+        casefold makes "İ" two.)
+        shortcut: "its own case" is the case KOLONİ's own path was given in (REPO_ROOT, the
+        runtime root), not always the disk's; read the name off the disk if one is seen
+        started from a path in another case."""
         at = _cased(self.root)
         return [(_cased(place), why, PurePosixPath(*place.parts[len(at.parts):]).as_posix())
                 for place, why in _never_places()
