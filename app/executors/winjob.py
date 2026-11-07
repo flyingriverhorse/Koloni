@@ -93,6 +93,8 @@ def resume(process_handle: int) -> bool:
     """Let a process started suspended (`host.SUSPENDED`) run; False if Windows refused. One
     that runs already is left as it is. (Popen keeps no handle on its first thread for
     ResumeThread; NtResumeProcess - as psutil's resume() - needs none.)"""
+    if sys.platform != "win32":
+        return False
     ntdll = ctypes.WinDLL("ntdll")
     ntdll.NtResumeProcess.argtypes = [wintypes.HANDLE]
     return ntdll.NtResumeProcess(process_handle) == 0  # STATUS_SUCCESS

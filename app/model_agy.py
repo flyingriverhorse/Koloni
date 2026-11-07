@@ -348,8 +348,8 @@ def asked_as(tool: str, args: dict) -> list[tuple[str, dict]] | str:
 
 def _quotable(path: str) -> str:
     """`path` as a .cmd file can hold it between quotes: as it is, or by its 8.3 name."""
-    if QUOTABLE.fullmatch(path):
-        return path
+    if QUOTABLE.fullmatch(path) or sys.platform != "win32":
+        return path  # (only Windows writes a .cmd file to quote it in)
     buffer = ctypes.create_unicode_buffer(32768)
     if ctypes.windll.kernel32.GetShortPathNameW(path, buffer, len(buffer)) and (
             QUOTABLE.fullmatch(buffer.value)):
