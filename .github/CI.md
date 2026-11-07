@@ -15,7 +15,7 @@ the heavy set runs weekly or by hand. `scripts/verify.ps1` on your machine runs 
 | Weekly (Mondays 06:00 UTC); by hand | `security.yml` | `pip-audit` on `requirements-dev.lock` and `npm audit --omit=dev` on `frontend/package-lock.json`; reads the lock files, installs nothing. A finding fails the run |
 | Each pull request | `labeler.yml` | Labels it by the paths it changes (`.github/labeler.yml`): backend, migrations, frontend, tests, docs, ci, dependencies |
 | A push to `main` that changes `CHANGELOG.md` or `pyproject.toml`; by hand | `release-drafter.yml` | Keeps a draft release `v<version>` with the notes from `CHANGELOG.md` (`.github/scripts/release_notes.py --draft`: the version's section, or `[Unreleased]` until it is cut) |
-| A pushed tag `v*` | `release.yml` | Checks the tag is `v` + `pyproject.toml`'s version and `CHANGELOG.md` has its section; ruff, ty, the frontend's lint and build; publishes the GitHub Release (the draft if there is one) with the notes and the source plus `frontend/dist` as `.tar.gz` and `.zip`, with `SHA256SUMS` |
+| Each push to `main` (stops in seconds unless release-ready); a pushed tag `v*`; by hand | `release.yml` | A `gate` job: on `main`, goes on only when `pyproject.toml`'s version has no tag `v<version>` yet and `CHANGELOG.md` has a dated `## [X.Y.Z] - YYYY-MM-DD` section with entries (`release_notes.py --ready`). Then checks the tag is `v` + that version and the changelog has its dated section; ruff, ty, the frontend's lint and build; publishes the GitHub Release (the draft if there is one) with the notes and the source plus `frontend/dist` as `.tar.gz` and `.zip`, with `SHA256SUMS`, once that commit's PR Check run on `main` has passed (a warning when its paths skipped it); from `main` it first creates the tag `v<version>` at the pushed commit |
 | Weekly | Dependabot (`.github/dependabot.yml`) | Update pull requests for pip (`pyproject.toml`), npm (`frontend/`) and GitHub Actions; minor and patch grouped into one pull request per ecosystem |
 
 `backend.yml`, `frontend.yml` and `docs-check.yml` can each be started alone from the Actions tab
@@ -78,13 +78,23 @@ newer Python by hand (`py -3.14`).
   private repository Pages needs a paid plan, and the published site is public.
 - **Discussions** (Settings → General → Features), which `.github/SUPPORT.md` points to.
 - **Releases** need nothing more: `release-drafter.yml` and `release.yml` use the run's own
-  `GITHUB_TOKEN` with `contents: write` on the one job that writes. To release: move the
-  `[Unreleased]` entries under `## [X.Y.Z] - YYYY-MM-DD` with `pyproject.toml` at that version, push
-  to `main`, then `git tag vX.Y.Z && git push origin vX.Y.Z`. Check the notes first with
-  `python .github/scripts/release_notes.py --tag vX.Y.Z`. `release.yml` refuses a tag on a commit
-  that is not on `main`, and never replaces a release already published. Recommended: a tag
-  ruleset (Settings → Rules → Rulesets → New tag ruleset, target `v*`, restrict creations,
-  updates and deletions, bypass: repository admins), so only you can push or move a `v*` tag.
+  `GITHUB_TOKEN` with `contents: write` on the one job that writes. To release: set the version in
+  `pyproject.toml`, move the `[Unreleased]` entries under `## [X.Y.Z] - YYYY-MM-DD`, and merge to
+  `main`; the release and its tag `vX.Y.Z` (at the merge commit) come out by themselves. Check the
+  notes first with `python .github/scripts/release_notes.py --ready`. Pushing a tag by hand
+  (`git tag vX.Y.Z && git push origin vX.Y.Z`) still works. `release.yml` refuses a tag on a commit
+  that is not on `main`, never moves an existing tag and never replaces a release already
+  published. The full suite runs in `scripts/verify.ps1` locally and in the pull request's checks;
+  the publish job also waits (up to 40 minutes) for the commit's own PR Check run on `main` and
+  stops, before tagging, if it failed; a commit PR Check's paths skip (only the changelog, say)
+  publishes with a warning. A failed run is safe to repeat with Re-run all jobs within GitHub's
+  30-day re-run window (a tag already at its commit is reused, a published release left alone);
+  after that, run the workflow by hand on the tag (Run workflow, pick the tag) instead. A newer push
+  can cancel a pending PR Check on `main`; that commit's release run then fails with no tag, which
+  is harmless, since the newer push's run releases. Recommended: a tag ruleset (Settings → Rules → Rulesets → New tag
+  ruleset, target `v*`, restrict updates and deletions, bypass: repository admins), so no one moves
+  or deletes a `v*` tag. Do not restrict creations unless the ruleset can list GitHub Actions as a
+  bypass actor: the workflow creates the tag with `GITHUB_TOKEN`.
 - **SonarQube Cloud** (`sonar-project.properties`, the `sonar` job in `pr-check.yml`): import the
   repository as a project on [sonarcloud.io](https://sonarcloud.io) under the organization
   `flyingriverhorse`, key `flyingriverhorse_Koloni` (or change both in

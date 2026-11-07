@@ -60,3 +60,13 @@ def test_relative_links_point_at_the_tag_and_images_stay():
     assert release_notes.absolute_links(notes, "o/r", "v0.1.0") == (
         "[docs](https://github.com/o/r/blob/v0.1.0/docs/a.md) [web](https://x.org) [here](#a) "
         "![shot](docs/s.png)")
+
+
+def test_only_a_dated_heading_is_release_ready():
+    assert release_notes.dated(CHANGELOG, "0.2.0")
+    assert release_notes.dated(CHANGELOG.replace("\n", "\r\n"), "0.1.0")
+    assert not release_notes.dated(CHANGELOG, "Unreleased")
+    assert not release_notes.dated(CHANGELOG, "0.3.0")
+    assert not release_notes.dated("## [0.1.0]\n\n- x\n", "0.1.0")
+    assert not release_notes.dated("## [0.1.0] - TBD\n\n- x\n", "0.1.0")
+    assert not release_notes.dated("## [0.1.0.1] - 2026-11-20\n", "0.1.0")

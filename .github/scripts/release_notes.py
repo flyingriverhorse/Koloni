@@ -1,13 +1,14 @@
 """Release notes for the version in pyproject.toml, cut from CHANGELOG.md.
 
-    python .github/scripts/release_notes.py [--tag vX.Y.Z] [--draft] > notes.md
+    python .github/scripts/release_notes.py [--tag vX.Y.Z] [--draft | --ready] > notes.md
 
 Prints the version's section (`## [X.Y.Z] - date`, without the heading) and, in Actions, writes
 `version=X.Y.Z` to $GITHUB_OUTPUT and points its relative links at the tag on GitHub.
 Fails, so that no release goes out without notes:
 - with --tag, unless the tag is v<pyproject version> (release.yml);
 - with exit code 3 when the section is missing or empty. With --draft (release-drafter.yml, before
-  the version is cut) the `## [Unreleased]` section stands in for a missing one.
+  the version is cut) the `## [Unreleased]` section stands in for a missing one. With --ready
+  (release.yml on a push to main) the heading must also be dated: `## [X.Y.Z] - YYYY-MM-DD`.
 A section ends at the next `# ` or `## ` heading outside a code fence, or at the reference-link
 definitions (`[x]: https://...`) that close a changelog.
 """
@@ -41,6 +42,12 @@ def section(changelog: str, name: str) -> str:
     return "\n".join(body).strip()
 
 
+def dated(changelog: str, name: str) -> bool:
+    """Whether the heading of `name` reads `## [name] - YYYY-MM-DD`, i.e. the version is cut."""
+    return re.search(rf"^## \[{re.escape(name)}\] - \d{{4}}-\d{{2}}-\d{{2}}\s*$", changelog,
+                     re.MULTILINE) is not None
+
+
 def absolute_links(notes: str, repo: str, tag: str) -> str:
     """Relative links pointed at the tag on GitHub; images, anchors and URLs left as they are."""
     return re.sub(r"(?<!!)(\[[^\]]*\])\((?![a-z]+:|#)",
@@ -50,7 +57,9 @@ def absolute_links(notes: str, repo: str, tag: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tag", help="the pushed tag; must be v<pyproject version>")
-    parser.add_argument("--draft", action="store_true", help="fall back to [Unreleased]")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--draft", action="store_true", help="fall back to [Unreleased]")
+    mode.add_argument("--ready", action="store_true", help="require a dated heading")
     args = parser.parse_args()
 
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -61,7 +70,7 @@ def main() -> int:
         return 1
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     notes = section(changelog, version) or (section(changelog, "Unreleased") if args.draft else "")
-    if not notes:
+    if not notes or (args.ready and not dated(changelog, version)):
         print(f"error: CHANGELOG.md has no '## [{version}] - YYYY-MM-DD' section with entries"
               + (" (nor an [Unreleased] one)" if args.draft else ""), file=sys.stderr)
         return 3

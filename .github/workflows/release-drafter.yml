@@ -1,7 +1,7 @@
 # Keeps a draft GitHub Release for the version in pyproject.toml, its notes cut from CHANGELOG.md
 # (.github/scripts/release_notes.py --draft: the [X.Y.Z] section, or [Unreleased] until the version
-# is cut). Only a draft: release.yml publishes it when the tag v<version> is pushed, and a release
-# already published is never touched here.
+# is cut). Only a draft: release.yml publishes it once main has the version cut (a dated section,
+# no tag yet) or the tag v<version> is pushed, and a release already published is never touched here.
 name: Release draft
 
 on:
