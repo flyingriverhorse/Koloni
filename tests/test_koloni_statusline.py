@@ -55,16 +55,28 @@ def run(*arguments, given=INPUT):
                           capture_output=True, timeout=30, check=True).stdout.decode("utf-8")
 
 
+def heard_run(heard, *arguments, given=INPUT):
+    """`run` again until KOLONİ heard it: the script waits 0.25 s for KOLONİ by design (a status
+    line must not lag), which a slow CI runner can miss."""
+    before = len(heard)
+    for _ in range(5):
+        said = run(*arguments, given=given)
+        if len(heard) > before:
+            break
+    return said
+
+
 def test_it_sends_only_the_numbers_with_its_key_and_prints_a_short_line(koloni):
     address, heard = koloni
-    assert run("--koloni", address, "--key", "k3y").strip() == "Opus · KOLONİ"
-    [(path, headers, body)] = heard
+    assert heard_run(heard, "--koloni", address, "--key", "k3y").strip() == "Opus · KOLONİ"
+    (path, headers, body) = heard[0]
     assert path == "/api/limits/claude-session" and "Origin" not in headers
     assert headers["X-Koloni-Key"] == "k3y"
     assert body == {"five_hour": {"used_percentage": 53, "resets_at": 1761300000},
                     "seven_day": {"used_percentage": 93.4, "resets_at": 1761500000}}
-    run("--koloni", address, "--key", "k3y", given=PARTIAL)
-    assert heard[1][2] == {"seven_day": {"used_percentage": 93.4, "resets_at": 1761500000}}
+    before = len(heard)
+    heard_run(heard, "--koloni", address, "--key", "k3y", given=PARTIAL)
+    assert heard[before][2] == {"seven_day": {"used_percentage": 93.4, "resets_at": 1761500000}}
 
 
 def test_it_prints_the_users_own_status_line_with_the_same_input(koloni):

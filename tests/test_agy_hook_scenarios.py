@@ -586,6 +586,11 @@ def test_a_hook_script_whose_path_has_a_letter_beyond_ascii_is_started_by_its_sh
 
     placed = tmp_path / "Masaüstü" / "agy_hook.py"
     placed.parent.mkdir()
+    import ctypes
+
+    short = ctypes.create_unicode_buffer(1024)
+    if ctypes.windll.kernel32.GetShortPathNameW(str(placed.parent), short, 1024) and not short.value.isascii():
+        pytest.skip("this volume makes no 8.3 names (a CI runner's D:): KOLONİ rightly refuses there")
     shutil.copy(app.agy_hook.__file__, placed)
     monkeypatch.setattr(app.agy_hook, "__file__", str(placed))
     client, provider = hooked_app([
