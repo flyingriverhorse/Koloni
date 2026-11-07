@@ -15,7 +15,7 @@ from app.db.models import FileChange, Provider
 from app.model_client import OpenAICompatClient
 from app.providers import most_at_once
 from app.schemas import ProviderOut
-from tests.conftest import WAIT_SCALE, Gate
+from tests.conftest import Gate, scaled
 from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
 from tests.test_parallel import SPAWN_BOTH, now_snap, statuses, until
@@ -32,7 +32,7 @@ ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 
 def results(app, count, timeout=5.0):
     """What the CLI was answered so far, once it is `count` (its record is rewritten as it goes)."""
-    deadline = time.monotonic() + timeout * WAIT_SCALE
+    deadline = time.monotonic() + scaled(timeout)
     while True:
         try:
             got = app.record()["results"]

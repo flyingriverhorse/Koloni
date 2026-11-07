@@ -25,6 +25,12 @@ TERMINAL = {"completed", "failed", "cancelled", "interrupted"}
 # a slow Linux runner took 63 s for a 60 s wait. A passing test waits no longer for it.
 WAIT_SCALE = (10.0 if sys.platform == "win32" else 4.0) if os.environ.get("CI") else 1.0
 
+
+def scaled(seconds: float) -> float:
+    """A wait of `seconds` here, on this runner: at most 3 minutes unless it was already longer,
+    so a real failure still fails as itself, not as a part cancelled at its time limit."""
+    return min(seconds * WAIT_SCALE, max(seconds, 180.0))
+
 # Every app a test makes would migrate a new database from nothing (about a second, 57
 # migrations); one migrated once per run is copied instead. A database that is already
 # there (a test of an older one) is still upgraded for real.
@@ -315,7 +321,7 @@ def wait_run():
     # A ceiling, not a pace: it waits for a state, so 20 s costs time only to a test already
     # failing - and a CLI started as a process of its own (1-2 s alone) went past 5 s under load.
     def wait(client, conversation_id: str, run_id: str, timeout: float = 20.0) -> dict:
-        timeout *= WAIT_SCALE
+        timeout = scaled(timeout)
         deadline = time.monotonic() + timeout
         while True:
             snap = client.get(f"/api/conversations/{conversation_id}").json()
@@ -349,7 +355,7 @@ class Gate:
         return held
 
     def wait_partial(self) -> None:
-        assert self._partial_seen.wait(5 * WAIT_SCALE), "the model step never started"
+        assert self._partial_seen.wait(scaled(5)), "the model step never started"
 
     def release(self) -> None:
         self._released.set()

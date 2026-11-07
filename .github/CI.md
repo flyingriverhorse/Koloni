@@ -40,7 +40,7 @@ runner's ~2 minutes of setup, the lint part, the frontend, the guide and actionl
 would add setup minutes faster than they cut the wait. With `SONAR_TOKEN` set, coverage slows the
 parts a little and the scan adds a few minutes: about 85. CodeQL, once on, adds about 10.
 
-The heavy set is about 320 billed minutes: e2e ~27 (three shards with Playwright's `--shard`, each
+The heavy set is about 460 billed minutes: e2e ~27 (three shards with Playwright's `--shard`, each
 with ~4 minutes of setup beside its share of the tests; failures kept as `e2e-failures-1` … `-3`),
 the two Ubuntu backends ~57 each, and the Windows backend ~160 counted twice. So it stays off the
 schedule until `HEAVY_WEEKLY` is set. The six-part and three-shard figures are estimates from run
@@ -52,8 +52,9 @@ desktop): the runner's disk, not the four xdist workers, which Ubuntu has too. S
 twelve parts, each still limited to 30 minutes, with the tests' temporary files on the checkout's
 disk (`TMP` = `RUNNER_TEMP`, D:). Whether twelve parts fit and D: is faster is to be seen in the
 next runs. On any CI runner (`CI` set) the tests' shared waits (`wait_run`, `Gate.wait_partial`,
-`tests/test_parallel.py`'s `until`) last 4× longer, 10× on Windows (`WAIT_SCALE` in
-`tests/conftest.py`): a ceiling for something that does happen, so a passing test waits no longer.
+`tests/test_parallel.py`'s `until`) last 4× longer, 10× on Windows, but at most 3 minutes unless
+already longer (`scaled` in `tests/conftest.py`): a ceiling for something that does happen, so a
+passing test waits no longer, and a real failure still fails as itself before the part's limit.
 
 **Known failures on Linux.** The last run of the old `ci.yml` on Ubuntu (3.12) had 15 failed tests
 of 8,140, for example `tests/test_triggers.py::test_the_servers_access_log_never_holds_a_webhooks_key`
