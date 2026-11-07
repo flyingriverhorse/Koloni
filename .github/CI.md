@@ -1,14 +1,15 @@
 # CI
 
-The repository is private, so Actions minutes are counted (2,000 a month; Windows counts
-double, macOS ten times). Each push therefore runs every check once, on Linux with Python 3.12;
-the heavy set runs weekly or by hand. `scripts/verify.ps1` on your machine runs everything.
+The repository is public, so GitHub's standard runners cost nothing. Each pull request to `main`
+runs PR Check (Linux, Python 3.12) and the heavy set (e2e, Windows, Python 3.13 / 3.14) side by
+side: together they are the full verify, on GitHub's machines rather than yours.
+`scripts/verify.ps1` still runs everything locally when you want it.
 
 | When | Workflow | What |
 |---|---|---|
 | Each push and pull request to `main` | `pr-check.yml` | actionlint on every workflow; `backend.yml` (pytest in six parallel parts; ruff, ty and `check:api` in a seventh); `frontend.yml` (lint, typecheck, complexity, vitest, build); `docs-check.yml` (the guide's checks); the SonarQube Cloud scan, only when the secret `SONAR_TOKEN` is set. A newer push to the same branch cancels the older run, except on `main` |
 | A push or pull request that changes only `docs/` (but `docs/settings.md`, which a test reads), `pages/`, README / SECURITY / CHANGELOG and the like | `docs-check.yml` alone when the guide or one of those three changed; otherwise nothing | `pr-check.yml`'s `paths` list what is skipped |
-| Weekly (Mondays 03:30 UTC), only when the repository variable `HEAVY_WEEKLY` is `true`; or by hand | `heavy.yml` | e2e (Playwright, Ubuntu, in three shards); `backend.yml`'s six pytest parts on Windows (Python 3.12) and on Ubuntu with Python 3.13 and 3.14 (no lint part: PR Check lints); the Docker image build (by hand only, tick `docker`) |
+| Each pull request to `main` (same `paths` as PR Check); weekly (Mondays 03:30 UTC), only when the repository variable `HEAVY_WEEKLY` is `true`; by hand on any branch | `heavy.yml` | e2e (Playwright, Ubuntu, in three shards); `backend.yml`'s six pytest parts on Windows (Python 3.12) and on Ubuntu with Python 3.13 and 3.14 (no lint part: PR Check lints); the Docker image build (by hand only, tick `docker`) |
 | By hand; on a push to `main` that changes the guide or `pages/` once the variable `PAGES_ENABLED` is `true` | `docs.yml` | Builds and checks the guide, then (from `main` only) pushes the site to the `gh-pages` branch: `pages/` at the root (`README.md` left out), the guide under `manual/`. See GitHub Pages below |
 | Each push and pull request to `main` (not one that changes only the guide or notes), weekly (Mondays 07:00 UTC), by hand; only when the variable `CODE_SECURITY` is `true` | `codeql.yml` | CodeQL code scanning of Python and JavaScript/TypeScript, from source (no install, no build); `.github/codeql-config.yml` leaves out tests, the guide, generated and vendored files. Results under Security → Code scanning |
 | A pull request that changes `pyproject.toml`, `requirements-dev.lock`, `frontend/package*.json` or a workflow; only when `CODE_SECURITY` is `true` | `dependency-review.yml` | Fails the pull request when it adds a dependency with a known high or critical vulnerability |
@@ -22,8 +23,9 @@ the heavy set runs weekly or by hand. `scripts/verify.ps1` on your machine runs 
 (Run workflow); `backend.yml` takes the Python version, the runner (`os`), whether to lint and
 whether to measure coverage.
 
-**The heavy set by hand:** Actions → Heavy → Run workflow, on the branch you want. With the
-GitHub CLI: `gh workflow run heavy.yml --ref main` (add `-f docker=true` for the image).
+**The heavy set by hand:** Actions → Heavy → Run workflow, on the branch you want, with no pull
+request needed. With the GitHub CLI: `gh workflow run heavy.yml --ref <branch>` (add
+`-f docker=true` for the image). A workflow can be started by hand only once it is on `main`.
 
 **Minutes.** The old `ci.yml` ran the full verify on Windows and Ubuntu × Python 3.12, 3.13 and 3.14
 on every push: six jobs that each reached their 45-minute limit, about 400 billed minutes a push.
