@@ -261,6 +261,7 @@ def test_a_drive_relative_argument_is_refused_on_windows(monkeypatch):
         assert mcp_client.not_startable(["C:\\tools\\node.exe", good]) is None, good
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows' root-relative paths; a patched isabs breaks posixpath")
 def test_a_path_from_the_root_is_pinned_by_python_3_13s_isabs_too(monkeypatch, tmp_path):
     from pathlib import PureWindowsPath
 

@@ -5,6 +5,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -146,6 +147,8 @@ def test_a_linked_working_copy_is_refused_before_any_step(repo, tmp_path, args, 
 def test_a_guide_that_cannot_be_rebuilt_only_warns_and_the_update_ends_as_usual(
         repo, tmp_path, args, dry, monkeypatch):
     """Every step a stand-in that passes, but the docs extra's install fails (no network, say)."""
+    if args[0] == "-NoProfile" and sys.platform != "win32":
+        pytest.skip("its stand-ins are .cmd files, which pwsh runs only on Windows")
     work = tmp_path / "work"
     _git(tmp_path, "clone", "-q", str(repo), str(work))  # (an upstream: the pull passes)
     tools = tmp_path / "tools"

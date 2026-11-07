@@ -164,7 +164,7 @@ def test_its_status_is_read_in_its_folder_with_its_plan_and_nothing_else_of_the_
     if sys.platform != "win32":  # (off Windows: one sh line, `_login`)
         assert told["login"]["command"] == (
             f"CLAUDE_CONFIG_DIR={shlex.quote(str(folder))} {shlex.quote(cli)} auth login")
-        assert "cmd" not in told["login"]
+        assert told["login"]["cmd"] is None  # (RunCommand's: no cmd.exe form)
         return
     # How to log in there: in the user's own PowerShell, the folder set first.
     assert told["login"]["command"] == (

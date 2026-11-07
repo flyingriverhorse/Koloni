@@ -1689,7 +1689,7 @@ def test_an_agy_model_whose_name_fixes_its_level_takes_none():
     from app.catalog import facts
 
     for name in ("gemini-3.8-flash-low", "gemini-4-argon-high", "gemini-x-XHIGH"):
-        cli = AgyClient(None, name, reads=False)
+        cli = AgyClient(None, name, reads=False, launcher=FAKE)  # (no agy needed)
         assert cli.level_named and asyncio.run(cli.info()).efforts == ()
         assert cli.talker().level_named  # (its reading self too)
         assert facts("agy_cli", None, name)[0]["efforts"] == []

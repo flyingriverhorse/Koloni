@@ -71,8 +71,8 @@ newer Python by hand (`py -3.14`).
   HTTPS** once the certificate is issued. DNS at the `skyulf.com` provider: a `CNAME` record
   `koloni` → `flyingriverhorse.github.io`. To keep anyone else from claiming the domain, verify
   `skyulf.com` under the account's Settings → Pages → Verified domains. The guide is at `/manual/`
-  (`zensical.toml`'s `site_url`); the root `index.html` (`pages/`, a placeholder that sends the
-  reader on to `manual/` for now) is the landing page. Each run replaces the branch with one commit
+  (`zensical.toml`'s `site_url`); the landing page (`pages/index.html` and `pages/assets/`) is
+  at the root. Each run replaces the branch with one commit
   (`force_orphan`), so `pages/CNAME` must stay: without it a publish drops the custom domain. Then
   set the variable `PAGES_ENABLED` to `true` to publish on every push that changes the guide. On a
   private repository Pages needs a paid plan, and the published site is public.
