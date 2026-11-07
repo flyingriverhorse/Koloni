@@ -7,7 +7,7 @@ import time
 from alembic import command
 
 from app.model_client import ModelUnavailable
-from tests.conftest import Gate
+from tests.conftest import WAIT_SCALE, Gate
 from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
@@ -29,7 +29,7 @@ def now_snap(client, cid):
 
 def until(client, cid, ready, timeout=5.0):
     """The snapshot, once `ready(snapshot)` holds."""
-    deadline = time.monotonic() + timeout
+    deadline = time.monotonic() + timeout * WAIT_SCALE
     while True:
         snap = now_snap(client, cid)
         if ready(snap):
