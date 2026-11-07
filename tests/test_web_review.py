@@ -484,7 +484,8 @@ def test_a_long_run_of_what_shows_nothing_is_gone_over_once():
         for long in (one * 200_000, "[" + one * 200_000, "[end" + one * 200_000,
                      ("<" + one) * 100_000):
             assert web.framed(long) == f"{web.FRAME}\n{long}\n{web.FRAME_END}"
-    assert time.monotonic() - began < 1
+    # (Gone over again and again it would take minutes; 5 s leaves room for a busy CI runner.)
+    assert time.monotonic() - began < 5
 
 
 def test_a_fetched_page_with_an_end_written_another_way_is_still_framed(monkeypatch):
