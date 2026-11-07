@@ -334,8 +334,10 @@ def commit(  # noqa: C901
             notes += [f"{path} was left out of the commit: {why}" for path, why in left.items()]
             if born and (folder / "index").exists():
                 # The user's index for what it knows of each file (none is read again for
-                # nothing), with HEAD's content alone in it.
-                shutil.copyfile(folder / "index", index)
+                # nothing), with HEAD's content alone in it. Its own time too: git reads a
+                # file changed in the second the index was written again, not by its stat
+                # alone (racy git); a copy timed later took a same-size rewrite as unchanged.
+                shutil.copy2(folder / "index", index)
             must("read-tree", "read-tree", *(["--reset", "HEAD"] if born else ["--empty"]), **alone)
             # (Every list of paths on stdin: Windows' command line holds a few hundred at most.)
             gone = [path for path, _mode, blob in put if blob is None]

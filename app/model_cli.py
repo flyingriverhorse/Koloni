@@ -896,17 +896,23 @@ class Exited:
     left is ended (`_end`): its output closes and its last lines are read as ever, and the
     turn ends as it ended (`how_it_ended`: its exit code). True - give the turn up - only if
     its output is still open EXIT_GRACE_SECONDS on: a child got away from `_end`. Once every
-    pipe has closed (asyncio's wait() is done then), all it said is in hand and is read to
-    its end, however long that takes (review B2: a slow look at its last lines is no crash).
-    Made as the CLI starts: a wait() begun after its exit answers at once, pipes or not.
+    pipe has closed, all it said is in hand and is read to its end, however long that takes
+    (review B2: a slow look at its last lines is no crash). The pipes themselves say so, not
+    asyncio's wait() (done once all pipes close on 3.12; on the Linux runners' 3.13 and 3.14 a
+    held output never gave the turn up through it - not measured why, asyncio's own change
+    taken to be it).
     shortcut: the process started is taken to be the CLI, or a shim that waits for it (a
     .cmd's cmd.exe); a launcher that handed its work on and exited would be ended here. Not
-    measured for the five CLIs; measure one (K-cli-surface) if it is seen to. And one that
-    exits before this is made is taken to have closed its output."""
+    measured for the five CLIs; measure one (K-cli-surface) if it is seen to."""
 
     def __init__(self, process: asyncio.subprocess.Process, job) -> None:
         self._process, self._job, self._at = process, job, None
-        self._closed = asyncio.ensure_future(process.wait())  # its pipes all closed
+
+    def _open(self) -> bool:
+        """Whether its output or its errors' pipe has not reached its end yet."""
+        transport = getattr(self._process, "_transport")  # noqa: B009  (asyncio's own)
+        pipes = (transport.get_pipe_transport(1), transport.get_pipe_transport(2))
+        return any(pipe is not None and not pipe.is_closing() for pipe in pipes)
 
     async def __call__(self) -> bool:
         if self._process.returncode is None:  # (set at its exit, held pipes or not)
@@ -914,10 +920,7 @@ class Exited:
         if self._at is None:
             self._at = time.monotonic()
             await CliStepClient._end(self._process, self._job)
-        if self._closed.done() or time.monotonic() - self._at <= EXIT_GRACE_SECONDS:
-            return False
-        self._closed.cancel()
-        return True
+        return self._open() and time.monotonic() - self._at > EXIT_GRACE_SECONDS
 
 
 def _input_tokens(usage: object) -> int | None:

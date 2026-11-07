@@ -377,6 +377,8 @@ def _message(line: bytes) -> object:
     (`tools.parse_arguments`). ValueError for what is not JSON; RecursionError for JSON
     nested deeper than can be read."""
     text = line.decode("utf-8", errors="replace")
+    if web.too_deep(text):  # (json.loads alone reads deeper on some Pythons than others)
+        raise RecursionError("nested deeper than is read")
     value = json.loads(text)
     if "\\u" in text:
         value = json.loads(json.dumps(value, ensure_ascii=False).encode("utf-8", "replace"))

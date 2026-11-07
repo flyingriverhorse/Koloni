@@ -1333,6 +1333,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # turn -> its openers and the work of each such call, stopped with them (`_end_later`).
         self._opening: dict[str, asyncio.Future[str]] = {}
         self._slot_lent: set[str] = set()  # (`_lend_slot`)
+        # (project as it resolves, path) -> the digest of what KOLONİ wrote there for an agent
+        # (None: removed), until it is seen to hold anything else (`_seen_by_watchers`).
+        self._wrote_for: dict[tuple[str, str], str | None] = {}
         # Sub-agents whose opener went on beside them (`_see_through`), until the turn's end.
         self._went_on: set[str] = set()
         self._later_work: dict[str, list[tuple[str, str, str, asyncio.Future]]] = {}

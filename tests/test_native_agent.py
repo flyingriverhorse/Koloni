@@ -957,6 +957,32 @@ def test_what_a_sub_agents_command_made_is_not_put_down_to_its_native_parent(
         ("made.txt", "koloni", "Coder"), ("side.txt", "koloni", "Coder")]
 
 
+def test_what_koloni_wrote_for_another_agent_is_no_native_change_however_the_look_met_it(
+    tmp_path
+):
+    # (A Linux runner: the Lead's last look read the project while its Coder's files were
+    # being taken in, and put made.txt down to the Lead.)
+    import asyncio
+    from functools import partial
+
+    from app.agent.observe_mixin import ObserveMixin
+
+    async def nothing(*_args):
+        pass
+
+    runner = SimpleNamespace(_wrote_for={}, seen_in_project=nothing, _watches={})
+    runner._still_wrote_for = partial(ObserveMixin._still_wrote_for, runner)
+    (tmp_path / "made.txt").write_bytes(b"new\n")
+    ctx = SimpleNamespace(folder=str(tmp_path), model=None, tools=[])
+    asyncio.run(ObserveMixin._seen_by_watchers(runner, ctx, {"made.txt", "gone.txt"}))
+    found = [("made.txt", None, "new\n"), ("gone.txt", "old\n", None)]
+    assert ObserveMixin._record_found(runner, ctx, None, found, "changed by the CLI") == set()
+    # Once it holds anything else, it is no longer KOLONİ's write.
+    here = str(tmp_path.resolve())
+    assert not runner._still_wrote_for(here, ("made.txt", "new\n", "mine\n"))
+    assert list(runner._wrote_for) == [(here, "gone.txt")]
+
+
 # --- discussions (slice 10) ---------------------------------------------------------
 
 

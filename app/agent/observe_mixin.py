@@ -4,6 +4,7 @@ kept on a card, who is told, and a watch settled when a turn ends - `ObserveMixi
 """
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -85,6 +86,13 @@ class ObserveMixin:
         if not paths:
             return
         if copy is None:
+            # Before any await: a look whose thread read the project while these were being
+            # written has its result taken only after this (`_record_found` leaves them out).
+            here = Path(ctx.folder).resolve()
+            for path in paths:
+                data = copies._bytes(here / path)
+                self._wrote_for[(str(here), path)] = (
+                    None if data is None else hashlib.sha256(data).hexdigest())
             await self.seen_in_project(ctx.folder, paths)
         beside = [watch for watches in list(self._watches.values()) for watch in watches]
         for watch in beside:
@@ -374,6 +382,19 @@ class ObserveMixin:
             await self.seen_in_project(str(watch.view.root), recorded)
         return recorded | blocked
 
+    def _still_wrote_for(
+        self: "AgentRunner", here: str, found: tuple[str, str | None, str | None]
+    ) -> bool:
+        """Whether a file found changed holds what KOLONİ last wrote there for an agent
+        (`_seen_by_watchers`). One that holds anything else is no longer KOLONİ's write."""
+        key = (here, found[0])
+        if key not in self._wrote_for:
+            return False
+        if self._wrote_for[key] == sha256_text(found[2]):
+            return True
+        del self._wrote_for[key]
+        return False
+
     def _record_found(
         self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
         found: list[tuple[str, str | None, str | None]], how: str,
@@ -393,6 +414,11 @@ class ObserveMixin:
             here = str(Path(ctx.folder).resolve())
             found = [one for one in found if (wrote := koloni.WROTE.get((here, one[0]))) is None
                      or wrote[0] != (None if one[2] is None else one[2].encode())]
+            # Nor what KOLONİ wrote there for another agent, taken in from its copy say, and
+            # still as it wrote it - however this look and that write met in time.
+            # shortcut: a write still under way when the look read it (a part of the file) is
+            # put down to the CLI; hold the looks off the writes if that is seen.
+            found = [one for one in found if not self._still_wrote_for(here, one)]
         if _changes_nothing(ctx):  # (what changed beside it, at work at once: not its)
             return set()
         hidden = {one[0] for one in found if how == IN_THE_PROJECT and secret_in_project(one[0])}
