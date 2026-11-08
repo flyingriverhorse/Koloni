@@ -168,7 +168,8 @@ def test_every_git_command_runs_hardened_and_the_tree_is_counted_before_it_is_wr
     into = tmp_path / "repo"
     knowledge._cloned(into, URL, time.monotonic() + 100)
     # The three share what is left of the learning's reading time.
-    assert len(seconds_given) == 3 and all(0 < one <= 100 for one in seconds_given)
+    # (100 + a hair: on Windows the deadline less a coarse monotonic() came out 100.00000000000006)
+    assert len(seconds_given) == 3 and all(0 < one <= 100 + 1e-6 for one in seconds_given)
     (clone, clone_at, _env), (listing, listing_at, _e), (reset, reset_at, _v) = calls
     assert clone[clone.index("--") + 1:] == [f"{URL}.git", str(into)]
     for flag in ("--no-checkout", "--depth", "--single-branch", "--no-tags",
