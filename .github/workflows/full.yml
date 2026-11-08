@@ -2,11 +2,14 @@
 # (actionlint, the backend in six parts, the frontend, the guide, SonarQube) and the heavy set
 # (e2e in three shards, the backend on Windows and on Python 3.13 / 3.14) and the backend on
 # macOS (macos.yml), side by side.
-# Actions -> Full check -> Run workflow, or `gh workflow run full.yml --ref <branch>`.
-# Like every hand-started workflow, it can be started only once this file is on main.
+# Actions -> Full check -> Run workflow, or `gh workflow run full.yml --ref <branch>` (by hand only
+# once this file is on main). It also runs on each push to a work branch (`k-*`) or a train
+# (`train-*`), so a branch is checked on GitHub's runners before it goes into a pull request.
 name: Full check
 
 on:
+  push:
+    branches: ['k-**', 'train-**']
   workflow_dispatch:
     inputs:
       docker:
@@ -27,7 +30,7 @@ jobs:
     name: Heavy
     uses: ./.github/workflows/heavy.yml
     with:
-      docker: ${{ inputs.docker }}
+      docker: ${{ inputs.docker == true }}  # (false on a push, which has no inputs)
 
   macos:
     name: macOS
