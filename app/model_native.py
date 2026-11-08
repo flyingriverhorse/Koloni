@@ -1549,6 +1549,9 @@ class CodexSessionClient(CodexNativeClient):
     # and js_repl may send no item at all: for those the flags in `OFF` are the guard.
     # shortcut: by the item types of 0.164's protocol; one code mode sends around an MCP call is
     # not measured - it would end every session: add it here once seen live.
+    # shortcut: B-415 (live, 8 Nov, gpt-6-luna): a lead began collabAgentToolCall with
+    # multi_agent off - an item, not a request, so nothing to decline: the session still stops
+    # (its agents at work end its row, `_lead_ended`); measure which flag turns it off.
     ITEMS = frozenset({"userMessage", "agentMessage", "reasoning", "plan", "contextCompaction",
                        "fileChange", "mcpToolCall"})
     # Requests declined in one turn before it is ended: a model that keeps trying its patch tool

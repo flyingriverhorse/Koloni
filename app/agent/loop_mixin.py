@@ -601,6 +601,10 @@ class LoopMixin:
                     held := await self._held_for_work(ctx)):
                 self._nudge(ctx, held)
                 continue
+            if status == "completed" and not ctx.depth and not (
+                    ctx.answering or ctx.discussion) and (ready := await self._ready_at_end(ctx)):
+                self._nudge(ctx, ready.strip())
+                continue
             # B-382 (live): nor is its stop at its step limit, which it had spent waiting
             # for its teams: they are waited for too, and the turn ends at that limit as
             # it was to - no step more of the Lead's.
@@ -619,6 +623,21 @@ class LoopMixin:
                 return status, error
             self._nudge(ctx, left)
             calls = self._calls_of(ctx)
+
+    async def _ready_at_end(self: "AgentRunner", ctx: Ctx) -> str:
+        """B-415 (live): Ready for you is asked as the Lead hears back from an agent - with
+        another still in the copy then (a lead's agent outliving it, one answering a message)
+        it was asked never: it is, before the Lead's answer ends the turn. In the call of the
+        last lead it opened, else of the last agent it opened - a card is always in a call;
+        with none, no recipe ran."""
+        mine = [one for one in self._ctxs.values() if one.run_id == ctx.run_id and one.depth == 1]
+        with self._factory() as session:  # (one of the user's room has no call)
+            called = set(session.scalars(select(Agent.id).where(
+                Agent.id.in_([one.agent_id for one in mine]), Agent.tool_call_id.is_not(None))))
+        opened = [one for one in reversed(mine) if one.agent_id in called]
+        under = next((one for one in opened if one.agent_id in self._leads),
+                     opened[0] if opened else None)
+        return "" if under is None else await self._ready_for_you(ctx, under)
 
     async def _loop_end(self: "AgentRunner", ctx: Ctx, counts, stopped: bool) -> None:
         """`_loop`, however it ended: its counts kept, its MCP servers and the sub-agents it

@@ -546,6 +546,10 @@ class RoomsMixin:
         # shortcut: Try again on a Room step opens the whole room again, which the places
         # its other members still hold refuse - Skip or Stop is left; let a room be opened
         # for the failed roles alone if that is met.
+        # shortcut: B-415 (found in review, not seen live): a session opener's spawn_agent runs
+        # beside this call (`model_session.TOGETHER`) and may take a coordinator up (`_take_up`)
+        # once the room is ended on record, before this loop - which then ends that lead's row
+        # under it. Skip members in `_taken_up` here if that is seen.
         told = ""
         for agent_id in room.members:
             with self._factory() as session:

@@ -189,3 +189,9 @@ def test_session_is_codexs_default_and_a_saved_step_is_kept():
 def test_an_item_whose_type_is_no_name_ends_the_session_too():
     assert "began a tool of its own" in CodexSessionClient()._unwanted({"type": ["x"]}, True)
     assert CodexSessionClient()._unwanted({"type": "agentMessage"}, True) is None
+
+
+def test_its_own_sub_agent_item_ends_the_session_as_the_b415_scenario_says():
+    from tests.test_b415 import STOPPED  # (B-415, live: begun with multi_agent switched off)
+
+    assert CodexSessionClient()._unwanted({"type": "collabAgentToolCall"}, False) == STOPPED
