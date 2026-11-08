@@ -45,8 +45,11 @@ test('a web search asks first, goes out once it is approved, and its row says wh
   await expect(row.locator('.tool-row-detail')).toContainText('https://docs.python.org/3/')
   await expect(row.locator('.tool-row-detail')).not.toContainText('did not answer')
   // Opened, its detail is under its head, as wide (K-arac-satiri: once beside it, in a narrow column).
-  const head = (await row.locator('.tool-row-head').boundingBox())!
-  const detail = (await row.locator('.tool-row-detail').boundingBox())!
+  // (Both read at one moment: measured one after the other, the chat scrolled in between on a CI runner.)
+  const [head, detail] = await row.evaluate(el => ['.tool-row-head', '.tool-row-detail'].map(part => {
+    const box = el.querySelector(part)!.getBoundingClientRect()
+    return { x: box.x, y: box.y, width: box.width, height: box.height }
+  }))
   expect(detail.y).toBeGreaterThanOrEqual(head.y + head.height - 1)
   expect(Math.abs(detail.x - head.x)).toBeLessThanOrEqual(1)
   expect(Math.abs(detail.width - head.width)).toBeLessThanOrEqual(2)

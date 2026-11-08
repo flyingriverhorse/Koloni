@@ -150,6 +150,16 @@ def opened(snap):
     return [a["role_name"] for a in snap["agents"] if a["depth"] == 1]
 
 
+def in_waves(names, *sizes):
+    """`names` cut into waves of these sizes, each sorted: agents opened at once can share a
+    timestamp, and their order is then their ids' (seen on a CI runner)."""
+    at, waves = 0, []
+    for size in sizes:
+        waves.append(sorted(names[at:at + size]))
+        at += size
+    return waves + [names[at:]]
+
+
 def test_model_change_plans_has_the_learned_expert_review_builds_checks_twice_and_reviews(
     make_client, project_dir
 ):
@@ -183,7 +193,8 @@ def test_a_change_is_checked_by_two_at_once_fixed_once_and_reviewed(
         writer: [step(write("made.txt", "x")), text("changed")], first: [text(NONE)], second: [text(FOUND)],
         f"{writer} 2": [text("fixed")], f"{first} 2": [text(NONE)], f"{second} 2": [text(NONE)],
         "Reviewer": [text(NONE)]})
-    assert opened(snap) == [writer, first, second, writer, first, second, "Reviewer"]
+    assert in_waves(opened(snap), 1, 2, 1, 2) == in_waves(
+        [writer, first, second, writer, first, second, "Reviewer"], 1, 2, 1, 2)
     group = "checks" if team == "DataOps" else "reviews"
     assert strip(row(snap)) == [("build", "done", 1), (group, "done", 1), ("review", "done", 0),
                                 ("end", "now", 0)]
