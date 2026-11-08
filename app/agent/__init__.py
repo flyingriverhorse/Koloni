@@ -1071,6 +1071,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # and of the commands a CLI ran with its own tools, apart: they never stop it
         self._own_counts: dict[str, signs.Counts] = {}
         self._stuck: dict[str, str] = {}
+        # B-413: the Orchestrator's call its loop guard stopped it at (`_counted`, `_circled`).
+        self._circling: dict[str, str] = {}
         # agent id -> when a CLI's text or own tool last put its time on record
         self._touched: dict[str, float] = {}
         # run id -> the record its lead is given (`app.record`): made at its first step
@@ -1777,6 +1779,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._counts.pop(agent_id, None)
             self._own_counts.pop(agent_id, None)
             self._stuck.pop(agent_id, None)
+            self._circling.pop(agent_id, None)
             self._steps_left.pop(agent_id, None)
             self._answer_again.discard(agent_id)
             self._role_taken.pop(agent_id, None)
@@ -4721,6 +4724,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if stamp != counts.stamp:
             counts.stamp = stamp
             earlier = counts.changed()
+        counts.heard(name, arguments, output)
         # (A command that keeps running has no exit code yet: not a failure.)
         failed = status == "failed" or (name == "run_command" and status == "succeeded"
                                         and code not in (0, None))
@@ -4740,14 +4744,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if found or earlier:
             fields["sign"] = found or earlier
         self._set_agent(ctx.cid, ctx.agent_id, **fields)
-        if found is None:
-            return output
-        if (
-            found["kind"] == "same_failure" and found["count"] >= signs.STOP_AT
-            and not self._watched(ctx.run_id) and not own
-        ):
+        again = found is not None and found["kind"] == "same_failure" and (
+            found["count"] >= signs.STOP_AT)
+        if not own and again and found and not self._watched(ctx.run_id):
             self._stuck[ctx.agent_id] = signs.stopped(found["text"])
             self._stopped_by_koloni(ctx)
+        elif not own and not ctx.depth and (again or counts.idle >= signs.IDLE_STOP):
+            # B-413: the Orchestrator counts no steps - this ends it, or asks (`_circled`).
+            self._stuck[ctx.agent_id] = signs.circling(
+                found["text"] if again and found else signs.IDLE.format(count=counts.idle))
+            self._circling[ctx.agent_id] = call_id
+        if found is None:
+            return output
         return f"{output}\n\n[Counted by KOLONİ: {found['text']}]"
 
     # --- a chat team's recipe (slice 84b-2) -----------------------------------------------

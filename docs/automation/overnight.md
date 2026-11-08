@@ -122,8 +122,9 @@ Nobody is there to answer a Continue / Stop here card, so none comes:
 - One that stopped at its role's own limit, or stops again, ends. The job's Orchestrator hands what is
   left to another agent, or says in its report what is left undone. The job can still count as done:
   read its chat.
-- If the job's Orchestrator itself runs out of steps, the job fails, and is tried once more in its chat,
-  with new steps.
+- The job's Orchestrator counts no steps. If it goes round in circles (the same call failing the same
+  way 5 times, or 10 calls in a row bringing nothing new), the job fails with that reason, is tried once
+  more in its chat, and the night goes on with the next job.
 
 See [Step limits](../agents/step-limits.md).
 

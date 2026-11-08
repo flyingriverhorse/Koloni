@@ -52,6 +52,9 @@ The project's own test command also runs without being ticked.
 ### Budget and end
 
 - **Model steps a run** (default 15), **Minutes a run** (default 10), **Runs a day** (default 24).
+  **Model steps a run** counts all the turn's agents together, the Orchestrator too: it is the step
+  limit you set for the turn. The Orchestrator also stops if it goes round in circles: see
+  [Step limits](../agents/step-limits.md#when-the-orchestrator-goes-round-in-circles).
   "Three runs in a row that fail or go over switch the trigger off."
 - **Ends**: **No end**, **After so many runs**, or **After a day**.
 - **Run once when KOLONİ starts if a run was missed** (on by default).

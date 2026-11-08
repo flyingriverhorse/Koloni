@@ -940,10 +940,11 @@ def test_an_answer_with_no_call_of_koloni_s_is_no_try(make_client, wait_run, pro
 
 
 def test_tries_cost_steps_and_a_streak_ends_at_the_step_limit(make_client, wait_run, project_dir):
-    from dataclasses import replace
     client, _model = make_client([tried(), tried(), step(call("list_dir", {})), tried(), tried()])
-    runner = client.app.state.runner
-    runner.settings = replace(runner.settings, max_steps=4)
+    # (B-413: the Orchestrator's step limit is only one the user set - its role's)
+    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 4},
+                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
-    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("failed", "step_limit")
+    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == (
+        "failed", "stopped at its role's limit of 4 steps")

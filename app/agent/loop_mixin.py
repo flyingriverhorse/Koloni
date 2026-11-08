@@ -53,7 +53,14 @@ from app.db.models import (
     now,
 )
 from app.limits import classify
-from app.model_client import ModelClient, ModelInfo, ModelUnavailable, StepResult, ToolCallRequest
+from app.model_client import (
+    ModelClient,
+    ModelInfo,
+    ModelUnavailable,
+    OwnStop,
+    StepResult,
+    ToolCallRequest,
+)
 from app.model_session import ClaudeSessionClient, CliSessionClient, SessionStop
 from app.providers import list_providers, mode_of
 from app.roles import LEARN, LOOKUP, find_role, shown_name
@@ -561,7 +568,7 @@ class LoopMixin:
         an answer it did not wait for comes, its teams work, or a step is left to do."""
         calls = None
         while True:
-            status, error = await self._steps(ctx, info)
+            status, error = await self._steps_held(ctx, info)
             # B-397: at the app's step limit a sub-agent asks the user whether to go on, once
             # (`_more_steps`) - not at its role's, the user's own rule, nor at the end of the steps
             # given on top.
@@ -658,6 +665,18 @@ class LoopMixin:
                 self._room_cut(followed)
             self._room_returned(ctx, followed)
 
+    async def _steps_held(self: "AgentRunner", ctx: Ctx,
+                          info: ModelInfo) -> tuple[str, str | None]:
+        """`_steps`; B-413: the Orchestrator's only step limit is its role's (OwnStop) - at it,
+        it waits for its teams as it did at the app's (B-382, `_loop_steps`), as a session's
+        stop (a SessionStop) always did."""
+        try:
+            return await self._steps(ctx, info)
+        except OwnStop as stop:
+            if ctx.depth:
+                raise
+            return "failed", str(stop)
+
     async def _steps(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> tuple[str, str | None]:
         # 29c: a member of a paused room starts nothing - nor a CLI's session, its own loop.
         await self._while_paused(ctx)
@@ -695,8 +714,10 @@ class LoopMixin:
         waits = 0  # (its steps that only waited in its room: `rooms.WAITS`)
         # (The limit read at each step: a recipe's runner's grows as it starts its recipe and
         # as the user sends it back - R147, `_recipe_steps`.)
-        while taken < (limit := ctx.max_steps or self._step_limit(ctx)):
-            most = None if ctx.max_steps else min(one for one in (limit, role) if one)
+        # (B-413: none for the Orchestrator - its loop guard holds it: `_counted`, `_circled`.)
+        while (limit := ctx.max_steps or self._step_limit(ctx)) is None or taken < limit:
+            most = None if ctx.max_steps else min((one for one in (limit, role) if one),
+                                                  default=None)
             await self._while_paused(ctx)  # (29c: no model is asked for a paused room)
             self._hold_to_role(ctx, taken)
             self._steps_left[ctx.agent_id] = None if most is None else most - taken
@@ -715,8 +736,8 @@ class LoopMixin:
             if not result.tool_calls:
                 return "completed", None
             await self._run_tools(ctx, info, message_id, result.tool_calls)
-            if ctx.agent_id in self._stuck:
-                return "failed", self._stuck.pop(ctx.agent_id)
+            if ctx.agent_id in self._stuck and (end := await self._circled(ctx)) is not None:
+                return end
             free = self._only_waited(ctx, result, taken, waits)
             waits += free
             taken += not free
@@ -808,8 +829,7 @@ class LoopMixin:
         the records. What the CLI says becomes assistant messages; every tool it asks
         for is recorded under the message before it and run the usual way."""
         before = self._steps_used.get(ctx.agent_id, 0) if _goes_on(ctx) else 0
-        transcript = _Transcript(self, ctx, limit=ctx.max_steps or self._step_limit(ctx),
-                                 opened=before)
+        transcript = _Transcript(self, ctx, held=True, opened=before)
 
         async def call_tool(name: str, arguments: str) -> tuple[bool, str, list[dict]]:
             request = ToolCallRequest(f"cli_{uuid.uuid4().hex[:16]}", name, arguments)
@@ -820,8 +840,10 @@ class LoopMixin:
                                                   "data": base64.b64encode(picture[1]).decode()}]
             # 29c: its next step is its own loop's: a paused room holds the answer it waits for.
             await self._while_paused(ctx)
-            if ctx.agent_id in self._stuck:
-                raise SessionStop(self._stuck.pop(ctx.agent_id))
+            if ctx.agent_id in self._stuck and (end := await self._circled(ctx)) is not None:
+                stop = SessionStop(end[1] or "")
+                stop.ended = end[0]
+                raise stop
             # The CLI keeps its own loop: a note left for it rides on the next result,
             # and so does word that a fact it was given no longer stands - and, for a
             # member of a room, how the room stands when that has changed - and what the user
@@ -899,7 +921,7 @@ class LoopMixin:
             with contextlib.suppress(Exception):  # (B-410: the model it ran on, auto's pick too)
                 self._ran_on(ctx, exc.model, exc.picked_why)
             if isinstance(exc, SessionStop):
-                return "failed", str(exc)
+                return exc.ended, str(exc) or None
             raise
         finally:
             with contextlib.suppress(Exception):  # (a card never fails the run)

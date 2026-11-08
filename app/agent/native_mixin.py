@@ -294,7 +294,7 @@ class NativeMixin:
             reads = any(tool in bridged for tool in READ_TOOLS & set(told.tools) - self._off())
             told = replace(told, instructions=told.instructions + self._told_of_copy(
                 ctx, owner, reads))
-        transcript = _Transcript(self, ctx, limit=None)
+        transcript = _Transcript(self, ctx, held=False)
         # (A server switched off on the Tools page is given to nobody: not named as withheld.)
         servers = (list(ctx.mcp) if ctx.mcp and not collaborates else [])
         if servers:

@@ -286,7 +286,7 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         setting={steps}
         low={5}
         high={200}
-        why="For every project: the most model steps one agent takes on a job before it stops. A team’s coordinator and the Orchestrator get more for their recipe’s steps and their teams; a role’s own limit, where lower, still holds."
+        why="For every project: the most model steps one sub-agent takes on a job before it stops. A team’s coordinator gets more for its recipe’s steps; a role’s own limit, where lower, still holds. The Orchestrator counts no steps: it stops when it goes round in circles, or at the Lead role’s own limit if you set one."
         also={<ContinueNote toLimits={toLimits} />}
       />
       <WholeRow id="compact-at" label="Summarise a long context at (%)" setting={compaction} low={50} high={95} why="For every project: once an agent’s context passes this much of its model’s window, the older part is summarised before its next step." />

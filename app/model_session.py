@@ -103,6 +103,9 @@ class SessionStop(Exception):
     # As `ModelUnavailable`'s: the model it said it ran on, and why auto picked it (B-410).
     model: str | None = None
     picked_why: str | None = None
+    # B-413: how the agent's job ends - "completed" where its loop guard stopped it after the
+    # turn's work was in the project (`AgentRunner._circled`).
+    ended: str = "failed"
 
 
 class _UnknownMethod(Exception):

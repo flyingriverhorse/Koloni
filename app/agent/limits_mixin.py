@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
-from app import project_map, recipe_run
+from app import project_map, recipe_run, signs
 from app.agent.cards import _goes_on, _steps_of_chain
 from app.agent.ctx import Ctx, _NobodyToAsk, _Unwatched
 from app.agent.words import (
@@ -30,7 +30,17 @@ from app.agent.words import (
 )
 from app.api.usage import month_spend
 from app.commands import danger, is_exactly, ticked
-from app.db.models import Agent, Conversation, Flag, OwnRequest, Project, Provider, Run, Trigger
+from app.db.models import (
+    Agent,
+    Conversation,
+    FileChange,
+    Flag,
+    OwnRequest,
+    Project,
+    Provider,
+    Run,
+    Trigger,
+)
 from app.model_client import ModelClient, OwnStop
 from app.providers import works_with_own_tools
 from app.roles import find_role
@@ -43,6 +53,11 @@ if TYPE_CHECKING:
 # An agent that came to what its role lets one agent use: KOLONİ's own rule (OwnStop).
 ROLE_STEPS = "stopped at its role's limit of {limit} step{s}"
 ROLE_TOKENS = "stopped at its role's limit of {limit} tokens: it used {used}"
+# B-413: the card a watched turn's Orchestrator asks the user on where its loop guard stopped it.
+CIRCLING_ASKED = ("The Orchestrator has no step limit, and it seems to go round in circles: {why} "
+                  "Go on lets it carry on; Stop here ends it, with what it did so far.")
+CIRCLING_GO_ON = "Go on"
+CIRCLING_LANDED = "The Orchestrator ended after this turn's work was in the project: {why}"
 
 # How a stop at the end of the steps given once more (K-devam-butce, `GIVEN_ONCE`) is on
 # record (B-327: not "step_limit", whose words everywhere say the app's limit).
@@ -89,12 +104,6 @@ LEAD_STEPS_PER_RECIPE_STEP = 4
 # the recipe's steps once more - for this many rounds at most: past them a loop the user keeps
 # sending back stops at the limit, not runs on unbounded.
 ASKED_ROUNDS_PAID = 3
-# B-398: the Orchestrator's steps on top of the app's limit for each team row its chat has
-# with a lead: open the lead, pass on its messages between teams, read its report, one to
-# spare - the live run of five teams (a room, four leads, 13+ messages, the merge) ran out
-# of 25 right after merging.
-STEPS_PER_TEAM = 8
-
 # B-398: Settings › The app's "Steps an agent may take" (the `flags` row STEPS_FLAG); without one,
 # `config.max_steps`. Held to MOST_STEPS_RANGE.
 STEPS_FLAG = "max_steps"
@@ -333,9 +342,11 @@ class LimitsMixin:
         than it has (its message is counted when it begins); count it apart if that matters."""
         left = self._steps_left.get(ctx.agent_id)
         unwatched = self._unwatched.get(ctx.run_id)
-        if left is not None and unwatched is not None:
-            # (this step is counted already: `_count_step`)
-            left = min(left, unwatched.steps - unwatched.taken + 1)
+        if unwatched is not None:
+            # (this step is counted already: `_count_step`; B-413: the Orchestrator has no
+            # count of its own, only the turn's)
+            budget = unwatched.steps - unwatched.taken + 1
+            left = budget if left is None else min(left, budget)
         if left is not None and left <= WRAP_UP_STEPS:
             return WRAP_UP.format(near=f"you have {left} step{'' if left == 1 else 's'} left")
         if ctx.role_tokens is None:
@@ -371,16 +382,59 @@ class LimitsMixin:
             self._budget_told.add(ctx.agent_id)
         return said
 
-    def _step_limit(self: "AgentRunner", ctx: Ctx) -> int:
+    def _step_limit(self: "AgentRunner", ctx: Ctx) -> int | None:
         """The most steps one agent takes on a job. In an unattended turn the trigger's
         budget, which counts all its agents together, is what holds. A job on a budget given
-        on top (K-devam-butce) takes that many."""
+        on top (K-devam-butce) takes that many. None: no count of its own - the Orchestrator.
+        B-413: three teams, a room and the messages between them ran its fixed count out
+        after the work was in the project, and no Continue card is asked of it. What holds it
+        instead: the loop guard (`_counted`, `_circled`), a limit the user set - its role's own
+        (the Lead's `max_steps`), a trigger's steps for the whole turn (`_count_step`) - the
+        turn's tokens, the month's budget, a night's or a trigger's minutes, and Stop."""
         if (given := self._given_steps.get(ctx.agent_id)) is not None:
             return given
+        if not ctx.depth:
+            return None
         unwatched = self._unwatched.get(ctx.run_id)
         if unwatched is None:
-            return self._app_steps() + self._recipe_steps(ctx) + self._team_steps(ctx)
+            return self._app_steps() + self._recipe_steps(ctx)
         return max(self._app_steps(), unwatched.steps)
+
+    async def _circled(self: "AgentRunner", ctx: Ctx) -> tuple[str, str | None] | None:
+        """How an agent KOLONİ stopped (`_stuck`) ends - or, B-413, None where the Orchestrator's
+        loop guard stopped it (`_counted`) in a turn the user can be asked in and they said Go
+        on: its counts start again. Elsewhere - a trigger's turn, a night's job, a backlog task -
+        it ends with why on record, and the night or the To-do run goes on with the next. Once
+        work of the turn is in the project, it ends completed, with why as KOLONİ's line: a
+        guard does not make red a turn whose work landed (the live B-413 ended so)."""
+        why = self._stuck.pop(ctx.agent_id)
+        call_id = self._circling.pop(ctx.agent_id, None)
+        if call_id is None:
+            return "failed", why
+        if self._attended(ctx):
+            try:
+                _status, word = await self._ask_user(ctx, call_id, {
+                    "question": CIRCLING_ASKED.format(why=why.removeprefix(signs.CIRCLING)),
+                    "options": [CIRCLING_GO_ON, STEPS_STOP]}, leave=True)
+            except _NobodyToAsk:
+                word = ""
+            if word.removeprefix(ANSWER_PREFIX) == CIRCLING_GO_ON:
+                self._counts.pop(ctx.agent_id, None)
+                return None
+        self._stopped_by_koloni(ctx)
+        with self._factory() as session:
+            landed = session.scalar(select(FileChange.id).where(
+                FileChange.run_id == ctx.run_id, FileChange.status == "applied").limit(1))
+        if landed is None:
+            return "failed", why
+        self._koloni_line(ctx.cid, ctx.run_id, CIRCLING_LANDED.format(why=why))
+        return "completed", None
+
+    def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether the user can be asked on a card in this turn: one they started - not a
+        trigger's, a night's job or a backlog task."""
+        return self._watched(ctx.run_id) and (
+            ctx.run_id not in self._away_jobs and ctx.run_id not in self._backlog_turns)
 
     async def _more_steps(self: "AgentRunner", ctx: Ctx) -> bool:
         """B-397: a sub-agent - a team's coordinator too - that came to its step limit in a turn
@@ -444,15 +498,6 @@ class LimitsMixin:
             return USER_STOPPED_HERE
         return GIVEN_UNDONE if key in self._budgeted else LEFT_UNDONE
 
-    def _team_steps(self: "AgentRunner", ctx: Ctx) -> int:
-        """B-398: the Orchestrator's STEPS_PER_TEAM for each of its chat's team rows a lead runs
-        (a row no lead runs is its own recipe's: `_recipe_steps`)."""
-        if ctx.depth:
-            return 0
-        with self._factory() as session:
-            return STEPS_PER_TEAM * sum(
-                lead is not None for _row, _team, lead in self._rows(session, ctx.cid))
-
     def _app_steps(self: "AgentRunner") -> int:
         """The app's step limit, as Settings › The app has it (`app_steps`)."""
         with self._factory() as session:
@@ -462,21 +507,18 @@ class LimitsMixin:
         """R143: a team's lead runs its recipe step by step - opening each step's agents,
         waiting, reading what came back - and Feature's six steps did not fit in the app's
         limit: it has LEAD_STEPS_PER_RECIPE_STEP more for each step of its row's recipe. R147:
-        so has the Lead for a row no lead runs (a one-team chat's) - from its first step, the
-        recipe not begun yet - and either as much again for each Ask for changes on it, up to
-        ASKED_ROUNDS_PAID. Read at each step: a recipe is sent back while its runner works."""
-        if ctx.depth > 1:
+        as much again for each Ask for changes on it, up to ASKED_ROUNDS_PAID. Read at each
+        step: a recipe is sent back while its runner works. (The Orchestrator, which runs a
+        row no lead runs, counts no steps of its own: `_step_limit`.)"""
+        if ctx.depth != 1:
             return 0
         steps = 0
         with self._factory() as session:
-            for row, team, lead in self._rows(session, ctx.cid):
-                if lead is not None if ctx.depth == 0 else not lead or lead.name != ctx.role:
-                    continue
-                if state := self._live_state(row, ctx.run_id):
+            for row, _team, lead in self._rows(session, ctx.cid):
+                if lead and lead.name == ctx.role and (
+                        state := self._live_state(row, ctx.run_id)):
                     asked = min(state.get("asked", 0), ASKED_ROUNDS_PAID)
                     steps += len(recipe_run.graph_of(state).steps) * (1 + asked)
-                elif ctx.depth == 0 and (found := self._recipe_of(session, row, team)):
-                    steps += len(found[1].steps)
         return LEAD_STEPS_PER_RECIPE_STEP * steps
 
     def _watched(self: "AgentRunner", run_id: str) -> bool:

@@ -173,10 +173,14 @@ def test_stop_ends_the_cli_and_settles_what_was_open(session_app, wait_run, proj
 def test_a_session_that_goes_on_too_long_hits_the_step_limit(session_app, wait_run, project_dir):
     script = [{"call": "list_dir"} for _ in range(30)] + [{"hang": True}]
     client, provider, _ = session_app(script)
+    # (B-413: the Orchestrator's step limit is only one the user set - its role's)
+    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 8},
+                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id, timeout=30)
-    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("failed", "step_limit")
-    assert len(snap["tool_calls"]) == 25
+    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == (
+        "failed", "stopped at its role's limit of 8 steps")
+    assert len(snap["tool_calls"]) == 8
     assert gone(session_app.record()["pid"])
 
 

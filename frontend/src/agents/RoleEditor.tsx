@@ -171,6 +171,7 @@ export function RoleEditor({ role, runs, takes: savedTakes, found: savedFound, p
       )}
       <RoleLimits
         at={at}
+        lead={isLead}
         steps={steps}
         setSteps={setSteps}
         maxSteps={maxSteps}
@@ -350,8 +351,9 @@ function RoleTools({ values, pack, toggle, at, off }: {
   )
 }
 
-function RoleLimits({ at, steps, setSteps, maxSteps, tokens, setTokens, maxTokens }: {
+function RoleLimits({ at, lead, steps, setSteps, maxSteps, tokens, setTokens, maxTokens }: {
   at: Part | undefined
+  lead: boolean
   steps: string
   setSteps: (text: string) => void
   maxSteps: number | null | undefined
@@ -365,7 +367,7 @@ function RoleLimits({ at, steps, setSteps, maxSteps, tokens, setTokens, maxToken
         Safety stops for one agent
         {(maxSteps || maxTokens) && <span className="muted"> · set</span>}
       </summary>
-      <p className="choice-note">Stops one runaway agent of this role. Empty: KOLONİ’s own step limit.</p>
+      <p className="choice-note">Stops one runaway agent of this role. Empty: {lead ? 'no step limit for the Orchestrator' : 'KOLONİ’s own step limit'}.</p>
       <div className="field">
         <label htmlFor="role-max-steps">At most this many steps</label>
         <input id="role-max-steps" className="input mono" inputMode="numeric" value={steps} placeholder="No limit" aria-invalid={maxSteps === undefined || undefined} aria-describedby="role-max-steps-note role-max-steps-more" onChange={e => setSteps(e.target.value)} />

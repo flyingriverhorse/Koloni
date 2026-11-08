@@ -6,6 +6,11 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Changed
+
+- **Chat**: the Orchestrator no longer stops at a fixed count of steps; it stops when its work is done, when it goes round in circles (a card asks you **Go on** or **Stop here**), or at a limit you set on the Lead role or a trigger. **Steps an agent may take** now holds sub-agents ([docs](agents/step-limits.md#the-orchestrator-no-step-count)).
+- **To-do**, **Triggers**: in a run nobody watches, an Orchestrator going round in circles ends with the reason on record, and a night or the To-do run goes on with the next job or task ([docs](agents/step-limits.md#when-the-orchestrator-goes-round-in-circles)).
+
 ## [0.1.0] - 2026-11-07
 
 ### Added

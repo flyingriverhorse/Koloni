@@ -8,7 +8,9 @@ does - another test, another count, another exit code is another failure. A chan
 turn that went on record, a command of the agent's that succeeded, a sub-agent opened or a
 message sent starts every count again: something moved, and trying again is a new try.
 What is counted is a fact, said as one; nothing here judges, and only in a turn nobody
-watches does a count end anybody's work (`STOP_AT`).
+watches does a count end anybody's work (`STOP_AT`) - or (B-413) stop the Orchestrator, which
+counts no steps: the same failure STOP_AT times, or IDLE_STOP calls in a row that each repeat a
+call with the result it had since something last moved.
 """
 
 import json
@@ -17,6 +19,11 @@ import re
 
 SIGN_AT = 3  # the agent, the one who opened it and the user are told from here on
 STOP_AT = 5  # in a turn nobody watches, the same failure this often ends the agent's work
+# B-413: the Orchestrator's calls in a row that brought nothing new, which stop it -
+# twice STOP_AT: it is told of a repeat from SIGN_AT on, and has calls left to change course.
+IDLE_STOP = 10
+IDLE = ("its last {count} calls each repeated one it had made, with the same result, with no "
+        "change of this turn on record and no command of its own succeeding in between.")
 FAILED = "failed {count} times with the same arguments and the same error"
 SAME = "returned the same result {count} times with the same arguments"
 # What a sign that stood before something moved is said with, from then on.
@@ -56,6 +63,14 @@ def stopped(text: str) -> str:
     return f"stopped: {text} Nobody watches this turn, so this agent's work ends here."
 
 
+CIRCLING = "stopped going round in circles: "
+
+
+def circling(text: str) -> str:
+    """B-413: why the work of the Orchestrator, which counts no steps, ended."""
+    return f"{CIRCLING}{text}"
+
+
 class Counts:
     """One agent's counts in its turn."""
 
@@ -68,6 +83,17 @@ class Counts:
         self.stamp: tuple | None = None
         # path -> how often edit_file failed on it in the turn
         self._misses: dict[str, int] = {}
+        # B-413: (tool, arguments, what it said) of its calls since something last moved, and
+        # how many of its calls in a row were one of them.
+        self._heard: set[tuple[str, str, str]] = set()
+        self.idle = 0
+
+    def heard(self, tool: str, arguments: str, said: str) -> None:
+        """A call's result: one that repeats a call and its result since something moved adds
+        to `idle`; any other sets it back to 0."""
+        key = (tool, _canonical(arguments), same_error(said))
+        self.idle = self.idle + 1 if key in self._heard else 0
+        self._heard.add(key)
 
     def missed_edit(self, arguments: str) -> str:
         """An edit_file that failed, counted by its file: from the third, what to do
@@ -86,6 +112,8 @@ class Counts:
     def changed(self) -> dict | None:
         """Every count starts again. The sign that stood, said as an earlier one; or None."""
         self._seen.clear()
+        self._heard.clear()
+        self.idle = 0
         stood, self._standing = self._standing, None
         return {**stood, "text": EARLIER + stood["text"]} if stood else None
 
