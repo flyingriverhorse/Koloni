@@ -47,7 +47,7 @@ jobs:
     name: Backend ${{ matrix.part }} (Python ${{ inputs.python-version || '3.12' }}, ${{ inputs.os || 'ubuntu-latest' }})
     runs-on: ${{ inputs.os || 'ubuntu-latest' }}
     # Windows runs the same tests more slowly.
-    timeout-minutes: ${{ startsWith(inputs.os, 'windows') && 30 || 20 }}
+    timeout-minutes: ${{ (startsWith(inputs.os, 'windows') || inputs.coverage) && 30 || 20 }}  # (coverage slows part 0's fuzz cases past 20)
     strategy:
       fail-fast: false
       matrix:

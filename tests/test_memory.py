@@ -1093,7 +1093,8 @@ def test_a_suggested_preference_is_added_by_you_or_turned_down(mem):
         second = kept.suggest_preference(session, mem.pid, "the user wants commits in English", run_id="r1",
                                          conversation_id="c1", noted_by={"provider_name": "Fast", "model_id": "q"}).id
     mem.client.put("/api/preferences", json={"text": "Answer in Turkish."})
-    assert [r["id"] for r in mem.read()["suggestions"]] == [first, second]
+    # (As a set: on Windows two suggestions can share a timestamp, and their order is then the ids'.)
+    assert {r["id"] for r in mem.read()["suggestions"]} == {first, second}
     # not into the core, whatever is asked
     assert mem.client.post(f"/api/memory/{first}/approve", json={}).status_code == 409
     added = mem.client.post(f"/api/memory/{first}/add-to-preferences")

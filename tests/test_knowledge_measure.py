@@ -19,7 +19,7 @@ GUIDE = ("## Payments\n- pay(amount) · docs/pay.md · official\n"
 
 
 def test_a_clicked_learning_asks_its_guide_and_keeps_what_it_could_not_answer(make_client,
-                                                                              project_dir):
+                                                                              project_dir, caplog):
     client, model = make_client({"Lead": [
         text(GUIDE),
         text("pay(amount) takes it (pages/0001.md:2)."),  # Payments: known
@@ -44,7 +44,9 @@ def test_a_clicked_learning_asks_its_guide_and_keeps_what_it_could_not_answer(ma
     state = _learned(client, row["id"], pid)
     assert state["failed"] is None
     # Webhooks: no page has its words - not known, and not asked.
-    assert state["learned"]["unknown"] == ["Refunds", "Webhooks", "pay(amount)"]
+    # (With the log: a measure that raised is only logged - it once came back None on a CI runner.)
+    assert state["learned"]["unknown"] == ["Refunds", "Webhooks", "pay(amount)"], (
+        state["learned"], caplog.text)
     asked = [call[-1]["content"] for call in model.calls[1:]]
     assert asked == [f"What do your documents say about {one}?"
                      for one in ("Payments", "Refunds", "pay(amount)", "refund(id)")]
