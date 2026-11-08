@@ -85,23 +85,31 @@ function useRoomLimits(project: Project) {
           <input id="room-minutes" className="input mono set-short" inputMode="numeric" placeholder="No limit" value={minutesText} aria-invalid={minutes === undefined || undefined} onChange={e => setMinutesText(e.target.value)} />
         </Row>
         <RoomTokens text={tokensText} setText={setTokensText} tokens={tokens} />
-        <Row
-          label="Tokens, at least"
-          htmlFor="room-min-tokens"
-          why="A room an agent asks for with fewer is given this many: one member’s step, with what it rereads, takes some 8,000 to 9,000."
-          warn={
-            <span className="choice-note">
-              {least === undefined ? 'A whole number from 1 to 100,000,000, or empty. ' : ''}
-              {least != null && tokens != null && least > tokens ? `Above the most: a room gets ${tokens.toLocaleString('en-US')}, the most wins. ` : ''}
-              Empty: an agent’s room gets what it asks for.
-            </span>
-          }
-        >
-          <input id="room-min-tokens" className="input mono" inputMode="numeric" placeholder="None" value={leastText} aria-invalid={least === undefined || undefined} onChange={e => setLeastText(e.target.value)} />
-        </Row>
+        <RoomLeastTokens text={leastText} setText={setLeastText} least={least} tokens={tokens} />
       </>
     ),
   }
+}
+
+/** B-414: the least tokens a room an agent opens is given; above the most, the most wins. */
+function RoomLeastTokens({ text, setText, least, tokens }: { text: string; setText: (text: string) => void; least: number | null | undefined; tokens: number | null | undefined }) {
+  const above = least != null && tokens != null && least > tokens
+  return (
+    <Row
+      label="Tokens, at least"
+      htmlFor="room-min-tokens"
+      why="A room an agent asks for with fewer is given this many: one member’s step, with what it rereads, takes some 8,000 to 9,000."
+      warn={
+        <span className="choice-note">
+          {least === undefined ? 'A whole number from 1 to 100,000,000, or empty. ' : ''}
+          {above ? `Above the most: a room gets ${tokens.toLocaleString('en-US')}, the most wins. ` : ''}
+          Empty: an agent’s room gets what it asks for.
+        </span>
+      }
+    >
+      <input id="room-min-tokens" className="input mono" inputMode="numeric" placeholder="None" value={text} aria-invalid={least === undefined || undefined} onChange={e => setText(e.target.value)} />
+    </Row>
+  )
 }
 
 function RoomTokens({ text, setText, tokens }: { text: string; setText: (text: string) => void; tokens: number | null | undefined }) {

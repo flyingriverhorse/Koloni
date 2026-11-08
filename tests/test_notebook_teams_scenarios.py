@@ -36,10 +36,11 @@ from tests.test_topic_scenarios import turn
 from tests.test_topics import db
 
 
-def two_teams(client, project_dir):
+def two_teams(client, project_dir, **settings):
     teams = no_recipe(client, "Web app", "Docs")  # (0093 and 0103 give them recipes: none here)
     return begin(client, project_dir, mode="full_auto", spawn_approval="never", teams_mode="manual",
-                 teams=[{"team_id": teams["Web app"]["id"]}, {"team_id": teams["Docs"]["id"]}])
+                 teams=[{"team_id": teams["Web app"]["id"]}, {"team_id": teams["Docs"]["id"]}],
+                 **settings)
 
 
 def to_all(content, id="e1"):
@@ -282,7 +283,8 @@ def test_a_room_of_coordinators_that_ends_on_its_budget_leaves_them_to_run_their
         "Web app lead": [step(add("Agree the API", id="a1")), text("web done")],
         "Docs lead": [step(add("Say it in the docs", id="a2")), text("docs done")],
     })
-    cid, run_id = two_teams(client, project_dir)
+    # (B-414: with no least for a room's tokens, so its 10 hold)
+    cid, run_id = two_teams(client, project_dir, room_min_tokens=None)
     snap = wait_run(client, cid, run_id, timeout=30)
     (room,) = snap["rooms"]
     assert (room["outcome"], room["why"], room["spent"]["tokens"]) == ("budget", "tokens", 14)

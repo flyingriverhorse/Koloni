@@ -420,7 +420,9 @@ def test_one_more_of_a_step_whose_agents_card_waits_is_told_to_wait_for_the_user
                                                  [("start", "do"), ("do", "end")], ends=({"id": "end", "then": "report"},)))
         cid, run_id = begin(client, project_dir, mode="ask", teams_mode="manual",
                             teams=[{"team_id": teams_of(client)["Web app"]["id"], "recipe_id": build["id"]}])
-        snap = until(client, cid, lambda s: len(cli.said) == 2, timeout=15)
+        # (Its card is looked for until it is there, not read once: a slow runner shows it later.)
+        snap = until(client, cid, lambda s: len(cli.said) == 2 and any(
+            a["status"] == "proposed" for a in s["agents"]), timeout=15)
         (first, proposed), (second, refused) = cli.said
         assert first and proposed.startswith("proposed: Coder waits") and not second
         assert "Coder waits for the user's approval of its card" in refused, refused
