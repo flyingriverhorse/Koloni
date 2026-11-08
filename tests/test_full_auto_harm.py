@@ -136,7 +136,8 @@ def test_a_line_padded_with_options_is_judged_at_once_and_asked(line):
     # value, looked into, doubled them at each)
     began = time.perf_counter()
     said = harms(line)
-    limit = 3.0 if os.environ.get("CI") else 1.0  # (a shared CI runner took 1.0006 s; the bug was 24 s)
+    # (8 s on CI: a shared runner measuring coverage took 3.007 s; the bug it guards took 24 s)
+    limit = 8.0 if os.environ.get("CI") else 1.0
     assert time.perf_counter() - began < limit and "what runs is not seen" in said
 
 
