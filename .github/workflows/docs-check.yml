@@ -1,0 +1,47 @@
+# The guide's checks (scripts/check_docs.py): builds it with Zensical, then fails on a broken link
+# or anchor, a link in README / SECURITY / CHANGELOG to a missing file, a diagram's missing source,
+# or a setting the app no longer shows. Called by PR Check; on its own when only the guide changes
+# (PR Check skips docs/**); also by hand.
+name: Guide check
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'CHANGELOG.md'
+      - 'scripts/check_docs.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'CHANGELOG.md'
+      - 'scripts/check_docs.py'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Guide check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Build and check the guide
+        run: |
+          pip install "zensical==0.0.74"
+          python scripts/check_docs.py

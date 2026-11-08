@@ -1,0 +1,53 @@
+# Weekly scan of the pinned dependencies for newly published vulnerabilities: the Python lock and
+# the frontend's production packages. Nothing is installed and no package script runs: both tools
+# read the lock files. A finding fails the run (Actions -> Security). Also by hand.
+name: Security
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python dependencies (pip-audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      # The lock as written: exactly the versions CI installs, checked against the advisory data
+      # without installing or resolving anything (--no-deps --disable-pip).
+      # shortcut: the lock is compiled on Windows, so Linux-only packages (uvloop, from
+      # uvicorn[standard]) are not in it and not audited; audit a universal lock to cover them.
+      - name: pip-audit requirements-dev.lock
+        run: uvx --from 'pip-audit>=2.9,<3' pip-audit -r requirements-dev.lock --no-deps --disable-pip --progress-spinner off
+
+  frontend:
+    name: Frontend dependencies (npm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      # npm audit reads package-lock.json; no install. Dev tools (vite, vitest, playwright) are left
+      # out: they do not ship in frontend/dist. High and critical fail the run; lower ones are listed.
+      - name: npm audit (production)
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: frontend

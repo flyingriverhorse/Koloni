@@ -1,0 +1,31 @@
+# Changed paths -> pull request labels (workflows/labeler.yml). A label that does not exist yet is
+# created on first use.
+
+backend:
+  - changed-files:
+      - any-glob-to-any-file: ['app/**', 'alembic/**', 'alembic.ini']
+
+migrations:
+  - changed-files:
+      - any-glob-to-any-file: 'alembic/versions/**'
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: 'frontend/**'
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ['tests/**', 'frontend/e2e/**', 'frontend/src/**/*.test.*']
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ['docs/**', 'zensical.toml', 'pages/**', '*.md']
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', 'scripts/verify.ps1']
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          ['pyproject.toml', 'requirements-dev.lock', 'frontend/package.json', 'frontend/package-lock.json']

@@ -1,0 +1,2741 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: var(--weight-body) var(--text-body) / 1.45 var(--sans);
+  overflow: hidden;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+.theme-switching * {
+  transition: none !important;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.btn-danger {
+  border-color: var(--del);
+  color: var(--del);
+}
+
+.btn-small {
+  padding: 3px 8px;
+  font-size: var(--text-note);
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--hover);
+}
+
+.icon-btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  caret-color: var(--accent);
+}
+
+.input:hover {
+  border-color: var(--border-strong);
+}
+
+.input:focus-visible {
+  border-color: var(--accent);
+  outline-offset: 0;
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--del);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  /* A tag draws its own opaque ground, so it reads the same on a hovered or chosen row. */
+  background: color-mix(in srgb, var(--text) 6%, var(--panel));
+  color: var(--muted);
+  font: var(--weight-strong) var(--text-meta) var(--mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.tag-accent {
+  background: color-mix(in srgb, var(--accent-fill) 15%, var(--panel));
+  color: var(--accent);
+}
+
+.tag-ok {
+  background: color-mix(in srgb, var(--ok) 15%, var(--panel));
+  color: var(--ok);
+}
+
+.tag-warn {
+  background: color-mix(in srgb, var(--warn) 17%, var(--panel));
+  color: var(--warn);
+}
+
+.tag-del {
+  background: color-mix(in srgb, var(--del) 14%, var(--panel));
+  color: var(--del);
+}
+
+/* A state, said the same way wherever it is said - in the chat, the turn list, on the canvas
+   and on the Board (shell/StatusLabel.tsx): a dot and the word, in the state's colour. The
+   dot is drawn here, so that the word is all that is read out. */
+.status {
+  flex: none;
+  font-family: var(--mono);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+
+.status::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 1px;
+}
+
+.alert {
+  color: var(--del);
+  font-size: var(--text-body);
+}
+
+.kicker {
+  font: var(--weight-strong) var(--text-kicker) var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+/* --- app shell ----------------------------------------------------------- */
+
+.app {
+  display: flex;
+  height: 100%;
+}
+
+.rail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 64px;
+  padding: 12px 0;
+  /* A short window scrolls the rail rather than squeezing its buttons; never sideways. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+}
+
+.rail-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 12px;
+}
+
+/* Its name under its icon (slice 66); as wide as the rail leaves beside a scroll bar, its focus ring inside it. */
+.rail .icon-btn {
+  flex: none;
+  position: relative;
+  gap: 2px;
+  width: calc(100% - 8px);
+  height: auto;
+  padding: 4px 0 3px;
+  border-radius: var(--radius);
+  outline-offset: -2px;
+}
+
+.rail-label {
+  font-size: var(--text-meta);
+  line-height: 1.2;
+}
+
+.rail-spacer {
+  flex: 1;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Focused only to take the focus back from something that went (a dismissed notice): no ring round the page. */
+.main:focus {
+  outline: none;
+}
+
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  /* Where the project, "Turn 1 of 2", the turn's state and the buttons beside it have no room on one line, the
+     state and the buttons take a line of their own rather than lie over the turn button (slice 65). */
+  flex-wrap: wrap;
+  row-gap: 4px;
+  min-height: 52px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-title {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* The title asks little room of the line: it takes what is left, up to its whole text, and is cut short to fit - never
+   to nothing (B-174: "/ |"), where the line would rather wrap. */
+.topbar-title strong {
+  flex-grow: 1;
+  width: 0;
+  min-width: 4em;
+  max-width: max-content;
+  font-weight: var(--weight-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  /* Where even a line of its own is too narrow (paused triggers and a turn's state at 700 px), its items take
+     another line rather than go past the window's edge. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 14px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* The plans' use (K-42d-sag): "Claude ▬ 42%  Codex ▬ 8%", one button to Usage. */
+.plan-use {
+  gap: 10px;
+}
+
+.plan-use-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A provider's own name, cut short where long: the whole of it is in its title. */
+.plan-use-name {
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-use-bar {
+  width: 48px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.plan-use-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent-fill);
+}
+
+/* A plan near its end (80%, where Usage's meter turns too) is seen at every width. */
+.plan-use-hot {
+  color: var(--warn);
+  font-weight: var(--weight-strong);
+}
+
+.plan-use-hot .plan-use-bar > span {
+  background: var(--warn);
+}
+
+/* K-dar-cubuk: where the plans' use has no room beside the title and the turn's state, it takes a thin strip of its
+   own under the bar, the whole width, so that the bar keeps to one line; the right side's other items stay in it.
+   shortcut: the width is where two plans stop fitting beside a folder, a turn that waits for you and a trigger on
+   (B-195: under 1200 px, as it was, the bar took two lines up to 1680 px with them); measure the bar itself (a
+   container query) if plans are often fewer or more. */
+@media (max-width: 1799px) {
+  /* (A bar with no plan read is left as it was.) */
+  .topbar:has(.plan-use) {
+    justify-content: flex-end;
+  }
+
+  .topbar-right:has(> .plan-use) {
+    display: contents;
+  }
+
+  /* Past the bar's padding to both edges: 100% and the 32 px its margins take back; as far under the bar's line as
+     the padding over it. */
+  .plan-use {
+    order: 1;
+    flex-basis: calc(100% + 32px);
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 2px 14px;
+    margin: 4px -16px -8px;
+    padding: 3px 16px 4px;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    color: var(--muted);
+    font-size: var(--text-meta);
+    font-weight: var(--weight-body);
+  }
+
+  .plan-use-meter {
+    gap: 5px;
+  }
+
+  .plan-use-bar {
+    width: 28px;
+    height: 4px;
+  }
+}
+
+/* Very narrow, the name and its % alone: the bar is kept at no width, as gone it would run the two together. */
+@media (max-width: 600px) {
+  .plan-use-meter {
+    gap: 2px;
+  }
+
+  .plan-use-bar {
+    width: 0;
+  }
+}
+
+/* So that the bar keeps to one line while a turn runs, down to 1000 px (B-174), the lesser things give way in steps:
+   under 1400 px Stop everything and Pause all show their icons alone (theme/triggers.css); under 1250 px the turn's
+   tokens go (they are in its summary in the chat and on the canvas's nodes); under 1100 px the lead's context, and the
+   tag that commands run on this machine - never the one that says docker: where commands run is for safety.
+   (B-195: 1400 and 1250, as measured with a turn that waits for you and a trigger on.)
+   shortcut: fixed widths for a bar whose items vary; the turn's state with an agent's name in it ("WAITS FOR YOU ·
+   Planner", some 60 px more) still takes two lines just over each step (1400-1450, 1250-1290, 1100-1160 px,
+   measured). A container query would not help: the bar is as wide as the window less a constant, and it could not
+   style the bar itself (`.topbar:has(...)`). Measure the bar (a ResizeObserver that steps a class on it while it
+   wraps) if that is met. */
+@media (max-width: 1249px) {
+  .topbar-tokens {
+    display: none;
+  }
+}
+
+/* shortcut: in a narrow window the lead's context is left to its agent window, so that the bar keeps to one line
+   (slice 65, B-174); give it a place there if it is missed. */
+@media (max-width: 1099px) {
+  .topbar-context,
+  .topbar-title > .tag-here {
+    display: none;
+  }
+}
+
+/* The lead's context opens each agent's: a button that reads as the text it was. */
+button.topbar-context {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+button.topbar-context:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.context-note {
+  margin: 0;
+  font-size: var(--text-meta);
+}
+
+/* (A long team scrolls in the panel, which keeps to the window's right: the floating chat is at its left.) */
+.context-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.context-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.context-row {
+  display: flex;
+  flex-basis: 100%;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.context-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* One short line, its reason on a line of its own under it when asked for; dismissed by its own button. */
+.banner {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 10px;
+  padding: 2px 8px 2px 16px;
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: var(--text-body);
+}
+
+.banner-why {
+  flex-basis: 100%;
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: var(--text-note);
+  overflow-wrap: anywhere;
+}
+
+/* (Several providers: one line each.) */
+ul.banner-why {
+  padding-left: 18px;
+}
+
+.banner-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Details beside the line; the rest at the far end. */
+.banner-pick {
+  margin-left: auto;
+}
+
+/* (The accent reads under 4.5 on the banner's tint.) */
+.banner .link-btn {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.banner .icon-btn {
+  width: 28px;
+  height: 28px;
+  color: inherit;
+}
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+
+/* Under the project's settings page (App.tsx). */
+.workspace[hidden] {
+  display: none;
+}
+
+.stage {
+  /* The chat's width, open or closed, leaving room beside it for Artifacts and Images; and the
+     row they stand in (slice 38e). shortcut: on a stage under 490px the buttons lie over the
+     chat; upgrade if a canvas that narrow is to be used. */
+  --chat-w: max(220px, min(480px, calc(100% - 270px)));
+  --dock-row: 42px;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* An empty list's line over a faint hive, as on the landing page: the theme's ink through a hexagon
+   mask that fades at its edges; wider than the line, out of its flow and never clicked.
+   p. so the width wins over a page's own `> * { width: 100% }` (memory.css, triggers.css). */
+p.hive-empty {
+  position: relative;
+  isolation: isolate;
+  width: fit-content;
+}
+
+.hive-empty::before {
+  content: "";
+  position: absolute;
+  inset: -16px -32px;
+  z-index: -1;
+  background: var(--text);
+  opacity: 0.1;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48.4974' height='84' viewBox='0 0 48.4974 84'%3E%3Cpath d='M24.2487 0L48.4974 14V42L24.2487 56L0 42V14ZM24.2487 56V84' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E") 0 0 / 24.2487px 42px, radial-gradient(closest-side, #000, transparent);
+  mask-composite: intersect;
+  pointer-events: none;
+}
+
+.setup {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 24px;
+}
+
+.setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(460px, 100%);
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.setup-card h1 {
+  font-size: var(--text-title);
+  font-weight: var(--weight-title);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field > label {
+  font-size: var(--text-note);
+  color: var(--muted);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* --- chat ---------------------------------------------------------------- */
+
+/* It floats over the canvas's bottom left corner (slice 38b): a small box while closed - its
+   line and a message box (slice 38e) - and open as tall as the share of the canvas the user
+   left it at, where they moved it (ChatPanel.tsx). Nothing here transforms or filters it: the
+   panels its buttons open are placed against the window. */
+.chat {
+  --w: var(--chat-w);
+  position: absolute;
+  left: 14px;
+  /* On the timeline, while it is open (slice 44: CanvasView sets --timeline-h on the stage). */
+  bottom: calc(14px + var(--timeline-h, 0px));
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  width: var(--w);
+  /* Open: --h, a share of the canvas (closed: none, as tall as it is). At most 16px left above
+     it, standing 14px off the foot (chatLine.ts TOP); half the canvas wins over the least it
+     needs, on a short one. Never so short that the messages have no room: as tall as its tabs,
+     the messages' least (.chat-pane), the line of what waits elsewhere and the message box need
+     where that is more - narrow, the box's controls take more lines. */
+  height: auto;
+  min-height: max(var(--h, 0px), min(260px, 50%, calc(100% - 30px - var(--timeline-h, 0px))));
+  max-height: calc(100% - 30px - var(--timeline-h, 0px));
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.chat-closed {
+  min-height: 0;
+}
+
+/* Moved by the user (shell/move.ts): where it was put - and on a stage grown smaller since,
+   never past its edge. Taller than there is room for above where it was put, it is drawn lower.
+   shortcut: move.ts keeps it clear of the zoom buttons (bottom right) where it is put, not here; a
+   stage grown narrower since can bring a window low at the right over them - upgrade if seen. */
+.chat.moved,
+.view-panel.moved {
+  left: clamp(14px, var(--x), 100% - var(--w));
+  bottom: clamp(var(--timeline-h, 0px), var(--y), 100% - max(min(260px, 50%), var(--h)));
+}
+
+/* Whichever window over the stage was used last lies over the others (shell/move.ts). */
+.stage > [data-front] {
+  z-index: 7;
+}
+
+/* The handle a window is moved by: dragged, or the arrow keys while it has the focus. */
+.move-grip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.move-grip:hover,
+.move-grip:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Beside the small box, at the foot of the canvas: the Workspace button (slices 38e, 42d). */
+.chat-dock {
+  position: absolute;
+  left: calc(22px + var(--chat-w));
+  bottom: calc(14px + var(--timeline-h, 0px));
+  z-index: 6;
+  display: flex;
+  gap: 6px;
+}
+
+.dock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: calc(var(--dock-row) - 8px);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-note);
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dock-btn:hover:not(:disabled),
+.dock-btn[aria-expanded='true'] {
+  background: var(--accent-soft);
+}
+
+.dock-btn:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+.dock-count {
+  color: var(--muted);
+  font-size: var(--text-meta);
+  font-weight: normal;
+}
+
+/* What the open box holds; hidden, not gone, while it is closed (ChatPanel.tsx). */
+.chat-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The open tab's own content: it scrolls in what the tabs above and the message box below
+   leave, so the message box, the model, More and Send are always in the box. Where a tab has
+   more than its list (Notes: the turn, the note box), the list is not squeezed to a line: it
+   is as tall as it is, and all of it scrolls together. */
+.chat-pane {
+  flex: 1;
+  /* The messages' least, whatever else is in the box; `contain` makes this, not all of them,
+     what the box's own height counts (.chat). */
+  min-height: 100px;
+  contain: size;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.chat-pane > .msg-list:not(:only-child) {
+  flex: 1 0 auto;
+  overflow-y: visible;
+}
+
+.chat-pane > :not(.msg-list) {
+  flex: none;
+}
+
+.chat-body[hidden] {
+  display: none;
+}
+
+/* Read by a screen reader, not drawn. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Its top edge: dragged, or moved with the arrow keys, it makes the box taller or shorter. */
+.chat-edge {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  height: 8px;
+  margin-bottom: -4px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.chat-edge:hover,
+.chat-edge:focus-visible {
+  background: var(--accent-soft);
+}
+
+.chat-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-top .tabs {
+  flex: 1;
+  border-bottom: 0;
+}
+
+.chat:not(.chat-closed) .chat-top {
+  padding-left: 4px;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.chat-top button {
+  cursor: pointer;
+}
+
+/* Closed: "Chat · 3 · Lead is working", and what waits for the user. */
+.chat-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-body);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-line:hover {
+  background: var(--hover);
+}
+
+/* ▴: a click opens the chat itself. */
+.chat-line-open {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.chat-waits + .chat-line-open {
+  margin-left: 0;
+}
+
+.chat-waits {
+  flex: none;
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: var(--weight-strong);
+}
+
+.chat-unread {
+  flex: none;
+  color: var(--accent);
+  font-weight: var(--weight-strong);
+}
+
+.chat-title {
+  font-weight: var(--weight-strong);
+}
+
+.chat-count {
+  font-size: var(--text-meta);
+}
+
+.chat-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-note);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- the view panel (slice 39) ---------------------------------------------- */
+
+/* Something new to view: a honey dot. */
+.view-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+}
+
+/* To the right of the chat, over the canvas: as tall as the chat, half the canvas wide - never
+   past the canvas's buttons at its right edge (15px + 26px, and a gap). Expanded, it lies over all of the canvas.
+   shortcut: on a stage too narrow for the chat and 280px beside it, it lies over the chat and the buttons. */
+.view-panel {
+  /* (Left of the inspector where that lies over the stage: B-157, canvas.css.) */
+  --room: calc(100% - var(--inspector-w, 0px));
+  --w: max(min(280px, calc(var(--room) - 28px)), min(50%, calc(var(--room) - var(--chat-w) - 42px - 41px)));
+  position: absolute;
+  /* Beside the chat; on a canvas too narrow for both at least 280px wide, over the chat. */
+  left: max(14px, min(calc(var(--chat-w) + 28px), calc(var(--room) - 294px)));
+  /* Standing on the row of the Workspace button beside the small box: as tall as the chat less that row, its top level with the chat's. */
+  bottom: calc(14px + var(--dock-row) + var(--timeline-h, 0px));
+  height: calc(var(--h) - var(--dock-row));
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  width: var(--w);
+  /* (Its header on the stage over the timeline, too: the dock row under it.) */
+  min-height: min(260px, 50%, calc(100% - 28px - var(--dock-row) - var(--timeline-h, 0px)));
+  max-height: min(50%, calc(100% - 28px - var(--dock-row) - var(--timeline-h, 0px)));
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+/* The chat open, there is no row under it (Files is in the top bar): in its corner the window is as tall as
+   the chat (moved or expanded, its own rules hold). */
+.chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
+  bottom: calc(14px + var(--timeline-h, 0px));
+  height: var(--h);
+}
+
+.view-panel[hidden] {
+  display: none;
+}
+
+.view-panel-wide {
+  inset: 14px;
+  bottom: calc(14px + var(--timeline-h, 0px));
+  width: auto;
+  height: auto;
+  max-height: none;
+}
+
+.view-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.view-panel.moved .view-top,
+.view-panel:not(.view-panel-wide) .view-top {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.view-top .icon-btn {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+}
+
+/* A tab for each view, as the Changes window has; × closes the tab, not the view. */
+.view-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 1px;
+  padding-top: 4px;
+  overflow-x: auto;
+}
+
+.view-tab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 6px 0 10px;
+  border: 0;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-note);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.view-tab[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 1.5px 0 var(--accent);
+}
+
+.view-tab-close {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.view-tab-close:hover {
+  background: var(--hover);
+}
+
+/* The tabs over the canvas, one per project (slices 86d, 86e), as the Changes window's; one that waits for you is in the
+   colours of a "waits" tag. Each is never narrower than TAB_MIN (openTabs.ts): those with no room go into "+N". */
+.open-chats {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 8px 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.open-chats [role='tablist'] {
+  display: flex;
+  gap: 1px;
+  min-width: 0;
+}
+
+.open-chat {
+  flex: 0 1 220px;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  border-radius: 6px 6px 0 0;
+  color: var(--muted);
+}
+
+.open-chat-open {
+  background: var(--surface);
+  box-shadow: inset 0 1.5px 0 var(--accent);
+  color: var(--text);
+}
+
+.open-chat-waits {
+  background: color-mix(in srgb, var(--warn) 17%, var(--panel));
+  color: var(--warn);
+}
+
+.open-chat-open.open-chat-waits {
+  box-shadow: inset 0 1.5px 0 var(--warn);
+}
+
+.open-chat-tab {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 4px 0 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-note);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.open-chat-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.open-chat-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.open-chat-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.open-chat-close:hover {
+  background: var(--hover);
+}
+
+.open-chats-more {
+  flex: none;
+  margin-bottom: 3px;
+}
+
+/* "+", to another folder's tab (slice 86e): ADD_W in openTabs.ts is this and the row's gap. */
+.open-chats-add {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 1px;
+}
+
+.open-chats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* (In a column its 220 px would be its height.) */
+.open-chats-list .open-chat {
+  flex: none;
+  border-radius: var(--radius);
+}
+
+/* (.view-last-on: the "Last on this file" line, K-devir-4 - drawn as the path line is, under its own name) */
+.view-where,
+.view-last-on {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.view-where p,
+.view-last-on p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "Run script": the page is drawn, and nothing of it runs until this is pressed. */
+.view-run {
+  flex: none;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-note);
+  font-weight: var(--weight-strong);
+  cursor: pointer;
+}
+
+.view-run:hover {
+  background: var(--accent-soft);
+}
+
+/* "Open in browser": a link that reads as the buttons beside it (slice 42b). */
+a.view-run {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.view-note {
+  font-family: var(--sans);
+  font-size: var(--text-note);
+}
+
+.view-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: auto;
+}
+
+/* The agent's page draws its own ground: white, as a browser would give it. */
+.view-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* K-drawio: a diagram's row of buttons over its frame. */
+.view-diagram {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.view-image {
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.view-md {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: var(--text-body);
+}
+
+.view-empty {
+  margin: auto;
+  padding: 16px;
+}
+
+/* A 3D model (slice 58): its buttons, the view on the theme's ground, its sizes in words. */
+.model-view {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.model-tools {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+.model-tools [aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+
+.model-canvas {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.model-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.model-view figcaption {
+  padding: 4px 12px;
+  font-size: var(--text-mono);
+  border-top: 1px solid var(--border);
+}
+
+/* --- two panes, as VS Code has them: the files on the left, what is opened on the right (slice 42a) --- */
+.two-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.two-pane-files {
+  flex: none;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+
+.two-pane-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  padding: 0 4px 0 10px;
+}
+
+.two-pane-title {
+  color: var(--muted);
+  font-size: var(--text-kicker);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Files | Changes (K-degisenler): the kicker twice, as tabs; the one shown in the text colour. */
+.two-pane-tabs {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.two-pane-tabs .two-pane-title {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.two-pane-tabs .two-pane-title[aria-selected='true'] {
+  color: var(--text);
+}
+
+.files-waiting:empty {
+  display: none;
+}
+
+/* A row of the Changes tab, its files not shown as a tree: its folder after its name, in the muted colour. */
+.tree-where {
+  flex: 0 10 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.two-pane-head .icon-btn,
+.two-pane-rail .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+
+/* Its edge: dragged, or moved with the arrow keys, the files are wider or narrower. */
+.two-pane-edge {
+  flex: none;
+  width: 5px;
+  border-left: 1px solid var(--border);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.two-pane-edge:hover,
+.two-pane-edge:focus-visible {
+  background: var(--accent-fill);
+  outline: none;
+}
+
+.two-pane-rail {
+  flex: none;
+  padding: 4px 3px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+}
+
+.two-pane-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tree {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 6px;
+  overflow: auto;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding-right: 8px;
+  color: var(--text);
+  font-size: var(--text-note);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tree-row:hover {
+  background: var(--hover);
+}
+
+.tree-row[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+
+.tree-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tree-folder::before {
+  content: '▾';
+  flex: none;
+  width: 10px;
+  color: var(--muted);
+}
+
+.tree-folder[aria-expanded='false']::before {
+  content: '▸';
+}
+
+/* The name is read first: what is beside it gives way well before it does. */
+.tree-name,
+.tree-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-name {
+  flex: 0 1 auto;
+}
+
+.tree-meta {
+  flex: 0 100 auto;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+/* A state as a mark, in its tag's colour (the words are the row's name and on hover). */
+.tree-mark-warn {
+  color: var(--warn);
+}
+
+.tree-mark-ok {
+  color: var(--ok);
+}
+
+.tree-mark-del {
+  color: var(--del);
+}
+
+/* What this conversation changed (slice 42c): its folders dotted; a change that waits for you, a honey dot. */
+.tree-changed,
+.tree-wait {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.tree-changed {
+  background: var(--muted);
+}
+
+.tree-wait {
+  display: inline-block;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+/* "2 waiting · Next waiting ▸", above the tree. */
+.files-waiting {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 8px 4px 10px;
+  color: var(--text);
+  font-size: var(--text-meta);
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.files-modes {
+  flex: none;
+  display: flex;
+  gap: 4px;
+}
+
+.files-modes [aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+
+/* The model's line under the message box: what it runs on and where it goes - the model, New topic, then the
+   Workspace button at its end (slice 42d). */
+.composer-line {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.composer-line .model-picker {
+  flex: 1 1 auto;
+  min-width: 64px;
+}
+
+/* "New topic" beside the model: pressed, the next message starts a new topic. (It, and a trigger's topic
+   beside it, may shrink: the model keeps its 64px in the narrowest chat.) */
+.composer-line .composer-new-topic {
+  flex: 0 1 auto;
+  min-width: 30px;
+  height: 30px;
+  max-width: 40%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-line .composer-new-topic[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ⚙ Chat, last on the model's line: its words give way to its icon as the others' do. */
+.composer-line > .chat-sheet-button {
+  flex: none;
+}
+
+/* Under More (a narrow row) it says its name, as the rest there does. */
+.composer-more-panel .chat-sheet-button .composer-words {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+}
+
+/* The open chat's Workspace button: a file, and what waits beside it. */
+.composer-line .icon-btn.composer-files {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: auto;
+  height: 30px;
+  min-width: 30px;
+  padding: 0 7px;
+}
+
+.composer-files[aria-expanded='true'] {
+  background: var(--accent-soft);
+}
+
+/* Something new or waiting: it glows, softly, till the window is opened; held still for reduced motion. */
+.composer-files.glow {
+  color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  animation: glow 1.6s ease-in-out infinite;
+}
+
+@keyframes glow {
+  50% {
+    box-shadow: 0 0 0 3px var(--accent-soft), 0 0 12px var(--accent-fill);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-files.glow {
+    animation: none;
+  }
+}
+
+.msg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 14px;
+  overflow-y: auto;
+}
+
+/* Back to the latest: sticks to the list's bottom right while the reader is scrolled up. */
+.jump-bottom {
+  position: sticky;
+  bottom: 4px;
+  align-self: flex-end;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-top: -42px; /* (takes no room of its own under the last message) */
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+
+.jump-bottom:hover {
+  background: var(--hover);
+}
+
+.msg-empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.msg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.msg-user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.msg-bubble {
+  max-width: 85%;
+  padding: 7px 11px;
+  border-radius: 12px 12px 3px 12px;
+  background: var(--accent-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg-removed .msg-bubble {
+  opacity: 0.55;
+}
+
+/* The message, with its small ↺ and ⋯ before it (slice 107). */
+.msg-user-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+
+/* A trigger's message: its badge, then its ⋯. */
+.msg-from-row {
+  justify-content: flex-start;
+}
+
+.msg-tool {
+  flex: none;
+  color: var(--muted);
+}
+
+.msg-menu {
+  width: 260px;
+  padding: 5px;
+  gap: 0;
+}
+
+/* The user's fenced code (slice 85a): an answer's code box, in the bubble's kept line ends none of the renderer's. */
+.msg-bubble .markdown {
+  margin: 4px 0;
+  white-space: normal;
+}
+
+.msg-bubble .markdown pre {
+  margin: 0;
+}
+
+.msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.msg-status {
+  font-size: var(--text-mono);
+  color: var(--muted);
+}
+
+/* Text from outside that read like orders to an agent (93-A4): a card that only tells, its icon by its title. */
+.injection-warning .cmd-approval-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 🔊 at the top right of an answer (slice 32a): the words flow round it. */
+.read-aloud {
+  float: right;
+  width: 26px;
+  height: 26px;
+  margin: -2px -4px 0 6px;
+  color: var(--muted);
+}
+
+/* Under an answer: what was said aloud of it. */
+.msg-said {
+  font-size: var(--text-note);
+}
+
+/* (In More, whose buttons keep to one line: its notes wrap.) */
+.voice-panel {
+  white-space: normal;
+}
+
+/* Whole answer / Short summary: a group with its name, drawn as the panel's other parts. */
+.voice-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.voice-modes legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+/* The Voice panel's fields: a name, and its control beside it. */
+.voice-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 10px;
+  width: 100%;
+  font-size: var(--text-body);
+}
+
+.voice-fields input[type='range'] {
+  accent-color: var(--accent);
+}
+
+.voice-style {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  font-size: var(--text-body);
+}
+
+/* Where the talk goes over to another topic: a thin line with the topic's name on it. */
+.topic-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.topic-divider::before,
+.topic-divider::after {
+  content: '';
+  flex: 1;
+  min-width: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.topic-divider span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.markdown {
+  overflow-wrap: anywhere;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown pre,
+.markdown table {
+  margin: 0 0 8px;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 20px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  margin: 12px 0 6px;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+.markdown code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--hover);
+  font: var(--text-mono) var(--mono);
+}
+
+.markdown pre {
+  padding: 9px 11px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+
+.markdown pre code {
+  padding: 0;
+  background: transparent;
+}
+
+/* What matters in an answer, at a glance (K-sohbet-renk): a path, a command, the bold words. */
+.markdown .md-path {
+  color: var(--code-title);
+}
+
+.markdown .md-command {
+  color: var(--code-keyword);
+}
+
+.markdown strong {
+  color: var(--accent);
+}
+
+/* A drawn ```mermaid block (slice 68); a wide one scrolls rather than widen the message. */
+.md-diagram {
+  margin: 0 0 8px;
+}
+
+.md-diagram-drawing {
+  overflow-x: auto;
+}
+
+.md-diagram p {
+  margin: 4px 0 0;
+}
+
+.markdown a {
+  color: var(--accent);
+}
+
+/* B-334: a wide table scrolls in its own box; its words wrap whole, never letter by letter. */
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.markdown th,
+.markdown td {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  overflow-wrap: normal;
+}
+
+.composer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* Files added to a message (slice 85b): a chip each, its kind's colour on its edge and label. */
+.composer {
+  position: relative;
+}
+
+/* (Two rows at most, the rest scrolled to: with ten files the box and Send went below the chat - B-106.) */
+.att-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 92px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.att-chip {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 228px;
+  padding: 5px 6px 5px 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--c);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: var(--text-note);
+}
+
+.file-ic {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 14%, var(--surface));
+  color: var(--c);
+  font-size: 10px;
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.att-text {
+  min-width: 0;
+}
+
+.att-text b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.att-meta {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.att-warn {
+  color: var(--warn);
+}
+
+/* Slice 80: by the text selected, over what is around it - in the accent, so it is seen (user, 4 Nov). */
+.ask-about {
+  position: fixed;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: var(--shadow-md);
+}
+
+.att-save {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-note);
+}
+
+.att-count {
+  font-size: var(--text-note);
+  white-space: nowrap;
+}
+
+/* Files dragged over the message box: where they go. */
+.att-drop {
+  position: absolute;
+  inset: 4px;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-soft) 85%, var(--surface));
+  color: var(--accent);
+  font-weight: 500;
+  text-align: center;
+  pointer-events: none;
+}
+
+.att-drop-sub {
+  font-size: var(--text-meta);
+  font-weight: 400;
+}
+
+.att-menu-box {
+  position: relative;
+}
+
+.att-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  width: 270px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.att-menu button,
+.msg-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-note);
+  text-align: left;
+  cursor: pointer;
+}
+
+.att-menu button:hover:not(:disabled),
+.msg-menu button:hover,
+.att-menu button:focus-visible,
+.msg-menu button:focus-visible {
+  background: var(--accent-soft);
+}
+
+.att-menu button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.att-key {
+  margin-left: auto;
+}
+
+.att-picker ul {
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.att-where {
+  padding: 2px 8px 4px;
+  font-size: var(--text-meta);
+}
+
+/* In the chat: the files of a message, small. */
+.att-minis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  white-space: normal;
+}
+
+.att-mini {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 5px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--c);
+  border-radius: 7px;
+  background: var(--surface);
+  font-size: var(--text-note);
+}
+
+/* (B-334: a long link's name shrinks, never its label - "URL" stood U / R / L) */
+.att-mini i {
+  flex: none;
+  white-space: nowrap;
+  color: var(--c);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.att-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.att-text-preview {
+  max-height: 420px;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: var(--text-note);
+  white-space: pre-wrap;
+}
+
+/* Under the message box, after code was pasted (slice 85a); empty, it takes no room. */
+.composer-pasted {
+  font-size: var(--text-note);
+}
+
+.composer-pasted:empty {
+  margin-top: -8px;
+}
+
+/* Above the message box: the topic the next message goes on with. */
+.composer-topic {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--text-note);
+}
+
+.composer-input {
+  resize: none;
+  line-height: 1.45;
+}
+
+/* The closed chat's small box: its message box alone, one line (slice 38e). */
+.composer-compact {
+  padding: 0 10px 10px;
+  border-top: 0;
+}
+
+.composer-row[hidden] {
+  display: none;
+}
+
+/* Under the message box, two lines, two jobs (the user's pick of 7 Nov, sample C): what it runs on
+   (the model, New topic, Workspace); then 📎, how far the conversation may go, More (what runs
+   without asking, voice, Work together) and Send. Every control is one height. Narrower, they give
+   way in sample A's order (the container queries below). */
+.composer-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  container: composer / inline-size;
+}
+
+/* The level, Plan first, More and the buttons: one line, whatever the chat's width (the user's
+   report: it was two while a turn ran). The level gives way first; where words do not fit, Plan
+   first and More keep their icon, their name and tooltip. */
+.composer-controls {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.composer-controls > * {
+  flex-shrink: 0;
+}
+
+.composer-icon {
+  display: none;
+}
+
+/* While a turn runs Stop stands beside Queue: even at the chat's widest (a 460px row) the words
+   do not fit beside it. */
+.composer-controls:has(.composer-stop) .composer-words {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.composer-controls:has(.composer-stop) .composer-icon {
+  display: inline;
+}
+
+@container composer (max-width: 450px) {
+  .composer-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .composer-icon {
+    display: inline;
+  }
+
+  .composer-controls {
+    gap: 6px;
+  }
+
+  /* Plan first is its icon, with a dot when on (sample A); its switch is still there for the keys and a screen reader. */
+  .composer-plan {
+    position: relative;
+    padding-inline: 4px;
+  }
+
+  .composer-plan .switch {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .composer-plan:has(:checked) {
+    color: var(--accent);
+  }
+
+  .composer-plan:has(:checked)::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-fill);
+  }
+
+  .composer-plan:has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
+  /* (Its tooltip and its window still say it.) */
+  .model-picker-lead {
+    display: none;
+  }
+}
+
+/* Narrower: Send and Queue are their icon too, the level its short name (Composer), and the model's button
+   the model alone. */
+@container composer (max-width: 360px) {
+  .composer-say {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .model-picker-provider {
+    display: none;
+  }
+
+  .composer-controls,
+  .composer-controls .composer-actions {
+    gap: 4px;
+  }
+}
+
+/* Under ~360px the mic and Auto-read are under More (Composer, B-106), and the row is one line down to the
+   narrowest chat, 220px (R56: it was two at 240px, the level not yet given way). While a turn runs, Stop beside
+   Queue needs a 220px row (a 240px chat): narrower, what is left goes on a second line.
+   shortcut: two lines there; fold Plan first under More while a turn runs if one line is wanted. */
+@container composer (max-width: 219px) {
+  .composer-controls:has(.composer-stop) {
+    flex-wrap: wrap;
+  }
+
+  .composer-line {
+    gap: 4px;
+  }
+}
+
+/* 📎 at the row's start, as square as the buttons beside it. */
+.composer-controls .att-clip {
+  padding-inline: 7px;
+}
+
+/* Full auto stands out, and is never cut to its first letters: as wide as its own name (a select is as wide as its
+   longest option); where the row has no room for it, Send goes on a second line (the narrowest chat).
+   shortcut: a browser without field-sizing (Firefox) gives it the longest option's width; set a width if one is used. */
+.composer-controls:has(> .composer-mode [value='full_auto']:checked) {
+  flex-wrap: wrap;
+}
+
+.composer-controls > .composer-mode:has([value='full_auto']:checked) {
+  flex-shrink: 0;
+  field-sizing: content;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/* (Its open list in the text's colour: an option takes its select's.) */
+.composer-mode option {
+  color: var(--text);
+}
+
+.composer-stop {
+  color: var(--del);
+}
+
+/* (With no provider and no conversation yet the first row has nothing in it.) */
+.composer-row:empty {
+  display: none;
+}
+
+.composer-row .btn,
+.composer-row .input {
+  min-height: 30px;
+  padding-block: 0;
+}
+
+/* Auto-read and the mic beside Send (slice 32a): the row's one height. */
+.composer-actions .icon-btn {
+  width: 30px;
+  height: 30px;
+}
+
+/* (Down to its first letters and its arrow.) */
+.composer-controls > .composer-mode {
+  flex-shrink: 1;
+  min-width: 48px;
+}
+
+.composer-mode {
+  width: auto;
+  padding-inline: 8px;
+  font-size: var(--text-note);
+}
+
+/* Plan first (slice 49): a checkbox beside the level, in the row's type. */
+.composer-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-note);
+  white-space: nowrap;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.composer-more {
+  position: relative;
+}
+
+/* A dot on More where Auto-read and Dictate are in it (sample A). */
+.composer-more:has(.composer-more-voice) > button::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+}
+
+/* Opens upward from its button, over the messages. */
+.composer-more-panel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+}
+
+.composer-more-panel[hidden] {
+  display: none;
+}
+
+/* Work together in More, wrapped only so that `/room` finds its button (slice 46). */
+.composer-beside {
+  display: contents;
+}
+
+/* The message box, with the chosen role's chip at its start; the `/` menu over it (slice 46),
+   its rows the palette's. */
+.composer-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer-field > .composer-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.composer-chip {
+  flex: none;
+}
+
+.composer-commands {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  /* (over the header's Artifacts and Images, a flex item at 6) */
+  z-index: 7;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.composer-commands .palette-name {
+  flex: none;
+}
+
+.composer-commands .palette-kind {
+  flex: 1;
+  min-width: 0;
+}
+
+.palette-row[aria-disabled='true'] {
+  cursor: default;
+}
+
+/* --- conversations page -------------------------------------------------- */
+
+.conv-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: var(--page-w);
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+.conv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+/* (The refresh button stays by the heading.) */
+.conv-head h2 + .icon-btn {
+  margin-right: auto;
+}
+
+.conv-head h2 {
+  font-size: var(--text-title);
+  font-weight: var(--weight-title);
+}
+
+.conv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.conv-row:hover {
+  background: var(--hover);
+}
+
+.conv-row[aria-current='true'] {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.conv-row-title {
+  font-weight: var(--weight-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A To-do list task's chat: its symbol before the name. */
+.conv-row-todo svg {
+  vertical-align: -2px;
+}
+
+/* When it was last worked on: whole, on one line; the name gives way. */
+.conv-row-when {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Ctrl+K (slice 38f): a box over the page, high in its middle. */
+.palette-back {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding-top: 12vh;
+  background: rgba(18, 21, 27, 0.25);
+}
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(560px, calc(100vw - 32px));
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.palette-list {
+  max-height: min(50vh, 420px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.palette-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.palette-row:hover {
+  background: var(--hover);
+}
+
+.palette-row[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+
+.palette-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-kind {
+  flex: none;
+  font-size: var(--text-meta);
+}
+
+/* Help's list of keys. */
+.shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  white-space: normal; /* (it opens inside the top bar, which keeps to one line) */
+}
+
+.shortcuts > div {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px;
+}
+
+.shortcuts dd {
+  margin: 0;
+}
+
+.shortcuts kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: var(--text-meta);
+}
+
+/* The first steps, in the middle of what the chat leaves of the canvas (--chat-w, 14px from the edge),
+   under the canvas's own line that says how a turn starts (.canvas-empty, at 34%). */
+.first-steps {
+  position: absolute;
+  left: calc((100% + var(--chat-w) + 14px) / 2);
+  top: calc(34% + 52px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(420px, calc(100% - 32px));
+  padding: 16px 18px;
+  transform: translateX(-50%);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.first-steps h2 {
+  margin: 0;
+  font-size: var(--text-heading);
+}
+
+.first-steps ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.first-step {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.first-step > svg {
+  flex: none;
+  align-self: center;
+  color: var(--muted);
+}
+
+.first-step-done > svg {
+  color: var(--ok);
+}
+
+/* The one to do now: it alone has a button, which goes where it is done. */
+.first-step[aria-current='step'] {
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+
+.first-step[aria-current='step'] > svg {
+  color: var(--accent);
+}
+
+/* Why the current step is not done, on a line of its own under it. */
+.first-step-note {
+  flex-basis: 100%;
+  padding-left: 22px;
+  font-weight: 400;
+}
+
+.first-step .mono {
+  overflow-wrap: anywhere;
+}
+
+/* The Voice panel's tabs (slice 32e): flush with its fields. */
+.voice-tabs {
+  padding: 0;
+  width: 100%;
+}
+
+.voice-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Gemini's key: saved, or a field to give it in, with its button. */
+.voice-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  width: 100%;
+  font-size: var(--text-body);
+}
+
+/* Why Gemini could not read, with the browser's voice offered instead. */
+.voice-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}

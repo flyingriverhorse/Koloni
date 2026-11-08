@@ -1,0 +1,19 @@
+# B-307: the five lines native Codex's Coders sent live (29 Oct, AGENT_CHAT CL-20261029-R104),
+# from KOLONI's record, as written: each under a line saying whether it runs unasked at Full auto.
+=== reads: Coder's search, then its folder's names
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Location; rg --files -g AGENTS.md -g etl.py -g '*snapshot*' -g '"'!node_modules'"' -g '"'!.venv'"' -g '"'!venv'"' -g '"'!.git'"'; Get-ChildItem -Force -Name"
+=== reads: Coder 2's search
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Location; rg --files -g AGENTS.md -g model.py -g '*manifest*' -g '*snapshot*' -g '"'!node_modules'"' -g '"'!.venv'"' -g '"'!venv'"'"
+=== reads: Coder 3's search
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-Location; rg --files -g 'train.py' -g 'AGENTS.md' -g '"'!node_modules'"' -g '"'!.venv'"' -g '"'!venv'"'"
+=== reads: Coder 2's script - a listing piped to Select-Object, a search, a read, .NET reading bytes
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command "Get-ChildItem -Force | Select-Object Mode,Name
+rg --files --hidden -g AGENTS.md -g '"'!node_modules'"' -g '"'!.venv'"' -g '"'!venv'"' -g '"'!.git'"'
+Get-Content -LiteralPath model.py -Raw
+"'$fileBytes = [System.IO.File]::ReadAllBytes((Join-Path (Get-Location) '"'model.py'))
+'BYTE_PREFIX=' + [System.BitConverter]::ToString("'$fileBytes[0..([Math]::Min(15, $fileBytes.Length - 1))])'
+=== reads at Full auto: Coder 3's script - AGENTS.md read inside an if block (a block is no read, so below Full auto the name asks; at Full auto an instruction file alone does not, K-fullauto-sorma)
+"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command '$trainBytes = [System.IO.File]::ReadAllBytes((Join-Path (Get-Location) '"'train.py'))
+Get-Content -LiteralPath .\\train.py -Raw
+[PSCustomObject]@{ ByteCount = "'$trainBytes.Length; FirstBytes = [System.BitConverter]::ToString($trainBytes, 0, [Math]::Min(8, $trainBytes.Length)) }
+if (Test-Path -LiteralPath .'"\\AGENTS.md) { Get-Content -LiteralPath .\\AGENTS.md -Raw }"

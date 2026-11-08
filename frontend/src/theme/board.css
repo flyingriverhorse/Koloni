@@ -1,0 +1,452 @@
+/* --- the project's board ----------------------------------------------------- */
+
+/* On a narrow window the line of counts goes under the title and the two buttons. */
+.board-head {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+/* At work and Ended today side by side (slice 60b); on a narrow window, one under another. */
+.board-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.board-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.board-column h3 {
+  margin: 0;
+}
+
+/* Side by side, a long column scrolls in itself and the page keeps its height; its heading stays on top. */
+@media (min-width: 900px) {
+  .board-column {
+    max-height: max(260px, calc(100dvh - 230px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .board-column h3 {
+    position: sticky;
+    top: -10px;
+    z-index: 1;
+    margin: -10px -10px 0;
+    padding: 10px 10px 4px;
+    background: var(--panel);
+  }
+}
+
+.board-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.board-title {
+  font-weight: var(--weight-title);
+  font-size: var(--text-heading);
+  overflow-wrap: anywhere;
+}
+
+.board-title[aria-current='true'] {
+  text-decoration: underline;
+}
+
+.board-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: var(--text-meta);
+}
+
+.board-older {
+  font-size: var(--text-note);
+}
+
+.board-agents,
+.board-conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-agent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-size: var(--text-note);
+}
+
+.board-agent-name {
+  font-weight: var(--weight-strong);
+}
+
+/* The Board's one line to Ready for you: the page's width, not the chat's inset. */
+.memory-page > .ready-line {
+  margin: 0;
+}
+
+/* A conflict on the board: its line, and Open at the right. */
+.board-conflict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Two conversations want one file: on the board, and above each of the two. */
+.board-conflicts,
+.board-strip {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 17%, transparent);
+  color: var(--warn);
+  font-size: var(--text-body);
+}
+
+.board-strip {
+  margin: 0 14px;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+/* --- what waits for you, seen from anywhere (slice 38f-2) --------------------------- */
+
+/* The count on the rail's Ready button: a warning tag, so its ground and text are the tags' own. */
+.rail-badge {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  padding: 0 5px;
+  pointer-events: none;
+}
+
+/* Bottom right, over everything; at most three, newest last. */
+.toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+/* The top bar's bell: every note of the page (Toasts.tsx Recent). */
+.bell-slot:empty {
+  display: none;
+}
+
+.recent-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.recent-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+}
+
+.toast > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A conversation's row and its Archive button side by side; its trigger's line under them. */
+.conv-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+/* Those ticked, archived or deleted together (slice 76). */
+.conv-bulk,
+.conv-bulk-all {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.conv-bulk-all {
+  font-size: var(--text-note);
+}
+
+.conv-item .conv-row {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.conv-trigger {
+  flex-basis: 100%;
+  padding-left: 12px;
+}
+
+/* Under an answer whose message did work (slice 107): one quiet line, the summary under "details". */
+.turn-summary {
+  margin: 2px 0 4px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+.turn-summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.turn-summary-line span {
+  color: var(--text);
+}
+
+.turn-summary-line .link-btn {
+  margin-left: auto;
+}
+
+.turn-summary dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 6px 0 0;
+}
+
+.turn-summary dl > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.turn-summary dt {
+  color: var(--muted);
+}
+
+.turn-summary dd {
+  margin: 0;
+  font-family: var(--mono);
+}
+
+/* --- Ready for you (tek-ev §1): the top bar's pill, its panel from the right, its page ------------- */
+
+/* The one thing in the top bar that waits for you: a warning tag's colours, as a button; the budget near its limit too. */
+.ready-pill,
+.budget-pill {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 17%, var(--panel));
+  color: var(--warn);
+  font: inherit;
+  font-size: var(--text-meta);
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ready-pill[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--warn) 30%, var(--panel));
+}
+
+/* Over any page, under the top bar, at the right; what does not fit scrolls in it. */
+.ready-panel {
+  position: fixed;
+  top: 52px;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: min(460px, 100vw);
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+.ready-panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.ready-panel-head,
+.ready-panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+.ready-panel-head {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.ready-panel-head h2 {
+  margin: 0;
+  font-size: var(--text-body);
+}
+
+.ready-panel-foot {
+  border-top: 1px solid var(--border);
+}
+
+.ready-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 14px;
+}
+
+.ready-panel-body > section + section {
+  margin-top: 16px;
+}
+
+/* (The chat's own list, in the panel: no height or scroll of its own.) */
+.ready-panel-body .msg-list {
+  overflow: visible;
+  padding: 6px 0 0;
+}
+
+.ready-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ready-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ready-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ready-item-from {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Decision 1 (tek-ev): no Run beside a command cut short - here the command is whole, and the row grows to it. */
+.ready-item .cmd-approval-command,
+.ready-panel .cmd-approval-command {
+  max-height: none;
+  overflow: visible;
+}
+
+/* The chat's one line: what waits outside it, and the way to the panel. */
+.ready-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 8%, var(--panel));
+}
+
+/* One line, however narrow: its words cut short (its button says them whole), never the chat's messages pushed away. */
+.ready-line > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ready-line > button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.ready-line .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.ready-count {
+  font-size: var(--text-body);
+  font-weight: normal;
+}
+
+/* A night's job on Ready for you: what it asks, whole, then the way to its chat. */
+.ready-night {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}

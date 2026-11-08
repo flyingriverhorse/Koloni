@@ -1,0 +1,41 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.ty_cache/
+.coverage
+.coverage.*
+frontend/coverage/
+htmlcov/
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+# Local verification reports and screenshots can contain task data and paths.
+runtime/
+/projects/
+# Local model weights are supplied separately from the application source.
+/models/
+*.gguf
+*.safetensors
+references/*/
+.superpowers/
+.env
+.env.*
+!.env.example
+# The user's own catalogue beside app/catalog.json (catalog.local.example.json says its form).
+/catalog.local.json
+*.log
+# Keep local design plans and verification reports out of source commits.
+*docs/
+# The user guide (Zensical) and its diagrams: all of docs/ is source.
+!/docs/
+
+# Working notes kept on this machine only (the user, 7 Nov)
+/AGENTS.md
+/AGENT_CHAT.md
+/DURUM.md
+/SORULAR.md
+/tasarim/
+/YAPILACAKLAR.md

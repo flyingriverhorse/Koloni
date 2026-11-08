@@ -1,0 +1,152 @@
+# The user guide: one site, in English. Pages in docs, the built site in runtime/site.
+
+[project]
+site_name = "KOLONİ"
+site_description = "A local agent workspace: a chat beside a canvas, real agents, evidence."
+# Where .github/workflows/docs.yml publishes it: canonical links, the sitemap and 404.html use it;
+# pages link to each other relatively, so the app's /guide/ serves the same build.
+site_url = "https://koloni.skyulf.com/manual/"
+docs_dir = "docs"
+site_dir = "runtime/site"
+extra_css = ["stylesheets/koloni.css"]
+copyright = "Copyright 2026 Murat H. Unsal · AGPL-3.0-or-later"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Getting started" = [
+    { "Quick start" = "getting-started/quick-start.md" },
+    { "KOLONİ in 5 minutes" = "getting-started/concepts.md" },
+    { "Install" = "getting-started/install.md" },
+    { "Why KOLONİ" = "getting-started/why-koloni.md" },
+  ] },
+  { "Everyday use" = [
+    { "Chat and canvas" = "use/chat-and-canvas.md" },
+    { "Chats" = "use/chats.md" },
+    { "Permission levels" = "use/permissions.md" },
+    { "Ready and approval cards" = "use/ready.md" },
+    { "Working copies and Take in" = "use/workspace.md" },
+    { "Plan first" = "use/plan-first.md" },
+    { "Compare" = "use/compare.md" },
+    { "Attachments" = "use/attachments.md" },
+    { "Voice" = "use/voice.md" },
+    { "Command palette (Ctrl+K)" = "use/command-palette.md" },
+  ] },
+  { "Agents" = [
+    { "Which way to work" = "agents/which-way.md" },
+    { "Roles" = "agents/roles.md" },
+    { "Teams" = "agents/teams.md" },
+    { "Step limits" = "agents/step-limits.md" },
+    { "Recipes and candidates" = "agents/recipes.md" },
+    { "Recipe cookbook" = "agents/recipe-cookbook.md" },
+    { "Rooms" = "agents/rooms.md" },
+    { "Discussions" = "agents/discussions.md" },
+    { "Observer" = "agents/observer.md" },
+  ] },
+  { "Models" = [
+    { "Providers" = "models/providers.md" },
+    { "Set up an API provider" = "models/setup-api.md" },
+    { "Set up a local model" = "models/setup-local.md" },
+    { "Set up a CLI" = "models/setup-cli.md" },
+    { "Tiers and Agents may use" = "models/tiers.md" },
+    { "Limits" = "models/limits.md" },
+    { "Subscription rules" = "models/subscription-rules.md" },
+  ] },
+  { "Tools" = [
+    { "Built-in tools" = "tools/built-in.md" },
+    { "MCP servers and trust" = "tools/mcp.md" },
+    { "Skills" = "tools/skills.md" },
+  ] },
+  { "Memory" = "memory.md" },
+  { "Knowledge and experts" = "knowledge.md" },
+  { "Automation" = [
+    { "Triggers" = "automation/triggers.md" },
+    { "To-do" = "automation/todo.md" },
+    { "Work while you're away" = "automation/overnight.md" },
+    { "Answering for you" = "automation/answering-for-you.md" },
+  ] },
+  { "Money and quota" = [
+    { "Usage and budgets" = "money/usage.md" },
+    { "Keeping costs down" = "money/cost.md" },
+  ] },
+  { "Settings" = "settings.md" },
+  { "Backup and update" = "backup-and-update.md" },
+  { "Troubleshooting and FAQ" = "troubleshooting.md" },
+  { "Examples" = [
+    { "A web app with a team" = "examples/team-web-app.md" },
+    { "A job while you're away" = "examples/overnight-job.md" },
+    { "Picking the best of several candidates" = "examples/candidates.md" },
+    { "Adding an MCP server safely" = "examples/mcp-safely.md" },
+    { "Teaching an expert" = "examples/teach-an-expert.md" },
+  ] },
+  { "Reference" = [
+    { "Every setting" = "reference/all-settings.md" },
+    { "CLIs" = "reference/cli.md" },
+    { "Recipe, role and skill formats" = "reference/formats.md" },
+    { "Environment variables" = "reference/environment.md" },
+    { "Folder layout" = "reference/folders.md" },
+    { "HTTP API" = "reference/openapi.md" },
+    { "Glossary" = "reference/glossary.md" },
+    { "Known limits" = "reference/known-limits.md" },
+    { "Upgrade notes" = "reference/upgrade-notes.md" },
+  ] },
+  { "Security and privacy" = [
+    { "Security model" = "security/model.md" },
+    { "Data and privacy" = "security/privacy.md" },
+    { "Reporting a problem" = "security/reporting.md" },
+  ] },
+  { "Developers" = [
+    { "Architecture" = "developer/architecture.md" },
+    { "Run from source" = "developer/from-source.md" },
+    { "Tests and verify" = "developer/verify.md" },
+    { "Contributing (DCO)" = "developer/contributing.md" },
+    { "Licenses" = "developer/licenses.md" },
+  ] },
+  { "Changelog" = "changelog.md" },
+  { "Roadmap" = "roadmap.md" },
+]
+
+[project.theme]
+# The system's own fonts: no page asks Google Fonts (docs/security/privacy.md lists none).
+font = false
+# KOLONİ's own logo (frontend/public/favicon.svg), in the header and as the tab icon.
+logo = "assets/logo.svg"
+favicon = "assets/logo.svg"
+language = "en"
+features = [
+  "content.code.copy",
+  "content.tabs.link",
+  "navigation.top",
+  "search.highlight",
+]
+
+# Light and dark, following the system until the toggle picks one. The colours are KOLONİ's own:
+# docs/stylesheets/koloni.css.
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle = { icon = "lucide/moon", name = "Switch to dark mode" }
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle = { icon = "lucide/sun", name = "Switch to light mode" }
+
+# Listed in full: a list here replaces the defaults, and the pages need tables, notes and tabs.
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.tables]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.highlight]
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.superfences]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true

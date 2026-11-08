@@ -1,0 +1,145 @@
+/* "Kovan" (slice 38): a warm earth ground (night blue in the dark theme since K-koyu-tema), one honey accent for what runs, the main action and
+   what is chosen. Every text colour reads at 4.5 or more on every ground, in both themes
+   (contrast.test.ts). Density, radii and outline-style actions follow the Agent Canvas
+   prototype's layout. */
+:root {
+  /* How wide a page and a form may grow: the whole window (the user's word, 20 Oct). */
+  --page-w: 100%;
+  --form-w: 100%;
+  --bg: #f6f1e8;
+  --surface: #fffaf1;
+  --panel: #fbf6ed;
+  --text: #2a2218;
+  --muted: #6e604a;
+  --faint: #706249;
+  --border: #e0d6c4;
+  --border-strong: #968669;
+  --hover: rgba(42, 34, 24, 0.05);
+  /* The design's light #a8670f, #3f7a2c and #b2402c read under 4.5 on the ground, on a hovered or
+     chosen row (--hover, --accent-soft) or in their own tag: each darkened until it reads. */
+  --accent: #925a0d;
+  --accent-fill: #e3a43a;
+  --accent-fg: #16130f;
+  --accent-soft: color-mix(in srgb, #e3a43a 14%, transparent);
+  --ok: #366825;
+  /* A warning is red-orange: told apart from the honey and from a failure (contrast.test.ts). */
+  --warn: #ae3000;
+  --del: #9c3a32;
+  /* A tier's colour (slice 81a): a mark beside its name, never the only thing that says it. */
+  --tier-strongest: #c99848;
+  --tier-balanced: #93a86f;
+  --tier-fast: #7f9fae;
+  /* A category's colour (slice 63b, app.schemas.Colour): a role's dot, edge and face on the Agents page, never its
+     text. The four built-in categories are violet, amber, green and blue. */
+  --cat-violet: #7a6aa8;
+  --cat-amber: #b0773a;
+  --cat-green: #4f7a62;
+  --cat-blue: #5c7896;
+  --cat-rose: #9a4f7d;
+  --cat-teal: #3f7f95;
+  --cat-brown: #8b6a3c;
+  --cat-olive: #6b7a2e;
+  /* A group of a role's tools (slice 81d): its heading, a tile's edge and its check; each reads at 4.5 on every
+     ground, and the ground on it (contrast.test.ts). */
+  --tool-files: #52708e;
+  --tool-commands: #8a5838;
+  --tool-web: #46705a;
+  --tool-browser: #3e6e80;
+  --tool-team: #6e5e9e;
+  --tool-to-do: #8f4a6e;
+  /* A request between teams and the shared folder (K-takimlar-arasi): its line, label and badges. */
+  --request: #2b6f63;
+  --tool-memory: #8a5f1e;
+  /* A file attached to a message, by its kind (slice 85b): its chip's edge and label. */
+  --file-code: #3f5a75;
+  --file-img: #5a4a8a;
+  --file-doc: #8a2618;
+  --file-vid: #2b5867;
+  --file-link: #385c49;
+  --file-other: var(--muted);
+  --canvas-dot: #dcd1bd;
+  /* Coloured code (slice 42a): from the palette's earth, honey and green, each read at 4.5 on a
+     plain, an added and a removed line (contrast.test.ts). */
+  --code-keyword: #8f3f71;
+  --code-string: #366825;
+  --code-number: #a33a00;
+  --code-comment: #6e604a;
+  --code-title: #275d8b;
+  --code-attr: #7a4f0b;
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 0 0 1px var(--border);
+  --shadow-md: 0 0 0 1px var(--border), 0 10px 30px rgba(42, 34, 24, 0.06);
+  --shadow-lg: 0 0 0 1px var(--border-strong), 0 24px 50px rgba(42, 34, 24, 0.18);
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* The type scale: one size for each kind of text, on whatever page it stands. A
+     stylesheet names the kind, never a number of its own. */
+  --text-title: 20px; /* a page's title */
+  --text-heading: 15px; /* a panel's, a card's or a section's heading */
+  --text-body: 13px; /* what is read and typed: messages, fields, rows */
+  --text-note: 12px; /* a note under a setting, a field's label, a small button */
+  --text-mono: 11.5px; /* what a program wrote or is given: commands, paths, code, output */
+  --text-meta: 11px; /* a line of facts about something: counts, times, states, tags */
+  --text-kicker: 10px; /* the small capitals over a section, and a tag inside a line of facts */
+  --weight-title: 600; /* titles and headings */
+  --weight-strong: 500; /* a name in a row, a button */
+  --weight-body: 400;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #12151b;
+  --surface: #1a1e26;
+  --panel: #161a21;
+  --text: #e4e6ea;
+  /* One step lighter than --faint, told apart from it (K-38f1): 5.87 on a chosen row. */
+  --muted: #b0b6c2;
+  /* No darker: this reads at 4.79 on a chosen row, and one step darker is under 4.5. */
+  --faint: #9aa1ad;
+  --border: #2a303a;
+  --border-strong: #66707f;
+  --hover: rgba(228, 230, 234, 0.06);
+  --accent: #e3a43a;
+  --accent-fill: #e3a43a;
+  --accent-fg: #12151b;
+  --accent-soft: color-mix(in srgb, #e3a43a 16%, transparent);
+  --ok: #86b66f;
+  --warn: #f48648;
+  /* The design's #d9705c reads at 3.9 on a chosen row: lightened (4.50 on the night-blue surface, no darker). */
+  --del: #de8371;
+  --tier-strongest: #d7a95a;
+  --tier-balanced: #a3b97f;
+  --tier-fast: #8fb0bf;
+  --cat-violet: #a698d4;
+  --cat-amber: #d29a5c;
+  --cat-green: #7fae92;
+  --cat-blue: #8aa6c4;
+  --cat-rose: #d48fb8;
+  --cat-teal: #7fb8cc;
+  --cat-brown: #b3a283;
+  --cat-olive: #b4c27a;
+  --tool-files: #8aa6c4;
+  --tool-commands: #d29a7a;
+  --tool-web: #7fae92;
+  --tool-browser: #7cb4c8;
+  --tool-team: #a698d4;
+  --tool-to-do: #d495b6;
+  --request: #7fbfb2;
+  --tool-memory: #d6a85a;
+  --file-code: #8aa6c4;
+  --file-img: #a698d4;
+  --file-doc: #e3907f;
+  --file-vid: #7fb8cc;
+  --file-link: #7fae92;
+  --canvas-dot: #262c36;
+  --code-keyword: #d79ac0;
+  --code-string: #9cc77f;
+  --code-number: #f0a070;
+  --code-comment: #a89a83;
+  --code-title: #8fbce6;
+  --code-attr: #e3b25a;
+  --shadow-md: 0 0 0 1px var(--border), 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 0 0 1px var(--border-strong), 0 24px 50px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}

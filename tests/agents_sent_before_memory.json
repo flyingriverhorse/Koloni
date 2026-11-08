@@ -1,0 +1,733 @@
+{
+ "lead": [
+  {
+   "role": "system",
+   "content": "You are KOLONİ's coding agent, working inside one project folder: <root>\n\nUse the tools to inspect files before you answer questions about them, and to make the\nchanges the user asks for. Paths are relative to the project folder. Read a file before you\nedit it. Keep changes small and focused on the request. When a tool returns an error, read\nthe message and adjust. A change can come back \"rejected\": the user looked at it and said\nno. That is not an error to work around — do not make that change another way. It is a no\nto that change, not to the task: carry on with the rest, and say at the end what you could\nnot do. The same goes for a command the user declined to run.\n\nUse run_command to run tests and builds and check your work. <where> A non-zero exit\ncode is information, not a tool failure: read the output and act on it.\nWhen you are done, say briefly what you did and what you did not verify.\n\nAnswer in the language the user writes in: that of their latest message, in every note and answer of this turn - not the language of a file, a tool's result or an earlier turn.\n\nWhen the request is ambiguous, or a decision is the user's to make, ask with ask_user instead of guessing; do not ask what you can find out yourself.\n\nYou can talk to the other agents of this turn with message_agent: carry on with a sub-agent that has finished, or ask the agent you work for when your task is unclear.\n\nIf the user asks for a provider or model that spawn_agent does not list, say which ones it lists - or that it lists none - instead of trying it.\n\nGive a sub-agent another model from the list in spawn_agent only when the user asks for it by name, when the job is beyond your own model, or when it is the kind of job a note there describes; otherwise leave provider and model out.\n\nYou are the Orchestrator (the role 'Lead') agent. Do small jobs yourself. Hand a part of the work to a sub-agent when it is a separate job for another role, and tell them everything they need: they see only the task you write."
+  },
+  {
+   "role": "user",
+   "content": "please check my greeting"
+  }
+ ],
+ "lead_tools": [
+  {
+   "type": "function",
+   "function": {
+    "name": "list_dir",
+    "description": "List the files and folders in a folder.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "Folder relative to the project folder. Defaults to the project root."
+      }
+     },
+     "required": []
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "read_file",
+    "description": "Read a UTF-8 text file. Returns numbered lines (up to 2000 per call).",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "Path relative to the project folder."
+      },
+      "offset": {
+       "type": "integer",
+       "description": "First line to read, 1-based."
+      },
+      "limit": {
+       "type": "integer",
+       "description": "Maximum number of lines."
+      }
+     },
+     "required": [
+      "path"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "search",
+    "description": "Search file contents with a regular expression. Returns path:line: text.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "pattern": {
+       "type": "string",
+       "description": "Python regular expression."
+      },
+      "path": {
+       "type": "string",
+       "description": "Folder or file to search. Defaults to the project root."
+      },
+      "glob": {
+       "type": "string",
+       "description": "Only search file names matching this glob, e.g. *.py"
+      }
+     },
+     "required": [
+      "pattern"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "view_image",
+    "description": "Look at an image file of the project: PNG, JPEG, GIF or WebP, up to 10 MB. It is shown to you if your model takes images - the result says so - and to the user under the step; otherwise the result gives its size. Never a secret or a file outside the project.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "Path relative to the project folder."
+      }
+     },
+     "required": [
+      "path"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "write_file",
+    "description": "Create a file or replace its whole content. A file it replaces keeps its line endings (CRLF or LF) and its BOM: write plain \\n. There is no need to read a file's bytes first. Scratch - temp files, profiles, logs, downloads - goes under .koloni/tmp/ (ignored by git); the rest of .koloni is KOLONİ's own, never write there.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "Path relative to the project folder."
+      },
+      "content": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "path",
+      "content"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "edit_file",
+    "description": "Replace one exact occurrence of old_string with new_string in a file. old_string must match exactly once; include surrounding lines to make it unique. The file keeps its line endings (CRLF or LF) and its BOM: write plain \\n. To add a line at the end, put the file's last line in old_string and that line with the new one under it in new_string: the end of the file stays as it was. There is no need to read a file's bytes first.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "Path relative to the project folder."
+      },
+      "old_string": {
+       "type": "string"
+      },
+      "new_string": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "path",
+      "old_string",
+      "new_string"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "run_command",
+    "description": "Run a shell command in the project (tests, builds, git, package managers) and get its output and exit code. It cannot be given input while it runs. Scratch - temp files, profiles, logs, downloads - goes under .koloni/tmp/ (ignored by git); the rest of .koloni is KOLONİ's own, never write there. To read another branch use git show / git diff / git log; do not switch the project's branch.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "command": {
+       "type": "string",
+       "description": "The command line to run."
+      },
+      "cwd": {
+       "type": "string",
+       "description": "Folder to run in, relative to the project folder. Defaults to the project root."
+      },
+      "timeout_seconds": {
+       "type": "integer",
+       "description": "Stop the command after this many seconds. Default 120, at most 600."
+      }
+     },
+     "required": [
+      "command"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "browser_open",
+    "description": "Open a page in your own headless browser and wait for it to load. This machine's pages (a preview you started with keep_running, or a file in the project), and sites out on the internet: below Full auto one not on the user's list is asked about first; never while nobody watches. On a site, sending a form, typing into a password field and clicking Sign in, Pay, Buy and the like wait for the user's yes. A preview's page can reach the other ports of this machine; a site's page reaches only https out. Opening a site after a preview, or the other way, starts the browser anew. The browser is yours for the rest of your work; one page at a time.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "url": {
+       "type": "string",
+       "description": "An address on this machine, such as http://localhost:PORT/..., a file of the project by its path (docs/index.html), or a site's address (https://example.com/)."
+      }
+     },
+     "required": [
+      "url"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "browser_screenshot",
+    "description": "Take a picture of the page as it is now: 1280x720; a pixel on it is a page coordinate for browser_click. It is shown to you if your model takes images - the result says so - and saved under .koloni/tmp/browser/shots/ for the user, beside the chat. For a model that takes no images, browser_read gives the page's text and outline instead.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "marks": {
+       "type": "boolean",
+       "description": "Number what one can click or read on the picture (1, 2, 3...) and list them, for browser_click's mark."
+      }
+     },
+     "required": []
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "browser_click",
+    "description": "Click on the page: an element by CSS selector, by the words on it (a button's or link's text, a field's placeholder or label), at a point, or at a mark. Give one of the four. Then it waits for a page the click opens. Prefer selector or text. For an element with no words - an icon, a canvas, a map - take browser_screenshot, read the point off it (its pixels are page coordinates) and give x, y, or a mark number; then browser_read to see what the click did.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "selector": {
+       "type": "string",
+       "description": "A CSS selector, e.g. #start or button.primary."
+      },
+      "text": {
+       "type": "string",
+       "description": "The words on the element, e.g. Start."
+      },
+      "x": {
+       "type": "number",
+       "description": "Point from the left, in page pixels."
+      },
+      "y": {
+       "type": "number",
+       "description": "Point from the top, in page pixels."
+      },
+      "mark": {
+       "type": "integer",
+       "description": "A number from the last browser_screenshot taken with marks."
+      }
+     },
+     "required": []
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "browser_type",
+    "description": "Type text into a field: the one the selector names (what it held is replaced), or the one that has the focus. Press keys with browser_key.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "selector": {
+       "type": "string",
+       "description": "A CSS selector of the field; left out, the field that has the focus."
+      },
+      "text": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "text"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "browser_key",
+    "description": "Press one key on the page: Enter, Tab, Escape, Backspace, Delete, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown, or a single character.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "key": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "key"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "browser_scroll",
+    "description": "Scroll the page by so many pixels: positive down, negative up.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "dy": {
+       "type": "number"
+      }
+     },
+     "required": [
+      "dy"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "browser_read",
+    "description": "Read the page: its address and title, its visible text, and an outline of what can be acted on (headings, links, buttons, fields and their values), at most 20 000 characters.",
+    "parameters": {
+     "type": "object",
+     "properties": {},
+     "required": []
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "browser_console",
+    "description": "The page's console messages and errors since the last call (or since it was opened).",
+    "parameters": {
+     "type": "object",
+     "properties": {},
+     "required": []
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "diagram_image",
+    "description": "Draw a draw.io diagram of the project (a .drawio, .drawio.xml or .dio file) as a picture and save it beside it: docs/flow.drawio gives docs/flow.png (or .svg), over an earlier one. Use Mermaid in markdown for quick sketches; write a .drawio file and call diagram_image when a document needs a picture it can keep - then link the picture from it, ![Flow](flow.png).",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "The diagram's path in the project."
+      },
+      "format": {
+       "type": "string",
+       "enum": [
+        "png",
+        "svg"
+       ],
+       "description": "png (the default) or svg."
+      }
+     },
+     "required": [
+      "path"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "spawn_agent",
+    "description": "Hand a separate part of the work to a sub-agent in one of the roles below and get its report back. The sub-agent starts with a clean context: it sees only the task you write, not this conversation. You wait while it works.\nAvailable roles:\n- Lead — Talks with the user and carries the work, alone or by handing parts to sub-agents.\n- Planner — Breaks a job into steps and says who should do each one.\n- Coder — Writes and changes code.\n- Tester — Runs the tests and reports what passes and what fails.\n- Reviewer — Reviews changes and reports problems.\n- Researcher — Finds things out in the codebase.\nOther models you may give the sub-agent, by provider (optional: when a note fits the job, or when the user asks for it by name; the notes are the user's):\n- \"Local\" (OpenAI-compatible server, API). Default model: its own choice.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "role": {
+       "type": "string",
+       "description": "Name of one of the available roles."
+      },
+      "task": {
+       "type": "string",
+       "description": "What the sub-agent should do, with everything it needs to know: the goal; what done looks like (a check it can run, or a question its report must answer); the files or part of the project; what it must not touch; the shape of the report you want."
+      },
+      "provider": {
+       "type": "string",
+       "description": "Optional: the name of one of the providers listed above, to give the sub-agent that model instead of its role's own."
+      },
+      "model": {
+       "type": "string",
+       "description": "Optional, only together with provider: one of that provider's listed models. Left out, the provider's default model is used."
+      }
+     },
+     "required": [
+      "role",
+      "task"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "create_role",
+    "description": "Create a new role that sub-agents can be opened in, when none of the existing roles fits a job. The role is kept for later turns. A sub-agent never gets tools you do not have yourself, whatever the role lists.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "name": {
+       "type": "string",
+       "description": "Short, unique name, e.g. Documenter."
+      },
+      "description": {
+       "type": "string",
+       "description": "One line: what the role is for."
+      },
+      "instructions": {
+       "type": "string",
+       "description": "How an agent in this role should work."
+      },
+      "tools": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Tool names the role may use, from: list_dir, read_file, search, write_file, edit_file, run_command, spawn_agent, create_role, ask_user, message_agent, discuss, post_note, read_notes."
+      }
+     },
+     "required": [
+      "name",
+      "tools"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "ask_user",
+    "description": "Ask the user a question and wait for their answer. Use it when the request is ambiguous, when you need a decision only they can make, or before a step that is hard to undo. Do not ask what you can find out yourself with the other tools.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "question": {
+       "type": "string",
+       "description": "The question, with what they need to know to answer it."
+      },
+      "options": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Optional: 2 to 6 short answers to choose from. The user can always write their own answer instead."
+      }
+     },
+     "required": [
+      "question"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "discuss",
+    "description": "Open a discussion: you and the agents you name talk about one topic in a shared place, in rounds, each reading what the others said. Nobody changes anything while it lasts. You speak last in each round. It ends when nobody has anything to add, at the round limit, when its speakers have used more tokens than the conversation's budget for a discussion, or when the user ends it; you get back everything that was said. Use it when a decision is better made with other views - how to fix something, which of two designs - before you hand out the work.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "topic": {
+       "type": "string",
+       "description": "What to talk about, with everything the others need to know to have a view."
+      },
+      "with": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "1 to 5 names: an agent of this turn that has finished or is waiting (e.g. Coder, Reviewer 2), or a role (a new agent is opened in that role for the discussion)."
+      },
+      "rounds": {
+       "type": "integer",
+       "description": "At most how many rounds, 1 to 20. Default 3."
+      }
+     },
+     "required": [
+      "topic",
+      "with"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "post_note",
+    "description": "Leave a short note on this turn's shared notebook. Every other agent at work is handed it when it next takes a step, and the user sees it; nobody waits for it and nobody replies. Use it for what the others should know while they work: what you found, a file you are changing, something not to touch. To ask somebody something, use message_agent. A note has at most 1500 characters: put anything longer in a shared file (write_shared, where you have it) and say in the note where it is.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string",
+       "description": "The note, at most 1500 characters."
+      }
+     },
+     "required": [
+      "text"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "read_notes",
+    "description": "Read this turn's shared notebook: the notes so far, with who wrote each and when. What the others note is handed to you as you work anyway; use this to look again.",
+    "parameters": {
+     "type": "object",
+     "properties": {},
+     "required": []
+    }
+   }
+  }
+ ],
+ "sub_agent": [
+  {
+   "role": "system",
+   "content": "You are KOLONİ's coding agent, working inside one project folder: <root>\n\nUse the tools to inspect files before you answer questions about them, and to make the\nchanges the user asks for. Paths are relative to the project folder. Read a file before you\nedit it. Keep changes small and focused on the request. When a tool returns an error, read\nthe message and adjust. A change can come back \"rejected\": the user looked at it and said\nno. That is not an error to work around — do not make that change another way. It is a no\nto that change, not to the task: carry on with the rest, and say at the end what you could\nnot do. The same goes for a command the user declined to run.\n\nUse run_command to run tests and builds and check your work. <where> A non-zero exit\ncode is information, not a tool failure: read the output and act on it.\nWhen you are done, say briefly what you did and what you did not verify.\n\nWhen the request is ambiguous, or a decision is the user's to make, ask with ask_user instead of guessing; do not ask what you can find out yourself.\n\nYou can talk to the other agents of this turn with message_agent: carry on with a sub-agent that has finished, or ask the agent you work for when your task is unclear.\n\nYou are the Reviewer sub-agent. Read the code under review and report concrete problems with file and line. Say plainly when you find none. Do not change files.\nYour name here is Reviewer. Your task comes from the Orchestrator (your opener). When you are done, reply with a short report of what you found or did; it is returned to them. When you hand work on, or finish a step others build on, first leave a short note with post_note: what was done, and where."
+  },
+  {
+   "role": "user",
+   "content": "REVIEW-TASK look at the project"
+  }
+ ],
+ "sub_agent_tools": [
+  {
+   "type": "function",
+   "function": {
+    "name": "list_dir",
+    "description": "List the files and folders in a folder.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "Folder relative to the project folder. Defaults to the project root."
+      }
+     },
+     "required": []
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "read_file",
+    "description": "Read a UTF-8 text file. Returns numbered lines (up to 2000 per call).",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "Path relative to the project folder."
+      },
+      "offset": {
+       "type": "integer",
+       "description": "First line to read, 1-based."
+      },
+      "limit": {
+       "type": "integer",
+       "description": "Maximum number of lines."
+      }
+     },
+     "required": [
+      "path"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "search",
+    "description": "Search file contents with a regular expression. Returns path:line: text.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "pattern": {
+       "type": "string",
+       "description": "Python regular expression."
+      },
+      "path": {
+       "type": "string",
+       "description": "Folder or file to search. Defaults to the project root."
+      },
+      "glob": {
+       "type": "string",
+       "description": "Only search file names matching this glob, e.g. *.py"
+      }
+     },
+     "required": [
+      "pattern"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "view_image",
+    "description": "Look at an image file of the project: PNG, JPEG, GIF or WebP, up to 10 MB. It is shown to you if your model takes images - the result says so - and to the user under the step; otherwise the result gives its size. Never a secret or a file outside the project.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string",
+       "description": "Path relative to the project folder."
+      }
+     },
+     "required": [
+      "path"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "ask_user",
+    "description": "Ask the user a question and wait for their answer. Use it when the request is ambiguous, when you need a decision only they can make, or before a step that is hard to undo. Do not ask what you can find out yourself with the other tools.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "question": {
+       "type": "string",
+       "description": "The question, with what they need to know to answer it."
+      },
+      "options": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Optional: 2 to 6 short answers to choose from. The user can always write their own answer instead."
+      }
+     },
+     "required": [
+      "question"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "message_agent",
+    "description": "Send a message to another agent of this turn and get its reply. It takes a turn in its own context while you wait; it remembers its own work, not yours, so say what it needs to know. An agent you open later can be messaged, once it has finished, by the name spawn_agent returns.\nAgents you can reach now:\n- Lead (Lead role): it answers from what it knows and can read files; it changes nothing. Local · fake-model; waiting",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "to": {
+       "type": "string",
+       "description": "The agent's name, as listed."
+      },
+      "message": {
+       "type": "string",
+       "description": "What you want to tell or ask it."
+      }
+     },
+     "required": [
+      "to",
+      "message"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "post_note",
+    "description": "Leave a short note on this turn's shared notebook. Every other agent at work is handed it when it next takes a step, and the user sees it; nobody waits for it and nobody replies. Use it for what the others should know while they work: what you found, a file you are changing, something not to touch. To ask somebody something, use message_agent. A note has at most 1500 characters: put anything longer in a shared file (write_shared, where you have it) and say in the note where it is.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string",
+       "description": "The note, at most 1500 characters."
+      }
+     },
+     "required": [
+      "text"
+     ]
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "read_notes",
+    "description": "Read this turn's shared notebook: the notes so far, with who wrote each and when. What the others note is handed to you as you work anyway; use this to look again.",
+    "parameters": {
+     "type": "object",
+     "properties": {},
+     "required": []
+    }
+   }
+  }
+ ],
+ "session": "You are an agent that another program, KOLONİ, runs. The input is a JSON\ndocument with \"instructions\" (who you are and how to work) and \"conversation\" (everything so\nfar, oldest first). Carry on from the end of the conversation: do what the last user message\nasks.\n\nYour only tools are the ones of the \"koloni\" server; their names start with mcp__koloni__.\nThe conversation and the instructions name tools without that prefix: read_file there is\nmcp__koloni__read_file here, and so on. You have no other way to read files, run commands\nor reach the network, and that is expected. A tool result that says the user declined\nsomething is their decision, not an error to work around.\n\nThe folder you are started in is a temporary one of KOLONİ's, not the project: the project\nfolder is the one the instructions name.\n\nWhen the work is done, say briefly what you did and what you did not verify.\n\n{\"instructions\": \"You are KOLONİ's coding agent, working inside one project folder: <root>\\n\\nUse the tools to inspect files before you answer questions about them, and to make the\\nchanges the user asks for. Paths are relative to the project folder. Read a file before you\\nedit it. Keep changes small and focused on the request. When a tool returns an error, read\\nthe message and adjust. A change can come back \\\"rejected\\\": the user looked at it and said\\nno. That is not an error to work around — do not make that change another way. It is a no\\nto that change, not to the task: carry on with the rest, and say at the end what you could\\nnot do. The same goes for a command the user declined to run.\\n\\nUse run_command to run tests and builds and check your work. <where> A non-zero exit\\ncode is information, not a tool failure: read the output and act on it.\\nWhen you are done, say briefly what you did and what you did not verify.\\n\\nAnswer in the language the user writes in: that of their latest message, in every note and answer of this turn - not the language of a file, a tool's result or an earlier turn.\\n\\nWhen the request is ambiguous, or a decision is the user's to make, ask with ask_user instead of guessing; do not ask what you can find out yourself.\\n\\nYou can talk to the other agents of this turn with message_agent: carry on with a sub-agent that has finished, or ask the agent you work for when your task is unclear.\\n\\nIf the user asks for a provider or model that spawn_agent does not list, say which ones it lists - or that it lists none - instead of trying it.\\n\\nGive a sub-agent another model from the list in spawn_agent only when the user asks for it by name, when the job is beyond your own model, or when it is the kind of job a note there describes; otherwise leave provider and model out.\\n\\nYou are the Orchestrator (the role 'Lead') agent. Do small jobs yourself. Hand a part of the work to a sub-agent when it is a separate job for another role, and tell them everything they need: they see only the task you write.\", \"conversation\": [{\"role\": \"user\", \"content\": \"what does it print?\"}]}",
+ "session_tools": [
+  "list_dir",
+  "read_file",
+  "search",
+  "view_image",
+  "write_file",
+  "edit_file",
+  "run_command",
+  "browser_open",
+  "browser_screenshot",
+  "browser_click",
+  "browser_type",
+  "browser_key",
+  "browser_scroll",
+  "browser_read",
+  "browser_console",
+  "diagram_image",
+  "spawn_agent",
+  "create_role",
+  "ask_user",
+  "message_agent",
+  "discuss",
+  "post_note",
+  "read_notes"
+ ],
+ "native": "You are working as an agent inside KOLONİ, a workspace where several agents\nwork for one user. The input is a JSON document with \"instructions\" (who you are and how\nto work) and \"conversation\" (everything so far, oldest first). Carry on from the end of\nthe conversation: do what the last user message asks.\n\nDo the work in this project folder with your own tools (shell, file edits and the rest),\nas you normally would. KOLONİ shows the user what you do as you do it.\n\nThe \"koloni\" MCP server gives you what your own tools cannot:\n- spawn_agent hands a separate part of the job to another agent and returns its report;\n- ask_user asks the user a question and waits for the answer;\n- create_role adds a role agents can be opened in.\nUse them when the instructions call for it. Where the instructions or the conversation\nmention tools such as read_file, edit_file or run_command, use your own equivalents.\n\nWhen the work is done, say briefly what you did and what you did not verify.\n\nThe project folder is \"<root>\". Your shell should start there; if it starts anywhere else, go there first, and keep every path you read or write inside it.\n\n{\"instructions\": \"You are KOLONİ's coding agent, working inside one project folder: <root>\\n\\nUse the tools to inspect files before you answer questions about them, and to make the\\nchanges the user asks for. Paths are relative to the project folder. Read a file before you\\nedit it. Keep changes small and focused on the request. When a tool returns an error, read\\nthe message and adjust. A change can come back \\\"rejected\\\": the user looked at it and said\\nno. That is not an error to work around — do not make that change another way. It is a no\\nto that change, not to the task: carry on with the rest, and say at the end what you could\\nnot do. The same goes for a command the user declined to run.\\n\\nUse run_command to run tests and builds and check your work. <where> A non-zero exit\\ncode is information, not a tool failure: read the output and act on it.\\nWhen you are done, say briefly what you did and what you did not verify.\\n\\nAnswer in the language the user writes in: that of their latest message, in every note and answer of this turn - not the language of a file, a tool's result or an earlier turn.\\n\\nWhen the request is ambiguous, or a decision is the user's to make, ask with ask_user instead of guessing; do not ask what you can find out yourself.\\n\\nYou can talk to the other agents of this turn with message_agent: carry on with a sub-agent that has finished, or ask the agent you work for when your task is unclear.\\n\\nIf the user asks for a provider or model that spawn_agent does not list, say which ones it lists - or that it lists none - instead of trying it.\\n\\nGive a sub-agent another model from the list in spawn_agent only when the user asks for it by name, when the job is beyond your own model, or when it is the kind of job a note there describes; otherwise leave provider and model out.\\n\\nYou are the Orchestrator (the role 'Lead') agent. Do small jobs yourself. Hand a part of the work to a sub-agent when it is a separate job for another role, and tell them everything they need: they see only the task you write.\", \"conversation\": [{\"role\": \"user\", \"content\": \"what does it print?\"}]}",
+ "native_tools": [
+  "spawn_agent",
+  "create_role",
+  "ask_user",
+  "message_agent",
+  "discuss",
+  "post_note",
+  "read_notes"
+ ]
+}

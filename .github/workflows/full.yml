@@ -1,0 +1,41 @@
+# Everything a pull request runs, by hand, on any branch and without a pull request: PR Check
+# (actionlint, the backend in six parts, the frontend, the guide, SonarQube) and the heavy set
+# (e2e in three shards, the backend on Windows and on Python 3.13 / 3.14) and the backend on
+# macOS (macos.yml), side by side.
+# Actions -> Full check -> Run workflow, or `gh workflow run full.yml --ref <branch>` (by hand only
+# once this file is on main). It also runs on each push to a work branch (`k-*`) or a train
+# (`train-*`), so a branch is checked on GitHub's runners before it goes into a pull request.
+name: Full check
+
+on:
+  push:
+    branches: ['k-**', 'train-**']
+  workflow_dispatch:
+    inputs:
+      docker:
+        description: Also build the Docker image
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  pr-check:
+    name: PR Check
+    uses: ./.github/workflows/pr-check.yml
+    secrets: inherit  # SONAR_TOKEN for the scan
+
+  heavy:
+    name: Heavy
+    uses: ./.github/workflows/heavy.yml
+    with:
+      docker: ${{ inputs.docker == true }}  # (false on a push, which has no inputs)
+
+  macos:
+    name: macOS
+    uses: ./.github/workflows/backend.yml  # (as macos.yml)
+    with:
+      python-version: '3.12'
+      os: macos-latest
+      lint: false

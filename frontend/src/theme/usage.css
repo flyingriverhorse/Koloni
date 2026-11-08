@@ -1,0 +1,251 @@
+/* --- usage page ------------------------------------------------------------ */
+
+.usage-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.usage-filters .input {
+  width: auto;
+}
+
+.usage-table {
+  border-collapse: collapse;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-body);
+}
+
+.usage-table th,
+.usage-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  vertical-align: top;
+}
+
+.usage-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.usage-table th {
+  font-weight: var(--weight-body);
+}
+
+.usage-table thead th {
+  font-size: var(--text-note);
+  color: var(--muted);
+}
+
+.usage-table th:first-child {
+  text-align: left;
+}
+
+/* A column's heading sorts the table by it: it reads as the heading did, with an arrow once sorted. */
+.sort-head {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.sort-head:hover {
+  color: var(--text);
+}
+
+/* (The arrow is not part of its name: aria-sort says which way.) */
+th[aria-sort='ascending'] > .sort-head::after {
+  content: ' ↑' / '';
+}
+
+th[aria-sort='descending'] > .sort-head::after {
+  content: ' ↓' / '';
+}
+
+/* This month's spend against the budget, on one line where it fits. */
+.usage-summary {
+  font-size: var(--text-body);
+  line-height: 1.6;
+}
+
+/* Plan limits, a server's tools: a line of words for each row, not a column of numbers. */
+.usage-limits td,
+.usage-limits thead th {
+  text-align: left;
+}
+
+/* A conversation's name, which opens it. */
+.usage-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+}
+
+.usage-open:hover {
+  text-decoration: underline;
+}
+
+/* The models' prices, on a card like the tables'. */
+.price-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* One model's price: its name, the two prices, the currency, Save and Remove. */
+.price-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 110px 72px 92px 76px;
+  gap: 8px;
+  align-items: center;
+}
+
+/* The name only: the fields are mono too. */
+.price-row > span.mono {
+  overflow: hidden;
+  font-size: var(--text-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Under them, the two it may have besides: for what is read from a cache and written to it. */
+.price-cache {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  grid-column: 2 / -1;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.price-cache label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-cache .input {
+  width: 90px;
+}
+
+/* Narrow: the name has a line of its own, the fields and buttons wrap under it. */
+@media (max-width: 720px) {
+  .price-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .price-row > span.mono,
+  .price-cache {
+    grid-column: 1 / -1;
+  }
+}
+
+/* This month's spend against the budget (slice 55). */
+.budget-meter {
+  display: block;
+  width: 100%;
+  height: 12px;
+}
+
+/* The boxes on top (slice 60a): what each counts, its number large, a line or two under it. */
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 10px;
+}
+
+.usage-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-note);
+  color: var(--muted);
+}
+
+.usage-stats dd {
+  margin: 0;
+}
+
+.usage-stats .usage-stat {
+  font-size: var(--text-title);
+  font-weight: var(--weight-title);
+  color: var(--text);
+}
+
+/* Today's own boxes, right under the usage's: one block of numbers. */
+.usage-day,
+.usage-day > .usage-stats {
+  margin-top: 0;
+}
+
+/* Plan limits and this month's budget: cards side by side where there is room; one alone takes the width. */
+.usage-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.usage-two:empty {
+  display: none;
+}
+
+.usage-two > .memory-section {
+  margin-top: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.usage-two .usage-table {
+  width: 100%;
+  box-shadow: none;
+}
+
+.usage-two .usage-table :is(th, td) {
+  padding: 8px 0 8px 12px;
+}
+
+.usage-two .usage-table th:first-child {
+  padding-left: 0;
+}
+
+.usage-limits .budget-meter {
+  margin-bottom: 4px;
+}
+
+/* A table folded under its heading, with what it holds counted beside the heading. */
+.usage-fold > summary {
+  cursor: pointer;
+}
+
+.usage-fold > summary h3 {
+  display: inline;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-title);
+}
+
+.usage-fold > summary .muted {
+  margin-left: 10px;
+  font-size: var(--text-note);
+}
+
+.usage-fold[open] > summary {
+  margin-bottom: 10px;
+}

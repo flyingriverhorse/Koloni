@@ -1,0 +1,29 @@
+# Weekly update pull requests. Minor and patch updates come grouped, one pull request per
+# ecosystem; a major update comes on its own.
+# Python: Dependabot updates pyproject.toml but cannot regenerate requirements-dev.lock (compiled on
+# Windows), so after merging one, run the command in the lock's header and commit the lock.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]

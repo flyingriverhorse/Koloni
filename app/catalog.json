@@ -1,0 +1,227 @@
+{
+ "about": "What models.dev (app/models_dev.json) does not say: tiers by family, the CLIs' own names and levels, and hosts it has no address for (addresses: plans' own, offered beside models.dev's). Each CLI's levels as its --help says them (measured 20 Oct 2026; Codex's measured 3 Nov 2026, codex-cli 0.164.0, gpt-6-astra: xhigh and max taken, minimal refused - the server says the set per model). not_chat: words of a model's name (letters only) that say it cannot chat - a fill never proposes such a model, and no rule gives it a tier. Qoder's names as `qodercli --list-models` listed them (4 Nov 2026): -m takes a default or new model's name, a custom one's modelID; its image model (wan2.7-image-pro) is left out; on the account read only Qwen3.8-Flash was free. Only Qwen3.8-Flash is measured with -m; whether the bailian-intl ones take their name or their modelID is not measured.",
+ "not_chat": ["image", "audio", "video", "speech", "tts", "asr", "realtime", "transcribe", "whisper", "embedding", "embed", "rerank", "moderation", "dall", "wan", "happyhorse"],
+ "notes": {
+  "strongest": "Among its strongest: for the hardest and longest work",
+  "balanced": "Strength and speed balanced: for everyday work",
+  "fast": "Fast and cheap: for simple, high-volume work"
+ },
+ "tiers": {
+  "anthropic": {
+   "fable": "strongest",
+   "opus": "strongest",
+   "sonnet": "balanced",
+   "haiku": "fast"
+  },
+  "openai": {
+   "astra": "strongest",
+   "pro": "strongest",
+   "sol": "balanced",
+   "terra": "balanced",
+   "luna": "fast",
+   "mini": "fast",
+   "nano": "fast"
+  },
+  "github-copilot": {
+   "fable": "strongest",
+   "opus": "strongest",
+   "astra": "strongest",
+   "argon": "strongest",
+   "sonnet": "balanced",
+   "sol": "balanced",
+   "haiku": "fast",
+   "luna": "fast",
+   "flash": "fast",
+   "mini": "fast",
+   "nano": "fast"
+  },
+  "alibaba": {
+   "max": "strongest",
+   "plus": "balanced",
+   "flash": "fast",
+   "turbo": "fast",
+   "glm": "strongest",
+   "kimi": "strongest",
+   "pro": "strongest"
+  },
+  "alibaba-cn": {
+   "max": "strongest",
+   "plus": "balanced",
+   "flash": "fast",
+   "turbo": "fast",
+   "glm": "strongest",
+   "kimi": "strongest",
+   "pro": "strongest"
+  },
+  "deepseek": {
+   "pro": "strongest",
+   "flash": "fast"
+  },
+  "agy_cli": {
+   "argon": "strongest",
+   "flash": "balanced"
+  },
+  "qoder_cli": {
+   "flash": "fast",
+   "max": "strongest",
+   "pro": "strongest",
+   "glm": "strongest"
+  }
+ },
+ "hosts": {
+  "api.openai.com": "openai",
+  "maas.aliyuncs.com": "alibaba"
+ },
+ "addresses": [
+  {"name": "Alibaba Token Plan (Singapore)", "api": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"},
+  {"name": "Alibaba Coding Plan", "api": "https://coding-intl.dashscope.aliyuncs.com/v1"}
+ ],
+ "cli": {
+  "claude_cli": {
+   "models": {
+    "fable": "claude-fable",
+    "best": "claude-fable",
+    "opus": "claude-opus",
+    "sonnet": "claude-sonnet",
+    "haiku": "claude-haiku",
+    "opusplan": null
+   },
+   "source": {
+    "url": "https://code.claude.com/docs/en/model-config",
+    "read_on": "2026-10-16"
+   },
+   "efforts": [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+   ],
+   "install": {
+    "windows": "powershell -c \"irm https://claude.ai/install.ps1 | iex\"",
+    "unix": "curl -fsSL https://claude.ai/install.sh | bash",
+    "docs": "https://code.claude.com/docs/en/setup"
+   },
+   "sign_in": {
+    "command": "claude auth login",
+    "docs": "https://code.claude.com/docs/en/cli-reference"
+   }
+  },
+  "codex_cli": {
+   "models": {
+    "gpt-6-astra": null,
+    "gpt-6.1-sol": null,
+    "gpt-6-sol": null,
+    "gpt-6-luna": null
+   },
+   "source": {
+    "url": "https://learn.chatgpt.com/docs/models",
+    "read_on": "2026-10-16"
+   },
+   "efforts": [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+   ],
+   "install": {
+    "windows": "powershell -ExecutionPolicy ByPass -c \"irm https://chatgpt.com/codex/install.ps1 | iex\"",
+    "unix": "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
+    "docs": "https://github.com/openai/codex"
+   },
+   "sign_in": {
+    "command": "codex login",
+    "docs": "https://learn.chatgpt.com/docs/auth"
+   }
+  },
+  "copilot_cli": {
+   "extra": {
+    "auto": {
+     "tier": "fast",
+     "note": "Copilot picks the model for each request; no thinking level"
+    }
+   },
+   "extra_measured": "CLI 1.0.105 (-p): auto picked GPT-6 Luna for a short task, 0.18 AI credits; with a level it is refused",
+   "extra_source": {
+    "url": "copilot -p --model auto",
+    "read_on": "2026-11-07"
+   },
+   "efforts_source": "--help, CLI 1.0.105, 6 Nov 2026 (--reasoning-effort; its none is KOLONİ's off, its minimal left out)",
+   "efforts": [
+    "off",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+   ],
+   "install": {
+    "windows": "winget install GitHub.Copilot",
+    "unix": "curl -fsSL https://gh.io/copilot-install | bash",
+    "docs": "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli"
+   },
+   "sign_in": {
+    "command": "gh auth login",
+    "docs": "https://cli.github.com/manual/gh_auth_login"
+   }
+  },
+  "agy_cli": {
+   "models": {
+    "gemini-4-argon-high": null,
+    "gemini-4-argon-medium": null,
+    "gemini-3.8-flash-high": null,
+    "gemini-3.8-flash-medium": null,
+    "gemini-3.7-flash-high": null,
+    "gemini-3.7-flash-medium": null,
+    "gemini-3.6-flash-high": null,
+    "gemini-3.6-flash-medium": null,
+    "gemini-3.1-pro-high": null
+   },
+   "source": {
+    "url": "https://antigravity.google/docs/cli/headless/",
+    "read_on": "2026-10-16"
+   },
+   "efforts_source": "--help, agy 1.5.1, 6 Nov 2026 (--effort)",
+   "efforts": [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+   ],
+   "install": {
+    "windows": "powershell -c \"irm https://antigravity.google/cli/install.ps1 | iex\"",
+    "unix": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+    "docs": "https://antigravity.google/docs/getting-started/"
+   }
+  },
+  "qoder_cli": {
+   "models": {
+    "Qwen3.8-Flash": null,
+    "DeepSeek-v4-Pro": null,
+    "Qwen-3.8-Max": null,
+    "DeepSeek-v4-Flash": null,
+    "Qwen-3.7-Max": null,
+    "GLM-5.2": null,
+    "Qwen-3.6-Flash": null
+   },
+   "source": {
+    "url": "qodercli --list-models",
+    "read_on": "2026-11-04"
+   },
+   "efforts": [
+    "off",
+    "low",
+    "medium",
+    "high",
+    "xhigh"
+   ],
+   "install": {
+    "windows": "npm install -g @qoder-ai/qodercli",
+    "unix": "npm install -g @qoder-ai/qodercli",
+    "docs": "https://docs.qoder.com/cli/installation"
+   }
+  }
+ }
+}

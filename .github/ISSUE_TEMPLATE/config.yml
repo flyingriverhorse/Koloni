@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/flyingriverhorse/Koloni/security
+    about: Security problems go to the Security tab (Report a vulnerability), never a public issue. See SECURITY.md.

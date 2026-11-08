@@ -1,0 +1,17 @@
+name: KOLONİ product code
+
+# CodeQL reads app/, alembic/, scripts/ and frontend/; tests, the guide and vendored or generated
+# files are left out (CI still runs the tests). runtime/, references/ and frontend/dist are
+# gitignored, listed in case a build leaves them in the checkout.
+paths-ignore:
+  - tests/**
+  - docs/**
+  - references/**
+  - runtime/**
+  - frontend/dist/**
+  - frontend/e2e/**
+  - frontend/src/**/*.test.*
+  - frontend/src/test-fixtures.ts
+  - frontend/src/test-setup.ts
+  - frontend/src/api/generated.ts  # openapi-typescript output (check:api)
+  - frontend/public/drawio/**  # the vendored draw.io viewer, kept byte for byte

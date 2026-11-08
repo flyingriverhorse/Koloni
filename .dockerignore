@@ -1,0 +1,33 @@
+# An allowlist of top-level folders and files: an untracked file at the top of the checkout,
+# such as notes or a local catalogue, never reaches the build. Inside an allowed folder all
+# goes in but what is denied below. tests/test_dockerfile.py checks this.
+*
+!app
+!alembic
+!alembic.ini
+!pyproject.toml
+!requirements-dev.lock
+!README.md
+!LICENSE
+!NOTICE
+!THIRD-PARTY-NOTICES.md
+!frontend
+!scripts
+
+# Never, even inside what is allowed above (later lines win).
+runtime
+**/runtime
+.venv
+**/.venv
+node_modules
+**/node_modules
+.git
+**/.git
+.env*
+**/.env*
+**/__pycache__
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+frontend/e2e/_*
+**/*.log

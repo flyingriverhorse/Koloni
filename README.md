@@ -17,8 +17,8 @@
 </div>
 
 <p align="center">
-  <img src="pages/assets/tour.gif" width="100%"
-       alt="A chat asks for a build; a team of agents works on the canvas; the recipe finishes; a test command waits for approval; three agents discuss the result. Recorded from the app with a scripted test model.">
+  <img src="pages/assets/real-run.gif" width="100%"
+       alt="A real run, sped up: one message asks three teams for a small command-line tool; the Orchestrator opens the Backend, Web app and Docs teams on the canvas; the Web app team designs in a room; the work comes back on one card and Take in brings four files into the project. Every role on Claude Code with haiku.">
 </p>
 
 KOLONİ runs Claude Code, Codex, GitHub Copilot CLI, agy and Qoder, plus a local llama.cpp server or
@@ -44,7 +44,7 @@ expect rough edges and read [Known limits](docs/reference/known-limits.md).
 </tr>
 </table>
 
-<sub>Screenshots and the recording are from the app with a scripted test model, so the model names read "fake-qwen".</sub>
+<sub>The recording above is a real run (Claude Code, haiku), sped up five times. The screenshots are from the app with a scripted test model, so their model names read "fake-qwen".</sub>
 
 ## How it works
 

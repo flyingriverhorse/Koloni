@@ -1,0 +1,139 @@
+# The heavy set (see .github/CI.md): e2e in three shards, the backend on Windows (3.12) and on
+# 3.13 / 3.14, and the Docker image. Each pull request to main runs it beside PR Check, so the
+# full set is checked on GitHub's runners before a merge, not on the developer's machine.
+#
+# By hand, on any branch and without a pull request: Actions -> Heavy -> Run workflow, or
+# `gh workflow run heavy.yml --ref <branch>` (tick "docker" / `-f docker=true` for the image).
+# Weekly: the schedule runs nothing until the repository variable HEAVY_WEEKLY is 'true'
+# (Settings -> Secrets and variables -> Actions -> Variables). Delete the variable, or set it to
+# anything else, to turn the weekly run off again; skipped jobs use no minutes.
+name: Heavy
+
+on:
+  pull_request:
+    branches: [main]
+    paths:  # (as pr-check.yml's: the guide and notes do not change what the tests see)
+      - '**'
+      - '!docs/**'
+      - '!pages/**'
+      - 'docs/settings.md'
+      - '!README.md'
+      - '!SECURITY.md'
+      - '!CHANGELOG.md'
+      - '!THIRD-PARTY-NOTICES.md'
+      - '!.github/CI.md'
+      - '!.github/SUPPORT.md'
+      - '!.github/ISSUE_TEMPLATE/**'
+      - '!.github/pull_request_template.md'
+  schedule:
+    - cron: '30 3 * * 1'  # Mondays 03:30 UTC
+  workflow_dispatch:
+    inputs:
+      docker:
+        description: Also build the Docker image
+        type: boolean
+        default: false
+  workflow_call:  # (full.yml runs it with PR Check)
+    inputs:
+      docker:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heavy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: e2e ${{ matrix.shard }}/3 (Playwright, Ubuntu)
+    if: github.event_name != 'schedule' || vars.HEAVY_WEEKLY == 'true'
+    # Skyulf: the locked Playwright could not install Chromium's libraries on ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Playwright's own --shard: each shard runs a third of the spec files, each spec once.
+        # Three: each shard pays ~4 minutes of setup (Python, npm, Chromium, build) beside its
+        # ~5 minutes of tests.
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false  # actions/cache below, on uv's default folder
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-3.12-${{ hashFiles('requirements-dev.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-3.12-
+      - name: Install Python dependencies
+        # The e2e backend runs from .venv (frontend/e2e/paths.mjs).
+        run: |
+          export UV_CACHE_DIR="$HOME/.cache/uv"
+          uv venv .venv --python 3.12
+          uv pip install --python .venv/bin/python -r requirements-dev.lock
+          uv pip install --python .venv/bin/python --no-deps -e .
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies and Chromium
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: build
+        run: npm run build
+        working-directory: frontend
+      - name: e2e
+        run: npm run e2e -- --shard=${{ matrix.shard }}/3
+        working-directory: frontend
+      - name: Keep the failures
+        # e2e/keep-failures.mjs: traces and the backend's logs of a failed run.
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-failures-${{ matrix.shard }}
+          path: frontend/e2e/_failures/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  backend:
+    name: Backend
+    if: github.event_name != 'schedule' || vars.HEAVY_WEEKLY == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {python-version: '3.13', os: ubuntu-latest}
+          - {python-version: '3.14', os: ubuntu-latest}
+          - {python-version: '3.12', os: windows-latest}
+    uses: ./.github/workflows/backend.yml
+    with:
+      python-version: ${{ matrix.python-version }}
+      os: ${{ matrix.os }}
+      lint: false  # PR Check lints on 3.12
+
+  docker:
+    # The optional image (0.1.0-docker): built, never pushed; only by hand, when asked.
+    name: Docker image
+    if: github.event_name == 'workflow_dispatch' && inputs.docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build the image
+        run: docker build -t koloni:ci .

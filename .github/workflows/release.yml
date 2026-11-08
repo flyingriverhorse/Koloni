@@ -1,0 +1,231 @@
+# Publishes a GitHub Release by itself when a release-ready commit lands on main: pyproject.toml's
+# version has no tag v<version> yet and CHANGELOG.md has a dated `## [X.Y.Z] - YYYY-MM-DD` section
+# with entries. Any other push to main stops after the few-second `gate` job. Pushing a tag
+# v<version> by hand still works as before (git tag v0.1.0 && git push origin v0.1.0); a tag made by
+# this workflow does not start it again (GITHUB_TOKEN pushes trigger no workflow).
+# Fails before anything is published unless the commit is on main, the tag is v<the version in
+# pyproject.toml> and the changelog has the dated section, or when main's PR Check for the commit
+# failed (the full suite runs in scripts/verify.ps1 locally and in the pull request's checks; the
+# release also waits for main's own PR Check run, or warns when its paths skipped it). On main the
+# tag is created at the pushed commit just before publishing; an existing tag is never moved, and
+# a release already published is never replaced. The release carries the notes from that section
+# and the source with the built frontend (frontend/dist), as .tar.gz and .zip, so an install needs
+# no Node. No PyPI, no image, no secret beyond GITHUB_TOKEN.
+# A failed run is safe to repeat with "Re-run all jobs" within GitHub's 30-day re-run window (a tag
+# at its own commit is reused); after that, Run workflow on the tag rebuilds and publishes from it.
+# A newer push can cancel a pending PR Check on main: that commit's release run then fails with no
+# tag, which is harmless, since the newer push's run releases.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Release-ready?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.gate.outputs.ready }}
+      version: ${{ steps.gate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Version untagged and changelog section dated
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        # A tag push goes on: build checks the tag against pyproject and the changelog. On main, a
+        # tag already at this very commit goes on too, so a re-run finishes an unpublished release.
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            { echo "version=${GITHUB_REF_NAME#v}"; echo "ready=true"; } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::notice::Releases come from main only; nothing to do on $GITHUB_REF_NAME."
+            exit 0
+          fi
+          status=0
+          python3 .github/scripts/release_notes.py --ready > /dev/null || status=$?
+          if [ "$status" = 3 ]; then
+            echo "::notice::No dated CHANGELOG.md section for pyproject.toml's version; no release."
+            exit 0
+          elif [ "$status" != 0 ]; then
+            exit "$status"
+          fi
+          version=$(sed -n 's/^version=//p' "$GITHUB_OUTPUT")  # written by release_notes.py
+          refs=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v$version" --jq '.[].ref')
+          if grep -qxF "refs/tags/v$version" <<< "$refs"; then
+            at=$(gh api "repos/$GH_REPO/commits/tags/v$version" --jq .sha)  # peeled
+            if [ "$at" != "$GITHUB_SHA" ]; then
+              echo "::notice::v$version is tagged already (at $at); nothing to release."
+              exit 0
+            fi
+            echo "v$version is tagged at this commit; its release is finished here."
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Check and build
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.notes.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # main's history, for the check below
+          persist-credentials: false
+      - name: The commit is on main
+        # A tag on an unmerged branch's commit must not publish (CI.md: a tag ruleset keeps v*
+        # tags from being moved or deleted).
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main; tag a commit of main."
+            exit 1
+          }
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Tag, version and changelog agree
+        id: notes
+        env:
+          TAG: v${{ needs.gate.outputs.version }}  # the pushed tag itself on a tag push
+        run: |
+          mkdir release
+          python .github/scripts/release_notes.py --ready --tag "$TAG" > release/notes.md
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Install Python dependencies
+        run: |
+          uv venv .venv --python 3.12
+          uv pip install --python .venv/bin/python -r requirements-dev.lock
+          uv pip install --python .venv/bin/python --no-deps -e .
+      # The quick checks; the full suite ran on the pull request, and publish waits for main's run.
+      - name: ruff and ty
+        run: |
+          .venv/bin/python -m ruff check app tests scripts alembic
+          .venv/bin/python -m ty check app
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the frontend
+        # --ignore-scripts: no package's install script runs (only fsevents, macOS-only, has one).
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run lint
+          npm run build
+      - name: Source archive with frontend/dist
+        env:
+          NAME: koloni-${{ steps.notes.outputs.version }}
+        run: |
+          stage="$RUNNER_TEMP/stage"
+          mkdir -p "$stage/$NAME"
+          git archive HEAD | tar -x -C "$stage/$NAME"
+          cp -r frontend/dist "$stage/$NAME/frontend/dist"
+          tar -czf "release/$NAME.tar.gz" -C "$stage" "$NAME"
+          (cd "$stage" && python -m zipfile -c "$GITHUB_WORKSPACE/release/$NAME.zip" "$NAME")
+          (cd release && sha256sum "$NAME.tar.gz" "$NAME.zip" > SHA256SUMS)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: release/
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    name: Publish the GitHub Release
+    needs: [gate, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # most of it waiting for PR Check (up to 43 minutes)
+    concurrency:  # one publish per version at a time; the second finds the tag taken
+      group: release-${{ needs.gate.outputs.version }}
+      cancel-in-progress: false
+    permissions:
+      contents: write  # create or publish the release, upload its files
+      actions: read  # see the PR Check run of this commit
+    steps:
+      - name: Wait for PR Check on this commit
+        # The run of main's push for this commit; a tag points at a commit of main, so the same
+        # query serves a tag push. No run within 3 minutes: PR Check's paths skipped the commit.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for i in $(seq 1 258); do  # every 10 s: 3 minutes to appear, 40 more to finish
+            state=$(gh run list --workflow pr-check.yml --commit "$GITHUB_SHA" --event push --limit 1 \
+              --json status,conclusion --jq '.[] | "\(.status) \(.conclusion)"')
+            case "$state" in
+              '')
+                if [ "$i" -ge 18 ]; then
+                  echo "::warning::PR Check did not run for $GITHUB_SHA (its paths skipped it); publishing without it."
+                  exit 0
+                fi ;;
+              'completed success') echo "PR Check passed for $GITHUB_SHA."; exit 0 ;;
+              completed*)
+                echo "::error::PR Check for $GITHUB_SHA ended '${state#completed }'; no tag, no release. Fix main, or re-run PR Check then this run."
+                exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::PR Check for $GITHUB_SHA did not finish in 40 minutes; no tag, no release. Re-run this run once it has."
+          exit 1
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: release
+      # release-drafter.yml may have left a draft for this tag: publish that one, else create it.
+      # A release already published is never touched (a re-run, or the tag moved after it).
+      # shortcut: the drafter runs on the same push and is done long before the build; if it were
+      # still running it could add a stray draft beside the release. Serialize them if one shows.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.gate.outputs.version }}
+          NAME: koloni-${{ needs.build.outputs.version }}
+        run: |
+          files=("release/$NAME.tar.gz" "release/$NAME.zip" release/SHA256SUMS)
+          if [ "$GITHUB_REF_TYPE" = branch ]; then
+            # Tag this commit first. The API refuses a ref that exists, so no tag is ever moved; one
+            # already here (an earlier attempt, or a tag pushed by hand) and the release goes on.
+            gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" --silent ||
+              echo "$TAG exists already; checking where it points."
+          fi
+          at=$(gh api "repos/$GH_REPO/commits/tags/$TAG" --jq .sha)  # peeled: annotated too
+          if [ "$GITHUB_REF_TYPE" = branch ] && [ "$at" != "$GITHUB_SHA" ]; then
+            echo "::notice::$TAG points at $at, not at $GITHUB_SHA; that one is released from there."
+            exit 0
+          fi
+          draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          case "$draft" in
+            true)
+              gh release upload "$TAG" "${files[@]}" --clobber
+              gh release edit "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file release/notes.md --draft=false ;;
+            false)
+              # The main push and a hand-pushed tag on the same commit: whichever comes second.
+              if [ "$at" = "$GITHUB_SHA" ]; then
+                echo "::notice::$TAG is already published from this commit; nothing to do."
+                exit 0
+              fi
+              echo "::error::$TAG is already published from $at; delete it on GitHub first to publish again."
+              exit 1 ;;
+            *)
+              gh release create "$TAG" "${files[@]}" --verify-tag --title "$TAG" --notes-file release/notes.md ;;
+          esac
+      # A PyPI upload would go here, as its own job with `environment: pypi` and
+      # `permissions: id-token: write` (Trusted Publishing, no token), after `uv build`.
+      # A container image would be a job with `packages: write` pushing to ghcr.io.

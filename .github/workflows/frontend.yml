@@ -1,0 +1,57 @@
+# The frontend's steps of scripts/verify.ps1, the same commands: lint, typecheck, complexity,
+# vitest, build. (check:api runs in backend.yml, which has the Python environment it needs; e2e
+# runs in heavy.yml.) Called by PR Check; also by hand.
+name: Frontend
+
+on:
+  workflow_call:
+    inputs:
+      coverage:
+        description: Measure the frontend's coverage, kept as the artifact coverage-frontend (SonarQube)
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      coverage:
+        description: Measure the frontend's coverage, kept as the artifact coverage-frontend
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: lint
+        run: npm run lint
+      - name: typecheck
+        run: npm run typecheck
+      - name: complexity
+        run: npm run check:complexity
+      - name: vitest
+        run: npm test ${{ inputs.coverage && '-- --coverage' || '' }}
+      - name: Keep the coverage
+        if: ${{ !cancelled() && inputs.coverage }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-frontend
+          path: frontend/coverage/lcov.info
+          retention-days: 1
+      - name: build
+        run: npm run build
