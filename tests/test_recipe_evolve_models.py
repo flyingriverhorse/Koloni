@@ -173,9 +173,11 @@ def test_a_candidate_declined_at_its_card_is_said_on_the_rounds_pick_card(
     assert client.post(f"/api/agents/{asked['id']}/reject").status_code == 200
     snap = wait_run(client, cid, run_id, timeout=60)
     assert not fast_model.calls
-    second = next(t for t in snap["tool_calls"] if t["provider_call_id"] == "c2")
-    assert ("Coder 2 (Local): 13. Coder was not opened: it was declined. Which candidate's work "
-            "goes on?") in second["result"]
+    # (On any call's result: where Coder 2 finished before the no - a fast macOS runner - the pick
+    # card comes on a later call than c2.)
+    assert any("Coder 2 (Local): 13. Coder was not opened: it was declined. Which candidate's work "
+               "goes on?" in (t["result"] or "") for t in snap["tool_calls"]), [
+        t["result"] for t in snap["tool_calls"]]
 
 
 def test_auto_koloni_own_candidates_follow_the_lead_onto_the_tiers_other_models(
