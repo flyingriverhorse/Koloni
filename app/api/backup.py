@@ -7,6 +7,7 @@ import shutil
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import BinaryIO
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -46,6 +47,10 @@ def export(request: Request, secrets: bool = False):
                         background=BackgroundTask(shutil.rmtree, tmp, ignore_errors=True))
 
 
+def _writer(handle: int) -> BinaryIO:
+    return os.fdopen(handle, "wb")
+
+
 @router.post("/restore", response_model=RestoreOut, dependencies=OWN)
 async def restore(request: Request):
     """A .zip as the request's body (as an attachment is sent): checked and staged; it
@@ -60,7 +65,7 @@ async def restore(request: Request):
     upload = Path(name)
     try:
         # (Written off the event loop: a GB-sized upload's writes held every chat meanwhile.)
-        out = await run_in_threadpool(lambda: os.fdopen(handle, "wb"))
+        out = await run_in_threadpool(_writer, handle)
         try:
             got = 0
             async for chunk in request.stream():
