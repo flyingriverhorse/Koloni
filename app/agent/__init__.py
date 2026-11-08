@@ -1271,6 +1271,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._disputed: dict[str, list[str]] = {}
         # A team's lead at work -> its role's own tools: what it is offered of the Lead's.
         self._leads: dict[str, tuple[str, ...]] = {}
+        # B-415: a lead that ended with its step's agents at work -> how it ended (`_after_step`)
+        self._leads_gone: dict[str, bool] = {}
         # The agents of a team the user stopped - or of a branch another was done before
         # (K-tarif-kol) -: each stops at its next step, saying why (`_halt`).
         self._halted: set[str] = set()
@@ -1808,6 +1810,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._reviews.discard(agent_id)
             self._before_fix.discard(agent_id)
             self._leads.pop(agent_id, None)
+            self._leads_gone.pop(agent_id, None)
             self._halted.discard(agent_id)
             self._halt_why.pop(agent_id, None)
             self._told_left.pop(agent_id, None)
@@ -6869,6 +6872,30 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         state["status"] = recipe_run.IN
         return True
 
+    def _lead_ended(self, lead_ctx: Ctx, ok: bool) -> None:
+        """`_after_step`: a team's lead ended with its row still at work - the row stops (it
+        answered: what was left is skipped) or fails (it broke), B-83. B-415 (live): a lead whose
+        session KOLONİ stopped leaves its step's agents at work (G2.5) - the row ends once the
+        last of them is back, at the step they came to: their work is the row's, offered at
+        Ready for you. shortcut: one of them the user then declines does not end it
+        (`_declined`): the row stops with the turn."""
+        def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
+            if lead_ctx.agent_id not in state["agents"]:
+                return False
+            if state["status"] == recipe_run.RUNNING and any(
+                    e["ok"] is None for e in recipe_run.at_work(state)):
+                self._leads_gone[lead_ctx.agent_id] = ok
+                return False
+            self._leads_gone.pop(lead_ctx.agent_id, None)
+            if state["status"] != recipe_run.RUNNING:
+                return False
+            state["status"] = recipe_run.STOPPED if ok else recipe_run.FAILED
+            state["why"] = f"{lead_ctx.name} ended before its end" + (
+                f": {recipe_run.found_left(state) or recipe_run.skip(state)}" if ok else "")
+            return True
+
+        self._change_rows(lead_ctx.cid, lead_ctx.run_id, how)
+
     async def _after_step(self, ctx: Ctx, child: Ctx, ok: bool, found: list | None) -> str:
         """What its opener is told of the chat's recipes as `child` ends: its step's row moved
         on; a team's lead that ended with its row still at work leaves it failed; and, to the
@@ -6899,17 +6926,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     "round": recipe_run.round_at(state, recipe_run.graph_of(state), state["at"])}
 
         said = await self._step_over(ctx, child, ended)
+        if ctx.agent_id in self._leads_gone:  # (B-415: the last of its agents may be back now)
+            self._lead_ended(ctx, self._leads_gone[ctx.agent_id])
         if child.agent_id in self._leads:
-            def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
-                if child.agent_id not in state["agents"] or state["status"] != recipe_run.RUNNING:
-                    return False
-                # B-83: one that answered skipped what was left; one that broke failed.
-                state["status"] = recipe_run.STOPPED if ok else recipe_run.FAILED
-                state["why"] = f"{child.name} ended before its end" + (
-                    f": {recipe_run.found_left(state) or recipe_run.skip(state)}" if ok else "")
-                return True
-
-            self._change_rows(child.cid, child.run_id, how)
+            self._lead_ended(child, ok)
 
             def apart(row: ConversationTeam, team: Team, lead: Role,
                       state: dict | None) -> dict | None:

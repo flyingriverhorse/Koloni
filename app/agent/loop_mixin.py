@@ -601,6 +601,17 @@ class LoopMixin:
                     held := await self._held_for_work(ctx)):
                 self._nudge(ctx, held)
                 continue
+            # B-415 (live): Ready for you is asked as the Lead hears back from a lead - with an
+            # agent still in the copy then (a lead's agent outliving it, one answering a
+            # message) it was asked never: it is now, before the Lead's answer ends the turn,
+            # in the call of the last lead it opened (where a lead's card is).
+            if status == "completed" and not ctx.depth and not (
+                    ctx.answering or ctx.discussion) and (ready := await self._ready_for_you(
+                    ctx, next((one for one in reversed(list(self._ctxs.values()))
+                               if one.run_id == ctx.run_id and one.agent_id in self._leads),
+                              ctx))):
+                self._nudge(ctx, ready.strip())
+                continue
             # B-382 (live): nor is its stop at its step limit, which it had spent waiting
             # for its teams: they are waited for too, and the turn ends at that limit as
             # it was to - no step more of the Lead's.
