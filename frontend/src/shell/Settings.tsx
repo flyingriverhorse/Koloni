@@ -157,37 +157,40 @@ function Levels({ at, levels, onLevel, children }: { at: Level; levels: [Level, 
   )
 }
 
+type WholeKey = 'compact_at' | 'max_steps' | 'max_files' | 'max_mb' | 'stuck_minutes' | 'turn_hours'
+
 /**
- * One whole-number setting of the app - `key` at `path`, from `low` to `high` - as the server keeps it (null until
- * read) and as typed: `at` is what is sent, undefined for anything else.
+ * One whole-number setting of the app - `key` at `path`, from `low` to `high` - as the server keeps it (undefined
+ * until read) and as typed: `at` is what is sent, undefined for anything else. `empty`: left empty it is null (none).
  */
-function useWhole(path: string, key: 'compact_at' | 'max_steps' | 'max_files' | 'max_mb', low: number, high: number, failed: (why: string) => void) {
-  const [kept, setKept] = useState<number | null>(null)
+function useWhole(path: string, key: WholeKey, low: number, high: number, failed: (why: string) => void, empty = false) {
+  const [kept, setKept] = useState<number | null | undefined>(undefined)
   const [text, setText] = useState('')
   useEffect(() => {
-    api.get<Record<string, number>>(path).then(
+    api.get<Record<string, number | null>>(path).then(
       read => {
         setKept(read[key])
-        setText(String(read[key]))
+        setText(read[key] === null ? '' : String(read[key]))
       },
       err => failed(errorText(err)),
     )
   }, [path, key, failed])
-  const value = Number(text.trim())
-  const at = /^\d+$/.test(text.trim()) && value >= low && value <= high ? value : undefined
+  const typed = text.trim()
+  const value = Number(typed)
+  const at = empty && typed === '' ? null : /^\d+$/.test(typed) && value >= low && value <= high ? value : undefined
   return {
     kept, text, setText, at,
-    bad: kept !== null && at === undefined,
-    changed: kept !== null && at !== kept,
-    save: async () => setKept((await api.put<Record<string, number>>(path, { [key]: at }))[key]),
+    bad: kept !== undefined && at === undefined,
+    changed: kept !== undefined && at !== kept,
+    save: async () => setKept((await api.put<Record<string, number | null>>(path, { [key]: at }))[key]),
   }
 }
 
 /** A `useWhole` setting's line: its input, its why behind ⓘ, and what it takes where what is typed is not that. */
-function WholeRow({ id, label, why, setting, low, high, also }: { id: string; label: string; why: string; setting: ReturnType<typeof useWhole>; low: number; high: number; also?: ReactNode }) {
+function WholeRow({ id, label, why, setting, low, high, also, placeholder }: { id: string; label: string; why: string; setting: ReturnType<typeof useWhole>; low: number; high: number; also?: ReactNode; placeholder?: string }) {
   return (
-    <Row label={label} htmlFor={id} whyId={`${id}-more`} doc={GUIDE.settingsApp} why={why} warn={<>{setting.bad && <span className="choice-note">A whole number from {low} to {high}.</span>}{also}</>}>
-      <input id={id} className="input mono set-short" inputMode="numeric" value={setting.text} disabled={setting.kept === null} aria-invalid={setting.bad || undefined} aria-describedby={`${id}-more`} onChange={e => setting.setText(e.target.value)} />
+    <Row label={label} htmlFor={id} whyId={`${id}-more`} doc={GUIDE.settingsApp} why={why} warn={<>{setting.bad && <span className="choice-note">A whole number from {low} to {high}{placeholder && ', or empty'}.</span>}{also}</>}>
+      <input id={id} className="input mono set-short" inputMode="numeric" value={setting.text} placeholder={placeholder} disabled={setting.kept === undefined} aria-invalid={setting.bad || undefined} aria-describedby={`${id}-more`} onChange={e => setting.setText(e.target.value)} />
     </Row>
   )
 }
@@ -219,6 +222,9 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
   const [readError, setReadError] = useState<string | null>(null)
   const compaction = useWhole('/compaction', 'compact_at', 50, 95, setReadError)
   const steps = useWhole('/steps', 'max_steps', 5, 200, setReadError)
+  // (app/away.py STUCK_RANGE, CEILING_RANGE: the source of truth)
+  const stuck = useWhole('/unattended', 'stuck_minutes', 5, 1440, setReadError)
+  const ceiling = useWhole('/unattended', 'turn_hours', 1, 72, setReadError, true)
   // (app/knowledge.py FILES_RANGE, MB_RANGE: the source of truth)
   const treeFiles = useWhole('/knowledge-limits', 'max_files', 100, 1_000_000, setReadError)
   const treeMb = useWhole('/knowledge-limits', 'max_mb', 1, 10_240, setReadError)
@@ -238,7 +244,7 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
   const languageSent = /^auto$/i.test(languageText.trim()) ? '' : languageText.trim().replace(/ +/g, ' ')
   const languageValid = languageSent === '' || (languageSent.length <= 40 && /^\p{L}+(?:[ -]\p{L}+)*$/u.test(languageSent))
   const languageChanged = language !== undefined && languageSent !== language
-  const wholes = [compaction, steps, treeFiles, treeMb]
+  const wholes = [compaction, steps, stuck, ceiling, treeFiles, treeMb]
   const valid = languageValid && wholes.every(one => !one.bad)
   const changed = languageChanged || wholes.some(one => one.changed)
 
@@ -286,9 +292,11 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         setting={steps}
         low={5}
         high={200}
-        why="For every project: the most model steps one agent takes on a job before it stops. A team’s coordinator and the Orchestrator get more for their recipe’s steps and their teams; a role’s own limit, where lower, still holds."
+        why="For every project: the most model steps one sub-agent takes on a job before it stops. A team’s coordinator gets more for its recipe’s steps; a role’s own limit, where lower, still holds. The Orchestrator counts no steps: it stops when it goes round in circles, or at the Lead role’s own limit if you set one."
         also={<ContinueNote toLimits={toLimits} />}
       />
+      <WholeRow id="stuck-minutes" label="Stuck after this many minutes with no progress" setting={stuck} low={5} high={1440} why="For every project, in work nobody watches - a To-do task, a job while you’re away, a trigger’s run (only where its Minutes a run are longer): the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing." />
+      <WholeRow id="turn-hours" label="An unattended turn runs at most (hours)" setting={ceiling} low={1} high={72} placeholder="No limit" why="For every project: a To-do task’s turn or a job while you’re away ends after this many hours however it goes, its work kept - a last resort. Empty: no limit - a turn that keeps working (changes, agents at work, messages between agents) can then run without end. A trigger’s own minutes hold its runs." />
       <WholeRow id="compact-at" label="Summarise a long context at (%)" setting={compaction} low={50} high={95} why="For every project: once an agent’s context passes this much of its model’s window, the older part is summarised before its next step." />
       <WholeRow id="tree-files" label="Knowledge reads at most (files)" setting={treeFiles} low={100} high={1_000_000} why={TREE_HINT} />
       <WholeRow id="tree-mb" label="Knowledge reads at most (MB)" setting={treeMb} low={1} high={10_240} why={TREE_HINT} />

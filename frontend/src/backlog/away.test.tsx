@@ -291,7 +291,7 @@ test('the card says how long a job may work, that a plan counts no money, and a 
   const until = new Date(Date.now() + 20 * 3_600_000).toISOString()
   render(<AwayCard card={card({ until, on_plan: 'Claude' })} />)
   const it = screen.getByRole('region', { name: "While you're away" })
-  expect(it).toHaveTextContent('A job works at most 60 minutes')
+  expect(it).toHaveTextContent('A job works at most 1 hour, and stops sooner when nothing moves')
   expect(it).toHaveTextContent('No money is counted on Claude, a plan')
   expect(it).toHaveTextContent('(that is in about 20 hours, tomorrow)')
   expect(it).not.toHaveTextContent('no time limit')

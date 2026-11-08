@@ -1,8 +1,9 @@
 # Step limits
 
-An agent works in steps, and KOLONİ stops it after a set number of them, so that no agent runs on
-without end. This page says where the limits are set, what happens when an agent reaches one, who
-may give it more, and what happens when nobody is there to ask.
+An agent works in steps. A sub-agent stops after a set number of them, so that no agent runs on
+without end. The Orchestrator counts no steps of its own: it stops when its work is done, when it
+goes round in circles, or at a limit you set. This page says where the limits are set, what happens
+when an agent reaches one, who may give it more, and what happens when nobody is there to ask.
 
 ## What a step is
 
@@ -20,23 +21,90 @@ write its report: what it did and what is left.
 
 | Where | What it sets |
 |---|---|
-| Settings › The app › Agents › **Steps an agent may take** | The most steps one agent takes on a job: its task, or one later message it works on. 25 unless you change it, a whole number from 5 to 200. It holds in every project. |
-| The role's form (Agents page) → **Safety stops for one agent** → **At most this many steps** | A limit of the role's own. Where it is lower than the app's, it holds. It counts the steps an agent of the role takes on its work in the turn, and in the earlier turns it goes on from. Empty: only the app's limit. |
+| Settings › The app › Agents › **Steps an agent may take** | The most steps one sub-agent takes on a job: its task, or one later message it works on. 25 unless you change it, a whole number from 5 to 200. It holds in every project. It does not hold the Orchestrator. |
+| The role's form (Agents page) → **Safety stops for one agent** → **At most this many steps** | A limit of the role's own. Where it is lower than the app's, it holds. It counts the steps an agent of the role takes on its work in the turn, and in the earlier turns it goes on from. Empty: only the app's limit. On the **Lead** role it is the Orchestrator's step limit; empty, it has none. |
 | Settings › This project › Limits and money › **Continue gives this many more steps** | How many more steps **Continue** gives. 25 unless you change it, 1 to 200. |
 | A trigger's **Model steps a run** | The steps of a whole turn a trigger starts, all its agents together. See [Triggers](../automation/triggers.md#budget-and-end). |
 
-### More steps for coordinators and the Orchestrator
+### More steps for coordinators
 
-Agents that run other agents need steps to open them, wait, and read what comes back. They get more:
+A team's coordinator needs steps to open its recipe's agents, wait, and read what comes back. It gets
+4 more for each step of its recipe. Each **Ask for changes** that sends the recipe back gives that
+much again, for up to three rounds. With the app's 25, a coordinator whose recipe has six steps takes
+up to 49 steps. A role's own lower limit still holds over these.
 
-- A team's coordinator: 4 more for each step of its recipe. Each **Ask for changes** that sends the
-  recipe back gives that much again, for up to three rounds.
-- The Orchestrator: 8 more for each team of the chat that has a coordinator, and 4 more for each step
-  of a recipe it runs itself (a team with no coordinator), again for each **Ask for changes**, up to
-  three rounds.
+### The Orchestrator: no step count
 
-With the app's 25, a coordinator whose recipe has six steps takes up to 49 steps, and an Orchestrator
-with two coordinated teams takes up to 41. A role's own lower limit still holds over these.
+The Orchestrator runs the whole turn: it opens the teams, follows its rooms, passes messages on and
+writes the answer. A fixed count of its steps ran out on honest work, after the work was already in
+the project, so it has none. What stops it:
+
+- its work is done;
+- it goes round in circles (below);
+- a limit you set: the **Lead** role's **At most this many steps**, a trigger's **Model steps a run**
+  for the whole turn;
+- in a turn nobody watches (a To-do task's, a job while you're away, a trigger's whose **Minutes
+  a run** are longer): nothing has moved
+  for Settings › The app › **Stuck after this many minutes with no progress** (30 unless you change
+  it) - no file of the turn changed, no agent finished its work, no failing command passed. Each of
+  those starts the minutes again, so honest work runs as long as it needs. They do not run out while
+  a card waits for you, a command or a model step of the turn is under way, or an agent below the
+  Orchestrator is at work;
+- a last resort: a To-do task's turn and a job while you're away end after **An unattended turn runs
+  at most (hours)** (8 unless you change it; empty: no limit), however they go. A trigger's
+  **Minutes a run** and a night's stop time hold as before;
+- either way the turn fails with the reason, its work kept - never cancelled: a To-do task gets its
+  fix round, then is blocked, and the run goes on; a night tries the job once more, then goes on;
+- money and tokens, where you set them: the project's token limit for a message, its monthly
+  budget, a night's money;
+- **Stop**.
+
+A turn you started has no clock: you are there to press **Stop**, and the card below asks you.
+
+### When the Orchestrator goes round in circles
+
+KOLONİ watches the Orchestrator's tool calls. It stops it when:
+
+- the same call fails the same way 5 times, with no change of the turn and no command succeeding in
+  between;
+- 10 calls in a row each repeat a call it had made, with the same result, since something last
+  moved.
+
+Something moves when a file of the turn changes, it opens an agent, or it sends a message to one it
+had not written to among its last three. A command that succeeds is judged by what it said, like any
+call. A call with other arguments, or one that gets a new result (a room's new post, a team's
+report), is new; the same call made several times in one step counts once. A wait in a room it
+follows counts as neither while it waits, however often it says the same; one back at once with the
+same words is a repeat. From the third repeat on, the Orchestrator is told what is repeating.
+
+In a turn you started, the first time it is told, in its next step, to try a different approach or
+to report what it did and end. Its counts start again and it goes on; you see nothing. If it goes
+round in circles again, a card under the call asks you:
+
+> The Orchestrator has no step limit, and it seems to go round in circles: its last 10 calls each
+> repeated one it had made, with the same result, with no change of this turn on record and no
+> command of its own succeeding in between. Go on lets it carry on; Stop here ends it, with what it
+> did so far. With no answer in 10 minutes its turn ends, its work kept.
+
+- **Go on**: it carries on, and the counts start again.
+- **Stop here**: the turn ends with that reason.
+- **No answer in 10 minutes**: the turn ends by itself. What is in the project stays, and work in
+  agents' copies stays behind its cards, as at **Stop**. KOLONİ's line in the chat says how many
+  agents it had opened, how many files it had changed in the project, and which call it repeated.
+  A message you sent meanwhile, the To-do run or the night then goes on.
+
+Either way the turn ends there: nothing more is waited for, and no other card comes. Where this
+turn's work is already in the project, it ends **completed**, not red, with KOLONİ's line saying why
+it ended; otherwise it fails with the reason.
+
+The card waits for you at every level, **Full auto** too. As it goes up, KOLONİ tells you on the
+desktop and at the project's notification address, where you set them (Settings › This project):
+"The Orchestrator seems stuck: it repeated list_dir with the same result…".
+
+In a turn nobody watches (a trigger's, a job while you're away, a To-do task) there is no card: the
+Orchestrator fails with the reason on record, also where it had written something - so a To-do task
+gets its fix round, then is blocked with why - and a night or the To-do run goes on with the next
+job or task.
 
 ## At the limit
 
@@ -44,8 +112,9 @@ What happens depends on who stopped, which limit it reached, and whether it chan
 
 ### The Orchestrator
 
-The Orchestrator gets no card. If its teams are still at work it waits for them, then the turn ends
-with "Stopped at its step limit." Send a message to go on.
+The Orchestrator reaches a step limit only where you set one: its role's own, or a trigger's. It gets
+no Continue card there. If its teams are still at work it waits for them, then the turn ends. Send a
+message to go on.
 
 ### A sub-agent with changed files
 
@@ -117,7 +186,7 @@ It is refused when:
 These get no Continue / Stop here card. The agent stops, and the agent that opened it is told what
 is left:
 
-- the Orchestrator itself;
+- the Orchestrator itself, at a limit you set (its loop guard asks: see above);
 - a job of [work while you're away](../automation/overnight.md#step-limits-while-away);
 - a turn a trigger started: the trigger's **Model steps a run** holds for the whole turn, and it ends
   with "budget: stopped after {steps} model steps, the most this trigger gives a turn";
@@ -146,7 +215,7 @@ To give it more:
 - an agent that stopped at its role's own limit counts the steps it took before, in later turns too:
   raise the role's **At most this many steps** first, then ask the Orchestrator to go on. A raised
   limit holds from its next job;
-- for work that is always big, raise **Steps an agent may take**.
+- for work that is always big, raise **Steps an agent may take**: it holds every sub-agent.
 
 ## One job, three ways
 

@@ -1663,6 +1663,18 @@ class StepLimit(BaseModel):
     max_steps: int = Field(ge=5, le=200, strict=True)
 
 
+class Unattended(BaseModel):
+    """B-413: a turn nobody watches ends where nothing real moved for `stuck_minutes`, and a
+    night's job or a To-do task's turn after `turn_hours` (`away.unattended`): settings of the
+    whole app. Their ranges are `away.STUCK_RANGE` and `CEILING_RANGE`, written again here and
+    in Settings.tsx. Sent one at a time - the one not sent stays as it is; `turn_hours` null is
+    no ceiling."""
+
+    model_config = ConfigDict(extra="forbid")
+    stuck_minutes: int | None = Field(None, ge=5, le=1440, strict=True)
+    turn_hours: int | None = Field(None, ge=1, le=72, strict=True)
+
+
 class TreeLimits(BaseModel):
     """The most files and MB a repository or a folder on this machine may hold to be learned
     (`knowledge.tree_limits`): one setting of the whole app. Its ranges are `knowledge.FILES_RANGE`
@@ -4607,7 +4619,7 @@ class AwayOut(BaseModel):
     # The prices' currency (USD where none is set): the money limit's too.
     currency: str
     # The longest one job works before it is cut.
-    job_minutes: int
+    job_minutes: int | None  # (B-413: None, no ceiling)
     # The provider the jobs' Lead runs on where it is a plan: no money is counted there.
     on_plan: str | None = None
     at_least: bool

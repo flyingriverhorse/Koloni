@@ -135,9 +135,16 @@ A failed turn shows **"Run failed: {Provider}: {reason}."** with a next step und
 : KOLONİ stopped while the turn ran. Nothing is run again by itself. Send a message to go on.
 
 **"Stopped at its step limit."**
-: The Orchestrator used all its steps for this message. Its limit is Settings › The app ›
-  Agents › **Steps an agent may take**, with more for its teams and recipes. Send a message to go on, or split big work into smaller
+: An agent used all its steps for this job. A sub-agent's limit is Settings › The app ›
+  Agents › **Steps an agent may take**, with more for a coordinator's recipe. The Orchestrator has none unless
+  you set one on the **Lead** role. Send a message to go on, or split big work into smaller
   messages. See [Step limits](agents/step-limits.md).
+
+**"stopped going round in circles: …"**
+: The Orchestrator repeated a call with the same result 10 times in a row, or the same call failed the same
+  way 5 times, with nothing moving in between. In a turn you started a card asked you first: **Go on** or
+  **Stop here**. Read its last calls in the chat, then say in a new message what to do differently. See
+  [Step limits](agents/step-limits.md#when-the-orchestrator-goes-round-in-circles).
 
 **"{name} came to its limit of {taken} steps before its work was done."**
 : A sub-agent with nothing kept reached the app's step limit, and its card asks: **Continue (+{n}

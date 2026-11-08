@@ -2,6 +2,7 @@ import json
 
 from app.model_client import StepResult, ToolCallRequest
 from tests.test_chat_flow import start, text
+from tests.test_spawn import role_id
 
 
 def call(name, args, id="c1"):
@@ -69,12 +70,17 @@ def test_unknown_tool_and_escaping_path_are_reported_to_the_model(make_client, w
 
 
 def test_step_limit_fails_the_run(make_client, wait_run, project_dir):
-    loop = [StepResult("", [call("list_dir", "{}", f"c{i}")], 1, 1) for i in range(25)]
+    # (B-413: the Orchestrator's step limit is only one the user set - its role's)
+    loop = [StepResult("", [call("list_dir", json.dumps({"path": f"d{i}"}), f"c{i}")], 1, 1)
+            for i in range(25)]
     client, _ = make_client(loop)
+    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 20},
+                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
     cid, run_id = start(client, project_dir)
     snap = wait_run(client, cid, run_id)
-    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("failed", "step_limit")
-    assert len(snap["tool_calls"]) == 25
+    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == (
+        "failed", "stopped at its role's limit of 20 steps")
+    assert len(snap["tool_calls"]) == 20
 
 
 def test_tools_are_withheld_when_the_model_does_not_support_them(make_client, wait_run, project_dir):

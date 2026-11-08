@@ -30,7 +30,7 @@ function Opened({ folder = project as Project | null }) {
 beforeEach(() => {
   vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
     if (path.endsWith('/map')) throw new Error('no map')
-    const read: Record<string, unknown> = { '/answer-in': { answer_in: null }, '/compaction': { compact_at: 75 }, '/steps': { max_steps: 25 }, '/knowledge-limits': { max_files: 50000, max_mb: 300 }, '/folders': { never: [] }, '/storage': { db_mb: 1, backups_mb: 1, copies_mb: 1, logs_mb: 1 } }
+    const read: Record<string, unknown> = { '/answer-in': { answer_in: null }, '/compaction': { compact_at: 75 }, '/steps': { max_steps: 25 }, '/unattended': { stuck_minutes: 30, turn_hours: 8 }, '/knowledge-limits': { max_files: 50000, max_mb: 300 }, '/folders': { never: [] }, '/storage': { db_mb: 1, backups_mb: 1, copies_mb: 1, logs_mb: 1 } }
     return (read[path] ?? (path.endsWith('/others-instructions') ? { paths: [], more: 0, partial: false } : path.endsWith('/pull-request') ? { why_not: null } : [])) as never
   })
   useApp.setState({ conv: convState(), projects: [project, other], teams: [], settingsAsked: null })
@@ -113,7 +113,7 @@ const ONCE: (string | RegExp)[] = [
   /^Note what the work found, by itself/, 'Search by meaning with', 'Embedding model', 'Also look in the memory of other',
   'Search address (SearXNG)', 'Otherwise search with', /^Let agy search too/,
   'Notification address', 'Post it as', /^Show a desktop notification/, 'Send the day’s summary at',
-  'Answer in', 'Steps an agent may take', 'Summarise a long context at (%)',
+  'Answer in', 'Steps an agent may take', 'Stuck after this many minutes with no progress', 'An unattended turn runs at most (hours)', 'Summarise a long context at (%)',
   /^Whole answer/, /^Short summary/, 'Dictation language', 'Voice', 'Rate', 'Pitch', /How the Orchestrator speaks/,
 ]
 

@@ -142,8 +142,8 @@ class _Transcript:
     and what it carries is counted once.
     """
 
-    def __init__(self, runner: "AgentRunner", ctx: Ctx, limit: int | None, opened: int = 0):
-        self._runner, self._ctx, self._limit = runner, ctx, limit
+    def __init__(self, runner: "AgentRunner", ctx: Ctx, held: bool, opened: int = 0):
+        self._runner, self._ctx, self._held = runner, ctx, held
         self._open: str | None = None
         self._said: str | None = None  # the last message closed
         self.opened = opened  # (the steps it took: from those it took before, told to go on)
@@ -162,11 +162,12 @@ class _Transcript:
         runner, ctx = self._runner, self._ctx
         # (More text after a call, in one message of the model: counted with the call.)
         if self._calls is None:
-            if self._limit is not None:
+            if self._held:
                 # A session's messages are steps KOLONİ counts: held to the app's own
                 # limit and to its role's. (With its own tools - no limit here - they
                 # are not.) Read again at each: a recipe's runner's grows (R147).
-                if self.opened >= (ctx.max_steps or runner._step_limit(ctx)):
+                limit = ctx.max_steps or runner._step_limit(ctx)
+                if limit is not None and self.opened >= limit:
                     runner._stopped_by_koloni(ctx)
                     raise SessionStop(runner._given_limit(ctx))
                 try:
@@ -175,14 +176,15 @@ class _Transcript:
                     raise SessionStop(str(stop)) from None
             runner._count_step(ctx)
             self.opened += 1
-            if self._limit is not None:
+            if self._held:
                 # B-382: what it has left after this one, by the nearer limit, as `_steps` keeps
                 # it - told with its next tool result once that is few (`_near_a_limit`).
                 most = ctx.max_steps or runner._step_limit(ctx)
                 if not ctx.max_steps and ctx.agent_id not in runner._given_steps and (
                         ctx.role_steps):
-                    most = min(most, ctx.role_steps - runner._role_before(ctx))
-                runner._steps_left[ctx.agent_id] = most - self.opened
+                    role = ctx.role_steps - runner._role_before(ctx)
+                    most = role if most is None else min(most, role)
+                runner._steps_left[ctx.agent_id] = None if most is None else most - self.opened
         with runner._factory() as session:
             message = Message(
                 conversation_id=ctx.cid, run_id=ctx.run_id, agent_id=ctx.agent_id,

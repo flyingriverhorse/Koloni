@@ -1071,6 +1071,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # and of the commands a CLI ran with its own tools, apart: they never stop it
         self._own_counts: dict[str, signs.Counts] = {}
         self._stuck: dict[str, str] = {}
+        # B-413: the Orchestrator's call its loop guard stopped it at (`_counted`, `_circled`).
+        self._circling: dict[str, str] = {}
+        # ...and the Orchestrators told once to try another way (`_circling_goes_on`), and
+        # those it ended (`_loop_steps` returns at once)
+        self._circling_told: set[str] = set()
+        self._guard_ended: set[str] = set()
         # agent id -> when a CLI's text or own tool last put its time on record
         self._touched: dict[str, float] = {}
         # run id -> the record its lead is given (`app.record`): made at its first step
@@ -1222,6 +1228,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._check_rounds: dict[str, int] = {}
         self._away_cut: dict[str, str] = {}
         self._away_timers: dict[str, asyncio.TimerHandle] = {}
+        # B-413: run id -> when a turn nobody watches ends where nothing moved (`_progress`)
+        self._progress_timers: dict[str, asyncio.TimerHandle] = {}
+        # ...and when an agent below its Orchestrator last took a step of its work (`_counted`)
+        self._worked_below: dict[str, datetime] = {}
         # Slice 84b-2. run id -> its lead, for a turn that runs a chat team's recipe: as in a
         # room, its agents change files in the lead's one copy, taken in at "Ready for you".
         self._recipe_copy: dict[str, str] = {}
@@ -1488,6 +1498,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 self._arm_deadline(run_id, cid)
             if t.backlog_turn:
                 self._backlog_turns.add(run_id)
+                self._arm_todo_deadline(run_id)
             if t.planning or t.run_compare or t.root is None or t.job or t.backlog_turn:
                 # No MCP server's tool either: such a tool may change anything (`_mcp`), and
                 # reads any file.
@@ -1777,6 +1788,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._counts.pop(agent_id, None)
             self._own_counts.pop(agent_id, None)
             self._stuck.pop(agent_id, None)
+            self._circling.pop(agent_id, None)
+            self._circling_told.discard(agent_id)
+            self._guard_ended.discard(agent_id)
             self._steps_left.pop(agent_id, None)
             self._answer_again.discard(agent_id)
             self._role_taken.pop(agent_id, None)
@@ -1852,6 +1866,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._away_cut.pop(run_id, None)
         if (timer := self._away_timers.pop(run_id, None)) is not None:
             timer.cancel()
+        if (timer := self._progress_timers.pop(run_id, None)) is not None:
+            timer.cancel()
+        self._worked_below.pop(run_id, None)
         self._recipe_copy.pop(run_id, None)
         self._disputed.pop(run_id, None)
         # (After its copy is gone: until then its members' changes are that copy's.)
@@ -4717,13 +4734,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             code = session.scalar(
                 select(Command.exit_code).where(Command.tool_call_id == call_id)
             ) if name == "run_command" and status == "succeeded" else None
+            call = session.get(ToolCall, call_id)
+            step, started = (call.message_id, call.started_at) if call else (None, None)
         earlier = None
         if stamp != counts.stamp:
+            if counts.stamp is not None and stamp[0] > counts.stamp[0]:
+                self._progress(ctx.run_id)  # (B-413: a file of the turn changed)
             counts.stamp = stamp
             earlier = counts.changed()
+            counts.moved()
         # (A command that keeps running has no exit code yet: not a failure.)
         failed = status == "failed" or (name == "run_command" and status == "succeeded"
                                         and code not in (0, None))
+        self._idle_counted(ctx, counts, request, status == "succeeded", failed, output,
+                           step, started)
         found = None
         if failed:
             found = counts.failed(name, arguments, output)
@@ -4740,15 +4764,46 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if found or earlier:
             fields["sign"] = found or earlier
         self._set_agent(ctx.cid, ctx.agent_id, **fields)
+        if not own:
+            self._stop_if_stuck(ctx, counts, found, call_id)
         if found is None:
             return output
-        if (
-            found["kind"] == "same_failure" and found["count"] >= signs.STOP_AT
-            and not self._watched(ctx.run_id) and not own
-        ):
+        return f"{output}\n\n[Counted by KOLONİ: {found['text']}]"
+
+    def _idle_counted(self, ctx: Ctx, counts: signs.Counts, request: ToolCallRequest,
+                      succeeded: bool, failed: bool, output: str, step: str | None,
+                      started: datetime | None) -> None:
+        """B-413, `_counted`: the call in its agent's `idle` count (a wait in its room that did
+        wait is no repeat; an agent opened, a message to one not written to of late, a move), and
+        what of it is real progress in a turn nobody watches (`_progress`)."""
+        name, arguments = request.name, request.arguments
+        if ctx.depth and not ctx.answering:  # (B-413: alive for `_progress_due`)
+            self._worked_below[ctx.run_id] = now()
+        waited = name in signs.WAITS and started is not None and (now() - started.replace(
+            tzinfo=started.tzinfo or UTC)).total_seconds() >= signs.WAIT_INSTANT
+        counts.heard(name, arguments, output, step, waited)
+        if name == "run_command" and succeeded and counts.passed(arguments, failed):
+            self._progress(ctx.run_id)  # (a command that failed passed)
+        if name == "spawn_agent" and succeeded:
+            counts.moved()
+            self._progress(ctx.run_id)  # (an agent finished its work)
+        elif name == "message_agent" and succeeded:
+            counts.wrote_to(arguments)
+
+    def _stop_if_stuck(self, ctx: Ctx, counts: signs.Counts, found: dict | None,
+                       call_id: str) -> None:
+        """`_counted`: the same failure STOP_AT times ends an agent's work in a turn nobody
+        watches; B-413: the Orchestrator, which counts no steps, is stopped by it anywhere, and by
+        IDLE_STOP calls in a row that brought nothing new - it ends, or asks (`_circled`)."""
+        again = found is not None and found["kind"] == "same_failure" and (
+            found["count"] >= signs.STOP_AT)
+        if again and found and not self._watched(ctx.run_id):
             self._stuck[ctx.agent_id] = signs.stopped(found["text"])
             self._stopped_by_koloni(ctx)
-        return f"{output}\n\n[Counted by KOLONİ: {found['text']}]"
+        elif not ctx.depth and (again or counts.idle >= signs.IDLE_STOP):
+            self._stuck[ctx.agent_id] = signs.circling(
+                found["text"] if again and found else signs.IDLE.format(count=counts.idle))
+            self._circling[ctx.agent_id] = call_id
 
     # --- a chat team's recipe (slice 84b-2) -----------------------------------------------
 

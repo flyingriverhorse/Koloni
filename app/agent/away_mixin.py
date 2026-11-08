@@ -174,11 +174,14 @@ class AwayMixin:
         by the loop's clock, so also while no step of it is taken (a long command, a CLI)."""
         with self._factory() as session:
             night = away.night_of(session, cid)
-            seconds = away.JOB_MINUTES * 60.0
+            hours = away.unattended(session)[1]
+            ends = [hours * 3600.0] if hours else []
             if night is not None and night.until is not None:
-                seconds = min(seconds, (night.until - now()).total_seconds())
+                ends.append((night.until - now()).total_seconds())
         later = self.call_later or asyncio.get_running_loop().call_later
-        self._away_timers[run_id] = later(max(0.0, seconds), self._deadline, run_id, cid)
+        if ends:  # (B-413: no ceiling and no stop time: none)
+            self._away_timers[run_id] = later(max(0.0, min(ends)), self._deadline, run_id, cid)
+        self._progress(run_id, arm=True)  # (B-413: and where nothing moves, sooner)
 
     def _deadline(self: "AgentRunner", run_id: str, cid: str) -> None:
         """A job's time is up: its night stops where its own time is (`away.over`), else the job
@@ -190,7 +193,7 @@ class AwayMixin:
             if why := away.over(session, night):
                 away.stop(session, night, why, self)
             else:
-                self.cut(run_id, away.JOB_TOO_LONG)
+                self.cut(run_id, away.too_long(away.unattended(session)[1] or 0))
 
     def _keeps_out(self: "AgentRunner", ctx: Ctx, path: str | None = None,
                    command: str | None = None,

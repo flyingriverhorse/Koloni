@@ -6,6 +6,11 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Changed
+
+- **Chat**: the Orchestrator no longer stops at a fixed count of steps; it stops when its work is done, when it goes round in circles (it is told once to try another way; then a card asks you **Go on** or **Stop here**, tells you on the desktop and at the project's notification address, and ends the turn with its work kept if nobody answers in 10 minutes), or at a limit you set on the Lead role or a trigger. **Steps an agent may take** now holds sub-agents ([docs](agents/step-limits.md#the-orchestrator-no-step-count)).
+- **To-do**, **Triggers**: in a run nobody watches, an Orchestrator going round in circles ends with the reason on record, and a night or the To-do run goes on with the next job or task; such a turn ends once nothing has moved for **Stuck after this many minutes with no progress** (Settings › The app, 30 unless you change it), and a To-do task's turn or a night's job after **An unattended turn runs at most (hours)** (8; empty: no limit) - a night's job no longer stops at 60 minutes ([docs](agents/step-limits.md#when-the-orchestrator-goes-round-in-circles)).
+
 ## [0.1.0] - 2026-11-07
 
 ### Added

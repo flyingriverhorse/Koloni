@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app import away, raw
 from app import memory as kept
-from app import raw
 from app.agent import (
     AGENT_TERMINAL,
     CHARS_PER_TOKEN,
@@ -33,6 +33,7 @@ from app.schemas import (
     TellIn,
     ToolCallDecision,
     ToolCallOut,
+    Unattended,
     WorkingCopyOut,
 )
 from app.serialize import agent_out, tool_call_out
@@ -245,6 +246,24 @@ def set_steps(body: StepLimit, session: Session = Depends(get_session)):
         row.value = str(body.max_steps)
     session.commit()
     return body
+
+
+@router.get("/unattended", response_model=Unattended)
+def unattended_limits(session: Session = Depends(get_session)):
+    stuck, hours = away.unattended(session)
+    return {"stuck_minutes": stuck, "turn_hours": hours}
+
+
+@router.put("/unattended", response_model=Unattended, dependencies=[Depends(require_own_origin)])
+def set_unattended(body: Unattended, session: Session = Depends(get_session)):
+    """B-413: how long a turn nobody watches may go with nothing moving, and how long a night's
+    job or a To-do task's turn works at most (null: no ceiling) - the user's to say."""
+    if body.stuck_minutes is not None:
+        session.merge(Flag(name=away.STUCK_FLAG, value=str(body.stuck_minutes)))
+    if "turn_hours" in body.model_fields_set:
+        session.merge(Flag(name=away.CEILING_FLAG, value=str(body.turn_hours or "")))
+    session.commit()
+    return unattended_limits(session)
 
 
 @router.get("/answer-in", response_model=AnswerLanguage)

@@ -63,16 +63,18 @@ def watched(make_client, wait_run, project_dir, steps, **more):
 def test_the_third_time_a_call_fails_the_same_way_the_agent_is_told_and_it_shows(
     make_client, wait_run, project_dir
 ):
+    # (a sub-agent: B-413's loop guard asks about the Orchestrator at the fifth)
     model, snap = watched(make_client, wait_run, project_dir, {
-        "Lead": [*(miss(str(n)) for n in range(6)), text("I give up.")]})
+        "Lead": [spawn("s1"), text("done")],
+        "Coder": [*(miss(str(n)) for n in range(6)), text("I give up.")]})
     # somebody is watching: nothing is stopped for it, however often
-    assert snap["runs"][0]["status"] == "completed" and len(model.calls_of["Lead"]) == 7
-    first, second, third, *_more, sixth = told(model)
+    assert snap["runs"][0]["status"] == "completed" and len(model.calls_of["Coder"]) == 7
+    first, second, third, *_more, sixth = told(model, "Coder")
     assert "times" not in first and "times" not in second
     # what the call returned is there as it was, and after it what was counted - a fact
     assert third.startswith("error: 'missing.txt' does not exist")
     assert SAME_FAILURE.format(n=3) in third and SAME_FAILURE.format(n=6) in sixth
-    sign = agent(snap)["sign"]
+    sign = agent(snap, "Coder")["sign"]
     assert (sign["kind"], sign["count"]) == ("same_failure", 6)
     assert SAME_FAILURE.format(n=6) in sign["text"]
 

@@ -473,7 +473,7 @@ def test_a_message_of_a_cli_session_with_two_calls_is_one_step(session_app, wait
 
 def test_calls_made_at_once_in_one_message_of_a_cli_session_are_one_step(session_app, wait_run, project_dir):  # noqa: F811
     """...for its role's limit and for the app's own (25 steps): the same count."""
-    at_once = {"parallel": [{"call": "list_dir"} for _ in range(30)]}
+    at_once = {"parallel": [{"call": "list_dir", "args": {"path": "." + "/." * i}} for i in range(30)]}
     snap, ended, said = limited_session(
         session_app, wait_run, project_dir, [at_once, {"say": "Thirty looks."}])
     assert ended == ("completed", None)

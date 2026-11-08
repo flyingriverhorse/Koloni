@@ -746,8 +746,6 @@ def test_the_leads_stop_at_its_step_limit_waits_for_an_agent_still_at_work_with_
 ):
     # B-382 (live): a session Lead spent its 25 steps waiting on two teams; the turn ended at its
     # limit and cancelled the Web app Coder. Its stop waits for them as its answer does (B-376).
-    from dataclasses import replace
-
     from app.db.models import Agent
     from tests.test_spawn import call, step
 
@@ -755,7 +753,9 @@ def test_the_leads_stop_at_its_step_limit_waits_for_an_agent_still_at_work_with_
     looks = [step(call("list_dir", {"path": "."}, f"l{n}")) for n in range(3)]
     client, model = make_client({"Lead": [gate.step(looks[0]), *looks[1:], text("done")]})
     runner = client.app.state.runner
-    runner.settings = replace(runner.settings, max_steps=2)
+    # (B-413: the Orchestrator's step limit is only one the user set - its role's)
+    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 2},
+                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
     cid, run_id = begin(client, project_dir)
     gate.wait_partial()
     with runner._factory() as session:
@@ -772,7 +772,8 @@ def test_the_leads_stop_at_its_step_limit_waits_for_an_agent_still_at_work_with_
         session.commit()
     snap = wait_run(client, cid, run_id)
     assert statuses(snap)["Coder"] == "completed"
-    assert next(a for a in snap["agents"] if a["name"] == "Lead")["error"] == "step_limit"
+    assert next(a for a in snap["agents"] if a["name"] == "Lead")["error"] == (
+        "stopped at its role's limit of 2 steps")
     assert len(model.calls_of["Lead"]) == 2  # (no step past its limit)
 
 

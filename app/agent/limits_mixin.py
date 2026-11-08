@@ -4,13 +4,15 @@ not watching (`_nobody_to_ask`, `_leave`) - `LimitsMixin`.
 """
 
 import asyncio
+import contextlib
 import time
 from dataclasses import replace
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
-from app import project_map, recipe_run
+from app import away, project_map, recipe_run, signs
 from app.agent.cards import _goes_on, _steps_of_chain
 from app.agent.ctx import Ctx, _NobodyToAsk, _Unwatched
 from app.agent.words import (
@@ -30,7 +32,21 @@ from app.agent.words import (
 )
 from app.api.usage import month_spend
 from app.commands import danger, is_exactly, ticked
-from app.db.models import Agent, Conversation, Flag, OwnRequest, Project, Provider, Run, Trigger
+from app.db.models import (
+    Agent,
+    Command,
+    Conversation,
+    FileChange,
+    Flag,
+    Message,
+    OwnRequest,
+    Project,
+    Provider,
+    Run,
+    ToolCall,
+    Trigger,
+    now,
+)
 from app.model_client import ModelClient, OwnStop
 from app.providers import works_with_own_tools
 from app.roles import find_role
@@ -43,6 +59,34 @@ if TYPE_CHECKING:
 # An agent that came to what its role lets one agent use: KOLONİ's own rule (OwnStop).
 ROLE_STEPS = "stopped at its role's limit of {limit} step{s}"
 ROLE_TOKENS = "stopped at its role's limit of {limit} tokens: it used {used}"
+# B-413: in a watched turn, the first time the Orchestrator's loop guard stops it, it is told
+# this and goes on (its counts start again); the next time, the user is asked on a card.
+CIRCLING_NUDGE = ("KOLONİ: you seem to go round in circles: {tool} again and again, with the same "
+                  "result, and nothing moved in between. Try a different approach, or report what "
+                  "you did and end.")
+CIRCLING_ASKED = ("The Orchestrator has no step limit, and it seems to go round in circles: {why} "
+                  "Go on lets it carry on; Stop here ends it, with what it did so far. With no "
+                  "answer in 10 minutes its turn ends, its work kept.")
+CIRCLING_GO_ON = "Go on"
+# How long that card waits: then the turn ends by itself, so a queued message, the To-do run or
+# the night goes on. shortcut: a fixed 10 minutes, not a setting; make it one if users ask.
+CIRCLING_WAIT = 600.0
+CIRCLING_NO_ANSWER = "No answer in 10 minutes"
+# Said on the desktop and to the project's notification address as the card goes up.
+CIRCLING_TOLD = ("The Orchestrator seems stuck: it repeated {tool} with the same result. Go on "
+                 "or Stop here in the chat; with no answer in 10 minutes its turn ends, its work "
+                 "kept.")
+# KOLONİ's line where nobody answered it.
+CIRCLING_REPORT = ("No answer in 10 minutes: the Orchestrator's turn ended here, its work kept. It "
+                   "had opened {agents} and changed {files} in the project; it got stuck repeating "
+                   "{tool}.")
+CIRCLING_LANDED = "The Orchestrator ended after this turn's work was in the project: {why}"
+TODO_TOO_LONG = ("stopped after {hours} hour{s}, the longest a To-do task's turn works: what it "
+                 "did is kept")
+# B-413: a turn nobody watches - a To-do task's, a night's job, a trigger's - whose Orchestrator
+# counts no steps, ends where nothing real moved for Settings' minutes (`_progress`).
+NO_PROGRESS = ("stopped: nothing moved in {minutes} minutes - no file of the turn changed, no "
+               "agent finished its work, no failing command passed")
 
 # How a stop at the end of the steps given once more (K-devam-butce, `GIVEN_ONCE`) is on
 # record (B-327: not "step_limit", whose words everywhere say the app's limit).
@@ -89,12 +133,6 @@ LEAD_STEPS_PER_RECIPE_STEP = 4
 # the recipe's steps once more - for this many rounds at most: past them a loop the user keeps
 # sending back stops at the limit, not runs on unbounded.
 ASKED_ROUNDS_PAID = 3
-# B-398: the Orchestrator's steps on top of the app's limit for each team row its chat has
-# with a lead: open the lead, pass on its messages between teams, read its report, one to
-# spare - the live run of five teams (a room, four leads, 13+ messages, the merge) ran out
-# of 25 right after merging.
-STEPS_PER_TEAM = 8
-
 # B-398: Settings › The app's "Steps an agent may take" (the `flags` row STEPS_FLAG); without one,
 # `config.max_steps`. Held to MOST_STEPS_RANGE.
 STEPS_FLAG = "max_steps"
@@ -126,6 +164,9 @@ class LimitsMixin:
         )
         unwatched.left = unwatched.minutes * MINUTE
         self._count_minutes(run.id)
+        # (B-413: where nothing moves - only where its own minutes are longer: else they end it)
+        if unwatched.minutes > away.unattended(session)[0]:
+            self._progress(run.id, arm=True)
 
     def _clock(self: "AgentRunner", run_id: str) -> None:
         """Who of a turn holds a place, or stands in line for one, has changed. For an
@@ -333,9 +374,11 @@ class LimitsMixin:
         than it has (its message is counted when it begins); count it apart if that matters."""
         left = self._steps_left.get(ctx.agent_id)
         unwatched = self._unwatched.get(ctx.run_id)
-        if left is not None and unwatched is not None:
-            # (this step is counted already: `_count_step`)
-            left = min(left, unwatched.steps - unwatched.taken + 1)
+        if unwatched is not None:
+            # (this step is counted already: `_count_step`; B-413: the Orchestrator has no
+            # count of its own, only the turn's)
+            budget = unwatched.steps - unwatched.taken + 1
+            left = budget if left is None else min(left, budget)
         if left is not None and left <= WRAP_UP_STEPS:
             return WRAP_UP.format(near=f"you have {left} step{'' if left == 1 else 's'} left")
         if ctx.role_tokens is None:
@@ -371,16 +414,202 @@ class LimitsMixin:
             self._budget_told.add(ctx.agent_id)
         return said
 
-    def _step_limit(self: "AgentRunner", ctx: Ctx) -> int:
+    def _step_limit(self: "AgentRunner", ctx: Ctx) -> int | None:
         """The most steps one agent takes on a job. In an unattended turn the trigger's
         budget, which counts all its agents together, is what holds. A job on a budget given
-        on top (K-devam-butce) takes that many."""
+        on top (K-devam-butce) takes that many. None: no count of its own - the Orchestrator.
+        B-413: three teams, a room and the messages between them ran its fixed count out
+        after the work was in the project, and no Continue card is asked of it. What holds it
+        instead: the loop guard (`_counted`, `_circled`), a limit the user set - its role's own
+        (the Lead's `max_steps`), a trigger's steps for the whole turn (`_count_step`) - the
+        turn's tokens, the month's budget, a night's or a trigger's minutes, and Stop."""
         if (given := self._given_steps.get(ctx.agent_id)) is not None:
             return given
+        if not ctx.depth:
+            return None
         unwatched = self._unwatched.get(ctx.run_id)
         if unwatched is None:
-            return self._app_steps() + self._recipe_steps(ctx) + self._team_steps(ctx)
+            return self._app_steps() + self._recipe_steps(ctx)
         return max(self._app_steps(), unwatched.steps)
+
+    async def _circled(self: "AgentRunner", ctx: Ctx) -> tuple[str, str | None] | None:
+        """How an agent KOLONİ stopped (`_stuck`) ends - or, B-413, None where the Orchestrator's
+        loop guard stopped it (`_counted`) in a turn the user can be asked in and they said Go
+        on: its counts start again. Elsewhere - a trigger's turn, a night's job, a backlog task -
+        it ends with why on record, and the night or the To-do run goes on with the next (there
+        a stop is a failure: the task gets its fix round, or is blocked). In a turn the user
+        started where work of it is in the project, it ends completed, with why as KOLONİ's line:
+        a guard does not make red a turn whose work landed (the live B-413 ended so). Its end is
+        the turn's: nothing more is waited for or told (`_guard_ended`, `_loop_steps`)."""
+        why = self._stuck.pop(ctx.agent_id)
+        call_id = self._circling.pop(ctx.agent_id, None)
+        if call_id is None:
+            return "failed", why
+        attended = self._attended(ctx)
+        said = await self._circling_goes_on(ctx, call_id, why) if attended else ""
+        if said is True:
+            self._counts.pop(ctx.agent_id, None)
+            return None
+        self._stopped_by_koloni(ctx)
+        self._guard_ended.add(ctx.agent_id)
+        with self._factory() as session:  # (written in the project, or a copy taken in)
+            landed = attended and session.scalar(select(FileChange.id).where(
+                FileChange.run_id == ctx.run_id, FileChange.status == "applied").limit(1))
+        if not landed:
+            if said:
+                self._koloni_line(ctx.cid, ctx.run_id, said)
+            return "failed", why
+        self._koloni_line(ctx.cid, ctx.run_id, said or CIRCLING_LANDED.format(why=why))
+        return "completed", None
+
+    async def _circling_goes_on(self: "AgentRunner", ctx: Ctx, call_id: str,
+                                why: str) -> bool | str:
+        """`_circled` in a turn the user can be asked in: the first time, the Orchestrator is
+        told to try another way or end (CIRCLING_NUDGE) and goes on; then the user is asked on a
+        card, told on the desktop and at the project's address (`_tell_stuck`). True: it goes
+        on; else KOLONİ's report where nobody answered in CIRCLING_WAIT, or "".
+        shortcut: a native CLI hears the nudge only on a run again (as `steer`)."""
+        with self._factory() as session:
+            tool = session.get_one(ToolCall, call_id).name
+        if ctx.agent_id not in self._circling_told:
+            self._circling_told.add(ctx.agent_id)
+            words = CIRCLING_NUDGE.format(tool=tool)
+            self._nudge(ctx, words)
+            if getattr(ctx.model, "session", False):  # (it hears it with this call's result)
+                self._heard_later.setdefault(ctx.agent_id, []).append(words)
+            return True
+        ids: list[str] = []
+
+        def no_answer() -> None:
+            if ids and (asked := self._answers.get(ids[0])) is not None and not asked.done():
+                asked.set_result(CIRCLING_NO_ANSWER)
+
+        timer = (self.call_later or asyncio.get_running_loop().call_later)(
+            CIRCLING_WAIT, no_answer)
+        self._tell_stuck(ctx, tool)
+        try:
+            _status, word = await self._ask_user(ctx, call_id, {
+                "question": CIRCLING_ASKED.format(why=why.removeprefix(signs.CIRCLING)),
+                "options": [CIRCLING_GO_ON, STEPS_STOP]}, leave=True, ids=ids, tell=False)
+        except _NobodyToAsk:
+            return False
+        finally:
+            timer.cancel()
+        word = word.removeprefix(ANSWER_PREFIX)
+        if word != CIRCLING_NO_ANSWER:
+            return word == CIRCLING_GO_ON or ""
+        with self._factory() as session:
+            agents = session.scalar(select(func.count()).select_from(Agent).where(
+                Agent.run_id == ctx.run_id, Agent.depth > 0)) or 0
+            files = session.scalar(select(func.count(func.distinct(FileChange.path))).where(
+                FileChange.run_id == ctx.run_id, FileChange.status == "applied")) or 0
+        return CIRCLING_REPORT.format(agents=f"{agents} agent{'' if agents == 1 else 's'}",
+                                      files=f"{files} file{'' if files == 1 else 's'}", tool=tool)
+
+    def _tell_stuck(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
+        """B-413: the Orchestrator's card that it seems stuck, told as a night's end is
+        (`away.send`): on the desktop where the project has notices on (within `_toasts`), and
+        at its notification address. Never fails the turn."""
+        with contextlib.suppress(Exception):
+            with self._factory() as session:
+                project = self._project(session, ctx.cid)
+                if project is None:
+                    return
+                desktop = project.notify_desktop and self._toasts.take(ctx.cid)
+                if not (desktop or project.notify_url):
+                    return
+                note = (project.name, project.notify_url, project.notify_format, desktop,
+                        CIRCLING_TOLD.format(tool=tool))
+            away.send(note)
+
+    def _arm_todo_deadline(self: "AgentRunner", run_id: str) -> None:
+        """B-413: a To-do task's turn, whose Orchestrator counts no steps, ends where nothing
+        moves (`_progress`) and, as a last resort, at Settings' ceiling (`away.unattended`; none
+        where it is empty): as one over its budget does - failed with why, its copies kept - so
+        its task gets its fix round, then is blocked, and the run goes on."""
+        self._progress(run_id, arm=True)
+        with self._factory() as session:
+            hours = away.unattended(session)[1]
+        if run_id in self._away_jobs or not hours:  # (a night's job: `_arm_deadline`)
+            return
+        later = self.call_later or asyncio.get_running_loop().call_later
+        self._away_timers[run_id] = later(hours * 3600.0, self._todo_ceiling, run_id, hours)
+
+    def _todo_ceiling(self: "AgentRunner", run_id: str, hours: int) -> None:
+        """`_arm_todo_deadline`'s hours are up: the turn stops - not one that waits for the
+        user's word (a To-do task's card waits for it, K-r135), as a night's job that waits is
+        spared (`_deadline`): its ceiling is looked at again a minute later."""
+        with self._factory() as session:
+            waits = self._waits_for_user(session, run_id)
+        if waits:
+            later = self.call_later or asyncio.get_running_loop().call_later
+            self._away_timers[run_id] = later(MINUTE, self._todo_ceiling, run_id, hours)
+            return
+        self._over_budget(run_id, TODO_TOO_LONG.format(hours=hours, s="" if hours == 1 else "s"))
+
+    def _waits_for_user(self: "AgentRunner", session, run_id: str) -> bool:
+        """Whether a turn waits for the user's word: a card, a command, a change or an agent
+        asked about, or a night's job that waits."""
+        run = session.get(Run, run_id)
+        if run is None:
+            return False
+        task = away.job_of(session, run.conversation_id)
+        return run.status == "waiting_approval" or self._asking.get(run_id, 0) > 0 or (
+            task is not None and task.away_state == "waits") or any(
+            session.scalar(query.limit(1)) is not None for query in (
+                select(Command.id).where(Command.run_id == run_id, Command.status == "proposed"),
+                select(Agent.id).where(Agent.run_id == run_id, Agent.status == "proposed"),
+                select(FileChange.id).where(FileChange.run_id == run_id,
+                                            FileChange.status == "proposed")))
+
+    def _progress(self: "AgentRunner", run_id: str, arm: bool = False) -> None:
+        """B-413: something real moved in a turn nobody watches - a file of it changed, an agent
+        finished its work, a command that failed passed (`_counted`): its minutes with nothing
+        moving (`away.unattended`) start again. `arm`: its clock starts (a To-do task's turn, a
+        night's job, a trigger's); a turn with none is not timed. At their end: `_progress_due`."""
+        if (timer := self._progress_timers.pop(run_id, None)) is not None:
+            timer.cancel()
+        elif not arm:
+            return
+        with self._factory() as session:
+            minutes = away.unattended(session)[0]
+        later = self.call_later or asyncio.get_running_loop().call_later
+        self._progress_timers[run_id] = later(minutes * 60.0, self._progress_due, run_id)
+
+    def _progress_due(self: "AgentRunner", run_id: str) -> None:
+        """`_progress`'s minutes are up: the turn stops as one over its budget does, failed with
+        why - unless it is not idle, and its clock starts again: it waits for the user
+        (`_waits_for_user`), a command of it runs or a model step is under way (they have time
+        limits of their own), an agent below the Orchestrator took a step of its work (not of an
+        answer to a message: an exchange of messages alone does not keep it going -
+        `_worked_below`), or within those minutes a file of it changed (a native CLI's own edits
+        too, on record as they are seen) or an agent of it finished."""
+        with self._factory() as session:
+            minutes = away.unattended(session)[0]
+            if session.get(Run, run_id) is None:
+                return
+            since = now() - timedelta(minutes=minutes)
+            busy = self._waits_for_user(session, run_id) or (
+                self._worked_below.get(run_id, since) > since) or any(
+                session.scalar(query.limit(1)) is not None for query in (
+                    select(Command.id).where(Command.run_id == run_id, Command.status == "running",
+                                             Command.keep_running.is_(False)),
+                    select(Message.id).where(Message.run_id == run_id,
+                                             Message.status == "streaming"),
+                    select(Agent.id).where(Agent.run_id == run_id, Agent.ended_at >= since),
+                    select(FileChange.id).where(FileChange.run_id == run_id,
+                                                FileChange.created_at >= since)))
+        if busy:
+            self._progress_timers.pop(run_id, None)
+            self._progress(run_id, arm=True)
+            return
+        self._over_budget(run_id, NO_PROGRESS.format(minutes=minutes))
+
+    def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether the user can be asked on a card in this turn: one they started - not a
+        trigger's, a night's job or a backlog task."""
+        return self._watched(ctx.run_id) and (
+            ctx.run_id not in self._away_jobs and ctx.run_id not in self._backlog_turns)
 
     async def _more_steps(self: "AgentRunner", ctx: Ctx) -> bool:
         """B-397: a sub-agent - a team's coordinator too - that came to its step limit in a turn
@@ -444,15 +673,6 @@ class LimitsMixin:
             return USER_STOPPED_HERE
         return GIVEN_UNDONE if key in self._budgeted else LEFT_UNDONE
 
-    def _team_steps(self: "AgentRunner", ctx: Ctx) -> int:
-        """B-398: the Orchestrator's STEPS_PER_TEAM for each of its chat's team rows a lead runs
-        (a row no lead runs is its own recipe's: `_recipe_steps`)."""
-        if ctx.depth:
-            return 0
-        with self._factory() as session:
-            return STEPS_PER_TEAM * sum(
-                lead is not None for _row, _team, lead in self._rows(session, ctx.cid))
-
     def _app_steps(self: "AgentRunner") -> int:
         """The app's step limit, as Settings › The app has it (`app_steps`)."""
         with self._factory() as session:
@@ -462,21 +682,18 @@ class LimitsMixin:
         """R143: a team's lead runs its recipe step by step - opening each step's agents,
         waiting, reading what came back - and Feature's six steps did not fit in the app's
         limit: it has LEAD_STEPS_PER_RECIPE_STEP more for each step of its row's recipe. R147:
-        so has the Lead for a row no lead runs (a one-team chat's) - from its first step, the
-        recipe not begun yet - and either as much again for each Ask for changes on it, up to
-        ASKED_ROUNDS_PAID. Read at each step: a recipe is sent back while its runner works."""
-        if ctx.depth > 1:
+        as much again for each Ask for changes on it, up to ASKED_ROUNDS_PAID. Read at each
+        step: a recipe is sent back while its runner works. (The Orchestrator, which runs a
+        row no lead runs, counts no steps of its own: `_step_limit`.)"""
+        if ctx.depth != 1:
             return 0
         steps = 0
         with self._factory() as session:
-            for row, team, lead in self._rows(session, ctx.cid):
-                if lead is not None if ctx.depth == 0 else not lead or lead.name != ctx.role:
-                    continue
-                if state := self._live_state(row, ctx.run_id):
+            for row, _team, lead in self._rows(session, ctx.cid):
+                if lead and lead.name == ctx.role and (
+                        state := self._live_state(row, ctx.run_id)):
                     asked = min(state.get("asked", 0), ASKED_ROUNDS_PAID)
                     steps += len(recipe_run.graph_of(state).steps) * (1 + asked)
-                elif ctx.depth == 0 and (found := self._recipe_of(session, row, team)):
-                    steps += len(found[1].steps)
         return LEAD_STEPS_PER_RECIPE_STEP * steps
 
     def _watched(self: "AgentRunner", run_id: str) -> bool:

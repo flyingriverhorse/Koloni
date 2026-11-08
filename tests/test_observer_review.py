@@ -9,7 +9,7 @@ from app.model_client import StepResult
 from tests.test_chat_flow import text
 from tests.test_observer_scenarios import SAME_FAILURE, agent, miss, record, spawn, told, watched
 from tests.test_session_agent import session_app, start  # noqa: F401 - a fixture
-from tests.test_spawn import begin
+from tests.test_spawn import begin, role_id
 from tests.test_trigger_scenarios import finished, run_now, setup, trigger
 
 
@@ -85,8 +85,11 @@ def test_a_session_that_only_writes_is_not_quiet_and_its_step_limit_is_koloni_s(
     assert snap["agents"][0]["last_event_at"] is not None
 
     session_app.rescript([{"call": "list_dir"} for _ in range(30)] + [{"hang": True}])
+    # (B-413: the Orchestrator's step limit is only one the user set - its role's)
+    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 8},
+                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "again"})
     snap = wait_run(client, cid, posted.json()["run"]["id"], timeout=30)
-    assert snap["runs"][-1]["error"] == "step_limit"
+    assert snap["runs"][-1]["error"] == "stopped at its role's limit of 8 steps"
     ended = record(client)["Lead"]["ended"]
     assert (ended["done"], ended["stopped_by_koloni"], ended["failed"]) == (1, 1, 0)
