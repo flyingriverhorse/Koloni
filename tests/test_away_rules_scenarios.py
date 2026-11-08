@@ -254,23 +254,24 @@ def test_the_night_stops_at_its_money_as_usage_counts_it(make_client, wait_run, 
     assert done["spent"] == 10.5 and done["jobs"][1]["state"] == "next"
 
 
-def test_a_job_that_works_an_hour_is_cut_and_the_next_goes_on(make_client, wait_run, project_dir,
+def test_a_job_that_works_its_ceiling_is_cut_and_the_next_goes_on(make_client, wait_run, project_dir,
                                                               gate, monkeypatch):
-    # The night ends nearly a day on: an hour later is past the job's hour, never past the night's end.
+    # The night ends nearly a day on: the ceiling's hours later are past the job's, not the night's end.
     until = (datetime.now() - timedelta(minutes=1)).strftime("%H:%M")
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         gate.step(edit()), text("never"), text("two done")], plan={**PLAN, "until": until})
     wait_run(client, cid, run_id)
     start(client, cid)
     gate.wait_partial()
-    later = datetime.now(UTC) + timedelta(minutes=away.JOB_MINUTES + 1)
+    later = datetime.now(UTC) + timedelta(hours=away.CEILING_HOURS, minutes=1)
     monkeypatch.setattr(away, "now", lambda: later)
     monkeypatch.setattr(backlog, "now", lambda: later)  # (the next job starts then)
-    gate.release()  # its next step: past its hour
+    gate.release()  # its next step: past its ceiling
     done = ended(client, pid)
     one, two = done["jobs"]
-    assert (one["state"], one["why"]) == ("failed", away.JOB_TOO_LONG)
-    assert two["state"] == "done" and done["why"] is None and done["job_minutes"] == 60
+    assert (one["state"], one["why"]) == ("failed", away.too_long(away.CEILING_HOURS))
+    assert two["state"] == "done" and done["why"] is None
+    assert done["job_minutes"] == away.CEILING_HOURS * 60
 
 
 def test_a_card_with_no_time_has_no_stop_time_and_the_clock_never_ends_it(
@@ -559,11 +560,13 @@ def test_a_job_is_cut_by_the_loop_s_clock_while_no_step_of_it_comes(make_client,
     clock = client.app.state.runner.call_later = HeldClock()
     start(client, cid)
     gate.wait_partial()  # (its step never returns: no step looks at the hour)
-    (timer,) = [t for t in clock.set if t.delay > 60]
-    assert timer.delay <= away.JOB_MINUTES * 60
+    # (not the clock of its minutes with nothing moving: B-413, `_progress`)
+    (timer,) = [t for t in clock.set if t.delay > away.STUCK_MINUTES * 60]
+    assert timer.delay <= away.CEILING_HOURS * 3600
     client.portal.call(timer.fire)
     one = until(lambda: (n := night(client, pid))["jobs"][0]["kept"] and n["jobs"][0])
-    assert (one["state"], one["why"], one["files"]) == ("failed", away.JOB_TOO_LONG, ["hello.py"])
+    assert (one["state"], one["why"], one["files"]) == (
+        "failed", away.too_long(away.CEILING_HOURS), ["hello.py"])
     assert ended(client, pid)["jobs"][1]["state"] == "done"
     gate.release()
 

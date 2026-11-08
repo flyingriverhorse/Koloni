@@ -22,7 +22,7 @@ const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true,
 /** The server, by what is asked. */
 function server(rules: ChatRules[] = []) {
   vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-    (path === '/answer-in' ? { answer_in: null } : path === '/folders' ? { never: [] } : path === '/storage' ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : path.endsWith('/allowed') ? rules : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never,
+    (path === '/answer-in' ? { answer_in: null } : path === '/folders' ? { never: [] } : path === '/storage' ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/unattended' ? { stuck_minutes: 30, turn_hours: 8 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : path.endsWith('/allowed') ? rules : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never,
   )
 }
 
@@ -73,7 +73,7 @@ test('a place asked for lands on its level and section, each time it is asked; t
 
 test('The app › Your data: a backup, what KOLONİ’s data takes on this machine (“–” for a size not counted in time), and the places no agent opens', async () => {
   vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-    (path === '/storage' ? { db_mb: 12.3, backups_mb: 535, copies_mb: null, logs_mb: 0.1 } : path === '/folders' ? { never: [{ path: 'C:/Users/me/.ssh', why: 'secrets' }] } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : { answer_in: null }) as never,
+    (path === '/storage' ? { db_mb: 12.3, backups_mb: 535, copies_mb: null, logs_mb: 0.1 } : path === '/folders' ? { never: [{ path: 'C:/Users/me/.ssh', why: 'secrets' }] } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/unattended' ? { stuck_minutes: 30, turn_hours: 8 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : { answer_in: null }) as never,
   )
   render(<Settings {...base} project={null} picked={{ section: 'data', n: 1 }} onSave={vi.fn()} />)
   expect(await screen.findByText('KOLONİ’s data: db 12.3 MB · backups 535 MB · copies – · logs 0.1 MB')).toBeVisible()
@@ -125,6 +125,28 @@ test('App: Steps an agent may take (B-398) is read, held to 5-200 and sent only 
   await userEvent.click(save)
   expect(put).toHaveBeenCalledWith('/steps', { max_steps: 60 })
   expect(put).not.toHaveBeenCalledWith('/compaction', expect.anything())
+})
+
+test('App: when work nobody watches is stuck, and its ceiling (B-413), are read, held to their ranges and sent only when changed; an empty ceiling is none', async () => {
+  server()
+  const put = vi.spyOn(api, 'put').mockImplementation(async (_path, body) => body as never)
+  render(<Settings {...base} project={null} onSave={vi.fn()} />)
+  const stuck = await screen.findByLabelText('Stuck after this many minutes with no progress')
+  const ceiling = screen.getByLabelText('An unattended turn runs at most (hours)')
+  await vi.waitFor(() => expect(stuck).toHaveValue('30'))
+  expect(ceiling).toHaveValue('8')
+  const save = screen.getByRole('button', { name: 'Save' })
+  await userEvent.clear(stuck)
+  await userEvent.type(stuck, '2')
+  expect(screen.getByText('A whole number from 5 to 1440.')).toBeVisible()
+  expect(save).toBeDisabled()
+  await userEvent.clear(stuck)
+  await userEvent.type(stuck, '45')
+  await userEvent.clear(ceiling)
+  await userEvent.click(save)
+  expect(put).toHaveBeenCalledWith('/unattended', { stuck_minutes: 45 })
+  expect(put).toHaveBeenCalledWith('/unattended', { turn_hours: null })
+  expect(put).not.toHaveBeenCalledWith('/steps', expect.anything())
 })
 
 test('App: what knowledge from a repository or a folder reads at most is read, held to its range and sent only when changed', async () => {

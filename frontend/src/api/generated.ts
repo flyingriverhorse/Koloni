@@ -4523,6 +4523,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/unattended": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unattended Limits */
+        get: operations["unattended_limits_api_unattended_get"];
+        /**
+         * Set Unattended
+         * @description B-413: how long a turn nobody watches may go with nothing moving, and how long a night's
+         *     job or a To-do task's turn works at most (null: no ceiling) - the user's to say.
+         */
+        put: operations["set_unattended_api_unattended_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/usage": {
         parameters: {
             query?: never;
@@ -5042,7 +5064,7 @@ export interface components {
             /** Id */
             id: string;
             /** Job Minutes */
-            job_minutes: number;
+            job_minutes: number | null;
             /** Jobs */
             jobs: components["schemas"]["AwayJobOut"][];
             /** Kept Out */
@@ -11080,6 +11102,20 @@ export interface components {
         TryOut: {
             /** Answer */
             answer: string;
+        };
+        /**
+         * Unattended
+         * @description B-413: a turn nobody watches ends where nothing real moved for `stuck_minutes`, and a
+         *     night's job or a To-do task's turn after `turn_hours` (`away.unattended`): settings of the
+         *     whole app. Their ranges are `away.STUCK_RANGE` and `CEILING_RANGE`, written again here and
+         *     in Settings.tsx. Sent one at a time - the one not sent stays as it is; `turn_hours` null is
+         *     no ceiling.
+         */
+        Unattended: {
+            /** Stuck Minutes */
+            stuck_minutes?: number | null;
+            /** Turn Hours */
+            turn_hours?: number | null;
         };
         /**
          * UndoCopy
@@ -19803,6 +19839,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TriggerStartedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unattended_limits_api_unattended_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unattended"];
+                };
+            };
+        };
+    };
+    set_unattended_api_unattended_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Unattended"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unattended"];
                 };
             };
             /** @description Validation Error */

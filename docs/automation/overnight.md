@@ -43,9 +43,13 @@ The card says "The Orchestrator's jobs for while you're away: change anything be
   that limit is off; the card says "(empty: no time limit)" and "(empty: no spend limit)". On a
   provider paid by plan no money is counted, and the card says so: "there only the time holds".
   Your provider limits hold too.
-- A job works at most 60 minutes. Then it stops, what it did is kept in its copy, and the next one
-  goes on. On the report it is under **Could not be done**, with "Stopped after 60 minutes, the most
-  one job works".
+- A job works as long as it makes progress. Once nothing has moved for Settings › The app ›
+  **Stuck after this many minutes with no progress** (30 unless you change it) - no file of the job
+  changed, no agent finished its work, no failing command passed - it fails with that reason, is
+  tried once more, and the next one goes on. As a last resort a job stops after **An unattended
+  turn runs at most (hours)** (8 unless you change it; empty: no limit), what it did kept in its
+  copy; on the report it is under **Could not be done**, with "Stopped after 8 hours, the most one
+  job works".
 
 **Change the list** lets you edit each job and what makes it done, take a job out (one must stay), add
 one with **+ Add a job** (up to 10), and change what is kept out: up to 20 files or folders of the
@@ -142,7 +146,7 @@ The jobs end when:
 - the next job cannot start.
 
 The time and the money are checked before each model step. A clock also watches the stop time and
-each job's 60 minutes, so a long command is cut too. When the jobs stop, the job at work stops, its
+each job's minutes with nothing moving and its hours at most, so a long command is cut too. When the jobs stop, the job at work stops, its
 work kept in its copy, and is shown as **Stopped**. A job that waits for your word goes on waiting.
 When KOLONİ is closed, the jobs at work and those that wait count as could not be done: answer what
 waits before you close KOLONİ.

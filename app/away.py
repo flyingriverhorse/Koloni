@@ -29,6 +29,7 @@ from app.db.models import (
     Conversation,
     ConversationTeam,
     FileChange,
+    Flag,
     Merge,
     Message,
     Project,
@@ -46,11 +47,16 @@ from app.team import quoted, would_run
 
 log = logging.getLogger(__name__)
 # No stop time unless the Lead or the user sets one (the user, 6 Nov): the jobs, each held to
-# JOB_MINUTES, run until done, the money the user set or a provider's limit stops them. No
+# their ceiling, run until done, the money the user set or a provider's limit stops them. No
 # spend limit either unless one is set (the user, 6 Nov: a plan counts no dollars) - but the
 # month's budget, where one is set, still holds.
-# The longest one job's turn works before it is cut, as at the night's end, its copy kept.
-JOB_MINUTES = 60
+# B-413 (the user, 8 Nov: an honest job may take hours): a turn nobody watches - a night's
+# job, a To-do task's, a trigger's - ends where nothing real moved for STUCK_FLAG's minutes
+# (`AgentRunner._progress`), and, a last resort, a night's job or a To-do task's after
+# CEILING_FLAG's hours, its copy kept, as at the night's end. Settings › The app; a ceiling of
+# "" is none. (A trigger's own minutes hold its turns.)
+STUCK_FLAG, STUCK_RANGE, STUCK_MINUTES = "stuck_minutes", (5, 1440), 30
+CEILING_FLAG, CEILING_RANGE, CEILING_HOURS = "turn_hours", (1, 72), 8
 MAX_JOBS, MAX_KEPT_OUT = 10, 20
 TRIES = 2  # a job that fails is tried once more
 CLOCK = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
@@ -62,8 +68,8 @@ RETRY = "KOLONİ: the last try of this job failed ({why}). Try it once more."
 AGAIN = ("KOLONİ: the user asks to try this job again. The work while they were away is over: "
          "this turn works as any turn of this chat - not in a copy kept for them; what it changes "
          "goes into the project as this chat's level says, asked where it asks.")
-JOB_TOO_LONG = (f"Stopped after {JOB_MINUTES} minutes, the most one job works: what it did is "
-                "kept in its copy.")
+JOB_TOO_LONG = ("Stopped after {hours} hour{s}, the most one job works: what it did is kept in "
+                "its copy.")
 CLOSED = "Stopped: KOLONİ was closed while you were away."
 KEPT_OUT = ("{path} is kept out: the user asked that nothing touches it while they are away. "
             "Leave it as it is and say so in your report")
@@ -312,12 +318,35 @@ def over(session: Session, away: AwayRun, at: datetime | None = None) -> str | N
     return None
 
 
+def unattended(session: Session) -> tuple[int, int | None]:
+    """B-413: the minutes with nothing moving that end a turn nobody watches, and the hours a
+    night's job or a To-do task's turn works at most (None: no ceiling) - as Settings › The app
+    has them; a row out of its range is held to it, one that is no whole number is the default."""
+    def read(name: str, low_high: tuple[int, int], default: int | None) -> int | None:
+        row = session.get(Flag, name)
+        if row is None:
+            return default
+        if row.value == "":
+            return None
+        try:
+            return min(low_high[1], max(low_high[0], int(row.value)))
+        except ValueError:
+            return default
+    return (read(STUCK_FLAG, STUCK_RANGE, STUCK_MINUTES) or STUCK_MINUTES,
+            read(CEILING_FLAG, CEILING_RANGE, CEILING_HOURS))
+
+
+def too_long(hours: int) -> str:
+    return JOB_TOO_LONG.format(hours=hours, s="" if hours == 1 else "s")
+
+
 def job_over(session: Session, cid: str, at: datetime | None = None) -> str | None:
-    """Why a job's turn at work is cut: it has worked JOB_MINUTES."""
+    """Why a job's turn at work is cut: it has worked its ceiling's hours (`unattended`)."""
+    hours = unattended(session)[1]
     began = session.scalar(select(Run.started_at).where(
         Run.conversation_id == cid, Run.status.not_in(backlog.ENDED)).limit(1))
-    return JOB_TOO_LONG if began and (at or now()) - began >= timedelta(
-        minutes=JOB_MINUTES) else None
+    return too_long(hours) if hours and began and (at or now()) - began >= timedelta(
+        hours=hours) else None
 
 
 def go_on(session: Session, project_id: str, runner, at: datetime | None = None) -> bool:  # noqa: C901
@@ -754,7 +783,8 @@ def report(session: Session, away: AwayRun) -> dict:
         "tried": away.tried, "slipped": slipped,
         "spent": found["spent"] if away.started_at else None,
         "currency": found["currency"] or "USD", "at_least": bool(found["at_least"]),
-        "counts": counts(session, away), "proposed": proposed, "job_minutes": JOB_MINUTES,
+        "counts": counts(session, away), "proposed": proposed, "job_minutes": (
+            None if (hours := unattended(session)[1]) is None else hours * 60),
         "on_plan": on_plan(session, away),
     }
 

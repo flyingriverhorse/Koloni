@@ -163,7 +163,7 @@ export function AwayCard({ card }: { card: Away }) {
           )}
         </li>
         <Limits card={card} busy={busy} onChange={change => void act('change', change)} />
-        <li>A job works at most {card.job_minutes} minutes: then it stops, what it did kept in its copy, and the next one goes on.</li>
+        <JobCeiling minutes={card.job_minutes} />
       </ul>
       <div className="memory-actions">
         {editing ? (
@@ -517,4 +517,11 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
       )}
     </div>
   )
+}
+
+/** A job's ceiling, where Settings › The app has one (none: no line). */
+function JobCeiling({ minutes }: { minutes: number | null }) {
+  if (minutes === null) return null
+  const most = minutes % 60 ? `${minutes} minutes` : `${minutes / 60} hour${minutes === 60 ? '' : 's'}`
+  return <li>A job works at most {most}, and stops sooner when nothing moves: then what it did is kept in its copy, and the next one goes on.</li>
 }

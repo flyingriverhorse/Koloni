@@ -43,9 +43,21 @@ the project, so it has none. What stops it:
 - it goes round in circles (below);
 - a limit you set: the **Lead** role's **At most this many steps**, a trigger's **Model steps a run**
   for the whole turn;
-- the project's token limit for a message, its monthly budget, a night's stop time and money, a
-  trigger's minutes;
+- in a turn nobody watches (a To-do task's, a job while you're away, a trigger's whose **Minutes
+  a run** are longer): nothing has moved
+  for Settings › The app › **Stuck after this many minutes with no progress** (30 unless you change
+  it) - no file of the turn changed, no agent finished its work, no failing command passed. Each of
+  those starts the minutes again, so honest work runs as long as it needs;
+- a last resort: a To-do task's turn and a job while you're away end after **An unattended turn runs
+  at most (hours)** (8 unless you change it; empty: no limit), however they go. A trigger's
+  **Minutes a run** and a night's stop time hold as before;
+- either way the turn fails with the reason, its work kept - never cancelled: a To-do task gets its
+  fix round, then is blocked, and the run goes on; a night tries the job once more, then goes on;
+- money and tokens, where you set them: the project's token limit for a message, its monthly
+  budget, a night's money;
 - **Stop**.
+
+A turn you started has no clock: you are there to press **Stop**, and the card below asks you.
 
 ### When the Orchestrator goes round in circles
 
@@ -56,10 +68,12 @@ KOLONİ watches the Orchestrator's tool calls. It stops it when:
 - 10 calls in a row each repeat a call it had made, with the same result, since something last
   moved.
 
-Something moves when a file of the turn changes, a command of its own succeeds, it opens an agent or
-sends a message. A call with other arguments, or one that gets a new result (a room's new post, a
-team's report), is new. A wait for a team or in a room counts as neither, however often it says
-the same. From the third repeat on, the Orchestrator is told what is repeating.
+Something moves when a file of the turn changes, it opens an agent, or it sends a message to one it
+had not written to among its last three. A command that succeeds is judged by what it said, like any
+call. A call with other arguments, or one that gets a new result (a room's new post, a team's
+report), is new; the same call made several times in one step counts once. A wait in a room it
+follows counts as neither while it waits, however often it says the same; one back at once with the
+same words is a repeat. From the third repeat on, the Orchestrator is told what is repeating.
 
 In a turn you started, the first time it is told, in its next step, to try a different approach or
 to report what it did and end. Its counts start again and it goes on; you see nothing. If it goes
@@ -77,13 +91,18 @@ round in circles again, a card under the call asks you:
   agents it had opened, how many files it had changed in the project, and which call it repeated.
   A message you sent meanwhile, the To-do run or the night then goes on.
 
+Either way the turn ends there: nothing more is waited for, and no other card comes. Where this
+turn's work is already in the project, it ends **completed**, not red, with KOLONİ's line saying why
+it ended; otherwise it fails with the reason.
+
 The card waits for you at every level, **Full auto** too. As it goes up, KOLONİ tells you on the
 desktop and at the project's notification address, where you set them (Settings › This project):
 "The Orchestrator seems stuck: it repeated list_dir with the same result…".
 
 In a turn nobody watches (a trigger's, a job while you're away, a To-do task) there is no card: the
-Orchestrator ends with the reason on record, and a night or the To-do run goes on with the next job
-or task.
+Orchestrator fails with the reason on record, also where it had written something - so a To-do task
+gets its fix round, then is blocked with why - and a night or the To-do run goes on with the next
+job or task.
 
 ## At the limit
 

@@ -7,7 +7,10 @@ bring nothing new), and a limit the user set - its role's, a trigger's - still h
 the user started the guard asks on a card; elsewhere it ends with why, and a To-do run goes on."""
 
 import json
+import sys
 from types import SimpleNamespace
+
+import pytest
 
 import app.web
 from app import backlog, signs
@@ -270,11 +273,203 @@ def test_stopped_after_a_copy_was_taken_in_the_turn_is_completed(make_client, wa
         m["content"] for m in snap["messages"] if m["role"] == "koloni"]
 
 
-def test_a_wait_that_says_the_same_is_no_repeat():
+def test_what_counts_as_a_repeat():
     counts = signs.Counts()
-    for _ in range(3 * signs.IDLE_STOP):  # (a team at work for hours: the same answer each time)
-        counts.heard("wait_for_team", '{"team": "Backend / API"}', "still at work after 10 minutes")
+    room = ("wait_for_room", "{}", "nobody said anything new")
+    for _ in range(3 * signs.IDLE_STOP):  # (a room at work for long: the same answer each time)
+        counts.heard(*room, waited=True)
     assert counts.idle == 0
-    for _ in range(3):
-        counts.heard("list_dir", "{}", "hello.py")
+    for _ in range(3):  # (one back at once with the same words is a repeat)
+        counts.heard(*room)
     assert counts.idle == 2
+    counts.moved()
+    for _ in range(11):  # (a fan-out of one call in one step is one)
+        counts.heard("list_dir", "{}", "hello.py", step="m1")
+    assert counts.idle == 0
+    counts.heard("list_dir", "{}", "hello.py", step="m2")
+    assert counts.idle == 1
+    to_lead = json.dumps({"to": "Web app lead", "message": "how far?"})
+    counts.wrote_to(to_lead)  # (to one it had not written to: a move)
+    assert counts.idle == 0
+    counts.heard("list_dir", "{}", "hello.py")
+    counts.wrote_to(to_lead)  # (to the same one again: none)
+    counts.heard("list_dir", "{}", "hello.py")
+    assert counts.idle == 1
+
+
+# --- the review's findings ------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("how", ["stop_here", "nobody_answers"])
+def test_its_end_after_work_landed_waits_for_nothing_and_asks_nothing_more(
+        make_client, wait_run, project_dir, how):
+    # (teams_mode "lead": "no team picked" would send it back for a step more; and nothing
+    # resets its counts, so a second card would come)
+    wrote = step(call("write_file", {"path": "notes.txt", "content": "done"}, "w1"))
+    client, model = make_client([wrote, *circles(LOOP), *circles(LOOP, LOOP), *circles(5, 50),
+                                 text("never said")])
+    clock = client.app.state.runner.call_later = HeldClock()
+    cid, run_id = begin(client, project_dir, mode="full_auto", lead_hands_code=False,
+                        teams_mode="lead")
+    card = asked(until(client, cid, asked, timeout=20))
+    calls = len(model.calls)
+    if how == "stop_here":
+        answer(client, card, "Stop here")
+    else:
+        fire(client, lead_timers(clock, CIRCLING_WAIT)[0])
+    snap = wait_run(client, cid, run_id, timeout=20)
+    assert len(model.calls) == calls and len(snap["questions"]) == 1
+    assert snap["runs"][0]["status"] == "completed"
+    assert len([m for m in snap["messages"] if m["role"] == "koloni"]) == 1  # (one line of it)
+
+
+def test_the_same_command_again_and_again_is_going_round(make_client, wait_run, project_dir):
+    # (a command that succeeded is no move: it is judged by what it said)
+    command = "cd" if sys.platform == "win32" else "pwd"
+    runs = [step(call("run_command", {"command": command}, f"r{i}")) for i in range(3 * LOOP)]
+    client, _model = make_client([*runs, text("never said")])
+    cid, run_id = start_in_mode(client, project_dir, "full_auto")
+    card = asked(until(client, cid, asked, timeout=60))
+    assert "run_command" in card["question"] or "repeated" in card["question"]
+    answer(client, card, "Stop here")
+    assert wait_run(client, cid, run_id, timeout=20)["runs"][0]["status"] == "failed"
+
+
+def test_a_todo_task_that_wrote_a_file_and_went_round_is_blocked_with_why(
+        make_client, wait_run, project_dir, monkeypatch):
+    from tests.test_backlog_symphony import full_auto
+
+    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
+    wrote = step(call("write_file", {"path": "notes.txt", "content": "done"}, "w1"))
+    # (its turn and its fix round each write and go round; nobody watches: no landed "completed")
+    client, _model = make_client([wrote, *circles(LOOP), wrote, *circles(LOOP, LOOP),
+                                  text("two done")])
+    pid, _ = backlog_setup(client, project_dir, "one", "two")
+    full_auto(client, pid)
+    assert client.patch(f"/api/projects/{pid}", json={"lead_work": "itself"}).status_code == 200
+    auto(client, pid, True)
+    one = task_until(lambda: (t := tasks(client, pid)["one"])["status"] == "blocked" and t)
+    assert one["stuck"] == CIRCLES
+    task_until(lambda: tasks(client, pid)["two"]["conversation_id"])
+    assert worked(client, wait_run, pid, "two")["status"] == "review"
+
+
+def test_the_unattended_limits_are_settings_of_the_app(client):
+    client.headers.update(OWN)
+    assert client.get("/api/unattended").json() == {"stuck_minutes": 30, "turn_hours": 8}
+    for wrong in ({"stuck_minutes": 4}, {"stuck_minutes": 1441}, {"turn_hours": 0},
+                  {"turn_hours": 73}, {"turn_hours": "8"}):
+        assert client.put("/api/unattended", json=wrong).status_code == 422
+    assert client.put("/api/unattended", json={"stuck_minutes": 45}).json() == {
+        "stuck_minutes": 45, "turn_hours": 8}
+    assert client.put("/api/unattended", json={"turn_hours": None}).json() == {
+        "stuck_minutes": 45, "turn_hours": None}  # (no ceiling)
+    assert client.put("/api/unattended", json={"turn_hours": 5},
+                      headers={"Origin": "http://evil.example"}).status_code == 403
+
+
+def todo_held(make_client, project_dir, monkeypatch, *script):
+    """A To-do run of two tasks, its clock held: (client, clock, pid)."""
+    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
+    client, _model = make_client(list(script))
+    clock = client.app.state.runner.call_later = HeldClock()
+    pid, _ = backlog_setup(client, project_dir, "one", "two")
+    return client, clock, pid
+
+
+def first_run(client, pid):
+    cid = tasks(client, pid)["one"]["conversation_id"]
+    return cid, client.get(f"/api/conversations/{cid}").json()["runs"][-1]["id"]
+
+
+def test_a_todo_task_that_keeps_changing_files_has_no_hour_its_clock_starts_again(
+        make_client, wait_run, project_dir, monkeypatch):
+    from tests.test_backlog_symphony import full_auto
+
+    writes = [step(call("write_file", {"path": f"part{i}.txt", "content": str(i)}, f"w{i}"))
+              for i in range(4)]
+    client, clock, pid = todo_held(make_client, project_dir, monkeypatch, *writes,
+                                   text("all four parts"), text("two done"))
+    full_auto(client, pid)
+    assert client.patch(f"/api/projects/{pid}", json={"lead_work": "itself"}).status_code == 200
+    auto(client, pid, True)
+    assert worked(client, wait_run, pid, "one")["status"] == "review"
+    stuck = [t for t in clock.set if t.delay == 30 * 60]
+    # its 30 minutes start again at each file it changed; no hour holds it, only the ceiling
+    assert len([t for t in stuck if t.cancelled]) >= 4
+    assert not [t for t in clock.set if t.delay == 60 * 60]
+    assert [t.delay for t in clock.set if t.delay > 30 * 60] == [8 * 3600] * 2  # (one a task)
+
+
+def test_nothing_moving_for_its_minutes_blocks_the_task_and_the_next_one_runs(
+        make_client, wait_run, project_dir, monkeypatch):
+    from app.agent.limits_mixin import NO_PROGRESS
+    from tests.conftest import Gate
+
+    turn, fix = Gate(), Gate()
+    client, clock, pid = todo_held(make_client, project_dir, monkeypatch,
+                                   turn.step(text("never said")), fix.step(text("never said")),
+                                   text("two done"))
+    auto(client, pid, True)
+    ended: list[str] = []
+    for held in (turn, fix):  # (its turn, then its fix round: nothing moves in either)
+        held.wait_partial()
+        cid = tasks(client, pid)["one"]["conversation_id"]
+        (run_id,) = [r["id"] for r in client.get(f"/api/conversations/{cid}").json()["runs"]
+                     if r["id"] not in ended]
+        fire(client, lead_timers(clock, 30 * 60.0)[-1])
+        run = next(r for r in wait_run(client, cid, run_id, timeout=20)["runs"]
+                   if r["id"] == run_id)
+        held.release()
+        ended.append(run_id)
+        assert (run["status"], run["error"]) == (
+            "failed", NO_PROGRESS.format(minutes=30))  # (never cancelled: the run goes on)
+    one = task_until(lambda: (t := tasks(client, pid)["one"])["status"] == "blocked" and t)
+    assert one["stuck"] == NO_PROGRESS.format(minutes=30)
+    task_until(lambda: tasks(client, pid)["two"]["conversation_id"])
+    assert worked(client, wait_run, pid, "two")["status"] == "review"
+    assert client.get(f"/api/projects/{pid}/backlog/auto").json()["on"] is True
+
+
+def test_the_ceiling_the_user_set_stops_a_turn_that_keeps_making_moves(
+        make_client, wait_run, project_dir, monkeypatch):
+    from tests.conftest import Gate
+
+    turn = Gate()
+    client, clock, pid = todo_held(make_client, project_dir, monkeypatch,
+                                   turn.step(text("never said")), text("fixed it"),
+                                   text("two done"))
+    assert client.put("/api/unattended", json={"stuck_minutes": 45, "turn_hours": 2}).status_code         == 200
+    auto(client, pid, True)
+    turn.wait_partial()
+    cid, run_id = first_run(client, pid)
+    assert lead_timers(clock, 45 * 60.0)  # (the minutes the user set)
+    fire(client, lead_timers(clock, 2 * 3600.0)[0])  # (its moves kept its clock going: its hours)
+    snap = wait_run(client, cid, run_id, timeout=20)
+    turn.release()
+    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == (
+        "failed", "stopped after 2 hours, the longest a To-do task's turn works: what it did is "
+        "kept")
+    task_until(lambda: tasks(client, pid)["one"]["status"] == "review")  # (its fix round)
+    assert worked(client, wait_run, pid, "two")["status"] == "review"
+
+
+def test_with_no_ceiling_a_todo_tasks_turn_has_none(make_client, wait_run, project_dir,
+                                                     monkeypatch):
+    client, clock, pid = todo_held(make_client, project_dir, monkeypatch, text("one done"),
+                                   text("two done"))
+    assert client.put("/api/unattended", json={"turn_hours": None}).status_code == 200
+    auto(client, pid, True)
+    assert worked(client, wait_run, pid, "one")["status"] == "review"
+    assert not [t for t in clock.set if t.delay > 30 * 60]
+
+
+def test_a_triggers_turn_longer_than_the_stuck_minutes_has_their_clock_too(
+        make_client, wait_run, project_dir):
+    client, _model, pid, cid = trigger_setup(make_client, project_dir, [text("looked")],
+                                             permission_mode="full_auto")
+    clock = client.app.state.runner.call_later = HeldClock()
+    made = trigger(client, pid, cid, permissions=leave(),
+                   budget={"steps": 15, "minutes": 60, "per_day": 24})
+    wait_run(client, cid, run_now(client, made["id"]))
+    assert sorted(t.delay for t in clock.set if t.delay >= 60 * 10) == [30 * 60, 60 * 60]

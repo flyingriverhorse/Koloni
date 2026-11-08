@@ -10,7 +10,9 @@ message sent starts every count again: something moved, and trying again is a ne
 What is counted is a fact, said as one; nothing here judges, and only in a turn nobody
 watches does a count end anybody's work (`STOP_AT`) - or (B-413) stop the Orchestrator, which
 counts no steps: the same failure STOP_AT times, or IDLE_STOP calls in a row that each repeat a
-call with the result it had since something last moved.
+call with the result it had since something last moved. For that count less moves (`moved`): a
+change of the turn on record, an agent opened, a message to one it had not written to of late -
+not a command that succeeded, which is judged by what it said like any call.
 """
 
 import json
@@ -22,9 +24,14 @@ STOP_AT = 5  # in a turn nobody watches, the same failure this often ends the ag
 # B-413: the Orchestrator's calls in a row that brought nothing new, which stop it -
 # twice STOP_AT: it is told of a repeat from SIGN_AT on, and has calls left to change course.
 IDLE_STOP = 10
-# ...and what is neither new nor a repeat: a wait for others' work, which may say the same for as
-# long as a team works ("still at work after 10 minutes").
-WAITS = frozenset(("wait_for_team", "wait_for_room", "wait_for_post", "wait_for_item"))
+# ...and what is neither new nor a repeat: a wait in the room the Orchestrator follows that did
+# wait (WAIT_INSTANT seconds or more), which may say the same while its members work. (Only the
+# Orchestrator's count stops anything; wait_for_team, wait_for_post and wait_for_item are tools
+# of the agents below it.) One back at once with the same words is a repeat.
+WAITS = frozenset(("wait_for_room",))
+WAIT_INSTANT = 5.0
+# A message to one of the last this many it wrote to is no move.
+RECENT = 3
 IDLE = ("its last {count} calls each repeated one it had made, with the same result, with no "
         "change of this turn on record and no command of its own succeeding in between.")
 FAILED = "failed {count} times with the same arguments and the same error"
@@ -87,18 +94,56 @@ class Counts:
         # path -> how often edit_file failed on it in the turn
         self._misses: dict[str, int] = {}
         # B-413: (tool, arguments, what it said) of its calls since something last moved, and
-        # how many of its calls in a row were one of them.
+        # how many of its calls in a row were one of them; those of the step at hand (a key
+        # counts once in one step: a fan-out of the same call is one); whom it wrote to last.
         self._heard: set[tuple[str, str, str]] = set()
         self.idle = 0
+        self._step: object = None
+        self._in_step: set[tuple[str, str, str]] = set()
+        self._wrote_to: list[str] = []
+        # The commands (their arguments) that failed and have not passed since.
+        self._failing: set[str] = set()
 
-    def heard(self, tool: str, arguments: str, said: str) -> None:
+    def passed(self, arguments: str, failed: bool) -> bool:
+        """A command came back: whether it passed where it had failed before."""
+        key = _canonical(arguments)
+        if failed:
+            self._failing.add(key)
+            return False
+        if key in self._failing:
+            self._failing.discard(key)
+            return True
+        return False
+
+    def heard(self, tool: str, arguments: str, said: str, step: object = None,
+              waited: bool = False) -> None:
         """A call's result: one that repeats a call and its result since something moved adds
-        to `idle`; a wait (WAITS) leaves it as it is; any other sets it back to 0."""
-        if tool in WAITS:
-            return
+        to `idle`; a wait that waited (`waited`), or a call already heard in this `step`, leaves
+        it as it is; any other sets it back to 0."""
         key = (tool, _canonical(arguments), same_error(said))
+        if step != self._step:
+            self._step, self._in_step = step, set()
+        if waited or step is not None and key in self._in_step:
+            return
+        self._in_step.add(key)
         self.idle = self.idle + 1 if key in self._heard else 0
         self._heard.add(key)
+
+    def moved(self) -> None:
+        """B-413: something moved - every call is new again."""
+        self._heard.clear()
+        self.idle = 0
+
+    def wrote_to(self, arguments: str) -> None:
+        """A message sent (message_agent's `arguments`): a move where it went to one not among
+        the last RECENT."""
+        try:
+            name = str(json.loads(arguments).get("to") or "")
+        except (ValueError, AttributeError):
+            name = ""
+        if name not in self._wrote_to:
+            self.moved()
+        self._wrote_to = [*(one for one in self._wrote_to if one != name), name][-RECENT:]
 
     def missed_edit(self, arguments: str) -> str:
         """An edit_file that failed, counted by its file: from the third, what to do
@@ -117,8 +162,6 @@ class Counts:
     def changed(self) -> dict | None:
         """Every count starts again. The sign that stood, said as an earlier one; or None."""
         self._seen.clear()
-        self._heard.clear()
-        self.idle = 0
         stood, self._standing = self._standing, None
         return {**stood, "text": EARLIER + stood["text"]} if stood else None
 

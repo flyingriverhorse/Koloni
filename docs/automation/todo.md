@@ -93,6 +93,14 @@ Each task runs in a new chat, with the task as its first message. At most two ru
 "A task not finished gets one fix round; still not, it is stuck and the next goes on." When an agent
 thinks a task is done, it waits as "done?" for your word.
 
+A task's turn works as long as it makes progress. Once nothing has moved for Settings › The app ›
+**Stuck after this many minutes with no progress** (30 unless you change it) - no file of the turn
+changed, no agent finished its work, no failing command passed - it stops, its work kept, and counts
+as not finished: its fix round comes, then it is stuck and the next task goes on. The same happens,
+as a last resort, after **An unattended turn runs at most (hours)** (8 unless you change it; empty:
+no limit). Its Orchestrator also stops if it goes round in circles: see
+[Step limits](../agents/step-limits.md#when-the-orchestrator-goes-round-in-circles).
+
 Nothing starts while one of your own turns is at work, while everything is paused, during work while you're away, or
 over the project's monthly budget.
 

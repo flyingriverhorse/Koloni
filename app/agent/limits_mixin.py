@@ -77,6 +77,12 @@ CIRCLING_REPORT = ("No answer in 10 minutes: the Orchestrator's turn ended here,
                    "had opened {agents} and changed {files} in the project; it got stuck repeating "
                    "{tool}.")
 CIRCLING_LANDED = "The Orchestrator ended after this turn's work was in the project: {why}"
+TODO_TOO_LONG = ("stopped after {hours} hour{s}, the longest a To-do task's turn works: what it "
+                 "did is kept")
+# B-413: a turn nobody watches - a To-do task's, a night's job, a trigger's - whose Orchestrator
+# counts no steps, ends where nothing real moved for Settings' minutes (`_progress`).
+NO_PROGRESS = ("stopped: nothing moved in {minutes} minutes - no file of the turn changed, no "
+               "agent finished its work, no failing command passed")
 
 # How a stop at the end of the steps given once more (K-devam-butce, `GIVEN_ONCE`) is on
 # record (B-327: not "step_limit", whose words everywhere say the app's limit).
@@ -154,6 +160,9 @@ class LimitsMixin:
         )
         unwatched.left = unwatched.minutes * MINUTE
         self._count_minutes(run.id)
+        # (B-413: where nothing moves - only where its own minutes are longer: else they end it)
+        if unwatched.minutes > away.unattended(session)[0]:
+            self._progress(run.id, arm=True)
 
     def _clock(self: "AgentRunner", run_id: str) -> None:
         """Who of a turn holds a place, or stands in line for one, has changed. For an
@@ -423,30 +432,38 @@ class LimitsMixin:
         """How an agent KOLONİ stopped (`_stuck`) ends - or, B-413, None where the Orchestrator's
         loop guard stopped it (`_counted`) in a turn the user can be asked in and they said Go
         on: its counts start again. Elsewhere - a trigger's turn, a night's job, a backlog task -
-        it ends with why on record, and the night or the To-do run goes on with the next. Once
-        work of the turn is in the project, it ends completed, with why as KOLONİ's line: a
-        guard does not make red a turn whose work landed (the live B-413 ended so)."""
+        it ends with why on record, and the night or the To-do run goes on with the next (there
+        a stop is a failure: the task gets its fix round, or is blocked). In a turn the user
+        started where work of it is in the project, it ends completed, with why as KOLONİ's line:
+        a guard does not make red a turn whose work landed (the live B-413 ended so). Its end is
+        the turn's: nothing more is waited for or told (`_guard_ended`, `_loop_steps`)."""
         why = self._stuck.pop(ctx.agent_id)
         call_id = self._circling.pop(ctx.agent_id, None)
         if call_id is None:
             return "failed", why
-        if self._attended(ctx) and await self._circling_goes_on(ctx, call_id, why):
+        attended = self._attended(ctx)
+        said = await self._circling_goes_on(ctx, call_id, why) if attended else ""
+        if said is True:
             self._counts.pop(ctx.agent_id, None)
             return None
         self._stopped_by_koloni(ctx)
+        self._guard_ended.add(ctx.agent_id)
         with self._factory() as session:  # (written in the project, or a copy taken in)
-            landed = session.scalar(select(FileChange.id).where(
+            landed = attended and session.scalar(select(FileChange.id).where(
                 FileChange.run_id == ctx.run_id, FileChange.status == "applied").limit(1))
-        if landed is None:
+        if not landed:
+            if said:
+                self._koloni_line(ctx.cid, ctx.run_id, said)
             return "failed", why
-        self._koloni_line(ctx.cid, ctx.run_id, CIRCLING_LANDED.format(why=why))
+        self._koloni_line(ctx.cid, ctx.run_id, said or CIRCLING_LANDED.format(why=why))
         return "completed", None
 
-    async def _circling_goes_on(self: "AgentRunner", ctx: Ctx, call_id: str, why: str) -> bool:
+    async def _circling_goes_on(self: "AgentRunner", ctx: Ctx, call_id: str,
+                                why: str) -> bool | str:
         """`_circled` in a turn the user can be asked in: the first time, the Orchestrator is
         told to try another way or end (CIRCLING_NUDGE) and goes on; then the user is asked on a
-        card, told on the desktop and at the project's address (`_tell_stuck`). Nobody answering
-        in CIRCLING_WAIT ends it with KOLONİ's report. True: it goes on.
+        card, told on the desktop and at the project's address (`_tell_stuck`). True: it goes
+        on; else KOLONİ's report where nobody answered in CIRCLING_WAIT, or "".
         shortcut: a native CLI hears the nudge only on a run again (as `steer`)."""
         with self._factory() as session:
             tool = session.get_one(ToolCall, call_id).name
@@ -475,16 +492,15 @@ class LimitsMixin:
         finally:
             timer.cancel()
         word = word.removeprefix(ANSWER_PREFIX)
-        if word == CIRCLING_NO_ANSWER:
-            with self._factory() as session:
-                agents = session.scalar(select(func.count()).select_from(Agent).where(
-                    Agent.run_id == ctx.run_id, Agent.depth > 0)) or 0
-                files = session.scalar(select(func.count(func.distinct(FileChange.path))).where(
-                    FileChange.run_id == ctx.run_id, FileChange.status == "applied")) or 0
-            self._koloni_line(ctx.cid, ctx.run_id, CIRCLING_REPORT.format(
-                agents=f"{agents} agent{'' if agents == 1 else 's'}",
-                files=f"{files} file{'' if files == 1 else 's'}", tool=tool))
-        return word == CIRCLING_GO_ON
+        if word != CIRCLING_NO_ANSWER:
+            return word == CIRCLING_GO_ON or ""
+        with self._factory() as session:
+            agents = session.scalar(select(func.count()).select_from(Agent).where(
+                Agent.run_id == ctx.run_id, Agent.depth > 0)) or 0
+            files = session.scalar(select(func.count(func.distinct(FileChange.path))).where(
+                FileChange.run_id == ctx.run_id, FileChange.status == "applied")) or 0
+        return CIRCLING_REPORT.format(agents=f"{agents} agent{'' if agents == 1 else 's'}",
+                                      files=f"{files} file{'' if files == 1 else 's'}", tool=tool)
 
     def _tell_stuck(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
         """B-413: the Orchestrator's card that it seems stuck, told as a night's end is
@@ -501,6 +517,36 @@ class LimitsMixin:
                 note = (project.name, project.notify_url, project.notify_format, desktop,
                         CIRCLING_TOLD.format(tool=tool))
             away.send(note)
+
+    def _arm_todo_deadline(self: "AgentRunner", run_id: str) -> None:
+        """B-413: a To-do task's turn, whose Orchestrator counts no steps, ends where nothing
+        moves (`_progress`) and, as a last resort, at Settings' ceiling (`away.unattended`; none
+        where it is empty): as one over its budget does - failed with why, its copies kept - so
+        its task gets its fix round, then is blocked, and the run goes on."""
+        self._progress(run_id, arm=True)
+        with self._factory() as session:
+            hours = away.unattended(session)[1]
+        if run_id in self._away_jobs or not hours:  # (a night's job: `_arm_deadline`)
+            return
+        later = self.call_later or asyncio.get_running_loop().call_later
+        self._away_timers[run_id] = later(hours * 3600.0, self._over_budget, run_id,
+                                          TODO_TOO_LONG.format(hours=hours,
+                                                               s="" if hours == 1 else "s"))
+
+    def _progress(self: "AgentRunner", run_id: str, arm: bool = False) -> None:
+        """B-413: something real moved in a turn nobody watches - a file of it changed, an agent
+        finished its work, a command that failed passed (`_counted`): its NO_PROGRESS_MINUTES
+        start again. `arm`: its clock starts (a To-do task's turn, a night's job, a trigger's);
+        a turn with none is not timed. At the end it stops as one over its budget does."""
+        if (timer := self._progress_timers.pop(run_id, None)) is not None:
+            timer.cancel()
+        elif not arm:
+            return
+        with self._factory() as session:
+            minutes = away.unattended(session)[0]
+        later = self.call_later or asyncio.get_running_loop().call_later
+        self._progress_timers[run_id] = later(
+            minutes * 60.0, self._over_budget, run_id, NO_PROGRESS.format(minutes=minutes))
 
     def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether the user can be asked on a card in this turn: one they started - not a

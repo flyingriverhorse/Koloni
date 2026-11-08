@@ -53,7 +53,9 @@ The project's own test command also runs without being ticked.
 
 - **Model steps a run** (default 15), **Minutes a run** (default 10), **Runs a day** (default 24).
   **Model steps a run** counts all the turn's agents together, the Orchestrator too: it is the step
-  limit you set for the turn. The Orchestrator also stops if it goes round in circles: see
+  limit you set for the turn. Where **Minutes a run** is longer than Settings › The app ›
+  **Stuck after this many minutes with no progress**, its turn also ends once nothing has moved for
+  that long; and it ends if the Orchestrator goes round in circles: see
   [Step limits](../agents/step-limits.md#when-the-orchestrator-goes-round-in-circles).
   "Three runs in a row that fail or go over switch the trigger off."
 - **Ends**: **No end**, **After so many runs**, or **After a day**.

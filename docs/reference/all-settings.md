@@ -28,7 +28,8 @@ See [Settings](../settings.md).
 
 ## Settings › The app
 
-**Answer in**, **Steps an agent may take**, **Summarise a long context at (%)** and **Knowledge
+**Answer in**, **Steps an agent may take**, **Stuck after this many minutes with no progress**,
+**An unattended turn runs at most (hours)**, **Summarise a long context at (%)** and **Knowledge
 reads at most** (Agents),
 **Voice** (this browser's), and **Your data** (Export, Restore, Always blocked). See
 [Settings](../settings.md#the-app).

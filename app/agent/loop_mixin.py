@@ -569,6 +569,11 @@ class LoopMixin:
         calls = None
         while True:
             status, error = await self._steps_held(ctx, info)
+            # B-413: its loop guard ended it - the turn's end: no room, team, answer or step
+            # left is waited for or told.
+            if ctx.agent_id in self._guard_ended:
+                self._guard_ended.discard(ctx.agent_id)
+                return status, error
             # B-397: at the app's step limit a sub-agent asks the user whether to go on, once
             # (`_more_steps`) - not at its role's, the user's own rule, nor at the end of the steps
             # given on top.
