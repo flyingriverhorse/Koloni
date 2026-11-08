@@ -669,11 +669,12 @@ class LoopMixin:
                           info: ModelInfo) -> tuple[str, str | None]:
         """`_steps`; B-413: the Orchestrator's only step limit is its role's (OwnStop) - at it,
         it waits for its teams as it did at the app's (B-382, `_loop_steps`), as a session's
-        stop (a SessionStop) always did."""
+        stop (a SessionStop) always did. Any other OwnStop (a model the provider refused, say)
+        goes on up, to what handles it."""
         try:
             return await self._steps(ctx, info)
         except OwnStop as stop:
-            if ctx.depth:
+            if ctx.depth or not _at_a_step_limit(str(stop)):
                 raise
             return "failed", str(stop)
 
