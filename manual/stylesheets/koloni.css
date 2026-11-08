@@ -1,0 +1,32 @@
+/* KOLONİ's own colours (frontend/src/theme/tokens.css): a honey accent on an earth header by day,
+   honey on night blue in the dark. Every text colour reads at 4.5 or more on its ground. */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #2a2218;
+  --md-primary-fg-color--light: #6e604a;
+  --md-primary-fg-color--dark: #16130f;
+  --md-primary-bg-color: #fffaf1;
+  --md-primary-bg-color--light: #fffaf1b3;
+  --md-accent-fg-color: #925a0d;
+  --md-accent-fg-color--transparent: #925a0d1a;
+  --md-typeset-a-color: #925a0d;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 220deg;
+  --md-default-bg-color: #12151b;
+  --md-default-fg-color: #e4e6ea;
+  --md-default-fg-color--light: #b0b6c2;
+  --md-default-fg-color--lighter: #66707f;
+  --md-default-fg-color--lightest: #2a303a;
+  --md-code-bg-color: #1a1e26;
+  --md-primary-fg-color: #1a1e26;
+  --md-primary-fg-color--light: #66707f;
+  --md-primary-fg-color--dark: #12151b;
+  --md-primary-bg-color: #e4e6ea;
+  --md-primary-bg-color--light: #e4e6eab3;
+  --md-accent-fg-color: #e3a43a;
+  --md-accent-fg-color--transparent: #e3a43a1a;
+  --md-typeset-a-color: #e3a43a;
+  --md-footer-bg-color: #1a1e26;
+  --md-footer-bg-color--dark: #161a21;
+}
