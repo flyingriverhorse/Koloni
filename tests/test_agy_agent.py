@@ -694,8 +694,9 @@ def test_native_is_started_with_the_flag_and_what_it_did_is_on_record(
     cid, run_id = start(client, project_dir, provider, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    # (natively a write's record is its change: one asked about is the card's)
-    assert [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]] == [
+    # (natively a write's record is its change: one asked about is the card's. Sorted: on a CI
+    # runner the two records came in the other order.)
+    assert sorted((t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]) == [
         ("edit_file", "succeeded", "cli"), ("run_command", "succeeded", "cli")]
     (change,) = snap["file_changes"]
     assert (change["path"], change["status"], change["origin"]) == ("hello.py", "applied", "cli")
