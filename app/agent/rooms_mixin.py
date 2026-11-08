@@ -367,6 +367,10 @@ class RoomsMixin:
             except BaseException:
                 # B-412 (live, Ask): a call that ended while its cards waited (a CLI that gave
                 # up on it) left its members in the step's places - the next open_room refused.
+                # shortcut: which CLI withdraws a call that waits for the user, and after how long,
+                # is not measured (Copilot is given no tool timeout; Claude Code and Qoder get
+                # MCP_TOOL_TIMEOUT, Codex tool_timeout_sec): measure Copilot's and give it one if
+                # its cards are seen withdrawn and proposed again.
                 self._unopened(ctx, [child for child, _role in members])
                 raise
             if turned_down is not None:

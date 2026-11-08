@@ -5565,6 +5565,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                          e["agent"] in self._spawn_decisions) for e in recipe_run.at_work(state)
                         if e["ok"] is not False and e["role"].casefold() == role.name.casefold()]
                 # B-412: one whose card waits for the user is not at work yet - nor given up on.
+                # shortcut: one of the same reply whose card is not up yet is still said at work;
+                # tell it apart (by its proposed status) if a model is seen to give up on that.
                 asked = " and ".join(name for name, ok, card in mine if ok is None and card)
                 busy = " and ".join(name for name, ok, card in mine if ok is None and not card)
                 did = " and ".join(name for name, ok, _card in mine if ok)
