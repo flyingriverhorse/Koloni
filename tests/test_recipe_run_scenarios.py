@@ -1073,7 +1073,9 @@ def test_the_ready_quality_check_recipe_runs_the_tests_then_two_reviews_at_once_
                         teams=[{"team_id": quality["id"], "recipe_id": None}])
     snap = wait_run(client, cid, run_id)
     assert not [c for c in by_call(snap) if c[0] == "failed"]
-    assert [a["role_name"] for a in snap["agents"] if a["depth"] == 1] == ["Tester", *reviewers]
+    # (The two reviews open at once: they can share a timestamp, and their order is then their ids'.)
+    first, *others = [a["role_name"] for a in snap["agents"] if a["depth"] == 1]
+    assert (first, sorted(others)) == ("Tester", sorted(reviewers))
     # (0102: the tests passed - its Debugger, which runs only on a problem found, was never opened.)
     assert strip(row(snap)) == [("test", "done", 0), ("fix", "skipped", 0), ("reviews", "done", 0),
                                 ("end", "done", 0)]
