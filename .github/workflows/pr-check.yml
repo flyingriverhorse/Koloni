@@ -99,7 +99,10 @@ jobs:
 
   frontend:
     name: Frontend
+    needs: sonar-gate
     uses: ./.github/workflows/frontend.yml
+    with:
+      coverage: ${{ needs.sonar-gate.outputs.enabled == 'true' }}
 
   docs:
     name: Guide
@@ -107,7 +110,7 @@ jobs:
 
   sonar:
     name: SonarQube Cloud scan
-    needs: [sonar-gate, backend]
+    needs: [sonar-gate, backend, frontend]
     # Also after failed tests (the backend has known failures on Linux, CI.md): the parts that ran
     # still left their coverage.
     if: ${{ !cancelled() && needs.sonar-gate.outputs.enabled == 'true' }}
@@ -125,6 +128,10 @@ jobs:
         with:
           pattern: coverage-part-*
           merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: coverage-frontend
+          path: frontend/coverage
       - name: Combine the parts' coverage
         # All six parts, or no scan: a missing part would quietly lower the coverage shown.
         # Paths come out relative to the checkout (app/...), as sonar-project.properties expects.
@@ -135,6 +142,7 @@ jobs:
           python -m coverage combine .coverage.part-*
           python -m coverage xml -o coverage-backend.xml
           sed -i 's|<source>.*</source>|<source>.</source>|' coverage-backend.xml
+          test -s frontend/coverage/lcov.info  # the frontend's, from frontend.yml
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:

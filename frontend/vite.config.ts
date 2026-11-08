@@ -29,5 +29,13 @@ export default defineConfig({
     // One module graph per worker, not per file (~3.5x faster): what a file stubs, it leaves behind for none.
     isolate: false,
     unstubGlobals: true,
+    // `vitest run --coverage` (PR Check, for SonarQube): LCOV with repository-relative paths, as Skyulf's.
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', ['lcovonly', { projectRoot: fileURLToPath(new URL('..', import.meta.url)) }]],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/test-fixtures.ts', 'src/test-setup.ts', 'src/api/generated.ts'],
+    },
   },
 })
