@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import re
 import time
 from types import SimpleNamespace
@@ -136,7 +137,8 @@ def test_a_long_line_of_new_item_without_a_value_is_judged_at_once():
     from app.command_runner import REJECTED, rejected
     began = time.perf_counter()
     assert rejected("new-item " * 22_000) == REJECTED   # ~200 KB, no -Value
-    assert time.perf_counter() - began < 0.5
+    # (1.5 s on CI: a shared runner measuring coverage took 0.66 s; the bug took seconds)
+    assert time.perf_counter() - began < (1.5 if os.environ.get("CI") else 0.5)
 
 
 @pytest.mark.parametrize("refusal", [
