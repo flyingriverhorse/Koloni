@@ -30,17 +30,20 @@ def test_a_chat_made_before_follows_a_changed_project_setting(client, project_di
                             headers=OWN).status_code == 422
 
 
-def test_a_chat_with_no_project_has_the_defaults(client):
+def test_a_chat_with_no_project_has_the_defaults(client, project_dir):
     made = client.post("/api/conversations", headers=OWN).json()
     assert made["project_id"] is None
     assert {name: made[name] for name in (
         "spawn_approval", "spawn_max_depth", "spawn_max_agents", "spawn_max_parallel",
         "discussion_budget", "lead_work", "when_away", "away_minutes", "room_posts",
-        "room_tokens", "room_minutes")} == {
+        "room_tokens", "room_minutes", "room_min_tokens")} == {
         "spawn_approval": "auto", "spawn_max_depth": 2, "spawn_max_agents": 6,
         "spawn_max_parallel": 2, "discussion_budget": None, "lead_work": "delegates",
         "when_away": "waits", "away_minutes": 10, "room_posts": 40, "room_tokens": None,
-        "room_minutes": 30}
+        "room_minutes": 30, "room_min_tokens": 60_000}
+    # (B-414: and a new project's, which its chats follow)
+    project = client.post("/api/projects", json={"root_path": str(project_dir)}).json()
+    assert project["room_min_tokens"] == 60_000
 
 
 def test_a_nights_job_follows_the_project_not_the_evenings_chat(make_client, wait_run,

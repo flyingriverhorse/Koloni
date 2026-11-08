@@ -4,12 +4,15 @@ waits as the file claims see them, what an unopened room leaves, a room a sub-ag
 and the migration.
 """
 
+import asyncio
 import sqlite3
+from types import SimpleNamespace
 
 import pytest
 from alembic import command as alembic
 
 from app import room as rooms
+from app.agent.rooms_mixin import RoomsMixin
 from app.tools import ToolError
 from tests.conftest import Gate
 from tests.test_chat_flow import text
@@ -318,3 +321,48 @@ def test_an_answer_that_is_no_role_that_could_join_invites_nobody(
     invite_asked(model)  # (asked once: not for the call that said nothing)
     lead = next(a["id"] for a in snap["agents"] if a["name"] == "Lead")
     assert own_requests(client) == [(lead, 5, 3, False)]
+
+
+class _Asking:
+    """Just what `RoomsMixin._users_no` touches: the statuses it sets are kept, in order."""
+
+    def __init__(self):
+        self._spawn_decisions, self._ctxs, self.set = {}, {}, []
+
+    def _paid_heard(self, agent_id, yes):
+        pass
+
+    def _set_agent(self, cid, agent_id, **fields):
+        self.set.append((agent_id, fields["status"]))
+
+    def _update_run(self, run_id, cid, **fields):
+        pass
+
+    async def _users_word(self, ctx, word, back=True):
+        return await word
+
+
+def test_a_word_on_a_rooms_card_that_comes_as_its_call_is_cancelled_opens_nobody():
+    """B-412 review: the room call cancelled (its session's ToolServer.close()) and the user's yes
+    in the same tick - the yes is heard after the call ended and turned its members down: it sets
+    nobody back to waiting (`heard`'s guard). asyncio runs both in the order they came."""
+    asking, ctx = _Asking(), SimpleNamespace(cid="c", run_id="r")
+
+    async def opening():  # (as `_open_room` waits, and turns its members down: `_unopened`)
+        try:
+            await RoomsMixin._users_no(asking, ctx, ["a", "b"])
+        except BaseException:
+            asking.set.append(("a", "rejected"))
+            raise
+
+    async def go():
+        call = asyncio.ensure_future(opening())
+        await asyncio.sleep(0)  # (it waits for the word now)
+        call.cancel()
+        assert RoomsMixin.decide_spawn(asking, "a", "approve")
+        with pytest.raises(asyncio.CancelledError):
+            await call
+        await asyncio.sleep(0)  # (the yes is heard by now)
+
+    asyncio.run(go())
+    assert asking.set == [("a", "rejected")] and asking._spawn_decisions == {}
