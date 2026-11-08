@@ -58,7 +58,8 @@ KOLONİ watches the Orchestrator's tool calls. It stops it when:
 
 Something moves when a file of the turn changes, a command of its own succeeds, it opens an agent or
 sends a message. A call with other arguments, or one that gets a new result (a room's new post, a
-team's report), is new. From the third repeat on, the Orchestrator is told what is repeating.
+team's report), is new. A wait for a team or in a room counts as neither, however often it says
+the same. From the third repeat on, the Orchestrator is told what is repeating.
 
 In a turn you started, a card under the call asks you:
 

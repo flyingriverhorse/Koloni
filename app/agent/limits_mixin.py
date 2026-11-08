@@ -422,7 +422,7 @@ class LimitsMixin:
                 self._counts.pop(ctx.agent_id, None)
                 return None
         self._stopped_by_koloni(ctx)
-        with self._factory() as session:
+        with self._factory() as session:  # (written in the project, or a copy taken in)
             landed = session.scalar(select(FileChange.id).where(
                 FileChange.run_id == ctx.run_id, FileChange.status == "applied").limit(1))
         if landed is None:

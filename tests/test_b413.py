@@ -176,3 +176,34 @@ def test_a_looping_todo_task_is_blocked_with_why_and_the_next_task_runs(
     task_until(lambda: tasks(client, pid)["two"]["conversation_id"])
     assert worked(client, wait_run, pid, "two")["status"] == "review"
     assert client.get(f"/api/projects/{pid}/backlog/auto").json()["on"] is True
+
+
+def test_stopped_after_a_copy_was_taken_in_the_turn_is_completed(make_client, wait_run, project_dir):
+    # (the live B-413's own path: a Coder's copy, its Take in, then the Orchestrator went round)
+    from tests.test_claim_scenarios import write
+    from tests.test_copy_scenarios import one
+
+    opened = step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s"))
+    client, _model, cid, run_id = one(
+        make_client, project_dir, [step(write("a.txt", "A")), text("A done")],
+        lead=[opened, *circles(signs.IDLE_STOP + 1), text("never said")], permission_mode="ask")
+    card = until(client, cid, lambda s: [m for m in s["merges"] if m["status"] == "pending"],
+                 timeout=20)["merges"][0]
+    assert client.post(f"/api/merges/{card['id']}/approve").status_code == 200  # (Take in)
+    answer(client, asked(until(client, cid, asked, timeout=20)), "Stop here")
+    snap = wait_run(client, cid, run_id, timeout=20)
+    assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
+    assert [m["status"] for m in snap["merges"]] == ["applied"]  # (by the copy's Take in)
+    assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("completed", None)
+    assert f"The Orchestrator ended after this turn's work was in the project: {CIRCLES}" in [
+        m["content"] for m in snap["messages"] if m["role"] == "koloni"]
+
+
+def test_a_wait_that_says_the_same_is_no_repeat():
+    counts = signs.Counts()
+    for _ in range(3 * signs.IDLE_STOP):  # (a team at work for hours: the same answer each time)
+        counts.heard("wait_for_team", '{"team": "Backend / API"}', "still at work after 10 minutes")
+    assert counts.idle == 0
+    for _ in range(3):
+        counts.heard("list_dir", "{}", "hello.py")
+    assert counts.idle == 2

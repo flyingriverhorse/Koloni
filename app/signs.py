@@ -22,6 +22,9 @@ STOP_AT = 5  # in a turn nobody watches, the same failure this often ends the ag
 # B-413: the Orchestrator's calls in a row that brought nothing new, which stop it -
 # twice STOP_AT: it is told of a repeat from SIGN_AT on, and has calls left to change course.
 IDLE_STOP = 10
+# ...and what is neither new nor a repeat: a wait for others' work, which may say the same for as
+# long as a team works ("still at work after 10 minutes").
+WAITS = frozenset(("wait_for_team", "wait_for_room", "wait_for_post", "wait_for_item"))
 IDLE = ("its last {count} calls each repeated one it had made, with the same result, with no "
         "change of this turn on record and no command of its own succeeding in between.")
 FAILED = "failed {count} times with the same arguments and the same error"
@@ -90,7 +93,9 @@ class Counts:
 
     def heard(self, tool: str, arguments: str, said: str) -> None:
         """A call's result: one that repeats a call and its result since something moved adds
-        to `idle`; any other sets it back to 0."""
+        to `idle`; a wait (WAITS) leaves it as it is; any other sets it back to 0."""
+        if tool in WAITS:
+            return
         key = (tool, _canonical(arguments), same_error(said))
         self.idle = self.idle + 1 if key in self._heard else 0
         self._heard.add(key)
