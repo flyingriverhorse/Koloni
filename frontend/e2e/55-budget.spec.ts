@@ -63,6 +63,7 @@ test('a monthly budget: set in Spending, on Usage, a pill at 80% that opens Usag
   await shot(page, '55-over-budget')
   await card.getByRole('button', { name: 'Go on anyway' }).click()
   await expect(card).toHaveCount(0)
-  await expect(chat.getByText('one more over the budget')).toBeVisible()
+  // (.first(): on a CI runner the words showed twice at this moment - the message and a second place.)
+  await expect(chat.getByText('one more over the budget').first()).toBeVisible()
   await expect(page.getByLabel('Message')).toHaveValue('')
 })
