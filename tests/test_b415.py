@@ -123,24 +123,33 @@ def test_a_lead_stopped_while_its_coder_works_leaves_the_coders_work_to_take_in(
     assert (project_dir / "a.py").read_bytes() == b"a\n" and (project_dir / "b.md").exists()
 
 
+@pytest.mark.parametrize("new_lead_ends_first", [False, True])
 def test_a_lead_opened_again_before_the_coder_is_back_owns_the_rows_end(
-        settings_env, wait_run, project_dir):
+        settings_env, wait_run, project_dir, new_lead_ends_first):
     # The live Lead, told "Web app lead failed", opens it again: the old Coder then finishes while
-    # the new lead thinks - the old lead's end must not fail the row under the new one.
+    # the new lead thinks - the old lead's end must not fail the row under the new one. Or the
+    # new lead ends first: the Coder coming back then ends the row by the new lead's end.
     thinks = Gate()
     lead_steps = [BOTH_LEADS, spawn("Web app lead", "go on from the Coder's work", "l3"),
-                  *(text(said) for said in ("done", "read", "taken in", "over"))]
+                  *(text(said) for said in ("done", "read", "taken in", "over", "more", "end"))]
     with two_teams(settings_env, project_dir, lead_steps, two_steps, thinks) as (
             client, cid, run_id, built):
         stopped_lead(client, cid)
         until(client, cid, lambda s: [a["status"] for a in s["agents"]
                                       if a["role_name"] == "Web app lead"][1:] == ["running"])
-        built.release()
-        snap = until(client, cid, lambda s: any(
-            a["role_name"] == "Coder" and a["status"] == "completed" for a in s["agents"])
-            and row(s)["steps"][0]["state"] == "done")
+        first, then = (thinks, built) if new_lead_ends_first else (built, thinks)
+        first.release()
+
+        def over(s):
+            if new_lead_ends_first:
+                return [a["status"] for a in s["agents"]
+                        if a["role_name"] == "Web app lead"][1:] == ["completed"]
+            return any(a["role_name"] == "Coder" and a["status"] == "completed"
+                       for a in s["agents"]) and row(s)["steps"][0]["state"] == "done"
+
+        snap = until(client, cid, over)
         assert (row(snap)["status"], row(snap)["why"]) == ("running", None)  # the new lead's
-        thinks.release()
+        then.release()
         snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=30)
         assert row(snap)["status"] == "stopped" and row(snap)["why"].startswith(
             "Web app lead 2 ended before its end")  # (the new lead's end, not the old one's)

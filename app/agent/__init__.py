@@ -6353,8 +6353,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 step, given = changes.pop()
                 self._users_card(ctx, f"Ask me: {step}", given, self._who_answered(ctx, ids),
                                  role=child.role)
-        if ctx.agent_id in self._leads_gone:  # (B-415: the last of its agents may be back now)
-            self._lead_ended(ctx, self._leads_gone[ctx.agent_id])
+        # B-415: the last agent at work of a lead that ended may be back now - its opener's, or a
+        # lead opened again after it, which owns the row (`_row_taken_over`).
+        for gone in [one for one in self._ctxs.values()
+                     if one.run_id == ctx.run_id and one.agent_id in self._leads_gone]:
+            self._lead_ended(gone, self._leads_gone[gone.agent_id])
         return went + said
 
     def _users_card(self, ctx: Ctx, card: str, word: str, who: str = "The user",
