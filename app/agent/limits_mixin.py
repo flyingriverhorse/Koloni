@@ -10,7 +10,7 @@ from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, select
 
 from app import away, project_map, recipe_run, signs
 from app.agent.cards import _goes_on, _steps_of_chain
@@ -533,9 +533,34 @@ class LimitsMixin:
         if run_id in self._away_jobs or not hours:  # (a night's job: `_arm_deadline`)
             return
         later = self.call_later or asyncio.get_running_loop().call_later
-        self._away_timers[run_id] = later(hours * 3600.0, self._over_budget, run_id,
-                                          TODO_TOO_LONG.format(hours=hours,
-                                                               s="" if hours == 1 else "s"))
+        self._away_timers[run_id] = later(hours * 3600.0, self._todo_ceiling, run_id, hours)
+
+    def _todo_ceiling(self: "AgentRunner", run_id: str, hours: int) -> None:
+        """`_arm_todo_deadline`'s hours are up: the turn stops - not one that waits for the
+        user's word (a To-do task's card waits for it, K-r135), as a night's job that waits is
+        spared (`_deadline`): its ceiling is looked at again a minute later."""
+        with self._factory() as session:
+            waits = self._waits_for_user(session, run_id)
+        if waits:
+            later = self.call_later or asyncio.get_running_loop().call_later
+            self._away_timers[run_id] = later(MINUTE, self._todo_ceiling, run_id, hours)
+            return
+        self._over_budget(run_id, TODO_TOO_LONG.format(hours=hours, s="" if hours == 1 else "s"))
+
+    def _waits_for_user(self: "AgentRunner", session, run_id: str) -> bool:
+        """Whether a turn waits for the user's word: a card, a command, a change or an agent
+        asked about, or a night's job that waits."""
+        run = session.get(Run, run_id)
+        if run is None:
+            return False
+        task = away.job_of(session, run.conversation_id)
+        return run.status == "waiting_approval" or self._asking.get(run_id, 0) > 0 or (
+            task is not None and task.away_state == "waits") or any(
+            session.scalar(query.limit(1)) is not None for query in (
+                select(Command.id).where(Command.run_id == run_id, Command.status == "proposed"),
+                select(Agent.id).where(Agent.run_id == run_id, Agent.status == "proposed"),
+                select(FileChange.id).where(FileChange.run_id == run_id,
+                                            FileChange.status == "proposed")))
 
     def _progress(self: "AgentRunner", run_id: str, arm: bool = False) -> None:
         """B-413: something real moved in a turn nobody watches - a file of it changed, an agent
@@ -553,31 +578,27 @@ class LimitsMixin:
 
     def _progress_due(self: "AgentRunner", run_id: str) -> None:
         """`_progress`'s minutes are up: the turn stops as one over its budget does, failed with
-        why - unless it is not idle, and its clock starts again: it waits for the user (a card,
-        a command, a change or an agent asked about; a night's job that waits), a command of it
-        runs or a model step is under way (they have time limits of their own), an agent below
-        the Orchestrator took a step, or within those minutes a file of it changed (a native CLI's
-        own edits too, on record as they are seen) or an agent of it finished."""
+        why - unless it is not idle, and its clock starts again: it waits for the user
+        (`_waits_for_user`), a command of it runs or a model step is under way (they have time
+        limits of their own), an agent below the Orchestrator took a step of its work (not of an
+        answer to a message: an exchange of messages alone does not keep it going -
+        `_worked_below`), or within those minutes a file of it changed (a native CLI's own edits
+        too, on record as they are seen) or an agent of it finished."""
         with self._factory() as session:
             minutes = away.unattended(session)[0]
-            run = session.get(Run, run_id)
-            if run is None:
+            if session.get(Run, run_id) is None:
                 return
             since = now() - timedelta(minutes=minutes)
-            task = away.job_of(session, run.conversation_id)
-            busy = run.status == "waiting_approval" or self._asking.get(run_id, 0) > 0 or (
-                task is not None and task.away_state == "waits") or any(
+            busy = self._waits_for_user(session, run_id) or (
+                self._worked_below.get(run_id, since) > since) or any(
                 session.scalar(query.limit(1)) is not None for query in (
-                    select(Command.id).where(Command.run_id == run_id, or_(
-                        Command.status == "proposed",
-                        and_(Command.status == "running", Command.keep_running.is_(False)))),
+                    select(Command.id).where(Command.run_id == run_id, Command.status == "running",
+                                             Command.keep_running.is_(False)),
                     select(Message.id).where(Message.run_id == run_id,
                                              Message.status == "streaming"),
-                    select(Agent.id).where(Agent.run_id == run_id, or_(
-                        Agent.status == "proposed", Agent.ended_at >= since,
-                        and_(Agent.depth > 0, Agent.last_event_at >= since))),
-                    select(FileChange.id).where(FileChange.run_id == run_id, or_(
-                        FileChange.status == "proposed", FileChange.created_at >= since))))
+                    select(Agent.id).where(Agent.run_id == run_id, Agent.ended_at >= since),
+                    select(FileChange.id).where(FileChange.run_id == run_id,
+                                                FileChange.created_at >= since)))
         if busy:
             self._progress_timers.pop(run_id, None)
             self._progress(run_id, arm=True)

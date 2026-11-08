@@ -1230,6 +1230,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._away_timers: dict[str, asyncio.TimerHandle] = {}
         # B-413: run id -> when a turn nobody watches ends where nothing moved (`_progress`)
         self._progress_timers: dict[str, asyncio.TimerHandle] = {}
+        # ...and when an agent below its Orchestrator last took a step of its work (`_counted`)
+        self._worked_below: dict[str, datetime] = {}
         # Slice 84b-2. run id -> its lead, for a turn that runs a chat team's recipe: as in a
         # room, its agents change files in the lead's one copy, taken in at "Ready for you".
         self._recipe_copy: dict[str, str] = {}
@@ -1866,6 +1868,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             timer.cancel()
         if (timer := self._progress_timers.pop(run_id, None)) is not None:
             timer.cancel()
+        self._worked_below.pop(run_id, None)
         self._recipe_copy.pop(run_id, None)
         self._disputed.pop(run_id, None)
         # (After its copy is gone: until then its members' changes are that copy's.)
@@ -4774,6 +4777,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         wait is no repeat; an agent opened, a message to one not written to of late, a move), and
         what of it is real progress in a turn nobody watches (`_progress`)."""
         name, arguments = request.name, request.arguments
+        if ctx.depth and not ctx.answering:  # (B-413: alive for `_progress_due`)
+            self._worked_below[ctx.run_id] = now()
         waited = name in signs.WAITS and started is not None and (now() - started.replace(
             tzinfo=started.tzinfo or UTC)).total_seconds() >= signs.WAIT_INSTANT
         counts.heard(name, arguments, output, step, waited)

@@ -478,7 +478,7 @@ def test_nothing_moving_for_its_minutes_blocks_the_task_and_the_next_one_runs(
 @pytest.mark.parametrize("what", ["command", "file", "agent"])
 def test_what_is_under_way_keeps_its_clock_from_ending_it(silent_todo, wait_run, what):
     # (a long command, a native CLI's own edit on record, an agent below it at work)
-    from app.db.models import Agent, Command, FileChange, now
+    from app.db.models import Command, FileChange, now
 
     client, clock, pid = silent_todo(hangs=1)
     auto(client, pid, True)
@@ -490,11 +490,13 @@ def test_what_is_under_way_keeps_its_clock_from_ending_it(silent_todo, wait_run,
            "file": lambda: FileChange(run_id=run_id, agent_id=lead, path="model.py", kind="create",
                                       after_content="x", after_sha="0" * 64, status="in_copy",
                                       origin="cli"),
-           "agent": lambda: Agent(run_id=run_id, role_name="Reviewer", name="Reviewer", tools=[],
-                                  depth=1, status="running", last_event_at=now())}[what]()
-    with client.app.state.runner._factory() as session:
-        session.add(row)
-        session.commit()
+           "agent": lambda: None}[what]()
+    if row is None:  # (a step of its work, as `_counted` notes it: not an answer to a message)
+        client.app.state.runner._worked_below[run_id] = now()
+    else:
+        with client.app.state.runner._factory() as session:
+            session.add(row)
+            session.commit()
     (timer,) = lead_timers(clock, 30 * 60.0)
     fire(client, timer)
     run = next(r for r in client.get(f"/api/conversations/{cid}").json()["runs"]
@@ -514,6 +516,26 @@ def test_a_slow_model_step_keeps_its_clock_from_ending_it(make_client, wait_run,
     step_held.wait_partial()  # (a model step under way: its message is open)
     fire(client, lead_timers(clock, 30 * 60.0)[-1])
     step_held.release()
+    assert worked(client, wait_run, pid, "one")["status"] == "review"
+
+
+def test_a_todo_task_that_waits_for_the_user_is_spared_by_its_ceiling_too(
+        make_client, wait_run, project_dir, monkeypatch):
+    from tests.test_backlog_symphony import full_auto
+
+    asks = step(call("run_command", {"command": "cmd /c echo hi"}, "k1"))  # (runs another)
+    client, clock, pid = todo_held(make_client, project_dir, monkeypatch, asks,
+                                   text("one done"), text("two done"))
+    full_auto(client, pid)
+    auto(client, pid, True)
+    cid = task_until(lambda: tasks(client, pid)["one"]["waiting"]
+                     and tasks(client, pid)["one"]["conversation_id"])
+    fire(client, lead_timers(clock, 8 * 3600.0)[0])  # (its hours are up while its card waits)
+    snap = client.get(f"/api/conversations/{cid}").json()
+    assert snap["runs"][-1]["status"] == "waiting_approval"
+    assert lead_timers(clock, 60.0)  # (looked at again a minute later)
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
     assert worked(client, wait_run, pid, "one")["status"] == "review"
 
 
@@ -580,3 +602,21 @@ def test_a_triggers_turn_longer_than_the_stuck_minutes_has_their_clock_too(
                    budget={"steps": 15, "minutes": 60, "per_day": 24})
     wait_run(client, cid, run_now(client, made["id"]))
     assert sorted(t.delay for t in clock.set if t.delay >= 60 * 10) == [30 * 60, 60 * 60]
+
+
+def test_an_answer_to_a_message_is_no_step_of_work_for_the_clock(make_client, wait_run,
+                                                                 project_dir):
+    from app.model_client import ToolCallRequest
+
+    client, _model = make_client([text("hi")])
+    cid, run_id = begin(client, project_dir)
+    wait_run(client, cid, run_id)
+    runner = client.app.state.runner
+    lead = client.get(f"/api/conversations/{cid}").json()["agents"][0]["id"]
+    look = ToolCallRequest("x", "list_dir", "{}")
+    replying = SimpleNamespace(agent_id=lead, run_id=run_id, cid=cid, depth=1, answering=True)
+    runner._counted(replying, "x", look, "succeeded", "hello.py")
+    assert run_id not in runner._worked_below  # (a ping-pong of messages keeps nothing going)
+    runner._counted(SimpleNamespace(**{**vars(replying), "answering": False}), "x", look,
+                    "succeeded", "hello.py")
+    assert run_id in runner._worked_below
