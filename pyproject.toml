@@ -16,7 +16,7 @@ dependencies = [
   "httpx>=0.28,<0.29",
   "httpx2>=2,<3",
   "starlette>=1.6,<2",
-  "sqlalchemy>=2.0,<2.1",
+  "sqlalchemy>=2.0,<2.2",
   "alembic>=1.16,<2",
   # A PDF's text, for one attached to a chat (slice 85b): BSD-3-Clause, pinned.
   "pypdf==6.20.0",
