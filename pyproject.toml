@@ -19,7 +19,7 @@ dependencies = [
   "sqlalchemy>=2.0,<2.1",
   "alembic>=1.16,<2",
   # A PDF's text, for one attached to a chat (slice 85b): BSD-3-Clause, pinned.
-  "pypdf==6.20.0",
+  "pypdf==6.21.4",
 ]
 
 [project.optional-dependencies]
@@ -32,7 +32,7 @@ dev = [
 ]
 # The user guide (docs): `zensical build` (zensical.toml).
 docs = [
-  "zensical==0.0.74",
+  "zensical==0.1.0",
 ]
 
 [tool.hatch.build.targets.wheel]
