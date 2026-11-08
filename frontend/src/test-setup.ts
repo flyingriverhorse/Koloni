@@ -7,6 +7,8 @@ import { useVoice } from './voice/voice'
 afterEach(cleanup)
 // The files of a worker share their modules (isolate: false, vite.config.ts): each starts from the stores a new page has.
 beforeAll(() => {
+  // (And the browser storage a new page has: an earlier file's closed chat panel hid the tabs of a later one.)
+  if (typeof window !== 'undefined') localStorage.clear()
   resetStoreForTests()
   useVoice.setState(useVoice.getInitialState(), true)
 })
