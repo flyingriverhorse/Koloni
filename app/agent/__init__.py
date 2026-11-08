@@ -5561,13 +5561,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 count = len([e for e in recipe_run.at_work(state) if e["ok"] is not False])
                 # B-184: the one already at work named (KOLONİ may have opened it beside
                 # another of a group), and what to do in place of opening it again.
-                mine = [(session.get_one(Agent, e["agent"]).name, e["ok"]) for e in
-                        recipe_run.at_work(state) if e["ok"] is not False
-                        and e["role"].casefold() == role.name.casefold()]
-                busy = " and ".join(name for name, ok in mine if ok is None)
-                did = " and ".join(name for name, ok in mine if ok)
-                there = (f" {busy} is already at work on it: do not open it again - wait for "
-                         "its report, or message it with message_agent." if busy else "") + (
+                mine = [(session.get_one(Agent, e["agent"]).name, e["ok"],
+                         e["agent"] in self._spawn_decisions) for e in recipe_run.at_work(state)
+                        if e["ok"] is not False and e["role"].casefold() == role.name.casefold()]
+                # B-412: one whose card waits for the user is not at work yet - nor given up on.
+                asked = " and ".join(name for name, ok, card in mine if ok is None and card)
+                busy = " and ".join(name for name, ok, card in mine if ok is None and not card)
+                did = " and ".join(name for name, ok, _card in mine if ok)
+                there = (f" {asked} waits for the user's approval of its card: do not open it "
+                         "again, nor give up on the step - wait for it." if asked else "") + (
+                    f" {busy} is already at work on it: do not open it again - wait for "
+                    "its report, or message it with message_agent." if busy else "") + (
                     f" {did} already did it: its report is its spawn_agent result - do not "
                     "open it again." if did else "")
                 if count < most and not recipe_run.has_room(state, role.name):

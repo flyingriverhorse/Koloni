@@ -362,7 +362,13 @@ class RoomsMixin:
             # One room, one word: a member that changes nothing still works beside the
             # ones that do, in their copy.
             ids = [child.agent_id for child, _role in members]
-            turned_down = await self._users_no(ctx, ids) if asks else None
+            try:
+                turned_down = await self._users_no(ctx, ids) if asks else None
+            except BaseException:
+                # B-412 (live, Ask): a call that ended while its cards waited (a CLI that gave
+                # up on it) left its members in the step's places - the next open_room refused.
+                self._unopened(ctx, [child for child, _role in members])
+                raise
             if turned_down is not None:
                 self._unopened(ctx, [child for child, _role in members])
                 await self._settle(ctx)

@@ -19,10 +19,17 @@ Contract:
 """
 
 import json
+from types import SimpleNamespace
 
+from app.agent import AgentRunner
+from app.config import load_settings
+from app.main import create_app
 from app.recipe_run import cap, slot_map
 from app.schemas import RecipeGraph
+from app.tools import ToolError
 from tests.conftest import Gate
+from tests.fakes import ScriptedModel
+from tests.keyed import TestClient
 from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import OWN, teams_of
 from tests.test_discussion import discuss
@@ -213,6 +220,64 @@ def test_a_teams_lead_opens_a_room_in_its_step_and_its_work_is_the_recipes(make_
     assert (project_dir / "hello.py").read_bytes() == YO and (project_dir / "b.md").exists()
 
 
+def test_a_teams_lead_whose_room_call_ended_while_its_cards_waited_opens_it_again_at_ask(
+        make_client, wait_run, project_dir, monkeypatch):
+    """B-412 (live, Ask): a team lead's open_room ended on KOLONİ's side while its members' cards
+    waited for the user (a CLI that gave up on the call) - its members stayed in the step's
+    places, and its next open_room was refused ("draws 2 agents, and has them", "Coder is already
+    at work"); the lead gave up and its Lead asked the user. The members of a room call that ends
+    unopened free their places: the next call opens the room, which runs once its cards are approved."""
+    first = []
+    original = AgentRunner._users_no
+
+    async def withdrawn_once(self, ctx, ids):
+        if not first:
+            first.append(ids)
+            raise ToolError("the call was withdrawn")  # (as a CLI that no longer waits for it)
+        return await original(self, ctx, ids)
+
+    monkeypatch.setattr(AgentRunner, "_users_no", withdrawn_once)
+    client, _model = make_client({
+        "Lead": [step(call("spawn_agent", {"role": "Web app lead", "task": "the page"}, "l1"),
+                      call("spawn_agent", {"role": "Docs lead", "task": "the words"}, "l2")), text("done")],
+        "Web app lead": [open_room(id="o1"), open_room(id="o2"), text("web done")],
+        "Docs lead": [spawn("Docs writer", "write b.md", "d"), text("docs done")],
+        "Docs writer": [step(call("write_file", {"path": "b.md", "content": "b\n"}, "w")), text("written")],
+        # (the second call's members: the first call's names stay on record, turned down)
+        "Coder 2": WORK["Coder"], "Reviewer 2": WORK["Reviewer"],
+    })
+    teams = teams_of(client)
+    lead = teams["Web app"]["lead"]
+    assert client.patch(f"/api/roles/{lead['id']}", json={"tools": [*lead["tools"], "open_room"]},
+                        headers=OWN).status_code == 200
+    words = made(client, "Just write", graph([part("do", "Write", {"role": "Docs writer"})],
+                                             [("start", "do"), ("do", "end")]))
+    cid, run_id = begin(client, project_dir, mode="ask", teams_mode="manual", teams=[
+        {"team_id": teams["Web app"]["id"], "recipe_id": meeting(client)["id"]},
+        {"team_id": teams["Docs"]["id"], "recipe_id": words["id"]}])
+
+    def approved(snap):  # (the user says yes to every card that waits)
+        for agent in [a for a in snap["agents"] if a["status"] == "proposed"]:
+            client.post(f"/api/agents/{agent['id']}/approve", headers=OWN)
+        assert snap["runs"][0]["status"] != "failed", snap["runs"][0]["error"]
+        return asked(snap) and READY in asked(snap)["question"]
+
+    snap = until(client, cid, approved, timeout=20)
+    opened = [(t["status"], t["result"]) for t in snap["tool_calls"] if t["name"] == "open_room"]
+    assert opened[0][0] == "failed" and len(opened) == 2
+    assert opened[1][0] == "succeeded", opened[1][1]
+    # Its first members were never opened: not on record as at work, nor in the step's places.
+    gone = {a["id"]: a["status"] for a in snap["agents"] if a["id"] in first[0]}
+    assert set(gone.values()) == {"rejected"}, gone
+    assert not set(first[0]) & set(row(snap)["agents"])
+    assert snap["rooms"][0]["status"] == "ended" and row(snap)["status"] == "ready"
+    # Nobody asked the user anything but Ready for you.
+    assert [q["question"] for q in snap["questions"] if READY not in q["question"]] == []
+    answer(client, asked(snap), "Take in")
+    wait_run(client, cid, run_id, timeout=15)
+    assert (project_dir / "hello.py").read_bytes() == YO
+
+
 def test_a_teams_lead_asks_the_user_nothing_while_its_recipe_runs_its_roles_do_the_work(
         make_client, wait_run, project_dir):
     """B-202 (live): a team's lead, with no tool that writes, asked the user to route its file
@@ -318,6 +383,49 @@ def test_one_step_opens_as_many_as_it_draws_and_no_more(make_client, wait_run, p
     snap = wait_run(client, cid, run_id)
     refused = [said for status, said in by_call(snap) if status == "failed"]
     assert len(refused) == 1 and "Build it" in refused[0] and "draws 1" in refused[0]
+
+
+class _AsksTwice(ScriptedModel):
+    """A CLI session Lead (its spawn_agent answered "proposed" at once, K-paralel-spawn) that asks
+    for the step's Coder again while the first one's card waits; the Coder only answers."""
+
+    session = True
+
+    def __init__(self):
+        super().__init__([])
+        self.said = []
+
+    async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None, effort=None,
+                          on_live=None):
+        if "Your name here is Coder" in str(messages[0]["content"]):
+            await on_text("built")
+        elif not self.said:
+            for task in ("a", "b"):
+                self.said.append((await call_tool("spawn_agent", json.dumps({"role": "Coder", "task": task})))[:2])
+            await on_text("asked")
+        else:
+            await on_text("done")
+        return SimpleNamespace(input_tokens=5, output_tokens=1, model=None)
+
+
+def test_one_more_of_a_step_whose_agents_card_waits_is_told_to_wait_for_the_users_approval(
+        settings_env, project_dir):
+    # B-412: "Coder is already at work on it" of one whose card waited read as a step given up on.
+    cli = _AsksTwice()
+    with TestClient(create_app(load_settings(settings_env), model=cli), base_url="http://127.0.0.1:8790") as client:
+        client.headers.update(OWN)
+        build = made(client, "Just build", graph([part("do", "Build it", {"role": "Coder"})],
+                                                 [("start", "do"), ("do", "end")], ends=({"id": "end", "then": "report"},)))
+        cid, run_id = begin(client, project_dir, mode="ask", teams_mode="manual",
+                            teams=[{"team_id": teams_of(client)["Web app"]["id"], "recipe_id": build["id"]}])
+        snap = until(client, cid, lambda s: len(cli.said) == 2, timeout=15)
+        (first, proposed), (second, refused) = cli.said
+        assert first and proposed.startswith("proposed: Coder waits") and not second
+        assert "Coder waits for the user's approval of its card" in refused, refused
+        assert "already at work" not in refused
+        (card,) = [a for a in snap["agents"] if a["status"] == "proposed"]
+        assert client.post(f"/api/agents/{card['id']}/approve").status_code == 200
+        until(client, cid, lambda s: s["runs"][0]["status"] == "completed", timeout=15)
 
 
 def test_the_runs_total_comes_from_the_drawing():
