@@ -165,7 +165,9 @@ def test_a_change_an_agent_proposes_waits_and_an_assessment_does_not(make_client
 
 
 def test_work_the_backlog_starts_the_next_task_and_its_end_waits_for_review(make_client, project_dir, wait_run):
-    client, _model = make_client([text("made the form")])
+    # (One reply for each task: both start at once (MAX_PARALLEL), and with one, the task that
+    # asked second got none - "pop from empty list" on a CI runner, its turn and fix round failed.)
+    client, _model = make_client([text("made the form"), text("made the form")])
     client.headers.update(ORIGIN)
     pid = project(client, project_dir)
     add(client, pid, "later", priority="low")
