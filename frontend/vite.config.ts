@@ -29,6 +29,8 @@ export default defineConfig({
     // One module graph per worker, not per file (~3.5x faster): what a file stubs, it leaves behind for none.
     isolate: false,
     unstubGlobals: true,
+    // (15 s on CI: measured for coverage there, a long RoleEditor test took 5.06 s of vitest's 5.)
+    testTimeout: process.env.CI ? 15_000 : 5_000,
     // `vitest run --coverage` (PR Check, for SonarQube): LCOV with repository-relative paths, as Skyulf's.
     coverage: {
       provider: 'v8',
