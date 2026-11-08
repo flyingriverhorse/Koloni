@@ -3,9 +3,16 @@ steps after merging): the Orchestrator is told once of a team the user gave the 
 not open, and so is the user; it has steps for each of its teams; Settings › The app's "Steps an
 agent may take" is the app's step limit."""
 
+import json
 from dataclasses import replace
+from types import SimpleNamespace
 
+from app.config import load_settings
+from app.main import create_app
+from tests.fakes import ScriptedModel
+from tests.keyed import TestClient
 from tests.test_chat_flow import text
+from tests.test_chat_teams_scenarios import teams_of
 from tests.test_spawn import begin, call, spawn, step
 from tests.test_team_requests_scenarios import API, agent, two_teams
 
@@ -58,3 +65,57 @@ def test_the_orchestrators_steps_grow_with_its_teams(make_client, wait_run, proj
     cid, run_id = two_teams(client, project_dir)
     snap = wait_run(client, cid, run_id, timeout=20)
     assert agent(snap, "Lead")["status"] == "completed", agent(snap, "Lead")["error"]
+
+
+# B-413 (REA's R219-R220, PLAN-T112-05: three teams, a room, messages between leads; the
+# Orchestrator ended on `step_limit` after the work was in the project, "at 25"): it had the
+# app's 25 and 8 for each of its three led teams - 49 - on a session's path as on a step's.
+THREE = ("Backend / API", "Web app", "Docs")
+
+
+def three_teams(client, project_dir, mode="ask"):
+    teams = teams_of(client)
+    return begin(client, project_dir, mode=mode, teams_mode="manual",
+                 teams=[{"team_id": teams[name]["id"]} for name in THREE])
+
+
+def looks(n):  # (each another call: none is the same as one before it)
+    return [step(call("list_dir", {"path": f"nowhere{i}"}, f"k{i}")) for i in range(n)]
+
+
+def test_the_orchestrator_of_three_led_teams_has_25_and_8_for_each(
+        make_client, wait_run, project_dir):
+    client, model = make_client([*looks(60), text("never said")])
+    cid, run_id = three_teams(client, project_dir)
+    snap = wait_run(client, cid, run_id, timeout=30)
+    assert (agent(snap, "Lead")["error"], len(model.calls)) == ("step_limit", 25 + 3 * 8)
+
+
+class Looking(ScriptedModel):
+    """A CLI session for the Lead: a message and a call of another path, 60 times."""
+
+    session = True
+
+    def __init__(self):
+        super().__init__([])
+        self.looked = 0
+
+    async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None,
+                          effort=None, on_live=None):
+        for i in range(60):
+            await on_text(f"Looking at nowhere{i}.")
+            await call_tool("list_dir", json.dumps({"path": f"nowhere{i}"}))
+            self.looked += 1
+        await on_text("never said")
+        return SimpleNamespace(input_tokens=5, output_tokens=1, model=None)
+
+
+def test_a_session_orchestrator_of_three_led_teams_has_25_and_8_for_each(
+        settings_env, wait_run, project_dir):
+    cli = Looking()
+    with TestClient(create_app(load_settings(settings_env), model=cli),
+                    base_url="http://127.0.0.1:8790") as client:
+        client.headers["Origin"] = OWN["Origin"]
+        cid, run_id = three_teams(client, project_dir)
+        snap = wait_run(client, cid, run_id, timeout=30)
+    assert (snap["runs"][0]["error"], cli.looked) == ("step_limit", 25 + 3 * 8)
