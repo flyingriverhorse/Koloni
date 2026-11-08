@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.backlog import LISTED
+from app.db.models import ROOM_MIN_TOKENS
 from app.model_client import EFFORTS
 from app.providers import CLI_COMMANDS, TIERS
 from app.roles import shown_name
@@ -904,7 +905,9 @@ OPEN_ROOM_SCHEMA = _fn(
             "description": "Optional: at most how many posts, tokens and minutes it may "
             "spend (tokens: all its members' steps send and write, each resending its "
             "context; no token limit unless one is set). Never more than the conversation "
-            "lets a room spend; left out, that.",
+            "lets a room spend; left out, that. Tokens are never fewer than the least the user "
+            f"gives a room ({ROOM_MIN_TOKENS} unless they changed it): one member's step with its "
+            "context takes some 8000-9000, so a smaller budget is raised to it.",
         },
         "follow": {"type": "boolean", "description": "Optional, true when left out: you follow "
                    "the room while it runs. false: you only wait for its record."},

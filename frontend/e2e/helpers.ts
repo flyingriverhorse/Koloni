@@ -34,7 +34,7 @@ export async function setProject(page: Page, data: Record<string, unknown>) {
 /** A project's sub-agent settings as a new one has them (`Project`, 0147). */
 const SUB_AGENT_DEFAULTS = {
   spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6, spawn_max_parallel: 2, when_away: 'waits', away_minutes: 10,
-  discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30,
+  discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000,
 }
 
 /**

@@ -14,7 +14,7 @@ model's line under the message box. See [Settings](../settings.md#this-chat).
 |---|---|
 | **Agents** | Who changes the files · Finish only when the tests pass · Have a model look over each sub-agent's report |
 | **Asking and away** | Opening a sub-agent · When you're away |
-| **New chats start with** | New chats' teams · Other folders · Posts, at most · Minutes, at most · Tokens, at most |
+| **New chats start with** | New chats' teams · Other folders · Posts, at most · Minutes, at most · Tokens, at most · Tokens, at least |
 | **Limits and money** | At most this many agents at work in this project · Agents at the same time · Sub-agent levels · Sub-agents per request · Continue gives this many more steps · Stop the work on a message over this many tokens · A discussion's tokens, at most · Monthly budget |
 | **Commands and secrets** | This machine / Docker container · Image · Allow network access · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |
 | **Runs without asking** | Sites agents open · Commands and requests, by chat |

@@ -21,6 +21,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship
 
+# B-414 (live): a room asked for with 5000 tokens ended with no post - one member's step, with its
+# context, came to some 8,500. Its members and the agent that follows it all count (`room_spent`):
+# one step each for six members and their follower is some 60,000.
+# shortcut: one number whatever the room's size; scale it by its members if a big room is seen
+# ending on its tokens before each has posted.
+ROOM_MIN_TOKENS = 60_000
+
 
 def new_id() -> str:
     return uuid.uuid4().hex
@@ -197,6 +204,10 @@ class Project(Base):
     room_posts: Mapped[int | None] = mapped_column(Integer, default=40, server_default="40")
     room_tokens: Mapped[int | None] = mapped_column(Integer, default=None)
     room_minutes: Mapped[int | None] = mapped_column(Integer, default=30, server_default="30")
+    # B-414: the least tokens an agent's room is given, whatever it asks (`room_tokens` wins
+    # where it is lower); None: none.
+    room_min_tokens: Mapped[int | None] = mapped_column(
+        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS))
     # 89m: whether a Claude Code agent that changed files finishes only once the tests pass.
     # None: automatic (`app.finish_tests.automatic`).
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
@@ -265,6 +276,8 @@ class Conversation(Base):
     room_posts: Mapped[int | None] = mapped_column(Integer, default=40, server_default="40")
     room_tokens: Mapped[int | None] = mapped_column(Integer, default=None)
     room_minutes: Mapped[int | None] = mapped_column(Integer, default=30, server_default="30")
+    room_min_tokens: Mapped[int | None] = mapped_column(
+        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS))
     # Folders outside the project this conversation also works in: its folder's at its
     # start, named in the user's own messages, allowed from a card ("Allow this folder") or
     # added in "This chat's folders" (slice 86b). Its agents use these lists only.
@@ -298,7 +311,7 @@ def project_of(session, conversation: Conversation) -> Project | None:
 # What of a chat is read from its folder (`settings_of`); and `lead_work` (`lead_work_of`).
 SPAWN = ("spawn_approval", "spawn_max_depth", "spawn_max_agents", "spawn_max_parallel")
 FOLLOWED = (*SPAWN, "discussion_budget", "when_away", "away_minutes", "room_posts", "room_tokens",
-            "room_minutes")
+            "room_minutes", "room_min_tokens")
 
 
 def settings_of(session, conversation: Conversation) -> Project | Conversation:

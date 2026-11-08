@@ -479,10 +479,14 @@ class RoomsMixin:
         return between
 
     def _open_room_limits(self: "AgentRunner", session, conversation, asked) -> dict:
-        """`_open_room`: what the room may spend - what was asked, never past the settings."""
+        """`_open_room`: what the room may spend - what was asked, never past the settings; its
+        tokens never below their least either (B-414: raised, not refused - the most wins)."""
+        own = settings_of(session, conversation)
+        asked = {**asked, "tokens": max(asked["tokens"], own.room_min_tokens or 0)} if (
+            "tokens" in asked) else asked
         limits = {}
         for key in ("posts", "tokens", "minutes"):
-            most = getattr(settings_of(session, conversation), f"room_{key}")
+            most = getattr(own, f"room_{key}")
             limits[key] = most if key not in asked else (
                 asked[key] if most is None else min(asked[key], most))
         return limits

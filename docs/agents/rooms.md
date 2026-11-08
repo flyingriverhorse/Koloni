@@ -18,7 +18,10 @@ working on one goal at the same time"). Then:
   **New chats start with**.
 
 Press **Open the room**. The Orchestrator, a coordinator, or a recipe's **Room** part can open a room
-too.
+too. A room an agent opens gets at least 60,000 tokens, even if the agent asks for fewer. One
+member's step, with what it rereads, takes about 8,000 to 9,000 tokens, so a smaller budget would end
+the room before anyone posts. **Tokens, at least** in the same settings changes this number. If it is
+higher than **Tokens, at most**, the room gets the most.
 
 Each project's default limits are under Settings › This project › **New chats start with**. A chat with no folder has no
 token limit for its rooms unless you set one when you open the room.

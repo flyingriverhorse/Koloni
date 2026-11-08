@@ -5958,6 +5958,8 @@ export interface components {
             provider_id: string | null;
             /** Read In */
             read_in: string[];
+            /** Room Min Tokens */
+            room_min_tokens: number | null;
             /** Room Minutes */
             room_minutes: number | null;
             /** Room Posts */
@@ -6044,6 +6046,8 @@ export interface components {
             provider_id: string | null;
             /** Read In */
             read_in: string[];
+            /** Room Min Tokens */
+            room_min_tokens: number | null;
             /** Room Minutes */
             room_minutes: number | null;
             /** Room Posts */
@@ -6115,6 +6119,8 @@ export interface components {
             provider_id?: string | null;
             /** Read In */
             read_in?: string[] | null;
+            /** Room Min Tokens */
+            room_min_tokens?: number | null;
             /** Room Minutes */
             room_minutes?: number | null;
             /** Room Posts */
@@ -8691,6 +8697,8 @@ export interface components {
             pass_env: string | null;
             /** Read In */
             read_in: string[];
+            /** Room Min Tokens */
+            room_min_tokens: number | null;
             /** Room Minutes */
             room_minutes: number | null;
             /** Room Posts */
@@ -8821,6 +8829,8 @@ export interface components {
             pass_env?: string | null;
             /** Read In */
             read_in?: string[] | null;
+            /** Room Min Tokens */
+            room_min_tokens?: number | null;
             /** Room Minutes */
             room_minutes?: number | null;
             /** Room Posts */

@@ -51,6 +51,7 @@ How to write an entry (every release looks the same):
 - **Agents**: recipes with steps, loops, branches and conditions, drawn, copied or described in a sentence; the ready ones include Feature, Bugfix, Review only and Evolve ([docs](docs/agents/recipes.md)).
 - **Agents**: candidates: one job given to 2 to 5 agents, each scored by your measure command; a card lists the scores and you pick, and at Full auto the best goes on by itself ([docs](docs/examples/candidates.md)).
 - **Agents**: rooms: two to six agents on one goal at once, with a budget, Pause, Resume and End ([docs](docs/agents/rooms.md)).
+- **Settings**: a room an agent opens gets at least 60,000 tokens, so a small budget no longer ends it before anyone posts. Change the number under **Tokens, at least** in This project › New chats start with; the most still wins ([docs](docs/settings.md#new-chats-start-with)).
 - **Agents**: discussions: agents talk one question through in rounds, and you can join in ([docs](docs/agents/discussions.md)).
 - **Agents**: reviewers end with findings that go to the role they name; the **Observer**, when on, says what each sub-agent's record shows ([docs](docs/agents/observer.md)).
 - **Agents**: tell an agent something while it works; at its step limit a card offers **Continue (+25 steps)** or **Stop here**, and **Steps an agent may take** sets the limit ([docs](docs/agents/step-limits.md)).

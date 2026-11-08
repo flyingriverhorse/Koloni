@@ -541,9 +541,9 @@ async def patch_project(  # noqa: C901
                     "canary", "lead_work", "continue_steps", "memory_links", "embedding_model",
                     "when_away", "away_minutes", *SPAWN)
     limited = "turn_token_limit" in body.model_fields_set  # null takes the limit away
-    # tek-ev: what a discussion and a room may spend; null: no limit.
-    spends = {"discussion_budget", "room_posts", "room_tokens", "room_minutes"} & (
-        body.model_fields_set)
+    # tek-ev: what a discussion and a room may spend; null: no limit (and, B-414, no least).
+    spends = {"discussion_budget", "room_posts", "room_tokens", "room_minutes",
+              "room_min_tokens"} & body.model_fields_set
     crowded = "max_agents" in body.model_fields_set  # the same: null takes it away
     noted = "day_note_at" in body.model_fields_set  # the same: null sends it no more
     budgeted = "monthly_budget" in body.model_fields_set  # the same

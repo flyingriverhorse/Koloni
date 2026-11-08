@@ -26,6 +26,7 @@ const conversation: Conversation = {
   room_posts: 40,
   room_tokens: 400000,
   room_minutes: 30,
+  room_min_tokens: 60000,
   also_in: [], read_in: [], part: null,
   created_at: 't',
   updated_at: 't',
