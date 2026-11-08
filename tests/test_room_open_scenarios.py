@@ -27,6 +27,7 @@ from tests.test_room_scenarios import (  # noqa: E402
     edit,
     finish,
     items,
+    post,
     posts,
     take,
     wait,
@@ -213,6 +214,45 @@ def test_a_room_asks_for_no_more_than_the_conversation_lets_one_spend(
     snap = wait_run(client, cid, run_id, timeout=LONG)
     budget = snap["rooms"][0]["budget"]
     assert {k: budget[k] for k in expected} == expected
+
+
+def big(*calls, content=""):
+    """A step as a real one costs: some 8,500 tokens with its context (B-414, measured live)."""
+    return step(*calls, content=content, i=8000, o=500)
+
+
+def test_a_room_asked_for_with_5000_tokens_is_given_the_least_and_its_members_post(
+    make_client, wait_run, project_dir
+):
+    """B-414 (live): a room asked for with 5000 tokens ended on them with no post - one member's
+    first step alone came to some 8,500. Its ask is raised to the least a room is given."""
+    client, model, cid, run_id = begin(make_client, project_dir, {
+        "Lead": [open_room(budget={"tokens": 5000, "posts": 15, "minutes": 10}), text("ok")],
+        "Coder": [big(content="Nothing to add."), big(post("result", "It prints hi.", "p1")),
+                  text("Done.")],
+        "Reviewer": [big(content="Nothing to add."), big(post("result", "Fine as it is.", "p2")),
+                     text("Done.")]})
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    (room,) = snap["rooms"]
+    assert room["budget"] == {"posts": 15, "tokens": 60_000, "minutes": 10}
+    assert room["outcome"] != "budget" and room["spent"]["posts"] >= 1, room
+    assert "60000" in json.dumps(model.tool_args[0])  # (the Lead is told the least)
+
+
+@pytest.mark.parametrize("settings,given", [
+    ({"room_min_tokens": 30_000}, 30_000),                    # the user's own least
+    ({"room_tokens": 20_000}, 20_000),                        # below the least: the most wins
+    ({"room_min_tokens": None}, 5000),                        # none: as asked
+])
+def test_a_rooms_least_tokens_is_the_users_and_never_past_its_most(
+    make_client, wait_run, project_dir, settings, given
+):
+    client, _model, cid, run_id = begin(make_client, project_dir, {
+        "Lead": [open_room(budget={"tokens": 5000}), text("ok")],
+        "Coder": [text("Done.")], "Reviewer": [text("Done.")]}, **settings)
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    assert snap["rooms"][0]["budget"]["tokens"] == given
+    assert snap["conversation"]["room_min_tokens"] == settings.get("room_min_tokens", 60_000)
 
 
 @pytest.mark.parametrize("members", [("Coder",),

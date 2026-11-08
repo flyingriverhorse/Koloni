@@ -9,7 +9,7 @@ CHAT = re.compile(r"^(?:https?://[^/]+)?/api/conversations/([0-9a-f]+)$")
 # What a chat of a project does not set itself (`app.api.conversations.PROJECT_WIDE`).
 PROJECT_WIDE = {"spawn_approval", "spawn_max_depth", "spawn_max_agents", "spawn_max_parallel",
                 "discussion_budget", "when_away", "away_minutes", "room_posts", "room_tokens",
-                "room_minutes", "lead_work", "lead_hands_code"}
+                "room_minutes", "room_min_tokens", "lead_work", "lead_hands_code"}
 
 
 # The approvals and their kin the app's own page alone may send (security review 0.1.0, 9).

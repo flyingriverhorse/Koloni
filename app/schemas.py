@@ -264,6 +264,8 @@ class ProjectOut(Out):
     room_posts: int | None
     room_tokens: int | None
     room_minutes: int | None
+    # B-414: the least tokens an agent's room is given (`room_tokens` wins where lower); None: none.
+    room_min_tokens: int | None
     # 89m: whether a Claude Code agent that changed files finishes only once the tests pass;
     # None: as `finish_tests_auto` says.
     finish_tests: bool | None
@@ -352,6 +354,7 @@ class ProjectPatch(BaseModel):
     room_posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS, strict=True)
     room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
+    room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     # Sent as null: automatic again (`ProjectOut.finish_tests_auto`). Left out: kept.
     finish_tests: bool | None = None
 
@@ -483,6 +486,7 @@ class ConversationOut(Out):
     room_posts: int | None
     room_tokens: int | None
     room_minutes: int | None
+    room_min_tokens: int | None  # (B-414: the least tokens an agent's room is given)
     # Folders outside the project it also works in: its folder's at its start, from the
     # user's messages, cards and "This chat's folders" (slice 86b).
     also_in: list[str]
@@ -582,6 +586,7 @@ class ConversationPatch(BaseModel):
     room_posts: int | None = Field(default=None, ge=1, le=MAX_ROOM_POSTS)
     room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES)
+    room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS)
     # Left out: kept as it is. The whole list, as it is to be: one added only from the app's
     # own page; one in both lists is one to write in.
     also_in: list[FolderPath] | None = Field(default=None, max_length=500)

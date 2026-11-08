@@ -362,7 +362,20 @@ class RoomsMixin:
             # One room, one word: a member that changes nothing still works beside the
             # ones that do, in their copy.
             ids = [child.agent_id for child, _role in members]
-            turned_down = await self._users_no(ctx, ids) if asks else None
+            try:
+                turned_down = await self._users_no(ctx, ids) if asks else None
+            except BaseException:
+                # B-412 (live, Ask): a call that ended while its cards waited (its session's
+                # ToolServer.close() cancelling it) left its members in the step's places - the
+                # next open_room refused.
+                # shortcut: why the live lead's session ended mid-wait is not measured. KOLONİ
+                # ignores notifications/cancelled (`ToolServer._serve`), so a Copilot call that
+                # times out on the CLI's side (Copilot is given no tool timeout; Claude Code and
+                # Qoder get MCP_TOOL_TIMEOUT, Codex tool_timeout_sec) still waits here, holding
+                # the session's one tool turn; measure Copilot's timeout and give it one if a
+                # lead is seen giving up on a room whose cards still wait.
+                self._unopened(ctx, [child for child, _role in members])
+                raise
             if turned_down is not None:
                 self._unopened(ctx, [child for child, _role in members])
                 await self._settle(ctx)
@@ -466,10 +479,14 @@ class RoomsMixin:
         return between
 
     def _open_room_limits(self: "AgentRunner", session, conversation, asked) -> dict:
-        """`_open_room`: what the room may spend - what was asked, never past the settings."""
+        """`_open_room`: what the room may spend - what was asked, never past the settings; its
+        tokens never below their least either (B-414: raised, not refused - the most wins)."""
+        own = settings_of(session, conversation)
+        asked = {**asked, "tokens": max(asked["tokens"], own.room_min_tokens or 0)} if (
+            "tokens" in asked) else asked
         limits = {}
         for key in ("posts", "tokens", "minutes"):
-            most = getattr(settings_of(session, conversation), f"room_{key}")
+            most = getattr(own, f"room_{key}")
             limits[key] = most if key not in asked else (
                 asked[key] if most is None else min(asked[key], most))
         return limits
@@ -667,7 +684,8 @@ class RoomsMixin:
         left = set(asked)
 
         def heard(agent_id: str, decided: asyncio.Future[str]) -> None:
-            if decided.cancelled():
+            # (A word that comes after the call ended - its members turned down - opens none.)
+            if decided.cancelled() or self._spawn_decisions.get(agent_id) is not decided:
                 return
             yes = decided.result() == "approve"
             self._paid_heard(agent_id, yes)

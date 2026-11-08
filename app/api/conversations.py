@@ -613,7 +613,8 @@ async def patch_conversation(  # noqa: C901
         # against the app's address.
         require_own_origin(request)
         conversation.discussion_budget = body.discussion_budget
-    limits = {"room_posts", "room_tokens", "room_minutes"} & body.model_fields_set
+    limits = {"room_posts", "room_tokens", "room_minutes",
+              "room_min_tokens"} & body.model_fields_set
     if limits:
         # What a room may spend is leave to spend, as opening one and giving it more are:
         # the user's to give from the app's own page.

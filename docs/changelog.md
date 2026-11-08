@@ -36,6 +36,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Agents**: recipes with steps, loops, branches and conditions, drawn, copied or described in a sentence; the ready ones include Feature, Bugfix, Review only and Evolve ([docs](agents/recipes.md)).
 - **Agents**: candidates: one job given to 2 to 5 agents, each scored by your measure command; a card lists the scores and you pick, and at Full auto the best goes on by itself ([docs](examples/candidates.md)).
 - **Agents**: rooms: two to six agents on one goal at once, with a budget, Pause, Resume and End ([docs](agents/rooms.md)).
+- **Agents**: a room an agent opens gets at least 60,000 tokens, so a small budget no longer ends it before anyone posts. Change the number under **Tokens, at least** in Settings › This project › New chats start with; the most still wins. Existing projects and chats get 60,000 too ([docs](settings.md#new-chats-start-with)).
 - **Agents**: discussions: agents talk one question through in rounds, and you can join in ([docs](agents/discussions.md)).
 - **Agents**: reviewers end with findings that go to the role they name; the **Observer**, when on, says what each sub-agent's record shows ([docs](agents/observer.md)).
 - **Agents**: tell an agent something while it works; at its step limit a card offers **Continue (+25 steps)** or **Stop here**, and **Steps an agent may take** sets the limit ([docs](agents/step-limits.md)).

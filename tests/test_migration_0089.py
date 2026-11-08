@@ -44,4 +44,4 @@ def test_a_note_from_before_is_the_whole_turns_and_back(tmp_path):
 
 
 def test_one_head(tmp_path):
-    assert ScriptDirectory.from_config(_config(tmp_path / "x.db")).get_heads() == ["0153"]
+    assert ScriptDirectory.from_config(_config(tmp_path / "x.db")).get_heads() == ["0154"]

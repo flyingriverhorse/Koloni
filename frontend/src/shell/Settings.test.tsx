@@ -14,7 +14,7 @@ const project: Project = {
   finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'm',
   git_commit: false, finish_way: null, auto_notes: false, observe_reports: false, suggest_tasks: true, suggest_tier: 'fast', day_note_at: null, also_in: [], read_in: [], teams_mode: 'none', teams: [],
   hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6,
-  spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, pass_env: null, held_env: [],
+  spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000, pass_env: null, held_env: [],
   koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
 }
 const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true, onClose: vi.fn() }
@@ -212,6 +212,24 @@ test('This project › New chats start with: the teams and other folders a new c
   await userEvent.click(screen.getByRole('button', { name: 'Remove D:/notes from new chats' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ teams_mode: 'lead', teams: [], also_in: ['D:/lib'], read_in: [], room_tokens: 400000, room_minutes: null })
+})
+
+test('B-414: a room’s least tokens is set beside its most; above the most it says the most wins, emptied it is none', async () => {
+  server()
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<Settings {...base} project={{ ...project, room_tokens: 20000 }} onSave={onSave} />)
+  await userEvent.click(levels().getByRole('button', { name: /^New chats start with/ }))
+  const least = screen.getByLabelText('Tokens, at least')
+  expect(least).toHaveValue('60000')
+  expect(screen.getByText(/Above the most: a room gets 20,000, the most wins/)).toBeInTheDocument()
+  await userEvent.clear(least)
+  await userEvent.type(least, '15000')
+  expect(screen.queryByText(/the most wins/)).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ room_min_tokens: 15000 })
+  await userEvent.clear(least)
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ room_min_tokens: null })
 })
 
 test('Project › Runs without asking: the project’s sites first, then each chat’s commands by its title, each removed here; the open chat is there even with none', async () => {
