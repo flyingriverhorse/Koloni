@@ -233,7 +233,9 @@ def test_a_teams_lead_whose_room_call_ended_while_its_cards_waited_opens_it_agai
     async def withdrawn_once(self, ctx, ids):
         if not first:
             first.append(ids)
-            raise ToolError("the call was withdrawn")  # (as a CLI that no longer waits for it)
+            # The live trigger is its session's ToolServer.close() cancelling the call; a cancel
+            # here would stop this in-process turn as a Stop does, so the call ends by a raise.
+            raise ToolError("the call was withdrawn")
         return await original(self, ctx, ids)
 
     monkeypatch.setattr(AgentRunner, "_users_no", withdrawn_once)
