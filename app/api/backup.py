@@ -59,13 +59,17 @@ async def restore(request: Request):
     handle, name = tempfile.mkstemp(prefix="koloni-restore-", suffix=".zip")
     upload = Path(name)
     try:
-        with os.fdopen(handle, "wb") as out:
+        # (Written off the event loop: a GB-sized upload's writes held every chat meanwhile.)
+        out = await run_in_threadpool(lambda: os.fdopen(handle, "wb"))
+        try:
             got = 0
             async for chunk in request.stream():
                 got += len(chunk)
                 if got > backup.MAX_UPLOAD:
                     raise HTTPException(413, f"a file is {backup.MAX_UPLOAD // 2**30} GB at most")
-                out.write(chunk)
+                await run_in_threadpool(out.write, chunk)
+        finally:
+            await run_in_threadpool(out.close)
         try:
             manifest = await run_in_threadpool(backup.stage, settings.runtime_root, upload)
         except backup.Refused as exc:
