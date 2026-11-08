@@ -7,9 +7,10 @@ import asyncio
 import contextlib
 import time
 from dataclasses import replace
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 
 from app import away, project_map, recipe_run, signs
 from app.agent.cards import _goes_on, _steps_of_chain
@@ -33,15 +34,18 @@ from app.api.usage import month_spend
 from app.commands import danger, is_exactly, ticked
 from app.db.models import (
     Agent,
+    Command,
     Conversation,
     FileChange,
     Flag,
+    Message,
     OwnRequest,
     Project,
     Provider,
     Run,
     ToolCall,
     Trigger,
+    now,
 )
 from app.model_client import ModelClient, OwnStop
 from app.providers import works_with_own_tools
@@ -535,9 +539,9 @@ class LimitsMixin:
 
     def _progress(self: "AgentRunner", run_id: str, arm: bool = False) -> None:
         """B-413: something real moved in a turn nobody watches - a file of it changed, an agent
-        finished its work, a command that failed passed (`_counted`): its NO_PROGRESS_MINUTES
-        start again. `arm`: its clock starts (a To-do task's turn, a night's job, a trigger's);
-        a turn with none is not timed. At the end it stops as one over its budget does."""
+        finished its work, a command that failed passed (`_counted`): its minutes with nothing
+        moving (`away.unattended`) start again. `arm`: its clock starts (a To-do task's turn, a
+        night's job, a trigger's); a turn with none is not timed. At their end: `_progress_due`."""
         if (timer := self._progress_timers.pop(run_id, None)) is not None:
             timer.cancel()
         elif not arm:
@@ -545,8 +549,40 @@ class LimitsMixin:
         with self._factory() as session:
             minutes = away.unattended(session)[0]
         later = self.call_later or asyncio.get_running_loop().call_later
-        self._progress_timers[run_id] = later(
-            minutes * 60.0, self._over_budget, run_id, NO_PROGRESS.format(minutes=minutes))
+        self._progress_timers[run_id] = later(minutes * 60.0, self._progress_due, run_id)
+
+    def _progress_due(self: "AgentRunner", run_id: str) -> None:
+        """`_progress`'s minutes are up: the turn stops as one over its budget does, failed with
+        why - unless it is not idle, and its clock starts again: it waits for the user (a card,
+        a command, a change or an agent asked about; a night's job that waits), a command of it
+        runs or a model step is under way (they have time limits of their own), an agent below
+        the Orchestrator took a step, or within those minutes a file of it changed (a native CLI's
+        own edits too, on record as they are seen) or an agent of it finished."""
+        with self._factory() as session:
+            minutes = away.unattended(session)[0]
+            run = session.get(Run, run_id)
+            if run is None:
+                return
+            since = now() - timedelta(minutes=minutes)
+            task = away.job_of(session, run.conversation_id)
+            busy = run.status == "waiting_approval" or self._asking.get(run_id, 0) > 0 or (
+                task is not None and task.away_state == "waits") or any(
+                session.scalar(query.limit(1)) is not None for query in (
+                    select(Command.id).where(Command.run_id == run_id, or_(
+                        Command.status == "proposed",
+                        and_(Command.status == "running", Command.keep_running.is_(False)))),
+                    select(Message.id).where(Message.run_id == run_id,
+                                             Message.status == "streaming"),
+                    select(Agent.id).where(Agent.run_id == run_id, or_(
+                        Agent.status == "proposed", Agent.ended_at >= since,
+                        and_(Agent.depth > 0, Agent.last_event_at >= since))),
+                    select(FileChange.id).where(FileChange.run_id == run_id, or_(
+                        FileChange.status == "proposed", FileChange.created_at >= since))))
+        if busy:
+            self._progress_timers.pop(run_id, None)
+            self._progress(run_id, arm=True)
+            return
+        self._over_budget(run_id, NO_PROGRESS.format(minutes=minutes))
 
     def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether the user can be asked on a card in this turn: one they started - not a

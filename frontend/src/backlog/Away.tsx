@@ -519,9 +519,9 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
   )
 }
 
-/** A job's ceiling, where Settings › The app has one (none: no line). */
+/** A job's ceiling, where Settings › The app has one; else that it stops where nothing moves. */
 function JobCeiling({ minutes }: { minutes: number | null }) {
-  if (minutes === null) return null
+  if (minutes === null) return <li>A job works as long as it makes progress: it stops when nothing moves for a while, what it did kept in its copy, and the next one goes on.</li>
   const most = minutes % 60 ? `${minutes} minutes` : `${minutes / 60} hour${minutes === 60 ? '' : 's'}`
   return <li>A job works at most {most}, and stops sooner when nothing moves: then what it did is kept in its copy, and the next one goes on.</li>
 }

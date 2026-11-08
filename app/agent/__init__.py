@@ -4735,7 +4735,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             step, started = (call.message_id, call.started_at) if call else (None, None)
         earlier = None
         if stamp != counts.stamp:
-            if counts.stamp is None or stamp[0] > counts.stamp[0]:
+            if counts.stamp is not None and stamp[0] > counts.stamp[0]:
                 self._progress(ctx.run_id)  # (B-413: a file of the turn changed)
             counts.stamp = stamp
             earlier = counts.changed()

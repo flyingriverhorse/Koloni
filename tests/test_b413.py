@@ -6,6 +6,7 @@ guard stops it (the same failure `signs.STOP_AT` times, `signs.IDLE_STOP` calls 
 bring nothing new), and a limit the user set - its role's, a trigger's - still holds. In a turn
 the user started the guard asks on a card; elsewhere it ends with why, and a To-do run goes on."""
 
+import asyncio
 import json
 import sys
 from types import SimpleNamespace
@@ -401,26 +402,69 @@ def test_a_todo_task_that_keeps_changing_files_has_no_hour_its_clock_starts_agai
     assert [t.delay for t in clock.set if t.delay > 30 * 60] == [8 * 3600] * 2  # (one a task)
 
 
-def test_nothing_moving_for_its_minutes_blocks_the_task_and_the_next_one_runs(
-        make_client, wait_run, project_dir, monkeypatch):
-    from app.agent.limits_mixin import NO_PROGRESS
-    from tests.conftest import Gate
+class Silent(ScriptedModel):
+    """A CLI session for every Lead: it looks once and then says nothing more - no message open,
+    no command, nobody below it: idle - for its first `hangs` runs; then it is done."""
 
-    turn, fix = Gate(), Gate()
-    client, clock, pid = todo_held(make_client, project_dir, monkeypatch,
-                                   turn.step(text("never said")), fix.step(text("never said")),
-                                   text("two done"))
+    session = True
+
+    def __init__(self, hangs):
+        super().__init__([])
+        self.hangs, self.runs = hangs, 0
+
+    async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None,
+                          effort=None, on_live=None):
+        self.runs += 1
+        await on_text("Looking.")
+        await call_tool("list_dir", "{}")
+        if self.runs <= self.hangs:
+            await asyncio.sleep(3600)
+        await on_text("done")
+        return SimpleNamespace(input_tokens=5, output_tokens=1, model=None)
+
+
+@pytest.fixture
+def silent_todo(settings_env, project_dir, monkeypatch):
+    """A To-do run of two tasks on a Silent Lead, its clock held: (client, clock, pid)."""
+    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
+    opened = []
+
+    def make(hangs):
+        client = TestClient(create_app(load_settings(settings_env), model=Silent(hangs)),
+                            base_url="http://127.0.0.1:8790")
+        client.__enter__()
+        opened.append(client)
+        clock = client.app.state.runner.call_later = HeldClock()
+        pid, _ = backlog_setup(client, project_dir, "one", "two")
+        return client, clock, pid
+    yield make
+    for client in opened:
+        client.__exit__(None, None, None)
+
+
+def idle_run(client, clock, pid, ended=()):
+    """The task "one"'s run at work and idle: (cid, run_id)."""
+    cid = task_until(lambda: tasks(client, pid)["one"]["conversation_id"])
+    run_id = task_until(lambda: next((r["id"] for r in client.get(
+        f"/api/conversations/{cid}").json()["runs"] if r["id"] not in ended), None))
+    task_until(lambda: any(t["name"] == "list_dir" and t["status"] == "succeeded"
+                           for t in client.get(f"/api/conversations/{cid}").json()["tool_calls"]
+                           if t["run_id"] == run_id))
+    return cid, run_id
+
+
+def test_nothing_moving_for_its_minutes_blocks_the_task_and_the_next_one_runs(
+        silent_todo, wait_run):
+    from app.agent.limits_mixin import NO_PROGRESS
+
+    client, clock, pid = silent_todo(hangs=2)
     auto(client, pid, True)
     ended: list[str] = []
-    for held in (turn, fix):  # (its turn, then its fix round: nothing moves in either)
-        held.wait_partial()
-        cid = tasks(client, pid)["one"]["conversation_id"]
-        (run_id,) = [r["id"] for r in client.get(f"/api/conversations/{cid}").json()["runs"]
-                     if r["id"] not in ended]
+    for _ in range(2):  # (its turn, then its fix round: nothing moves in either)
+        cid, run_id = idle_run(client, clock, pid, ended)
         fire(client, lead_timers(clock, 30 * 60.0)[-1])
         run = next(r for r in wait_run(client, cid, run_id, timeout=20)["runs"]
                    if r["id"] == run_id)
-        held.release()
         ended.append(run_id)
         assert (run["status"], run["error"]) == (
             "failed", NO_PROGRESS.format(minutes=30))  # (never cancelled: the run goes on)
@@ -429,6 +473,69 @@ def test_nothing_moving_for_its_minutes_blocks_the_task_and_the_next_one_runs(
     task_until(lambda: tasks(client, pid)["two"]["conversation_id"])
     assert worked(client, wait_run, pid, "two")["status"] == "review"
     assert client.get(f"/api/projects/{pid}/backlog/auto").json()["on"] is True
+
+
+@pytest.mark.parametrize("what", ["command", "file", "agent"])
+def test_what_is_under_way_keeps_its_clock_from_ending_it(silent_todo, wait_run, what):
+    # (a long command, a native CLI's own edit on record, an agent below it at work)
+    from app.db.models import Agent, Command, FileChange, now
+
+    client, clock, pid = silent_todo(hangs=1)
+    auto(client, pid, True)
+    cid, run_id = idle_run(client, clock, pid)
+    snap = client.get(f"/api/conversations/{cid}").json()
+    lead = next(a["id"] for a in snap["agents"] if a["depth"] == 0)
+    row = {"command": lambda: Command(run_id=run_id, agent_id=lead, command="train --long",
+                                      location="host", timeout_seconds=7200, status="running"),
+           "file": lambda: FileChange(run_id=run_id, agent_id=lead, path="model.py", kind="create",
+                                      after_content="x", after_sha="0" * 64, status="in_copy",
+                                      origin="cli"),
+           "agent": lambda: Agent(run_id=run_id, role_name="Reviewer", name="Reviewer", tools=[],
+                                  depth=1, status="running", last_event_at=now())}[what]()
+    with client.app.state.runner._factory() as session:
+        session.add(row)
+        session.commit()
+    (timer,) = lead_timers(clock, 30 * 60.0)
+    fire(client, timer)
+    run = next(r for r in client.get(f"/api/conversations/{cid}").json()["runs"]
+               if r["id"] == run_id)
+    assert run["status"] == "running" and lead_timers(clock, 30 * 60.0)  # (its clock again)
+    client.post(f"/api/runs/{run_id}/cancel")
+
+
+def test_a_slow_model_step_keeps_its_clock_from_ending_it(make_client, wait_run, project_dir,
+                                                         monkeypatch):
+    from tests.conftest import Gate
+
+    step_held = Gate()
+    client, clock, pid = todo_held(make_client, project_dir, monkeypatch,
+                                   step_held.step(text("one done")), text("two done"))
+    auto(client, pid, True)
+    step_held.wait_partial()  # (a model step under way: its message is open)
+    fire(client, lead_timers(clock, 30 * 60.0)[-1])
+    step_held.release()
+    assert worked(client, wait_run, pid, "one")["status"] == "review"
+
+
+def test_a_todo_task_that_waits_for_the_user_is_not_stuck(make_client, wait_run, project_dir,
+                                                          monkeypatch):
+    # (K-r135: a To-do task's card waits for the user, at Full auto too)
+    from tests.test_backlog_symphony import full_auto
+
+    asks = step(call("run_command", {"command": "cmd /c echo hi"}, "k1"))  # (runs another)
+    client, clock, pid = todo_held(make_client, project_dir, monkeypatch, asks,
+                                   text("one done"), text("two done"))
+    full_auto(client, pid)
+    auto(client, pid, True)
+    cid = task_until(lambda: tasks(client, pid)["one"]["waiting"]
+                     and tasks(client, pid)["one"]["conversation_id"])
+    fire(client, lead_timers(clock, 30 * 60.0)[-1])  # (half an hour, and the user away)
+    snap = client.get(f"/api/conversations/{cid}").json()
+    assert snap["runs"][-1]["status"] == "waiting_approval"
+    assert lead_timers(clock, 30 * 60.0)  # (its clock starts again)
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    assert worked(client, wait_run, pid, "one")["status"] == "review"
 
 
 def test_the_ceiling_the_user_set_stops_a_turn_that_keeps_making_moves(

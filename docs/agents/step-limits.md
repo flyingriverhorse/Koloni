@@ -47,7 +47,9 @@ the project, so it has none. What stops it:
   a run** are longer): nothing has moved
   for Settings › The app › **Stuck after this many minutes with no progress** (30 unless you change
   it) - no file of the turn changed, no agent finished its work, no failing command passed. Each of
-  those starts the minutes again, so honest work runs as long as it needs;
+  those starts the minutes again, so honest work runs as long as it needs. They do not run out while
+  a card waits for you, a command or a model step of the turn is under way, or an agent below the
+  Orchestrator is at work;
 - a last resort: a To-do task's turn and a job while you're away end after **An unattended turn runs
   at most (hours)** (8 unless you change it; empty: no limit), however they go. A trigger's
   **Minutes a run** and a night's stop time hold as before;
