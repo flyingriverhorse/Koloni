@@ -23,9 +23,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_sessio
 
 # B-414 (live): a room asked for with 5000 tokens ended with no post - one member's step, with its
 # context, came to some 8,500. Its members and the agent that follows it all count (`room_spent`):
-# one step each for six members and their follower is some 60,000.
-# shortcut: one number whatever the room's size; scale it by its members if a big room is seen
-# ending on its tokens before each has posted.
+# 60,000 holds one round of posts (a member may post in its sharing step) for up to six members
+# nobody follows, or some three whose opener follows and reads after each post.
+# shortcut: one number whatever the room's size; scale it by its members (and the follower) if a
+# big room is seen ending on its tokens before each has posted.
 ROOM_MIN_TOKENS = 60_000
 
 
