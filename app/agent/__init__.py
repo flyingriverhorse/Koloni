@@ -1073,6 +1073,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._stuck: dict[str, str] = {}
         # B-413: the Orchestrator's call its loop guard stopped it at (`_counted`, `_circled`).
         self._circling: dict[str, str] = {}
+        # ...and the Orchestrators told once to try another way (`_circling_goes_on`)
+        self._circling_told: set[str] = set()
         # agent id -> when a CLI's text or own tool last put its time on record
         self._touched: dict[str, float] = {}
         # run id -> the record its lead is given (`app.record`): made at its first step
@@ -1780,6 +1782,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._own_counts.pop(agent_id, None)
             self._stuck.pop(agent_id, None)
             self._circling.pop(agent_id, None)
+            self._circling_told.discard(agent_id)
             self._steps_left.pop(agent_id, None)
             self._answer_again.discard(agent_id)
             self._role_taken.pop(agent_id, None)

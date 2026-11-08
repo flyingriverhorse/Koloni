@@ -631,7 +631,7 @@ async def _notify(name: str, url: str | None, form: str, on_desktop: bool, text:
         try:
             await sending
         except Exception as exc:  # (never the address in the log: it may hold a key)
-            log.warning("the end of the night of %s was not sent to the %s: %s", name, way,
+            log.warning("a notification of %s was not sent to the %s: %s", name, way,
                         exc if isinstance(exc, web.WebError) else type(exc).__name__)
 
 

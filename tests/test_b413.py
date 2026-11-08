@@ -9,7 +9,9 @@ the user started the guard asks on a card; elsewhere it ends with why, and a To-
 import json
 from types import SimpleNamespace
 
+import app.web
 from app import backlog, signs
+from app.agent.limits_mixin import CIRCLING_WAIT
 from app.config import load_settings
 from app.main import create_app
 from tests.fakes import ScriptedModel
@@ -19,16 +21,21 @@ from tests.test_backlog_auto import auto, tasks, worked
 from tests.test_backlog_auto import until as task_until
 from tests.test_chat_flow import start_in_mode, text
 from tests.test_chat_teams_scenarios import teams_of
+from tests.test_lead_decides import fire, lead_timers
 from tests.test_parallel import until
 from tests.test_recipe_run_scenarios import answer, asked
 from tests.test_spawn import begin, call, role_id, step
 from tests.test_team_requests_scenarios import agent
-from tests.test_triggers import leave, run_now, run_of, trigger
+from tests.test_triggers import HeldClock, leave, run_now, run_of, trigger
 from tests.test_triggers import setup as trigger_setup
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 THREE = ("Backend / API", "Web app", "Docs")
 CIRCLES = f"{signs.CIRCLING}{signs.IDLE.format(count=signs.IDLE_STOP)}"
+LOOP = signs.IDLE_STOP + 1  # (the first call is new; the next IDLE_STOP repeat it)
+NUDGE = ("KOLONİ: you seem to go round in circles: list_dir again and again, with the same "
+         "result, and nothing moved in between. Try a different approach, or report what you "
+         "did and end.")
 
 
 def three_teams(client, project_dir, mode="ask"):
@@ -102,30 +109,92 @@ def test_a_limit_the_user_set_on_the_lead_role_still_holds(make_client, wait_run
 # --- going round in circles ----------------------------------------------------------------------
 
 
-def test_a_looping_orchestrator_is_asked_about_on_a_card_go_on_then_stop_here(
+def test_a_looping_orchestrator_is_told_once_then_asked_on_a_card_go_on_then_stop_here(
         make_client, wait_run, project_dir):
-    first = signs.IDLE_STOP + 1  # (the first call is new; the next IDLE_STOP repeat it)
-    client, model = make_client([*circles(first), *circles(first, first), text("never said")])
+    client, model = make_client([*circles(LOOP), *circles(LOOP, LOOP), *circles(LOOP, 2 * LOOP),
+                                 text("never said")])
+    clock = client.app.state.runner.call_later = HeldClock()
     cid, run_id = begin(client, project_dir, mode="full_auto")  # (the user's, at Full auto too)
     card = asked(until(client, cid, asked, timeout=20))
+    # the first time it was told, and went on; the card is the second time
+    assert len(model.calls) == 2 * LOOP and NUDGE in str(model.calls[LOOP])
     assert card["question"].startswith(
         "The Orchestrator has no step limit, and it seems to go round in circles: its last 10 "
         "calls each repeated one it had made, with the same result")
-    assert card["options"] == ["Go on", "Stop here"] and len(model.calls) == first
-    answer(client, card, "Go on")  # (its counts start again: as many more before the next)
+    assert card["options"] == ["Go on", "Stop here"]
+    (timer,) = lead_timers(clock, CIRCLING_WAIT)
+    answer(client, card, "Go on")  # (in time: its counts start again, and no second nudge)
     card = asked(until(client, cid, lambda s: (q := asked(s)) and q["id"] != card["id"],
                        timeout=20))
-    assert len(model.calls) == 2 * first
+    assert timer.cancelled and len(model.calls) == 3 * LOOP
     answer(client, card, "Stop here")
     snap = wait_run(client, cid, run_id, timeout=20)
     assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == ("failed", CIRCLES)
+
+
+def test_told_once_it_finds_another_way_and_ends_with_no_card(make_client, wait_run, project_dir):
+    client, model = make_client([*circles(LOOP), *looks(3), text("found it another way")])
+    cid, run_id = begin(client, project_dir, mode="full_auto")
+    snap = wait_run(client, cid, run_id, timeout=20)
+    assert (snap["runs"][0]["status"], snap["questions"]) == ("completed", [])
+    assert NUDGE in str(model.calls[LOOP])
+
+
+def test_nobody_answering_ends_the_turn_with_its_work_and_a_report_and_the_next_message_runs(
+        make_client, wait_run, project_dir):
+    wrote = step(call("write_file", {"path": "notes.txt", "content": "done"}, "w1"))
+    client, _model = make_client([wrote, *circles(LOOP), *circles(LOOP, LOOP),
+                                  text("never said"), text("the next one, done")])
+    clock = client.app.state.runner.call_later = HeldClock()
+    cid, run_id = start_in_mode(client, project_dir, "full_auto")  # (the Lead writes itself)
+    card = asked(until(client, cid, asked, timeout=20))
+    queued = client.post(f"/api/conversations/{cid}/messages", json={"content": "and then?"},
+                         headers=OWN)
+    assert queued.status_code in (200, 201, 202), queued.text
+    (timer,) = lead_timers(clock, CIRCLING_WAIT)
+    fire(client, timer)  # (ten minutes, and nobody answered)
+    snap = wait_run(client, cid, run_id, timeout=20)
+    first = next(r for r in snap["runs"] if r["id"] == run_id)
+    # its work landed, so it is completed - not cancelled: what waits behind it goes on
+    assert (first["status"], first["error"]) == ("completed", None)
+    assert (project_dir / "notes.txt").read_text() == "done"
+    assert next(q for q in snap["questions"] if q["id"] == card["id"])["answer"] == (
+        "No answer in 10 minutes")
+    said = [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
+    assert ("No answer in 10 minutes: the Orchestrator's turn ended here, its work kept. It had "
+            "opened 0 agents and changed 1 file in the project; it got stuck repeating "
+            "list_dir.") in said
+    later = until(client, cid, lambda s: len(s["runs"]) == 2 and s, timeout=20)
+    assert wait_run(client, cid, later["runs"][-1]["id"], timeout=20)["runs"][-1]["status"] == (
+        "completed")
+
+
+def test_the_card_that_it_seems_stuck_is_told_on_the_desktop(
+        make_client, wait_run, project_dir, monkeypatch):
+    shown = []
+    monkeypatch.setattr(app.web, "has_desktop", lambda: True)
+    monkeypatch.setattr(app.web, "desktop", lambda title, said: shown.append(said))
+    client, _model = make_client([*circles(LOOP), *circles(LOOP, LOOP), text("never said")])
+    client.headers.update(OWN)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"notify_desktop": True}).status_code == 200
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages",
+                         json={"content": "go"}).json()["run"]["id"]
+    card = asked(until(client, cid, asked, timeout=20))
+    until(client, cid, lambda _s: shown, timeout=20)
+    assert shown == ["The Orchestrator seems stuck: it repeated list_dir with the same result. "
+                     "Go on or Stop here in the chat; with no answer in 10 minutes its turn "
+                     "ends, its work kept."]
+    answer(client, card, "Stop here")
+    wait_run(client, cid, run_id, timeout=20)
 
 
 def test_stopped_after_the_turns_work_is_in_the_project_the_turn_is_completed(
         make_client, wait_run, project_dir):
     # (the live B-413: the work was in the project, and the turn ended red)
     wrote = step(call("write_file", {"path": "notes.txt", "content": "done"}, "w1"))
-    client, _model = make_client([wrote, *circles(signs.IDLE_STOP + 1), text("never said")])
+    client, _model = make_client([wrote, *circles(LOOP), *circles(LOOP, LOOP), text("never said")])
     cid, run_id = start_in_mode(client, project_dir, "full_auto")  # (the Lead writes itself)
     answer(client, asked(until(client, cid, asked, timeout=20)), "Stop here")
     snap = wait_run(client, cid, run_id, timeout=20)
@@ -136,7 +205,8 @@ def test_stopped_after_the_turns_work_is_in_the_project_the_turn_is_completed(
 
 
 def test_the_same_failure_five_times_stops_it_too(make_client, wait_run, project_dir):
-    gone = [step(call("read_file", {"path": "gone.py"}, f"g{i}")) for i in range(signs.STOP_AT)]
+    gone = [step(call("read_file", {"path": "gone.py"}, f"g{i}"))
+            for i in range(2 * signs.STOP_AT)]  # (told once, then the card)
     client, _model = make_client([*gone, text("never said")])
     cid, run_id = begin(client, project_dir)
     card = asked(until(client, cid, asked, timeout=20))
@@ -186,7 +256,8 @@ def test_stopped_after_a_copy_was_taken_in_the_turn_is_completed(make_client, wa
     opened = step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s"))
     client, _model, cid, run_id = one(
         make_client, project_dir, [step(write("a.txt", "A")), text("A done")],
-        lead=[opened, *circles(signs.IDLE_STOP + 1), text("never said")], permission_mode="ask")
+        lead=[opened, *circles(LOOP), *circles(LOOP, LOOP), text("never said")],
+        permission_mode="ask")
     card = until(client, cid, lambda s: [m for m in s["merges"] if m["status"] == "pending"],
                  timeout=20)["merges"][0]
     assert client.post(f"/api/merges/{card['id']}/approve").status_code == 200  # (Take in)

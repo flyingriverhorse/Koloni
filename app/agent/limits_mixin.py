@@ -4,13 +4,14 @@ not watching (`_nobody_to_ask`, `_leave`) - `LimitsMixin`.
 """
 
 import asyncio
+import contextlib
 import time
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
-from app import project_map, recipe_run, signs
+from app import away, project_map, recipe_run, signs
 from app.agent.cards import _goes_on, _steps_of_chain
 from app.agent.ctx import Ctx, _NobodyToAsk, _Unwatched
 from app.agent.words import (
@@ -39,6 +40,7 @@ from app.db.models import (
     Project,
     Provider,
     Run,
+    ToolCall,
     Trigger,
 )
 from app.model_client import ModelClient, OwnStop
@@ -53,10 +55,27 @@ if TYPE_CHECKING:
 # An agent that came to what its role lets one agent use: KOLONİ's own rule (OwnStop).
 ROLE_STEPS = "stopped at its role's limit of {limit} step{s}"
 ROLE_TOKENS = "stopped at its role's limit of {limit} tokens: it used {used}"
-# B-413: the card a watched turn's Orchestrator asks the user on where its loop guard stopped it.
+# B-413: in a watched turn, the first time the Orchestrator's loop guard stops it, it is told
+# this and goes on (its counts start again); the next time, the user is asked on a card.
+CIRCLING_NUDGE = ("KOLONİ: you seem to go round in circles: {tool} again and again, with the same "
+                  "result, and nothing moved in between. Try a different approach, or report what "
+                  "you did and end.")
 CIRCLING_ASKED = ("The Orchestrator has no step limit, and it seems to go round in circles: {why} "
-                  "Go on lets it carry on; Stop here ends it, with what it did so far.")
+                  "Go on lets it carry on; Stop here ends it, with what it did so far. With no "
+                  "answer in 10 minutes its turn ends, its work kept.")
 CIRCLING_GO_ON = "Go on"
+# How long that card waits: then the turn ends by itself, so a queued message, the To-do run or
+# the night goes on. shortcut: a fixed 10 minutes, not a setting; make it one if users ask.
+CIRCLING_WAIT = 600.0
+CIRCLING_NO_ANSWER = "No answer in 10 minutes"
+# Said on the desktop and to the project's notification address as the card goes up.
+CIRCLING_TOLD = ("The Orchestrator seems stuck: it repeated {tool} with the same result. Go on "
+                 "or Stop here in the chat; with no answer in 10 minutes its turn ends, its work "
+                 "kept.")
+# KOLONİ's line where nobody answered it.
+CIRCLING_REPORT = ("No answer in 10 minutes: the Orchestrator's turn ended here, its work kept. It "
+                   "had opened {agents} and changed {files} in the project; it got stuck repeating "
+                   "{tool}.")
 CIRCLING_LANDED = "The Orchestrator ended after this turn's work was in the project: {why}"
 
 # How a stop at the end of the steps given once more (K-devam-butce, `GIVEN_ONCE`) is on
@@ -411,16 +430,9 @@ class LimitsMixin:
         call_id = self._circling.pop(ctx.agent_id, None)
         if call_id is None:
             return "failed", why
-        if self._attended(ctx):
-            try:
-                _status, word = await self._ask_user(ctx, call_id, {
-                    "question": CIRCLING_ASKED.format(why=why.removeprefix(signs.CIRCLING)),
-                    "options": [CIRCLING_GO_ON, STEPS_STOP]}, leave=True)
-            except _NobodyToAsk:
-                word = ""
-            if word.removeprefix(ANSWER_PREFIX) == CIRCLING_GO_ON:
-                self._counts.pop(ctx.agent_id, None)
-                return None
+        if self._attended(ctx) and await self._circling_goes_on(ctx, call_id, why):
+            self._counts.pop(ctx.agent_id, None)
+            return None
         self._stopped_by_koloni(ctx)
         with self._factory() as session:  # (written in the project, or a copy taken in)
             landed = session.scalar(select(FileChange.id).where(
@@ -429,6 +441,66 @@ class LimitsMixin:
             return "failed", why
         self._koloni_line(ctx.cid, ctx.run_id, CIRCLING_LANDED.format(why=why))
         return "completed", None
+
+    async def _circling_goes_on(self: "AgentRunner", ctx: Ctx, call_id: str, why: str) -> bool:
+        """`_circled` in a turn the user can be asked in: the first time, the Orchestrator is
+        told to try another way or end (CIRCLING_NUDGE) and goes on; then the user is asked on a
+        card, told on the desktop and at the project's address (`_tell_stuck`). Nobody answering
+        in CIRCLING_WAIT ends it with KOLONİ's report. True: it goes on.
+        shortcut: a native CLI hears the nudge only on a run again (as `steer`)."""
+        with self._factory() as session:
+            tool = session.get_one(ToolCall, call_id).name
+        if ctx.agent_id not in self._circling_told:
+            self._circling_told.add(ctx.agent_id)
+            words = CIRCLING_NUDGE.format(tool=tool)
+            self._nudge(ctx, words)
+            if getattr(ctx.model, "session", False):  # (it hears it with this call's result)
+                self._heard_later.setdefault(ctx.agent_id, []).append(words)
+            return True
+        ids: list[str] = []
+
+        def no_answer() -> None:
+            if ids and (asked := self._answers.get(ids[0])) is not None and not asked.done():
+                asked.set_result(CIRCLING_NO_ANSWER)
+
+        timer = (self.call_later or asyncio.get_running_loop().call_later)(
+            CIRCLING_WAIT, no_answer)
+        self._tell_stuck(ctx, tool)
+        try:
+            _status, word = await self._ask_user(ctx, call_id, {
+                "question": CIRCLING_ASKED.format(why=why.removeprefix(signs.CIRCLING)),
+                "options": [CIRCLING_GO_ON, STEPS_STOP]}, leave=True, ids=ids, tell=False)
+        except _NobodyToAsk:
+            return False
+        finally:
+            timer.cancel()
+        word = word.removeprefix(ANSWER_PREFIX)
+        if word == CIRCLING_NO_ANSWER:
+            with self._factory() as session:
+                agents = session.scalar(select(func.count()).select_from(Agent).where(
+                    Agent.run_id == ctx.run_id, Agent.depth > 0)) or 0
+                files = session.scalar(select(func.count(func.distinct(FileChange.path))).where(
+                    FileChange.run_id == ctx.run_id, FileChange.status == "applied")) or 0
+            self._koloni_line(ctx.cid, ctx.run_id, CIRCLING_REPORT.format(
+                agents=f"{agents} agent{'' if agents == 1 else 's'}",
+                files=f"{files} file{'' if files == 1 else 's'}", tool=tool))
+        return word == CIRCLING_GO_ON
+
+    def _tell_stuck(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
+        """B-413: the Orchestrator's card that it seems stuck, told as a night's end is
+        (`away.send`): on the desktop where the project has notices on (within `_toasts`), and
+        at its notification address. Never fails the turn."""
+        with contextlib.suppress(Exception):
+            with self._factory() as session:
+                project = self._project(session, ctx.cid)
+                if project is None:
+                    return
+                desktop = project.notify_desktop and self._toasts.take(ctx.cid)
+                if not (desktop or project.notify_url):
+                    return
+                note = (project.name, project.notify_url, project.notify_format, desktop,
+                        CIRCLING_TOLD.format(tool=tool))
+            away.send(note)
 
     def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether the user can be asked on a card in this turn: one they started - not a

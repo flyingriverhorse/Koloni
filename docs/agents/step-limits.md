@@ -61,19 +61,29 @@ sends a message. A call with other arguments, or one that gets a new result (a r
 team's report), is new. A wait for a team or in a room counts as neither, however often it says
 the same. From the third repeat on, the Orchestrator is told what is repeating.
 
-In a turn you started, a card under the call asks you:
+In a turn you started, the first time it is told, in its next step, to try a different approach or
+to report what it did and end. Its counts start again and it goes on; you see nothing. If it goes
+round in circles again, a card under the call asks you:
 
 > The Orchestrator has no step limit, and it seems to go round in circles: its last 10 calls each
 > repeated one it had made, with the same result, with no change of this turn on record and no
 > command of its own succeeding in between. Go on lets it carry on; Stop here ends it, with what it
-> did so far.
+> did so far. With no answer in 10 minutes its turn ends, its work kept.
 
 - **Go on**: it carries on, and the counts start again.
 - **Stop here**: the turn ends with that reason.
+- **No answer in 10 minutes**: the turn ends by itself. What is in the project stays, and work in
+  agents' copies stays behind its cards, as at **Stop**. KOLONİ's line in the chat says how many
+  agents it had opened, how many files it had changed in the project, and which call it repeated.
+  A message you sent meanwhile, the To-do run or the night then goes on.
 
-The card waits for you at every level, **Full auto** too. In a turn nobody watches (a trigger's, a
-job while you're away, a To-do task) there is no card: the Orchestrator ends with the reason on
-record, and a night or the To-do run goes on with the next job or task.
+The card waits for you at every level, **Full auto** too. As it goes up, KOLONİ tells you on the
+desktop and at the project's notification address, where you set them (Settings › This project):
+"The Orchestrator seems stuck: it repeated list_dir with the same result…".
+
+In a turn nobody watches (a trigger's, a job while you're away, a To-do task) there is no card: the
+Orchestrator ends with the reason on record, and a night or the To-do run goes on with the next job
+or task.
 
 ## At the limit
 

@@ -145,13 +145,14 @@ class QuestionsMixin:
 
     async def _ask_user(
         self: "AgentRunner", ctx: Ctx, call_id: str, args: dict, leave: bool = False,
-        ids: list[str] | None = None, kind: str | None = None,
+        ids: list[str] | None = None, kind: str | None = None, tell: bool = True,
     ) -> tuple[str, str]:
         """Put a question to the user and wait, however long, for the answer. `leave`:
         the question is KOLONİ's own - may a tool run - and not the agent's; the record
         says so, and the user is shown it as such. `ids`: given, the question's id is put in it.
         `kind`: one of `DELEGABLE` where the Lead may answer it while the user is away; None
-        (anything else) waits for the user."""
+        (anything else) waits for the user. `tell`: False where the caller tells the desktop
+        itself (`_users_word`)."""
         refused = self._nobody_to_ask(ctx, "question", "ask the user anything")
         if refused is not None:
             raise _NobodyToAsk(refused)  # no question is put on record: none can be answered
@@ -200,7 +201,7 @@ class QuestionsMixin:
         stand_down = self._lead_may_answer(
             ctx, kind, text, offered[:-1] if kind == "checker" else offered, future, lead_says)
         try:
-            answer = await self._users_word(ctx, future, heard)
+            answer = await self._users_word(ctx, future, heard, tell=tell)
         finally:
             stand_down()
             self._answers.pop(question_id, None)
