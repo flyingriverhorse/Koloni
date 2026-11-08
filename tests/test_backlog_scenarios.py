@@ -179,7 +179,10 @@ def test_work_the_backlog_starts_the_next_task_and_its_end_waits_for_review(make
     assert "login form" in first and "shows errors" in first
     wait_run(client, cid, snap["runs"][0]["id"])
     (doing,) = [t for t in backlog(client, pid) if t["id"] == task["id"]]
-    assert (doing["status"], doing["conversation_id"]) == ("review", cid)
+    # (With the turns: on a macOS runner it once came back "blocked", which only a failed or
+    # unfinished first turn and its fix round give.)
+    assert (doing["status"], doing["conversation_id"]) == ("review", cid), [
+        (r["status"], r["error"]) for r in client.get(f"/api/conversations/{cid}").json()["runs"]]
     assert client.patch(f"/api/backlog/{task['id']}", json={"status": "done"}).status_code == 200
     client.patch(f"/api/backlog/{backlog(client, pid)[-1]['id']}", json={"status": "done"})
     assert client.post(f"/api/projects/{pid}/backlog/next").status_code == 409  # nothing left to do
