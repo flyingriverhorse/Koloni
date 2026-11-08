@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       # check_docs.py builds the site, then fails on a broken link or anchor, a diagram's missing
