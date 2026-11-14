@@ -244,7 +244,23 @@ def facts(kind: str, base_url: str | None, model: str, copy: dict | None = None,
     return told, said
 
 
-def _catalogued(kind: str, base_url: str | None, model: str, copy: dict,  # noqa: C901
+def _entry_facts(told: dict, said: dict, kind: str, entry: dict, dev: str, near: bool,
+                 found: tuple | None) -> None:
+    """For `_catalogued`: the window, the most written, the price and the retiring a model's
+    entry says, put into `told` and `said`."""
+    limit, cost = entry.get("limit") or {}, entry.get("cost") or {}
+    for fact, value in (("context_window", limit.get("context")),
+                        ("max_output", limit.get("output"))):
+        if value and (near or fact == "max_output"):
+            told[fact], said[fact] = int(value), dev
+    if kind in HTTP_KINDS and "input" in cost and "output" in cost:
+        told["price"] = {part: cost.get(part) for part in models_dev.COSTS}
+        said["price"] = dev
+    if not found:  # (another service retiring it says nothing of this one's)
+        told["deprecated"], said["deprecated"] = entry.get("status") == "deprecated", dev
+
+
+def _catalogued(kind: str, base_url: str | None, model: str, copy: dict,
                 key: str | None) -> tuple[dict, dict]:
     told: dict = dict.fromkeys(FACTS)
     said: dict = {}
@@ -273,16 +289,7 @@ def _catalogued(kind: str, base_url: str | None, model: str, copy: dict,  # noqa
         if docs is not None:
             told["efforts"], said["efforts"] = list(docs), "docs"
     if entry is not None:
-        limit, cost = entry.get("limit") or {}, entry.get("cost") or {}
-        for fact, value in (("context_window", limit.get("context")),
-                            ("max_output", limit.get("output"))):
-            if value and (near or fact == "max_output"):
-                told[fact], said[fact] = int(value), dev
-        if kind in HTTP_KINDS and "input" in cost and "output" in cost:
-            told["price"] = {part: cost.get(part) for part in models_dev.COSTS}
-            said["price"] = dev
-        if not found:  # (another service retiring it says nothing of this one's)
-            told["deprecated"], said["deprecated"] = entry.get("status") == "deprecated", dev
+        _entry_facts(told, said, kind, entry, dev, near, found)
     tier, source = _tier(_rules(key), model, entry or {}, _priced(_service(key, copy)[1]))
     if model in _cli(key).get("extra", {}):  # (a CLI's own name: its tier is catalog.json's)
         tier, source = _cli(key)["extra"][model]["tier"], "catalog"
