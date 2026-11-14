@@ -223,7 +223,7 @@ speaks**. **Dictate** and **Read aloud** stay beside the message box. See [Voice
 
 **Export**: your KOLONİ data in one `.zip`: chats, agents, providers, memory, triggers, skills and
 attachments. Not in it: your project folders (their `.koloni/` knowledge too), working copies,
-logs, previews, the CLIs' own folders and the database's upgrade backups.
+logs, previews, the CLIs' own folders and the database's own backups (before an upgrade, and daily).
 
 - **Include API keys and secrets (keep this file safe)**: without this, the keys KOLONİ stores in
   its settings and secret files you attached to a chat (a `.env`, a key file) are left out. A key that

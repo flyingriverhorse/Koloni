@@ -6,16 +6,22 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Added
+
+- **Install**: KOLONİ copies its database at its first start of a day to `runtime/data/backups/` and keeps the last three, beside the copies it makes before an update changes the database ([docs](backup-and-update.md#backups-koloni-makes-by-itself)).
+
 ### Changed
 
 - **Chat**: the Orchestrator no longer stops at a fixed count of steps; it stops when its work is done, when it goes round in circles (it is told once to try another way; then a card asks you **Go on** or **Stop here**, tells you on the desktop and at the project's notification address, and ends the turn with its work kept if nobody answers in 10 minutes), or at a limit you set on the Lead role or a trigger. **Steps an agent may take** now holds sub-agents ([docs](agents/step-limits.md#the-orchestrator-no-step-count)).
 - **To-do**, **Triggers**: in a run nobody watches, an Orchestrator going round in circles ends with the reason on record, and a night or the To-do run goes on with the next job or task; such a turn ends once nothing has moved for **Stuck after this many minutes with no progress** (Settings › The app, 30 unless you change it), and a To-do task's turn or a night's job after **An unattended turn runs at most (hours)** (8; empty: no limit) - a night's job no longer stops at 60 minutes ([docs](agents/step-limits.md#when-the-orchestrator-goes-round-in-circles)).
 - **Canvas**: where the default provider isn't answering and the Models page holds another one that is switched on, First steps offers **Use … for new chats**, which makes that one the default; the step is done once the default answers ([docs](getting-started/quick-start.md#2-add-a-model)).
 - **To-do**, **Tools**, **Knowledge**: an empty list of tasks, skills or knowledge says what one is and where on the page to add the first; a page that needs a folder, in a chat with none, has a **Choose a folder** button.
+- **Knowledge**: in a project whose **Project notes** are first made from this version on, the Orchestrator uses them from the first note you add (it is told where their guide is and can look them up) until you switch them off on the **Lead** role's **Knowledge** tab; other roles have them only if you switch them on. A project that already has Project notes is not changed: switch them on once on the Agents page, the **Lead** role, **Knowledge** tab. An Orchestrator with any knowledge on **Map** is now told where its guide is, as a sub-agent is ([docs](knowledge.md#project-notes)).
 
 ### Fixed
 
 - **Ready**: a team whose coordinator KOLONİ stopped while one of its agents was still at work keeps running until that agent is back, and its work is offered at **Ready for you**; **Ready for you** is also asked before the Orchestrator ends its turn where nobody asked it earlier.
+- **Models**: with a model server that is not running, KOLONİ's check of it takes about half as long (on Windows about 2 seconds instead of 4): a server that takes no connection is asked once, not twice.
 
 ## [0.1.0] - 2026-11-07
 

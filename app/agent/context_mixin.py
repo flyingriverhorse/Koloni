@@ -1147,7 +1147,7 @@ class ContextMixin:
                 )
             }
             if ctx.depth == 0:
-                system = self._history_lead(session, ctx, system, others)
+                system = self._history_lead(session, ctx, has, system, others)
                 messages: list[dict] = [{"role": "system", "content": system}]
                 if first:
                     taken_from = _led_before(session, ctx)
@@ -1340,8 +1340,8 @@ class ContextMixin:
                 system += "\n\n" + measured
         return system
 
-    def _history_lead(self: "AgentRunner", session: Session, ctx: Ctx, system: str,
-                      others: str) -> str:
+    def _history_lead(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str],
+                      system: str, others: str) -> str:
         """`system` with what only a lead is told."""
         cid = ctx.cid
         if ctx.instructions:
@@ -1356,6 +1356,11 @@ class ContextMixin:
             system += "\n\n" + DECIDES_PROMPT
         if others:
             system += "\n\n" + others
+        # A knowledge its role uses as a map - the project's notes, unless the user took them
+        # away (`project_notes.accept`): where its guide is, as a sub-agent's role is told.
+        if mapped := knows.map_of(session, find_role(session, ctx.role), session.get_one(
+                Conversation, cid).project_id, ctx.root, LOOKUP in has):
+            system += "\n\n" + mapped
         if told := self._map_told(ctx):
             system += "\n\n" + told
         return system

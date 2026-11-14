@@ -7,7 +7,7 @@ In KOLONİ's folder, or wherever `KOLONI_RUNTIME_ROOT` says.
 | Path | What it holds |
 |---|---|
 | `data/koloni.db` | The database. API keys are in it, in plain text. |
-| `data/backups/` | Copies of the database made before upgrades and by the update script (the last five). |
+| `data/backups/` | Copies of the database made before upgrades and by the update script (the last five), and at the first start of a day (`daily-…`, the last three). |
 | `logs/koloni.log` | The log; it rotates at 10 MB and keeps five old files. |
 | `attachments/` | Files attached to messages, per chat. |
 | `skills/` | KOLONİ's copies of skills. |

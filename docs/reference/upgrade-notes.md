@@ -8,7 +8,8 @@
    [Backup and update](../backup-and-update.md).
 3. **Start KOLONİ again.** If the new version changes the database, KOLONİ copies it to
    `runtime/data/backups/` and then upgrades it. It keeps the last five copies there, the update
-   script's included.
+   script's included; the copies it makes at the first start of a day (`daily-…`, the last three)
+   are apart from those.
 
 If something goes wrong, the copies in `runtime/data/backups/` are whole databases. Stop KOLONİ before you
 put one back in place of `runtime/data/koloni.db`.

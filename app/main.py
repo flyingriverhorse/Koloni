@@ -90,7 +90,13 @@ from app.api.deps import carries_key, require_own_origin
 from app.away import send as send_night
 from app.config import Settings, load_settings
 from app.db.models import Flag, McpServer, Project, Provider, now
-from app.db.session import make_engine, make_session_factory, tidy_db, upgrade_db
+from app.db.session import (
+    back_up_daily,
+    make_engine,
+    make_session_factory,
+    tidy_db,
+    upgrade_db,
+)
 from app.events import EventBus
 from app.executors.docker import kill_containers
 from app.local_server import LocalServer
@@ -619,6 +625,9 @@ def run() -> None:
     # Before the app is made: what its start says (`tidy_db`) is in the log too.
     logging.config.dictConfig(log_config(settings.runtime_root))
     app = create_app(settings)
+    # Only here, the start that serves (no app a test makes): the day's copy of the database,
+    # migrated and tidied by now.
+    back_up_daily(settings.db_path)
     # A pipe's encoding (cp1252 on Windows) has no "İ": the link is printed all the same.
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(errors="replace")
