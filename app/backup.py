@@ -246,34 +246,43 @@ def last_failed(runtime_root: Path) -> Path | None:
     return max(runtime_root.glob("restore.failed-*"), default=None)
 
 
-def _unpacked(upload: Path, into: Path) -> dict:  # noqa: C901
+def _members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+    """The files of an upload that is a KOLONİ export's; Refused says why it is not one."""
+    infos = [info for info in archive.infolist() if not info.is_dir()]
+    if len(infos) > MAX_MEMBERS:
+        raise Refused(f"it holds more than {MAX_MEMBERS} files")
+    if sum(info.file_size for info in infos) > MAX_UNPACKED:
+        raise Refused(f"it unpacks to more than {MAX_UNPACKED // 2**30} GB")
+    names = {info.filename for info in infos}
+    if MANIFEST not in names:
+        raise Refused("it is not a KOLONİ export: it has no manifest.json")
+    if DB not in names:
+        raise Refused(f"it has no database ({DB})")
+    for info in infos:
+        if not _target(info.filename) or stat.S_ISLNK(info.external_attr >> 16):
+            raise Refused(f"{info.filename!r} is not a file a KOLONİ export holds")
+    return infos
+
+
+def _unpack(archive: zipfile.ZipFile, info: zipfile.ZipInfo, into: Path) -> None:
+    path = into / info.filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with archive.open(info) as member, path.open("wb") as out:
+        got = 0
+        while chunk := member.read(2**20):
+            got += len(chunk)
+            if got > info.file_size:
+                break
+            out.write(chunk)
+    if got != info.file_size:  # (a zip bomb says less than it holds)
+        raise Refused(f"{info.filename!r} is not the size it says")
+
+
+def _unpacked(upload: Path, into: Path) -> dict:
     try:
         with zipfile.ZipFile(upload) as archive:
-            infos = [info for info in archive.infolist() if not info.is_dir()]
-            if len(infos) > MAX_MEMBERS:
-                raise Refused(f"it holds more than {MAX_MEMBERS} files")
-            if sum(info.file_size for info in infos) > MAX_UNPACKED:
-                raise Refused(f"it unpacks to more than {MAX_UNPACKED // 2**30} GB")
-            names = {info.filename for info in infos}
-            if MANIFEST not in names:
-                raise Refused("it is not a KOLONİ export: it has no manifest.json")
-            if DB not in names:
-                raise Refused(f"it has no database ({DB})")
-            for info in infos:
-                if not _target(info.filename) or stat.S_ISLNK(info.external_attr >> 16):
-                    raise Refused(f"{info.filename!r} is not a file a KOLONİ export holds")
-            for info in infos:
-                path = into / info.filename
-                path.parent.mkdir(parents=True, exist_ok=True)
-                with archive.open(info) as member, path.open("wb") as out:
-                    got = 0
-                    while chunk := member.read(2**20):
-                        got += len(chunk)
-                        if got > info.file_size:
-                            break
-                        out.write(chunk)
-                if got != info.file_size:  # (a zip bomb says less than it holds)
-                    raise Refused(f"{info.filename!r} is not the size it says")
+            for info in _members(archive):
+                _unpack(archive, info, into)
     except zipfile.BadZipFile as exc:
         raise Refused(f"the .zip could not be read: {exc}") from None
     try:
