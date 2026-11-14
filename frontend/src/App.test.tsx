@@ -129,7 +129,11 @@ test('with no folder and no chat KOLONİ opens on the canvas, not on a setup pag
   // Nothing is made at the start: the first message makes a plain chat.
   expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Board' }))
-  expect(screen.getByText('This chat has no folder - pick one with the folder button to use the Board.')).toBeInTheDocument()
+  const none = screen.getByText('This chat has no folder - pick one with the folder button to use the Board.')
+  // ...with the way to one beside it: the folder button's own panel.
+  expect(screen.queryByRole('button', { name: 'Open a folder…' })).toBeNull()
+  await userEvent.click(within(none.parentElement!).getByRole('button', { name: 'Choose a folder' }))
+  expect(screen.getByRole('button', { name: 'Open a folder…' })).toBeInTheDocument()
 })
 
 test('in a project whose conversations are all archived, none is opened, and the default model is the one a notice is about', async () => {
@@ -239,4 +243,31 @@ test("another chat opened is a step of the browser's history: Back opens the one
   act(() => void window.dispatchEvent(new PopStateEvent('popstate', { state: { chat: 'c' } })))
   await vi.waitFor(() => expect(useApp.getState().conv?.conversation.id).toBe('c'))
   expect(history.length).toBe(steps + 1)
+})
+
+test('while the default does not answer and another provider does, the provider step is done and offers that one for new chats - made the default only by its button', async () => {
+  const down = { ...health, model_reachable: false, provider_id: 'p-local', provider_name: 'Local', error: 'connection refused' }
+  const local = { id: 'p-local', name: 'Local', kind: 'openai_compat', default_model: 'qwen', models: [] }
+  const providers = [local, { ...local, id: 'p-off', name: 'Off', enabled: false }, { ...local, id: 'p-cli', name: 'Claude Code', kind: 'claude_cli' }]
+  const fetched = vi.fn(async (url: string, _init?: RequestInit) =>
+    url.endsWith('provider_id=p-cli')
+      ? new Response(JSON.stringify({ ...health, provider_id: 'p-cli', provider_name: 'Claude Code' }))
+      : answer(url, { '/api/health': down, '/api/projects': [], '/api/conversations': [], '/api/providers': providers, '/api/providers/p-cli/limits': { unknown: true } }),
+  )
+  vi.stubGlobal('fetch', fetched)
+  // (A test above hid the steps: the store of the page is one for the file.)
+  localStorage.removeItem('koloni-first-steps')
+  render(<App />)
+  const steps = await screen.findByRole('region', { name: 'First steps' })
+  // (A CLI is not run to see: it is "installed", where a server would be "answering".)
+  const done = (await within(steps).findByText('A provider is set up.')).closest('li')
+  expect(done).toHaveTextContent("Local isn't answering, and new chats run on it. Claude Code is installed.")
+  // The folder is the step to do now; the offer is one more button, on the done step.
+  expect(within(steps).getAllByRole('button').map(button => button.textContent)).toEqual(['Use Claude Code for new chats', 'Choose a folder', 'Hide the first steps'])
+  // (One that is switched off is not asked, nor offered.)
+  const asked = () => fetched.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)
+  expect(asked().some(call => call.includes('p-off'))).toBe(false)
+  expect(asked().some(call => call.startsWith('POST'))).toBe(false)
+  await userEvent.click(within(steps).getByRole('button', { name: 'Use Claude Code for new chats' }))
+  await vi.waitFor(() => expect(asked()).toContain('POST /api/providers/p-cli/default'))
 })

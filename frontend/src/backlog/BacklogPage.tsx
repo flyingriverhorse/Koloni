@@ -1017,7 +1017,7 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
       {!backlog ? (
         !error && <p className="muted">Reading the To-do list…</p>
       ) : listed.length === 0 ? (
-        <p className="muted hive-empty">No task yet.</p>
+        <p className="muted hive-empty">No task yet. A task is work for later: type its title in “Add a task” above, and Run the backlog starts it in a chat of its own.</p>
       ) : (
         <section className="memory-section" aria-label="Your tasks">
           <h3 className="kicker">

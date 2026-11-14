@@ -91,6 +91,9 @@ const readingsOf = ({ inUse, conv, conversations }: ReturnType<typeof useApp.get
 /** ...and the roles of it that cannot run, with them. */
 const cannotOf = (state: ReturnType<typeof useApp.getState>) => (readingsOf(state) ? state.inUse?.cannot : undefined)
 
+/** The top bar's folder button opens its panel, where "Open a folder…" is: the way to a folder from a page that needs one. */
+const chooseFolder = () => document.querySelector<HTMLElement>('.folder-button')?.click()
+
 /** The rail's pages, by their pages' names and the rail's word where it is another: what Ctrl+K finds. */
 const PAGES: [View, string][] = [
   ['canvas', 'Canvas'],
@@ -368,6 +371,9 @@ export function App() {
   const noFolder = (page: string) => (
     <div className="memory-page">
       <p className="muted">This chat has no folder - pick one with the folder button to use the {page}.</p>
+      <button type="button" className="btn btn-small" onClick={chooseFolder}>
+        Choose a folder
+      </button>
     </div>
   )
   const firstSteps = () => {
@@ -868,7 +874,9 @@ export function App() {
                   wrote={conversations.some(c => c.wrote) || (conv?.runs.length ?? 0) > 0}
                   turn={conv ? conv.runs.length > 0 : conversations.some(c => !c.archived_at) ? undefined : false}
                   again={stepsAgain}
+                  providers={providers}
                   onProvider={() => go('models', 'new')}
+                  onUse={useApp.getState().makeDefaultProvider}
                   onHidden={() => setStepsAgain(false)}
                   onSaysProvider={setStepsSayProvider}
                 />

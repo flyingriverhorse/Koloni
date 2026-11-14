@@ -32,9 +32,12 @@ Press **Add a provider** (in First steps, or on the **Models** page). Fill in:
 
 Press **Save**, then **Test** to check that it answers.
 
-The first provider on the Models page is the default. KOLONİ makes one called "Local" at the
-first start, for a model server on this machine. If you do not run one, open your new provider and
-press **Make default**.
+The first provider on the Models page is the default: new chats run on it. KOLONİ makes one called
+"Local" at the first start, for a model server on this machine. If you do not run one, First steps
+says that Local isn't answering. Once another provider answers (for a CLI: once it is installed), First
+steps offers **Use … for new chats** with its name: press it to make that provider the default.
+**Make default** on the provider's card on the Models page does the same. KOLONİ never changes the
+default by itself.
 
 If a CLI was installed when KOLONİ first started, you may find it on the Models page already.
 
@@ -45,8 +48,9 @@ should work in. To only talk, without files or commands, choose **No folder · a
 
 ## 4. Write your first message
 
-Next to the message box, check the permission level. Keep **Ask before changes** for now: each
-file change and each command will wait for you. See [Permission levels](../use/permissions.md).
+Next to the message box, check the permission level. Keep **Ask before changes** for now:
+commands that do more than read wait for you, and no change reaches your folder before you say so.
+See [Permission levels](../use/permissions.md).
 
 Write what you want done, for example "Add a README that explains how to run this project", and
 send it.
@@ -54,17 +58,30 @@ send it.
 The chat shows the Orchestrator's answer and a row for each agent it opened. The canvas draws the
 turn: each agent as a box with its tools, commands and files.
 
-## 5. Approve a card
+## 5. Answer the cards
 
-When an agent wants to change a file, a card shows the change as a diff. Press **Approve** to write
-it, or **Reject** to turn it down. After it is written you can still **Revert** it.
+In a new project the Orchestrator plans, asks and checks, and hands every change to files to a
+sub-agent (for code, a Coder). The sub-agent works in its own copy of the project, not in your
+folder. So the first turn asks you on cards in the chat:
 
-A command asks with "Run this command?":
+**Open this sub-agent?** shows the role, the model it runs on, its task and its tools. Press
+**Open agent** to let it start, or **Reject**.
+
+**Run this command?** comes when an agent wants to run a command:
 
 - **Run once** runs it this time.
 - **Always run …** runs it, and keeps a rule so the same kind of command runs without a card in
   this chat.
 - **Reject** turns it down.
+
+**Take in …'s work?** (with the sub-agent's name) comes when the sub-agent has finished. It lists
+the files it changed; click a file to see its diff. Nothing is in your folder yet. Press **Take in**
+to bring the changes into your project, or **Discard** to throw the copy away. See
+[Working copies and Take in](../use/workspace.md).
+
+If you let the Orchestrator change the files itself (Settings › This project › Agents › **Who
+changes the files**), each change comes on a card with its diff and **Approve** or **Reject**
+instead, and after it is written you can still **Revert** it.
 
 While something waits for you, the project's tab above the canvas turns orange, and **Ready** on the
 rail counts it, so you can do something else meanwhile.

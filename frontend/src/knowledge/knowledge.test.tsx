@@ -215,6 +215,12 @@ test('Not known yet: not measured, every question answered, or what it found no 
   expect(screen.getByText('Learn more may cover them.')).toBeInTheDocument()
 })
 
+test('with no knowledge yet the page says what one is, and points at + Add knowledge', () => {
+  page({ items: [] })
+  expect(screen.getByText('No knowledge yet. A knowledge is a docs site, files or a repository KOLONİ reads once, so agents can look things up in it: press + Add knowledge.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '+ Add knowledge' })).toBeInTheDocument()
+})
+
 test('Add knowledge is the Settings form in its new mode: the kind on top, the page cap under More, no Used by; Add and learn adds, then learns', async () => {
   const props = page()
   await userEvent.click(screen.getByRole('button', { name: '+ Add knowledge' }))

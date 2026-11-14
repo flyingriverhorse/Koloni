@@ -2687,10 +2687,15 @@ a.view-run {
   color: var(--ok);
 }
 
-/* The one to do now: it alone has a button, which goes where it is done. */
+/* The one to do now: it has the button that goes where it is done. */
 .first-step[aria-current='step'] {
-  flex-wrap: wrap;
   font-weight: 600;
+}
+
+/* (A note is a line of its own under its step, the current one's or a done one's.) */
+.first-step[aria-current='step'],
+.first-step-noted {
+  flex-wrap: wrap;
 }
 
 .first-step[aria-current='step'] > svg {
