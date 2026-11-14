@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from app import catalog, models_dev
+from app.agent import _LeadTurn, _summary_after
 from app.config import load_settings
 from app.main import create_app
 from app.model_cli import CliStepClient
@@ -154,6 +156,50 @@ def test_refused_for_its_size_with_no_older_part_nothing_is_said_of_a_summary(
     error = turn("now the tests", None, fails=TOO_LONG)
     assert TOO_LONG in error and "send your message again" not in error, error
     assert not turn.summariser.calls
+
+
+def a_turn(**kind):
+    t = _LeadTurn()
+    for flag in ("planning", "unattended", "run_compare", "job", "backlog_turn"):
+        setattr(t, flag, kind.get(flag, False))
+    return t
+
+
+def test_which_turns_are_summarised_after_a_refusal_for_their_size():
+    assert _summary_after(a_turn(), "failed", TOO_LONG) is True
+    assert _summary_after(a_turn(), "failed", "boom") is None
+    assert _summary_after(a_turn(), "failed", None) is None
+    assert _summary_after(a_turn(), "cancelled", TOO_LONG) is None
+    # Nobody is there to send the message again: a To-do task's turn, a night's job, a
+    # trigger's turn; nor a plan's, nor a side of a comparison.
+    for kind in ("job", "backlog_turn", "unattended", "planning", "run_compare"):
+        assert _summary_after(a_turn(**{kind: True}), "failed", TOO_LONG) is None, kind
+
+
+def test_a_completed_turn_is_looked_at_past_the_threshold_as_before():
+    assert _summary_after(a_turn(), "completed", None) is False
+    for kind in ("job", "backlog_turn"):
+        assert _summary_after(a_turn(**{kind: True}), "completed", None) is False, kind
+    for kind in ("unattended", "planning", "run_compare"):
+        assert _summary_after(a_turn(**{kind: True}), "completed", None) is None, kind
+
+
+@pytest.mark.parametrize("kind, service", [
+    ("claude_cli", "anthropic"), ("codex_cli", "openai"), ("copilot_cli", "github-copilot")])
+def test_a_clis_model_has_its_vendors_catalogued_window(kind, service):
+    copy = models_dev.clean({service: {"id": service, "name": service, "models": {
+        "m-1": {"id": "m-1", "name": "M", "limit": {"context": 500, "output": 100}}}}})
+    assert catalog.facts(kind, None, "m-1", copy)[0]["context_window"] == 500
+    assert catalog.facts(kind, None, "m-2", copy)[0]["context_window"] is None
+    # (On a model server of the user's own, the model is that server's: not the vendor's.)
+    assert catalog.facts(kind, "http://127.0.0.1:8080/v1", "m-1", copy)[0][
+        "context_window"] is None
+
+
+@pytest.mark.parametrize("kind", ["qoder_cli", "agy_cli"])
+def test_qoders_and_agys_models_have_none(kind):
+    assert catalog.facts(kind, None, "Qwen3.8-Flash", models_dev.load(None))[0][
+        "context_window"] is None
 
 
 def test_below_the_threshold_it_is_not(cli_chat, fake):  # noqa: F811

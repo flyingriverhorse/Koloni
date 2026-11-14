@@ -898,6 +898,22 @@ class _LeadTurn:
     later: list[tuple] = field(default_factory=list)
 
 
+def _summary_after(t: _LeadTurn, status: str, error: str | None) -> bool | None:
+    """Whether a turn's lead is looked at for a summary after it (`_idle_after`): False past
+    the threshold, after one that completed; True whatever its size, after one refused for
+    its size - the next, sent the same history, would be refused the same way. None: not at
+    all - a plan; a trigger's turn, whose clock would run on; a side of a comparison, which
+    may be thrown away (a chosen one's next turn compacts). Nor after a refusal in a To-do
+    task's turn or a night's job: nobody is there to send the message again."""
+    if t.planning or t.unattended or t.run_compare:
+        return None
+    if status == "completed":
+        return False
+    refused = status == "failed" and not (t.job or t.backlog_turn) and OVERFLOW.search(
+        error or "")
+    return True if refused else None
+
+
 class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
@@ -1718,14 +1734,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # Before the turn is on record as over: nothing of it holds a file after.
         await self._keep_given_back(run_id)
         self._release_run(run_id)
-        # A turn refused for its size: summarised whatever its size, or the next one - sent
-        # the same history - would be refused the same way.
-        full = status == "failed" and bool(OVERFLOW.search(error or ""))
-        if (status == "completed" or full) and not (t.planning or t.unattended or t.run_compare):
-            # Before the next turn can start, which waits for it (`_after_idle`); not in
-            # a trigger's turn, whose clock would run on. (The lead as it ran: a model
-            # chosen by how hard the message was is its own.) Not for a side of a
-            # comparison, which may be thrown away: a chosen one's next turn compacts.
+        if (full := _summary_after(t, status, error)) is not None:
+            # Before the next turn can start, which waits for it (`_after_idle`). (The lead
+            # as it ran: a model chosen by how hard the message was is its own.)
             try:
                 t.idle = self._idle_after(self._ctxs.get(ctx.agent_id, ctx), full)
             except Exception as exc:  # (it fails nothing of the turn)

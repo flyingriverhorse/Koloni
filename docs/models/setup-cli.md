@@ -64,13 +64,18 @@ turn to the next: it is sent only what is new, and compacts that session itself.
 starts each turn anew and is sent the whole chat. KOLONİ compacts that, as it does for an API model, past
 **Summarise a long context at (%)** of the window set on its role, or with none set there, of the window the
 catalogue has for its model (Claude Code's, Codex's and Copilot's models; none for Qoder's or agy's, where only
-**Compact now** compacts it). What is measured is the chat KOLONİ sends, not what the CLI reads by itself during a
-turn. A CLI run **One run per model step** is never compacted: each step is sent a trimmed history.
+**Compact now** compacts it). Against a catalogued window this is seldom reached: what is measured is the chat
+KOLONİ sends, with its older tool outputs already left out past about 240,000 characters, so only a chat whose own
+words are very long gets there; what the CLI reads by itself during a turn is not counted. To have it summarised
+sooner, set a smaller window on its role. A CLI run **One run per model step** is never compacted: each step is
+sent a trimmed history.
 
-When such a lead's turn ends because its context is full, KOLONİ summarises its earlier work whatever its size,
-and the failure says so: send your message again and it goes on from the summary. KOLONİ knows such a refusal by
-its words, and the CLIs' own wordings are not all known yet; where the failure says nothing of a summary, use
-**Compact now** and send the message again.
+When a lead's turn in a chat you are in ends because its context is full (on a CLI or an API model), KOLONİ
+starts summarising its earlier work whatever its size, and the failure says so: send your message again and it
+goes on from the summary. If the next turn fails the same way, use **Compact now** or set a smaller context window
+on the role. KOLONİ knows such a refusal by its words, and the CLIs' own wordings are not all known yet; where the
+failure says nothing of a summary, use **Compact now** and send the message again. A To-do task's turn, a night's
+job and a trigger's turn are not summarised this way: nobody is there to send the message again.
 
 **Compact now** is in the top bar's **context** button (see
 [Chat and canvas](../use/chat-and-canvas.md#the-context-button)).
