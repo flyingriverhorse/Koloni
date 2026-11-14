@@ -14,7 +14,7 @@ import pytest
 
 from app import catalog, models_dev
 from app.agent import STARTED_AGAIN, AgentRunner, _LeadTurn, _sends_again, _summary_after
-from app.agent.loop_mixin import refused_for_size
+from app.agent.loop_mixin import FULL_AGAIN, FULL_AGAIN_DO, NOTHING_LEFT, refused_for_size
 from app.config import load_settings
 from app.main import create_app
 from app.model_cli import RESULT_TEXT, CliStepClient
@@ -163,12 +163,25 @@ def test_refused_again_after_that_it_ends_failed_and_is_not_started_a_third_time
     turn("now the tests", "Tested.")
     before = len(fake.starts())
     error = turn("and the docs", None, fails=TOO_LONG)
-    assert TOO_LONG in error and "use Compact now" in error, (error, caplog.text)
+    # (Refused at once, with all before its last answer summarised: nothing more to summarise.)
+    assert TOO_LONG in error and error.endswith(FULL_AGAIN + NOTHING_LEFT), (error, caplog.text)
     assert "send your message again" not in error
     assert len(fake.starts()) == before + 2 and len(turn.summariser.calls) == 1
     # (Its summary stands: a next turn goes on from it, and none is made again after it.)
     turn("and the docs", "Documented.")
     assert SUMMARY in fake.stdin() and len(turn.summariser.calls) == 1
+
+
+def test_refused_again_after_it_worked_on_it_says_what_to_do(cli_chat, fake, wait_run):  # noqa: F811
+    turn = cli_chat(resumes=False, window=10_000_000)
+    turn("now the tests", "Tested.")
+    before = len(fake.starts())
+    run_id = turn.send("and the docs", None, fails=TOO_LONG,
+                       then=[{"say": "Half of it."}, {"complain": TOO_LONG}])
+    run = wait_run(turn.client, turn.cid, run_id, timeout=30)["runs"][-1]
+    assert run["status"] == "failed", run
+    assert run["error"].endswith(FULL_AGAIN + FULL_AGAIN_DO), run["error"]
+    assert len(fake.starts()) == before + 2
 
 
 # (The last two are no refusal for its size: a line KOLONİ could not read or start, `_fits`.)
@@ -191,7 +204,7 @@ def test_refused_for_its_size_with_no_older_part_nothing_is_said_of_a_summary(
     # (After one turn only: what is before its last answer is the user's, never summarised.)
     turn = cli_chat(resumes=False, window=10_000_000)
     error = turn("now the tests", None, fails=TOO_LONG)
-    assert error.endswith(TOO_LONG), error
+    assert TOO_LONG in error and error.endswith(NOTHING_LEFT), error
     assert not turn.summariser.calls and len(fake.starts()) == 2
 
 
