@@ -9,9 +9,9 @@
 Before a new version changes the database, KOLONİ copies it to `runtime/data/backups/`. It keeps the
 last five copies. The update script's own backup goes in the same folder and counts among those five.
 
-When it starts and its newest routine copy is a day old (or there is none yet), KOLONİ also copies the
-database there, as `daily-koloni-<date and time>.db`, and keeps the last three. These are counted apart
-from the five above, and a KOLONİ that is left running makes none until its next start.
+At its first start of a day (by the date in UTC), KOLONİ also copies the database there, as
+`daily-koloni-<date and time>.db`, and keeps the last three. These are counted apart from the five
+above, and a KOLONİ that is left running makes none until its next start.
 
 Backups hold your API keys, in plain text, like the database itself. Keep `runtime/` private.
 

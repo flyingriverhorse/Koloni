@@ -62,7 +62,7 @@ def _daily(tmp_path) -> list[str]:
     return sorted(p.name for p in (tmp_path / "backups").glob("daily-*"))
 
 
-def test_a_start_with_no_copy_of_the_last_day_makes_one_and_the_same_day_no_other(tmp_path):
+def test_a_start_with_no_copy_of_the_day_makes_one_and_the_same_day_no_other(tmp_path):
     db = tmp_path / "koloni.db"
     upgrade_db(db)
     with sqlite3.connect(db) as conn:
@@ -72,13 +72,33 @@ def test_a_start_with_no_copy_of_the_last_day_makes_one_and_the_same_day_no_othe
     assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db"]
     with sqlite3.connect(tmp_path / "backups" / "daily-koloni-20261114T090000.db") as conn:
         assert conn.execute("SELECT name FROM projects").fetchall() == [("mine",)]
-    # Started again the same day, and a second short of a day later: none.
+    # Started again the same UTC date, to its last second: none.
     back_up_daily(db, AT + timedelta(hours=3))
-    back_up_daily(db, AT + timedelta(days=1, seconds=-1))
+    back_up_daily(db, AT.replace(hour=23, minute=59, second=59))
     assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db"]
-    back_up_daily(db, AT + timedelta(days=1))
+    # The next date, though less than a day on (09:00, then 08:58): one.
+    back_up_daily(db, AT + timedelta(hours=23, minutes=58))
     assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db",
-                                "daily-koloni-20261115T090000.db"]
+                                "daily-koloni-20261115T085800.db"]
+
+
+def test_a_copy_named_later_than_now_is_no_copy_of_today_and_the_first_to_go(tmp_path):
+    """A clock that was a year ahead for one start: it held back every copy after it."""
+    db = tmp_path / "koloni.db"
+    upgrade_db(db)
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    (backups / "daily-koloni-20271114T090000.db").write_bytes(b"ahead")
+    for day in range(DAILY_KEPT - 1):
+        back_up_daily(db, AT + timedelta(days=day))
+    # Kept while the copies are few: it may be the newest there is.
+    assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db",
+                                "daily-koloni-20261115T090000.db",
+                                "daily-koloni-20271114T090000.db"]
+    back_up_daily(db, AT + timedelta(days=DAILY_KEPT))
+    assert _daily(tmp_path) == ["daily-koloni-20261114T090000.db",
+                                "daily-koloni-20261115T090000.db",
+                                f"daily-koloni-202611{14 + DAILY_KEPT}T090000.db"]
 
 
 def test_only_the_last_routine_copies_are_kept_and_no_other_file_goes(tmp_path):
@@ -118,8 +138,13 @@ def test_a_copy_that_fails_is_logged_and_the_start_goes_on(tmp_path, monkeypatch
     monkeypatch.setattr(session, "_copy", full)
     back_up_daily(db, AT)
     assert "database not copied" in caplog.text and "disk is full" in caplog.text
-    assert not list((tmp_path / "backups").glob("*.db"))  # nothing that reads as a copy
-    # The next start makes it, and what the failed one left is gone.
+    assert not list((tmp_path / "backups").iterdir())  # no copy, and none half made
+    # What cannot be deleted either stops no start; the next one makes the copy and clears it.
+    held = tmp_path / "backups" / "daily-koloni-20261114T090000.db.part"
+    monkeypatch.setattr(type(held), "unlink", lambda *_, **__: (_ for _ in ()).throw(
+        PermissionError("held")))
+    back_up_daily(db, AT)
+    assert held.exists()
     monkeypatch.undo()
     back_up_daily(db, AT + timedelta(minutes=5))
     assert [p.name for p in (tmp_path / "backups").iterdir()] == [
