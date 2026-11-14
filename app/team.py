@@ -432,7 +432,54 @@ def only_in_project(model: object, tools: Iterable[str] | None = None) -> bool:
         tools is None or not reads_only(model, tools))
 
 
-def would_run(  # noqa: C901
+def _in_step(
+    role: Role | None, step: Providers | None, has: list[str], one: Provider
+) -> str | None:
+    """For `would_run`: why a provider cannot be a recipe's step for the role - or None."""
+    if role is None or step is None or not only_in_project(
+            step.client(one, one.default_model), has):
+        return None
+    return ONLY_IN_THE_PROJECT.format(provider=shown_name(one.name))
+
+
+def _in_the_way(
+    role: Role | None, step: Providers | None, has: list[str], mode: str, one: Provider
+) -> str | None:
+    """For `would_run`: what stands in the way of a provider for the role's agent - or None."""
+    if role is None:
+        return None
+    # (No `looks_by_running`: Codex, the one that looks so, is started read-only for any
+    # role short of NATIVE_NEEDS_TOOLS - B-301.)
+    # shortcut: judged by the kind's table, not the client (`AgentRunner._needs_its_tools`);
+    # `spawn_agent` judges the client again. Judge it here too if the two are seen to part.
+    # B-314: but Copilot, the one kind that works so, is started with its view tool only for
+    # a role short of the write and command tools (`reads_only`, B-301): no tools of its own
+    # act unasked then. Its tier passed it over for such a role, onto the conversation's model.
+    unasked = _runs(one) == RUNS_OWN and not reads_only(
+        CopilotNativeClient if one.kind == "copilot_cli" else None, has)
+    return _in_step(role, step, has, one) or cannot_pick(
+        unasked, shown_name(one.name), mode, has, role.name)
+
+
+def _role_list(role: Role | None, by_entry: dict, by_id: dict, held: set) -> tuple[list, list]:
+    """For `would_run`: the role's list of models as it may be tried now, and why the rest not."""
+    preferred, dropped = [], []  # (the role's list as it may be tried now, and why the rest not)
+    for one in (role.models if role else None) or []:
+        entry = by_entry.get(one["provider_id"])
+        if entry is None:
+            dropped.append("a model of the role's list is not in the team guide")
+        elif one["provider_id"] in held:
+            dropped.append(f"{entry.name} works with tools of its own, which nobody watches")
+        elif (refused := not_listed(by_id[entry.provider_id], one["model_id"])) is not None:
+            dropped.append(refused.to_agent.split(":")[0])
+        elif closed_to_agents(by_id[entry.provider_id], one["model_id"]):  # (B-385)
+            dropped.append(f"{entry.name}'s {one['model_id']} is closed to agents")
+        else:
+            preferred.append((entry, one["model_id"]))
+    return preferred, dropped
+
+
+def would_run(
     session: Session, role: Role | None, conversation: Conversation | None,
     unattended: bool = False, tools: Iterable[str] | None = None, tier: str | None = None,
     step: Providers | None = None,
@@ -468,32 +515,12 @@ def would_run(  # noqa: C901
     mode = conversation.permission_mode if conversation else "ask"
 
     has = (role.tools if tools is None else list(tools)) if role else []
-
-    def in_step(one: Provider) -> str | None:
-        if role is None or step is None or not only_in_project(
-                step.client(one, one.default_model), has):
-            return None
-        return ONLY_IN_THE_PROJECT.format(provider=shown_name(one.name))
-
-    def in_the_way(one: Provider) -> str | None:
-        if role is None:
-            return None
-        # (No `looks_by_running`: Codex, the one that looks so, is started read-only for any
-        # role short of NATIVE_NEEDS_TOOLS - B-301.)
-        # shortcut: judged by the kind's table, not the client (`AgentRunner._needs_its_tools`);
-        # `spawn_agent` judges the client again. Judge it here too if the two are seen to part.
-        # B-314: but Copilot, the one kind that works so, is started with its view tool only for
-        # a role short of the write and command tools (`reads_only`, B-301): no tools of its own
-        # act unasked then. Its tier passed it over for such a role, onto the conversation's model.
-        unasked = _runs(one) == RUNS_OWN and not reads_only(
-            CopilotNativeClient if one.kind == "copilot_cli" else None, has)
-        return in_step(one) or cannot_pick(unasked, shown_name(one.name), mode, has, role.name)
-
     by_id = {one.id: one for one in providers}
     # (Over the whole guide, not `entries`: the role's list is the user's rule, held to no
     # `pick_from`, and what stands in its way is read here too.)
     blocked = {
-        entry.name: why for entry in whole if (why := in_the_way(by_id[entry.provider_id]))
+        entry.name: why for entry in whole
+        if (why := _in_the_way(role, step, has, mode, by_id[entry.provider_id]))
     }
     would = Would(provider, model_id, source, entries, None, blocked)
     # With nobody watching no CLI at work with tools of its own runs at all
@@ -506,19 +533,7 @@ def would_run(  # noqa: C901
     down = {e.name: f"{e.name} was {why} when last looked at"
             for e in whole if (why := looked.get(e.provider_id))}
     by_entry = {e.provider_id: e for e in whole}
-    preferred, dropped = [], []  # (the role's list as it may be tried now, and why the rest not)
-    for one in (role.models if role else None) or []:
-        entry = by_entry.get(one["provider_id"])
-        if entry is None:
-            dropped.append("a model of the role's list is not in the team guide")
-        elif one["provider_id"] in held:
-            dropped.append(f"{entry.name} works with tools of its own, which nobody watches")
-        elif (refused := not_listed(by_id[entry.provider_id], one["model_id"])) is not None:
-            dropped.append(refused.to_agent.split(":")[0])
-        elif closed_to_agents(by_id[entry.provider_id], one["model_id"]):  # (B-385)
-            dropped.append(f"{entry.name}'s {one['model_id']} is closed to agents")
-        else:
-            preferred.append((entry, one["model_id"]))
+    preferred, dropped = _role_list(role, by_entry, by_id, held)
     would = replace(would, past_limit=past, plan_used=used, down=down,
                     steps=tuple(tier_range(role)) if role else (),
                     says_blocked=role is None or role.name != LEAD, preferred=tuple(preferred))
@@ -547,8 +562,8 @@ def would_run(  # noqa: C901
             would, provider=session.get_one(Provider, entry.provider_id), model_id=model_id,
             source="tier",
         )
-    cannot = in_the_way(would.provider)
-    if in_step(would.provider) and would.source != "role":
+    cannot = _in_the_way(role, step, has, mode, would.provider)
+    if _in_step(role, step, has, would.provider) and would.source != "role":
         # B-301: the conversation's or the first provider cannot be the recipe's step - the
         # next that can, in the user's order (of the role's own list), held to what a tier's
         # model is (a limit, a plan's share, the role's tier rule; one that looked down last),
