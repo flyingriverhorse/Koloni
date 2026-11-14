@@ -519,6 +519,12 @@ class CodexNativeClient(CliStepClient):
     label = "Codex"
     native = True
     efforts = levels_of("codex_cli")
+    # Whose word the `cwd` of a command it asks about is (`AgentRunner._approve`): "cli" - the
+    # CLI's own report (Codex's protocol field, Copilot's resolvedWorkingDirectory; none given:
+    # not known where it runs); "model" - an argument the model wrote (agy's Cwd): judged there
+    # and as not known, the stricter; "root" / "none" - the CLI names none, and a `cwd` in the
+    # model's tool input is no report: each command starts at the root, or it is not known.
+    cwd_from = "cli"
     # Whether the CLI asks KOLONİ for leave before a tool of its own acts. Codex does, over
     # its app-server (`_converse`).
     asks = True
@@ -1930,6 +1936,20 @@ class ClaudeNativeClient(CodexNativeClient):
     command = "claude"
     label = "Claude Code"
     asks = True
+    # Measured by the main session, 14 Nov 2026 (Claude Code 2.1.325, Windows, `-p
+    # --output-format stream-json`, 4 short runs): a `cd sub` in one Bash call does not carry to
+    # the next - each result ends "Shell cwd was reset to <project>", the next `pwd` is the
+    # project; with CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1 and without. KOLONİ sets it
+    # (`_native_env`), so the reset is the CLI's contract: a command of its Bash tool is judged
+    # at the root. Of that tool alone (`AgentRunner._approve_command`): its PowerShell tool is
+    # said by the CLI itself to keep its folder between calls, its Monitor is not measured -
+    # where theirs run is not known.
+    # shortcut: not measured in interactive mode, over KOLONİ's control protocol, with
+    # `--add-dir` folders, on Linux or macOS; measure there if a kept `cd` is ever seen.
+    # shortcut: under `--setting-sources project,local` (`_arguments`) a project's own
+    # .claude/settings.json `env` may set that variable otherwise (not measured which wins);
+    # writing that file is asked at every level. Pass it by `--settings` if it is seen to.
+    cwd_from = "root"
     looks_by_running = False  # it has a Read of its own
     # Whether a tool it ran unasked counts so though it failed (Qoder, not measured: B-306).
     failed_unasked = False
@@ -2006,8 +2026,10 @@ class ClaudeNativeClient(CodexNativeClient):
         return session
 
     def _native_env(self, workdir: Path) -> dict[str, str]:
-        # An approval, or a whole sub-agent, can take a long time.
-        return {"MCP_TOOL_TIMEOUT": TOOL_WAIT_MS}
+        # An approval, or a whole sub-agent, can take a long time. And each Bash call starts in
+        # the project (`cwd_from`): KOLONİ's value, over the user's own.
+        return {"MCP_TOOL_TIMEOUT": TOOL_WAIT_MS,
+                "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1"}
 
     def _native_arguments(
         self, root: Path, bridge_config: Path, withheld: tuple[str, ...] = (),
@@ -2774,6 +2796,7 @@ class QoderNativeClient(ClaudeNativeClient):
 
     command = "qodercli"
     label = "Qoder"
+    cwd_from = "none"  # (shortcut: whether its shell keeps a `cd` is not measured: not known)
     efforts = QoderSessionClient.efforts
     effort_flag = QoderSessionClient.effort_flag
     effort_words = QoderSessionClient.effort_words

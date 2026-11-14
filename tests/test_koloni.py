@@ -455,6 +455,139 @@ def test_a_command_run_in_the_scratch_that_climbs_out_of_it_waits_at_full_auto(
     assert executor.started == []
 
 
+def test_at_full_auto_work_in_the_scratch_and_a_folder_of_it_deleted_run_unasked(
+    make_client, wait_run, project_dir
+):
+    # (live: run_command's cwd in the scratch was a "Climbs out" card, `rm -rf` of its folder one)
+    (project_dir / ".koloni" / "tmp" / "work").mkdir(parents=True)
+    executor = ScriptedExecutor([Script(["ok"]), Script(["ok"]), Script([""])])
+    client, _ = make_client([cmd("pytest -q", cwd=".koloni/tmp/work"),
+                             cmd("cd .koloni/tmp/work; python x.py", "k2"),
+                             cmd("rm -rf .koloni/tmp/work", "k3"), text("done")], executor=executor)
+    cid, run_id = start_in_mode(client, project_dir, "full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert [one["status"] for one in snap["commands"]] == ["exited"] * 3, snap["commands"]
+    assert snap["commands"][0]["danger"] == "" and len(executor.started) == 3
+
+
+def test_claude_codes_cd_into_the_scratch_is_free_as_each_of_its_commands_starts_in_the_project(
+    claude_app, wait_run, project_dir  # noqa: F811
+):
+    # (measured, 14 Nov 2026, Claude Code 2.1.325: a `cd` is not kept for the next Bash call,
+    # and KOLONİ starts it with the variable that asks for that - so its next line, `echo x >
+    # ../rules.md`, runs at the root: beside the project, not in .koloni)
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "cd .koloni/tmp; ls"}},
+        {**BASH, "input": {"command": "echo x > ../rules.md"}}, {"say": "ok"}])
+    cid, run_id = start_claude(client, project_dir, provider, "full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert [(c["status"], c["danger"]) for c in snap["commands"]] == [("exited", "")] * 2
+    from app.model_native import ClaudeNativeClient, QoderNativeClient
+
+    assert ClaudeNativeClient(launcher=["x"])._native_env(project_dir)[
+        "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"] == "1"
+    from app.model_agy import AgyClient
+    from app.model_native import CodexNativeClient, CopilotNativeClient
+
+    # (whose word each CLI's cwd is; one that does not say is judged as not known)
+    assert [one.cwd_from for one in (CodexNativeClient, CopilotNativeClient, AgyClient,
+                                     ClaudeNativeClient, QoderNativeClient)] == [
+        "cli", "cli", "model", "root", "none"]
+
+
+def test_a_cwd_the_model_writes_in_claude_codes_input_is_not_where_the_command_runs(
+    claude_app, project_dir  # noqa: F811
+):
+    # (review: its Bash input is the model's own - `"cwd": ".koloni/tmp"` beside a search of
+    # the whole folder would have scoped it to the scratch, and shown the project's `.env`)
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    (project_dir / ".env").write_text("KEY=1", encoding="utf-8")
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "grep -r KEY .", "cwd": ".koloni/tmp"}}, {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert asked["status"] == "proposed" and asked["cwd"] == "."
+
+
+def test_a_command_of_claude_codes_that_names_a_folder_to_run_in_is_asked_at_every_level(
+    claude_app, project_dir  # noqa: F811
+):
+    # (review: the `cwd` goes back to the CLI as it came - if its tool runs the command there,
+    # this line writes .claude/settings.json; KOLONİ cannot check, so it asks)
+    from app.agent.approvals_mixin import CWD_NOT_KNOWN
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "echo x > settings.json", "cwd": ".claude",
+                           "reason": "safe"}},  # (the model's word is not the card's)
+        {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert asked["status"] == "proposed"
+    assert asked["danger"] == CWD_NOT_KNOWN.format(cwd='".claude"')
+
+
+def test_a_command_with_a_cwd_in_its_input_is_refused_where_nobody_is_there_to_ask(
+    claude_app, wait_run, project_dir  # noqa: F811
+):
+    from tests.test_claude_native import BASH, NOBODY, unattended
+
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "pytest -q", "cwd": "sub"}}, {"say": "ok"}])
+    snap, run, _statuses = unattended(
+        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"])
+    assert run["status"] == "completed", run
+    (verdict,) = claude_app.record()["asked"]
+    assert verdict["behavior"] == "deny" and NOBODY in verdict["message"]
+    assert snap["commands"] == []
+
+
+def test_a_bash_call_of_claude_codes_own_sub_agent_runs_where_it_is_not_known(
+    claude_app, project_dir  # noqa: F811
+):
+    # (review: the reset was measured for the main agent; its Agent tool's sub-agent may start
+    # elsewhere - its `cd` into the scratch is the card it was)
+    from tests.test_claude_native import AGENT, BASH, SUB
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    client, provider, _ = claude_app([
+        AGENT, {"system": {"subtype": "task_started", "tool_use_id": "toolu_sub"}},
+        {**BASH, "input": {"command": "cd .koloni/tmp; ls"}, **SUB}, {"say": "ok", **SUB},
+        {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert (asked["status"], asked["cwd"]) == ("proposed", None)
+    assert asked["danger"].startswith("Climbs out of .koloni/tmp")
+
+
+@pytest.mark.parametrize("tool", ["PowerShell", "Monitor"])
+def test_only_claude_codes_bash_tool_is_known_to_start_in_the_project(
+    tool, claude_app, project_dir  # noqa: F811
+):
+    # (review: the reset was measured for Bash alone; its PowerShell tool is said by the CLI to
+    # keep its folder - a `cd` into the scratch there is the card it was)
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    line = "cd .koloni/tmp; ls"
+    client, provider, _ = claude_app([{**BASH, "tool": tool, "input": {"command": line}},
+                                      {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert (asked["status"], asked["cwd"]) == ("proposed", None)
+    assert asked["danger"].startswith("Climbs out of .koloni/tmp")
+
+
 def test_at_full_auto_a_delete_in_the_scratch_runs_unasked_one_that_may_leave_it_waits(
     make_client, wait_run, project_dir
 ):

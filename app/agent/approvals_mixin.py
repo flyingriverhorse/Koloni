@@ -68,6 +68,9 @@ READ_ONLY_WRITE = (
 # What a CLI's own tool is refused with (`AgentRunner._approve`), and KOLONİ's edit a user
 # declined: each a no to that action, not to the task (B-321).
 NO_COMMANDS = "do not run it another way. " + CARRY_ON
+# Why a command of a CLI that reports no cwd is asked at every level (`_approve`, `cwd_from`).
+CWD_NOT_KNOWN = ("it names a folder to run in (cwd: {cwd}), which this CLI does not report and "
+                 "KOLONİ cannot check")
 NO_CHANGES = "the {role} role may not change files: do not change them another way. " + CARRY_ON
 ONLY_READS = ("the {role} role may only read here, and KOLONİ cannot tell what {tool} would "
               "change: do not use it, or anything else, to do the same. " + CARRY_ON)
@@ -177,6 +180,18 @@ class ApprovalsMixin:
         under = watch.under(use_id)  # asked from inside one of the CLI's own sub-agents
         allow = {"behavior": "allow", "updatedInput": given}
         who = getattr(ctx.model, "label", "Claude Code")  # (Codex asks here too: slice 89a)
+        # (Review: Claude Code's and Qoder's input is the model's own - a `cwd` it writes there
+        # is no report of where the command runs, and is not read as one: `cwd_from`. But it
+        # goes back to the CLI as it came, which may run the command there: a card at every
+        # level, by its reason - KOLONİ's own, with the folder named, never a "reason" the
+        # model wrote beside it.)
+        # shortcut: on any other card of theirs a "reason" key in the model's input is still
+        # shown as the reason (`_approve_command`: asked all the same, in the model's words);
+        # read it from Codex's protocol alone if a card is seen to say what the model wants.
+        if tool in CLAUDE_RUNS and "cwd" in given and getattr(
+                ctx.model, "cwd_from", "none") in ("root", "none"):
+            given = {**{key: value for key, value in given.items() if key != "cwd"},
+                     "reason": CWD_NOT_KNOWN.format(cwd=quoted(str(given["cwd"])[:80]))}
 
         def deny(why: str, fixed: bool = False) -> dict:
             if use_id:
@@ -328,6 +343,15 @@ class ApprovalsMixin:
         # (Its paths are read from where it says it runs: a part's folder, say.)
         searched = await asyncio.to_thread(search_reason, command, root, str(
             inside(cwd)[0]) if isinstance(cwd, str) and cwd else ".")
+        # Where it runs when it names no cwd: the root (Claude Code's Bash tool alone, measured;
+        # not its PowerShell or Monitor, nor a sub-agent of its own - `under` -, which may
+        # start elsewhere) or not known (None: `with_cwd`). A cwd the model wrote (agy's) is
+        # judged as not known as well.
+        kind = getattr(ctx.model, "cwd_from", "none")
+        unnamed = "." if kind == "root" and tool == "Bash" and under is None else None
+        claimed = kind == "model" and isinstance(cwd, str) and bool(cwd)
+        if claimed and not searched:
+            searched = await asyncio.to_thread(search_reason, command, root, ".")
         # Web off first: Codex's own reason for wanting the network says nothing of it. An
         # address the CLI says it may reach (Copilot's possibleUrls) counts as in the line.
         urls = [one for one in given.get("urls") or [] if isinstance(one, str)]
@@ -339,7 +363,9 @@ class ApprovalsMixin:
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
             if copy is not None else "") or self._branch_asks(
             ctx, command, copy is not None) or self._night_asks(
-            ctx, command, cwd if where is None else where)
+            ctx, command, (cwd if where is None else where)
+            if isinstance(cwd, str) and cwd else unnamed) or (
+            self._night_asks(ctx, command, None) if claimed else "")
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
         noted = {"command": command, **({"reason": reason} if reason else {}),
@@ -372,14 +398,18 @@ class ApprovalsMixin:
             or where is None, held=bool(searched), web_off=bool(web_off),
             reads=not given.get("not_read_only") and await asyncio.to_thread(
                 reads_here, command, root, where in ("", ".")),
-            # (One out of the folder it works in: as the CLI gave it. None where it gave
-            # none: KOLONİ does not know where its shell stood, and judges at the root.)
-            # shortcut: Claude Code and Qoder (its client's) give no cwd (Codex, Copilot and
-            # agy do): their command is judged at the root, also after a `cd` an earlier Bash
-            # call kept - a `cd` into a protected folder is a card itself; read its cwd from
-            # the hook input if it carries one (measure first).
+            # (One out of the folder it works in: as the CLI gave it. Where it gave none:
+            # `unnamed` - "." for Claude Code's Bash tool, whose every call starts in the project
+            # (`ClaudeNativeClient.cwd_from`, measured); None for one whose shell may stand
+            # anywhere: its PowerShell and Monitor, Qoder, Codex or agy without one, and
+            # Copilot, whose 1.0.91 sends none
+            # (measured 24 Oct 2026). Its paths are then judged at the root all the same, and a
+            # line that begins with a `cd` into the scratch is a card: `with_cwd`.)
+            # shortcut: Qoder's shell is not measured; if it keeps a `cd`, a later relative
+            # path is judged at the wrong place - a `cd` into a protected folder is a card
+            # itself. Measure it, and read a cwd from the hook's payload if it carries one.
             cwd=(where if where is not None else cwd)
-            if isinstance(cwd, str) and cwd else None,
+            if isinstance(cwd, str) and cwd else unnamed,
         )
         if not allowed:
             self._set_call(ctx.cid, call_id, status="denied", result=rejected(command),
