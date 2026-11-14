@@ -1434,6 +1434,12 @@ _SCRATCH_FLAGS = _RECURSES | {"-f", "--force", "-force", "-fo", "-q", "-path", "
 _SCRATCH = re.compile(r"\.koloni[\\/]tmp\b", re.IGNORECASE)
 _IN_SCRATCH = re.compile(r"(?:\./)?\.koloni[/\\]tmp(?:[/\\][\w-][\w.-]*)+", re.IGNORECASE)
 _NOT_PLAIN = re.compile(r"[|;&\n\r<>,=`^'\"()\[\]{}$%~*?‘-„]")
+# Live (Codex 0.164.0): `Remove-Item -LiteralPath '.koloni/tmp/cs' -Recurse -Force` asked. A
+# word that is one plain scratch path in one pair of plain quotes is that path, to sh and to
+# PowerShell: read without them. Any other quote - around a flag, a space, two pieces glued,
+# a pair left open - is still no plain line.
+_QUOTED_SCRATCH = re.compile(
+    r"(?<!\S)(['\"])(" + _IN_SCRATCH.pattern + r")\1(?!\S)", re.IGNORECASE)
 
 
 def scratch_delete_only(command: str, root: str | None) -> bool:
@@ -1449,6 +1455,7 @@ def scratch_delete_only(command: str, root: str | None) -> bool:
     `cd` into the scratch (run_command's `cwd` there): a `cd` that fails leaves it in the project.
     shortcut: judged when it is asked; a link made between that and the run is not seen (making
     one is a card of its own)."""
+    command = _QUOTED_SCRATCH.sub(r"\2", command)
     if root is None or _NOT_PLAIN.search(command) or _CLIMBS.search(_as_read(command)):
         return False
     words = command.split()

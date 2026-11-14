@@ -686,3 +686,17 @@ def test_claude_codes_delete_that_may_leave_the_scratch_or_runs_elsewhere_is_sti
     assert (asked["command"], asked["status"]) == (line, "proposed")
     os.rmdir(scratch / "linked" / "deep" / "j") if os.name == "nt" else os.unlink(
         scratch / "linked" / "deep" / "j")
+
+
+@pytest.mark.parametrize("level, status", [("full_auto", "exited"), ("auto_edit", "proposed")])
+def test_a_delete_in_the_scratch_with_its_path_in_quotes_is_the_delete_it_is(
+    level, status, make_client, project_dir
+):
+    # (live, 14 Nov 2026, Codex 0.164.0 on KOLONİ's run_command: the quoted path was a card)
+    (project_dir / ".koloni" / "tmp" / "cs").mkdir(parents=True)
+    line = "Remove-Item -LiteralPath '.koloni/tmp/cs' -Recurse -Force"
+    executor = ScriptedExecutor([Script([""])])
+    client, _ = make_client([cmd(line), text("done")], executor=executor)
+    cid, _run_id = start_in_mode(client, project_dir, level)
+    end = "waiting_approval" if status == "proposed" else "completed"
+    assert wait_status(client, cid, end)["commands"][0]["status"] == status
