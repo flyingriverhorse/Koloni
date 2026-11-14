@@ -144,6 +144,18 @@ async def test_tool_probe_runs_once_per_model():
     await client.info()
     assert probes == 1
 
+
+async def test_info_that_has_nothing_more_to_ask_does_not_fail_on_a_closed_props():
+    # As before the closed server was asked once: an agent's start is not failed by `/props`.
+    def handler(request):
+        if request.url.path == "/props":
+            raise httpx2.ConnectError("refused", request=request)
+        return httpx2.Response(200, json={"choices": [{"message": {"content": ""}}]})
+
+    client = OpenAICompatClient("http://model/v1", model_id="m", transport=httpx2.MockTransport(handler))
+    client._tools_cache["m"] = False
+    assert (await client.info()).model_id == "m"
+
 async def test_an_error_names_no_password_or_key_of_the_address():
     # httpx names the URL it asked in its error, user name and password and all.
     def handler(request):

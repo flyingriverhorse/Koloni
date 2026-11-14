@@ -176,7 +176,8 @@ def test_health_asks_the_provider_it_is_given_or_else_the_default(two_models):
     assert (gone["provider_name"], gone["model_id"]) == ("Local", "big-model")
 
 
-def test_health_of_a_closed_server_asks_it_once_and_sees_it_come_up(make_client):
+@pytest.mark.parametrize("closed", [httpx2.ConnectError, httpx2.ConnectTimeout])
+def test_health_of_a_closed_server_asks_it_once_and_sees_it_come_up(make_client, closed):
     """A refused connection takes Windows about 2 s: the two of one reading (`/props`, then
     `/models`) made every /health of a closed local server 4 s (measured: 4.17 s)."""
     client, _ = make_client([])
@@ -185,7 +186,7 @@ def test_health_of_a_closed_server_asks_it_once_and_sees_it_come_up(make_client)
     def served(request):
         asked.append(request.url.path)
         if not up:
-            raise httpx2.ConnectError("All connection attempts failed", request=request)
+            raise closed("All connection attempts failed", request=request)
         if request.url.path == "/props":
             return httpx2.Response(404)
         if request.url.path == "/v1/models":
