@@ -14,6 +14,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Fixed
 
 - **Ready**: a team whose coordinator KOLONİ stopped while one of its agents was still at work keeps running until that agent is back, and its work is offered at **Ready for you**; **Ready for you** is also asked before the Orchestrator ends its turn where nobody asked it earlier.
+- **Knowledge**: the notes you add to **Project notes** now reach that project's Orchestrator, which had them only if you gave them to the Lead role by hand: it is told where their guide is and can look them up, from the first note, until you switch them off on the Lead role's **Knowledge** tab; and an Orchestrator with any knowledge on **Map** is told where its guide is, as a sub-agent is. Project notes made earlier are switched on there by hand ([docs](knowledge.md#project-notes)).
 
 ## [0.1.0] - 2026-11-07
 

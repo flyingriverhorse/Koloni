@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app import injection, knowledge, knows, koloni, project_files, web
+from app import injection, knowledge, knows, koloni, project_files, roles, web
 from app.db.models import Agent, FileChange, NotesOffer, Project, ProjectKnowledge, now
 from app.views import Refused
 from app.workspace import in_scratch, secret_in_project
@@ -226,6 +226,14 @@ def accept(session: Session, project_id: str, root: str, chosen: list[dict]) -> 
                                search_web=False)
         session.add(row)
         session.flush()
+        # What the user keeps is for the project's Orchestrator: its role uses the notes as a
+        # map from the first one. Here only, so an "off" on its Knowledge tab stays off.
+        # shortcut: notes made before this are not given (never given and switched off look
+        # the same); give them on the Lead's Knowledge tab, or mark an "off" if that is missed.
+        lead = roles.find_role(session, roles.LEAD)
+        if lead is not None:
+            lead.knows = [*(lead.knows or []), {"knowledge_id": row.id, "mode": knows.MAP_MODE}]
+            lead.updated_at = now()
     known = knows.knowledge_of(row)
     where = knowledge.folder_of(known)
     record = knowledge.learned(root, known) or {}
