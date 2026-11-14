@@ -490,7 +490,13 @@ def test_claude_codes_cd_into_the_scratch_is_free_as_each_of_its_commands_starts
 
     assert ClaudeNativeClient(launcher=["x"])._native_env(project_dir)[
         "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"] == "1"
-    assert (ClaudeNativeClient.cwd_from, QoderNativeClient.cwd_from) == ("root", "none")
+    from app.model_agy import AgyClient
+    from app.model_native import CodexNativeClient, CopilotNativeClient
+
+    # (whose word each CLI's cwd is; one that does not say is judged as not known)
+    assert [one.cwd_from for one in (CodexNativeClient, CopilotNativeClient, AgyClient,
+                                     ClaudeNativeClient, QoderNativeClient)] == [
+        "cli", "cli", "model", "root", "none"]
 
 
 def test_a_cwd_the_model_writes_in_claude_codes_input_is_not_where_the_command_runs(
@@ -508,6 +514,42 @@ def test_a_cwd_the_model_writes_in_claude_codes_input_is_not_where_the_command_r
     cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert asked["status"] == "proposed" and asked["cwd"] == "."
+
+
+def test_a_command_of_claude_codes_that_names_a_folder_to_run_in_is_asked_at_every_level(
+    claude_app, project_dir  # noqa: F811
+):
+    # (review: the `cwd` goes back to the CLI as it came - if its tool runs the command there,
+    # this line writes .claude/settings.json; KOLONİ cannot check, so it asks)
+    from app.agent.approvals_mixin import CWD_NOT_KNOWN
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "echo x > settings.json", "cwd": ".claude"}},
+        {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert asked["status"] == "proposed" and asked["danger"] == CWD_NOT_KNOWN
+
+
+@pytest.mark.parametrize("tool", ["PowerShell", "Monitor"])
+def test_only_claude_codes_bash_tool_is_known_to_start_in_the_project(
+    tool, claude_app, project_dir  # noqa: F811
+):
+    # (review: the reset was measured for Bash alone; its PowerShell tool is said by the CLI to
+    # keep its folder - a `cd` into the scratch there is the card it was)
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    line = "cd .koloni/tmp; ls"
+    client, provider, _ = claude_app([{**BASH, "tool": tool, "input": {"command": line}},
+                                      {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert (asked["status"], asked["cwd"]) == ("proposed", None)
+    assert asked["danger"].startswith("Climbs out of .koloni/tmp")
 
 
 def test_at_full_auto_a_delete_in_the_scratch_runs_unasked_one_that_may_leave_it_waits(

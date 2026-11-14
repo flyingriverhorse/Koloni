@@ -325,6 +325,10 @@ def asked_as(tool: str, args: dict) -> list[tuple[str, dict]] | str:
     if tool in (*AGY_RUNS, AGY_INPUT):
         line = args.get("Input" if tool == AGY_INPUT else "CommandLine")
         cwd = _named(args, "cwd")[:1]
+        # (Review: two names that end in "cwd" - `FakeCwd` before `Cwd` - and which one it runs
+        # in is not known.)
+        if sum((WORDS.findall(key) or [""])[-1].lower() == "cwd" for key in args) > 1:
+            return CANNOT_TELL
         # (Its run_command's BypassSandbox, REA R18: a reason, so a card at every level.)
         out = {"reason": "it asks to run outside its sandbox"} if args.get(
             "BypassSandbox") in (True, "true") else {}

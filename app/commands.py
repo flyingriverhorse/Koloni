@@ -1052,7 +1052,7 @@ def with_cwd(command: str, cwd: object) -> str:
     without one), so its `cd .koloni/tmp; ls` would leave the next line, `echo x >
     ../rules.md`, in the scratch and judged at the root: such a line is judged as one more
     change of folder, a card as it was. "." is the root, known: KOLONİ's own run_command, a
-    CLI's report, and Claude Code, whose every Bash call starts there
+    CLI's report, and Claude Code's Bash tool, whose every call starts there
     (`ClaudeNativeClient.cwd_from`, measured). Whose word a CLI's cwd is: `cwd_from`.
     shortcut: Codex is trusted to name the folder its shell stands in for each command;
     measure it if it is seen to keep a `cd` unnamed."""

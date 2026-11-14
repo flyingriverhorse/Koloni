@@ -682,6 +682,10 @@ def test_what_koloni_cannot_judge_of_agys_tools_is_refused_or_asked_in_words():
                     asked_as("view_file", {}), asked_as("write_file", {"Content": "x"}),
                     asked_as("invoke_subagent", {"Task": "x"})):
         assert isinstance(refused, str), refused
+    # (review: a decoy before its Cwd - `FakeCwd` was the one judged)
+    for decoy in ("FakeCwd", "fake_cwd", "CWD"):
+        assert isinstance(asked_as("run_command", {
+            decoy: ".", "CommandLine": "echo x > rules.md", "Cwd": ".koloni"}), str), decoy
     assert asked_as("invoke_subagent", {}) == UNKNOWN_YET
     # a look whose path is not found, and a tool with no path at all: asked in words
     for tool, args in (("list_dir", {"Where": "x"}), ("search_web", {"query": "x"})):
