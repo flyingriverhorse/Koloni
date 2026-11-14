@@ -359,12 +359,16 @@ class ApprovalsMixin:
         where = inside(cwd)[1] if isinstance(cwd, str) and cwd else "."
         # (Judged in its folder, as in the project: the path to the project names no protected
         # folder. One out of it is asked at every level anyway: judged as the CLI gave it.)
+        at = (cwd if where is None else where) if isinstance(cwd, str) and cwd else unnamed
+        # (Live: `rm -rf .koloni/tmp/w2` of Claude Code's Bash asked, where KOLONİ's own
+        # command did not. A delete only in the scratch is no harm where it is known to run at
+        # the project's own root - not a copy's, nor a cwd the model wrote: `_night_asks`.)
+        scratch_of = str(root) if at in ("", ".") and copy is None and not claimed else None
         reason = web_off or reason or searched or (
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
             if copy is not None else "") or self._branch_asks(
             ctx, command, copy is not None) or self._night_asks(
-            ctx, command, (cwd if where is None else where)
-            if isinstance(cwd, str) and cwd else unnamed) or (
+            ctx, command, at, scratch_of) or (
             self._night_asks(ctx, command, None) if claimed else "")
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)

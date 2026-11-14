@@ -61,9 +61,10 @@ and credit messages.
   run in the project folder. If the CLI keeps a `cd` from an earlier command, later relative paths are
   judged at the wrong place: after you approve `cd ..`, reading a file there by its name is taken for a
   read in the project and is not asked about below Full auto. Claude Code's Bash tool was
-  measured not to keep one (2.1.325, Windows, run without its screen: each Bash command starts in the
-  project folder again, and KOLONİ starts it with the setting that asks for that); its PowerShell tool
-  is said by the CLI to keep its folder, and other versions, Linux and macOS are not measured, nor is Qoder - so a `cd` into
+  measured not to keep one (2.1.325, Windows, run without its screen and as KOLONİ runs it: each
+  Bash command starts in the project folder again, and KOLONİ starts it with the setting that asks for
+  that); its PowerShell tool is said by the CLI to keep its folder, and other versions, Linux and macOS
+  are not measured, nor is Qoder - so a `cd` into
   `.koloni/tmp/` by Claude Code's PowerShell tool or by Qoder is still asked. A command of theirs that
   itself names a folder to run in is asked at every level: KOLONİ cannot check it.
 - A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
