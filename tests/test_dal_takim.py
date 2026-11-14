@@ -1752,7 +1752,7 @@ def test_a_lead_that_breaks_stops_a_sub_agent_nobody_waited_for_before_its_copie
             dropped.append(any(not task.done() for task in left))
         return real_drop(self, agent_id, *args, **kwargs)
 
-    async def breaks(self, ctx):
+    async def breaks(self, ctx, again=False):
         turn = asyncio.ensure_future(real(self, ctx))
         while not (work._partial_seen.is_set() and lead._partial_seen.is_set()):
             await asyncio.sleep(0.01)

@@ -911,7 +911,9 @@ class ContextMixin:
         history = self._history(ctx, None, quiet=True) if full or (cli and window) else None
         kept = self._summaries.get(ctx.agent_id)
         if full:
-            if not _older(history or []) or (kept and (kept.failed or kept.stuck)):
+            # (Nor after one started again from a summary already: `_summarised_again`.)
+            if not _older(history or []) or (kept and (kept.failed or kept.stuck)) or (
+                    ctx.agent_id in self._started_again):
                 return None
             sent = None  # (the refusal says it is full: `_compact` asks nothing of its size)
         elif history is not None:
@@ -943,6 +945,38 @@ class ContextMixin:
             return None
         return catalog.facts(provider.kind, provider.base_url, model_id,
                              models_dev.load(self.settings.runtime_root))[0]["context_window"]
+
+    def _alone(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether a turn's lead worked alone: no other agent of the turn on record (a
+        sub-agent, a member, one in a discussion - at work or back), no room, no recipe's row.
+        Only such a lead is started again by itself (`_summarised_again`): nothing of its turn
+        is left open for a second start to lose or do twice.
+        shortcut: the narrow first version - a lead whose sub-agents are all back, say, is
+        not started again either; widen it state by state once each is seen to be safe."""
+        with self._factory() as session:
+            others = session.scalar(select(Agent.id).where(
+                Agent.run_id == ctx.run_id, Agent.id != ctx.agent_id).limit(1))
+        return others is None and not (
+            ctx.run_id in self._rooms or ctx.run_id in self._recipe_copy
+            or ctx.agent_id in self._following)
+
+    async def _summarised_again(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> bool:
+        """A lead refused for its size, about to be started again (`_loop_again`): its older
+        part summarised now, in its turn - whatever its size, as after a turn - within the
+        turn's token limit, and what it costs is the turn's (`_compact`). Whether a summary
+        was made, so that it is sent less: not where KOLONİ does not compact it, it did not
+        work alone, there is no older part, or no summary came (why is on its agent)."""
+        if not _koloni_compacts(ctx.model) or not self._alone(ctx):
+            return False
+        self._hold_to_limit(ctx)
+        before = self._summaries.get(ctx.agent_id)
+        await self._compact(ctx, info, self._history(ctx, None, quiet=True),
+                            ctx.context_window or info.context_window)
+        made = self._summaries.get(ctx.agent_id)
+        if made is None or made is before or made.failed:
+            return False
+        self._started_again.add(ctx.agent_id)
+        return True
 
     async def _compact_idle(
         self: "AgentRunner", ctx: Ctx, ready: asyncio.Event, history: list[dict],

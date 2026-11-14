@@ -29,7 +29,7 @@ How to write an entry (every release looks the same):
 ### Fixed
 
 - **Ready**: a team whose coordinator KOLONİ stopped while one of its agents was still at work keeps running until that agent is back, and its work is offered at **Ready for you**; **Ready for you** is also asked before the Orchestrator ends its turn where nobody asked it earlier.
-- **Chat**: when the Orchestrator's turn ends because its context is full and the failure is one KOLONİ recognises (not every CLI's wording is known yet), KOLONİ starts summarising its earlier work and the failure says so: send your message again and it goes on from the summary. A CLI lead with no context window on its role can also be summarised after a turn against the catalogue's window for its model, which only a very long chat reaches ([docs](docs/models/setup-cli.md#going-on-from-the-last-turn)).
+- **Chat**: when the Orchestrator's context fills during a turn and the refusal is one KOLONİ recognises (GitHub Copilot CLI's is; not every CLI's wording is known yet), KOLONİ summarises its earlier work and starts the turn again from the summary by itself, once, with a line in the chat saying so; if it fills again, the turn fails and says what to do. Where it had opened sub-agents, a room or a team's recipe, the turn is not started again: its earlier work is summarised after it, and your next message goes on from the summary. A CLI lead with no context window on its role can also be summarised after a turn against the catalogue's window for its model, which only a very long chat reaches ([docs](docs/models/setup-cli.md#going-on-from-the-last-turn)).
 
 ## [0.1.0] - 2026-11-07
 

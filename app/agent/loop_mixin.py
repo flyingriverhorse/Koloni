@@ -127,9 +127,17 @@ ROLE_WINDOW_LARGER = (
     " (the context window set in its role may be larger than the model's: set it smaller "
     "on the Agents page, or empty it to use the one found)"
 )
-# After a lead's turn that was refused for its size (`AgentRunner._lead_after`).
+# After a lead's turn that was refused for its size (`AgentRunner._lead_after`), where it
+# could not be started again by itself (`_loop_again`).
 SUMMARISED_FOR_NEXT = (
     " KOLONİ is summarising its earlier work: send your message again to go on from the summary."
+)
+# KOLONİ's line in the chat where it was (`_loop_again`), and what its failure says where it
+# was refused for its size again after that.
+STARTED_AGAIN = "Its context was full: its earlier work was summarised and the turn started again."
+FULL_AGAIN = (
+    " Its context filled again after KOLONİ summarised its earlier work and started the turn "
+    "again: use Compact now or set a smaller context window on its role."
 )
 
 # A side of a comparison (slice 54) works only in a copy of its own.
@@ -374,7 +382,30 @@ class LoopMixin:
         for payload in payloads:
             self.bus.emit(cid, run_id, "agent.updated", payload)
 
-    async def _attempt(self: "AgentRunner", ctx: Ctx) -> tuple[str, str | None]:
+    async def _loop_again(self: "AgentRunner", ctx: Ctx, info: ModelInfo,
+                          again: bool) -> tuple[str, str | None]:
+        """`_attempt`'s loop. `again` (the user's, 14 Nov 2026): refused for its size, a lead
+        working alone has its older part summarised and is started again from the summary, in
+        the same turn - once: refused so again, it fails, saying what to do.
+        shortcut: a CLI's run is started anew, sent its history again (as its tests at Stop
+        send a session back: `_session_loop`), not gone on with inside its own session; and
+        what a CLI read by itself in the turn is in the summary only as KOLONİ recorded it."""
+        try:
+            return await self._loop(ctx, info)
+        except ModelUnavailable as exc:
+            if not (again and OVERFLOW.search(str(exc))
+                    and await self._summarised_again(ctx, info)):
+                raise
+        self._koloni_line(ctx.cid, ctx.run_id, STARTED_AGAIN)
+        try:
+            return await self._loop(ctx, info)
+        except ModelUnavailable as exc:
+            if OVERFLOW.search(str(exc)):
+                exc.args = (f"{exc}{FULL_AGAIN}",)
+            raise
+
+    async def _attempt(self: "AgentRunner", ctx: Ctx,
+                       again: bool = False) -> tuple[str, str | None]:
         run_id, cid = ctx.run_id, ctx.cid
         stopped = False
         try:
@@ -413,7 +444,7 @@ class LoopMixin:
                 cid, ctx.agent_id, model_id=info.model_id, model_from=info.model_from
             )
             self._native_no_recipe(ctx)
-            return await self._loop(ctx, info)
+            return await self._loop_again(ctx, info, again)
         except asyncio.CancelledError:
             # Stop reaches the lead from wherever in the tree the work was.
             stopped = True

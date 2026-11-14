@@ -6,17 +6,21 @@ was refused for its size."""
 
 import asyncio
 import json
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from app import catalog, models_dev
-from app.agent import _LeadTurn, _summary_after
+from app.agent import STARTED_AGAIN, AgentRunner, _LeadTurn, _sends_again, _summary_after
 from app.config import load_settings
 from app.main import create_app
 from app.model_cli import CliStepClient
+from app.model_client import ModelUnavailable
 from app.model_native import ClaudeNativeClient, QoderNativeClient
 from app.providers import ask_once
+from tests.conftest import scaled
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_chat_flow import text
@@ -32,7 +36,7 @@ SUMMARY = "SUMMARY: the greeting was fixed"
 def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
     opened = []
 
-    def make(resumes: bool, window: int | None, qoder: bool = False):
+    def make(resumes: bool, window: int | None, qoder: bool = False, summary=None):
         planned = fake(script=[{"say": "OLDWORD fixed it."}])
         cli = QoderNativeClient(launcher=FAKE, model="Qwen3.8-Flash", timeout=30,
                                 env=dict(planned._env)) if qoder else ClaudeNativeClient(
@@ -40,7 +44,7 @@ def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
             home=fake.home if resumes else None)
         # What it is asked with its own tools off (`ask_once`): a step that, as agy's and Codex's,
         # takes no `max_tokens`.
-        summariser = ScriptedModel([text(SUMMARY)])
+        summariser = ScriptedModel(summary or [text(SUMMARY)])
         cli.talker = lambda: summariser
         app = create_app(load_settings(settings_env), model=ScriptedModel([]),
                          clients={"CLI": cli})
@@ -56,18 +60,26 @@ def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
         cid, run_id = start(client, project_dir, provider, "full_auto")
         wait_run(client, cid, run_id, timeout=30)
 
+        def send(words, said, fails=None):
+            """A turn begun: its run's id. `fails` with `said`: its CLI's first start of the
+            turn is refused so (and, resumed, the one its client then starts anew by itself),
+            and the next one says that."""
+            at = len(fake.starts()) + (3 if resumes else 2)
+            fake(script=[{"fail": fails} if fails else {"say": said}], **(
+                {"at_start": {str(at): [{"say": said}]}} if fails and said else {}))
+            return client.post(f"/api/conversations/{cid}/messages",
+                               json={"content": words}).json()["run"]["id"]
+
         def turn(words, said, fails=None):
-            fake(script=[{"fail": fails} if fails else {"say": said}])
-            run_id = client.post(f"/api/conversations/{cid}/messages",
-                                 json={"content": words}).json()["run"]["id"]
-            snap = wait_run(client, cid, run_id, timeout=30)
-            if fails:
+            snap = wait_run(client, cid, send(words, said, fails), timeout=30)
+            turn.snap = snap
+            if fails and not said:
                 assert snap["runs"][-1]["status"] == "failed", snap["runs"][-1]
                 return snap["runs"][-1]["error"]
             assert snap["runs"][-1]["status"] == "completed", snap["runs"][-1]["error"]
             return [a for a in snap["agents"] if a["depth"] == 0]
 
-        turn.summariser, turn.client = summariser, client
+        turn.summariser, turn.client, turn.send, turn.cid = summariser, client, send, cid
         return turn
 
     yield make
@@ -121,19 +133,38 @@ TOO_LONG = "prompt is too long: 1200 tokens > 1000 maximum"  # (Anthropic's API'
 
 
 @pytest.mark.parametrize("resumes", [False, True])
-def test_a_turn_refused_for_its_size_is_summarised_for_the_next(
+def test_a_turn_refused_for_its_size_is_summarised_and_started_again_once(
         cli_chat, fake, resumes, caplog):  # noqa: F811
     turn = cli_chat(resumes=resumes, window=10_000_000)  # (never past the threshold by itself)
     turn("now the tests", "Tested.")
-    error = turn("and the docs", None, fails=TOO_LONG)
-    assert TOO_LONG in error and "send your message again" in error, (error, caplog.text)
-    # (The next turn waits for the summary, and starts anew from it: no session is left.)
-    leads = turn("and the docs", "Documented.")
-    told = fake.stdin()
-    assert SUMMARY in told and "OLDWORD" not in told, (
-        leads[-2]["summary_note"], told, caplog.text)
+    before = len(fake.starts())
+    leads = turn("and the docs", "Documented.", fails=TOO_LONG)
+    # (The same turn and the same lead, started anew from the summary: no session is left.)
+    assert len(leads) == 3 and leads[-1]["summary"] == SUMMARY, (leads[-1], caplog.text)
+    # (Resumed, its client had started it anew once by itself already: `run_native`.)
+    assert len(fake.starts()) == before + (3 if resumes else 2), fake.starts()[before:]
     assert "--resume" not in fake.starts()[-1]
-    assert leads[-2]["summary"] == SUMMARY and len(turn.summariser.calls) == 1
+    told = fake.stdin()
+    assert SUMMARY in told and "OLDWORD" not in told and "and the docs" in told
+    assert len(turn.summariser.calls) == 1
+    said = [m["content"] for m in turn.snap["messages"] if m["role"] == "koloni"]
+    assert said == [STARTED_AGAIN], said
+    assert [m["content"] for m in turn.snap["messages"] if m["role"] == "user"].count(
+        "and the docs") == 1  # (the user wrote it once)
+
+
+def test_refused_again_after_that_it_ends_failed_and_is_not_started_a_third_time(
+        cli_chat, fake, caplog):  # noqa: F811
+    turn = cli_chat(resumes=False, window=10_000_000)
+    turn("now the tests", "Tested.")
+    before = len(fake.starts())
+    error = turn("and the docs", None, fails=TOO_LONG)
+    assert TOO_LONG in error and "use Compact now" in error, (error, caplog.text)
+    assert "send your message again" not in error
+    assert len(fake.starts()) == before + 2 and len(turn.summariser.calls) == 1
+    # (Its summary stands: a next turn goes on from it, and none is made again after it.)
+    turn("and the docs", "Documented.")
+    assert SUMMARY in fake.stdin() and len(turn.summariser.calls) == 1
 
 
 # (The last two are no refusal for its size: a line KOLONİ could not read or start, `_fits`.)
@@ -143,8 +174,10 @@ def test_a_turn_refused_for_its_size_is_summarised_for_the_next(
 def test_a_turn_that_failed_otherwise_is_not(cli_chat, fake, why):  # noqa: F811
     turn = cli_chat(resumes=False, window=10_000_000)
     turn("now the tests", "Tested.")
+    before = len(fake.starts())
     error = turn("and the docs", None, fails=why)
     assert why in error and "send your message again" not in error
+    assert len(fake.starts()) == before + 1
     turn("and the docs", "Documented.")
     assert not turn.summariser.calls and "OLDWORD" in fake.stdin()
 
@@ -154,8 +187,74 @@ def test_refused_for_its_size_with_no_older_part_nothing_is_said_of_a_summary(
     # (After one turn only: what is before its last answer is the user's, never summarised.)
     turn = cli_chat(resumes=False, window=10_000_000)
     error = turn("now the tests", None, fails=TOO_LONG)
-    assert TOO_LONG in error and "send your message again" not in error, error
-    assert not turn.summariser.calls
+    assert error.endswith(TOO_LONG), error
+    assert not turn.summariser.calls and len(fake.starts()) == 2
+
+
+def test_a_lead_not_working_alone_is_not_started_again_but_summarised_for_the_next(
+        cli_chat, fake, monkeypatch, caplog):  # noqa: F811
+    monkeypatch.setattr(AgentRunner, "_alone", lambda self, ctx: False)
+    turn = cli_chat(resumes=False, window=10_000_000)
+    turn("now the tests", "Tested.")
+    before = len(fake.starts())
+    error = turn("and the docs", None, fails=TOO_LONG)
+    assert TOO_LONG in error and "send your message again" in error, (error, caplog.text)
+    assert len(fake.starts()) == before + 1
+    assert not [m for m in turn.snap["messages"] if m["role"] == "koloni"]
+    leads = turn("and the docs", "Documented.")  # (it waits for the summary made after)
+    told = fake.stdin()
+    assert SUMMARY in told and "OLDWORD" not in told, (
+        leads[-2]["summary_note"], told, caplog.text)
+    assert len(turn.summariser.calls) == 1
+
+
+def test_where_no_summary_can_be_made_it_is_not_started_again(cli_chat, fake):  # noqa: F811
+    turn = cli_chat(resumes=False, window=10_000_000, summary=[ModelUnavailable("it is down")])
+    turn("now the tests", "Tested.")
+    before = len(fake.starts())
+    error = turn("and the docs", None, fails=TOO_LONG)
+    # (Nothing is promised: why no summary was made is on its agent.)
+    assert error.endswith(TOO_LONG), error
+    assert len(fake.starts()) == before + 1 and len(turn.summariser.calls) == 1
+    lead = [a for a in turn.snap["agents"] if a["depth"] == 0][-1]
+    assert "it is down" in lead["summary_note"]
+
+
+def test_stop_while_it_is_summarised_stops_the_turn_and_nothing_starts_again(
+        cli_chat, fake, wait_run):  # noqa: F811
+    async def held(_on_delta):
+        await asyncio.sleep(3600)  # (until Stop cancels it)
+
+    turn = cli_chat(resumes=False, window=10_000_000, summary=[held])
+    turn("now the tests", "Tested.")
+    before = len(fake.starts())
+    run_id = turn.send("and the docs", None, fails=TOO_LONG)
+    deadline = time.monotonic() + scaled(30)
+    while not turn.summariser.calls:
+        assert time.monotonic() < deadline, "its summary was never asked for"
+        time.sleep(0.05)
+    assert turn.client.post(f"/api/runs/{run_id}/cancel", headers=ORIGIN).status_code == 202
+    snap = wait_run(turn.client, turn.cid, run_id, timeout=30)
+    assert snap["runs"][-1]["status"] == "cancelled", snap["runs"][-1]
+    assert len(fake.starts()) == before + 1
+    assert not [m for m in snap["messages"] if m["role"] == "koloni"]
+
+
+def test_only_a_lead_working_alone_is_started_again(cli_chat):
+    turn = cli_chat(resumes=False, window=10_000_000)
+    lead = turn("now the tests", "Tested.")[-1]
+    runner = turn.client.app.state.runner
+    ctx = SimpleNamespace(run_id=lead["run_id"], agent_id=lead["id"])
+    assert runner._alone(ctx) is True
+    for held in (runner._rooms, runner._recipe_copy):  # (a room of the turn; a recipe's row)
+        held[ctx.run_id] = object()
+        assert runner._alone(ctx) is False
+        del held[ctx.run_id]
+    runner._following[ctx.agent_id] = object()  # (a room it follows)
+    assert runner._alone(ctx) is False
+    del runner._following[ctx.agent_id]
+    # (Any other agent of the turn: a sub-agent, at work or back.)
+    assert runner._alone(SimpleNamespace(run_id=ctx.run_id, agent_id="another")) is False
 
 
 def a_turn(**kind):
@@ -174,6 +273,12 @@ def test_which_turns_are_summarised_after_a_refusal_for_their_size():
     # trigger's turn; nor a plan's, nor a side of a comparison.
     for kind in ("job", "backlog_turn", "unattended", "planning", "run_compare"):
         assert _summary_after(a_turn(**{kind: True}), "failed", TOO_LONG) is None, kind
+
+
+def test_only_a_turn_the_user_watches_is_started_again():
+    assert _sends_again(a_turn()) is True
+    for kind in ("job", "backlog_turn", "unattended", "planning", "run_compare"):
+        assert _sends_again(a_turn(**{kind: True})) is False, kind
 
 
 def test_a_completed_turn_is_looked_at_past_the_threshold_as_before():

@@ -129,6 +129,9 @@ save()
 # measured 5 Nov 2026: tests/qoder_streams/no-session.txt).
 with open(plan["record"] + ".starts", "a", encoding="utf-8") as starts:
     starts.write(json.dumps(argv) + "\n")
+# "at_start": {"4": [...]} - the script of its 4th start (counted in that file) instead.
+with open(plan["record"] + ".starts", encoding="utf-8") as starts:
+    plan["script"] = plan.get("at_start", {}).get(str(len(starts.readlines())), plan["script"])
 resumed = next((argv[argv.index(flag) + 1] for flag in ("--resume", "-r") if flag in argv), None)
 unknown_session = resumed is not None and resumed not in plan.get("sessions", [])
 if unknown_session and not plan.get("resume_late"):
