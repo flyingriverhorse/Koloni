@@ -3,13 +3,14 @@
 import json
 import sqlite3
 
+import httpx2
 import pytest
 from alembic import command
 
 from app.catalog import models_for
 from app.config import load_settings
 from app.main import create_app
-from app.model_client import ModelUnavailable
+from app.model_client import UNREACHABLE, ModelUnavailable, OpenAICompatClient
 from app.providers import NOT_WATCHED, ON_HOST
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -173,6 +174,35 @@ def test_health_asks_the_provider_it_is_given_or_else_the_default(two_models):
         provider["id"], "Fast", "fast-model")
     gone = client.get("/api/health", params={"provider_id": "nope"}).json()
     assert (gone["provider_name"], gone["model_id"]) == ("Local", "big-model")
+
+
+@pytest.mark.parametrize("closed", [httpx2.ConnectError, httpx2.ConnectTimeout])
+def test_health_of_a_closed_server_asks_it_once_and_sees_it_come_up(make_client, closed):
+    """A refused connection takes Windows about 2 s: the two of one reading (`/props`, then
+    `/models`) made every /health of a closed local server 4 s (measured: 4.17 s)."""
+    client, _ = make_client([])
+    asked, up = [], False
+
+    def served(request):
+        asked.append(request.url.path)
+        if not up:
+            raise closed("All connection attempts failed", request=request)
+        if request.url.path == "/props":
+            return httpx2.Response(404)
+        if request.url.path == "/v1/models":
+            return httpx2.Response(200, json={"data": [{"id": "qwen"}]})
+        return httpx2.Response(200, json={"choices": [{"message": {"tool_calls": [{"id": "x"}]}}]})
+
+    client.app.state.providers.override = OpenAICompatClient(
+        "http://127.0.0.1:8080/v1", transport=httpx2.MockTransport(served))
+    down = client.get("/api/health").json()
+    assert asked == ["/props"]
+    assert (down["model_reachable"], down["model_id"], down["tools_supported"]) == (False, None, None)
+    assert down["error"] == f"{UNREACHABLE}: All connection attempts failed"
+    # Nothing of the reading is remembered: the next one after the server starts says so.
+    up = True
+    health = client.get("/api/health").json()
+    assert (health["model_reachable"], health["model_id"], health["error"]) == (True, "qwen", None)
 
 
 # --- which model an agent gets ---------------------------------------------------
