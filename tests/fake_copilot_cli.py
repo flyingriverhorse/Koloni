@@ -25,6 +25,12 @@ import time
 from pathlib import Path
 
 plan = json.loads(Path(os.environ["FAKE_CLI_PLAN"]).read_text(encoding="utf-8"))
+if "at_start" in plan:  # {"3": [...]}: the script of its 3rd start (counted beside the record)
+    count = Path(plan["record"] + ".starts")
+    with count.open("a", encoding="utf-8") as starts:
+        starts.write("1\n")
+    plan["script"] = plan["at_start"].get(
+        str(len(count.read_text(encoding="utf-8").splitlines())), plan.get("script", []))
 argv = sys.argv[1:]
 stdin = sys.stdin.buffer.read().decode("utf-8")
 home = os.environ.get("COPILOT_HOME")

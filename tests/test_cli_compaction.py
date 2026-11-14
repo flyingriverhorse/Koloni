@@ -14,9 +14,10 @@ import pytest
 
 from app import catalog, models_dev
 from app.agent import STARTED_AGAIN, AgentRunner, _LeadTurn, _sends_again, _summary_after
+from app.agent.loop_mixin import refused_for_size
 from app.config import load_settings
 from app.main import create_app
-from app.model_cli import CliStepClient
+from app.model_cli import RESULT_TEXT, CliStepClient
 from app.model_client import ModelUnavailable
 from app.model_native import ClaudeNativeClient, QoderNativeClient
 from app.providers import ask_once
@@ -24,7 +25,7 @@ from tests.conftest import scaled
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_chat_flow import text
-from tests.test_claude_native import FAKE, start
+from tests.test_claude_native import FAKE, WRITE, hello, start
 from tests.test_claude_resume import fake  # noqa: F401
 from tests.test_spawn import role_id
 
@@ -60,18 +61,20 @@ def cli_chat(settings_env, project_dir, wait_run, fake):  # noqa: F811
         cid, run_id = start(client, project_dir, provider, "full_auto")
         wait_run(client, cid, run_id, timeout=30)
 
-        def send(words, said, fails=None):
+        def send(words, said, fails=None, how="complain", first=(), then=None):
             """A turn begun: its run's id. `fails` with `said`: its CLI's first start of the
             turn is refused so (and, resumed, the one its client then starts anew by itself),
-            and the next one says that."""
+            and the next one says that. `how`: "complain", in words of the CLI's own (its
+            stderr); "fail", in its `result`, which can be its model's words."""
             at = len(fake.starts()) + (3 if resumes else 2)
-            fake(script=[{"fail": fails} if fails else {"say": said}], **(
-                {"at_start": {str(at): [{"say": said}]}} if fails and said else {}))
+            fake(script=[*first, {how: fails} if fails else {"say": said}], **(
+                {"at_start": {str(at): then or [{"say": said}]}}
+                if fails and (said or then) else {}))
             return client.post(f"/api/conversations/{cid}/messages",
                                json={"content": words}).json()["run"]["id"]
 
-        def turn(words, said, fails=None):
-            snap = wait_run(client, cid, send(words, said, fails), timeout=30)
+        def turn(words, said, fails=None, how="complain", first=()):
+            snap = wait_run(client, cid, send(words, said, fails, how, first), timeout=30)
             turn.snap = snap
             if fails and not said:
                 assert snap["runs"][-1]["status"] == "failed", snap["runs"][-1]
@@ -130,6 +133,7 @@ def test_with_no_window_known_anywhere_it_is_not(cli_chat, fake):  # noqa: F811
 
 
 TOO_LONG = "prompt is too long: 1200 tokens > 1000 maximum"  # (Anthropic's API's words)
+FULL_WORDS = "The context window is full and the request cannot be processed."  # (Copilot's)
 
 
 @pytest.mark.parametrize("resumes", [False, True])
@@ -191,6 +195,30 @@ def test_refused_for_its_size_with_no_older_part_nothing_is_said_of_a_summary(
     assert not turn.summariser.calls and len(fake.starts()) == 2
 
 
+def test_a_refusal_in_words_that_may_be_its_models_is_not_taken_as_one(
+        cli_chat, fake):  # noqa: F811
+    # (Its `result` with is_error: a page it read could have its model say these words.)
+    turn = cli_chat(resumes=False, window=10_000_000)
+    turn("now the tests", "Tested.")
+    before = len(fake.starts())
+    error = turn("and the docs", None, fails=FULL_WORDS, how="fail")
+    assert error.endswith(FULL_WORDS), error  # (the plain failure: nothing promised)
+    assert len(fake.starts()) == before + 1 and not turn.summariser.calls
+    assert not [m for m in turn.snap["messages"] if m["role"] == "koloni"]
+    turn("and the docs", "Documented.")
+    assert not turn.summariser.calls and "OLDWORD" in fake.stdin()
+
+
+def test_a_refusal_with_a_class_of_its_own_is_no_refusal_for_its_size():
+    refused = ModelUnavailable(TOO_LONG)
+    assert refused_for_size(refused) is True
+    for failure in (RESULT_TEXT, ("rate_limited", None)):
+        other = ModelUnavailable(TOO_LONG)
+        other.failure = failure
+        assert refused_for_size(other) is False, failure
+    assert refused_for_size(ModelUnavailable("boom")) is False
+
+
 def test_a_lead_not_working_alone_is_not_started_again_but_summarised_for_the_next(
         cli_chat, fake, monkeypatch, caplog):  # noqa: F811
     monkeypatch.setattr(AgentRunner, "_alone", lambda self, ctx: False)
@@ -240,6 +268,37 @@ def test_stop_while_it_is_summarised_stops_the_turn_and_nothing_starts_again(
     assert not [m for m in snap["messages"] if m["role"] == "koloni"]
 
 
+def test_what_it_wrote_before_it_was_refused_stands_once_after_it_is_started_again(
+        cli_chat, fake, project_dir, caplog):  # noqa: F811
+    turn = cli_chat(resumes=False, window=10_000_000)
+    turn("now the tests", "Tested.")
+    before = len(fake.starts())
+    turn("and the docs", "Documented.", fails=TOO_LONG, first=[WRITE])
+    assert len(fake.starts()) == before + 2, caplog.text
+    # (Its write of the first start is in the project and on record once: the second start
+    # is the same agent of the same turn, told of it by its history.)
+    assert hello(project_dir) == WRITE["write"][1]
+    changes = [c for c in turn.snap["file_changes"] if c["run_id"] == turn.snap["runs"][-1]["id"]]
+    assert [(c["path"], c["status"]) for c in changes] == [("hello.py", "applied")], changes
+    assert "hello.py" in fake.stdin() and SUMMARY in fake.stdin()
+
+
+def test_stop_after_it_was_started_again_stops_the_turn(cli_chat, fake, wait_run):  # noqa: F811
+    turn = cli_chat(resumes=False, window=10_000_000)
+    turn("now the tests", "Tested.")
+    before = len(fake.starts())
+    run_id = turn.send("and the docs", None, fails=TOO_LONG, then=[{"sleep": 120}])
+    deadline = time.monotonic() + scaled(30)
+    while len(fake.starts()) < before + 2:
+        assert time.monotonic() < deadline, "it was never started again"
+        time.sleep(0.05)
+    assert turn.client.post(f"/api/runs/{run_id}/cancel", headers=ORIGIN).status_code == 202
+    snap = wait_run(turn.client, turn.cid, run_id, timeout=30)
+    assert snap["runs"][-1]["status"] == "cancelled", snap["runs"][-1]
+    assert len(fake.starts()) == before + 2
+    assert [m["content"] for m in snap["messages"] if m["role"] == "koloni"] == [STARTED_AGAIN]
+
+
 def test_only_a_lead_working_alone_is_started_again(cli_chat):
     turn = cli_chat(resumes=False, window=10_000_000)
     lead = turn("now the tests", "Tested.")[-1]
@@ -265,14 +324,13 @@ def a_turn(**kind):
 
 
 def test_which_turns_are_summarised_after_a_refusal_for_their_size():
-    assert _summary_after(a_turn(), "failed", TOO_LONG) is True
-    assert _summary_after(a_turn(), "failed", "boom") is None
-    assert _summary_after(a_turn(), "failed", None) is None
-    assert _summary_after(a_turn(), "cancelled", TOO_LONG) is None
+    assert _summary_after(a_turn(), "failed", True) is True
+    assert _summary_after(a_turn(), "failed", False) is None
+    assert _summary_after(a_turn(), "cancelled", True) is None
     # Nobody is there to send the message again: a To-do task's turn, a night's job, a
     # trigger's turn; nor a plan's, nor a side of a comparison.
     for kind in ("job", "backlog_turn", "unattended", "planning", "run_compare"):
-        assert _summary_after(a_turn(**{kind: True}), "failed", TOO_LONG) is None, kind
+        assert _summary_after(a_turn(**{kind: True}), "failed", True) is None, kind
 
 
 def test_only_a_turn_the_user_watches_is_started_again():
@@ -282,11 +340,11 @@ def test_only_a_turn_the_user_watches_is_started_again():
 
 
 def test_a_completed_turn_is_looked_at_past_the_threshold_as_before():
-    assert _summary_after(a_turn(), "completed", None) is False
+    assert _summary_after(a_turn(), "completed", False) is False
     for kind in ("job", "backlog_turn"):
-        assert _summary_after(a_turn(**{kind: True}), "completed", None) is False, kind
+        assert _summary_after(a_turn(**{kind: True}), "completed", False) is False, kind
     for kind in ("unattended", "planning", "run_compare"):
-        assert _summary_after(a_turn(**{kind: True}), "completed", None) is None, kind
+        assert _summary_after(a_turn(**{kind: True}), "completed", False) is None, kind
 
 
 @pytest.mark.parametrize("kind, service", [

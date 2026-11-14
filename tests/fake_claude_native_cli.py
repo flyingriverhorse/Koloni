@@ -30,6 +30,7 @@ skills its answer lists (none with --disable-slash-commands; KOLONİ's plugin's 
     {"sleep": 3}                        seconds of silence
     {"emit": {...}}                     any other line of its stream, as given
     {"fail": "reason"}                  finish with an error result
+    {"complain": "reason"}              exit 1 with that on stderr
     {"await_steer": 5}                  up to 5 seconds for a user line after the prompt (89d)
 
 "CWD" anywhere in the script stands for the folder the CLI was started in.
@@ -423,6 +424,11 @@ for number, action in enumerate(actions()):
         time.sleep(120)
     elif "die" in action:
         die(action["die"])
+    elif "complain" in action:  # (it gives up in words of its own, on stderr: not its model's)
+        print(action["complain"], file=sys.stderr)
+        sys.stderr.flush()
+        sys.stdout.flush()
+        os._exit(1)  # (as `die`: its reader threads are not waited for)
     elif "sleep" in action:
         time.sleep(action["sleep"])
     elif "await_steer" in action:

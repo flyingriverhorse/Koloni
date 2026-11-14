@@ -70,15 +70,20 @@ words are very long gets there; what the CLI reads by itself during a turn is no
 sooner, set a smaller window on its role. A CLI run **One run per model step** is never compacted: each step is
 sent a trimmed history.
 
-When a lead's context fills during a turn in a chat you are in (on a CLI or an API model) and it was working
-alone, KOLONİ summarises its earlier work and starts the turn again from the summary by itself, once, with a line
-in the chat saying so; **Stop** stops that too, and what it costs counts in the turn. If its context fills again,
-the turn fails and says so: use **Compact now** or set a smaller context window on the role. Where the lead had
-opened sub-agents, a room or a team's recipe, the turn is not started again: KOLONİ summarises its earlier work
-after it and the failure says so - send your message again and it goes on from the summary. KOLONİ knows such a
-refusal by its words (GitHub Copilot CLI's are known; the other CLIs' are not all known yet); where the failure
-says nothing of a summary, use **Compact now** and send the message again. A plan, a To-do task's turn, a night's
-job and a trigger's turn are neither started again nor summarised this way.
+When the context of a lead on a CLI fills during a turn in a chat you are in and it was working alone, KOLONİ
+summarises its earlier work and starts the turn again from the summary by itself, once, with a line in the chat
+saying so; **Stop** stops that too, and what the summary costs counts in the turn (the CLI's refused start reports
+no tokens). If its context fills again, the turn fails and says so: use **Compact now** or set a smaller context
+window on the role. Where the lead had opened sub-agents, a room or a team's recipe, the turn is not started
+again: KOLONİ summarises its earlier work after it and the failure says so - send your message again and it goes
+on from the summary. A plan, a To-do task's turn, a night's job and a trigger's turn are neither started again nor
+summarised this way. (A lead on an API model is summarised and asked once more inside its step, as before.)
+
+KOLONİ knows such a refusal only by the CLI's own error, never by words its model may have written. GitHub Copilot
+CLI's wordings are known - taken from its package, not yet seen in a live refusal. Claude Code and Qoder report a
+failed turn in a text that can be their model's words, so theirs is not recognised yet, and the other CLIs' own
+wordings are not known. Where the failure says nothing of a summary, use **Compact now** and send the message
+again.
 
 **Compact now** is in the top bar's **context** button (see
 [Chat and canvas](../use/chat-and-canvas.md#the-context-button)).

@@ -907,7 +907,7 @@ def _sends_again(t: _LeadTurn) -> bool:
     return not (t.planning or t.unattended or t.run_compare or t.job or t.backlog_turn)
 
 
-def _summary_after(t: _LeadTurn, status: str, error: str | None) -> bool | None:
+def _summary_after(t: _LeadTurn, status: str, refused: bool) -> bool | None:
     """Whether a turn's lead is looked at for a summary after it (`_idle_after`): False past
     the threshold, after one that completed; True whatever its size, after one refused for
     its size - the next, sent the same history, would be refused the same way. None: not at
@@ -918,8 +918,7 @@ def _summary_after(t: _LeadTurn, status: str, error: str | None) -> bool | None:
         return None
     if status == "completed":
         return False
-    refused = status == "failed" and _sends_again(t) and OVERFLOW.search(error or "")
-    return True if refused else None
+    return True if status == "failed" and refused and _sends_again(t) else None
 
 
 class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
@@ -1106,6 +1105,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # the leads started again from a summary after a refusal for their size, once each
         # (`_summarised_again`)
         self._started_again: set[str] = set()
+        # ...and those whose turn ended refused for its size (`loop_mixin.refused_for_size`)
+        self._refused_size: set[str] = set()
         # agent id -> when a CLI's text or own tool last put its time on record
         self._touched: dict[str, float] = {}
         # run id -> the record its lead is given (`app.record`): made at its first step
@@ -1745,7 +1746,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # Before the turn is on record as over: nothing of it holds a file after.
         await self._keep_given_back(run_id)
         self._release_run(run_id)
-        if (full := _summary_after(t, status, error)) is not None:
+        if (full := _summary_after(
+                t, status, ctx.agent_id in self._refused_size)) is not None:
             # Before the next turn can start, which waits for it (`_after_idle`). (The lead
             # as it ran: a model chosen by how hard the message was is its own.)
             try:
@@ -1823,6 +1825,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._circling_told.discard(agent_id)
             self._guard_ended.discard(agent_id)
             self._started_again.discard(agent_id)
+            self._refused_size.discard(agent_id)
             self._steps_left.pop(agent_id, None)
             self._answer_again.discard(agent_id)
             self._role_taken.pop(agent_id, None)
