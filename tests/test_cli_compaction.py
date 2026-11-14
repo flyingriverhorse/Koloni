@@ -119,29 +119,37 @@ TOO_LONG = "prompt is too long: 1200 tokens > 1000 maximum"  # (Anthropic's API'
 
 
 @pytest.mark.parametrize("resumes", [False, True])
-def test_a_turn_refused_for_its_size_is_summarised_for_the_next(cli_chat, fake, resumes):  # noqa: F811
+def test_a_turn_refused_for_its_size_is_summarised_for_the_next(
+        cli_chat, fake, resumes, caplog):  # noqa: F811
     turn = cli_chat(resumes=resumes, window=10_000_000)  # (never past the threshold by itself)
     turn("now the tests", "Tested.")
     error = turn("and the docs", None, fails=TOO_LONG)
-    assert TOO_LONG in error and "send your message again" in error, error
+    assert TOO_LONG in error and "send your message again" in error, (error, caplog.text)
     # (The next turn waits for the summary, and starts anew from it: no session is left.)
     leads = turn("and the docs", "Documented.")
     told = fake.stdin()
-    assert SUMMARY in told and "OLDWORD" not in told, (leads[-2]["summary_note"], told)
+    assert SUMMARY in told and "OLDWORD" not in told, (
+        leads[-2]["summary_note"], told, caplog.text)
     assert "--resume" not in fake.starts()[-1]
     assert leads[-2]["summary"] == SUMMARY and len(turn.summariser.calls) == 1
 
 
-def test_a_turn_that_failed_otherwise_is_not(cli_chat, fake):  # noqa: F811
+# (The last two are no refusal for its size: a line KOLONİ could not read or start, `_fits`.)
+@pytest.mark.parametrize("why", [
+    "boom", "Claude Code sent a line too long to read",
+    "its line is 40000 characters, too long for Windows (32767 at most)"])
+def test_a_turn_that_failed_otherwise_is_not(cli_chat, fake, why):  # noqa: F811
     turn = cli_chat(resumes=False, window=10_000_000)
     turn("now the tests", "Tested.")
-    error = turn("and the docs", None, fails="boom")
-    assert "boom" in error and "send your message again" not in error
+    error = turn("and the docs", None, fails=why)
+    assert why in error and "send your message again" not in error
     turn("and the docs", "Documented.")
     assert not turn.summariser.calls and "OLDWORD" in fake.stdin()
 
 
-def test_a_first_turn_refused_for_its_size_has_nothing_to_summarise(cli_chat, fake):  # noqa: F811
+def test_refused_for_its_size_with_no_older_part_nothing_is_said_of_a_summary(
+        cli_chat, fake):  # noqa: F811
+    # (After one turn only: what is before its last answer is the user's, never summarised.)
     turn = cli_chat(resumes=False, window=10_000_000)
     error = turn("now the tests", None, fails=TOO_LONG)
     assert TOO_LONG in error and "send your message again" not in error, error

@@ -264,7 +264,7 @@ def test_the_request_waits_for_nothing_of_the_turn(team, project_dir, ended, gat
     # (a compaction due after the turn starts once the turn has let go: `t.idle`)
     idle: list[asyncio.Event] = []
 
-    def due(self, ctx):
+    def due(self, ctx, full=False):
         idle.append(asyncio.Event())
         return idle[-1]
 
