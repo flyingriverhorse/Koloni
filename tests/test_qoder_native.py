@@ -203,4 +203,4 @@ def test_a_command_of_qoders_that_names_a_folder_to_run_in_is_asked_at_every_lev
         {"say": "ok"}])
     cid, _run_id = start(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
-    assert asked["status"] == "proposed" and asked["danger"] == CWD_NOT_KNOWN
+    assert asked["status"] == "proposed" and asked["danger"] == CWD_NOT_KNOWN.format(cwd='".claude"')

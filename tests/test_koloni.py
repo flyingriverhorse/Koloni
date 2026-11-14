@@ -526,11 +526,47 @@ def test_a_command_of_claude_codes_that_names_a_folder_to_run_in_is_asked_at_eve
     from tests.test_claude_native import start as start_claude
 
     client, provider, _ = claude_app([
-        {**BASH, "input": {"command": "echo x > settings.json", "cwd": ".claude"}},
+        {**BASH, "input": {"command": "echo x > settings.json", "cwd": ".claude",
+                           "reason": "safe"}},  # (the model's word is not the card's)
         {"say": "ok"}])
     cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
-    assert asked["status"] == "proposed" and asked["danger"] == CWD_NOT_KNOWN
+    assert asked["status"] == "proposed"
+    assert asked["danger"] == CWD_NOT_KNOWN.format(cwd='".claude"')
+
+
+def test_a_command_with_a_cwd_in_its_input_is_refused_where_nobody_is_there_to_ask(
+    claude_app, wait_run, project_dir  # noqa: F811
+):
+    from tests.test_claude_native import BASH, NOBODY, unattended
+
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "pytest -q", "cwd": "sub"}}, {"say": "ok"}])
+    snap, run, _statuses = unattended(
+        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"])
+    assert run["status"] == "completed", run
+    (verdict,) = claude_app.record()["asked"]
+    assert verdict["behavior"] == "deny" and NOBODY in verdict["message"]
+    assert snap["commands"] == []
+
+
+def test_a_bash_call_of_claude_codes_own_sub_agent_runs_where_it_is_not_known(
+    claude_app, project_dir  # noqa: F811
+):
+    # (review: the reset was measured for the main agent; its Agent tool's sub-agent may start
+    # elsewhere - its `cd` into the scratch is the card it was)
+    from tests.test_claude_native import AGENT, BASH, SUB
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    client, provider, _ = claude_app([
+        AGENT, {"system": {"subtype": "task_started", "tool_use_id": "toolu_sub"}},
+        {**BASH, "input": {"command": "cd .koloni/tmp; ls"}, **SUB}, {"say": "ok", **SUB},
+        {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert (asked["status"], asked["cwd"]) == ("proposed", None)
+    assert asked["danger"].startswith("Climbs out of .koloni/tmp")
 
 
 @pytest.mark.parametrize("tool", ["PowerShell", "Monitor"])

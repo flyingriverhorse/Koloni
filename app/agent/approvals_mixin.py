@@ -69,8 +69,8 @@ READ_ONLY_WRITE = (
 # declined: each a no to that action, not to the task (B-321).
 NO_COMMANDS = "do not run it another way. " + CARRY_ON
 # Why a command of a CLI that reports no cwd is asked at every level (`_approve`, `cwd_from`).
-CWD_NOT_KNOWN = ("it names a folder to run in (cwd), which this CLI does not report and KOLONİ "
-                 "cannot check")
+CWD_NOT_KNOWN = ("it names a folder to run in (cwd: {cwd}), which this CLI does not report and "
+                 "KOLONİ cannot check")
 NO_CHANGES = "the {role} role may not change files: do not change them another way. " + CARRY_ON
 ONLY_READS = ("the {role} role may only read here, and KOLONİ cannot tell what {tool} would "
               "change: do not use it, or anything else, to do the same. " + CARRY_ON)
@@ -183,11 +183,15 @@ class ApprovalsMixin:
         # (Review: Claude Code's and Qoder's input is the model's own - a `cwd` it writes there
         # is no report of where the command runs, and is not read as one: `cwd_from`. But it
         # goes back to the CLI as it came, which may run the command there: a card at every
-        # level, by its reason.)
+        # level, by its reason - KOLONİ's own, with the folder named, never a "reason" the
+        # model wrote beside it.)
+        # shortcut: on any other card of theirs a "reason" key in the model's input is still
+        # shown as the reason (`_approve_command`: asked all the same, in the model's words);
+        # read it from Codex's protocol alone if a card is seen to say what the model wants.
         if tool in CLAUDE_RUNS and "cwd" in given and getattr(
                 ctx.model, "cwd_from", "none") in ("root", "none"):
             given = {**{key: value for key, value in given.items() if key != "cwd"},
-                     "reason": given.get("reason") or CWD_NOT_KNOWN}
+                     "reason": CWD_NOT_KNOWN.format(cwd=quoted(str(given["cwd"])[:80]))}
 
         def deny(why: str, fixed: bool = False) -> dict:
             if use_id:
@@ -340,10 +344,11 @@ class ApprovalsMixin:
         searched = await asyncio.to_thread(search_reason, command, root, str(
             inside(cwd)[0]) if isinstance(cwd, str) and cwd else ".")
         # Where it runs when it names no cwd: the root (Claude Code's Bash tool alone, measured;
-        # not its PowerShell or Monitor) or not known (None: `with_cwd`). A cwd the model wrote
-        # (agy's) is judged as not known as well.
+        # not its PowerShell or Monitor, nor a sub-agent of its own - `under` -, which may
+        # start elsewhere) or not known (None: `with_cwd`). A cwd the model wrote (agy's) is
+        # judged as not known as well.
         kind = getattr(ctx.model, "cwd_from", "none")
-        unnamed = "." if kind == "root" and tool == "Bash" else None
+        unnamed = "." if kind == "root" and tool == "Bash" and under is None else None
         claimed = kind == "model" and isinstance(cwd, str) and bool(cwd)
         if claimed and not searched:
             searched = await asyncio.to_thread(search_reason, command, root, ".")

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.model_client import StepResult, ToolCallRequest
+from tests.conftest import scaled
 from tests.test_chat_flow import start, start_in_mode, text
 
 
@@ -19,8 +20,9 @@ def write(path, content, id="w1"):
 
 
 def wait_status(client, cid, status):
-    snap = {}
-    for _ in range(250):
+    # (A ceiling, not a pace: 5 s here, more on a CI runner - `scaled`.)
+    snap, deadline = {}, time.monotonic() + scaled(5)
+    while time.monotonic() < deadline:
         snap = client.get(f"/api/conversations/{cid}").json()
         if snap["runs"] and snap["runs"][-1]["status"] == status:
             return snap
