@@ -199,7 +199,43 @@ def block(text: str) -> list[str]:
     return [f"{f}text", text, f, ""]
 
 
-def render(today: datetime.date, out: Path) -> None:  # noqa: C901
+def section(title: str, items: list[dict], intro: str = "") -> list[str]:
+    lines = [f"## {title}", ""] + ([intro, ""] if intro else [])
+    for p in items:
+        lines += [f"### {p['name']} {p['version']}".rstrip(), ""]
+        lines.append(f"- Licence: `{p['licence']}` ({p['source']})" if p["licence"]
+                     else f"- Licence: none ({p['source']})")
+        if "Apache-2.0" in (p["licence"] or "") and not any(
+                Path(lb).name.upper().startswith("NOTICE") for lb, _ in p["files"]):
+            lines.append("- Apache-2.0: no NOTICE file in the package.")
+        for note in (NOTES.get(p["name"]), p.get("note")):
+            if note:
+                lines.append(f"- {note}")
+        if not p["files"] and p["source"] != "frontend/public/brand/README.md":
+            lines.append("- No licence file in the package.")
+        lines.append("")
+        for label, n, copy in p["refs"]:
+            lines += [f"Licence file `{label}`: text [L{n}](#l{n}).", ""]
+            lines += block("\n".join(copy)) if copy else [
+                "_No copyright line in the licence file._", ""]
+        for label, crates in p["sbom"]:
+            lines += [f"Rust crates compiled into the wheel, from its CycloneDX SBOM "
+                      f"`{label}` ({len(crates)}; name, version, licence; the SBOM may "
+                      "also count build-only crates; their licence texts are not in the "
+                      "wheel):", ""]
+            lines += block("\n".join(f"{n} {v}  {lic}" for n, v, lic in crates))
+    return lines
+
+
+def check_line(where: str, name: str, lic: str | None) -> str | None:
+    if lic and not COPYLEFT.search(lic):
+        return None
+    either = lic and " OR " in lic and not all(COPYLEFT.search(x) for x in lic.split(" OR "))
+    note = NOTES.get(name, "Permissive options exist." if either else "")
+    return f"- {where}: **{name}**: `{lic or 'no licence declared'}`. {note}".rstrip()
+
+
+def render(today: datetime.date, out: Path) -> None:
     (py, skipped), js = python_packages(), frontend_packages()
     fonts = [p for p in js if p["name"].startswith("@fontsource/")]
     js = [p for p in js if p not in fonts]
@@ -245,40 +281,6 @@ def render(today: datetime.date, out: Path) -> None:  # noqa: C901
             t["users"].append(f"{p['name']} {p['version']}".strip())
             t["licences"].add(p["licence"] or "none declared")
             p["refs"].append((label, t["n"], copy))
-
-    def section(title: str, items: list[dict], intro: str = "") -> list[str]:
-        lines = [f"## {title}", ""] + ([intro, ""] if intro else [])
-        for p in items:
-            lines += [f"### {p['name']} {p['version']}".rstrip(), ""]
-            lines.append(f"- Licence: `{p['licence']}` ({p['source']})" if p["licence"]
-                         else f"- Licence: none ({p['source']})")
-            if "Apache-2.0" in (p["licence"] or "") and not any(
-                    Path(lb).name.upper().startswith("NOTICE") for lb, _ in p["files"]):
-                lines.append("- Apache-2.0: no NOTICE file in the package.")
-            for note in (NOTES.get(p["name"]), p.get("note")):
-                if note:
-                    lines.append(f"- {note}")
-            if not p["files"] and p["source"] != "frontend/public/brand/README.md":
-                lines.append("- No licence file in the package.")
-            lines.append("")
-            for label, n, copy in p["refs"]:
-                lines += [f"Licence file `{label}`: text [L{n}](#l{n}).", ""]
-                lines += block("\n".join(copy)) if copy else [
-                    "_No copyright line in the licence file._", ""]
-            for label, crates in p["sbom"]:
-                lines += [f"Rust crates compiled into the wheel, from its CycloneDX SBOM "
-                          f"`{label}` ({len(crates)}; name, version, licence; the SBOM may "
-                          "also count build-only crates; their licence texts are not in the "
-                          "wheel):", ""]
-                lines += block("\n".join(f"{n} {v}  {lic}" for n, v, lic in crates))
-        return lines
-
-    def check_line(where: str, name: str, lic: str | None) -> str | None:
-        if lic and not COPYLEFT.search(lic):
-            return None
-        either = lic and " OR " in lic and not all(COPYLEFT.search(x) for x in lic.split(" OR "))
-        note = NOTES.get(name, "Permissive options exist." if either else "")
-        return f"- {where}: **{name}**: `{lic or 'no licence declared'}`. {note}".rstrip()
 
     flagged = [check_line("Frontend (bundled)", p["name"], p["licence"]) for p in js + fonts]
     flagged += [check_line("Backend (Python)", p["name"], p["licence"]) for p in py]
