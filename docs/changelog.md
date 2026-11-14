@@ -4,8 +4,6 @@
 
 All notable changes to KOLONİ are listed here, newest first. English only.
 
-
-
 ## [Unreleased]
 
 ## [0.1.1] - 2026-11-14
