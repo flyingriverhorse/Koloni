@@ -354,8 +354,59 @@ def _decide(client, runner, dice, first: dict[str, list]):
     assert all(one.status_code in (200, 409) for one in sent), [one.text for one in sent]
 
 
+def _counted(runner, too_many: list[tuple[int, int]], in_line: list[int], at_once: list[int]):
+    """`runner.let_in`, with what it lets in counted: the longest line and the most at work at
+    once, and whoever was let in beyond a limit (`too_many`)."""
+    let_in = runner.let_in
+
+    def counted():
+        before = set(runner._placed)
+        let_in()
+        in_line[0] = max(in_line[0], len(runner._line_up))
+        at_once[0] = max(at_once[0], len(runner._placed))
+        at_work = [runner._ctxs[one] for one in runner._placed if one in runner._ctxs]
+        new = [runner._ctxs[one] for one in runner._placed - before if one in runner._ctxs]
+        if new:
+            # Nobody is let in beyond what its limits are at this moment (a limit that
+            # was lowered may have more at work under it: those were there before).
+            most, running = runner._limits(at_work)
+            for ctx in new:
+                for allowed, under in (
+                    (most.get(ctx.cid), sum(one.root == ctx.root for one in at_work)),
+                    (running.get(ctx.provider_id),
+                     sum(one.provider_id == ctx.provider_id for one in at_work)),
+                ):
+                    if allowed and under > allowed:
+                        too_many.append((under, allowed))
+
+    return counted
+
+
+def _all_over(client, cids: list[str], each: int) -> dict[str, int]:
+    """Every turn of these conversations came to an end and nothing of them waits; what
+    happened in them, counted by kind and status."""
+    seen: dict[str, int] = {}
+    for cid in cids:
+        snap = client.get(f"/api/conversations/{cid}").json()
+        assert len(snap["runs"]) == each
+        assert {run["status"] for run in snap["runs"]} <= TERMINAL
+        assert {one["status"] for one in snap["agents"]} <= AGENT_OVER
+        assert not [c for c in snap["file_changes"] if c["status"] in ("proposed", "approved")]
+        assert not [q for q in snap["questions"] if q["status"] == "pending"]
+        assert not [m for m in snap["merges"] if m["status"] == "pending"]
+        assert not [c for c in snap["commands"]
+                    if c["status"] in ("proposed", "approved", "running")]
+        for kind in ("runs", "agents", "file_changes", "questions", "merges", "commands"):
+            for one in snap[kind]:
+                key = f"{kind} {one['status']}"
+                seen[key] = seen.get(key, 0) + 1
+        seen["rules"] = seen.get("rules", 0) + len(snap["allowed_commands"])
+        seen["deep"] = seen.get("deep", 0) + sum(one["depth"] == 2 for one in snap["agents"])
+    return seen
+
+
 @pytest.mark.parametrize("limit", [1, 2, 3, 4])
-def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing_behind(  # noqa: C901
+def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing_behind(
     told, project_dir, limit, seed=2026, each=50, stall=60.0
 ):
     """Three conversations of one project, `each` turns in each: every turn's agents do
@@ -392,29 +443,7 @@ def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing
             "provider_id": other.json()["id"]}).status_code == 200
     too_many: list[tuple[int, int]] = []
     in_line, at_once = [0], [0]
-    let_in = runner.let_in
-
-    def counted():
-        before = set(runner._placed)
-        let_in()
-        in_line[0] = max(in_line[0], len(runner._line_up))
-        at_once[0] = max(at_once[0], len(runner._placed))
-        at_work = [runner._ctxs[one] for one in runner._placed if one in runner._ctxs]
-        new = [runner._ctxs[one] for one in runner._placed - before if one in runner._ctxs]
-        if new:
-            # Nobody is let in beyond what its limits are at this moment (a limit that
-            # was lowered may have more at work under it: those were there before).
-            most, running = runner._limits(at_work)
-            for ctx in new:
-                for allowed, under in (
-                    (most.get(ctx.cid), sum(one.root == ctx.root for one in at_work)),
-                    (running.get(ctx.provider_id),
-                     sum(one.provider_id == ctx.provider_id for one in at_work)),
-                ):
-                    if allowed and under > allowed:
-                        too_many.append((under, allowed))
-
-    runner.let_in = counted
+    runner.let_in = _counted(runner, too_many, in_line, at_once)
     left, going = dict.fromkeys(cids, each), dict.fromkeys(cids)
     # Which turns the user stops, and after how many looks, is thrown once a turn, on dice of
     # its own: thrown at every look, a slower machine - its turns last more looks - stopped
@@ -456,23 +485,7 @@ def test_a_few_hundred_small_turns_with_random_decisions_and_stops_leave_nothing
     assert moved > 5 or not moving
     # ...and the provider's line did not hold up the agents of the other provider.
     assert at_once[0] > 1 or not narrow
-    seen: dict[str, int] = {}
-    for cid in cids:
-        snap = client.get(f"/api/conversations/{cid}").json()
-        assert len(snap["runs"]) == each
-        assert {run["status"] for run in snap["runs"]} <= TERMINAL
-        assert {one["status"] for one in snap["agents"]} <= AGENT_OVER
-        assert not [c for c in snap["file_changes"] if c["status"] in ("proposed", "approved")]
-        assert not [q for q in snap["questions"] if q["status"] == "pending"]
-        assert not [m for m in snap["merges"] if m["status"] == "pending"]
-        assert not [c for c in snap["commands"]
-                    if c["status"] in ("proposed", "approved", "running")]
-        for kind in ("runs", "agents", "file_changes", "questions", "merges", "commands"):
-            for one in snap[kind]:
-                key = f"{kind} {one['status']}"
-                seen[key] = seen.get(key, 0) + 1
-        seen["rules"] = seen.get("rules", 0) + len(snap["allowed_commands"])
-        seen["deep"] = seen.get("deep", 0) + sum(one["depth"] == 2 for one in snap["agents"])
+    seen = _all_over(client, cids, each)
     nobody_holds_anything(client, pid)
     assert runner.claims_of(str(project_dir)) == []
     # It was not a quiet run: agents stood in line, sub-agents opened sub-agents, the user

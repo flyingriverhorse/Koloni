@@ -30,7 +30,7 @@ import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import unquote, urlsplit
+from urllib.parse import SplitResult, unquote, urlsplit
 
 import websockets
 
@@ -104,7 +104,7 @@ def find_browser() -> list[str] | None:
     return None
 
 
-def allowed(url: object, ws: Workspace, closed: set[int]) -> str:  # noqa: C901
+def allowed(url: object, ws: Workspace, closed: set[int]) -> str:
     """The address as the browser is given it, if it is on this machine: http(s) on loopback
     on a port that is neither KOLONİ's own nor a model server's (`closed`), or a file of the
     project (file://, or a path in it). BrowserError says why not."""
@@ -115,21 +115,31 @@ def allowed(url: object, ws: Workspace, closed: set[int]) -> str:  # noqa: C901
         return url
     parts = urlsplit(url)
     if parts.scheme in ("http", "https"):
-        # Python and Chrome read a backslash, a user part and an escaped @ apart (measured:
-        # Chrome opened 127.0.0.1:47003 where Python saw :47000): none in an address here.
-        if "\\" in url or "@" in parts.netloc or "%" in parts.netloc:
-            raise BrowserError(f"{url}: an address with \\, @ or % before its path; {NOT_HERE}")
-        if (parts.hostname or "") not in LOOPBACK:
-            raise BrowserError(f"{url} is not on this machine: {NOT_HERE}")
-        port = port_of(url)
-        if port is None:  # (not a port Python can read: it would be judged as none)
-            raise BrowserError(f"{url}: no port that can be read; {NOT_HERE}")
-        if port in closed:
-            raise BrowserError(
-                f"port {port} is KOLONİ's own or a model server's: not opened; {NOT_HERE}")
-        return url
+        return _allowed_preview(url, parts, closed)
     if parts.scheme and parts.scheme != "file":
         raise BrowserError(f"{url}: not a web address of this machine; {NOT_HERE}")
+    return _allowed_file(url, parts, ws)
+
+
+def _allowed_preview(url: str, parts: SplitResult, closed: set[int]) -> str:
+    """`allowed`, of an http(s) address."""
+    # Python and Chrome read a backslash, a user part and an escaped @ apart (measured:
+    # Chrome opened 127.0.0.1:47003 where Python saw :47000): none in an address here.
+    if "\\" in url or "@" in parts.netloc or "%" in parts.netloc:
+        raise BrowserError(f"{url}: an address with \\, @ or % before its path; {NOT_HERE}")
+    if (parts.hostname or "") not in LOOPBACK:
+        raise BrowserError(f"{url} is not on this machine: {NOT_HERE}")
+    port = port_of(url)
+    if port is None:  # (not a port Python can read: it would be judged as none)
+        raise BrowserError(f"{url}: no port that can be read; {NOT_HERE}")
+    if port in closed:
+        raise BrowserError(
+            f"port {port} is KOLONİ's own or a model server's: not opened; {NOT_HERE}")
+    return url
+
+
+def _allowed_file(url: str, parts: SplitResult, ws: Workspace) -> str:
+    """`allowed`, of a file:// address or a path."""
     path = url
     if parts.scheme == "file":
         if parts.netloc not in ("", "localhost"):
@@ -646,42 +656,46 @@ class Browser:
 
     # --- the protocol -------------------------------------------------------------------
 
-    async def _read(self) -> None:  # noqa: C901
+    async def _read(self) -> None:
         try:
             async for raw in self._ws:
                 if len(raw) > MAX_MESSAGE:
                     # Killed while its session - and so the Fetch rule - still holds.
                     await self._die()
                     break
-                message = json.loads(raw)
-                if (future := self._waiting.pop(message.get("id"), None)) is not None:
-                    if not future.done():
-                        future.set_result(message)
-                elif message.get("method") == "Fetch.requestPaused":
-                    await self._judge(message)
-                elif message.get("method") == "Target.attachedToTarget":
-                    await self._attached(message)
-                elif message.get("method") == "Page.javascriptDialogOpening":
-                    # An alert would hold every later call till its 30 s are up: dismissed.
-                    said = " ".join(str(message.get("params", {}).get("message", "")).split())
-                    self._note(f"the page showed a dialog: {said[:MAX_DIALOG]}; it was dismissed")
-                    await self._tell("Page.handleJavaScriptDialog", {"accept": False},
-                                     message.get("sessionId"))
-                elif message.get("method") == "Page.frameStartedLoading":
-                    self._loading.set()
-                elif message.get("method") == "Page.loadEventFired":
-                    self._loaded.set()
-                elif (line := _console_line(message)) is not None:
-                    if len(self._console) >= MAX_CONSOLE:
-                        self._console.pop(0)
-                        self._dropped += 1
-                    self._console.append(line)
+                await self._heard(json.loads(raw))
         except Exception:
             pass  # the connection is gone (a message over max_size, a missed ping, a crash)
         # Chrome drops the session's Fetch rule and guard with the connection and runs on
         # (measured in the review: a POST then reached a closed port, WebRTC came back): it is
         # ended at once. (A Stop cancels the reader instead: `close` ends it then.)
         await self._die()
+
+    async def _heard(self, message: dict) -> None:
+        """One message of the browser's: an answer to who waits for it, or what it says of
+        the page (`_read`)."""
+        if (future := self._waiting.pop(message.get("id"), None)) is not None:
+            if not future.done():
+                future.set_result(message)
+        elif message.get("method") == "Fetch.requestPaused":
+            await self._judge(message)
+        elif message.get("method") == "Target.attachedToTarget":
+            await self._attached(message)
+        elif message.get("method") == "Page.javascriptDialogOpening":
+            # An alert would hold every later call till its 30 s are up: dismissed.
+            said = " ".join(str(message.get("params", {}).get("message", "")).split())
+            self._note(f"the page showed a dialog: {said[:MAX_DIALOG]}; it was dismissed")
+            await self._tell("Page.handleJavaScriptDialog", {"accept": False},
+                             message.get("sessionId"))
+        elif message.get("method") == "Page.frameStartedLoading":
+            self._loading.set()
+        elif message.get("method") == "Page.loadEventFired":
+            self._loaded.set()
+        elif (line := _console_line(message)) is not None:
+            if len(self._console) >= MAX_CONSOLE:
+                self._console.pop(0)
+                self._dropped += 1
+            self._console.append(line)
 
     async def _die(self) -> None:
         """End the browser where its fence no longer holds; every later call says so."""

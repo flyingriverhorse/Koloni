@@ -115,7 +115,44 @@ class _AppServer(CodexCliClient):
         return [*arguments, *codex_skills_off(self._env), "app-server"]
 
 
-async def app_server(  # noqa: C901
+async def _rate_limits(stdin: asyncio.StreamWriter, stdout: asyncio.StreamReader) -> object:
+    """For `app_server`: Codex is greeted and asked `account/rateLimits/read`; its answer."""
+    read = 0
+
+    async def ask(message: dict) -> None:
+        stdin.write((json.dumps({"jsonrpc": "2.0", **message}) + "\n").encode())
+        await stdin.drain()
+
+    async def answer(to: int) -> object:
+        nonlocal read
+        # Its notifications (`account/updated`, …) come in between: passed over,
+        # however many - the time and what they add up to are the bound.
+        while raw := await stdout.readline():
+            read += len(raw)
+            if read > MAX_BYTES:
+                raise ModelUnavailable(
+                    "Codex said too much without saying what is left of its plan")
+            try:
+                told = json.loads(raw)
+            except ValueError:
+                continue
+            # A request of its own can carry the same id: an answer names no method.
+            if isinstance(told, dict) and told.get("id") == to and "method" not in told:
+                if "result" not in told:
+                    raise ModelUnavailable(
+                        "Codex would not say what is left of its plan")
+                return told["result"]
+        raise ModelUnavailable("Codex ended without saying what is left of its plan")
+
+    await ask({"id": 1, "method": "initialize",
+               "params": {"clientInfo": {"name": "koloni", "version": "0"}}})
+    await answer(1)
+    await ask({"method": "initialized"})
+    await ask({"id": 2, "method": "account/rateLimits/read"})
+    return await answer(2)
+
+
+async def app_server(
     executable: str | None, timeout: float = SECONDS, launcher: list[str] | None = None,
     home: Path | None = None,
 ) -> dict:
@@ -143,7 +180,6 @@ async def app_server(  # noqa: C901
                 raise OwnStop(f"Codex could not be started: {exc.strerror or exc}") from None
             stdin, stdout, errors = process.stdin, process.stdout, process.stderr
             assert stdin is not None and stdout is not None and errors is not None  # piped
-            read = 0
 
             async def unheard() -> None:
                 # Read, so that it cannot fill up; none of it is kept.
@@ -151,38 +187,7 @@ async def app_server(  # noqa: C901
                     pass
 
             complaints = asyncio.ensure_future(unheard())
-
-            async def ask(message: dict) -> None:
-                stdin.write((json.dumps({"jsonrpc": "2.0", **message}) + "\n").encode())
-                await stdin.drain()
-
-            async def answer(to: int) -> object:
-                nonlocal read
-                # Its notifications (`account/updated`, …) come in between: passed over,
-                # however many - the time and what they add up to are the bound.
-                while raw := await stdout.readline():
-                    read += len(raw)
-                    if read > MAX_BYTES:
-                        raise ModelUnavailable(
-                            "Codex said too much without saying what is left of its plan")
-                    try:
-                        told = json.loads(raw)
-                    except ValueError:
-                        continue
-                    # A request of its own can carry the same id: an answer names no method.
-                    if isinstance(told, dict) and told.get("id") == to and "method" not in told:
-                        if "result" not in told:
-                            raise ModelUnavailable(
-                                "Codex would not say what is left of its plan")
-                        return told["result"]
-                raise ModelUnavailable("Codex ended without saying what is left of its plan")
-
-            await ask({"id": 1, "method": "initialize",
-                       "params": {"clientInfo": {"name": "koloni", "version": "0"}}})
-            await answer(1)
-            await ask({"method": "initialized"})
-            await ask({"id": 2, "method": "account/rateLimits/read"})
-            told = await answer(2)
+            told = await _rate_limits(stdin, stdout)
     except (BrokenPipeError, ConnectionResetError, ValueError):
         raise ModelUnavailable("Codex ended without saying what is left of its plan") from None
     finally:

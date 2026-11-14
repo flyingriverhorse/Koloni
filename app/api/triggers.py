@@ -216,11 +216,68 @@ async def read_trigger(trigger_id: str, session: Session = Depends(get_session))
     return kept.out(session, _trigger(session, trigger_id))
 
 
+def _change_settings(session: Session, trigger: Trigger, body: TriggerPatch) -> bool:
+    """What the form sent of its name, message, conversation, settings, leave and budget, put on
+    the trigger; whether its settings changed. `kept.Invalid` and `kept.TooMany` as they come."""
+    again = False
+    if body.name is not None:
+        trigger.name = kept.check_name(body.name)
+    if body.message is not None:
+        trigger.message = kept.check_message(body.message)
+    if body.conversation_id is not None and body.conversation_id != trigger.conversation_id:
+        trigger.conversation_id = _own_conversation(
+            session, trigger.project_id, body.conversation_id)
+        kept.check_starts(session, trigger.conversation_id)
+        # Another conversation has another allow list: no rule of the first one's
+        # stays ticked, and no host picked from it. (What is ticked for the new one
+        # comes with `permissions`.)
+        trigger.permissions = {
+            **{key: value for key, value in trigger.permissions.items() if key != "hosts"},
+            "commands": [],
+        }
+    if body.config is not None:
+        config = kept.check_config(trigger.kind, body.config)
+        again = again or config != trigger.config
+        trigger.config = config
+    if body.permissions is not None:
+        trigger.permissions = kept.check_leave(
+            session, trigger.conversation_id, body.permissions)
+    if body.budget is not None:
+        trigger.budget = body.budget.model_dump()
+    if body.catch_up is not None:
+        trigger.catch_up = body.catch_up
+    if body.run_unchanged is not None:
+        trigger.run_unchanged = body.run_unchanged
+    return again
+
+
+def _change_end_and_switch(request: Request, trigger: Trigger, body: TriggerPatch) -> bool:
+    """Its end and whether it is on, as the form sent them; whether it was switched on again."""
+    again = False
+    # (null: no end. One left as it was is not checked again: a day since past is no error.)
+    if "ends" in body.model_fields_set and body.ends != trigger.ends:
+        trigger.ends = kept.check_ends(body.ends, _today(request))
+        trigger.ran = 0  # its runs are counted from here
+    if body.enabled is not None:
+        if body.enabled and not trigger.enabled:
+            # Switched on again: the count of failures starts over, and so does
+            # what it waits for - nothing that passed while it was off is made up -
+            # and the runs counted toward its end.
+            trigger.failures, trigger.off_because, again = 0, None, True
+            trigger.ran = 0
+            if kept.end_reached(trigger, now(), request.app.state.triggers.zone):
+                raise kept.Invalid(kept.DAY_OVER)
+        elif not body.enabled:
+            trigger.off_because = None  # the user's doing, not KOLONİ's
+        trigger.enabled = body.enabled
+    return again
+
+
 @router.patch(
     "/triggers/{trigger_id}", response_model=TriggerOut,
     dependencies=[Depends(require_own_origin)],
 )
-async def change_trigger(  # noqa: C901
+async def change_trigger(
     trigger_id: str, body: TriggerPatch, request: Request,
     session: Session = Depends(get_session),
 ):
@@ -229,50 +286,8 @@ async def change_trigger(  # noqa: C901
     # How it stands now: whatever differs afterwards is written on its record.
     before, was_on = kept.standing(session, trigger), trigger.enabled
     try:
-        if body.name is not None:
-            trigger.name = kept.check_name(body.name)
-        if body.message is not None:
-            trigger.message = kept.check_message(body.message)
-        if body.conversation_id is not None and body.conversation_id != trigger.conversation_id:
-            trigger.conversation_id = _own_conversation(
-                session, trigger.project_id, body.conversation_id)
-            kept.check_starts(session, trigger.conversation_id)
-            # Another conversation has another allow list: no rule of the first one's
-            # stays ticked, and no host picked from it. (What is ticked for the new one
-            # comes with `permissions`.)
-            trigger.permissions = {
-                **{key: value for key, value in trigger.permissions.items() if key != "hosts"},
-                "commands": [],
-            }
-        if body.config is not None:
-            config = kept.check_config(trigger.kind, body.config)
-            again = again or config != trigger.config
-            trigger.config = config
-        if body.permissions is not None:
-            trigger.permissions = kept.check_leave(
-                session, trigger.conversation_id, body.permissions)
-        if body.budget is not None:
-            trigger.budget = body.budget.model_dump()
-        if body.catch_up is not None:
-            trigger.catch_up = body.catch_up
-        if body.run_unchanged is not None:
-            trigger.run_unchanged = body.run_unchanged
-        # (null: no end. One left as it was is not checked again: a day since past is no error.)
-        if "ends" in body.model_fields_set and body.ends != trigger.ends:
-            trigger.ends = kept.check_ends(body.ends, _today(request))
-            trigger.ran = 0  # its runs are counted from here
-        if body.enabled is not None:
-            if body.enabled and not trigger.enabled:
-                # Switched on again: the count of failures starts over, and so does
-                # what it waits for - nothing that passed while it was off is made up -
-                # and the runs counted toward its end.
-                trigger.failures, trigger.off_because, again = 0, None, True
-                trigger.ran = 0
-                if kept.end_reached(trigger, now(), request.app.state.triggers.zone):
-                    raise kept.Invalid(kept.DAY_OVER)
-            elif not body.enabled:
-                trigger.off_because = None  # the user's doing, not KOLONİ's
-            trigger.enabled = body.enabled
+        again = _change_settings(session, trigger, body)
+        again = _change_end_and_switch(request, trigger, body) or again
         if again:
             trigger.anchor_at = trigger.next_at = None
             project = session.get(Project, trigger.project_id)

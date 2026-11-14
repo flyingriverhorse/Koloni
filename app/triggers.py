@@ -240,38 +240,42 @@ WEEK = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 DAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 
-def check_config(kind: str, config: object) -> dict:  # noqa: C901
+def _check_schedule(config: dict) -> dict:
+    if set(config) == {"every_minutes"}:
+        every = config["every_minutes"]
+        if isinstance(every, bool) or not isinstance(every, int) or not (
+            MIN_EVERY <= every <= MAX_EVERY
+        ):
+            raise Invalid(
+                f"every_minutes must be a whole number from {MIN_EVERY} to {MAX_EVERY}"
+            )
+        return {"every_minutes": every}
+    if "at" in config and set(config) <= {"at", "days"}:
+        at, days = config["at"], config.get("days", "daily")
+        if not isinstance(at, str) or not _AT.fullmatch(at):
+            raise Invalid('at must be a time of day written "HH:MM"')
+        if isinstance(days, list) and days and all(
+            isinstance(day, str) and day in WEEK for day in days
+        ) and len(set(days)) == len(days):
+            return {"at": at, "days": [day for day in WEEK if day in days]}
+        if days not in ("daily", "weekdays"):
+            raise Invalid(
+                'days must be "daily", "weekdays" or a list of days such as ["mon", "fri"],'
+                " each once"
+            )
+        return {"at": at, "days": days}
+    raise Invalid(
+        'a schedule is {"every_minutes": N} or {"at": "HH:MM", "days": "daily" | "weekdays"'
+        ' | ["mon", ..., "sun"]}'
+    )
+
+
+def check_config(kind: str, config: object) -> dict:
     """A trigger's settings for its kind, tidied; Invalid says what is wrong with them."""
     if not isinstance(config, dict):
         raise Invalid("config must be an object")
     if kind == "schedule":
-        if set(config) == {"every_minutes"}:
-            every = config["every_minutes"]
-            if isinstance(every, bool) or not isinstance(every, int) or not (
-                MIN_EVERY <= every <= MAX_EVERY
-            ):
-                raise Invalid(
-                    f"every_minutes must be a whole number from {MIN_EVERY} to {MAX_EVERY}"
-                )
-            return {"every_minutes": every}
-        if "at" in config and set(config) <= {"at", "days"}:
-            at, days = config["at"], config.get("days", "daily")
-            if not isinstance(at, str) or not _AT.fullmatch(at):
-                raise Invalid('at must be a time of day written "HH:MM"')
-            if isinstance(days, list) and days and all(
-                isinstance(day, str) and day in WEEK for day in days
-            ) and len(set(days)) == len(days):
-                return {"at": at, "days": [day for day in WEEK if day in days]}
-            if days not in ("daily", "weekdays"):
-                raise Invalid(
-                    'days must be "daily", "weekdays" or a list of days such as ["mon", "fri"],'
-                    " each once"
-                )
-            return {"at": at, "days": days}
-        raise Invalid(
-            'a schedule is {"every_minutes": N} or {"at": "HH:MM", "days": "daily" | "weekdays"'
-            ' | ["mon", ..., "sun"]}'
-        )
+        return _check_schedule(config)
     if kind == "files":
         if set(config) != {"glob"} or not isinstance(config["glob"], str):
             raise Invalid('a files trigger is {"glob": "a/pattern/**/*.py"}')

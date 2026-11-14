@@ -100,25 +100,9 @@ def _blob(raw: str, rel: str, listed: tuple[str, int]) -> bytes:
     return data
 
 
-def listing(address: str) -> Found:  # noqa: C901
-    """A skill's listing on GitHub, from one commit - pinned by `@<commit>` at the end of
-    the address, else the branch's (or the default branch's) as it is now. What is read
-    before the user's yes: the listing, the SKILL.md, the licence and the scripts."""
-    match = ADDRESS.fullmatch(address.strip())
-    if match is None:
-        raise SkillError(NOT_AN_ADDRESS)
-    owner, repo, ref, sub, pinned = match.groups()
-    api = f"https://api.github.com/repos/{owner}/{repo}"
-    sha = pinned or str(_json(
-        f"{api}/commits/{quote(ref or str(_json(api)['default_branch']), safe='')}")["sha"])
-    if not re.fullmatch(r"[0-9a-f]{40}", sha):
-        raise SkillError("GitHub's answer could not be read")
-    # shortcut: a branch with "/" in its name is not told from the folder after it; pin
-    # the commit (@<sha>) for one.
-    tree = _json(f"{api}/git/trees/{sha}?recursive=1")
-    if tree.get("truncated"):
-        raise SkillError("the repository is too large to list: name a smaller one")
-    prefix = f"{sub.strip('/')}/" if sub and sub.strip("/") else ""
+def _sorted_out(tree: dict, prefix: str) -> tuple[dict[str, tuple[str, int]], list[str], dict]:
+    """A commit's tree, for `listing`: the files under `prefix` that are taken, what is left
+    out, and the licences at the repository's top."""
     listed: dict[str, tuple[str, int]] = {}
     skipped: list[str] = []
     roots = {}
@@ -141,6 +125,29 @@ def listing(address: str) -> Found:  # noqa: C901
             skipped.append(rel)
         else:
             listed[rel] = (str(entry["sha"]), int(entry["size"]))
+    return listed, skipped, roots
+
+
+def listing(address: str) -> Found:
+    """A skill's listing on GitHub, from one commit - pinned by `@<commit>` at the end of
+    the address, else the branch's (or the default branch's) as it is now. What is read
+    before the user's yes: the listing, the SKILL.md, the licence and the scripts."""
+    match = ADDRESS.fullmatch(address.strip())
+    if match is None:
+        raise SkillError(NOT_AN_ADDRESS)
+    owner, repo, ref, sub, pinned = match.groups()
+    api = f"https://api.github.com/repos/{owner}/{repo}"
+    sha = pinned or str(_json(
+        f"{api}/commits/{quote(ref or str(_json(api)['default_branch']), safe='')}")["sha"])
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise SkillError("GitHub's answer could not be read")
+    # shortcut: a branch with "/" in its name is not told from the folder after it; pin
+    # the commit (@<sha>) for one.
+    tree = _json(f"{api}/git/trees/{sha}?recursive=1")
+    if tree.get("truncated"):
+        raise SkillError("the repository is too large to list: name a smaller one")
+    prefix = f"{sub.strip('/')}/" if sub and sub.strip("/") else ""
+    listed, skipped, roots = _sorted_out(tree, prefix)
     capped(listed)
     base = f"https://raw.githubusercontent.com/{owner}/{repo}/{sha}/"
     wanted = [rel for rel in listed
