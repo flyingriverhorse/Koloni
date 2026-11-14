@@ -4,6 +4,8 @@
 
 All notable changes to KOLONİ are listed here, newest first. English only.
 
+
+
 ## [Unreleased]
 
 ## [0.1.1] - 2026-11-14
@@ -19,7 +21,6 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Canvas**: where the default provider isn't answering and the Models page holds another one that is switched on, First steps offers **Use … for new chats**, which makes that one the default; the step is done once the default answers ([docs](getting-started/quick-start.md#2-add-a-model)).
 - **To-do**, **Tools**, **Knowledge**: an empty list of tasks, skills or knowledge says what one is and where on the page to add the first; a page that needs a folder, in a chat with none, has a **Choose a folder** button.
 - **Knowledge**: in a project whose **Project notes** are first made from this version on, the Orchestrator uses them from the first note you add (it is told where their guide is and can look them up) until you switch them off on the **Lead** role's **Knowledge** tab; other roles have them only if you switch them on. A project that already has Project notes is not changed: switch them on once on the Agents page, the **Lead** role, **Knowledge** tab. An Orchestrator with any knowledge on **Map** is now told where its guide is, as a sub-agent is ([docs](knowledge.md#project-notes)).
-- **CLIs**: when the context of an Orchestrator on a CLI fills during a turn in a chat you are in and the CLI's own error says so (GitHub Copilot CLI's wordings, taken from its package and not yet seen in a live refusal; Claude Code's and Qoder's are not recognised yet), KOLONİ summarises its earlier work and starts the turn again from the summary by itself, once, with a line in the chat saying so; if it fills again, the turn fails and says what to do. Where it had opened sub-agents, a room or a team's recipe, the turn is not started again: its earlier work is summarised after it, and your next message goes on from the summary. A CLI lead with no context window on its role can also be summarised after a turn against the catalogue's window for its model, which only a very long chat reaches ([docs](models/setup-cli.md#going-on-from-the-last-turn)).
 - **CLIs**: when the context of an Orchestrator on a CLI fills during a turn in a chat you are in and the CLI's own error says so (GitHub Copilot CLI's wordings: one seen in a live refusal, the others taken from its package; Claude Code's and Qoder's are not recognised yet), KOLONİ summarises its earlier work and starts the turn again from the summary by itself, once, with a line in the chat saying so; if it fills again, the turn fails and says what to do. Where nothing of its earlier work is left to summarise (a single message larger than its model takes), nothing is started again and the failure says so. Where it had opened sub-agents, a room or a team's recipe, the turn is not started again: its earlier work is summarised after it, and your next message goes on from the summary. A CLI lead with no context window on its role can also be summarised after a turn against the catalogue's window for its model, which only a very long chat reaches ([docs](models/setup-cli.md#going-on-from-the-last-turn)).
 
 ### Fixed
