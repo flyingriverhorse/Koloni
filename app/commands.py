@@ -882,8 +882,9 @@ KOLONI_FILES = (
 # B-339: said where the line climbs out of the scratch (`_CLIMBS`) rather than naming `.koloni`.
 CLIMBS_OUT = (
     "Climbs out of .koloni/tmp, the agents' scratch, into .koloni - the folder's KOLONİ rules "
-    "and settings, which agents do not change (by `..`, a change of folder or a built path): "
-    "asked at every level. Stay inside .koloni/tmp/ and run again."
+    "and settings, which agents do not change (by `..`, a change of folder other than one "
+    "`cd .koloni/tmp/...` at the line's start, or a path built or looked up): asked at every "
+    "level. Stay inside .koloni/tmp/ and run again."
 )
 STANDING_FILE = (
     "Names {name}: such a file tells later turns what they may do, or runs by itself: asked at "
@@ -978,12 +979,12 @@ def _path_parts(command: str) -> list[str]:
     kept = " ".join(map(_passed_by, _PARTS.split(command)))
     # K-koloni-klasor: `.koloni/tmp/` is the agents' scratch, no standing name - its `.koloni`
     # is left out, the rest of the path judged as any. Not where the line can climb back out
-    # of it or build a path from it (`_CLIMBS`: `cd .koloni/tmp; echo x > ../rules.md`,
+    # of it or build a path from it (`_climbs`: `cd .koloni/tmp; echo x > ../rules.md`,
     # `Split-Path .koloni/tmp`), nor on a git line (`git add -f .koloni/tmp/x` would commit a
     # profile's cookies): there it is `.koloni`, and asked. shortcut: by that spelling -
     # `.koloni/t*`, `KOLONI~1/tmp` and `.koloni/./tmp` are still `.koloni`, and asked.
     # (`..` split by quotes, a caret or a backtick is `..` to the shell: judged without them.)
-    scratch = not _CLIMBS.search(_as_read(command)) and not any(
+    scratch = not _climbs(command) and not any(
         _git_sub(words)[0] for words in _parts(command))
     parts: list[str] = []
     for word in re.split(r"[\s=:<>,;|&()]", re.sub(r"[`^'\"]", "", kept)):
@@ -1000,6 +1001,34 @@ def _path_parts(command: str) -> list[str]:
 _CLIMBS = re.compile(
     r"\.\.|(?<![\w-])(?i:cd|chdir|pushd|popd|sl|set-location|push-location|pop-location"
     r"|split-path|join-path|resolve-path)(?![\w-])|(?<!\S)-C(?!\S)")
+# One change of folder into the scratch at the line's start, plainly spelt (no quote, variable,
+# wildcard, `..` or dot-name), then `;`, `&&` or a newline: run_command's `cwd` there
+# (`with_cwd`) and an agent's own `cd .koloni/tmp/work; pytest` - no climb by itself.
+_ENTERS = re.compile(
+    r"\s*(?:cd|chdir|pushd|sl|set-location|push-location)[ \t]+(?:\./)?\.koloni[/\\]tmp"
+    r"(?:[/\\][\w-][\w.-]*)*[/\\]?[ \t]*(?:;|&&|\r?\n)", re.IGNORECASE)
+# ...but from inside it `.koloni` is the folder above, reached with no `..` by a line that
+# learns where it is or hands a path on: `$(dirname "$PWD")`, `(gi .).Parent`, `%cd%`, `.?/x`.
+# shortcut: by these spellings, as the rest here - code or a script that builds the path is not
+# seen (it is not from the project's folder either: `names_standing`); K-yazma-denetimi ends it.
+_WHERE = re.compile(r"[$%({]|\.[?*\[]|(?i:pwd|cwd|dirname|parent|location|realpath|abspath|xargs)")
+
+
+def _climbs(command: str) -> bool:
+    """Whether a line can climb out of the scratch (`_CLIMBS`, read as the shell reads it) -
+    its one leading change of folder into the scratch (`_ENTERS`) left out, and what follows
+    that held to `_WHERE` too (sh's `p\\wd` is `pwd`: judged without backslashes as well).
+    shortcut: where it enters is not resolved (no root is known here) - a link in the scratch
+    is entered as it is written through (`echo x > .koloni/tmp/link/x`); making one is asked."""
+    entered = _ENTERS.match(command)
+    if not entered:
+        return bool(_CLIMBS.search(_as_read(command)))
+    rest = command[entered.end():]
+    read = _as_read(rest)
+    # (nothing after it: a shell that keeps its folder would run the next line there)
+    return not rest.strip() or "`" in rest or any(
+        found.search(text) for found in (_CLIMBS, _WHERE)
+        for text in (read, read.replace("\\", "")))
 
 
 def _as_read(command: str) -> str:
@@ -1012,7 +1041,8 @@ def _as_read(command: str) -> str:
 def with_cwd(command: str, cwd: object) -> str:
     """A command as it is judged with the folder it is run in (run_command's `cwd`): `cd
     <cwd>; <command>` - so that `cwd=.koloni/tmp` with `echo x > ../settings.json`, or
-    `cwd=.claude`, names what it reaches. What runs is the command alone."""
+    `cwd=.claude`, names what it reaches (a `cwd` in the scratch alone is no climb: `_ENTERS`).
+    What runs is the command alone."""
     return f"cd {cwd}; {command}" if isinstance(cwd, str) and cwd not in ("", ".") else command
 
 
@@ -1114,8 +1144,12 @@ def names_standing(command: str) -> str:
              if (key := _standing_of(piece, wildcards=False))}
     rest = _INLINE_CODE.sub(lambda found: found[0][:found.start(1) - found.start()], command)
     parts = _CHAIN.split(rest)
-    if "$(" in rest or not all(map(_balanced, parts)):
+    # (A line that enters the scratch is judged whole: its `cd` alone would name `.koloni` -
+    # and with its inline code, which may learn where it is: `_WHERE`.)
+    entered = _ENTERS.match(rest)
+    if "$(" in rest or entered or not all(map(_balanced, parts)):
         parts = [rest]
+    named |= {".koloni"} if entered and names_koloni(command) else set()
     named |= {key for part in parts if not _reads(part, sinks)
               for piece in _path_names(part) if (key := _standing_of(piece))}
     named |= {".git"} if _sets_git_config(command) else set()
@@ -1363,18 +1397,19 @@ def _harm(command: str) -> str:
         return SECRET_FILE
     if not names_koloni(command):
         return ""
-    climbs = _SCRATCH.search(command) and _CLIMBS.search(_as_read(command))
+    climbs = _SCRATCH.search(command) and _climbs(command)
     return CLIMBS_OUT if climbs else KOLONI_FILES
 
 
 # B-336: the one card-free delete - a deleter alone on its line, by its bare name; plain forcing
-# its only flags; its paths each spelt plainly under `.koloni/tmp/` (no part starting with ".", no
+# and recursion (`_RECURSES`: a folder of the scratch, no link anywhere below it) its only
+# flags; its paths each spelt plainly under `.koloni/tmp/` (no part starting with ".", no
 # wildcard); and nothing in the line that joins, wraps, quotes, expands or redirects (`_NOT_PLAIN`:
 # `|;&`, a newline, `<>`, a comma or `=` list, any quote - smart ones too -, `^`, a backtick,
 # brackets, `$ % ~`, `* ?`).
 _SCRATCH_DELETERS = frozenset({"remove-item", "ri", "rm", "del", "erase", "unlink"})
-_SCRATCH_FLAGS = frozenset({"-f", "--force", "-force", "-fo", "-q", "-path",
-                            "-literalpath"})
+_RECURSES = frozenset({"-r", "-rf", "-fr", "-recurse"})  # (`-R`, `-Rf`: by `casefold`)
+_SCRATCH_FLAGS = _RECURSES | {"-f", "--force", "-force", "-fo", "-q", "-path", "-literalpath"}
 _SCRATCH = re.compile(r"\.koloni[\\/]tmp\b", re.IGNORECASE)
 _IN_SCRATCH = re.compile(r"(?:\./)?\.koloni[/\\]tmp(?:[/\\][\w-][\w.-]*)+", re.IGNORECASE)
 _NOT_PLAIN = re.compile(r"[|;&\n\r<>,=`^'\"()\[\]{}$%~*?‘-„]")
@@ -1387,7 +1422,10 @@ def scratch_delete_only(command: str, root: str | None) -> bool:
     as ever, so no rule is offered for such a delete nor covers one. As narrow as it can be
     (`_SCRATCH_DELETERS`, `_SCRATCH_FLAGS`, `_IN_SCRATCH`, `_NOT_PLAIN`), not climbing out
     (`_CLIMBS`, the line read as the shell reads it), and each path, links resolved, inside the
-    project's own scratch - which is no link itself.
+    project's own scratch - which is no link itself. A recursive one (`_RECURSES`) of a folder
+    that holds no link (`_holds_link`: Windows PowerShell's `Remove-Item -Recurse` deletes
+    through a junction). Not `rmdir /s /q`: `/s` is a path to sh and pwsh. Nor a delete after a
+    `cd` into the scratch (run_command's `cwd` there): a `cd` that fails leaves it in the project.
     shortcut: judged when it is asked; a link made between that and the run is not seen (making
     one is a card of its own)."""
     if root is None or _NOT_PLAIN.search(command) or _CLIMBS.search(_as_read(command)):
@@ -1404,8 +1442,31 @@ def scratch_delete_only(command: str, root: str | None) -> bool:
     scratch = os.path.normcase(os.path.realpath(where))
     if scratch != where:  # (the scratch, or .koloni, a link itself: where it leads is not it)
         return False
-    return all(os.path.normcase(os.path.realpath(os.path.join(root, path))).startswith(
-        scratch + os.sep) for path in paths) and not names_secret(command)
+    real = [os.path.realpath(os.path.join(root, path)) for path in paths]
+    recursive = any(flag.casefold() in _RECURSES for flag in flags)
+    return all(os.path.normcase(path).startswith(scratch + os.sep) for path in real) and not (
+        names_secret(command) or recursive and any(map(_holds_link, real)))
+
+
+def _holds_link(top: str) -> bool:
+    """Whether a folder holds a link or a junction anywhere below it, or more than is looked at.
+    shortcut: 10,000 entries, then it is asked - a scratch folder larger than that (a browser's
+    cache) keeps its card; raise it, or walk off the event loop, if that is met."""
+    left, folders = 10_000, [top]
+    while folders:
+        try:
+            with os.scandir(folders.pop()) as found:
+                for entry in found:
+                    left -= 1
+                    if left < 0 or entry.is_symlink() or entry.is_junction():
+                        return True
+                    if entry.is_dir(follow_symlinks=False):
+                        folders.append(entry.path)
+        except (FileNotFoundError, NotADirectoryError):  # (a file, or nothing: no folder)
+            continue
+        except OSError:  # (not read: not known)
+            return True
+    return False
 
 
 # Programs that read every file below the folder they are in; those that read what they are
@@ -2268,8 +2329,12 @@ def harms(command: str, instructions: bool = True) -> str:
     obfuscation - a name spliced or escaped (`r`i`, `& (gcm ri)`, `&('r'+'i')`, `$c='ri'; & $c`)
     or a program started with its words in a list (`Start-Process ... -ArgumentList`) is not
     seen; Ask and Auto-edit are the wall (and `runs_another` at night)."""
+    # (Its parts apart, but for a leading `cd` into the scratch - `_ENTERS`, judged above with
+    # the whole line: alone it would name `.koloni`.)
+    entered = _ENTERS.match(command)
     return danger(command, instructions) or next((
-        said for words in _commands_in(command, at=_BLOCKS) if words and (
+        said for words in _commands_in(command[entered.end() if entered else 0:], at=_BLOCKS)
+        if words and (
             said := danger(" ".join(words), instructions) or (
                 "" if _only_fetches(words) else _sends(words)))), "")
 

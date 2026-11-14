@@ -455,6 +455,21 @@ def test_a_command_run_in_the_scratch_that_climbs_out_of_it_waits_at_full_auto(
     assert executor.started == []
 
 
+def test_at_full_auto_work_in_the_scratch_and_a_folder_of_it_deleted_run_unasked(
+    make_client, wait_run, project_dir
+):
+    # (live: run_command's cwd in the scratch was a "Climbs out" card, `rm -rf` of its folder one)
+    (project_dir / ".koloni" / "tmp" / "work").mkdir(parents=True)
+    executor = ScriptedExecutor([Script(["ok"]), Script(["ok"]), Script([""])])
+    client, _ = make_client([cmd("pytest -q", cwd=".koloni/tmp/work"),
+                             cmd("cd .koloni/tmp/work; python x.py", "k2"),
+                             cmd("rm -rf .koloni/tmp/work", "k3"), text("done")], executor=executor)
+    cid, run_id = start_in_mode(client, project_dir, "full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert [one["status"] for one in snap["commands"]] == ["exited"] * 3, snap["commands"]
+    assert snap["commands"][0]["danger"] == "" and len(executor.started) == 3
+
+
 def test_at_full_auto_a_delete_in_the_scratch_runs_unasked_one_that_may_leave_it_waits(
     make_client, wait_run, project_dir
 ):
