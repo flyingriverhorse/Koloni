@@ -274,7 +274,7 @@ export function SkillsSection({ skills, roles, off, serversOff, picked, adding, 
         </div>
       )}
       {skills.length === 0 ? (
-        <p className="muted hive-empty">No skill yet.</p>
+        <p className="muted hive-empty">No skill yet. A skill is a folder of instructions (a SKILL.md) that a role’s agents read when they need it: add one with Add › A skill, at the top.</p>
       ) : (
         <ul className="tools-servers" aria-label="Skills">
           {skills.map(skill => {

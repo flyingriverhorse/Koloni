@@ -90,3 +90,6 @@ export function usePanel<P extends HTMLElement = HTMLDivElement>(mayClose?: () =
 
   return { open, setOpen, close, button, panel }
 }
+
+/** The top bar's folder button, pressed from elsewhere: its panel opens, where "Open a folder…" is. */
+export const openFolderPanel = () => document.querySelector<HTMLElement>('.folder-button')?.click()

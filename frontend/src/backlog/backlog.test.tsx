@@ -186,6 +186,8 @@ test('a task is deleted from its ⋯ only once the user says so again', async ()
 test('adding starts from one line: the rest opens once a title is typed, Esc closes it, Enter adds', async () => {
   const props = page()
   render(<BacklogPage {...props} backlog={[]} />)
+  // The empty list says what a task is, and points at what is already on the page.
+  expect(screen.getByText('No task yet. A task is work for later: type its title in “Add a task” above, and Run the backlog starts it in a chat of its own.')).toBeInTheDocument()
   const form = within(screen.getByRole('form', { name: 'Add a task' }))
   const title = form.getByLabelText('Title')
   expect(title).toHaveAttribute('placeholder', 'Add a task — title, then Enter')

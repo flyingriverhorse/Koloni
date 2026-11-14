@@ -129,7 +129,11 @@ test('with no folder and no chat KOLONİ opens on the canvas, not on a setup pag
   // Nothing is made at the start: the first message makes a plain chat.
   expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Board' }))
-  expect(screen.getByText('This chat has no folder - pick one with the folder button to use the Board.')).toBeInTheDocument()
+  const none = screen.getByText('This chat has no folder - pick one with the folder button to use the Board.')
+  // ...with the way to one beside it: the folder button's own panel.
+  expect(screen.queryByRole('button', { name: 'Open a folder…' })).toBeNull()
+  await userEvent.click(within(none.parentElement!).getByRole('button', { name: 'Choose a folder' }))
+  expect(screen.getByRole('button', { name: 'Open a folder…' })).toBeInTheDocument()
 })
 
 test('in a project whose conversations are all archived, none is opened, and the default model is the one a notice is about', async () => {
@@ -239,4 +243,40 @@ test("another chat opened is a step of the browser's history: Back opens the one
   act(() => void window.dispatchEvent(new PopStateEvent('popstate', { state: { chat: 'c' } })))
   await vi.waitFor(() => expect(useApp.getState().conv?.conversation.id).toBe('c'))
   expect(history.length).toBe(steps + 1)
+})
+
+test('while the default does not answer, First steps offers another provider for new chats without asking anything of it; its button makes it the default, and the step is done once that one answers', async () => {
+  const down = { ...health, model_reachable: false, provider_id: 'p-local', provider_name: 'Local', error: 'connection refused' }
+  const local = { id: 'p-local', name: 'Local', kind: 'openai_compat', default_model: 'qwen', models: [] }
+  const cli = { ...local, id: 'p-cli', name: 'Claude Code', kind: 'claude_cli' }
+  // (The server's side of the press: the list turned round, and the default's reading the other one's.)
+  let pressed = false
+  const fetched = vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST' && url.endsWith('/default')) pressed = true
+    const now = pressed
+      ? { '/api/health': { ...health, provider_id: 'p-cli', provider_name: 'Claude Code' }, '/api/providers': [cli, local] }
+      : { '/api/health': down, '/api/providers': [local, cli] }
+    return answer(url, { '/api/projects': [], '/api/conversations': [], '/api/providers/p-cli/limits': { unknown: true }, ...now })
+  })
+  vi.stubGlobal('fetch', fetched)
+  // (A test above hid the steps: the store of the page is one for the file.)
+  localStorage.removeItem('koloni-first-steps')
+  render(<App />)
+  const steps = await screen.findByRole('region', { name: 'First steps' })
+  const use = await within(steps).findByRole('button', { name: 'Use Claude Code for new chats' })
+  expect(use.closest('li')).toHaveTextContent("Local isn't answering, and new chats run on it. Claude Code is set up too.")
+  // (Not done by the offer: nothing is known to answer yet.)
+  expect(use.closest('li')).toHaveAttribute('aria-current', 'step')
+  // No provider is asked whether it answers but the one the chat runs on: such a reading may send its model a request.
+  const asked = () => fetched.mock.calls.map(([url, init]) => `${init?.method ?? 'GET'} ${url}`)
+  expect(asked().filter(call => call.includes('provider_id='))).toEqual([])
+  expect(asked().some(call => call.startsWith('POST'))).toBe(false)
+  await userEvent.click(use)
+  expect(asked()).toContain('POST /api/providers/p-cli/default')
+  // The new default answers: the step is done, its note and offer are gone, and the focus is on the page, not nowhere.
+  expect(await within(steps).findByText('A provider is set up.')).toBeInTheDocument()
+  expect(within(steps).queryByText(/isn't answering/)).toBeNull()
+  expect(within(steps).getAllByRole('button').map(button => button.textContent)).toEqual(['Choose a folder', 'Hide the first steps'])
+  await vi.waitFor(() => expect(document.activeElement).toHaveClass('main'))
+  expect(asked().filter(call => call.includes('provider_id='))).toEqual([])
 })
