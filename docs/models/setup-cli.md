@@ -74,13 +74,19 @@ When the context of a lead on a CLI fills during a turn in a chat you are in and
 summarises its earlier work and starts the turn again from the summary by itself, once, with a line in the chat
 saying so; **Stop** stops that too, and what the summary costs counts in the turn (the CLI's refused start reports
 no tokens). If its context fills again, the turn fails and says so: use **Compact now** or set a smaller context
-window on the role. Where the lead had opened sub-agents, a room or a team's recipe, the turn is not started
+window on the role. Where nothing of its earlier work is left to summarise - a single message larger than its
+model takes, say - nothing is started again, and the failure says that after the CLI's own line: send a shorter
+message, or use a model with a larger context window. Where the lead had opened sub-agents, a room or a team's recipe, the turn is not started
 again: KOLONİ summarises its earlier work after it and the failure says so - send your message again and it goes
 on from the summary. A plan, a To-do task's turn, a night's job and a trigger's turn are neither started again nor
 summarised this way. (A lead on an API model is summarised and asked once more inside its step, as before.)
 
 KOLONİ knows such a refusal only by the CLI's own error, never by words its model may have written. GitHub Copilot
-CLI's wordings are known - taken from its package, not yet seen in a live refusal. Claude Code and Qoder report a
+CLI's wordings are known: one seen in a live refusal ("Request exceeds the model's prompt budget …", CLI 1.0.107),
+the others taken from its package and not yet seen live. That refusal gave Copilot's own limit for gpt-6-luna on
+the default context tier as 272,000 tokens of prompt; KOLONİ's catalogue has a larger window for that model
+(1,050,000), so with no window on the role nothing is summarised before Copilot refuses - set the role's window
+to what your tier takes. Claude Code and Qoder report a
 failed turn in a text that can be their model's words, so theirs is not recognised yet, and the other CLIs' own
 wordings are not known. Where the failure says nothing of a summary, use **Compact now** and send the message
 again.

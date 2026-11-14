@@ -37,6 +37,7 @@ from app import (
 from app import memory as kept
 from app import room as rooms
 from app.agent.cards import _at_a_step_limit, _goes_on, _in_its_chat, _role_asked
+from app.agent.context_mixin import _koloni_compacts, _older
 from app.agent.ctx import FLUSH_SECONDS, TERMINAL, Ctx, _Transcript, sent_effort
 from app.agent.summary import _size, compact_at
 from app.agent.words import AGENT_TERMINAL, NATIVE_NEEDS_A_FOLDER
@@ -120,7 +121,14 @@ OVERFLOW = re.compile(
     # shortcut: the `copilot.exe` that runs (5 Nov) is compressed and could not be read, and no
     # live refusal was seen: these are the July bundle's. Check them at a live refusal.
     r"|\(context_limit\)|context window is full|model_max_prompt_tokens_exceeded"
-    r"|prompt token count of \d+ exceeds the limit|inputs exceed the model token limit",
+    r"|prompt token count of \d+ exceeds the limit|inputs exceed the model token limit"
+    # Seen live, the one refusal measured (14 Nov 2026: Copilot CLI 1.0.107 as a session,
+    # gpt-6-luna on GitHub's default context tier, Windows; a 2.3 M-character message):
+    # "Execution failed: Request exceeds the model's prompt budget after reserving output
+    # (591842 tokens; limit 272000). Reduce context or compact before continuing." - its
+    # `session.error`, classed "other" on its agent by its words (`limits.classify`), with no
+    # class of its own on the failure (`CliSessionClient`: `result_is_its_error`).
+    r"|exceeds the model's prompt budget",
     re.IGNORECASE,
 )
 
@@ -151,7 +159,16 @@ SUMMARISED_FOR_NEXT = (
 STARTED_AGAIN = "Its context was full: its earlier work was summarised and the turn started again."
 FULL_AGAIN = (
     " Its context filled again after KOLONİ summarised its earlier work and started the turn "
-    "again: use Compact now or set a smaller context window on its role."
+    "again."
+)
+FULL_AGAIN_DO = " Use Compact now or set a smaller context window on its role."
+# Refused for its size with nothing a summary could stand for (the live refusal: a message of
+# the user's larger than its model takes) - no number of the CLI's is read into a claim: its
+# own line, before this, has them.
+NOTHING_LEFT = (
+    " Nothing of its earlier work is left to summarise: what it was sent - your messages and "
+    "its last answer - is more than its model takes, as its own line above says. Send a "
+    "shorter message, or use a model with a larger context window."
 )
 
 # A side of a comparison (slice 54) works only in a copy of its own.
@@ -415,6 +432,7 @@ class LoopMixin:
                     self._ctxs.get(ctx.agent_id, ctx), info)):
                 if refused:  # (what the summary after its turn goes by: `_summary_after`)
                     self._refused_size.add(ctx.agent_id)
+                    self._refusal_says(ctx, exc, "" if again else None)
                 raise
         await asyncio.sleep(0)  # (a Stop asked for meanwhile lands here: before the line is said)
         self._koloni_line(ctx.cid, ctx.run_id, STARTED_AGAIN)
@@ -422,8 +440,25 @@ class LoopMixin:
             return await self._loop(ctx, info)
         except ModelUnavailable as exc:
             if refused_for_size(exc):
-                exc.args = (f"{exc}{FULL_AGAIN}",)
+                self._refusal_says(ctx, exc, FULL_AGAIN)
             raise
+
+    def _refusal_says(self: "AgentRunner", ctx: Ctx, exc: ModelUnavailable,
+                      before: str | None) -> None:
+        """`_loop_again`: what a refusal for its size says to the user besides the CLI's own
+        line, after `before` (None: nothing - a turn nobody watches). Where nothing is left
+        that a summary could stand for, that what it is sent is itself too large; else, after
+        it was started again, what to do. Never for a model KOLONİ does not compact."""
+        now = self._ctxs.get(ctx.agent_id, ctx)
+        if before is None or not _koloni_compacts(now.model):
+            return
+        try:
+            bare = not _older(self._history(now, None, quiet=True))
+        except Exception:  # (what it says more never fails the turn)
+            bare = False
+        more = NOTHING_LEFT if bare else FULL_AGAIN_DO if before else ""
+        if more:
+            exc.args = (f"{exc}{before}{more}",)
 
     async def _attempt(self: "AgentRunner", ctx: Ctx,
                        again: bool = False) -> tuple[str, str | None]:

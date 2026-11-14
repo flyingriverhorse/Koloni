@@ -936,6 +936,10 @@ class ContextMixin:
         shortcut: the catalogue's is the model's own, not measured against what each CLI gives
         it (Copilot's tiers: `Providers._build`): where the CLI's is smaller, the summary comes
         late or not at all. Measure each CLI's own and catalogue that.
+        shortcut: so it is for the one measured - Copilot's gpt-6-luna on GitHub's default tier
+        takes 272,000 tokens of prompt (its own figure, in a live refusal of 14 Nov 2026, CLI
+        1.0.107), and the catalogue's window for it is 1,050,000: against that no summary
+        comes before Copilot refuses. Catalogue Copilot's own limits per tier once measured.
         shortcut: what is measured against it is the history KOLONİ sends, whose old tool
         outputs are left out past `context_char_budget`: a window much larger than that is
         reached only by what cannot be left out (the chat's own words). What a CLI reads by
