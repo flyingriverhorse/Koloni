@@ -500,8 +500,37 @@ def new_role(session: Session, request: Request, body: RoleIn) -> Role:
     return role
 
 
+def apply_mcp(session: Session, request: Request, role: Role, body: RolePatch) -> None:
+    if body.mcp is not None and set(body.mcp) != set(role.mcp):
+        # Which programs a role's agents may have started is the user's to say, from the
+        # app's own page - as a role's limits are, and not as its tools: not a command's
+        # that an agent runs against the app's address. Kept in the servers' own order.
+        require_own_origin(request)
+        known = session.scalars(select(McpServer.name).order_by(
+            McpServer.created_at, literal_column("mcp_servers.rowid"))).all()
+        if not set(body.mcp) <= set(known):
+            raise HTTPException(422, "unknown MCP server")
+        role.mcp = [name for name in known if name in body.mcp]
+
+
+def apply_skills(session: Session, request: Request, role: Role, body: RolePatch) -> None:
+    if body.skills is not None and set(body.skills) != set(role.skills):
+        # As its servers: a skill's text is what its agents are told, and its scripts may
+        # run unasked - the user's to give, from the app's own page.
+        require_own_origin(request)
+        rows = session.execute(select(Skill.id, Skill.name).order_by(
+            Skill.created_at, literal_column("skills.rowid"))).all()
+        kept = [name for _id, name in rows]
+        # (R125: a skill by its id too, as the Tools page lists it; the role keeps its name)
+        named = {id_: name for id_, name in rows}
+        wanted = {named.get(said, said) for said in body.skills}
+        if not wanted <= set(kept):
+            raise HTTPException(422, "unknown skill")
+        role.skills = [name for name in kept if name in wanted]
+
+
 @router.patch("/{role_id}", response_model=RoleOut, dependencies=[Depends(require_origin)])
-def patch_role(  # noqa: C901
+def patch_role(
     role_id: str, body: RolePatch, request: Request, session: Session = Depends(get_session)
 ):
     role = _role(session, role_id)
@@ -530,29 +559,8 @@ def patch_role(  # noqa: C901
     apply_choice(session, role, body)
     # (The tier rule and the kind under the same guard as the role's model: the route's.)
     apply_place(session, request, role, body)
-    if body.mcp is not None and set(body.mcp) != set(role.mcp):
-        # Which programs a role's agents may have started is the user's to say, from the
-        # app's own page - as a role's limits are, and not as its tools: not a command's
-        # that an agent runs against the app's address. Kept in the servers' own order.
-        require_own_origin(request)
-        known = session.scalars(select(McpServer.name).order_by(
-            McpServer.created_at, literal_column("mcp_servers.rowid"))).all()
-        if not set(body.mcp) <= set(known):
-            raise HTTPException(422, "unknown MCP server")
-        role.mcp = [name for name in known if name in body.mcp]
-    if body.skills is not None and set(body.skills) != set(role.skills):
-        # As its servers: a skill's text is what its agents are told, and its scripts may
-        # run unasked - the user's to give, from the app's own page.
-        require_own_origin(request)
-        rows = session.execute(select(Skill.id, Skill.name).order_by(
-            Skill.created_at, literal_column("skills.rowid"))).all()
-        kept = [name for _id, name in rows]
-        # (R125: a skill by its id too, as the Tools page lists it; the role keeps its name)
-        named = {id_: name for id_, name in rows}
-        wanted = {named.get(said, said) for said in body.skills}
-        if not wanted <= set(kept):
-            raise HTTPException(422, "unknown skill")
-        role.skills = [name for name in kept if name in wanted]
+    apply_mcp(session, request, role, body)
+    apply_skills(session, request, role, body)
     apply_limits(session, request, role, body)
     role.updated_at = now()
     roles.place_in_stages(session)  # (its stage in a team it was put in)
