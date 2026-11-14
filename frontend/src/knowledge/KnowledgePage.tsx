@@ -153,7 +153,7 @@ export function KnowledgePage(props: Props) {
       {items === null ? (
         !error && <p className="muted">Reading the project’s knowledge…</p>
       ) : items.length === 0 ? (
-        <p className="muted hive-empty">No knowledge yet. A knowledge is a docs site, files or a repository KOLONİ reads once, so agents can look things up in it: press + Add knowledge.</p>
+        <p className="muted hive-empty">No knowledge yet. A knowledge is a docs site, files, a repository or a topic KOLONİ reads into a guide agents can look things up in: press + Add knowledge.</p>
       ) : (
         items.map(item => <Card key={item.id} item={item} open={open === item.id} page={props} onOpen={() => setOpen(open === item.id ? null : item.id)} onLearn={() => learn(item.id)} />)
       )}

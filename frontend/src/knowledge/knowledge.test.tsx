@@ -217,7 +217,7 @@ test('Not known yet: not measured, every question answered, or what it found no 
 
 test('with no knowledge yet the page says what one is, and points at + Add knowledge', () => {
   page({ items: [] })
-  expect(screen.getByText('No knowledge yet. A knowledge is a docs site, files or a repository KOLONİ reads once, so agents can look things up in it: press + Add knowledge.')).toBeInTheDocument()
+  expect(screen.getByText('No knowledge yet. A knowledge is a docs site, files, a repository or a topic KOLONİ reads into a guide agents can look things up in: press + Add knowledge.')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '+ Add knowledge' })).toBeInTheDocument()
 })
 

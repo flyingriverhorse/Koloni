@@ -1,8 +1,8 @@
 import { Check, Circle } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
-import { api, errorText } from '../api/client'
+import { errorText } from '../api/client'
 import type { Health, Provider } from '../api/types'
-import { isCli } from '../models/ModelsPage'
+import { openFolderPanel } from './usePanel'
 
 const KEY = 'koloni-first-steps'
 
@@ -19,10 +19,12 @@ interface Props {
   turn: boolean | undefined
   /** Asked for again from Help: shown even when done or hidden before, until it is hidden again. */
   again: boolean
-  /** The providers, the default first: while it does not answer, another that does is offered in its place. */
+  /** The providers, the default first: while it does not answer, another switched-on one is offered in its place. */
   providers: Provider[]
+  /** The open chat runs on a provider chosen for it: another default would change nothing for it, so none is offered. */
+  pinned: boolean
   onProvider: () => void
-  /** A provider made the default. Throws ApiError with why not. */
+  /** A provider made the default, and the reading on show read again. Throws ApiError with why not. */
   onUse: (providerId: string) => Promise<void>
   onHidden: () => void
   /** The provider they now say isn't answering (null: none): the top bar does not say it too. */
@@ -31,64 +33,46 @@ interface Props {
 
 const answers = (health: Health | null) => health !== null && health.model_reachable && !health.not_listed
 
-/**
- * The first switched-on provider after the default that /health says can be reached (null: none, or not looked for) - asked one
- * after another, again at each reading of the default.
- * shortcut: a CLI counts once it is installed and could be started (/health never runs one), signed in or not; upgrade when
- * /health can tell a CLI that is signed in.
- */
-function useOther(health: Health | null, providers: Provider[], down: boolean): Provider | null {
-  const [other, setOther] = useState<Provider | null>(null)
-  // (Only where the reading is the default's: for a chat on a provider of its own, another default changes nothing.)
-  const look = down && health?.provider_id === providers[0]?.id
-  useEffect(() => {
-    let latest = true
-    const read = async () => {
-      for (const one of look ? providers.slice(1).filter(one => one.enabled !== false) : []) {
-        const reading = await api.get<Health>(`/health?provider_id=${encodeURIComponent(one.id)}`).catch(() => null)
-        if (!latest) return
-        if (answers(reading)) return setOther(one)
-      }
-      setOther(null)
-    }
-    void read()
-    return () => {
-      latest = false
-    }
-  }, [health, providers, look])
-  return look ? other : null
-}
-
 /** The provider whose reading says it does not answer, by name (null: it does, or the user wrote - then the banner says it). */
 const downOf = (health: Health | null, wrote: boolean) => (!wrote && health && !health.model_reachable && health.provider_name) || null
 
-/** Under a provider step whose provider does not answer: what to do - or, where another answers, that one offered as the default. */
-function ProviderNote({ name, other, onUse }: { name: string; other: Provider | null; onUse: Props['onUse'] }) {
+type NoteProps = Pick<Props, 'health' | 'providers' | 'pinned' | 'onUse'> & { name: string }
+
+/**
+ * Under a provider step whose provider does not answer: what to do - or, where the list holds another switched-on provider (the
+ * first that is not the one read), that one offered as the default. Nothing is asked of it (a reading may send its model a
+ * request): it "is set up", no more is known - so the step is not ticked by it.
+ */
+function ProviderNote({ name, health, providers, pinned, onUse }: NoteProps) {
+  const other = pinned ? undefined : providers.find(one => one.id !== health?.provider_id && one.enabled !== false)
   if (!other) return `${name} isn't answering - add another provider, or start its model server.`
   return (
     <>
-      {name} isn't answering, and new chats run on it. {other.name} is {isCli(other.kind) ? 'installed' : 'answering'}.{' '}
+      {name} isn't answering, and new chats run on it. {other.name} is set up too.{' '}
       <UseOther other={other} onUse={onUse} />
     </>
   )
 }
 
-/** The done provider step's one button: the default is changed by the user's press only, never by itself. */
+/** The offer's one button: the default is changed by the user's press only, never by itself. */
 function UseOther({ other, onUse }: { other: Provider; onUse: Props['onUse'] }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const use = (main: HTMLElement | null) => {
+  const use = (button: HTMLElement) => {
+    const main = button.closest<HTMLElement>('.main')
     setBusy(true)
     setError(null)
     onUse(other.id)
-      // The button goes with its offer: the focus goes to the page, not to nowhere.
-      .then(() => main?.focus())
+      // Where the button went with its offer, the focus goes to the page, not to nowhere.
+      .then(() => {
+        if (!button.isConnected) main?.focus()
+      })
       .catch(err => setError(errorText(err)))
       .finally(() => setBusy(false))
   }
   return (
     <>
-      <button type="button" className="btn btn-small" disabled={busy} onClick={event => use(event.currentTarget.closest<HTMLElement>('.main'))}>
+      <button type="button" className="btn btn-small" disabled={busy} onClick={event => use(event.currentTarget)}>
         Use {other.name} for new chats
       </button>
       {error && (
@@ -103,10 +87,10 @@ function UseOther({ other, onUse }: { other: Provider; onUse: Props['onUse'] }) 
 /**
  * The first run's one path (0.1.0-ilk-calistirma), in the middle of the canvas: a provider, a folder, a message -
  * each read from what is so, never ticked by itself, so all three done they are gone without a flag. The first not
- * done is the current one and the only one with a button - but for a provider step done by another provider than the
- * default, which offers that one as the default. Hidden by hand, they come back only from Help.
+ * done is the current one and the only one with a button - and, where the default does not answer, one more that offers
+ * another provider as the default. Hidden by hand, they come back only from Help.
  */
-export function FirstSteps({ health, project, folder, wrote, turn, again, providers, onProvider, onUse, onHidden, onSaysProvider }: Props) {
+export function FirstSteps({ health, project, folder, wrote, turn, again, providers, pinned, onProvider, onUse, onHidden, onSaysProvider }: Props) {
   const [hidden, setHidden] = useState(() => {
     try {
       return localStorage.getItem(KEY) === 'hidden'
@@ -117,11 +101,9 @@ export function FirstSteps({ health, project, folder, wrote, turn, again, provid
   // A provider that does not answer is not done (a seeded "Local" with no server behind it); once the user wrote, it is -
   // so a model that stops later brings no steps back: the banner says that.
   const down = downOf(health, wrote)
-  // Any provider that answers will do - where it is not the default, the step says so and offers it: a new chat runs on the default.
-  const other = useOther(health, providers, down !== null)
-  const provider = wrote || answers(health) || other !== null
+  const provider = wrote || answers(health)
   // (The top bar leaves it to them while they say it; here it says what to do about it.)
-  const note = down && <ProviderNote name={down} other={other} onUse={onUse} />
+  const note = down && <ProviderNote name={down} health={health} providers={providers} pinned={pinned} onUse={onUse} />
   const steps = [
     {
       done: provider,
@@ -134,8 +116,7 @@ export function FirstSteps({ health, project, folder, wrote, turn, again, provid
       done: project,
       text: !project ? 'A folder: the project your agents work in.' : folder ? <>Project folder: <span className="mono" title={folder}>{folder}</span></> : 'A project folder is added.',
       button: 'Choose a folder',
-      // (The top bar's folder button opens its panel, where "Open a folder…" is.)
-      go: () => document.querySelector<HTMLElement>('.folder-button')?.click(),
+      go: openFolderPanel,
     },
     {
       done: wrote,
@@ -170,7 +151,7 @@ export function FirstSteps({ health, project, folder, wrote, turn, again, provid
         {steps.map((step, at) => (
           <li
             key={step.button}
-            className={`first-step${step.done ? ' first-step-done' : ''}${step.note ? ' first-step-noted' : ''}`}
+            className={step.done ? 'first-step first-step-done' : 'first-step'}
             aria-current={at === current ? 'step' : undefined}
           >
             {step.done ? <Check size={14} aria-hidden /> : <Circle size={14} aria-hidden />}
@@ -181,6 +162,7 @@ export function FirstSteps({ health, project, folder, wrote, turn, again, provid
                 {step.button}
               </button>
             )}
+            {/* (Only the current step has one: a provider that does not answer is not done.) */}
             {step.note && <span className="muted first-step-note">{step.note}</span>}
           </li>
         ))}

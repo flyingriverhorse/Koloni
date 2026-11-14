@@ -34,10 +34,10 @@ Press **Save**, then **Test** to check that it answers.
 
 The first provider on the Models page is the default: new chats run on it. KOLONİ makes one called
 "Local" at the first start, for a model server on this machine. If you do not run one, First steps
-says that Local isn't answering. Once another provider answers (for a CLI: once it is installed), First
-steps offers **Use … for new chats** with its name: press it to make that provider the default.
-**Make default** on the provider's card on the Models page does the same. KOLONİ never changes the
-default by itself.
+says that Local isn't answering. If the Models page holds another provider that is switched on,
+First steps offers **Use … for new chats** with its name: press it to make that provider the
+default. Or open the provider on the Models page and press **Make default**. KOLONİ never changes
+the default by itself, and the step is done once the default answers.
 
 If a CLI was installed when KOLONİ first started, you may find it on the Models page already.
 
@@ -61,7 +61,7 @@ turn: each agent as a box with its tools, commands and files.
 ## 5. Answer the cards
 
 In a new project the Orchestrator plans, asks and checks, and hands every change to files to a
-sub-agent (for code, a Coder). The sub-agent works in its own copy of the project, not in your
+sub-agent (for code, a Coder). The sub-agent usually works in its own copy of the project, not in your
 folder. So the first turn asks you on cards in the chat:
 
 **Open this sub-agent?** shows the role, the model it runs on, its task and its tools. Press
@@ -80,8 +80,9 @@ to bring the changes into your project, or **Discard** to throw the copy away. S
 [Working copies and Take in](../use/workspace.md).
 
 If you let the Orchestrator change the files itself (Settings › This project › Agents › **Who
-changes the files**), each change comes on a card with its diff and **Approve** or **Reject**
-instead, and after it is written you can still **Revert** it.
+changes the files**), or no copy can be made (a very large project), each change comes on a card
+with its diff and **Approve** or **Reject** instead, and after it is written you can still
+**Revert** it.
 
 While something waits for you, the project's tab above the canvas turns orange, and **Ready** on the
 rail counts it, so you can do something else meanwhile.

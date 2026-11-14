@@ -31,6 +31,7 @@ import { TriggersStatus } from './triggers/TriggersStatus'
 import { ModelsPage } from './models/ModelsPage'
 import { FirstSteps } from './shell/FirstSteps'
 import { FolderButton } from './shell/FolderButton'
+import { openFolderPanel } from './shell/usePanel'
 import { Help } from './shell/Help'
 import { OpenChats } from './shell/OpenChats'
 import { kept, tabOf } from './shell/openTabs'
@@ -91,8 +92,11 @@ const readingsOf = ({ inUse, conv, conversations }: ReturnType<typeof useApp.get
 /** ...and the roles of it that cannot run, with them. */
 const cannotOf = (state: ReturnType<typeof useApp.getState>) => (readingsOf(state) ? state.inUse?.cannot : undefined)
 
-/** The top bar's folder button opens its panel, where "Open a folder…" is: the way to a folder from a page that needs one. */
-const chooseFolder = () => document.querySelector<HTMLElement>('.folder-button')?.click()
+/** First steps' "Use … for new chats": the default changed, and done only once the reading on show is the new one's. */
+const makeDefaultAndRead = async (providerId: string) => {
+  await useApp.getState().makeDefaultProvider(providerId)
+  await useApp.getState().loadHealth()
+}
 
 /** The rail's pages, by their pages' names and the rail's word where it is another: what Ctrl+K finds. */
 const PAGES: [View, string][] = [
@@ -371,7 +375,7 @@ export function App() {
   const noFolder = (page: string) => (
     <div className="memory-page">
       <p className="muted">This chat has no folder - pick one with the folder button to use the {page}.</p>
-      <button type="button" className="btn btn-small" onClick={chooseFolder}>
+      <button type="button" className="btn btn-small" onClick={openFolderPanel}>
         Choose a folder
       </button>
     </div>
@@ -875,8 +879,9 @@ export function App() {
                   turn={conv ? conv.runs.length > 0 : conversations.some(c => !c.archived_at) ? undefined : false}
                   again={stepsAgain}
                   providers={providers}
+                  pinned={!!providerOpen}
                   onProvider={() => go('models', 'new')}
-                  onUse={useApp.getState().makeDefaultProvider}
+                  onUse={makeDefaultAndRead}
                   onHidden={() => setStepsAgain(false)}
                   onSaysProvider={setStepsSayProvider}
                 />
