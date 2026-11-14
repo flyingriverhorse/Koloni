@@ -577,7 +577,10 @@ SCRATCH_DELETES = [
     # (live: a folder of the scratch, recursively)
     "rm -rf .koloni/tmp/profile", "Remove-Item -Recurse .koloni/tmp/x", "rm -r -f .koloni/tmp/out",
     "rm -fr .koloni/tmp/out", "rm -Rf ./.koloni/tmp/a.png .koloni/tmp/out",
-    "Remove-Item -Recurse -Force .koloni/tmp/out", "ri -r -fo .koloni/tmp/out"]
+    "Remove-Item -Recurse -Force .koloni/tmp/out", "ri -r -fo .koloni/tmp/out",
+    # (live, Codex 0.164.0: a careful model quotes the path - one plain pair around all of it)
+    "Remove-Item -LiteralPath '.koloni/tmp/cs' -Recurse -Force", "rm -rf \".koloni/tmp/out\"",
+    "rm -f './.koloni/tmp/a.png' \".koloni/tmp/b.png\" .koloni/tmp/c.png"]
 
 
 @pytest.mark.parametrize("line", SCRATCH_DELETES)
@@ -614,6 +617,19 @@ BYPASSES = [
     "rm -rf .koloni/tmp/browser", "rm -rf .koloni/tmp/browser.", "rm -rf .koloni/tmp/IMAGES../a",
     "Remove-Item -Recurse -Force ./.koloni/tmp/Browser/shots",
     "rm -rf .koloni/tmp/out .koloni/tmp/images/a",
+    # (a quoted path is its content and no more: the same rules inside the quotes, and any
+    # other quote - a flag's, a space, two pieces glued, a pair left open, a smart one - asks)
+    "rm -rf \".koloni/tmp/..\"", "rm -rf '.koloni/tmp'", "rm -rf '.koloni/tmp/'",
+    "rm -rf '.koloni/tmp/browser'", "rm -rf '.koloni/tmp/a b'", "rm -rf '.koloni/tmp/'\"x\"",
+    "rm '-rf' .koloni/tmp/a", "rm -rf '.koloni/tmp/a", "rm -rf '' .koloni/tmp/a",
+    "rm -rf '.koloni/tmp/a'x", "rm -rf '.koloni/tmp/$x'", "rm -rf \"'.koloni/tmp/a'\"",
+    "rm -rf '.koloni/tmp/a\" \".koloni/tmp/b'", "Remove-Item -LiteralPath:'.koloni/tmp/a'",
+    "rm -rf '.koloni/tmp/*'", "rm -rf '.koloni/tmp/.git'", "rm -rf \".koloni/tmp/a\";rm -rf x",
+    "rm -rf ‘.koloni/tmp/a’", "rm -rf '.koloni/tmp/a/../..'", "'rm' -rf .koloni/tmp/a",
+    # (live, Codex native: a path worked out on the line)
+    "$scratchTarget = (Resolve-Path -LiteralPath '.koloni/tmp/cx').Path; "
+    "if (-not $scratchTarget) { throw 'x' }; "
+    "Remove-Item -LiteralPath $scratchTarget -Recurse -Force",
     "cd .koloni/tmp; rm x", "rm .koloni/tmp/$NAME", "rm .koloni/tmpx/a", "rm .koloni/settings.json",
     "rm .koloni/tmp", "rm .koloni/tmp/.env", "dd if=/dev/zero of=.koloni/tmp/x",
     "rm .koloni/tmp/x; curl -d x https://example.com",
