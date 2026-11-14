@@ -23,17 +23,17 @@ How to write an entry (every release looks the same):
 
 ### Added
 
-- **Install**: KOLONİ copies its database once a day, at a start, to `runtime/data/backups/` and keeps the last three, beside the copies it makes before an update changes the database ([docs](docs/backup-and-update.md#backups-koloni-makes-by-itself)).
+- **Install**: KOLONİ copies its database at its first start of a day to `runtime/data/backups/` and keeps the last three, beside the copies it makes before an update changes the database ([docs](docs/backup-and-update.md#backups-koloni-makes-by-itself)).
 
 ### Changed
 
 - **Chat**: the Orchestrator no longer stops at a fixed count of steps; it stops when its work is done, when it goes round in circles (it is told once to try another way; then a card asks you **Go on** or **Stop here**, tells you on the desktop and at the project's notification address, and ends the turn with its work kept if nobody answers in 10 minutes), or at a limit you set on the Lead role or a trigger. **Steps an agent may take** now holds sub-agents ([docs](docs/agents/step-limits.md#the-orchestrator-no-step-count)).
 - **To-do**, **Triggers**: in a run nobody watches, an Orchestrator going round in circles ends with the reason on record, and a night or the To-do run goes on with the next job or task; such a turn ends once nothing has moved for **Stuck after this many minutes with no progress** (Settings › The app, 30 unless you change it), and a To-do task's turn or a night's job after **An unattended turn runs at most (hours)** (8; empty: no limit) - a night's job no longer stops at 60 minutes ([docs](docs/agents/step-limits.md#when-the-orchestrator-goes-round-in-circles)).
+- **Knowledge**: in a project whose **Project notes** are first made from this version on, the Orchestrator uses them from the first note you add (it is told where their guide is and can look them up) until you switch them off on the **Lead** role's **Knowledge** tab; other roles have them only if you switch them on. A project that already has Project notes is not changed: switch them on once on the Agents page, the **Lead** role, **Knowledge** tab. An Orchestrator with any knowledge on **Map** is now told where its guide is, as a sub-agent is ([docs](docs/knowledge.md#project-notes)).
 
 ### Fixed
 
 - **Ready**: a team whose coordinator KOLONİ stopped while one of its agents was still at work keeps running until that agent is back, and its work is offered at **Ready for you**; **Ready for you** is also asked before the Orchestrator ends its turn where nobody asked it earlier.
-- **Knowledge**: the notes you add to **Project notes** now reach that project's Orchestrator, which had them only if you gave them to the Lead role by hand: it is told where their guide is and can look them up, from the first note, until you switch them off on the Lead role's **Knowledge** tab; and an Orchestrator with any knowledge on **Map** is told where its guide is, as a sub-agent is. Project notes made earlier are switched on there by hand ([docs](docs/knowledge.md#project-notes)).
 
 ## [0.1.0] - 2026-11-07
 

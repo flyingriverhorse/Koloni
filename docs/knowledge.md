@@ -2,7 +2,8 @@
 
 Knowledge is "what agents can look things up in": documentation, files or a topic that KOLONİ reads
 once and turns into a short guide. A role uses a knowledge only if you give it to the role; the one
-exception is [Project notes](#project-notes), which the Orchestrator has from the start. Open
+exception is [Project notes](#project-notes) made from now on, which the Orchestrator has from the
+first note. Open
 **Knowledge** on the left rail.
 
 ## The Knowledge page
@@ -188,12 +189,15 @@ changes to the project's `docs/`, at most 8. Tick the ones to keep and press **A
 What you add goes into a knowledge called **Project notes**, made the first time you add. KOLONİ writes
 its guide itself, with no model.
 
-The Orchestrator of that project uses Project notes from the first note you add, as a knowledge on
-**Map**: it is told where their guide is and can look things up in their pages. They are never given
-in another project, and a sub-agent has them only if you give them to its role
-([Giving knowledge to a role](#giving-knowledge-to-a-role)). To take them from the Orchestrator, open
-the Lead role's **Knowledge** tab on the Agents page and switch **Project notes** off: it stays off,
-whatever you add later. Project notes that were made before this was so are not switched on by
-themselves; switch them on there.
+Where a project's Project notes are made by this version or a later one, its Orchestrator uses them
+from the first note, as a knowledge on **Map**: it is told where their guide is and can look things up
+in their pages. They are never given in another project, and any other role has them only if you
+switch them on for it ([Giving knowledge to a role](#giving-knowledge-to-a-role)). To take them from
+the Orchestrator, open the **Lead** role on the Agents page, its **Knowledge** tab, and switch
+**Project notes** off: it stays off, whatever you add later.
+
+A project that already had Project notes before that is not changed: no role reads them until you
+switch them on. Do it once, in the same place: Agents page, the **Lead** role, **Knowledge** tab,
+**Project notes** on.
 
 Project notes and Knowledge are not the project's [Memory](memory.md).
