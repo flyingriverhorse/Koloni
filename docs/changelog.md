@@ -6,6 +6,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-14
+
 ### Added
 
 - **Install**: KOLONİ copies its database at its first start of a day to `runtime/data/backups/` and keeps the last three, beside the copies it makes before an update changes the database ([docs](backup-and-update.md#backups-koloni-makes-by-itself)).
@@ -21,6 +23,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Fixed
 
+- **Chat**: an agent's work inside its scratch folder, `.koloni/tmp/`, no longer raises a card at every permission level: a command run in a folder there (or one that starts with a plain `cd .koloni/tmp/...`) is judged as any other, and deleting a folder of the scratch (`rm -rf .koloni/tmp/out`, `Remove-Item -Recurse`) runs unasked at Full auto as deleting a file there does. A line that then leaves the scratch, looks up where it is, runs git there or deletes through a link is still asked; so are a `cd` into the scratch by a CLI that does not say where its commands run and may keep the folder (Qoder run **Native**, Claude Code's PowerShell and Monitor tools and its own sub-agents, GitHub Copilot CLI, agy; [docs](reference/known-limits.md)), and deleting the browser's own folder there (`.koloni/tmp/browser`).
 - **Ready**: a team whose coordinator KOLONİ stopped while one of its agents was still at work keeps running until that agent is back, and its work is offered at **Ready for you**; **Ready for you** is also asked before the Orchestrator ends its turn where nobody asked it earlier.
 - **Models**: with a model server that is not running, KOLONİ's check of it takes about half as long (on Windows about 2 seconds instead of 4): a server that takes no connection is asked once, not twice.
 

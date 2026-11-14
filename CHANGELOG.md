@@ -21,6 +21,8 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-14
+
 ### Added
 
 - **Install**: KOLONİ copies its database at its first start of a day to `runtime/data/backups/` and keeps the last three, beside the copies it makes before an update changes the database ([docs](docs/backup-and-update.md#backups-koloni-makes-by-itself)).
