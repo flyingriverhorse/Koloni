@@ -152,7 +152,9 @@ from app.agent.limits_mixin import BUDGET_NEAR as BUDGET_NEAR
 from app.agent.limits_mixin import OVER_LIMIT as OVER_LIMIT
 from app.agent.limits_mixin import LimitsMixin
 from app.agent.loop_mixin import CODEX_TOOLS_OFF as CODEX_TOOLS_OFF
+from app.agent.loop_mixin import OVERFLOW as OVERFLOW
 from app.agent.loop_mixin import ROLE_WINDOW_LARGER as ROLE_WINDOW_LARGER
+from app.agent.loop_mixin import SUMMARISED_FOR_NEXT as SUMMARISED_FOR_NEXT
 from app.agent.loop_mixin import LoopMixin
 from app.agent.memory_mixin import MemoryMixin
 from app.agent.merge import CHECK_PRESS_RUN as CHECK_PRESS_RUN
@@ -1716,15 +1718,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # Before the turn is on record as over: nothing of it holds a file after.
         await self._keep_given_back(run_id)
         self._release_run(run_id)
-        if status == "completed" and not t.planning and not t.unattended and not t.run_compare:
+        # A turn refused for its size: summarised whatever its size, or the next one - sent
+        # the same history - would be refused the same way.
+        full = status == "failed" and bool(OVERFLOW.search(error or ""))
+        if (status == "completed" or full) and not (t.planning or t.unattended or t.run_compare):
             # Before the next turn can start, which waits for it (`_after_idle`); not in
             # a trigger's turn, whose clock would run on. (The lead as it ran: a model
             # chosen by how hard the message was is its own.) Not for a side of a
             # comparison, which may be thrown away: a chosen one's next turn compacts.
             try:
-                t.idle = self._idle_after(self._ctxs.get(ctx.agent_id, ctx))
+                t.idle = self._idle_after(self._ctxs.get(ctx.agent_id, ctx), full)
             except Exception as exc:  # (it fails nothing of the turn)
                 log.warning("agent %s: no summary after its turn: %r", ctx.agent_id, exc)
+            if full and t.idle is not None:
+                error = f"{error}{SUMMARISED_FOR_NEXT}"
         # B-205: where its work is, under the answer - before the turn is over, its copies kept.
         # (Not of a plan, nor a side of a comparison or a night's job: their work waits aside.)
         self._say_landed(cid, run_id, bool(t.root) and not (t.planning or t.run_compare or t.job))

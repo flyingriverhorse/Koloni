@@ -105,6 +105,9 @@ OVERFLOW = re.compile(
     # shortcut: its wording as remembered, not confirmed in its docs nor a live refusal; check.
     # shortcut: none for Qwen / DashScope, whose wording is neither confirmed in its docs nor
     # seen: its refusal is not taken as one for size (nothing is summarised for a second try).
+    # shortcut: no CLI's own wording is measured (Claude Code, Codex, Copilot, Qoder, agy; as a
+    # session, natively or step by step): one that passes its service's words on is read, any
+    # other refusal for size is not. Add each CLI's line once a live refusal is seen.
     r"exceeds the available context size|maximum context length|context_length_exceeded"
     r"|prompt is too long",
     re.IGNORECASE,
@@ -112,6 +115,10 @@ OVERFLOW = re.compile(
 ROLE_WINDOW_LARGER = (
     " (the context window set in its role may be larger than the model's: set it smaller "
     "on the Agents page, or empty it to use the one found)"
+)
+# After a lead's turn that was refused for its size (`AgentRunner._lead_after`).
+SUMMARISED_FOR_NEXT = (
+    " KOLONİ is summarising its earlier work: send your message again to go on from the summary."
 )
 
 # A side of a comparison (slice 54) works only in a copy of its own.

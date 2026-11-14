@@ -29,6 +29,7 @@ How to write an entry (every release looks the same):
 ### Fixed
 
 - **Ready**: a team whose coordinator KOLONİ stopped while one of its agents was still at work keeps running until that agent is back, and its work is offered at **Ready for you**; **Ready for you** is also asked before the Orchestrator ends its turn where nobody asked it earlier.
+- **CLIs**: when a turn of the Orchestrator on a CLI ends because its context is full, KOLONİ summarises its earlier work and the failure says so: send your message again and it goes on from the summary. With no context window set on its role, a CLI lead that starts each turn anew is now summarised against the window the catalogue has for its model ([docs](docs/models/setup-cli.md#going-on-from-the-last-turn)).
 
 ## [0.1.0] - 2026-11-07
 

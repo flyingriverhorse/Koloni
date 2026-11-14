@@ -62,8 +62,15 @@ only an agent that works with KOLONİ's tools runs.
 Only Claude Code, run **Native** with **Sign-in: Its own for KOLONİ**, goes on in its own session from one
 turn to the next: it is sent only what is new, and compacts that session itself. Every other CLI lead
 starts each turn anew and is sent the whole chat. KOLONİ compacts that, as it does for an API model, past
-**Summarise a long context at (%)** of the window set on its role; with no window set there, only **Compact now**
-compacts it. A CLI run **One run per model step** is never compacted: each step is sent a trimmed history.
+**Summarise a long context at (%)** of the window set on its role, or with none set there, of the window the
+catalogue has for its model (Claude Code's, Codex's and Copilot's models; none for Qoder's or agy's, where only
+**Compact now** compacts it). What is measured is the chat KOLONİ sends, not what the CLI reads by itself during a
+turn. A CLI run **One run per model step** is never compacted: each step is sent a trimmed history.
+
+When such a lead's turn ends because its context is full, KOLONİ summarises its earlier work whatever its size,
+and the failure says so: send your message again and it goes on from the summary. KOLONİ knows such a refusal by
+its words, and the CLIs' own wordings are not all known yet; where the failure says nothing of a summary, use
+**Compact now** and send the message again.
 
 **Compact now** is in the top bar's **context** button (see
 [Chat and canvas](../use/chat-and-canvas.md#the-context-button)).
