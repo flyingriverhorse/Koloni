@@ -219,6 +219,8 @@ WINDOW_SECONDS = 5.0
 # start if seen.
 SLOTS: dict[str, int] = {}
 THIS_HOST = ("localhost", "127.0.0.1", "::1")
+# No connection was made at all (refused, or none in time): the same address is not tried again.
+NO_CONNECTION = (httpx2.ConnectError, httpx2.ConnectTimeout)
 
 
 def server_of(address: str | None) -> str:
@@ -315,10 +317,20 @@ class OpenAICompatClient:
         shortcut: a server restarted with another `-c` is not asked again until the
         provider is saved, Find again is pressed on the Models page (a new client) or
         KOLONİ restarts; upgrade by asking at every agent's start if that is seen."""
+        try:
+            return await self._window_or_closed()
+        except NO_CONNECTION:
+            return None
+
+    async def _window_or_closed(self) -> int | None:
+        """`found_window`, but a server that took no connection is raised: `info` then asks
+        it nothing more."""
         if not self._window_said:
             try:
                 async with self._client(WINDOW_SECONDS) as http:
                     r = await http.get(self._base.removesuffix("/v1") + "/props")
+            except NO_CONNECTION:
+                raise
             except httpx2.HTTPError:
                 return None
             self.reached = True
@@ -340,8 +352,12 @@ class OpenAICompatClient:
         return self._window
 
     async def info(self) -> ModelInfo:
-        window = await self.found_window()
         try:
+            # A closed server is asked once: a refused connection takes Windows about 2 s, and
+            # the second one (`/models`) made every /health of a closed local server 4 s.
+            # shortcut: that one connection still takes Windows its 2 s; a shorter connect
+            # limit for this machine's own address if the page is seen to wait for it.
+            window = await self._window_or_closed()
             async with self._client(120.0) as http:
                 model_id = self._model_id
                 if model_id is None:
