@@ -60,8 +60,10 @@ and credit messages.
 - Claude Code and Qoder run **Native** do not say where their commands run, so KOLONİ judges each one as
   run in the project folder. If the CLI keeps a `cd` from an earlier command, later relative paths are
   judged at the wrong place: after you approve `cd ..`, reading a file there by its name is taken for a
-  read in the project and is not asked about below Full auto. Whether Claude Code keeps a `cd` that
-  leaves the project is not measured.
+  read in the project and is not asked about below Full auto. Claude Code was measured not to keep one
+  (2.1.325, Windows, run without its screen: each command starts in the project folder again, and
+  KOLONİ starts it with the setting that asks for that); other versions, Linux and macOS are not
+  measured, nor is Qoder - so Qoder is still asked about a `cd` into `.koloni/tmp/`.
 - A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
   script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it

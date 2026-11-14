@@ -176,3 +176,17 @@ def test_qoder_natively_is_built_and_speaks_as_its_session(settings):
     assert type(built) is QoderNativeClient
     assert type(built.talker()) is QoderSessionClient
     assert built._leveled(["-p"], "off") == ["--reasoning-effort", "none", "-p"]
+
+
+def test_qoders_cd_into_the_scratch_is_asked_whatever_cwd_the_model_writes_in_its_input(
+        qoder_app, project_dir):
+    # (review: where Qoder's shell stands is not known, and its Bash input is the model's own -
+    # `"cwd": "."` there is no report that the command runs at the root)
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    line = "cd .koloni/tmp; ls"
+    client, provider = qoder_app([{**BASH, "input": {"command": line, "cwd": "."}},
+                                  {"say": "ok"}])
+    cid, _run_id = start(client, project_dir, provider, "full_auto")
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert (asked["command"], asked["status"], asked["cwd"]) == (line, "proposed", None)
+    assert asked["danger"].startswith("Climbs out of .koloni/tmp")

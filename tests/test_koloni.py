@@ -470,25 +470,44 @@ def test_at_full_auto_work_in_the_scratch_and_a_folder_of_it_deleted_run_unasked
     assert snap["commands"][0]["danger"] == "" and len(executor.started) == 3
 
 
-def test_a_cli_that_names_no_cwd_is_still_asked_about_a_cd_into_the_scratch(
-    claude_app, project_dir  # noqa: F811
+def test_claude_codes_cd_into_the_scratch_is_free_as_each_of_its_commands_starts_in_the_project(
+    claude_app, wait_run, project_dir  # noqa: F811
 ):
-    # (review: Claude Code's Bash may keep the folder; its next line, `echo x > ../rules.md`,
-    # would be judged at the root and write .koloni/rules.md unasked - so line one is the card)
+    # (measured, 14 Nov 2026, Claude Code 2.1.325: a `cd` is not kept for the next Bash call,
+    # and KOLONİ starts it with the variable that asks for that - so its next line, `echo x >
+    # ../rules.md`, runs at the root: beside the project, not in .koloni)
     from tests.test_claude_native import BASH
     from tests.test_claude_native import start as start_claude
 
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
     client, provider, _ = claude_app([
         {**BASH, "input": {"command": "cd .koloni/tmp; ls"}},
-        {**BASH, "input": {"command": "echo x > ../rules.md"},
-         "write": [".koloni/rules.md", "x"]}, {"say": "ok"}])
+        {**BASH, "input": {"command": "echo x > ../rules.md"}}, {"say": "ok"}])
+    cid, run_id = start_claude(client, project_dir, provider, "full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert [(c["status"], c["danger"]) for c in snap["commands"]] == [("exited", "")] * 2
+    from app.model_native import ClaudeNativeClient, QoderNativeClient
+
+    assert ClaudeNativeClient(launcher=["x"])._native_env(project_dir)[
+        "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"] == "1"
+    assert (ClaudeNativeClient.cwd_from, QoderNativeClient.cwd_from) == ("root", "none")
+
+
+def test_a_cwd_the_model_writes_in_claude_codes_input_is_not_where_the_command_runs(
+    claude_app, project_dir  # noqa: F811
+):
+    # (review: its Bash input is the model's own - `"cwd": ".koloni/tmp"` beside a search of
+    # the whole folder would have scoped it to the scratch, and shown the project's `.env`)
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    (project_dir / ".env").write_text("KEY=1", encoding="utf-8")
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "grep -r KEY .", "cwd": ".koloni/tmp"}}, {"say": "ok"}])
     cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
-    snap = wait_status(client, cid, "waiting_approval")
-    assert [c["command"] for c in snap["commands"]] == ["cd .koloni/tmp; ls"]
-    assert snap["commands"][0]["status"] == "proposed"
-    assert snap["commands"][0]["danger"].startswith("Climbs out of .koloni/tmp")
-    assert not (project_dir / ".koloni" / "rules.md").exists()
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert asked["status"] == "proposed" and asked["cwd"] == "."
 
 
 def test_at_full_auto_a_delete_in_the_scratch_runs_unasked_one_that_may_leave_it_waits(

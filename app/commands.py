@@ -1013,8 +1013,10 @@ _ENTERS = re.compile(
 # the rest here - code or a script that builds the path, or cmd's `%~dpi`, is not seen (a path
 # built from pieces is not from the project's folder either: `names_standing`);
 # K-yazma-denetimi ends it.
+# (`parents` not after a `-`: pathlib's `.parents[0]`, not `mkdir --parents`.)
 _WHERE = re.compile(r"\.[?*\[]|(?<!\w)(?i:pwd|oldpwd|cwd|getcwd|dirname|parent|location|gl"
-                    r"|realpath|abspath|xargs)(?!\w)")
+                    r"|realpath|abspath|xargs|pardir|getparent|psparentpath|getdirectoryname"
+                    r"|convert-path|(?<!-)parents)(?!\w)")
 
 
 def _climbs(command: str) -> bool:
@@ -1046,11 +1048,14 @@ def with_cwd(command: str, cwd: object) -> str:
     <cwd>; <command>` - so that `cwd=.koloni/tmp` with `echo x > ../settings.json`, or
     `cwd=.claude`, names what it reaches (a `cwd` in the scratch alone is no climb: `_ENTERS`).
     What runs is the command alone. `cwd` None: where it runs is not known - a CLI that names
-    none (Claude Code, Qoder) may keep its shell's folder, so its `cd .koloni/tmp; ls` would
-    leave the next line, `echo x > ../rules.md`, in the scratch and judged at the root: such a
-    line is judged as one more change of folder, a card as it was. "." is the root, known.
-    shortcut: a CLI that names its cwd (Codex, agy, Copilot) is trusted to name the folder its
-    shell stands in for each command; measure it if one is seen to keep a `cd` unnamed."""
+    none and may keep its shell's folder (Qoder; Copilot, whose 1.0.91 sends none; Codex or agy
+    without one), so its `cd .koloni/tmp; ls` would leave the next line, `echo x >
+    ../rules.md`, in the scratch and judged at the root: such a line is judged as one more
+    change of folder, a card as it was. "." is the root, known: KOLONİ's own run_command, a
+    CLI's report, and Claude Code, whose every Bash call starts there
+    (`ClaudeNativeClient.cwd_from`, measured). Whose word a CLI's cwd is: `cwd_from`.
+    shortcut: Codex is trusted to name the folder its shell stands in for each command;
+    measure it if it is seen to keep a `cd` unnamed."""
     if cwd is None and _ENTERS.match(command):
         return f"cd .; {command}"
     return f"cd {cwd}; {command}" if isinstance(cwd, str) and cwd not in ("", ".") else command
@@ -1456,7 +1461,8 @@ def scratch_delete_only(command: str, root: str | None) -> bool:
     recursive = any(flag.casefold() in _RECURSES for flag in flags)
     # (What KOLONİ itself keeps there - the browser's profile, the user's screenshots, the
     # images shown - is not an agent's to empty unasked: `_KOLONIS_OWN`.)
-    own = recursive and any(re.split(r"[/\\]", path.removeprefix("./"))[2].casefold()
+    # (`browser.`: Windows opens a name without its last dots.)
+    own = recursive and any(re.split(r"[/\\]", path.removeprefix("./"))[2].rstrip(".").casefold()
                             in _KOLONIS_OWN for path in paths)
     return all(os.path.normcase(path).startswith(scratch + os.sep) for path in real) and not (
         own or names_secret(command) or recursive and _holds_link(real))

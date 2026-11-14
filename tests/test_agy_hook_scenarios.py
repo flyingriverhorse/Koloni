@@ -144,6 +144,26 @@ def test_at_full_auto_a_command_is_judged_in_the_folder_it_runs_in(
     assert decisions(hooked_app) == ["deny"]
 
 
+def test_the_cwd_agys_model_writes_makes_a_command_no_freer_than_with_none(
+    hooked_app, wait_run, project_dir
+):
+    # (review: its Cwd is the model's own argument - judged there, and as not known where it
+    # runs: a `cd` into the scratch beside `"Cwd": <the project>` is the card it is with none;
+    # a command with its Cwd in the scratch runs as any)
+    work = project_dir / ".koloni" / "tmp" / "work"
+    work.mkdir(parents=True)
+    line = "cd .koloni/tmp; ls"
+    client, provider = hooked_app([
+        run_command("python x.py", parameters={"CommandLine": "python x.py", "Cwd": str(work)}),
+        run_command(line, parameters={"CommandLine": line, "Cwd": str(project_dir)}),
+        {"say": "Left it."}])
+    cid, run_id = start(client, project_dir, provider, mode="full_auto")
+    asked = card_for(client, cid, line)
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+    assert decisions(hooked_app) == ["allow", "deny"]
+
+
 def test_a_card_left_open_longer_than_the_silence_limit_does_not_end_agy(
     hooked_app, wait_run, project_dir
 ):

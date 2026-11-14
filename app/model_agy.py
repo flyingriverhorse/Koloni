@@ -418,6 +418,9 @@ class AgyClient(CodexNativeClient):
 
     command = "agy"
     label = "agy"
+    # (Its run_command's Cwd is the model's argument, any key that ends in "cwd": `asked_as`.
+    # shortcut: whether agy runs each command there, afresh, is not measured.)
+    cwd_from = "model"
     asks = False
     looks_by_running = False  # it has a read_file of its own
     read_only_commands = False  # (reading it runs none)

@@ -177,6 +177,10 @@ class ApprovalsMixin:
         under = watch.under(use_id)  # asked from inside one of the CLI's own sub-agents
         allow = {"behavior": "allow", "updatedInput": given}
         who = getattr(ctx.model, "label", "Claude Code")  # (Codex asks here too: slice 89a)
+        # (Review: Claude Code's and Qoder's input is the model's own - a `cwd` it writes there
+        # is no report of where the command runs, and is not read as one: `cwd_from`.)
+        if getattr(ctx.model, "cwd_from", "cli") in ("root", "none"):
+            given = {key: value for key, value in given.items() if key != "cwd"}
 
         def deny(why: str, fixed: bool = False) -> dict:
             if use_id:
@@ -328,6 +332,13 @@ class ApprovalsMixin:
         # (Its paths are read from where it says it runs: a part's folder, say.)
         searched = await asyncio.to_thread(search_reason, command, root, str(
             inside(cwd)[0]) if isinstance(cwd, str) and cwd else ".")
+        # Where it runs when it names no cwd: the root (Claude Code, measured) or not known
+        # (None: `with_cwd`). A cwd the model wrote (agy's) is judged as not known as well.
+        kind = getattr(ctx.model, "cwd_from", "cli")
+        unnamed = "." if kind == "root" else None
+        claimed = kind == "model" and isinstance(cwd, str) and bool(cwd)
+        if claimed and not searched:
+            searched = await asyncio.to_thread(search_reason, command, root, ".")
         # Web off first: Codex's own reason for wanting the network says nothing of it. An
         # address the CLI says it may reach (Copilot's possibleUrls) counts as in the line.
         urls = [one for one in given.get("urls") or [] if isinstance(one, str)]
@@ -339,9 +350,9 @@ class ApprovalsMixin:
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
             if copy is not None else "") or self._branch_asks(
             ctx, command, copy is not None) or self._night_asks(
-            # (None where the CLI names no cwd: not known, `with_cwd`.)
             ctx, command, (cwd if where is None else where)
-            if isinstance(cwd, str) and cwd else None)
+            if isinstance(cwd, str) and cwd else unnamed) or (
+            self._night_asks(ctx, command, None) if claimed else "")
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
         noted = {"command": command, **({"reason": reason} if reason else {}),
@@ -374,14 +385,17 @@ class ApprovalsMixin:
             or where is None, held=bool(searched), web_off=bool(web_off),
             reads=not given.get("not_read_only") and await asyncio.to_thread(
                 reads_here, command, root, where in ("", ".")),
-            # (One out of the folder it works in: as the CLI gave it. None where it gave
-            # none: KOLONİ does not know where its shell stood, and judges at the root.)
-            # shortcut: Claude Code and Qoder (its client's) give no cwd (Codex, Copilot and
-            # agy do): their command is judged at the root, also after a `cd` an earlier Bash
-            # call kept - a `cd` into a protected folder is a card itself; read its cwd from
-            # the hook input if it carries one (measure first).
+            # (One out of the folder it works in: as the CLI gave it. Where it gave none:
+            # `unnamed` - "." for Claude Code, whose every Bash call starts in the project
+            # (`ClaudeNativeClient.cwd_from`, measured); None for one whose shell may stand
+            # anywhere: Qoder, Codex or agy without one, and Copilot, whose 1.0.91 sends none
+            # (measured 24 Oct 2026). Its paths are then judged at the root all the same, and a
+            # line that begins with a `cd` into the scratch is a card: `with_cwd`.)
+            # shortcut: Qoder's shell is not measured; if it keeps a `cd`, a later relative
+            # path is judged at the wrong place - a `cd` into a protected folder is a card
+            # itself. Measure it, and read a cwd from the hook's payload if it carries one.
             cwd=(where if where is not None else cwd)
-            if isinstance(cwd, str) and cwd else None,
+            if isinstance(cwd, str) and cwd else unnamed,
         )
         if not allowed:
             self._set_call(ctx.cid, call_id, status="denied", result=rejected(command),
