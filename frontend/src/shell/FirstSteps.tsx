@@ -77,16 +77,18 @@ function ProviderNote({ name, other, onUse }: { name: string; other: Provider | 
 function UseOther({ other, onUse }: { other: Provider; onUse: Props['onUse'] }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const use = () => {
+  const use = (main: HTMLElement | null) => {
     setBusy(true)
     setError(null)
     onUse(other.id)
+      // The button goes with its offer: the focus goes to the page, not to nowhere.
+      .then(() => main?.focus())
       .catch(err => setError(errorText(err)))
       .finally(() => setBusy(false))
   }
   return (
     <>
-      <button type="button" className="btn btn-small" disabled={busy} onClick={use}>
+      <button type="button" className="btn btn-small" disabled={busy} onClick={event => use(event.currentTarget.closest<HTMLElement>('.main'))}>
         Use {other.name} for new chats
       </button>
       {error && (
