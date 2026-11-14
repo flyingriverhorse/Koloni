@@ -144,6 +144,41 @@ def test_at_full_auto_a_command_is_judged_in_the_folder_it_runs_in(
     assert decisions(hooked_app) == ["deny"]
 
 
+def test_the_cwd_agys_model_writes_makes_a_command_no_freer_than_with_none(
+    hooked_app, wait_run, project_dir
+):
+    # (review: its Cwd is the model's own argument - judged there, and as not known where it
+    # runs: a `cd` into the scratch beside `"Cwd": <the project>` is the card it is with none;
+    # a command with its Cwd in the scratch runs as any)
+    work = project_dir / ".koloni" / "tmp" / "work"
+    work.mkdir(parents=True)
+    line = "cd .koloni/tmp; ls"
+    client, provider = hooked_app([
+        run_command("python x.py", parameters={"CommandLine": "python x.py", "Cwd": str(work)}),
+        run_command(line, parameters={"CommandLine": line, "Cwd": str(project_dir)}),
+        {"say": "Left it."}])
+    cid, run_id = start(client, project_dir, provider, mode="full_auto")
+    asked = card_for(client, cid, line)
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+    assert decisions(hooked_app) == ["allow", "deny"]
+
+
+def test_agys_recursive_delete_in_the_scratch_is_asked_its_cwd_being_the_models_word(
+    hooked_app, wait_run, project_dir
+):
+    (project_dir / ".koloni" / "tmp" / "w2").mkdir(parents=True)
+    line = "rm -rf .koloni/tmp/w2"
+    client, provider = hooked_app([
+        run_command(line, parameters={"CommandLine": line, "Cwd": str(project_dir)}),
+        {"say": "Left it."}])
+    cid, run_id = start(client, project_dir, provider, mode="full_auto")
+    asked = card_for(client, cid, line)
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+    assert decisions(hooked_app) == ["deny"]
+
+
 def test_a_card_left_open_longer_than_the_silence_limit_does_not_end_agy(
     hooked_app, wait_run, project_dir
 ):
@@ -662,6 +697,10 @@ def test_what_koloni_cannot_judge_of_agys_tools_is_refused_or_asked_in_words():
                     asked_as("view_file", {}), asked_as("write_file", {"Content": "x"}),
                     asked_as("invoke_subagent", {"Task": "x"})):
         assert isinstance(refused, str), refused
+    # (review: a decoy before its Cwd - `FakeCwd` was the one judged)
+    for decoy in ("FakeCwd", "fake_cwd", "CWD"):
+        assert isinstance(asked_as("run_command", {
+            decoy: ".", "CommandLine": "echo x > rules.md", "Cwd": ".koloni"}), str), decoy
     assert asked_as("invoke_subagent", {}) == UNKNOWN_YET
     # a look whose path is not found, and a tool with no path at all: asked in words
     for tool, args in (("list_dir", {"Where": "x"}), ("search_web", {"query": "x"})):

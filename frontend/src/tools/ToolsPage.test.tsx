@@ -721,7 +721,7 @@ test('K-skill-uyum: "A skill" in the Add menu opens Skills with its add form', a
   expect(screen.queryByLabelText('Skill folder')).toBeNull()
   await add(/^A skill/)
   const skills = screen.getByRole('tabpanel', { name: /^Skills/ })
-  expect(within(skills).getByText('No skill yet.')).toBeVisible()
+  expect(within(skills).getByText('No skill yet. A skill is a folder of instructions (a SKILL.md) that a role’s agents read when they need it: add one with Add › A skill, at the top.')).toBeVisible()
   expect(within(skills).getByLabelText('Skill folder')).toBeVisible()
   expect(within(skills).getByLabelText('Skill folder')).toHaveFocus()
   // its heading is no fold that put it away when clicked (the user's, 6 Nov); Cancel does
@@ -729,5 +729,5 @@ test('K-skill-uyum: "A skill" in the Add menu opens Skills with its add form', a
   expect(within(skills).getByLabelText('Skill folder')).toBeVisible()
   await userEvent.click(within(skills).getByRole('button', { name: 'Cancel' }))
   expect(within(skills).queryByLabelText('Skill folder')).toBeNull()
-  expect(within(skills).getByText('No skill yet.')).toBeVisible()
+  expect(within(skills).getByText('No skill yet. A skill is a folder of instructions (a SKILL.md) that a role’s agents read when they need it: add one with Add › A skill, at the top.')).toBeVisible()
 })

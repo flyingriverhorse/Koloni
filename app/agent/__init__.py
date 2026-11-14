@@ -152,7 +152,10 @@ from app.agent.limits_mixin import BUDGET_NEAR as BUDGET_NEAR
 from app.agent.limits_mixin import OVER_LIMIT as OVER_LIMIT
 from app.agent.limits_mixin import LimitsMixin
 from app.agent.loop_mixin import CODEX_TOOLS_OFF as CODEX_TOOLS_OFF
+from app.agent.loop_mixin import OVERFLOW as OVERFLOW
 from app.agent.loop_mixin import ROLE_WINDOW_LARGER as ROLE_WINDOW_LARGER
+from app.agent.loop_mixin import STARTED_AGAIN as STARTED_AGAIN
+from app.agent.loop_mixin import SUMMARISED_FOR_NEXT as SUMMARISED_FOR_NEXT
 from app.agent.loop_mixin import LoopMixin
 from app.agent.memory_mixin import MemoryMixin
 from app.agent.merge import CHECK_PRESS_RUN as CHECK_PRESS_RUN
@@ -896,6 +899,28 @@ class _LeadTurn:
     later: list[tuple] = field(default_factory=list)
 
 
+def _sends_again(t: _LeadTurn) -> bool:
+    """Whether the user watches this turn and could send its message again: a chat's own turn
+    on their message - not a plan, a trigger's turn, a side of a comparison, a To-do task's
+    turn or a night's job. Only such a turn is started again by itself after a refusal for
+    its size (`_loop_again`), or summarised for the next after one."""
+    return not (t.planning or t.unattended or t.run_compare or t.job or t.backlog_turn)
+
+
+def _summary_after(t: _LeadTurn, status: str, refused: bool) -> bool | None:
+    """Whether a turn's lead is looked at for a summary after it (`_idle_after`): False past
+    the threshold, after one that completed; True whatever its size, after one refused for
+    its size - the next, sent the same history, would be refused the same way. None: not at
+    all - a plan; a trigger's turn, whose clock would run on; a side of a comparison, which
+    may be thrown away (a chosen one's next turn compacts). Nor after a refusal in a To-do
+    task's turn or a night's job: nobody is there to send the message again."""
+    if t.planning or t.unattended or t.run_compare:
+        return None
+    if status == "completed":
+        return False
+    return True if status == "failed" and refused and _sends_again(t) else None
+
+
 class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
@@ -1077,6 +1102,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # those it ended (`_loop_steps` returns at once)
         self._circling_told: set[str] = set()
         self._guard_ended: set[str] = set()
+        # the leads started again from a summary after a refusal for their size, once each
+        # (`_summarised_again`)
+        self._started_again: set[str] = set()
+        # ...and those whose turn ended refused for its size (`loop_mixin.refused_for_size`)
+        self._refused_size: set[str] = set()
         # agent id -> when a CLI's text or own tool last put its time on record
         self._touched: dict[str, float] = {}
         # run id -> the record its lead is given (`app.record`): made at its first step
@@ -1510,7 +1540,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     getattr(t.model, "asks", False) or getattr(t.model, "reads", False)):
                 status, error = "failed", NO_PLAN_ON.format(provider=t.provider.name)
             else:
-                status, error = await self._attempt(ctx)
+                status, error = await self._attempt(ctx, again=_sends_again(t))
             # (B-405: before its copies go; a Stop meanwhile ends the turn as stopped.)
             t.later, stopped = await self._saved(run_id)
             if stopped:
@@ -1716,15 +1746,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # Before the turn is on record as over: nothing of it holds a file after.
         await self._keep_given_back(run_id)
         self._release_run(run_id)
-        if status == "completed" and not t.planning and not t.unattended and not t.run_compare:
-            # Before the next turn can start, which waits for it (`_after_idle`); not in
-            # a trigger's turn, whose clock would run on. (The lead as it ran: a model
-            # chosen by how hard the message was is its own.) Not for a side of a
-            # comparison, which may be thrown away: a chosen one's next turn compacts.
+        if (full := _summary_after(
+                t, status, ctx.agent_id in self._refused_size)) is not None:
+            # Before the next turn can start, which waits for it (`_after_idle`). (The lead
+            # as it ran: a model chosen by how hard the message was is its own.)
             try:
-                t.idle = self._idle_after(self._ctxs.get(ctx.agent_id, ctx))
+                t.idle = self._idle_after(self._ctxs.get(ctx.agent_id, ctx), full)
             except Exception as exc:  # (it fails nothing of the turn)
                 log.warning("agent %s: no summary after its turn: %r", ctx.agent_id, exc)
+            if full and t.idle is not None:
+                error = f"{error}{SUMMARISED_FOR_NEXT}"
         # B-205: where its work is, under the answer - before the turn is over, its copies kept.
         # (Not of a plan, nor a side of a comparison or a night's job: their work waits aside.)
         self._say_landed(cid, run_id, bool(t.root) and not (t.planning or t.run_compare or t.job))
@@ -1793,6 +1824,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._circling.pop(agent_id, None)
             self._circling_told.discard(agent_id)
             self._guard_ended.discard(agent_id)
+            self._started_again.discard(agent_id)
+            self._refused_size.discard(agent_id)
             self._steps_left.pop(agent_id, None)
             self._answer_again.discard(agent_id)
             self._role_taken.pop(agent_id, None)

@@ -89,8 +89,9 @@ KOLONİ's own words, as they appear on screen.
   Its words are an opinion, not a fact.
 
 **Orchestrator**
-: The agent you talk to in a chat. It does small jobs itself and hands separate parts of the work
-  to sub-agents. (Behind the scenes its role is named Lead.)
+: The agent you talk to in a chat. It plans, asks and checks, and hands changes to files to
+  sub-agents, unless you let it change files itself (Settings › This project › Agents › **Who
+  changes the files**). (Behind the scenes its role is named Lead.)
 
 **Outside content**
 : Text that comes from outside your messages: web pages and searches, MCP tools' results, Knowledge

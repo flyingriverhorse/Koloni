@@ -68,7 +68,18 @@ def secret_name(name: str) -> bool:
         re.sub(r"( \(\d+\))+(?=\.[^.]*$|$)", "", name))
 
 
-def kind_of(data: bytes, name: str) -> tuple[str, str]:  # noqa: C901
+def _is_text(data: bytes) -> bool:
+    if b"\x00" not in data:
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+        else:
+            return True
+    return False
+
+
+def kind_of(data: bytes, name: str) -> tuple[str, str]:
     """What a file is, and its media type, by its first bytes."""
     if data.startswith(PROGRAMS) or Path(name).suffix.lower() in RUNS:
         return "executable", "application/octet-stream"
@@ -87,13 +98,8 @@ def kind_of(data: bytes, name: str) -> tuple[str, str]:  # noqa: C901
         return "video", "video/webm"
     if data.startswith(b"PK\x03\x04") and _document(data) is not None:
         return "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    if b"\x00" not in data:
-        try:
-            data.decode("utf-8")
-        except UnicodeDecodeError:
-            pass
-        else:
-            return "text", "text/plain; charset=utf-8"
+    if _is_text(data):
+        return "text", "text/plain; charset=utf-8"
     return "file", "application/octet-stream"
 
 

@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-from contextlib import closing
+from contextlib import closing, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -36,6 +36,8 @@ def make_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 BACKUPS_KEPT = 5
+DAILY_KEPT = 3
+STAMP = "%Y%m%dT%H%M%S"
 
 
 def upgrade_db(db_path: Path) -> None:
@@ -61,13 +63,53 @@ def _back_up(db_path: Path, head: str | None) -> None:
             return
         backups = db_path.parent / "backups"
         backups.mkdir(exist_ok=True)
-        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-        # SQLite's own online backup: a consistent copy, the WAL's pages included.
-        with closing(sqlite3.connect(backups / f"{db_path.stem}-{at}-{stamp}.db")) as copy:
-            conn.backup(copy)
+        _copy(conn, backups / f"{db_path.stem}-{at}-{datetime.now(UTC).strftime(STAMP)}.db")
     old = sorted(backups.glob(f"{db_path.stem}-*.db"), key=lambda p: p.stat().st_mtime)
     for gone in old[:-BACKUPS_KEPT]:
         gone.unlink()
+
+
+def _copy(conn: sqlite3.Connection, to: Path) -> None:
+    # SQLite's own online backup: a consistent copy, the WAL's pages included.
+    with closing(sqlite3.connect(to)) as copy:
+        conn.backup(copy)
+
+
+def back_up_daily(db_path: Path, at: datetime | None = None) -> None:
+    """The routine copy, at the start (`app.main.run`): where none was made this UTC date, a copy
+    in `backups/`, and the last DAILY_KEPT kept. Named `daily-…`, with its time: the copies
+    before a migration (`_back_up`) neither count these nor are deleted here, and a copy's age
+    is its name's, not the file's. One named later than now (a clock that was ahead) is no copy
+    of today, and the first to go. One that fails is logged, and what it left is no copy
+    (`.part`, deleted): KOLONİ starts all the same.
+    shortcut: on the start path (0.5 s for 200 MB on an SSD), and only there - a KOLONİ left
+    running makes none; run it in a thread, on the clock too, if a database grows past a few GB
+    or a start is rare.
+    shortcut: the rename is tried once (`backup._move` tries again for a virus scanner, but
+    this module imports nothing of the app's); a copy lost to one is made at the next start."""
+    at = at or datetime.now(UTC)
+    backups = db_path.parent / "backups"
+    name = f"daily-{db_path.stem}-{{}}.db".format
+    made = backups / name(at.strftime(STAMP))
+    part = made.with_name(made.name + ".part")
+    try:
+        for cut_short in backups.glob(name("*") + ".part"):  # (of a start that was killed)
+            cut_short.unlink()
+        kept = sorted(backups.glob(name("[0-9]" * 8 + "T" + "[0-9]" * 6)))
+        past = [one for one in kept if one.name <= made.name]
+        if past and past[-1].name.rpartition("T")[0] == made.name.rpartition("T")[0]:
+            return
+        backups.mkdir(exist_ok=True)
+        with closing(sqlite3.connect(db_path)) as conn:
+            _copy(conn, part)
+        part.replace(made)
+        ahead = [one for one in kept if one.name > made.name]
+        for gone in [*ahead, *past, made][:-DAILY_KEPT]:
+            gone.unlink()
+    except (sqlite3.Error, OSError) as exc:  # (no room, a file held: nothing to stop a start for)
+        log.warning("database not copied: %s", exc)
+        with suppress(OSError):
+            part.unlink(missing_ok=True)
 
 
 # A vector nothing can find any more (`app.meaning`): its project, its record or its model gone.

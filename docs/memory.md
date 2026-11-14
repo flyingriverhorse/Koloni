@@ -150,7 +150,9 @@ to an agent at its start.
 - **Knowledge** (its own page on the rail) holds expert topics learned from web pages or project
   files. Roles use them while they work. See [Knowledge and experts](knowledge.md).
 - **Project notes** is a Knowledge topic that KOLONİ fills from what you tick on the
-  **Add to Project notes?** card at the end of a turn.
+  **Add to Project notes?** card at the end of a turn. The project's Orchestrator can look them up
+  where the notes were first made by a version that gives them to it; otherwise, and for any other
+  role, only once you switch them on ([Project notes](knowledge.md#project-notes)).
 
 Neither is on the Memory page. Memory is short facts and notes, each checked against its source.
 Knowledge is longer material an expert reads.

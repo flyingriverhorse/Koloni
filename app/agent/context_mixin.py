@@ -20,12 +20,14 @@ from app import (
     backlog,
     board,
     browser,
+    catalog,
     earlier,
     handoff,
     knowledge,
     knows,
     koloni,
     ledger,
+    models_dev,
     record,
     topics,
 )
@@ -297,6 +299,13 @@ def _koloni_compacts(model: object) -> bool:
     session to go on in, which its record says (`Agent.compacts_itself`)."""
     return not getattr(model, "compacts_itself", False) or any(
         getattr(model, flag, False) for flag in ("native", "session"))
+
+
+def _older(history: list[dict]) -> list[dict]:
+    """What a summary would stand for: the part before the last exchange, but the user's."""
+    at = _last_exchange(history)
+    return [m for m in history[1:at]
+            if not _theirs(m) and not isinstance(m, _Summarised)] if at else []
 
 
 # After a summary, the files its "Files changed" names that an agent of the conversation
@@ -760,7 +769,7 @@ class ContextMixin:
         if summary.failed or summary.stuck or not at:
             return history
         applied = any(isinstance(m, _Summarised) for m in history)
-        older = [m for m in history[1:at] if not _theirs(m) and not isinstance(m, _Summarised)]
+        older = _older(history)
         if not older:
             return history
         # A first summary is always tried; a later one only where it can bring the size
@@ -865,19 +874,23 @@ class ContextMixin:
         self._set_agent(ctx.cid, ctx.agent_id, summarised=count, summary=said,
                         summary_anchor=anchor)
 
-    def _idle_after(self: "AgentRunner", ctx: Ctx) -> asyncio.Event | None:
+    def _idle_after(self: "AgentRunner", ctx: Ctx, full: bool = False) -> asyncio.Event | None:
         """After a watched turn that completed, where its lead's last step sent COMPACT_AT
         of its window or more and the turn is within its project's token limit: its older
         part is to be summarised while the user reads, not before the next turn's first
         step. What it is made of is taken now, while the turn still holds it, built
         without handing anything over or putting anything on record (`quiet`); the work
         starts once the turn has let go of everything (the Event it returns, set then).
+        `full`: after a turn refused for its size - whatever its size, as Compact now, where
+        there is an older part and a summary of it has not failed already.
         shortcut: a lead's only - a sub-agent's summary would reach no later turn, which fits
         its chain instead (`_goes_on_from_summary`); hand that over first if sub-agents need it.
         A CLI's lead only where its next turn starts anew, sent the whole history (none kept to
-        go on in: `Agent.compacts_itself`), measured by that history's size - what its CLI
-        reports counts its own instructions, cache and steps. Against its role's window: a CLI
-        names none of its own, so where the role sets none only Compact now compacts it."""
+        go on in: `Agent.compacts_itself` - nor after a turn that failed, which leaves no
+        session: `_cli_session`), measured by that history's size - what its CLI reports
+        counts its own instructions, cache and steps. Against its role's window, else the
+        catalogue's for its model (`_catalogued_window`); with neither only Compact now
+        compacts it, or a refusal for its size."""
         if not _koloni_compacts(ctx.model):
             return None
         cli = getattr(ctx.model, "native", False) or getattr(ctx.model, "session", False)
@@ -886,22 +899,88 @@ class ContextMixin:
             if lead.compacts_itself:
                 return None
             # (A CLI's lead has its role's window only in its ctx: no step put it on record.)
-            sent, window = lead.input_tokens, lead.context_window or ctx.context_window
+            sent, window = lead.input_tokens, lead.context_window or ctx.context_window or (
+                self._catalogued_window(session, ctx, lead.model_id) if cli else None)
             # What KOLONİ asks a model for a turn counts in what the turn may spend.
             project = self._project(session, ctx.cid)
             limit = project.turn_token_limit if project else None
             spent = self._turn_spent(session, ctx.run_id)[0] if limit else 0
             threshold = compact_at(session) / 100
-        history = self._history(ctx, None, quiet=True) if cli and window else None
-        if history is not None:
+        if limit and spent > limit:
+            return None
+        history = self._history(ctx, None, quiet=True) if full or (cli and window) else None
+        kept = self._summaries.get(ctx.agent_id)
+        if full:
+            # (Nor after one started again from a summary already: `_summarised_again`.)
+            if not _older(history or []) or (kept and (kept.failed or kept.stuck)) or (
+                    ctx.agent_id in self._started_again):
+                return None
+            sent = None  # (the refusal says it is full: `_compact` asks nothing of its size)
+        elif history is not None:
             sent = sum(_size(m) for m in history) // CHARS_PER_TOKEN
-        if not window or not sent or sent < window * threshold or (limit and spent > limit):
+        if not full and (not window or not sent or sent < window * threshold):
             return None
         ready = asyncio.Event()
         self._idle[ctx.agent_id] = asyncio.ensure_future(self._compact_idle(
-            ctx, ready, history or self._history(ctx, None, quiet=True), window, sent,
-            self._summaries.get(ctx.agent_id)))
+            ctx, ready, history or self._history(ctx, None, quiet=True), window, sent, kept))
         return ready
+
+    def _catalogued_window(self: "AgentRunner", session: Session, ctx: Ctx,
+                           model_id: str | None) -> int | None:
+        """The catalogue's window for the model a CLI's lead ran on, where its role sets none:
+        Claude Code's, Codex's and Copilot's are in models.dev under their vendors'. None: not
+        known - nothing is made up, and it is compacted as before (`_idle_after`).
+        shortcut: none for Qoder, agy, a CLI on a model server of the user's, or a model the
+        CLI names its own way ("claude default"); nor is what a CLI reports of its window
+        live (Codex's `modelContextWindow`) kept. Keep that on its record once measured.
+        shortcut: the catalogue's is the model's own, not measured against what each CLI gives
+        it (Copilot's tiers: `Providers._build`): where the CLI's is smaller, the summary comes
+        late or not at all. Measure each CLI's own and catalogue that.
+        shortcut: so it is for the one measured - Copilot's gpt-6-luna on GitHub's default tier
+        takes 272,000 tokens of prompt (its own figure, in a live refusal of 14 Nov 2026, CLI
+        1.0.107), and the catalogue's window for it is 1,050,000: against that no summary
+        comes before Copilot refuses. Catalogue Copilot's own limits per tier once measured.
+        shortcut: what is measured against it is the history KOLONİ sends, whose old tool
+        outputs are left out past `context_char_budget`: a window much larger than that is
+        reached only by what cannot be left out (the chat's own words). What a CLI reads by
+        itself within a turn is its own to compact; count it once a CLI's report is measured."""
+        provider = session.get(Provider, ctx.provider_id) if ctx.provider_id else None
+        if provider is None or not model_id:
+            return None
+        return catalog.facts(provider.kind, provider.base_url, model_id,
+                             models_dev.load(self.settings.runtime_root))[0]["context_window"]
+
+    def _alone(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether a turn's lead worked alone: no other agent of the turn on record (a
+        sub-agent, a member, one in a discussion - at work or back), no room, no recipe's row.
+        Only such a lead is started again by itself (`_summarised_again`): nothing of its turn
+        is left open for a second start to lose or do twice.
+        shortcut: the narrow first version - a lead whose sub-agents are all back, say, is
+        not started again either; widen it state by state once each is seen to be safe."""
+        with self._factory() as session:
+            others = session.scalar(select(Agent.id).where(
+                Agent.run_id == ctx.run_id, Agent.id != ctx.agent_id).limit(1))
+        return others is None and not (
+            ctx.run_id in self._rooms or ctx.run_id in self._recipe_copy
+            or ctx.agent_id in self._following)
+
+    async def _summarised_again(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> bool:
+        """A lead refused for its size, about to be started again (`_loop_again`): its older
+        part summarised now, in its turn - whatever its size, as after a turn - within the
+        turn's token limit, and what it costs is the turn's (`_compact`). Whether a summary
+        was made, so that it is sent less: not where KOLONİ does not compact it, it did not
+        work alone, there is no older part, or no summary came (why is on its agent)."""
+        if not _koloni_compacts(ctx.model) or not self._alone(ctx):
+            return False
+        self._hold_to_limit(ctx)
+        before = self._summaries.get(ctx.agent_id)
+        await self._compact(ctx, info, self._history(ctx, None, quiet=True),
+                            ctx.context_window or info.context_window)
+        made = self._summaries.get(ctx.agent_id)
+        if made is None or made is before or made.failed:
+            return False
+        self._started_again.add(ctx.agent_id)
+        return True
 
     async def _compact_idle(
         self: "AgentRunner", ctx: Ctx, ready: asyncio.Event, history: list[dict],
@@ -1147,7 +1226,7 @@ class ContextMixin:
                 )
             }
             if ctx.depth == 0:
-                system = self._history_lead(session, ctx, system, others)
+                system = self._history_lead(session, ctx, has, system, others)
                 messages: list[dict] = [{"role": "system", "content": system}]
                 if first:
                     taken_from = _led_before(session, ctx)
@@ -1340,8 +1419,8 @@ class ContextMixin:
                 system += "\n\n" + measured
         return system
 
-    def _history_lead(self: "AgentRunner", session: Session, ctx: Ctx, system: str,
-                      others: str) -> str:
+    def _history_lead(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str],
+                      system: str, others: str) -> str:
         """`system` with what only a lead is told."""
         cid = ctx.cid
         if ctx.instructions:
@@ -1356,6 +1435,11 @@ class ContextMixin:
             system += "\n\n" + DECIDES_PROMPT
         if others:
             system += "\n\n" + others
+        # A knowledge its role uses as a map - the project's notes, unless the user took them
+        # away (`project_notes.accept`): where its guide is, as a sub-agent's role is told.
+        if mapped := knows.map_of(session, find_role(session, ctx.role), session.get_one(
+                Conversation, cid).project_id, ctx.root, LOOKUP in has):
+            system += "\n\n" + mapped
         if told := self._map_told(ctx):
             system += "\n\n" + told
         return system

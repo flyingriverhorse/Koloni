@@ -9,7 +9,7 @@ Everything KOLONİ keeps is under `runtime/` in its folder, or under `KOLONI_RUN
 | Where | What |
 |---|---|
 | `data/koloni.db` | The database: chats, agents, providers, memory, triggers, usage, settings. |
-| `data/backups/` | Copies of the database made before upgrades (the last five). |
+| `data/backups/` | Copies of the database made before upgrades (the last five) and at the first start of a day (the last three). |
 | `logs/koloni.log` | KOLONİ's log. It rotates at 10 MB and keeps five old files. |
 | `attachments/`, `skills/` | Files you attached, and KOLONİ's copies of skills. |
 | `copies/` | Sub-agents' working copies. |

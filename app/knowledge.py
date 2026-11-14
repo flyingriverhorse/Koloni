@@ -283,7 +283,51 @@ def web_tools(known: dict) -> set[str]:
     return needs
 
 
-def checked(knowledge: dict, by_user: bool = False, root: str | None = None) -> dict:  # noqa: C901
+def _checked_source(source: str, root: str | None) -> str:
+    """One source as it is kept (`checked`); ValueError says what is wrong with it."""
+    source = source.strip()
+    if source.casefold() == CODE:
+        source = CODE
+    elif source.casefold() == KOLONI_GUIDE:
+        if not KOLONI_DOCS.is_dir():
+            raise ValueError("this copy of KOLONİ has no guide (docs/) to read")
+        source = KOLONI_GUIDE
+    elif source.casefold() == NOTES:
+        raise ValueError("notes: is written by KOLONİ, from what you accept at a turn's end")
+    elif source.casefold().startswith(REPO):
+        source = f"{REPO} {repo_address(source[len(REPO):])}"
+    elif source.casefold().startswith(LOCAL):
+        source = f"{LOCAL} {local_folder(source[len(LOCAL):], root)}"
+    elif source.casefold().startswith(RESEARCH):
+        try:
+            source = f"{RESEARCH} {web.query_of(source[len(RESEARCH):])}"
+        except web.WebError:
+            raise ValueError("research: needs a topic to search for, in at most "
+                             f"{web.MAX_QUERY} characters") from None
+    else:
+        source = _checked_address_or_path(source)
+    return source
+
+
+def _checked_address_or_path(source: str) -> str:
+    """For `_checked_source`: a public http(s) address as it is, or a path in the project."""
+    if _is_url(source):
+        try:
+            web.host_of(source)
+        except web.WebError as exc:
+            raise ValueError(f"{source[:100]}: {exc}") from None
+    else:
+        source = source.replace("\\", "/").strip("/") or "."
+        try:
+            if source != ".":
+                views._vetted(source)
+        except Refused:
+            raise ValueError(f"{source[:100]}: not an http(s) address or a path in the "
+                             "project (docs/api.md)") from None
+    return source
+
+
+def checked(knowledge: dict, by_user: bool = False, root: str | None = None) -> dict:
     """An expert's knowledge as it is kept: its topic has a folder's name, each source is a
     public http(s) address or a path in the project. ValueError says what is wrong. `by_user`:
     sent from the Knowledge page (an agent never adds a folder on this machine - told so before
@@ -297,41 +341,7 @@ def checked(knowledge: dict, by_user: bool = False, root: str | None = None) -> 
         views._vetted(folder_of(knowledge))  # (no name Windows keeps for a device: CON, nul)
     except Refused:
         raise ValueError("a topic cannot be a name Windows keeps for a device") from None
-    sources = []
-    for source in knowledge["sources"]:
-        source = source.strip()
-        if source.casefold() == CODE:
-            source = CODE
-        elif source.casefold() == KOLONI_GUIDE:
-            if not KOLONI_DOCS.is_dir():
-                raise ValueError("this copy of KOLONİ has no guide (docs/) to read")
-            source = KOLONI_GUIDE
-        elif source.casefold() == NOTES:
-            raise ValueError("notes: is written by KOLONİ, from what you accept at a turn's end")
-        elif source.casefold().startswith(REPO):
-            source = f"{REPO} {repo_address(source[len(REPO):])}"
-        elif source.casefold().startswith(LOCAL):
-            source = f"{LOCAL} {local_folder(source[len(LOCAL):], root)}"
-        elif source.casefold().startswith(RESEARCH):
-            try:
-                source = f"{RESEARCH} {web.query_of(source[len(RESEARCH):])}"
-            except web.WebError:
-                raise ValueError("research: needs a topic to search for, in at most "
-                                 f"{web.MAX_QUERY} characters") from None
-        elif _is_url(source):
-            try:
-                web.host_of(source)
-            except web.WebError as exc:
-                raise ValueError(f"{source[:100]}: {exc}") from None
-        else:
-            source = source.replace("\\", "/").strip("/") or "."
-            try:
-                if source != ".":
-                    views._vetted(source)
-            except Refused:
-                raise ValueError(f"{source[:100]}: not an http(s) address or a path in the "
-                                 "project (docs/api.md)") from None
-        sources.append(source)
+    sources = [_checked_source(source, root) for source in knowledge["sources"]]
     if CODE in sources and len(set(sources)) > 1:
         raise ValueError("code: is a knowledge of its own, with no other source")
     if KOLONI_GUIDE in sources and len(set(sources)) > 1:
@@ -377,7 +387,21 @@ def guide(root: str, knowledge: dict) -> str | None:
     return koloni._text(root, f"{koloni.FOLDER}/{folder_of(knowledge)}/{GUIDE}")[0]
 
 
-def stale(root: str, knowledge: dict, record: dict | None = None) -> str | None:  # noqa: C901
+def _changed_since(top: Path, source: str, rel: str, kept: object, at: float) -> bool:
+    """For `stale`: whether a file its learning read has changed since; one that cannot be
+    looked at has not."""
+    with contextlib.suppress(Refused, OSError):
+        # (A folder's files were vetted as it was listed: not again, part by part.)
+        now_at = (top / rel if rel != source else project_files._where(top, rel)).stat()
+        # By the time the file had as it was read; a record from before that was
+        # kept, by the learning's start (a file written just before can land a tick
+        # after it).
+        return (now_at.st_mtime_ns != kept if isinstance(kept, int)
+                else now_at.st_mtime > at)
+    return False
+
+
+def stale(root: str, knowledge: dict, record: dict | None = None) -> str | None:
     """Why its guide is to be learned again - none yet, its sources changed, a file it read
     changed or went, one was added to a folder it read whole; None: it is as fresh as KOLONİ
     can tell. `record`: its `learned.json`, where the caller read it already.
@@ -417,17 +441,8 @@ def stale(root: str, knowledge: dict, record: dict | None = None) -> str | None:
         top = Path(home).resolve()
         now = _walk(home, source, knowledge["max_pages"], only)
         for rel in now:
-            with contextlib.suppress(Refused, OSError):
-                if seen.get(rel):
-                    # (A folder's files were vetted as it was listed: not again, part by part.)
-                    kept, now_at = stamps.get(rel), (
-                        top / rel if rel != source else project_files._where(top, rel)).stat()
-                    # By the time the file had as it was read; a record from before that was
-                    # kept, by the learning's start (a file written just before can land a tick
-                    # after it).
-                    if (now_at.st_mtime_ns != kept if isinstance(kept, int)
-                            else now_at.st_mtime > at):
-                        return f"{rel} changed since"
+            if seen.get(rel) and _changed_since(top, source, rel, stamps.get(rel), at):
+                return f"{rel} changed since"
             if rel not in seen and rel not in skipped and not record.get("unread"):
                 return f"{rel} was added since"
         if gone := [rel for rel, read in seen.items() if read and not _is_url(rel) and (
@@ -738,10 +753,16 @@ class _Site:
                 return
             await self.page(url, follow=False)
 
-    async def all(self, one_page: bool = False) -> None:  # noqa: C901
+    async def all(self, one_page: bool = False) -> None:
         """Read it all. `one_page` (a search found it): the page and its links under its path,
         none of the site's own lists - those are for the site, not for one page of it."""
         await self.robots()
+        if await self._from_llms(one_page) or await self._from_sitemaps(one_page):
+            return
+        await self._along_links()
+
+    async def _from_llms(self, one_page: bool) -> bool:
+        """For `all`: read from the site's llms-full.txt or llms.txt; whether one was there."""
         for name in ("llms-full.txt", "llms.txt") if not one_page else ():
             for url in self.lists(name):
                 # (llms-full.txt cut at the byte cap would hide the rest: its pages, then.)
@@ -753,11 +774,16 @@ class _Site:
                     # model); ask it conditionally too if its size is felt.
                     self.read.append((at, text))
                     self.log.append(_read(at, text))
-                    return
+                    return True
                 # A markdown link's address: what stands between "](" and ")".
                 found = self.kept(_between(text, "](", ")"), at)
                 if found:
-                    return await self.pages(found)
+                    await self.pages(found)
+                    return True
+        return False
+
+    async def _from_sitemaps(self, one_page: bool) -> bool:
+        """For `all`: read the pages its sitemaps list; whether they listed any."""
         # The sitemaps robots.txt names, where they are the site's own.
         maps = [] if one_page else [
             one for one in self.rules.site_maps() or [] if _under(one, self.site, "")] or [
@@ -779,7 +805,11 @@ class _Site:
                     found.append(url)
         found = self.kept(found, f"{self.origin}/sitemap.xml")
         if found:
-            return await self.pages(found)
+            await self.pages(found)
+            return True
+        return False
+
+    async def _along_links(self) -> None:
         # No list of its own: from the page given, along its links.
         todo, seen = [self.start], {self.start}
         while todo and self.goes_on():
@@ -1558,22 +1588,18 @@ def most_written(client) -> dict:
     return {"max_tokens": GUIDE_TOKENS} if takes else {}
 
 
-async def _learn(root: str, knowledge: dict, ask: Ask, price, model: str, where: str,  # noqa: C901
-                 search: Search | None, may: May, added: list[dict], extend: bool,
-                 tree: tuple[int, int] | None = None) -> dict:
-    # (Before anything is read: a file changed while it is read makes the guide old.)
-    when = datetime.now(UTC)
-    budget = _budget(knowledge, price)  # (a limit that pays for no guide reads nothing)
+async def _read_sources(root: str, knowledge: dict, tries: dict, removed: set,
+                        search: Search | None, may: May, before: dict, old: dict[str, dict]
+                        ) -> tuple[list, list[dict], list[str], int, dict | None]:
+    """For `_learn`: its sources read, as far as its page limit and its time go: what was read,
+    its log, the project's files skipped, how many were left unread, and what a repository's
+    code reading came to."""
     most = knowledge["max_pages"]
-    tries = {"left": 3 * most, "until": time.monotonic() + READING_SECONDS, "tree": tree}
-    removed = set(knowledge.get("removed") or ())
     read: list[tuple[str, str]] = []
     log: list[dict] = []
     skipped: list[str] = []  # (of the project's files: `_files`)
     unread = 0
     coding = None  # (a repository's: what its code reading came to, `_repo`)
-    before = learned(root, knowledge) or {}
-    old = await asyncio.to_thread(_kept_texts, root, where, before)
     try:
         # (A backstop: reading stops at its time by itself, `_more`, and keeps what it read.)
         async with asyncio.timeout(2 * READING_SECONDS):
@@ -1602,6 +1628,42 @@ async def _learn(root: str, knowledge: dict, ask: Ask, price, model: str, where:
         tries["stopped"] = True  # (a repository's reading, in its thread, writes nothing more)
         raise LearnError(f"reading its sources took more than {READING_SECONDS // 60} "
                          "minutes") from None
+    return read, log, skipped, unread, coding
+
+
+def _in_parts(read: list[tuple[str, str]]) -> list[tuple[str, str, str]]:
+    """For `_learn`: the pages read, cut into the parts kept of them."""
+    parts: list[tuple[str, str, str]] = []  # (its name, its source, its text)
+    for source, page in read:
+        for at in range(0, len(page), PART):
+            parts.append((f"{len(parts) + 1:04d}.md", source, page[at:at + PART]))
+    return parts
+
+
+def _write_parts(root: str, where: str, before: dict, parts: list[tuple[str, str, str]]) -> None:
+    """For `_learn`: the last learning's parts go, and this one's are written."""
+    for name in _parts(before):  # (the old parts, by the list it kept: no more)
+        if isinstance(name, str) and NAMED.fullmatch(name):
+            koloni.write(root, f"{where}/{PAGES}/{name}", None)
+    for name, source, part in parts:
+        # (Its source in the frame too: a server chose that address.)
+        koloni.write(root, f"{where}/{PAGES}/{name}", web.framed(
+            f"Source: {web._line(source, 300)}\n\n{part}", WHAT))
+
+
+async def _learn(root: str, knowledge: dict, ask: Ask, price, model: str, where: str,
+                 search: Search | None, may: May, added: list[dict], extend: bool,
+                 tree: tuple[int, int] | None = None) -> dict:
+    # (Before anything is read: a file changed while it is read makes the guide old.)
+    when = datetime.now(UTC)
+    budget = _budget(knowledge, price)  # (a limit that pays for no guide reads nothing)
+    most = knowledge["max_pages"]
+    tries = {"left": 3 * most, "until": time.monotonic() + READING_SECONDS, "tree": tree}
+    removed = set(knowledge.get("removed") or ())
+    before = learned(root, knowledge) or {}
+    old = await asyncio.to_thread(_kept_texts, root, where, before)
+    read, log, skipped, unread, coding = await _read_sources(
+        root, knowledge, tries, removed, search, may, before, old)
     if not read:  # (the user's own sources, and a count: nothing a server chose)
         sources = web._line(", ".join(knowledge["sources"]), 300)
         raise LearnError(f"nothing could be read of {sources} ({len(log)} tried)")
@@ -1626,10 +1688,7 @@ async def _learn(root: str, knowledge: dict, ask: Ask, price, model: str, where:
                   **({"code": {**(before.get("code") or {}), **coding}} if coding else {})}
         koloni.write(root, f"{where}/{LEARNED}", json.dumps(record, indent=2, ensure_ascii=False))
         return record
-    parts: list[tuple[str, str, str]] = []  # (its name, its source, its text)
-    for source, page in read:
-        for at in range(0, len(page), PART):
-            parts.append((f"{len(parts) + 1:04d}.md", source, page[at:at + PART]))
+    parts = _in_parts(read)
     official = _official(root, knowledge)
     codes = {one["source"] for one in log if one.get("code") and one["read"]}
     docs = [one for one in read if one[0] not in codes]
@@ -1662,13 +1721,7 @@ async def _learn(root: str, knowledge: dict, ask: Ask, price, model: str, where:
             raise LearnError("the money limit pays for no part of its guide on this model")
     if written is not None or coding is not None:  # (a repository's code sections move on)
         _clear_sections(root, where, {one["file"] for one in sections})
-    for name in _parts(before):  # (the old parts, by the list it kept: no more)
-        if isinstance(name, str) and NAMED.fullmatch(name):
-            koloni.write(root, f"{where}/{PAGES}/{name}", None)
-    for name, source, part in parts:
-        # (Its source in the frame too: a server chose that address.)
-        koloni.write(root, f"{where}/{PAGES}/{name}", web.framed(
-            f"Source: {web._line(source, 300)}\n\n{part}", WHAT))
+    _write_parts(root, where, before, parts)
     # The documents are other people's: kept out of the project's git, unless the user says so.
     koloni.write(root, f"{where}/.gitignore", GITIGNORE if coding is None else REPO_GITIGNORE)
     # What it found while answering and was told to keep - at every learning from here on, until

@@ -10500,8 +10500,8 @@ export interface components {
         /**
          * StorageOut
          * @description What KOLONİ's own data takes on this machine, in MB: the database (its WAL too), its
-         *     backups (each migration's and update's: apart, R125 - they were most of "db"), the working
-         *     copies, the log. None: not counted in time.
+         *     backups (each migration's and update's, and the daily ones: apart, R125 - they were most of
+         *     "db"), the working copies, the log. None: not counted in time.
          */
         StorageOut: {
             /** Backups Mb */

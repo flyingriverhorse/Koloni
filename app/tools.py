@@ -1030,7 +1030,7 @@ ROOM_SCHEMAS = {
 }
 
 
-def tool_schemas_for(  # noqa: C901
+def tool_schemas_for(
     agent_tools, roles, reachable=(), always: bool = False, team=(), others=(), earlier=(),
     show: bool = False,
 ) -> list[dict]:
@@ -1048,16 +1048,10 @@ def tool_schemas_for(  # noqa: C901
     schemas += [schema for name, schema in WEB_SCHEMAS.items() if name in agent_tools]
     if "spawn_agent" in agent_tools:
         schemas.append(spawn_schema(roles, team))
-    if "create_role" in agent_tools:
-        schemas.append(CREATE_ROLE_SCHEMA)
-    if "add_skill" in agent_tools:
-        schemas.append(ADD_SKILL_SCHEMA)
-    if "ask_user" in agent_tools:
-        schemas.append(ASK_USER_SCHEMA)
-    if "ask_folder" in agent_tools:
-        schemas.append(ASK_FOLDER_SCHEMA)
-    if "run_command" in agent_tools:
-        schemas.append(ASK_SECRET_SCHEMA)
+    schemas += [schema for name, schema in (
+        ("create_role", CREATE_ROLE_SCHEMA), ("add_skill", ADD_SKILL_SCHEMA),
+        ("ask_user", ASK_USER_SCHEMA), ("ask_folder", ASK_FOLDER_SCHEMA),
+        ("run_command", ASK_SECRET_SCHEMA)) if name in agent_tools]
     if "message_agent" in agent_tools and (reachable or earlier or always):
         schemas.append(message_schema(reachable, earlier))
     if "open_room" in agent_tools:
@@ -1065,20 +1059,11 @@ def tool_schemas_for(  # noqa: C901
     if "discuss" in agent_tools:
         schemas.append(discuss_schema(others))
     schemas += [schema for name, schema in BACKLOG_SCHEMAS.items() if name in agent_tools]
-    if "propose_trigger" in agent_tools:
-        schemas.append(PROPOSE_TRIGGER_SCHEMA)
-    if "post_note" in agent_tools:
-        schemas.append(POST_NOTE_SCHEMA)
-    if "read_notes" in agent_tools:
-        schemas.append(READ_NOTES_SCHEMA)
-    if "remember" in agent_tools:
-        schemas.append(REMEMBER_SCHEMA)
-    if "recall" in agent_tools:
-        schemas.append(RECALL_SCHEMA)
-    if "learn" in agent_tools:
-        schemas.append(LEARN_SCHEMA)
-    if "lookup" in agent_tools:
-        schemas.append(LOOKUP_SCHEMA)
+    schemas += [schema for name, schema in (
+        ("propose_trigger", PROPOSE_TRIGGER_SCHEMA), ("post_note", POST_NOTE_SCHEMA),
+        ("read_notes", READ_NOTES_SCHEMA), ("remember", REMEMBER_SCHEMA),
+        ("recall", RECALL_SCHEMA), ("learn", LEARN_SCHEMA),
+        ("lookup", LOOKUP_SCHEMA)) if name in agent_tools]
     schemas += [schema for name, schema in ROOM_SCHEMAS.items() if name in agent_tools]
     return schemas
 
@@ -1367,7 +1352,28 @@ def _edited(before: str, path: str, old: str, new: str) -> tuple[str, str]:
     return before[:match.start()] + new + before[match.end():], note
 
 
-def plan_write(ws: Workspace, name: str, args: dict) -> PlannedChange:  # noqa: C901
+def _planned_edit(args: dict, before: str | None, path: str) -> tuple[str, str]:
+    """For `plan_write`: the file as an edit_file call leaves it, and its note (`_edited`)."""
+    old, new = _text(args, "old_string"), _text(args, "new_string")
+    if before is None:
+        raise ToolError(f"{path!r} does not exist; use write_file to create it")
+    if not old:
+        raise ToolError("old_string must not be empty")
+    return _edited(before, path, old, new)
+
+
+def _check_place(ws: Workspace, target: Path, path: str) -> None:
+    """For `plan_write`: ToolError where a folder is at the path, or a file among its folders."""
+    if target.is_dir():
+        raise ToolError(f"{path!r} is a folder")
+    for parent in target.parents:
+        if parent == ws.root:
+            break
+        if parent.is_file():
+            raise ToolError(f"{ws.rel(parent)!r} is a file, not a folder")
+
+
+def plan_write(ws: Workspace, name: str, args: dict) -> PlannedChange:
     """Work out what a write tool call would change, without touching the disk."""
     try:
         path = _str(args, "path")
@@ -1395,25 +1401,14 @@ def plan_write(ws: Workspace, name: str, args: dict) -> PlannedChange:  # noqa: 
                     "﻿"):
                 after = "﻿" + after
         elif name == "edit_file":
-            old, new = _text(args, "old_string"), _text(args, "new_string")
-            if before is None:
-                raise ToolError(f"{path!r} does not exist; use write_file to create it")
-            if not old:
-                raise ToolError("old_string must not be empty")
-            after, note = _edited(before, path, old, new)
+            after, note = _planned_edit(args, before, path)
         else:
             raise ToolError(f"unknown tool: {name}")
         if before == after:
             raise ToolError(f"{path!r} already has this content; nothing to change")
         if len(after.encode("utf-8")) > MAX_WRITE_BYTES:
             raise ToolError(f"{path!r} would be larger than 1 MiB")
-        if target.is_dir():
-            raise ToolError(f"{path!r} is a folder")
-        for parent in target.parents:
-            if parent == ws.root:
-                break
-            if parent.is_file():
-                raise ToolError(f"{ws.rel(parent)!r} is a file, not a folder")
+        _check_place(ws, target, path)
         return PlannedChange(rel, "create" if before is None else "modify", before, after, note)
     except WorkspaceError as exc:
         raise ToolError(str(exc)) from None

@@ -462,6 +462,21 @@ def for_change(root: str | Path, path: str) -> "Workspace":
     return Workspace(root, also=[Path(path).parent] if Path(path).is_absolute() else [])
 
 
+def _as_written(rel: str) -> None:
+    """For `Workspace.resolve`: WorkspaceError for a path that, as it is written, is none - empty,
+    with a NUL, or half absolute (a drive or a root alone)."""
+    if not isinstance(rel, str) or not rel.strip():
+        raise WorkspaceError("empty path")
+    if "\x00" in rel:  # (3.13+ resolve() no longer raises on one)
+        raise WorkspaceError(NUL_IN_PATH)
+    windows = PureWindowsPath(rel)
+    absolute = windows.is_absolute() if sys.platform == "win32" else rel.startswith("/")
+    if not absolute and (windows.drive or windows.root or PurePosixPath(rel).is_absolute()):
+        raise WorkspaceError(
+            f"{rel!r} is outside the project folder; use a path relative to it"
+        )
+
+
 class Workspace:
     def __init__(self, root: str | Path, links: dict[str, Path] | None = None,
                  also: Iterable[str | Path] = (), granted: Path | None = None):
@@ -475,20 +490,11 @@ class Workspace:
         # The one file in a CLI's own folder the user said yes to, for one call (`CliHome`).
         self.granted = granted
 
-    def resolve(self, rel: str) -> Path:  # noqa: C901
+    def resolve(self, rel: str) -> Path:
         """Turn a path into an absolute one: one relative to the project, or an absolute
         one in the project or in a folder it also works in. Any other is `Outside`, and
         one KOLONİ never opens (`never`) a plain WorkspaceError."""
-        if not isinstance(rel, str) or not rel.strip():
-            raise WorkspaceError("empty path")
-        if "\x00" in rel:  # (3.13+ resolve() no longer raises on one)
-            raise WorkspaceError(NUL_IN_PATH)
-        windows = PureWindowsPath(rel)
-        absolute = windows.is_absolute() if sys.platform == "win32" else rel.startswith("/")
-        if not absolute and (windows.drive or windows.root or PurePosixPath(rel).is_absolute()):
-            raise WorkspaceError(
-                f"{rel!r} is outside the project folder; use a path relative to it"
-            )
+        _as_written(rel)
         lexical = Path(os.path.abspath(self.root / rel))
         inside = lexical == self.root or lexical.is_relative_to(self.root)
         # resolve() follows symlinks and junctions, so a link that points out of the

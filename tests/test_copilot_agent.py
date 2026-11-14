@@ -52,6 +52,7 @@ def copilot_app(settings_env, tmp_path):
         return client, made.json()
 
     make.record = lambda: json.loads(record.read_text(encoding="utf-8"))
+    make.record_path = str(record)
     yield make
     for client in opened:
         client.__exit__(None, None, None)
@@ -500,6 +501,125 @@ def copilot_native(settings_env, tmp_path):
     yield make
     for client in opened:
         client.__exit__(None, None, None)
+
+
+# Copilot's own words for a context that is full (its package's app.js, read 14 Nov 2026),
+# and its `errorType` alone, whatever its words.
+FULL = ("The context window is full and the request cannot be processed. Try starting a new "
+        "session or compacting the conversation.")
+# Seen live (14 Nov 2026: Copilot CLI 1.0.107 as a session, gpt-6-luna on GitHub's default
+# context tier, a 2.3 M-character message): its `session.error`, of no "context_limit" type.
+LIVE = ("Execution failed: Request exceeds the model's prompt budget after reserving output "
+        "(591842 tokens; limit 272000). Reduce context or compact before continuing.")
+REFUSALS = [
+    {"error": LIVE}, {"error": LIVE, "error_type": "model"},
+    {"error": FULL, "error_type": "context_limit"}, {"error": FULL},
+    {"error": "prompt token count of 130000 exceeds the limit of 128000"},
+    {"error": "400 model_max_prompt_tokens_exceeded"},
+    {"error": "Initial inputs exceed the model token limit of 128000 tokens"},
+    {"error": "it could not go on", "error_type": "context_limit"},
+]
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("refusal", REFUSALS)
+def test_copilots_refusal_for_its_size_is_read_as_one(
+        copilot_app, copilot_native, wait_run, project_dir, native, refusal):
+    from app.agent import OVERFLOW
+
+    client, provider = (copilot_native if native else copilot_app)([refusal])
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    # (Its words reach the turn's failure as they came: what the summary after it reads.)
+    assert run["status"] == "failed" and refusal["error"] in run["error"], run
+    assert OVERFLOW.search(run["error"]), run["error"]
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_another_error_of_copilots_is_no_refusal_for_its_size(
+        copilot_app, copilot_native, wait_run, project_dir, native):
+    from app.agent import OVERFLOW
+
+    client, provider = (copilot_native if native else copilot_app)([
+        {"error": "the model is overloaded", "error_type": "model"}])
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    assert run["status"] == "failed" and not OVERFLOW.search(run["error"]), run["error"]
+
+
+def test_copilot_refused_for_its_size_is_summarised_and_started_again_in_its_turn(
+        copilot_app, wait_run, project_dir):
+    from app.agent import STARTED_AGAIN
+
+    # Its starts, in order: two turns, the third refused, its summary (asked of the same CLI
+    # with no tools: `ask_once`), and the third turn again.
+    client, provider = copilot_app([], at_start={
+        "1": [{"say": "OLDWORD fixed it."}], "2": [{"say": "Tested."}],
+        "3": [{"error": FULL, "error_type": "context_limit"}],
+        "4": [{"say": "SUMMARY: the greeting was fixed"}], "5": [{"say": "Documented."}]})
+    cid, run_id = start(client, project_dir, provider)
+    for words in (None, "now the tests", "and the docs"):
+        if words:
+            run_id = client.post(f"/api/conversations/{cid}/messages",
+                                 json={"content": words}).json()["run"]["id"]
+        snap = wait_run(client, cid, run_id, timeout=40)
+        assert snap["runs"][-1]["status"] == "completed", snap["runs"][-1]["error"]
+    assert [m["content"] for m in snap["messages"] if m["role"] == "koloni"] == [STARTED_AGAIN]
+    told = copilot_app.record()["stdin"]  # (what its last start was sent)
+    assert "SUMMARY: the greeting was fixed" in told and "OLDWORD" not in told
+    assert "and the docs" in told
+    assert [m["content"] for m in snap["messages"] if m["role"] == "assistant"][-1] == (
+        "Documented.")
+
+
+def starts_of(copilot_app):
+    return len(Path(copilot_app.record_path + ".starts").read_text("utf-8").splitlines())
+
+
+def test_the_live_refusal_of_a_message_too_large_by_itself_says_so_and_starts_nothing_again(
+        copilot_app, wait_run, project_dir):
+    from app.agent.loop_mixin import NOTHING_LEFT
+
+    # As measured: a short first turn, then a message larger than its model takes. Before its
+    # last answer there is only the user's own message, which is never summarised.
+    client, provider = copilot_app([], at_start={
+        "1": [{"say": "Hello."}], "2": [{"error": LIVE}]})
+    cid, run_id = start(client, project_dir, provider)
+    assert wait_run(client, cid, run_id, timeout=40)["runs"][-1]["status"] == "completed"
+    run_id = client.post(f"/api/conversations/{cid}/messages",
+                         json={"content": "a very long message"}).json()["run"]["id"]
+    snap = wait_run(client, cid, run_id, timeout=40)
+    run = snap["runs"][-1]
+    assert run["status"] == "failed" and LIVE in run["error"], run
+    assert run["error"].endswith(NOTHING_LEFT), run["error"]
+    assert not [m for m in snap["messages"] if m["role"] == "koloni"]
+    assert starts_of(copilot_app) == 2  # (no summary asked for, nothing started again)
+    assert [a["summary"] for a in snap["agents"]] == [None, None]
+    # (As live: classed "other" on its agent by its words - the failure itself has no class
+    # of its own, which is what makes it the CLI's own error and not its model's words.)
+    assert snap["agents"][-1]["failure"] == "other"
+
+
+def test_refused_again_with_nothing_left_to_summarise_it_says_the_rest_is_too_large(
+        copilot_app, wait_run, project_dir):
+    from app.agent import STARTED_AGAIN
+    from app.agent.loop_mixin import FULL_AGAIN, NOTHING_LEFT
+
+    client, provider = copilot_app([], at_start={
+        "1": [{"say": "OLDWORD fixed it."}], "2": [{"say": "Tested."}],
+        "3": [{"error": LIVE}], "4": [{"say": "SUMMARY: the greeting was fixed"}],
+        "5": [{"error": LIVE}]})
+    cid, run_id = start(client, project_dir, provider)
+    for words in (None, "now the tests", "a very long message"):
+        if words:
+            run_id = client.post(f"/api/conversations/{cid}/messages",
+                                 json={"content": words}).json()["run"]["id"]
+        snap = wait_run(client, cid, run_id, timeout=40)
+    run = snap["runs"][-1]
+    assert run["status"] == "failed" and LIVE in run["error"], run
+    assert run["error"].endswith(FULL_AGAIN + NOTHING_LEFT), run["error"]
+    assert [m["content"] for m in snap["messages"] if m["role"] == "koloni"] == [STARTED_AGAIN]
+    assert starts_of(copilot_app) == 5  # (once: no third start of the turn)
 
 
 def test_copilot_works_natively_and_what_it_did_is_on_record(

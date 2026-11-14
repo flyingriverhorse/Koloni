@@ -270,7 +270,56 @@ NOT_THERE = "the agent's change is no longer in it as the project has it"
 STALE_SECONDS = 3600.0
 
 
-def commit(  # noqa: C901
+def _to_commit_in(project: Path) -> tuple[str, Path]:
+    """For `commit`: git and its folder. Refused where HEAD is on no branch, or a merge or the
+    like is under way."""
+    git, folder = repository(project)
+    if _in(project, git, "symbolic-ref", "-q", "HEAD")[0] != 0:
+        raise Refused("HEAD is not on a branch")
+    under_way = next((what for name, what in _UNDER_WAY.items() if (folder / name).exists()), None)
+    if under_way:
+        raise Refused(f"{under_way} is under way in the repository: finish or abort it first")
+    return git, folder
+
+
+def _drop_stale_indexes(folder: Path) -> None:
+    """For `commit`: the indexes left over from commits that never ended (`STALE_SECONDS`)."""
+    for stale in folder.glob("koloni-index-*"):
+        with contextlib.suppress(OSError):
+            if time.time() - stale.stat().st_mtime > STALE_SECONDS:
+                stale.unlink()
+
+
+def _into_index(fed, alone: dict[str, str], put: list, whole: list) -> None:
+    """For `commit`: the agent's parts (`_agents_parts`) and the files that go in whole, put
+    into the commit's own index."""
+    # (Every list of paths on stdin: Windows' command line holds a few hundred at most.)
+    gone = [path for path, _mode, blob in put if blob is None]
+    if known := [(path, mode, blob) for path, mode, blob in put if blob]:
+        fed("update-index", b"".join(f"{mode} {blob}\t".encode("ascii") + _nul([path])
+                                     for path, mode, blob in known),
+            "update-index", "--add", "-z", "--index-info", **alone)
+    if gone:
+        fed("update-index", _nul(gone), "update-index", "--force-remove", "-z", "--stdin",
+            **alone)
+    if whole:
+        fed("add", _nul(whole), "update-index", "--add", "--remove", "-z", "--stdin",
+            **alone)
+
+
+def _hook_changed(project: Path, git: str, tree: str, sha: str, notes: list[str]) -> list[str]:
+    """For `commit`: the paths a commit hook changed, with a sentence of it added to `notes`."""
+    # What a commit hook put in, or took out, besides.
+    code, out, _said = _in(project, git, "diff-tree", "-r", "-z", "--name-only",
+                           "--no-renames", tree, sha)
+    changed = [one.decode("utf-8", "surrogateescape") for one in out.split(b"\0") if one]
+    if code != 0 or changed:
+        notes.append(f"a commit hook changed what went in: {', '.join(changed)}"
+                     if code == 0 else "what a commit hook changed could not be read")
+    return changed
+
+
+def commit(
     project: Path, paths: list[str], message: str, no_hooks: Path | None = None,
     sides: dict[str, tuple[Path | None, Path | None]] | None = None,
 ) -> tuple[str, list[str]]:
@@ -296,18 +345,10 @@ def commit(  # noqa: C901
     hooks folder is then an empty one, made in that folder of KOLONİ's for this commit
     alone (not in the temp folder, which a sandboxed CLI may write). Refused, with why,
     where it cannot be made; the files then stay as they are."""
-    git, folder = repository(project)
-    if _in(project, git, "symbolic-ref", "-q", "HEAD")[0] != 0:
-        raise Refused("HEAD is not on a branch")
-    under_way = next((what for name, what in _UNDER_WAY.items() if (folder / name).exists()), None)
-    if under_way:
-        raise Refused(f"{under_way} is under way in the repository: finish or abort it first")
+    git, folder = _to_commit_in(project)
     if no_hooks is not None:
         no_hooks.mkdir(parents=True, exist_ok=True)
-    for stale in folder.glob("koloni-index-*"):
-        with contextlib.suppress(OSError):
-            if time.time() - stale.stat().st_mtime > STALE_SECONDS:
-                stale.unlink()
+    _drop_stale_indexes(folder)
     # (In the git folder, which agents are kept from: not the temp folder.)
     index = folder / f"koloni-index-{os.urandom(8).hex()}"
     alone = {"GIT_INDEX_FILE": str(index)}
@@ -339,18 +380,7 @@ def commit(  # noqa: C901
                 # alone (racy git); a copy timed later took a same-size rewrite as unchanged.
                 shutil.copy2(folder / "index", index)
             must("read-tree", "read-tree", *(["--reset", "HEAD"] if born else ["--empty"]), **alone)
-            # (Every list of paths on stdin: Windows' command line holds a few hundred at most.)
-            gone = [path for path, _mode, blob in put if blob is None]
-            if known := [(path, mode, blob) for path, mode, blob in put if blob]:
-                fed("update-index", b"".join(f"{mode} {blob}\t".encode("ascii") + _nul([path])
-                                             for path, mode, blob in known),
-                    "update-index", "--add", "-z", "--index-info", **alone)
-            if gone:
-                fed("update-index", _nul(gone), "update-index", "--force-remove", "-z", "--stdin",
-                    **alone)
-            if whole:
-                fed("add", _nul(whole), "update-index", "--add", "--remove", "-z", "--stdin",
-                    **alone)
+            _into_index(fed, alone, put, whole)
             if _in(project, git, "diff", "--cached", "--quiet", "--no-ext-diff",
                    seconds=SHORT_SECONDS, **alone)[0] == 0:
                 raise Refused("; ".join([
@@ -362,13 +392,7 @@ def commit(  # noqa: C901
             if code != 0 or not out.strip():
                 raise Refused("the commit was made, but its id could not be read")
             sha = out.decode("ascii", "replace").strip()
-            # What a commit hook put in, or took out, besides.
-            code, out, _said = _in(project, git, "diff-tree", "-r", "-z", "--name-only",
-                                   "--no-renames", tree, sha)
-            changed = [one.decode("utf-8", "surrogateescape") for one in out.split(b"\0") if one]
-            if code != 0 or changed:
-                notes.append(f"a commit hook changed what went in: {', '.join(changed)}"
-                             if code == 0 else "what a commit hook changed could not be read")
+            changed = _hook_changed(project, git, tree, sha, notes)
             back = [path for path in paths if path not in left]
             back += [path for path in changed if path not in back]
             # The real index has these paths as the commit does; the commit stands whatever
@@ -384,38 +408,18 @@ def commit(  # noqa: C901
     return sha, notes
 
 
-def _agents_parts(  # noqa: C901
-    project: Path, git: str, paths: list[str], sides: dict, fed, born: bool
-) -> tuple[list, list, dict]:
-    """For `commit`: each file as HEAD has it with the agent's change put in, as (path,
-    mode, blob id; None: no file); the paths that go in whole instead; and those left out,
-    with why. Each file is written into git's objects as `git add` would (the repository's
-    filters and line ends, by path), and the agent's change put onto another with `git
-    merge-file` (git 2.43 or later)."""
+def _entries(out: bytes) -> dict[str, list[str]]:
+    """For `_agents_parts`: what `ls-tree -z` or `ls-files -s -z` lists, by path: its fields."""
+    found = {}
+    for entry in out.split(b"\0"):
+        if entry:
+            fields, _tab, name = entry.partition(b"\t")
+            found[name.decode("utf-8", "surrogateescape")] = fields.decode("ascii").split()
+    return found
 
-    def entries(out: bytes) -> dict[str, list[str]]:
-        found = {}
-        for entry in out.split(b"\0"):
-            if entry:
-                fields, _tab, name = entry.partition(b"\t")
-                found[name.decode("utf-8", "surrogateescape")] = fields.decode("ascii").split()
-        return found
 
-    def merged(ours: str | None, base: str | None, theirs: str | None) -> str | None:
-        if ours is None or base is None or theirs is None:
-            return None
-        code, out, _said = _in(project, git, "merge-file", "--object-id", ours, base, theirs,
-                               seconds=COMMIT_SECONDS)
-        # (Lines both changed, not text, or a git before 2.43: None.)
-        return out.decode("ascii", "replace").strip() if code == 0 else None
-
-    # (All of them, and these paths picked out: no command line on Windows holds a few hundred.
-    # `-t`: a folder of that name too, as `ls-tree HEAD -- folder` has it.)
-    tree = entries(fed("ls-tree", None, "ls-tree", "-r", "-t", "-z", "HEAD")) if born else {}
-    heads = {path: (tree[path][0], tree[path][2]) for path in paths if path in tree}
-    # (The user's own index: what they staged.)
-    index = entries(fed("ls-files", None, "ls-files", "-s", "-z"))
-    staged = {path: index[path][1] for path in paths if path in index}
+def _ignored_new(project: Path, git: str, paths: list[str], heads: dict) -> dict:
+    """For `_agents_parts`: the paths HEAD does not have that git ignores, each with `IGNORED`."""
     left = {}
     for path in paths:
         if path in heads:
@@ -430,6 +434,34 @@ def _agents_parts(  # noqa: C901
             raise Refused(f"git check-ignore failed: {_text(out, said)[-TAIL:]}")
         if code == 0:
             left[path] = IGNORED
+    return left
+
+
+def _agents_parts(
+    project: Path, git: str, paths: list[str], sides: dict, fed, born: bool
+) -> tuple[list, list, dict]:
+    """For `commit`: each file as HEAD has it with the agent's change put in, as (path,
+    mode, blob id; None: no file); the paths that go in whole instead; and those left out,
+    with why. Each file is written into git's objects as `git add` would (the repository's
+    filters and line ends, by path), and the agent's change put onto another with `git
+    merge-file` (git 2.43 or later)."""
+
+    def merged(ours: str | None, base: str | None, theirs: str | None) -> str | None:
+        if ours is None or base is None or theirs is None:
+            return None
+        code, out, _said = _in(project, git, "merge-file", "--object-id", ours, base, theirs,
+                               seconds=COMMIT_SECONDS)
+        # (Lines both changed, not text, or a git before 2.43: None.)
+        return out.decode("ascii", "replace").strip() if code == 0 else None
+
+    # (All of them, and these paths picked out: no command line on Windows holds a few hundred.
+    # `-t`: a folder of that name too, as `ls-tree HEAD -- folder` has it.)
+    tree = _entries(fed("ls-tree", None, "ls-tree", "-r", "-t", "-z", "HEAD")) if born else {}
+    heads = {path: (tree[path][0], tree[path][2]) for path in paths if path in tree}
+    # (The user's own index: what they staged.)
+    index = _entries(fed("ls-files", None, "ls-files", "-s", "-z"))
+    staged = {path: index[path][1] for path in paths if path in index}
+    left = _ignored_new(project, git, paths, heads)
     there = [path for path in paths if path not in left and (project / path).is_file()]
     # (A line each, quoted as C has it: a newline in a name, or a quote first, is the name's.)
     quoted = "".join('"{}"\n'.format(path.replace("\\", "\\\\").replace('"', '\\"').replace(

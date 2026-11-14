@@ -26,10 +26,8 @@ PARTLY_AS_SEEN = (
 OLD_CARD = "Reload the page: this card is from before an update"
 
 
-async def _decide(  # noqa: C901
-    merge_id: str, decision: str, request: Request, session: Session,
-    body: MergeChoices | None = None,
-) -> dict:
+def _to_decide(session: Session, merge_id: str, decision: str) -> Merge:
+    """The card a decision is about; 404 where there is none, 409 where it is a comparison's."""
     merge = session.get(Merge, merge_id)
     if merge is None:
         raise HTTPException(404, "merge not found")
@@ -41,6 +39,37 @@ async def _decide(  # noqa: C901
         # afterwards the chosen side's card is decided here (what clashed), and any other
         # only thrown away - where that broke off at the choice, its copy is not stuck.
         raise HTTPException(409, "these changes are one side of a comparison: choose there")
+    return merge
+
+
+async def _decide_kept(
+    merge: Merge, decision: str, choices: dict[str, str], request: Request, session: Session,
+) -> None:
+    if decision == "check":
+        raise HTTPException(409, CHECK_NOT_KEPT)
+    # A copy kept over a restart: no agent task waits, the decision is carried out here.
+    if not await request.app.state.runner.decide_kept(merge.id, decision, choices):
+        raise HTTPException(409, "nothing of these changes can be decided like this")
+    session.refresh(merge)
+
+
+async def _acted(session: Session, merge: Merge, decided) -> None:
+    # The agent task acts on the decision; answer once it has. (It may still be pending:
+    # a file that changed since the card was shown is shown again, and nothing is taken -
+    # and a check that was started runs on; how it went comes with the card's record.)
+    deadline = asyncio.get_running_loop().time() + DECISION_TIMEOUT
+    while True:
+        await asyncio.sleep(0.01)
+        session.refresh(merge)
+        if merge.decided_at != decided or asyncio.get_running_loop().time() > deadline:
+            return
+
+
+async def _decide(
+    merge_id: str, decision: str, request: Request, session: Session,
+    body: MergeChoices | None = None,
+) -> dict:
+    merge = _to_decide(session, merge_id, decision)
     choices: dict[str, str] = dict(body.choices) if body else {}
     if decision == "approve" and choices and body and body.shown is None:
         # Choices from a page that does not say what its card showed: they may be of
@@ -76,12 +105,7 @@ async def _decide(  # noqa: C901
         raise HTTPException(409, "no agent can resolve conflicts on these changes")
     decided = merge.decided_at
     if merge.status == "interrupted":
-        if decision == "check":
-            raise HTTPException(409, CHECK_NOT_KEPT)
-        # A copy kept over a restart: no agent task waits, the decision is carried out here.
-        if not await request.app.state.runner.decide_kept(merge_id, decision, choices):
-            raise HTTPException(409, "nothing of these changes can be decided like this")
-        session.refresh(merge)
+        await _decide_kept(merge, decision, choices, request, session)
         as_seen(after=True)
         return merge_out(merge)
     if decision == "check" and merge.check is None:
@@ -92,16 +116,9 @@ async def _decide(  # noqa: C901
             # Nothing is asked while its check runs: the card asks again with the result.
             raise HTTPException(409, "the check is still running: decide when it is over")
         raise HTTPException(409, "these changes are no longer waiting for a decision")
-    # The agent task acts on the decision; answer once it has. (It may still be pending:
-    # a file that changed since the card was shown is shown again, and nothing is taken -
-    # and a check that was started runs on; how it went comes with the card's record.)
-    deadline = asyncio.get_running_loop().time() + DECISION_TIMEOUT
-    while True:
-        await asyncio.sleep(0.01)
-        session.refresh(merge)
-        if merge.decided_at != decided or asyncio.get_running_loop().time() > deadline:
-            as_seen(after=True)
-            return merge_out(merge)
+    await _acted(session, merge, decided)
+    as_seen(after=True)
+    return merge_out(merge)
 
 
 def _taken(files: list[dict]) -> set[str]:

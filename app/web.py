@@ -32,7 +32,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from urllib.parse import parse_qs, quote, unquote_plus, urlencode, urljoin, urlsplit
+from urllib.parse import SplitResult, parse_qs, quote, unquote_plus, urlencode, urljoin, urlsplit
 
 from app.model_client import ModelUnavailable
 
@@ -124,7 +124,24 @@ def resolve(host: str) -> list[str]:
     return list(dict.fromkeys(str(info[4][0]) for info in found))
 
 
-def _send(method: str, url: str, headers: dict[str, str], body: bytes | None, ip: str) -> Raw:  # noqa: C901
+def _asked_path(parts: SplitResult) -> str:
+    """The path and query of an address, as the request's first line has them."""
+    path = quote(parts.path or "/", safe="/%:@!$&'()*+,;=~-._")
+    if parts.query:
+        path += "?" + quote(parts.query, safe="/%:@!$&'()*+,;=~-._?")
+    return path
+
+
+def _unpacked(told: dict[str, str], data: bytes) -> bytes:
+    if told.get("content-encoding", "").lower() in ("gzip", "deflate"):
+        # Sent packed although it was asked for as it is; unpacked no further than
+        # is read, so a small answer cannot become a huge one.
+        with contextlib.suppress(zlib.error):
+            data = zlib.decompressobj(47).decompress(data, MAX_BYTES + 1)
+    return data
+
+
+def _send(method: str, url: str, headers: dict[str, str], body: bytes | None, ip: str) -> Raw:
     parts = urlsplit(url)
     secure = parts.scheme == "https"
     host = (parts.hostname or "").rstrip(".")
@@ -168,11 +185,9 @@ def _send(method: str, url: str, headers: dict[str, str], body: bytes | None, ip
                 )
                 sock.do_handshake()
             connection.sock = sock
-            path = quote(parts.path or "/", safe="/%:@!$&'()*+,;=~-._")
-            if parts.query:
-                path += "?" + quote(parts.query, safe="/%:@!$&'()*+,;=~-._?")
             connection.request(
-                method, path, body=body, headers={"Accept-Encoding": "identity", **headers}
+                method, _asked_path(parts), body=body,
+                headers={"Accept-Encoding": "identity", **headers}
             )
             answer = connection.getresponse()
             if late.is_set():  # its head was cut at the limit (on Linux the break reads as its end)
@@ -189,11 +204,7 @@ def _send(method: str, url: str, headers: dict[str, str], body: bytes | None, ip
         if answer is None:
             raise TimeoutError(f"no answer within {TIMEOUT:g} seconds")
         told = {name.lower(): value for name, value in answer.getheaders()}
-        if told.get("content-encoding", "").lower() in ("gzip", "deflate"):
-            # Sent packed although it was asked for as it is; unpacked no further than
-            # is read, so a small answer cannot become a huge one.
-            with contextlib.suppress(zlib.error):
-                data = zlib.decompressobj(47).decompress(data, MAX_BYTES + 1)
+        data = _unpacked(told, data)
         return Raw(answer.status, told, data, late.is_set())
     finally:
         timer.cancel()

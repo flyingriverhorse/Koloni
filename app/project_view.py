@@ -93,7 +93,37 @@ def _scratch(parts: tuple[str, ...], name: str) -> bool:
     return len(parts) == 1 and _name(parts[0]) == ".koloni" and _name(name) == "tmp"
 
 
-def standing(root: str | Path) -> dict[str, bytes]:  # noqa: C901
+def _take(root: Path, found: dict[str, bytes], path: Path) -> None:
+    """For `standing`: a file's bytes, or a link and where it leads, into `found`."""
+    rel = path.relative_to(root).as_posix()
+    if _is_link(path):
+        try:
+            found[rel] = LINK + os.fsencode(os.readlink(path))
+        except OSError:
+            found[rel] = LINK
+    else:
+        with contextlib.suppress(OSError):
+            found[rel] = data = path.read_bytes()
+            # (the first mode seen wins: an agent's chmod +x of the same bytes is not "as
+            # it was")
+            MODES.setdefault((os.path.abspath(path), hashlib.sha256(data).hexdigest()),
+                             path.stat().st_mode & 0o777)
+
+
+def _take_hooks(root: Path, found: dict[str, bytes]) -> None:
+    """For `standing`: the files of the folder `core.hooksPath` names in the project."""
+    hooks = hooks_folder(root, found.get(".git/config"))
+    with contextlib.suppress(OSError):
+        parts = Path(hooks).parts if hooks else ()
+        # (In the project only - `hooks_folder` -, and not through a link.)
+        if parts and not any(
+                _is_link(root.joinpath(*parts[:n])) for n in range(1, len(parts) + 1)):
+            for path in root.joinpath(*parts).iterdir():
+                if (path.is_file() or _is_link(path)) and not path.name.endswith(".sample"):
+                    _take(root, found, path)
+
+
+def standing(root: str | Path) -> dict[str, bytes]:
     """K-yazma-denetimi: every file of the project that tells later turns what they may do or
     runs by itself, by its path in the project, with its bytes - a path with a name of
     `NOT_WRITTEN_UNATTENDED` in it (of git's folder only its hooks and its config), the folder
@@ -108,22 +138,6 @@ def standing(root: str | Path) -> dict[str, bytes]:  # noqa: C901
     (`standing_names` judges the path's other parts); walk it if a CLI is seen to read one."""
     root = Path(root)
     found: dict[str, bytes] = {}
-
-    def take(path: Path) -> None:
-        rel = path.relative_to(root).as_posix()
-        if _is_link(path):
-            try:
-                found[rel] = LINK + os.fsencode(os.readlink(path))
-            except OSError:
-                found[rel] = LINK
-        else:
-            with contextlib.suppress(OSError):
-                found[rel] = data = path.read_bytes()
-                # (the first mode seen wins: an agent's chmod +x of the same bytes is not "as
-                # it was")
-                MODES.setdefault((os.path.abspath(path), hashlib.sha256(data).hexdigest()),
-                                 path.stat().st_mode & 0o777)
-
     # KOLONİ's own runtime inside the project (KOLONİ on its own repository): the copies it
     # holds carry the project's standing files - its, not the project's; not walked, as
     # `copies._scan` avoids it. (Seen with K-koloni-klasor: every copy's .koloni/.gitignore
@@ -145,26 +159,18 @@ def standing(root: str | Path) -> dict[str, bytes]:  # noqa: C901
             and not is_kept_code((*parts, name))]
         for name in [name for name in folders if _is_link(here / name)]:
             if _standing_path((*parts, name)):
-                take(here / name)
+                _take(root, found, here / name)
         folders[:] = [name for name in folders if not _is_link(here / name)]
         for name in files:
             if _standing_path((*parts, name)):
-                take(here / name)
-    hooks = hooks_folder(root, found.get(".git/config"))
-    with contextlib.suppress(OSError):
-        parts = Path(hooks).parts if hooks else ()
-        # (In the project only - `hooks_folder` -, and not through a link.)
-        if parts and not any(
-                _is_link(root.joinpath(*parts[:n])) for n in range(1, len(parts) + 1)):
-            for path in root.joinpath(*parts).iterdir():
-                if (path.is_file() or _is_link(path)) and not path.name.endswith(".sample"):
-                    take(path)
+                _take(root, found, here / name)
+    _take_hooks(root, found)
     for pattern in PTH_GLOBS:
         for path in root.glob(pattern):
             parts = path.relative_to(root).parts
             # (Not through a link: an environment linked in is not the project's.)
             if not any(_is_link(root.joinpath(*parts[:n])) for n in range(1, len(parts))):
-                take(path)
+                _take(root, found, path)
     return found
 
 
@@ -192,7 +198,7 @@ class ProjectView:
         """Every file the last look found, text or not, by its path in the project."""
         return list(self._stamp)
 
-    def changes(self) -> list[tuple[str, str | None, str | None]]:  # noqa: C901
+    def changes(self) -> list[tuple[str, str | None, str | None]]:
         """What changed since the last look: (path, before, after).
 
         `before` is None for a new file and `after` is None for a deleted one. Files
@@ -246,13 +252,17 @@ class ProjectView:
                 # A file that could not be read before has no "before" to compare with.
                 if not first and not was_unread and before != text:
                     found.append((relative, before, text))
+        self._gone(present, found)
+        return found
+
+    def _gone(self, present: set[str], found: list[tuple[str, str | None, str | None]]) -> None:
+        """For `changes`: the files a look no longer found are reported deleted and forgotten."""
         for relative in [r for r in self._known if r not in present]:
             found.append((relative, self._known[relative], None))
             self._forget(relative)
         for relative in [r for r in self._stamp if r not in present]:
             del self._stamp[relative]
         self._unread &= present
-        return found
 
     def _forget(self, relative: str) -> None:
         old = self._known.pop(relative, None)

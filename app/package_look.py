@@ -299,64 +299,17 @@ def look(command: list[str], version: str) -> dict:
             "on_install": on_install, "dependencies": _capped(dependencies)}
 
 
-def members(data: bytes, filename: str) -> tuple[dict[str, bytes], list[str]]:  # noqa: C901
+def members(data: bytes, filename: str) -> tuple[dict[str, bytes], list[str]]:
     """The files of a package's archive (.tgz, .tar.gz, .whl, .zip) a reading needs, in
     memory: each name only a label, no link followed, nothing written. What was not read,
     in words."""
     files: dict[str, bytes] = {}
     large: list[str] = []
-    held = 0  # the bytes read: never more than MAX_UNPACKED, whatever the headers say
     try:
         if filename.endswith((".whl", ".zip")):
-            # (each entry is read before any is looked at)
-            if data.count(b"PK\x01\x02") > MAX_MEMBERS:
-                raise LookError(f"it holds more than {MAX_MEMBERS} files: it is not read")
-            with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                infos = [info for info in archive.infolist() if not info.is_dir()]
-                if sum(info.file_size for info in infos) > MAX_UNPACKED:
-                    raise LookError(_too_large())
-                for info in infos:
-                    if stat.S_ISLNK(info.external_attr >> 16):
-                        continue
-                    if not _wanted(info.filename):
-                        files[info.filename] = b""  # (named, not read)
-                    elif info.file_size > MAX_FILE:
-                        large.append(info.filename)
-                    else:
-                        with archive.open(info) as member:
-                            text = member.read(info.file_size + 1)
-                        if len(text) != info.file_size:  # a zip bomb, or a broken one
-                            raise LookError(
-                                f"{_label(info.filename)} is not the size it says: it is not read")
-                        files[info.filename] = text
-                        held += len(text)
-                        if held > MAX_UNPACKED:
-                            raise LookError(_too_large())
+            _zip_members(data, files, large)
         else:
-            inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
-            inflated = inflater.decompress(data, MAX_UNPACKED + 1)
-            if len(inflated) > MAX_UNPACKED:
-                raise LookError(_too_large())
-            # (a second gzip stream after the first would hold files this reading never sees)
-            if inflater.unused_data:
-                raise LookError("it is more than one gzip stream: it is not read")
-            with tarfile.open(fileobj=io.BytesIO(inflated), mode="r:") as archive:
-                for count, member in enumerate(archive, 1):
-                    if count > MAX_MEMBERS:
-                        raise LookError(f"it holds more than {MAX_MEMBERS} files: it is not read")
-                    if not member.isfile():  # (a link, a device, a folder)
-                        continue
-                    # (a sparse member's few bytes stand for as many as it says: not read)
-                    if not _wanted(member.name) or member.issparse():
-                        files[member.name] = b""  # (named, not read)
-                    elif member.size > MAX_FILE:
-                        large.append(member.name)
-                    else:
-                        opened = archive.extractfile(member)
-                        files[member.name] = opened.read() if opened else b""
-                        held += len(files[member.name])
-                        if held > MAX_UNPACKED:
-                            raise LookError(_too_large())
+            _tar_members(data, files, large)
     except LookError:
         raise
     except (zipfile.BadZipFile, tarfile.TarError, zlib.error, EOFError, OSError, ValueError,
@@ -365,6 +318,64 @@ def members(data: bytes, filename: str) -> tuple[dict[str, bytes], list[str]]:  
     unread = [f"{len(large)} files larger than {size_text(MAX_FILE)}, not read: "
               + ", ".join(_capped([_label(name) for name in large]))] if large else []
     return files, unread
+
+
+def _zip_members(data: bytes, files: dict[str, bytes], large: list[str]) -> None:
+    """For `members`, a .whl's or .zip's: its files into `files`, those too large into `large`."""
+    held = 0  # the bytes read: never more than MAX_UNPACKED, whatever the headers say
+    # (each entry is read before any is looked at)
+    if data.count(b"PK\x01\x02") > MAX_MEMBERS:
+        raise LookError(f"it holds more than {MAX_MEMBERS} files: it is not read")
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        infos = [info for info in archive.infolist() if not info.is_dir()]
+        if sum(info.file_size for info in infos) > MAX_UNPACKED:
+            raise LookError(_too_large())
+        for info in infos:
+            if stat.S_ISLNK(info.external_attr >> 16):
+                continue
+            if not _wanted(info.filename):
+                files[info.filename] = b""  # (named, not read)
+            elif info.file_size > MAX_FILE:
+                large.append(info.filename)
+            else:
+                with archive.open(info) as member:
+                    text = member.read(info.file_size + 1)
+                if len(text) != info.file_size:  # a zip bomb, or a broken one
+                    raise LookError(
+                        f"{_label(info.filename)} is not the size it says: it is not read")
+                files[info.filename] = text
+                held += len(text)
+                if held > MAX_UNPACKED:
+                    raise LookError(_too_large())
+
+
+def _tar_members(data: bytes, files: dict[str, bytes], large: list[str]) -> None:
+    """For `members`, a .tgz's or .tar.gz's: as `_zip_members`."""
+    held = 0  # the bytes read: never more than MAX_UNPACKED, whatever the headers say
+    inflater = zlib.decompressobj(16 + zlib.MAX_WBITS)
+    inflated = inflater.decompress(data, MAX_UNPACKED + 1)
+    if len(inflated) > MAX_UNPACKED:
+        raise LookError(_too_large())
+    # (a second gzip stream after the first would hold files this reading never sees)
+    if inflater.unused_data:
+        raise LookError("it is more than one gzip stream: it is not read")
+    with tarfile.open(fileobj=io.BytesIO(inflated), mode="r:") as archive:
+        for count, member in enumerate(archive, 1):
+            if count > MAX_MEMBERS:
+                raise LookError(f"it holds more than {MAX_MEMBERS} files: it is not read")
+            if not member.isfile():  # (a link, a device, a folder)
+                continue
+            # (a sparse member's few bytes stand for as many as it says: not read)
+            if not _wanted(member.name) or member.issparse():
+                files[member.name] = b""  # (named, not read)
+            elif member.size > MAX_FILE:
+                large.append(member.name)
+            else:
+                opened = archive.extractfile(member)
+                files[member.name] = opened.read() if opened else b""
+                held += len(files[member.name])
+                if held > MAX_UNPACKED:
+                    raise LookError(_too_large())
 
 
 def _wanted(name: str) -> bool:
@@ -397,7 +408,7 @@ def _module(name: str) -> str:
     return "/".join(parts[:2]) if name.startswith("@") else parts[0]
 
 
-def scan(files: dict[str, bytes]) -> dict:  # noqa: C901
+def scan(files: dict[str, bytes]) -> dict:
     """What the code among `files` names outright (path to bytes; anything else is only
     counted): what it may reach, the programs, addresses and variables it names, whether it
     reads the whole environment, and where it hides what it does."""
@@ -436,6 +447,14 @@ def scan(files: dict[str, bytes]) -> dict:  # noqa: C901
         env += [m.group(m.lastindex or 0) for m in names.finditer(text)]
         whole_env = whole_env or bool(whole.search(text))
         hidden += [f"{what} in {_label(path)}" for what, pattern in hides if pattern.search(text)]
+    return {"read": read, "reaches": {kind: sorted(found) for kind, found in reaches.items()},
+            "programs": _capped(programs), "addresses": _addresses(addresses),
+            "env": _capped(env), "whole_env": whole_env, "hidden": _capped(hidden),
+            "unread": _not_scanned(native, shells)}
+
+
+def _not_scanned(native: list[str], shells: list[str]) -> list[str]:
+    """What `scan` could not read of a package, in words."""
     unread = []
     if native:
         unread.append("native code, which cannot be read as text: "
@@ -443,10 +462,7 @@ def scan(files: dict[str, bytes]) -> dict:  # noqa: C901
     if shells:
         unread.append("the programs its shell scripts run (not listed): "
                       + ", ".join(_capped(shells)))
-    return {"read": read, "reaches": {kind: sorted(found) for kind, found in reaches.items()},
-            "programs": _capped(programs), "addresses": _addresses(addresses),
-            "env": _capped(env), "whole_env": whole_env, "hidden": _capped(hidden),
-            "unread": unread}
+    return unread
 
 
 def _addresses(found: list[str]) -> list[str]:

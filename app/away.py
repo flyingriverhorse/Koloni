@@ -349,7 +349,17 @@ def job_over(session: Session, cid: str, at: datetime | None = None) -> str | No
         hours=hours) else None
 
 
-def go_on(session: Session, project_id: str, runner, at: datetime | None = None) -> bool:  # noqa: C901
+def _cut_over(session: Session, working: list[BacklogTask], runner, at: datetime | None) -> None:
+    """The turns of the jobs at work that have worked their ceiling's hours are cut (`job_over`)."""
+    for task in working:  # (a long command takes no step: the clock looks too)
+        if task.conversation_id and (why := job_over(session, task.conversation_id, at)):
+            for run_id in session.scalars(select(Run.id).where(
+                    Run.conversation_id == task.conversation_id,
+                    Run.status.not_in(backlog.ENDED))):
+                runner.cut(run_id, why)
+
+
+def go_on(session: Session, project_id: str, runner, at: datetime | None = None) -> bool:
     """Where the project is away and no job of it is at work: the next job starts - a new
     one, or one that failed once, again in its chat - or the night ends: every job looked
     at, a limit reached, the month's budget or a provider's limit spent. Whether anything
@@ -365,12 +375,7 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
             return False
         tasks = tasks_of(session, away)
         working = [task for task in tasks if at_work(session, task)]
-        for task in working:  # (a long command takes no step: the clock looks too)
-            if task.conversation_id and (why := job_over(session, task.conversation_id, at)):
-                for run_id in session.scalars(select(Run.id).where(
-                        Run.conversation_id == task.conversation_id,
-                        Run.status.not_in(backlog.ENDED))):
-                    runner.cut(run_id, why)
+        _cut_over(session, working, runner, at)
         if working:
             return False
         task = next((t for t in tasks if t.away_state is None and t.status == "todo"), None)
