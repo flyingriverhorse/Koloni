@@ -105,11 +105,22 @@ OVERFLOW = re.compile(
     # shortcut: its wording as remembered, not confirmed in its docs nor a live refusal; check.
     # shortcut: none for Qwen / DashScope, whose wording is neither confirmed in its docs nor
     # seen: its refusal is not taken as one for size (nothing is summarised for a second try).
-    # shortcut: no CLI's own wording is measured (Claude Code, Codex, Copilot, Qoder, agy; as a
+    # shortcut: no other CLI's own wording is measured (Claude Code, Codex, Qoder, agy; as a
     # session, natively or step by step): one that passes its service's words on is read, any
     # other refusal for size is not. Add each CLI's line once a live refusal is seen.
     r"exceeds the available context size|maximum context length|context_length_exceeded"
-    r"|prompt is too long",
+    r"|prompt is too long"
+    # GitHub Copilot CLI's, read in its package's own code on 14 Nov 2026 with no model called
+    # (`@github/copilot-win32-x64/app.js`, dated July): its `session.error` of errorType
+    # "context_limit" ("The context window is full and the request cannot be processed. ...";
+    # the type itself said after its words: `model_session.copilot_error`), its provider's
+    # words, which its own code matches ("prompt token count of N exceeds the limit of M",
+    # code `model_max_prompt_tokens_exceeded`), and a first input too large ("Initial inputs
+    # exceed the model token limit of N tokens").
+    # shortcut: the `copilot.exe` that runs (5 Nov) is compressed and could not be read, and no
+    # live refusal was seen: these are the July bundle's. Check them at a live refusal.
+    r"|\(context_limit\)|context window is full|model_max_prompt_tokens_exceeded"
+    r"|prompt token count of \d+ exceeds the limit|inputs exceed the model token limit",
     re.IGNORECASE,
 )
 ROLE_WINDOW_LARGER = (

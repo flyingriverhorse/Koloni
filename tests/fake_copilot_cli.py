@@ -123,7 +123,8 @@ for number, action in enumerate(plan.get("script", [])):
         emit("tool.execution_start", {"toolCallId": f"c{number}", "toolName": action["own"]})
         time.sleep(60)
     elif "error" in action:
-        emit("session.error", {"message": action["error"]})
+        emit("session.error", {"message": action["error"], **(
+            {"errorType": action["error_type"]} if "error_type" in action else {})})
         emit("result", exitCode=1, usage={"premiumRequests": 0})
         sys.exit(1)
     elif "exit" in action:

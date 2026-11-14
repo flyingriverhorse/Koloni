@@ -346,7 +346,8 @@ for number, action in enumerate(plan.get("script", [])):
     elif "pause" in action:
         time.sleep(action["pause"])
     elif "error" in action:
-        event("session.error", {"errorType": "model", "message": action["error"]})
+        event("session.error", {"errorType": action.get("error_type", "model"),
+                                "message": action["error"]})
         event("session.idle", {})
         expect("never")
     elif "exit" in action:

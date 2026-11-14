@@ -502,6 +502,45 @@ def copilot_native(settings_env, tmp_path):
         client.__exit__(None, None, None)
 
 
+# Copilot's own words for a context that is full (its package's app.js, read 14 Nov 2026),
+# and its `errorType` alone, whatever its words.
+FULL = ("The context window is full and the request cannot be processed. Try starting a new "
+        "session or compacting the conversation.")
+REFUSALS = [
+    {"error": FULL, "error_type": "context_limit"}, {"error": FULL},
+    {"error": "prompt token count of 130000 exceeds the limit of 128000"},
+    {"error": "400 model_max_prompt_tokens_exceeded"},
+    {"error": "Initial inputs exceed the model token limit of 128000 tokens"},
+    {"error": "it could not go on", "error_type": "context_limit"},
+]
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("refusal", REFUSALS)
+def test_copilots_refusal_for_its_size_is_read_as_one(
+        copilot_app, copilot_native, wait_run, project_dir, native, refusal):
+    from app.agent import OVERFLOW
+
+    client, provider = (copilot_native if native else copilot_app)([refusal])
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    # (Its words reach the turn's failure as they came: what the summary after it reads.)
+    assert run["status"] == "failed" and refusal["error"] in run["error"], run
+    assert OVERFLOW.search(run["error"]), run["error"]
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_another_error_of_copilots_is_no_refusal_for_its_size(
+        copilot_app, copilot_native, wait_run, project_dir, native):
+    from app.agent import OVERFLOW
+
+    client, provider = (copilot_native if native else copilot_app)([
+        {"error": "the model is overloaded", "error_type": "model"}])
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    assert run["status"] == "failed" and not OVERFLOW.search(run["error"]), run["error"]
+
+
 def test_copilot_works_natively_and_what_it_did_is_on_record(
     copilot_native, wait_run, project_dir
 ):

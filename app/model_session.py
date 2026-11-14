@@ -769,6 +769,16 @@ COPILOT_PREFIX = f"{SERVER}-"  # how the Copilot CLI names an MCP server's tools
 COPILOT_FINDS = ("tool_search_tool",)
 
 
+def copilot_error(data: dict) -> str | None:
+    """A `session.error` of Copilot's in its own words - with its `errorType` after them where
+    that says its context is full ("context_limit"): its type holds whatever its words become,
+    and a refusal for size is known by it (`app.agent.loop_mixin.OVERFLOW`). None: no words."""
+    said = data.get("message")
+    if data.get("errorType") != "context_limit":
+        return said
+    return f"{said or 'its context is full'} (context_limit)"
+
+
 def _finds(said: dict, key: str) -> bool:
     """Copilot's own tool search (`COPILOT_FINDS`): by its name, and of no MCP server's."""
     return said.get(key) in COPILOT_FINDS and said.get("mcpServerName") is None
@@ -966,7 +976,7 @@ class CopilotSessionClient(CliSessionClient):
                 blocks.append({"type": "tool_use", "name": name})
             return [{"type": "assistant", "message": {"content": blocks}}] if blocks else []
         if kind == "session.error":
-            return [{"type": "result", "is_error": True, "result": data.get("message")}]
+            return [{"type": "result", "is_error": True, "result": copilot_error(data)}]
         if kind == "result":
             code = event.get("exitCode")
             return [{"type": "result", "is_error": bool(code), "result": f"exit code {code}"}]
