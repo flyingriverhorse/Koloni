@@ -105,13 +105,53 @@ OVERFLOW = re.compile(
     # shortcut: its wording as remembered, not confirmed in its docs nor a live refusal; check.
     # shortcut: none for Qwen / DashScope, whose wording is neither confirmed in its docs nor
     # seen: its refusal is not taken as one for size (nothing is summarised for a second try).
+    # shortcut: no other CLI's own wording is measured (Claude Code, Codex, Qoder, agy; as a
+    # session, natively or step by step): one that passes its service's words on is read, any
+    # other refusal for size is not. Add each CLI's line once a live refusal is seen.
     r"exceeds the available context size|maximum context length|context_length_exceeded"
-    r"|prompt is too long",
+    r"|prompt is too long"
+    # GitHub Copilot CLI's, read in its package's own code on 14 Nov 2026 with no model called
+    # (`@github/copilot-win32-x64/app.js`, dated July): its `session.error` of errorType
+    # "context_limit" ("The context window is full and the request cannot be processed. ...";
+    # the type itself said after its words: `model_session.copilot_error`), its provider's
+    # words, which its own code matches ("prompt token count of N exceeds the limit of M",
+    # code `model_max_prompt_tokens_exceeded`), and a first input too large ("Initial inputs
+    # exceed the model token limit of N tokens").
+    # shortcut: the `copilot.exe` that runs (5 Nov) is compressed and could not be read, and no
+    # live refusal was seen: these are the July bundle's. Check them at a live refusal.
+    r"|\(context_limit\)|context window is full|model_max_prompt_tokens_exceeded"
+    r"|prompt token count of \d+ exceeds the limit|inputs exceed the model token limit",
     re.IGNORECASE,
 )
+
+
+def refused_for_size(exc: ModelUnavailable) -> bool:
+    """Whether a failure is a refusal for its size (`OVERFLOW`) - read only in words that are
+    the provider's or the CLI's own: never where the failure has a class of its own (a limit,
+    no credit), nor where all that says why is the text of a CLI's `result`, which can be the
+    model's words (`model_cli.RESULT_TEXT`: Claude Code's and Qoder's `is_error` result) - a
+    page it read could have it say them, and have its history summarised and its turn run twice.
+    shortcut: so no refusal of Claude Code's or Qoder's own is read at all - no recorded stream
+    in tests/ has such a result, nor a field on it that says it is the CLI's own; read that
+    field (a subtype, the assistant event's `error`) once a live refusal shows one."""
+    return exc.failure is None and bool(OVERFLOW.search(str(exc)))
+
+
 ROLE_WINDOW_LARGER = (
     " (the context window set in its role may be larger than the model's: set it smaller "
     "on the Agents page, or empty it to use the one found)"
+)
+# After a lead's turn that was refused for its size (`AgentRunner._lead_after`), where it
+# could not be started again by itself (`_loop_again`).
+SUMMARISED_FOR_NEXT = (
+    " KOLONİ is summarising its earlier work: send your message again to go on from the summary."
+)
+# KOLONİ's line in the chat where it was (`_loop_again`), and what its failure says where it
+# was refused for its size again after that.
+STARTED_AGAIN = "Its context was full: its earlier work was summarised and the turn started again."
+FULL_AGAIN = (
+    " Its context filled again after KOLONİ summarised its earlier work and started the turn "
+    "again: use Compact now or set a smaller context window on its role."
 )
 
 # A side of a comparison (slice 54) works only in a copy of its own.
@@ -356,7 +396,37 @@ class LoopMixin:
         for payload in payloads:
             self.bus.emit(cid, run_id, "agent.updated", payload)
 
-    async def _attempt(self: "AgentRunner", ctx: Ctx) -> tuple[str, str | None]:
+    async def _loop_again(self: "AgentRunner", ctx: Ctx, info: ModelInfo,
+                          again: bool) -> tuple[str, str | None]:
+        """`_attempt`'s loop. `again` (the user's, 14 Nov 2026): refused for its size, a lead
+        working alone has its older part summarised and is started again from the summary, in
+        the same turn - once: refused so again, it fails, saying what to do.
+        shortcut: a CLI's run is started anew, sent its history again (as its tests at Stop
+        send a session back: `_session_loop`), not gone on with inside its own session; and
+        what a CLI read by itself in the turn is in the summary only as KOLONİ recorded it.
+        shortcut: a CLI's run that failed reported no tokens, so the turn's token limit does
+        not see the first start; count it once a CLI says what a failed run spent."""
+        try:
+            return await self._loop(ctx, info)
+        except ModelUnavailable as exc:
+            refused = refused_for_size(exc)
+            # (The lead as it runs now: its model may have changed since - `_steps_keep_model`.)
+            if not (again and refused and await self._summarised_again(
+                    self._ctxs.get(ctx.agent_id, ctx), info)):
+                if refused:  # (what the summary after its turn goes by: `_summary_after`)
+                    self._refused_size.add(ctx.agent_id)
+                raise
+        await asyncio.sleep(0)  # (a Stop asked for meanwhile lands here: before the line is said)
+        self._koloni_line(ctx.cid, ctx.run_id, STARTED_AGAIN)
+        try:
+            return await self._loop(ctx, info)
+        except ModelUnavailable as exc:
+            if refused_for_size(exc):
+                exc.args = (f"{exc}{FULL_AGAIN}",)
+            raise
+
+    async def _attempt(self: "AgentRunner", ctx: Ctx,
+                       again: bool = False) -> tuple[str, str | None]:
         run_id, cid = ctx.run_id, ctx.cid
         stopped = False
         try:
@@ -395,7 +465,7 @@ class LoopMixin:
                 cid, ctx.agent_id, model_id=info.model_id, model_from=info.model_from
             )
             self._native_no_recipe(ctx)
-            return await self._loop(ctx, info)
+            return await self._loop_again(ctx, info, again)
         except asyncio.CancelledError:
             # Stop reaches the lead from wherever in the tree the work was.
             stopped = True
@@ -1053,7 +1123,7 @@ class LoopMixin:
                 # (Not one too large to be read: that is summarised below, not asked again.)
                 if (exc.retry_in is not None and not self._live[message_id][1]
                         and classify(exc)[0] != "credits_exhausted"
-                        and not OVERFLOW.search(str(exc))):
+                        and not refused_for_size(exc)):
                     # A short failure of its provider's before it wrote a word: asked once
                     # more, as it was, and said on its record. A second failure ends it.
                     # shortcut: not once text has come (it would be shown twice); clear the
@@ -1065,7 +1135,7 @@ class LoopMixin:
                     # older part summarised, it is asked once more - also where its window
                     # is not known: the refusal says it is full.
                     smaller = await self._compact(ctx, info, history, window) if (
-                        not compacts and OVERFLOW.search(str(exc))) else history
+                        not compacts and refused_for_size(exc)) else history
                     # (Asked again only with less: the same size would be refused the same
                     # way.)
                     if smaller is history or sum(map(_size, smaller)) >= sum(
@@ -1102,7 +1172,7 @@ class LoopMixin:
         its role sets above the one found, the failure says so."""
         # Refused for its size, measured against a window its role sets above the one
         # found (or none found): that may be why (59 §3b). The failure stays as it was.
-        if (ctx.context_window and OVERFLOW.search(str(exc)) and ctx.context_window > (
+        if (ctx.context_window and refused_for_size(exc) and ctx.context_window > (
                 info.context_window or 0)):
             exc.args = (f"{exc}{ROLE_WINDOW_LARGER}",)
 

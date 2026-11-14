@@ -64,6 +64,7 @@ from app.model_session import (
     bridge_file,
     build_session_prompt,
     copilot_counts,
+    copilot_error,
     why_picked,
 )
 from app.raw import feed
@@ -3143,7 +3144,7 @@ class CopilotNativeClient(CodexNativeClient):
                     "result": {"content": [{"type": "text", "text": said}]}}}]
             if kind == "session.error":
                 return [{"type": "error", "message": self._hide(
-                    str(data.get("message") or "it failed"))}]
+                    str(copilot_error(data) or "it failed"))}]
             return []
 
         return translate

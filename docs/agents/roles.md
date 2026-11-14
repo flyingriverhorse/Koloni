@@ -86,7 +86,9 @@ Click a role to open its panel. It has four tabs:
   **How much it reads** (the context window) says the window found for its model, and where from. Past the
   % set in **Settings › The app** ("Summarise a long context at (%)") KOLONİ summarizes the older part, unless its CLI
   keeps its own session and does that itself. Where the window is unknown there is no fullness meter and
-  nothing is summarized early. **Set by hand** takes a window of your own.
+  nothing is summarized early - but a CLI lead that starts each turn anew, which is summarized after its turn
+  against the catalogue's window for its model where there is one, which only a very long chat reaches
+  ([Set up a CLI](../models/setup-cli.md#going-on-from-the-last-turn)). **Set by hand** takes a window of your own.
 
   **Who may move it**: **Any provider in the team guide**, **Only these**, or **No one**. An agent that
   moves a sub-agent to another provider must say why.
