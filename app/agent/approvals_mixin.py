@@ -339,7 +339,9 @@ class ApprovalsMixin:
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
             if copy is not None else "") or self._branch_asks(
             ctx, command, copy is not None) or self._night_asks(
-            ctx, command, cwd if where is None else where)
+            # (None where the CLI names no cwd: not known, `with_cwd`.)
+            ctx, command, (cwd if where is None else where)
+            if isinstance(cwd, str) and cwd else None)
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
         noted = {"command": command, **({"reason": reason} if reason else {}),

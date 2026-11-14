@@ -558,6 +558,26 @@ def test_a_command_is_judged_in_the_folder_it_is_said_to_run_in_even_at_full_aut
     assert answers(native_app) == [(RUN, DECLINE), (RUN, DECLINE)]
 
 
+def test_work_in_the_scratch_runs_unasked_where_the_cli_names_its_cwd_a_climb_from_it_waits(
+    native_app, wait_run, project_dir  # noqa: F811
+):
+    # (Codex names where each command runs: its `cd` into the scratch, or a cwd there, is no
+    # card - and a line that then leaves it is judged from there, a card.)
+    work = project_dir / ".koloni" / "tmp" / "work"
+    work.mkdir(parents=True)
+    climb = "echo x > ../../rules.md"
+    client, provider, _ = native_app([
+        {"run": "cd .koloni/tmp/work; python x.py", "cwd": str(project_dir)},
+        {"run": "python x.py", "cwd": str(work)}, {"run": climb, "cwd": str(work)},
+        {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)
+    asked = card_for(client, cid, climb)
+    assert asked["cwd"] == ".koloni/tmp/work" and asked["danger"].startswith("Climbs out")
+    client.post(f"/api/commands/{asked['id']}/reject")
+    wait_run(client, cid, run_id)
+    assert answers(native_app) == [(RUN, ACCEPT), (RUN, ACCEPT), (RUN, DECLINE)]
+
+
 def test_a_projects_own_path_is_not_judged_as_a_protected_folder(
     native_app, wait_run, tmp_path  # noqa: F811
 ):

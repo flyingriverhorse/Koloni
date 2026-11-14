@@ -1009,9 +1009,12 @@ _ENTERS = re.compile(
     r"(?:[/\\][\w-][\w.-]*)*[/\\]?[ \t]*(?:;|&&|\r?\n)", re.IGNORECASE)
 # ...but from inside it `.koloni` is the folder above, reached with no `..` by a line that
 # learns where it is or hands a path on: `$(dirname "$PWD")`, `(gi .).Parent`, `%cd%`, `.?/x`.
-# shortcut: by these spellings, as the rest here - code or a script that builds the path is not
-# seen (it is not from the project's folder either: `names_standing`); K-yazma-denetimi ends it.
-_WHERE = re.compile(r"[$%({]|\.[?*\[]|(?i:pwd|cwd|dirname|parent|location|realpath|abspath|xargs)")
+# shortcut: by these words, each a word of its own (`test_parent.py`, `--parents` are none), as
+# the rest here - code or a script that builds the path, or cmd's `%~dpi`, is not seen (a path
+# built from pieces is not from the project's folder either: `names_standing`);
+# K-yazma-denetimi ends it.
+_WHERE = re.compile(r"\.[?*\[]|(?<!\w)(?i:pwd|oldpwd|cwd|getcwd|dirname|parent|location|gl"
+                    r"|realpath|abspath|xargs)(?!\w)")
 
 
 def _climbs(command: str) -> bool:
@@ -1026,7 +1029,7 @@ def _climbs(command: str) -> bool:
     rest = command[entered.end():]
     read = _as_read(rest)
     # (nothing after it: a shell that keeps its folder would run the next line there)
-    return not rest.strip() or "`" in rest or any(
+    return not rest.strip() or any(
         found.search(text) for found in (_CLIMBS, _WHERE)
         for text in (read, read.replace("\\", "")))
 
@@ -1042,7 +1045,14 @@ def with_cwd(command: str, cwd: object) -> str:
     """A command as it is judged with the folder it is run in (run_command's `cwd`): `cd
     <cwd>; <command>` - so that `cwd=.koloni/tmp` with `echo x > ../settings.json`, or
     `cwd=.claude`, names what it reaches (a `cwd` in the scratch alone is no climb: `_ENTERS`).
-    What runs is the command alone."""
+    What runs is the command alone. `cwd` None: where it runs is not known - a CLI that names
+    none (Claude Code, Qoder) may keep its shell's folder, so its `cd .koloni/tmp; ls` would
+    leave the next line, `echo x > ../rules.md`, in the scratch and judged at the root: such a
+    line is judged as one more change of folder, a card as it was. "." is the root, known.
+    shortcut: a CLI that names its cwd (Codex, agy, Copilot) is trusted to name the folder its
+    shell stands in for each command; measure it if one is seen to keep a `cd` unnamed."""
+    if cwd is None and _ENTERS.match(command):
+        return f"cd .; {command}"
     return f"cd {cwd}; {command}" if isinstance(cwd, str) and cwd not in ("", ".") else command
 
 
@@ -1444,15 +1454,24 @@ def scratch_delete_only(command: str, root: str | None) -> bool:
         return False
     real = [os.path.realpath(os.path.join(root, path)) for path in paths]
     recursive = any(flag.casefold() in _RECURSES for flag in flags)
+    # (What KOLONİ itself keeps there - the browser's profile, the user's screenshots, the
+    # images shown - is not an agent's to empty unasked: `_KOLONIS_OWN`.)
+    own = recursive and any(re.split(r"[/\\]", path.removeprefix("./"))[2].casefold()
+                            in _KOLONIS_OWN for path in paths)
     return all(os.path.normcase(path).startswith(scratch + os.sep) for path in real) and not (
-        names_secret(command) or recursive and any(map(_holds_link, real)))
+        own or names_secret(command) or recursive and _holds_link(real))
 
 
-def _holds_link(top: str) -> bool:
-    """Whether a folder holds a link or a junction anywhere below it, or more than is looked at.
-    shortcut: 10,000 entries, then it is asked - a scratch folder larger than that (a browser's
-    cache) keeps its card; raise it, or walk off the event loop, if that is met."""
-    left, folders = 10_000, [top]
+_KOLONIS_OWN = frozenset({"browser", "images"})  # (`AgentRunner._scratch_folder`'s)
+
+
+def _holds_link(tops: list[str], left: int = 10_000) -> bool:
+    """Whether a line's folders hold a link or a junction anywhere below them, or more than is
+    looked at. shortcut: 10,000 entries (`left`) for the line, then it is asked - a scratch
+    folder larger than that (a browser's cache) keeps its card; raise it, or walk off the event
+    loop, if that is met. shortcut: any link asks - a venv's own symlinks (POSIX) too; tell
+    those that stay in the folder apart if a venv in the scratch is met."""
+    folders = list(tops)
     while folders:
         try:
             with os.scandir(folders.pop()) as found:
@@ -1464,7 +1483,7 @@ def _holds_link(top: str) -> bool:
                         folders.append(entry.path)
         except (FileNotFoundError, NotADirectoryError):  # (a file, or nothing: no folder)
             continue
-        except OSError:  # (not read: not known)
+        except (OSError, ValueError):  # (not read, or a path too long for Windows: not known)
             return True
     return False
 
@@ -1976,8 +1995,14 @@ def search_reason(command: str, root: Path, cwd: str = ".") -> str:
     it is judged by that folder's own rules.
     B-316: a search kept to paths or globs (`sls -Path tests/*.py`, `git grep x -- tests`,
     `rg x src -g '*.py'`) asks only where one of the folder's secret files is in its reach
-    (`_reaches`); one whose scope is not read off the line reaches every one."""
-    if not (scopes := _search_scopes(command, root, cwd)) or not (
+    (`_reaches`); one whose scope is not read off the line reaches every one.
+    A line that begins by entering the scratch (`_ENTERS`, no card of its own) is also judged as
+    if that `cd` failed - sh's `cd .koloni\\tmp\\x; grep -r KEY .` and `sl .koloni/tmp; ...`
+    run the search where the line began."""
+    entered = _ENTERS.match(command)
+    scopes = _search_scopes(command, root, cwd) + (
+        _search_scopes(command[entered.end():], root, cwd) if entered else [])
+    if not scopes or not (
             secrets := secret_files(root)):
         return ""
     held = next((secret for secret in secrets if any(

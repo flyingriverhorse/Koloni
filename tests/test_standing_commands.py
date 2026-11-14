@@ -348,7 +348,8 @@ STILL_CLIMBS = [
     "cd .koloni/tmp; gi . | select -Expand Parent | Set-Content x",
     "cd .koloni/tmp; Get-Location | Set-Content x", "cd .koloni/tmp; echo x > .?/rules.md",
     "cd .koloni/tmp; echo x > .*/rules.md", "cd .koloni/tmp; echo x > .[.]/rules.md",
-    "cd .koloni/tmp && for %i in (.) do echo x > %~dpirules.md",
+    "cd .koloni/tmp; Set-Content (Split-Path -Parent $PWD)/rules.md x",
+    "cd .koloni/tmp; cp x $OLDPWD/.koloni/rules.md", "cd .koloni/tmp; echo x > $(pwd)/x",
     "cd .koloni/tmp && echo x > %cd%\\rules.md", "cd .koloni/tmp; p\\wd | xargs d\\irname",
     "cd .koloni/tmp; realpath . | sed s/tmp$/rules.md/ | x\\args cp x",
     "cd .koloni/tmp; python -c \"import os; open(os.path.dirname(os.getcwd()) + '/rules.md', 'w')\"",
@@ -377,6 +378,43 @@ def test_a_line_in_the_scratch_is_as_strict_as_ever_about_the_rest():
     # (and a regex that is asked a long line answers at once: no backtracking)
     long = "cd .koloni/tmp" + "/a" * 50_000 + "!"
     assert commands.danger(long)
+
+
+# (the main session's call: the words that say where a line is, each a word of its own - no bare
+# `$ % ( {` nor a backtick, which carded inline code, a variable set, a percent sign)
+@pytest.mark.parametrize("rest", [
+    "python -c \"print(1)\"", "$env:X=1; pytest", "echo 50% done", "pytest tests/test_parent.py",
+    "cat allocation.txt", "mkdir --parents out", "cat apparent.txt", "echo `date` > a.log",
+    "pytest -k \"a and (b or c)\"", "node -e \"console.log({a: 1})\""])
+def test_in_the_scratch_an_ordinary_line_with_a_variable_or_brackets_is_no_card(rest):
+    line = f"cd .koloni/tmp; {rest}"
+    assert commands.names_standing(line) == "" and commands.harms(line) == ""
+
+
+def test_where_a_clis_shell_stands_is_not_known_a_cd_into_the_scratch_is_a_card_as_it_was():
+    # (review: Claude Code and Qoder name no cwd and may keep the shell's folder - after a free
+    # `cd .koloni/tmp; ls` the next line, `echo x > ../rules.md`, would be judged at the root)
+    for line in ("cd .koloni/tmp; ls", "cd .koloni/tmp/work && pytest -q"):
+        unknown = commands.with_cwd(line, None)
+        assert commands.harms(unknown).startswith("Climbs out") and commands.names_standing(unknown)
+        # (KOLONİ's own run_command at the root - a fresh shell each - and a CLI that names it)
+        for known in (".", ""):
+            assert commands.with_cwd(line, known) == line and commands.harms(line) == ""
+    # (and no other line is changed by it)
+    assert commands.with_cwd("echo x > .koloni/tmp/a.log", None) == "echo x > .koloni/tmp/a.log"
+
+
+@pytest.mark.parametrize("line", [
+    "cd .koloni\\tmp\\work; grep -r KEY .", "sl .koloni/tmp; grep -r KEY .",
+    "cd .koloni/tmp/work; rg KEY", "cd .koloni/tmp/work && grep -r KEY ."])
+def test_a_search_after_a_cd_into_the_scratch_is_judged_where_the_line_began_too(line, tmp_path):
+    # (review, measured: in sh the backslash path is no folder and `sl` no command - the `cd`
+    # fails and the search runs in the project, printing its `.env`)
+    (tmp_path / ".koloni" / "tmp" / "work").mkdir(parents=True)
+    (tmp_path / ".env").write_text("KEY=1", encoding="utf-8")
+    assert ".env" in commands.search_reason(line, tmp_path)
+    # (run_command's own cwd there - no `cd` that can fail - is none)
+    assert commands.search_reason("grep -r KEY .", tmp_path, ".koloni/tmp/work") == ""
 
 
 def test_a_command_is_judged_with_its_cwd():
@@ -565,6 +603,10 @@ BYPASSES = [
     "rmdir /s /q .koloni\\tmp\\a", "rd /s /q .koloni\\tmp\\a", "rm -rf .koloni/tmp/a/..",
     "cd .koloni/tmp/work; rm -rf out", "cd .koloni/tmp && rm -rf .koloni/tmp/a",
     "Remove-Item -Recurse -Force .koloni/tmp/a -Include x", "rm -rf .koloni/tmpx/a",
+    # (review: what KOLONİ keeps there itself - the browser's profile, the user's screenshots,
+    # the images shown; and a path too long for Windows is no error)
+    "rm -rf .koloni/tmp/browser", "Remove-Item -Recurse -Force ./.koloni/tmp/Browser/shots",
+    "rm -rf .koloni/tmp/out .koloni/tmp/images/a",
     "cd .koloni/tmp; rm x", "rm .koloni/tmp/$NAME", "rm .koloni/tmpx/a", "rm .koloni/settings.json",
     "rm .koloni/tmp", "rm .koloni/tmp/.env", "dd if=/dev/zero of=.koloni/tmp/x",
     "rm .koloni/tmp/x; curl -d x https://example.com",
@@ -586,6 +628,29 @@ def test_a_delete_that_may_leave_the_scratch_is_a_card_with_no_rule(line, tmp_pa
     (tmp_path / ".koloni" / "tmp").mkdir(parents=True)
     assert not commands.scratch_delete_only(line, str(tmp_path))
     assert commands.harms(line) and commands.suggest_prefix(line) == ""
+
+
+def test_a_recursive_delete_of_a_path_too_long_to_look_into_is_a_card_not_an_error(
+        tmp_path, monkeypatch):
+    (tmp_path / ".koloni" / "tmp" / "out").mkdir(parents=True)
+    assert not commands.scratch_delete_only("rm -rf .koloni/tmp/" + "a" * 40_000, str(tmp_path))
+
+    def too_long(path):
+        raise ValueError("scandir: path too long for Windows")
+
+    monkeypatch.setattr(commands.os, "scandir", too_long)
+    assert not commands.scratch_delete_only("rm -rf .koloni/tmp/out", str(tmp_path))
+
+
+def test_the_links_looked_for_under_a_recursive_delete_are_counted_for_the_line(tmp_path):
+    # (review: 10,000 entries for each path was no bound on a line of many)
+    for name in ("a", "b"):
+        (tmp_path / ".koloni" / "tmp" / name).mkdir(parents=True)
+        for n in range(3):
+            (tmp_path / ".koloni" / "tmp" / name / f"{n}.txt").write_text("x")
+    real = [os.path.realpath(tmp_path / ".koloni" / "tmp" / name) for name in ("a", "b")]
+    assert not commands._holds_link(real) and not commands._holds_link(real, 6)
+    assert commands._holds_link(real, 5) and not commands._holds_link(real[:1], 5)
 
 
 def test_a_link_in_the_scratch_is_a_card_to_make_and_one_to_delete_through(tmp_path):

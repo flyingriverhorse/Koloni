@@ -470,6 +470,27 @@ def test_at_full_auto_work_in_the_scratch_and_a_folder_of_it_deleted_run_unasked
     assert snap["commands"][0]["danger"] == "" and len(executor.started) == 3
 
 
+def test_a_cli_that_names_no_cwd_is_still_asked_about_a_cd_into_the_scratch(
+    claude_app, project_dir  # noqa: F811
+):
+    # (review: Claude Code's Bash may keep the folder; its next line, `echo x > ../rules.md`,
+    # would be judged at the root and write .koloni/rules.md unasked - so line one is the card)
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp").mkdir(parents=True)
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "cd .koloni/tmp; ls"}},
+        {**BASH, "input": {"command": "echo x > ../rules.md"},
+         "write": [".koloni/rules.md", "x"]}, {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
+    snap = wait_status(client, cid, "waiting_approval")
+    assert [c["command"] for c in snap["commands"]] == ["cd .koloni/tmp; ls"]
+    assert snap["commands"][0]["status"] == "proposed"
+    assert snap["commands"][0]["danger"].startswith("Climbs out of .koloni/tmp")
+    assert not (project_dir / ".koloni" / "rules.md").exists()
+
+
 def test_at_full_auto_a_delete_in_the_scratch_runs_unasked_one_that_may_leave_it_waits(
     make_client, wait_run, project_dir
 ):
