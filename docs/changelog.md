@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Added
+
+- **Install**: KOLONİ copies its database once a day, at a start, to `runtime/data/backups/` and keeps the last three, beside the copies it makes before an update changes the database ([docs](backup-and-update.md#backups-koloni-makes-by-itself)).
+
 ### Changed
 
 - **Chat**: the Orchestrator no longer stops at a fixed count of steps; it stops when its work is done, when it goes round in circles (it is told once to try another way; then a card asks you **Go on** or **Stop here**, tells you on the desktop and at the project's notification address, and ends the turn with its work kept if nobody answers in 10 minutes), or at a limit you set on the Lead role or a trigger. **Steps an agent may take** now holds sub-agents ([docs](agents/step-limits.md#the-orchestrator-no-step-count)).
