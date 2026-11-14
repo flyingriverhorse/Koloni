@@ -634,3 +634,55 @@ def test_an_agents_own_write_in_the_scratch_leaves_git_status_clean(make_client,
     assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == "tmp/\n.gitignore\n"
     assert subprocess.run(["git", "status", "--porcelain"], cwd=project_dir, capture_output=True,
                           text=True, check=True).stdout == ""
+
+
+def test_claude_codes_own_recursive_delete_in_the_scratch_runs_unasked_at_full_auto(
+    claude_app, wait_run, project_dir  # noqa: F811
+):
+    # (live, 14 Nov 2026: `rm -rf .koloni/tmp/w2` of its Bash was a "Deletes files or disks."
+    # card - the exemption was KOLONİ's own commands' alone)
+    from tests.test_claude_native import BASH
+    from tests.test_claude_native import start as start_claude
+
+    (project_dir / ".koloni" / "tmp" / "w2").mkdir(parents=True)
+    client, provider, _ = claude_app([
+        {**BASH, "input": {"command": "rm -rf .koloni/tmp/w2"}}, {"say": "ok"}])
+    cid, run_id = start_claude(client, project_dir, provider, "full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert [c["status"] for c in snap["commands"]] == ["exited"], snap["commands"]
+
+
+@pytest.mark.parametrize("line, tool, level, under", [
+    ("rm -rf .koloni/tmp", "Bash", "full_auto", False),
+    ("rm -rf .koloni/tmp/browser", "Bash", "full_auto", False),
+    ("rm -rf .koloni/tmp/linked", "Bash", "full_auto", False),
+    ("rm -rf .koloni/tmp/w2/..", "Bash", "full_auto", False),
+    ("rm -rf .koloni/tmp/w2", "Bash", "auto_edit", False),
+    # (where it runs is not known: its PowerShell tool, a sub-agent of its own)
+    ("Remove-Item -Recurse -Force .koloni/tmp/w2", "PowerShell", "full_auto", False),
+    ("rm -rf .koloni/tmp/w2", "Bash", "full_auto", True)])
+def test_claude_codes_delete_that_may_leave_the_scratch_or_runs_elsewhere_is_still_asked(
+    line, tool, level, under, claude_app, project_dir  # noqa: F811
+):
+    from tests.test_claude_native import AGENT, BASH, SUB
+    from tests.test_claude_native import start as start_claude
+
+    scratch = project_dir / ".koloni" / "tmp"
+    for name in ("w2", "browser", "linked/deep"):
+        (scratch / name).mkdir(parents=True)
+    away = project_dir.parent / "away"
+    away.mkdir()
+    if os.name == "nt":
+        import _winapi
+
+        _winapi.CreateJunction(str(away), str(scratch / "linked" / "deep" / "j"))
+    else:
+        os.symlink(away, scratch / "linked" / "deep" / "j")
+    asks = {**BASH, "tool": tool, "input": {"command": line}, **(SUB if under else {})}
+    before = [AGENT, {"system": {"subtype": "task_started", "tool_use_id": "toolu_sub"}}]
+    client, provider, _ = claude_app([*(before if under else []), asks, {"say": "ok"}])
+    cid, _run_id = start_claude(client, project_dir, provider, level)
+    asked = wait_status(client, cid, "waiting_approval")["commands"][0]
+    assert (asked["command"], asked["status"]) == (line, "proposed")
+    os.rmdir(scratch / "linked" / "deep" / "j") if os.name == "nt" else os.unlink(
+        scratch / "linked" / "deep" / "j")

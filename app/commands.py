@@ -984,8 +984,14 @@ def _path_parts(command: str) -> list[str]:
     # profile's cookies): there it is `.koloni`, and asked. shortcut: by that spelling -
     # `.koloni/t*`, `KOLONI~1/tmp` and `.koloni/./tmp` are still `.koloni`, and asked.
     # (`..` split by quotes, a caret or a backtick is `..` to the shell: judged without them.)
+    # (Live: `ls .koloni/tmp; git status --short` asked. A git that only reads - `_git_looks`,
+    # by its bare name - is no such line; but one run inside the scratch, `_ENTERS`: a
+    # repository shaped there could set what git runs, as `reads_here` has it.)
+    entered = bool(_ENTERS.match(command))
     scratch = not _climbs(command) and not any(
-        _git_sub(words)[0] for words in _parts(command))
+        _git_sub(words)[0] and (
+            entered or re.search(r"[\\/]", words[0]) or not _git_looks(words[1:]))
+        for words in _parts(command))
     parts: list[str] = []
     for word in re.split(r"[\s=:<>,;|&()]", re.sub(r"[`^'\"]", "", kept)):
         pieces = [_name(piece) for piece in re.split(r"[\\/]", word)]
@@ -1898,6 +1904,13 @@ _LOOKERS = frozenset({*_READERS, *_LISTERS, "pwd", "get-location", "test-path"}
 _GIT_LOOKS = frozenset({"status", "diff", "log", "show"})
 
 
+def _git_looks(rest: list[str]) -> bool:
+    """Whether git's words (after `git`) only read: one of `_GIT_LOOKS` its first word - no
+    option before it (`-C`, `--git-dir`) -, with nothing that writes a file or runs a program."""
+    return bool(rest) and rest[0] in _GIT_LOOKS and not any(
+        word.startswith(("--output", "--ext-diff", "--textconv")) for word in rest)
+
+
 def only_reads(command: str) -> bool:
     """Whether a command only reads or lists what it names in the folder it runs in: one
     plain command (`Get-Content x`, `ls src`, `git diff`), naming no secret file, nothing
@@ -1919,8 +1932,7 @@ def only_reads(command: str) -> bool:
     if program == "git":
         # (Whole names: git's diff options are not taken cut short - `--outp` is refused, `--text`
         # is its own and only reads.)
-        looks = bool(rest) and rest[0] in _GIT_LOOKS and not any(
-            word.startswith(("--output", "--ext-diff", "--textconv")) for word in rest)
+        looks = _git_looks(rest)
         pieces = [piece for word in rest for piece in re.split(r"[=:,]", word)]  # (`HEAD:a.py`)
     else:
         looks = program in _LOOKERS and not _lists_all(program, rest) and not (

@@ -738,3 +738,26 @@ def test_a_climb_out_of_the_scratch_says_so_and_a_link_is_a_link_first():
     assert commands.harms("echo x > .koloni/settings.json").startswith("Names .koloni")
     for line in ("cmd /c mklink /J .koloni\\tmp\\x ..", "mklink /J .koloni\\tmp\\x .."):
         assert commands.harms(line) == "Makes a link, which can point anywhere."
+
+
+# (live, 14 Nov 2026) `ls -la .koloni/tmp 2>&1; git status --short` asked: any git on the line
+# made the scratch `.koloni`. A git that only reads (`only_reads`' own list) beside it is free.
+@pytest.mark.parametrize("line", [
+    "ls -la .koloni/tmp 2>&1; git status --short", "git diff --stat; cat .koloni/tmp/a.log",
+    "python x.py > .koloni/tmp/out.log && git log -1", "git status > .koloni/tmp/status.txt",
+    "git show HEAD:a.py > .koloni/tmp/a.py", "git diff -- .koloni/tmp/a.log"])
+def test_a_git_that_only_reads_beside_a_scratch_path_is_no_card(line):
+    assert not commands.names_koloni(line) and commands.names_standing(line) == ""
+    assert commands.harms(line) == ""
+
+
+@pytest.mark.parametrize("line", [
+    "git add -f .koloni/tmp/x", "git -C .koloni/tmp/r status", "git stash -u; ls .koloni/tmp",
+    "git clean -fdx .koloni/tmp", "git --git-dir=.koloni/tmp/r/.git status",
+    "git --work-tree .koloni/tmp status", "git status; git add -f .koloni/tmp/x",
+    "git diff --output=.koloni/tmp/x", "git log --ext-diff -- .koloni/tmp",
+    "./git status; ls .koloni/tmp", "git checkout -- .koloni/tmp/a", "git mv .koloni/tmp/a b",
+    "git rm -r .koloni/tmp", "git apply .koloni/tmp/a.patch", "git commit -m x .koloni/tmp/a",
+    "git show HEAD:.koloni/rules.md > .koloni/tmp/r.md", "git branch; ls .koloni/tmp"])
+def test_any_other_git_beside_a_scratch_path_still_asks(line):
+    assert commands.danger(line), line
