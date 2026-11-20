@@ -36,6 +36,16 @@ export function cannotRun(skill: Skill, role: Pick<Role, 'tools' | 'mcp'>, off: 
 const MEASURES = ['Taken in', 'Cost', 'Steps'] as const
 type Measure = (typeof MEASURES)[number]
 
+/** A row's provider, model and role, as far as the record has them. */
+const whereOf = (row: SkillRecordRow) =>
+  `${row.provider_name ?? 'a provider not on record'} · ${row.model_id ? modelName(row.model_id) : 'a model not on record'} · ${row.role_name}`
+/** A row's number in words, by what the bars show. */
+const saidOf = (row: SkillRecordRow, measure: Measure) =>
+  measure === 'Taken in' ? `${row.taken_in}/${row.agents}` : measure === 'Cost' ? money(row.cost) : row.steps === null ? '–' : `${Math.round(row.steps)} steps`
+/** How its agents were given the skill: read by them, whole in their brief - or given and never read. */
+const givenSaid = (row: SkillRecordRow) =>
+  [row.used && `read in ${row.used} of ${row.agents}`, row.in_brief && `given in full in its brief in ${row.in_brief} of ${row.agents}`].filter(Boolean).join(' · ') || 'given, not read'
+
 /** How the models did with a skill, a bar a row - jobs taken in, middle cost or steps - from five jobs on; data, no judgment. */
 export function SkillBars({ rows }: { rows: SkillRecordRow[] }) {
   const [measure, setMeasure] = useState<Measure>('Taken in')
@@ -52,9 +62,9 @@ export function SkillBars({ rows }: { rows: SkillRecordRow[] }) {
         ))}
       </div>
       {rows.map(row => {
-        const where = `${row.provider_name ?? 'a provider not on record'} · ${row.model_id ? modelName(row.model_id) : 'a model not on record'} · ${row.role_name}`
+        const where = whereOf(row)
         const value = measure === 'Taken in' ? row.taken_in : of(row)
-        const said = measure === 'Taken in' ? `${row.taken_in}/${row.agents}` : measure === 'Cost' ? money(row.cost) : row.steps === null ? '–' : `${Math.round(row.steps)} steps`
+        const said = saidOf(row, measure)
         const enough = row.agents >= ENOUGH_JOBS
         return (
           // Given and never read (nor given whole in the brief, R190): greyer - its numbers say little of the skill.
@@ -67,7 +77,7 @@ export function SkillBars({ rows }: { rows: SkillRecordRow[] }) {
             )}
             <span className="mono">{enough ? said : '< 5 jobs'}</span>
             <span className="muted">
-              {[row.used && `read in ${row.used} of ${row.agents}`, row.in_brief && `given in full in its brief in ${row.in_brief} of ${row.agents}`].filter(Boolean).join(' · ') || 'given, not read'}
+              {givenSaid(row)}
             </span>
           </div>
         )
