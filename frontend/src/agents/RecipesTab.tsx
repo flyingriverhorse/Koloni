@@ -740,6 +740,38 @@ interface Props {
  * the chosen part of it on the right. Saved only when the server finds it can run; a ready one is copied to be changed.
  * shortcut: choosing another recipe drops what was changed and not saved, unasked; ask first if work is lost that way.
  */
+/** A refused save, read: `at` what is said at a part, `whole` what is said of the recipe as a whole. */
+function refusedOf(err: unknown, drawn: RecipeGraph) {
+  // The server says what keeps it from running, at the part it is about: shown there. What the request's own check refused (an
+  // empty name, B-108) is said in its words too - not as "graph.steps.0.name: Value error, …".
+  const said = err instanceof ApiError && Array.isArray(err.raw) ? (err.raw as { at?: string | null; msg?: string; loc?: unknown[] }[]) : []
+  const plain = (msg: unknown) => {
+    const words = String(msg ?? '').replace(/^Value error, /, '')
+    return words.charAt(0).toUpperCase() + words.slice(1)
+  }
+  const raw = said.map(one => {
+    const [body, graph, list, index, field] = one.loc ?? []
+    if (body === 'body' && graph === 'name') return { at: null, msg: plain(one.msg) }
+    const of = body === 'body' && graph === 'graph' && (list === 'steps' || list === 'groups') ? drawn[list][index as number] : undefined
+    if (!of) return one
+    // (A Who is one of four shapes, and the check says each it is not: one line for them all.)
+    return { at: of.id, msg: field === 'who' ? 'Who does it is not one the board draws: choose it again' : plain(one.msg) }
+  })
+  const at = raw.filter(one => typeof one.at === 'string')
+  // (Anything else the check refused is said where the request names it.)
+  const whole = [...new Set(raw.filter(one => !one.at).map(one => ('at' in one ? String(one.msg) : `${(one.loc ?? []).filter(part => part !== 'body').join('.')}: ${one.msg}`)))]
+  return { at, whole }
+}
+
+/** What a refused save says of each part, by the part's id: each thing once. */
+function byPart(at: ReturnType<typeof refusedOf>['at']) {
+  const found: Record<string, string[]> = {}
+  for (const one of at) if (!found[one.at as string]?.includes(String(one.msg))) (found[one.at as string] ??= []).push(String(one.msg))
+  return found
+}
+
+const notYet = (things: number) => `It cannot run yet: ${things === 1 ? 'one part says why' : `${things} things to change, each at its part`}.`
+
 export function RecipesTab({ roles, teams, list, projectId, actions, reload, models, providers, onModels }: Props) {
   const recipes = list && typeof list !== 'string' ? list.recipes : []
   const [picked, setChosen] = useState<string | null>(null)
@@ -795,31 +827,12 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
       reload()
       open(opened(saved), recipeKey(saved), saved.project_id && !draft.from ? 'Saved in .koloni/ in this folder (kept in git).' : 'Saved.', false)
     } catch (err) {
-      // The server says what keeps it from running, at the part it is about: shown there. What the request's own check refused (an
-      // empty name, B-108) is said in its words too - not as "graph.steps.0.name: Value error, …".
-      const said = err instanceof ApiError && Array.isArray(err.raw) ? (err.raw as { at?: string | null; msg?: string; loc?: unknown[] }[]) : []
-      const plain = (msg: unknown) => {
-        const words = String(msg ?? '').replace(/^Value error, /, '')
-        return words.charAt(0).toUpperCase() + words.slice(1)
-      }
-      const raw = said.map(one => {
-        const [body, graph, list, index, field] = one.loc ?? []
-        if (body === 'body' && graph === 'name') return { at: null, msg: plain(one.msg) }
-        const of = body === 'body' && graph === 'graph' && (list === 'steps' || list === 'groups') ? draft.graph[list][index as number] : undefined
-        if (!of) return one
-        // (A Who is one of four shapes, and the check says each it is not: one line for them all.)
-        return { at: of.id, msg: field === 'who' ? 'Who does it is not one the board draws: choose it again' : plain(one.msg) }
-      })
-      const at = raw.filter(one => typeof one.at === 'string')
-      // (Anything else the check refused is said where the request names it.)
-      const whole = [...new Set(raw.filter(one => !one.at).map(one => ('at' in one ? String(one.msg) : `${(one.loc ?? []).filter(part => part !== 'body').join('.')}: ${one.msg}`)))]
+      const { at, whole } = refusedOf(err, draft.graph)
       if (at.length) {
-        const found: Record<string, string[]> = {}
-        for (const one of at) if (!found[one.at as string]?.includes(String(one.msg))) (found[one.at as string] ??= []).push(String(one.msg))
-        setProblems(found)
+        setProblems(byPart(at))
         // (Its words in the part's panel, the others' on their ⚠: under a part they lay over its arrows, R57.)
         setPart(at[0].at as string)
-        setError(whole.length ? whole.join('; ') : `It cannot run yet: ${at.length === 1 ? 'one part says why' : `${at.length} things to change, each at its part`}.`)
+        setError(whole.length ? whole.join('; ') : notYet(at.length))
       } else setError(whole.length ? whole.join('; ') : errorText(err))
     }
   }
