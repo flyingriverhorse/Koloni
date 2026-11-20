@@ -172,13 +172,13 @@ async def test_only_the_health_checks_connection_to_this_machine_is_short():
         connects.append((request.url.host, request.url.path, request.extensions["timeout"]["connect"]))
         return httpx2.Response(404)
 
-    for base in ("http://localhost:8080/v1", "http://[::1]:8080/v1", "https://api.example.com/v1"):
+    for base in ("https://api.example.com/v1", "http://[::1]:8080/v1", "http://localhost:8080/v1"):
         client = OpenAICompatClient(base, model_id="m", transport=httpx2.MockTransport(handler))
         await client.reach()
     client._tools_cache["m"] = True
-    await client.info()
-    assert connects == [("localhost", "/props", REACH_CONNECT), ("::1", "/props", REACH_CONNECT),
-                        ("api.example.com", "/props", 5.0), ("api.example.com", "/props", 5.0)]
+    await client.info()  # (this machine's server: its own requests keep 5 s too)
+    assert connects == [("api.example.com", "/props", 5.0), ("::1", "/props", REACH_CONNECT),
+                        ("localhost", "/props", REACH_CONNECT), ("localhost", "/props", 5.0)]
 
 async def test_an_error_names_no_password_or_key_of_the_address():
     # httpx names the URL it asked in its error, user name and password and all.

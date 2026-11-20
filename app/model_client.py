@@ -223,8 +223,8 @@ THIS_HOST = ("localhost", "127.0.0.1", "::1")
 NO_CONNECTION = (httpx2.ConnectError, httpx2.ConnectTimeout)
 # The health check's wait for a connection to this machine (`reach`): Windows tries a refused one
 # again for about 2 s (2.2 s measured), and "localhost" reaches a server on 127.0.0.1 alone only
-# after its ::1 try (0.27 s measured).
-REACH_CONNECT = 0.5
+# after its ::1 try (0.27 s measured) - 1 s, not 0.5, so a busy KOLONİ does not miss it.
+REACH_CONNECT = 1.0
 
 
 def server_of(address: str | None) -> str:

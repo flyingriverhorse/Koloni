@@ -16,8 +16,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Fixed
 
-- **Models**: a model server of your own that has stopped now shows as not answering also when you wrote its model name yourself; before, once its model had answered, KOLONİ kept saying it answered. On Windows the check of a stopped server on this machine takes about half a second instead of about 2.
-- **CLIs**: Qoder's **Native** way of running now says what was measured: the Qoder versions tried so far do not apply KOLONİ's hook, so a native turn stops before Qoder does anything and says to run it as a session. It used to say that Qoder asks before every tool, not yet measured, and that one tool could run before the run stopped ([docs](models/setup-cli.md#how-it-runs)).
+- **Models**: a model server of your own that has stopped now shows as not answering also when you wrote its model name yourself; before, once its model had answered, KOLONİ kept saying it answered. On Windows the check of a stopped server on this machine takes about a second instead of about 2.
+- **CLIs**: Qoder's **Native** way of running now says what was measured, on the Models page and in its agent's window: the Qoder versions tried so far do not apply KOLONİ's hook, so a native turn stops before Qoder does anything and says to run it as a session. It used to say that Qoder asks before every tool, not yet measured, and that one tool could run before the run stopped ([docs](models/setup-cli.md#how-it-runs)).
 - **Chat**: on the card that asks which candidate's work goes on, a candidate that stopped before its end is said to have "stopped before its end", no longer that "nobody is watching this turn".
 
 ## [0.1.3] - 2026-11-20
