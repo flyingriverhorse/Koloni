@@ -25,6 +25,14 @@ interface Props {
   onShowTurn: (runId: string) => void
 }
 
+/** What to do about a trigger that is off: change its last day, switch it on for more, or switch it on once the cause is seen to. */
+const offHint = (off: string) =>
+  off.startsWith('ended: its last day')
+    ? 'To run it more, change its last day (Edit), then switch it on again.'
+    : off.startsWith('ended:')
+      ? 'Switch it on again for more: its runs are counted anew.'
+      : 'Switch it on again when that is seen to.'
+
 /** One trigger as a sentence - when → what - with what it may do, its budget and its last run under it; the rest behind ⋯. */
 export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, onEdit, onDelete, onNewKey, onShowTurn }: Props) {
   const [open, setOpen] = useState(false)
@@ -52,6 +60,61 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
     }
   }
 
+  /** "Recent runs", which folds its last runs open under the card: none while it has not run. */
+  const runsToggle = () =>
+    trigger.runs.length > 0 && (
+      <>
+        {' '}
+        <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? <CaretDown size={11} /> : <CaretRight size={11} />}
+          Recent runs ({trigger.runs.length})
+        </button>
+      </>
+    )
+
+  /** The line under its sentence: off or not, its name, where, what it may do, its budget and end, its last and next run. */
+  const sub = () => (
+    <div className="trigger-sub">
+      {!trigger.enabled && 'off · '}
+      <span className="trigger-name" title={trigger.name}>
+        {trigger.name}
+      </span>{' '}
+      · in {conversation ?? 'a conversation that is gone'} · <span className={trigger.permissions.write || leave !== 'reads only' ? 'trigger-may' : undefined}>{leave}</span> · {budgetOf(trigger.budget)}
+      {trigger.ends && <> · ends {endLine(trigger)}</>} ·{' '}
+      {last ? (
+        <>
+          last run {when(last.at)} · <span className={outcomeTone(last)}>{outcomeOf(last)}</span>
+        </>
+      ) : (
+        'has not run yet'
+      )}
+      {trigger.enabled && trigger.next_at && !slowed && <> · next {when(trigger.next_at)}</>}
+      {runsToggle()}
+    </div>
+  )
+
+  /** Behind ⋯: Edit, a webhook's New key, its changes once there are any, and Delete (asked first). */
+  const menu = () => (
+    <Menu name={`More for ${trigger.name}`} className="icon-btn" title="Edit, new key, changes, delete" face={<DotsThree size={16} weight="bold" />}>
+      <button type="button" role="menuitem" disabled={busy} onClick={onEdit}>
+        Edit
+      </button>
+      {onNewKey && (
+        <button type="button" role="menuitem" disabled={busy} title="For an address that got out: a new one is shown once" onClick={() => setRenewing(true)}>
+          New key
+        </button>
+      )}
+      {trigger.changes.length > 0 && (
+        <button type="button" role="menuitem" onClick={() => setChangesOpen(!changesOpen)}>
+          {changesOpen ? 'Hide changes' : `Changes (${trigger.changes.length})`}
+        </button>
+      )}
+      <button type="button" role="menuitem" disabled={busy} onClick={() => confirm.ask(`Delete ${trigger.name}? It cannot be undone; what was done to it stays on the page.`, 'Delete', () => void act(onDelete), 'Keep it')}>
+        Delete
+      </button>
+    </Menu>
+  )
+
   return (
     <article className={`trigger-card${trigger.enabled ? '' : ' trigger-off'}`} aria-label={trigger.name}>
       <div className="trigger-line">
@@ -60,31 +123,7 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
           <div className="trigger-sentence" title={trigger.message}>
             <strong>{whenOf(trigger)}</strong> → {whatOf(trigger.message)}
           </div>
-          <div className="trigger-sub">
-            {!trigger.enabled && 'off · '}
-            <span className="trigger-name" title={trigger.name}>
-              {trigger.name}
-            </span>{' '}
-            · in {conversation ?? 'a conversation that is gone'} · <span className={trigger.permissions.write || leave !== 'reads only' ? 'trigger-may' : undefined}>{leave}</span> · {budgetOf(trigger.budget)}
-            {trigger.ends && <> · ends {endLine(trigger)}</>} ·{' '}
-            {last ? (
-              <>
-                last run {when(last.at)} · <span className={outcomeTone(last)}>{outcomeOf(last)}</span>
-              </>
-            ) : (
-              'has not run yet'
-            )}
-            {trigger.enabled && trigger.next_at && !slowed && <> · next {when(trigger.next_at)}</>}
-            {trigger.runs.length > 0 && (
-              <>
-                {' '}
-                <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
-                  {open ? <CaretDown size={11} /> : <CaretRight size={11} />}
-                  Recent runs ({trigger.runs.length})
-                </button>
-              </>
-            )}
-          </div>
+          {sub()}
           {/* Decision 2: the server never says its key again - only where the address begins. */}
           {trigger.kind === 'webhook' && (
             <div className="trigger-sub">
@@ -96,33 +135,12 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
           <Play size={12} />
           Run now
         </button>
-        <Menu name={`More for ${trigger.name}`} className="icon-btn" title="Edit, new key, changes, delete" face={<DotsThree size={16} weight="bold" />}>
-          <button type="button" role="menuitem" disabled={busy} onClick={onEdit}>
-            Edit
-          </button>
-          {onNewKey && (
-            <button type="button" role="menuitem" disabled={busy} title="For an address that got out: a new one is shown once" onClick={() => setRenewing(true)}>
-              New key
-            </button>
-          )}
-          {trigger.changes.length > 0 && (
-            <button type="button" role="menuitem" onClick={() => setChangesOpen(!changesOpen)}>
-              {changesOpen ? 'Hide changes' : `Changes (${trigger.changes.length})`}
-            </button>
-          )}
-          <button type="button" role="menuitem" disabled={busy} onClick={() => confirm.ask(`Delete ${trigger.name}? It cannot be undone; what was done to it stays on the page.`, 'Delete', () => void act(onDelete), 'Keep it')}>
-            Delete
-          </button>
-        </Menu>
+        {menu()}
       </div>
       {off && (
         <div role="alert" className="composer-warning trigger-off-why">
           {off}{' '}
-          {off.startsWith('ended: its last day')
-            ? 'To run it more, change its last day (Edit), then switch it on again.'
-            : off.startsWith('ended:')
-              ? 'Switch it on again for more: its runs are counted anew.'
-              : 'Switch it on again when that is seen to.'}
+          {offHint(off)}
         </div>
       )}
       {slowed && (
