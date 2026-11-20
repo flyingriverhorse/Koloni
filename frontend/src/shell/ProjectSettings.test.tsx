@@ -809,3 +809,25 @@ test('K-dal-takim D2: how a finished branch reaches yours - a pull request greye
   expect(onSave).toHaveBeenLastCalledWith({ finish_way: 'pull_request' })
   get.mockRestore()
 })
+
+test('what the folder’s settings ask for is said in words, each part only when asked', () => {
+  const docker = { ...project, exec_location: 'docker' as const, docker_image: 'saved:1' }
+  const cases: [Project, Project['koloni']['asks'], string][] = [
+    [project, { exec_location: 'host' }, 'run commands on this machine'],
+    [docker, { exec_location: 'host', docker_network: false }, 'run commands on this machine, without network access'],
+    // where commands run is not asked, but they run in Docker here and its image is: said as where they run
+    [docker, { docker_image: 'asked:2' }, 'run commands in Docker image asked:2'],
+    // Docker asked for with no image of its own: the saved one
+    [project, { exec_location: 'docker' }, 'run commands in Docker image null'],
+    [docker, { exec_location: 'docker' }, 'run commands in Docker image saved:1'],
+    [project, { docker_image: null }, 'use the Docker image none'],
+    [project, { docker_network: true }, 'with network access'],
+    [project, { search_order: 'cli' }, 'search with a CLI first'],
+    [project, { search_order: 'builtin', docker_network: false }, 'without network access, search with the built-in search first'],
+  ]
+  for (const [saved, asks, said] of cases) {
+    const { unmount } = render(<ProjectSettings {...base} project={{ ...saved, koloni: { ...saved.koloni, settings_kept: true, asks } }} onSave={vi.fn()} onUseKoloni={vi.fn()} />)
+    expect(screen.getByRole('group', { name: 'This folder’s settings' })).toHaveTextContent(`This folder’s settings ask to ${said} — use them?`)
+    unmount()
+  }
+})
