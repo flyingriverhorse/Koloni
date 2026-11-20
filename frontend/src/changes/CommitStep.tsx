@@ -15,6 +15,34 @@ interface Props {
   onCommit: (message: string, hooks?: 'with' | 'without') => Promise<void>
 }
 
+type Offer = NonNullable<Merge['commit']>
+
+// K-dal-takim D2: the branch went to GitHub as a pull request - what was pushed, and where it is.
+const pullRequest = (offer: Offer, name: string) => (
+  <div className="muted cmd-approval-note" role="group" aria-label={`Pull request of ${name}'s changes`}>
+    Pushed to <span className="mono">{offer.pushed}</span> as one commit (<span className="mono">{offer.sha?.slice(0, 10)}</span>)
+    and opened a pull request:{' '}
+    <a href={offer.url ?? undefined} target="_blank" rel="noreferrer">
+      {offer.url}
+    </a>
+    . Nothing was merged here, and KOLONİ never merges it.
+    {offer.notes?.map(note => (
+      <div key={note}>{note}.</div>
+    ))}
+  </div>
+)
+
+/** A commit that was made: which one it is, of how many files, and what it holds. */
+const committed = (offer: Offer, name: string, taken: number) => (
+  <div className="muted cmd-approval-note" role="group" aria-label={`Commit of ${name}'s changes`}>
+    Committed {files(taken)} of {name}'s as <span className="mono">{offer.sha?.slice(0, 10)}</span>: {offer.message}
+    {offer.notes?.map(note => (
+      <div key={note}>{note}.</div>
+    ))}
+    {offer.holds && <pre className="cmd-approval-command mono">{offer.holds}</pre>}
+  </div>
+)
+
 /**
  * What was taken from an agent is in the project: the commit of those files, offered - and made
  * only by your own click, with the message as you leave it. "Not now" puts it aside; it stays
@@ -34,34 +62,9 @@ export function CommitStep({ merge, name, onCommit }: Props) {
       </div>
     )
   }
-  if (offer.state === 'pull_request') {
-    // K-dal-takim D2: the branch went to GitHub as a pull request - what was pushed, and where it is.
-    return (
-      <div className="muted cmd-approval-note" role="group" aria-label={`Pull request of ${name}'s changes`}>
-        Pushed to <span className="mono">{offer.pushed}</span> as one commit (<span className="mono">{offer.sha?.slice(0, 10)}</span>)
-        and opened a pull request:{' '}
-        <a href={offer.url ?? undefined} target="_blank" rel="noreferrer">
-          {offer.url}
-        </a>
-        . Nothing was merged here, and KOLONİ never merges it.
-        {offer.notes?.map(note => (
-          <div key={note}>{note}.</div>
-        ))}
-      </div>
-    )
-  }
+  if (offer.state === 'pull_request') return pullRequest(offer, name)
   const taken = merge.files.filter(f => f.state === 'applied').map(f => f.path)
-  if (offer.state === 'committed') {
-    return (
-      <div className="muted cmd-approval-note" role="group" aria-label={`Commit of ${name}'s changes`}>
-        Committed {files(taken.length)} of {name}'s as <span className="mono">{offer.sha?.slice(0, 10)}</span>: {offer.message}
-        {offer.notes?.map(note => (
-          <div key={note}>{note}.</div>
-        ))}
-        {offer.holds && <pre className="cmd-approval-command mono">{offer.holds}</pre>}
-      </div>
-    )
-  }
+  if (offer.state === 'committed') return committed(offer, name, taken.length)
   if (aside) {
     return (
       <div className="change-actions" role="group" aria-label={`Commit of ${name}'s changes`}>
@@ -87,6 +90,23 @@ export function CommitStep({ merge, name, onCommit }: Props) {
       setBusy(false)
     }
   }
+
+  /** The commit's own buttons: the one Commit, or - where it asks - with the hooks or without. */
+  const commits = (asks: Offer['asks']) =>
+    asks ? (
+      <>
+        <button type="button" className="btn btn-small" disabled={busy || message.trim() === ''} onClick={() => commit('with')}>
+          Commit with them
+        </button>
+        <button type="button" className="btn btn-small" disabled={busy || message.trim() === ''} onClick={() => commit('without')}>
+          Commit without them
+        </button>
+      </>
+    ) : (
+      <button type="button" className="btn btn-small btn-primary" disabled={busy || message.trim() === ''} onClick={() => commit()}>
+        Commit
+      </button>
+    )
 
   return (
     <div className="cmd-approval" role="group" aria-label={`Commit of ${name}'s changes`}>
@@ -131,20 +151,7 @@ export function CommitStep({ merge, name, onCommit }: Props) {
         </div>
       )}
       <div className="change-actions">
-        {offer.asks ? (
-          <>
-            <button type="button" className="btn btn-small" disabled={busy || message.trim() === ''} onClick={() => commit('with')}>
-              Commit with them
-            </button>
-            <button type="button" className="btn btn-small" disabled={busy || message.trim() === ''} onClick={() => commit('without')}>
-              Commit without them
-            </button>
-          </>
-        ) : (
-          <button type="button" className="btn btn-small btn-primary" disabled={busy || message.trim() === ''} onClick={() => commit()}>
-            Commit
-          </button>
-        )}
+        {commits(offer.asks)}
         <button type="button" className="btn btn-small" disabled={busy} onClick={() => setAside(true)}>
           Not now
         </button>
