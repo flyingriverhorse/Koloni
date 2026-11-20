@@ -155,3 +155,20 @@ def test_a_conversation_whose_sub_agents_changes_wait_for_the_user_says_so_on_th
     assert client.post(f"/api/merges/{snap['merges'][0]['id']}/reject").status_code == 200
     wait_run(client, cid, run_id)
     assert on_board(board(client, pid), cid)["merges_pending"] == 0
+
+
+def test_a_kept_copy_to_take_in_waits_on_the_board_as_in_its_chat(settings_env, project_dir):
+    # (live, 20 Nov 2026: a Coder's copy kept at its step limit showed under Ready to take in in
+    # its chat, but the board counted only a pending card - Ready said nothing waits, no toast)
+    from app.db.models import Merge
+    from tests.test_copy_later_scenarios import again, interrupted
+
+    cid = interrupted(settings_env, project_dir)
+    with again(settings_env) as client:
+        (card,) = client.get(f"/api/conversations/{cid}").json()["merges"]
+        assert card["status"] == "kept" and card["files"], card
+        assert on_board(client.get("/api/board").json(), cid)["merges_pending"] == 1
+        with client.app.state.runner._factory() as session:  # (one that holds no file: none)
+            session.get_one(Merge, card["id"]).files = []
+            session.commit()
+        assert on_board(client.get("/api/board").json(), cid)["merges_pending"] == 0

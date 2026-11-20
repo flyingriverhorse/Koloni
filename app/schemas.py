@@ -1811,7 +1811,8 @@ class BoardConversation(BaseModel):
     conversation_id: str
     title: str
     agents: list[BoardAgent]
-    # Its agents' changes that wait for the user's decision (a merge card in its chat).
+    # Its agents' changes that wait for the user's decision (a merge card in its chat), and its
+    # copies kept for Take in that hold a file.
     merges_pending: int
     # Its last turn; None before its first.
     turn: BoardTurn | None
