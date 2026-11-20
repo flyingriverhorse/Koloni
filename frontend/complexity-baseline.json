@@ -7,7 +7,6 @@
   "src/agents/RolePanel.tsx::RolePanel": 29,
   "src/agents/teamRequests.ts::standsLine": 13,
   "src/agents/teamRun.ts::readyLine>map": 15,
-  "src/agents/TeamsBoard.tsx::TeamRow": 19,
   "src/App.tsx::App": 91,
   "src/backlog/Away.tsx::JobRow": 24,
   "src/backlog/BacklogPage.tsx::BacklogPage": 27,

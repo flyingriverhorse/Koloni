@@ -108,6 +108,9 @@ const LEAD_PARTS: [string, PanelTab][] = [
   ['Tools', 'Tools'],
 ]
 
+/** While a role is marked: the team's box lit where it is a member, dimmed where it is not. */
+const boxMark = (marked: RowProps['marked'], hit: boolean) => (marked ? (hit ? ' team-box-hit' : ' team-box-dim') : '')
+
 /** A team (slice 63b): one line folded - its stages, faces, default recipe, lead; open, its lead, stages side by side and foot. */
 function TeamRow({ team, projectId = null, colour, roles, categories, recipes, selected, marked, dragging, open, onToggle, onOpen, onPatch, actions, act, say, onNewRole, models, providers = [] }: RowProps) {
   const [edit, setEdit] = useState<'rename' | 'delete' | 'stage' | null>(null)
@@ -149,8 +152,29 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
     event.preventDefault()
     if (stageOf(role.id)?.id !== stage.id) place(role, stage)
   }
+  /** The team's lead, on top of its stages: who it is shown as, when it steps in, and the ways into its parts. */
+  const leadRow = () => (
+    <div className={`team-lead-row${team.lead_on ? '' : ' team-lead-off'}${selected === lead.id ? ' team-lead-chosen' : ''}`}>
+      <Avatar name={team.name} colour={colour} />
+      <span className="team-lead-what">
+        <button type="button" className="team-lead-name" aria-current={selected === lead.id || undefined} onClick={() => onOpen(lead.id)}>
+          {lead.name}
+        </button>
+        <span className="muted">— shown as {team.name} coordinator</span>
+        <span className="muted">{team.lead_on ? ruleText(lead, providers) : `Off: the Orchestrator always runs ${team.name} itself`}</span>
+      </span>
+      {team.lead_on && <span className="muted team-lead-when">{LEAD_WHEN}</span>}
+      <span className="team-lead-links">
+        {LEAD_PARTS.map(([title, tab]) => (
+          <button key={title} type="button" className="link-btn" aria-label={`${lead.name}: ${title}`} onClick={() => onOpen(lead.id, tab)}>
+            {title}
+          </button>
+        ))}
+      </span>
+    </div>
+  )
   return (
-    <section className={`team-box${marked ? (hit ? ' team-box-hit' : ' team-box-dim') : ''}`} aria-label={team.name} style={{ '--c': colour } as CSSProperties}>
+    <section className={`team-box${boxMark(marked, hit)}`} aria-label={team.name} style={{ '--c': colour } as CSSProperties}>
       <div className="team-head">
         <button type="button" className="team-toggle" aria-expanded={open} onClick={onToggle}>
           <span className="team-chev" aria-hidden="true">
@@ -200,24 +224,7 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
       </div>
       {open && (
         <div className="team-open">
-          <div className={`team-lead-row${team.lead_on ? '' : ' team-lead-off'}${selected === lead.id ? ' team-lead-chosen' : ''}`}>
-            <Avatar name={team.name} colour={colour} />
-            <span className="team-lead-what">
-              <button type="button" className="team-lead-name" aria-current={selected === lead.id || undefined} onClick={() => onOpen(lead.id)}>
-                {lead.name}
-              </button>
-              <span className="muted">— shown as {team.name} coordinator</span>
-              <span className="muted">{team.lead_on ? ruleText(lead, providers) : `Off: the Orchestrator always runs ${team.name} itself`}</span>
-            </span>
-            {team.lead_on && <span className="muted team-lead-when">{LEAD_WHEN}</span>}
-            <span className="team-lead-links">
-              {LEAD_PARTS.map(([title, tab]) => (
-                <button key={title} type="button" className="link-btn" aria-label={`${lead.name}: ${title}`} onClick={() => onOpen(lead.id, tab)}>
-                  {title}
-                </button>
-              ))}
-            </span>
-          </div>
+          {leadRow()}
           <div className="team-lanes">
             {team.stages.map((stage, at) => {
               const here = stage.roles.flatMap(id => byId.get(id) ?? [])
