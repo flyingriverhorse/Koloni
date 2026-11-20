@@ -67,7 +67,6 @@
   "src/chat/ToolRow.tsx::ToolRow": 17,
   "src/chat/toolSummary.ts::toolSummary": 48,
   "src/chat/TurnSummary.tsx::TurnSummary": 16,
-  "src/commands/commandStatus.ts::commandStatus": 23,
   "src/commands/WebApproval.tsx::WebApproval": 28,
   "src/inspector/Inspector.tsx::Inspector": 77,
   "src/knowledge/KnowledgePage.tsx::Card": 74,
