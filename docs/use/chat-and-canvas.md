@@ -103,8 +103,15 @@ box shows what they said to each other, titled "*A* ↔ *B*". Drag it by its tit
 arrow keys on its grip. This browser keeps one place for it, the same in every chat. A double click on
 its title, or Enter on its grip, puts it back.
 
-A plan turn (see [Plan first](plan-first.md#on-the-canvas)) shows a small **Plan** node. In the work
-turn of an approved plan, the plan stands over the Orchestrator, on a dashed line down to it.
+A plan turn (see [Plan first](plan-first.md#on-the-canvas)) shows a small **Plan** node under your
+message, on a short dashed line down from it. In the work turn of an approved plan, the plan stands over
+the Orchestrator, on a dashed line down to it.
+
+In a turn with no team, a discussion or room stands in the column after the agent that opened it, above
+its members. Each member's dotted line, in a colour of its own, goes round the right side of that column
+and comes into the discussion or room from the right, with an arrow. An agent waiting for a file another
+agent in its column holds is joined to it the same way. Click a discussion or a room to light the agents
+in it.
 
 In a turn with teams, each team has a frame. Discussions and rooms between teams stand in a lane of their
 own, outside every frame; a room opened with two teams' leads stands there too. A member's dotted line
