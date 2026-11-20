@@ -1,5 +1,5 @@
 /**
- * What the chat's closed line says, and how tall it is open: kept apart from the panel so
+ * What the chat's closed line says, and how wide it is open: kept apart from the panel so
  * that each can be checked on its own.
  */
 import { titleOf } from '../agents/agentStatus'
@@ -7,21 +7,21 @@ import type { Message, Question } from '../api/types'
 import { activeRun, type ConvState } from '../state/applyEvent'
 import { waitingOf } from './waiting'
 
-export const HEIGHT_KEY = 'koloni-chat-height'
-/** How tall the open box is, as a share of the canvas: at first, at most, at least. (At most: the canvas less TOP px - ChatPanel.) */
+export const WIDTH_KEY = 'koloni-chat-width'
+/** How wide the open column is, in px: at first, at least, at most (base.css also holds it to 60% of the stage). */
+export const WIDTH = 420
+export const NARROWEST = 340
+export const WIDEST = 760
+/** How tall the Workspace window is while the chat is closed, as a share of the canvas (open, it stands full height beside it). */
 export const HEIGHT = 0.45
-export const MOST = 1
-export const LEAST = 0.2
-/** What the open chat leaves of the canvas above it, at its tallest (slice 38e: the user's wish; 50% before). */
-export const TOP = 16
 
-/** The height this browser kept for the chat; the default where there is none it can have. */
-export function storedHeight(): number {
+/** The width this browser kept for the open chat; the default where there is none it can have. */
+export function storedWidth(): number {
   try {
-    const kept = Number(localStorage.getItem(HEIGHT_KEY) ?? NaN)
-    return kept >= LEAST && kept <= MOST ? kept : HEIGHT
+    const kept = Number(localStorage.getItem(WIDTH_KEY) ?? NaN)
+    return kept >= NARROWEST && kept <= WIDEST ? kept : WIDTH
   } catch {
-    return HEIGHT
+    return WIDTH
   }
 }
 

@@ -1,7 +1,7 @@
 // Slice 38e in the browser: the chat as the reference has it - a small box to type in while
-// closed, Workspace beside it - and its window and the Workspace window dragged anywhere
-// on the canvas, the nodes at work kept clear of them wherever they are. And (from the user's
-// report, 16 October) the message box and Send always inside the open chat, whatever the tab.
+// closed, Workspace beside it - and the Workspace window dragged anywhere on the canvas beside
+// the open chat's column (0.1.4), the nodes at work kept clear of both wherever it is. And (from
+// the user's report, 16 October) the message box and Send always inside the open chat, whatever the tab.
 import { expect, test, type Locator, type Page } from './fixtures'
 import { OWN, more, openFreshConversation, say, settled, shot } from './helpers'
 
@@ -26,7 +26,7 @@ async function reject(chat: Locator) {
   await expect(chat.getByRole('button', { name: 'Stop' })).toBeHidden({ timeout: 15_000 })
 }
 
-/** Drags a window by a point of its header (left of its middle, clear of its buttons) by (dx, dy). */
+/** Drags a window by its grip, at the left of its header, by (dx, dy). */
 async function drag(page: Page, header: Locator, dx: number, dy: number) {
   const at = await box(header.locator('.move-grip'))
   const [x, y] = [at.x + at.width / 2, at.y + at.height / 2]
@@ -39,7 +39,7 @@ async function drag(page: Page, header: Locator, dx: number, dy: number) {
 test.describe('at the size of the user’s window', () => {
   test.use({ viewport: { width: 1017, height: 672 } })
 
-  test('in every tab, at the least height and the first, the message box and Send are inside the open chat (the user’s report)', async ({ page }) => {
+  test('in every tab, at the least width and the first, the message box and Send are inside the open chat (the user’s report)', async ({ page }) => {
     test.setTimeout(120_000)
     await openFreshConversation(page)
     const chat = chatOf(page)
@@ -57,8 +57,8 @@ test.describe('at the size of the user’s window', () => {
     const waiting = room.getByRole('region', { name: 'Waits for you' })
     await expect(waiting.getByText('Shall the greeting stay hi?')).toBeVisible({ timeout: 20_000 })
 
-    for (const [height, kept] of [['the least', '0.2'], ['the first', null]] as const) {
-      await page.evaluate(share => (share ? localStorage.setItem('koloni-chat-height', share) : localStorage.removeItem('koloni-chat-height')), kept)
+    for (const [width, kept] of [['the least', '340'], ['the first', null]] as const) {
+      await page.evaluate(px => (px ? localStorage.setItem('koloni-chat-width', px) : localStorage.removeItem('koloni-chat-width')), kept)
       await page.reload()
       for (const tab of ['Chat', 'Talk', 'Notes']) {
         await chat.getByRole('tab', { name: new RegExp(`^${tab}`) }).click()
@@ -69,7 +69,7 @@ test.describe('at the size of the user’s window', () => {
         }
         const [around, send, model, message] = await Promise.all([box(chat), box(chat.getByRole('button', { name: /^(Send|Queue)$/ })), box(chat.getByRole('button', { name: /^Model: / })), box(chat.getByLabel('Message'))])
         for (const [what, part] of [['Send', send], ['the model', model], ['the message box', message]] as const)
-          expect(inside(part, around), `${what} inside the chat on its ${tab} tab at ${height} height`).toBe(true)
+          expect(inside(part, around), `${what} inside the chat on its ${tab} tab at ${width} width`).toBe(true)
       }
     }
     // (The room is left over: the Coder answered, so that it ends. After the reload it is a tab at the canvas's foot.)
@@ -112,44 +112,7 @@ test.describe('on a large window', () => {
     expect(await hits(chat.getByRole('button', { name: 'Send' }), '.composer-actions')).toBe(true)
   })
 
-  test('the open chat is dragged anywhere on the canvas and never off it; it is there after a reload; a double click puts it back in its corner', async ({ page }) => {
-    await openFreshConversation(page)
-    const chat = chatOf(page)
-    const header = chat.locator('.chat-top')
-    const stage = await box(page.locator('.stage'))
-    const corner = await box(chat)
-    await drag(page, header, 400, -200)
-    const moved = await box(chat)
-    expect(Math.round(moved.x - corner.x)).toBe(400)
-    expect(Math.round(moved.y - corner.y)).toBe(-200)
-    // Far past the right and top edges: it stops at them.
-    await drag(page, header, 2000, -2000)
-    const stopped = await box(chat)
-    expect(Math.round(stopped.x + stopped.width)).toBe(Math.round(stage.x + stage.width))
-    expect(Math.round(stopped.y)).toBe(Math.round(stage.y))
-    await page.reload()
-    await expect(chat.getByLabel('Message')).toBeVisible()
-    expect(await box(chat)).toEqual(stopped)
-    // Its height still changes from its top edge, where it was moved to: up to half the canvas.
-    await expect(chat.getByRole('separator', { name: 'Chat height' })).toHaveAttribute('aria-valuenow', '45')
-    await chat.getByRole('separator', { name: 'Chat height' }).focus()
-    await page.keyboard.press('ArrowDown')
-    await expect.poll(async () => Math.round((await box(chat)).height / stage.height * 100)).toBe(40)
-    expect(inside(await box(chat), stage)).toBe(true)
-    // The keyboard: 16 px an arrow, from its handle.
-    const before = await box(chat)
-    await chat.getByRole('button', { name: 'Move chat' }).focus()
-    await page.keyboard.press('ArrowLeft')
-    await page.keyboard.press('ArrowLeft')
-    expect(Math.round(before.x - (await box(chat)).x)).toBe(32)
-    await header.dblclick({ position: { x: 4, y: 12 } })
-    const back = await box(chat)
-    expect(Math.round(back.x - stage.x)).toBe(14)
-    expect(Math.round(stage.y + stage.height - back.y - back.height)).toBe(14)
-    expect(back.x).toBe(corner.x)
-  })
-
-  test('the chat and the Workspace window dragged over the canvas: the nodes at work stay on it, clear of both where they are; the one used last is in front', async ({ page }) => {
+  test('the Workspace window dragged over the canvas beside the chat’s column: the nodes at work stay on it, clear of both where they are; the one used last is in front', async ({ page }) => {
     test.setTimeout(90_000)
     await openFreshConversation(page)
     const chat = chatOf(page)
@@ -166,9 +129,8 @@ test.describe('on a large window', () => {
     try {
       const running = page.locator('.react-flow__node').filter({ has: page.locator('.node-running') })
       await expect(page.locator('.react-flow__node-agent .node-running', { hasText: 'slow.py' })).toHaveCount(1, { timeout: 15_000 })
-      // The view window up to the top right of the canvas - over the nodes at work - and the chat up to its top left.
+      // The view window up to the top right of the canvas - over the nodes at work.
       await drag(page, view.locator('.view-top'), 170, -440)
-      await drag(page, chat.locator('.chat-top'), 0, -440)
       const clear = async () => {
         const [stage, over, beside] = [await box(page.locator('.canvas-flow')), await box(view), await box(chat)]
         const nodes = await Promise.all((await running.all()).map(node => node.boundingBox()))
@@ -186,11 +148,10 @@ test.describe('on a large window', () => {
       await expect(view.getByRole('button', { name: 'Move workspace' })).toHaveCount(0)
       await view.getByRole('button', { name: 'Shrink workspace' }).click()
       await expect.poll(clear).toBe(true)
-      // In opposite corners - the chat to the bottom right, the view to the top left - the nodes at work are between them.
-      await drag(page, chat.locator('.chat-top'), 2000, 2000)
-      await drag(page, view.locator('.view-top'), -2000, 0)
+      // The view in the bottom right corner, the chat's column at the left: the nodes at work are between them.
+      await drag(page, view.locator('.view-top'), 2000, 2000)
       await expect.poll(clear).toBe(true)
-      // Moved as far into the bottom right as it goes, the chat leaves the canvas's zoom buttons (slice 66) to be pressed.
+      // Moved as far into the bottom right as it goes, the view leaves the canvas's zoom buttons (slice 66) to be pressed.
       const zoomIn = page.getByRole('button', { name: 'Zoom In' })
       const at = await box(zoomIn)
       expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.react-flow__controls'), [at.x + at.width / 2, at.y + at.height / 2])).toBe(true)
@@ -258,9 +219,8 @@ for (const theme of ['light', 'dark'] as const)
     await expect(viewOf(page).getByRole('img', { name: 'chart39.png' })).toBeVisible()
     await settled(page)
     await snap('images')
-    // The view window to the top left, the chat to the bottom right; Fit View draws the turn between them.
-    await drag(page, viewOf(page).locator('.view-top'), -2000, -2000)
-    await drag(page, chat.locator('.chat-top'), 2000, 2000)
+    // The view window to the bottom right, the chat's column at the left; Fit View draws the turn between them.
+    await drag(page, viewOf(page).locator('.view-top'), 2000, 2000)
     await page.getByRole('button', { name: 'Fit View' }).click()
     await settled(page)
     const [stage, nodes] = [await box(page.locator('.canvas-flow')), await page.locator('.react-flow__node').all()]
@@ -270,7 +230,6 @@ for (const theme of ['light', 'dark'] as const)
     }
     await snap('moved')
     await page.setViewportSize({ width: 1017, height: 672 })
-    await chat.locator('.chat-top').dblclick({ position: { x: 4, y: 12 } })
     await viewOf(page).getByRole('button', { name: 'Close workspace' }).click()
     await chat.getByRole('tab', { name: 'Notes' }).click()
     await settled(page)
@@ -307,14 +266,23 @@ for (const theme of ['light', 'dark'] as const)
       await reject(chat)
     })
 
-// R56: with "Ask before changes" chosen the row went on two lines in a chat 240px wide. One line down to the narrowest chat (220px).
-for (const width of [574, 554])
-  test(`the row under the message box is one line in a chat ${width - 334}px wide, "Ask before changes" chosen`, async ({ page }) => {
+/** The open chat as wide as `width` (the user's, kept in this browser), on a large window. */
+async function chatWide(page: Page, width: number) {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.addInitScript(px => localStorage.setItem('koloni-chat-width', String(px)), width)
+  await openFreshConversation(page)
+  expect(Math.round((await box(chatOf(page))).width)).toBe(width)
+}
+
+// R56: with "Ask before changes" chosen the row went on two lines in a chat 240px wide. One line down to the narrowest
+// chat (220px then; 340px since the chat is a column, 0.1.4 - on a window too narrow for it, as here, it is 340px too).
+for (const width of [574])
+  test('the row under the message box is one line in the narrowest chat, "Ask before changes" chosen', async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await openFreshConversation(page)
     const chat = chatOf(page)
     await expect(page.getByLabel('Permission level')).toHaveValue('ask')
-    expect(Math.round((await box(chat)).width)).toBe(width - 334)
+    expect(Math.round((await box(chat)).width)).toBe(340)
     const row = chat.locator('.composer-controls')
     const { around, parts } = await row.evaluate(el => ({
       around: el.getBoundingClientRect().toJSON() as DOMRect,
@@ -329,10 +297,9 @@ for (const width of [574, 554])
 
 // The user's pick (7 Nov, sample C, given way in sample A's order): the model's line, then 📎, the level and Send. The
 // model's button is one line, cut with "…" (B-400: in a 220px chat its name broke letter by letter); Full auto is read whole.
-for (const width of [814, 654, 554])
-  test(`two lines, two jobs, in a chat ${width - 334}px wide: the model's button one line, cut with "…"; Full auto read whole`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 })
-    await openFreshConversation(page)
+for (const width of [480, 340])
+  test(`two lines, two jobs, in a chat ${width}px wide: the model's button one line, cut with "…"; Full auto read whole`, async ({ page }) => {
+    await chatWide(page, width)
     const chat = chatOf(page)
     await chat.getByRole('button', { name: /^Model: / }).click()
     await page.getByLabel('Provider').selectOption({ label: 'Local' })
@@ -366,15 +333,14 @@ for (const width of [814, 654, 554])
       }))
       for (const part of parts) expect(part.right, `${part.name} inside the row`).toBeLessThanOrEqual(around.right + 1)
     }
-    if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-${width - 334}`)
+    if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-${width}`)
   })
 
 // Narrower (sample A): Auto-read and Dictate are under More, a dot on it and its description say so; Plan first is its
 // icon, its switch still there for the keys.
-for (const width of [654, 554])
-  test(`in a chat ${width - 334}px wide the voice is under More, and Plan first's switch is reached from the keyboard`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 })
-    await openFreshConversation(page)
+for (const width of [340])
+  test(`in a chat ${width}px wide the voice is under More, and Plan first's switch is reached from the keyboard`, async ({ page }) => {
+    await chatWide(page, width)
     const chat = chatOf(page)
     const moreButton = chat.getByRole('button', { name: 'More', exact: true })
     await expect(moreButton).toHaveAccessibleDescription('Auto-read and Dictate are in here')
@@ -398,10 +364,9 @@ for (const width of [654, 554])
 
 // Full auto while a turn runs: Stop and Queue are there, and nothing of the row is past its end (in the narrowest chat they
 // go on a second line).
-for (const width of [814, 574, 554])
-  test(`Full auto while a turn runs in a chat ${width - 334}px wide: Stop and Queue, and nothing past the row's end`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 })
-    await openFreshConversation(page)
+for (const width of [480, 340])
+  test(`Full auto while a turn runs in a chat ${width}px wide: Stop and Queue, and nothing past the row's end`, async ({ page }) => {
+    await chatWide(page, width)
     const chat = chatOf(page)
     await chat.getByLabel('Permission level').selectOption('full_auto')
     await page.getByLabel('Message').fill('run slow.py')
@@ -416,7 +381,7 @@ for (const width of [814, 574, 554])
           .map(c => ({ name: c.getAttribute('aria-label') ?? c.textContent, right: c.getBoundingClientRect().right })),
       }))
       for (const part of parts) expect(part.right, `${part.name} inside the row`).toBeLessThanOrEqual(around.right + 1)
-      if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-full-auto-running-${width - 334}`)
+      if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-full-auto-running-${width}`)
     } finally {
       // (Stopped, so that nothing runs on into the next test.)
       if (await chat.getByRole('button', { name: 'Stop' }).isVisible()) await chat.getByRole('button', { name: 'Stop' }).click()
@@ -445,11 +410,11 @@ test('a long option of a question wraps inside the chat: nothing in it scrolls s
 })
 
 // Batch-18 review: in a chat between 220px and 240px wide, while a turn ran, Queue went past the row's end. It goes on a second
-// line there, inside the row, as in the narrowest chat.
+// line there, inside the row, as in the narrowest chat (340px since 0.1.4, on this window too).
 // And with something waiting in another chat: its line is one line, and the messages keep their room - Reject is
 // there to click (it once had none: the line took two lines, and the message list 0px).
-for (const width of [564, 554])
-  test(`while a turn runs in a chat ${width - 334}px wide nothing of the row is past its end`, async ({ page }) => {
+for (const width of [574])
+  test('while a turn runs in the narrowest chat nothing of the row is past its end', async ({ page }) => {
     test.setTimeout(60_000) // (two turns)
     // A question waits in another chat; answered at the end, it is left to no spec after.
     const other = await openFreshConversation(page)

@@ -47,15 +47,13 @@ test('the Lead proposes a trigger on a card; Approve makes it, reading only, wit
   // Nothing is made before your word.
   expect(await (await page.request.get(`/api/projects/${await e2eProject(page)}/triggers`)).json()).toEqual([])
   await reads(page, '.cmd-approval')
-  // (The chat made taller, so the whole card is in the picture.)
-  for (let step = 0; step < 4; step++) await page.getByRole('separator', { name: 'Chat height' }).press('ArrowUp')
+  // (The chat is as tall as the canvas: the whole card is in the picture.)
   await card.scrollIntoViewIfNeeded()
   await shot(chat, '69-card-light')
   await dark(page, true)
   await reads(page, '.cmd-approval')
   await shot(chat, '69-card-dark')
   await dark(page, false)
-  for (let step = 0; step < 4; step++) await page.getByRole('separator', { name: 'Chat height' }).press('ArrowDown')
 
   // It waits in Ready for you too (tek-ev §1: the top bar's pill opens its panel), with the same card.
   await page.locator('.ready-pill').click()

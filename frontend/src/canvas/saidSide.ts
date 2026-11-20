@@ -27,7 +27,7 @@ function rightSide(canvas: DOMRect): Place | null {
 
 /** Where on the canvas "What was said" opens: on its right (`rightSide`); else (B-132) its top left, unless the chat
  * floating over the canvas is there (live, the box was drawn under it): then its foot, or its top middle. Read as it
- * opens: the chat may have been moved since. Once the user moved the box, it stays where they put it (`useMove`).
+ * opens: the chat may have been opened, closed or widened since. Once the user moved the box, it stays where they put it (`useMove`).
  * shortcut: the box is taken to be at most SAID_BOX big; measure it if a longer one is seen under the chat. */
 export function saidSide(): Place {
   const [chat, canvas] = [rectOf('.chat'), rectOf('.react-flow')]

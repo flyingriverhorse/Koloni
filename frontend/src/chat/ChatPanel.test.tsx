@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Provider, Role } from '../api/types'
 import { resetStoreForTests, useApp } from '../state/store'
@@ -262,29 +263,95 @@ test('a click opens it upward with the focus in the message box; Esc or its ▾ 
   expect(opener()).toHaveFocus()
 })
 
-test('open the first time; its height is a share of the canvas, 45% at first and at most the canvas less 16 px, changed from its top edge and remembered', async () => {
+// --- the open chat is a column at the stage's left edge (0.1.4) -----------------------------------
+
+const chatBox = () => screen.getByRole('region', { name: 'Chat' })
+const widthEdge = () => screen.getByRole('separator', { name: 'Chat width' })
+/** The width the column is drawn at: what ChatPanel writes on the stage (base.css clamps it). */
+const drawnAt = () => chatBox().parentElement!.style.getPropertyValue('--chat-open-w')
+
+/** What jsdom does not lay out: a stage 1400 by 800 at the page's left, and the chat in it. */
+function laidOut() {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const [x, y, width, height] = this.matches('.chat') ? [0, 0, 420, 800] : [0, 0, 1400, 800]
+    return { x, y, width, height, left: x, top: y, right: x + width, bottom: y + height, toJSON: () => ({}) } as DOMRect
+  })
+}
+afterEach(() => vi.restoreAllMocks())
+
+test('the open chat is as tall as the stage and starts at its left edge; closed, it is the one-line box in the corner as before', async () => {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/theme/base.css', 'utf8') // (run from frontend/)
+  document.head.append(style)
+  try {
+    useApp.setState({ conv: state, projectId: 'p' })
+    render(<ChatPanel />)
+    const open = getComputedStyle(chatBox())
+    expect([open.top, open.left, open.bottom]).toEqual(['0px', '0px', 'var(--timeline-h, 0px)'])
+    // Nothing moves it: no grip, no handle.
+    expect(chatBox().querySelector('.move-grip')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Move chat' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Hide chat' }))
+    const closed = getComputedStyle(chatBox())
+    expect([closed.top, closed.left]).toEqual(['auto', '14px'])
+    expect(screen.queryByRole('separator', { name: 'Chat width' })).not.toBeInTheDocument()
+  } finally {
+    style.remove()
+  }
+})
+
+test('its right edge widens it, by pointer and by the arrow keys, between 340 and 760 px, and the width is kept', async () => {
   laidOut()
   useApp.setState({ conv: state, projectId: 'p' })
   const { unmount } = render(<ChatPanel />)
-  const box = screen.getByRole('region', { name: 'Chat' })
-  const edge = screen.getByRole('separator', { name: 'Chat height' })
-  expect(box.style.getPropertyValue('--h')).toBe('45%')
-  expect(edge).toHaveAttribute('aria-valuenow', '45')
-  // (a stage 800 high, the chat 14 px off its foot: 770 px at most, 96%)
-  expect(edge).toHaveAttribute('aria-valuemax', '96')
+  const edge = widthEdge()
+  expect(edge).toHaveAttribute('aria-orientation', 'vertical')
+  expect(edge).toHaveAttribute('aria-valuenow', '420')
+  expect(edge).toHaveAttribute('aria-valuemin', '340')
+  // (a stage 1400 wide: 60% of it is more than 760)
+  expect(edge).toHaveAttribute('aria-valuemax', '760')
+  expect(drawnAt()).toBe('420px')
   edge.focus()
-  await userEvent.keyboard('{ArrowUp}'.repeat(12))
-  expect(box.style.getPropertyValue('--h')).toBe('96%')
-  expect(edge).toHaveAttribute('aria-valuenow', '96')
-  await userEvent.keyboard('{ArrowDown}'.repeat(12))
-  expect(box.style.getPropertyValue('--h')).toBe('36%')
-  expect(localStorage.getItem('koloni-chat-height')).toBe('0.36')
+  await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
+  expect(edge).toHaveAttribute('aria-valuenow', '480')
+  expect(drawnAt()).toBe('480px')
+  expect(localStorage.getItem('koloni-chat-width')).toBe('480')
+  await userEvent.keyboard('{ArrowRight}'.repeat(20))
+  expect(edge).toHaveAttribute('aria-valuenow', '760')
+  await userEvent.keyboard('{ArrowLeft}'.repeat(30))
+  expect(edge).toHaveAttribute('aria-valuenow', '340')
+  // Dragged: as wide as from the stage's left edge to the pointer; let go, the pointer moving on changes nothing.
+  fireEvent.pointerDown(edge, { pointerId: 1, button: 0, clientX: 340 })
+  fireEvent.pointerMove(edge, { pointerId: 1, clientX: 512 })
+  fireEvent.pointerUp(edge, { pointerId: 1, clientX: 512 })
+  fireEvent.pointerMove(edge, { pointerId: 1, clientX: 900 })
+  expect(edge).toHaveAttribute('aria-valuenow', '512')
+  expect(drawnAt()).toBe('512px')
+  expect(localStorage.getItem('koloni-chat-width')).toBe('512')
+  // (a drag the browser calls off ends there too)
+  fireEvent.pointerDown(edge, { pointerId: 2, button: 0, clientX: 512 })
+  fireEvent.lostPointerCapture(edge, { pointerId: 2 })
+  fireEvent.pointerMove(edge, { pointerId: 2, clientX: 700 })
+  expect(edge).toHaveAttribute('aria-valuenow', '512')
   unmount()
   render(<ChatPanel />)
-  expect(screen.getByRole('region', { name: 'Chat' }).style.getPropertyValue('--h')).toBe('36%')
+  expect(widthEdge()).toHaveAttribute('aria-valuenow', '512')
 })
 
-test('with the browser’s storage closed the chat is open at its default height, and still changes', async () => {
+test('on a narrow stage it is at most 60% of it, and never under 340 px', async () => {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const width = this.matches('.chat') ? 420 : 700
+    return { x: 0, y: 0, width, height: 800, left: 0, top: 0, right: width, bottom: 800, toJSON: () => ({}) } as DOMRect
+  })
+  useApp.setState({ conv: state, projectId: 'p' })
+  render(<ChatPanel />)
+  expect(widthEdge()).toHaveAttribute('aria-valuemax', '420')
+  widthEdge().focus()
+  await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+  expect(widthEdge()).toHaveAttribute('aria-valuenow', '420')
+})
+
+test('with the browser’s storage closed the chat is open at its default width, and still changes', async () => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
     throw new Error('closed')
   })
@@ -294,10 +361,11 @@ test('with the browser’s storage closed the chat is open at its default height
   try {
     useApp.setState({ conv: state, projectId: 'p' })
     render(<ChatPanel />)
-    expect(screen.getByRole('region', { name: 'Chat' }).style.getPropertyValue('--h')).toBe('45%')
-    screen.getByRole('separator', { name: 'Chat height' }).focus()
-    await userEvent.keyboard('{ArrowDown}')
-    expect(screen.getByRole('region', { name: 'Chat' }).style.getPropertyValue('--h')).toBe('40%')
+    expect(widthEdge()).toHaveAttribute('aria-valuenow', '420')
+    widthEdge().focus()
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(widthEdge()).toHaveAttribute('aria-valuenow', '400')
+    expect(drawnAt()).toBe('400px')
   } finally {
     vi.restoreAllMocks()
   }
@@ -425,119 +493,6 @@ test('tek-ev decision 2: "N more wait elsewhere" only while something waits outs
   expect(screen.getByText('2 more wait elsewhere')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Open Ready for you: 2 more wait elsewhere' }))
   expect(useApp.getState().readyPanel.open).toBe(true)
-})
-
-// --- the open chat is moved about the canvas (slice 38e) -----------------------------------------
-
-const chatBox = () => screen.getByRole('region', { name: 'Chat' })
-const header = () => chatBox().querySelector('.chat-top')!
-
-/** What jsdom does not lay out: a stage 1000 by 800, and the window 480 by 300 at its left 100, bottom 100. */
-function laidOut() {
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-    const [x, y, width, height] = this.matches('.chat, .view-panel') ? [100, 400, 480, 300] : [0, 0, 1000, 800]
-    return { x, y, width, height, left: x, top: y, right: x + width, bottom: y + height, toJSON: () => ({}) } as DOMRect
-  })
-}
-afterEach(() => vi.restoreAllMocks())
-
-test('dragged by its header, the open chat goes where it is put, and is there again next time', () => {
-  laidOut()
-  useApp.setState({ conv: state, projectId: 'p' })
-  const { unmount } = render(<ChatPanel />)
-  expect(chatBox()).not.toHaveClass('moved')
-  fireEvent.pointerDown(header(), { pointerId: 1, button: 0, clientX: 100, clientY: 500 })
-  fireEvent.pointerMove(header(), { pointerId: 1, clientX: 160, clientY: 440 })
-  fireEvent.pointerUp(header(), { pointerId: 1, clientX: 160, clientY: 440 })
-  expect(chatBox()).toHaveClass('moved')
-  expect(chatBox().style.getPropertyValue('--x')).toBe('160px')
-  expect(chatBox().style.getPropertyValue('--y')).toBe('160px')
-  expect(JSON.parse(localStorage.getItem('koloni-chat-spot')!)).toEqual({ x: 160, y: 160 })
-  unmount()
-  render(<ChatPanel />)
-  expect(chatBox().style.getPropertyValue('--x')).toBe('160px')
-  // a press on one of its tabs moves nothing
-  fireEvent.pointerDown(screen.getByRole('tab', { name: 'Notes' }), { pointerId: 2, button: 0, clientX: 0, clientY: 0 })
-  fireEvent.pointerMove(header(), { pointerId: 2, clientX: 300, clientY: 0 })
-  fireEvent.pointerUp(header(), { pointerId: 2, clientX: 300, clientY: 0 })
-  expect(chatBox().style.getPropertyValue('--x')).toBe('160px')
-})
-
-test('a drag the browser calls off ends there: kept where it was, and the pointer moving on moves nothing', () => {
-  laidOut()
-  useApp.setState({ conv: state, projectId: 'p' })
-  render(<ChatPanel />)
-  fireEvent.pointerDown(header(), { pointerId: 1, button: 0, clientX: 100, clientY: 500 })
-  fireEvent.pointerMove(header(), { pointerId: 1, clientX: 130, clientY: 500 })
-  fireEvent.lostPointerCapture(header(), { pointerId: 1 })
-  expect(JSON.parse(localStorage.getItem('koloni-chat-spot')!)).toEqual({ x: 130, y: 100 })
-  fireEvent.pointerMove(header(), { pointerId: 1, clientX: 400, clientY: 500 })
-  expect(chatBox().style.getPropertyValue('--x')).toBe('130px')
-})
-
-test('moved, it goes as far left as its corner; down beside the canvas’s zoom buttons (bottom right), it is kept clear of them', () => {
-  laidOut()
-  useApp.setState({ conv: state, projectId: 'p' })
-  render(<ChatPanel />)
-  fireEvent.pointerDown(header(), { pointerId: 1, button: 0, clientX: 100, clientY: 500 })
-  fireEvent.pointerMove(header(), { pointerId: 1, clientX: -400, clientY: 500 })
-  fireEvent.pointerUp(header(), { pointerId: 1 })
-  expect(chatBox().style.getPropertyValue('--x')).toBe('14px')
-  // (its foot 100px over the stage's: beside the buttons)
-  fireEvent.pointerDown(header(), { pointerId: 1, button: 0, clientX: 100, clientY: 500 })
-  fireEvent.pointerMove(header(), { pointerId: 1, clientX: 2000, clientY: 500 })
-  fireEvent.pointerUp(header(), { pointerId: 1 })
-  expect(chatBox().style.getPropertyValue('--x')).toBe('472px')
-  // higher up, as far right as it goes
-  fireEvent.pointerDown(header(), { pointerId: 1, button: 0, clientX: 100, clientY: 500 })
-  fireEvent.pointerMove(header(), { pointerId: 1, clientX: 2000, clientY: 150 })
-  fireEvent.pointerUp(header(), { pointerId: 1 })
-  expect(chatBox().style.getPropertyValue('--x')).toBe('520px')
-})
-
-test('a double click on its header puts it back in its corner', async () => {
-  localStorage.setItem('koloni-chat-spot', '{"x":200,"y":90}')
-  useApp.setState({ conv: state, projectId: 'p' })
-  render(<ChatPanel />)
-  expect(chatBox()).toHaveClass('moved')
-  await userEvent.dblClick(header())
-  expect(chatBox()).not.toHaveClass('moved')
-  expect(chatBox().style.getPropertyValue('--x')).toBe('')
-  expect(localStorage.getItem('koloni-chat-spot')).toBeNull()
-})
-
-test('a place kept that makes no sense is no place: the chat is in its corner', () => {
-  localStorage.setItem('koloni-chat-spot', '{"x":"left","y":-1}')
-  useApp.setState({ conv: state, projectId: 'p' })
-  render(<ChatPanel />)
-  expect(chatBox()).not.toHaveClass('moved')
-})
-
-test('with the keyboard: its "Move chat" handle moves it 16 px an arrow, Enter puts it back - and so does its click; its height still changes from the top', async () => {
-  laidOut()
-  useApp.setState({ conv: state, projectId: 'p' })
-  render(<ChatPanel />)
-  const handle = screen.getByRole('button', { name: 'Move chat' })
-  handle.focus()
-  await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowUp}')
-  expect(chatBox().style.getPropertyValue('--x')).toBe('132px')
-  expect(chatBox().style.getPropertyValue('--y')).toBe('116px')
-  expect(JSON.parse(localStorage.getItem('koloni-chat-spot')!)).toEqual({ x: 132, y: 116 })
-  await userEvent.keyboard('{ArrowLeft}{ArrowDown}{ArrowDown}')
-  expect(chatBox().style.getPropertyValue('--x')).toBe('116px')
-  expect(chatBox().style.getPropertyValue('--y')).toBe('84px')
-  screen.getByRole('separator', { name: 'Chat height' }).focus()
-  await userEvent.keyboard('{ArrowDown}')
-  expect(chatBox().style.getPropertyValue('--h')).toBe('40%')
-  expect(chatBox()).toHaveClass('moved')
-  handle.focus()
-  await userEvent.keyboard('{Enter}')
-  expect(chatBox()).not.toHaveClass('moved')
-  // a click on it - as a screen reader gives one, not a press that starts a drag - puts it back too
-  await userEvent.keyboard('{ArrowRight}')
-  expect(chatBox()).toHaveClass('moved')
-  fireEvent.click(handle, { detail: 0 })
-  expect(chatBox()).not.toHaveClass('moved')
 })
 
 test('closed, the small box still says that commands run on this machine without asking, in Full auto', () => {

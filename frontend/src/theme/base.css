@@ -578,15 +578,21 @@ ul.banner-why {
 }
 
 .stage {
-  /* The chat's width, open or closed, leaving room beside it for Artifacts and Images; and the
-     row they stand in (slice 38e). shortcut: on a stage under 490px the buttons lie over the
-     chat; upgrade if a canvas that narrow is to be used. */
+  /* The closed chat's width, leaving room beside it for the Workspace button; and the row it
+     stands in (slice 38e). shortcut: on a stage under 490px the button lies over the chat;
+     upgrade if a canvas that narrow is to be used. */
   --chat-w: max(220px, min(480px, calc(100% - 270px)));
   --dock-row: 42px;
   flex: 1;
   min-width: 0;
   position: relative;
   overflow: hidden;
+}
+
+/* Open, the chat is a column as wide as the user left it (ChatPanel writes --chat-open-w): 340px
+   at least, at most 60% of the stage and 760px (0.1.4). The windows beside it follow --chat-w. */
+.stage:has(> .chat:not(.chat-closed)) {
+  --chat-w: clamp(340px, var(--chat-open-w, 420px), min(60%, 760px));
 }
 
 .empty {
@@ -662,10 +668,9 @@ p.hive-empty {
 
 /* --- chat ---------------------------------------------------------------- */
 
-/* It floats over the canvas's bottom left corner (slice 38b): a small box while closed - its
-   line and a message box (slice 38e) - and open as tall as the share of the canvas the user
-   left it at, where they moved it (ChatPanel.tsx). Nothing here transforms or filters it: the
-   panels its buttons open are placed against the window. */
+/* Over the canvas (slice 38b): closed, a small box in its bottom left corner - its line and a
+   message box (slice 38e); open, a column the stage's height at its left edge (0.1.4). Nothing
+   here transforms or filters it: the panels its buttons open are placed against the window. */
 .chat {
   --w: var(--chat-w);
   position: absolute;
@@ -693,16 +698,24 @@ p.hive-empty {
   min-height: 0;
 }
 
-/* Open, its turns are cards on the panel's ground (0.1.4). */
+/* Open, a column from the stage's top down to the timeline (open or not), with no gap at its
+   left; its turns are cards on the panel's ground (0.1.4). */
 .chat:not(.chat-closed) {
+  top: 0;
+  left: 0;
+  bottom: var(--timeline-h, 0px);
+  min-height: 0;
+  max-height: none;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
   background: var(--panel);
+  box-shadow: none;
 }
 
 /* Moved by the user (shell/move.ts): where it was put - and on a stage grown smaller since,
    never past its edge. Taller than there is room for above where it was put, it is drawn lower.
    shortcut: move.ts keeps it clear of the zoom buttons (bottom right) where it is put, not here; a
    stage grown narrower since can bring a window low at the right over them - upgrade if seen. */
-.chat.moved,
 .view-panel.moved {
   left: clamp(14px, var(--x), 100% - var(--w));
   bottom: clamp(var(--timeline-h, 0px), var(--y), 100% - max(min(260px, 50%), var(--h)));
@@ -822,15 +835,16 @@ p.hive-empty {
   white-space: nowrap;
 }
 
-/* Its top edge: dragged, or moved with the arrow keys, it makes the box taller or shorter. */
+/* Its right edge, over its border: dragged, or moved with the arrow keys, it makes the column
+   wider or narrower. */
 .chat-edge {
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
   z-index: 1;
-  flex: none;
-  height: 8px;
-  margin-bottom: -4px;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  cursor: ns-resize;
+  width: 8px;
+  cursor: ew-resize;
   touch-action: none;
 }
 
@@ -855,9 +869,6 @@ p.hive-empty {
 
 .chat:not(.chat-closed) .chat-top {
   padding-left: 4px;
-  cursor: move;
-  user-select: none;
-  touch-action: none;
 }
 
 .chat-top button {
@@ -939,7 +950,7 @@ p.hive-empty {
   background: var(--accent-fill);
 }
 
-/* To the right of the chat, over the canvas: as tall as the chat, half the canvas wide - never
+/* To the right of the chat, over the canvas: --h of it tall (chatLine.ts HEIGHT), half the canvas wide - never
    past the canvas's buttons at its right edge (15px + 26px, and a gap). Expanded, it lies over all of the canvas.
    shortcut: on a stage too narrow for the chat and 280px beside it, it lies over the chat and the buttons. */
 .view-panel {
@@ -949,7 +960,7 @@ p.hive-empty {
   position: absolute;
   /* Beside the chat; on a canvas too narrow for both at least 280px wide, over the chat. */
   left: max(14px, min(calc(var(--chat-w) + 28px), calc(var(--room) - 294px)));
-  /* Standing on the row of the Workspace button beside the small box: as tall as the chat less that row, its top level with the chat's. */
+  /* Standing on the row of the Workspace button beside the small box: --h less that row. */
   bottom: calc(14px + var(--dock-row) + var(--timeline-h, 0px));
   height: calc(var(--h) - var(--dock-row));
   z-index: 6;
@@ -965,11 +976,14 @@ p.hive-empty {
   overflow: hidden;
 }
 
-/* The chat open, there is no row under it (Files is in the top bar): in its corner the window is as tall as
-   the chat (moved or expanded, its own rules hold). */
+/* The chat open, there is no row under the window (Workspace's button is at the chat's foot): beside the
+   column it stands the stage's height (moved or expanded, its own rules hold). */
 .chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
+  top: 14px;
   bottom: calc(14px + var(--timeline-h, 0px));
-  height: var(--h);
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .view-panel[hidden] {
@@ -1544,8 +1558,9 @@ a.view-run {
   min-width: 0;
 }
 
+/* As wide as its name, not the line: a wide column leaves no long empty button (0.1.4). */
 .composer-line .model-picker {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 64px;
 }
 

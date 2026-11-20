@@ -29,6 +29,11 @@
   pointer-events: none;
 }
 
+/* With the chat open, in the middle of what its column leaves (0.1.4). */
+.stage:has(> .chat:not(.chat-closed)) .canvas-empty {
+  left: calc((100% + var(--chat-w)) / 2);
+}
+
 /* The bee stands over the line, out of its flow: the first steps below keep their place. */
 .canvas-empty-bee {
   position: absolute;

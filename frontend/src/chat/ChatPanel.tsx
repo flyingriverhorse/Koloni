@@ -1,5 +1,5 @@
-import { CaretDown, CaretUp, ChatsCircle, DotsSixVertical, FileText, FolderSimple } from '@phosphor-icons/react'
-import { type KeyboardEvent, type PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { CaretDown, CaretUp, ChatsCircle, FileText, FolderSimple } from '@phosphor-icons/react'
+import { type KeyboardEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { waitingIn } from '../board/waiting'
 import { inProject } from '../changes/copies'
 import { currentTurn, turnOf, turnRows } from '../canvas/turns'
@@ -17,13 +17,13 @@ import { WorkTogether } from '../room/WorkTogether'
 import { unseenOn } from './attachments'
 import { ChannelPanel } from './ChannelPanel'
 import { ChatSheet } from './ChatSheet'
-import { HEIGHT_KEY, LEAST, MOST, TOP, latestOf, storedHeight, unreadOf, waitingCards } from './chatLine'
+import { HEIGHT, NARROWEST, WIDEST, WIDTH_KEY, latestOf, storedWidth, unreadOf, waitingCards } from './chatLine'
 import { ofChat } from '../ready/ready'
 import { useReady } from '../ready/useReady'
 import { nextTopic, titleOf } from '../topics/topics'
 import { Composer, type ComposerTopic } from './Composer'
 import { MessageList, type RequestHandlers } from './MessageList'
-import { toFront, useMove } from '../shell/move'
+import { toFront } from '../shell/move'
 import { FilesWindow } from '../views/FilesWindow'
 import { keyOf, useViews } from '../views/views'
 
@@ -34,10 +34,8 @@ const TAB_HINTS = {
   Talk: 'What the agents say to each other, to hand work on or ask one another',
   Notes: 'A shared notebook: you and the agents leave notes here, kept from message to message and given to new agents',
 } as const
-/** How much a key moves the chat's top edge, as a share of the canvas. */
-const STEP = 0.05
-/** The least the open box is, in pixels: its tabs, a message and the message box (base.css). */
-const FLOOR = 260
+/** How much an arrow key moves the open chat's right edge, in px. */
+const STEP = 20
 
 function storedOpen(): boolean {
   try {
@@ -59,6 +57,74 @@ const tabId = (name: string) => `chat-tab-${name.replaceAll(' ', '-')}`
 
 /** The Workspace button's name, with what waits for you and whether something is new. */
 const workspaceLabel = (waiting: number | null, fresher: boolean) => ['Workspace', waiting !== null && `${waiting} waiting`, fresher && 'new'].filter(Boolean).join(' ')
+
+/**
+ * The open column's right edge (0.1.4): dragged, or moved with the arrow keys, it makes the chat wider or narrower,
+ * and the width is kept. It is written on the stage, whose windows beside the chat follow it (base.css --chat-w).
+ */
+function WidthEdge({ open }: { open: boolean }) {
+  const [width, setWidth] = useState(storedWidth)
+  const edge = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
+  // (By its own element: a child's layout effect runs before the chat's ref is set.)
+  const stage = () => edge.current?.closest('.chat')?.parentElement
+  useLayoutEffect(() => {
+    const at = stage()
+    at?.style.setProperty('--chat-open-w', `${width}px`)
+    return () => void at?.style.removeProperty('--chat-open-w')
+  }, [width])
+  /** The widest it may be: 60% of the stage, never over WIDEST nor under NARROWEST (base.css says the same). */
+  function widest() {
+    const across = stage()?.getBoundingClientRect().width
+    return across ? Math.max(NARROWEST, Math.min(WIDEST, Math.floor(across * 0.6))) : WIDEST
+  }
+  // As its separator tells it. shortcut: measured as it opens and as it is resized, not as the window changes
+  // size; upgrade to a ResizeObserver if a reader is ever told a stale figure.
+  const [most, setMost] = useState(WIDEST)
+  useLayoutEffect(() => setMost(widest()), [open])
+  // (a width kept on a wider stage is drawn at this one's most, base.css)
+  const across = Math.min(width, most)
+  function resize(next: number) {
+    const top = widest()
+    setMost(top)
+    const kept = Math.round(Math.max(NARROWEST, Math.min(top, next)))
+    setWidth(kept)
+    keep(WIDTH_KEY, String(kept))
+  }
+  const end = () => void (dragging.current = false)
+  return (
+    <div
+      ref={edge}
+      className="chat-edge"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Chat width"
+      aria-valuemin={NARROWEST}
+      aria-valuemax={most}
+      aria-valuenow={across}
+      tabIndex={0}
+      title="Drag, or the arrow keys: wider or narrower"
+      onPointerDown={event => {
+        if (event.button !== 0) return
+        dragging.current = true
+        event.currentTarget.setPointerCapture?.(event.pointerId)
+      }}
+      // Dragged: as wide as from the stage's left edge, where the column starts, to the pointer.
+      onPointerMove={event => {
+        const left = stage()?.getBoundingClientRect().left
+        if (dragging.current && left !== undefined) resize(event.clientX - left)
+      }}
+      onPointerUp={end}
+      onLostPointerCapture={end}
+      onKeyDown={event => {
+        const by = { ArrowLeft: -STEP, ArrowRight: STEP }[event.key]
+        if (!by) return
+        event.preventDefault()
+        resize(across + by)
+      }}
+    />
+  )
+}
 
 export function ChatPanel() {
   const conv = useApp(s => s.conv)
@@ -132,7 +198,6 @@ export function ChatPanel() {
     const frame = requestAnimationFrame(() => document.getElementById(at)?.scrollIntoView({ block: 'center' }))
     return () => cancelAnimationFrame(frame)
   }, [at, openAsked, tab])
-  const [height, setHeight] = useState(storedHeight)
   const box = useRef<HTMLElement>(null)
   // Opened or closed by the user just now: the focus goes into the box, or back to its line.
   const moved = useRef(false)
@@ -141,8 +206,6 @@ export function ChatPanel() {
     moved.current = false
     box.current?.querySelector<HTMLElement>(open ? '.composer-input' : '.chat-line')?.focus()
   }, [open])
-  // The open chat, moved about the canvas by its header (slice 38e).
-  const move = useMove('koloni-chat-spot', box)
 
   // The Workspace window (slices 42c, 42d) beside the chat: the project's tree, what agents changed, wrote or
   // showed in it, and the servers they keep running. Opened from its buttons, on a file asked for,
@@ -203,32 +266,6 @@ export function ChatPanel() {
     }
     setOpen(!open)
     keep(OPEN_KEY, open ? '0' : '1')
-  }
-  /** The tallest it may be: TOP px left above it, standing 14 px off the canvas's foot (base.css says the same). */
-  function tallest() {
-    const stage = box.current?.parentElement?.getBoundingClientRect().height
-    return stage ? Math.floor(((stage - TOP - 14) / stage) * 100) / 100 : MOST
-  }
-  // As its separator tells it. shortcut: measured as it opens and as it is resized, not as the
-  // window changes size; upgrade to a ResizeObserver if a reader is ever told a stale figure.
-  const [most, setMost] = useState(MOST)
-  useLayoutEffect(() => setMost(tallest()), [open])
-  function resize(share: number) {
-    // Never under what the box needs (FLOOR px), never over the canvas less TOP px.
-    const stage = box.current?.parentElement?.getBoundingClientRect().height
-    const most = tallest()
-    setMost(most)
-    const least = stage ? Math.min(most, Math.max(LEAST, FLOOR / stage)) : LEAST
-    const next = Math.round(Math.min(most, Math.max(least, share)) * 100) / 100
-    setHeight(next)
-    keep(HEIGHT_KEY, String(next))
-  }
-  // Dragged from its top edge: as tall as from the pointer down to the canvas's bottom.
-  function drag(event: PointerEvent<HTMLDivElement>) {
-    if (!event.currentTarget.hasPointerCapture?.(event.pointerId)) return
-    const stage = box.current?.parentElement?.getBoundingClientRect()
-    const bottom = box.current?.getBoundingClientRect().bottom
-    if (stage?.height && bottom) resize((bottom - event.clientY) / stage.height)
   }
   function onKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape' && open) toggle()
@@ -307,15 +344,9 @@ export function ChatPanel() {
     </button>
   )
   const dock = <div className="chat-dock">{files('dock-btn', filesButton, true)}</div>
-  // Closed, the chat is a small box in its corner; open, it is where it was moved to.
+  // Closed, the chat is a small box in its corner; open, a column the stage's height at its left edge (0.1.4).
   const chat = (
-    <section
-      ref={box}
-      className={open ? `chat${move.moved ? ' moved' : ''}` : 'chat chat-closed'}
-      aria-label="Chat"
-      style={open ? { ['--h' as string]: `${height * 100}%`, ...move.style } : undefined}
-      onKeyDown={onKeyDown}
-    >
+    <section ref={box} className={open ? 'chat' : 'chat chat-closed'} aria-label="Chat" onKeyDown={onKeyDown}>
       {!open && (
         <button type="button" className="chat-line" aria-expanded={false} title="Open the chat" onClick={toggle}>
           <ChatsCircle size={16} color="var(--accent)" />
@@ -338,29 +369,8 @@ export function ChatPanel() {
       )}
       {/* Hidden, not gone, while closed: an answer, a draft or a choice half made in it stays. */}
       <div className="chat-body" hidden={!open}>
-        <div
-          className="chat-edge"
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Chat height"
-          aria-valuemin={LEAST * 100}
-          aria-valuemax={Math.round(most * 100)}
-          aria-valuenow={Math.round(Math.min(height, most) * 100)}
-          tabIndex={0}
-          onPointerDown={event => event.currentTarget.setPointerCapture?.(event.pointerId)}
-          onPointerMove={drag}
-          onKeyDown={event => {
-            const by = event.key === 'ArrowUp' ? STEP : event.key === 'ArrowDown' ? -STEP : 0
-            if (by) {
-              event.preventDefault()
-              resize(height + by)
-            }
-          }}
-        />
-        <div className="chat-top" {...move.header}>
-          <span className="move-grip" aria-label="Move chat" title="Move chat: drag, or the arrow keys; a double click or Enter puts it back" {...move.handle}>
-            <DotsSixVertical size={14} />
-          </span>
+        <WidthEdge open={open} />
+        <div className="chat-top">
         <div className="tabs chat-tabs" role="tablist">
           {(['Chat', 'Talk', 'Notes'] as const).map(name => (
             <button
@@ -551,7 +561,7 @@ export function ChatPanel() {
           agents={conv?.agents ?? []}
           open={filesOpen}
           at={filesAt}
-          height={height}
+          height={HEIGHT}
           expanded={wide}
           onExpand={() => setWide(!wide)}
           onClose={closeFiles}

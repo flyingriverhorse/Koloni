@@ -164,6 +164,12 @@ export async function freeOfChat(page: Page) {
   return pieces.reduce((best, piece) => (piece.width * piece.height > best.width * best.height ? piece : best))
 }
 
+/** A click on the empty canvas, at its top just right of the chat: open, the chat is a column over its left edge (0.1.4). */
+export async function clickCanvas(page: Page) {
+  const [pane, chat] = await Promise.all(['.react-flow__pane', '.chat'].map(async s => (await page.locator(s).boundingBox())!))
+  await page.locator('.react-flow__pane').click({ position: { x: chat.x + chat.width - pane.x + 5, y: 5 } })
+}
+
 export const rail = (page: Page, name: 'Memory' | 'Canvas' | 'Chats' | 'Triggers' | 'Models' | 'Tools' | 'Usage' | 'Ready' | 'Board' | 'To-do') =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
 

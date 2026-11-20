@@ -3,7 +3,7 @@
 The chat is where you talk to the Orchestrator. The canvas behind it draws each turn from what was
 recorded: the agents, their tools, commands and the files they changed. Nothing on it is simulated.
 
-![The main screen: the chat at the bottom left, and on the canvas the turn drawn as You, the Orchestrator and the Reviewer it opened](../images/main-screen.png)
+![The main screen: the chat at the left, and on the canvas the turn drawn as You, the Orchestrator and the Reviewer it opened](../images/main-screen.png)
 
 *A turn on the canvas, with the chat beside it.*
 
@@ -13,6 +13,9 @@ recorded: the agents, their tools, commands and the files they changed. Nothing 
 
 ## The chat
 
+Open, the chat is a column at the left of the canvas, as tall as it. Drag its right edge to make it
+wider or narrower (or focus the edge and use the arrow keys); the width is kept.
+
 The chat panel has three tabs:
 
 - **Chat**: "Your conversation with the Orchestrator".
@@ -20,8 +23,8 @@ The chat panel has three tabs:
 - **Notes**: "A shared notebook: you and the agents leave notes here, kept from message to message and
   given to new agents".
 
-**Hide chat** (or Esc) folds it to one line that says how many messages are unread and how many things
-wait for you. Drag its grip to move it, and its top edge to resize it.
+**Hide chat** (or Esc) folds it to one line at the canvas's bottom left that says how many messages are
+unread and how many things wait for you.
 
 ### Writing a message
 

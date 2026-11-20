@@ -873,7 +873,7 @@ export function App() {
             />
           ) : (
             <>
-              {/* The canvas fills the stage; the chat floats over its bottom left corner. */}
+              {/* The canvas fills the stage; the chat lies over its left edge, open, or its bottom left corner, closed. */}
               {/* The window over the canvas pressed or used last is the one in front. */}
               <div className="stage" onPointerDownCapture={event => frontOf(event.target)} onFocusCapture={event => frontOf(event.target)}>
                 <ChatPanel />

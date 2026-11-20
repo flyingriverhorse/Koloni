@@ -1,5 +1,6 @@
 /**
- * Windows over the canvas that the user moves (slice 38e): the open chat and the view window.
+ * Windows over the canvas that the user moves (slice 38e): the view window, and what was said (the chat, a
+ * column at the stage's left edge since 0.1.4, is not moved).
  * Each is dragged by its header, or moved with the arrow keys from its "Move …" handle, inside
  * the stage; where it was put is kept in this browser, and a double click (or Enter on the
  * handle) puts it back in its corner. And of all the stage's windows, the one used last is in front.
@@ -103,7 +104,7 @@ const meets = (a: Area, b: Area) => a.left < b.left + b.width && b.left < a.left
  * edge, which the CSS keeps off the inspector and the canvas's buttons - into the biggest part of the stage above,
  * below, left or right of the chat. And it starts below the header of another window it would lie over, so that one
  * is still seen and pressed.
- * shortcut: with no part beside the chat as big as LEAST (a chat dragged nearly as tall as a narrow stage) it lies
+ * shortcut: with no part beside the chat as big as LEAST (a stage too narrow beside the chat's column) it lies
  * over the chat, in front, as before; and below a chat moved up it may reach the zoom buttons - upgrade if seen.
  */
 export function placeWindow(want: Area, stage: Size, chat: Area | null, others: Area[]): Area {

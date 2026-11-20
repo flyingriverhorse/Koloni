@@ -3547,11 +3547,14 @@ fieldset.choice > label .choice-note,
    chat it broke letter by letter (B-400). */
 .model-picker {
   flex: 1 0 100%;
+  width: auto;
+  max-width: 100%;
   min-width: 0;
 }
 
 .composer-row .model-picker-button {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   justify-content: flex-start;
   text-align: left;
 }
@@ -3575,7 +3578,7 @@ fieldset.choice > label .choice-note,
 
 /* --- agent window ----------------------------------------------------------- */
 
-/* Top right, beside the chat (whose corner is the bottom left one) where the stage has room for
+/* Top right, beside the chat (which stands at the left) where the stage has room for
    both; never wider than the stage. */
 .agent-window {
   /* (Left of the inspector where that lies over the stage: B-157, canvas.css.) */

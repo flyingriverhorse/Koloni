@@ -375,7 +375,7 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
       className={`view-panel${expanded ? ' view-panel-wide' : ''}${moved ? ' moved' : ''}`}
       aria-label="Workspace"
       hidden={!open}
-      // (As tall as the chat less the row it stands on: base.css.)
+      // (As tall as this share of the canvas less the row it stands on, beside the closed chat: base.css.)
       style={expanded ? undefined : { ['--h' as string]: `${height * 100}%`, ...(moved ? move.style : {}) }}
       onKeyDown={onKeyDown}
       onPointerDownCapture={onTouch}
