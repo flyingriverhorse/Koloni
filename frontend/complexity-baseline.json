@@ -19,7 +19,6 @@
   "src/chat/ChatPanel.tsx::ChatPanel": 77,
   "src/chat/CompareView.tsx::CompareView": 21,
   "src/chat/Composer.tsx::Composer": 75,
-  "src/chat/Composer.tsx::Composer>onKeyDown": 21,
   "src/chat/MessageList.tsx::MessageList>callView": 36,
   "src/chat/MessageList.tsx::MessageList>map": 51,
   "src/chat/MessageList.tsx::UserMessage": 21,

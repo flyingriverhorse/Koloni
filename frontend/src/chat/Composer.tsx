@@ -448,22 +448,31 @@ export function Composer({
     }
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.nativeEvent.isComposing) return
-    if (menu && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+  /** The open menu's keys: the arrows move in it, Enter (or Tab) chooses, Esc closes it. True where the key was its. */
+  function menuKey(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
-      return setAt((active + (event.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length)
+      setAt((active + (event.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length)
+      return true
     }
     // (Tab on one that is off is not taken: the focus moves on.)
-    if (menu && !event.shiftKey && (event.key === 'Enter' || (event.key === 'Tab' && !shown[active].off))) {
+    if (!event.shiftKey && (event.key === 'Enter' || (event.key === 'Tab' && !shown[active].off))) {
       event.preventDefault()
-      return choose(shown[active])
+      choose(shown[active])
+      return true
     }
-    if (menu && event.key === 'Escape') {
+    if (event.key === 'Escape') {
       event.stopPropagation() // the menu's: the chat stays open
       setKept(draft)
-      return setShut(draft)
+      setShut(draft)
+      return true
     }
+    return false
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing) return
+    if (menu && menuKey(event)) return
     // At the chip's edge Backspace takes the chip away.
     if (event.key === 'Backspace' && head && event.currentTarget.selectionStart === 0 && event.currentTarget.selectionEnd === 0) {
       event.preventDefault()
