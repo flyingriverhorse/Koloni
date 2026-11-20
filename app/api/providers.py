@@ -952,11 +952,32 @@ def _copy(request: Request) -> dict:
 FACTS_SECONDS = 15.0
 
 
+async def _anthropic_says(look_up, name, told: dict, said: dict, failed: bool) -> bool:
+    """What Anthropic says of a model, put where nothing else said it; whether asking failed."""
+    # Anthropic's Models API costs nothing; what it said of a model is kept by the client.
+    try:
+        info = (await asyncio.wait_for(
+            look_up(name, FACTS_SECONDS), FACTS_SECONDS))[0]
+    except ModelUnavailable as exc:
+        cause = exc.__cause__
+        # A model it does not know is unknown, not a failed lookup.
+        failed = not (isinstance(cause, httpx2.HTTPStatusError)
+                      and cause.response.status_code == 404)
+    except TimeoutError:
+        failed = True
+    else:
+        for fact, value in (("efforts", list(info.efforts or ())),
+                            ("context_window", info.context_window)):
+            if value is not None and told[fact] is None:
+                told[fact], said[fact] = value, "anthropic"
+    return failed
+
+
 @router.get(
     "/{provider_id}/model-facts", response_model=ModelFactsOut,
     dependencies=[Depends(require_origin)],  # it may ask the provider: not for another site
 )
-async def model_facts(  # noqa: C901
+async def model_facts(
     provider_id: str, request: Request,
     model: str = Query("", max_length=MAX_MODEL_NAME), session: Session = Depends(get_session),
 ):
@@ -1010,22 +1031,8 @@ async def model_facts(  # noqa: C901
         look_up = getattr(request.app.state.providers.lister(provider), "_look_up", None)
     if (provider.kind == "anthropic" and provider.api_key and look_up and "efforts" not in said
             and (name or provider.default_model)):
-        # Anthropic's Models API costs nothing; what it said of a model is kept by the client.
-        try:
-            info = (await asyncio.wait_for(
-                look_up(name or provider.default_model, FACTS_SECONDS), FACTS_SECONDS))[0]
-        except ModelUnavailable as exc:
-            cause = exc.__cause__
-            # A model it does not know is unknown, not a failed lookup.
-            failed = not (isinstance(cause, httpx2.HTTPStatusError)
-                          and cause.response.status_code == 404)
-        except TimeoutError:
-            failed = True
-        else:
-            for fact, value in (("efforts", list(info.efforts or ())),
-                                ("context_window", info.context_window)):
-                if value is not None and told[fact] is None:
-                    told[fact], said[fact] = value, "anthropic"
+        failed = await _anthropic_says(look_up, name or provider.default_model, told, said,
+                                       failed)
     takes = catalog.inputs(provider, catalog.model_key(provider, name), copy)
     return ModelFactsOut(**told, sources=said, catalogue_date=models_dev.read_on(copy),
                          failed=failed, inputs=[
