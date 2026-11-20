@@ -1037,7 +1037,7 @@ def running_docker_commands(session_factory) -> list[str]:
         )
 
 
-def recover_interrupted(session_factory, notes: list | None = None) -> int:  # noqa: C901
+def recover_interrupted(session_factory, notes: list | None = None) -> int:
     """Settle work a previous process left open; nothing is ever re-run.
 
     Returns the number of runs marked interrupted.
@@ -1094,16 +1094,7 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:  # n
             WebRequest.status == "approved", WebRequest.tool_call_id.in_(cut_short)
         )):
             asked.status = "interrupted"
-        for agent in session.scalars(select(Agent).where(Agent.status.not_in(AGENT_TERMINAL))):
-            # Who held which file went with the process: nobody waits for one any more.
-            agent.waiting_for = None
-            if agent.status == "running" and agent.ended_at is not None:
-                # It had finished and was only answering another agent's message.
-                agent.status = "failed" if agent.error else "completed"
-                continue
-            # An agent that was never started is dropped; one at work is not resumed.
-            agent.status = "rejected" if agent.status == "proposed" else "interrupted"
-            agent.ended_at = now()
+        _recover_agents(session)
         for question in session.scalars(select(Question).where(Question.status == "pending")):
             question.status = "interrupted"
         for message in session.scalars(select(Message).where(Message.status == "streaming")):
@@ -1115,15 +1106,33 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:  # n
         for room in session.scalars(select(Room).where(Room.status.in_(rooms.RUNNING))):
             room.status, room.ended_at, room.clock_since = "interrupted", now(), None
             room.paused = False  # (29c: nothing is left to resume)
-        # A chat team's recipe at work keeps where it was, and says why it stands (84b-2);
-        # the next turn starts it again (what its copy held is a kept copy's card).
-        for row in session.scalars(select(ConversationTeam)):
-            if row.state and row.state.get("status") in recipe_run.OPEN:
-                row.state = {**row.state, "status": recipe_run.INTERRUPTED,
-                             "why": recipe_run.RESTARTED}
-                keep_turn(row)
+        _recover_teams(session)
         session.commit()
     return len(run_ids)
+
+
+def _recover_agents(session) -> None:
+    """`recover_interrupted`'s agents: none is left at work."""
+    for agent in session.scalars(select(Agent).where(Agent.status.not_in(AGENT_TERMINAL))):
+        # Who held which file went with the process: nobody waits for one any more.
+        agent.waiting_for = None
+        if agent.status == "running" and agent.ended_at is not None:
+            # It had finished and was only answering another agent's message.
+            agent.status = "failed" if agent.error else "completed"
+            continue
+        # An agent that was never started is dropped; one at work is not resumed.
+        agent.status = "rejected" if agent.status == "proposed" else "interrupted"
+        agent.ended_at = now()
+
+
+def _recover_teams(session) -> None:
+    # A chat team's recipe at work keeps where it was, and says why it stands (84b-2);
+    # the next turn starts it again (what its copy held is a kept copy's card).
+    for row in session.scalars(select(ConversationTeam)):
+        if row.state and row.state.get("status") in recipe_run.OPEN:
+            row.state = {**row.state, "status": recipe_run.INTERRUPTED,
+                         "why": recipe_run.RESTARTED}
+            keep_turn(row)
 
 
 def keep_turn(row: ConversationTeam) -> None:
