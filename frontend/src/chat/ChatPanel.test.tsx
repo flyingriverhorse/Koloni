@@ -338,6 +338,18 @@ test('its right edge widens it, by pointer and by the arrow keys, between 340 an
   expect(widthEdge()).toHaveAttribute('aria-valuenow', '512')
 })
 
+test('its edge is reached with Tab, the open chat’s first stop; Esc on it still hides the chat', async () => {
+  useApp.setState({ conv: state, projectId: 'p' })
+  render(<ChatPanel />)
+  await userEvent.tab()
+  expect(widthEdge()).toHaveFocus()
+  await userEvent.keyboard('{ArrowRight}')
+  expect(widthEdge()).toHaveAttribute('aria-valuenow', '440')
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('separator', { name: 'Chat width' })).not.toBeInTheDocument()
+  expect(opener()).toHaveFocus()
+})
+
 test('on a narrow stage it is at most 60% of it, and never under 340 px', async () => {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     const width = this.matches('.chat') ? 420 : 700
