@@ -223,6 +223,35 @@ const edgeWidth = (e: GraphEdge, lit: GraphEdge[] | null, talking: boolean): num
 const edgeDash = (e: GraphEdge, talking: boolean): string | undefined =>
   e.shared ? (e.shared.dotted || e.shared.arm ? DASH.shared : undefined) : e.request?.open ? DASH.request : e.request ? undefined : talking ? DASH.talkLine : e.handed ? DASH.handed : e.findings !== undefined ? DASH.findings : e.waits ? DASH.waits : e.talk ? DASH.talk : e.spawn ? DASH.spawn : undefined
 
+/** What is in focus: the talk line whose words are shown, else the card or frame lit, else the agent or discussion picked. */
+function focusOf(byId: Map<string, GraphNode>, talkEdge: GraphEdge | undefined, lightId: string | null, shown: GraphNode | undefined): string | null {
+  return talkEdge?.id ?? (lightId && byId.has(lightId) ? lightId : null) ?? (shown?.kind === 'agent' || shown?.kind === 'discussion' ? shown.id : null)
+}
+
+/** The lines lit by what is in focus, and the nodes - null while nothing is. */
+function litOf({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }, byId: Map<string, GraphNode>, focus: string | null, lightId: string | null) {
+  // (A frame picked lights its own line to its card, not a request to another team's: N4.)
+  const frameLit = focus === lightId && byId.get(focus ?? '')?.kind === 'team'
+  const lit = focus ? edges.filter(e => (frameLit ? e.source === focus && e.shared : e.id === focus || e.source === focus || e.target === focus)) : null
+  // (A team lit by its card, or its frame picked: its agents too.)
+  const litTeams = new Set(focus === lightId && lit ? [focus, ...lit.map(e => e.source)] : [])
+  const litNodes = lit && new Set([focus!, ...lit.flatMap(e => [e.source, e.target]), ...nodes.filter(n => n.team && litTeams.has(n.team)).map(n => n.id)])
+  return { lit, litNodes }
+}
+
+/**
+ * Who said what on what is lit (W's box): to and from the agent picked, or on the talk line - one of a frame's door,
+ * between the agent outside and the frame's agents. Null while neither is.
+ */
+function saidOn(state: ConvState | null, talkEdge: GraphEdge | undefined, shown: GraphNode | undefined, endsOf: (id: string) => Set<string>) {
+  if (!state || !(talkEdge || shown?.kind === 'agent')) return null
+  const [a, b] = talkEdge ? [endsOf(talkEdge.source), endsOf(talkEdge.target)] : [endsOf(shown!.id), null]
+  const meets = (one: string, other: string) => a.has(one) && (!b || b.has(other))
+  return state.channelMessages
+    .filter(m => SAID.has(m.kind) && (meets(m.from_agent_id, m.to_agent_id) || meets(m.to_agent_id, m.from_agent_id)))
+    .slice(-SAID_LINES)
+}
+
 /** The bee over the empty canvas (K-logo), once the conversation is read: played once, muted, then still on its last
  * frame (no `loop`); only the picture where motion is reduced. Decorative. Mounted with the empty state alone, so
  * nothing loads before it. */
@@ -676,13 +705,8 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   // What is lit: the talk line whose words are shown, or the agent selected and its lines; the rest fades (W).
   // (A line of another turn's is not on this one.)
   const talkEdge = talkLine ? graph.edges.find(e => e.id === talkLine) : undefined
-  const focus = talkEdge?.id ?? (lightId && byId.has(lightId) ? lightId : null) ?? (shown?.kind === 'agent' || shown?.kind === 'discussion' ? shown.id : null)
-  // (A frame picked lights its own line to its card, not a request to another team's: N4.)
-  const frameLit = focus === lightId && byId.get(focus ?? '')?.kind === 'team'
-  const lit = focus ? graph.edges.filter(e => (frameLit ? e.source === focus && e.shared : e.id === focus || e.source === focus || e.target === focus)) : null
-  // (A team lit by its card, or its frame picked: its agents too.)
-  const litTeams = new Set(focus === lightId && lit ? [focus, ...lit.map(e => e.source)] : [])
-  const litNodes = lit && new Set([focus!, ...lit.flatMap(e => [e.source, e.target]), ...graph.nodes.filter(n => n.team && litTeams.has(n.team)).map(n => n.id)])
+  const focus = focusOf(byId, talkEdge, lightId, shown)
+  const { lit, litNodes } = litOf(graph, byId, focus, lightId)
   const faded = (id: string): boolean => {
     const node = byId.get(id)
     return !!litNodes && !litNodes.has(id) && !(node?.parent && !faded(node.parent))
@@ -725,19 +749,9 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       ...(faded(n.id) && { className: n.kind === 'team' ? 'canvas-dim' : 'canvas-faded' }),
     }
   })
-  // Who said what on what is lit (W's box): to and from the agent picked, or on the talk line - one of a frame's door,
-  // between the agent outside and the frame's agents. Null while neither is.
+  // The agents at a line's end: a frame's are its agents.
   const endsOf = (id: string) => new Set(byId.get(id)?.kind === 'team' ? graph.nodes.flatMap(n => (n.team === id && n.agentId ? [n.agentId] : [])) : [byId.get(id)?.agentId ?? ''])
-  const said =
-    state && (talkEdge || shown?.kind === 'agent')
-      ? (() => {
-          const [a, b] = talkEdge ? [endsOf(talkEdge.source), endsOf(talkEdge.target)] : [endsOf(shown!.id), null]
-          const meets = (one: string, other: string) => a.has(one) && (!b || b.has(other))
-          return state.channelMessages
-            .filter(m => SAID.has(m.kind) && (meets(m.from_agent_id, m.to_agent_id) || meets(m.to_agent_id, m.from_agent_id)))
-            .slice(-SAID_LINES)
-        })()
-      : null
+  const said = saidOn(state, talkEdge, shown, endsOf)
   const nameOf = (agentId: string) => {
     const agent = state?.agents.find(a => a.id === agentId)
     return agent ? agent.name || agent.role_name : 'an agent'
@@ -803,6 +817,58 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       }
     }
   }
+
+  /** The box of what was said - only where something was: picking an agent that said nothing fades the rest, and that is all. */
+  const saidBox = () =>
+    said && said.length > 0 && (
+      <SaidBox
+        {...saidSide()}
+        title={talkEdge ? `${whoOf(talkEdge.source)} ↔ ${whoOf(talkEdge.target)}` : `What ${whoOf(shown!.id)} said and was told`}
+        said={said}
+        nameOf={nameOf}
+        // (Its pair's colour: the line's it was said on - the agents', or the talk line's picked.)
+        colourOf={m => talkHues.get([`agent:${m.from_agent_id}`, `agent:${m.to_agent_id}`].sort().join('|')) ?? (talkEdge && talkHues.get(pairOf(talkEdge))) ?? 'var(--accent)'}
+        // (The talk line's far end, or those who talked with the agent picked, on the left; the other on the right.)
+        right={m => (talkEdge ? !endsOf(talkEdge.source).has(m.from_agent_id) : m.from_agent_id === shown?.agentId)}
+        // (As a click on the empty canvas: the talk and the pick put away.)
+        onClose={() => {
+          setTalk(null)
+          onSelect(null)
+        }}
+      />
+    )
+  /** R52: every team's frame folded to its one line, or opened again. */
+  const foldAllPanel = () =>
+    frames.length > 0 && (
+      <Panel position="bottom-right" className="canvas-fold-all">
+        <button type="button" className="btn btn-small" onClick={() => remember(prev => ({ ...prev, ...Object.fromEntries(frames.map(n => [n.id, !framesOpen])) }))}>
+          {framesOpen ? 'Fold all' : 'Open all'}
+        </button>
+      </Panel>
+    )
+  /** No node of the turn drawn: no message yet - the bee, once the conversation is read -, or no work of it on record. */
+  const emptyNote = () =>
+    graph.nodes.length === 0 && (
+      <div className="canvas-empty muted">
+        {state && rows.length === 0 && <EmptyBee />}
+        {rows.length === 0 ? 'No message yet. Write one to start.' : 'Nothing of this message’s work is on record yet.'}
+      </div>
+    )
+  /** The turn's timeline, under the canvas, while it is open. */
+  const timelineStrip = () =>
+    timelineOpen && state && current && (
+      <TimelineStrip
+        // (Another turn, another strip: no cost or time of the one before is said for it.)
+        key={current}
+        state={state}
+        runId={current}
+        onOpen={agentId => onOpenNode?.('agent', agentId)}
+        onClose={() => {
+          showTimeline(false)
+          timelineButton.current?.focus()
+        }}
+      />
+    )
 
   return (
     <div className="canvas">
@@ -947,55 +1013,14 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
                   </>
                 )}
               </Controls>
-              {/* (Only where something was said: picking an agent that said nothing fades the rest, and that is all.) */}
-              {said && said.length > 0 && (
-                <SaidBox
-                  {...saidSide()}
-                  title={talkEdge ? `${whoOf(talkEdge.source)} ↔ ${whoOf(talkEdge.target)}` : `What ${whoOf(shown!.id)} said and was told`}
-                  said={said}
-                  nameOf={nameOf}
-                  // (Its pair's colour: the line's it was said on - the agents', or the talk line's picked.)
-                  colourOf={m => talkHues.get([`agent:${m.from_agent_id}`, `agent:${m.to_agent_id}`].sort().join('|')) ?? (talkEdge && talkHues.get(pairOf(talkEdge))) ?? 'var(--accent)'}
-                  // (The talk line's far end, or those who talked with the agent picked, on the left; the other on the right.)
-                  right={m => (talkEdge ? !endsOf(talkEdge.source).has(m.from_agent_id) : m.from_agent_id === shown?.agentId)}
-                  // (As a click on the empty canvas: the talk and the pick put away.)
-                  onClose={() => {
-                    setTalk(null)
-                    onSelect(null)
-                  }}
-                />
-              )}
-              {/* R52: every team's frame folded to its one line, or opened again. */}
-              {frames.length > 0 && (
-                <Panel position="bottom-right" className="canvas-fold-all">
-                  <button type="button" className="btn btn-small" onClick={() => remember(prev => ({ ...prev, ...Object.fromEntries(frames.map(n => [n.id, !framesOpen])) }))}>
-                    {framesOpen ? 'Fold all' : 'Open all'}
-                  </button>
-                </Panel>
-              )}
+              {saidBox()}
+              {foldAllPanel()}
             </ReactFlow>
           </NodeActions.Provider>
         </ToggleGroup.Provider>
-        {graph.nodes.length === 0 && (
-          <div className="canvas-empty muted">
-            {state && rows.length === 0 && <EmptyBee />}
-            {rows.length === 0 ? 'No message yet. Write one to start.' : 'Nothing of this message’s work is on record yet.'}
-          </div>
-        )}
+        {emptyNote()}
       </div>
-      {timelineOpen && state && current && (
-        <TimelineStrip
-          // (Another turn, another strip: no cost or time of the one before is said for it.)
-          key={current}
-          state={state}
-          runId={current}
-          onOpen={agentId => onOpenNode?.('agent', agentId)}
-          onClose={() => {
-            showTimeline(false)
-            timelineButton.current?.focus()
-          }}
-        />
-      )}
+      {timelineStrip()}
       {legendOpen && (
         <div ref={legendPanel} tabIndex={-1} className="allow-list-panel canvas-legend" role="dialog" aria-label="Canvas legend">
           <Legend />
