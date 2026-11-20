@@ -54,6 +54,46 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
   }
   // Models with a tier first; those without one last (and faded). Each row keeps its place in the list.
   const shownRows = rows.map((row, index) => ({ row, index })).sort((a, b) => Number(!a.row.tier) - Number(!b.row.tier))
+  /** While a proposal is in the list unsaved: that it is, what was left out, and - for a saved provider - its Save and Cancel. */
+  const proposed = () =>
+    leftOut !== null && (
+      <div role="status" className="muted provider-note">
+        Proposed from the catalogue and the provider’s own list, not saved yet: look it over, then save it.
+        {leftOut > 0 && ` ${leftOut} left out: models that cannot chat, or past the ${MAX_MODELS} the list holds (the strongest are kept).`}
+        {provider && (
+          <span className="role-actions">
+            <button
+              type="button"
+              className="btn btn-small btn-primary"
+              onClick={() => {
+                setLeftOut(null)
+                void (async () => {
+                  setModelsError(null)
+                  try {
+                    await onSave(provider.id, { models: listed })
+                    setToast('The proposed models are saved.')
+                  } catch (err) {
+                    setModelsError(errorText(err))
+                  }
+                })()
+              }}
+            >
+              Save these models
+            </button>
+            <button
+              type="button"
+              className="btn btn-small"
+              onClick={() => {
+                setLeftOut(null)
+                setRows(savedRows())
+              }}
+            >
+              Cancel
+            </button>
+          </span>
+        )}
+      </div>
+    )
   return (
     <div className="provider-models">
       {rows.length > 0 && (
@@ -200,44 +240,7 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
           Being retired: models.dev says so. Such a model still runs, and is no longer offered for new picks.
         </span>
       )}
-      {leftOut !== null && (
-        <div role="status" className="muted provider-note">
-          Proposed from the catalogue and the provider’s own list, not saved yet: look it over, then save it.
-          {leftOut > 0 && ` ${leftOut} left out: models that cannot chat, or past the ${MAX_MODELS} the list holds (the strongest are kept).`}
-          {provider && (
-            <span className="role-actions">
-              <button
-                type="button"
-                className="btn btn-small btn-primary"
-                onClick={() => {
-                  setLeftOut(null)
-                  void (async () => {
-                    setModelsError(null)
-                    try {
-                      await onSave(provider.id, { models: listed })
-                      setToast('The proposed models are saved.')
-                    } catch (err) {
-                      setModelsError(errorText(err))
-                    }
-                  })()
-                }}
-              >
-                Save these models
-              </button>
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={() => {
-                  setLeftOut(null)
-                  setRows(savedRows())
-                }}
-              >
-                Cancel
-              </button>
-            </span>
-          )}
-        </div>
-      )}
+      {proposed()}
       {modelsError && (
         <div role="alert" className="alert">
           {modelsError}
