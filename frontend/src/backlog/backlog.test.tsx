@@ -508,3 +508,15 @@ test('who writes the drafts is said by what is known: a model named for it, the 
   expect(document.getElementById('draft-who')).toBeNull()
   expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeEnabled()
 })
+
+test('while the drafts are written the button says so, and neither it nor Plan it in a chat can be pressed', async () => {
+  const props = page()
+  const onDraft = vi.fn(() => new Promise<never>(() => {}))
+  render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} onPlan={vi.fn(async () => {})} />)
+  await userEvent.type(screen.getByLabelText('Title'), 'x')
+  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Product owner' }))
+  expect(await screen.findByRole('button', { name: 'Writing…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Writing…' })).toHaveAttribute('aria-describedby', 'draft-who')
+  expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Add task' })).toBeEnabled()
+})
