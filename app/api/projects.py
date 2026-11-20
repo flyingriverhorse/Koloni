@@ -517,15 +517,7 @@ def project_raw(project_id: str, path: str, request: Request,
     return Response(data, media_type=kind, headers=views.headers_of(kind))
 
 
-# On the event loop, as everything that reaches the runner is.
-@router.patch("/{project_id}", response_model=ProjectOut, dependencies=[Depends(require_origin)])
-async def patch_project(  # noqa: C901
-    project_id: str, body: ProjectPatch, request: Request, session: Session = Depends(get_session)
-):
-    project = session.get(Project, project_id)
-    if project is None:
-        raise HTTPException(404, "project not found")
-    before = {name: getattr(project, name) for name in koloni.SETTINGS}
+def _change_docker(project: Project, body: ProjectPatch) -> None:
     if body.docker_image is not None:
         project.docker_image = body.docker_image.strip() or None
     if body.docker_network is not None:
@@ -534,6 +526,113 @@ async def patch_project(  # noqa: C901
         if body.exec_location == "docker" and not project.docker_image:
             raise HTTPException(422, "choose a Docker image first")
         project.exec_location = body.exec_location
+
+
+def _change_teams_and_folders(session: Session, request: Request, project: Project,
+                              body: ProjectPatch) -> None:
+    if body.teams_mode is not None or body.teams is not None:
+        # The teams its new chats work with: the user's to say, as a chat's are (slice 84b).
+        require_own_origin(request)
+        project.teams_mode = body.teams_mode or project.teams_mode
+        rows = chat_rows(session, project.teams_mode, body.teams)
+        if rows is not None or project.teams_mode != "manual":
+            project.teams = rows or []
+    for name in ("also_in", "read_in"):
+        if getattr(body, name) is not None:
+            # Where its agents work without asking to go there: the user's to say, from the
+            # app's own page - not a command's that an agent runs against the app's address.
+            require_own_origin(request)
+            setattr(project, name, checked_folders(getattr(body, name), project.root_path))
+
+
+async def _change_commands(project: Project, body: ProjectPatch) -> None:
+    if body.check_command is not None:
+        project.check_command = body.check_command.strip() or None
+    if body.measure_command is not None:
+        project.measure_command = body.measure_command.strip() or None
+    if body.git_commit is not None:
+        project.git_commit = body.git_commit
+    if body.finish_way is not None:
+        # D2: a pull request is the user's consent to push its branches - only where gh can
+        # open one (greyed out with this why in Settings › This project).
+        if body.finish_way == "pull_request" and (why := (await asyncio.to_thread(
+                git.pr_ready, Path(project.root_path)))[1]):
+            raise HTTPException(422, f"a pull request cannot be opened: {why}")
+        project.finish_way = body.finish_way
+    if body.pass_env is not None:
+        project.pass_env = body.pass_env.strip() or None
+
+
+def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> None:
+    if body.notify_desktop and not web.has_desktop():
+        raise HTTPException(422, web.NO_DESKTOP)  # as the tool would say each time
+    for name in ("search_order", "search_agy", "notify_format", "notify_desktop", "auto_notes",
+                 "observe_reports", "suggest_tasks", "suggest_tier", "hide_secrets", "canary",
+                 "lead_work", "continue_steps", "when_away", "away_minutes", *SPAWN):
+        if getattr(body, name) is not None:
+            setattr(project, name, getattr(body, name))
+    for name in spends:
+        setattr(project, name, getattr(body, name))
+
+
+def _change_memory(session: Session, project: Project, body: ProjectPatch,
+                   embedded: bool) -> None:
+    if body.memory_links is not None:
+        # 22c: whose memory its recall also reads - projects of this KOLONİ, never itself.
+        others = list(dict.fromkeys(body.memory_links))
+        known = set(session.scalars(select(Project.id).where(Project.id.in_(others))))
+        if project.id in others or set(others) - known:
+            raise HTTPException(
+                422, "a project to look in is another project of this KOLONİ")
+        project.memory_links = others
+    if embedded:
+        # 22c: the server that embeds for a search by meaning: any provider with an address.
+        if body.embedding_provider_id is not None and not (
+                (chosen := session.get(Provider, body.embedding_provider_id))
+                and chosen.base_url):
+            raise HTTPException(
+                422, "the search by meaning needs a provider with a server address")
+        project.embedding_provider_id = body.embedding_provider_id
+    if body.embedding_model is not None:
+        project.embedding_model = body.embedding_model.strip() or meaning.DEFAULT_MODEL
+
+
+def _change_addresses_and_day_note(request: Request, project: Project, body: ProjectPatch,
+                                   noted: bool) -> None:
+    for name in ("search_url", "notify_url"):
+        value = getattr(body, name)
+        if value is None:
+            continue
+        address = value.strip()
+        if address and not web.settable(address):
+            # Said without the address: the notification address is a secret.
+            raise HTTPException(
+                422, f"{name} must be an http or https address, without a user name or password"
+            )
+        setattr(project, name, address or None)
+    if noted:
+        if body.day_note_at and not project.day_note_at:
+            # Switched on: a day it was off is no day to send late (`Triggers.day_notes`).
+            yesterday = local_day(now(), request.app.state.triggers.zone) - timedelta(days=1)
+            project.day_note_sent = max(project.day_note_sent or yesterday, yesterday)
+        project.day_note_at = body.day_note_at
+    # As the project is after this change: a time with nowhere to send it is never kept.
+    if project.day_note_at and not (project.notify_url or project.notify_desktop):
+        raise HTTPException(
+            422, "the day's summary is sent to the notification address or the desktop "
+            "notification: keep one, or empty the summary's time")
+
+
+# On the event loop, as everything that reaches the runner is.
+@router.patch("/{project_id}", response_model=ProjectOut, dependencies=[Depends(require_origin)])
+async def patch_project(
+    project_id: str, body: ProjectPatch, request: Request, session: Session = Depends(get_session)
+):
+    project = session.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "project not found")
+    before = {name: getattr(project, name) for name in koloni.SETTINGS}
+    _change_docker(project, body)
     users_own = ("search_order", "search_url", "search_agy", "notify_url", "notify_format",
                     "notify_desktop", "check_command", "measure_command", "git_commit",
                     "finish_way", "auto_notes", "observe_reports", "suggest_tasks", "suggest_tier",
@@ -565,34 +664,8 @@ async def patch_project(  # noqa: C901
         # request of their plan, K-cli-vekil), or its agents finish only once KOLONİ ran the tests.
         # And so are its chats' sub-agent settings and what their discussions and rooms spend.
         require_own_origin(request)
-    if body.teams_mode is not None or body.teams is not None:
-        # The teams its new chats work with: the user's to say, as a chat's are (slice 84b).
-        require_own_origin(request)
-        project.teams_mode = body.teams_mode or project.teams_mode
-        rows = chat_rows(session, project.teams_mode, body.teams)
-        if rows is not None or project.teams_mode != "manual":
-            project.teams = rows or []
-    for name in ("also_in", "read_in"):
-        if getattr(body, name) is not None:
-            # Where its agents work without asking to go there: the user's to say, from the
-            # app's own page - not a command's that an agent runs against the app's address.
-            require_own_origin(request)
-            setattr(project, name, checked_folders(getattr(body, name), project.root_path))
-    if body.check_command is not None:
-        project.check_command = body.check_command.strip() or None
-    if body.measure_command is not None:
-        project.measure_command = body.measure_command.strip() or None
-    if body.git_commit is not None:
-        project.git_commit = body.git_commit
-    if body.finish_way is not None:
-        # D2: a pull request is the user's consent to push its branches - only where gh can
-        # open one (greyed out with this why in Settings › This project).
-        if body.finish_way == "pull_request" and (why := (await asyncio.to_thread(
-                git.pr_ready, Path(project.root_path)))[1]):
-            raise HTTPException(422, f"a pull request cannot be opened: {why}")
-        project.finish_way = body.finish_way
-    if body.pass_env is not None:
-        project.pass_env = body.pass_env.strip() or None
+    _change_teams_and_folders(session, request, project, body)
+    await _change_commands(project, body)
     if gated:
         project.finish_tests = body.finish_tests
     if limited:
@@ -601,55 +674,9 @@ async def patch_project(  # noqa: C901
         project.max_agents = body.max_agents
     if budgeted:
         project.monthly_budget = body.monthly_budget
-    if body.notify_desktop and not web.has_desktop():
-        raise HTTPException(422, web.NO_DESKTOP)  # as the tool would say each time
-    for name in ("search_order", "search_agy", "notify_format", "notify_desktop", "auto_notes",
-                 "observe_reports", "suggest_tasks", "suggest_tier", "hide_secrets", "canary",
-                 "lead_work", "continue_steps", "when_away", "away_minutes", *SPAWN):
-        if getattr(body, name) is not None:
-            setattr(project, name, getattr(body, name))
-    for name in spends:
-        setattr(project, name, getattr(body, name))
-    if body.memory_links is not None:
-        # 22c: whose memory its recall also reads - projects of this KOLONİ, never itself.
-        others = list(dict.fromkeys(body.memory_links))
-        known = set(session.scalars(select(Project.id).where(Project.id.in_(others))))
-        if project.id in others or set(others) - known:
-            raise HTTPException(
-                422, "a project to look in is another project of this KOLONİ")
-        project.memory_links = others
-    if embedded:
-        # 22c: the server that embeds for a search by meaning: any provider with an address.
-        if body.embedding_provider_id is not None and not (
-                (chosen := session.get(Provider, body.embedding_provider_id))
-                and chosen.base_url):
-            raise HTTPException(
-                422, "the search by meaning needs a provider with a server address")
-        project.embedding_provider_id = body.embedding_provider_id
-    if body.embedding_model is not None:
-        project.embedding_model = body.embedding_model.strip() or meaning.DEFAULT_MODEL
-    for name in ("search_url", "notify_url"):
-        value = getattr(body, name)
-        if value is None:
-            continue
-        address = value.strip()
-        if address and not web.settable(address):
-            # Said without the address: the notification address is a secret.
-            raise HTTPException(
-                422, f"{name} must be an http or https address, without a user name or password"
-            )
-        setattr(project, name, address or None)
-    if noted:
-        if body.day_note_at and not project.day_note_at:
-            # Switched on: a day it was off is no day to send late (`Triggers.day_notes`).
-            yesterday = local_day(now(), request.app.state.triggers.zone) - timedelta(days=1)
-            project.day_note_sent = max(project.day_note_sent or yesterday, yesterday)
-        project.day_note_at = body.day_note_at
-    # As the project is after this change: a time with nowhere to send it is never kept.
-    if project.day_note_at and not (project.notify_url or project.notify_desktop):
-        raise HTTPException(
-            422, "the day's summary is sent to the notification address or the desktop "
-            "notification: keep one, or empty the summary's time")
+    _change_switches(project, body, spends)
+    _change_memory(session, project, body, embedded)
+    _change_addresses_and_day_note(request, project, body, noted)
     changed = {name: getattr(project, name) for name in koloni.SETTINGS
                if getattr(project, name) != before[name]}
     # Into the folder's .koloni/ (slice 86c) only from the app's own page: a command an agent
