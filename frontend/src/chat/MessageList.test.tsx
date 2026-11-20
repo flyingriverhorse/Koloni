@@ -1379,3 +1379,19 @@ test('a turn that ended with nothing after your message still says what it did, 
   expect(screen.queryByRole('article')).toBeNull()
   expect(screen.getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
 })
+
+test('a turn with no Lead gets no card, and what it did stands under its last message', () => {
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('r', 'completed')],
+        agents: [agent('r', 'completed', { id: 'k', parent_agent_id: null, depth: 1 })],
+        messages: [userMessage('r', 'go'), assistantMessage('m', 'r', 'Done.')],
+      })}
+    />,
+  )
+  expect(screen.queryByRole('article')).toBeNull()
+  expect(screen.getAllByRole('region', { name: 'What it did' })).toHaveLength(1)
+  expect(screen.getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
+})
