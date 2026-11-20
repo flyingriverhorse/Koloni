@@ -933,7 +933,16 @@ def _prune_taken_back(runtime_root: Path) -> None:
                 shutil.rmtree(turn, ignore_errors=True)
 
 
-def _restore(root: Path, rel: str, held: bytes | None) -> str | None:  # noqa: C901
+def _restore_no_link(path: Path) -> None:
+    """`_restore`'s first step: a link or a junction at `path` is taken away itself."""
+    if _is_link(path):
+        if os.name == "nt" and path.is_dir():
+            os.rmdir(path)  # (a junction, or a link to a folder: itself only)
+        else:
+            os.unlink(path)
+
+
+def _restore(root: Path, rel: str, held: bytes | None) -> str | None:
     """Make a project file hold `held` again - None: there is none (nor a folder that took a
     link's place, emptied first) -, by a new file put in its place (a hard link to it stays
     as it was); a link or a junction there now is taken away itself, never what it leads to.
@@ -955,11 +964,7 @@ def _restore(root: Path, rel: str, held: bytes | None) -> str | None:  # noqa: C
     if held is not None and held.startswith(STANDING_LINK):
         return "KOLONİ makes no links: make it again yourself"  # (Keep of a link an agent made)
     try:
-        if _is_link(path):
-            if os.name == "nt" and path.is_dir():
-                os.rmdir(path)  # (a junction, or a link to a folder: itself only)
-            else:
-                os.unlink(path)
+        _restore_no_link(path)
         if outside(path.parent):
             return "its folder leads out of the project now"
         if held is None:
