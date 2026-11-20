@@ -173,8 +173,9 @@ def test_model_change_plans_has_the_learned_expert_review_builds_checks_twice_an
         "MLflow expert": [text(NONE)], "ML engineer": [step(write("made.txt", "x")), text("built")],
         "Tester": [text(NONE)], "Model evaluator": [text(FOUND)], "ML engineer 2": [text("fixed")],
         "Tester 2": [text(NONE)], "Model evaluator 2": [text(NONE)], "Reviewer": [text(NONE)]})
-    assert opened(snap) == ["Data scientist", "MLflow expert", "ML engineer", "Tester",
-                            "Model evaluator", "ML engineer", "Tester", "Model evaluator", "Reviewer"]
+    assert in_waves(opened(snap), 1, 1, 1, 2, 1, 2) == in_waves(
+        ["Data scientist", "MLflow expert", "ML engineer", "Tester", "Model evaluator",
+         "ML engineer", "Tester", "Model evaluator", "Reviewer"], 1, 1, 1, 2, 1, 2)
     # (R116: the checks that sent it back ran again - the loop's round is theirs too)
     assert strip(row(snap)) == [("plan", "done", 0), ("experts", "done", 0), ("build", "done", 1),
                                 ("checks", "done", 1), ("review", "done", 0), ("end", "now", 0)]

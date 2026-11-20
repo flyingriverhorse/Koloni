@@ -27,11 +27,15 @@ How to write an entry (every release looks the same):
 
 ### Changed
 
+- **Models**: while KOLONİ's browser tab is in the background, the page no longer asks every 15 seconds whether the model server answers; it asks once as you come back to the tab.
 - **CLIs**: GitHub Copilot CLI run **Native**, on a version whose code was read or measured (1.0.67 and 1.0.105 so far, by the version Copilot reports; after an update of Copilot's, not until that version is measured), works in the agents' scratch folder: a command that starts in a new shell of its own (one that names no shell) is judged in the project folder, so `cd .koloni/tmp/...; python a.py` runs without a card at Full auto; a delete inside `.koloni/tmp/` is still asked there, and on any other version, in a shell it named, or after one that did, the `cd` is still asked too ([docs](docs/reference/known-limits.md)).
 
 ### Fixed
 
 - **Canvas**, **Chat**, **CLIs**: a KOLONİ tool call that a CLI agent stopped waiting for - a command, a wait for another team, a message to another agent, a web request - no longer shows as running after the turn: it ends as interrupted, as when you press Stop, also when the CLI cancels it in the middle of its turn (the agent then shows as at work again, not waiting). What it started is stopped as by Stop; a server you let keep running keeps running. After a restart, such a call left running by an earlier turn is closed too. A discussion broken by an error now shows **Failed**, not **Stopped**.
+- **Models**: a model server of your own that has stopped now shows as not answering also when you wrote its model name yourself; before, once its model had answered, KOLONİ kept saying it answered. On Windows the check of a stopped server on this machine takes about a second instead of about 2.
+- **CLIs**: Qoder's **Native** way of running now says what was measured, on the Models page and in its agent's window: the Qoder versions tried so far do not apply KOLONİ's hook, so a native turn stops before Qoder does anything and says to run it as a session. It used to say that Qoder asks before every tool, not yet measured, and that one tool could run before the run stopped ([docs](docs/models/setup-cli.md#how-it-runs)).
+- **Chat**: on the card that asks which candidate's work goes on, a candidate that stopped before its end is said to have "stopped before its end", no longer that "nobody is watching this turn".
 
 ### Security
 

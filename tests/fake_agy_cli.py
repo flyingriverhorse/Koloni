@@ -170,6 +170,7 @@ if free:
     groups = groups if loaded else []
     log = home / ".gemini" / "antigravity-cli" / "cli.log"
     log.parent.mkdir(parents=True, exist_ok=True)
+    save()  # (KOLONİ ends one whose count is wrong as soon as it reads the log: on record first)
     log.write_text(f"I1024 11:49:04.862095       1 hooks_manager.go:53] loaded {loaded} named "
                    "hooks from 1 hooks.json file(s)\n", encoding="utf-8")
 record["hooks"] = []

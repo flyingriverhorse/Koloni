@@ -61,7 +61,7 @@ CLI_AT_ONCE, SERVICE_AT_ONCE = 3, 8
 # refuses a write or a command, so nothing has to be asked.
 MODES = {
     "claude_cli": ("session", "step", "native"),
-    "qoder_cli": ("session", "native"),  # (native: B-306, not yet measured)
+    "qoder_cli": ("session", "native"),  # (native: B-306, stopped before it acts: NOT_WATCHED)
     "codex_cli": ("session", "step", "native"),
     "copilot_cli": ("session", "native"),
     "agy_cli": ("reads", "native"),
@@ -106,11 +106,12 @@ def per_token(provider: Provider) -> bool:
 # agy's hooks, each of Copilot's requests.
 NOT_WATCHED: dict[tuple[str, str], tuple[str, ...]] = {
     ("claude_cli", "native"): (),
-    # shortcut: as `QoderNativeClient` says, whether it asks before its tools is not measured
-    # (`_heard` stops it only once one ran unasked); drop this line once measured live.
+    # shortcut: as `QoderNativeClient` says, the versions tried do not apply KOLONİ's hook
+    # (`_control` stops them first); how one that applies it asks before its tools is not
+    # measured (`_heard` stops it only once one ran unasked); drop this line once measured live.
     ("qoder_cli", "native"): (
-        "not yet measured to ask before each tool; a tool that ran unasked stops the turn "
-        "after it ran",
+        "the Qoder versions tried so far do not apply KOLONİ's hook and are stopped before they "
+        "act; how one that applies it asks before each tool is not measured",
     ),
     ("copilot_cli", "native"): (),
     ("agy_cli", "native"): (),

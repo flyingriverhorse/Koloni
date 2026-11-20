@@ -17,7 +17,8 @@ and credit messages.
 - When it runs **Native**, Codex runs the commands its own rules count as safe (a read of `.env`, or of a
   file outside the project) without asking KOLONİ, at every level; KOLONİ records them after they ran, so
   no card stands in their way. agy reading with its own tools has no hook: its reads, of a secret file
-  too, are not asked about at any level. That Qoder asks before every tool is not yet measured.
+  too, are not asked about at any level. Qoder run **Native** stops before it acts on the versions
+  measured so far (they do not apply KOLONİ's hook); how one that applies it asks is not measured.
 - A command you approve can still print, encode or send a secret it was given.
 - An agent's request for a key on a hidden card is not available to CLIs working with their own tools.
 - A branch deleted because it held a secret you gave still has its commits in git's reflog until git

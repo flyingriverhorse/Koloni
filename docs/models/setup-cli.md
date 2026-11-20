@@ -45,9 +45,11 @@ as it is.
 
 - **One session per agent** and **One run per model step** use KOLONİ's tools and cards, with the CLI's
   own tools off.
-- **Native** uses the CLI's own tools in your folder. Claude Code, Qoder and agy ask KOLONİ before every
-  tool they use; Codex before each command and patch, except the commands its own rules count as safe,
-  which it runs without asking; Copilot before each command, write and read.
+- **Native** uses the CLI's own tools in your folder. Claude Code and agy ask KOLONİ before every tool
+  they use; Codex before each command and patch, except the commands its own rules count as safe, which
+  it runs without asking; Copilot before each command, write and read. The Qoder versions measured so
+  far do not apply KOLONİ's hook, so a native Qoder turn stops before Qoder does anything and says to
+  run it as a session; how a Qoder that applies the hook works natively is not measured.
 - **Reads with its own tools** (agy): it reads, and is started without leave to write or run.
 
 A trigger never starts a CLI that works with its own tools (Native, or agy's reads): with nobody watching,

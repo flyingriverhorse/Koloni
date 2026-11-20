@@ -342,7 +342,7 @@ def test_codex_may_run_natively_and_as_a_session(client):
     assert client.post("/api/providers", json={
         "name": "C2", "kind": "codex_cli", "mode": "session"}).json()["mode"] == "session"
     # Claude Code can: it asks KOLONİ before a tool of its own needs leave. So may Qoder, over
-    # the same protocol (B-306, not yet measured: `QoderNativeClient`).
+    # the same protocol (B-306: what was measured is in `QoderNativeClient`).
     assert client.post("/api/providers", json={
         "name": "Cl", "kind": "claude_cli", "mode": "native"}).status_code == 201
     assert client.post("/api/providers", json={

@@ -11,7 +11,7 @@ from app.api.deps import get_session
 from app.config import REPO_ROOT
 from app.executors.docker import docker_status
 from app.executors.host import shell_name, store_pwsh_note
-from app.model_client import ModelUnavailable, safe_url
+from app.model_client import ModelUnavailable, OpenAICompatClient, safe_url
 from app.providers import NotListed, allowed, list_providers
 from app.schemas import HealthOut, StorageOut
 
@@ -62,6 +62,8 @@ async def health(
             raise ModelUnavailable("no model provider is set up")
         allowed(provider, provider.default_model)
         client = request.app.state.providers.client(provider, provider.default_model)
+        if isinstance(client, OpenAICompatClient):
+            await client.reach()
         info = await client.info()
     except NotListed as exc:
         # Nothing was asked of it: it is not known to be out of reach.

@@ -23,13 +23,14 @@ const MODE_LABEL: Record<Mode, string> = {
   native: 'Native: its own tools, in the project',
   reads: 'Reads with its own tools; started without leave to write or run',
 }
-// What each CLI asks KOLONİ before, natively (89a Codex, 89b Claude Code, 89c Copilot; agy through its hook).
+// What each CLI asks KOLONİ before, natively (89a Codex, 89b Claude Code, 89c Copilot; agy through its hook) -
+// Qoder: what was measured instead (app/model_native.py, its hook's check).
 const NATIVE_ASKS: Partial<Record<ProviderKind, string>> = {
   claude_cli: 'asks before every tool it uses',
   agy_cli: 'asks before every tool it uses',
   codex_cli: 'asks before each command and patch, but not those its own rules count as safe',
   copilot_cli: 'asks before each command, write and read',
-  qoder_cli: 'asks before every tool it uses (not yet measured)',
+  qoder_cli: "stops before it acts on the versions measured so far: they do not apply KOLONİ's hook",
 }
 // KOLONİ's tools in either way, from the agy version they were measured to reach (app/model_agy.py BRIDGE_FROM).
 const AGY_TOOLS =
@@ -375,12 +376,11 @@ function CliNotes({ kind, copilot, ownServer, address, signs, signIn, runs, agy 
       )}
       {runs === 'native' && kind === 'qoder_cli' && (
         <p role="note" className="composer-warning provider-note">
-          Native, not yet measured: Qoder works in the project folder with its own file and shell tools, and is
-          asked, as Claude Code is, to ask KOLONİ before every tool of its own: a change shows as a diff to approve and
-          a command as a command to approve, as the permission level says. Whether Qoder really does is not measured
-          yet: a tool of its own seen running without KOLONİ being asked stops the run, after that one tool has run. A
-          tool KOLONİ does not know by name is asked about at every level. It does not run natively in a project with
-          Qoder settings of its own (.qoder). {NATIVE_COPY} {NOT_BY_TRIGGER}
+          Native: the Qoder versions measured so far do not apply KOLONİ&apos;s hook, so a native turn stops before
+          Qoder does anything and says to run it as a session (One session per agent) instead. A Qoder that applies
+          the hook passes that check; how it works natively after that, asking KOLONİ before each tool of its own as
+          Claude Code does, is not measured. It does not run natively in a project with Qoder settings of its own
+          (.qoder). {NATIVE_COPY} {NOT_BY_TRIGGER}
         </p>
       )}
       {runs === 'native' && kind === 'copilot_cli' && (
