@@ -57,6 +57,12 @@ function numberOf(line: Element): number | null {
   return said.length ? Number(said.at(-1)) : null
 }
 
+/** Every line under `root` a selection that begins in `first` may cover: a file view's or a diff's, or - side by side - those of its side. */
+function linesOf(root: Element, first: Element): Element[] {
+  const side = first.matches('.diff-half') ? Array.from(first.parentElement?.children ?? []).indexOf(first) : -1
+  return side < 0 ? Array.from(root.querySelectorAll('.diff-line')) : Array.from(root.querySelectorAll('.diff-row')).map(row => row.children[side])
+}
+
 /**
  * The lines a selection covers in a file view or a diff under `root` (`.diff-line`, or a side's `.diff-half`), read from
  * their text alone - never the numbers or the +/- beside them. Outside such lines, the selection's own text.
@@ -66,8 +72,7 @@ export function linesIn(root: Element, range: Range, said: string): Omit<Picked,
   const first = lineOf(range.startContainer)
   let last = lineOf(range.endContainer)
   if (!first || !last || !root.contains(first) || !root.contains(last)) return { from: null, to: null, text: said }
-  const side = first.matches('.diff-half') ? Array.from(first.parentElement?.children ?? []).indexOf(first) : -1
-  const all = side < 0 ? Array.from(root.querySelectorAll('.diff-line')) : Array.from(root.querySelectorAll('.diff-row')).map(row => row.children[side])
+  const all = linesOf(root, first)
   // (a selection that ends at the very start of a line - a triple click - is of the lines before it)
   if (last !== first) {
     const into = root.ownerDocument.createRange()

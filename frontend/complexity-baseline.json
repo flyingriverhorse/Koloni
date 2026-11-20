@@ -51,7 +51,6 @@
   "src/changes/MergeCard.tsx::Check": 21,
   "src/changes/MergeCard.tsx::MergeCard": 70,
   "src/changes/UndoCard.tsx::UndoCard": 22,
-  "src/chat/askAbout.ts::linesIn": 15,
   "src/chat/Attach.tsx::AttachmentPreview": 14,
   "src/chat/attachments.ts::shown": 18,
   "src/chat/ChatPanel.tsx::ChatPanel": 77,
