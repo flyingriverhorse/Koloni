@@ -80,7 +80,6 @@
   "src/shell/GitStatus.tsx::GitStatus": 18,
   "src/shell/HoldStatus.tsx::HoldStatus": 23,
   "src/shell/ModelBanner.tsx::ModelBanner": 16,
-  "src/shell/ProjectMap.tsx::ProjectMap": 15,
   "src/shell/RunStatus.tsx::RunStatus": 29,
   "src/shell/Settings.tsx::AppSettings": 15,
   "src/shell/Toasts.tsx::news>flatMap": 20,
