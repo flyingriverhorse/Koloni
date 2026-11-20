@@ -1,7 +1,6 @@
 {
   "src/agents/AgentsPage.tsx::AgentsPage": 27,
   "src/agents/ChatTeams.tsx::ChatTeams": 26,
-  "src/agents/QuestionCard.tsx::QuestionCard": 13,
   "src/agents/RecipesTab.tsx::PartPanel": 51,
   "src/agents/RecipesTab.tsx::RecipesTab": 40,
   "src/agents/RecipesTab.tsx::RecipesTab>save": 16,
