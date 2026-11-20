@@ -2006,7 +2006,7 @@ class RoomsMixin:
         # (In a thread: it reads every page each knowledge kept.)
         return await asyncio.to_thread(knows.looked_up, ctx.folder, known, question, topic)
 
-    async def _learn(self: "AgentRunner", ctx: Ctx, args: dict) -> tuple[str, str]:  # noqa: C901
+    async def _learn(self: "AgentRunner", ctx: Ctx, args: dict) -> tuple[str, str]:
         """K-uzman: an expert reads its sources again and has its guide written - as Learn on
         its Knowledge tab, on the model it learns with, else its own; once a turn. Its plain GETs
         go on the user's leave for its sources (`app.knowledge`; `_open_agent` gives it this only
@@ -2029,19 +2029,7 @@ class RoomsMixin:
             no_network = project is not None and project.exec_location == "docker" and (
                 not project.docker_network)
             searching = knowledge.searching(project)
-            chosen = known.get("learn_with")
-            provider = session.get(Provider, chosen["provider_id"] if chosen else ctx.provider_id
-                                   or "")
-            if provider is None:
-                raise ToolError("the model it learns with is gone: the user chooses another")
-            model = chosen["model_id"] if chosen else ctx.model_name
-            if chosen:  # (a model of its own to learn with, held as the Knowledge tab holds it)
-                try:
-                    allowed(provider, model)
-                except NotListed as exc:
-                    raise ToolError(f"nothing was learned: {exc}") from None
-                if over := over_limit(session, provider):
-                    raise ToolError(f"nothing was learned: the model it learns with is {over}")
+            chosen, provider, model = self._learn_with(session, ctx, known)
             name, mode, key = provider.name, mode_of(provider), provider.api_key
         if switched := sorted(knowledge.web_tools(known) & self._off()):
             raise ToolError(f"nothing was learned: {', '.join(switched)} is switched off on the "
@@ -2050,27 +2038,9 @@ class RoomsMixin:
         if knowledge.reads_web(known) and no_network:
             raise ToolError("this project's network access is off (its commands run in Docker "
                             "without a network): only the user can switch it on")
-        refused = self._nobody_to_ask(ctx, "write", "write its guide in .koloni/knowledge")
-        for url in urls:
-            refused = refused or self._nobody_to_ask(
-                ctx, "host", f"read {web.rule_of(url)} to learn", host=web.rule_of(url))
-        if "web_search" in knowledge.web_tools(known):
-            refused = refused or self._nobody_to_ask(ctx, "web", "search the web to learn")
+        refused = self._learn_refused(ctx, known, urls)
         if refused:
             return "failed", refused
-
-        async def search(query: str) -> list[dict]:
-            try:
-                self._within(self._searches, ctx.cid, "10 searches")
-            except ToolError as exc:
-                raise web.WebError(str(exc)) from None
-            return await searching(query)
-
-        def may(url: str) -> str | None:
-            """Unwatched, a page a search found is read only on a site the trigger names."""
-            return None if self._nobody_to_ask(ctx, "host", "", host=web.rule_of(url)) in (
-                None, "") else "the trigger does not name this site"
-
         try:
             added = knowledge.additions(args.get("add"))
         except ValueError as exc:
@@ -2085,6 +2055,58 @@ class RoomsMixin:
         except knowledge.LearnError as exc:
             raise ToolError(str(exc)) from None
         self._learned_now.add(once)
+        record = await self._learn_now(
+            ctx, known, client, model, provider, name, mode, key, searching, added)
+        return "succeeded", (f"{knowledge.said_of(record)}. Your guide, as written now, is in "
+                             "your instructions from your next step.")
+
+    def _learn_with(self: "AgentRunner", session: Session, ctx: Ctx,
+                    known: dict) -> tuple[dict | None, Provider, str | None]:
+        """`_learn`'s model: the one chosen for its sources (and that), else its own - with its
+        provider."""
+        chosen = known.get("learn_with")
+        provider = session.get(Provider, chosen["provider_id"] if chosen else ctx.provider_id
+                               or "")
+        if provider is None:
+            raise ToolError("the model it learns with is gone: the user chooses another")
+        model = chosen["model_id"] if chosen else ctx.model_name
+        if chosen:  # (a model of its own to learn with, held as the Knowledge tab holds it)
+            try:
+                allowed(provider, model)
+            except NotListed as exc:
+                raise ToolError(f"nothing was learned: {exc}") from None
+            if over := over_limit(session, provider):
+                raise ToolError(f"nothing was learned: the model it learns with is {over}")
+        return chosen, provider, model
+
+    def _learn_refused(self: "AgentRunner", ctx: Ctx, known: dict, urls: list[str]) -> str | None:
+        """`_learn` in a turn nobody watches: why its trigger does not let it, if it does not."""
+        refused = self._nobody_to_ask(ctx, "write", "write its guide in .koloni/knowledge")
+        for url in urls:
+            refused = refused or self._nobody_to_ask(
+                ctx, "host", f"read {web.rule_of(url)} to learn", host=web.rule_of(url))
+        if "web_search" in knowledge.web_tools(known):
+            refused = refused or self._nobody_to_ask(ctx, "web", "search the web to learn")
+        return refused
+
+    async def _learn_now(
+        self: "AgentRunner", ctx: Ctx, known: dict, client, model: str | None,
+        provider: Provider, name: str, mode: str | None, key: str | None, searching, added,
+    ):
+        """`_learn`'s learning itself, begun by its caller: the record of what was learned."""
+
+        async def search(query: str) -> list[dict]:
+            try:
+                self._within(self._searches, ctx.cid, "10 searches")
+            except ToolError as exc:
+                raise web.WebError(str(exc)) from None
+            return await searching(query)
+
+        def may(url: str) -> str | None:
+            """Unwatched, a page a search found is read only on a site the trigger names."""
+            return None if self._nobody_to_ask(ctx, "host", "", host=web.rule_of(url)) in (
+                None, "") else "the trigger does not name this site"
+
         try:
             model = model or (await client.info()).model_id
             with self._factory() as session:  # (by the model that answers: a default too)
@@ -2122,5 +2144,4 @@ class RoomsMixin:
             raise ToolError(f"nothing was learned: {name} isn't answering ({said})") from None
         finally:
             knowledge.end(ctx.folder, known)
-        return "succeeded", (f"{knowledge.said_of(record)}. Your guide, as written now, is in "
-                             "your instructions from your next step.")
+        return record
