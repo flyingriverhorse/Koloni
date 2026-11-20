@@ -349,6 +349,12 @@ test('the arrows go round the menu; Enter while a letter is composed, and Shift+
   const box = screen.getByRole('textbox', { name: 'Message' })
   await userEvent.type(box, '/mo')
   expect(option(/^\/model/)).toHaveAttribute('aria-selected', 'true')
+  // while a letter is composed the keys are the composition's, not the menu's
+  expect(fireEvent.keyDown(box, { key: 'ArrowDown', isComposing: true })).toBe(true)
+  expect(option(/^\/model/)).toHaveAttribute('aria-selected', 'true')
+  expect(fireEvent.keyDown(box, { key: 'Enter', isComposing: true })).toBe(true)
+  expect(box).toHaveValue('/mo')
+  expect(menu()).toBeInTheDocument()
   await userEvent.keyboard('{ArrowUp}')
   expect(option(/^\/mode\b/)).toHaveAttribute('aria-selected', 'true')
   await userEvent.keyboard('{ArrowUp}')
