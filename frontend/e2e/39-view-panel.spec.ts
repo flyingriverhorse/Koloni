@@ -116,12 +116,12 @@ test('a picture an agent shows opens Workspace by itself, the focus left in the 
   // (opened, it is seen)
   await expect(button).not.toHaveAccessibleName(/ new$/)
 
-  // Beside the open chat and as tall, half the
-  // canvas wide; over the canvas, not the chat.
-  const [stage, box, chatBox] = [(await page.locator('.stage').boundingBox())!, (await panel.boundingBox())!, (await chat.boundingBox())!]
+  // Beside the open chat's column, from under the Teams button down to 14px above the chat's foot (0.1.4), half
+  // the canvas wide; over the canvas, not the chat.
+  const [stage, box, chatBox, teams] = await Promise.all(['.stage', '.view-panel', '.chat', '.chat-teams'].map(async one => (await page.locator(one).boundingBox())!))
   expect(box.x).toBeGreaterThanOrEqual(chatBox.x + chatBox.width)
-  expect(Math.round(box.y)).toBe(Math.round(chatBox.y))
-  expect(Math.round(box.y + box.height)).toBe(Math.round(chatBox.y + chatBox.height))
+  expect(box.y).toBeGreaterThanOrEqual(teams.y + teams.height)
+  expect(Math.round(box.y + box.height)).toBe(Math.round(chatBox.y + chatBox.height - 14))
   expect(Math.round(box.width)).toBe(Math.round(stage.width / 2))
 
   // Expanded, it lies over all of the canvas; shrunk, beside the chat again.

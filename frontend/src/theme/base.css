@@ -977,9 +977,12 @@ p.hive-empty {
 }
 
 /* The chat open, there is no row under the window (Workspace's button is at the chat's foot): beside the
-   column it stands the stage's height (moved or expanded, its own rules hold). */
+   column it stands the stage's height, from under the Teams button (as a room's window) - its own buttons at
+   its right end are not under that one (moved or expanded, its own rules hold).
+   shortcut: the column and this window leave the turn little of the canvas - a strip about 240px wide at 1440,
+   none at 1024 (the Lead's card lies under them); upgrade (a shorter window, or the turn beside it) if it is met. */
 .chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
-  top: 14px;
+  top: 56px;
   bottom: calc(14px + var(--timeline-h, 0px));
   height: auto;
   min-height: 0;
