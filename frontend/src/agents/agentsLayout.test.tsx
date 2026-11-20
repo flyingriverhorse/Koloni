@@ -637,10 +637,11 @@ test('a role dragged from the library marks the page while it is dragged', async
   render(<AgentsPage roles={[lead, coder, devops]} teams={teams} {...handlers()} />)
   const page = screen.getByRole('tabpanel')
   expect(page.className).toBe('agents-page')
-  const row = within(library()).getByRole('button', { name: /^DevOps/ }).closest('.lib-row')!
-  fireEvent.dragStart(row, { dataTransfer: { setData: () => undefined } })
+  // (Fired on its button, the drag bubbles to the row that is dragged.)
+  const button = within(library()).getByRole('button', { name: /^DevOps/ })
+  fireEvent.dragStart(button, { dataTransfer: { setData: () => undefined } })
   await vi.waitFor(() => expect(page.className).toBe('agents-page agents-dragging'))
-  fireEvent.dragEnd(row)
+  fireEvent.dragEnd(button)
   expect(page.className).toBe('agents-page')
 })
 

@@ -450,8 +450,8 @@ test('Ready for you, each way it stands: its class, its word and its line', () =
   const shows = (data: ReadyData, selected = false) => {
     cleanup()
     draw(<ReadyNode {...props('ready:r', data)} selected={selected} />)
-    const node = document.querySelector('.ready-node')!
-    return [node.className, node.querySelector('.node-label')?.textContent, node.querySelector('.node-said')?.textContent]
+    const node = document.querySelector('.ready-node')
+    return [node?.className, node?.querySelector('.node-label')?.textContent, node?.querySelector('.node-said')?.textContent]
   }
   expect(shows(readyData())).toEqual(['node ready-node ready-waits', 'DONE', 'Nothing waits to be taken in.'])
   expect(shows(readyData(), true)[0]).toBe('node ready-node ready-waits node-selected')
