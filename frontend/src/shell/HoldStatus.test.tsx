@@ -141,6 +141,39 @@ test('a turn slow to stop is said to be stopping, not left out; the button says 
   expect(stopped).not.toHaveTextContent('Nothing was running.')
 })
 
+test('held with nothing stopped and no trigger on, and not held with nothing running, say so; a refusal is said', async () => {
+  const since = new Date('2026-10-27T09:30:00Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  serve({ ...held, triggers: 0, backlogs: [], nights: [], stopped: [], stays_stopped: null }, [])
+  const { unmount } = render(<HoldStatus every={60_000} onOpen={() => {}} />)
+  const bar = await screen.findByRole('button', { name: 'Held · Resume' })
+  expect(bar).toHaveClass('btn hold-held')
+  expect(bar).toHaveAttribute('title', 'Held: what was stopped and what is held, and Resume')
+  await userEvent.click(bar)
+  const list = screen.getByRole('dialog', { name: 'Everything is held' })
+  expect(list.querySelector('.kicker')).toHaveTextContent(`Everything is held since ${since}`)
+  expect(within(list).getByRole('region', { name: 'Stopped' })).toHaveTextContent(/^StoppedNothing was running\.$/)
+  expect(within(list).getByRole('region', { name: 'Held' })).toHaveTextContent(/^HeldTriggersNew work while you’re away$/)
+  expect(list).not.toHaveTextContent('Resume:')
+  unmount()
+
+  // Not held and nothing to hold; Stop refused: said in the panel, which stays.
+  const asked = vi.fn(async (_url: string, init?: RequestInit) =>
+    init?.method === 'POST'
+      ? new Response(JSON.stringify({ detail: 'the server is busy' }), { status: 503 })
+      : new Response(JSON.stringify({ ...calm, running: 0, triggers: 0, backlogs: [], nights: [] }), { status: 200 }),
+  )
+  vi.stubGlobal('fetch', asked)
+  render(<HoldStatus every={60_000} onOpen={() => {}} />)
+  const stop = await screen.findByRole('button', { name: 'Stop everything' })
+  expect(stop).toHaveAttribute('class', 'btn')
+  expect(stop).toHaveAttribute('title', 'Stop every turn in every chat, and hold triggers and backlogs')
+  await userEvent.click(stop)
+  const ask = screen.getByRole('dialog', { name: 'Stop everything' })
+  expect(ask).toHaveTextContent('No turn is running now. Triggers and backlogs are held until you resume.')
+  await userEvent.click(within(ask).getByRole('button', { name: 'Stop everything' }))
+  expect(await within(ask).findByRole('alert')).toHaveTextContent(/^the server is busy$/)
+})
+
 test('an answer that is not the hold as the server gives it is taken for not held: nothing is shown, nothing breaks', async () => {
   const asked = vi.fn(async () => new Response(JSON.stringify([]), { status: 200 }))
   vi.stubGlobal('fetch', asked)
