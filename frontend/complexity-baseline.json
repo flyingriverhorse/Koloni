@@ -4,7 +4,6 @@
   "src/agents/RecipesTab.tsx::PartPanel": 51,
   "src/agents/RecipesTab.tsx::RecipesTab": 40,
   "src/agents/RoleEditor.tsx::RoleEditor": 28,
-  "src/agents/RoleEditor.tsx::RoleSummary": 18,
   "src/agents/RolePanel.tsx::RolePanel": 29,
   "src/agents/teamRequests.ts::standsLine": 13,
   "src/agents/teamRun.ts::readyLine>map": 15,
