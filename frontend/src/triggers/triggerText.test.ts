@@ -143,6 +143,30 @@ test('what cannot be saved is said beside its field before anything is sent', ()
   expect(validate({ ...good, perDay: '' })).toEqual({ perDay: 'From 1 to 500.' })
 })
 
+test('the rest of what cannot be saved, each in its own words, and every field at once in the form’s order', () => {
+  const good = { ...blank('c1'), name: 'T', message: 'm' }
+  expect(validate({ ...good, message: 'x'.repeat(4001) })).toEqual({ message: 'A message of at most 4000 characters.' })
+  expect(validate({ ...good, name: 'x'.repeat(81) })).toEqual({ name: 'A name of at most 80 characters.' })
+  expect(validate({ ...good, schedule: 'at', at: '24:00' })).toEqual({ when: 'Give the time of day as HH:MM.' })
+  expect(validate({ ...good, schedule: 'at', at: '23:59', days: 'chosen', week: [] })).toEqual({ days: 'Tick at least one day.' })
+  expect(validate({ ...good, schedule: 'at', at: '09:30', days: 'chosen', week: ['mon'] })).toEqual({})
+  // (Of another kind, its clock is not looked at; nor a pattern by the clock.)
+  expect(validate({ ...good, kind: 'webhook', every: '1', glob: '' })).toEqual({})
+  expect(validate({ ...good, kind: 'files', glob: ' src\\a.py ', every: '1' })).toEqual({})
+  const pattern = 'The pattern names paths inside the project folder: no drive, no leading slash, no "..", at most 200 characters.'
+  for (const glob of ['x'.repeat(201), 'C:/a', 'a//b', './a', 'a/..', 'a/']) expect(validate({ ...good, kind: 'files', glob })).toEqual({ glob: pattern })
+  expect(validate({ ...good, kind: 'files', glob: '  ' })).toEqual({ glob: 'Give a pattern, such as src/**/*.py.' })
+  expect(validate({ ...good, commands: Array.from({ length: 21 }, (_, n) => `r${n}`) })).toEqual({ commands: 'A trigger may run at most 20 commands.' })
+  expect(validate({ ...good, ends: 'runs', endRuns: '0' })).toEqual({ ends: 'From 1 to 1000.' })
+  expect(validate({ ...good, ends: 'runs', endRuns: '1000' })).toEqual({})
+  expect(validate({ ...good, ends: 'until', endUntil: '1 May' })).toEqual({ ends: 'Choose its last day.' })
+  expect(validate({ ...good, ends: 'until', endUntil: '2026-12-01' })).toEqual({})
+  const all = validate({ ...blank(''), every: '', commands: Array.from({ length: 21 }, () => 'r'), agents: '', steps: '', minutes: '', perDay: '', ends: 'until', endUntil: '' })
+  expect(Object.keys(all)).toEqual(['name', 'message', 'conversation', 'when', 'commands', 'agents', 'steps', 'minutes', 'perDay', 'ends'])
+  expect(Object.keys(validate({ ...blank(''), kind: 'files', glob: '', agents: '9' }))).toEqual(['name', 'message', 'conversation', 'glob', 'agents'])
+  expect(Object.keys(validate({ ...blank(''), schedule: 'at', at: '10:00', days: 'chosen', week: [], perDay: '0' }))).toEqual(['name', 'message', 'conversation', 'days', 'perDay'])
+})
+
 test('what the server refuses is put beside the field it is about', () => {
   expect(fieldOf('a trigger needs a name of at most 80 characters')).toBe('name')
   expect(fieldOf("My command CLI works with its own tools, so a trigger can't start this conversation's Orchestrator on it: with nobody watching, only an agent that works with KOLONİ's tools runs - choose another provider.")).toBe('conversation')
