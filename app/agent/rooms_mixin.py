@@ -1527,18 +1527,12 @@ class RoomsMixin:
             self._post_room(room, None, "said", word, reply_to=number)
         return status, f"posted as post {number}. {answer}"
 
-    async def _invite(self: "AgentRunner", room: _Room, ctx: Ctx, call_id: str, args: dict) -> str:  # noqa: C901
+    async def _invite(self: "AgentRunner", room: _Room, ctx: Ctx, call_id: str, args: dict) -> str:
         """A member asks one more into its room (`invite_to_room`): opened as a sub-agent of
         the room's opener is, under the same rules, with the room's goal as its task. Once
         the work has started it joins it at once; while it is shared out, with the rest.
         With no role named, only why, the Lead picks one (K-29b2-davet: `_pick_member`)."""
-        wanted, why = args.get("role") or None, args.get("why") or None
-        if wanted is not None and (not isinstance(wanted, str) or not wanted.strip()):
-            raise ToolError("argument role must be a role's name")
-        if why is not None and not isinstance(why, str):
-            raise ToolError("argument why must be a string")
-        if wanted is None and (why is None or not why.strip()):
-            raise ToolError(rooms.NAME_THE_ROLE)
+        wanted, why = self._invite_asked(args)
         if len(room.members) >= rooms.MAX_MEMBERS:
             raise ToolError(rooms.FULL)
         picked = ""
@@ -1583,6 +1577,17 @@ class RoomsMixin:
         if room.status == "working":
             room.tasks.append(asyncio.ensure_future(self._part(room, self._work, member)))
         return f"{child.name} is in the room now, with its goal as its task.{picked}"
+
+    def _invite_asked(self: "AgentRunner", args: dict) -> tuple[str | None, str | None]:
+        """`_invite`'s arguments: the role asked in and why, one of them at least."""
+        wanted, why = args.get("role") or None, args.get("why") or None
+        if wanted is not None and (not isinstance(wanted, str) or not wanted.strip()):
+            raise ToolError("argument role must be a role's name")
+        if why is not None and not isinstance(why, str):
+            raise ToolError("argument why must be a string")
+        if wanted is None and (why is None or not why.strip()):
+            raise ToolError(rooms.NAME_THE_ROLE)
+        return wanted, why
 
     async def _pick_member(self: "AgentRunner", room: _Room, ctx: Ctx, why: str) -> tuple[str, str]:
         """K-29b2-davet: one more is asked into a room with no role named, only why. The Lead's
