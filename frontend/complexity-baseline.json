@@ -90,7 +90,6 @@
   "src/triggers/refused.ts::refusal": 14,
   "src/triggers/TriggerCard.tsx::TriggerCard": 27,
   "src/triggers/TriggerForm.tsx::TriggerForm": 30,
-  "src/triggers/TriggersPage.tsx::TriggersPage": 16,
   "src/triggers/triggerText.ts::validate": 29,
   "src/usage/Prices.tsx::PriceRow": 22,
   "src/usage/UsagePage.tsx::UsagePage": 26,
