@@ -4,6 +4,8 @@ functions were split (C901): each ran green on the function before its split."""
 from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_mcp_scenarios import LONG, calls, events, give, server
+from tests.test_skill_scenarios import SKILL_MD
+from tests.test_skills import folder_of
 from tests.test_spawn import begin, call, step
 from tests.test_web_tool_scenarios import Net, go, results, setup
 
@@ -35,3 +37,22 @@ def test_a_server_switched_off_while_the_user_is_asked_is_not_called(
     assert calls(snap)["fake__echo"] == (
         "failed", "error: fake__echo is no longer available"), calls(snap)
     assert events(record, "start") == [] and events(record, "call") == []
+
+
+def test_a_skill_for_a_role_that_is_not_there_or_a_teams_lead_is_refused_before_a_card(
+    make_client, wait_run, project_dir, tmp_path
+):
+    folder = folder_of(tmp_path / "tidy", {"SKILL.md": SKILL_MD})
+    client, _model = make_client([
+        step(call("add_skill", {"folder": str(folder), "roles": ["Coder", "Nobody"]}, "k1")),
+        step(call("add_skill", {"folder": str(folder), "roles": ["Web app lead"]}, "k2")),
+        text("could not"),
+    ])
+    cid, run_id = begin(client, project_dir, mode="ask")
+    snap = wait_run(client, cid, run_id)
+    said = {t["provider_call_id"]: (t["status"], t["result"]) for t in snap["tool_calls"]}
+    assert said["k1"] == ("failed", "error: there is no role named Nobody"), said
+    assert said["k2"] == (
+        "failed", "error: Web app lead is a team's coordinator: its skills are the user's to "
+        "give, on the Agents page"), said
+    assert snap["pending_skills"] == []
