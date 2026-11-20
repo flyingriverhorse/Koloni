@@ -813,7 +813,33 @@ async def _listed_by(provider: Provider, providers) -> tuple[list[str] | None, s
     return listed or None, None if advice else note  # an empty list is no list read
 
 
-async def _own_list(provider: Provider, providers) -> tuple[list[str], str | None, bool]:  # noqa: C901
+async def _anthropic_list(provider: Provider, providers) -> tuple[list[str], str | None, bool]:
+    """`_own_list` of Anthropic's API."""
+    if not provider.api_key:
+        # Nobody is asked without a key: there is nothing it could list.
+        return [], (
+            "Set an API key to see the models it can use, or type the model's name "
+            "as Anthropic knows it."
+        ), True
+    try:
+        lister = getattr(providers.lister(provider), "models", None)
+        return (await lister() if lister else []), None, False
+    except ModelUnavailable as exc:
+        return [], str(exc).replace(provider.api_key, "[key]"), False
+
+
+async def _served_list(provider: Provider, address: str) -> tuple[list[str], str | None, bool]:
+    """`_own_list` of a model server at its address."""
+    try:
+        return await served_models(address, provider.api_key), None, False
+    except ModelUnavailable as exc:
+        reason = str(exc)
+        if provider.api_key:
+            reason = reason.replace(provider.api_key, "[key]")
+        return [], reason, False
+
+
+async def _own_list(provider: Provider, providers) -> tuple[list[str], str | None, bool]:
     """What the provider itself lists, a note, and whether that note is only advice on
     what to type (rather than why a list could not be had)."""
     if provider.kind == "claude_cli" and not provider.base_url:
@@ -831,25 +857,9 @@ async def _own_list(provider: Provider, providers) -> tuple[list[str], str | Non
         except ModelUnavailable as exc:
             return [], str(exc), False
     if provider.kind == "anthropic":
-        if not provider.api_key:
-            # Nobody is asked without a key: there is nothing it could list.
-            return [], (
-                "Set an API key to see the models it can use, or type the model's name "
-                "as Anthropic knows it."
-            ), True
-        try:
-            lister = getattr(providers.lister(provider), "models", None)
-            return (await lister() if lister else []), None, False
-        except ModelUnavailable as exc:
-            return [], str(exc).replace(provider.api_key, "[key]"), False
+        return await _anthropic_list(provider, providers)
     if provider.kind in ("openai_compat", "copilot_cli", *SERVER_CLIS) and provider.base_url:
-        try:
-            return await served_models(provider.base_url, provider.api_key), None, False
-        except ModelUnavailable as exc:
-            reason = str(exc)
-            if provider.api_key:
-                reason = reason.replace(provider.api_key, "[key]")
-            return [], reason, False
+        return await _served_list(provider, provider.base_url)
     if provider.kind == "qoder_cli":
         # Its own list (`qodercli --list-models`, no model used). Not installed, failed or
         # too slow: silently the catalogue's names, as before (R99), with the advice below.
