@@ -46,7 +46,6 @@
   "src/chat/attachments.ts::shown": 18,
   "src/chat/ChatPanel.tsx::ChatPanel": 77,
   "src/chat/CompareView.tsx::CompareView": 21,
-  "src/chat/CompareView.tsx::CompareView>map": 14,
   "src/chat/Composer.tsx::Composer": 75,
   "src/chat/Composer.tsx::Composer>onKeyDown": 21,
   "src/chat/MessageList.tsx::MessageList": 18,
