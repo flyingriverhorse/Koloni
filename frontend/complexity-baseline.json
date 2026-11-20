@@ -100,8 +100,6 @@
   "src/tools/paste.ts::fromClaudeLine": 19,
   "src/tools/paste.ts::fromEntries": 16,
   "src/tools/paste.ts::readPasted": 14,
-  "src/tools/PasteServers.tsx::PasteServers": 13,
-  "src/tools/PasteServers.tsx::PasteServers>map": 20,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,
   "src/tools/ToolsPage.tsx::ToolsPage": 22,
   "src/topics/topics.ts::chainOf": 14,
