@@ -73,3 +73,31 @@ test('Ask for changes on a recipe’s card asks what to change, and sends it wit
   await userEvent.click(screen.getByRole('button', { name: 'Send' }))
   expect(onAnswer).toHaveBeenLastCalledWith('Ask for changes')
 })
+
+test('an agent’s question is its own title; said in one line, the line stands in place of who and title', async () => {
+  const asked = question('q', 'r', { options: ['hello', 'hey'] })
+  const { container, rerender } = render(<QuestionCard question={asked} onAnswer={vi.fn()} />)
+  expect(container.querySelector('form')).toHaveClass('cmd-approval')
+  expect(container.querySelector('form')).not.toHaveClass('question-line')
+  expect(screen.getByText('The agent asks')).toHaveClass('card-who')
+  expect(screen.getByText('Which greeting?')).toHaveClass('kicker', 'cmd-approval-kicker')
+  expect(container.querySelector('.card-said')).toBeNull()
+  expect(screen.getByLabelText('Your answer')).toHaveAttribute('placeholder', 'Or answer in your own words…')
+  expect(screen.queryByRole('button', { name: 'details →' })).toBeNull()
+
+  const onDetails = vi.fn()
+  rerender(<QuestionCard question={asked} onAnswer={vi.fn()} line={{ text: 'Pick a greeting', onDetails }} />)
+  expect(container.querySelector('form')).toHaveClass('cmd-approval', 'question-line')
+  expect(screen.getByText('Pick a greeting')).toHaveClass('question-text')
+  expect(container.querySelector('.card-who, .cmd-approval-kicker')).toBeNull()
+  expect(screen.queryByLabelText('Your answer')).toBeNull()
+  expect(screen.getAllByRole('button').map(button => button.textContent)).toEqual(['hello', 'hey', 'details →'])
+  await userEvent.click(screen.getByRole('button', { name: 'details →' }))
+  expect(onDetails).toHaveBeenCalledOnce()
+})
+
+test('a question without options asks for the answer alone', () => {
+  const { container } = render(<QuestionCard question={question('q', 'r')} onAnswer={vi.fn()} />)
+  expect(screen.getByLabelText('Your answer')).toHaveAttribute('placeholder', 'Your answer…')
+  expect(container.querySelector('.question-options')).toBeNull()
+})
