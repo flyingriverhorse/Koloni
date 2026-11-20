@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Limits, ModelFacts, Provider, Tiers, Usage } from '../api/types'
+import type { CatalogueUpdate, Limits, ModelFacts, Provider, Tiers, Usage } from '../api/types'
 import { ProviderCard, readingOf } from './cards'
 import { type GuideRow, ModelRow } from './ModelRow'
 import { ModelsPage } from './ModelsPage'
@@ -136,6 +136,34 @@ test('a card says it is open, the default and a state in the way louder; a plan�
   const { container: key } = render(card({ provider: deepseek, reading: { share: null, value: '$1', label: 'today', plain: true, more: 'cannot be kept' } }))
   expect(within(within(key).getByRole('button', { name: /^DeepSeek/ })).getByText('cannot be kept')).toHaveClass('provider-card-state')
   expect(key.querySelector('.provider-card-foot')).toBeNull()
+})
+
+test('a provider’s window heads with its state, how it is paid, the default and its switch; the catalogue says what it holds while it updates', async () => {
+  let kept: (told: CatalogueUpdate) => void = () => {}
+  const onUpdateCatalogue = vi.fn(
+    () =>
+      new Promise<CatalogueUpdate>(resolve => {
+        kept = resolve
+      }),
+  )
+  const onCatalogue = vi.fn().mockResolvedValue({ providers: 6, models: 300, updated_at: null, local: null, keep_fresh: false })
+  render(<ModelsPage providers={[provider({}), { ...deepseek, enabled: false }]} {...handlers()} onUpdateCatalogue={onUpdateCatalogue} onCatalogue={onCatalogue} />)
+  expect(await screen.findByText('Catalogue: models.dev · 6 services')).toHaveAttribute('role', 'status')
+  await userEvent.click(screen.getByRole('button', { name: 'Update catalogue' }))
+  expect(screen.getByRole('button', { name: 'Updating…' })).toBeDisabled()
+  kept({ providers: 7, models: 310, updated_at: null, local: null, keep_fresh: false })
+  expect(await screen.findByText('Catalogue: models.dev · 7 services')).toBeInTheDocument()
+  const head = () => screen.getByRole('dialog').querySelector('.provider-dialog-head')
+  await userEvent.click(screen.getByRole('button', { name: /^Local/ }))
+  expect(head()).toHaveTextContent(/^Localthis machine · defaulton$/)
+  expect(head()?.querySelector('.state-dot')).toHaveClass('state-off')
+  await userEvent.keyboard('{Escape}')
+  await userEvent.click(screen.getByRole('button', { name: /^DeepSeek/ }))
+  expect(head()).toHaveTextContent(/^DeepSeekAPI keyoff$/)
+  await userEvent.keyboard('{Escape}')
+  await userEvent.click(screen.getByRole('button', { name: /Add a provider/ }))
+  expect(head()).toHaveTextContent(/^Add a provider$/)
+  expect(head()?.querySelector('.state-dot')).toBeNull()
 })
 
 test('a gauge still read says so, a spend not read says why, and a plan’s credits unlimited are said behind ⓘ', () => {

@@ -382,6 +382,113 @@ export function ModelsPage({
     return () => document.removeEventListener('keydown', onKey)
   }, [shown])
   const look = current && stateOf(current, availOf(current.id))[0]
+
+  /** The catalogue read, or why updating it failed; Update catalogue, and Keep the catalogue fresh. */
+  const catalogueStatus = () =>
+    onUpdateCatalogue && (
+      <>
+        <span role={failed ? 'alert' : 'status'} className="muted">
+          {failed ??
+            `Catalogue: models.dev${catalogue?.updated_at ? `, ${dayOf(catalogue.updated_at)}` : ''}${catalogue ? ` · ${catalogue.providers} services` : ''}`}
+        </span>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={updating}
+          title="Model names, levels, windows and prices come from a copy of models.dev (MIT), the one shipped with KOLONİ until it is updated. This downloads models.dev's list (about 6 MB) and keeps what KOLONİ reads of it."
+          onClick={() => void update()}
+        >
+          {updating ? 'Updating…' : 'Update catalogue'}
+        </button>
+        {onKeepFresh && catalogue && (
+          <label className="muted" title="When KOLONİ starts, a catalogue more than a week old is downloaded again, as Update catalogue does; without the network the old one stays.">
+            <input type="checkbox" checked={catalogue.keep_fresh} onChange={e => void keepFresh(e.target.checked)} /> Keep the catalogue fresh
+          </label>
+        )}
+      </>
+    )
+
+  /** Each tier's models in the order they are tried, or why they could not be read. */
+  const tierOrder = () =>
+    onTiers &&
+    onSaveTiers &&
+    (typeof tiers === 'string' ? (
+      <p role="alert" className="muted tier-read-failed">
+        The tiers could not be read: {tiers}
+      </p>
+    ) : (
+      <TierSlots tiers={tiers} down={down} onSave={onSaveTiers} onRefused={() => setReread(n => n + 1)} />
+    ))
+
+  /** The window's head: its state, its name, how it is paid, its switch, and ✕. */
+  const windowHead = () => (
+    <div className="provider-dialog-head">
+      {look && <span className={`state-dot state-${look}`} aria-hidden="true" />}
+      <h3 id="provider-dialog-title">{current ? current.name : 'Add a provider'}</h3>
+      {/* (What its plan has left is on its card: said once.) */}
+      {current && (
+        <span className="muted">
+          {paidOf(current)}
+          {current.id === providers[0]?.id && ' · default'}
+        </span>
+      )}
+      {current && (
+        // Off: nothing new starts on it; its key and settings stay for later. (Its card has the same switch.)
+        <label className="choice" title={OFF_MEANS}>
+          <input
+            type="checkbox"
+            role="switch"
+            className="switch"
+            aria-label={`${current.name} on`}
+            checked={current.enabled !== false}
+            onChange={e => void switchOn(current.id, e.target.checked)}
+          />
+          <span>{current.enabled === false ? 'off' : 'on'}</span>
+        </label>
+      )}
+      {switchError && switchError.id === current?.id && (
+        <span role="alert" className="muted">
+          {switchError.text}
+        </span>
+      )}
+      <button type="button" className="icon-btn provider-dialog-close" aria-label="Close" onClick={close}>
+        <X size={14} />
+      </button>
+    </div>
+  )
+
+  /** The window of the provider open, or of one being added: its head and its editor. */
+  const providerWindow = () => (
+    <div className="dialog-back">
+      <div
+        ref={dialog}
+        tabIndex={-1}
+        className="provider-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="provider-dialog-title"          >
+        {windowHead()}
+        <ProviderEditor
+          // (Not drawn anew by a save: a change the Models tab saved leaves what is typed on Connection.)
+          key={creating ? 'new' : current!.id}
+          provider={current}
+          onlyOne={providers.length <= 1}
+          isDefault={!creating && current!.id === providers[0]?.id}
+          avail={current ? full[current.id] : undefined}
+          onCheck={!current || !onAvailability ? undefined : () => check(current.id)}
+          used={onUsage ? month : null}
+          tab={tab}
+          onTab={setTab}
+          onDirty={setDirty}
+          unkept={unkept}
+          {...editing}
+          onDone={() => setOpened(null)}
+        />
+        {confirm.shown(() => setOpened(null))}
+      </div>
+    </div>
+  )
+
   return (
     <div className="paged">
       {/* (While a provider's window is open, nothing behind it is reached.) */}
@@ -396,28 +503,7 @@ export function ModelsPage({
                 {catalogue.local}
               </span>
             )}
-            {onUpdateCatalogue && (
-              <>
-                <span role={failed ? 'alert' : 'status'} className="muted">
-                  {failed ??
-                    `Catalogue: models.dev${catalogue?.updated_at ? `, ${dayOf(catalogue.updated_at)}` : ''}${catalogue ? ` · ${catalogue.providers} services` : ''}`}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-small"
-                  disabled={updating}
-                  title="Model names, levels, windows and prices come from a copy of models.dev (MIT), the one shipped with KOLONİ until it is updated. This downloads models.dev's list (about 6 MB) and keeps what KOLONİ reads of it."
-                  onClick={() => void update()}
-                >
-                  {updating ? 'Updating…' : 'Update catalogue'}
-                </button>
-                {onKeepFresh && catalogue && (
-                  <label className="muted" title="When KOLONİ starts, a catalogue more than a week old is downloaded again, as Update catalogue does; without the network the old one stays.">
-                    <input type="checkbox" checked={catalogue.keep_fresh} onChange={e => void keepFresh(e.target.checked)} /> Keep the catalogue fresh
-                  </label>
-                )}
-              </>
-            )}
+            {catalogueStatus()}
             <FillTiers providers={providers} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} button />
           </div>
         </div>
@@ -455,78 +541,9 @@ export function ModelsPage({
             {providers.find(p => p.id === switchError.id)?.name} could not be switched: {switchError.text}
           </p>
         )}
-        {onTiers &&
-          onSaveTiers &&
-          (typeof tiers === 'string' ? (
-            <p role="alert" className="muted tier-read-failed">
-              The tiers could not be read: {tiers}
-            </p>
-          ) : (
-            <TierSlots tiers={tiers} down={down} onSave={onSaveTiers} onRefused={() => setReread(n => n + 1)} />
-          ))}
+        {tierOrder()}
       </div>
-      {shown && (
-        <div className="dialog-back">
-          <div
-            ref={dialog}
-            tabIndex={-1}
-            className="provider-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="provider-dialog-title"          >
-            <div className="provider-dialog-head">
-              {look && <span className={`state-dot state-${look}`} aria-hidden="true" />}
-              <h3 id="provider-dialog-title">{current ? current.name : 'Add a provider'}</h3>
-              {/* (What its plan has left is on its card: said once.) */}
-              {current && (
-                <span className="muted">
-                  {paidOf(current)}
-                  {current.id === providers[0]?.id && ' · default'}
-                </span>
-              )}
-              {current && (
-                // Off: nothing new starts on it; its key and settings stay for later. (Its card has the same switch.)
-                <label className="choice" title={OFF_MEANS}>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    className="switch"
-                    aria-label={`${current.name} on`}
-                    checked={current.enabled !== false}
-                    onChange={e => void switchOn(current.id, e.target.checked)}
-                  />
-                  <span>{current.enabled === false ? 'off' : 'on'}</span>
-                </label>
-              )}
-              {switchError && switchError.id === current?.id && (
-                <span role="alert" className="muted">
-                  {switchError.text}
-                </span>
-              )}
-              <button type="button" className="icon-btn provider-dialog-close" aria-label="Close" onClick={close}>
-                <X size={14} />
-              </button>
-            </div>
-            <ProviderEditor
-              // (Not drawn anew by a save: a change the Models tab saved leaves what is typed on Connection.)
-              key={creating ? 'new' : current!.id}
-              provider={current}
-              onlyOne={providers.length <= 1}
-              isDefault={!creating && current!.id === providers[0]?.id}
-              avail={current ? full[current.id] : undefined}
-              onCheck={!current || !onAvailability ? undefined : () => check(current.id)}
-              used={onUsage ? month : null}
-              tab={tab}
-              onTab={setTab}
-              onDirty={setDirty}
-              unkept={unkept}
-              {...editing}
-              onDone={() => setOpened(null)}
-            />
-            {confirm.shown(() => setOpened(null))}
-          </div>
-        </div>
-      )}
+      {shown && providerWindow()}
     </div>
   )
 }
