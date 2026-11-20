@@ -65,7 +65,6 @@
   "src/room/roomText.ts::roomTag": 17,
   "src/room/RoomWindow.tsx::RoomWindow": 42,
   "src/shell/FolderButton.tsx::FolderButton": 25,
-  "src/shell/GitStatus.tsx::GitStatus": 18,
   "src/shell/HoldStatus.tsx::HoldStatus": 23,
   "src/shell/RunStatus.tsx::RunStatus": 29,
   "src/shell/Toasts.tsx::news>flatMap": 20,
