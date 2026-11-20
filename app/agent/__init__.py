@@ -539,7 +539,7 @@ CANDIDATES_WATCHED = ("{step}: candidates need the user watching and the recipe'
                       "comparison")
 NOT_BROUGHT = ("Not brought into the recipe's copy from {name}'s: {files} - changed there since "
                "the candidates began; the recipe's own are kept.")
-NOT_FINISHED = "stopped before its end"
+CANDIDATE_STOPPED = "stopped before its end"
 PICK_CARD = "{team}: {step}: {table}. Which candidate's work goes on?"
 # B-370: the best is kept - a later round's pick goes on only where it beats it.
 BEST_SO_FAR = ("Best so far: {score}, {name}'s work - it stays unless the one picked scores "
@@ -875,7 +875,7 @@ PR_OPENED = ("{name}'s changes on branch {branch} were pushed to origin and a pu
              "were in it.")
 # A commit message is proposed as one line of at most this many characters.
 COMMIT_LINE = 72
-NOT_FINISHED = "the agent did not finish its work, and nobody is watching this turn"
+UNFINISHED_UNWATCHED = "the agent did not finish its work, and nobody is watching this turn"
 
 
 @dataclass
@@ -3453,7 +3453,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         refused = None
         if not watched:
             # The trigger's own leave, read now: what was taken back since is gone.
-            refused = None if status == "completed" else NOT_FINISHED
+            refused = None if status == "completed" else UNFINISHED_UNWATCHED
             refused = refused or self._nobody_to_ask(ctx, "write", "change files")
         # (`asked`: the user said yes already, on a recipe's "Ready for you".)
         unasked = status == "completed" and (
@@ -7102,7 +7102,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 FileChange.agent_id.in_([child.agent_id, *helpers])).limit(1)) is not None
 
         score = self._scored.pop(child.agent_id, None) or {
-            "score": None, "why": NOT_FINISHED} if child.agent_id in self._candidates else None
+            "score": None, "why": CANDIDATE_STOPPED} if child.agent_id in self._candidates else None
 
         def ended(state: dict, entry: dict) -> None:
             # (B-192: a suggestion sends no work back - it is the user's, on the card.)

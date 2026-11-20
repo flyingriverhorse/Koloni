@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from app import copies, recipe_run
 from app.db.models import Agent, ConversationTeam, FileChange
+from app.model_client import ModelUnavailable
 from app.recipes import problems
 from app.schemas import RecipeGraph, RecipeStep
 from tests.conftest import Gate
@@ -308,6 +309,21 @@ def test_a_candidate_whose_measure_fails_is_left_out(make_client, wait_run, proj
     snap = wait_run(client, cid, run_id, timeout=60)
     assert (project_dir / "a.py").read_text(encoding="utf-8") == "ok\n"
     assert {name: one["why"] for name, one in scores(client, snap).items()} == {"Coder": "the measure command failed (exit code 1)", "Coder 2": None}
+
+
+def test_a_candidate_that_stopped_before_its_end_is_said_so_on_the_card(
+        make_client, wait_run, project_dir):
+    # (Its words were written over by a merge's "nobody is watching this turn" of the same name.)
+    client, _model = make_client({**scripts("x", "ab\n"), "Coder": [ModelUnavailable("it broke")]})
+    cid, run_id = started(client, project_dir, "auto_edit")
+    approve_measures(client, cid, 1)
+    snap = until(client, cid, lambda s: asked(s) and "Which candidate" in asked(s)["question"],
+                 timeout=30)
+    card = asked(snap)
+    assert "Coder 2 (Local): 3 · Coder (Local): no score (stopped before its end)" in card[
+        "question"], card
+    answer(client, card, "Stop")
+    wait_run(client, cid, run_id, timeout=30)
 
 
 def test_a_lead_that_opens_one_of_three_candidates_has_koloni_open_the_other_two(
