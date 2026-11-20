@@ -592,3 +592,21 @@ test('a category with two roles says to move both before it is deleted', async (
   expect(within(lib).getByRole('button', { name: 'Move down' })).toBeDisabled()
   expect(within(lib).getByRole('button', { name: 'Move up' })).toBeEnabled()
 })
+
+test('a lead that is on says when it steps in, and its row is marked once it is the one open', async () => {
+  render(<AgentsPage roles={[lead, coder]} teams={[teams[1]]} {...handlers()} />)
+  const api = await openTeam('Backend / API')
+  const name = within(api).getByRole('button', { name: 'Backend / API lead' })
+  const line = name.closest('.team-lead-row') as HTMLElement
+  expect(line.className).toBe('team-lead-row')
+  expect(name).not.toHaveAttribute('aria-current')
+  expect(line).toHaveTextContent('— shown as Backend / API coordinator')
+  expect(line).not.toHaveTextContent('Off: the Orchestrator always runs')
+  expect(line.querySelector('.team-lead-when')).toHaveTextContent('Steps in only when this team works beside another team; else the Orchestrator runs it.')
+  expect(Array.from(line.querySelectorAll('.team-lead-links > button'), button => button.textContent)).toEqual(['Instructions', 'Model', 'Tools'])
+  expect(within(api).getByText('lead')).toHaveClass('team-leadmark')
+  expect(api.className).toBe('team-box')
+  await userEvent.click(name)
+  expect(name.closest('.team-lead-row')).toHaveClass('team-lead-row', 'team-lead-chosen')
+  expect(name).toHaveAttribute('aria-current', 'true')
+})
