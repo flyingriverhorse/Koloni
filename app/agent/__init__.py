@@ -3947,7 +3947,53 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         said = NOT_APPLIED.format(name=ctx.name, files="; ".join(told))
         return " ".join(filter(None, [f"{said}: {why}." if why else f"{said}.", kept_lines]))
 
-    def _apply(  # noqa: C901
+    def _taken_now(
+        self, ctx: Ctx, copy: copies.Copy, ws: Workspace, files: dict, one: dict, asked: bool,
+        unattended: bool, choices: dict[str, str] | None, level: str,
+    ) -> bool:
+        """Whether a file of a working copy (`one`, of `files`) is taken right now (`_apply`):
+        where it is not, it is marked so, shown again, or leaves the list."""
+        # (Shown again a moment ago: not what the user said yes to.)
+        if one.pop("again", False) or one["state"] not in OPEN:
+            return False
+        path = one["path"]
+        if one["state"] == "conflict" and not one.get("two_way") and not (
+            one.get("whole") is True and (choices or {}).get(path) == "agent"
+        ):
+            return False  # whose side is taken has not been said: nothing of it is taken
+        sides = copy.sides(path)
+        found = copy.state(path, sides=sides)
+        if found is None:
+            # The copy holds what it was made from again: the project gets nothing.
+            del files[path]
+            return False
+        as_shown = tuple(one["shown"]) == sides if asked else found[1] == "ready"
+        # (The two together are taken from the copy: not before they are there.)
+        if one["state"] == "merged" and found[1] != "ready":
+            as_shown = False
+        if found[1] in ("refused", "left_out") or not as_shown:
+            # shortcut: a file that moved is merged again here, on the event loop
+            # (git, for a fraction of a second, and the lines told of it, up to 0.3 s:
+            # `MAX_LINES_COMPARED`); hand it to a thread if that is felt.
+            _shown_again(one, _merge_file(copy, path))
+            return False
+        name = stands_over_later_turns(ws, path) if unattended or not asked else None
+        if name and not unattended and not self._standing_asks(ctx.run_id, name, level):
+            # K-fullauto-sorma (B-328): an instruction file alone goes in at Full auto
+            # like any file; its card note (`_merge_file`) no longer holds.
+            if one.get("note") == ASKED_AT_EVERY_LEVEL.format(name=name):
+                one["note"] = None
+            name = None
+        lock = _root_lock(copy, path) if unattended or not asked else None
+        if name or lock:
+            # Nobody watching: refused. Watched: left for the card (`_merge_file` says why).
+            if unattended:
+                one["state"], one["note"] = "refused", lock or NO_TRIGGER_ALLOWS.format(
+                    name=name)
+            return False
+        return True
+
+    def _apply(
         self, ctx: Ctx, copy: copies.Copy, files: dict, asked: bool,
         unattended: bool = False, choices: dict[str, str] | None = None,
     ) -> set[str]:
@@ -3976,44 +4022,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             wanted = _git_commit_on(session, ctx.cid)  # (what each held, for its commit)
             level = session.get_one(Conversation, ctx.cid).permission_mode
         for one in list(files.values()):
-            # (Shown again a moment ago: not what the user said yes to.)
-            if one.pop("again", False) or one["state"] not in OPEN:
+            if not self._taken_now(ctx, copy, ws, files, one, asked, unattended, choices, level):
                 continue
             path = one["path"]
-            if one["state"] == "conflict" and not one.get("two_way") and not (
-                one.get("whole") is True and (choices or {}).get(path) == "agent"
-            ):
-                continue  # whose side is taken has not been said: nothing of it is taken
-            sides = copy.sides(path)
-            found = copy.state(path, sides=sides)
-            if found is None:
-                # The copy holds what it was made from again: the project gets nothing.
-                del files[path]
-                continue
-            as_shown = tuple(one["shown"]) == sides if asked else found[1] == "ready"
-            # (The two together are taken from the copy: not before they are there.)
-            if one["state"] == "merged" and found[1] != "ready":
-                as_shown = False
-            if found[1] in ("refused", "left_out") or not as_shown:
-                # shortcut: a file that moved is merged again here, on the event loop
-                # (git, for a fraction of a second, and the lines told of it, up to 0.3 s:
-                # `MAX_LINES_COMPARED`); hand it to a thread if that is felt.
-                _shown_again(one, _merge_file(copy, path))
-                continue
-            name = stands_over_later_turns(ws, path) if unattended or not asked else None
-            if name and not unattended and not self._standing_asks(ctx.run_id, name, level):
-                # K-fullauto-sorma (B-328): an instruction file alone goes in at Full auto
-                # like any file; its card note (`_merge_file`) no longer holds.
-                if one.get("note") == ASKED_AT_EVERY_LEVEL.format(name=name):
-                    one["note"] = None
-                name = None
-            lock = _root_lock(copy, path) if unattended or not asked else None
-            if name or lock:
-                # Nobody watching: refused. Watched: left for the card (`_merge_file` says why).
-                if unattended:
-                    one["state"], one["note"] = "refused", lock or NO_TRIGGER_ALLOWS.format(
-                        name=name)
-                continue
             there = copy.there(path)
             before = _held(there) if wanted else False
             try:
@@ -4045,7 +4056,59 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 one_copy.save()
         return taken
 
-    def _apply_file(  # noqa: C901
+    def _apply_text(
+        self, session: Session, ctx: Ctx, ws: Workspace, path: str, rows: list[FileChange],
+        texts: tuple[str | None, str | None], files: tuple[Path, Path], together: bool,
+    ) -> tuple[str | None, list[tuple[str, dict]]]:
+        """`_apply_file` for a file that is text on both sides (`texts`: the project's and the
+        copy's; `files`: the copy's file and the project's), by the agent's records of it
+        (`rows`). Why it could not be written, or None, and the events of its records."""
+        (before, after), (here, there) = texts, files
+        payloads: list[tuple[str, dict]] = []
+        failure = None
+        aside, rows = (rows, []) if together else ([], rows)
+        at, last = before, None
+        for row in rows:
+            # (A deletion - only a CLI with tools of its own records one - leaves
+            # no file: what its record holds as "after" is not a file's text.)
+            if row.before_content != at:
+                row.before_content, row.before_sha = at, sha256_text(at)
+                if row.kind != "delete":
+                    row.kind = "create" if at is None else "modify"
+            at = None if row.kind == "delete" else row.after_content
+        if at != after:
+            last = FileChange(
+                run_id=ctx.run_id, agent_id=ctx.agent_id,
+                tool_call_id=session.get_one(Agent, ctx.agent_id).tool_call_id,
+                path=path, before_content=at, after_content=after or "",
+                kind="delete" if after is None else "create" if at is None else "modify",
+                before_sha=sha256_text(at),
+                after_sha=sha256_text(after) or DELETED_SHA, status="in_copy",
+            )
+            session.add(last)
+            rows.append(last)
+        for row in rows:
+            try:
+                outcome = apply_change(session, ws, row, self.settings.runtime_root)
+            except WorkspaceError as exc:
+                outcome, failure = "failed", f"could not be written: {exc}"
+            payloads.append((
+                "file_change.created" if row is last else "file_change.updated",
+                file_change_out(row),
+            ))
+            if outcome != "applied":
+                failure = failure or "it changed on disk while it was being written"
+                break
+        if failure is None:
+            with contextlib.suppress(OSError):  # (its bytes are in: the mode is a nicety)
+                copies.keep_mode(here, there)
+            for row in aside:
+                row.status, row.decided_at = "merged", now()
+            session.commit()
+            payloads += [("file_change.updated", file_change_out(row)) for row in aside]
+        return failure, payloads
+
+    def _apply_file(
         self, ctx: Ctx, copy: copies.Copy, ws: Workspace, path: str, together: bool = False
     ) -> str | None:
         """Make one project file what the working copy's is, as change records like any
@@ -4089,46 +4152,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 session.commit()
                 payloads = [("file_change.updated", file_change_out(row)) for row in rows]
             else:
-                aside, rows = (rows, []) if together else ([], rows)
-                at, last = before, None
-                for row in rows:
-                    # (A deletion - only a CLI with tools of its own records one - leaves
-                    # no file: what its record holds as "after" is not a file's text.)
-                    if row.before_content != at:
-                        row.before_content, row.before_sha = at, sha256_text(at)
-                        if row.kind != "delete":
-                            row.kind = "create" if at is None else "modify"
-                    at = None if row.kind == "delete" else row.after_content
-                if at != after:
-                    last = FileChange(
-                        run_id=ctx.run_id, agent_id=ctx.agent_id,
-                        tool_call_id=session.get_one(Agent, ctx.agent_id).tool_call_id,
-                        path=path, before_content=at, after_content=after or "",
-                        kind="delete" if after is None else "create" if at is None else "modify",
-                        before_sha=sha256_text(at),
-                        after_sha=sha256_text(after) or DELETED_SHA, status="in_copy",
-                    )
-                    session.add(last)
-                    rows.append(last)
-                for row in rows:
-                    try:
-                        outcome = apply_change(session, ws, row, self.settings.runtime_root)
-                    except WorkspaceError as exc:
-                        outcome, failure = "failed", f"could not be written: {exc}"
-                    payloads.append((
-                        "file_change.created" if row is last else "file_change.updated",
-                        file_change_out(row),
-                    ))
-                    if outcome != "applied":
-                        failure = failure or "it changed on disk while it was being written"
-                        break
-                if failure is None:
-                    with contextlib.suppress(OSError):  # (its bytes are in: the mode is a nicety)
-                        copies.keep_mode(here, there)
-                    for row in aside:
-                        row.status, row.decided_at = "merged", now()
-                    session.commit()
-                    payloads += [("file_change.updated", file_change_out(row)) for row in aside]
+                failure, payloads = self._apply_text(
+                    session, ctx, ws, path, rows, (before, after), (here, there), together)
         for kind, payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
         return failure
