@@ -17,8 +17,10 @@ test('the lead carries on with its Reviewer by sending it a message', async ({ p
 
   // Still two agents: the Reviewer took another turn, nobody new was opened.
   await expect(page.locator('.react-flow__node-agent')).toHaveCount(2)
-  // (The message and its reply, K-canvas-dili.)
-  await expect(page.locator('.react-flow__edge-text', { hasText: '2 messages' })).toBeVisible()
+  // (The message and its reply, K-canvas-dili: on the spawn line, its 💬 a button naming the two - 21 Nov.)
+  const talk = page.locator('.edge-talk')
+  await expect(talk).toHaveText('💬 2')
+  await expect(talk).toHaveAttribute('aria-label', / ↔ Reviewer: 2 messages, the last: /)
 
   // The Reviewer's own window shows what it was sent, and what it then said.
   await page.locator('.react-flow__node-agent', { hasText: 'Reviewer' }).click()
@@ -41,5 +43,5 @@ test('the lead carries on with its Reviewer by sending it a message', async ({ p
   await page.reload()
   await page.getByRole('region', { name: 'Chat' }).getByRole('tab', { name: /Talk/ }).click()
   await expect(page.getByText('Reviewer → Orchestrator · reply')).toBeVisible()
-  await expect(page.locator('.react-flow__edge-text', { hasText: '2 messages' })).toBeVisible()
+  await expect(page.locator('.edge-talk')).toHaveText('💬 2')
 })

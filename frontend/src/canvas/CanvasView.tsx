@@ -668,14 +668,15 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   const above = Math.min(...graph.nodes.filter(n => !n.parent && auto.positions[n.id]).map(n => rect(n.id).y)) - DOOR_PAD / 2
   /**
    * A line between two of no frame (`insideLine`). B-133: talk is its bubble too (count, pair colour, who, a click) - not
-   * "2 messages". The user's option A (21 Nov): two cards one over the other in a column - a member under its discussion
+   * "2 messages" -, and so is the Orchestrator's with a sub-agent it opened, on their spawn line (not one already moved
+   * onto a folded frame: React Flow's curve, as before). The user's option A (21 Nov): two cards one over the other in a column - a member under its discussion
    * or room, an agent and the one whose file it waits for - are joined round their right, on one line down that side,
    * into the far one's side dot: before, the line left the right dot and doubled back behind both cards. (`waits:` by its
    * id: a night's job to its report waits too.)
    * shortcut: a member or a holder in another column keeps React Flow's curve, which can loop back; route it if that is seen.
    */
   const looseLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
-    if (e.talk && e.messages) return { type: 'lane', data }
+    if (e.messages && (e.talk || byId.get(e.source)?.kind !== 'team')) return { type: 'lane', data }
     if ((e.talk || e.id.startsWith('waits:')) && stacked(s, t)) return { type: 'lane', targetHandle: 'side-in', data }
     return {}
   }
@@ -796,7 +797,8 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       ...drawn,
       // (Its label, drawn apart from the line, fades with it.)
       ...(drawn.type && {
-        data: { ...drawn.data, faded: !!lit && !lit.includes(e), ...(talkHue && { colour: talkHue, who: `${whoOf(e.source)} ↔ ${whoOf(e.target)}` }) },
+        // (Who the two are, wherever there is talk on it: its 💬 names them.)
+        data: { ...drawn.data, faded: !!lit && !lit.includes(e), ...(talkHue && { colour: talkHue }), ...(e.messages && { who: `${whoOf(e.source)} ↔ ${whoOf(e.target)}` }) },
       }),
       animated: e.active,
       // (Drawn by its own line where it is one of edges.tsx's.)
