@@ -205,12 +205,17 @@ function outsideWord(decide: Handlers['onDecideRole'], callId: string) {
   return (decision: OutsideDecision) => (decision === 'reject' ? decide(callId, 'reject') : decide(callId, 'approve', decision))
 }
 
-/** A call that is more than a row: something of it asks or waits for you, or you decide its change - or the Lead's pick. */
+/**
+ * A call that is a line of its own, never folded into a run: the Lead's pick of the chat's teams (slice 84b), the chat's
+ * one line of it; a question it was not let ask, refused or failed, read without opening anything (0.1.4).
+ */
+const ownLine = (call: ToolCall) =>
+  (call.name === 'pick_teams' && call.status === 'succeeded') || (call.name === 'ask_user' && (call.status === 'denied' || call.status === 'failed'))
+
+/** A call that is more than a row: something of it asks or waits for you, or you decide its change - or a line of its own. */
 function standsAlone(call: ToolCall, change: FileChange | undefined, { asked, web, role, skill, waits }: Record<'asked' | 'web' | 'role' | 'skill' | 'waits', unknown>) {
   const decides = change?.status === 'proposed' || change?.status === 'approved'
-  // (The Lead's pick of the chat's teams, slice 84b, is the chat's one line of it: never folded into a run.)
-  const picked = call.name === 'pick_teams' && call.status === 'succeeded'
-  return Boolean(asked || web || role || skill || waits || decides || picked || asksOutside(call))
+  return Boolean(asked || web || role || skill || waits || decides || ownLine(call) || asksOutside(call))
 }
 
 function ChangeLine({ change, onOpen, onDecide }: ChangeLineProps) {

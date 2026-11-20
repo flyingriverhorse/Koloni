@@ -1263,6 +1263,26 @@ test('a single call stays a row of its own', () => {
   expect(screen.queryByRole('button', { name: /calls/ })).not.toBeInTheDocument()
 })
 
+test('a question the Lead was not let ask stands on its own line, not folded into the step’s calls', () => {
+  // (Refused - the user's message waited, nobody watched - or failed, asked a third time: either way it was never put to you.)
+  for (const status of ['denied', 'failed'] as const) {
+    render(
+      <MessageList
+        {...handlers}
+        state={looksAround(`j${status}`, [
+          ['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}'],
+          ['2', 'r', 'read_file', 'succeeded', '{"path":"b.py"}'],
+          ['3', 'r', 'ask_user', status, '{"question":"Which greeting?\\nhello or hey"}'],
+        ])}
+      />,
+    )
+    expect(screen.getByText('Wanted to ask: Which greeting? · not asked')).toBeInTheDocument()
+    // (the step's other calls are still one closed line)
+    expect(screen.getByRole('button', { name: 'Read 2 files, 2 calls, done' })).toHaveAttribute('aria-expanded', 'false')
+    cleanup()
+  }
+})
+
 test('what KOLONİ told the lead the same, several times in a row, is one line with ×N; the user’s and the lead’s words never are', () => {
   const WORDS = 'Its source changed since this turn began.'
   const told = (id: string) => ({ ...assistantMessage(id, 'r', WORDS), role: 'memory' as const })
