@@ -8,7 +8,11 @@ refused, "model": it is refused for its model, "gone": it ends before answering,
 wrong; "starts" names a file it adds each argv it is started with to. It writes down how
 it was started, what session.create and session.send were given, and every answer KOLONİ
 gave to a permission request ("answers"). Asked `status.get`, at any point, it says the plan's
-"version" ("status_hang": no answer; "status_error": refused). Asked `account.getQuota`, at any point, it answers
+"version" ("status_hang": no answer; "status_error": refused); a plain `--version` says the plan's
+"updated" if it names one (the package Copilot updated itself to in the user's home, not the one
+KOLONİ runs), else its "version". Asked `models.list`, at any point, it answers the plan's
+"models" (none: []). Given no "koloni" MCP server in session.create, it opens no bridge. A
+shell step's "{cwd}" in its output is the folder it works in. Asked `account.getQuota`, at any point, it answers
 the plan's "quota" ("quota_hang": never); asked `auth.getStatus`, signed in by gh unless "signed_in" is false; asked
 `sandbox.getHostSupport`, the plan's "sandbox" (a shell step's "sandboxed": it ran in it). Its session
 made on auto, "picked" is the model its auto picks, said with "picked_why" before its first step. Steps:
@@ -55,7 +59,7 @@ if told.get("starts"):  # every way it was started, one line each
     with open(told["starts"], "a", encoding="utf-8") as log:
         log.write(json.dumps(sys.argv[1:]) + "\n")
 if "--version" in sys.argv[1:]:  # the plan's "version", if it names one
-    print(f"GitHub Copilot CLI {told.get('version', '1.0.91-fake')}.")
+    print(f"GitHub Copilot CLI {told.get('updated', told.get('version', '1.0.91-fake'))}.")
     sys.exit(0)
 if "--headless" not in sys.argv[1:]:
     runpy.run_path(str(Path(__file__).with_name("fake_copilot_cli.py")), run_name="__main__")
@@ -89,7 +93,10 @@ def send(message: dict) -> None:
 
 
 def heard() -> dict:
-    while (told := framed()).get("method") in ("account.getQuota", "status.get"):
+    while (told := framed()).get("method") in ("account.getQuota", "status.get", "models.list"):
+        if told["method"] == "models.list":
+            send({"id": told["id"], "result": {"models": plan.get("models", [])}})
+            continue
         if told["method"] == "status.get":  # (its package's version: 1.0.67's app.js, `Vbo`)
             if plan.get("status_error"):
                 send({"id": told["id"], "error": {"code": -32601, "message": "Unhandled method"}})
@@ -199,14 +206,14 @@ if plan.get("picked") and create["params"].get("model") == "auto":
     plan["model"] = plan["picked"]
     event("session.auto_mode_resolved", {"chosenModel": plan["picked"],
                                          "selectionReason": plan.get("picked_why")})
-spec = create["params"]["mcpServers"]["koloni"]
+spec = create["params"].get("mcpServers", {}).get("koloni")
 bridge = subprocess.Popen([spec["command"], *spec["args"]], stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE)
+                          stdout=subprocess.PIPE) if spec else None
 
 
 def koloni(method: str, params: dict) -> dict:
     """Talk to KOLONİ's tool server the way Copilot would: through the bridge it was given."""
-    assert bridge.stdin is not None and bridge.stdout is not None
+    assert bridge is not None and bridge.stdin is not None and bridge.stdout is not None
     bridge.stdin.write((json.dumps({"jsonrpc": "2.0", "id": next(numbers), "method": method,
                                     "params": params}) + "\n").encode())
     bridge.stdin.flush()
@@ -216,9 +223,10 @@ def koloni(method: str, params: dict) -> dict:
     return json.loads(line)
 
 
-koloni("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}})
-record["tools"] = [tool["name"] for tool in koloni("tools/list", {})["result"]["tools"]]
-save()
+if bridge:
+    koloni("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}})
+    record["tools"] = [tool["name"] for tool in koloni("tools/list", {})["result"]["tools"]]
+    save()
 
 
 def permitted(call: str, request: dict, action: dict) -> bool:
@@ -286,9 +294,9 @@ for number, action in enumerate(plan.get("script", [])):
                 (cwd / touched).parent.mkdir(parents=True, exist_ok=True)
                 (cwd / touched).write_bytes(content.encode("utf-8"))
         # ("no_code": its trailer left out, as B-377's command that could not start Python.)
-        output = action.get("output", "") + ("" if action.get("no_code") else
-                                             f"\n<shellId: 0 completed with exit code "
-                                             f"{action.get('exit', 0)}>")
+        output = action.get("output", "").replace("{cwd}", str(cwd)) + (
+            "" if action.get("no_code") else
+            f"\n<shellId: 0 completed with exit code {action.get('exit', 0)}>")
         # (The keys 1.0.91 sends, measured 24 Oct 2026; a later one may send where it runs.)
         tool(call, action.get("tool", "powershell"),
              {"command": action["shell"], **action.get("args", {})}, {

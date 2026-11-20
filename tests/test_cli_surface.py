@@ -87,7 +87,10 @@ async def test_claude_code_not_measured_is_asked_initialize_with_its_hook(
 def test_copilot_not_measured_runs_natively_if_it_answers_else_as_a_session_and_its_card_says(
     copilot_native, wait_run, project_dir, handshake, headless, said  # noqa: F811
 ):
-    client, provider = copilot_native([{"say": "done"}], version="1.0.200",
+    # The version is the one KOLONİ runs, its own `status.get` as KOLONİ starts it - not what a
+    # plain `--version` says (20 Nov 2026: 1.0.107, the package Copilot updated itself to in the
+    # user's home; KOLONİ's empty COPILOT_HOME runs the program's own, 1.0.105).
+    client, provider = copilot_native([{"say": "done"}], version="1.0.200", updated="1.0.103",
                                       **({"handshake": handshake} if handshake else {}))
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)

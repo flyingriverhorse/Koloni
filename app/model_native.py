@@ -2952,6 +2952,8 @@ NO_PYTHON_BLOCKED = ("blocked: Copilot's sandbox could not start Python: run tes
 PROTOCOL = 3
 # How long its turn's end waits for `account.getQuota` (89l), in seconds.
 QUOTA_SECONDS = 5.0
+# How long its version is waited for (`CopilotNativeClient._version`), as `--version` was.
+VERSION_SECONDS = 10.0
 # The run's first word where its commands cannot be kept from the secret files (slice 105).
 NO_SANDBOX = ("Copilot cannot sandbox commands on this machine: secret files are not hidden "
               "from them")
@@ -3140,6 +3142,22 @@ class CopilotNativeClient(CodexNativeClient):
 
     def talker(self) -> CliStepClient:
         return self._session  # in a discussion: KOLONİ's reading tools only
+
+    async def _version(self) -> str:
+        """Its version as KOLONİ runs it: its own `status.get`, started as a run starts it. In
+        KOLONİ's empty COPILOT_HOME the program runs its own package (status.get "1.0.105", 20
+        Nov 2026), while a plain `copilot --version` names the one Copilot updated itself to in
+        the user's home (1.0.107 then), which KOLONİ never runs. Not known if it does not say.
+        shortcut: one more Copilot started before each native run (`cli_surface.checked`), as
+        `--version` was; keep the answer by its program file if that start is ever felt."""
+        from app.limits import _copilot_asked  # (it imports this module)
+
+        with contextlib.suppress(Exception):
+            said = _dict(await _copilot_asked(self, "status.get", "its version",
+                                              VERSION_SECONDS)).get("version")
+            if isinstance(said, str) and said.strip():
+                return said.strip()
+        return "(version not known)"
 
     def _leveled(self, arguments: list[str], effort: str | None) -> list[str]:
         return self._session._leveled(arguments, effort)
@@ -3485,7 +3503,7 @@ class CopilotNativeClient(CodexNativeClient):
         async def said_version() -> None:
             """k-copilot-cd: the version it says it is (`_ShellPatches.version`), never waited
             for: one that does not answer runs all the same, its new shells not known.
-            shortcut: `status.get` read in 1.0.67's app.js, not asked of a live one yet."""
+            (`status.get` read in 1.0.67's app.js; asked of a live 1.0.105, 20 Nov 2026.)"""
             with contextlib.suppress(BrokenPipeError, ConnectionResetError):
                 told, _no = await ask("status.get", {})
                 heredocs.version = str(told.get("version") or "") or None

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import app.model_native
 from app import raw
 from app.agent.tiers_mixin import REFUSED_LAST
 from app.model_native import _files, _heredoc_patch
@@ -268,16 +269,18 @@ def test_a_copilot_that_cannot_be_asked_first_is_stopped_with_its_version(
     for handshake, why in (("ping", "not ready"), ("version", "protocol 2"),
                            ("create", "unknown field mcpServers")):
         starts.unlink(missing_ok=True)
+        # (its version is its own `status.get`, as KOLONİ starts it: not a plain --version's)
         copilot_native.rescript([{"write": "hello.py", "content": "x"}], handshake=handshake,
-                                starts=str(starts))
+                                starts=str(starts), updated="1.0.200")
         cid, run_id = start(client, project_dir, provider)
         run = wait_run(client, cid, run_id)["runs"][0]
         assert run["status"] == "failed"
         assert "GitHub Copilot CLI 1.0.91-fake could not be asked before it acts" in run["error"]
         assert why in run["error"] and "run it as a session instead" in run["error"]
         started = [json.loads(line) for line in starts.read_text("utf-8").splitlines()]
-        # (its version first: a measured one is asked nothing more, K-cli-surface)
-        assert [argv[-1] for argv in started] == ["--version", "--stdio", "--version"]
+        # (its version first, headless as a run: a measured one is asked nothing more,
+        # K-cli-surface; then the run; then its version again, for the run's error)
+        assert [argv[-1] for argv in started] == ["--stdio", "--stdio", "--stdio"]
         assert not [argv for argv in started if "-p" in argv or "--allow-all-tools" in argv]
         assert hello(project_dir) == "print('hi')\n"
 
@@ -332,7 +335,11 @@ def test_a_sub_agent_on_a_model_not_on_the_account_switches_it_off_and_moves_on(
     assert hello(project_dir) == "print('hi')\n"
 
 
-def test_a_copilot_that_never_answers_is_stopped(copilot_native, wait_run, project_dir):  # noqa: F811
+def test_a_copilot_that_never_answers_is_stopped(
+    copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+):
+    # (Its version is waited for before the run and for its error: not 10 s each here.)
+    monkeypatch.setattr(app.model_native, "VERSION_SECONDS", 1.0)
     client, provider = copilot_native([], timeout=2, handshake="silent")
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id, timeout=20)["runs"][0]
@@ -958,9 +965,11 @@ def test_from_a_new_shell_a_cd_out_of_the_project_or_into_a_protected_folder_is_
     {"version": READ, "status_error": True}],
     ids=["a-later-one", "another", "says-nothing", "refuses-to-say"])
 def test_on_a_copilot_whose_shell_was_not_read_work_in_the_scratch_is_still_a_card(
-    told, copilot_native, wait_run, project_dir  # noqa: F811
+    told, copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
 ):
-    # (By its own `status.get`, never waited for: one that does not answer still runs, asked.)
+    # (By its own `status.get`, never waited for: one that does not answer still runs, asked.
+    # Before the run its version is waited for, VERSION_SECONDS: not 10 s here.)
+    monkeypatch.setattr(app.model_native, "VERSION_SECONDS", 1.0)
     scratch(project_dir)
     client, provider = copilot_native([{"shell": SCRATCH_LINE}, {"say": "ok"}], **told)
     cid, run_id = start(client, project_dir, provider)
