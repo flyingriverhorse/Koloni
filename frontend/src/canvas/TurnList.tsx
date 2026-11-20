@@ -92,6 +92,26 @@ function Rename({ title, onSave, onClose }: { title: string; onSave: (title: str
   )
 }
 
+/** The list's last section: the topic of the message drawn and its rename - nothing where it cannot be renamed. */
+const topicSection = (topic: Props['topic'], onRename: Props['onRename'], renaming: boolean, setRenaming: (on: boolean) => void) =>
+  topic &&
+  onRename && (
+    <section aria-label="Topic">
+      {renaming ? (
+        <Rename title={topic.title} onSave={title => onRename(topic.id, title)} onClose={() => setRenaming(false)} />
+      ) : (
+        <div className="recent-topic">
+          <span className="muted turn-list-hint" title={topic.title}>
+            Topic: {topic.title}
+          </span>
+          <button type="button" className="icon-btn topic-rename" aria-label={`Rename ${topic.title}`} title="Rename this topic" onClick={() => setRenaming(true)}>
+            <PencilSimple size={12} />
+          </button>
+        </div>
+      )}
+    </section>
+  )
+
 /**
  * "Recent", in the top bar (slice 107): the last few messages of the conversation, newest
  * first. A row picked is the one whose work the canvas draws; each can be restored to before.
@@ -189,22 +209,7 @@ export function TurnList({ rows, current, onPick, conversationId, topic, onRenam
             </section>
           )}
           {rows.length > RECENT && <p className="muted turn-list-hint">Older ones: in the chat, from a message’s ⋯</p>}
-          {topic && onRename && (
-            <section aria-label="Topic">
-              {renaming ? (
-                <Rename title={topic.title} onSave={title => onRename(topic.id, title)} onClose={() => setRenaming(false)} />
-              ) : (
-                <div className="recent-topic">
-                  <span className="muted turn-list-hint" title={topic.title}>
-                    Topic: {topic.title}
-                  </span>
-                  <button type="button" className="icon-btn topic-rename" aria-label={`Rename ${topic.title}`} title="Rename this topic" onClick={() => setRenaming(true)}>
-                    <PencilSimple size={12} />
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
+          {topicSection(topic, onRename, renaming, setRenaming)}
         </aside>
       )}
     </div>
