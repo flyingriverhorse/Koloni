@@ -49,7 +49,6 @@
   "src/chat/MessageList.tsx::UserMessage": 21,
   "src/chat/MessageList.tsx::WaitingCard": 17,
   "src/chat/PlanCard.tsx::PlanCard": 20,
-  "src/chat/ToolRow.tsx::ToolRow": 17,
   "src/chat/toolRuns.ts::runHead": 13,
   "src/chat/toolSummary.ts::toolSummary": 48,
   "src/commands/commandStatus.ts::commandStatus": 23,
