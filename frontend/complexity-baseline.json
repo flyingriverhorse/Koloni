@@ -8,7 +8,6 @@
   "src/agents/RoleEditor.tsx::RoleSummary": 18,
   "src/agents/RoleLibrary.tsx::RoleLibrary>map": 14,
   "src/agents/RolePanel.tsx::RolePanel": 29,
-  "src/agents/SkillApproval.tsx::SkillShown": 13,
   "src/agents/SkillWindow.tsx::SkillBars>map": 17,
   "src/agents/SpawnApproval.tsx::SpawnApproval": 13,
   "src/agents/teamRequests.ts::standsLine": 13,
