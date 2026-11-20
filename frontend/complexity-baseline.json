@@ -23,7 +23,6 @@
   "src/models/ModelPicker.tsx::ModelPicker": 46,
   "src/models/ModelRow.tsx::ModelRow": 38,
   "src/models/ModelsPage.tsx::ModelsPage": 36,
-  "src/models/ProviderConnection.tsx::CliNotes": 25,
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
   "src/shell/FolderButton.tsx::FolderButton": 25,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,

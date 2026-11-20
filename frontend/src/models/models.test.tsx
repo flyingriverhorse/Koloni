@@ -307,6 +307,21 @@ test('Claude Code can run as a session or step by step, and says what each means
   expect(h.onSave).toHaveBeenCalledWith('p2', expect.objectContaining({ mode: 'step' }))
 })
 
+test('each way of running says what it does: Copilot in a home of its own, a sign-in of its own, Claude Code and Codex natively', async () => {
+  const copilot = provider({ id: 'p6', name: 'Copilot', kind: 'copilot_cli', base_url: null, mode: 'session' })
+  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'native', options: { sign_in: 'koloni' } })
+  render(<ModelsPage providers={[{ ...claude, mode: 'native' }, copilot, codex]} {...handlers()} />)
+  await open('Claude Code', 'Connection')
+  expect(screen.getByRole('note')).toHaveTextContent(/^Native: Claude Code works with its own file and shell tools/)
+  await close()
+  await open('Copilot', 'Connection')
+  expect(screen.getByText(/^Runs the copilot command on this machine, with a home of its own/)).toBeInTheDocument()
+  await close()
+  await open('Codex', 'Connection')
+  expect(screen.getByText(/^Runs the codex command on this machine with this provider's own sign-in/)).toBeInTheDocument()
+  expect(screen.getByRole('note')).toHaveTextContent(/^Native: Codex works with its own shell and patch tool/)
+})
+
 test('Qoder and Codex each run the ways they safely can', async () => {
   const h = handlers()
   const qoder = provider({ id: 'p4', name: 'Qoder', kind: 'qoder_cli', base_url: null, mode: 'session' })

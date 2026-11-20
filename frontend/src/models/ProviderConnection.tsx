@@ -305,34 +305,45 @@ function CopilotFields({ provider, apiKey: key, setKey, address, setAddress, ser
   )
 }
 
+/** The line every CLI has: whose command it runs, where, and on whose sign-in. */
+function cliLine({ kind, copilot, ownServer, address, signs, signIn }: CliProps) {
+  return copilot
+    ? 'Runs the copilot command on this machine, with a home of its own: your Copilot settings, MCP servers and plugins stay out of it. '
+    : ownServer && address.trim()
+      ? `Runs the ${COMMAND[kind]} command on this machine, on your model server. `
+      : signs && signIn === 'koloni'
+        ? `Runs the ${COMMAND[kind]} command on this machine with this provider's own sign-in; no key is needed, and its use counts against that account's plan. `
+        : `Uses the ${COMMAND[kind]} command you are signed in to on this machine; no key is needed, and its use counts against your plan. `
+}
+
+/** A session or a run a step: its own tools are off, and what that way of running does. */
+function ToolsHint({ kind, runs }: Pick<CliProps, 'kind' | 'runs'>) {
+  return (
+    <Hint doc={GUIDE.cliRuns}>
+      Its own tools are switched off: every tool it uses is KOLONİ's, so approvals, records and Stop work as
+      with any other model.{' '}
+      {runs === 'session' &&
+        "It keeps its own loop for the whole of an agent's work and reaches KOLONİ's tools as they are needed, so it is quick and you see its text piece by piece as it works."}
+      {runs === 'step' &&
+        'Each model step is a separate run of the CLI, so it is slower and the answer arrives all at once.'}
+      {kind === 'codex_cli' &&
+        runs === 'session' &&
+        " Codex's own patch tool cannot be switched off, so KOLONİ refuses every patch it asks to make and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. Tried on short work so far."}
+      {kind === 'qoder_cli' &&
+        " A model name has to be set below if Qoder's own default model does not answer."}
+    </Hint>
+  )
+}
+
 /** What running it this way does: a line for every CLI, and a warning for each native way. */
-function CliNotes({ kind, copilot, ownServer, address, signs, signIn, runs, agy }: CliProps) {
+function CliNotes(props: CliProps) {
+  const { kind, runs, agy } = props
   return (
     <>
       <div className="muted provider-note">
-        {copilot
-          ? 'Runs the copilot command on this machine, with a home of its own: your Copilot settings, MCP servers and plugins stay out of it. '
-          : ownServer && address.trim()
-            ? `Runs the ${COMMAND[kind]} command on this machine, on your model server. `
-            : signs && signIn === 'koloni'
-              ? `Runs the ${COMMAND[kind]} command on this machine with this provider's own sign-in; no key is needed, and its use counts against that account's plan. `
-              : `Uses the ${COMMAND[kind]} command you are signed in to on this machine; no key is needed, and its use counts against your plan. `}
+        {cliLine(props)}
         {/* (A session or a run a step: the ways of running that have more to say.) */}
-        {runs !== 'native' && runs !== 'reads' && (
-          <Hint doc={GUIDE.cliRuns}>
-            Its own tools are switched off: every tool it uses is KOLONİ's, so approvals, records and Stop work as
-            with any other model.{' '}
-            {runs === 'session' &&
-              "It keeps its own loop for the whole of an agent's work and reaches KOLONİ's tools as they are needed, so it is quick and you see its text piece by piece as it works."}
-            {runs === 'step' &&
-              'Each model step is a separate run of the CLI, so it is slower and the answer arrives all at once.'}
-            {kind === 'codex_cli' &&
-              runs === 'session' &&
-              " Codex's own patch tool cannot be switched off, so KOLONİ refuses every patch it asks to make and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. Tried on short work so far."}
-            {kind === 'qoder_cli' &&
-              " A model name has to be set below if Qoder's own default model does not answer."}
-          </Hint>
-        )}
+        {runs !== 'native' && runs !== 'reads' && <ToolsHint kind={kind} runs={runs} />}
       </div>
       {runs === 'native' && kind === 'claude_cli' && (
         <p role="note" className="composer-warning provider-note">
@@ -344,26 +355,7 @@ function CliNotes({ kind, copilot, ownServer, address, signs, signIn, runs, agy 
           read-only role stays read-only. {NATIVE_COPY} {NOT_BY_TRIGGER}
         </p>
       )}
-      {agy && runs === 'reads' && (
-        <p role="note" className="composer-warning provider-note">
-          Reads only: agy works in the project folder with its own reading tools. It is started without leave to do
-          more, so agy itself refuses to write a file or run a command; KOLONİ records such a step as refused, and its
-          reads as its own tools. With nothing to ask, it runs at every permission level and for every role; a role’s
-          write and command tools do not apply here. KOLONİ does not enforce this itself: permission rules in your own
-          agy settings can allow more. {NOT_BY_TRIGGER} {AGY_TOOLS}
-        </p>
-      )}
-      {agy && runs === 'native' && (
-        <p role="note" className="composer-warning provider-note">
-          Native: agy works with all its own tools, in a home of KOLONİ&apos;s, so your own agy settings, hooks and MCP
-          servers stay out. It is started with --dangerously-skip-permissions, and a hook of KOLONİ&apos;s asks KOLONİ
-          before each tool it uses: a change shows as a change to approve and a command as a command to approve, at any
-          permission level, by KOLONİ&apos;s own rules. A read-only role stays read-only. If agy does not load that hook,
-          or uses a tool without it, the run is stopped. As a sub-agent it works in its own copy of the project, without
-          the project&apos;s dependency folders (node_modules, .venv), so what needs them does not run there; what it
-          changed is taken into the project when it is done. {AGY_TOOLS} {NOT_BY_TRIGGER}
-        </p>
-      )}
+      <AgyNotes agy={agy} runs={runs} />
       {runs === 'native' && kind === 'codex_cli' && (
         <p role="note" className="composer-warning provider-note">
           Native: Codex works with its own shell and patch tool; your own Codex skills and MCP servers are switched
@@ -395,6 +387,34 @@ function CliNotes({ kind, copilot, ownServer, address, signs, signIn, runs, agy 
           and ask you questions through KOLONİ. Copilot (native) runs its sub-agents one at a time here; session mode
           runs them at once. Copilot’s own sandbox cannot start Python here (measured): tests run only through a
           sub-agent or in session mode. {NOT_BY_TRIGGER}
+        </p>
+      )}
+    </>
+  )
+}
+
+/** agy's two ways: reading with its own tools, or native through KOLONİ's hook. */
+function AgyNotes({ agy, runs }: Pick<CliProps, 'agy' | 'runs'>) {
+  return (
+    <>
+      {agy && runs === 'reads' && (
+        <p role="note" className="composer-warning provider-note">
+          Reads only: agy works in the project folder with its own reading tools. It is started without leave to do
+          more, so agy itself refuses to write a file or run a command; KOLONİ records such a step as refused, and its
+          reads as its own tools. With nothing to ask, it runs at every permission level and for every role; a role’s
+          write and command tools do not apply here. KOLONİ does not enforce this itself: permission rules in your own
+          agy settings can allow more. {NOT_BY_TRIGGER} {AGY_TOOLS}
+        </p>
+      )}
+      {agy && runs === 'native' && (
+        <p role="note" className="composer-warning provider-note">
+          Native: agy works with all its own tools, in a home of KOLONİ&apos;s, so your own agy settings, hooks and MCP
+          servers stay out. It is started with --dangerously-skip-permissions, and a hook of KOLONİ&apos;s asks KOLONİ
+          before each tool it uses: a change shows as a change to approve and a command as a command to approve, at any
+          permission level, by KOLONİ&apos;s own rules. A read-only role stays read-only. If agy does not load that hook,
+          or uses a tool without it, the run is stopped. As a sub-agent it works in its own copy of the project, without
+          the project&apos;s dependency folders (node_modules, .venv), so what needs them does not run there; what it
+          changed is taken into the project when it is done. {AGY_TOOLS} {NOT_BY_TRIGGER}
         </p>
       )}
     </>
