@@ -197,8 +197,22 @@ def test_a_model_that_keeps_asking_with_its_own_tool_is_stopped(codex_session, w
         [{"request": ASKS_USER, "params": {"questions": []}}] * 5 + [{"say": "Gave up."}])
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
-    assert run["status"] == "failed" and "its own tool to ask the user 3 times" in run["error"], run
+    assert run["status"] == "failed" and "its own tool to ask the user 3 times in a row" in run["error"], run
     assert [method for method, _ in answers(codex_session.record())] == [ASKS_USER] * 2
+
+
+def test_one_that_goes_to_kolonis_tools_after_each_own_question_is_not_stopped(
+        codex_session, wait_run, project_dir):
+    # Review: one that does as told each time (its own ask, then KOLONİ's tool - each a counted
+    # step) is not stopped at its third question in a turn.
+    ask = {"request": ASKS_USER, "params": {"questions": []}}
+    read = {"koloni": "read_file", "args": {"path": "hello.py"}}
+    client, provider = codex_session([ask, read] * 3 + [{"say": "Asked on the card."}])
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    seen = codex_session.record()
+    assert run["status"] == "completed", (run["error"], answers(seen))
+    assert [method for method, _ in answers(seen)] == [ASKS_USER, ASK_MCP] * 3
 
 
 def test_it_is_held_as_a_session_cli_not_as_one_with_tools_of_its_own():

@@ -123,11 +123,14 @@ DECLINED_WHY = ("KOLONİ declined that request of yours: {why}\n\n"
 # (every server but KOLONİ's is off on its line) and declined as before, with no note; read
 # from its schema, not measured - point it to ask_user too if Codex is seen asking so.
 ASKS_USER = "item/tool/requestUserInput"
-ASK_WITH_KOLONI = ("the user is asked only with the koloni server's ask_user tool: ask your "
-                   "question with it, and KOLONİ gives you their answer (without that tool, "
-                   "decide yourself and say what you decided).")
-# ...and its row in the chat, native (a session keeps no row of a CLI's own requests).
-ASKED_ON_CARD = ("KOLONİ declined {label}'s own way to ask you and told it to ask with "
+# (Where ask_user refuses too - a trigger's turn, the user's message waiting - it decides: else
+# it would go back to its own tool, and a session stop on it.)
+ASK_WITH_KOLONI = ("ask the user only with the koloni server's ask_user tool, which waits for "
+                   "their answer; where that tool is not offered or refuses, decide yourself "
+                   "and say what you decided.")
+# ...and its row in the chat, native (a session keeps no row of a CLI's own requests). A tool's
+# result, replayed to models later: "the user", not "you".
+ASKED_ON_CARD = ("KOLONİ declined {label}'s own way to ask the user and told it to ask with "
                  "ask_user, on KOLONİ's card")
 
 
@@ -338,8 +341,8 @@ class _Asked:
     patch's changes, as it last said them, until it asks; each patch's files that were
     asked about (path -> the id each was asked under); the requests already answered
     (item id, approval id); the commands that were patches (`_heredoc_patch`), by item id;
-    how many of its requests were declined, and how many times it asked the user with its own
-    tool (`CodexSessionClient._decide`)."""
+    how many of its requests were declined, and how many times in a row it asked the user with
+    its own tool (`CodexSessionClient._decide`)."""
 
     def __init__(self, root: Path | None = None) -> None:
         self.root = root
@@ -1625,19 +1628,21 @@ class CodexSessionClient(CodexNativeClient):
         Never `call_tool`: here that is the agent's, and would put a call on its record."""
         if method == "mcpServer/elicitation/request" and params.get("serverName") == SERVER \
                 and _dict(params.get("_meta")).get("codex_approval_kind") == "mcp_tool_call":
+            # (It went to KOLONİ's tools - ask_user, as told, or other work: each a counted step.)
+            asked.own_asks = 0
             return {"result": {"action": "accept", "content": {}}}
         # shortcut: a decline is in the log and the raw stream, not on the agent's record (a
         # session keeps no record of a CLI's own tools); record it if it is missed there.
         log.info("%s as a session: declined %s", self.label, method)
         if method == ASKS_USER:
             # The model asking the user is no forbidden act: not one of those declines. But
-            # nothing else would stop one that keeps asking so (no step is counted, and each
-            # answer is no silence): a limit of its own.
+            # nothing else would stop one that keeps asking so, with no KOLONİ tool between
+            # (no step is counted, and each answer is no silence): a limit of its own.
             asked.own_asks += 1
             if asked.own_asks >= self.DECLINES_AT_MOST:
                 raise OwnStop(f"{self.label} used its own tool to ask the user {asked.own_asks} "
-                              "times, though told to ask with ask_user, so the session was "
-                              "stopped")
+                              "times in a row, though told to ask with ask_user, so the session "
+                              "was stopped")
             return _pointed_to_card()
         asked.declined += 1
         if asked.declined >= self.DECLINES_AT_MOST:
