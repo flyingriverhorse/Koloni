@@ -753,13 +753,40 @@ def new_turn(
     return run, message
 
 
+def _users_own_message(request: Request, project: Project | None, conversation: Conversation,
+                       run: Run, content: str) -> None:
+    # (A request that says nothing of where it is from is not taken for the user - see
+    # `require_own_origin`.)
+    if request.headers.get("origin") in request.app.state.settings.allowed_origins:
+        # A folder the user names in their own message is one this conversation reads in
+        # from here on, with no card. (What anybody else names opens nothing.) A name in a
+        # message is no leave to change files there (B-52): a write is asked as anywhere outside.
+        # shortcut: one KOLONİ never opens is left out without a word here (the agent's call
+        # says why); say so under the message if that leaves the user guessing.
+        # (Not in a plain chat: a folder named there opens nothing - a file named there is
+        # read on a card, once: slice 86b.)
+        if project is not None:
+            # The project itself is never one of its own (B-66): listed, a command from an
+            # agent's working copy that names it would be offered the project to write in.
+            opened = [Path(project.root_path).resolve(), *(
+                Path(f) for access in ("write", "read")
+                for f in folders_of(project, conversation, access))]
+            named = [str(folder) for folder in named_folders(content)
+                     if not any(folder == f or folder.is_relative_to(f) for f in opened)]
+            conversation.read_in = list(dict.fromkeys([*conversation.read_in, *named]))
+        # The user writes in it again, from the app's own page: it is back.
+        conversation.archived_at = None
+        # A role named here is the user's word for it, though off or out of the team.
+        run.by_user = True
+
+
 @router.post(
     "/conversations/{conversation_id}/messages",
     response_model=PostMessageOut,
     status_code=201,
     dependencies=[Depends(require_origin)],
 )
-async def post_message(  # noqa: C901
+async def post_message(
     conversation_id: str,
     body: MessageIn,
     request: Request,
@@ -814,29 +841,7 @@ async def post_message(  # noqa: C901
         # (A message of nothing but what does not print leaves it as it was named.)
         conversation.title = title_from(content or ", ".join(
             one.name for one in added)) or conversation.title
-    # (A request that says nothing of where it is from is not taken for the user - see
-    # `require_own_origin`.)
-    if request.headers.get("origin") in request.app.state.settings.allowed_origins:
-        # A folder the user names in their own message is one this conversation reads in
-        # from here on, with no card. (What anybody else names opens nothing.) A name in a
-        # message is no leave to change files there (B-52): a write is asked as anywhere outside.
-        # shortcut: one KOLONİ never opens is left out without a word here (the agent's call
-        # says why); say so under the message if that leaves the user guessing.
-        # (Not in a plain chat: a folder named there opens nothing - a file named there is
-        # read on a card, once: slice 86b.)
-        if project is not None:
-            # The project itself is never one of its own (B-66): listed, a command from an
-            # agent's working copy that names it would be offered the project to write in.
-            opened = [Path(project.root_path).resolve(), *(
-                Path(f) for access in ("write", "read")
-                for f in folders_of(project, conversation, access))]
-            named = [str(folder) for folder in named_folders(content)
-                     if not any(folder == f or folder.is_relative_to(f) for f in opened)]
-            conversation.read_in = list(dict.fromkeys([*conversation.read_in, *named]))
-        # The user writes in it again, from the app's own page: it is back.
-        conversation.archived_at = None
-        # A role named here is the user's word for it, though off or out of the team.
-        run.by_user = True
+    _users_own_message(request, project, conversation, run, content)
     conversation.updated_at = now()
     session.commit()
 
