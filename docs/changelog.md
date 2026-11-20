@@ -6,6 +6,12 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-20
+
+### Changed
+
+- **Agents**, **Settings**, **Models**: nothing you see or do changes. The code behind an agent's turn, taking work in, teams' recipes, rooms, discussions, the Orchestrator's answers in your place, and the chat, project and provider settings was split into smaller parts, each checked to behave exactly as before, so later fixes there are safer.
+
 ## [0.1.1] - 2026-11-14
 
 ### Added
