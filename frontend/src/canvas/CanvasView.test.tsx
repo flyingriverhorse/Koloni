@@ -654,6 +654,34 @@ test('findings handed out of a team’s frame to an agent outside it get their l
   }
 })
 
+test('a wait out of a team’s frame keeps React Flow’s line, not option A’s bracket (not under the Coder’s own sub-agent)', async () => {
+  // (Moved onto the frame, the line is between two of no frame; the frame stands over the Coder, so the two seemed one
+  // column: it ran round the frame's right and back left behind the Coder's child.)
+  const { measure, stage } = laidOut()
+  const step = { id: 'review', name: 'Review', state: 'now' as const, round: 0, room: false, own_check: false, left_out: [], group: false }
+  const conv = convState({
+    conversation: {
+      ...conversation,
+      teams_mode: 'manual',
+      teams: [{ team_id: 'web', recipe_id: null, no_recipe: false, picked_by: 'user', why: null, state: { run_id: 't', team: 'Web app', recipe: 'Review only', status: 'running', why: null, steps: [step], agents: ['rev'], ended_ready: false, passes: [{ part: 'review', agents: ['rev'] }] } }],
+    },
+    runs: [run('t')],
+    messages: [userMessage('t', 'Review it')],
+    agents: [
+      agent('t'),
+      agent('t', 'blocked', { id: 'rev', role_name: 'Reviewer', parent_agent_id: 't', depth: 1, waiting_for: { agent_id: 'fix', agent_name: 'Coder', path: 'a.txt' } }),
+      agent('t', 'running', { id: 'fix', role_name: 'Coder', parent_agent_id: 't', depth: 1 }),
+      agent('t', 'running', { id: 'kid', role_name: 'Tester', parent_agent_id: 'fix', depth: 2 }),
+    ],
+  })
+  render(<CanvasView state={conv} selectedId={null} onSelect={() => {}} />)
+  await waitFor(() => expect(node('agent:kid')).not.toBeNull())
+  measure()
+  stage(1200)
+  await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="waits:agent:rev>agent:fix"]')).not.toBeNull())
+  expect(look('waits:agent:rev>agent:fix')[0]).toBe('react-flow__edge react-flow__edge-default edge-waits nopan selectable')
+})
+
 test('21 Nov: inside a frame each arrow points at the line’s real end - a room’s members’ into the room, though drawn from it', async () => {
   // (A line to a node of an earlier column is drawn from that one: its arrow was at the member, as if the room led to it.)
   const { measure, stage } = laidOut()

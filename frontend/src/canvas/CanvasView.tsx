@@ -680,8 +680,10 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
    * shortcut: a member or a holder in another column keeps React Flow's curve, which can loop back; route it if that is seen.
    */
   const looseLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
-    if (e.messages && (e.talk || byId.get(e.source)?.kind !== 'team')) return { type: 'lane', data }
-    if ((e.talk || e.id.startsWith('waits:')) && stacked(s, t)) return { type: 'lane', targetHandle: 'side-in', data }
+    const fromFrame = byId.get(e.source)?.kind === 'team'
+    if (e.messages && (e.talk || !fromFrame)) return { type: 'lane', data }
+    // (Not a line moved onto a frame: the frame spans the column of any agent under it, so it would seem stacked.)
+    if ((e.talk || e.id.startsWith('waits:')) && !fromFrame && stacked(s, t)) return { type: 'lane', targetHandle: 'side-in', data }
     return {}
   }
   /** A line inside one frame, or between two of none; any other line not drawn by `edges.tsx` is React Flow's. */
