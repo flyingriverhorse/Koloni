@@ -1706,7 +1706,7 @@ class RoomsMixin:
                 return await self._wait_for_post(room, member, ctx)
         return "something was said in the room: it follows."
 
-    async def _wait_for_item(self: "AgentRunner", room: _Room, member: _Member, ctx: Ctx,  # noqa: C901
+    async def _wait_for_item(self: "AgentRunner", room: _Room, member: _Member, ctx: Ctx,
                              args: dict) -> str:
         """A member waits for an item another member holds to be finished or dropped, and
         is given what came of it (`wait_for_item`) - at once for one closed already. Refused
@@ -1723,15 +1723,8 @@ class RoomsMixin:
                 raise ToolError(f"there is no item {number} on the room's list")
             return found
 
-        def closed(item: RoomItem) -> str | None:
-            if item.status not in ("done", "dropped"):
-                return None
-            return (f"item {number} is {item.status} by "
-                    f"{self._name_of(item.holder_agent_id or '')}. What came of it: "
-                    f"{board.as_data(item.result or '')}")
-
         item = looked()
-        if said := closed(item):
+        if said := self._item_closed(number, item):
             return said
         if item.holder_agent_id == member.ctx.agent_id:
             raise ToolError(f"item {number} is yours: there is nobody else to wait for")
@@ -1766,12 +1759,20 @@ class RoomsMixin:
         if member.state == "waiting":  # (closed, not said: nobody's post set it back)
             self._set_member(room, member, "in")
         item = looked()
-        if said := closed(item):
+        if said := self._item_closed(number, item):
             return said
         if item.status == "open":
             return (f"item {number} is nobody's again: its holder's part in the room is over. "
                     "Take it yourself, or go on with your part.")
         return f"something was said in the room before item {number} was closed: it follows."
+
+    def _item_closed(self: "AgentRunner", number: int, item: RoomItem) -> str | None:
+        """`_wait_for_item`: what came of an item that is closed, or None for one that is not."""
+        if item.status not in ("done", "dropped"):
+            return None
+        return (f"item {number} is {item.status} by "
+                f"{self._name_of(item.holder_agent_id or '')}. What came of it: "
+                f"{board.as_data(item.result or '')}")
 
     def decide_spawn(self: "AgentRunner", agent_id: str, decision: str) -> bool:
         """Deliver the user's approve/reject for a proposed sub-agent."""
