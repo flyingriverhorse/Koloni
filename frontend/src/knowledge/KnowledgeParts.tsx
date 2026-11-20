@@ -40,6 +40,50 @@ function codeCap(listed: string[], typed: string, knowledge: Knowledge | null): 
   return /^\d{1,4}$/.test(typed.trim()) && Number(typed) <= 1000 ? { max_code_files: Number(typed) } : null
 }
 
+/** What the form starts from: the knowledge as saved, or a new one's defaults. */
+function startOf(knowledge: Knowledge | null) {
+  const chosen = knowledge?.learn_with
+  return {
+    sources: (knowledge?.sources ?? []).join('\n'),
+    pages: String(knowledge?.max_pages ?? 500),
+    usd: String(knowledge?.max_usd ?? 0.5),
+    withModel: chosen ? `${chosen.provider_id} ${chosen.model_id}` : OWN,
+    weekly: knowledge?.weekly ?? false,
+    codeFiles: String(knowledge?.max_code_files ?? 100),
+    searchSet: knowledge?.search_answering ?? null,
+  }
+}
+
+/** A page cap as typed (1 to 1000); null: not valid. */
+const maxPagesOf = (pages: string) => (/^\d{1,4}$/.test(pages.trim()) && Number(pages) >= 1 && Number(pages) <= 1000 ? Number(pages) : null)
+/** What a learning may spend as typed (over 0, at most 100 USD); null: not valid. */
+const maxUsdOf = (usd: string) => (Number(usd) > 0 && Number(usd) <= 100 ? Number(usd) : null)
+
+/** The form as it is sent; null while there is no source, or a limit or the code cap is not valid. */
+function sentOf(
+  knowledge: Knowledge | null,
+  kinds: boolean | undefined,
+  form: { listed: string[]; pages: string; usd: string; code: { max_code_files: number } | null; withModel: string; weeklyOffered: boolean; weekly: boolean; searchSet: boolean | null; searches: boolean },
+): Sent | null {
+  const { listed, pages, usd, code, withModel, weeklyOffered, weekly, searchSet, searches } = form
+  const maxPages = maxPagesOf(pages)
+  const maxUsd = maxUsdOf(usd)
+  const [provider_id, ...model] = withModel.split(' ')
+  return listed.length > 0 && maxPages !== null && maxUsd !== null && code !== null
+    ? {
+        sources: listed,
+        max_pages: maxPages,
+        max_usd: maxUsd,
+        learn_with: withModel === OWN ? null : { provider_id, model_id: model.join(' ') },
+        removed: knowledge?.removed ?? [],
+        weekly: weeklyOffered && weekly,
+        // Not touched in the add window: not sent - the server's default (a topic to research may search).
+        ...(!kinds || searchSet !== null ? { search_answering: searches } : {}),
+        ...code,
+      }
+    : null
+}
+
 /** Beside the page cap, a repository's: how many of its code files new to its guide a learning reads. */
 function CodeCap({ id, shown, value, onChange }: { id: string; shown: boolean; value: string; onChange: (value: string) => void }) {
   if (!shown) return null
@@ -80,13 +124,13 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
   const id = useId()
   const [kind, setKind] = useState<Kind>('site')
   const chosenKind = KINDS.find(one => one.key === kind)!
-  const [sources, setSources] = useState((knowledge?.sources ?? []).join('\n'))
-  const [pages, setPages] = useState(String(knowledge?.max_pages ?? 500))
-  const [usd, setUsd] = useState(String(knowledge?.max_usd ?? 0.5))
-  const chosen = knowledge?.learn_with
-  const [withModel, setWithModel] = useState(chosen ? `${chosen.provider_id} ${chosen.model_id}` : OWN)
-  const [weekly, setWeekly] = useState(knowledge?.weekly ?? false)
-  const [codeFiles, setCodeFiles] = useState(String(knowledge?.max_code_files ?? 100))
+  const start = startOf(knowledge)
+  const [sources, setSources] = useState(start.sources)
+  const [pages, setPages] = useState(start.pages)
+  const [usd, setUsd] = useState(start.usd)
+  const [withModel, setWithModel] = useState(start.withModel)
+  const [weekly, setWeekly] = useState(start.weekly)
+  const [codeFiles, setCodeFiles] = useState(start.codeFiles)
   // A topic to research is typed as it is; it is sent as "research: <topic>" - a repository's address as "repo: <address>".
   const listed = typedSources(sources, kinds, kind)
   const code = codeCap(listed, codeFiles, knowledge)
@@ -94,25 +138,9 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
   // K-bilgi 5: a site is checked weekly too (app/knowledge.py stale); a project's files say when they change.
   const weeklyOffered = researches || listed.some(one => /^https?:\/\//i.test(one))
   // Not said yet: an expert of a topic to research may search while answering.
-  const [searchSet, setSearches] = useState<boolean | null>(knowledge?.search_answering ?? null)
+  const [searchSet, setSearches] = useState<boolean | null>(start.searchSet)
   const searches = searchSet ?? researches
-  const maxPages = /^\d{1,4}$/.test(pages.trim()) && Number(pages) >= 1 && Number(pages) <= 1000 ? Number(pages) : null
-  const maxUsd = Number(usd) > 0 && Number(usd) <= 100 ? Number(usd) : null
-  const [provider_id, ...model] = withModel.split(' ')
-  const sent: Sent | null =
-    listed.length > 0 && maxPages !== null && maxUsd !== null && code !== null
-      ? {
-          sources: listed,
-          max_pages: maxPages,
-          max_usd: maxUsd,
-          learn_with: withModel === OWN ? null : { provider_id, model_id: model.join(' ') },
-          removed: knowledge?.removed ?? [],
-          weekly: weeklyOffered && weekly,
-          // Not touched in the add window: not sent - the server's default (a topic to research may search).
-          ...(!kinds || searchSet !== null ? { search_answering: searches } : {}),
-          ...code,
-        }
-      : null
+  const sent = sentOf(knowledge, kinds, { listed, pages, usd, code, withModel, weeklyOffered, weekly, searchSet, searches })
   // B-365: what is typed against what was saved (the form starts anew on each save: its key).
   const typed = JSON.stringify([listed, pages, usd, withModel, weekly, searches, codeFiles])
   const [saved] = useState(typed)
