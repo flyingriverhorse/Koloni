@@ -16,12 +16,8 @@ export function commandStatus(command: Pick<Command, 'status' | 'exit_code' | 's
   label: string
   tone: Tone
 } {
-  if (command.keep_running) {
-    if (command.status === 'running') return { label: command.preview_url ? 'running' : 'starting…', tone: 'accent' }
-    if (command.status === 'killed') return { label: 'stopped', tone: 'muted' }
-    if (command.status === 'exited' && command.exit_code !== null) return { label: `exited ${command.exit_code}`, tone: command.exit_code === 0 ? 'muted' : 'del' }
-    if (command.status === 'interrupted' && command.started_at !== null) return { label: 'stopped when KOLONİ closed', tone: 'muted' }
-  }
+  const kept = keptStatus(command)
+  if (kept) return kept
   switch (command.status) {
     case 'proposed':
       return { label: WAITS, tone: 'warn' }
@@ -33,9 +29,7 @@ export function commandStatus(command: Pick<Command, 'status' | 'exit_code' | 's
     case 'running':
       return { label: 'working', tone: 'accent' }
     case 'exited':
-      // A CLI that ran the command itself may not say how it exited: that is not a failure.
-      if (command.exit_code === null) return { label: 'ended · exit code not reported', tone: 'muted' }
-      return { label: `exit ${command.exit_code}`, tone: command.exit_code === 0 ? 'ok' : 'del' }
+      return exitedStatus(command.exit_code)
     case 'timed_out':
       return { label: 'timed out', tone: 'del' }
     case 'killed':
@@ -48,10 +42,32 @@ export function commandStatus(command: Pick<Command, 'status' | 'exit_code' | 's
       // K-48: its CLI called it done (exit 0), and its sandbox had refused the write.
       return { label: 'blocked: its read-only sandbox refused a write', tone: 'del' }
     case 'interrupted':
-      // One that never started was approved, and its agent never got its place: not your no.
-      if (command.started_at === null) return { label: 'approved — the work ended before it ran', tone: 'muted' }
-      return { label: 'interrupted', tone: 'warn' }
+      return interruptedStatus(command.started_at)
   }
+}
+
+type Status = { label: string; tone: Tone }
+
+/** A server's own words for its state (`keep_running`); null where it reads as any command's, and for a command that is none. */
+function keptStatus(command: Parameters<typeof commandStatus>[0]): Status | null {
+  if (!command.keep_running) return null
+  if (command.status === 'running') return { label: command.preview_url ? 'running' : 'starting…', tone: 'accent' }
+  if (command.status === 'killed') return { label: 'stopped', tone: 'muted' }
+  if (command.status === 'exited' && command.exit_code !== null) return { label: `exited ${command.exit_code}`, tone: command.exit_code === 0 ? 'muted' : 'del' }
+  if (command.status === 'interrupted' && command.started_at !== null) return { label: 'stopped when KOLONİ closed', tone: 'muted' }
+  return null
+}
+
+function exitedStatus(exitCode: Command['exit_code']): Status {
+  // A CLI that ran the command itself may not say how it exited: that is not a failure.
+  if (exitCode === null) return { label: 'ended · exit code not reported', tone: 'muted' }
+  return { label: `exit ${exitCode}`, tone: exitCode === 0 ? 'ok' : 'del' }
+}
+
+function interruptedStatus(startedAt: Command['started_at']): Status {
+  // One that never started was approved, and its agent never got its place: not your no.
+  if (startedAt === null) return { label: 'approved — the work ended before it ran', tone: 'muted' }
+  return { label: 'interrupted', tone: 'warn' }
 }
 
 /** Whole seconds a command ran, or null while it has not both started and ended. */

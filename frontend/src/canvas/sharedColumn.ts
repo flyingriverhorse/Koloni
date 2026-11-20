@@ -1,4 +1,4 @@
-import type { BoardPost, Run, SharedFile, ToolCall, View } from '../api/types'
+import type { Agent, BoardPost, Run, SharedFile, ToolCall, View } from '../api/types'
 import { requestsOf } from '../agents/teamRequests'
 import { writerOf } from '../notes/notesText'
 import type { ConvState } from '../state/applyEvent'
@@ -69,11 +69,42 @@ export function sharedColumn(state: ConvState, run: Run, turn: number | null, no
     const node = own.find(n => n.id === `agent:${agentId}`)
     return !agentId || agentId === lead?.id || !node ? 'top' : (node.team ?? node.id)
   }
-  const [files, notes] = [new Map<string, string[]>(), new Map<string, BoardPost[]>()]
-  const memory = new Map<string, { facts: Set<string>; lookups: number; written: string[] }>()
-  const used = (anchor: string) => memory.get(anchor) ?? memory.set(anchor, { facts: new Set(), lookups: 0, written: [] }).get(anchor)!
   const calls = state.toolCalls.filter(t => t.run_id === run.id).sort((a, b) => a.seq - b.seq)
 
+  const files = writtenFiles(run, calls, shared, anchorOf)
+  const contracts = contractsOf(state, run, edges, files)
+  const notes = new Map<string, BoardPost[]>()
+  // The notebook: each note by whoever wrote it (KOLONİ's own are on the Notes tab).
+  for (const post of state.boardPosts.filter(p => p.run_id === run.id && !p.koloni).sort((a, b) => a.seq - b.seq)) add(notes, anchorOf(post.agent_id), post)
+  const used: Used = { state, run, turn, shared, files, notes, memory: memoryUsed(state, run, calls, anchorOf) }
+
+  const added: GraphNode[] = []
+  const lines: GraphEdge[] = []
+  topCard(used, own, lead, added, lines)
+  frameCards(used, own, added, lines)
+  for (const [request, paths] of contracts) {
+    const one = block(used, request.id, null, 'var(--request)', [...paths].map(path => ({ kind: 'file' as const, text: path, path })))
+    added.push(one)
+    lines.push({ id: `shared:${one.id}`, source: request.source, target: one.id, active: false, shared: { colour: 'var(--request)', arm: request.id } })
+  }
+  return { nodes: added, edges: lines }
+}
+
+/** What a turn used, by whose it is (`anchorOf`: a frame's id, an agent's box's, 'top' for everyone's), and what its cards are made with. */
+interface Used {
+  state: ConvState
+  run: Run
+  turn: number | null
+  shared: SharedFile[]
+  files: Map<string, string[]>
+  notes: Map<string, BoardPost[]>
+  memory: Map<string, { facts: Set<string>; lookups: number; written: string[] }>
+}
+type AnchorOf = (agentId: string | null) => string
+
+/** The files of the shared folder a turn wrote, by whose they are. */
+function writtenFiles(run: Run, calls: ToolCall[], shared: SharedFile[], anchorOf: AnchorOf): Used['files'] {
+  const files = new Map<string, string[]>()
   // What its agents wrote to the shared folder, where write_shared says it went; contracts/ is every team's.
   for (const call of calls.filter(t => t.name === 'write_shared' && t.status === 'succeeded')) {
     const path = /^written: \.koloni\/shared\/(\S+)/.exec(call.result ?? '')?.[1]
@@ -83,8 +114,13 @@ export function sharedColumn(state: ConvState, run: Run, turn: number | null, no
   // shortcut: a decision of another turn written while this one ran is shown with it; name its turn in the listing if met.
   const [from, to] = [Date.parse(run.started_at ?? ''), run.ended_at ? Date.parse(run.ended_at) : Infinity]
   for (const file of shared) if (file.path.startsWith('decisions/') && Date.parse(file.at) >= from && Date.parse(file.at) <= to) add(files, 'top', file.path)
-  // A request's contract: on an arm from its line where that is drawn, else everyone's. Several requests on one line
-  // (asked twice one way) have one card, a row for each contract: two cards of one id had the arm end short of it.
+  return files
+}
+
+// A request's contract: on an arm from its line where that is drawn, else everyone's. Several requests on one line
+// (asked twice one way) have one card, a row for each contract: two cards of one id had the arm end short of it.
+/** The contracts on an arm, by their request's line; one whose line is not drawn is added to `files` as everyone's. */
+function contractsOf(state: ConvState, run: Run, edges: GraphEdge[], files: Used['files']): Map<GraphEdge, Set<string>> {
   const contracts = new Map<GraphEdge, Set<string>>()
   for (const request of requestsOf(state, run.id)) {
     // (N7: not the full stop after it.)
@@ -93,80 +129,87 @@ export function sharedColumn(state: ConvState, run: Run, turn: number | null, no
     if (path && line) contracts.set(line, (contracts.get(line) ?? new Set()).add(path))
     else if (path) add(files, 'top', path)
   }
-  // The notebook: each note by whoever wrote it (KOLONİ's own are on the Notes tab).
-  for (const post of state.boardPosts.filter(p => p.run_id === run.id && !p.koloni).sort((a, b) => a.seq - b.seq)) add(notes, anchorOf(post.agent_id), post)
-  // The memory: the facts its agents were given as they started, what they looked up and wrote.
+  return contracts
+}
+
+// The memory: the facts its agents were given as they started, what they looked up and wrote.
+function memoryUsed(state: ConvState, run: Run, calls: ToolCall[], anchorOf: AnchorOf): Used['memory'] {
+  const memory = new Map<string, { facts: Set<string>; lookups: number; written: string[] }>()
+  const used = (anchor: string) => memory.get(anchor) ?? memory.set(anchor, { facts: new Set(), lookups: 0, written: [] }).get(anchor)!
   for (const agent of state.agents.filter(a => a.run_id === run.id)) for (const fact of agent.facts_given ?? []) used(anchorOf(agent.id)).facts.add(fact)
   for (const call of calls) {
     if (call.name === 'recall') used(anchorOf(call.agent_id)).lookups++
     // What was written, as the removed inspector said it: who, the words, the lines they rest on, put forward. (A refused one is not.)
     if (call.name === 'remember' && call.status === 'succeeded') used(anchorOf(call.agent_id)).written.push(noted(state, call))
   }
+  return memory
+}
 
-  // (Folded: so many of a kind and "+N more files"; unfolded, `all`: every row.)
-  const kept = (rows: SharedRow[], what: string, newest = false, all = false): SharedRow[] =>
-    all || rows.length <= OF_A_KIND
-      ? rows
-      : [...(newest ? rows.slice(-OF_A_KIND) : rows.slice(0, OF_A_KIND)), { kind: 'more' as const, text: `+${plural(rows.length - OF_A_KIND, `more ${what}`)}` }]
-  const rowsOf = (anchor: string, team: string | null, all = false): SharedRow[] => {
-    const part = memory.get(anchor)
-    const said = part && [part.facts.size && `${plural(part.facts.size, 'fact')} given`, part.lookups && plural(part.lookups, 'lookup'), part.written.length && `${part.written.length} written`].filter(Boolean).join(' · ')
-    return [
-      ...kept([...new Set(files.get(anchor))].map(path => ({ kind: 'file' as const, text: path, path })), 'file', false, all),
-      ...kept(
-        (notes.get(anchor) ?? []).map(post => {
-          const who = writerOf(state, post)
-          const head = [team, who, turn && `turn ${turn}`, time(post.created_at), 'to the notebook'].filter(Boolean).join(' · ')
-          return { kind: 'notebook' as const, text: `${who}: “${post.content.split('\n')[0]}”`, note: post.id, title: `${head}\n${post.content}` }
-        }),
-        'note',
-        true,
-        all,
-      ),
-      ...(said ? [{ kind: 'memory' as const, text: said, ...(part.written.length && { title: part.written.join('\n') }) }] : []),
-      // The whole shared folder, where it has files - written in this turn or before (the user: things gather there).
-      ...(anchor === 'top' && shared.length ? [{ kind: 'folder' as const, text: `All shared files (${shared.length}) →` }] : []),
-    ]
-  }
+// (Folded: so many of a kind and "+N more files"; unfolded, `all`: every row.)
+const kept = (rows: SharedRow[], what: string, newest = false, all = false): SharedRow[] =>
+  all || rows.length <= OF_A_KIND
+    ? rows
+    : [...(newest ? rows.slice(-OF_A_KIND) : rows.slice(0, OF_A_KIND)), { kind: 'more' as const, text: `+${plural(rows.length - OF_A_KIND, `more ${what}`)}` }]
 
-  // (A block with rows left out unfolds in place, as an output card does: its "+N more" rows and "Fewer" fold it again.)
-  const block = (anchor: string, who: string | null, colour: string, rows: SharedRow[], all?: SharedRow[]): GraphNode => ({
-    id: `shared:${run.id}:${anchor}`,
-    kind: 'shared',
+/** The rows of one card: its files, its notes and its use of the memory; everyone's, the way to all the shared files too. */
+function rowsOf({ state, turn, shared, files, notes, memory }: Used, anchor: string, team: string | null, all = false): SharedRow[] {
+  const part = memory.get(anchor)
+  const said = part && [part.facts.size && `${plural(part.facts.size, 'fact')} given`, part.lookups && plural(part.lookups, 'lookup'), part.written.length && `${part.written.length} written`].filter(Boolean).join(' · ')
+  return [
+    ...kept([...new Set(files.get(anchor))].map(path => ({ kind: 'file' as const, text: path, path })), 'file', false, all),
+    ...kept(
+      (notes.get(anchor) ?? []).map(post => {
+        const who = writerOf(state, post)
+        const head = [team, who, turn && `turn ${turn}`, time(post.created_at), 'to the notebook'].filter(Boolean).join(' · ')
+        return { kind: 'notebook' as const, text: `${who}: “${post.content.split('\n')[0]}”`, note: post.id, title: `${head}\n${post.content}` }
+      }),
+      'note',
+      true,
+      all,
+    ),
+    ...(said ? [{ kind: 'memory' as const, text: said, ...(part.written.length && { title: part.written.join('\n') }) }] : []),
+    // The whole shared folder, where it has files - written in this turn or before (the user: things gather there).
+    ...(anchor === 'top' && shared.length ? [{ kind: 'folder' as const, text: `All shared files (${shared.length}) →` }] : []),
+  ]
+}
+
+// (A block with rows left out unfolds in place, as an output card does: its "+N more" rows and "Fewer" fold it again.)
+const block = ({ state, run }: Used, anchor: string, who: string | null, colour: string, rows: SharedRow[], all?: SharedRow[]): GraphNode => ({
+  id: `shared:${run.id}:${anchor}`,
+  kind: 'shared',
+  runId: run.id,
+  refId: run.id,
+  data: {
+    who,
+    colour,
+    projectId: state.conversation.project_id,
     runId: run.id,
-    refId: run.id,
-    data: {
-      who,
-      colour,
-      projectId: state.conversation.project_id,
-      runId: run.id,
-      rows,
-      ...(all && rows.some(r => r.kind === 'more') && { all: [...all, { kind: 'more' as const, text: 'Fewer' }] }),
-    } satisfies SharedData,
-  })
-  const added: GraphNode[] = []
-  const lines: GraphEdge[] = []
-  const top = rowsOf('top', null)
+    rows,
+    ...(all && rows.some(r => r.kind === 'more') && { all: [...all, { kind: 'more' as const, text: 'Fewer' }] }),
+  } satisfies SharedData,
+})
+
+/** Everyone's card, where it has rows. */
+function topCard(used: Used, own: GraphNode[], lead: Agent | undefined, added: GraphNode[], lines: GraphEdge[]) {
+  const top = rowsOf(used, 'top', null)
   if (top.length) {
-    const one = block('top', 'Everyone', 'var(--accent)', top, rowsOf('top', null, true))
+    const one = block(used, 'top', 'Everyone', 'var(--accent)', top, rowsOf(used, 'top', null, true))
     added.push(one)
     // Joined to the Lead's box as a team's card to its frame (the user, 28 Oct: with no line it read as no one's).
     if (lead && own.some(n => n.id === `agent:${lead.id}`))
       lines.push({ id: `shared:${one.id}`, source: `agent:${lead.id}`, target: one.id, active: false, shared: { colour: 'var(--accent)', dotted: false } })
   }
+}
+
+/** A card for each team's frame - and each agent's box - that has rows, joined to it. */
+function frameCards(used: Used, own: GraphNode[], added: GraphNode[], lines: GraphEdge[]) {
   for (const node of own.filter(n => n.kind === 'team' || n.kind === 'agent')) {
-    const who = node.kind === 'team' ? (node.data as TeamData).team : (state.agents.find(a => a.id === node.agentId)?.name ?? 'Agent')
-    const rows = rowsOf(node.id, node.kind === 'team' ? who : null)
+    const who = node.kind === 'team' ? (node.data as TeamData).team : (used.state.agents.find(a => a.id === node.agentId)?.name ?? 'Agent')
+    const rows = rowsOf(used, node.id, node.kind === 'team' ? who : null)
     if (!rows.length) continue
     const colour = node.kind === 'team' ? (node.data as TeamData).colour : 'var(--accent)'
-    const one = block(node.id, who, colour, rows, rowsOf(node.id, node.kind === 'team' ? who : null, true))
+    const one = block(used, node.id, who, colour, rows, rowsOf(used, node.id, node.kind === 'team' ? who : null, true))
     added.push(one)
     lines.push({ id: `shared:${one.id}`, source: node.id, target: one.id, active: false, shared: { colour, dotted: node.kind !== 'team' } })
   }
-  for (const [request, paths] of contracts) {
-    const one = block(request.id, null, 'var(--request)', [...paths].map(path => ({ kind: 'file' as const, text: path, path })))
-    added.push(one)
-    lines.push({ id: `shared:${one.id}`, source: request.source, target: one.id, active: false, shared: { colour: 'var(--request)', arm: request.id } })
-  }
-  return { nodes: added, edges: lines }
 }

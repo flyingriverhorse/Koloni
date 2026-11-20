@@ -141,10 +141,23 @@ export function readPasted(text: string): Read {
     return JSON5ISH.test(trimmed) ? { error: NOT_JSON5 } : error
   }
   if (!isObject(json)) return error
-  const block = json.mcpServers ?? json.servers ?? (isObject(json.mcp) ? json.mcp.servers : undefined)
+  const block = blockOf(json)
   // One server alone: its name is not in the block, and is asked for.
   if (block === undefined && ('command' in json || 'url' in json)) return fromEntries([['', json]])
   return isObject(block ?? json) ? fromEntries(Object.entries((block ?? json) as Record<string, unknown>)) : error
+}
+
+/** Where a pasted object holds its servers: "mcpServers", VS Code's "servers" or "mcp.servers"; undefined where it names none. */
+const blockOf = (json: Record<string, unknown>) => json.mcpServers ?? json.servers ?? (isObject(json.mcp) ? json.mcp.servers : undefined)
+
+/** One entry with a command as a server; null where its command, arguments or variables are not a server's. */
+function serverOf(name: string, command: string, args: unknown, env: unknown): Pasted | null {
+  if (!command.trim() || !Array.isArray(args) || !args.every(isScalar) || !isObject(env) || !Object.values(env).every(isScalar)) return null
+  return {
+    name,
+    command: [command, ...args.map(String)],
+    env: Object.fromEntries(Object.entries(env).map(([key, value]) => [key, String(value)])),
+  }
 }
 
 function fromEntries(entries: [string, unknown][]): Read {
@@ -160,14 +173,9 @@ function fromEntries(entries: [string, unknown][]): Read {
       }
       return error
     }
-    const args = entry.args ?? []
-    const env = entry.env ?? {}
-    if (!entry.command.trim() || !Array.isArray(args) || !args.every(isScalar) || !isObject(env) || !Object.values(env).every(isScalar)) return error
-    servers.push({
-      name,
-      command: [entry.command, ...args.map(String)],
-      env: Object.fromEntries(Object.entries(env).map(([key, value]) => [key, String(value)])),
-    })
+    const server = serverOf(name, entry.command, entry.args ?? [], entry.env ?? {})
+    if (!server) return error
+    servers.push(server)
   }
   return servers.length + unsupported.length > 0 ? { servers, unsupported } : error
 }
@@ -183,6 +191,20 @@ function fromClaudeLine(text: string): Read {
   const words = (line.match(/(?:"[^"]*"|'[^']*'|[^\s"']|["'])+/g) ?? []).map(word => word.replace(/"([^"]*)"|'([^']*)'/g, '$1$2'))
   // Pairs, not an object: a variable named __proto__ is a variable.
   const env: [string, string][] = []
+  const options = optionsOf(words, env)
+  if (!options) return error
+  const { name, remote, at } = options
+  if (!name) return error
+  if (remote) return { servers: [], unsupported: [name] }
+  const command = words.slice(at)
+  return command.length > 0 ? { servers: [{ name, command, env: Object.fromEntries(env) }], unsupported: [] } : error
+}
+
+/**
+ * The line's words before its command: the server's name, whether it is reached over the network, and where its
+ * command starts (`at`); its variables are added to `env`. Null for a line that is not understood.
+ */
+function optionsOf(words: string[], env: [string, string][]): { name: string; remote: boolean; at: number } | null {
   let name = ''
   let remote = false
   let at = 3
@@ -193,23 +215,28 @@ function fromClaudeLine(text: string): Read {
       break
     }
     if (word === '-e' || word === '--env') {
-      if (!/^[A-Za-z_]\w*=/.test(words[at + 1] ?? '')) return error
-      // Several may follow one -e.
-      while (/^[A-Za-z_]\w*=/.test(words[at + 1] ?? '')) {
-        const [key, ...value] = words[++at].split('=')
-        env.push([key, value.join('=')])
-      }
+      const last = envAfter(words, at, env)
+      if (last === null) return null
+      at = last
     } else if (['-s', '--scope', '-H', '--header'].includes(word)) at++
     else if (word === '-t' || word === '--transport') remote = words[++at] !== 'stdio'
-    else if (word.startsWith('-')) return error
+    else if (word.startsWith('-')) return null
     else if (!name) name = word
     // The command, given without "--".
     else break
   }
-  if (!name) return error
-  if (remote) return { servers: [], unsupported: [name] }
-  const command = words.slice(at)
-  return command.length > 0 ? { servers: [{ name, command, env: Object.fromEntries(env) }], unsupported: [] } : error
+  return { name, remote, at }
+}
+
+/** The variables after the -e at `at`, added to `env`; returns where the last of them is - null: none follows it. */
+function envAfter(words: string[], at: number, env: [string, string][]): number | null {
+  if (!/^[A-Za-z_]\w*=/.test(words[at + 1] ?? '')) return null
+  // Several may follow one -e.
+  while (/^[A-Za-z_]\w*=/.test(words[at + 1] ?? '')) {
+    const [key, ...value] = words[++at].split('=')
+    env.push([key, value.join('=')])
+  }
+  return at
 }
 
 /**

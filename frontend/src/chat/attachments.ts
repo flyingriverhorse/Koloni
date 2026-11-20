@@ -40,10 +40,8 @@ export function shown(file: Attachment, frames = 0, noFrames: string | null = nu
   // A picture's or video's, once sent: what became of it for each agent's model.
   const seen = Object.values(file.shown_to).join('; ') || null
   switch (file.kind) {
-    case 'text': {
-      const code = CODE.test(file.name)
-      return { label: code ? ext.toLowerCase() : 'TXT', colour: '--file-code', meta: `${code ? 'code' : 'text'} · ${size} · ${file.summary}` }
-    }
+    case 'text':
+      return textShown(file, ext, size)
     case 'image':
       return { label: file.mime.split('/')[1].toUpperCase(), colour: '--file-img', meta: `image · ${size} · ${seen ?? unseen ?? 'seen by a model that sees images'}` }
     case 'pdf':
@@ -51,15 +49,25 @@ export function shown(file: Attachment, frames = 0, noFrames: string | null = nu
     case 'docx':
       return { label: 'DOC', colour: '--file-doc', meta: file.summary }
     case 'video':
-      return {
-        label: (ext.slice(1) || 'VID').toUpperCase(),
-        colour: '--file-vid',
-        meta: `video · ${size} · ${seen ?? noFrames ?? (frames ? `${file.size > MAX_BYTES ? 'not kept' : 'kept as a file'}, ${frames} frames taken` : 'taking frames…')}`,
-      }
+      return videoShown(file, ext, size, seen ?? noFrames, frames)
     case 'executable':
       return { label: 'EXE', colour: '--file-other', meta: `${size} · by name and size only: never read or run` }
     default:
       return { label: 'FILE', colour: '--file-other', meta: `${size} · ${file.summary}` }
+  }
+}
+
+function textShown(file: Attachment, ext: string, size: string): Shown {
+  const code = CODE.test(file.name)
+  return { label: code ? ext.toLowerCase() : 'TXT', colour: '--file-code', meta: `${code ? 'code' : 'text'} · ${size} · ${file.summary}` }
+}
+
+/** A video's chip; `said`: what became of it for the models, or why it has no frames - null: its frames are counted. */
+function videoShown(file: Attachment, ext: string, size: string, said: string | null, frames: number): Shown {
+  return {
+    label: (ext.slice(1) || 'VID').toUpperCase(),
+    colour: '--file-vid',
+    meta: `video · ${size} · ${said ?? (frames ? `${file.size > MAX_BYTES ? 'not kept' : 'kept as a file'}, ${frames} frames taken` : 'taking frames…')}`,
   }
 }
 

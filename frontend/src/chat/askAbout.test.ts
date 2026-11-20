@@ -83,6 +83,26 @@ describe('the lines a selection covers', () => {
     range.selectNodeContents(words)
     expect(linesIn(words, range, 'use the banner')).toEqual({ from: null, to: null, text: 'use the banner' })
   })
+
+  test('in a diff side by side, the lines of the side the selection began in', () => {
+    const root = document.createElement('div')
+    const half = (n: string, text: string) => `<div class="diff-half"><span class="diff-no">${n}</span><span class="diff-text">${text}</span></div>`
+    root.innerHTML = [['7', 'old a', '1', 'new a'], ['8', 'old b', '2', 'new b'], ['9', 'old c', '3', 'new c']]
+      .map(([was, old, now, text]) => `<div class="diff-row">${half(was, old)}${half(now, text)}</div>`)
+      .join('')
+    document.body.append(root)
+    const range = document.createRange()
+    range.setStart(textOf(root, 1), 0)
+    range.setEnd(textOf(root, 3), 3)
+    expect(linesIn(root, range, 'x')).toEqual({ from: 1, to: 2, text: 'new a\nnew b' })
+    range.setStart(textOf(root, 2), 0)
+    range.setEnd(textOf(root, 4), 2)
+    expect(linesIn(root, range, 'x')).toEqual({ from: 8, to: 9, text: 'old b\nold c' })
+    // (ending at the very start of the third row's half: of the rows before it)
+    range.setStart(textOf(root, 1), 0)
+    range.setEnd(root.children[2].children[1], 0)
+    expect(linesIn(root, range, 'x')).toEqual({ from: 1, to: 2, text: 'new a\nnew b' })
+  })
 })
 
 describe('who wrote the file', () => {

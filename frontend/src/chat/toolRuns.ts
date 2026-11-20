@@ -46,6 +46,13 @@ const KINDS: Record<string, [string, string, string]> = {
 const ORDER = Object.keys(KINDS)
 const rank = (kind: string) => (ORDER.includes(kind) ? ORDER.indexOf(kind) : ORDER.length)
 
+/** The kind a call is counted under: a change to a file, a command, the agent's browser, its own (KINDS), else its tool as shown. */
+function kindOf(call: ToolCall, commands: Command[], fileChanges: FileChange[]): string {
+  const changes = fileChanges.some(f => f.tool_call_id === call.id) || call.name === 'write_file' || call.name === 'edit_file'
+  const ran = commands.some(c => c.tool_call_id === call.id) || call.name === 'run_command'
+  return changes ? 'edit_file' : ran ? 'run_command' : call.name.startsWith('browser_') ? 'browser' : Object.hasOwn(KINDS, call.name) ? call.name : toolName(call)
+}
+
 /**
  * A run's line: what was done, counted by kind ("Read 4 files, listed 4 folders"; any other
  * tool as the canvas counts it, "notify ×2"), and what runs now; how many failed, were
@@ -55,9 +62,7 @@ const rank = (kind: string) => (ORDER.includes(kind) ? ORDER.indexOf(kind) : ORD
 export function runHead(calls: ToolCall[], { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] }) {
   const kinds = new Map<string, ToolCall[]>()
   for (const call of calls.filter(c => c.status === 'succeeded')) {
-    const changes = fileChanges.some(f => f.tool_call_id === call.id) || call.name === 'write_file' || call.name === 'edit_file'
-    const ran = commands.some(c => c.tool_call_id === call.id) || call.name === 'run_command'
-    const kind = changes ? 'edit_file' : ran ? 'run_command' : call.name.startsWith('browser_') ? 'browser' : Object.hasOwn(KINDS, call.name) ? call.name : toolName(call)
+    const kind = kindOf(call, commands, fileChanges)
     kinds.set(kind, [...(kinds.get(kind) ?? []), call])
   }
   const done = [...kinds]

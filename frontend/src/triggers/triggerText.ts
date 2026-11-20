@@ -326,11 +326,26 @@ const range = ([low, high]: readonly [number, number]) => `From ${low} to ${high
 /** What cannot be saved, by field; empty when everything can. */
 export function validate(values: FormValues): Partial<Record<Field, string>> {
   const errors: Partial<Record<Field, string>> = {}
+  sendsErrors(values, errors)
+  clockErrors(values, errors)
+  filesErrors(values, errors)
+  allowsErrors(values, errors)
+  return errors
+}
+
+type Errors = Partial<Record<Field, string>>
+
+/** Its name, its message and where that goes. */
+function sendsErrors(values: FormValues, errors: Errors) {
   if (!values.name.trim()) errors.name = 'Give it a name.'
   else if (values.name.trim().length > LIMITS.name) errors.name = `A name of at most ${LIMITS.name} characters.`
   if (!values.message.trim()) errors.message = 'Write the message it sends.'
   else if (values.message.trim().length > LIMITS.message) errors.message = `A message of at most ${LIMITS.message} characters.`
   if (!values.conversationId) errors.conversation = 'Choose the conversation its messages go into.'
+}
+
+/** What starts it, by the clock. */
+function clockErrors(values: FormValues, errors: Errors) {
   if (values.kind === 'schedule') {
     if (values.schedule === 'every' && !within(values.every, LIMITS.every)) {
       errors.when = `At least ${LIMITS.every[0]} minutes, at most ${LIMITS.every[1]} (a week).`
@@ -338,6 +353,10 @@ export function validate(values: FormValues): Partial<Record<Field, string>> {
     if (values.schedule === 'at' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.at)) errors.when = 'Give the time of day as HH:MM.'
     else if (values.schedule === 'at' && values.days === 'chosen' && values.week.length === 0) errors.days = 'Tick at least one day.'
   }
+}
+
+/** What starts it, by the files of a pattern. */
+function filesErrors(values: FormValues, errors: Errors) {
   if (values.kind === 'files') {
     const pattern = values.glob.trim().replace(/\\/g, '/')
     if (!pattern) errors.glob = 'Give a pattern, such as src/**/*.py.'
@@ -345,6 +364,10 @@ export function validate(values: FormValues): Partial<Record<Field, string>> {
       errors.glob = `The pattern names paths inside the project folder: no drive, no leading slash, no "..", at most ${LIMITS.glob} characters.`
     }
   }
+}
+
+/** What it may do and spend, and when it ends. */
+function allowsErrors(values: FormValues, errors: Errors) {
   if (values.commands.length > LIMITS.commands) errors.commands = `A trigger may run at most ${LIMITS.commands} commands.`
   if (!within(values.agents, LIMITS.agents)) errors.agents = range(LIMITS.agents)
   if (!within(values.steps, LIMITS.steps)) errors.steps = range(LIMITS.steps)
@@ -352,7 +375,6 @@ export function validate(values: FormValues): Partial<Record<Field, string>> {
   if (!within(values.perDay, LIMITS.perDay)) errors.perDay = range(LIMITS.perDay)
   if (values.ends === 'runs' && !within(values.endRuns, LIMITS.runs)) errors.ends = range(LIMITS.runs)
   if (values.ends === 'until' && !/^\d{4}-\d{2}-\d{2}$/.test(values.endUntil)) errors.ends = 'Choose its last day.'
-  return errors
 }
 
 /** Each field by the server's words for it, the first that matches wins. */

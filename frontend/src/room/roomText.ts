@@ -20,14 +20,17 @@ export function roomLine(room: Room): string {
   if (isRunning(room) && room.paused) return 'Paused: nothing is posted or spent until you resume it'
   if (room.status === 'sharing') return 'Sharing the work out'
   if (room.status === 'working') return 'At work'
-  if (room.status === 'ended') {
-    // Its own reason, where there is more to say than the outcome.
-    if (room.outcome === 'budget' && room.why && room.why !== 'unanswered') return `Ended: its budget of ${room.why} was reached`
-    if (room.outcome === 'too_few' && room.why === 'unanswered') return 'Ended: everybody’s work is over, and a question was left unanswered'
-    if (room.outcome === 'ended_by_opener' && !room.agent_id) return 'Ended: the Orchestrator ended it' // (K-oda-izle: your room, followed)
-    return `Ended: ${room.outcome ? OUTCOME[room.outcome] : 'it is over'}`
-  }
+  if (room.status === 'ended') return endedLine(room)
   return room.status === 'cancelled' ? 'Stopped' : 'Interrupted'
+}
+
+/** How a room ended, in a few words. */
+function endedLine(room: Room): string {
+  // Its own reason, where there is more to say than the outcome.
+  if (room.outcome === 'budget' && room.why && room.why !== 'unanswered') return `Ended: its budget of ${room.why} was reached`
+  if (room.outcome === 'too_few' && room.why === 'unanswered') return 'Ended: everybody’s work is over, and a question was left unanswered'
+  if (room.outcome === 'ended_by_opener' && !room.agent_id) return 'Ended: the Orchestrator ended it' // (K-oda-izle: your room, followed)
+  return `Ended: ${room.outcome ? OUTCOME[room.outcome] : 'it is over'}`
 }
 
 /** Where a room stands, as its window's head, its tab and its line in the chat say it: "at work", "done · 1 of 2" (items done of all). */
@@ -38,15 +41,17 @@ export function roomTag(state: Pick<ConvState, 'roomItems'>, room: Room): string
   if (room.status !== 'ended') return room.status === 'cancelled' ? 'stopped' : 'interrupted'
   const items = state.roomItems.filter(i => i.room_id === room.id)
   const of = items.length ? ` · ${items.filter(i => i.status === 'done').length} of ${items.length}` : ''
-  const why =
-    room.outcome === 'agreed' ? 'done'
-    : room.outcome === 'ended_by_user' ? 'you ended it'
-    : room.outcome === 'ended_by_opener' ? (room.agent_id ? 'its opener ended it' : 'the Orchestrator ended it')
-    : room.outcome === 'budget' ? `out of ${room.why && room.why !== 'unanswered' ? room.why : 'budget'}`
-    : room.outcome === 'too_few' ? (room.why === 'unanswered' ? 'a question was left' : 'fewer than two working')
-    : 'over'
-  return why + of
+  return endedWhy(room) + of
 }
+
+/** Why a room ended, as its tag says it. */
+const endedWhy = (room: Room): string =>
+  room.outcome === 'agreed' ? 'done'
+  : room.outcome === 'ended_by_user' ? 'you ended it'
+  : room.outcome === 'ended_by_opener' ? (room.agent_id ? 'its opener ended it' : 'the Orchestrator ended it')
+  : room.outcome === 'budget' ? `out of ${room.why && room.why !== 'unanswered' ? room.why : 'budget'}`
+  : room.outcome === 'too_few' ? (room.why === 'unanswered' ? 'a question was left' : 'fewer than two working')
+  : 'over'
 
 /** Whether a room came to its own end with every item done: its tag is drawn as good news. */
 export const allDone = (state: Pick<ConvState, 'roomItems'>, room: Room) =>

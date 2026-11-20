@@ -317,3 +317,158 @@ test('a conversation’s topics come with its snapshot; a new one and a new name
   const { topics: _none, ...old } = snapshot
   expect(fromSnapshot(old as Snapshot).topics).toEqual([])
 })
+
+// --- every event, and what it leaves as it was ----------------------------------------------------
+
+/** The slices an event made anew: every other is the very object it was (a selector on it draws nothing again). */
+const changed = (was: ConvState, now: ConvState) => (Object.keys(now) as (keyof ConvState)[]).filter(key => now[key] !== was[key])
+
+test('each record’s event puts it in its own list - added at the end, replaced in its place - and makes no other list anew', () => {
+  const lists: [string[], keyof ConvState][] = [
+    [['run.started', 'run.updated'], 'runs'],
+    [['agent.created', 'agent.updated'], 'agents'],
+    [['channel.created'], 'channelMessages'],
+    [['discussion.created', 'discussion.updated'], 'discussions'],
+    [['discussion_post.created'], 'discussionPosts'],
+    [['room.created', 'room.updated'], 'rooms'],
+    [['room_item.created', 'room_item.updated'], 'roomItems'],
+    [['room_post.created', 'room_post.updated'], 'roomPosts'],
+    [['board.posted'], 'boardPosts'],
+    [['question.created', 'question.updated'], 'questions'],
+    [['tool_call.created', 'tool_call.updated'], 'toolCalls'],
+    [['file_change.created', 'file_change.updated'], 'fileChanges'],
+    [['web_request.updated'], 'webRequests'],
+    [['topic.created', 'topic.updated'], 'topics'],
+    [['merge.updated'], 'merges'],
+    [['attachment.created', 'attachment.updated'], 'attachments'],
+  ]
+  for (const [types, key] of lists) {
+    for (const type of types) {
+      const start = { ...base(), [key]: [{ id: 'a', n: 0 }, { id: 'b', n: 0 }] } as ConvState
+      const added = applyEvent(start, 1, type, { id: 'c', n: 1 })
+      expect([type, added[key]]).toEqual([type, [{ id: 'a', n: 0 }, { id: 'b', n: 0 }, { id: 'c', n: 1 }]])
+      expect([type, changed(start, added)]).toEqual([type, [key, 'lastEventId']])
+      const replaced = applyEvent(added, 2, type, { id: 'a', n: 2 })
+      expect([type, replaced[key]]).toEqual([type, [{ id: 'a', n: 2 }, { id: 'b', n: 0 }, { id: 'c', n: 1 }]])
+      expect([type, changed(added, replaced), replaced.lastEventId]).toEqual([type, [key, 'lastEventId'], 2])
+      // (With no id - never stored - it is applied as it arrives, and the cursor stays.)
+      expect([type, changed(start, applyEvent(start, null, type, { id: 'c', n: 1 }))]).toEqual([type, [key]])
+    }
+  }
+})
+
+test('an event that changes nothing hands back the very state it was given', () => {
+  const s = applyEvent(applyEvent(base(), 4, 'message.created', { ...msg, status: 'complete' }), 5, 'command.created', command('k', 'r', { status: 'exited' }))
+  expect(applyEvent(s, 5, 'run.started', run)).toBe(s)
+  expect(applyEvent(s, 3, 'view.shown', {})).toBe(s)
+  for (const type of ['role.created', 'skill.created', 'memory.changed', 'backlog.changed', 'triggers.changed', 'notes.offered', 'constructor', 'toString', '']) expect(applyEvent(s, null, type, {})).toBe(s)
+  // A message that is not being written, a command that does not run, one not known.
+  for (const id of ['m', 'none']) {
+    expect(applyEvent(s, null, 'message.delta', { message_id: id, text: 'x' })).toBe(s)
+    expect(applyEvent(s, null, 'message.sync', { message_id: id, content: 'x' })).toBe(s)
+  }
+  for (const id of ['k', 'none']) {
+    expect(applyEvent(s, null, 'command.output', { command_id: id, text: 'x' })).toBe(s)
+    expect(applyEvent(s, null, 'command.sync', { command_id: id, output: 'x' })).toBe(s)
+  }
+  expect(applyEvent(s, null, 'injection.warned', { rule: 'r' })).toBe(s)
+  // (Stored, such an event still moves the cursor - and nothing else.)
+  expect(changed(s, applyEvent(s, 9, 'message.delta', { message_id: 'm', text: 'x' }))).toEqual(['lastEventId'])
+  expect(changed(s, applyEvent(s, 9, 'command.output', { command_id: 'k', text: 'x' }))).toEqual(['lastEventId'])
+  expect(changed(s, applyEvent(s, 9, 'memory.changed', {}))).toEqual(['lastEventId'])
+})
+
+test('a turn’s, a message’s and a command’s events change their own slices and no other', () => {
+  const s = { ...base(), thinkingRunId: 'r', thinkingAgentId: 'a', thinkingAgents: ['a', 'b'], summarisingAgents: ['a'] }
+  const finished = applyEvent(s, 1, 'run.finished', run)
+  expect(changed(s, finished)).toEqual(['runs', 'lastEventId', 'thinkingRunId', 'thinkingAgentId', 'thinkingAgents', 'summarisingAgents'])
+  expect(finished).toMatchObject({ runs: [run], thinkingRunId: null, thinkingAgentId: null, thinkingAgents: [], summarisingAgents: [] })
+  // Thinking with no agent named: who thinks stays as it was, the very list.
+  const thinking = applyEvent(s, null, 'run.thinking', { run_id: 'q' })
+  expect(changed(s, thinking)).toEqual(['thinkingRunId', 'thinkingAgentId'])
+  expect(thinking).toMatchObject({ thinkingRunId: 'q', thinkingAgentId: null })
+  expect(applyEvent(s, null, 'run.thinking', { run_id: 'q', summarising: true })).toMatchObject({ thinkingRunId: 'q', thinkingAgentId: null, summarisingAgents: ['a'] })
+  expect(changed(s, applyEvent(s, null, 'run.thinking', { run_id: 'q', agent_id: 'c' }))).toEqual(['thinkingRunId', 'thinkingAgentId', 'thinkingAgents'])
+  expect(applyEvent(s, null, 'run.thinking', { run_id: 'q', agent_id: 'a' }).thinkingAgents).toEqual(['a', 'b'])
+  const summarising = applyEvent(s, null, 'run.thinking', { run_id: 'q', agent_id: 'c', summarising: true })
+  expect(changed(s, summarising)).toEqual(['summarisingAgents'])
+  expect(summarising.summarisingAgents).toEqual(['a', 'c'])
+  // A message of the user's, or of an agent that was not thinking: who thinks is the very list it was.
+  for (const type of ['message.created', 'message.completed']) {
+    expect(changed(s, applyEvent(s, null, type, { ...msg, role: 'user' }))).toEqual(['messages'])
+    expect(changed(s, applyEvent(s, null, type, { ...msg, agent_id: 'z' }))).toEqual(['messages'])
+    expect(changed(s, applyEvent(s, null, type, { ...msg, agent_id: null }))).toEqual(['messages'])
+    const own = applyEvent(s, null, type, msg)
+    expect(changed(s, own)).toEqual(['messages', 'thinkingAgents', 'summarisingAgents'])
+    expect([own.thinkingAgents, own.summarisingAgents, own.thinkingRunId]).toEqual([['b'], [], 'r'])
+  }
+  const writing = applyEvent(s, null, 'message.created', msg)
+  const delta = applyEvent(writing, null, 'message.delta', { message_id: 'm', text: 'Hi' })
+  expect(changed(writing, delta)).toEqual(['messages', 'thinkingRunId', 'thinkingAgentId'])
+  expect(delta).toMatchObject({ messages: [{ ...msg, content: 'Hi' }], thinkingRunId: null, thinkingAgentId: null })
+  expect(changed(delta, applyEvent(delta, null, 'message.sync', { message_id: 'm', content: 'Hello' }))).toEqual(['messages'])
+  const ran = applyEvent(s, null, 'command.created', command('k', 'r', { status: 'running', output: 'a' }))
+  expect(changed(s, ran)).toEqual(['commands'])
+  for (const [type, payload, output] of [['command.output', { command_id: 'k', text: 'b' }, 'ab'], ['command.sync', { command_id: 'k', output: 'z' }, 'z']] as const) {
+    const now = applyEvent(ran, null, type, payload)
+    expect([changed(ran, now), now.commands[0].output]).toEqual([['commands'], output])
+  }
+  const { output: _none, ...update } = command('k', 'r', { status: 'exited' })
+  expect(applyEvent(ran, null, 'command.updated', update).commands).toEqual([{ ...update, output: 'a' }])
+  expect(applyEvent(s, null, 'command.updated', update).commands).toEqual([{ ...update, output: '' }])
+  expect(applyEvent(ran, null, 'command.updated', { ...update, output: 'all' }).commands[0].output).toBe('all')
+})
+
+test('requests for a role or a skill, files taken off, warnings, what was shown and who holds what', () => {
+  const s = base()
+  for (const [kind, key] of [['role_request', 'pendingRoles'], ['skill_request', 'pendingSkills']] as const) {
+    let now = applyEvent(s, 1, `${kind}.created`, { tool_call_id: 't1', name: 'A' })
+    now = applyEvent(now, 2, `${kind}.created`, { tool_call_id: 't2', name: 'B' })
+    // Asked again by the same call: its request once, the newest, at the end.
+    const again = applyEvent(now, 3, `${kind}.created`, { tool_call_id: 't1', name: 'A2' })
+    expect(again[key]).toEqual([{ tool_call_id: 't2', name: 'B' }, { tool_call_id: 't1', name: 'A2' }])
+    expect(changed(now, again)).toEqual([key, 'lastEventId'])
+    const resolved = applyEvent(again, 4, `${kind}.resolved`, { tool_call_id: 't2' })
+    expect(resolved[key]).toEqual([{ tool_call_id: 't1', name: 'A2' }])
+    expect(changed(again, resolved)).toEqual([key, 'lastEventId'])
+  }
+  const files = applyEvent(applyEvent(s, 1, 'attachment.created', { id: 'f1' }), 2, 'attachment.created', { id: 'f2' })
+  const off = applyEvent(files, 3, 'attachment.deleted', { id: 'f1' })
+  expect(off.attachments).toEqual([{ id: 'f2' }])
+  expect(changed(files, off)).toEqual(['attachments', 'lastEventId'])
+  // A warning is kept by its event's id, once: a snapshot read meanwhile may have it already.
+  const warned = applyEvent(s, 7, 'injection.warned', { rule: 'orders', where: 'a.md' })
+  expect(warned.warnings).toEqual([{ rule: 'orders', where: 'a.md', id: 7 }])
+  expect(changed(s, warned)).toEqual(['warnings', 'lastEventId'])
+  const known = { ...s, warnings: warned.warnings }
+  expect(changed(known, applyEvent(known, 7, 'injection.warned', { rule: 'orders', where: 'a.md' }))).toEqual(['lastEventId'])
+  expect(applyEvent(warned, 8, 'injection.warned', { rule: 'more', where: 'b.md' }).warnings.map(w => w.id)).toEqual([7, 8])
+  const shown = applyEvent(applyEvent(s, null, 'view.shown', {}), null, 'view.shown', {})
+  expect([shown.shown, changed(s, shown)]).toEqual([2, ['shown']])
+  const held = [{ path: 'a.py', agent_id: 'a' }]
+  const claimed = applyEvent(s, null, 'claims.changed', { claims: held })
+  expect(claimed.claims).toBe(held)
+  expect(changed(s, claimed)).toEqual(['claims'])
+  for (const [type, key] of [['allowed_commands.updated', 'allowedCommands'], ['allowed_web.updated', 'allowedWeb']] as const) {
+    const rules = [{ id: 'r1' }]
+    const now = applyEvent(s, null, type, { rules })
+    expect(now[key]).toBe(rules)
+    expect(changed(s, now)).toEqual([key])
+  }
+})
+
+test('conversation.updated: a turn keeps its teams’ rows as last seen; a turn none of the rows is of stays the very record', () => {
+  const state = { run_id: 'r', team: 'Web app', recipe: 'Feature', status: 'running' as const, why: null, steps: [], agents: [], ended_ready: null, passes: [] }
+  const other = { ...run, id: 'q' }
+  const s = { ...base(), runs: [run, other] }
+  const teams = [{ team_id: 'web', recipe_id: null, no_recipe: false, picked_by: 'user' as const, why: null, state }]
+  const now = applyEvent(s, null, 'conversation.updated', { ...conversation, teams })
+  expect(changed(s, now)).toEqual(['conversation', 'runs'])
+  expect(now.runs[0]).toEqual({ ...run, teams })
+  expect(now.runs[1]).toBe(other)
+  expect(now.conversation.teams).toBe(teams)
+  const live = applyEvent(s, null, 'agent.live', { agent_id: 'a', context: { used: 1, window: 2 }, plan: null, queue: null })
+  expect([changed(s, live), live.live]).toEqual([['live'], { a: { context: { used: 1, window: 2 }, plan: null, queue: null } }])
+  expect(applyEvent(live, null, 'agent.live', { agent_id: 'a', context: null, plan: null, queue: null }).live).toEqual({})
+  expect(applyEvent(live, null, 'agent.live', { agent_id: 'b', context: null, plan: null, queue: { elapsed_s: 1, max_s: null, available: null } }).live).toMatchObject({ a: {}, b: {} })
+})

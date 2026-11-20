@@ -102,17 +102,24 @@ export function chainOf(state: ConvState, agentId: string, numbers = turnNumbers
   const seen = new Set([agent.id])
   let walk = agent
   while (walk.continues_id && !seen.has(walk.continues_id)) {
-    const before = state.agents.find(a => a.id === walk.continues_id)
-    const run = before && state.runs.find(r => r.id === before.run_id)
-    const turn = before && numbers.get(before.run_id)
-    if (!before || run?.topic_id !== topicId || turn === undefined || before.depth !== agent.depth) break
-    // Further back in the topic each time: a chain never turns round.
-    if (turn >= links[0].turn) break
-    links.unshift({ agent: before, turn })
-    seen.add(before.id)
-    walk = before
+    const link = linkBefore(state, walk.continues_id, topicId, agent.depth, links[0].turn, numbers)
+    if (!link) break
+    links.unshift(link)
+    seen.add(link.agent.id)
+    walk = link.agent
   }
   return links
+}
+
+/** The link a chain goes on to: the agent of that id with its turn, in the chain's topic and at its depth, before `first`; null ends the walk. */
+function linkBefore(state: ConvState, id: string, topicId: string, depth: number, first: number, numbers: Map<string, number>): Link | null {
+  const before = state.agents.find(a => a.id === id)
+  const run = before && state.runs.find(r => r.id === before.run_id)
+  const turn = before && numbers.get(before.run_id)
+  if (!before || run?.topic_id !== topicId || turn === undefined || before.depth !== depth) return null
+  // Further back in the topic each time: a chain never turns round.
+  if (turn >= first) return null
+  return { agent: before, turn }
 }
 
 /** A message's time, as the chat says it ("10:42"): what a turn is called on screen (slice 107). */

@@ -45,50 +45,77 @@ export function toolName(call: Named): string {
 /** One line naming a tool call and its target, e.g. `read_file src/a.py`. */
 export function toolSummary(call: Named & Pick<ToolCall, 'arguments'>): string {
   const name = toolName(call)
-  let args: Record<string, unknown> = {}
-  try {
-    const parsed: unknown = JSON.parse(call.arguments || '{}')
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return name
-    args = parsed as Record<string, unknown>
-  } catch {
-    return name
-  }
-  if (call.name === 'search' && typeof args.pattern === 'string') {
-    return `search "${args.pattern}"`
-  }
-  if (call.name === 'spawn_agent' && typeof args.role === 'string') return `spawn_agent ${args.role}`
-  if (call.name === 'message_agent' && typeof args.to === 'string') return `message_agent ${args.to}`
-  if (call.name === 'create_role' && typeof args.name === 'string') return `create_role ${args.name}`
-  // The Lead's pick of the chat's teams (slice 84b), each with its reason: the chat's one line of it.
-  if (call.name === 'pick_teams' && Array.isArray(args.teams)) {
-    const picks = (args.teams as Record<string, unknown>[]).filter(one => one && typeof one.team === 'string')
-    return `pick_teams ${picks.map(one => (typeof one.why === 'string' ? `${one.team}: ${one.why}` : one.team)).join('; ')}`
-  }
-  if (call.name === 'recall' && typeof args.query === 'string') return 'recall "' + args.query + '"'
-  if (call.name === 'web_search' && typeof args.query === 'string') return `web_search "${args.query}"`
-  if (call.name === 'http_request' && typeof args.url === 'string') {
-    return `http_request ${typeof args.method === 'string' ? args.method.toUpperCase() : ''} ${args.url}`.replace('  ', ' ')
-  }
-  if (call.name === 'notify' && typeof args.message === 'string') return `notify "${args.message}"`
-  // Slice 51: what the agent did in its browser, in words.
-  if (call.name === 'browser_open') return typeof args.url === 'string' ? `opened ${args.url}` : 'opened a page'
-  if (call.name === 'browser_click') {
-    if (typeof args.text === 'string') return `clicked ${args.text}`
-    if (typeof args.selector === 'string') return `clicked ${args.selector}`
-    return typeof args.x === 'number' && typeof args.y === 'number' ? `clicked at ${args.x}, ${args.y}` : 'clicked'
-  }
-  if (call.name === 'browser_type') return typeof args.selector === 'string' ? `typed into ${args.selector}` : 'typed'
-  if (call.name === 'browser_key') return typeof args.key === 'string' ? `pressed ${args.key}` : 'pressed a key'
-  if (call.name === 'browser_scroll') return typeof args.dy === 'number' ? `scrolled ${args.dy > 0 ? 'down' : 'up'} ${Math.abs(args.dy)}` : 'scrolled'
-  if (call.name === 'browser_read') return 'read the page'
-  if (call.name === 'browser_screenshot') return 'took a screenshot'
-  if (call.name === 'browser_console') return 'read the console'
+  const args = argsOf(call.arguments)
+  if (!args) return name
+  const said = agentCall(call.name, args) ?? lookupCall(call.name, args) ?? browserCall(call.name, args)
+  if (said !== null) return said
   // A note is named by its subject; its words are in the call itself.
   if (call.name === 'remember') return typeof args.about === 'string' && args.about ? 'remember ' + args.about : 'remember'
   if (typeof args.path === 'string') return `${name} ${args.path}`
   if (call.name === 'list_dir' && args.path === undefined) return 'list_dir .'
   return name
 }
+
+type Args = Record<string, unknown>
+
+/** A call's arguments; null where they are not an object. */
+function argsOf(given: string): Args | null {
+  try {
+    const parsed: unknown = JSON.parse(given || '{}')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    return parsed as Args
+  } catch {
+    return null
+  }
+}
+
+/** A search, and the tools about agents and teams, by their target; null: not one of them, or its target is not as expected. */
+function agentCall(tool: string, args: Args): string | null {
+  if (tool === 'search' && typeof args.pattern === 'string') {
+    return `search "${args.pattern}"`
+  }
+  if (tool === 'spawn_agent' && typeof args.role === 'string') return `spawn_agent ${args.role}`
+  if (tool === 'message_agent' && typeof args.to === 'string') return `message_agent ${args.to}`
+  if (tool === 'create_role' && typeof args.name === 'string') return `create_role ${args.name}`
+  // The Lead's pick of the chat's teams (slice 84b), each with its reason: the chat's one line of it.
+  if (tool === 'pick_teams' && Array.isArray(args.teams)) {
+    const picks = (args.teams as Record<string, unknown>[]).filter(one => one && typeof one.team === 'string')
+    return `pick_teams ${picks.map(one => (typeof one.why === 'string' ? `${one.team}: ${one.why}` : one.team)).join('; ')}`
+  }
+  return null
+}
+
+/** The memory, the web and a notice, by what was asked or said; null as `agentCall`'s. */
+function lookupCall(tool: string, args: Args): string | null {
+  if (tool === 'recall' && typeof args.query === 'string') return 'recall "' + args.query + '"'
+  if (tool === 'web_search' && typeof args.query === 'string') return `web_search "${args.query}"`
+  if (tool === 'http_request' && typeof args.url === 'string') {
+    return `http_request ${typeof args.method === 'string' ? args.method.toUpperCase() : ''} ${args.url}`.replace('  ', ' ')
+  }
+  if (tool === 'notify' && typeof args.message === 'string') return `notify "${args.message}"`
+  return null
+}
+
+// Slice 51: what the agent did in its browser, in words.
+function browserCall(tool: string, args: Args): string | null {
+  if (tool === 'browser_open') return typeof args.url === 'string' ? `opened ${args.url}` : 'opened a page'
+  if (tool === 'browser_click') return clicked(args)
+  if (tool === 'browser_type') return typeof args.selector === 'string' ? `typed into ${args.selector}` : 'typed'
+  if (tool === 'browser_key') return typeof args.key === 'string' ? `pressed ${args.key}` : 'pressed a key'
+  if (tool === 'browser_scroll') return scrolled(args)
+  if (tool === 'browser_read') return 'read the page'
+  if (tool === 'browser_screenshot') return 'took a screenshot'
+  if (tool === 'browser_console') return 'read the console'
+  return null
+}
+
+function clicked(args: Args): string {
+  if (typeof args.text === 'string') return `clicked ${args.text}`
+  if (typeof args.selector === 'string') return `clicked ${args.selector}`
+  return typeof args.x === 'number' && typeof args.y === 'number' ? `clicked at ${args.x}, ${args.y}` : 'clicked'
+}
+
+const scrolled = (args: Args) => (typeof args.dy === 'number' ? `scrolled ${args.dy > 0 ? 'down' : 'up'} ${Math.abs(args.dy)}` : 'scrolled')
 
 /**
  * Whether a call waits for leave to go outside the project: started, then put back to

@@ -52,3 +52,36 @@ test('what the agent did in its browser reads in words (slice 51)', () => {
   expect(toolSummary(tc('browser_screenshot', '{}'))).toBe('took a screenshot')
   expect(toolSummary(tc('browser_console', '{}'))).toBe('read the console')
 })
+
+test('the rest of the tools by their target, and a tool whose target is not as expected by what it has', () => {
+  const said = (name: string, args: unknown) => toolSummary(tc(name, JSON.stringify(args)))
+  expect(said('message_agent', { to: 'Coder', text: 'x' })).toBe('message_agent Coder')
+  expect(said('recall', { query: 'tax' })).toBe('recall "tax"')
+  expect(said('web_search', { query: 'vat rates' })).toBe('web_search "vat rates"')
+  expect(said('http_request', { url: 'https://x.test/a', method: 'post' })).toBe('http_request POST https://x.test/a')
+  expect(said('http_request', { url: 'https://x.test/a' })).toBe('http_request https://x.test/a')
+  expect(said('notify', { message: 'done' })).toBe('notify "done"')
+  expect(said('remember', { about: 'the tax rule', text: 'x' })).toBe('remember the tax rule')
+  expect(said('remember', { about: '', path: 'a.md' })).toBe('remember')
+  expect(said('remember', {})).toBe('remember')
+  expect(said('pick_teams', { teams: [null, { team: 5 }, { team: 'Docs', why: 3 }] })).toBe('pick_teams Docs')
+  expect(said('pick_teams', { teams: 'all', path: 'x' })).toBe('pick_teams x')
+  // In its browser, with nothing said of where.
+  expect(said('browser_open', {})).toBe('opened a page')
+  expect(said('browser_click', {})).toBe('clicked')
+  expect(said('browser_click', { x: 1 })).toBe('clicked')
+  expect(said('browser_click', { text: 'Go', selector: '#go' })).toBe('clicked Go')
+  expect(said('browser_key', {})).toBe('pressed a key')
+  expect(said('browser_scroll', {})).toBe('scrolled')
+  expect(said('browser_scroll', { dy: 0 })).toBe('scrolled up 0')
+  expect(said('browser_read', { path: 'x' })).toBe('read the page')
+  // Its target not a string: by its path where it has one, else by its name alone.
+  for (const [name, args] of [['search', { pattern: 1 }], ['spawn_agent', { role: 1 }], ['message_agent', {}], ['create_role', {}], ['recall', {}], ['web_search', {}], ['http_request', { method: 'GET' }], ['notify', {}]] as const) {
+    expect(said(name, args)).toBe(name)
+    expect(said(name, { ...args, path: 'p.txt' })).toBe(`${name} p.txt`)
+  }
+  expect(said('list_dir', { path: null })).toBe('list_dir')
+  expect(toolSummary(tc('read_file', ''))).toBe('read_file')
+  expect(toolSummary(tc('read_file', 'null'))).toBe('read_file')
+  expect(toolSummary(tc('list_dir', '"x"'))).toBe('list_dir')
+})
