@@ -12,7 +12,7 @@ import { MessageList, type RequestHandlers } from '../chat/MessageList'
 import { Inspector } from '../inspector/Inspector'
 import { applyEvent } from '../state/applyEvent'
 import { resetStoreForTests, useApp } from '../state/store'
-import { agent, assistantMessage, command, convState, run, toolCall, userMessage } from '../test-fixtures'
+import { agent, assistantMessage, command, convState, question, run, toolCall, userMessage } from '../test-fixtures'
 import { RoomTabs, RoomWindow } from './RoomWindow'
 import { once, roomLine, roomTag, spentLines, waitsForYou } from './roomText'
 import { WorkTogether } from './WorkTogether'
@@ -472,6 +472,27 @@ test('what a member waits on you for is in the room’s window: no call of the l
   expect(waiting).toHaveTextContent('pytest -q')
   await userEvent.click(within(waiting).getByRole('button', { name: 'Run once' }))
   expect(onDecideCommand).toHaveBeenCalledWith('k', 'once')
+})
+
+test('a message queued behind a member’s question says it waits in the room’s window, where the question is - not in the chat', () => {
+  const queuedNote = 'Your message waits until this question is answered'
+  const asked = convState({
+    ...state,
+    runs: [run('r', 'waiting_approval'), run('q2', 'queued', { started_at: null })],
+    messages: [userMessage('r', 'Fix the greeting together'), assistantMessage('m', 'r', ''), userMessage('q2', 'and then')],
+    toolCalls: [toolCall('c1', 'r', 'open_room', 'succeeded', '{}', { agent_id: 'lead' })],
+    rooms: [room({ agent_id: 'lead' })],
+    questions: [question('q', 'r', { agent_id: 'coder', tool_call_id: 'cq', question: 'Shall the greeting stay hi?' })],
+  })
+  render(<MessageList state={asked} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={noop} onDecideCommand={noop} />)
+  expect(screen.queryByText('Shall the greeting stay hi?')).toBeNull()
+  expect(screen.queryByText(queuedNote)).toBeNull()
+  cleanup()
+  panel(asked)
+  const waiting = screen.getByRole('region', { name: 'Waits for you' })
+  const text = waiting.textContent ?? ''
+  expect(text.indexOf('Shall the greeting stay hi?')).toBeGreaterThanOrEqual(0)
+  expect(text.indexOf('Shall the greeting stay hi?')).toBeLessThan(text.indexOf(queuedNote))
 })
 
 test('nothing waiting, there is no Waits for you', () => {

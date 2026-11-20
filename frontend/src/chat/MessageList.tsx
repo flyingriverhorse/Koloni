@@ -30,6 +30,7 @@ import { discussionLine } from '../discussion/discussionText'
 import { MemoryTold } from '../memory/MemoryTold'
 import { NotesOfferCard } from '../knowledge/NotesOfferCard'
 import { RoomRow } from '../room/RoomRow'
+import { inRoom } from '../room/roomText'
 import { continuesFrom, titleOf } from '../topics/topics'
 import { refusedIn } from '../triggers/refused'
 import type { Allow } from '../triggers/triggerText'
@@ -391,11 +392,12 @@ function ChatQuestion({ state, question, onAnswer }: { state: ConvState; questio
 }
 
 /**
- * K-lead-bekliyor (R116): a message sent while a question of the turn is open is queued below, with nothing by the
- * question saying why it waits. Said once, under the turn's cards (0.1.4: not once a question).
+ * K-lead-bekliyor (R116): a message sent while a question is open is queued below, with nothing by the question saying
+ * why it waits. Said once, under the cards where `asks`' questions are (0.1.4: not once a question) - a room member's
+ * only in the room's window, so the chat's turn leaves those out.
  */
-function QueuedNote({ state, runId }: { state: ConvState; runId: string }) {
-  if (!state.questions.some(q => q.run_id === runId && q.status === 'pending') || !state.runs.some(r => r.status === 'queued')) return null
+export function QueuedNote({ state, asks }: { state: ConvState; asks: (question: Question) => boolean }) {
+  if (!state.questions.some(q => q.status === 'pending' && asks(q)) || !state.runs.some(r => r.status === 'queued')) return null
   return (
     <div role="note" className="muted cmd-approval-note">
       Your message waits until this question is answered
@@ -1076,6 +1078,8 @@ export function MessageList({
     })
   // Each turn's answer: its last message of the Lead's with words. It opens with its point, and its foot copies and reads it.
   const answerOf = new Map(ordered.filter(m => m.role === 'assistant' && m.content).map(m => [m.run_id, m]))
+  // (A room's agents' questions are in its window, not in the chat: the room's row says it waits for you.)
+  const inRooms = new Set(state.rooms.flatMap(room => [...inRoom(state, room).keys()]))
   /**
    * A Lead turn's groups after its opener in one card (0.1.4), what it did in the card's foot once it is over. No card
    * for a comparison - its sides stand under their models' names -, a turn with no Lead or nothing after its opener:
@@ -1090,7 +1094,7 @@ export function MessageList({
       run.started_at && TERMINAL.has(run.status) && !run.compare_id ? (
         <TurnSummary key={`did:${runId}`} state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />
       ) : null
-    const queued = <QueuedNote key={`queued:${runId}`} state={state} runId={runId} />
+    const queued = <QueuedNote key={`queued:${runId}`} state={state} asks={q => q.run_id === runId && !inRooms.has(q.agent_id)} />
     if (inside.length === 0 || run.compare_id || !lead) return [...inside, queued, summary]
     return [
       // (It waits while the server says the turn does - for a question, a card, a role: as the canvas has it.)
