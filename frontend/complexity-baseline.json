@@ -80,8 +80,6 @@
   "src/models/ModelsPage.tsx::stateOf": 14,
   "src/models/ProviderConnection.tsx::CliNotes": 25,
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
-  "src/models/ProviderEditor.tsx::ProviderEditor>guide": 13,
-  "src/models/ProviderEditor.tsx::ProviderEditor>submit": 18,
   "src/models/ProviderModels.tsx::ProviderModels": 14,
   "src/notes/NotesPanel.tsx::NotesPanel": 17,
   "src/room/roomText.ts::roomLine": 15,
