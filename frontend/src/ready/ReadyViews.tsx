@@ -8,7 +8,7 @@ import { WaitRow } from '../backlog/BacklogPage'
 import { count, since } from '../board/columns'
 import { type RequestHandlers, WaitingCard, WaitingList } from '../chat/MessageList'
 import { DecidedForYou } from '../chat/DecidedForYou'
-import { PARTS, decidedOf } from '../chat/waiting'
+import { PARTS, decidedOf, koloniAbout } from '../chat/waiting'
 import { wouldReplace } from '../memory/memoryText'
 import { Proposal, Suggestion } from '../memory/records'
 import type { WaitingKind, Waiting as WaitingRow } from '../chat/waiting'
@@ -52,7 +52,7 @@ function handlersOf(state: ConvState, openChat: OpenChat): RequestHandlers & { o
 
 /**
  * Where a row comes from, in words: its agent as the screen calls it ("for" it on KOLONİ's own card about it, which it does
- * not ask, as the chat's Ready for you says), and chat (and folder), or the list it is on.
+ * not ask: `koloniAbout`), and chat (and folder), or the list it is on.
  */
 function fromOf(item: ReadyItem, folder: (projectId: string | null) => string | undefined, teams: Team[]): string {
   if (item.what === 'task') return 'To-do'
@@ -60,9 +60,8 @@ function fromOf(item: ReadyItem, folder: (projectId: string | null) => string | 
   if (item.what === 'night') return "While you're away"
   const agent = item.state.agents.find(a => a.id === item.row.agentId)
   const name = agent && titleOf(agent.name || agent.role_name, teams)
-  const leave = item.row.what === 'question' && item.row.item.leave
   const where = item.source === 'other' ? folder(item.state.conversation.project_id) : undefined
-  return [name && (leave ? `for ${name}` : `${name} asks`), `“${item.state.conversation.title}”`, where].filter(Boolean).join(' · ')
+  return [name && (koloniAbout(item.row) ? `for ${name}` : `${name} asks`), `“${item.state.conversation.title}”`, where].filter(Boolean).join(' · ')
 }
 
 /** A chat's card, with its chat's words. */

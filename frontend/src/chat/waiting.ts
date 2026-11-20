@@ -28,6 +28,12 @@ export type Waiting = { kind: WaitingKind; key: string; agentId: string | null; 
 export const KINDS: WaitingKind[] = ['question', 'decision', 'ready']
 
 /**
+ * KOLONİ's own card about an agent - its work to take in (a kept copy too), a card of KOLONİ's (`leave`: its limit, its
+ * slow model) - is "for" it: the agent asks nothing there. Its own question and what it asks to do are its own ask.
+ */
+export const koloniAbout = (row: Waiting) => row.what === 'merge' || (row.what === 'question' && row.item.leave)
+
+/**
  * Ready for you's parts (sample A): what needs your answer - a question or a yes or no - and what is ready to take in.
  * What only told you (Decided for you) comes last, under "Told you", and is not counted.
  */

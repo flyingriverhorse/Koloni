@@ -119,6 +119,9 @@ Time on a tool (a sub-agent, a command) or on another card that waits for you do
 Qoder has kept a free model queued for 90 seconds, the card comes then: "Qoder has kept
 Qwen3.8-Flash queued for 2 min."
 
+While it waits, the card counts as waiting for you outside its chat too: on the Ready page, as a
+mark on the chat in the Chats list, and in a note in the corner ("Orchestrator waits for you").
+
 - **Keep waiting**: the turn waits on; the next card comes only after another 5 minutes with no word.
 - **Stop and pick another model**: the turn ends as at **Stop**, what it did kept, and KOLONİ's line
   says to pick another model for the Orchestrator and send your message again: in the chat's model

@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from sqlalchemy import select
 
 from app.agent.limits_mixin import WATCHED_SLOW_MINUTES
+from app.api.board import waiting_in
 from app.config import load_settings
 from app.db.models import Agent, BoardPost, Command, ToolCall, now
 from app.main import create_app
@@ -59,7 +60,14 @@ def who(snap):
 
 
 def nothing_left(runner):
-    assert not runner._slow_turns and not runner._answers
+    assert not runner._slow_turns and not runner._answers and not runner._asks_aside
+
+
+def on_board(client, cid):
+    """The chat's row of every chat's board, and what of it waits for the user."""
+    (row,) = [c for c in client.get("/api/board").json()["conversations"]
+              if c["conversation_id"] == cid]
+    return row, waiting_in(row)
 
 
 async def held(event: threading.Event) -> None:
@@ -142,6 +150,38 @@ def test_a_silent_orchestrator_is_asked_once_and_keep_waiting_waits_a_whole_limi
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert sorted(q["status"] for q in snap["questions"]) == ["answered", "cancelled"]
     assert not slow_timers(clock)
+    nothing_left(runner)
+
+
+def test_its_card_waits_for_the_user_on_the_board_until_it_is_answered_or_closed(
+        make_client, wait_run, project_dir, gate):
+    # (live, 20 Nov 2026: while the card waited the board said the Lead "running" with no
+    # question - no toast, Ready said nothing waits, no mark in Chats: a card asked beside the
+    # model's work was not counted as asking)
+    client, _model = make_client([gate.step(text("done at last"))])
+    runner = client.app.state.runner
+    clock = runner.call_later = HeldClock()
+    cid, run_id = begin(client, project_dir)
+    gate.wait_partial()
+    fire(client, armed(clock)[0])
+    card = asked(until(client, cid, asked))
+    row, waits = on_board(client, cid)
+    (lead,) = [a for a in row["agents"] if a["name"] == "Lead"]
+    # (KOLONİ's own card about it, not its question: "Orchestrator waits for you", not "asks you")
+    assert (lead["status"], lead["questions"], lead["own_questions"], waits) == (
+        "waiting_approval", 1, 0, 1), row
+    answer(client, card, "Keep waiting")
+    row, _ = once(lambda: (on := on_board(client, cid))[1] == 0 and on, "Keep waiting left it")
+    (lead,) = [a for a in row["agents"] if a["name"] == "Lead"]
+    assert (lead["status"], lead["questions"]) == ("running", 0), row
+    (again,) = slow_timers(clock)
+    fire(client, again)
+    until(client, cid, asked)
+    assert on_board(client, cid)[1] == 1
+    gate.release()  # (its model speaks first: the card is closed, nothing of it waits)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert on_board(client, cid)[1] == 0
     nothing_left(runner)
 
 

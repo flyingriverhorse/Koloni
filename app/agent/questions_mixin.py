@@ -225,10 +225,19 @@ class QuestionsMixin:
     async def _heard_aside(self: "AgentRunner", ctx: Ctx, asked: asyncio.Future[str],
                            heard: Callable[[str, bool], None], tell: bool) -> str:
         """`_ask_user` beside the agent's work: the word on record as soon as it is there - no
-        place given up or taken back, no "waiting" on its row, as `_users_word` has."""
+        place given up or taken back, no "waiting" on its row, as `_users_word` has. It still
+        waits for the user wherever that is counted (`asking`: the board, its toast, Ready)."""
         if tell:
             self._tell_waits(ctx, asked)
-        word = await asked
+        agent_id = ctx.agent_id
+        self._asks_aside[agent_id] = self._asks_aside.get(agent_id, 0) + 1
+        try:
+            word = await asked
+        finally:
+            if (left := self._asks_aside[agent_id] - 1) > 0:
+                self._asks_aside[agent_id] = left
+            else:
+                del self._asks_aside[agent_id]
         heard(word, False)
         return word
 

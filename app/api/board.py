@@ -6,7 +6,7 @@ import asyncio
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func, literal_column, or_, select, true, union
+from sqlalchemy import and_, func, literal_column, or_, select, true, union
 from sqlalchemy.orm import Session
 
 from app import backlog
@@ -222,12 +222,15 @@ def board_of(
             ToolCall.status == "running",
             ToolCall.agent_id.in_([agent.id for agent, _cid in at_work]))
     ))
-    # Changes put before the user: the agent that made them may have ended its own work.
+    # Changes put before the user: the agent that made them may have ended its own work. And a
+    # copy kept for Take in that holds a file, as its chat's Ready for you counts it (`keptToTake`).
     pending: dict[str, int] = dict(session.execute(
         select(Run.conversation_id, func.count(Merge.id))
         .join(Run, Run.id == Merge.run_id)
         .join(Conversation, Conversation.id == Run.conversation_id)
-        .where(mine, Merge.status == "pending")
+        .where(mine, or_(Merge.status == "pending", and_(
+            Merge.status == "interrupted", Merge.kept_in.is_not(None),
+            func.json_array_length(Merge.files) > 0)))
         .group_by(Run.conversation_id)
     ).tuples().all())
     # Each conversation's last turn: the one put on record last. A message taken back

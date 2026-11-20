@@ -235,8 +235,9 @@ class SlotsMixin:
         )
 
     def asking(self: "AgentRunner", agent_id: str) -> bool:
-        """Whether this agent waits for the user's word on something now."""
-        return bool(self._asks.get(agent_id))
+        """Whether this agent waits for the user's word on something now - also on a card asked
+        beside its work, which keeps its place (K-yavas)."""
+        return bool(self._asks.get(agent_id) or self._asks_aside.get(agent_id))
 
     def copy_folder(self: "AgentRunner", agent_id: str) -> Path | None:
         """The folder of the working copy this agent made, while its work goes on; None

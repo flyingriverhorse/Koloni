@@ -1008,6 +1008,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._line_up: list[tuple[Ctx, asyncio.Future[None]]] = []
         # agent id -> how many words of the user's (a decision, an answer) it waits for
         self._asks: dict[str, int] = {}
+        # agent id -> how many cards asked beside its work wait for the user (`_heard_aside`):
+        # not `_asks`, which gives its place up - only `asking` counts these
+        self._asks_aside: dict[str, int] = {}
         # agent id -> how many others (sub-agents, a reply) it is waiting for
         self._out: dict[str, int] = {}
         # The agents that gave their place up for a wait and are owed one when they
