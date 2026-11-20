@@ -77,13 +77,14 @@ export function AnswerActions({ message, said = message, over }: { message: Mess
         <button
           type="button"
           className="icon-btn"
-          aria-label={copied ? 'Copied' : 'Copy'}
           title={copied ? 'Copied' : 'Copy'}
           aria-live="polite"
           onClick={() => void navigator.clipboard?.writeText(message.content).then(() => setCopied(true), () => {})}
           onBlur={() => setCopied(false)}
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
+          {/* (Its name in words, not an aria-label: a live region says a change of its words, not of an attribute.) */}
+          <span className="visually-hidden">{copied ? 'Copied' : 'Copy'}</span>
         </button>
       )}
       <ReadAloud id={said.id} content={said.content} written={said.status === 'complete'} />

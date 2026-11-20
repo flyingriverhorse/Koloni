@@ -45,7 +45,8 @@ test('Copy writes the answer’s markdown and says Copied', async () => {
   render(<AnswerActions message={answer} over />)
   await userEvent.click(screen.getByRole('button', { name: 'Copy' }))
   expect(writeText).toHaveBeenCalledWith('It is **done**: see `a.py`.')
-  expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+  // Said in words the button holds, not in an attribute: a live region speaks a change of its words.
+  expect(await screen.findByRole('button', { name: 'Copied' })).toHaveTextContent(/^Copied$/)
 })
 
 test('Copy and Read aloud are reachable with the keyboard', async () => {
