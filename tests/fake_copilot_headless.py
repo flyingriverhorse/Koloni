@@ -7,7 +7,8 @@ the ping is refused, "version": it speaks protocol 2, "create": session.create i
 refused, "model": it is refused for its model, "gone": it ends before answering, "silent": it never answers) makes the start go
 wrong; "starts" names a file it adds each argv it is started with to. It writes down how
 it was started, what session.create and session.send were given, and every answer KOLONİ
-gave to a permission request ("answers"). Asked `account.getQuota`, at any point, it answers
+gave to a permission request ("answers"). Asked `status.get`, at any point, it says the plan's
+"version" ("status_hang": no answer). Asked `account.getQuota`, at any point, it answers
 the plan's "quota" ("quota_hang": never); asked `auth.getStatus`, signed in by gh unless "signed_in" is false; asked
 `sandbox.getHostSupport`, the plan's "sandbox" (a shell step's "sandboxed": it ran in it). Its session
 made on auto, "picked" is the model its auto picks, said with "picked_why" before its first step. Steps:
@@ -88,7 +89,12 @@ def send(message: dict) -> None:
 
 
 def heard() -> dict:
-    while (told := framed()).get("method") == "account.getQuota":
+    while (told := framed()).get("method") in ("account.getQuota", "status.get"):
+        if told["method"] == "status.get":  # (its package's version: 1.0.67's app.js, `Vbo`)
+            if not plan.get("status_hang"):
+                send({"id": told["id"], "result": {
+                    "version": plan.get("version", "1.0.91-fake"), "protocolVersion": 3}})
+            continue
         # What is left of its plan, no turn (1.0.91, 24 Oct 2026), whenever it is asked -
         # alone or after a session's turn (89l): the plan's "quota" (none: refused), its
         # "quota_error" refusing it, or with "quota_hang" no answer at all.

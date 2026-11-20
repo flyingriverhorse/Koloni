@@ -2917,7 +2917,8 @@ APPROVE_ONCE = {"kind": "approve-once"}
 # (Review) A command that may change what a later one in Copilot's one shell session means: where
 # it is (`commands._CLIMBS`: cd, sl, Push-Location...), an environment or path, a function or an
 # alias, a module, an activate script, a line dot-sourced, any script run (it may define a
-# `function global:`), or anything run as a string.
+# `function global:`), or anything run as a string. (1.0.67 starts each command anew,
+# `spawnChild`: SHELL_ARGUMENTS; kept for a version whose shell keeps them.)
 SHELL_STATE = re.compile(
     _CLIMBS.pattern + r"|(?<![\w-])(?i:function|filter|set-alias|new-alias|sal|nal|"
     r"import-module|ipmo|iex|invoke-expression|activate(?:\.ps1|\.bat)?|source|alias|export)"
@@ -2935,21 +2936,26 @@ SHELL_STATE = re.compile(
 # call: the start goes first to its one stdout. Each command is a new process in its shell's
 # first folder (`spawnChild`): not even a named shell keeps a `cd` there. Live once (14 Nov 2026,
 # 1.0.107, Windows, Full auto): after a `cd` into the scratch, its next command ran at the project.
+# So only on a version in SHELL_READ, by its own word (`status.get`: its package's version, the
+# running app.js's own - 1.0.67's seam handlers `Vbo`); one that does not say: not known.
 # shortcut: 1.0.107's code is not read, nor its native shell schema (another spelling of shellId
 # is a key not here: not known) or JSON-RPC writer (a start out of order: a card); bash on Linux
-# and macOS not seen. Read it again after an update of Copilot's (K-cli-surface).
+# and macOS not seen. Add a version to SHELL_READ only once read or measured (K-cli-surface).
 SHELL_ARGUMENTS = frozenset({"command", "description", "mode", "detach", "initialwait",
                              "requestsandboxbypass", "requestsandboxbypassreason"})
+SHELL_READ = frozenset({"1.0.67"})
 
 
 class _ShellPatches(dict):
     """B-389: the commands of a Copilot run that were patches, by tool call id (`_permit`);
     `moved`: a command it was let run may have changed its shell session (`SHELL_STATE`) - from
     then on, every patch it runs as a command is asked as the command it is. `started`: its shell
-    calls whose start it said; `unknown`: one of them may run in a shell not new (`start`)."""
+    calls whose start it said; `unknown`: one of them may run in a shell not new (`start`);
+    `version`: the version it said it is (`status.get`; None: not said, or not yet)."""
 
     moved = False
     unknown = False
+    version: str | None = None
 
     def __init__(self) -> None:
         super().__init__()
@@ -2968,10 +2974,11 @@ class _ShellPatches(dict):
 
     def new_shell(self, call_id: str) -> bool:
         """Whether this call, as read so far, runs in a new shell at the project."""
-        return bool(call_id) and call_id in self.started and not self.unknown
+        return (bool(call_id) and call_id in self.started and not self.unknown
+                and self.version in SHELL_READ)
 
 
-HEADLESS =["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
+HEADLESS = ["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
 # Its own tools a session is given (`availableTools`): its shell and what goes with it, and
 # its file tools, each asked about as a command, a write or a read. Not grep or glob (a
 # search reads a secret's lines with no card for the file), web_fetch or web_search, sql,
@@ -3172,7 +3179,8 @@ class CopilotNativeClient(CodexNativeClient):
                 if name in COPILOT_RUNS:
                     # (Review: its shell is one session - after a command that may have moved
                     # it or named commands anew, a patch's paths or apply_patch may mean else.
-                    # Refused or failed counts too: whether it ran is not sure.)
+                    # Refused or failed counts too: whether it ran is not sure. 1.0.67 starts
+                    # each command anew, `spawnChild`; kept for a version whose shell keeps it.)
                     heredocs.moved |= bool(SHELL_STATE.search(str(given.get("command") or "")))
                     code = EXIT_CODE.search(said)
                     # shortcut: REA saw toolTelemetry's sandboxApplied on 1.0.103; the MIT
@@ -3422,6 +3430,14 @@ class CopilotNativeClient(CodexNativeClient):
             except Exception as exc:  # (TimeoutError among them) keeping it never breaks the run
                 log.warning("Copilot's quota was not read: %s", type(exc).__name__)
 
+        async def said_version() -> None:
+            """k-copilot-cd: the version it says it is (`_ShellPatches.version`), never waited
+            for: one that does not answer runs all the same, its new shells not known.
+            shortcut: `status.get` read in 1.0.67's app.js, not asked of a live one yet."""
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                told, _no = await ask("status.get", {})
+                heredocs.version = str(told.get("version") or "") or None
+
         async def talk() -> None:
             nonlocal unasked, started, failure, session, sent
             reading = asyncio.ensure_future(read())
@@ -3429,6 +3445,10 @@ class CopilotNativeClient(CodexNativeClient):
                 pong, no = await ask("ping", {})
                 if no is None and pong.get("protocolVersion") != PROTOCOL:
                     no = f"it speaks protocol {pong.get('protocolVersion')}, not {PROTOCOL}"
+                if no is None:
+                    versioned = asyncio.ensure_future(said_version())
+                    answering.add(versioned)
+                    versioned.add_done_callback(answering.discard)
                 sandbox: dict = {}
                 if no is None and denied is not None:
                     sandbox = await self._sandbox(ask, denied, also, on_item)

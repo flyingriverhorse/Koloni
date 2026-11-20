@@ -844,18 +844,23 @@ def test_copilots_bash_heredoc_is_a_patch_only_where_its_shell_is_bash(
 
 SCRATCH_LINE = "cd .koloni/tmp/w2; python a.py"
 SCRATCH_DELETE = "Remove-Item -Recurse -Force .koloni/tmp/w2"
+READ = "1.0.67"  # (the one version whose shell was read: `model_native.SHELL_READ`)
 
 
 def scratch(project_dir):
     (project_dir / ".koloni" / "tmp" / "w2").mkdir(parents=True)
 
 
+@pytest.mark.parametrize("args", [
+    {}, {"description": "Run it", "mode": "sync", "initial_wait": 30, "detach": False}],
+    ids=["its-command-alone", "as-a-model-calls-it"])
 def test_at_full_auto_work_in_the_scratch_and_a_delete_there_from_a_new_shell_run_unasked(
-    copilot_native, wait_run, project_dir  # noqa: F811
+    args, copilot_native, wait_run, project_dir  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": SCRATCH_LINE}, {"shell": SCRATCH_DELETE},
-                                       {"say": "ok"}])
+    client, provider = copilot_native([{"shell": SCRATCH_LINE, "args": args},
+                                       {"shell": SCRATCH_DELETE, "args": args},
+                                       {"say": "ok"}], version=READ)
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
@@ -879,7 +884,8 @@ def test_where_its_shell_is_not_known_to_be_new_work_in_the_scratch_is_still_a_c
     steps, copilot_native, wait_run, project_dir  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": SCRATCH_DELETE}, *steps, {"say": "ok"}])
+    client, provider = copilot_native([{"shell": SCRATCH_DELETE}, *steps, {"say": "ok"}],
+                                      version=READ)
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, SCRATCH_LINE)
     assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")
@@ -896,13 +902,31 @@ def test_from_a_new_shell_a_cd_out_of_the_project_or_into_a_protected_folder_is_
     line, copilot_native, wait_run, project_dir  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": SCRATCH_DELETE}, {"shell": line}, {"say": "ok"}])
+    client, provider = copilot_native([{"shell": SCRATCH_DELETE}, {"shell": line}, {"say": "ok"}],
+                                      version=READ)
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, line)
     assert asked["cwd"] == "." and asked["danger"]
     client.post(f"/api/commands/{asked['id']}/reject")
     wait_run(client, cid, run_id)
     assert answers(copilot_native) == [("shell", APPROVE), ("shell", REJECT)]
+
+
+@pytest.mark.parametrize("told", [{"version": "1.0.107"}, {}, {"version": READ,
+                                                                "status_hang": True}],
+                         ids=["a-later-one", "another", "says-nothing"])
+def test_on_a_copilot_whose_shell_was_not_read_work_in_the_scratch_is_still_a_card(
+    told, copilot_native, wait_run, project_dir  # noqa: F811
+):
+    # (By its own `status.get`, never waited for: one that does not answer still runs, asked.)
+    scratch(project_dir)
+    client, provider = copilot_native([{"shell": SCRATCH_LINE}, {"say": "ok"}], **told)
+    cid, run_id = start(client, project_dir, provider)
+    asked = card_for(client, cid, SCRATCH_LINE)
+    assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")
+    client.post(f"/api/commands/{asked['id']}/reject")
+    wait_run(client, cid, run_id)
+    assert answers(copilot_native) == [("shell", REJECT)]
 
 
 def test_in_a_working_copy_a_new_shells_work_in_the_scratch_is_still_a_card(
@@ -916,7 +940,7 @@ def test_in_a_working_copy_a_new_shells_work_in_the_scratch_is_still_a_card(
     monkeypatch.setattr(CopilotNativeClient, "own_copy", True)
     scratch(project_dir)
     client, provider = copilot_native([{"shell": SCRATCH_LINE}, {"say": "ok"}],
-                                      default_steps=LEAD)
+                                      default_steps=LEAD, version=READ)
     cid, run_id = begin(client, project_dir, provider)
     asked = card_for(client, cid, SCRATCH_LINE)
     assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")

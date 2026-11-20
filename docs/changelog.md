@@ -8,7 +8,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Changed
 
-- **CLIs**: GitHub Copilot CLI run **Native** works in the agents' scratch folder as Claude Code's Bash tool does: a command that starts in a new shell of its own (one that names no shell) is judged in the project folder, so `cd .koloni/tmp/...; python a.py` and a delete only inside `.koloni/tmp/` run without a card at Full auto; a command in a shell it named, or any after one that did, is still asked ([docs](reference/known-limits.md)).
+- **CLIs**: GitHub Copilot CLI run **Native**, on a version whose code was read (only 1.0.67 so far, by the version Copilot reports), works in the agents' scratch folder as Claude Code's Bash tool does: a command that starts in a new shell of its own (one that names no shell) is judged in the project folder, so `cd .koloni/tmp/...; python a.py` and a delete only inside `.koloni/tmp/` run without a card at Full auto; on any other version, in a shell it named, or after one that did, it is still asked ([docs](reference/known-limits.md)).
 
 ## [0.1.3] - 2026-11-20
 
