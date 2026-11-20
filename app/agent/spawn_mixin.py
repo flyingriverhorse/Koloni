@@ -2006,7 +2006,7 @@ class SpawnMixin:
             return None
         return provider.id, model_name
 
-    def _propose(  # noqa: C901
+    def _propose(
         self: "AgentRunner", ctx: Ctx, call_id: str, role: Role, task: str, provider: Provider,
         model_name: str | None, model: ModelClient, chosen: bool, not_to_be_had: str | None,
         earlier: topics.Earlier | None = None, why: str = "", effort: str | None = None,
@@ -2061,35 +2061,8 @@ class SpawnMixin:
             raise ToolError(PAID_NO.format(to=shown_name(provider.name)))
         if step is not None and only_in_project(model, tools):
             raise ToolError(ONLY_IN_THE_PROJECT.format(provider=shown_name(provider.name)))
-        if not self._watched(ctx.run_id):
-            # Before any of the limits a turn the user is watching has ("set the level
-            # to Full auto"): nobody is there to do that. A model of the agent's own
-            # choosing can cost money, and is asked about: here it is not had. Nor is a
-            # CLI that works with tools of its own.
-            if chosen:
-                raise _NobodyToAsk(self._nobody_to_ask(
-                    ctx, "model", f"give a sub-agent another model ({provider.name}); "
-                    "leave provider and model out"))
-            if paid:  # (nor a move onto a provider paid per token: nobody is there to say yes)
-                raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
-            if self._cannot_be_held(model, provider):
-                raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
-        elif ctx.run_id in self._backlog_turns and self._cannot_be_held(model, provider):
-            raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
-        if self._level(ctx) + 1 > max_depth:
-            raise ToolError(
-                f"depth limit reached: sub-agents may be at most {max_depth} level(s) below "
-                "the Orchestrator. Do this part yourself."
-            )
-        if opened >= most:
-            raise ToolError(over)
-        if not set(tools) - NOT_WORK:
-            raise ToolError(
-                f"the {role.name} role would have no tools here: none of its tools are "
-                "ones the Orchestrator may hand on"
-            )
-        if not_to_be_had:
-            raise ToolError(not_to_be_had)
+        self._propose_unwatched(ctx, provider, model, chosen, paid)
+        self._propose_within(ctx, role, tools, max_depth, opened, most, over, not_to_be_had)
         refused = None
         if not self._watched(ctx.run_id):
             # No await from this count to the agent's opening: two asked for at once
@@ -2138,6 +2111,45 @@ class SpawnMixin:
             # (Its word is kept for the turn - a no only where nothing else asked the card.)
             self._paid_asked[child.agent_id] = ((ctx.run_id, provider.id), not other)
         return child, asks
+
+    def _propose_unwatched(self: "AgentRunner", ctx: Ctx, provider: Provider, model: ModelClient,
+                           chosen: bool, paid: str | None) -> None:
+        """`_propose`: what is not had in a turn nobody watches, nor in a backlog task's."""
+        if not self._watched(ctx.run_id):
+            # Before any of the limits a turn the user is watching has ("set the level
+            # to Full auto"): nobody is there to do that. A model of the agent's own
+            # choosing can cost money, and is asked about: here it is not had. Nor is a
+            # CLI that works with tools of its own.
+            if chosen:
+                raise _NobodyToAsk(self._nobody_to_ask(
+                    ctx, "model", f"give a sub-agent another model ({provider.name}); "
+                    "leave provider and model out"))
+            if paid:  # (nor a move onto a provider paid per token: nobody is there to say yes)
+                raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
+            if self._cannot_be_held(model, provider):
+                raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
+        elif ctx.run_id in self._backlog_turns and self._cannot_be_held(model, provider):
+            raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
+
+    def _propose_within(
+        self: "AgentRunner", ctx: Ctx, role: Role, tools: list[str], max_depth: int, opened: int,
+        most: int, over: str, not_to_be_had: str | None,
+    ) -> None:
+        """`_propose`'s limits: how deep, how many, with what tools - and what cannot be had."""
+        if self._level(ctx) + 1 > max_depth:
+            raise ToolError(
+                f"depth limit reached: sub-agents may be at most {max_depth} level(s) below "
+                "the Orchestrator. Do this part yourself."
+            )
+        if opened >= most:
+            raise ToolError(over)
+        if not set(tools) - NOT_WORK:
+            raise ToolError(
+                f"the {role.name} role would have no tools here: none of its tools are "
+                "ones the Orchestrator may hand on"
+            )
+        if not_to_be_had:
+            raise ToolError(not_to_be_had)
 
     async def _see_through(  # noqa: C901
         self: "AgentRunner", ctx: Ctx, child: Ctx, asks: bool, declined: str,
