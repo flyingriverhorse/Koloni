@@ -6262,7 +6262,92 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             payload = question_out(question)
         self.bus.emit(ctx.cid, ctx.run_id, "question.updated", payload)
 
-    async def _step_over(  # noqa: C901
+    def _checker_heard(self, state: dict, word: str | None, options: list[str]) -> None:
+        """The word at "Who checks?": the role named - or the writer - checks the part ahead."""
+        next_part = recipe_run.ahead(state)
+        left = recipe_run.unchecked(next_part)
+        picked = next((one for one in self._checkers(next_part)
+                       if word and one.casefold() == word.strip().casefold()), None)
+        # (Nobody to ask: the writer checks, as before - said on its node.)
+        if left and (word in (None, options[-2]) or picked):
+            recipe_run.checks(state, next_part["at"], left[0][0], picked)
+
+    def _word_heard(self, child: Ctx, state: dict, entry: dict, word: str | None,
+                    options: list[str], offer: tuple | None, picks: dict[str, str],
+                    changes: list[tuple[str, str]]) -> None:
+        """The word at a row's card (`_step_over`), taken into the row's state. `changes`: the
+        user's Ask for changes is put there, with its step."""
+        if state["status"] != recipe_run.RUNNING:
+            return
+        if options[1:] and options[-2].endswith((ITSELF, THEMSELVES)) and word != "Stop":
+            self._checker_heard(state, word, options)
+        elif word is None:
+            state["status"], state["why"] = recipe_run.STOPPED, "nobody was there to ask"
+        elif word == "Stop":
+            state["status"], state["why"] = recipe_run.STOPPED, "Stopped by you"
+        elif word in picks and word in options:
+            # B-370: the work kept - this pick where it beats the one before (as
+            # `_pick` brought it), else that one - is what goes on, and is picked.
+            top = state.setdefault("kept_best", {})
+            score = (state.get("scores", {}).get(picks[word]) or {}).get("score")
+            if evolve.beats(score, top.get(state["at"])):
+                top[state["at"]] = {"agent": picks[word], "name": word, "score": score}
+            state["picked"] = top[state["at"]]["agent"]
+        elif entry["ok"] is False and word == "Try again":
+            state.setdefault("retried", []).append(entry["step"])  # (K-fullauto-sorma)
+            state["here"].remove(entry)
+        elif entry["ok"] is False and word == RUN_THERE and offer:
+            # (The user's yes to that model: its next agent of the run is opened there.)
+            why, provider, model = offer
+            self._run_there[(child.run_id, child.role.casefold())] = (
+                provider.id, model,
+                f"the user's choice: it could not run on {child.provider} ({why})",
+                _on(provider, model))
+            state["here"].remove(entry)
+        elif entry["ok"] is False and word == "Skip":
+            # (A check skipped found nothing - nor checked: a step after it that runs
+            # only on a problem says so, `recipe_run.NOT_CHECKED`.)
+            entry["ok"], entry["found"], entry["unchecked"] = True, False, True
+        elif entry["ok"] is not False and word == "Go on":
+            state["approved"] = state["at"]
+        elif entry["ok"] is not False and options == ASK_ME:
+            # (B-112: a reasoned "no" is no question asked again: it is Ask for changes.)
+            state["here"] = []
+            state["changes"] = word.removeprefix("Ask for changes").lstrip(":").strip()
+            changes.append((recipe_run.name_of(recipe_run.graph_of(state), state["at"]),
+                            word))
+
+    async def _gone_on(self, ctx: Ctx, child: Ctx, word: str,
+                       cant: tuple[str, str | None, datetime | None] | None
+                       ) -> tuple[tuple[bool, str] | None, list | None, str]:
+        """Go on or Reconnect at a failure's card: the same agent goes on (`_go_on_again`).
+        What came of that, the findings it left, and what its opener is told of it."""
+        gone = await self._go_on_again(
+            ctx, child, None if word == RECONNECT else cant and cant[2])
+        found = None
+        if gone is None:
+            return gone, found, ""
+        with self._factory() as session:
+            report = session.get_one(Agent, child.agent_id).report
+        found = self._found(child, report) if gone[0] else None
+        if found is not None:
+            self._set_agent(ctx.cid, child.agent_id, findings=found)
+        return gone, found, f"\n\n{gone[1]}{_hand_on(found)}"
+
+    async def _pick_taken(self, ctx: Ctx, child: Ctx, word: str | None, options: list[str]
+                          ) -> tuple[dict[str, str], str]:
+        """The names a pick's card kept (`_pick_card`), and - one of them the word - what
+        `_pick` says was left out."""
+        more = ""
+        picks = self._pick_names.pop(child.run_id, {})
+        if word in picks and word in options:
+            if left := await self._pick(ctx, picks[word], list(picks.values())):
+                more = f"\n\n{left}"
+        elif picks and word not in (None, "Stop"):
+            self._pick_names[child.run_id] = picks  # (asked again)
+        return picks, more
+
+    async def _step_over(
         self, ctx: Ctx, child: Ctx, first: Callable[[dict, dict], None]
     ) -> str:
         """A sub-agent of a row's step is done: the row moves on - back along a loop, to the
@@ -6303,16 +6388,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 changed = CHANGED_SINCE.format(files=", ".join(moved))
                 continue
             if word and word in ask[1] and (word == RECONNECT or word.startswith(GO_ON_AT)):
-                gone = await self._go_on_again(
-                    ctx, child, None if word == RECONNECT else cant and cant[2])
-                found = None
-                if gone is not None:
-                    with self._factory() as session:
-                        report = session.get_one(Agent, child.agent_id).report
-                    found = self._found(child, report) if gone[0] else None
-                    if found is not None:
-                        self._set_agent(ctx.cid, child.agent_id, findings=found)
-                    went += f"\n\n{gone[1]}{_hand_on(found)}"
+                gone, found, more = await self._gone_on(ctx, child, word, cant)
+                went += more
 
                 def again(state: dict, entry: dict, gone: tuple | None = gone,
                           found: list | None = found) -> None:
@@ -6325,61 +6402,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 said, ask = self._on_row(child, again, offer, cant, full)
                 continue
 
-            picks = self._pick_names.pop(child.run_id, {})
-            if word in picks and word in ask[1]:
-                if left := await self._pick(ctx, picks[word], list(picks.values())):
-                    went += f"\n\n{left}"
-            elif picks and word not in (None, "Stop"):
-                self._pick_names[child.run_id] = picks  # (asked again)
+            picks, more = await self._pick_taken(ctx, child, word, ask[1])
+            went += more
 
-            def heard(state: dict, entry: dict, word: str | None = word,  # noqa: C901
+            def heard(state: dict, entry: dict, word: str | None = word,
                       options: list[str] = ask[1], offer: tuple | None = offer,
                       picks: dict[str, str] = picks) -> None:
-                if state["status"] != recipe_run.RUNNING:
-                    return
-                if options[1:] and options[-2].endswith((ITSELF, THEMSELVES)) and word != "Stop":
-                    next_part = recipe_run.ahead(state)
-                    left = recipe_run.unchecked(next_part)
-                    picked = next((one for one in self._checkers(next_part)
-                                   if word and one.casefold() == word.strip().casefold()), None)
-                    # (Nobody to ask: the writer checks, as before - said on its node.)
-                    if left and (word in (None, options[-2]) or picked):
-                        recipe_run.checks(state, next_part["at"], left[0][0], picked)
-                elif word is None:
-                    state["status"], state["why"] = recipe_run.STOPPED, "nobody was there to ask"
-                elif word == "Stop":
-                    state["status"], state["why"] = recipe_run.STOPPED, "Stopped by you"
-                elif word in picks and word in options:
-                    # B-370: the work kept - this pick where it beats the one before (as
-                    # `_pick` brought it), else that one - is what goes on, and is picked.
-                    top = state.setdefault("kept_best", {})
-                    score = (state.get("scores", {}).get(picks[word]) or {}).get("score")
-                    if evolve.beats(score, top.get(state["at"])):
-                        top[state["at"]] = {"agent": picks[word], "name": word, "score": score}
-                    state["picked"] = top[state["at"]]["agent"]
-                elif entry["ok"] is False and word == "Try again":
-                    state.setdefault("retried", []).append(entry["step"])  # (K-fullauto-sorma)
-                    state["here"].remove(entry)
-                elif entry["ok"] is False and word == RUN_THERE and offer:
-                    # (The user's yes to that model: its next agent of the run is opened there.)
-                    why, provider, model = offer
-                    self._run_there[(child.run_id, child.role.casefold())] = (
-                        provider.id, model,
-                        f"the user's choice: it could not run on {child.provider} ({why})",
-                        _on(provider, model))
-                    state["here"].remove(entry)
-                elif entry["ok"] is False and word == "Skip":
-                    # (A check skipped found nothing - nor checked: a step after it that runs
-                    # only on a problem says so, `recipe_run.NOT_CHECKED`.)
-                    entry["ok"], entry["found"], entry["unchecked"] = True, False, True
-                elif entry["ok"] is not False and word == "Go on":
-                    state["approved"] = state["at"]
-                elif entry["ok"] is not False and options == ASK_ME:
-                    # (B-112: a reasoned "no" is no question asked again: it is Ask for changes.)
-                    state["here"] = []
-                    state["changes"] = word.removeprefix("Ask for changes").lstrip(":").strip()
-                    changes.append((recipe_run.name_of(recipe_run.graph_of(state), state["at"]),
-                                    word))
+                self._word_heard(child, state, entry, word, options, offer, picks, changes)
 
             said, ask = self._on_row(child, heard, offer, cant, full)
             if changes:
