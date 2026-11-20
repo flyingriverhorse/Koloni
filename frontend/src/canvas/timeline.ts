@@ -1,6 +1,6 @@
 import { AGENT_STATUS, AT_WORK, titleOf } from '../agents/agentStatus'
 import { homeOf, isOwnSubAgent, ownSubAgentTask, subAgentIds } from '../agents/ownWork'
-import type { Run, ToolCall } from '../api/types'
+import type { Agent, Run, ToolCall } from '../api/types'
 import { TOOL_STATUS } from '../chat/ToolRow'
 import { turnTokens } from '../shell/tokens'
 import type { ConvState } from '../state/applyEvent'
@@ -103,120 +103,18 @@ export function timeline(state: ConvState, runId: string, now: number): Timeline
   // What is left at work on a turn that is over is not drawn growing.
   const runAtWork = RUN_AT_WORK.has(run.status)
 
-  const lanes: Lane[] = []
-  const add = (lane: Omit<Lane, 'calls' | 'waits' | 'marks'>) => {
-    const own = calls.filter(c => !isOwnSubAgent(c) && c.agent_id === lane.agentId && homeOf(c, subs) === (lane.cli ? lane.id : null))
-    lanes.push({
-      ...lane,
-      calls: own.flatMap(c => {
-        const [from, to] = [time(c.started_at), until(c.ended_at, runAtWork && c.status === 'running')]
-        return from !== null && to !== null ? [{ from, to, name: c.name, status: c.status }] : []
-      }),
-      waits: [],
-      marks: [],
-    })
-    // The CLI's own sub-agents opened here, then the agents this one opened, each under it.
-    for (const sub of calls.filter(c => subs.has(c.id) && c.agent_id === lane.agentId && homeOf(c, subs) === (lane.cli ? lane.id : null))) {
-      const at = runAtWork && (sub.status === 'running' || sub.status === 'pending')
-      add({
-        id: sub.id, agentId: sub.agent_id, name: ownSubAgentTask(sub) || 'sub-agent', depth: lane.depth + 1, cli: true,
-        parent: lane.id, opened: time(sub.started_at), from: time(sub.started_at), to: until(sub.ended_at, at), atWork: at,
-        status: TOOL_STATUS[sub.status],
-      })
-    }
-    if (lane.cli) return
-    for (const kid of agents.filter(a => a.parent_agent_id === lane.id)) addAgent(kid, lane)
-  }
-  const addAgent = (a: (typeof agents)[number], parent: Pick<Lane, 'id' | 'depth'> | null) => {
-    const at = runAtWork && AT_WORK.has(a.status)
-    add({
-      id: a.id, agentId: a.id, name: titleOf(a.name || a.role_name), depth: parent ? parent.depth + 1 : 0, cli: false,
-      parent: parent?.id ?? null, opened: parent ? time(a.created_at) : null,
-      from: time(a.started_at), to: a.started_at ? until(a.ended_at, at) : null, atWork: at,
-      status: AGENT_STATUS[a.status],
-    })
-  }
-  const known = new Set(agents.map(a => a.id))
-  for (const a of agents.filter(a => !a.parent_agent_id || !known.has(a.parent_agent_id))) addAgent(a, null)
+  const turn: Turn = { state, run, now, agents, calls, subs, callOf, runAtWork, here, laneOf, until }
+  const lanes = lanesOf(turn)
 
   const lane = new Map(lanes.map(l => [l.id, l]))
-  /**
-   * A wait from `begun` to `end`; while `open`, to now. One that ended within NO_WAIT_MS never was.
-   * One `asked` (a record that always asks you) and left with no end is said with no length; any
-   * other with no end was never asked: your settings let it through.
-   */
-  // `key`: the record's, as Ready for you keys its row - one that still waits for you leads there.
-  const wait = (laneId: string, begun: string | null | undefined, end: string | null, open: boolean, who: string | null, what: string, asked = false, key?: string) => {
-    const [from, to] = [time(begun), time(end)]
-    if (from === null || (to !== null && to - from < NO_WAIT_MS) || (to === null && !open && !asked)) return
-    const still = to === null && open
-    lane.get(laneId)?.waits.push({ from, to: to ?? (open ? now : null), who, what, open: still, ...(still && who === you && key ? { key } : {}) })
-  }
-  const you = 'you'
-  for (const q of here(state.questions)) wait(laneOf(q.agent_id, q.tool_call_id), q.created_at, q.answered_at, q.status === 'pending', you, 'question', true, q.id)
-  // A change the CLI made was not asked about; one made in a working copy is asked about through its merge.
-  const copied = new Set(here(state.merges).map(m => m.agent_id))
-  for (const f of here(state.fileChanges).filter(f => f.origin !== 'cli' && !copied.has(f.agent_id)))
-    wait(laneOf(f.agent_id, f.tool_call_id), f.created_at, f.decided_at, f.status === 'proposed', you, f.path, false, f.id)
-  // B-316: at Full auto a command runs on no card, and what it waited for was its start - its working copy made, a place.
-  // shortcut: a command has no decision time; its start stands for it, and one is taken as asked where it waits now, or its
-  // card is one at every level (`danger`, its call's `why_asked`), or below Full auto - so one approved and then queued
-  // counts that queue as waiting for you too, and one a rule ran unasked as well - upgrade if commands get a decided_at.
-  // shortcut: a search's card (its `danger` said only while it waits) is read, once decided, as no card at Full auto; and the
-  // level is the chat's now, not the one it ran at (a command keeps no level) - record both on the command if that misleads.
-  const fullAuto = state.conversation.permission_mode === 'full_auto'
-  for (const c of here(state.commands).filter(c => c.origin !== 'cli')) {
-    const asked = c.status === 'proposed' || !fullAuto || !!c.danger || !!callOf.get(c.tool_call_id)?.why_asked
-    wait(laneOf(c.agent_id, c.tool_call_id), c.created_at, c.started_at, c.status === 'proposed', asked ? you : null, c.command, false, c.id)
-  }
-  for (const m of here(state.merges)) wait(m.agent_id, m.created_at, m.decided_at, m.status === 'pending', you, 'changes to take in', true, m.id)
-  for (const w of here(state.webRequests)) wait(laneOf(w.agent_id, w.tool_call_id), w.created_at, w.decided_at, w.status === 'proposed', you, 'web request', true, w.id)
-  // (A command's why_asked - run_command's, run_skill_script's - is its card's reason: its wait is its command's, above.)
-  const commanded = new Set(state.commands.map(c => c.tool_call_id))
-  for (const c of calls.filter(c => c.outside_folder || (c.why_asked && !commanded.has(c.id)))) {
-    // shortcut: an approval to reach outside the folder has no record of its own; it is taken to start with the call's message, which may be a little earlier - upgrade if the call gets an asked_at.
-    const asked = state.messages.find(m => m.id === c.message_id)
-    wait(laneOf(c.agent_id, c.id), asked?.created_at, c.started_at, c.status === 'pending', you, c.outside_folder ?? 'a secret file', true, c.id)
-  }
-  for (const a of agents) {
-    // Asked about, it waits for you. shortcut: once started, whether it waited for your word or for a slot is not on record, so the wait is said for nobody - upgrade if an agent gets a decided_at.
-    if (a.status === 'proposed' || a.status === 'rejected') wait(a.id, a.created_at, a.started_at ?? a.ended_at, a.status === 'proposed', you, 'to start', false, a.id)
-    else if (a.started_at) wait(a.id, a.created_at, a.started_at, false, null, 'to start')
-    // shortcut: a file another agent holds is on record only while it is held, with no time it began; its length is not known - upgrade if claims get a time.
-    if (a.status === 'blocked' && a.waiting_for) lane.get(a.id)?.waits.push({ from: null, to: null, who: a.waiting_for.agent_name, what: a.waiting_for.path, open: true })
-  }
-
-  const turnMarks: Mark[] = []
-  const mark = (laneId: string | null, at: number | null, what: string) => {
-    if (at !== null) (laneId && lane.get(laneId) ? lane.get(laneId)!.marks : turnMarks).push({ at, what })
-  }
-  for (const d of here(state.discussions)) {
-    mark(d.agent_id, time(d.created_at), 'discussion started')
-    mark(d.agent_id, time(d.ended_at), 'discussion ended')
-  }
-  for (const r of here(state.rooms)) {
-    mark(r.agent_id, time(r.created_at), 'room opened')
-    mark(r.agent_id, time(r.ended_at), 'room ended')
-  }
-  for (const a of agents) {
-    const limited = a.failure === 'rate_limited' || a.failure === 'credits_exhausted'
-    if (a.status === 'failed') mark(a.id, time(a.ended_at), limited ? 'limit reached' : 'failed')
-    if (a.status === 'cancelled') mark(a.id, time(a.ended_at), 'stopped')
-  }
-  if ((run.error ?? '').startsWith('budget:')) mark(null, time(run.ended_at), 'limit reached')
+  const wait = waitInto(lane, now)
+  askedWaits(turn, wait)
+  leaveWaits(turn, wait)
+  startWaits(turn, lane, wait)
+  const turnMarks = marksOf(turn, lane)
 
   const byId = new Map(agents.map(a => [a.id, a]))
-  for (const l of lanes) {
-    // What it waits on now, told apart (B-316): your word - a card of its, which its wait leads to - or the agents it opened.
-    const kids = l.cli || byId.get(l.id)?.status !== 'waiting' ? [] : agents.filter(a => a.parent_agent_id === l.id && AT_WORK.has(a.status))
-    if (l.waits.some(w => w.open && w.who === you)) l.status = AGENT_STATUS.waiting_approval
-    else if (kids.length > 0) l.status = [`waits for ${kids.map(a => a.name || a.role_name).join(', ')}`, l.status[1]]
-    l.waits.sort((a, b) => (a.from ?? Infinity) - (b.from ?? Infinity))
-    l.marks.sort((a, b) => a.at - b.at)
-    // The line from the agent that opened it meets the first of it that is drawn: what it waited for before it started, or its bar.
-    const first = Math.min(l.from ?? Infinity, ...l.waits.map(w => w.from ?? Infinity))
-    if (l.parent !== null && Number.isFinite(first)) l.opened = first
-  }
+  for (const l of lanes) settle(l, agents, byId)
   turnMarks.sort((a, b) => a.at - b.at)
 
   const started = time(run.started_at)
@@ -237,4 +135,164 @@ export function timeline(state: ConvState, runId: string, now: number): Timeline
     lanes,
     marks: turnMarks,
   }
+}
+
+/** A turn's records as its timeline reads them (`timeline`'s own, handed to its parts). */
+interface Turn {
+  state: ConvState
+  run: Run
+  now: number
+  agents: Agent[]
+  calls: ToolCall[]
+  subs: ReturnType<typeof subAgentIds>
+  callOf: Map<string, ToolCall>
+  runAtWork: boolean
+  here: <T extends { run_id: string }>(records: T[]) => T[]
+  laneOf: (agentId: string, callId: string | null) => string
+  until: (end: string | null, open: boolean) => number | null
+}
+
+/** The turn's lanes: each agent with no opener in the turn, and under it all it opened. */
+function lanesOf(turn: Turn): Lane[] {
+  const { agents } = turn
+  const lanes: Lane[] = []
+  const known = new Set(agents.map(a => a.id))
+  for (const a of agents.filter(a => !a.parent_agent_id || !known.has(a.parent_agent_id))) addAgent(turn, lanes, a, null)
+  return lanes
+}
+
+function addLane(turn: Turn, lanes: Lane[], lane: Omit<Lane, 'calls' | 'waits' | 'marks'>) {
+  const { agents, calls, subs, runAtWork, until } = turn
+  const own = calls.filter(c => !isOwnSubAgent(c) && c.agent_id === lane.agentId && homeOf(c, subs) === (lane.cli ? lane.id : null))
+  lanes.push({
+    ...lane,
+    calls: own.flatMap(c => {
+      const [from, to] = [time(c.started_at), until(c.ended_at, runAtWork && c.status === 'running')]
+      return from !== null && to !== null ? [{ from, to, name: c.name, status: c.status }] : []
+    }),
+    waits: [],
+    marks: [],
+  })
+  // The CLI's own sub-agents opened here, then the agents this one opened, each under it.
+  for (const sub of calls.filter(c => subs.has(c.id) && c.agent_id === lane.agentId && homeOf(c, subs) === (lane.cli ? lane.id : null))) {
+    const at = runAtWork && (sub.status === 'running' || sub.status === 'pending')
+    addLane(turn, lanes, {
+      id: sub.id, agentId: sub.agent_id, name: ownSubAgentTask(sub) || 'sub-agent', depth: lane.depth + 1, cli: true,
+      parent: lane.id, opened: time(sub.started_at), from: time(sub.started_at), to: until(sub.ended_at, at), atWork: at,
+      status: TOOL_STATUS[sub.status],
+    })
+  }
+  if (lane.cli) return
+  for (const kid of agents.filter(a => a.parent_agent_id === lane.id)) addAgent(turn, lanes, kid, lane)
+}
+
+function addAgent(turn: Turn, lanes: Lane[], a: Agent, parent: Pick<Lane, 'id' | 'depth'> | null) {
+  const at = turn.runAtWork && AT_WORK.has(a.status)
+  addLane(turn, lanes, {
+    id: a.id, agentId: a.id, name: titleOf(a.name || a.role_name), depth: parent ? parent.depth + 1 : 0, cli: false,
+    parent: parent?.id ?? null, opened: parent ? time(a.created_at) : null,
+    from: time(a.started_at), to: a.started_at ? turn.until(a.ended_at, at) : null, atWork: at,
+    status: AGENT_STATUS[a.status],
+  })
+}
+
+const you = 'you'
+type AddWait = (laneId: string, begun: string | null | undefined, end: string | null, open: boolean, who: string | null, what: string, asked?: boolean, key?: string) => void
+
+/** One that ended within NO_WAIT_MS never was; nor one with no end that is not open and was never asked. */
+const neverWas = (from: number, to: number | null, open: boolean, asked: boolean) => (to !== null && to - from < NO_WAIT_MS) || (to === null && !open && !asked)
+
+/**
+ * A wait from `begun` to `end`; while `open`, to now. One that ended within NO_WAIT_MS never was.
+ * One `asked` (a record that always asks you) and left with no end is said with no length; any
+ * other with no end was never asked: your settings let it through.
+ */
+// `key`: the record's, as Ready for you keys its row - one that still waits for you leads there.
+function waitInto(lane: Map<string, Lane>, now: number): AddWait {
+  return (laneId, begun, end, open, who, what, asked = false, key) => {
+    const [from, to] = [time(begun), time(end)]
+    if (from === null || neverWas(from, to, open, asked)) return
+    const still = to === null && open
+    lane.get(laneId)?.waits.push({ from, to: to ?? (open ? now : null), who, what, open: still, ...(still && who === you && key ? { key } : {}) })
+  }
+}
+
+/** What an agent asked you, changed and ran: its questions, its changes, its commands. */
+function askedWaits({ state, here, laneOf, callOf }: Turn, wait: AddWait) {
+  for (const q of here(state.questions)) wait(laneOf(q.agent_id, q.tool_call_id), q.created_at, q.answered_at, q.status === 'pending', you, 'question', true, q.id)
+  // A change the CLI made was not asked about; one made in a working copy is asked about through its merge.
+  const copied = new Set(here(state.merges).map(m => m.agent_id))
+  for (const f of here(state.fileChanges).filter(f => f.origin !== 'cli' && !copied.has(f.agent_id)))
+    wait(laneOf(f.agent_id, f.tool_call_id), f.created_at, f.decided_at, f.status === 'proposed', you, f.path, false, f.id)
+  // B-316: at Full auto a command runs on no card, and what it waited for was its start - its working copy made, a place.
+  // shortcut: a command has no decision time; its start stands for it, and one is taken as asked where it waits now, or its
+  // card is one at every level (`danger`, its call's `why_asked`), or below Full auto - so one approved and then queued
+  // counts that queue as waiting for you too, and one a rule ran unasked as well - upgrade if commands get a decided_at.
+  // shortcut: a search's card (its `danger` said only while it waits) is read, once decided, as no card at Full auto; and the
+  // level is the chat's now, not the one it ran at (a command keeps no level) - record both on the command if that misleads.
+  const fullAuto = state.conversation.permission_mode === 'full_auto'
+  for (const c of here(state.commands).filter(c => c.origin !== 'cli')) {
+    const asked = c.status === 'proposed' || !fullAuto || !!c.danger || !!callOf.get(c.tool_call_id)?.why_asked
+    wait(laneOf(c.agent_id, c.tool_call_id), c.created_at, c.started_at, c.status === 'proposed', asked ? you : null, c.command, false, c.id)
+  }
+}
+
+/** What waited for your leave: changes to take in, the web, a call outside the folder or to a secret file. */
+function leaveWaits({ state, calls, here, laneOf }: Turn, wait: AddWait) {
+  for (const m of here(state.merges)) wait(m.agent_id, m.created_at, m.decided_at, m.status === 'pending', you, 'changes to take in', true, m.id)
+  for (const w of here(state.webRequests)) wait(laneOf(w.agent_id, w.tool_call_id), w.created_at, w.decided_at, w.status === 'proposed', you, 'web request', true, w.id)
+  // (A command's why_asked - run_command's, run_skill_script's - is its card's reason: its wait is its command's, above.)
+  const commanded = new Set(state.commands.map(c => c.tool_call_id))
+  for (const c of calls.filter(c => c.outside_folder || (c.why_asked && !commanded.has(c.id)))) {
+    // shortcut: an approval to reach outside the folder has no record of its own; it is taken to start with the call's message, which may be a little earlier - upgrade if the call gets an asked_at.
+    const asked = state.messages.find(m => m.id === c.message_id)
+    wait(laneOf(c.agent_id, c.id), asked?.created_at, c.started_at, c.status === 'pending', you, c.outside_folder ?? 'a secret file', true, c.id)
+  }
+}
+
+/** What each agent waited for before it started, and the file one waits for now. */
+function startWaits({ agents }: Turn, lane: Map<string, Lane>, wait: AddWait) {
+  for (const a of agents) {
+    // Asked about, it waits for you. shortcut: once started, whether it waited for your word or for a slot is not on record, so the wait is said for nobody - upgrade if an agent gets a decided_at.
+    if (a.status === 'proposed' || a.status === 'rejected') wait(a.id, a.created_at, a.started_at ?? a.ended_at, a.status === 'proposed', you, 'to start', false, a.id)
+    else if (a.started_at) wait(a.id, a.created_at, a.started_at, false, null, 'to start')
+    // shortcut: a file another agent holds is on record only while it is held, with no time it began; its length is not known - upgrade if claims get a time.
+    if (a.status === 'blocked' && a.waiting_for) lane.get(a.id)?.waits.push({ from: null, to: null, who: a.waiting_for.agent_name, what: a.waiting_for.path, open: true })
+  }
+}
+
+/** What happened in the turn, put on its agents' lanes; returns what happened to the turn itself (not yet in order). */
+function marksOf({ state, run, agents, here }: Turn, lane: Map<string, Lane>): Mark[] {
+  const turnMarks: Mark[] = []
+  const mark = (laneId: string | null, at: number | null, what: string) => {
+    if (at !== null) (laneId && lane.get(laneId) ? lane.get(laneId)!.marks : turnMarks).push({ at, what })
+  }
+  for (const d of here(state.discussions)) {
+    mark(d.agent_id, time(d.created_at), 'discussion started')
+    mark(d.agent_id, time(d.ended_at), 'discussion ended')
+  }
+  for (const r of here(state.rooms)) {
+    mark(r.agent_id, time(r.created_at), 'room opened')
+    mark(r.agent_id, time(r.ended_at), 'room ended')
+  }
+  for (const a of agents) {
+    const limited = a.failure === 'rate_limited' || a.failure === 'credits_exhausted'
+    if (a.status === 'failed') mark(a.id, time(a.ended_at), limited ? 'limit reached' : 'failed')
+    if (a.status === 'cancelled') mark(a.id, time(a.ended_at), 'stopped')
+  }
+  if ((run.error ?? '').startsWith('budget:')) mark(null, time(run.ended_at), 'limit reached')
+  return turnMarks
+}
+
+/** A lane with all its waits and marks on it: how it stands now, both in order, and where its opener's line meets it. */
+function settle(l: Lane, agents: Agent[], byId: Map<string, Agent>) {
+  // What it waits on now, told apart (B-316): your word - a card of its, which its wait leads to - or the agents it opened.
+  const kids = l.cli || byId.get(l.id)?.status !== 'waiting' ? [] : agents.filter(a => a.parent_agent_id === l.id && AT_WORK.has(a.status))
+  if (l.waits.some(w => w.open && w.who === you)) l.status = AGENT_STATUS.waiting_approval
+  else if (kids.length > 0) l.status = [`waits for ${kids.map(a => a.name || a.role_name).join(', ')}`, l.status[1]]
+  l.waits.sort((a, b) => (a.from ?? Infinity) - (b.from ?? Infinity))
+  l.marks.sort((a, b) => a.at - b.at)
+  // The line from the agent that opened it meets the first of it that is drawn: what it waited for before it started, or its bar.
+  const first = Math.min(l.from ?? Infinity, ...l.waits.map(w => w.from ?? Infinity))
+  if (l.parent !== null && Number.isFinite(first)) l.opened = first
 }

@@ -40,8 +40,6 @@
   "src/canvas/nodes.tsx::TeamNode": 16,
   "src/canvas/nodes.tsx::TeamNode>map": 15,
   "src/canvas/SharedNode.tsx::SharedNode>row": 13,
-  "src/canvas/timeline.ts::timeline": 46,
-  "src/canvas/timeline.ts::timeline>wait": 13,
   "src/canvas/TimelineStrip.tsx::TimelineStrip>map": 13,
   "src/canvas/TurnList.tsx::TurnList": 13,
   "src/changes/CommitStep.tsx::CommitStep": 17,
