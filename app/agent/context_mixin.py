@@ -154,6 +154,15 @@ ASK_PROMPT = (
     "When the request is ambiguous, or a decision is the user's to make, ask with ask_user "
     "instead of guessing; do not ask what you can find out yourself."
 )
+# B-204 (live): a Codex Orchestrator wrote "is this OK?" in its answer, went on without waiting,
+# then told the Coder "the user approved". After ASK_PROMPT, to the Lead only (a sub-agent has
+# ASK_NOT_REPORT); ending its turn on a question stays fine: the user replies to it.
+ASKED_IN_WORDS = (
+    "Never write a question to the user and go on as if it were answered: ask it with ask_user "
+    "and wait, or decide yourself and say what you decided. Never tell another agent that the "
+    "user approved or chose something the user did not answer. Ending your turn with a question "
+    "is fine: the user replies to it."
+)
 SUB_AGENT_PROMPT = (
     "Your name here is {name}. Your task comes from the {parent} (your opener). When you are "
     "done, reply with a short report of what you found or did; it is returned to them."
@@ -1371,7 +1380,7 @@ class ContextMixin:
                 if turn.spoken.get("style"):
                     system += " " + SAY_STYLE.format(style=quoted(turn.spoken["style"]))
         if "ask_user" in ctx.tools and self._watched(ctx.run_id):
-            system += "\n\n" + ASK_PROMPT
+            system += "\n\n" + ASK_PROMPT + (" " + ASKED_IN_WORDS if ctx.depth == 0 else "")
         if "plan_away" in has:
             system += "\n\n" + AWAY_PROMPT
         if "message_agent" in ctx.tools:
