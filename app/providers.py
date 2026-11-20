@@ -161,7 +161,7 @@ def works_with_own_tools(provider: Provider) -> bool:
     return (provider.kind, mode_of(provider)) in OWN_TOOLS
 
 
-def check_options(kind: str, options: dict | None, has_server: bool) -> dict | None:  # noqa: C901
+def check_options(kind: str, options: dict | None, has_server: bool) -> dict | None:
     """A provider's own settings, complete and checked; ValueError says what is wrong.
 
     Copilot has some: how its own model server is spoken to. Anthropic has one: the
@@ -170,29 +170,7 @@ def check_options(kind: str, options: dict | None, has_server: bool) -> dict | N
     (`sign_in`: the user's own, or "koloni" - a folder of its own, `limits.cli_home`).
     """
     if kind in ("claude_cli", "codex_cli"):
-        told = dict(options or {})
-        unknown = set(told) - ({"own_setup", "sign_in"} if kind == "claude_cli" else {"sign_in"})
-        if unknown:
-            raise ValueError(f"unknown setting: {sorted(unknown)[0]}")
-        own = told.get("own_setup")
-        if own is not None and not isinstance(own, bool):
-            raise ValueError("own_setup is true or false")
-        if own and has_server:
-            # Its own settings can name another address or key (`env`, `apiKeyHelper`).
-            raise ValueError("Use my own Claude Code setup cannot go with a model server of "
-                             "your own: your settings could send its work elsewhere")
-        sign_in = told.get("sign_in") or "own"
-        if sign_in not in ("own", "koloni"):
-            raise ValueError("sign_in is own or koloni")
-        if sign_in == "koloni" and has_server:
-            raise ValueError("a sign-in of its own is for your plan: on a model server of your "
-                             "own nothing is signed in to")
-        if sign_in == "koloni" and own:
-            # Its folder holds none of your setup, and the setup's switch would let it start
-            # with hooks and commands on.
-            raise ValueError("Use my own Claude Code setup cannot go with a sign-in of its own")
-        kept = {"own_setup": True} if own else {}
-        return {**kept, "sign_in": "koloni"} if sign_in == "koloni" else kept or None
+        return _cli_options(kind, options, has_server)
     if kind == "anthropic":
         told = dict(options or {})
         unknown = set(told) - {"workspace_id"}
@@ -204,6 +182,38 @@ def check_options(kind: str, options: dict | None, has_server: bool) -> dict | N
         if options:
             raise ValueError("this kind of provider has no settings of its own")
         return None
+    return _copilot_options(options, has_server)
+
+
+def _cli_options(kind: str, options: dict | None, has_server: bool) -> dict | None:
+    """`check_options` of Claude Code and Codex."""
+    told = dict(options or {})
+    unknown = set(told) - ({"own_setup", "sign_in"} if kind == "claude_cli" else {"sign_in"})
+    if unknown:
+        raise ValueError(f"unknown setting: {sorted(unknown)[0]}")
+    own = told.get("own_setup")
+    if own is not None and not isinstance(own, bool):
+        raise ValueError("own_setup is true or false")
+    if own and has_server:
+        # Its own settings can name another address or key (`env`, `apiKeyHelper`).
+        raise ValueError("Use my own Claude Code setup cannot go with a model server of "
+                         "your own: your settings could send its work elsewhere")
+    sign_in = told.get("sign_in") or "own"
+    if sign_in not in ("own", "koloni"):
+        raise ValueError("sign_in is own or koloni")
+    if sign_in == "koloni" and has_server:
+        raise ValueError("a sign-in of its own is for your plan: on a model server of your "
+                         "own nothing is signed in to")
+    if sign_in == "koloni" and own:
+        # Its folder holds none of your setup, and the setup's switch would let it start
+        # with hooks and commands on.
+        raise ValueError("Use my own Claude Code setup cannot go with a sign-in of its own")
+    kept = {"own_setup": True} if own else {}
+    return {**kept, "sign_in": "koloni"} if sign_in == "koloni" else kept or None
+
+
+def _copilot_options(options: dict | None, has_server: bool) -> dict:
+    """`check_options` of Copilot."""
     told = dict(options or {})
     unknown = set(told) - {"provider_type", "max_prompt_tokens", "max_output_tokens", "offline"}
     if unknown:

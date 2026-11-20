@@ -463,9 +463,43 @@ def create_provider(
     return provider
 
 
+def _rename(session: Session, provider: Provider, body: ProviderPatch) -> None:
+    if body.name is not None:
+        name = _name(session, body.name, provider.id)
+        if name != provider.name:
+            # The record goes by the name: its rows follow, or a renamed provider's would drop
+            # out of its usage, its day's limit (`over_limit`) and its room (`has_room`).
+            for table in (Agent, OwnRequest):
+                session.execute(update(table).where(table.provider_name == provider.name)
+                                .values(provider_name=name))
+        provider.name = name
+
+
+def _change_server(provider: Provider, body: ProviderPatch) -> None:
+    """Its address, then its key, then its own settings, which are checked against the address
+    as it is now."""
+    sent = body.model_fields_set
+    if "base_url" in sent:
+        provider.base_url = _address(provider.kind, body.base_url)
+        if provider.base_url and provider.models:
+            # A context tier is GitHub's (K-copilot-baglam): on a model server of the user's
+            # own it means nothing, and a stale one would refuse every later save of the list.
+            provider.models = [{k: v for k, v in m.items() if k != "context"}
+                               for m in provider.models]
+    if "api_key" in sent and provider.kind in SERVED:
+        provider.api_key = _key(body.api_key)  # an empty key removes it
+    if "options" in sent or "base_url" in sent:
+        told = body.options if "options" in sent else provider.options
+        if (provider.kind == "copilot_cli" and told is not None and "offline" not in told
+                and provider.options):
+            # Not said this time: it stays as it was set.
+            told = {**told, "offline": provider.options.get("offline")}
+        provider.options = _options(provider.kind, told, provider.base_url)
+
+
 # On the event loop, as everything that reaches the runner is.
 @router.patch("/{provider_id}", response_model=ProviderOut, dependencies=[Depends(require_origin)])
-async def patch_provider(  # noqa: C901
+async def patch_provider(
     provider_id: str, body: ProviderPatch, request: Request,
     session: Session = Depends(get_session),
 ):
@@ -484,31 +518,8 @@ async def patch_provider(  # noqa: C901
         provider.max_running = body.max_running
     for limit in sent & set(LIMITS) - ({"plan"} if body.plan is None else set()):
         setattr(provider, limit, getattr(body, limit))
-    if body.name is not None:
-        name = _name(session, body.name, provider.id)
-        if name != provider.name:
-            # The record goes by the name: its rows follow, or a renamed provider's would drop
-            # out of its usage, its day's limit (`over_limit`) and its room (`has_room`).
-            for table in (Agent, OwnRequest):
-                session.execute(update(table).where(table.provider_name == provider.name)
-                                .values(provider_name=name))
-        provider.name = name
-    if "base_url" in sent:
-        provider.base_url = _address(provider.kind, body.base_url)
-        if provider.base_url and provider.models:
-            # A context tier is GitHub's (K-copilot-baglam): on a model server of the user's
-            # own it means nothing, and a stale one would refuse every later save of the list.
-            provider.models = [{k: v for k, v in m.items() if k != "context"}
-                               for m in provider.models]
-    if "api_key" in sent and provider.kind in SERVED:
-        provider.api_key = _key(body.api_key)  # an empty key removes it
-    if "options" in sent or "base_url" in sent:
-        told = body.options if "options" in sent else provider.options
-        if (provider.kind == "copilot_cli" and told is not None and "offline" not in told
-                and provider.options):
-            # Not said this time: it stays as it was set.
-            told = {**told, "offline": provider.options.get("offline")}
-        provider.options = _options(provider.kind, told, provider.base_url)
+    _rename(session, provider, body)
+    _change_server(provider, body)
     if "default_model" in sent:
         provider.default_model = _model(body.default_model)
     if "executable" in sent and provider.kind not in HTTP_KINDS:
@@ -713,11 +724,38 @@ def save_fill_all(body: FillAllIn, session: Session = Depends(get_session)):
     return list_providers(session)
 
 
+async def _cli_ready(request: Request, provider: Provider, told: dict) -> str | None:
+    """Whether a CLI is installed and signed in, written into `told`; why none of its models
+    can be used, where one is not."""
+    kind = provider.kind
+    why = None
+    told["installed"] = catalog.installed(kind, provider.executable)
+    if not told["installed"]:
+        told["install"], why = catalog.install(kind), "not installed"
+    else:
+        # (On a model server of the user's its sign-in is not used: not asked.)
+        home = cli_home(request.app.state.settings.runtime_root, provider)
+        if provider.base_url:
+            told["signed_in"] = None
+        elif kind == "copilot_cli":
+            told["signed_in"] = await _copilot_signed_in(provider)
+        else:
+            told["signed_in"], told["plan"] = await catalog.status(
+                kind, provider.executable, home)
+        if home is not None:
+            # K-claude-hesap: its own folder's login, in the user's own terminal.
+            told["login"] = _login(kind, provider.executable, home)
+        if told["signed_in"] is False:
+            told["sign_in"] = told.get("login") or catalog.sign_in(kind)
+            why = "not signed in"
+    return why
+
+
 @router.get(
     "/{provider_id}/availability", response_model=AvailabilityOut,
     dependencies=[Depends(require_origin)],
 )
-async def availability(  # noqa: C901
+async def availability(
     provider_id: str, request: Request, free: bool = False,
     session: Session = Depends(get_session),
 ):
@@ -744,25 +782,7 @@ async def availability(  # noqa: C901
     told: dict = {"installed": None}
     why = None  # why none of them can be used
     if kind in CLI_NAMES:
-        told["installed"] = catalog.installed(kind, provider.executable)
-        if not told["installed"]:
-            told["install"], why = catalog.install(kind), "not installed"
-        else:
-            # (On a model server of the user's its sign-in is not used: not asked.)
-            home = cli_home(request.app.state.settings.runtime_root, provider)
-            if provider.base_url:
-                told["signed_in"] = None
-            elif kind == "copilot_cli":
-                told["signed_in"] = await _copilot_signed_in(provider)
-            else:
-                told["signed_in"], told["plan"] = await catalog.status(
-                    kind, provider.executable, home)
-            if home is not None:
-                # K-claude-hesap: its own folder's login, in the user's own terminal.
-                told["login"] = _login(kind, provider.executable, home)
-            if told["signed_in"] is False:
-                told["sign_in"] = told.get("login") or catalog.sign_in(kind)
-                why = "not signed in"
+        why = await _cli_ready(request, provider, told)
     elif kind == "anthropic" and not provider.api_key:
         why = "needs an API key"
     listed, failed = (None, None) if why else await _listed_by(
@@ -804,7 +824,33 @@ async def _listed_by(provider: Provider, providers) -> tuple[list[str] | None, s
     return listed or None, None if advice else note  # an empty list is no list read
 
 
-async def _own_list(provider: Provider, providers) -> tuple[list[str], str | None, bool]:  # noqa: C901
+async def _anthropic_list(provider: Provider, providers) -> tuple[list[str], str | None, bool]:
+    """`_own_list` of Anthropic's API."""
+    if not provider.api_key:
+        # Nobody is asked without a key: there is nothing it could list.
+        return [], (
+            "Set an API key to see the models it can use, or type the model's name "
+            "as Anthropic knows it."
+        ), True
+    try:
+        lister = getattr(providers.lister(provider), "models", None)
+        return (await lister() if lister else []), None, False
+    except ModelUnavailable as exc:
+        return [], str(exc).replace(provider.api_key, "[key]"), False
+
+
+async def _served_list(provider: Provider, address: str) -> tuple[list[str], str | None, bool]:
+    """`_own_list` of a model server at its address."""
+    try:
+        return await served_models(address, provider.api_key), None, False
+    except ModelUnavailable as exc:
+        reason = str(exc)
+        if provider.api_key:
+            reason = reason.replace(provider.api_key, "[key]")
+        return [], reason, False
+
+
+async def _own_list(provider: Provider, providers) -> tuple[list[str], str | None, bool]:
     """What the provider itself lists, a note, and whether that note is only advice on
     what to type (rather than why a list could not be had)."""
     if provider.kind == "claude_cli" and not provider.base_url:
@@ -822,25 +868,9 @@ async def _own_list(provider: Provider, providers) -> tuple[list[str], str | Non
         except ModelUnavailable as exc:
             return [], str(exc), False
     if provider.kind == "anthropic":
-        if not provider.api_key:
-            # Nobody is asked without a key: there is nothing it could list.
-            return [], (
-                "Set an API key to see the models it can use, or type the model's name "
-                "as Anthropic knows it."
-            ), True
-        try:
-            lister = getattr(providers.lister(provider), "models", None)
-            return (await lister() if lister else []), None, False
-        except ModelUnavailable as exc:
-            return [], str(exc).replace(provider.api_key, "[key]"), False
+        return await _anthropic_list(provider, providers)
     if provider.kind in ("openai_compat", "copilot_cli", *SERVER_CLIS) and provider.base_url:
-        try:
-            return await served_models(provider.base_url, provider.api_key), None, False
-        except ModelUnavailable as exc:
-            reason = str(exc)
-            if provider.api_key:
-                reason = reason.replace(provider.api_key, "[key]")
-            return [], reason, False
+        return await _served_list(provider, provider.base_url)
     if provider.kind == "qoder_cli":
         # Its own list (`qodercli --list-models`, no model used). Not installed, failed or
         # too slow: silently the catalogue's names, as before (R99), with the advice below.
@@ -933,11 +963,32 @@ def _copy(request: Request) -> dict:
 FACTS_SECONDS = 15.0
 
 
+async def _anthropic_says(look_up, name, told: dict, said: dict, failed: bool) -> bool:
+    """What Anthropic says of a model, put where nothing else said it; whether asking failed."""
+    # Anthropic's Models API costs nothing; what it said of a model is kept by the client.
+    try:
+        info = (await asyncio.wait_for(
+            look_up(name, FACTS_SECONDS), FACTS_SECONDS))[0]
+    except ModelUnavailable as exc:
+        cause = exc.__cause__
+        # A model it does not know is unknown, not a failed lookup.
+        failed = not (isinstance(cause, httpx2.HTTPStatusError)
+                      and cause.response.status_code == 404)
+    except TimeoutError:
+        failed = True
+    else:
+        for fact, value in (("efforts", list(info.efforts or ())),
+                            ("context_window", info.context_window)):
+            if value is not None and told[fact] is None:
+                told[fact], said[fact] = value, "anthropic"
+    return failed
+
+
 @router.get(
     "/{provider_id}/model-facts", response_model=ModelFactsOut,
     dependencies=[Depends(require_origin)],  # it may ask the provider: not for another site
 )
-async def model_facts(  # noqa: C901
+async def model_facts(
     provider_id: str, request: Request,
     model: str = Query("", max_length=MAX_MODEL_NAME), session: Session = Depends(get_session),
 ):
@@ -991,22 +1042,8 @@ async def model_facts(  # noqa: C901
         look_up = getattr(request.app.state.providers.lister(provider), "_look_up", None)
     if (provider.kind == "anthropic" and provider.api_key and look_up and "efforts" not in said
             and (name or provider.default_model)):
-        # Anthropic's Models API costs nothing; what it said of a model is kept by the client.
-        try:
-            info = (await asyncio.wait_for(
-                look_up(name or provider.default_model, FACTS_SECONDS), FACTS_SECONDS))[0]
-        except ModelUnavailable as exc:
-            cause = exc.__cause__
-            # A model it does not know is unknown, not a failed lookup.
-            failed = not (isinstance(cause, httpx2.HTTPStatusError)
-                          and cause.response.status_code == 404)
-        except TimeoutError:
-            failed = True
-        else:
-            for fact, value in (("efforts", list(info.efforts or ())),
-                                ("context_window", info.context_window)):
-                if value is not None and told[fact] is None:
-                    told[fact], said[fact] = value, "anthropic"
+        failed = await _anthropic_says(look_up, name or provider.default_model, told, said,
+                                       failed)
     takes = catalog.inputs(provider, catalog.model_key(provider, name), copy)
     return ModelFactsOut(**told, sources=said, catalogue_date=models_dev.read_on(copy),
                          failed=failed, inputs=[

@@ -513,12 +513,134 @@ def _remove(session: Session, table, where) -> None:
     session.execute(delete(table).where(where))
 
 
+def _change_spawn(request: Request, conversation: Conversation, body: ConversationPatch) -> None:
+    if body.model_fields_set.intersection(SPAWN):
+        # Whether opening a sub-agent asks, and how far a turn may grow: a plain chat's own, the
+        # user's to say from the app's own page - not an agent's command against its address.
+        require_own_origin(request)
+    if body.spawn_approval is not None:
+        conversation.spawn_approval = body.spawn_approval
+    if body.spawn_max_depth is not None:
+        conversation.spawn_max_depth = body.spawn_max_depth
+    if body.spawn_max_agents is not None:
+        conversation.spawn_max_agents = body.spawn_max_agents
+    if body.spawn_max_parallel is not None:
+        conversation.spawn_max_parallel = body.spawn_max_parallel
+
+
+def _change_switches(request: Request, conversation: Conversation,
+                     body: ConversationPatch) -> None:
+    if body.lead_auto is not None:
+        conversation.lead_auto = body.lead_auto
+    if body.plan_first is not None:
+        if conversation.plan_first and not body.plan_first:
+            # Off, the next turns act unplanned: leave given, as a level raised is - the
+            # user's from the app's own page, not an agent's command against its address.
+            require_own_origin(request)
+        conversation.plan_first = body.plan_first
+    if body.page_scripts is not None:
+        if body.page_scripts:
+            # K-39-betik: pages that run their scripts unasked - the user's leave, from the app's
+            # own page, not a framed page's or an agent's command against its address.
+            require_own_origin(request)
+        conversation.page_scripts = body.page_scripts
+    work = body.lead_work or (None if body.lead_hands_code is None else
+                              "delegates" if body.lead_hands_code else "itself")
+    if work is not None:
+        if work != "delegates":
+            # Not delegating, the Lead writes files itself: the user's to allow from the app's
+            # own page, not a command's that an agent runs against the app's address.
+            require_own_origin(request)
+        conversation.lead_work = work
+
+
+def _change_away_and_teams(session: Session, request: Request, conversation: Conversation,
+                           body: ConversationPatch) -> None:
+    if body.when_away is not None or body.away_minutes is not None:
+        # Who answers for the user while they are away: theirs to say from the app's own page,
+        # not a command's that an agent runs against the app's address (K-vekil-karar).
+        require_own_origin(request)
+        conversation.when_away = body.when_away or conversation.when_away
+        if body.away_minutes is not None:
+            conversation.away_minutes = body.away_minutes
+    if body.teams_mode is not None or body.teams is not None:
+        # Which roles its agents may open: the user's to say, from the app's own page (62, 84b).
+        require_own_origin(request)
+        mode = body.teams_mode or conversation.teams_mode
+        rows = chat_rows(session, mode, body.teams)
+        if mode not in ("manual", conversation.teams_mode):
+            conversation.teams = []  # (going to Manual, the Lead's picks stay, to be changed)
+        conversation.teams_mode = mode
+        if rows is not None:
+            conversation.teams = [ConversationTeam(**row, picked_by="user", position=at)
+                                  for at, row in enumerate(rows)]
+
+
+def _change_effort_and_limits(request: Request, conversation: Conversation,
+                              body: ConversationPatch) -> None:
+    if "lead_effort" in body.model_fields_set:  # null: the Lead role's level
+        # A higher level costs more: the user's to set from the app's own page.
+        require_own_origin(request)
+        conversation.lead_effort = body.lead_effort
+    if "discussion_budget" in body.model_fields_set:  # null takes the limit away
+        # As a project's limit on a turn's tokens: how much a discussion may spend is the
+        # user's to say from the app's own page, not a command's that an agent runs
+        # against the app's address.
+        require_own_origin(request)
+        conversation.discussion_budget = body.discussion_budget
+    limits = {"room_posts", "room_tokens", "room_minutes",
+              "room_min_tokens"} & body.model_fields_set
+    if limits:
+        # What a room may spend is leave to spend, as opening one and giving it more are:
+        # the user's to give from the app's own page.
+        require_own_origin(request)
+    for limit in sorted(limits):
+        setattr(conversation, limit, getattr(body, limit))  # (null: no limit)
+
+
+def _change_folders(session: Session, request: Request, conversation: Conversation,
+                    body: ConversationPatch) -> None:
+    lists = [name for name in ("also_in", "read_in") if getattr(body, name) is not None]
+    project = project_of(session, conversation) if lists else None
+    for name in lists:
+        given, had = getattr(body, name), getattr(conversation, name)
+        added = [f for f in given if f not in had]
+        if added or name == "read_in" and any(f not in given for f in had):
+            # Where its agents go unasked: the user's to add in "This chat's folders" (slice
+            # 86b), from the app's own page - not a command's that an agent runs against the
+            # app's address. So is taking off one to read in: inside one to write in, it
+            # would be written in. Taking off one to write in only narrows: anybody's.
+            require_own_origin(request)
+        setattr(conversation, name, list(dict.fromkeys(
+            [*(f for f in given if f in had),
+             *checked_folders(added, project.root_path if project else None)])))
+    if lists:  # (one in both lists is one to write in)
+        conversation.read_in = [f for f in conversation.read_in if f not in conversation.also_in]
+
+
+async def _change_part(session: Session, request: Request, conversation: Conversation,
+                       body: ConversationPatch) -> None:
+    if "part" in body.model_fields_set:
+        # K-buyuk-proje: which AGENTS.md steers its agents: the user's to say from the app's
+        # own page. One of the map's parts as it is now (in a thread: a scan may take seconds).
+        require_own_origin(request)
+        project = project_of(session, conversation)
+        if (body.part or "").strip() not in ("", ".", "./") and project is None:
+            raise HTTPException(422, "a chat with no folder has no parts")
+        try:
+            conversation.part = await asyncio.to_thread(
+                project_map.part_of, project.root_path, body.part,
+            ) if project and body.part else None
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
+
+
 @router.patch(
     "/conversations/{conversation_id}",
     response_model=ConversationOut,
     dependencies=[Depends(require_origin)],
 )
-async def patch_conversation(  # noqa: C901
+async def patch_conversation(
     conversation_id: str,
     body: ConversationPatch,
     request: Request,
@@ -551,105 +673,12 @@ async def patch_conversation(  # noqa: C901
                 "about. Stop the turn before lowering the permission level.",
             )
         conversation.permission_mode = body.permission_mode
-    if body.model_fields_set.intersection(SPAWN):
-        # Whether opening a sub-agent asks, and how far a turn may grow: a plain chat's own, the
-        # user's to say from the app's own page - not an agent's command against its address.
-        require_own_origin(request)
-    if body.spawn_approval is not None:
-        conversation.spawn_approval = body.spawn_approval
-    if body.spawn_max_depth is not None:
-        conversation.spawn_max_depth = body.spawn_max_depth
-    if body.spawn_max_agents is not None:
-        conversation.spawn_max_agents = body.spawn_max_agents
-    if body.spawn_max_parallel is not None:
-        conversation.spawn_max_parallel = body.spawn_max_parallel
-    if body.lead_auto is not None:
-        conversation.lead_auto = body.lead_auto
-    if body.plan_first is not None:
-        if conversation.plan_first and not body.plan_first:
-            # Off, the next turns act unplanned: leave given, as a level raised is - the
-            # user's from the app's own page, not an agent's command against its address.
-            require_own_origin(request)
-        conversation.plan_first = body.plan_first
-    if body.page_scripts is not None:
-        if body.page_scripts:
-            # K-39-betik: pages that run their scripts unasked - the user's leave, from the app's
-            # own page, not a framed page's or an agent's command against its address.
-            require_own_origin(request)
-        conversation.page_scripts = body.page_scripts
-    work = body.lead_work or (None if body.lead_hands_code is None else
-                              "delegates" if body.lead_hands_code else "itself")
-    if work is not None:
-        if work != "delegates":
-            # Not delegating, the Lead writes files itself: the user's to allow from the app's
-            # own page, not a command's that an agent runs against the app's address.
-            require_own_origin(request)
-        conversation.lead_work = work
-    if body.when_away is not None or body.away_minutes is not None:
-        # Who answers for the user while they are away: theirs to say from the app's own page,
-        # not a command's that an agent runs against the app's address (K-vekil-karar).
-        require_own_origin(request)
-        conversation.when_away = body.when_away or conversation.when_away
-        if body.away_minutes is not None:
-            conversation.away_minutes = body.away_minutes
-    if body.teams_mode is not None or body.teams is not None:
-        # Which roles its agents may open: the user's to say, from the app's own page (62, 84b).
-        require_own_origin(request)
-        mode = body.teams_mode or conversation.teams_mode
-        rows = chat_rows(session, mode, body.teams)
-        if mode not in ("manual", conversation.teams_mode):
-            conversation.teams = []  # (going to Manual, the Lead's picks stay, to be changed)
-        conversation.teams_mode = mode
-        if rows is not None:
-            conversation.teams = [ConversationTeam(**row, picked_by="user", position=at)
-                                  for at, row in enumerate(rows)]
-    if "lead_effort" in body.model_fields_set:  # null: the Lead role's level
-        # A higher level costs more: the user's to set from the app's own page.
-        require_own_origin(request)
-        conversation.lead_effort = body.lead_effort
-    if "discussion_budget" in body.model_fields_set:  # null takes the limit away
-        # As a project's limit on a turn's tokens: how much a discussion may spend is the
-        # user's to say from the app's own page, not a command's that an agent runs
-        # against the app's address.
-        require_own_origin(request)
-        conversation.discussion_budget = body.discussion_budget
-    limits = {"room_posts", "room_tokens", "room_minutes",
-              "room_min_tokens"} & body.model_fields_set
-    if limits:
-        # What a room may spend is leave to spend, as opening one and giving it more are:
-        # the user's to give from the app's own page.
-        require_own_origin(request)
-    for limit in sorted(limits):
-        setattr(conversation, limit, getattr(body, limit))  # (null: no limit)
-    lists = [name for name in ("also_in", "read_in") if getattr(body, name) is not None]
-    project = project_of(session, conversation) if lists else None
-    for name in lists:
-        given, had = getattr(body, name), getattr(conversation, name)
-        added = [f for f in given if f not in had]
-        if added or name == "read_in" and any(f not in given for f in had):
-            # Where its agents go unasked: the user's to add in "This chat's folders" (slice
-            # 86b), from the app's own page - not a command's that an agent runs against the
-            # app's address. So is taking off one to read in: inside one to write in, it
-            # would be written in. Taking off one to write in only narrows: anybody's.
-            require_own_origin(request)
-        setattr(conversation, name, list(dict.fromkeys(
-            [*(f for f in given if f in had),
-             *checked_folders(added, project.root_path if project else None)])))
-    if lists:  # (one in both lists is one to write in)
-        conversation.read_in = [f for f in conversation.read_in if f not in conversation.also_in]
-    if "part" in body.model_fields_set:
-        # K-buyuk-proje: which AGENTS.md steers its agents: the user's to say from the app's
-        # own page. One of the map's parts as it is now (in a thread: a scan may take seconds).
-        require_own_origin(request)
-        project = project_of(session, conversation)
-        if (body.part or "").strip() not in ("", ".", "./") and project is None:
-            raise HTTPException(422, "a chat with no folder has no parts")
-        try:
-            conversation.part = await asyncio.to_thread(
-                project_map.part_of, project.root_path, body.part,
-            ) if project and body.part else None
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from None
+    _change_spawn(request, conversation, body)
+    _change_switches(request, conversation, body)
+    _change_away_and_teams(session, request, conversation, body)
+    _change_effort_and_limits(request, conversation, body)
+    _change_folders(session, request, conversation, body)
+    await _change_part(session, request, conversation, body)
     if body.archived is not None:
         # What the user keeps in view is theirs to say, from the app's own page.
         require_own_origin(request)
@@ -753,13 +782,40 @@ def new_turn(
     return run, message
 
 
+def _users_own_message(request: Request, project: Project | None, conversation: Conversation,
+                       run: Run, content: str) -> None:
+    # (A request that says nothing of where it is from is not taken for the user - see
+    # `require_own_origin`.)
+    if request.headers.get("origin") in request.app.state.settings.allowed_origins:
+        # A folder the user names in their own message is one this conversation reads in
+        # from here on, with no card. (What anybody else names opens nothing.) A name in a
+        # message is no leave to change files there (B-52): a write is asked as anywhere outside.
+        # shortcut: one KOLONİ never opens is left out without a word here (the agent's call
+        # says why); say so under the message if that leaves the user guessing.
+        # (Not in a plain chat: a folder named there opens nothing - a file named there is
+        # read on a card, once: slice 86b.)
+        if project is not None:
+            # The project itself is never one of its own (B-66): listed, a command from an
+            # agent's working copy that names it would be offered the project to write in.
+            opened = [Path(project.root_path).resolve(), *(
+                Path(f) for access in ("write", "read")
+                for f in folders_of(project, conversation, access))]
+            named = [str(folder) for folder in named_folders(content)
+                     if not any(folder == f or folder.is_relative_to(f) for f in opened)]
+            conversation.read_in = list(dict.fromkeys([*conversation.read_in, *named]))
+        # The user writes in it again, from the app's own page: it is back.
+        conversation.archived_at = None
+        # A role named here is the user's word for it, though off or out of the team.
+        run.by_user = True
+
+
 @router.post(
     "/conversations/{conversation_id}/messages",
     response_model=PostMessageOut,
     status_code=201,
     dependencies=[Depends(require_origin)],
 )
-async def post_message(  # noqa: C901
+async def post_message(
     conversation_id: str,
     body: MessageIn,
     request: Request,
@@ -814,29 +870,7 @@ async def post_message(  # noqa: C901
         # (A message of nothing but what does not print leaves it as it was named.)
         conversation.title = title_from(content or ", ".join(
             one.name for one in added)) or conversation.title
-    # (A request that says nothing of where it is from is not taken for the user - see
-    # `require_own_origin`.)
-    if request.headers.get("origin") in request.app.state.settings.allowed_origins:
-        # A folder the user names in their own message is one this conversation reads in
-        # from here on, with no card. (What anybody else names opens nothing.) A name in a
-        # message is no leave to change files there (B-52): a write is asked as anywhere outside.
-        # shortcut: one KOLONİ never opens is left out without a word here (the agent's call
-        # says why); say so under the message if that leaves the user guessing.
-        # (Not in a plain chat: a folder named there opens nothing - a file named there is
-        # read on a card, once: slice 86b.)
-        if project is not None:
-            # The project itself is never one of its own (B-66): listed, a command from an
-            # agent's working copy that names it would be offered the project to write in.
-            opened = [Path(project.root_path).resolve(), *(
-                Path(f) for access in ("write", "read")
-                for f in folders_of(project, conversation, access))]
-            named = [str(folder) for folder in named_folders(content)
-                     if not any(folder == f or folder.is_relative_to(f) for f in opened)]
-            conversation.read_in = list(dict.fromkeys([*conversation.read_in, *named]))
-        # The user writes in it again, from the app's own page: it is back.
-        conversation.archived_at = None
-        # A role named here is the user's word for it, though off or out of the team.
-        run.by_user = True
+    _users_own_message(request, project, conversation, run, content)
     conversation.updated_at = now()
     session.commit()
 

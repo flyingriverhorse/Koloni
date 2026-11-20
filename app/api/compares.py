@@ -115,24 +115,10 @@ def compare_out(session: Session, compare: Compare) -> dict:
     }
 
 
-@router.post(
-    "/conversations/{conversation_id}/compare", response_model=CompareStarted,
-    status_code=201, dependencies=[Depends(require_own_origin)],
-)
-async def start(  # noqa: C901
-    conversation_id: str, body: CompareIn, request: Request,
-    session: Session = Depends(get_session),
-):
-    """The user's own, from the app's page: two models are set to work on their message."""
-    conversation = session.get(Conversation, conversation_id)
-    if conversation is None:
-        raise HTTPException(404, "conversation not found")
-    if conversation.project_id is None:
-        raise HTTPException(409, "each side of a comparison works in a copy of the chat's "
-                                 "folder: this chat has no folder")
-    content = body.content.strip()
-    if not content:
-        raise HTTPException(422, "message is empty")
+def _sides(session: Session, request: Request, conversation: Conversation,
+           body: CompareIn) -> tuple[list[dict], list[Provider]]:
+    """The sides asked for, each with its model, and their providers; 422 for one that cannot
+    be a side."""
     sides, spends = [], []
     for side in body.sides:
         provider = session.get(Provider, side.provider_id)
@@ -150,6 +136,28 @@ async def start(  # noqa: C901
             raise HTTPException(422, why.format(provider=shown_name(provider.name)))
         sides.append({"provider_id": provider.id, "model_id": model_id})
         spends.append(provider)
+    return sides, spends
+
+
+@router.post(
+    "/conversations/{conversation_id}/compare", response_model=CompareStarted,
+    status_code=201, dependencies=[Depends(require_own_origin)],
+)
+async def start(
+    conversation_id: str, body: CompareIn, request: Request,
+    session: Session = Depends(get_session),
+):
+    """The user's own, from the app's page: two models are set to work on their message."""
+    conversation = session.get(Conversation, conversation_id)
+    if conversation is None:
+        raise HTTPException(404, "conversation not found")
+    if conversation.project_id is None:
+        raise HTTPException(409, "each side of a comparison works in a copy of the chat's "
+                                 "folder: this chat has no folder")
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(422, "message is empty")
+    sides, spends = _sides(session, request, conversation, body)
     # As a message is (slice 55), and each side's provider is held to its limit (81c); this
     # route is the user's own page already.
     over = over_budget(session, session.get_one(Project, conversation.project_id), spends=spends)
