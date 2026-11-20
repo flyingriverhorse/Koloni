@@ -5,6 +5,7 @@ import type { PermissionMode, Provider } from '../api/types'
 import type { LoadModels } from '../models/ModelNameInput'
 import { fold } from '../shell/fold'
 import { CloseMore, usePanel } from '../shell/usePanel'
+import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { AutoRead, Dictate, ReadFailed } from '../voice/VoiceControls'
 import { engine } from '../voice/engine'
@@ -12,6 +13,7 @@ import { keep, stored, useWidth } from '../views/TwoPane'
 import { stopReading } from '../voice/voice'
 import { AttachMenu, Chips, type Pending } from './Attach'
 import { fromProject, linksIn, MAX_BYTES, MAX_FILES, sizeText, upload, VIDEO_HEAD } from './attachments'
+import { leadQuestion } from './chatLine'
 import { Compare, type Second } from './Compare'
 import { takeFrames } from './frames'
 import { asCode } from './pastedCode'
@@ -93,6 +95,15 @@ interface Command {
 
 /** The commands' names: a role of one of these names is left out, not shown as a second one. */
 const COMMANDS = ['new', 'room', 'stop', 'model', 'mode', 'plan', 'compare']
+
+/**
+ * What the empty box says. While the Orchestrator's question is open in the open chat, that it is answered on its card
+ * and a message sent now is queued (0.1.4); closed, the chat's line says what it asks.
+ */
+function placeholderOf(conv: ConvState | null, projectId: string | null, compact: boolean): string {
+  if (!compact && conv && leadQuestion(conv)) return 'Answer the question above, or queue a message…'
+  return projectId ? 'Ask about this project or request a change…' : 'Ask anything - pick a folder with the folder button to work on files'
+}
 
 export function Composer({
   running,
@@ -634,7 +645,7 @@ export function Composer({
           onKeyDown={onKeyDown}
           // (Gone with the focus; written in again, it is back.)
           onBlur={() => setShut(draft)}
-          placeholder={projectId ? 'Ask about this project or request a change…' : 'Ask anything - pick a folder with the folder button to work on files'}
+          placeholder={placeholderOf(conv, projectId, compact)}
         />
       </div>
       {/* (On the page before it says anything: a region that comes already filled is often not read out.) */}

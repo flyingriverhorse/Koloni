@@ -1,7 +1,8 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, test, vi } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import type { Merge } from '../api/types'
+import { useApp } from '../state/store'
 import { agent, assistantMessage, command, convState, fileChange, question, run, toolCall, userMessage } from '../test-fixtures'
 import { QuestionRow } from '../agents/QuestionCard'
 import { MessageList, WaitingList } from './MessageList'
@@ -85,12 +86,16 @@ test('B-156: a copy that changed nothing is no copy to take in - its Ready for y
 })
 
 test('each is answered from the list, at its own card; a question no longer asked is not on it (the panel counts what can be answered)', async () => {
+  // (The chat open in the store, as on the page: a question's card finds there who asks.)
+  useApp.setState({ conv: state })
+  onTestFinished(() => useApp.setState({ conv: null }))
   render(<WaitingList state={state} on={on} onDecidePlan={vi.fn()} known={known} />)
   // (sample A: a question and a yes or no are both what needs your answer)
   const questions = screen.getByRole('region', { name: 'Needs your answer' })
   await userEvent.click(within(questions).getByRole('button', { name: 'hey' }))
   expect(on.onAnswer).toHaveBeenCalledWith('q', 'hey')
-  // (once for its question - the one no longer asked is not listed - and once for its command)
+  // (once on its question's card - the one no longer asked is not listed, and no line over the card says it again - and
+  // once over its command)
   expect(within(questions).getAllByText('Coder asks')).toHaveLength(2)
   expect(screen.queryByText('Which colour?')).toBeNull()
 

@@ -7,6 +7,7 @@ import { WorkTogether } from '../room/WorkTogether'
 import { resetStoreForTests, useApp } from '../state/store'
 import { useContext } from 'react'
 import { CloseMore } from '../shell/usePanel'
+import { agent, convState, question, run } from '../test-fixtures'
 import { Composer } from './Composer'
 
 // The drafts are kept in the store (slice 36): one test's is not the next one's.
@@ -46,6 +47,15 @@ test('while running, Stop appears and a new message can still be queued', async 
   await userEvent.type(screen.getByLabelText('Message'), 'also do this')
   await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
   expect(onSend).toHaveBeenCalledWith('also do this', false)
+})
+
+test('while the Orchestrator asks, the message box says to answer above - open, not as the closed chat’s small box', () => {
+  useApp.setState({ conv: convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'waiting')], questions: [question('q', 'r')] }) })
+  const { rerender } = render(<Composer {...props} running scope="c" />)
+  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+  // (Closed, nothing above the box asks: its line says what the Orchestrator asks.)
+  rerender(<Composer {...props} running scope="c" compact />)
+  expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
 })
 
 test('while running, Stop is a square with no words just before Queue, in Send’s place; More and Plan first keep their names (one line: the user’s report)', () => {

@@ -15,6 +15,21 @@ test('the closed chat’s line is the Lead’s answer, not KOLONİ’s line said
   expect(latestOf(convState({ runs: [run('r', 'completed')] }), [...said, landed])).toBe('All done.')
 })
 
+test('the closed chat’s line says what the Orchestrator asks while it asks, before who else is at work', () => {
+  const asked = 'Should mean() of an empty list raise ZeroDivisionError, or return 0?'
+  const conv = convState({
+    runs: [run('r', 'waiting_approval')],
+    agents: [agent('r', 'waiting'), agent('r', 'running', { id: 'k', parent_agent_id: 'r', role_name: 'Coder', depth: 1 })],
+    questions: [question('q', 'r', { question: `${asked}\nstats.py calls it.` })],
+  })
+  const said = [userMessage('r', 'fix mean'), assistantMessage('m', 'r', 'One thing first.')]
+  expect(latestOf(conv, said)).toBe(`Orchestrator asks: ${asked}`)
+  // KOLONİ's own card about one of its calls is not its question; answered, it asks nothing.
+  for (const over of [{ leave: true }, { status: 'answered' as const }]) {
+    expect(latestOf({ ...conv, questions: [{ ...conv.questions[0], ...over }] }, said)).toBe('Coder is working')
+  }
+})
+
 beforeEach(() => localStorage.clear())
 
 const at = run('r', 'waiting_approval')

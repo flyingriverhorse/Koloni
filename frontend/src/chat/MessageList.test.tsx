@@ -1,7 +1,9 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, test, vi } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import type { Attachment, Message, Provider, Role } from '../api/types'
+import type { ConvState } from '../state/applyEvent'
+import { useApp } from '../state/store'
 import {
   agent,
   assistantMessage,
@@ -645,9 +647,10 @@ test('a question the lead asks is answered under its call', async () => {
   expect(onAnswer).toHaveBeenCalledWith('q', 'hey')
 })
 
+const WAITS_FOR_ANSWER = 'Your message waits until this question is answered'
+
 test('a message queued behind a question says it waits for the answer, under the card', () => {
   // K-lead-bekliyor (R116)
-  const WAITS_FOR_ANSWER = 'Your message waits until this question is answered'
   const { rerender } = render(<MessageList {...handlers} state={askedBy()} />)
   expect(screen.queryByText(WAITS_FOR_ANSWER)).not.toBeInTheDocument()
   const asked = askedBy()
@@ -725,7 +728,13 @@ test('once leave was given the call’s row is still there, with what was asked 
   expect(screen.queryByLabelText('Your answer')).not.toBeInTheDocument()
 })
 
-test('a sub-agent’s question is answered in the chat and names who asks', async () => {
+/** The chat open in the store, as on the page: a question's card finds there who asks. */
+function opened(state: ConvState) {
+  useApp.setState({ conv: state })
+  onTestFinished(() => useApp.setState({ conv: null }))
+}
+
+test('a sub-agent’s question is answered in the chat, and its card names who asks - once', async () => {
   const onAnswer = vi.fn().mockResolvedValue(undefined)
   const state = convState({
     runs: [run('r', 'waiting_approval')],
@@ -737,8 +746,11 @@ test('a sub-agent’s question is answered in the chat and names who asks', asyn
     toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Reviewer"}', { message_id: 'm' })],
     questions: [question('q', 'r', { agent_id: 'kid', tool_call_id: '7', question: 'Strict or lenient?' })],
   })
+  opened(state)
   render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
-  expect(screen.getByText('Reviewer asks')).toBeInTheDocument()
+  // (Its card says it: no line of the chat's over it says it again.)
+  expect(screen.getAllByText('Reviewer asks')).toHaveLength(1)
+  expect(screen.getByText('Reviewer asks')).toHaveClass('card-who')
   await userEvent.type(screen.getByLabelText('Your answer'), 'strict')
   await userEvent.click(screen.getByRole('button', { name: 'Send answer' }))
   expect(onAnswer).toHaveBeenCalledWith('q', 'strict')
@@ -747,6 +759,7 @@ test('a sub-agent’s question is answered in the chat and names who asks', asyn
 test('a question from two levels down is still answered in the chat', async () => {
   const onAnswer = vi.fn().mockResolvedValue(undefined)
   const state = { ...asking, pendingRoles: [], commands: [], fileChanges: [], questions: [question('deep', 'r', { agent_id: 'coder', tool_call_id: '8', question: 'Tabs or spaces?', options: ['tabs', 'spaces'] })] }
+  opened(state)
   render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
   expect(screen.getByText('Coder asks')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'spaces' }))
@@ -1414,4 +1427,39 @@ test('a turn with no Lead gets no card, and what it did stands under its last me
   expect(screen.queryByRole('article')).toBeNull()
   expect(screen.getAllByRole('region', { name: 'What it did' })).toHaveLength(1)
   expect(screen.getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
+})
+
+test('the Lead’s open question sits in its turn’s card, and the card says it waits for you where its time would be', () => {
+  render(<MessageList {...handlers} state={askedBy()} />)
+  const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
+  expect(within(card).getByText('Which greeting?')).toBeInTheDocument()
+  expect(within(card).getByRole('button', { name: 'hey' })).toBeInTheDocument()
+  expect(within(card).getByText('waits for you')).toBeInTheDocument()
+  expect(card.querySelector('time')).toBeNull()
+})
+
+test('two open questions in one turn show one queued-message note, under both', () => {
+  // (Two at once only from a CLI.)
+  const asked = askedBy()
+  const state = convState({
+    ...asked,
+    runs: [...asked.runs, run('q2', 'queued', { started_at: null })],
+    messages: [...asked.messages, userMessage('q2', 'and then')],
+    toolCalls: [...asked.toolCalls, toolCall('2', 'r', 'ask_user', 'running', '{"question":"Which colour?"}', { message_id: 'm' })],
+    questions: [...asked.questions, question('q-2', 'r', { tool_call_id: '2', question: 'Which colour?' })],
+  })
+  render(<MessageList {...handlers} state={state} />)
+  expect(screen.getAllByText(WAITS_FOR_ANSWER)).toHaveLength(1)
+  const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
+  const text = card.textContent ?? ''
+  for (const one of ['Which greeting?', 'Which colour?']) expect(text.indexOf(one)).toBeLessThan(text.indexOf(WAITS_FOR_ANSWER))
+})
+
+test('an answered question closes to its row in the card, and the foot counts it', () => {
+  const asked = askedBy({ status: 'answered', answer: 'hey' })
+  const state = { ...asked, runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [...asked.messages, assistantMessage('m2', 'r', 'Going with hey.')] }
+  render(<MessageList {...handlers} state={state} />)
+  const card = screen.getByRole('article', { name: /^Orchestrator, / })
+  expect(within(card).getByText('Which greeting?').closest('.question-row')).toHaveTextContent('hey')
+  expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent('1 question')
 })

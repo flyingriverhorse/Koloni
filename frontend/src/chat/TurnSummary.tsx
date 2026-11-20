@@ -22,6 +22,12 @@ const n = (value: number | null) => (value === null ? '–' : value.toLocaleStri
 const leftOpen = (merges: number, proposed: boolean, serving: boolean) =>
   [merges > 0 && 'changes to take in or discard', proposed && 'changes to approve', serving && 'a server running'].filter(Boolean).join(', ')
 
+/** The questions the turn put to you ('': none). Not those the Orchestrator answered for you: Decided for you has those. */
+function askedOf(state: ConvState, runId: string): string {
+  const asked = state.questions.filter(q => q.run_id === runId && q.lead_why == null).length
+  return asked === 0 ? '' : `${asked} question${asked === 1 ? '' : 's'}`
+}
+
 /** The turn's tokens: as its parts say them, else in and out - a dash where neither is known. */
 const tokensSaid = (parts: ReturnType<typeof partTokens>, sent: number | null, wrote: number | null) =>
   parts ?? (sent === null && wrote === null ? '–' : `in ${n(sent)} · out ${n(wrote)}`)
@@ -60,7 +66,7 @@ export function TurnSummary({ state, run, onOpenChange, onUsage, prices = [] }: 
   const serving = state.commands.some(c => c.run_id === run.id && c.keep_running && c.status === 'running')
   const note = keptNote(turnTeams(state, run.id), state.fileChanges, run.id)
   const left = leftOpen(merges, proposed, serving)
-  const line = [workText(work, true), left].filter(Boolean).join(' · ')
+  const line = [workText(work, true), askedOf(state, run.id), left].filter(Boolean).join(' · ')
   if (!line && !note) return null
   const rows: [string, ReactNode][] = [
     [

@@ -3,7 +3,7 @@
  * that each can be checked on its own.
  */
 import { titleOf } from '../agents/agentStatus'
-import type { Message } from '../api/types'
+import type { Message, Question } from '../api/types'
 import { activeRun, type ConvState } from '../state/applyEvent'
 import { waitingOf } from './waiting'
 
@@ -32,13 +32,23 @@ export const waitingCards = (conv: ConvState): number => waitingOf(conv).filter(
 export const unreadOf = (inChat: Message[], seen: ReadonlySet<string>): number =>
   inChat.filter(m => (m.role === 'assistant' || m.role === 'agent') && !seen.has(m.id)).length
 
-/** What the closed chat says happened last: who is at work, else the first line of the newest message in it. */
+const firstLine = (text: string) => text.split('\n').map(part => part.trim()).find(Boolean) ?? ''
+
+/** The Orchestrator's question that waits for your answer (KOLONİ's own card about one of its calls is not its question). */
+export const leadQuestion = (conv: ConvState): Question | undefined =>
+  conv.questions.find(q => q.status === 'pending' && !q.leave && conv.agents.some(a => a.id === q.agent_id && a.depth === 0))
+
+/** What the closed chat says happened last: what the Orchestrator asks, else who is at work, else the first line of the newest message in it. */
 export function latestOf(conv: ConvState, inChat: Message[]): string {
+  // (Its turn waits on the question, whoever else is at work: 0.1.4.)
+  const asked = leadQuestion(conv)
+  const asker = asked && conv.agents.find(a => a.id === asked.agent_id)
+  if (asked && asker) return `${titleOf(asker.name || asker.role_name)} asks: ${firstLine(asked.question)}`
   const run = activeRun(conv)
   const worker = run && conv.agents.findLast(a => a.run_id === run.id && a.status === 'running')
   if (worker) return `${titleOf(worker.name || worker.role_name)} is working`
   // (B-205: KOLONİ's line on where the work is stands under the answer in the chat; here the answer is the line, R178.)
-  return answerLast(inChat.filter(m => m.role !== 'landed')).at(-1)?.content.split('\n').map(part => part.trim()).find(Boolean) ?? ''
+  return firstLine(answerLast(inChat.filter(m => m.role !== 'landed')).at(-1)?.content ?? '')
 }
 
 /** R178: KOLONİ's lines that came right after a Lead's answer ("Tester was not opened this turn.") stand just above it, so
