@@ -4288,9 +4288,9 @@ fieldset.choice > label .choice-note,
 /* Beside the chat where the stage has room for both (else over it, at least 420px wide), under the
    teams' button and clear of the canvas's buttons at the right; ringed in the talk colour so that
    it draws the eye: no shade over the canvas, which stays seen and usable around it.
-   shortcut: on a stage under about 900px, or with the chat moved, it lies over the chat (the one used last in
-   front); and the turn is kept clear of it as it opens (CanvasView OVER), not of Ready for you coming later under
-   it - as a recipe's ends, with its room's window open; upgrade: settle the canvas as such a node comes, if seen. */
+   shortcut: on a stage too narrow for the chat's column and 482px beside it (about 900px at its first 420px),
+   it lies over the chat (the one used last in front); and the turn is kept clear of it as it opens (CanvasView
+   OVER), not of Ready for you coming later under it - as a recipe's ends, with its room's window open; upgrade: settle the canvas as such a node comes, if seen. */
 .changes.room-window {
   top: 56px;
   bottom: calc(14px + var(--timeline-h, 0px));

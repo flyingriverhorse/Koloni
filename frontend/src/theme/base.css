@@ -681,21 +681,11 @@ p.hive-empty {
   display: flex;
   flex-direction: column;
   width: var(--w);
-  /* Open: --h, a share of the canvas (closed: none, as tall as it is). At most 16px left above
-     it, standing 14px off the foot (chatLine.ts TOP); half the canvas wins over the least it
-     needs, on a short one. Never so short that the messages have no room: as tall as its tabs,
-     the messages' least (.chat-pane), the line of what waits elsewhere and the message box need
-     where that is more - narrow, the box's controls take more lines. */
-  height: auto;
-  min-height: max(var(--h, 0px), min(260px, 50%, calc(100% - 30px - var(--timeline-h, 0px))));
+  /* Closed, as tall as its line and message box, never past the stage's top. */
   max-height: calc(100% - 30px - var(--timeline-h, 0px));
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-lg);
-}
-
-.chat-closed {
-  min-height: 0;
 }
 
 /* Open, a column from the stage's top down to the timeline (open or not), with no gap at its
@@ -704,7 +694,6 @@ p.hive-empty {
   top: 0;
   left: 0;
   bottom: var(--timeline-h, 0px);
-  min-height: 0;
   max-height: none;
   border-right: 1px solid var(--border);
   border-radius: 0;
@@ -2883,7 +2872,7 @@ a.view-run {
   font-size: var(--text-meta);
 }
 
-/* The first steps, in the middle of what the chat leaves of the canvas (--chat-w, 14px from the edge),
+/* The first steps, in the middle of what the chat leaves of the canvas (closed, --chat-w 14px from the edge; open, canvas.css),
    under the canvas's own line that says how a turn starts (.canvas-empty, at 34%). */
 .first-steps {
   position: absolute;

@@ -29,8 +29,9 @@
   pointer-events: none;
 }
 
-/* With the chat open, in the middle of what its column leaves (0.1.4). */
-.stage:has(> .chat:not(.chat-closed)) .canvas-empty {
+/* With the chat open, in the middle of what its column leaves (0.1.4); the first steps under it too. */
+.stage:has(> .chat:not(.chat-closed)) .canvas-empty,
+.stage:has(> .chat:not(.chat-closed)) > .first-steps {
   left: calc((100% + var(--chat-w)) / 2);
 }
 
