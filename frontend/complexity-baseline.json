@@ -33,7 +33,6 @@
   "src/canvas/deriveGraph.ts::requestNodes": 17,
   "src/canvas/deriveGraph.ts::sharedPlaces": 18,
   "src/canvas/deriveGraph.ts::workLines": 17,
-  "src/canvas/foldGraph.ts::foldGraph": 47,
   "src/canvas/layout.ts::layoutGraph": 46,
   "src/canvas/layout.ts::layoutGraph>place": 18,
   "src/canvas/layout.ts::requestLine": 13,
