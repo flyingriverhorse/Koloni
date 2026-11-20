@@ -25,6 +25,10 @@ How to write an entry (every release looks the same):
 
 - **Chat**: when the Orchestrator's model has said nothing for 5 minutes in a turn you started (or Qoder has kept its free model queued for 90 seconds), a card asks whether to keep waiting or stop and pick another model, instead of the turn sitting there until you press Stop ([docs](docs/agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer)).
 
+### Changed
+
+- **CLIs**: GitHub Copilot CLI run **Native**, on a version whose code was read or measured (1.0.67 and 1.0.105 so far, by the version Copilot reports; after an update of Copilot's, not until that version is measured), works in the agents' scratch folder: a command that starts in a new shell of its own (one that names no shell) is judged in the project folder, so `cd .koloni/tmp/...; python a.py` runs without a card at Full auto; a delete inside `.koloni/tmp/` is still asked there, and on any other version, in a shell it named, or after one that did, the `cd` is still asked too ([docs](docs/reference/known-limits.md)).
+
 ### Security
 
 - **Chat**: a PDF attached to a chat is read with pypdf 6.21.4, which fixes known flaws in reading crafted PDF files.

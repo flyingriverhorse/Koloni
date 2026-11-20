@@ -1054,12 +1054,13 @@ def with_cwd(command: str, cwd: object) -> str:
     <cwd>; <command>` - so that `cwd=.koloni/tmp` with `echo x > ../settings.json`, or
     `cwd=.claude`, names what it reaches (a `cwd` in the scratch alone is no climb: `_ENTERS`).
     What runs is the command alone. `cwd` None: where it runs is not known - a CLI that names
-    none and may keep its shell's folder (Qoder; Copilot, whose 1.0.91 sends none; Codex or agy
-    without one), so its `cd .koloni/tmp; ls` would leave the next line, `echo x >
+    none and may keep its shell's folder (Qoder; Copilot's other commands - it sends none; Codex
+    or agy without one), so its `cd .koloni/tmp; ls` would leave the next line, `echo x >
     ../rules.md`, in the scratch and judged at the root: such a line is judged as one more
     change of folder, a card as it was. "." is the root, known: KOLONİ's own run_command, a
-    CLI's report, and Claude Code's Bash tool, whose every call starts there
-    (`ClaudeNativeClient.cwd_from`, measured). Whose word a CLI's cwd is: `cwd_from`.
+    CLI's report, Claude Code's Bash tool, whose every call starts there
+    (`ClaudeNativeClient.cwd_from`, measured), and a Copilot command read to start in a new
+    shell (`model_native._ShellPatches`). Whose word a CLI's cwd is: `cwd_from`.
     shortcut: Codex is trusted to name the folder its shell stands in for each command;
     measure it if it is seen to keep a `cd` unnamed."""
     if cwd is None and _ENTERS.match(command):
@@ -1453,8 +1454,10 @@ def scratch_delete_only(command: str, root: str | None) -> bool:
     that holds no link (`_holds_link`: Windows PowerShell's `Remove-Item -Recurse` deletes
     through a junction). Not `rmdir /s /q`: `/s` is a path to sh and pwsh. Nor a delete after a
     `cd` into the scratch (run_command's `cwd` there): a `cd` that fails leaves it in the project.
-    shortcut: judged when it is asked; a link made between that and the run is not seen (making
-    one is a card of its own)."""
+    shortcut: only the links there when it is asked are checked; one made after that by a script
+    (python's `_winapi.CreateJunction`: a `mklink` line is a card, a script that makes a link is
+    not) is not seen, and Windows PowerShell 5.1's `Remove-Item -Recurse` follows it. Not given
+    to Copilot's new shell for that (`_approve_command`); check again as it runs if it is."""
     command = _QUOTED_SCRATCH.sub(r"\2", command)
     if root is None or _NOT_PLAIN.search(command) or _CLIMBS.search(_as_read(command)):
         return False

@@ -7,7 +7,8 @@ the ping is refused, "version": it speaks protocol 2, "create": session.create i
 refused, "model": it is refused for its model, "gone": it ends before answering, "silent": it never answers) makes the start go
 wrong; "starts" names a file it adds each argv it is started with to. It writes down how
 it was started, what session.create and session.send were given, and every answer KOLONİ
-gave to a permission request ("answers"). Asked `account.getQuota`, at any point, it answers
+gave to a permission request ("answers"). Asked `status.get`, at any point, it says the plan's
+"version" ("status_hang": no answer; "status_error": refused). Asked `account.getQuota`, at any point, it answers
 the plan's "quota" ("quota_hang": never); asked `auth.getStatus`, signed in by gh unless "signed_in" is false; asked
 `sandbox.getHostSupport`, the plan's "sandbox" (a shell step's "sandboxed": it ran in it). Its session
 made on auto, "picked" is the model its auto picks, said with "picked_why" before its first step. Steps:
@@ -30,7 +31,10 @@ sent again under a new request id; "no_complete": a rejected tool is never said 
 KOLONİ's answer; "bypass": the request asks to go outside its sandbox, for that reason. A shell step's "paths", "urls" and "redirect" are its possiblePaths,
 possibleUrls and hasWriteFileRedirection; "readonly", the readOnly of its one `commands`
 entry (else none); "cwd" is where it says it runs (1.0.91 says nothing of that); "shell_type" its
-shellType ("powershell"; null: none said). A write ("delete": the file goes) has no fileEdits, as on 1.0.91, unless
+shellType ("powershell"; null: none said); "args", more arguments of its tool call (a "shellId"
+names a shell to run in); "parent", a parentToolCallId on its start. A step's "start": its
+tool.execution_start comes "after" KOLONİ answered its request, or "none" at all (else before
+it, as Copilot 1.0.67's agent loop sends it). A write ("delete": the file goes) has no fileEdits, as on 1.0.91, unless
 "edits" gives them (true: what it will hold); "contents" is its newFileContents,
 "resolved" its resolvedPath, "diff" its diff.
 The plan's "aborted": its turn ends aborted. The plan's "usage": the data of each
@@ -85,7 +89,14 @@ def send(message: dict) -> None:
 
 
 def heard() -> dict:
-    while (told := framed()).get("method") == "account.getQuota":
+    while (told := framed()).get("method") in ("account.getQuota", "status.get"):
+        if told["method"] == "status.get":  # (its package's version: 1.0.67's app.js, `Vbo`)
+            if plan.get("status_error"):
+                send({"id": told["id"], "error": {"code": -32601, "message": "Unhandled method"}})
+            elif not plan.get("status_hang"):
+                send({"id": told["id"], "result": {
+                    "version": plan.get("version", "1.0.91-fake"), "protocolVersion": 3}})
+            continue
         # What is left of its plan, no turn (1.0.91, 24 Oct 2026), whenever it is asked -
         # alone or after a session's turn (89l): the plan's "quota" (none: refused), its
         # "quota_error" refusing it, or with "quota_hang" no answer at all.
@@ -240,12 +251,16 @@ def permitted(call: str, request: dict, action: dict) -> bool:
 
 def tool(call: str, name: str, arguments: dict, request: dict | None, action: dict,
          work=None, result: str = "done", **start) -> None:
-    event("tool.execution_start", {"toolCallId": call, "toolName": name,
-                                   "arguments": arguments, **start})
+    began = {"toolCallId": call, "toolName": name, "arguments": arguments, **start}
+    if action.get("start") not in ("after", "none"):
+        event("tool.execution_start", began)
     if request is not None and "bypass" in action:  # (its reason, as the SDK types it)
         request = {**request, "requestSandboxBypass": True,
                    "requestSandboxBypassReason": action["bypass"]}
-    if request is not None and not permitted(call, request, action):
+    approved = request is None or permitted(call, request, action)
+    if action.get("start") == "after":
+        event("tool.execution_start", began)
+    if not approved:
         if not action.get("no_complete"):  # (with it: never a word that it is done)
             event("tool.execution_complete", {"toolCallId": call, "success": False, "error": {
                 "message": "The user rejected this tool call."}})
@@ -275,7 +290,8 @@ for number, action in enumerate(plan.get("script", [])):
                                              f"\n<shellId: 0 completed with exit code "
                                              f"{action.get('exit', 0)}>")
         # (The keys 1.0.91 sends, measured 24 Oct 2026; a later one may send where it runs.)
-        tool(call, action.get("tool", "powershell"), {"command": action["shell"]}, {
+        tool(call, action.get("tool", "powershell"),
+             {"command": action["shell"], **action.get("args", {})}, {
             "kind": "shell", "fullCommandText": action["shell"], "intention": "Run it",
             "commands": [{"identifier": action["shell"].split()[0],
                           "readOnly": action["readonly"]}] if "readonly" in action else [],
@@ -287,7 +303,8 @@ for number, action in enumerate(plan.get("script", [])):
             "hasWriteFileRedirection": bool(action.get("redirect")),
             "canOfferSessionApproval": True,
             **({"resolvedWorkingDirectory": action["cwd"]} if "cwd" in action else {})},
-            action, run, output)
+            action, run, output,
+            **({"parentToolCallId": action["parent"]} if "parent" in action else {}))
     elif "write" in action or "delete" in action:
         target = cwd / (action.get("write") or action["delete"])
         content = action.get("content", "")

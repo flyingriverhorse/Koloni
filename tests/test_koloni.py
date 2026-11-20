@@ -574,14 +574,15 @@ def test_only_claude_codes_bash_tool_is_known_to_start_in_the_project(
     tool, claude_app, project_dir  # noqa: F811
 ):
     # (review: the reset was measured for Bash alone; its PowerShell tool is said by the CLI to
-    # keep its folder - a `cd` into the scratch there is the card it was)
+    # keep its folder - a `cd` into the scratch there is the card it was. k-copilot-cd: nor is
+    # a "new_shell" in its input read - that word is KOLONİ's, for Copilot, and this the model's)
     from tests.test_claude_native import BASH
     from tests.test_claude_native import start as start_claude
 
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
     line = "cd .koloni/tmp; ls"
-    client, provider, _ = claude_app([{**BASH, "tool": tool, "input": {"command": line}},
-                                      {"say": "ok"}])
+    client, provider, _ = claude_app([
+        {**BASH, "tool": tool, "input": {"command": line, "new_shell": True}}, {"say": "ok"}])
     cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["status"], asked["cwd"]) == ("proposed", None)
