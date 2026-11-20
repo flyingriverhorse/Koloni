@@ -25,8 +25,13 @@ How to write an entry (every release looks the same):
 
 - **Chat**: when the Orchestrator's model has said nothing for 5 minutes in a turn you started (or Qoder has kept its free model queued for 90 seconds), a card asks whether to keep waiting or stop and pick another model, instead of the turn sitting there until you press Stop ([docs](docs/agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer)).
 
+### Changed
+
+- **Models**: while KOLONİ's browser tab is in the background, the page no longer asks every 15 seconds whether the model server answers; it asks once as you come back to the tab.
+
 ### Fixed
 
+- **Models**: a model server of your own that has stopped now shows as not answering also when you wrote its model name yourself; before, once its model had answered, KOLONİ kept saying it answered. On Windows the check of a stopped server on this machine takes about half a second instead of about 2.
 - **Chat**: on the card that asks which candidate's work goes on, a candidate that stopped before its end is said to have "stopped before its end", no longer that "nobody is watching this turn".
 
 ## [0.1.3] - 2026-11-20

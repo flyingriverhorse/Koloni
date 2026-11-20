@@ -233,11 +233,18 @@ export function App() {
     // A build of the page since this one was loaded (K-yenile-uyarisi): said once, until the page is reloaded.
     const lookForBuild = () => void builtAnew().then(anew => anew && setRebuilt(true))
     lookForBuild()
-    const timer = setInterval(() => {
+    // (Not while the tab is out of sight: asked once as it comes back.)
+    const poll = () => {
+      if (document.hidden) return
       void loadHealth()
       lookForBuild()
-    }, HEALTH_POLL_MS)
-    return () => clearInterval(timer)
+    }
+    const timer = setInterval(poll, HEALTH_POLL_MS)
+    document.addEventListener('visibilitychange', poll)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', poll)
+    }
   }, [])
 
   // The memory is read when it is looked at: every time its page opens (a file may have

@@ -3,7 +3,13 @@ import json
 import httpx2
 import pytest
 
-from app.model_client import ModelUnavailable, OpenAICompatClient, redact_urls, safe_url
+from app.model_client import (
+    REACH_CONNECT,
+    ModelUnavailable,
+    OpenAICompatClient,
+    redact_urls,
+    safe_url,
+)
 from tests.fakes import sse_body
 
 pytestmark = pytest.mark.anyio
@@ -155,6 +161,24 @@ async def test_info_that_has_nothing_more_to_ask_does_not_fail_on_a_closed_props
     client = OpenAICompatClient("http://model/v1", model_id="m", transport=httpx2.MockTransport(handler))
     client._tools_cache["m"] = False
     assert (await client.info()).model_id == "m"
+
+
+async def test_only_the_health_checks_connection_to_this_machine_is_short():
+    # Windows tries a refused connection again for about 2 s: a closed local server's /health
+    # took that long (measured 2.2 s). A model's own requests, and a far server's, keep 5 s.
+    connects = []
+
+    def handler(request):
+        connects.append((request.url.host, request.url.path, request.extensions["timeout"]["connect"]))
+        return httpx2.Response(404)
+
+    for base in ("http://localhost:8080/v1", "http://[::1]:8080/v1", "https://api.example.com/v1"):
+        client = OpenAICompatClient(base, model_id="m", transport=httpx2.MockTransport(handler))
+        await client.reach()
+    client._tools_cache["m"] = True
+    await client.info()
+    assert connects == [("localhost", "/props", REACH_CONNECT), ("::1", "/props", REACH_CONNECT),
+                        ("api.example.com", "/props", 5.0), ("api.example.com", "/props", 5.0)]
 
 async def test_an_error_names_no_password_or_key_of_the_address():
     # httpx names the URL it asked in its error, user name and password and all.

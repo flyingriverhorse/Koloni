@@ -221,6 +221,10 @@ SLOTS: dict[str, int] = {}
 THIS_HOST = ("localhost", "127.0.0.1", "::1")
 # No connection was made at all (refused, or none in time): the same address is not tried again.
 NO_CONNECTION = (httpx2.ConnectError, httpx2.ConnectTimeout)
+# The health check's wait for a connection to this machine (`reach`): Windows tries a refused one
+# again for about 2 s (2.2 s measured), and "localhost" reaches a server on 127.0.0.1 alone only
+# after its ::1 try (0.27 s measured).
+REACH_CONNECT = 0.5
 
 
 def server_of(address: str | None) -> str:
@@ -284,12 +288,25 @@ class OpenAICompatClient:
         # A local model may ingest a long prompt for minutes before its first token.
         self._first_token_seconds = first_token_seconds
 
-    def _client(self, timeout: float | None) -> httpx2.AsyncClient:
+    def _client(self, timeout: float | None, connect: float = 5.0) -> httpx2.AsyncClient:
         return httpx2.AsyncClient(
             headers=self._headers,
             transport=self._transport,
-            timeout=httpx2.Timeout(timeout, connect=5.0),
+            timeout=httpx2.Timeout(timeout, connect=connect),
         )
+
+    async def reach(self) -> None:
+        """The health check's: whether its server takes a connection at all, asked every time -
+        `info` asks a named model's server nothing once its tools are known. Any answer counts
+        (`/props`, which `info` asks first); ModelUnavailable where no connection was made."""
+        connect = REACH_CONNECT if "://127.0.0.1:" in server_of(self._base) else 5.0
+        try:
+            async with self._client(WINDOW_SECONDS, connect) as http:
+                await http.get(self._base.removesuffix("/v1") + "/props")
+        except NO_CONNECTION as exc:
+            raise ModelUnavailable(_describe(exc)) from exc
+        except httpx2.HTTPError:
+            pass  # (it took the connection: what it says is for `info` to read)
 
     async def models(self) -> list[str]:
         """The names of the models the server lists."""
@@ -362,8 +379,7 @@ class OpenAICompatClient:
                 if closed and model_id not in self._tools_cache:
                     # A closed server is asked once: a refused connection takes Windows about
                     # 2 s, and the second one made every /health of a closed local server 4 s.
-                    # shortcut: that one connection still takes Windows its 2 s; a shorter
-                    # connect limit for this machine's own address if the page waits for it.
+                    # (/health asks `reach` first, with a short wait on this machine.)
                     raise closed
                 if model_id is None:
                     r = await http.get(f"{self._base}/models")
@@ -609,7 +625,7 @@ def _describe(exc: httpx2.HTTPError) -> str:
             detail = None
         text = detail or exc.response.text[:300]
         return f"model server returned {exc.response.status_code}: {text}"
-    return redact_urls(f"{UNREACHABLE}: {exc or type(exc).__name__}")
+    return redact_urls(f"{UNREACHABLE}: {str(exc) or type(exc).__name__}")
 
 
 def safe_url(url: str) -> str:
