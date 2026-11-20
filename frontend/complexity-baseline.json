@@ -20,7 +20,6 @@
   "src/chat/Composer.tsx::Composer": 75,
   "src/chat/MessageList.tsx::MessageList>callView": 36,
   "src/chat/MessageList.tsx::MessageList>map": 51,
-  "src/chat/MessageList.tsx::UserMessage": 21,
   "src/commands/WebApproval.tsx::WebApproval": 28,
   "src/inspector/Inspector.tsx::Inspector": 77,
   "src/knowledge/KnowledgePage.tsx::Card": 74,

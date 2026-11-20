@@ -604,16 +604,31 @@ interface UserMessageProps {
   onShow?: (runId: string) => void
 }
 
-/** The user's message: with ↺ when its work changed files, and ⋯ - Copy, Restore to before it, Show its work (slice 107). */
-function UserMessage({ message, run, files = [], saved = [], changed, onRemove, onShow }: UserMessageProps) {
+/** How a message's turn stands: taken off the queue before it began; over (it ran and ended); its work undoable. */
+function turnOf(run: Run | undefined, changed: boolean) {
   const removed = run?.status === 'cancelled' && !run.started_at
-  const [undoing, setUndoing] = useState<'undo' | 'restore' | null>(null)
   // (A turn that runs is stopped first: undoing it would race what it writes.)
   // (Not a comparison's, which would undo one side: its pick is undone under the two, `CompareView`.)
   // Only a message whose work changed files has it (slice 107 §3); a kept copy is decided on its card, or by Restore.
   const over = run && run.started_at && TERMINAL.has(run.status)
-  const undoable = over && !run.compare_id && changed
+  return { removed, over, undoable: over && !run.compare_id && changed }
+}
+
+/** The user's message: with ↺ when its work changed files, and ⋯ - Copy, Restore to before it, Show its work (slice 107). */
+function UserMessage({ message, run, files = [], saved = [], changed, onRemove, onShow }: UserMessageProps) {
+  const [undoing, setUndoing] = useState<'undo' | 'restore' | null>(null)
+  const { removed, over, undoable } = turnOf(run, changed)
   const at = when(message.created_at)
+  const menu = () =>
+    run && !removed && (
+      <MessageMenu
+        at={at}
+        copy={message.content || files.map(file => file.name).join('\n')}
+        // (Not while it is queued or at work: it would race what it writes.)
+        onRestore={over ? () => setUndoing('restore') : undefined}
+        onShow={onShow && (() => onShow(run.id))}
+      />
+    )
   return (
     <div className={`msg msg-user${removed ? ' msg-removed' : ''}`}>
       <div className="msg-user-row">
@@ -622,15 +637,7 @@ function UserMessage({ message, run, files = [], saved = [], changed, onRemove, 
             <ArrowCounterClockwise size={13} />
           </button>
         )}
-        {run && !removed && (
-          <MessageMenu
-            at={at}
-            copy={message.content || files.map(file => file.name).join('\n')}
-            // (Not while it is queued or at work: it would race what it writes.)
-            onRestore={over ? () => setUndoing('restore') : undefined}
-            onShow={onShow && (() => onShow(run.id))}
-          />
-        )}
+        {menu()}
         <div className="msg-bubble" onClick={event => run && onShow && !removed && picked(event.nativeEvent) && onShow(run.id)}>
           {message.content && <UserText>{message.content}</UserText>}
           {/* The files sent with it (slice 85b), and its links: these are chips in the chat too. */}

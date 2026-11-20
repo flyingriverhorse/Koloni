@@ -1003,6 +1003,48 @@ test('slice 107: a message still queued or at work cannot be restored to before;
   expect(writeText).toHaveBeenCalledWith('notes.pdf')
 })
 
+test('slice 107: a message taken off the queue has no ⋯ and a click draws nothing; a comparison’s has no ↺; with no canvas no Show its work', async () => {
+  const onShowTurn = vi.fn()
+  const { container, unmount } = render(<MessageList {...handlers} onShowTurn={onShowTurn} state={convState({ runs: [run('q', 'cancelled', { started_at: null })], messages: [userMessage('q', 'never mind')] })} />)
+  expect(container.querySelector('.msg-user')).toHaveAttribute('class', 'msg msg-user msg-removed')
+  expect(screen.queryByRole('button', { name: /^Copy, restore, show its work/ })).toBeNull()
+  await userEvent.click(screen.getByText('never mind'))
+  expect(onShowTurn).not.toHaveBeenCalled()
+  unmount()
+
+  const compared = convState({ runs: [run('k1', 'completed', { compare_id: 'k' })], messages: [userMessage('k1', 'compare it')], fileChanges: [fileChange('fk', 'k1', { path: 'k.txt' })] })
+  const { container: plain } = render(<MessageList {...handlers} state={compared} />)
+  expect(plain.querySelector('.msg-user')).toHaveAttribute('class', 'msg msg-user')
+  expect(screen.queryByRole('button', { name: /^Undo these changes/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: /^Copy, restore, show its work/ }))
+  expect(screen.getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual(['Copy', 'Restore to before this message'])
+})
+
+test('a lead opened for another team’s request is the request’s card; a command approved but not started says it waits for a place', () => {
+  const state = convState({
+    runs: [run('r')],
+    messages: [userMessage('r', 'go'), assistantMessage('m', 'r', '')],
+    agents: [
+      agent('r', 'waiting'),
+      agent('r', 'waiting', { id: 'cv-asker', name: 'Coder', role_name: 'Coder', depth: 1, parent_agent_id: 'r' }),
+      agent('r', 'running', { id: 'cv-lead', name: 'Backend lead', role_name: 'Backend lead', depth: 1, parent_agent_id: 'r', tool_call_id: 'cv-open' }),
+    ],
+    toolCalls: [
+      toolCall('cv-req', 'r', 'request_work', 'running', JSON.stringify({ to: 'Backend', what: 'GET /items\nin pages' }), { agent_id: 'cv-asker', message_id: 'elsewhere' }),
+      toolCall('cv-open', 'r', 'spawn_agent', 'running', JSON.stringify({ role: 'Backend lead', task: 'the items' }), { parent_call_id: 'cv-req' }),
+      toolCall('cv-cmd', 'r', 'run_command', 'running', JSON.stringify({ command: 'pytest -q' })),
+    ],
+    commands: [command('cv-k', 'r', { tool_call_id: 'cv-cmd', status: 'approved', exit_code: null, started_at: null, ended_at: null })],
+  })
+  const { container } = render(<MessageList {...handlers} state={state} />)
+  const card = container.querySelector('.request-card')
+  expect(card).toHaveTextContent('→ Backend')
+  expect(card).toHaveTextContent('GET /items')
+  expect(card).not.toHaveTextContent('in pages')
+  expect(container.querySelector('.request-card-line')).toHaveAttribute('title', 'Show its lead on the canvas')
+  expect(screen.getByText(/^Approved — it starts once its agent has a place among the agents at work/)).toHaveAttribute('role', 'note')
+})
+
 test('slice 23: a file saved into the project says where under its message, once the change is in', () => {
   const messages = [{ ...userMessage('a', 'keep this'), id: 'm-a' }]
   const saved = [
