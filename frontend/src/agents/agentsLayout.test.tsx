@@ -582,3 +582,13 @@ test('a stage’s "New role…" makes a role in that team beside the teams, and 
   // in the stage it was asked from
   await vi.waitFor(() => expect(h.teamActions.placeRole).toHaveBeenCalledWith('web', 's', 'web-0'))
 })
+
+test('a category with two roles says to move both before it is deleted', async () => {
+  const scouts = [role({ id: 'x', name: 'Scout', kind: 'k1', builtin: false }), role({ id: 'y', name: 'Ranger', kind: 'k1', builtin: false })]
+  render(<AgentsPage roles={[lead, coder, tester, ...scouts]} teams={teams} {...handlers()} categories={[...categories, { key: 'k1', name: 'Research', colour: 'rose' as const }]} />)
+  const lib = library()
+  await userEvent.click(within(lib).getByRole('button', { name: 'Research: more' }))
+  expect(within(lib).getByRole('button', { name: 'Delete — move its 2 roles first' })).toBeDisabled()
+  expect(within(lib).getByRole('button', { name: 'Move down' })).toBeDisabled()
+  expect(within(lib).getByRole('button', { name: 'Move up' })).toBeEnabled()
+})
