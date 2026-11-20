@@ -102,6 +102,9 @@ SLOW_QUEUED = "{provider} has kept {model} queued for {minutes} min."
 SLOW_ASKED = "{said} Keep waiting, or stop this turn and pick another model?"
 SLOW_WAIT = "Keep waiting"
 SLOW_STOP = "Stop and pick another model"
+# shortcut: one wording for every lead - a plan turn's (the team's strongest model) and a
+# comparison side's (that side's model) are picked elsewhere; word it from `would_run`'s source
+# if a user is seen sent to the wrong place.
 SLOW_STOPPED = ("You stopped this turn: {said} What it did so far is kept. To go on, pick another "
                 "model for the Orchestrator - in the chat's model picker, or on the Agents page "
                 "where the Orchestrator role has a model of its own - and send your message again.")
