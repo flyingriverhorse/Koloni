@@ -14,7 +14,14 @@ from app.agent.cards import _needs_its_tools, needs_full_auto, outside_a_copy
 from app.config import load_settings
 from app.db.models import Provider
 from app.main import create_app
-from app.model_native import PATCH_REFUSED, CodexNativeClient, CodexSessionClient
+from app.model_native import (
+    ASK_WITH_KOLONI,
+    ASKS_USER,
+    DECLINED_WHY,
+    PATCH_REFUSED,
+    CodexNativeClient,
+    CodexSessionClient,
+)
 from app.providers import mode_of, works_with_own_tools
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -165,6 +172,33 @@ def test_a_model_that_keeps_asking_for_its_patch_tool_is_stopped(codex_session, 
     assert run["status"] == "failed" and "asked 3 times" in run["error"]
     # Two declined; the third ends it.
     assert answers(codex_session.record()) == [(PATCH, {"decision": "decline"})] * 2
+
+
+def test_its_own_question_is_no_decline_that_stops_it_and_it_is_told_where_to_ask(
+        codex_session, wait_run, project_dir):
+    """B-204: the model asking the user is no forbidden act - two refused patches and its own
+    question go on - and it is told, in its turn, to ask on KOLONİ's card."""
+    client, provider = codex_session([
+        {"write": "a0.py", "content": "x"}, {"write": "a1.py", "content": "x"},
+        {"request": ASKS_USER, "params": {"questions": []}}, {"say": "Asked on the card."}])
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    assert run["status"] == "completed", run["error"]
+    seen = codex_session.record()
+    assert [method for method, _ in answers(seen)] == [PATCH, PATCH, ASKS_USER]
+    assert DECLINED_WHY.format(why=ASK_WITH_KOLONI) in [
+        s["input"][0]["text"] for s in seen.get("steers", [])], seen
+
+
+def test_a_model_that_keeps_asking_with_its_own_tool_is_stopped(codex_session, wait_run,
+                                                                project_dir):
+    # (no step is counted, and each answer is no silence: nothing else would stop it)
+    client, provider = codex_session(
+        [{"request": ASKS_USER, "params": {"questions": []}}] * 5 + [{"say": "Gave up."}])
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    assert run["status"] == "failed" and "its own tool to ask the user 3 times" in run["error"], run
+    assert [method for method, _ in answers(codex_session.record())] == [ASKS_USER] * 2
 
 
 def test_it_is_held_as_a_session_cli_not_as_one_with_tools_of_its_own():
