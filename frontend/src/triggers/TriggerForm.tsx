@@ -87,6 +87,25 @@ const KINDS: [FormValues['kind'], string][] = [
   ['webhook', 'On a request from outside'],
 ]
 
+/** What the chat asked to allow, said above the form until it is saved: a command only once its conversation's list is read. */
+function noteOf(allow: Allow | null, fromChat: 'ticked' | 'to add' | null) {
+  return allow === null
+    ? null
+    : 'write' in allow
+      ? '“May change files” was switched on from the chat.'
+      : 'agents' in allow
+        ? '“May open sub-agents” was raised by one from the chat.'
+        : fromChat === 'ticked'
+          ? `“${allow.command}” was ticked from the chat.`
+          : fromChat === 'to add'
+            ? `“${allow.command}” is not on this conversation’s list yet: add it below, then tick it.`
+            : null
+}
+
+/** Under the conversation: that there is none yet, or where its messages go and what a busy conversation does to a run. */
+const conversationNote = (conversations: Conversation[], kind: FormValues['kind']) =>
+  conversations.length === 0 ? 'This project has no conversation yet: start one first.' : `Its messages are added to this conversation. While that conversation is at work, a run that falls due is skipped${kind === 'files' ? '; a change to its files waits until the conversation is free' : ''}.`
+
 /**
  * A trigger, to make or to change. What its turns may do without asking starts at nothing,
  * and each permission says what it means: nobody is there to be asked when it runs.
@@ -128,18 +147,135 @@ export function TriggerForm({ initial, editing, conversations, allow = null, onS
     }
   }
 
-  const note =
-    allow === null
-      ? null
-      : 'write' in allow
-        ? '“May change files” was switched on from the chat.'
-        : 'agents' in allow
-          ? '“May open sub-agents” was raised by one from the chat.'
-          : fromChat === 'ticked'
-            ? `“${allow.command}” was ticked from the chat.`
-            : fromChat === 'to add'
-              ? `“${allow.command}” is not on this conversation’s list yet: add it below, then tick it.`
-              : null
+  const note = noteOf(allow, fromChat)
+
+  /** When a clock trigger runs: at an interval, or at a time of day on its days. */
+  const whenFields = () =>
+    values.kind === 'schedule' && (
+      <fieldset className="trigger-leave">
+        <legend>When</legend>
+        <label className="choice">
+          <input type="radio" name="trigger-schedule" checked={values.schedule === 'every'} onChange={() => set({ schedule: 'every' })} />
+          <span>At an interval</span>
+        </label>
+        <label className="choice">
+          <input type="radio" name="trigger-schedule" checked={values.schedule === 'at'} onChange={() => set({ schedule: 'at' })} />
+          <span>At a time of day</span>
+        </label>
+        {values.schedule === 'every' ? (
+          <Row id="trigger-every" label="Every so many minutes" error={errors.when} note={`At least ${LIMITS.every[0]}. The first run starts at once.`}>
+            {described => (
+              <input id="trigger-every" className="input mono trigger-number" type="number" min={LIMITS.every[0]} max={LIMITS.every[1]} value={values.every} aria-describedby={described} aria-invalid={errors.when ? true : undefined} onChange={e => set({ every: e.target.value })} />
+            )}
+          </Row>
+        ) : (
+          <div className="trigger-pair">
+            <Row id="trigger-at" label="Time" error={errors.when} note="By this machine's clock.">
+              {described => (
+                <input id="trigger-at" className="input mono" type="time" value={values.at} aria-describedby={described} aria-invalid={errors.when ? true : undefined} onChange={e => set({ at: e.target.value })} />
+              )}
+            </Row>
+            <Row id="trigger-days" label="Days" error={errors.days}>
+              {described => (
+                <select id="trigger-days" className="input" value={values.days} aria-describedby={described} aria-invalid={errors.days ? true : undefined} onChange={e => set({ days: e.target.value as FormValues['days'] })}>
+                  <option value="daily">Every day</option>
+                  <option value="weekdays">Weekdays</option>
+                  <option value="chosen">Chosen days</option>
+                </select>
+              )}
+            </Row>
+          </div>
+        )}
+        {values.schedule === 'at' && values.days === 'chosen' && (
+          <fieldset className="trigger-week" aria-describedby={errors.days ? 'trigger-days-error' : undefined}>
+            <legend>On these days</legend>
+            {WEEK.map(([day, name]) => (
+              <label key={day} className="choice">
+                <input
+                  type="checkbox"
+                  aria-label={name}
+                  checked={values.week.includes(day)}
+                  onChange={e => set({ week: e.target.checked ? [...values.week, day] : values.week.filter(one => one !== day) })}
+                />
+                <span aria-hidden="true">{name.slice(0, 3)}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+      </fieldset>
+    )
+
+  /** What its work may do without asking: files, the ticked commands of its conversation, sub-agents, the web. */
+  const leaveFields = () => (
+    <fieldset className="trigger-leave">
+      <legend>What its work may do without asking</legend>
+      <p className="muted trigger-note">
+        There is nobody to ask when it runs. Anything not allowed here is refused, except the project’s own test command, which runs unticked; its work says afterwards what it would have asked for. The conversation’s own permission level does not apply.
+      </p>
+      <label className="choice" htmlFor="trigger-write">
+        <input id="trigger-write" type="checkbox" aria-label="May change files" checked={values.write} aria-describedby="trigger-write-note" onChange={e => set({ write: e.target.checked })} />
+        <span>
+          May change files
+          <span id="trigger-write-note" className="choice-note">
+            Its work writes and edits files in the project without asking you.
+          </span>
+          <span className="choice-note">Without it, nothing a sub-agent or its commands write in its own working copy reaches the project.</span>
+        </span>
+      </label>
+      {values.conversationId && (
+        <CommandLeave
+          // Another conversation: another list, and nothing typed for the one before.
+          key={values.conversationId}
+          conversationId={values.conversationId}
+          ticked={values.commands}
+          onTicked={commands => set({ commands })}
+          onRules={onRules}
+          onAddRule={onAddRule}
+          suggest={command && values.conversationId === initial.conversationId ? command : ''}
+          onRead={rulesRead}
+          error={errors.commands}
+        />
+      )}
+      <Row id="trigger-agents" label="May open sub-agents" error={errors.agents} note="How many sub-agents a run may open in all: 0 to 4." more="Each may do only what this trigger allows.">
+        {described => (
+          <input id="trigger-agents" className="input mono trigger-number" type="number" min={LIMITS.agents[0]} max={LIMITS.agents[1]} value={values.agents} aria-describedby={described} aria-invalid={errors.agents ? true : undefined} onChange={e => set({ agents: e.target.value })} />
+        )}
+      </Row>
+      <WebLeave conversationId={values.conversationId} web={values.web} hosts={values.hosts} notify={values.notify} onChange={set} onHosts={onHosts} />
+    </fieldset>
+  )
+
+  /** When it ends: never, after so many runs, or after a day. */
+  const endsFields = () => (
+    <fieldset className="trigger-leave" aria-describedby={errors.ends ? 'trigger-ends-error' : undefined}>
+      <legend>Ends</legend>
+      {ENDS.map(([end, label]) => (
+        <label key={end} className="choice">
+          <input type="radio" name="trigger-ends" checked={values.ends === end} onChange={() => set({ ends: end, endUntil: end === 'until' && !values.endUntil ? today() : values.endUntil })} />
+          <span>{label}</span>
+        </label>
+      ))}
+      {values.ends === 'runs' && (
+        <Row id="trigger-end-runs" label="Runs, then it switches itself off" error={errors.ends} note={`${LIMITS.runs[0]} to ${LIMITS.runs[1]}, counted from when you save.`}>
+          {described => (
+            <input id="trigger-end-runs" className="input mono trigger-number" type="number" min={LIMITS.runs[0]} max={LIMITS.runs[1]} value={values.endRuns} aria-describedby={described} aria-invalid={errors.ends ? true : undefined} onChange={e => set({ endRuns: e.target.value })} />
+          )}
+        </Row>
+      )}
+      {values.ends === 'until' && (
+        <Row id="trigger-end-until" label="Its last day" error={errors.ends} note="It runs on this day, by this machine's clock, and switches itself off after it. At most a year ahead.">
+          {described => (
+            <input id="trigger-end-until" className="input mono" type="date" min={today()} max={day(365)} value={values.endUntil} aria-describedby={described} aria-invalid={errors.ends ? true : undefined} onChange={e => set({ endUntil: e.target.value })} />
+          )}
+        </Row>
+      )}
+      {values.ends === 'none' && (
+        <div role="note" className="composer-warning" aria-label="No end">
+          <strong>No end:</strong> it runs until you switch it off. {costNote(values)}
+        </div>
+      )}
+    </fieldset>
+  )
 
   return (
     <form className="trigger-form" aria-label={editing ? 'Edit trigger' : 'New trigger'} noValidate onSubmit={event => void submit(event)}>
@@ -164,59 +300,7 @@ export function TriggerForm({ initial, editing, conversations, allow = null, onS
           </select>
         )}
       </Row>
-      {values.kind === 'schedule' && (
-        <fieldset className="trigger-leave">
-          <legend>When</legend>
-          <label className="choice">
-            <input type="radio" name="trigger-schedule" checked={values.schedule === 'every'} onChange={() => set({ schedule: 'every' })} />
-            <span>At an interval</span>
-          </label>
-          <label className="choice">
-            <input type="radio" name="trigger-schedule" checked={values.schedule === 'at'} onChange={() => set({ schedule: 'at' })} />
-            <span>At a time of day</span>
-          </label>
-          {values.schedule === 'every' ? (
-            <Row id="trigger-every" label="Every so many minutes" error={errors.when} note={`At least ${LIMITS.every[0]}. The first run starts at once.`}>
-              {described => (
-                <input id="trigger-every" className="input mono trigger-number" type="number" min={LIMITS.every[0]} max={LIMITS.every[1]} value={values.every} aria-describedby={described} aria-invalid={errors.when ? true : undefined} onChange={e => set({ every: e.target.value })} />
-              )}
-            </Row>
-          ) : (
-            <div className="trigger-pair">
-              <Row id="trigger-at" label="Time" error={errors.when} note="By this machine's clock.">
-                {described => (
-                  <input id="trigger-at" className="input mono" type="time" value={values.at} aria-describedby={described} aria-invalid={errors.when ? true : undefined} onChange={e => set({ at: e.target.value })} />
-                )}
-              </Row>
-              <Row id="trigger-days" label="Days" error={errors.days}>
-                {described => (
-                  <select id="trigger-days" className="input" value={values.days} aria-describedby={described} aria-invalid={errors.days ? true : undefined} onChange={e => set({ days: e.target.value as FormValues['days'] })}>
-                    <option value="daily">Every day</option>
-                    <option value="weekdays">Weekdays</option>
-                    <option value="chosen">Chosen days</option>
-                  </select>
-                )}
-              </Row>
-            </div>
-          )}
-          {values.schedule === 'at' && values.days === 'chosen' && (
-            <fieldset className="trigger-week" aria-describedby={errors.days ? 'trigger-days-error' : undefined}>
-              <legend>On these days</legend>
-              {WEEK.map(([day, name]) => (
-                <label key={day} className="choice">
-                  <input
-                    type="checkbox"
-                    aria-label={name}
-                    checked={values.week.includes(day)}
-                    onChange={e => set({ week: e.target.checked ? [...values.week, day] : values.week.filter(one => one !== day) })}
-                  />
-                  <span aria-hidden="true">{name.slice(0, 3)}</span>
-                </label>
-              ))}
-            </fieldset>
-          )}
-        </fieldset>
-      )}
+      {whenFields()}
       {values.kind === 'files' && (
         <Row
           id="trigger-glob"
@@ -239,7 +323,7 @@ export function TriggerForm({ initial, editing, conversations, allow = null, onS
         id="trigger-conversation"
         label="Conversation"
         error={errors.conversation}
-        note={conversations.length === 0 ? 'This project has no conversation yet: start one first.' : `Its messages are added to this conversation. While that conversation is at work, a run that falls due is skipped${values.kind === 'files' ? '; a change to its files waits until the conversation is free' : ''}.`}
+        note={conversationNote(conversations, values.kind)}
         more={OWN_TOPIC}
       >
         {described => (
@@ -259,42 +343,7 @@ export function TriggerForm({ initial, editing, conversations, allow = null, onS
         )}
       </Row>
 
-      <fieldset className="trigger-leave">
-        <legend>What its work may do without asking</legend>
-        <p className="muted trigger-note">
-          There is nobody to ask when it runs. Anything not allowed here is refused, except the project’s own test command, which runs unticked; its work says afterwards what it would have asked for. The conversation’s own permission level does not apply.
-        </p>
-        <label className="choice" htmlFor="trigger-write">
-          <input id="trigger-write" type="checkbox" aria-label="May change files" checked={values.write} aria-describedby="trigger-write-note" onChange={e => set({ write: e.target.checked })} />
-          <span>
-            May change files
-            <span id="trigger-write-note" className="choice-note">
-              Its work writes and edits files in the project without asking you.
-            </span>
-            <span className="choice-note">Without it, nothing a sub-agent or its commands write in its own working copy reaches the project.</span>
-          </span>
-        </label>
-        {values.conversationId && (
-          <CommandLeave
-            // Another conversation: another list, and nothing typed for the one before.
-            key={values.conversationId}
-            conversationId={values.conversationId}
-            ticked={values.commands}
-            onTicked={commands => set({ commands })}
-            onRules={onRules}
-            onAddRule={onAddRule}
-            suggest={command && values.conversationId === initial.conversationId ? command : ''}
-            onRead={rulesRead}
-            error={errors.commands}
-          />
-        )}
-        <Row id="trigger-agents" label="May open sub-agents" error={errors.agents} note="How many sub-agents a run may open in all: 0 to 4." more="Each may do only what this trigger allows.">
-          {described => (
-            <input id="trigger-agents" className="input mono trigger-number" type="number" min={LIMITS.agents[0]} max={LIMITS.agents[1]} value={values.agents} aria-describedby={described} aria-invalid={errors.agents ? true : undefined} onChange={e => set({ agents: e.target.value })} />
-          )}
-        </Row>
-        <WebLeave conversationId={values.conversationId} web={values.web} hosts={values.hosts} notify={values.notify} onChange={set} onHosts={onHosts} />
-      </fieldset>
+      {leaveFields()}
 
       <fieldset className="trigger-leave">
         <legend>Budget</legend>
@@ -318,34 +367,7 @@ export function TriggerForm({ initial, editing, conversations, allow = null, onS
         </div>
       </fieldset>
 
-      <fieldset className="trigger-leave" aria-describedby={errors.ends ? 'trigger-ends-error' : undefined}>
-        <legend>Ends</legend>
-        {ENDS.map(([end, label]) => (
-          <label key={end} className="choice">
-            <input type="radio" name="trigger-ends" checked={values.ends === end} onChange={() => set({ ends: end, endUntil: end === 'until' && !values.endUntil ? today() : values.endUntil })} />
-            <span>{label}</span>
-          </label>
-        ))}
-        {values.ends === 'runs' && (
-          <Row id="trigger-end-runs" label="Runs, then it switches itself off" error={errors.ends} note={`${LIMITS.runs[0]} to ${LIMITS.runs[1]}, counted from when you save.`}>
-            {described => (
-              <input id="trigger-end-runs" className="input mono trigger-number" type="number" min={LIMITS.runs[0]} max={LIMITS.runs[1]} value={values.endRuns} aria-describedby={described} aria-invalid={errors.ends ? true : undefined} onChange={e => set({ endRuns: e.target.value })} />
-            )}
-          </Row>
-        )}
-        {values.ends === 'until' && (
-          <Row id="trigger-end-until" label="Its last day" error={errors.ends} note="It runs on this day, by this machine's clock, and switches itself off after it. At most a year ahead.">
-            {described => (
-              <input id="trigger-end-until" className="input mono" type="date" min={today()} max={day(365)} value={values.endUntil} aria-describedby={described} aria-invalid={errors.ends ? true : undefined} onChange={e => set({ endUntil: e.target.value })} />
-            )}
-          </Row>
-        )}
-        {values.ends === 'none' && (
-          <div role="note" className="composer-warning" aria-label="No end">
-            <strong>No end:</strong> it runs until you switch it off. {costNote(values)}
-          </div>
-        )}
-      </fieldset>
+      {endsFields()}
 
       <label className="choice" htmlFor="trigger-catch-up">
         <input id="trigger-catch-up" type="checkbox" aria-label="Run once when KOLONİ starts if a run was missed" checked={values.catchUp} onChange={e => set({ catchUp: e.target.checked })} />

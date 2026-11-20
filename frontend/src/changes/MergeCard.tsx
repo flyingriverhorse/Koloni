@@ -158,6 +158,19 @@ const CHECK_STATE: Record<NonNullable<Merge['check']>['state'], [text: string, t
   failed: ['failed', 'tag tag-del'],
 }
 
+/** How a check went: its state, its exit code once it ran, and its note. */
+function howItWent(check: NonNullable<Merge['check']>, ran: boolean) {
+  const [text, tag] = CHECK_STATE[check.state]
+  return (
+    <div className="cmd-approval-where">
+      {/* (B-355: one not run, and why, is a warning - a red suite went in unrun) */}
+      <span className={check.state === 'not_run' && check.note ? 'tag tag-warn' : tag}>{text}</span>
+      {ran && check.exit_code != null && <span className="mono muted">exit code {check.exit_code}</span>}
+      {check.note && <span className={check.state === 'not_run' ? undefined : 'muted'}>{check.note}</span>}
+    </div>
+  )
+}
+
 /**
  * The project's check command, run in the agent's copy on what the card would take: how it went,
  * as far as that is known - and where commands are asked about, the button that starts it.
@@ -167,7 +180,6 @@ function Check({ merge, onRun, onBranch = false }: { merge: Merge; onRun?: { off
   const [error, setError] = useState<string | null>(null)
   const check = merge.check
   if (!check) return <div className="muted cmd-approval-note">No test command is set: not tested.</div>
-  const [text, tag] = CHECK_STATE[check.state]
   const ran = check.state === 'passed' || check.state === 'failed'
 
   async function run() {
@@ -183,16 +195,34 @@ function Check({ merge, onRun, onBranch = false }: { merge: Merge; onRun?: { off
     }
   }
 
+  /** The button that runs it and where it runs, or why a kept copy's is not run. */
+  const actions = () =>
+    onRun ? (
+      <div className="change-actions">
+        <button type="button" className="btn btn-small" disabled={busy || onRun.off || check.state === 'running'} onClick={run}>
+          {ran ? 'Run the test again' : 'Run the test'}
+        </button>
+        <span className="muted cmd-approval-note">
+          {onBranch
+            ? "It runs in the branch's worktree, on what is committed there; what it writes is not merged. "
+            : "It runs in the copy, on what Take in would take. What it writes to the copy's own files is put back afterwards; "}
+          the dependency folders linked into {onBranch ? 'the worktree' : 'the copy'} (node_modules, .venv, venv) are
+          the project's own, and what it writes there stays.
+        </span>
+      </div>
+    ) : (
+      isKept(merge) && (
+        <div className="muted cmd-approval-note">
+          The test is not run on a kept copy: its dependency folders are no longer linked.
+        </div>
+      )
+    )
+
   return (
     <div className="merge-files" role="group" aria-label="Test">
       <div className="kicker">Test</div>
       <pre className="cmd-approval-command mono">{check.command}</pre>
-      <div className="cmd-approval-where">
-        {/* (B-355: one not run, and why, is a warning - a red suite went in unrun) */}
-        <span className={check.state === 'not_run' && check.note ? 'tag tag-warn' : tag}>{text}</span>
-        {ran && check.exit_code != null && <span className="mono muted">exit code {check.exit_code}</span>}
-        {check.note && <span className={check.state === 'not_run' ? undefined : 'muted'}>{check.note}</span>}
-      </div>
+      {howItWent(check, ran)}
       {ran && check.stale && (
         <div className="muted cmd-approval-note">
           This result is of an earlier state: the files have changed since the test ran.
@@ -207,26 +237,7 @@ function Check({ merge, onRun, onBranch = false }: { merge: Merge; onRun?: { off
       {check.state === 'running' && (
         <div className="muted cmd-approval-note">Take in and Discard wait until the test is over.</div>
       )}
-      {onRun ? (
-        <div className="change-actions">
-          <button type="button" className="btn btn-small" disabled={busy || onRun.off || check.state === 'running'} onClick={run}>
-            {ran ? 'Run the test again' : 'Run the test'}
-          </button>
-          <span className="muted cmd-approval-note">
-            {onBranch
-              ? "It runs in the branch's worktree, on what is committed there; what it writes is not merged. "
-              : "It runs in the copy, on what Take in would take. What it writes to the copy's own files is put back afterwards; "}
-            the dependency folders linked into {onBranch ? 'the worktree' : 'the copy'} (node_modules, .venv, venv) are
-            the project's own, and what it writes there stays.
-          </span>
-        </div>
-      ) : (
-        isKept(merge) && (
-          <div className="muted cmd-approval-note">
-            The test is not run on a kept copy: its dependency folders are no longer linked.
-          </div>
-        )
-      )}
+      {actions()}
       {error && (
         <div role="alert" className="alert">
           {error}

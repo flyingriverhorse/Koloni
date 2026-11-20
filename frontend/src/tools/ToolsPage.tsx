@@ -64,13 +64,21 @@ function subOf(server: McpServer) {
   return `${off}${count(server.tools.length, 'tool')} · ${how} · read ${since(server.read_at)} ago`
 }
 
+/** The tab a page opened anew is on: Skills or Built-in where `picked` says so and that tab is there, else Servers. */
+const firstKind = (toSkills: string | undefined, skillActions: SkillActions | undefined, picked: string | undefined, onSwitchTool: Props['onSwitchTool']): Kind =>
+  toSkills && skillActions ? 'skills' : picked === 'builtin' && onSwitchTool ? 'builtin' : 'servers'
+
+/** The server open under its row: the one selected, or else the first; none while one is added ('new') or all are closed (''). */
+const openOf = (servers: McpServer[], selected: string | null) =>
+  selected === 'new' || selected === '' ? null : (servers.find(s => s.id === selected) ?? servers[0] ?? null)
+
 /** KOLONİ's tools in three tabs (0.1.0-ui, layout A): its own, the MCP servers the user added, and its skills. */
 export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills = [], skillActions, ...rest }: Props) {
   const toSkills = picked?.startsWith('skill') ? picked : undefined
   // shortcut: the tab chosen is kept while the page is open, not in the address; a page opened anew is on Servers
   // (or where `picked` says). Keep it in the address if the user is seen coming back to another tab.
   const kinds = KINDS.filter(([id]) => (id !== 'builtin' || onSwitchTool) && (id !== 'skills' || skillActions))
-  const [kind, setKind] = useState<Kind>(toSkills && skillActions ? 'skills' : picked === 'builtin' && onSwitchTool ? 'builtin' : 'servers')
+  const [kind, setKind] = useState<Kind>(firstKind(toSkills, skillActions, picked, onSwitchTool))
   const counts: Record<Kind, number> = { builtin: builtin.length, servers: servers.length, skills: skills.length }
   // The server open under its row (picked, or else the first); '' none; 'new' while one is being added.
   const [selected, setSelected] = useState<string | null>(toSkills ? null : (picked ?? null))
@@ -78,7 +86,7 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
   // The way a server is added; what "by hand" is filled from, and how many times it was filled anew.
   const [adding, setAdding] = useState<{ way: Way; start?: Pasted; n: number }>({ way: 'ready', n: 0 })
   const [error, setError] = useState<string | null>(null)
-  const open = selected === 'new' || selected === '' ? null : (servers.find(s => s.id === selected) ?? servers[0] ?? null)
+  const open = openOf(servers, selected)
   function start(way: Way, from?: Pasted) {
     // (Filled anew only from a card or a paste: another way and back keeps what was typed.)
     setAdding(was => ({ way, start: from, n: from ? was.n + 1 : was.n }))
@@ -104,6 +112,26 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
     setError(null)
     rest.onSave(server.id, { enabled: !server.enabled }).catch(err => setError(errorText(err)))
   }
+  /** The form that adds a server: while one is being added, and as the page while there is none. */
+  const addServer = () =>
+    (selected === 'new' || servers.length === 0) && (
+      <AddServer
+        servers={servers}
+        // Not being added (the last server deleted, say): the page with none, its common servers.
+        way={selected === 'new' ? adding.way : 'ready'}
+        n={adding.n}
+        start={adding.start}
+        focus={selected === 'new' && adding.start === undefined}
+        onClose={servers.length > 0 ? () => setSelected('') : undefined}
+        onFill={from => start('hand', from)}
+        {...rest}
+        onDone={id => {
+          // Added: what the form was filled from is spent.
+          setAdding(was => ({ ...was, start: undefined }))
+          setSelected(id)
+        }}
+      />
+    )
   return (
     <div className="memory-page tools-page">
       <div className="conv-head">
@@ -167,24 +195,7 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
             ))}
           </Hint>
         </p>
-        {(selected === 'new' || servers.length === 0) && (
-          <AddServer
-            servers={servers}
-            // Not being added (the last server deleted, say): the page with none, its common servers.
-            way={selected === 'new' ? adding.way : 'ready'}
-            n={adding.n}
-            start={adding.start}
-            focus={selected === 'new' && adding.start === undefined}
-            onClose={servers.length > 0 ? () => setSelected('') : undefined}
-            onFill={from => start('hand', from)}
-            {...rest}
-            onDone={id => {
-              // Added: what the form was filled from is spent.
-              setAdding(was => ({ ...was, start: undefined }))
-              setSelected(id)
-            }}
-          />
-        )}
+        {addServer()}
         {servers.length > 0 && (
           <ul className="tools-servers" aria-label="Servers">
             {servers.map((server, at) => {

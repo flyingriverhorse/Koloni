@@ -324,6 +324,7 @@ test('the Friday card is Fridays at 17:00, the first on the next Friday; the day
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
   // none ticked: said beside the days, and nothing made
   expect(f.getByLabelText('Days')).toHaveAccessibleDescription('Tick at least one day.')
+  expect(week).toHaveAccessibleDescription('Tick at least one day.')
   expect(h.onCreate).not.toHaveBeenCalled()
   await userEvent.click(within(week).getByRole('checkbox', { name: 'Thursday' }))
   await userEvent.click(within(week).getByRole('checkbox', { name: 'Monday' }))
@@ -467,6 +468,28 @@ test('a command allowed from the chat ticks its rule when the conversation’s l
 test('one more sub-agent allowed from the chat raises the number by one', () => {
   page([trigger({ permissions: { write: false, commands: [], agents: 1 } })], handlers(), { draft: { triggerId: 't1', allow: { agents: 1 } } })
   expect(within(form()).getByLabelText('May open sub-agents')).toHaveValue(2)
+  expect(within(form()).getByRole('status')).toHaveTextContent('Not saved yet: “May open sub-agents” was raised by one from the chat. Look it over and save.')
+})
+
+test('a command from the chat is said once the list is read, and is put in the add field only in its own conversation', async () => {
+  const h = handlers(rules)
+  render(<TriggersPage triggers={[trigger()]} conversations={[conversation, second]} draft={{ triggerId: 't1', allow: { command: 'python check.py' } }} origin="" {...h} />)
+  const f = within(form())
+  expect(f.queryByText(/Not saved yet/)).toBeNull()
+  await f.findByLabelText('make lint')
+  expect(f.getByRole('status')).toHaveTextContent('“python check.py” is not on this conversation’s list yet: add it below, then tick it.')
+  await userEvent.selectOptions(f.getByLabelText('Conversation'), 'c2')
+  await f.findByLabelText('npm test')
+  expect(f.getByLabelText("Add a command to this conversation's list")).toHaveValue('')
+})
+
+test('a project with no conversation says to start one; the field asks for one and no command list is read', async () => {
+  const h = page([], handlers(), { conversations: [] })
+  await newTrigger()
+  const f = within(form())
+  expect(f.getByLabelText('Conversation')).toHaveAccessibleDescription(/^This project has no conversation yet: start one first\./)
+  expect(within(f.getByLabelText('Conversation')).getByRole('option', { name: 'Choose a conversation' })).toBeInTheDocument()
+  expect(h.onRules).not.toHaveBeenCalled()
 })
 
 test('a request for a trigger that is gone says so, and opens nothing', () => {
@@ -537,6 +560,34 @@ test('a card lists what was done to its trigger, newest first: when, what, and h
   ])
   // within a card every row is this trigger's: its name is not said again
   expect(rows[0]).not.toHaveTextContent('Nightly look')
+  await moreOf('Nightly look', 'Hide changes')
+  expect(screen.queryByRole('list', { name: 'Changes to Nightly look' })).not.toBeInTheDocument()
+})
+
+test("a card's line: off, a conversation gone, what it may do marked, its end, when next; its runs fold; why it is off and what to do", async () => {
+  page([
+    trigger({ enabled: false, conversation_id: 'gone', ends: { runs: 10 }, ran: 3, off_because: 'ended: 10 runs done', runs: [triggerRun('1', 'completed')] }),
+    trigger({ id: 't2', name: 'Writer', permissions: { write: true, commands: [], agents: 0 }, next_at: '2026-10-05T13:00:00Z' }),
+    trigger({ id: 't3', name: 'Broken', enabled: false, failures: 3, off_because: 'budget: 15 model steps used' }),
+    trigger({ id: 't4', name: 'Slow', next_at: '2026-10-05T13:00:00Z', slowed: 4 }),
+  ])
+  const off = card('Nightly look')
+  expect(off.querySelector('.trigger-sub')).toHaveTextContent(
+    /^off · Nightly look · in a conversation that is gone · reads only · 15 model steps and 10 minutes a run · 24 runs a day · ends after 10 runs · 3 done · last run .+ · completed Recent runs \(1\)$/,
+  )
+  expect(within(off).getByText('reads only')).not.toHaveAttribute('class')
+  expect(within(off).getByRole('alert')).toHaveTextContent('ended: 10 runs done Switch it on again for more: its runs are counted anew.')
+  const runs = within(off).getByRole('button', { name: 'Recent runs (1)' })
+  expect(runs).toHaveAttribute('aria-expanded', 'false')
+  await userEvent.click(runs)
+  expect(runs).toHaveAttribute('aria-expanded', 'true')
+  const writer = card('Writer')
+  expect(within(writer).getByText('may change files')).toHaveClass('trigger-may')
+  expect(writer.querySelector('.trigger-sub')).toHaveTextContent(/^Writer · in Fix greeting · may change files · .+ · has not run yet · next .+$/)
+  expect(within(writer).queryByRole('button', { name: /Recent runs/ })).toBeNull()
+  expect(within(writer).queryByRole('alert')).toBeNull()
+  expect(within(card('Broken')).getByRole('alert')).toHaveTextContent('switched off after 3 failures: budget: 15 model steps used Switch it on again when that is seen to.')
+  expect(card('Slow').querySelector('.trigger-sub')).not.toHaveTextContent('· next')
 })
 
 test('a trigger with nothing on record offers no list of changes; its ⋯ holds Edit and Delete', async () => {

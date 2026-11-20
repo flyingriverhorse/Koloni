@@ -249,6 +249,97 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
 
   const nameOf = (projectId: string | null) => (projectId ? (projects.find(p => p.id === projectId)?.name ?? 'another project') : 'No folder')
   const costed = usage?.by_model.some(row => row.cost) ?? false
+
+  /** The boxes on top, or why there are none. */
+  const summary = () =>
+    !usage ? (
+      !error && <p className="muted">Reading the usage…</p>
+    ) : usage.by_model.length === 0 ? (
+      // (Today's day may count a message that failed before any agent reported: not "none ran".)
+      <p className="muted">{period === 'today' ? 'No agent reported usage today.' : 'No agent ran in this period.'}</p>
+    ) : (
+      <Totals usage={usage} prices={prices} onPrices={onPrice && onRemovePrice ? openPrices : undefined} />
+    )
+
+  /** Plans and budget, read here and set where they belong; each only where it has something to say, side by side where there is room. */
+  const plansAndBudget = () => (
+    <div className="usage-two">
+      {onLimits && <PlanLimits providers={providers} onLimits={onLimits} onModels={onModels} />}
+      {!everywhere && budget && <BudgetSection budget={budget} onSettings={onSettings} />}
+    </div>
+  )
+
+  /** The tables by provider and model, by conversation and by who started it: where some agent reported. */
+  const tables = () =>
+    usage &&
+    usage.by_model.length > 0 && (
+      <>
+        <section className="memory-section" aria-label="By provider and model">
+          <div className="memory-head">
+            <h3>By provider and model</h3>
+          </div>
+          <UsageTable
+            label="Usage by provider and model"
+            first="Provider and model"
+            cost
+            rows={usage.by_model.map(row => ({
+              key: `${row.provider_name}/${row.model_id}`,
+              text: `${row.provider_name ?? 'unknown provider'} · ${modelName(row.model_id)}`,
+              name: (
+                <>
+                  {row.provider_name ?? 'unknown provider'} · <span className="mono">{modelName(row.model_id)}</span>
+                </>
+              ),
+              numbers: row,
+              cost: row.cost,
+              unpriced: Boolean(row.cost?.cache_unpriced),
+            }))}
+          />
+          <div className="muted memory-hint">
+            {costed
+              ? 'Cost: from the prices you entered. Cache reads and writes are counted at the cache prices you gave, and not at all without them. Where you entered no price, models.dev’s is used, and the model’s row says so.'
+              : 'Cost shows for a model with a price: yours, or else models.dev’s, where it has one.'}{' '}
+            <Hint doc={GUIDE.prices}>
+              {costed
+                ? 'Where a provider said nothing about a cache, all that was sent is counted at the input price. “≥” means an agent in the row reported nothing or only part, or cache tokens have no price: the amount covers only what was reported and priced.'
+                : 'Prices come from what you write under Prices, or else from models.dev, in USD.'}{' '}
+              A CLI on a plan has no price for a token, so it never has a cost here.
+            </Hint>
+          </div>
+        </section>
+        <Fold title="By conversation" count={usage.by_conversation.length === 1 ? '1 conversation' : `${usage.by_conversation.length} conversations`}>
+          <UsageTable
+            label="Usage by conversation"
+            first="Conversation"
+            rows={usage.by_conversation.map(row => ({
+              key: row.conversation_id,
+              text: row.title,
+              name: (
+                <>
+                  <button type="button" className="usage-open" onClick={() => onOpen(row.conversation_id)}>
+                    {row.title}
+                  </button>
+                  {(!project || row.project_id !== project.id) && <span className="muted"> · {nameOf(row.project_id)}</span>}
+                </>
+              ),
+              numbers: row,
+            }))}
+          />
+        </Fold>
+        <Fold title="Who started it" count={usage.by_start.map(started).join(' · ')}>
+          <UsageTable
+            label="Usage by who sent the message"
+            first="Started by"
+            cost
+            rows={usage.by_start.map(row => {
+              const name = STARTERS[row.started_by]
+              return { key: row.started_by, name, text: name, numbers: row, cost: row.cost, requests: row.started_by === 'koloni' }
+            })}
+          />
+        </Fold>
+      </>
+    )
+
   return (
     <div className="memory-page">
       <div className="conv-head">
@@ -283,87 +374,10 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
           {error}
         </div>
       )}
-      {!usage ? (
-        !error && <p className="muted">Reading the usage…</p>
-      ) : usage.by_model.length === 0 ? (
-        // (Today's day may count a message that failed before any agent reported: not "none ran".)
-        <p className="muted">{period === 'today' ? 'No agent reported usage today.' : 'No agent ran in this period.'}</p>
-      ) : (
-        <Totals usage={usage} prices={prices} onPrices={onPrice && onRemovePrice ? openPrices : undefined} />
-      )}
+      {summary()}
       {period === 'today' && !everywhere && today}
-      {/* Plans and budget, read here and set where they belong; each only where it has something to say, side by side where there is room. */}
-      <div className="usage-two">
-        {onLimits && <PlanLimits providers={providers} onLimits={onLimits} onModels={onModels} />}
-        {!everywhere && budget && <BudgetSection budget={budget} onSettings={onSettings} />}
-      </div>
-      {usage && usage.by_model.length > 0 && (
-        <>
-          <section className="memory-section" aria-label="By provider and model">
-            <div className="memory-head">
-              <h3>By provider and model</h3>
-            </div>
-            <UsageTable
-              label="Usage by provider and model"
-              first="Provider and model"
-              cost
-              rows={usage.by_model.map(row => ({
-                key: `${row.provider_name}/${row.model_id}`,
-                text: `${row.provider_name ?? 'unknown provider'} · ${modelName(row.model_id)}`,
-                name: (
-                  <>
-                    {row.provider_name ?? 'unknown provider'} · <span className="mono">{modelName(row.model_id)}</span>
-                  </>
-                ),
-                numbers: row,
-                cost: row.cost,
-                unpriced: Boolean(row.cost?.cache_unpriced),
-              }))}
-            />
-            <div className="muted memory-hint">
-              {costed
-                ? 'Cost: from the prices you entered. Cache reads and writes are counted at the cache prices you gave, and not at all without them. Where you entered no price, models.dev’s is used, and the model’s row says so.'
-                : 'Cost shows for a model with a price: yours, or else models.dev’s, where it has one.'}{' '}
-              <Hint doc={GUIDE.prices}>
-                {costed
-                  ? 'Where a provider said nothing about a cache, all that was sent is counted at the input price. “≥” means an agent in the row reported nothing or only part, or cache tokens have no price: the amount covers only what was reported and priced.'
-                  : 'Prices come from what you write under Prices, or else from models.dev, in USD.'}{' '}
-                A CLI on a plan has no price for a token, so it never has a cost here.
-              </Hint>
-            </div>
-          </section>
-          <Fold title="By conversation" count={usage.by_conversation.length === 1 ? '1 conversation' : `${usage.by_conversation.length} conversations`}>
-            <UsageTable
-              label="Usage by conversation"
-              first="Conversation"
-              rows={usage.by_conversation.map(row => ({
-                key: row.conversation_id,
-                text: row.title,
-                name: (
-                  <>
-                    <button type="button" className="usage-open" onClick={() => onOpen(row.conversation_id)}>
-                      {row.title}
-                    </button>
-                    {(!project || row.project_id !== project.id) && <span className="muted"> · {nameOf(row.project_id)}</span>}
-                  </>
-                ),
-                numbers: row,
-              }))}
-            />
-          </Fold>
-          <Fold title="Who started it" count={usage.by_start.map(started).join(' · ')}>
-            <UsageTable
-              label="Usage by who sent the message"
-              first="Started by"
-              cost
-              rows={usage.by_start.map(row => {
-                const name = STARTERS[row.started_by]
-                return { key: row.started_by, name, text: name, numbers: row, cost: row.cost, requests: row.started_by === 'koloni' }
-              })}
-            />
-          </Fold>
-        </>
-      )}
+      {plansAndBudget()}
+      {tables()}
       {onPrice && onRemovePrice && (
         <Prices
           providers={providers}

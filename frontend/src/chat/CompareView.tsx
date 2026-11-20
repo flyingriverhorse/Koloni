@@ -100,6 +100,44 @@ export function CompareView({ compareId, state, providers, onLoad, onDecide, onD
     }
   }
 
+  /** The pick taken: whose work, or answer, went on - the other's thrown away. */
+  const takenNote = () =>
+    chosen && !left && (
+      <div role="status" className="muted cmd-approval-note">
+        {chosen.changed_files.length > 0 ? `${short(chosen)}’s work was taken` : `${short(chosen)}’s answer goes on; it changed no files`}; the other’s was thrown away.
+      </div>
+    )
+
+  // The pick undone: what the chosen side's work changed in the project is taken back, as a message's is.
+  // shortcut: once undone and closed, the button comes back (its card then says "Nothing to take back"); hide it if that confuses.
+  const undoButton = () =>
+    chosen && !left && chosen.changed_files.length > 0 && !undoing && (
+      <div className="change-actions">
+        <button type="button" className="btn btn-small" onClick={() => setUndoing(true)}>
+          Undo these changes
+        </button>
+      </div>
+    )
+
+  /** Not all of the pick could be taken: its card, for the user to decide. */
+  const leftCard = () =>
+    chosen && left && (
+      <>
+        <div role="status" className="muted cmd-approval-note">
+          {left.files.some(f => f.state === 'conflict')
+            ? 'The project changed meanwhile: say whose side is taken where they clash.'
+            : 'Not all of it could be taken yet: decide on its card.'}
+        </div>
+        <MergeCard
+          merge={left}
+          name={short(chosen)}
+          onDecide={(decision, choices, shown) => onDecideMerge(left.id, decision, choices, shown)}
+          onCheck={choices => onCheckMerge(left.id, choices)}
+          onCommit={(message, hooks) => onCommitMerge(left.id, message, hooks)}
+        />
+      </>
+    )
+
   return (
     <div className="cmd-approval compare" role="group" aria-label="Two models compared">
       <div className="compare-sides">
@@ -167,40 +205,13 @@ export function CompareView({ compareId, state, providers, onLoad, onDecide, onD
         </div>
       )}
       {compare.status === 'running' && <div className="muted cmd-approval-note">Files they write stay in their own copies until you pick one.</div>}
-      {chosen && !left && (
-        <div role="status" className="muted cmd-approval-note">
-          {chosen.changed_files.length > 0 ? `${short(chosen)}’s work was taken` : `${short(chosen)}’s answer goes on; it changed no files`}; the other’s was thrown away.
-        </div>
-      )}
-      {/* The pick undone: what the chosen side's work changed in the project is taken back, as a message's is.
-          shortcut: once undone and closed, the button comes back (its card then says "Nothing to take back"); hide it if that confuses. */}
-      {chosen && !left && chosen.changed_files.length > 0 && !undoing && (
-        <div className="change-actions">
-          <button type="button" className="btn btn-small" onClick={() => setUndoing(true)}>
-            Undo these changes
-          </button>
-        </div>
-      )}
+      {takenNote()}
+      {undoButton()}
       {chosen && undoing && (
         <UndoCard path={`/runs/${chosen.run_id}/undo`} title="Undo these changes" confirm="Undo" onClose={() => setUndoing(false)} />
       )}
       {compare.status === 'discarded' && <div role="status" className="muted cmd-approval-note">Both were thrown away: nothing reached the project.</div>}
-      {chosen && left && (
-        <>
-          <div role="status" className="muted cmd-approval-note">
-            {left.files.some(f => f.state === 'conflict')
-              ? 'The project changed meanwhile: say whose side is taken where they clash.'
-              : 'Not all of it could be taken yet: decide on its card.'}
-          </div>
-          <MergeCard
-            merge={left}
-            name={short(chosen)}
-            onDecide={(decision, choices, shown) => onDecideMerge(left.id, decision, choices, shown)}
-            onCheck={choices => onCheckMerge(left.id, choices)}
-            onCommit={(message, hooks) => onCommitMerge(left.id, message, hooks)}
-          />
-        </>
-      )}
+      {leftCard()}
       {error && (
         <div role="alert" className="alert">
           {error}

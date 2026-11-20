@@ -36,6 +36,34 @@ function messages(turns: Undo['turns']): string[] {
   })
 }
 
+/** What it would take back, or took back: the chat stays, then each list, and the server's note once done. */
+function whatItTakes(shown: Undo, done: Undo | null, nothing: boolean) {
+  return (
+    <>
+      <p className="muted">
+        The chat stays as it is: no message is deleted. What is taken back is what these messages changed in the files; a
+        file changed since, or a change nobody knows who made, is skipped. What commands did, and notes put in memory, are
+        not taken back.
+      </p>
+      <List label={done ? 'Messages whose changes were taken back' : 'Messages whose changes are taken back'} items={messages(shown.turns)} />
+      {nothing && <p className="muted">{done ? 'Nothing was taken back.' : 'Nothing to take back.'}</p>}
+      <List label={done ? 'Reverted' : 'Will be reverted'} items={shown.revert} />
+      <List label={done ? 'Skipped' : 'Will be skipped'} items={shown.skip.map(s => `${s.path} — ${s.why}`)} />
+      <List
+        label={done ? 'Kept working copy discarded — the folder is deleted' : 'Kept working copy to discard — the folder is deleted'}
+        items={shown.copies.map(copy => `${copy.folder} — these files exist only there: ${copy.files.join(', ') || 'none on record'}`)}
+      />
+      <List label="Commands run — what they did cannot be taken back" items={shown.commands} />
+      <List label="Also not taken back" items={shown.stays} />
+      {done?.note && (
+        <p role="note" className="muted">
+          {done.note}
+        </p>
+      )}
+    </>
+  )
+}
+
 /**
  * Before a message's changes are undone (or the conversation put back to before one): whose, what
  * would be reverted, what is skipped and why, the kept working copies whose folders are deleted, and
@@ -87,51 +115,32 @@ export function UndoCard({ path, title, confirm, onClose }: Props) {
   const doable = ahead !== null && (ahead.revert.length > 0 || ahead.copies.length > 0)
   // Files were changed whatever was skipped or is not on record: then it is never "nothing".
   const nothing = shown !== null && [shown.revert, shown.skip, shown.copies, shown.stays].every(list => list.length === 0)
+  /** Do it (while it has not been done, and there is something to do), and Cancel - or Close once done. */
+  const actions = () => (
+    <div className="change-actions">
+      {ahead && !done && doable && (
+        <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void go(ahead)}>
+          <ArrowCounterClockwise size={13} />
+          {confirm}
+        </button>
+      )}
+      {/* (The focus is on the card from the start - the button that opened it is gone - and again once it is done: Esc closes it.) */}
+      <button key={done ? 'close' : 'cancel'} type="button" className="btn btn-small" autoFocus onClick={onClose}>
+        {done ? 'Close' : 'Cancel'}
+      </button>
+    </div>
+  )
   return (
     <section className="cmd-approval undo-card" aria-label={title} onKeyDown={onKeyDown}>
       <div className="kicker cmd-approval-kicker" aria-live="polite">{done ? `${title}: done` : `${title}?`}</div>
       {shown === null && error === null && <p className="muted">Looking at what it would take back…</p>}
-      {shown && (
-        <>
-          <p className="muted">
-            The chat stays as it is: no message is deleted. What is taken back is what these messages changed in the files; a
-            file changed since, or a change nobody knows who made, is skipped. What commands did, and notes put in memory, are
-            not taken back.
-          </p>
-          <List label={done ? 'Messages whose changes were taken back' : 'Messages whose changes are taken back'} items={messages(shown.turns)} />
-          {nothing && <p className="muted">{done ? 'Nothing was taken back.' : 'Nothing to take back.'}</p>}
-          <List label={done ? 'Reverted' : 'Will be reverted'} items={shown.revert} />
-          <List label={done ? 'Skipped' : 'Will be skipped'} items={shown.skip.map(s => `${s.path} — ${s.why}`)} />
-          <List
-            label={done ? 'Kept working copy discarded — the folder is deleted' : 'Kept working copy to discard — the folder is deleted'}
-            items={shown.copies.map(copy => `${copy.folder} — these files exist only there: ${copy.files.join(', ') || 'none on record'}`)}
-          />
-          <List label="Commands run — what they did cannot be taken back" items={shown.commands} />
-          <List label="Also not taken back" items={shown.stays} />
-          {done?.note && (
-            <p role="note" className="muted">
-              {done.note}
-            </p>
-          )}
-        </>
-      )}
+      {shown && whatItTakes(shown, done, nothing)}
       {error && (
         <div role="alert" className="alert">
           {error}
         </div>
       )}
-      <div className="change-actions">
-        {ahead && !done && doable && (
-          <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void go(ahead)}>
-            <ArrowCounterClockwise size={13} />
-            {confirm}
-          </button>
-        )}
-        {/* (The focus is on the card from the start - the button that opened it is gone - and again once it is done: Esc closes it.) */}
-        <button key={done ? 'close' : 'cancel'} type="button" className="btn btn-small" autoFocus onClick={onClose}>
-          {done ? 'Close' : 'Cancel'}
-        </button>
-      </div>
+      {actions()}
     </section>
   )
 }

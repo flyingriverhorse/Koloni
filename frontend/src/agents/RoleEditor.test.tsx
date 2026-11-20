@@ -310,6 +310,35 @@ test('a new role starts empty and is created', async () => {
   })
 })
 
+test('a saved token limit is shown; while a save is out the form’s buttons wait; a role of your own has no Reset', async () => {
+  const h = handlers()
+  let saved: () => void = () => {}
+  h.onSave.mockReturnValue(new Promise<void>(done => (saved = done)))
+  render(<AgentsPage roles={[{ ...documenter, max_tokens: 50000 }]} {...h} />)
+  await edit('Documenter', 'Edit model')
+  expect(screen.getByLabelText('At most this many tokens')).toHaveValue('50000')
+  expect(screen.queryByRole('button', { name: 'Reset to default' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Delete role' })).toBeDisabled()
+  saved()
+  expect(await screen.findByRole('button', { name: 'Edit model' })).toBeInTheDocument()
+})
+
+test('a new role whose limit is no whole number is not created; it has no Reset and no Delete', async () => {
+  render(<AgentsPage roles={[role({})]} {...handlers()} />)
+  await userEvent.click(screen.getByRole('button', { name: 'New role' }))
+  await userEvent.type(screen.getByLabelText('Name'), 'Translator')
+  await userEvent.click(screen.getByLabelText('read_file'))
+  expect(screen.getByRole('button', { name: 'Create role' })).toBeEnabled()
+  await userEvent.type(screen.getByLabelText('At most this many steps'), '0')
+  expect(screen.getByRole('button', { name: 'Create role' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+  expect(screen.queryByRole('button', { name: 'Reset to default' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Delete role' })).not.toBeInTheDocument()
+})
+
 test('a new role is put in one of the categories, Build to begin with', async () => {
   const categories = [
     { key: 'build', name: 'Build', colour: 'amber' as const },

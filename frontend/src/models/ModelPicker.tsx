@@ -90,6 +90,44 @@ function ButtonLabel({ provider, model, rest, leadAuto }: { provider?: string; m
   )
 }
 
+/** What a turn would use right now - the choice, or the first provider - and the button's words for it. */
+function nowOf(providers: Provider[], providerId: string | null, modelId: string | null, leadAuto: boolean) {
+  const used = providers.find(p => p.id === providerId) ?? providers[0]
+  const usedModel = (providerId && modelId) || runsOn(used)
+  // "Lead: automatic" first: it is what the Lead's model goes by, whatever the rest names. A CLI's own default is said (B-193).
+  const cliOwn = used && !usedModel && used.kind !== 'openai_compat' && used.kind !== 'anthropic'
+  const rest = used ? `${used.name}${usedModel ? ` · ${modelName(usedModel)}` : cliOwn ? '’s own default (unknown model)' : ''}` : 'no provider'
+  const label = (leadAuto ? 'Orchestrator: automatic · ' : '') + rest
+  return { used, usedModel, rest, label }
+}
+
+/**
+ * The model whose levels are shown: the one the Lead runs on - its role's own, else the one picked here.
+ * shortcut: with "Lead model: automatic" the turn's own pick is not known here; it shows the picked one.
+ */
+function levelsOf(providers: Provider[], lead: Props['lead'], picked: Provider | undefined, model: string) {
+  const own = lead?.provider_id ? providers.find(p => p.id === lead.provider_id) : undefined
+  return {
+    own,
+    providerId: (own ?? picked)?.id ?? null,
+    model: own ? (lead?.model_id ?? runsOn(own) ?? '') : model.trim() || (runsOn(picked) ?? ''),
+  }
+}
+
+/**
+ * Whether the pick moves a chat with turns to another Claude Code model. From Claude Code to Claude Code only: from
+ * elsewhere there is no cache of it to lose.
+ * shortcut: hasHistory counts turns on any provider, so a chat just moved onto Claude Code says it too; count its turns there if that confuses.
+ */
+function switches(hasHistory: boolean, used: Provider | undefined, picked: Provider | undefined, model: string, usedModel: string | null) {
+  return (
+    hasHistory &&
+    used?.kind === 'claude_cli' &&
+    picked?.kind === 'claude_cli' &&
+    (picked.id !== used?.id || (model.trim() || runsOn(picked) || '') !== (usedModel || ''))
+  )
+}
+
 /** Which model this conversation's agents use, unless their role has its own. */
 export function ModelPicker({ providers, providerId, modelId, leadAuto = false, leadEffort = null, onSave, onModels, onFacts, lead, hasHistory = false }: Props) {
   const [provider, setProvider] = useState(providerId ?? '')
@@ -109,30 +147,12 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // What a turn would use right now: the choice, or the first provider.
-  const used = providers.find(p => p.id === providerId) ?? providers[0]
-  const usedModel = (providerId && modelId) || runsOn(used)
-  // "Lead: automatic" first: it is what the Lead's model goes by, whatever the rest names. A CLI's own default is said (B-193).
-  const cliOwn = used && !usedModel && used.kind !== 'openai_compat' && used.kind !== 'anthropic'
-  const rest = used ? `${used.name}${usedModel ? ` · ${modelName(usedModel)}` : cliOwn ? '’s own default (unknown model)' : ''}` : 'no provider'
-  const label = (leadAuto ? 'Orchestrator: automatic · ' : '') + rest
+  const { used, usedModel, rest, label } = nowOf(providers, providerId, modelId, leadAuto)
   const picked = providers.find(p => p.id === provider) ?? providers[0]
-  // The levels are those of the model the Lead runs on: its role's own, else the one picked here.
-  // shortcut: with "Lead model: automatic" the turn's own pick is not known here; it shows the picked one.
-  const own = lead?.provider_id ? providers.find(p => p.id === lead.provider_id) : undefined
-  const facts = useModelFacts(
-    open ? onFacts : undefined,
-    (own ?? picked)?.id ?? null,
-    own ? (lead?.model_id ?? runsOn(own) ?? '') : model.trim() || (runsOn(picked) ?? ''),
-  )
+  const { own, providerId: lookedUpId, model: lookedUpModel } = levelsOf(providers, lead, picked, model)
+  const facts = useModelFacts(open ? onFacts : undefined, lookedUpId, lookedUpModel)
   const takes = takesOf(facts)
-  // From Claude Code to Claude Code only: from elsewhere there is no cache of it to lose.
-  // shortcut: hasHistory counts turns on any provider, so a chat just moved onto Claude Code says it too; count its turns there if that confuses.
-  const switching =
-    hasHistory &&
-    used?.kind === 'claude_cli' &&
-    picked?.kind === 'claude_cli' &&
-    (picked.id !== used?.id || (model.trim() || runsOn(picked) || '') !== (usedModel || ''))
+  const switching = switches(hasHistory, used, picked, model, usedModel)
 
   function toggle() {
     if (open) {
@@ -165,6 +185,90 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
     }
   }
 
+  /** The panel: the provider and model for this conversation, the Orchestrator's automatic model and its level. */
+  const pickForm = () => (
+    <form ref={panel} tabIndex={-1} className="allow-list-panel" aria-label="Model for this conversation" onSubmit={submit}>
+      <div className="kicker">Model for this conversation</div>
+      {/* (The button may cut it: here it is whole.) */}
+      <div className="muted cmd-approval-note">Now: {label}</div>
+      <div className="field">
+        <label htmlFor="pick-provider">Provider</label>
+        <select
+          id="pick-provider"
+          className="input"
+          value={provider}
+          onChange={e => {
+            setProvider(e.target.value)
+            setModel('')
+          }}
+        >
+          <option value="">Default ({providers[0]?.name ?? 'none'})</option>
+          <ProviderOptions providers={providers} />
+        </select>
+      </div>
+      {provider && (
+        <div className="field">
+          <label htmlFor="pick-model">Model name</label>
+          <ModelNameInput
+            id="pick-model"
+            value={model}
+            // (The Anthropic API has no default of its own: with none set, a run is refused.)
+            placeholder={runsOn(picked) ?? (picked?.kind === 'anthropic' ? 'Needed: this provider has no default model' : "The provider's default")}
+            providerId={provider}
+            loadModels={onModels}
+            onChange={setModel}
+          />
+        </div>
+      )}
+      <div className="muted cmd-approval-note">
+        Applies from the next turn. A role with its own model keeps it.
+      </div>
+      {switching && <div className="muted cmd-approval-note">{SWITCH_COSTS}</div>}
+      <label className="choice" htmlFor="pick-lead-auto">
+        {/* Named as it was, by all of its note: a browser leaves a closed hint out of a name, and would add its button’s name to it. */}
+        <input
+          id="pick-lead-auto"
+          type="checkbox"
+          aria-label={`Orchestrator model: automatic ${AUTO_COSTS} ${AUTO_OVERRIDES} ${AUTO_REST}`}
+          checked={auto}
+          onChange={e => setAuto(e.target.checked)}
+        />
+        <span>
+          Orchestrator model: automatic
+          <span className="choice-note">
+            {AUTO_COSTS} {AUTO_OVERRIDES} <Hint doc={GUIDE.autoModel}>{AUTO_REST}</Hint>
+          </span>
+        </span>
+      </label>
+      <div className="field">
+        <label htmlFor="pick-lead-effort">Thinking</label>
+        <select
+          id="pick-lead-effort"
+          className="input"
+          aria-describedby="pick-lead-effort-note"
+          disabled={levelsDisabled(takes, effort)}
+          value={effort ?? ''}
+          onChange={e => setEffort((e.target.value || null) as Effort | null)}
+        >
+          <LevelOptions takes={takes} value={effort} />
+        </select>
+        <span id="pick-lead-effort-note" className="choice-note">
+          {levelsKnown(takes, namedLevel(facts))} {own ? 'Of the Orchestrator role’s own model. ' : ''}
+          {facts?.deprecated ? 'Its model is being retired: it still runs. ' : ''}The Orchestrator’s level here. Default: the Orchestrator role’s.
+        </span>
+      </div>
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+      <button type="submit" className="btn btn-small btn-primary" disabled={busy}>
+        Use this model
+      </button>
+      {confirm.shown(close)}
+    </form>
+  )
+
   return (
     <div className="allow-list model-picker">
       <button
@@ -179,88 +283,7 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
         <Cpu size={13} />
         <ButtonLabel provider={used?.name} model={usedModel} rest={rest} leadAuto={leadAuto} />
       </button>
-      {open && (
-        <form ref={panel} tabIndex={-1} className="allow-list-panel" aria-label="Model for this conversation" onSubmit={submit}>
-          <div className="kicker">Model for this conversation</div>
-          {/* (The button may cut it: here it is whole.) */}
-          <div className="muted cmd-approval-note">Now: {label}</div>
-          <div className="field">
-            <label htmlFor="pick-provider">Provider</label>
-            <select
-              id="pick-provider"
-              className="input"
-              value={provider}
-              onChange={e => {
-                setProvider(e.target.value)
-                setModel('')
-              }}
-            >
-              <option value="">Default ({providers[0]?.name ?? 'none'})</option>
-              <ProviderOptions providers={providers} />
-            </select>
-          </div>
-          {provider && (
-            <div className="field">
-              <label htmlFor="pick-model">Model name</label>
-              <ModelNameInput
-                id="pick-model"
-                value={model}
-                // (The Anthropic API has no default of its own: with none set, a run is refused.)
-                placeholder={runsOn(picked) ?? (picked?.kind === 'anthropic' ? 'Needed: this provider has no default model' : "The provider's default")}
-                providerId={provider}
-                loadModels={onModels}
-                onChange={setModel}
-              />
-            </div>
-          )}
-          <div className="muted cmd-approval-note">
-            Applies from the next turn. A role with its own model keeps it.
-          </div>
-          {switching && <div className="muted cmd-approval-note">{SWITCH_COSTS}</div>}
-          <label className="choice" htmlFor="pick-lead-auto">
-            {/* Named as it was, by all of its note: a browser leaves a closed hint out of a name, and would add its button’s name to it. */}
-            <input
-              id="pick-lead-auto"
-              type="checkbox"
-              aria-label={`Orchestrator model: automatic ${AUTO_COSTS} ${AUTO_OVERRIDES} ${AUTO_REST}`}
-              checked={auto}
-              onChange={e => setAuto(e.target.checked)}
-            />
-            <span>
-              Orchestrator model: automatic
-              <span className="choice-note">
-                {AUTO_COSTS} {AUTO_OVERRIDES} <Hint doc={GUIDE.autoModel}>{AUTO_REST}</Hint>
-              </span>
-            </span>
-          </label>
-          <div className="field">
-            <label htmlFor="pick-lead-effort">Thinking</label>
-            <select
-              id="pick-lead-effort"
-              className="input"
-              aria-describedby="pick-lead-effort-note"
-              disabled={levelsDisabled(takes, effort)}
-              value={effort ?? ''}
-              onChange={e => setEffort((e.target.value || null) as Effort | null)}
-            >
-              <LevelOptions takes={takes} value={effort} />
-            </select>
-            <span id="pick-lead-effort-note" className="choice-note">
-              {levelsKnown(takes, namedLevel(facts))} {own ? 'Of the Orchestrator role’s own model. ' : ''}
-              {facts?.deprecated ? 'Its model is being retired: it still runs. ' : ''}The Orchestrator’s level here. Default: the Orchestrator role’s.
-            </span>
-          </div>
-          {error && (
-            <div role="alert" className="alert">
-              {error}
-            </div>
-          )}
-          <button type="submit" className="btn btn-small btn-primary" disabled={busy}>
-            Use this model
-          </button>
-          {confirm.shown(close)}
-        </form>
-      )}
+      {open && pickForm()}
     </div>
   )
 }

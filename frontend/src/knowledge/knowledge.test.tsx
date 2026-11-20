@@ -296,6 +296,57 @@ test('its sources and limits are changed and saved in Settings, with the page ca
   expect(await screen.findByText('Saved: Learn again reads the new sources.')).toHaveAttribute('role', 'status')
 })
 
+test('Settings starts from what is saved - its model, weekly, its limits and code cap, what was removed - and saves it back as it was', async () => {
+  const saved = {
+    ...MLFLOW.knowledge,
+    sources: ['https://mlflow.org/docs/latest/', 'repo: https://github.com/acme/pay'],
+    learn_with: { provider_id: 'cx', model_id: 'gpt 6' },
+    weekly: true,
+    max_usd: 1.5,
+    max_code_files: 40,
+    removed: ['https://mlflow.org/docs/latest/old'],
+  }
+  const props = await open({ items: [{ ...MLFLOW, knowledge: saved }] })
+  await tab('Settings')
+  expect(screen.getByLabelText(/Learn again weekly/)).toBeChecked()
+  expect(screen.getByLabelText(/At most this much/)).toHaveValue('1.5')
+  expect(screen.getByLabelText('At most this many code files a learning')).toHaveValue('40')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(props.onSave).toHaveBeenCalledWith('k1', saved)
+})
+
+test('no source, a limit out of its bounds or a code cap over 1000 holds Save back', async () => {
+  await open({ items: [{ ...MLFLOW, knowledge: { ...MLFLOW.knowledge, sources: ['repo: https://github.com/acme/pay'] } }] })
+  await tab('Settings')
+  const save = screen.getByRole('button', { name: 'Save' })
+  const set = async (label: string, value: string) => {
+    await userEvent.clear(screen.getByLabelText(label))
+    if (value) await userEvent.type(screen.getByLabelText(label), value)
+  }
+  const [pages, usd, code] = ['At most this many pages (a safety cap)', 'At most this much a learning (USD)', 'At most this many code files a learning']
+  expect(save).toBeEnabled()
+  await set('Sources', '')
+  expect(save).toBeDisabled()
+  await set('Sources', 'repo: https://github.com/acme/pay')
+  expect(save).toBeEnabled()
+  await set(pages, '0')
+  expect(save).toBeDisabled()
+  await set(pages, '1001')
+  expect(save).toBeDisabled()
+  await set(pages, '1000')
+  expect(save).toBeEnabled()
+  await set(usd, '0')
+  expect(save).toBeDisabled()
+  await set(usd, '100.5')
+  expect(save).toBeDisabled()
+  await set(usd, '100')
+  expect(save).toBeEnabled()
+  await set(code, '1001')
+  expect(save).toBeDisabled()
+  await set(code, '0')
+  expect(save).toBeEnabled()
+})
+
 test('a refusal to save is said as the server says it', async () => {
   await open({ onSave: vi.fn().mockRejectedValue(new ApiError(422, 'unknown provider')) })
   await tab('Settings')

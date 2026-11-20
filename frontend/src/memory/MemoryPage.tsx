@@ -1,6 +1,7 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react'
 import { errorText } from '../api/client'
 import type { MemoryRecord, MemorySearch, ProjectMemory } from '../api/types'
+import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import type { ProjectSettingsValues } from '../shell/ProjectSettings'
 import { Find } from './Find'
@@ -81,6 +82,15 @@ function TopicFilter({ records, value, onChange }: { records: MemoryRecord[]; va
 
 const ofTopic = (records: MemoryRecord[], topic: string) => (topic ? records.filter(record => `=${subject(record.about)}` === topic) : records)
 
+/**
+ * Which turn the last notes made by themselves were of: one of the open conversation's, when it
+ * is there; only that it is another conversation's otherwise.
+ */
+function lastTurnOf(memory: ProjectMemory | null, conv: ConvState | null) {
+  const ofAuto = memory?.last_auto ? conv?.runs.find(run => run.id === memory.last_auto?.run_id) : undefined
+  return ofAuto && conv ? `the work on the ${moment(ofAuto.created_at)} message in “${conv.conversation.title}”` : 'a message of a conversation not open here'
+}
+
 const FACTS_MORE =
   'What agents are given: what you approved or wrote, each with its source. A fact is given to an agent whose work names its subject; any agent can look the rest up. Each rests on file lines: a fact whose source changed, or moved within its file, is given to no agent until you look at it again. “Source unchanged since noted” only means the file lines a record rests on read as they did when it was written. It does not mean the record is right.'
 
@@ -130,11 +140,8 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
     // (Not from a question that took the focus: "Replace what you typed?")
     if (!document.activeElement?.closest('[role="alertdialog"]')) row?.focus()
   }, [goTo])
-  // Which turn the last notes made by themselves were of: one of the open conversation's,
-  // when it is there; only that it is another conversation's otherwise.
   const conv = useApp(s => s.conv)
-  const ofAuto = memory?.last_auto ? conv?.runs.find(run => run.id === memory.last_auto?.run_id) : undefined
-  const lastTurn = ofAuto && conv ? `the work on the ${moment(ofAuto.created_at)} message in “${conv.conversation.title}”` : 'a message of a conversation not open here'
+  const lastTurn = lastTurnOf(memory, conv)
   // Once something waited, its line stays while the page is open: deciding the last note does not take the place you were in.
   const [waited, setWaited] = useState(false)
   if (!waited && memory && memory.proposals.length > 0) setWaited(true)
@@ -196,6 +203,160 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
     notes: memory.journal.length,
     history: memory.decisions.length + memory.past.length,
   }
+
+  /** What waits for your word: one line that unfolds the notes put forward, in place. */
+  const waits = () =>
+    (waiting > 0 || waited) && (
+      <div className="memory-waiting">
+        <button type="button" className="memory-waiting-line" aria-expanded={waitOpen} aria-controls="memory-waits" onClick={() => setWaitOpen(!waitOpen)}>
+          {waiting > 0 ? `● ${waiting} ${waiting === 1 ? 'fact waits' : 'facts wait'} for your word` : 'Nothing waits for your word'}
+        </button>
+        {/* shortcut: no "Open in Ready →" beside it - the Ready page is not on main yet; add the link when it is. */}
+        {waitOpen && (
+          <section id="memory-waits" className="memory-section" aria-label="Waits for you">
+            <p className="muted memory-hint">Notes agents put forward for the core. Nothing enters the core unless you approve it.</p>
+            {/* (Shown as the last note is decided: the focus goes here, not to the page.) */}
+            {waiting === 0 && (
+              <p className="muted" tabIndex={-1} ref={said => said?.focus()}>
+                Nothing waits for you.
+              </p>
+            )}
+            {memory.proposals.map(record => (
+              <Proposal
+                key={record.id}
+                record={record}
+                replaces={wouldReplace(memory, record)}
+                onApprove={on.onApprove}
+                onReject={on.onReject}
+                onConfirm={on.onConfirm}
+              />
+            ))}
+          </section>
+        )}
+      </div>
+    )
+
+  /** Told: your preferences, with what is suggested for them, and this project's rules. */
+  const toldPanel = () => (
+    <div id="memory-panel-told" role="tabpanel" aria-labelledby="memory-tab-told" className="memory-panel" hidden={tab !== 'told'}>
+      <TabHead
+        line="Said to every agent, always."
+        more="Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either."
+      />
+      <Section title="Your preferences">
+        {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
+        <RulesBox key={memory.preferences ?? ''} rules={memory.preferences ?? null} what="preferences" onSave={on.onSavePreferences} />
+        {(memory.suggestions ?? []).length > 0 && (
+          <div role="group" aria-label="Suggested for your preferences" className="memory-section">
+            <div className="muted memory-hint">
+              {/* (What Add does is read before it is clicked: in sight, the rest behind the "?".) */}
+              <span className="tag">suggested</span> Added, it is told to every agent in every project as your instruction.{' '}
+              <Hint doc={GUIDE.memoryKinds}>What KOLONİ’s summariser took for a preference of yours from a finished message. Nothing enters your preferences unless you add it.</Hint>
+            </div>
+            {(memory.suggestions ?? []).map(record => (
+              <Suggestion key={record.id} record={record} onAdd={on.onAddPreference} onReject={on.onReject} />
+            ))}
+          </div>
+        )}
+      </Section>
+      <Section title="This project’s rules">
+        {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
+        <RulesBox
+          key={memory.rules ?? ''}
+          rules={memory.rules}
+          onSave={rules => {
+            setKeptBefore(memory.rules_kept ?? true)
+            return on.onSaveRules(rules)
+          }}
+        />
+        {!keptBefore && memory.rules_kept && (
+          <p role="status" className="muted">
+            {KEPT_IN_FOLDER}
+          </p>
+        )}
+        {memory.rules_not_read && <p className="alert">{memory.rules_not_read}</p>}
+      </Section>
+    </div>
+  )
+
+  /** Facts: the core, filtered by subject, and the box to add one. */
+  const factsPanel = () => (
+    <div id="memory-panel-facts" role="tabpanel" aria-labelledby="memory-tab-facts" className="memory-panel" hidden={tab !== 'facts'}>
+      <TabHead line="Given to an agent when its work names the subject." more={FACTS_MORE}>
+        <span className="mono muted memory-count">{meter(memory.core_chars, memory.core_limit)}</span>
+        <TopicFilter records={memory.core} value={factsOf} onChange={setFactTopic} />
+        <button type="button" className="btn btn-small btn-primary" aria-expanded={adding} onClick={() => { setAdding(!adding); setDraft(undefined) }}>
+          ＋ Add a fact
+        </button>
+      </TabHead>
+      {adding && (
+        <Section title="Add a fact" hint="It goes into the core at once, replacing the fact on the same subject. Without a subject, it is found only when looked up.">
+          <WriteBox from={draft} onWrite={on.onWrite} />
+        </Section>
+      )}
+      {memory.core.length === 0 && <p className="muted">Nothing is in the core yet. Agents are given only what you approve or write here.</p>}
+      {facts.map(record => (
+        <CoreFact key={record.id} record={record} onCorrect={on.onCorrect} onReject={on.onReject} onConfirm={on.onConfirm} />
+      ))}
+    </div>
+  )
+
+  /** Notes: the journal, filtered by subject and by who wrote it, and how noting by itself last went. */
+  const notesPanel = () => (
+    <div id="memory-panel-notes" role="tabpanel" aria-labelledby="memory-tab-notes" className="memory-panel" hidden={tab !== 'notes'}>
+      <TabHead
+        line="Found only when an agent looks."
+        more="What agents noted, and, if the project’s settings say so, what a fast model noted of finished work, signed as its own. No agent is given these: an agent finds them only when it looks."
+      >
+        <TopicFilter records={memory.journal} value={notesOf} onChange={setNoteTopic} />
+        <select className="input memory-filter" aria-label="Written by" value={by} onChange={e => setWriter(e.target.value)}>
+          <option value="">Anyone</option>
+          {writers.map(name => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </TabHead>
+      {lastAuto && <p className="muted memory-hint">{lastAuto}</p>}
+      {memory.journal.length === 0 ? <p className="muted hive-empty">Agents have noted nothing yet.</p> : notes.length === 0 && <p className="muted">No note matches.</p>}
+      {notes.map(record => (
+        <JournalNote key={record.id} record={record} onReject={on.onReject} onMakeFact={makeFact} />
+      ))}
+    </div>
+  )
+
+  /** History: the last decisions, and what was removed or replaced. */
+  const historyPanel = () => (
+    <div id="memory-panel-history" role="tabpanel" aria-labelledby="memory-tab-history" className="memory-panel" hidden={tab !== 'history'}>
+      <TabHead
+        line="Decisions and what was removed. Nothing is deleted."
+        more="The last decision on each record and the last change to your rules, newest first. KOLONİ only knows each came from this page’s address, not who made it. If one of them was not yours, look into it."
+      />
+      <Section title="Recent decisions">
+        {memory.decisions.length === 0 ? (
+          <p className="muted">Nothing has been decided yet.</p>
+        ) : (
+          <ul className="memory-list">
+            {memory.decisions.map(decision => (
+              <li key={decisionId(decision)} id={decisionId(decision)} tabIndex={-1} className="memory-decision">
+                <span>{decisionOf(decision)}</span>
+                {decision.text !== null && <span> · {decision.text}</span>}
+                <span className="mono muted"> · {moment(decision.at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+      <Section title="Removed / replaced" hint="Any of these can be taken back.">
+        {memory.past.length === 0 && <p className="muted">Nothing has been removed or replaced.</p>}
+        {memory.past.map(record => (
+          <PastRecord key={record.id} record={record} onRestore={on.onRestore} />
+        ))}
+      </Section>
+    </div>
+  )
+
   return (
     <div className="memory-page">
       <div className="conv-head">
@@ -215,35 +376,7 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
 
       <Find key={searchFor?.n} memory={memory} onOpen={open} onSearch={onSearch} onMeaning={onMeaning} searchFor={searchFor?.words} />
 
-      {(waiting > 0 || waited) && (
-        <div className="memory-waiting">
-          <button type="button" className="memory-waiting-line" aria-expanded={waitOpen} aria-controls="memory-waits" onClick={() => setWaitOpen(!waitOpen)}>
-            {waiting > 0 ? `● ${waiting} ${waiting === 1 ? 'fact waits' : 'facts wait'} for your word` : 'Nothing waits for your word'}
-          </button>
-          {/* shortcut: no "Open in Ready →" beside it - the Ready page is not on main yet; add the link when it is. */}
-          {waitOpen && (
-            <section id="memory-waits" className="memory-section" aria-label="Waits for you">
-              <p className="muted memory-hint">Notes agents put forward for the core. Nothing enters the core unless you approve it.</p>
-              {/* (Shown as the last note is decided: the focus goes here, not to the page.) */}
-              {waiting === 0 && (
-                <p className="muted" tabIndex={-1} ref={said => said?.focus()}>
-                  Nothing waits for you.
-                </p>
-              )}
-              {memory.proposals.map(record => (
-                <Proposal
-                  key={record.id}
-                  record={record}
-                  replaces={wouldReplace(memory, record)}
-                  onApprove={on.onApprove}
-                  onReject={on.onReject}
-                  onConfirm={on.onConfirm}
-                />
-              ))}
-            </section>
-          )}
-        </div>
-      )}
+      {waits()}
 
       <div className="tabs memory-tabs" role="tablist" aria-label="Memory" onKeyDown={onTabKey}>
         {TABS.map(([id, label]) => (
@@ -264,114 +397,13 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
       </div>
 
       {/* Each is kept while another is open: what was typed in one is still there when you come back. */}
-      <div id="memory-panel-told" role="tabpanel" aria-labelledby="memory-tab-told" className="memory-panel" hidden={tab !== 'told'}>
-        <TabHead
-          line="Said to every agent, always."
-          more="Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either."
-        />
-        <Section title="Your preferences">
-          {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
-          <RulesBox key={memory.preferences ?? ''} rules={memory.preferences ?? null} what="preferences" onSave={on.onSavePreferences} />
-          {(memory.suggestions ?? []).length > 0 && (
-            <div role="group" aria-label="Suggested for your preferences" className="memory-section">
-              <div className="muted memory-hint">
-                {/* (What Add does is read before it is clicked: in sight, the rest behind the "?".) */}
-                <span className="tag">suggested</span> Added, it is told to every agent in every project as your instruction.{' '}
-                <Hint doc={GUIDE.memoryKinds}>What KOLONİ’s summariser took for a preference of yours from a finished message. Nothing enters your preferences unless you add it.</Hint>
-              </div>
-              {(memory.suggestions ?? []).map(record => (
-                <Suggestion key={record.id} record={record} onAdd={on.onAddPreference} onReject={on.onReject} />
-              ))}
-            </div>
-          )}
-        </Section>
-        <Section title="This project’s rules">
-          {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
-          <RulesBox
-            key={memory.rules ?? ''}
-            rules={memory.rules}
-            onSave={rules => {
-              setKeptBefore(memory.rules_kept ?? true)
-              return on.onSaveRules(rules)
-            }}
-          />
-          {!keptBefore && memory.rules_kept && (
-            <p role="status" className="muted">
-              {KEPT_IN_FOLDER}
-            </p>
-          )}
-          {memory.rules_not_read && <p className="alert">{memory.rules_not_read}</p>}
-        </Section>
-      </div>
+      {toldPanel()}
 
-      <div id="memory-panel-facts" role="tabpanel" aria-labelledby="memory-tab-facts" className="memory-panel" hidden={tab !== 'facts'}>
-        <TabHead line="Given to an agent when its work names the subject." more={FACTS_MORE}>
-          <span className="mono muted memory-count">{meter(memory.core_chars, memory.core_limit)}</span>
-          <TopicFilter records={memory.core} value={factsOf} onChange={setFactTopic} />
-          <button type="button" className="btn btn-small btn-primary" aria-expanded={adding} onClick={() => { setAdding(!adding); setDraft(undefined) }}>
-            ＋ Add a fact
-          </button>
-        </TabHead>
-        {adding && (
-          <Section title="Add a fact" hint="It goes into the core at once, replacing the fact on the same subject. Without a subject, it is found only when looked up.">
-            <WriteBox from={draft} onWrite={on.onWrite} />
-          </Section>
-        )}
-        {memory.core.length === 0 && <p className="muted">Nothing is in the core yet. Agents are given only what you approve or write here.</p>}
-        {facts.map(record => (
-          <CoreFact key={record.id} record={record} onCorrect={on.onCorrect} onReject={on.onReject} onConfirm={on.onConfirm} />
-        ))}
-      </div>
+      {factsPanel()}
 
-      <div id="memory-panel-notes" role="tabpanel" aria-labelledby="memory-tab-notes" className="memory-panel" hidden={tab !== 'notes'}>
-        <TabHead
-          line="Found only when an agent looks."
-          more="What agents noted, and, if the project’s settings say so, what a fast model noted of finished work, signed as its own. No agent is given these: an agent finds them only when it looks."
-        >
-          <TopicFilter records={memory.journal} value={notesOf} onChange={setNoteTopic} />
-          <select className="input memory-filter" aria-label="Written by" value={by} onChange={e => setWriter(e.target.value)}>
-            <option value="">Anyone</option>
-            {writers.map(name => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </TabHead>
-        {lastAuto && <p className="muted memory-hint">{lastAuto}</p>}
-        {memory.journal.length === 0 ? <p className="muted hive-empty">Agents have noted nothing yet.</p> : notes.length === 0 && <p className="muted">No note matches.</p>}
-        {notes.map(record => (
-          <JournalNote key={record.id} record={record} onReject={on.onReject} onMakeFact={makeFact} />
-        ))}
-      </div>
+      {notesPanel()}
 
-      <div id="memory-panel-history" role="tabpanel" aria-labelledby="memory-tab-history" className="memory-panel" hidden={tab !== 'history'}>
-        <TabHead
-          line="Decisions and what was removed. Nothing is deleted."
-          more="The last decision on each record and the last change to your rules, newest first. KOLONİ only knows each came from this page’s address, not who made it. If one of them was not yours, look into it."
-        />
-        <Section title="Recent decisions">
-          {memory.decisions.length === 0 ? (
-            <p className="muted">Nothing has been decided yet.</p>
-          ) : (
-            <ul className="memory-list">
-              {memory.decisions.map(decision => (
-                <li key={decisionId(decision)} id={decisionId(decision)} tabIndex={-1} className="memory-decision">
-                  <span>{decisionOf(decision)}</span>
-                  {decision.text !== null && <span> · {decision.text}</span>}
-                  <span className="mono muted"> · {moment(decision.at)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
-        <Section title="Removed / replaced" hint="Any of these can be taken back.">
-          {memory.past.length === 0 && <p className="muted">Nothing has been removed or replaced.</p>}
-          {memory.past.map(record => (
-            <PastRecord key={record.id} record={record} onRestore={on.onRestore} />
-          ))}
-        </Section>
-      </div>
+      {historyPanel()}
     </div>
   )
 }

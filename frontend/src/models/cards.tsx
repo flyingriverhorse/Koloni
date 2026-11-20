@@ -93,19 +93,27 @@ export function readingOf(
   }
   if (paid === 'API key') {
     // shortcut: no balance here - that is slice 73's, said only where the service says it.
-    if (provider.plan) {
-      // Its quota last seen used up (its 429): when - the time today, else the date too (a monthly quota: a weekday
-      // alone could be any week). What is left no API says.
-      const seen = limits?.used_up && limits.read_at
-      const today = seen && new Date(seen).toDateString() === new Date().toDateString()
-      const at = seen && new Date(seen).toLocaleString(undefined, { ...(today ? {} : { month: 'short', day: 'numeric' }), hour: '2-digit', minute: '2-digit' })
-      return { share: null, value: 'plan', label: at ? `quota used up, seen ${at}` : 'no money counted', plain: true }
-    }
+    if (provider.plan) return quotaReading(limits)
     if (today === undefined) return { ...LOOKING, plain: true }
     if (today === null) return { share: null, value: '–', label: 'spent today: not known', plain: true }
     return spentToday(provider, today, unkept)
   }
   if (limits === undefined) return LOOKING
+  return planReading(limits)
+}
+
+/** An API key that is a plan: no money counted, or when its quota was last seen used up. */
+function quotaReading(limits: Limits | null | undefined): Reading {
+  // Its quota last seen used up (its 429): when - the time today, else the date too (a monthly quota: a weekday
+  // alone could be any week). What is left no API says.
+  const seen = limits?.used_up && limits.read_at
+  const today = seen && new Date(seen).toDateString() === new Date().toDateString()
+  const at = seen && new Date(seen).toLocaleString(undefined, { ...(today ? {} : { month: 'short', day: 'numeric' }), hour: '2-digit', minute: '2-digit' })
+  return { share: null, value: 'plan', label: at ? `quota used up, seen ${at}` : 'no money counted', plain: true }
+}
+
+/** What is left of a CLI's plan as it last said it; null: reading it failed. */
+function planReading(limits: Limits | null): Reading {
   const windows = limits?.windows ?? []
   const known = windows.filter(w => w.used_percent !== null && !w.stale)
   // The narrowest window: the one with the least left, whatever its length - what a step down reads too (81c).
@@ -215,15 +223,7 @@ export function ProviderCard({
   const paid = paidOf(provider)
   // Switched off: greyed and said; its window still opens.
   const off = provider.enabled === false
-  // K-cli-surface: a CLI version not measured - behind ⓘ, unless it runs the old way for it.
-  // shortcut: told apart by the backend's words (`cli_surface.checked`); send a flag if they change.
-  const oldWay = provider.version_note?.endsWith('the old way')
-  const quiet = oldWay ? null : provider.version_note
-  // Behind ⓘ: a plan's other windows, credits and when it was read. An API key's `more` is a limit it cannot keep: in sight.
-  const aside = paid === 'subscription' ? reading.more : undefined
-  const action = onRead ?? onCheck
-  // What reading Claude Code's costs is said beside it: one turn of its plan.
-  const cost = onRead && provider.kind === 'claude_cli' ? `provider-card-cost-${provider.id}` : undefined
+  const { oldWay, quiet, aside, action, cost } = footOf(provider, paid, reading, onRead, onCheck)
   // Beside the card's button, not in it: a control in a button is neither, and its click would open the window.
   return (
     <div className="provider-card-box">
@@ -237,16 +237,7 @@ export function ProviderCard({
           {isDefault && ' · default'}
         </span>
         <span className={look === 'bad' && !off ? 'provider-card-state' : 'provider-card-status'}>{off ? 'switched off' : said}</span>
-        {/* A server's state is its status already. */}
-        {paid !== 'this machine' && <Gauge {...reading} ago={readAt && reading.share !== null ? readAgo(readAt) : undefined} />}
-        {reading.failed && <span className="provider-card-state">{reading.failed}</span>}
-        {paid !== 'subscription' && reading.more && <span className="provider-card-state">{reading.more}</span>}
-        {provider.key_warning && <span className="provider-card-state">{provider.key_warning}</span>}
-        {/* Antigravity's terms, section 6: said on or off, so switching it on is an informed choice. */}
-        {provider.kind === 'agy_cli' && (
-          <span className="provider-card-state">Google’s terms forbid using Antigravity through another app; your Google account may be suspended.</span>
-        )}
-        {oldWay && <span className="provider-card-state">{provider.version_note}</span>}
+        <CardReading provider={provider} paid={paid} reading={reading} readAt={readAt} oldWay={oldWay} />
         <TierCounts provider={provider} />
       </button>
       <input
@@ -258,34 +249,89 @@ export function ProviderCard({
         checked={!off}
         onChange={e => onSwitch(e.target.checked)}
       />
-      {(action || aside || quiet) && (
-        <span className="provider-card-foot">
-          {action && (
-            <button
-              type="button"
-              className="btn btn-small"
-              aria-label={onRead ? `Read ${provider.name}’s plan now` : `Check ${provider.name}`}
-              aria-describedby={cost}
-              title={onRead ? undefined : 'Looks again whether it can be used now; no model is run'}
-              disabled={busy}
-              onClick={action}
-            >
-              {onRead ? (busy ? 'Reading…' : 'Read now') : busy ? 'Checking…' : 'Check'}
-            </button>
-          )}
-          {cost && (
-            <span id={cost} className="muted">
-              one short request
-            </span>
-          )}
-          {(aside || quiet) && (
-            <Hint>
-              {aside && <span className="hint-para">{aside}</span>}
-              {quiet && <span className="hint-para provider-card-version">{quiet}</span>}
-            </Hint>
-          )}
+      {(action || aside || quiet) && <CardFoot provider={provider} onRead={onRead} action={action} busy={busy} cost={cost} aside={aside} quiet={quiet} />}
+    </div>
+  )
+}
+
+/** What a card's foot holds - its one action, what reading Claude Code's costs, what is behind ⓘ - and whether its
+ *  version note is in sight instead. */
+function footOf(provider: Provider, paid: Paid, reading: Reading, onRead?: () => void, onCheck?: () => void) {
+  // K-cli-surface: a CLI version not measured - behind ⓘ, unless it runs the old way for it.
+  // shortcut: told apart by the backend's words (`cli_surface.checked`); send a flag if they change.
+  const oldWay = provider.version_note?.endsWith('the old way')
+  const quiet = oldWay ? null : provider.version_note
+  // Behind ⓘ: a plan's other windows, credits and when it was read. An API key's `more` is a limit it cannot keep: in sight.
+  const aside = paid === 'subscription' ? reading.more : undefined
+  const action = onRead ?? onCheck
+  // What reading Claude Code's costs is said beside it: one turn of its plan.
+  const cost = onRead && provider.kind === 'claude_cli' ? `provider-card-cost-${provider.id}` : undefined
+  return { oldWay, quiet, aside, action, cost }
+}
+
+/** A card's gauge, and under it what is in sight: why it was not read now, a limit it cannot keep, its key's warning,
+ *  agy's terms, a CLI version that runs the old way. */
+function CardReading({ provider, paid, reading, readAt, oldWay }: { provider: Provider; paid: Paid; reading: Reading; readAt?: string | null; oldWay?: boolean }) {
+  return (
+    <>
+      {/* A server's state is its status already. */}
+      {paid !== 'this machine' && <Gauge {...reading} ago={readAt && reading.share !== null ? readAgo(readAt) : undefined} />}
+      {reading.failed && <span className="provider-card-state">{reading.failed}</span>}
+      {paid !== 'subscription' && reading.more && <span className="provider-card-state">{reading.more}</span>}
+      {provider.key_warning && <span className="provider-card-state">{provider.key_warning}</span>}
+      {/* Antigravity's terms, section 6: said on or off, so switching it on is an informed choice. */}
+      {provider.kind === 'agy_cli' && (
+        <span className="provider-card-state">Google’s terms forbid using Antigravity through another app; your Google account may be suspended.</span>
+      )}
+      {oldWay && <span className="provider-card-state">{provider.version_note}</span>}
+    </>
+  )
+}
+
+/** Beside a card's switch: its action, what reading Claude Code's costs, and what is behind ⓘ. */
+function CardFoot({
+  provider,
+  onRead,
+  action,
+  busy,
+  cost,
+  aside,
+  quiet,
+}: {
+  provider: Provider
+  onRead?: () => void
+  action?: () => void
+  busy: boolean
+  cost?: string
+  aside?: string
+  quiet?: string | null
+}) {
+  return (
+    <span className="provider-card-foot">
+      {action && (
+        <button
+          type="button"
+          className="btn btn-small"
+          aria-label={onRead ? `Read ${provider.name}’s plan now` : `Check ${provider.name}`}
+          aria-describedby={cost}
+          title={onRead ? undefined : 'Looks again whether it can be used now; no model is run'}
+          disabled={busy}
+          onClick={action}
+        >
+          {onRead ? (busy ? 'Reading…' : 'Read now') : busy ? 'Checking…' : 'Check'}
+        </button>
+      )}
+      {cost && (
+        <span id={cost} className="muted">
+          one short request
         </span>
       )}
-    </div>
+      {(aside || quiet) && (
+        <Hint>
+          {aside && <span className="hint-para">{aside}</span>}
+          {quiet && <span className="hint-para provider-card-version">{quiet}</span>}
+        </Hint>
+      )}
+    </span>
   )
 }

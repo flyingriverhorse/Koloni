@@ -128,6 +128,28 @@ test('K-tarayici-disari A2: a password, a form or a sign-in on a site is asked o
   expect(screen.getByText('Send this form?')).toBeInTheDocument()
 })
 
+test("an action with no site names none; a refused answer is said on an action's card and a site's; a search says nothing of GET", async () => {
+  const refuse = vi.fn().mockRejectedValue({ detail: 'no longer waiting' })
+  const { unmount } = render(<WebApproval request={asked({ kind: 'sign', target: 'click Sign in' })} onDecide={refuse} />)
+  expect(screen.getByText('Click this?')).toBeInTheDocument()
+  expect(document.querySelector('.cmd-approval-where')).toBeEmptyDOMElement()
+  expect(screen.getByText('Sending a form, a password, a sign-in or a payment on a site is asked every time, at every level.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Yes, this once' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('no longer waiting')
+  unmount()
+  const page = render(<WebApproval request={asked({ kind: 'page', method: 'GET', target: 'https://example.com/docs', host: 'example.com' })} onDecide={refuse} />)
+  expect(screen.getByText(/The agent’s own browser opens it, with an empty profile: none of your sign-ins./)).toBeInTheDocument()
+  expect(screen.queryByRole('alert')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Allow this site' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('no longer waiting')
+  page.unmount()
+  render(<WebApproval request={asked()} onDecide={refuse} />)
+  expect(screen.queryByText(/“Always” is for/)).toBeNull()
+  expect(screen.queryByText(/is asked every time/)).toBeNull()
+  expect(screen.queryByText(/Anything written in the address/)).toBeNull()
+  expect(screen.queryByLabelText('The body it sends')).toBeNull()
+})
+
 test('K-tarayici-disari: a site on the list reads as one and has its Ask first mark there', async () => {
   const onAskFirst = vi.fn()
   render(<AllowList rules={[]} web={[rule('w1', 'host', 'api.example.com'), rule('w2', 'page', 'example.com', true)]} onRemove={vi.fn()} onRemoveWeb={vi.fn()} onAskFirst={onAskFirst} />)

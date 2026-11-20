@@ -11,7 +11,7 @@ import { failureText, nextStep, planConsole } from '../agents/failure'
 import { SpawnRow } from '../agents/SpawnRow'
 import { isReadyCard, keptNote, readyLine, turnTeams } from '../agents/teamRun'
 import { staysOn } from '../agents/staysOn'
-import type { Agent, Attachment, Compare, FileChange, Merge, Message, Price, Provider, NotesOffer, Question, Role, Run, ToolCall, TriggerProposal, Usage } from '../api/types'
+import type { Agent, Attachment, Command, Compare, Discussion, FileChange, Merge, Message, Price, Provider, NotesOffer, Question, Role, Run, ToolCall, TriggerProposal, Usage } from '../api/types'
 import { Minis } from './Attach'
 import { linksIn } from './attachments'
 import { ChangeActions, type ChangeAction } from '../changes/ChangeActions'
@@ -202,6 +202,14 @@ interface ChangeLineProps {
 /** The decision on a path outside the project, as the tool-call route takes it. */
 function outsideWord(decide: Handlers['onDecideRole'], callId: string) {
   return (decision: OutsideDecision) => (decision === 'reject' ? decide(callId, 'reject') : decide(callId, 'approve', decision))
+}
+
+/** A call that is more than a row: something of it asks or waits for you, or you decide its change - or the Lead's pick. */
+function standsAlone(call: ToolCall, change: FileChange | undefined, { asked, web, role, skill, waits }: Record<'asked' | 'web' | 'role' | 'skill' | 'waits', unknown>) {
+  const decides = change?.status === 'proposed' || change?.status === 'approved'
+  // (The Lead's pick of the chat's teams, slice 84b, is the chat's one line of it: never folded into a run.)
+  const picked = call.name === 'pick_teams' && call.status === 'succeeded'
+  return Boolean(asked || web || role || skill || waits || decides || picked || asksOutside(call))
 }
 
 function ChangeLine({ change, onOpen, onDecide }: ChangeLineProps) {
@@ -604,16 +612,31 @@ interface UserMessageProps {
   onShow?: (runId: string) => void
 }
 
-/** The user's message: with ↺ when its work changed files, and ⋯ - Copy, Restore to before it, Show its work (slice 107). */
-function UserMessage({ message, run, files = [], saved = [], changed, onRemove, onShow }: UserMessageProps) {
+/** How a message's turn stands: taken off the queue before it began; over (it ran and ended); its work undoable. */
+function turnOf(run: Run | undefined, changed: boolean) {
   const removed = run?.status === 'cancelled' && !run.started_at
-  const [undoing, setUndoing] = useState<'undo' | 'restore' | null>(null)
   // (A turn that runs is stopped first: undoing it would race what it writes.)
   // (Not a comparison's, which would undo one side: its pick is undone under the two, `CompareView`.)
   // Only a message whose work changed files has it (slice 107 §3); a kept copy is decided on its card, or by Restore.
   const over = run && run.started_at && TERMINAL.has(run.status)
-  const undoable = over && !run.compare_id && changed
+  return { removed, over, undoable: over && !run.compare_id && changed }
+}
+
+/** The user's message: with ↺ when its work changed files, and ⋯ - Copy, Restore to before it, Show its work (slice 107). */
+function UserMessage({ message, run, files = [], saved = [], changed, onRemove, onShow }: UserMessageProps) {
+  const [undoing, setUndoing] = useState<'undo' | 'restore' | null>(null)
+  const { removed, over, undoable } = turnOf(run, changed)
   const at = when(message.created_at)
+  const menu = () =>
+    run && !removed && (
+      <MessageMenu
+        at={at}
+        copy={message.content || files.map(file => file.name).join('\n')}
+        // (Not while it is queued or at work: it would race what it writes.)
+        onRestore={over ? () => setUndoing('restore') : undefined}
+        onShow={onShow && (() => onShow(run.id))}
+      />
+    )
   return (
     <div className={`msg msg-user${removed ? ' msg-removed' : ''}`}>
       <div className="msg-user-row">
@@ -622,15 +645,7 @@ function UserMessage({ message, run, files = [], saved = [], changed, onRemove, 
             <ArrowCounterClockwise size={13} />
           </button>
         )}
-        {run && !removed && (
-          <MessageMenu
-            at={at}
-            copy={message.content || files.map(file => file.name).join('\n')}
-            // (Not while it is queued or at work: it would race what it writes.)
-            onRestore={over ? () => setUndoing('restore') : undefined}
-            onShow={onShow && (() => onShow(run.id))}
-          />
-        )}
+        {menu()}
         <div className="msg-bubble" onClick={event => run && onShow && !removed && picked(event.nativeEvent) && onShow(run.id)}>
           {message.content && <UserText>{message.content}</UserText>}
           {/* The files sent with it (slice 85b), and its links: these are chips in the chat too. */}
@@ -814,16 +829,8 @@ export function MessageList({
   // Once one side is picked, what the other did is one closed row (the user's word, 25 Oct). (Both thrown away: as they were.)
   const unused = new Set(state.runs.filter(r => r.compare_id && picks[r.compare_id] && picks[r.compare_id] !== r.id).map(r => r.id))
 
-  /** A call as the chat shows it; `stands`: it is more than a row - a card, a row that waits for you, or one of its own kind - and is never inside a run. */
-  const callView = (call: ToolCall): { node: ReactNode; stands: boolean } => {
-    const change = state.fileChanges.find(f => f.tool_call_id === call.id)
-    const command = state.commands.find(c => c.tool_call_id === call.id)
-    const child = state.agents.find(a => a.tool_call_id === call.id)
-    // (A recipe's own questions - "Go on?", then "Take the work in?" - are put in the call that opened the agent of its
-    // step, one after another: B-99.)
-    const asks = state.questions.filter(q => q.tool_call_id === call.id)
-    const asked = asks[0]
-    const pending = asks.some(q => q.status === 'pending')
+  /** The questions put in a call, one after another, and the Lead's card where a Take in met a clash. */
+  const questionCards = (call: ToolCall, asks: Question[]) => {
     // B-128: a Take in that met a clash waits on the Lead's card - under the Ready for you its turn's last Take in answered,
     // not only in the inspector (an earlier Take in's card is over).
     const tookIn = state.questions
@@ -832,7 +839,7 @@ export function MessageList({
     const clash = tookIn?.tool_call_id === call.id
       ? state.merges.find(m => m.run_id === call.run_id && m.status === 'pending' && state.agents.some(a => a.id === m.agent_id && a.depth === 0))
       : undefined
-    const question = asked && (
+    return (
       <Fragment key={call.id}>
         {asks.map(q => (
           <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />
@@ -848,113 +855,113 @@ export function MessageList({
         )}
       </Fragment>
     )
-    if (call.name === 'open_room') {
-      // Its members are asked for together, under the call; once it is open, it is the room.
-      // (One refused opened none: the turn's room is a later call's.)
-      const room = call.status !== 'failed' && state.rooms.find(r => r.agent_id === call.agent_id && r.run_id === call.run_id)
-      return { stands: true, node: (
-        <Fragment key={call.id}>
-          {room ? (
-            <RoomRow state={state} room={room} onOpen={() => onOpenRoom(room.id)} />
-          ) : (
-            <ToolRow call={call} waits={callWaits(state, call)} />
-          )}
-          {state.agents
-            .filter(a => a.tool_call_id === call.id && a.status === 'proposed')
-            .map(a => (
-              <SpawnApproval
-                key={a.id}
-                agent={a}
-                openedBy={nameOf(call.agent_id)}
-                stays={staysOn(state, a, roles, providers)}
-                onDecide={decision => onDecideSpawn(a.id, decision)}
-              />
-            ))}
-          {question}
-        </Fragment>
-      ) }
-    }
-    if (child) {
-      // A team's lead KOLONİ opened for another team's request (K-takimlar-arasi): the request's card.
-      const asked = call.parent_call_id ? requestsOf(state, call.run_id).find(r => r.call.id === call.parent_call_id) : undefined
-      return { stands: true, node: (
-        <Fragment key={call.id}>
-          {asked ? (
-            <RequestRow request={asked} lead={child} state={state} onSelect={onSelectAgent} />
-          ) : (
-            <SpawnRow agent={child} onSelect={onSelectAgent} asks={pendingMerge(state, child.id) !== null} />
-          )}
-          {question}
-          {child.status === 'proposed' && (
+  }
+
+  /** A call that opens a room: the room, once it is open, with its members asked for under it. */
+  const roomCall = (call: ToolCall, question: ReactNode) => {
+    // Its members are asked for together, under the call; once it is open, it is the room.
+    // (One refused opened none: the turn's room is a later call's.)
+    const room = call.status !== 'failed' && state.rooms.find(r => r.agent_id === call.agent_id && r.run_id === call.run_id)
+    return (
+      <Fragment key={call.id}>
+        {room ? (
+          <RoomRow state={state} room={room} onOpen={() => onOpenRoom(room.id)} />
+        ) : (
+          <ToolRow call={call} waits={callWaits(state, call)} />
+        )}
+        {state.agents
+          .filter(a => a.tool_call_id === call.id && a.status === 'proposed')
+          .map(a => (
             <SpawnApproval
-              agent={child}
-              openedBy={state.agents.find(a => a.id === child.parent_agent_id)?.name}
-              continuesTurn={continuesFrom(state, child.id)}
-              stays={staysOn(state, child, roles, providers)}
-              onDecide={decision => onDecideSpawn(child.id, decision)}
+              key={a.id}
+              agent={a}
+              openedBy={nameOf(call.agent_id)}
+              stays={staysOn(state, a, roles, providers)}
+              onDecide={decision => onDecideSpawn(a.id, decision)}
             />
-          )}
-          <SubtreeRequests root={child} state={state} on={on} known={{ roles, providers }} />
-        </Fragment>
-      ) }
-    }
-    const discussion = state.discussions.find(d => d.tool_call_id === call.id)
-    if (discussion) {
-      return { stands: true, node: (
-        <div key={call.id} className="tool-row">
-          <button
-            type="button"
-            className="tool-row-head"
-            title="Open the discussion"
-            onClick={() => onOpenDiscussion(discussion.id)}
-          >
-            <span style={{ color: 'var(--accent)', display: 'grid' }}>
-              <ChatsCircle size={13} className={discussion.status === 'running' ? 'pulse' : undefined} />
-            </span>
-            <span className="tool-row-summary">
-              <strong>Discussion</strong> <span className="muted">{discussion.topic.split('\n')[0]}</span>
-            </span>
-            <span className="tool-row-status mono muted">
-              {discussion.members.length} agents · {discussionLine(discussion).toLowerCase()}
-            </span>
-          </button>
-        </div>
-      ) }
-    }
-    if (call.name === 'message_agent') {
-      return { stands: true, node: <TalkRow key={call.id} call={call} from={nameOf(call.agent_id)} /> }
-    }
-    // Leave asked for a tool of an MCP server: the call keeps its row, with what it
-    // was given and what came back, and the question stands under it.
-    const leave = call.origin !== 'cli' && call.name !== 'ask_user'
-    if (question && !leave) return { stands: true, node: question }
+          ))}
+        {question}
+      </Fragment>
+    )
+  }
+
+  /** A call that opened an agent: its row, what it asks, and what the agents under it wait on you for. */
+  const agentCall = (call: ToolCall, child: Agent, question: ReactNode) => {
+    // A team's lead KOLONİ opened for another team's request (K-takimlar-arasi): the request's card.
+    const asked = call.parent_call_id ? requestsOf(state, call.run_id).find(r => r.call.id === call.parent_call_id) : undefined
+    return (
+      <Fragment key={call.id}>
+        {asked ? (
+          <RequestRow request={asked} lead={child} state={state} onSelect={onSelectAgent} />
+        ) : (
+          <SpawnRow agent={child} onSelect={onSelectAgent} asks={pendingMerge(state, child.id) !== null} />
+        )}
+        {question}
+        {child.status === 'proposed' && (
+          <SpawnApproval
+            agent={child}
+            openedBy={state.agents.find(a => a.id === child.parent_agent_id)?.name}
+            continuesTurn={continuesFrom(state, child.id)}
+            stays={staysOn(state, child, roles, providers)}
+            onDecide={decision => onDecideSpawn(child.id, decision)}
+          />
+        )}
+        <SubtreeRequests root={child} state={state} on={on} known={{ roles, providers }} />
+      </Fragment>
+    )
+  }
+
+  /** A call that opened a discussion: one row, which opens it. */
+  const discussionCall = (call: ToolCall, discussion: Discussion) => (
+    <div key={call.id} className="tool-row">
+      <button
+        type="button"
+        className="tool-row-head"
+        title="Open the discussion"
+        onClick={() => onOpenDiscussion(discussion.id)}
+      >
+        <span style={{ color: 'var(--accent)', display: 'grid' }}>
+          <ChatsCircle size={13} className={discussion.status === 'running' ? 'pulse' : undefined} />
+        </span>
+        <span className="tool-row-summary">
+          <strong>Discussion</strong> <span className="muted">{discussion.topic.split('\n')[0]}</span>
+        </span>
+        <span className="tool-row-status mono muted">
+          {discussion.members.length} agents · {discussionLine(discussion).toLowerCase()}
+        </span>
+      </button>
+    </div>
+  )
+
+  /** A command's call: its row, and while it waits for your word or a place, that. */
+  const commandCall = (call: ToolCall, command: Command): { node: ReactNode; stands: boolean } => ({
+    stands: command.status === 'proposed' || command.status === 'approved',
+    node: (
+      <Fragment key={call.id}>
+        <CommandRow command={command} failed={call.status === 'failed'} />
+        {command.status === 'proposed' && (
+          <CommandApproval
+            command={command}
+            why={call.why_asked}
+            onDecide={decision => onDecideCommand(command.id, decision)}
+          />
+        )}
+        {command.status === 'approved' && (
+          <div role="note" className="muted cmd-approval-note">
+            Approved — {WAITS_FOR_A_PLACE}
+          </div>
+        )}
+      </Fragment>
+    ),
+  })
+
+  /** Any other call: its row, and under it what of it waits for your word. */
+  const toolCallRow = (call: ToolCall, { question, asked, pending, change }: { question: ReactNode; asked: Question | undefined; pending: boolean; change: FileChange | undefined }) => {
     const role = state.pendingRoles.find(r => r.tool_call_id === call.id)
     const skill = state.pendingSkills.find(r => r.tool_call_id === call.id)
-    if (command) {
-      return { stands: command.status === 'proposed' || command.status === 'approved', node: (
-        <Fragment key={call.id}>
-          <CommandRow command={command} failed={call.status === 'failed'} />
-          {command.status === 'proposed' && (
-            <CommandApproval
-              command={command}
-              why={call.why_asked}
-              onDecide={decision => onDecideCommand(command.id, decision)}
-            />
-          )}
-          {command.status === 'approved' && (
-            <div role="note" className="muted cmd-approval-note">
-              Approved — {WAITS_FOR_A_PLACE}
-            </div>
-          )}
-        </Fragment>
-      ) }
-    }
     const web = state.webRequests.find(w => w.tool_call_id === call.id && w.status === 'proposed')
     const waits = pending ? 'waits for your answer' : callWaits(state, call)
-    const decides = change?.status === 'proposed' || change?.status === 'approved'
-    // (The Lead's pick of the chat's teams, slice 84b, is the chat's one line of it: never folded into a run.)
-    const picked = call.name === 'pick_teams' && call.status === 'succeeded'
-    return { stands: Boolean(asked || web || role || skill || waits || decides || picked || asksOutside(call)), node: (
+    return { stands: standsAlone(call, change, { asked, web, role, skill, waits }), node: (
       <Fragment key={call.id}>
         {/* (Nothing of it runs before the user's yes: it waits, it does not run.) */}
         <ToolRow call={call} waits={waits} />
@@ -979,6 +986,32 @@ export function MessageList({
         )}
       </Fragment>
     ) }
+  }
+
+  /** A call as the chat shows it; `stands`: it is more than a row - a card, a row that waits for you, or one of its own kind - and is never inside a run. */
+  const callView = (call: ToolCall): { node: ReactNode; stands: boolean } => {
+    const change = state.fileChanges.find(f => f.tool_call_id === call.id)
+    const command = state.commands.find(c => c.tool_call_id === call.id)
+    const child = state.agents.find(a => a.tool_call_id === call.id)
+    // (A recipe's own questions - "Go on?", then "Take the work in?" - are put in the call that opened the agent of its
+    // step, one after another: B-99.)
+    const asks = state.questions.filter(q => q.tool_call_id === call.id)
+    const asked = asks[0]
+    const pending = asks.some(q => q.status === 'pending')
+    const question = asked && questionCards(call, asks)
+    if (call.name === 'open_room') return { stands: true, node: roomCall(call, question) }
+    if (child) return { stands: true, node: agentCall(call, child, question) }
+    const discussion = state.discussions.find(d => d.tool_call_id === call.id)
+    if (discussion) return { stands: true, node: discussionCall(call, discussion) }
+    if (call.name === 'message_agent') {
+      return { stands: true, node: <TalkRow key={call.id} call={call} from={nameOf(call.agent_id)} /> }
+    }
+    // Leave asked for a tool of an MCP server: the call keeps its row, with what it
+    // was given and what came back, and the question stands under it.
+    const leave = call.origin !== 'cli' && call.name !== 'ask_user'
+    if (question && !leave) return { stands: true, node: question }
+    if (command) return commandCall(call, command)
+    return toolCallRow(call, { question, asked, pending, change })
   }
   // A Lead's calls in a row, no words between them: one line, at its first call (K-ozet-satiri).
   const callsOf = callsByMessage(state.toolCalls)

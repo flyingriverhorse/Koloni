@@ -767,6 +767,9 @@ function byPart(at: ReturnType<typeof refusedOf>['at']) {
 
 const notYet = (things: number) => `It cannot run yet: ${things === 1 ? 'one part says why' : `${things} things to change, each at its part`}.`
 
+/** Why "Make it a recipe" cannot ask: what the server says, or that the list is not read yet; null when it can. */
+const whyOf = (list: Recipes | string | null) => (list && typeof list !== 'string' ? list.writer.why : 'The recipes are not read yet.')
+
 /**
  * The Recipes tab (slice 84a): the recipes on the left, ready ones and yours, and "Or write it"; the chosen one drawn in the middle;
  * the chosen part of it on the right. Saved only when the server finds it can run; a ready one is copied to be changed.
@@ -860,145 +863,164 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
       setError(errorText(err))
     }
   }
-  const why = list && typeof list !== 'string' ? list.writer.why : 'The recipes are not read yet.'
+  const why = whyOf(list)
   const chosenPart = draft && part && kindOf(draft.graph, part) ? part : null
   const fromGraph = draft ? before(draft.graph, chosenPart ?? '') : []
+
+  /** The recipes on the left, ready ones and yours, a new one, and "Or write it". */
+  const listPane = () => (
+    <div className="agents-list recipe-list" aria-label="Recipes">
+      {typeof list === 'string' && (
+        <p role="alert" className="alert">
+          The recipes could not be read: {list}
+        </p>
+      )}
+      {list && typeof list !== 'string' && list.broken.map(line => (
+        <p key={line} role="alert" className="alert">
+          {line}
+        </p>
+      ))}
+      {recipes.map(recipe => (
+        <button key={recipeKey(recipe)} type="button" className={`recipe-item${chosen === recipeKey(recipe) ? ' recipe-item-chosen' : ''}`} aria-pressed={chosen === recipeKey(recipe)} onClick={() => open(opened(recipe), recipeKey(recipe))}>
+          <b>{recipe.name}</b>
+          <span className="muted">
+            {summary(recipe.graph)} · {recipe.ready ? 'ready' : recipe.project_id ? 'this folder’s' : 'yours'}
+          </span>
+        </button>
+      ))}
+      <button type="button" className="agents-add" onClick={() => open({ name: 'New recipe', graph: emptyGraph(), from: null }, null)}>
+        + Draw a new recipe
+      </button>
+      <div className="recipe-write">
+        <b>Or write it</b>
+        <textarea
+          className="input"
+          aria-label="The recipe in words"
+          rows={4}
+          maxLength={2000}
+          placeholder="First the spec writer, then the coder; a security and a UI review at the same time; at most two rounds of fixes; ask me before it goes in."
+          value={sentence}
+          onChange={e => setSentence(e.target.value)}
+        />
+        <button type="button" className="btn btn-small" disabled={!sentence.trim() || !!why || writing || !actions} onClick={() => void write()}>
+          {writing ? 'Asking the Orchestrator’s model…' : 'Make it a recipe'}
+        </button>
+        <span className="muted recipe-note">{why ?? 'The Orchestrator’s model draws it on the board; nothing is saved until you save it.'}</span>
+      </div>
+    </div>
+  )
+
+  /** Over the board: its name, where a new one is kept, Delete (said again first), Copy it and Save recipe. */
+  const head = (draft: Draft) => (
+    <div className="recipe-head">
+      <input className="input recipe-name" aria-label="Recipe’s name" maxLength={60} value={draft.name} disabled={readOnly} onChange={e => setDraft({ ...draft, name: e.target.value })} />
+      {draft.from === null && projectId && (
+        <select className="input" aria-label="Where it is kept" value={inFolder ? 'folder' : 'koloni'} onChange={e => setInFolder(e.target.value === 'folder')}>
+          <option value="koloni">Kept in KOLONİ, for every folder</option>
+          <option value="folder">Kept in this folder’s .koloni/recipes (in git)</option>
+        </select>
+      )}
+      <span className="grow" />
+      {/* Said again before it goes (as a team is): a team that runs by it loses its default. */}
+      {draft.from && !draft.from.ready && deleting ? (
+        <span className="agents-new-team">
+          <span>
+            Delete {draft.from.name}? {draft.from.project_id ? 'Its file in .koloni/recipes goes too.' : 'A team that runs by it will have no default recipe.'}
+          </span>
+          <button type="button" className="btn btn-small btn-danger" onClick={() => draft.from && void deleteIt(draft.from)}>
+            Delete recipe
+          </button>
+          <button type="button" className="btn btn-small" onClick={() => setDeleting(false)}>
+            Cancel
+          </button>
+        </span>
+      ) : (
+        draft.from &&
+        !draft.from.ready && (
+          <button type="button" className="link-btn" onClick={() => setDeleting(true)}>
+            Delete
+          </button>
+        )
+      )}
+      <button type="button" className="btn btn-small" onClick={() => open({ name: `${draft.name} copy`, graph: draft.graph, from: null }, null, readOnly ? 'A copy of a ready recipe: yours to change.' : null)}>
+        Copy it
+      </button>
+      {!readOnly && (
+        <button type="button" className="btn btn-small btn-primary" disabled={!actions} onClick={() => void save()}>
+          Save recipe
+        </button>
+      )}
+    </div>
+  )
+
+  /** The chosen recipe: its head, what was refused, how it stands, the tools and the drawing. */
+  const board = () =>
+    draft && (
+      <>
+        {head(draft)}
+        {error && (
+          <div role="alert" className="alert">
+            {error}
+          </div>
+        )}
+        <span role="status" className="muted provider-note recipe-status">
+          {readOnly ? 'A ready recipe: copy it to change it.' : said}
+        </span>
+        {/* The tools hang a new part after the chosen one (inside a chosen group); over the board, never on a part. */}
+        <div className="recipe-tools" role="toolbar" aria-label="Draw">
+          <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addStep(draft.graph, chosenPart))}>
+            + Step
+          </button>
+          <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addGroup(draft.graph, chosenPart))}>
+            + All at once
+          </button>
+          <button
+            type="button"
+            className="recipe-tool"
+            title="From the chosen step back to the one before it, with its findings"
+            disabled={readOnly || !chosenPart || !fromGraph.some(id => kindOf(draft.graph, id) === 'step' || kindOf(draft.graph, id) === 'group')}
+            onClick={() => chosenPart && change(loopBack(draft.graph, chosenPart))}
+          >
+            + Loop back
+          </button>
+          <button type="button" className="recipe-tool" title="Its roles meet in one room" disabled={readOnly} onClick={() => add(addRoom(draft.graph, chosenPart))}>
+            + Room
+          </button>
+          <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addEnd(draft.graph, chosenPart))}>
+            + Ask me
+          </button>
+          <button type="button" className="recipe-tool" title="Every part back where the board puts it" disabled={readOnly} onClick={() => {
+              change(tidy(draft.graph))
+              setOpens(n => n + 1) // (seen afresh, from its top: the dragged parts held it elsewhere)
+            }}>
+            Tidy up
+          </button>
+        </div>
+        <div className="recipe-flow">
+          <ReactFlowProvider key={opens}>
+            <Board draft={draft} roles={roles} teams={teams} models={models} chosen={chosenPart} problems={problems} readOnly={readOnly} onChoose={setPart} onChange={change} />
+          </ReactFlowProvider>
+        </div>
+      </>
+    )
+
+  /** On the right: the chosen part, or what choosing one shows. */
+  const side = () =>
+    draft && chosenPart ? (
+      <PartPanel graph={draft.graph} id={chosenPart} roles={roles} teams={teams} problems={problems[chosenPart] ?? []} readOnly={readOnly} onChange={change} onChoose={setPart} models={models} providers={providers} onModels={onModels} />
+    ) : (
+      <aside className="role-panel recipe-panel" aria-label="Recipe part">
+        <p className="muted">Choose a part of the drawing to see who does it, what it gets and where it goes on.</p>
+      </aside>
+    )
+
   return (
     <>
-      <div className="agents-list recipe-list" aria-label="Recipes">
-        {typeof list === 'string' && (
-          <p role="alert" className="alert">
-            The recipes could not be read: {list}
-          </p>
-        )}
-        {list && typeof list !== 'string' && list.broken.map(line => (
-          <p key={line} role="alert" className="alert">
-            {line}
-          </p>
-        ))}
-        {recipes.map(recipe => (
-          <button key={recipeKey(recipe)} type="button" className={`recipe-item${chosen === recipeKey(recipe) ? ' recipe-item-chosen' : ''}`} aria-pressed={chosen === recipeKey(recipe)} onClick={() => open(opened(recipe), recipeKey(recipe))}>
-            <b>{recipe.name}</b>
-            <span className="muted">
-              {summary(recipe.graph)} · {recipe.ready ? 'ready' : recipe.project_id ? 'this folder’s' : 'yours'}
-            </span>
-          </button>
-        ))}
-        <button type="button" className="agents-add" onClick={() => open({ name: 'New recipe', graph: emptyGraph(), from: null }, null)}>
-          + Draw a new recipe
-        </button>
-        <div className="recipe-write">
-          <b>Or write it</b>
-          <textarea
-            className="input"
-            aria-label="The recipe in words"
-            rows={4}
-            maxLength={2000}
-            placeholder="First the spec writer, then the coder; a security and a UI review at the same time; at most two rounds of fixes; ask me before it goes in."
-            value={sentence}
-            onChange={e => setSentence(e.target.value)}
-          />
-          <button type="button" className="btn btn-small" disabled={!sentence.trim() || !!why || writing || !actions} onClick={() => void write()}>
-            {writing ? 'Asking the Orchestrator’s model…' : 'Make it a recipe'}
-          </button>
-          <span className="muted recipe-note">{why ?? 'The Orchestrator’s model draws it on the board; nothing is saved until you save it.'}</span>
-        </div>
-      </div>
+      {listPane()}
       <div className="recipe-board">
-        {draft && (
-          <>
-            <div className="recipe-head">
-              <input className="input recipe-name" aria-label="Recipe’s name" maxLength={60} value={draft.name} disabled={readOnly} onChange={e => setDraft({ ...draft, name: e.target.value })} />
-              {draft.from === null && projectId && (
-                <select className="input" aria-label="Where it is kept" value={inFolder ? 'folder' : 'koloni'} onChange={e => setInFolder(e.target.value === 'folder')}>
-                  <option value="koloni">Kept in KOLONİ, for every folder</option>
-                  <option value="folder">Kept in this folder’s .koloni/recipes (in git)</option>
-                </select>
-              )}
-              <span className="grow" />
-              {/* Said again before it goes (as a team is): a team that runs by it loses its default. */}
-              {draft.from && !draft.from.ready && deleting ? (
-                <span className="agents-new-team">
-                  <span>
-                    Delete {draft.from.name}? {draft.from.project_id ? 'Its file in .koloni/recipes goes too.' : 'A team that runs by it will have no default recipe.'}
-                  </span>
-                  <button type="button" className="btn btn-small btn-danger" onClick={() => draft.from && void deleteIt(draft.from)}>
-                    Delete recipe
-                  </button>
-                  <button type="button" className="btn btn-small" onClick={() => setDeleting(false)}>
-                    Cancel
-                  </button>
-                </span>
-              ) : (
-                draft.from &&
-                !draft.from.ready && (
-                  <button type="button" className="link-btn" onClick={() => setDeleting(true)}>
-                    Delete
-                  </button>
-                )
-              )}
-              <button type="button" className="btn btn-small" onClick={() => open({ name: `${draft.name} copy`, graph: draft.graph, from: null }, null, readOnly ? 'A copy of a ready recipe: yours to change.' : null)}>
-                Copy it
-              </button>
-              {!readOnly && (
-                <button type="button" className="btn btn-small btn-primary" disabled={!actions} onClick={() => void save()}>
-                  Save recipe
-                </button>
-              )}
-            </div>
-            {error && (
-              <div role="alert" className="alert">
-                {error}
-              </div>
-            )}
-            <span role="status" className="muted provider-note recipe-status">
-              {readOnly ? 'A ready recipe: copy it to change it.' : said}
-            </span>
-            {/* The tools hang a new part after the chosen one (inside a chosen group); over the board, never on a part. */}
-            <div className="recipe-tools" role="toolbar" aria-label="Draw">
-              <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addStep(draft.graph, chosenPart))}>
-                + Step
-              </button>
-              <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addGroup(draft.graph, chosenPart))}>
-                + All at once
-              </button>
-              <button
-                type="button"
-                className="recipe-tool"
-                title="From the chosen step back to the one before it, with its findings"
-                disabled={readOnly || !chosenPart || !fromGraph.some(id => kindOf(draft.graph, id) === 'step' || kindOf(draft.graph, id) === 'group')}
-                onClick={() => chosenPart && change(loopBack(draft.graph, chosenPart))}
-              >
-                + Loop back
-              </button>
-              <button type="button" className="recipe-tool" title="Its roles meet in one room" disabled={readOnly} onClick={() => add(addRoom(draft.graph, chosenPart))}>
-                + Room
-              </button>
-              <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addEnd(draft.graph, chosenPart))}>
-                + Ask me
-              </button>
-              <button type="button" className="recipe-tool" title="Every part back where the board puts it" disabled={readOnly} onClick={() => {
-                  change(tidy(draft.graph))
-                  setOpens(n => n + 1) // (seen afresh, from its top: the dragged parts held it elsewhere)
-                }}>
-                Tidy up
-              </button>
-            </div>
-            <div className="recipe-flow">
-              <ReactFlowProvider key={opens}>
-                <Board draft={draft} roles={roles} teams={teams} models={models} chosen={chosenPart} problems={problems} readOnly={readOnly} onChoose={setPart} onChange={change} />
-              </ReactFlowProvider>
-            </div>
-          </>
-        )}
+        {board()}
       </div>
-      {draft && chosenPart ? (
-        <PartPanel graph={draft.graph} id={chosenPart} roles={roles} teams={teams} problems={problems[chosenPart] ?? []} readOnly={readOnly} onChange={change} onChoose={setPart} models={models} providers={providers} onModels={onModels} />
-      ) : (
-        <aside className="role-panel recipe-panel" aria-label="Recipe part">
-          <p className="muted">Choose a part of the drawing to see who does it, what it gets and where it goes on.</p>
-        </aside>
-      )}
+      {side()}
     </>
   )
 }

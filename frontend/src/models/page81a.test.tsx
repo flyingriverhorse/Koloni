@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Limits, ModelFacts, Provider, Tiers, Usage } from '../api/types'
-import { readingOf } from './cards'
+import type { CatalogueUpdate, Limits, ModelFacts, Provider, Tiers, Usage } from '../api/types'
+import { ProviderCard, readingOf } from './cards'
+import { type GuideRow, ModelRow } from './ModelRow'
 import { ModelsPage } from './ModelsPage'
 
 // Slice 81a: the Models page as cards with gauges, the tiers' order under them, a provider in a window.
@@ -110,6 +111,67 @@ test('a gauge says only what is known: what is left of a plan’s narrowest wind
   expect(readingOf(provider({}), { avail: answered })).toEqual({ share: 1, value: 'on', label: 'running' })
   const silent = { installed: null, models: [{ name: 'qwen', state: 'unknown', why: 'unreachable' }] } as never
   expect(readingOf(provider({}), { avail: silent })).toEqual({ share: 0, value: 'off', label: 'not answering' })
+})
+
+test('a card says it is open, the default and a state in the way louder; a plan’s other windows behind ⓘ, a key’s in sight', () => {
+  const reading = { share: 0.5, value: '50%', label: 'left this week', more: 'This week 80% left' }
+  const card = (over: Partial<Parameters<typeof ProviderCard>[0]>) => (
+    <ProviderCard provider={codex} isDefault={false} state={['ok', 'signed in']} reading={reading} open={false} onOpen={vi.fn()} onSwitch={vi.fn()} {...over} />
+  )
+  const { container, rerender } = render(card({ open: true, isDefault: true, state: ['bad', 'not installed'], onCheck: vi.fn() }))
+  const button = () => container.querySelector('#provider-card-cx')
+  expect(button()).toHaveAttribute('aria-current', 'true')
+  expect(button()).toHaveTextContent('subscription · default')
+  expect(screen.getByText('not installed')).toHaveClass('provider-card-state')
+  const check = screen.getByRole('button', { name: 'Check Codex' })
+  expect(check).toHaveTextContent('Check')
+  expect(check).toHaveAttribute('title', 'Looks again whether it can be used now; no model is run')
+  expect(screen.getByText('This week 80% left')).toHaveClass('hint-para')
+  rerender(card({ onCheck: vi.fn(), busy: true }))
+  expect(button()).not.toHaveAttribute('aria-current')
+  expect(button()).not.toHaveTextContent('default')
+  expect(screen.getByText('signed in')).toHaveClass('provider-card-status')
+  expect(screen.getByRole('button', { name: 'Check Codex' })).toHaveTextContent('Checking…')
+  // An API key's `more` is a limit it cannot keep: on the card; with nothing to do or say, no foot.
+  const { container: key } = render(card({ provider: deepseek, reading: { share: null, value: '$1', label: 'today', plain: true, more: 'cannot be kept' } }))
+  expect(within(within(key).getByRole('button', { name: /^DeepSeek/ })).getByText('cannot be kept')).toHaveClass('provider-card-state')
+  expect(key.querySelector('.provider-card-foot')).toBeNull()
+})
+
+test('a provider’s window heads with its state, how it is paid, the default and its switch; the catalogue says what it holds while it updates', async () => {
+  let kept: (told: CatalogueUpdate) => void = () => {}
+  const onUpdateCatalogue = vi.fn(
+    () =>
+      new Promise<CatalogueUpdate>(resolve => {
+        kept = resolve
+      }),
+  )
+  const onCatalogue = vi.fn().mockResolvedValue({ providers: 6, models: 300, updated_at: null, local: null, keep_fresh: false })
+  render(<ModelsPage providers={[provider({}), { ...deepseek, enabled: false }]} {...handlers()} onUpdateCatalogue={onUpdateCatalogue} onCatalogue={onCatalogue} />)
+  expect(await screen.findByText('Catalogue: models.dev · 6 services')).toHaveAttribute('role', 'status')
+  await userEvent.click(screen.getByRole('button', { name: 'Update catalogue' }))
+  expect(screen.getByRole('button', { name: 'Updating…' })).toBeDisabled()
+  kept({ providers: 7, models: 310, updated_at: null, local: null, keep_fresh: false })
+  expect(await screen.findByText('Catalogue: models.dev · 7 services')).toBeInTheDocument()
+  const head = () => screen.getByRole('dialog').querySelector('.provider-dialog-head')
+  await userEvent.click(screen.getByRole('button', { name: /^Local/ }))
+  expect(head()).toHaveTextContent(/^Localthis machine · defaulton$/)
+  expect(head()?.querySelector('.state-dot')).toHaveClass('state-off')
+  await userEvent.keyboard('{Escape}')
+  await userEvent.click(screen.getByRole('button', { name: /^DeepSeek/ }))
+  expect(head()).toHaveTextContent(/^DeepSeekAPI keyoff$/)
+  await userEvent.keyboard('{Escape}')
+  await userEvent.click(screen.getByRole('button', { name: /Add a provider/ }))
+  expect(head()).toHaveTextContent(/^Add a provider$/)
+  expect(head()?.querySelector('.state-dot')).toBeNull()
+})
+
+test('a gauge still read says so, a spend not read says why, and a plan’s credits unlimited are said behind ⓘ', () => {
+  expect(readingOf(provider({}), {})).toEqual({ share: null, value: '…', label: 'looking…' })
+  expect(readingOf(deepseek, {})).toEqual({ share: null, value: '…', label: 'looking…', plain: true })
+  expect(readingOf(deepseek, { today: null })).toEqual({ share: null, value: '–', label: 'spent today: not known', plain: true })
+  const unlimited = { ...limits([window_(300, 18)]), credits: { unlimited: true, balance: null, has_credits: true } }
+  expect(readingOf(codex, { limits: unlimited })).toEqual({ share: 0.82, value: '82%', label: 'left of 5 hours', more: 'credits unlimited' })
 })
 
 test('each card says its kind, the default and its models by tier; the last one adds a provider', async () => {
@@ -399,6 +461,37 @@ test('a tier that is not the catalogue’s is marked “you”; the catalogue’
   // Changed here, before it is saved: yours too.
   await userEvent.selectOptions(within(filled).getByLabelText('Tier of filled'), 'balanced')
   expect(within(filled).getByTitle('Set by you, not the catalogue’s')).toBeInTheDocument()
+})
+
+test('a CLI’s model is on its plan, one that takes no levels says none, Copilot’s shows the catalogue’s window, and what was tried can be forgotten', async () => {
+  const { api } = await import('../api/client')
+  const forget = vi.spyOn(api, 'delete').mockResolvedValue(undefined)
+  const onFacts = vi.fn(async () => facts({ efforts: [], context_window: 200000, price: { input: 3, output: 15, currency: 'USD' }, inputs: [{ kind: 'image', takes: false, source: 'tried' }] }))
+  const sonnet: GuideRow = { name: 'sonnet', note: '', tier: 'fast', agents: true }
+  const noop = vi.fn()
+  const draw = (on: Provider, context: GuideRow['context'] = null) => (
+    <table>
+      <tbody>
+        <ModelRow row={{ ...sonnet, context }} provider={on} used={null} onFacts={onFacts} onTier={noop} onAgents={noop} onEnabled={noop} onInputs={noop} onContext={noop} onNote={noop} onNoteDone={noop} onRemove={noop} />
+      </tbody>
+    </table>
+  )
+  const { rerender } = render(draw(claude))
+  await waitFor(() => expect(screen.getByRole('row')).toHaveTextContent('200k–noneplan'))
+  await userEvent.click(screen.getByRole('button', { name: 'What is known of sonnet' }))
+  const known = screen.getAllByRole('row')[1]
+  expect(known).toHaveTextContent('Thinking levelsnone')
+  expect(known).toHaveTextContent('Price if paid per token (1M)3 / 15 USD')
+  await userEvent.click(within(known).getByRole('button', { name: 'Forget what was tried' }))
+  expect(forget).toHaveBeenCalledWith('/providers/cc/tried-inputs?model=sonnet')
+  await waitFor(() => expect(onFacts).toHaveBeenCalledTimes(2))
+  forget.mockRestore()
+  const copilot = provider({ id: 'gh', name: 'Copilot', kind: 'copilot_cli', base_url: null })
+  rerender(draw(copilot))
+  expect(await screen.findByTitle('The catalogue’s context window')).toHaveTextContent('200k')
+  rerender(draw(copilot, 'long_context'))
+  expect(screen.queryByTitle('The catalogue’s context window')).toBeNull()
+  expect(screen.getByLabelText('Context of sonnet')).toHaveValue('long_context')
 })
 
 test('the Models tab is read first: a tier or agents switched is saved at once and said; a model is named only when added', async () => {

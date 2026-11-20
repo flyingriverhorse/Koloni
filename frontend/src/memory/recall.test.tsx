@@ -213,6 +213,23 @@ test('what a linked project holds is its own group, tagged with the project and 
   expect(search()).toHaveTextContent('search by meaning is off: model server unreachable: connection refused')
 })
 
+test('the status line is empty until words are typed, then says what the page has and that Enter searches deeper; what only another project said is its own group', async () => {
+  const onSearch = vi.fn().mockResolvedValue({
+    memory: [],
+    turns: [{ who: 'You', conversation_id: 'c2', conversation_title: 'Retries', run_id: 'r9', at: '2026-10-13T10:00:00Z', excerpt: 'payments were retried thrice', project: 'Other one' }],
+  })
+  render(<MemoryPage memory={projectMemory()} {...handlers()} onSearch={onSearch} />)
+  expect(within(search()).getByRole('status')).toBeEmptyDOMElement()
+  await userEvent.type(screen.getByLabelText(BOX), 'thrice{Enter}')
+  expect(within(search()).getByRole('status')).toHaveTextContent(/^Nothing on this page has “thrice”\. Enter searches deeper\.$/)
+  const linked = within(await within(search()).findByRole('list', { name: 'In linked projects' })).getAllByRole('listitem')
+  expect(linked).toHaveLength(1)
+  expect(linked[0]).toHaveTextContent('“payments were retried thrice”')
+  expect(within(search()).getByRole('heading', { name: 'Searched deeper for “thrice”' })).toBeInTheDocument()
+  expect(within(search()).getByText('Nothing on record speaks to “thrice”.')).toBeInTheDocument()
+  expect(within(search()).getByText('Nothing said in earlier messages speaks to “thrice”.')).toBeInTheDocument()
+})
+
 test('by words / by meaning ▾ is the project’s setting, in a small window: a provider with a server address, what it costs in sight, and only what changed is sent', async () => {
   useApp.setState({
     projectId: 'p',

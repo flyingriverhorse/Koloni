@@ -415,23 +415,21 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
   )
 }
 
-/**
- * Where the turn's teams meet (slice 84b-2): dashed while it waits, saying for whom; "NEEDS YOU" once every team is at
- * its end, with each team's line and the checks its agents reported (never one nobody reported); "In the project ✓"
- * after Take in. What waits for you is answered in one place, the chat's Ready for you (K-bekleyenler): here, its count,
- * what it holds in one line, and the way there.
- */
-export function ReadyNode({ data, selected }: NodeProps<Node<ReadyData & Record<string, unknown>>>) {
-  const { openList } = useContext(NodeActions)
+/** Where Ready for you stands: the question it asks, the recipe's copy kept, whether it needs you, and its word for it. */
+function readyStands(data: ReadyData) {
   const asked = data.questionId
   // B-67: its turn ended before Take in - the recipe's copy is kept, Take in or Discard is still yours.
   const kept = asked === null ? data.kept : null
   // (B-142: a Take in's clash waits in the list too - not "Nothing waits to be taken in.")
   const needs = asked !== null || kept !== null || data.rows.some(row => row.kept) || data.waiting.mine > 0
-  const label = needs ? 'NEEDS YOU' : data.taken ? 'IN' : data.waits ? 'WAITS' : 'DONE'
+  return { asked, kept, needs, label: needs ? 'NEEDS YOU' : data.taken ? 'IN' : data.waits ? 'WAITS' : 'DONE' }
+}
+
+/** What Ready for you says of the work: kept, waited for, at its end, in the project or not all of it. */
+function readySaid(data: ReadyData, kept: string | null, needs: boolean): string {
   // B-84: what is in the project is said team by team - one taken in before is not "nothing".
   const inSoFar = data.inProject.length ? `In the project: ${data.inProject.join(', ')}.` : 'Nothing is in the project yet.'
-  const said = kept
+  return kept
     ? `The work ended before Take in${data.left ? ` (${data.left})` : ''}: the work is kept in the recipe’s copy, not in the project.`
     : data.waits
       ? `Waits for ${data.waits}.`
@@ -444,6 +442,18 @@ export function ReadyNode({ data, selected }: NodeProps<Node<ReadyData & Record<
             : data.notStarted.length
               ? `${data.notStarted.join(', ')} did not start.`
               : 'Nothing waits to be taken in.'
+}
+
+/**
+ * Where the turn's teams meet (slice 84b-2): dashed while it waits, saying for whom; "NEEDS YOU" once every team is at
+ * its end, with each team's line and the checks its agents reported (never one nobody reported); "In the project ✓"
+ * after Take in. What waits for you is answered in one place, the chat's Ready for you (K-bekleyenler): here, its count,
+ * what it holds in one line, and the way there.
+ */
+export function ReadyNode({ data, selected }: NodeProps<Node<ReadyData & Record<string, unknown>>>) {
+  const { openList } = useContext(NodeActions)
+  const { asked, kept, needs, label } = readyStands(data)
+  const said = readySaid(data, kept, needs)
   return (
     <div className={`node ready-node ${needs ? 'ready-needs' : data.taken ? 'ready-in' : 'ready-waits'}${selected ? ' node-selected' : ''}`}>
       <Handle type="target" position={Position.Left} isConnectable={false} className="ready-door" />
