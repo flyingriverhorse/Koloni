@@ -112,6 +112,14 @@ test('a gauge says only what is known: what is left of a plan’s narrowest wind
   expect(readingOf(provider({}), { avail: silent })).toEqual({ share: 0, value: 'off', label: 'not answering' })
 })
 
+test('a gauge still read says so, a spend not read says why, and a plan’s credits unlimited are said behind ⓘ', () => {
+  expect(readingOf(provider({}), {})).toEqual({ share: null, value: '…', label: 'looking…' })
+  expect(readingOf(deepseek, {})).toEqual({ share: null, value: '…', label: 'looking…', plain: true })
+  expect(readingOf(deepseek, { today: null })).toEqual({ share: null, value: '–', label: 'spent today: not known', plain: true })
+  const unlimited = { ...limits([window_(300, 18)]), credits: { unlimited: true, balance: null, has_credits: true } }
+  expect(readingOf(codex, { limits: unlimited })).toEqual({ share: 0.82, value: '82%', label: 'left of 5 hours', more: 'credits unlimited' })
+})
+
 test('each card says its kind, the default and its models by tier; the last one adds a provider', async () => {
   const tiered = provider({
     models: [

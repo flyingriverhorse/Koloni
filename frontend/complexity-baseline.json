@@ -21,7 +21,6 @@
   "src/memory/Find.tsx::Find": 27,
   "src/memory/MemoryPage.tsx::MemoryPage": 36,
   "src/models/cards.tsx::ProviderCard": 35,
-  "src/models/cards.tsx::readingOf": 24,
   "src/models/ModelPicker.tsx::ModelPicker": 46,
   "src/models/ModelRow.tsx::ModelRow": 38,
   "src/models/ModelsPage.tsx::ModelsPage": 36,

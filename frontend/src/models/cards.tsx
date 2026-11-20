@@ -93,19 +93,27 @@ export function readingOf(
   }
   if (paid === 'API key') {
     // shortcut: no balance here - that is slice 73's, said only where the service says it.
-    if (provider.plan) {
-      // Its quota last seen used up (its 429): when - the time today, else the date too (a monthly quota: a weekday
-      // alone could be any week). What is left no API says.
-      const seen = limits?.used_up && limits.read_at
-      const today = seen && new Date(seen).toDateString() === new Date().toDateString()
-      const at = seen && new Date(seen).toLocaleString(undefined, { ...(today ? {} : { month: 'short', day: 'numeric' }), hour: '2-digit', minute: '2-digit' })
-      return { share: null, value: 'plan', label: at ? `quota used up, seen ${at}` : 'no money counted', plain: true }
-    }
+    if (provider.plan) return quotaReading(limits)
     if (today === undefined) return { ...LOOKING, plain: true }
     if (today === null) return { share: null, value: '–', label: 'spent today: not known', plain: true }
     return spentToday(provider, today, unkept)
   }
   if (limits === undefined) return LOOKING
+  return planReading(limits)
+}
+
+/** An API key that is a plan: no money counted, or when its quota was last seen used up. */
+function quotaReading(limits: Limits | null | undefined): Reading {
+  // Its quota last seen used up (its 429): when - the time today, else the date too (a monthly quota: a weekday
+  // alone could be any week). What is left no API says.
+  const seen = limits?.used_up && limits.read_at
+  const today = seen && new Date(seen).toDateString() === new Date().toDateString()
+  const at = seen && new Date(seen).toLocaleString(undefined, { ...(today ? {} : { month: 'short', day: 'numeric' }), hour: '2-digit', minute: '2-digit' })
+  return { share: null, value: 'plan', label: at ? `quota used up, seen ${at}` : 'no money counted', plain: true }
+}
+
+/** What is left of a CLI's plan as it last said it; null: reading it failed. */
+function planReading(limits: Limits | null): Reading {
   const windows = limits?.windows ?? []
   const known = windows.filter(w => w.used_percent !== null && !w.stale)
   // The narrowest window: the one with the least left, whatever its length - what a step down reads too (81c).
