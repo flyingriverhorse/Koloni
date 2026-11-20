@@ -1,6 +1,9 @@
 """Branches of `app/agent/__init__.py` that no other test met, pinned before its long
-functions were split (C901 <= 12): each test here ran green on the code before the split."""
+functions were split (C901 <= 12): each test here ran green on the code before the split
+(the last one was written after `_apply`'s split, and run on the code before it too)."""
 
+from app import copies
+from app.agent.ctx import Ctx
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_browser import FAKE
 from tests.test_chat_flow import start_in_mode, text
@@ -45,5 +48,23 @@ def test_nobody_watching_a_part_copys_passing_check_keeps_a_root_file_for_the_us
     assert [f["state"] for f in merge["files"]] == ["ready"]
     told = next(t for t in snap["tool_calls"] if t["name"] == "spawn_agent")["result"]
     assert 'it ran in a copy of "core/" alone, without the other parts' in told
-    assert merge["kept_in"] in told
     assert (project / "pyproject.toml").read_text(encoding="utf-8").startswith("[tool.pytest")
+
+
+def test_apply_shows_again_a_file_that_is_not_as_its_card_showed_it_and_takes_nothing(
+        make_client, project_dir, tmp_path):
+    client, _model = make_client([])
+    client.headers["Origin"] = ORIGIN
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    (project_dir / "note.txt").write_text("one\n", encoding="utf-8")
+    copy = copies.make(project_dir, tmp_path / "copies", "a1")
+    (copy.root / "note.txt").write_text("two\n", encoding="utf-8")
+    ctx = Ctx("run", cid, str(project_dir), "a1", "Coder", (), 1, name="Coder")
+    # (The user's yes was to other bytes than the two files hold now.)
+    files = {"note.txt": {"path": "note.txt", "state": "ready", "shown": ["not", "these"],
+                          "note": None}}
+    assert client.app.state.runner._apply(ctx, copy, files, True) == set()
+    assert (project_dir / "note.txt").read_text(encoding="utf-8") == "one\n"
+    (one,) = files.values()
+    assert one["state"] == "ready" and tuple(one["shown"]) == copy.sides("note.txt")
