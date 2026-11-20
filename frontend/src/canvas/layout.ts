@@ -51,7 +51,7 @@ export const BLOCK_ROW = 20
 export const BLOCK_PAD = 6
 const CARD_EDGE = 1
 export const CARD_GAP = 24
-/** Where a frame's line to Ready for you leaves it, over its foot (canvas.css .team-out), and room over that for its handle. */
+/** Where a frame's line to Ready for you leaves it - its dot's middle - over its foot (canvas.css .team-out), and room over that for its handle. */
 export const TEAM_OUT = 18
 const OUT_ROOM = 12
 /** Where the lines come into Ready for you, under its top (canvas.css .ready-door); the discussions' lane starts under that. */
@@ -588,6 +588,18 @@ export function arcWay(e: GraphEdge, nodes: GraphNode[], edges: GraphEdge[], rec
   const [room, foot] = [ARC_ROOM + (arcs.length - 1) * ARC_STEP, (nodes.find(n => n.id === frame)?.data as GroupData | undefined)?.finished ? TEAM_FOOT : 0]
   const band = over ? box.y + TEAM_HEAD + room - (ARC_ROOM * 3) / 4 - ring * ARC_STEP : box.y + box.height - TEAM_PAD - foot - room + ARC_ROOM / 2 + ring * ARC_STEP
   return { source: me.source, target: me.target, turned: me !== e, band, ring, into: over ? ('top' as const) : under ? ('foot' as const) : ('side' as const) }
+}
+
+/**
+ * Where a line across bends (edges.tsx `LaneEdge`): on its bus (a line to Ready for you), else just left of the column it
+ * goes to. The Orchestrator's dot stands about 21 px from an open frame's door, so React Flow's 20 px stubs crossed there
+ * and stepped back (21 Nov): a line that close goes straight to the door, bent half way - and two or three teams' lines
+ * share that trunk. (Only rightward: a line drawn leftward keeps its bend, never under the cards.)
+ */
+export function bendOf(sourceX: number, targetX: number, bus?: number): { centerX: number; offset?: number } {
+  const gap = targetX - sourceX
+  if (bus === undefined && gap > 0 && gap < DOOR_PAD) return { centerX: sourceX + gap / 2, offset: 0 }
+  return { centerX: bus ?? targetX - DOOR_PAD / 2 }
 }
 
 /**

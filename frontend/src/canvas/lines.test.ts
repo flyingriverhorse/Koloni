@@ -3,7 +3,7 @@ import type { Attachment, ChannelMessage, ChatTeam, ChatTeamState, Discussion, R
 import { agent, command, conversation, convState, note, run, toolCall, userMessage } from '../test-fixtures'
 import { type AgentData, type RoundData, type TeamData, deriveGraph } from './deriveGraph'
 import { foldGraph, unfold } from './foldGraph'
-import { ARC_ROOM, ARC_STEP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, TEAM_HEAD, TEAM_PAD, arcPath, arcWay, arced, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberLine } from './layout'
+import { ARC_ROOM, ARC_STEP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, TEAM_HEAD, TEAM_PAD, arcPath, arcWay, arced, bendOf, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberLine } from './layout'
 
 // K-canvas-dili (mockup W): a team's work line left to right in its recipe's order, one fork into a step and one join
 // out of it, findings back, talk with its last words, a door for the Lead and doors between frames - no line out of a frame.
@@ -657,6 +657,16 @@ function crossing(turn: ReturnType<typeof drawn>) {
     expect(line.at.x, e.id).toBeGreaterThan(right)
   }
 }
+
+test('21 Nov: the Orchestrator’s line into a frame goes straight to its door, bent half way - the lines of two teams share that trunk', () => {
+  // (The Orchestrator's dot is about 21 px from an open frame's door: React Flow's 20 px stubs crossed and stepped back.)
+  expect(bendOf(514, 535)).toEqual({ centerX: 524.5, offset: 0 })
+  // Farther - a door's line into its first column, a work line, a line to Ready for you - on the bus or just left of the
+  // column it goes to, as before; and so a line drawn leftward (talk with no team, a dragged card), never under the cards.
+  expect(bendOf(500, 545)).toEqual({ centerX: 525 })
+  expect(bendOf(800, 1000, 900)).toEqual({ centerX: 900 })
+  expect(bendOf(600, 300)).toEqual({ centerX: 280 })
+})
 
 test('5 Nov: Evolve with its earlier rounds opened: no line of it runs under a card or over its header', () => {
   const [one, two] = ['round:team:r:web:build:0', 'round:team:r:web:build:1']

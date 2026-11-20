@@ -1,6 +1,6 @@
 import { BaseEdge, type Edge, EdgeLabelRenderer, type EdgeProps, Position, getSmoothStepPath } from '@xyflow/react'
 import { useContext } from 'react'
-import { DOOR_PAD, arcPath } from './layout'
+import { arcPath, bendOf } from './layout'
 import { NodeActions } from './toggleGroup'
 
 /** What the canvas hands a line of a team's frame (K-canvas-dili). */
@@ -70,7 +70,7 @@ export function LaneEdge({ id, sourceX, sourceY, targetX, targetY, sourcePositio
   // (From a frame's door, on its left edge: inward.)
   const from = sourcePosition === Position.Left ? Position.Right : sourcePosition
   const across = from === Position.Right && targetPosition === Position.Left
-  const [path, x, y] = getSmoothStepPath({ sourceX, sourceY, sourcePosition: from, targetX, targetY, targetPosition, borderRadius: 8, ...(across && { centerX: data?.bus ?? targetX - DOOR_PAD / 2 }) })
+  const [path, x, y] = getSmoothStepPath({ sourceX, sourceY, sourcePosition: from, targetX, targetY, targetPosition, borderRadius: 8, ...(across && bendOf(sourceX, targetX, data?.bus)) })
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
