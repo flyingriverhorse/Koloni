@@ -1360,5 +1360,22 @@ test('while the turn runs the card has no foot; at its end the summary and Copy 
   expect(screen.getByRole('article', { name: /^Orchestrator, / })).toBe(card)
   expect(within(card).getByRole('region', { name: 'What it did' }).parentElement).toHaveClass('turn-foot')
   expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
+  expect(screen.getAllByRole('region', { name: 'What it did' })).toHaveLength(1)
   expect(within(card).getByRole('button', { name: 'Copy' }).closest('footer')).toHaveClass('turn-foot')
+})
+
+test('a turn that ended with nothing after your message still says what it did, under the message', () => {
+  // (Stopped while a room's members worked: the Lead, waiting for the room, never wrote.)
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('r', 'cancelled')],
+        agents: [agent('r', 'cancelled'), agent('r', 'cancelled', { id: 'k', parent_agent_id: 'r', depth: 1 })],
+        messages: [userMessage('r', 'go')],
+      })}
+    />,
+  )
+  expect(screen.queryByRole('article')).toBeNull()
+  expect(screen.getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
 })

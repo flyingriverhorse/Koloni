@@ -730,10 +730,10 @@ function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, R
 const OPENERS = new Set<Message['role']>(['user', 'trigger'])
 
 /**
- * The chat's groups (one per message of `ordered`, null where nothing is drawn) with each turn's after its opener in
- * one card - the one `card` gives, or none: then they stand as they are. A turn with nothing after its opener has none.
+ * The chat's groups (one per message of `ordered`, null where nothing is drawn) with each turn's after its opener as
+ * `card` puts them: in one card, or as they are with what the turn did under them.
  */
-function turnsOf(ordered: Message[], card: (runId: string, inside: ReactNode[]) => ReactNode, groups: ReactNode[]): ReactNode[] {
+function turnsOf(ordered: Message[], card: (runId: string, inside: ReactNode[]) => ReactNode[], groups: ReactNode[]): ReactNode[] {
   const out: ReactNode[] = []
   let inside: ReactNode[] = []
   // (A turn's messages are next to one another: `ordered` is sorted by turn.)
@@ -741,8 +741,7 @@ function turnsOf(ordered: Message[], card: (runId: string, inside: ReactNode[]) 
     if (OPENERS.has(message.role)) out.push(groups[i])
     else if (groups[i]) inside.push(groups[i])
     if (ordered[i + 1]?.run_id === message.run_id) return
-    const wrapped = inside.length > 0 ? card(message.run_id, inside) : null
-    out.push(...(wrapped ? [wrapped] : inside))
+    out.push(...card(message.run_id, inside))
     inside = []
   })
   return out
@@ -1062,24 +1061,32 @@ export function MessageList({
     })
   // Each turn's answer: its last message of the Lead's with words. It opens with its point, and its foot copies and reads it.
   const answerOf = new Map(ordered.filter(m => m.role === 'assistant' && m.content).map(m => [m.run_id, m]))
-  /** The card of a Lead turn (0.1.4): none for a comparison - its sides stand under their models' names - or a turn with no Lead. */
-  const card = (runId: string, inside: ReactNode[]) => {
+  /**
+   * A Lead turn's groups after its opener in one card (0.1.4), what it did in the card's foot once it is over. No card
+   * for a comparison - its sides stand under their models' names -, a turn with no Lead or nothing after its opener:
+   * their groups stand as they are, what it did under them.
+   */
+  const card = (runId: string, inside: ReactNode[]): ReactNode[] => {
     const run = runs.get(runId)
+    if (!run) return inside
     const lead = state.agents.find(a => a.run_id === runId && a.depth === 0)
-    if (!run || run.compare_id || !lead) return null
     const answer = answerOf.get(runId)
-    const over = run.started_at && TERMINAL.has(run.status)
-    const foot = over ? (
+    const summary =
+      run.started_at && TERMINAL.has(run.status) && !run.compare_id ? (
+        <TurnSummary key={`did:${runId}`} state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />
+      ) : null
+    if (inside.length === 0 || run.compare_id || !lead) return [...inside, summary]
+    const foot = summary && (
       <>
-        <TurnSummary state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />
+        {summary}
         {answer && <AnswerActions message={answer} />}
       </>
-    ) : null
-    return (
+    )
+    return [
       <TurnCard key={`turn:${runId}`} state={state} run={run} lead={lead} answer={answer} foot={foot} waits={false}>
         {inside}
-      </TurnCard>
-    )
+      </TurnCard>,
+    ]
   }
 
   if (state.messages.length === 0) {
