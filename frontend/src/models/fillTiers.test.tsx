@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
+import { ApiError } from '../api/client'
 import type { Availability, FilledProvider, Provider } from '../api/types'
 import { FillTiers } from './FillTiers'
 import { dayOf } from './levels'
@@ -144,4 +145,46 @@ test('only the open provider and a server on this machine are read in full; the 
 test('a catalogue read on a day is that day, wherever this machine is', () => {
   expect(dayOf('2026-10-21', false)).toBe('21 Oct')
   expect(dayOf('2026-10-21')).toBe('21 Oct')
+})
+
+test('as a button: always there, its preview a window; what Save said is read out, and why a fill failed is said beside it', async () => {
+  const onFillAll = vi.fn().mockRejectedValueOnce(new ApiError(502, 'the catalogue is not answering')).mockResolvedValue({ providers: proposal, notes: NOTES })
+  const onSaveFillAll = vi.fn().mockResolvedValue(undefined)
+  const tiered = provider({ models: [{ name: 'qwen', note: null, tier: 'fast', agents: true }] })
+  const { container, rerender } = render(<FillTiers providers={[tiered]} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} button />)
+  const shownAs = () => Array.from(container.children, one => `${one.tagName}.${one.className}`)
+  expect(shownAs()).toEqual(['BUTTON.btn btn-small'])
+  await userEvent.click(screen.getByRole('button', { name: 'Fill tiers' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('the catalogue is not answering')
+  expect(shownAs()).toEqual(['BUTTON.btn btn-small', 'DIV.alert'])
+  await userEvent.click(screen.getByRole('button', { name: 'Fill tiers' }))
+  const preview = await screen.findByRole('dialog', { name: 'Tiers from the catalogue' })
+  expect(shownAs()).toEqual(['DIV.dialog-back'])
+  expect(preview.querySelector('section')).toHaveClass('fill-tiers', 'fill-tiers-open', 'fill-tiers-window')
+  await userEvent.click(within(preview).getByRole('button', { name: 'Save these tiers' }))
+  await waitFor(() => expect(shownAs()).toEqual(['BUTTON.btn btn-small', 'SPAN.visually-hidden']))
+  expect(screen.getByRole('status')).toHaveTextContent(/^The tiers are saved: each role now runs on the first model of its tier that may be picked for it\.$/)
+  expect(screen.getByRole('button', { name: 'Fill tiers' })).toHaveFocus()
+  // not as a button, with a tier there already and nothing saved here: nothing at all; with no way to fill, nothing either
+  rerender(<FillTiers key="box" providers={[tiered]} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} />)
+  expect(container).toBeEmptyDOMElement()
+  rerender(<FillTiers key="none" providers={[provider({})]} />)
+  expect(container).toBeEmptyDOMElement()
+})
+
+test('in the box, the preview stands in the page - no window - and the line its Save leaves is a paragraph', async () => {
+  const onFillAll = vi.fn().mockResolvedValue({ providers: proposal, notes: NOTES })
+  const tiered = provider({ models: [{ name: 'qwen', note: null, tier: 'fast', agents: true }] })
+  const { container, rerender } = render(<FillTiers providers={[provider({})]} onFillAll={onFillAll} onSaveFillAll={vi.fn().mockResolvedValue(undefined)} />)
+  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual(['SECTION.muted provider-note fill-tiers'])
+  expect(screen.getByRole('button', { name: 'Fill the tiers' })).toHaveClass('link-btn')
+  await userEvent.click(screen.getByRole('button', { name: 'Fill the tiers' }))
+  await screen.findByRole('region', { name: 'Tiers from the catalogue' })
+  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual(['SECTION.fill-tiers fill-tiers-open'])
+  expect(screen.queryByRole('dialog')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Save these tiers' }))
+  // (as the page does once they are saved: a model has a tier now)
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'Tiers from the catalogue' })).toBeNull())
+  rerender(<FillTiers providers={[tiered]} onFillAll={onFillAll} onSaveFillAll={vi.fn()} />)
+  expect(Array.from(container.children, one => `${one.tagName}.${one.className}`)).toEqual(['P.muted provider-note fill-tiers'])
 })
