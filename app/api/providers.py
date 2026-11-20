@@ -463,9 +463,43 @@ def create_provider(
     return provider
 
 
+def _rename(session: Session, provider: Provider, body: ProviderPatch) -> None:
+    if body.name is not None:
+        name = _name(session, body.name, provider.id)
+        if name != provider.name:
+            # The record goes by the name: its rows follow, or a renamed provider's would drop
+            # out of its usage, its day's limit (`over_limit`) and its room (`has_room`).
+            for table in (Agent, OwnRequest):
+                session.execute(update(table).where(table.provider_name == provider.name)
+                                .values(provider_name=name))
+        provider.name = name
+
+
+def _change_server(provider: Provider, body: ProviderPatch) -> None:
+    """Its address, then its key, then its own settings, which are checked against the address
+    as it is now."""
+    sent = body.model_fields_set
+    if "base_url" in sent:
+        provider.base_url = _address(provider.kind, body.base_url)
+        if provider.base_url and provider.models:
+            # A context tier is GitHub's (K-copilot-baglam): on a model server of the user's
+            # own it means nothing, and a stale one would refuse every later save of the list.
+            provider.models = [{k: v for k, v in m.items() if k != "context"}
+                               for m in provider.models]
+    if "api_key" in sent and provider.kind in SERVED:
+        provider.api_key = _key(body.api_key)  # an empty key removes it
+    if "options" in sent or "base_url" in sent:
+        told = body.options if "options" in sent else provider.options
+        if (provider.kind == "copilot_cli" and told is not None and "offline" not in told
+                and provider.options):
+            # Not said this time: it stays as it was set.
+            told = {**told, "offline": provider.options.get("offline")}
+        provider.options = _options(provider.kind, told, provider.base_url)
+
+
 # On the event loop, as everything that reaches the runner is.
 @router.patch("/{provider_id}", response_model=ProviderOut, dependencies=[Depends(require_origin)])
-async def patch_provider(  # noqa: C901
+async def patch_provider(
     provider_id: str, body: ProviderPatch, request: Request,
     session: Session = Depends(get_session),
 ):
@@ -484,31 +518,8 @@ async def patch_provider(  # noqa: C901
         provider.max_running = body.max_running
     for limit in sent & set(LIMITS) - ({"plan"} if body.plan is None else set()):
         setattr(provider, limit, getattr(body, limit))
-    if body.name is not None:
-        name = _name(session, body.name, provider.id)
-        if name != provider.name:
-            # The record goes by the name: its rows follow, or a renamed provider's would drop
-            # out of its usage, its day's limit (`over_limit`) and its room (`has_room`).
-            for table in (Agent, OwnRequest):
-                session.execute(update(table).where(table.provider_name == provider.name)
-                                .values(provider_name=name))
-        provider.name = name
-    if "base_url" in sent:
-        provider.base_url = _address(provider.kind, body.base_url)
-        if provider.base_url and provider.models:
-            # A context tier is GitHub's (K-copilot-baglam): on a model server of the user's
-            # own it means nothing, and a stale one would refuse every later save of the list.
-            provider.models = [{k: v for k, v in m.items() if k != "context"}
-                               for m in provider.models]
-    if "api_key" in sent and provider.kind in SERVED:
-        provider.api_key = _key(body.api_key)  # an empty key removes it
-    if "options" in sent or "base_url" in sent:
-        told = body.options if "options" in sent else provider.options
-        if (provider.kind == "copilot_cli" and told is not None and "offline" not in told
-                and provider.options):
-            # Not said this time: it stays as it was set.
-            told = {**told, "offline": provider.options.get("offline")}
-        provider.options = _options(provider.kind, told, provider.base_url)
+    _rename(session, provider, body)
+    _change_server(provider, body)
     if "default_model" in sent:
         provider.default_model = _model(body.default_model)
     if "executable" in sent and provider.kind not in HTTP_KINDS:
