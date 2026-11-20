@@ -57,8 +57,9 @@ const OUT_ROOM = 12
 /** Where the lines come into Ready for you, under its top (canvas.css .ready-door); the discussions' lane starts under that. */
 const READY_DOOR = 24
 const LANE_UNDER = 2 * ROW_GAP
-/** Where a member's line comes into a discussion in the lane: by its header. */
-const MEMBER_IN = 20
+/** Where a member's line comes into a discussion in the lane: at its left dot, half way down (21 Nov: it came in by its
+ * header, 20 px over an empty dot). */
+const MEMBER_IN = NODE_H / 2
 
 /** A card's height; and how far down it its line comes in: by whose it is, or by its first row. */
 export const blockSize = (data: SharedData) => ({
@@ -496,15 +497,25 @@ export const requestFrom = (e: GraphEdge, edges: GraphEdge[]) =>
 
 /**
  * A member's line to a discussion in the lane (the user, 4 Nov: joined by lines, none through a frame): out of its frame's
- * right edge low, under its card, where its line to Ready leaves - or, an agent with no frame, up over the turn at
- * `over` - across to a bus in the gap left of the lane, down (or up) it and in at the discussion's head.
- * shortcut: an agent with no frame under another in its column (not the Lead) goes up through it; route it round if met.
+ * right edge low, under its card, where its line to Ready leaves - or, an agent with no frame, out of its right side
+ * near its top and up beside it over the turn at `over` (21 Nov: up from its top it ran through an approved plan over the
+ * Orchestrator; near the top, clear of the Everyone card's line) - across to a bus in the gap left of the lane, down (or
+ * up) it and in at the discussion's left dot.
+ * shortcut: an agent with no frame under another in its column, or under a frame, goes up through it; route it round if met.
  */
 export function memberLine(from: Point & Size, framed: boolean, to: Point, over: number): Point[] {
-  const start = framed ? [{ x: from.x + from.width, y: from.y + from.height - TEAM_OUT }] : [{ x: from.x + from.width / 2, y: from.y }, { x: from.x + from.width / 2, y: over }]
+  const [side, high] = [from.x + from.width, from.y + 8]
+  const start = framed ? [{ x: side, y: from.y + from.height - TEAM_OUT }] : [{ x: side, y: high }, { x: side + DOOR_PAD / 2, y: high }, { x: side + DOOR_PAD / 2, y: over }]
   const [bus, y] = [to.x - DOOR_PAD, to.y + MEMBER_IN]
   return [...start, { x: bus, y: start[start.length - 1].y }, { x: bus, y }, { x: to.x, y }]
 }
+
+/**
+ * The frame a member's line to the lane leaves (`memberLine`): its agent's (`frameOf`), or - folded - the frame that
+ * stands for it (`kindOf` says so): out of its side, not up through the frames over it (21 Nov). None: an agent of no frame.
+ */
+export const memberFrame = (id: string, frameOf: (id: string) => string | undefined, kindOf: (id: string) => string | undefined) =>
+  frameOf(id) ?? (kindOf(id) === 'team' ? id : undefined)
 
 /** Where a request's line keeps from a frame's corner, so it never runs along an edge of either frame; and its step. */
 export const REQUEST_INSET = 24

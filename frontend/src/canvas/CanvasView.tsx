@@ -20,7 +20,7 @@ import type { ConvState } from '../state/applyEvent'
 import { type GraphEdge, type GraphNode, deriveGraph, type GroupData, type TeamData } from './deriveGraph'
 import { ArcEdge, LaneEdge, LevelEdge, type LineData, MemberEdge, RequestEdge } from './edges'
 import { type Folds, agentOf, foldAll, foldGraph, isGroup, nodeOf, readFolds, unfold, writeFolds } from './foldGraph'
-import { AT_ONCE_HEAD, AT_ONCE_PAD, DASH, DOOR_PAD, FILES_HEAD, type Layout, NODE_H, NODE_W, arcWay, crossTalk, frameLine, wallsOf, arced, keepInside, layoutGraph, memberLine, requestFrom, requestLine, stacked } from './layout'
+import { AT_ONCE_HEAD, AT_ONCE_PAD, DASH, DOOR_PAD, FILES_HEAD, type Layout, NODE_H, NODE_W, arcWay, crossTalk, frameLine, wallsOf, arced, keepInside, layoutGraph, memberFrame, memberLine, requestFrom, requestLine, stacked } from './layout'
 import { AgentNode, AttachmentNode, AwayJobNode, AwayNode, DiscussionNode, FilesNode, PlanNode, PoNode, ReadyNode, RequestNode, RoomNode, RoundNode, TeamNode } from './nodes'
 import { useOutputs } from './outputs'
 import { SharedNode, useSharedFiles } from './SharedNode'
@@ -701,9 +701,10 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   const lineOf = (e: GraphEdge): Partial<Edge> => {
     const [s, t] = [rect(e.source), rect(e.target)]
     const data: LineData = { messages: e.messages, last: e.last }
-    // To a discussion in the lane: from the member's frame (or over the turn), down the gap left of the lane.
+    // To a discussion in the lane: from the member's frame - or the folded frame for it - (or over the turn), down the gap
+    // left of the lane.
     if (e.member) {
-      const framed = frameOf(e.source)
+      const framed = memberFrame(e.source, frameOf, id => byId.get(id)?.kind)
       return { type: 'member', data: { points: memberLine(rect(framed ?? e.source), !!framed, dragged(e.target) ?? t, above) } }
     }
     // Round the cards and headers: talk across two frames, a frame's line that would run under a card.
