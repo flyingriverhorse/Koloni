@@ -178,6 +178,35 @@ const planLine = (e: GraphEdge): Edge => ({
   style: { stroke: 'var(--border-strong)', strokeWidth: 1.5, strokeDasharray: e.po ? DASH.po : DASH.plan },
 })
 
+/** A talk line's two ends, in one order: who talked with whom, whichever spoke first. */
+const pairOf = (e: GraphEdge) => [e.source, e.target].sort().join('|')
+
+/** Talk on a line: whether it is drawn as talk - one of edges.tsx's lines - and its pair's colour. */
+const talkOf = (e: GraphEdge, drawn: Partial<Edge>, talkHues: Map<string, string>) => ({
+  talking: !!e.talk && !!e.messages && !!drawn.type,
+  talkHue: e.talk && e.messages ? talkHues.get(pairOf(e)) : undefined,
+})
+
+/** A line's colour: a card's, a request's, findings', its talk pair's, at work or handed, or none of those. */
+const edgeColour = (e: GraphEdge, talkHue: string | undefined, talking: boolean): string =>
+  e.shared ? e.shared.colour : e.request ? 'var(--request)' : e.findings !== undefined ? 'var(--warn)' : talkHue ?? (talking ? 'var(--tool-team)' : e.active || e.handed ? 'var(--accent)' : 'var(--border-strong)')
+
+/** A line's classes: it waits, carries findings, hands a file on, and is lit or faded while something is; none, undefined. */
+const edgeClass = (e: GraphEdge, lit: GraphEdge[] | null): string | undefined =>
+  [e.waits && 'edge-waits', e.findings !== undefined && 'edge-findings', e.handed && 'edge-handed', lit && (lit.includes(e) ? 'edge-lit' : 'edge-faded')].filter(Boolean).join(' ') || undefined
+
+/** What a line React Flow draws says on it: its messages, or its findings, counted. */
+const edgeLabel = (e: GraphEdge): string | undefined =>
+  e.messages ? `${e.messages} message${e.messages > 1 ? 's' : ''}` : e.findings !== undefined ? `${e.findings} finding${e.findings === 1 ? '' : 's'}` : undefined
+
+/** How thick a line is: lit, a contract's arm, at work or talk or to a card, waiting, or any other. */
+const edgeWidth = (e: GraphEdge, lit: GraphEdge[] | null, talking: boolean): number =>
+  lit?.includes(e) ? 3 : e.shared?.arm ? 1.2 : e.active || talking || e.shared ? 2 : e.waits ? 1 : 1.5
+
+/** How a line is dashed, by what it is (`DASH`); undefined, a solid line. */
+const edgeDash = (e: GraphEdge, talking: boolean): string | undefined =>
+  e.shared ? (e.shared.dotted || e.shared.arm ? DASH.shared : undefined) : e.request?.open ? DASH.request : e.request ? undefined : talking ? DASH.talkLine : e.handed ? DASH.handed : e.findings !== undefined ? DASH.findings : e.waits ? DASH.waits : e.talk ? DASH.talk : e.spawn ? DASH.spawn : undefined
+
 /** The bee over the empty canvas (K-logo), once the conversation is read: played once, muted, then still on its last
  * frame (no `loop`); only the picture where motion is reduced. Decorative. Mounted with the empty state alone, so
  * nothing loads before it. */
@@ -701,7 +730,6 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   const frames = graph.nodes.filter(n => n.kind === 'team')
   const framesOpen = frames.some(n => (n.data as GroupData).open)
   // Who talked with whom: each pair of ends its own colour, on its line and its 💬 (the user, 27 Oct).
-  const pairOf = (e: GraphEdge) => [e.source, e.target].sort().join('|')
   const talkHues = talkColours([...new Set(graph.edges.filter(e => e.talk && e.messages).map(pairOf))])
   const whoOf = (id: string) => {
     const node = byId.get(id)
@@ -709,14 +737,13 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   }
   const edges: Edge[] = graph.edges.filter(e => !e.plan).map(e => {
     const drawn = lineOf(e)
-    const talking = !!e.talk && !!e.messages && !!drawn.type
-    const talkHue = e.talk && e.messages ? talkHues.get(pairOf(e)) : undefined
-    const colour = e.shared ? e.shared.colour : e.request ? 'var(--request)' : e.findings !== undefined ? 'var(--warn)' : talkHue ?? (talking ? 'var(--tool-team)' : e.active || e.handed ? 'var(--accent)' : 'var(--border-strong)')
+    const { talking, talkHue } = talkOf(e, drawn, talkHues)
+    const colour = edgeColour(e, talkHue, talking)
     return {
       id: e.id,
       source: e.source,
       target: e.target,
-      className: [e.waits && 'edge-waits', e.findings !== undefined && 'edge-findings', e.handed && 'edge-handed', lit && (lit.includes(e) ? 'edge-lit' : 'edge-faded')].filter(Boolean).join(' ') || undefined,
+      className: edgeClass(e, lit),
       // Findings handed on: from under the box that found them to the top of the one given them.
       ...(e.findings !== undefined && { sourceHandle: 'found-out', targetHandle: 'found-in' }),
       ...drawn,
@@ -726,13 +753,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       }),
       animated: e.active,
       // (Drawn by its own line where it is one of edges.tsx's.)
-      label: drawn.type
-        ? undefined
-        : e.messages
-          ? `${e.messages} message${e.messages > 1 ? 's' : ''}`
-          : e.findings !== undefined
-            ? `${e.findings} finding${e.findings === 1 ? '' : 's'}`
-            : undefined,
+      label: drawn.type ? undefined : edgeLabel(e),
       // (a findings label in its line's colour: between two boxes close together, the label is most of the line)
       labelStyle: { fill: e.findings !== undefined ? 'var(--warn)' : 'var(--muted)', fontSize: 'var(--text-kicker)' },
       // The canvas's own background (there is no --canvas: that drew the label on black).
@@ -744,13 +765,13 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
         // agent (slice 85b): dashed, in the accent. Talk in a team's frame, or across to another: in the team colour of
         // the canvas's legend, dotted.
         stroke: colour,
-        strokeWidth: lit?.includes(e) ? 3 : e.shared?.arm ? 1.2 : e.active || talking || e.shared ? 2 : e.waits ? 1 : 1.5,
+        strokeWidth: edgeWidth(e, lit, talking),
         ...(talking && { strokeLinecap: 'round' as const }),
         // A hand-off to a sub-agent reads differently from an agent's own output.
         // A member's line to its discussion or room: a finer, dotted line. An agent that waits for a file another
         // holds: a thin dashed line to that agent, for as long as it waits. To a card: a team's line plain, an
         // agent's (no team) and a contract's arm dotted.
-        strokeDasharray: e.shared ? (e.shared.dotted || e.shared.arm ? DASH.shared : undefined) : e.request?.open ? DASH.request : e.request ? undefined : talking ? DASH.talkLine : e.handed ? DASH.handed : e.findings !== undefined ? DASH.findings : e.waits ? DASH.waits : e.talk ? DASH.talk : e.spawn ? DASH.spawn : undefined,
+        strokeDasharray: edgeDash(e, talking),
       },
     }
   })
