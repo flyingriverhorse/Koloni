@@ -545,12 +545,13 @@ class CommandRunner:
             pass  # could not kill it; the record still says what we know
         return False
 
-    def close_open(self, run_id: str, cid: str, agent_id: str | None = None) -> None:
-        """Settle whatever a run (or one of its agents) leaves behind: a command nobody
-        decided on is rejected, one the user said yes to that never started - its agent
-        never got its place, or its start never came back - is interrupted ("rejected"
-        is the user's own no), and one still marked running (its task was cut short) is
-        killed."""
+    def close_open(self, run_id: str, cid: str, agent_id: str | None = None,
+                   calls: list[str] | None = None) -> None:
+        """Settle whatever a run (or one of its agents, or these of its tool calls) leaves
+        behind: a command nobody decided on is rejected, one the user said yes to that never
+        started - its agent never got its place, or its start never came back - is
+        interrupted ("rejected" is the user's own no), and one still marked running (its task
+        was cut short) is killed."""
         with self._factory() as session:
             query = select(Command).where(
                 Command.run_id == run_id,
@@ -558,6 +559,8 @@ class CommandRunner:
             )
             if agent_id is not None:
                 query = query.where(Command.agent_id == agent_id)
+            if calls is not None:
+                query = query.where(Command.tool_call_id.in_(calls))
             # (A command that keeps running outlives its turn: it is stopped by itself.)
             leftover = [c for c in session.scalars(query) if c.id not in self._serving]
             for command in leftover:

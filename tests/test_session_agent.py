@@ -1,27 +1,34 @@
 """An agent whose model is a CLI session: KOLONİ records and runs every tool it asks for."""
 
+import asyncio
 import json
 import sqlite3
 import sys
+import threading
 import time
 from pathlib import Path
 
 import pytest
 from alembic import command
 
+import app.web
+from app.agent.words import UNFINISHED
 from app.config import load_settings
 from app.main import create_app
 from app.model_session import ClaudeSessionClient
 from app.roles import BROWSER
-from tests.fakes import ScriptedModel
+from tests.conftest import Gate, scaled
+from tests.fakes import Script, ScriptedExecutor, ScriptedModel
 from tests.keyed import TestClient
 from tests.test_agent_writes import wait_status
 from tests.test_board import written
 from tests.test_chat_flow import text
 from tests.test_migration_0002 import _config
 from tests.test_model_cli import gone
+from tests.test_parallel import statuses, until
 from tests.test_questions import OWN
-from tests.test_spawn import reported, role_id, spawn
+from tests.test_spawn import begin, call, reported, role_id, spawn, step
+from tests.test_team_requests_scenarios import API, LEADS, WEB, two_teams
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_session_cli.py"))]
 
@@ -33,13 +40,14 @@ def session_app(settings_env, tmp_path):
     record = tmp_path / "record.json"
     plan = tmp_path / "plan.json"
 
-    def make(script, default_steps=(), **more):
+    def make(script, default_steps=(), executor=None, **more):
         plan.write_text(json.dumps({"record": str(record), "script": script, **more}),
                         encoding="utf-8")
         cli = ClaudeSessionClient(launcher=FAKE, timeout=30, env={"FAKE_CLI_PLAN": str(plan)})
         default = ScriptedModel(
             default_steps if isinstance(default_steps, dict) else list(default_steps), model_id="big-model")
-        app = create_app(load_settings(settings_env), model=default, clients={"Session": cli})
+        app = create_app(load_settings(settings_env), model=default, clients={"Session": cli},
+                         executors=executor.factory if executor else None)
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)
@@ -168,6 +176,190 @@ def test_stop_ends_the_cli_and_settles_what_was_open(session_app, wait_run, proj
     assert snap["agents"][0]["status"] == "cancelled"
     assert all(m["status"] == "complete" for m in snap["messages"])
     assert gone(pid)
+
+
+# --- KOLONİ's own calls a CLI no longer waits for (seen 20 Nov, Codex as the Orchestrator:
+# run_command, wait_for_team, message_agent stayed "running" after its turn completed) ---------
+
+
+def one_call(snap, name):
+    (found,) = [t for t in snap["tool_calls"] if t["name"] == name]
+    return found
+
+
+def cut(found):
+    return (found["status"], found["result"], bool(found["ended_at"]))
+
+
+def running_command(snap):
+    return [c["status"] for c in snap["commands"]] == ["running"]
+
+
+def test_a_command_still_running_as_the_clis_turn_ends_is_closed_with_it(
+        session_app, wait_run, project_dir, tmp_path):
+    go = tmp_path / "go"
+    executor = ScriptedExecutor([Script(hold=Gate())])
+    client, provider, _ = session_app([
+        {"send": "run_command", "args": {"command": "pytest -q"}}, {"wait_for": str(go)},
+        {"say": "Done without it."}], executor=executor)
+    cid, run_id = start(client, project_dir, provider)
+    until(client, cid, running_command, timeout=20)  # (its CLI started as a process first)
+    go.touch()  # (its turn ends: its tool server closes with the call still open)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert cut(one_call(snap, "run_command")) == ("interrupted", UNFINISHED, True), snap["tool_calls"]
+    # What it ran is stopped with it, as by Stop.
+    (command,) = snap["commands"]
+    assert command["status"] == "killed" and executor.killed == [command["id"]], command
+
+
+def test_a_call_its_cli_gives_up_on_is_closed_at_once_and_the_cli_goes_on(
+        session_app, wait_run, project_dir, tmp_path):
+    go, on = tmp_path / "go", tmp_path / "on"
+    executor = ScriptedExecutor([Script(hold=Gate())])
+    client, provider, _ = session_app([
+        {"send": "run_command", "args": {"command": "pytest -q"}}, {"wait_for": str(go)},
+        {"cancel": True}, {"wait_for": str(on)}, {"call": "list_dir"}, {"say": "Went on."}],
+        executor=executor)
+    cid, run_id = start(client, project_dir, provider)
+    until(client, cid, running_command, timeout=20)  # (its CLI started as a process first)
+    go.touch()  # (MCP's notifications/cancelled, as its own tool timeout sends it)
+    snap = until(client, cid, lambda s: one_call(s, "run_command")["status"] != "running",
+                 timeout=10)
+    assert snap["runs"][0]["status"] == "running"  # closed while its turn goes on
+    assert cut(one_call(snap, "run_command")) == ("interrupted", UNFINISHED, True)
+    on.touch()
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert one_call(snap, "list_dir")["status"] == "succeeded"  # its next call was not held up
+    assert [c["status"] for c in snap["commands"]] == ["killed"]
+    assert "late" not in session_app.record()  # nothing is answered to a call given up on
+
+
+def test_a_team_lead_that_gives_up_waiting_for_another_team_is_at_work_again(
+        session_app, wait_run, project_dir, tmp_path):
+    go, on, api = tmp_path / "go", tmp_path / "on", Gate()
+    client, provider, _ = session_app([
+        {"send": "wait_for_team", "args": {"team": API}}, {"wait_for": str(go)},
+        {"cancel": True}, {"wait_for": str(on)}, {"say": "web done"}],
+        default_steps={"Lead": [LEADS, text("done")],
+                       "Backend / API lead": [api.step(text("api done"))]})
+    client.headers["Origin"] = OWN["Origin"]
+    lead = client.get("/api/teams").json()
+    lead = next(team["lead"]["id"] for team in lead if team["name"] == WEB)
+    assert client.patch(f"/api/roles/{lead}", json={"provider_id": provider["id"]}).status_code == 200
+    cid, run_id = two_teams(client, project_dir)
+
+    def waiter(snap):
+        return next((a for a in snap["agents"] if a["name"] == "Web app lead"), {"status": None})
+
+    until(client, cid, lambda s: [t["status"] for t in s["tool_calls"]
+                                  if t["name"] == "wait_for_team"] == ["running"]
+          and waiter(s)["status"] == "waiting", timeout=20)
+    go.touch()
+    # (`_handing_over` took every cancel for a Stop: it stayed "waiting" while its CLI went on)
+    snap = until(client, cid, lambda s: one_call(s, "wait_for_team")["status"] != "running"
+                 and waiter(s)["status"] != "waiting", timeout=10)
+    assert (cut(one_call(snap, "wait_for_team")), waiter(snap)["status"]) == (
+        ("interrupted", UNFINISHED, True), "running")
+    on.touch()
+    api.release()
+    snap = wait_run(client, cid, run_id, timeout=30)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert waiter(snap)["status"] == "completed"
+
+
+def test_an_agent_whose_cli_gives_up_waiting_for_a_file_is_at_work_again(
+        session_app, wait_run, project_dir, tmp_path):
+    go, on, holds = tmp_path / "go", tmp_path / "on", Gate()
+    client, provider, _ = session_app([
+        {"send": "write_file", "args": {"path": "hello.py", "content": "print('two')\n"}},
+        {"wait_for": str(go)}, {"cancel": True}, {"wait_for": str(on)}, {"say": "Went on."}],
+        default_steps=[step(call("edit_file", {"path": "hello.py", "old_string": "'hi'",
+                                               "new_string": "'one'"}, "e")),
+                       holds.step(text("done"))])
+    first, one = start(client, project_dir, None)
+    holds.wait_partial()  # (its Lead holds hello.py, which it changed)
+    second, other = start(client, project_dir, provider)
+
+    def lead(snap):
+        return snap["agents"][0] if snap["agents"] else {"status": None}
+
+    until(client, second, lambda s: lead(s)["status"] == "blocked", timeout=20)
+    go.touch()
+    # (Review of the slice: only "waiting" was taken back - it stayed "blocked", for no file.)
+    snap = until(client, second, lambda s: one_call(s, "write_file")["status"] != "running"
+                 and lead(s)["status"] != "blocked", timeout=10)
+    assert (cut(one_call(snap, "write_file")), lead(snap)["status"], lead(snap)["waiting_for"]) == (
+        ("interrupted", UNFINISHED, True), "running", None)
+    on.touch()
+    assert wait_run(client, second, other)["runs"][0]["status"] == "completed"
+    holds.release()
+    assert wait_run(client, first, one)["runs"][0]["status"] == "completed"
+
+
+def test_a_message_whose_reply_the_cli_stopped_waiting_for_is_closed_with_the_turn(
+        session_app, wait_run, project_dir, tmp_path, monkeypatch):
+    go, held = tmp_path / "go", threading.Event()
+    client, provider, _ = session_app([
+        {"send": "message_agent", "args": {"to": "Lead", "message": "ok?"}},
+        {"wait_for": str(go)}, {"say": "A done"}],
+        default_steps={"Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1")),
+                                step(call("recall", {"query": "the plan"}, "r1")), text("done")]})
+
+    def held_up(*_asked):
+        held.wait(scaled(60))
+        return ""
+
+    # (The Lead's answer looks in the memory and is held there: a call of its own is open.)
+    monkeypatch.setattr(client.app.state.runner, "_recall", held_up)
+    assert client.patch(f"/api/roles/{role_id(client, 'Coder')}",
+                        json={"provider_id": provider["id"]}).status_code == 200
+    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
+    try:
+        until(client, cid, lambda s: [t["status"] for t in s["tool_calls"]
+                                      if t["name"] in ("message_agent", "recall")]
+              == ["running", "running"], timeout=20)
+        go.touch()  # (the Coder's turn ends, its message's reply never came)
+        snap = wait_run(client, cid, run_id)
+    finally:
+        held.set()
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    # (Review of the slice: the answer turn cut off left its recall "running" for good.)
+    assert [cut(one_call(snap, name)) for name in ("message_agent", "recall")] == [
+        ("interrupted", UNFINISHED, True)] * 2, snap["tool_calls"]
+    assert one_call(snap, "spawn_agent")["status"] == "succeeded"
+    assert statuses(snap) == {"Lead": "completed", "Coder": "completed"}
+
+
+def test_a_request_its_cli_gave_up_on_on_its_way_is_interrupted(
+        session_app, wait_run, project_dir, tmp_path, monkeypatch):
+    on_its_way, go, on = threading.Event(), tmp_path / "go", tmp_path / "on"
+
+    async def hangs(*_asked):
+        on_its_way.set()
+        await asyncio.Event().wait()
+
+    # (No test touches the network: the name and the request are stood in for.)
+    monkeypatch.setattr(app.web, "resolve", lambda host: ["93.184.216.34"])
+    monkeypatch.setattr(app.web, "raw", hangs)
+    client, provider, _ = session_app([
+        {"send": "http_request", "args": {"method": "GET", "url": "https://example.com/x"}},
+        {"wait_for": str(go)}, {"cancel": True}, {"wait_for": str(on)}, {"say": "Went on."}])
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    snap = until(client, cid, lambda s: [w["status"] for w in s["web_requests"]] == ["proposed"],
+                 timeout=20)
+    assert client.post(f"/api/web-requests/{snap['web_requests'][0]['id']}/approve",
+                       json={"remember": False}, headers=OWN).status_code == 200
+    assert on_its_way.wait(scaled(10))
+    go.touch()
+    # Not left "approved", which is what one that went out is: "interrupted", as its call.
+    snap = until(client, cid, lambda s: one_call(s, "http_request")["status"] != "running",
+                 timeout=10)
+    assert ([w["status"] for w in snap["web_requests"]], one_call(snap, "http_request")["status"],
+            snap["runs"][0]["status"]) == (["interrupted"], "interrupted", "running")
+    on.touch()
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
 
 
 def test_a_session_that_goes_on_too_long_hits_the_step_limit(session_app, wait_run, project_dir):

@@ -727,7 +727,43 @@ class SpawnMixin:
     async def _run_from_cli(
         self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
     ) -> tuple[str, str]:
-        """A call a CLI made over MCP. K-paralel-spawn (measured 27 Oct): Claude Code runs the
+        """A call a CLI made over MCP (`_cli_call`). One its CLI no longer waits for - given up
+        on (MCP's notifications/cancelled: `ToolServer`), its session over (its tool server
+        closes with the call open), or Stop - is closed "interrupted" with what hangs on it, as
+        Stop closes it: in a turn that completes no Stop comes (seen 20 Nov, Codex as the
+        Orchestrator: its run_command, wait_for_team and message_agent stayed "running")."""
+        try:
+            return await self._cli_call(ctx, call_id, request)
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                self._interrupt_open_calls(ctx.run_id, ctx.cid, ctx.agent_id, only={call_id})
+            with contextlib.suppress(Exception):
+                self._at_work_again(ctx)
+            raise
+
+    def _at_work_again(self: "AgentRunner", ctx: Ctx) -> None:
+        """`_run_from_cli`: an agent whose wait in a call its CLI gave up on (`_handing_over`,
+        `_users_word`, a file another agent holds) is at work again - "waiting" or "blocked" no
+        more - its CLI goes on; not while the turn is being stopped, nor while it waits for
+        anything else.
+        shortcut: without the place it gave up for the wait (`_step_aside`), which it takes at
+        its next wait's end (`_settle`): meanwhile the turn may have one more at work than the
+        chat's setting. Take one here, without waiting, if that is seen to matter.
+        shortcut: one given up on while it stood in line for its place again (`_settle`) stays
+        "queued" until its next change - another call of it may stand there still; tell them
+        apart if that is seen."""
+        task = self._tasks.get(ctx.run_id)
+        if (task is not None and task.cancelling()) or self._waits(ctx.agent_id):
+            return
+        with self._factory() as session:
+            waiting = session.get_one(Agent, ctx.agent_id).status in ("waiting", "blocked")
+        if waiting:
+            self._set_agent(ctx.cid, ctx.agent_id, status="running")
+
+    async def _cli_call(
+        self: "AgentRunner", ctx: Ctx, call_id: str, request: ToolCallRequest
+    ) -> tuple[str, str]:
+        """`_run_from_cli`'s call. K-paralel-spawn (measured 27 Oct): Claude Code runs the
         MCP calls of one message one after another, so its two spawn_agent calls ran one after
         the other. A spawn_agent is answered as soon as `_see_through` says so - "proposed"
         while its card waits for the user, "started" once it may start - and the CLI goes on;

@@ -368,12 +368,12 @@ class RoomsMixin:
                 # B-412 (live, Ask): a call that ended while its cards waited (its session's
                 # ToolServer.close() cancelling it) left its members in the step's places - the
                 # next open_room refused.
-                # shortcut: why the live lead's session ended mid-wait is not measured. KOLONİ
-                # ignores notifications/cancelled (`ToolServer._serve`), so a Copilot call that
-                # times out on the CLI's side (Copilot is given no tool timeout; Claude Code and
-                # Qoder get MCP_TOOL_TIMEOUT, Codex tool_timeout_sec) still waits here, holding
-                # the session's one tool turn; measure Copilot's timeout and give it one if a
-                # lead is seen giving up on a room whose cards still wait.
+                # shortcut: why the live lead's session ended mid-wait is not measured. A CLI
+                # that gives up on the call (notifications/cancelled, `model_session._given_up`)
+                # ends it here too - which CLI sends that is measured for none (Copilot is given
+                # no tool timeout; Claude Code and Qoder get MCP_TOOL_TIMEOUT, Codex
+                # tool_timeout_sec); measure Copilot's and give it one if a lead is seen giving
+                # up on a room whose cards still wait.
                 self._unopened(ctx, [child for child, _role in members])
                 raise
             if turned_down is not None:

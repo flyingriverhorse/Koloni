@@ -8,6 +8,8 @@ tools, and then follows the script, printing the same stream events:
     {"call": "read_file", "args": {}}   announce a tool call, make it over MCP, print the result
     {"parallel": [{"call": ..}, ..]}    make several calls at once, then read the answers
     {"call_then_die": "x", "after": 1}  make a call and exit before it is answered
+    {"send": "x", "args": {}}           make a call and go on without waiting for its answer
+    {"cancel": true}                    give up on the call `send` made (notifications/cancelled)
     {"hang": true}                      keep running until killed
     {"exit": 3, "stderr": "..."}        give up
     {"result_error": "..."}             finish with an error result
@@ -95,10 +97,15 @@ def rpc(method: str, params: dict) -> dict:
     bridge.stdin.write((json.dumps(
         {"jsonrpc": "2.0", "id": next_id, "method": method, "params": params}) + "\n").encode())
     bridge.stdin.flush()
-    line = bridge.stdout.readline()
-    if not line:
-        raise SystemExit("the tool server closed the connection")
-    return json.loads(line)
+    while True:
+        line = bridge.stdout.readline()
+        if not line:
+            raise SystemExit("the tool server closed the connection")
+        answer = json.loads(line)
+        if answer.get("id") == next_id:
+            return answer
+        # (an answer to a call `send` made: one given up on should get none)
+        record.setdefault("late", []).append(answer)
 
 
 try:
@@ -185,6 +192,17 @@ for number, action in enumerate(script):
         time.sleep(action.get("after", 1))
         sys.stderr.write("fatal: the CLI crashed\n")
         sys.exit(9)
+    elif "send" in action:
+        emit({"type": "assistant", "message": {"id": message_id, "content": [{
+            "type": "tool_use", "id": f"toolu_{number}",
+            "name": f"mcp__koloni__{action['send']}", "input": action.get("args", {})}]}})
+        sent = send("tools/call", {"name": action["send"], "arguments": action.get("args", {})})
+    elif action.get("cancel"):
+        # As the MCP SDKs do on a tool's timeout: the answer is not waited for any more.
+        bridge.stdin.write((json.dumps({"jsonrpc": "2.0", "method": "notifications/cancelled",
+                                        "params": {"requestId": sent, "reason": "timed out"}})
+                            + "\n").encode())
+        bridge.stdin.flush()
     elif action.get("hang"):
         time.sleep(120)
     elif "exit" in action:

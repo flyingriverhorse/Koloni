@@ -9,6 +9,9 @@ const OUTCOME: Record<NonNullable<Discussion['outcome']>, string> = {
   budget: 'at its budget',
 }
 
+/** How one that did not end by itself was cut off: by Stop or its CLI giving up, or by an error. */
+const CUT: Partial<Record<Discussion['status'], string>> = { cancelled: 'Stopped', failed: 'Failed' }
+
 /** Where a discussion stands, in a few words. */
 export function discussionLine(discussion: Discussion): string {
   if (discussion.status === 'running') {
@@ -17,7 +20,7 @@ export function discussionLine(discussion: Discussion): string {
   if (discussion.status === 'ended') {
     return `Ended: ${discussion.outcome ? OUTCOME[discussion.outcome] : 'it is over'}`
   }
-  return discussion.status === 'cancelled' ? 'Stopped' : 'Interrupted'
+  return CUT[discussion.status] ?? 'Interrupted'
 }
 
 /** The member whose turn it is: the one at work while the discussion runs. */

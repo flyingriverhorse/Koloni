@@ -6409,7 +6409,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "running" | "ended" | "cancelled" | "interrupted";
+            status: "running" | "ended" | "cancelled" | "failed" | "interrupted";
             /** Tool Call Id */
             tool_call_id: string;
             /** Topic */

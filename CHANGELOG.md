@@ -29,6 +29,10 @@ How to write an entry (every release looks the same):
 
 - **CLIs**: GitHub Copilot CLI run **Native**, on a version whose code was read or measured (1.0.67 and 1.0.105 so far, by the version Copilot reports; after an update of Copilot's, not until that version is measured), works in the agents' scratch folder: a command that starts in a new shell of its own (one that names no shell) is judged in the project folder, so `cd .koloni/tmp/...; python a.py` runs without a card at Full auto; a delete inside `.koloni/tmp/` is still asked there, and on any other version, in a shell it named, or after one that did, the `cd` is still asked too ([docs](docs/reference/known-limits.md)).
 
+### Fixed
+
+- **Canvas**, **Chat**, **CLIs**: a KOLONİ tool call that a CLI agent stopped waiting for - a command, a wait for another team, a message to another agent, a web request - no longer shows as running after the turn: it ends as interrupted, as when you press Stop, also when the CLI cancels it in the middle of its turn (the agent then shows as at work again, not waiting). What it started is stopped as by Stop; a server you let keep running keeps running. After a restart, such a call left running by an earlier turn is closed too. A discussion broken by an error now shows **Failed**, not **Stopped**.
+
 ### Security
 
 - **Chat**: a PDF attached to a chat is read with pypdf 6.21.4, which fixes known flaws in reading crafted PDF files.

@@ -269,20 +269,23 @@ class ToolServer:
             self._taken = self._alone
             if self._alone and self.file:
                 self.file.unlink(missing_ok=True)  # read by its bridge, and by nobody after
-            pending: set[asyncio.Task] = set()
+            pending: dict[asyncio.Task, str] = {}  # the requests being answered: their ids
             async for raw in reader:
                 try:
                     request = json.loads(raw)
                 except ValueError:
                     continue
-                if not isinstance(request, dict) or request.get("id") is None:
-                    continue  # a notification, or noise
+                if not isinstance(request, dict):
+                    continue  # noise
+                if request.get("id") is None:
+                    _given_up(request, pending)  # a notification
+                    continue
                 if "method" not in request:
                     continue  # a reply to something this server never asked
                 job = asyncio.ensure_future(answer(request))
-                pending.add(job)
+                pending[job] = json.dumps(request["id"])
                 self._tasks.add(job)
-                job.add_done_callback(pending.discard)
+                job.add_done_callback(lambda done: pending.pop(done, None))
                 job.add_done_callback(self._tasks.discard)
             await asyncio.gather(*pending, return_exceptions=True)
         except (ConnectionError, asyncio.IncompleteReadError, TimeoutError, ValueError):
@@ -341,6 +344,21 @@ class ToolServer:
         finally:
             self.in_flight -= 1
             self.last_reply = time.monotonic()
+
+
+def _given_up(notice: dict, pending: dict[asyncio.Task, str]) -> None:
+    """MCP's notifications/cancelled: the CLI no longer waits for that request - its own time
+    limit on a tool, say. Its work is cancelled and nothing is answered to it (as MCP has it);
+    a call of KOLONİ's in it is closed "interrupted" (`AgentRunner._run_from_cli`). Any other
+    notification is nothing to this server.
+    shortcut: which CLI sends it, and when, is measured for none (the MCP SDKs send it at their
+    request's time limit); read their lines once one is seen to give up on a call."""
+    if notice.get("method") != "notifications/cancelled":
+        return
+    wanted = json.dumps(_dict(notice.get("params")).get("requestId"))
+    for job, asked in list(pending.items()):
+        if asked == wanted:
+            job.cancel()
 
 
 def _tool_text(text: str, failed: bool) -> dict:
