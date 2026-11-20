@@ -164,11 +164,16 @@ export function Find({ memory, onOpen, onSearch, onMeaning, searchFor }: Props) 
   const hits = typed ? pageHits(memory, typed) : null
   // An emptied box clears what was found deeper too.
   const found = typed ? deeper : null
-  const count = hits ? Object.values(hits).reduce((n, list) => n + list.length, 0) : 0
-  const own = found?.result.memory.filter(record => !record.from_project) ?? []
-  const linked = found?.result.memory.filter(record => record.from_project) ?? []
-  const saidHere = found?.result.turns.filter(said => !said.project) ?? []
-  const saidLinked = found?.result.turns.filter(said => said.project) ?? []
+  /** How many on this page have the words typed, and that Enter searches deeper; empty while nothing is typed. */
+  const status = () => {
+    const count = hits ? Object.values(hits).reduce((n, list) => n + list.length, 0) : 0
+    return (
+      <div role="status" className="muted memory-hint">
+        {hits && (count === 0 ? `Nothing on this page has “${typed}”.` : `${count} on this page ${count === 1 ? 'has' : 'have'} “${typed}”.`)}
+        {hits && onSearch && ' Enter searches deeper.'}
+      </div>
+    )
+  }
   return (
     <section className="memory-find-box" aria-label="Search">
       <div className="memory-find">
@@ -203,10 +208,7 @@ export function Find({ memory, onOpen, onSearch, onMeaning, searchFor }: Props) 
         </div>
       )}
       {/* (On the page from the start, so the first count is announced too.) */}
-      <div role="status" className="muted memory-hint">
-        {hits && (count === 0 ? `Nothing on this page has “${typed}”.` : `${count} on this page ${count === 1 ? 'has' : 'have'} “${typed}”.`)}
-        {hits && onSearch && ' Enter searches deeper.'}
-      </div>
+      {status()}
       {hits && (
         <div className="memory-hits">
           {PLACES.map(
@@ -228,58 +230,65 @@ export function Find({ memory, onOpen, onSearch, onMeaning, searchFor }: Props) 
           )}
         </div>
       )}
-      <div aria-live="polite">
-        {found && (
-          <>
-            <h4 className="memory-found-head">Searched deeper for “{found.query}”</h4>
-            {/* (A provider is chosen for the search by meaning, and it did not run: the words alone were searched.) */}
-            {found.result.meaning_off && <p className="muted memory-hint">{found.result.meaning_off}</p>}
-            {own.length === 0 ? (
-              <p className="muted">Nothing on record speaks to “{found.query}”.</p>
-            ) : (
-              <ul className="memory-list" aria-label="What an agent would find in the memory">
-                {own.map(record => (
-                  <li key={record.id}>
-                    {record.by_meaning && <span className="tag">by meaning</span>}
-                    <RecordCard record={record} />
-                  </li>
-                ))}
-              </ul>
-            )}
-            <h4 className="memory-found-head">In earlier messages</h4>
-            {saidHere.length === 0 ? (
-              <p className="muted">Nothing said in earlier messages speaks to “{found.query}”.</p>
-            ) : (
-              <ul className="memory-list" aria-label="In earlier messages">
-                {saidHere.map(said => (
-                  <Said key={`${said.run_id}:${said.who}:${said.at}`} said={said} />
-                ))}
-              </ul>
-            )}
-            {(linked.length > 0 || saidLinked.length > 0) && (
-              <>
-                <h4 className="memory-found-head">In linked projects</h4>
-                <ul className="memory-list" aria-label="In linked projects">
-                  {linked.map(record => (
-                    <li key={record.id}>
-                      <div className="memory-meta mono">
-                        <span className="tag">from project {record.from_project}</span>
-                        <span className="muted">{NOT_CHECKED_HERE}</span>
-                        {record.by_meaning && <span className="tag">by meaning</span>}
-                      </div>
-                      <RecordCard record={record} />
-                    </li>
-                  ))}
-                  {saidLinked.map(said => (
-                    <Said key={`${said.run_id}:${said.who}:${said.at}`} said={said} />
-                  ))}
-                </ul>
-              </>
-            )}
-          </>
-        )}
-      </div>
+      <div aria-live="polite">{found && deeperFound(found)}</div>
     </section>
+  )
+}
+
+/** What a search deeper found, as an agent's `recall` would: in the memory, in earlier messages, and in the linked projects. */
+function deeperFound(found: { query: string; result: MemorySearch }) {
+  const own = found.result.memory.filter(record => !record.from_project)
+  const linked = found.result.memory.filter(record => record.from_project)
+  const saidHere = found.result.turns.filter(said => !said.project)
+  const saidLinked = found.result.turns.filter(said => said.project)
+  return (
+    <>
+      <h4 className="memory-found-head">Searched deeper for “{found.query}”</h4>
+      {/* (A provider is chosen for the search by meaning, and it did not run: the words alone were searched.) */}
+      {found.result.meaning_off && <p className="muted memory-hint">{found.result.meaning_off}</p>}
+      {own.length === 0 ? (
+        <p className="muted">Nothing on record speaks to “{found.query}”.</p>
+      ) : (
+        <ul className="memory-list" aria-label="What an agent would find in the memory">
+          {own.map(record => (
+            <li key={record.id}>
+              {record.by_meaning && <span className="tag">by meaning</span>}
+              <RecordCard record={record} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <h4 className="memory-found-head">In earlier messages</h4>
+      {saidHere.length === 0 ? (
+        <p className="muted">Nothing said in earlier messages speaks to “{found.query}”.</p>
+      ) : (
+        <ul className="memory-list" aria-label="In earlier messages">
+          {saidHere.map(said => (
+            <Said key={`${said.run_id}:${said.who}:${said.at}`} said={said} />
+          ))}
+        </ul>
+      )}
+      {(linked.length > 0 || saidLinked.length > 0) && (
+        <>
+          <h4 className="memory-found-head">In linked projects</h4>
+          <ul className="memory-list" aria-label="In linked projects">
+            {linked.map(record => (
+              <li key={record.id}>
+                <div className="memory-meta mono">
+                  <span className="tag">from project {record.from_project}</span>
+                  <span className="muted">{NOT_CHECKED_HERE}</span>
+                  {record.by_meaning && <span className="tag">by meaning</span>}
+                </div>
+                <RecordCard record={record} />
+              </li>
+            ))}
+            {saidLinked.map(said => (
+              <Said key={`${said.run_id}:${said.who}:${said.at}`} said={said} />
+            ))}
+          </ul>
+        </>
+      )}
+    </>
   )
 }
 

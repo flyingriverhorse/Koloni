@@ -8,7 +8,6 @@
   "src/inspector/Inspector.tsx::Inspector": 77,
   "src/knowledge/KnowledgePage.tsx::Card": 74,
   "src/knowledge/KnowledgeParts.tsx::Sources": 33,
-  "src/memory/Find.tsx::Find": 27,
   "src/memory/MemoryPage.tsx::MemoryPage": 36,
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,
