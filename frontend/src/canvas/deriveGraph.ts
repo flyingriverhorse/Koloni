@@ -281,7 +281,10 @@ export interface GraphEdge {
   request?: { label: string; open: boolean; title: string; calls: string[] }
   /** K-shared-bagli: a team's (or an agent's) line to its card, in its colour; a contract's arm from its request's line. */
   shared?: { colour: string; dotted?: boolean; arm?: string }
-  /** From an approved plan down to the Lead of its work turn: what it carries out, not a flow - one short dashed line. */
+  /**
+   * From an approved plan down to the Lead of its work turn - what it carries out -, or from a plan turn's message down
+   * to its plan: not a flow - one short straight dashed line.
+   */
   plan?: boolean
   /** With `plan`: from the Lead down to the Assistant PO asked as its turn ended - the same line, dashed its own way. */
   po?: boolean
@@ -695,7 +698,7 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
     const turn = turnOf(state, run.id)
     if (turn !== run.id) laterSides.set(run.id, turn)
     const requestId = `request:${turn}`
-    const attached = requestNodes(state, run, request, turn, requestId, nodes, link)
+    const attached = requestNodes(state, run, request, turn, requestId, nodes, edges)
     approvedPlan(state, run, nodes, edges)
     assistantPo(state, run, nodes, edges)
 
@@ -781,7 +784,7 @@ function readyNode(state: ConvState, run: Run, ran: RanRow[], nodes: GraphNode[]
 }
 
 /** What started a turn: its request, the files attached to it, and its plan. Returns the files, which are handed on below. */
-function requestNodes(state: ConvState, run: Run, request: ConvState['messages'][number] | undefined, turn: string, requestId: string, nodes: GraphNode[], link: Link) {
+function requestNodes(state: ConvState, run: Run, request: ConvState['messages'][number] | undefined, turn: string, requestId: string, nodes: GraphNode[], edges: GraphEdge[]) {
   if (request && turn === run.id) {
     nodes.push({
       id: requestId,
@@ -810,16 +813,18 @@ function requestNodes(state: ConvState, run: Run, request: ConvState['messages']
     nodes.push({ id: `attachment:${file.id}`, kind: 'attachment', runId: run.id, refId: file.id, ...(box && { parent: box }), data: { name: file.name, label, colour, meta } })
   }
 
-  planNode(run, request, requestId, nodes, link)
+  planNode(run, request, requestId, nodes, edges)
   return attached
 }
 
-function planNode(run: Run, request: ConvState['messages'][number] | undefined, requestId: string, nodes: GraphNode[], link: Link) {
+function planNode(run: Run, request: ConvState['messages'][number] | undefined, requestId: string, nodes: GraphNode[], edges: GraphEdge[]) {
   // A plan turn: what became of its plan, at its start. (Queued, or ended with none, no node.)
   if (request && run.plan_turn && (run.plan || (run.status !== 'queued' && !TERMINAL.has(run.status)))) {
     const data: PlanData = run.plan ? { status: run.plan.status, by: plannedBy(run.plan) } : { status: 'writing', by: null }
-    nodes.push({ id: `plan:${run.id}`, kind: 'plan', runId: run.id, refId: run.id, data })
-    link(requestId, `plan:${run.id}`, false)
+    const id = `plan:${run.id}`
+    nodes.push({ id, kind: 'plan', runId: run.id, refId: run.id, data })
+    // (Right under the message: a plan's short straight line down into it - 21 Nov: not a curve's scribble and hooks.)
+    edges.push({ id: `${requestId}>${id}`, source: requestId, target: id, active: false, plan: true })
   }
 }
 

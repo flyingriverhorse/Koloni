@@ -164,7 +164,10 @@ function roundLines({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }
   return round
 }
 
-/** An approved plan's line straight down to the Lead under it, or the Lead's to the Assistant PO under the turn: a relation, not a flow - no arrow, no tab stop, nothing read out. */
+/**
+ * An approved plan's line straight down to the Lead under it, a message's to its plan under it, or the Lead's to the
+ * Assistant PO under the turn: a relation, not a flow - no arrow, no tab stop, nothing read out.
+ */
 const planLine = (e: GraphEdge): Edge => ({
   id: e.id,
   source: e.source,

@@ -4,7 +4,7 @@ import { type Node, type NodeProps, ReactFlowProvider } from '@xyflow/react'
 import type { ReactNode } from 'react'
 import { expect, test, vi } from 'vitest'
 import { type AgentData, type DiscussionData, type PoData, type RequestData, type RoomData, type RoundData, statusWords } from './deriveGraph'
-import { AgentNode, DiscussionNode, PoNode, RequestNode, RoomNode, RoundNode } from './nodes'
+import { AgentNode, AttachmentNode, DiscussionNode, PlanNode, PoNode, RequestNode, RoomNode, RoundNode } from './nodes'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
 /** A node as the canvas draws it, outside any canvas: only what the node itself shows. */
@@ -141,6 +141,31 @@ test('the user’s (4 Nov): a finished agent of a step’s newest round is a chi
   )
   expect(screen.getByRole('button', { name: 'Round 2 · 4 reviewed · waits for you · 2 blocking' })).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getByText('waits for you · 2 blocking').style.color).toBe('var(--warn)')
+})
+
+test('a card shows only the dots a line uses (21 Nov): every dot kept, the unused one hidden', () => {
+  /** The sides of the dots that show (`found-handle`: one hidden). */
+  const shown = () => Array.from(document.querySelectorAll('.react-flow__handle:not(.found-handle)'), dot => dot.getAttribute('data-handlepos'))
+  const asked: RequestData = { text: 'Look', time: '2026-10-05T10:00:00Z', queued: false, trigger: null }
+  const talk: DiscussionData = { topic: 'Keep hi?', line: 'Ended', members: ['Lead'], last: [], speaking: null, running: false }
+  const room: RoomData = { goal: 'Ship it', line: 'round 2', members: ['Coder'], watched: '', items: '', last: [], running: false, attention: false }
+  const po: PoData = { provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 2900, output_tokens: 200, proposed: 2, dropped: [], dropped_more: 0 }
+  const cards: [ReactNode, string[]][] = [
+    // (Nothing comes into a message or a file; nothing leaves a discussion or a room; a plan and the PO have their straight line.)
+    [<RequestNode key="request" {...props('request:a', asked)} />, ['right']],
+    [<AttachmentNode key="file" {...props('attachment:f', { name: 'a.ts', label: 'TS', colour: '--file-code', meta: '1 line' })} />, ['right']],
+    [<DiscussionNode key="discussion" {...props('discussion:t', talk)} />, ['left']],
+    [<RoomNode key="room" {...props('room:r', room)} />, ['left']],
+    [<PlanNode key="plan" {...props('plan:p', { status: 'proposed', by: null })} />, []],
+    [<PoNode key="po" {...props('po:r', po)} />, []],
+    // (An agent keeps both.)
+    [<AgentNode key="agent" {...props('agent:kid', coder)} />, ['left', 'right']],
+  ]
+  for (const [card, sides] of cards) {
+    draw(card)
+    expect(shown()).toEqual(sides)
+    cleanup()
+  }
 })
 
 test('the user’s (7 Nov): the Assistant PO’s node says the model, what came of it and what it spent, and opens the To-do page', async () => {

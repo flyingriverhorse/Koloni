@@ -74,6 +74,8 @@ export function RequestNode({ data, selected }: NodeProps<Node<RequestData & Rec
       title={data.trigger === null ? 'You' : 'Trigger'}
       label={clock(data.time)}
       selected={selected}
+      // (No line comes into what started a turn.)
+      unused="in"
     >
       {/* (Three lines at most - the user's, 5 Nov: what was written, whole, is in the side panel.) */}
       {data.trigger !== null && data.trigger !== '' && <div className="node-meta mono">{data.trigger} · nobody watching</div>}
@@ -88,7 +90,8 @@ export function RequestNode({ data, selected }: NodeProps<Node<RequestData & Rec
 export function AttachmentNode({ data, selected }: NodeProps<Node<AttachmentData & Record<string, unknown>>>) {
   return (
     <div className={`node node-attachment${selected ? ' node-selected' : ''}`} style={{ '--c': `var(${data.colour})` } as CSSProperties}>
-      <Handle type="target" position={Position.Left} isConnectable={false} />
+      {/* (No line comes into a file.) */}
+      <Handle type="target" position={Position.Left} isConnectable={false} className="found-handle" />
       <span className="file-ic mono" aria-hidden="true">
         {data.label}
       </span>
@@ -189,6 +192,8 @@ export function PlanNode({ data, selected }: NodeProps<Node<PlanData & Record<st
       label={data.status === 'writing' ? 'being written' : data.status}
       tone={data.status === 'proposed' ? 'approval' : data.status === 'writing' ? 'running' : 'idle'}
       selected={selected}
+      // (Its lines are straight, top and foot: from the message over it, or down to the Orchestrator under it.)
+      unused="both"
     >
       <div className="node-said">{data.by ?? 'Only reads; nothing changes before you approve.'}</div>
     </Card>
@@ -199,7 +204,8 @@ export function PlanNode({ data, selected }: NodeProps<Node<PlanData & Record<st
 export function PoNode({ data, selected }: NodeProps<Node<PoData & Record<string, unknown>>>) {
   const { openTodo } = useContext(NodeActions)
   return (
-    <Card icon={<Lightbulb size={13} />} title="Assistant PO" label={data.model_id ?? 'model not known'} selected={selected}>
+    // (Its line comes straight down into its top.)
+    <Card icon={<Lightbulb size={13} />} title="Assistant PO" label={data.model_id ?? 'model not known'} selected={selected} unused="both">
       <div className="node-line" style={data.heard ? undefined : { color: 'var(--warn)' }}>
         {poSaid(data)}
       </div>
@@ -417,8 +423,9 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
           {error}
         </p>
       )}
-      {/* (Its line to Ready for you: low, under its card - canvas.css.) */}
-      <Handle type="source" position={Position.Right} isConnectable={false} className="team-out" />
+      {/* (Its line to Ready for you: low, under its card - canvas.css. A frame of roles has none: its dot hidden, kept for
+          a member's line and a line moved onto it, folded.) */}
+      <Handle type="source" position={Position.Right} isConnectable={false} className={data.byRoles ? 'team-out found-handle' : 'team-out'} />
       {/* Its door, by its header: the Lead's line comes in there, and the work line inside starts there. */}
       <Handle type="target" id="door-in" position={Position.Left} isConnectable={false} className="team-door" />
       <Handle type="source" id="door-out" position={Position.Left} isConnectable={false} className="team-door" />

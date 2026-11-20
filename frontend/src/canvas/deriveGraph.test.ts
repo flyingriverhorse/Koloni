@@ -502,7 +502,8 @@ test('a plan turn has a small Plan node at its start, after the request; another
     ['plan:p', 'p', { status: 'writing', by: null }],
     ['plan:d', 'd', { status: 'proposed', by: 'Planned by big-model · the team’s strongest model' }],
   ])
-  expect(edges.filter(e => e.target === 'plan:d').map(e => e.source)).toEqual(['request:d'])
+  // A short straight line down from the message into it, as a plan's line is drawn (21 Nov: not a curve's scribble).
+  expect(edges.filter(e => e.target === 'plan:d')).toEqual([{ id: 'request:d>plan:d', source: 'request:d', target: 'plan:d', active: false, plan: true }])
 })
 
 test('the work turn of an approved plan has that plan over its Lead; a rejected plan, no plan or a later turn, none', () => {
@@ -536,10 +537,11 @@ test('an approved plan has one line of its own down to the Lead of its work turn
       }),
     )
   const { edges } = graph(['p', 'w'])
-  expect(edges.filter(e => e.plan)).toEqual([{ id: 'planned:p>agent:w', source: 'planned:p', target: 'agent:w', active: false, plan: true }])
+  const approved = (all: typeof edges) => all.filter(e => e.plan && e.source.startsWith('planned:'))
+  expect(approved(edges)).toEqual([{ id: 'planned:p>agent:w', source: 'planned:p', target: 'agent:w', active: false, plan: true }])
   // (No other line meets it: not a work, talk or spawn line.)
   expect(edges.filter(e => [e.source, e.target].includes('planned:p'))).toHaveLength(1)
-  expect(graph(['p']).edges.filter(e => e.plan)).toEqual([])
+  expect(approved(graph(['p']).edges)).toEqual([])
 })
 
 test('the user’s (7 Nov): the Assistant PO is a node under the turn’s Lead, on its own dashed line, only where it was asked', () => {
