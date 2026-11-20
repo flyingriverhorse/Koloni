@@ -36,10 +36,8 @@ const asks = (agent: Agents[number]) => agent.status === 'waiting_approval' || a
 type Talk = Board['conversations'][number]
 
 /**
- * What began to wait in a conversation since it was read as `old`: "Coder asks you" (a question), "Coder waits for you",
- * "A plan waits for you", "Changes wait for you".
- * shortcut: the Board counts KOLONİ's own card asking leave for an agent's call among its questions (app/api/board.py), so
- * that card is told as the agent asking too; give the Board a count of the agent's own questions if that misleads.
+ * What began to wait in a conversation since it was read as `old`: "Coder asks you" (a question of its own), "Coder waits
+ * for you" (anything else, KOLONİ's own card about it too), "A plan waits for you", "Changes wait for you".
  */
 function whatWaits(c: Talk, old: Talk | undefined) {
   // Said of what is new: an agent that began to ask, or else changes put before you, or a plan.
@@ -47,7 +45,7 @@ function whatWaits(c: Talk, old: Talk | undefined) {
   const merged = c.merges_pending > (old?.merges_pending ?? 0)
   const planned = Boolean(c.turn?.plan_waits) && !(old?.turn?.id === c.turn?.id && old?.turn?.plan_waits)
   const who = c.agents.find(a => asks(a) && !asked.has(a.id)) ?? (merged || planned ? undefined : c.agents.find(asks))
-  if (who) return `${titleOf(who.name)} ${who.questions > 0 ? 'asks you' : 'waits for you'}`
+  if (who) return `${titleOf(who.name)} ${who.own_questions > 0 ? 'asks you' : 'waits for you'}`
   return planned && !merged ? 'A plan waits for you' : 'Changes wait for you'
 }
 

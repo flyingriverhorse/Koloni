@@ -5339,6 +5339,8 @@ export interface components {
             model_id: string | null;
             /** Name */
             name: string;
+            /** Own Questions */
+            own_questions: number;
             /** Provider Name */
             provider_name: string | null;
             /** Questions */

@@ -1,5 +1,7 @@
 """Slice 60b's review round: what a card of the Board says of a conversation's last turn."""
 
+from dataclasses import replace
+
 from tests.conftest import Gate
 from tests.test_board_scenarios import ORIGIN, board, go, on_board, project, talk
 from tests.test_chat_flow import text
@@ -62,7 +64,8 @@ def test_a_card_says_a_change_to_approve_apart_from_a_question(make_client, wait
     run_id = go(client, cid)
     snap = until(client, cid, lambda s: [q["status"] for q in s["questions"]] == ["pending"])
     (lead,) = on_board(board(client, pid), cid)["agents"]
-    assert (lead["status"], lead["questions"], lead["changes_to_approve"]) == ("waiting_approval", 1, 0)
+    assert (lead["status"], lead["questions"], lead["own_questions"], lead["changes_to_approve"]) == (
+        "waiting_approval", 1, 1, 0)
     answered = client.post(f"/api/questions/{snap['questions'][0]['id']}/answer", json={"answer": "yes"})
     assert answered.status_code == 200
     snap = until(client, cid, lambda s: [c["status"] for c in s["file_changes"]] == ["proposed"])
@@ -71,3 +74,26 @@ def test_a_card_says_a_change_to_approve_apart_from_a_question(make_client, wait
     assert client.post(f"/api/file-changes/{snap['file_changes'][0]['id']}/approve").status_code == 200
     wait_run(client, cid, run_id)
     assert on_board(board(client, pid), cid)["agents"] == []
+
+
+def test_koloni_s_own_card_for_an_agent_waits_but_is_not_the_agent_asking(
+        make_client, wait_run, project_dir):
+    """Review of B-204: KOLONİ's card about an agent (`leave`: its step limit here) is counted
+    as what waits, apart from the agent's own questions - its note in the corner keeps "waits
+    for you", only an agent's own question "asks you" (frontend/src/shell/Toasts.tsx)."""
+    client, _model = make_client({
+        "Lead": [spawn("Researcher", "Look around"), text("done")],
+        "Researcher": [step(call("list_dir", {}, f"k{n}")) for n in range(3)] + [text("found")],
+    })
+    runner = client.app.state.runner
+    runner.settings = replace(runner.settings, max_steps=2)
+    client.headers["Origin"] = ORIGIN
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = talk(client, pid, permission_mode="ask")
+    go(client, cid)
+    snap = until(client, cid, lambda s: any(q["status"] == "pending" for q in s["questions"]))
+    (card,) = snap["questions"]
+    asking = [a for a in on_board(board(client, pid), cid)["agents"]
+              if a["status"] == "waiting_approval"]
+    assert card["leave"] and [(a["name"], a["questions"], a["own_questions"]) for a in asking] == [
+        ("Researcher", 1, 0)], (card, asking)

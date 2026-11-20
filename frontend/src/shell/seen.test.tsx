@@ -29,9 +29,10 @@ const worker = (over: Partial<BoardAgent> = {}): BoardAgent => ({
   in_tool: false,
   changes_to_approve: 0,
   questions: 0,
+  own_questions: 0,
   ...over,
 })
-const talk = (id: string, title: string, over: Partial<BoardConversation> = {}): BoardConversation => ({
+const talk =(id: string, title: string, over: Partial<BoardConversation> = {}): BoardConversation => ({
   conversation_id: id,
   title,
   agents: [],
@@ -193,11 +194,15 @@ test('a question is told as one, by who asks; what else waits keeps its words', 
   const at = (agents: BoardAgent[]) => boardOf(talk('a', 'Docs', { agents }))
   const { rerender, container } = render(<Toasts board={at([worker()])} shownId={null} onOpen={() => {}} />)
   const live = container.querySelector('[aria-live="polite"]') as HTMLElement
-  rerender(<Toasts board={at([worker({ status: 'waiting_approval', questions: 1 })])} shownId={null} onOpen={() => {}} />)
+  const asking = (over: Partial<BoardAgent> = {}) => worker({ status: 'waiting_approval', questions: 1, own_questions: 1, ...over })
+  rerender(<Toasts board={at([asking()])} shownId={null} onOpen={() => {}} />)
   expect(live).toHaveTextContent('Orchestrator asks you · Docs')
   // a sub-agent that begins to ask, while the Orchestrator still does
-  rerender(<Toasts board={at([worker({ status: 'waiting_approval', questions: 1 }), worker({ name: 'Coder', status: 'waiting_approval', questions: 1 })])} shownId={null} onOpen={() => {}} />)
+  rerender(<Toasts board={at([asking(), asking({ name: 'Coder' })])} shownId={null} onOpen={() => {}} />)
   expect(live).toHaveTextContent('Coder asks you · Docs')
+  // KOLONİ's own card about an agent (its step limit, leave for a tool): the agent asks nothing
+  rerender(<Toasts board={at([asking(), asking({ name: 'Coder' }), asking({ name: 'Researcher', own_questions: 0 })])} shownId={null} onOpen={() => {}} />)
+  expect(live).toHaveTextContent('Researcher waits for you · Docs')
 })
 
 test('a toast pointed at or focused stays; a fourth one does not push out the one being read', () => {
