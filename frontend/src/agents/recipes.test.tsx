@@ -756,3 +756,36 @@ test('K-uzman: a step of the team’s experts says whose, and its Who keeps it',
   expect(within(panel()).getByLabelText('Who')).toHaveValue('experts:learned')
   expect(part(/^Experts check the plan/)).toHaveTextContent('the team’s experts that have learned, at once')
 })
+
+test('a refused save is said in words: its parts counted, the request’s own check in plain words at its step, the rest where the request names it', async () => {
+  const alerts = () => screen.getAllByRole('alert').map(one => one.textContent)
+  const refuse = async (raw: unknown, message = 'refused') => {
+    const shown = draw(actions({ saveRecipe: vi.fn().mockRejectedValue(new ApiError(422, message, raw)) }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy it' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+    return shown
+  }
+  // parts and nothing else: what was said of them is counted (one said twice counts twice)
+  await refuse([
+    { loc: ['body', 'graph'], msg: 'Build it: no role', at: 'build' },
+    { loc: ['body', 'graph'], msg: 'Build it: no role', at: 'build' },
+    { loc: ['body', 'graph'], msg: 'Your message: no way on', at: 'start' },
+  ])
+  expect(await screen.findByText('It cannot run yet: 3 things to change, each at its part.')).toBeVisible()
+  // (said twice of one part, shown once)
+  expect(within(panel()).getAllByRole('alert').map(one => one.textContent)).toEqual(['Build it: no role'])
+  cleanup()
+  // the request's own check: its name, a step's field, a step's Who, and anything else by where it is
+  await refuse([
+    { loc: ['body', 'name'], msg: 'Value error, name is empty' },
+    { loc: ['body', 'graph', 'steps', 0, 'name'], msg: 'Value error, a step needs a name' },
+    { loc: ['body', 'graph', 'steps', 0, 'who', 'role'], msg: 'Input should be a valid string' },
+    { loc: ['body', 'graph', 'edges', 3], msg: 'Field required' },
+  ])
+  await waitFor(() => expect(alerts()).toContain('Name is empty; graph.edges.3: Field required'))
+  expect(within(panel()).getAllByRole('alert').map(one => one.textContent)).toEqual(['A step needs a nameWho does it is not one the board draws: choose it again'])
+  cleanup()
+  // nothing the page can read at a part: the server's own words
+  await refuse(undefined, 'the recipe could not be saved')
+  await waitFor(() => expect(alerts()).toEqual(['the recipe could not be saved']))
+})
