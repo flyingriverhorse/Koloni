@@ -22,11 +22,15 @@ from tests.keyed import TestClient
 from tests.test_agent_writes import wait_status
 from tests.test_board import written
 from tests.test_chat_flow import text
+from tests.test_lead_decides import fire
 from tests.test_migration_0002 import _config
 from tests.test_model_cli import gone
 from tests.test_parallel import until
 from tests.test_questions import OWN
+from tests.test_recipe_run_scenarios import asked
+from tests.test_slow_model import ASKED, armed
 from tests.test_spawn import reported, role_id, spawn
+from tests.test_triggers import HeldClock
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_codex_app_server.py"))]
 
@@ -1281,3 +1285,17 @@ def test_a_codex_that_crashes_while_its_command_runs_fails_the_turn_at_once(
     assert run["status"] == "failed" and "code 7" in run["error"], run["error"]
     # (not left running: as any command still marked so when its turn is over)
     assert snap["commands"][0]["status"] == "killed"
+
+
+def test_a_codex_orchestrator_silent_too_long_is_asked_about_on_a_card(
+    native_app, wait_run, project_dir
+):
+    # K-yavas: Codex at its 5-hour limit answered every 7-10 minutes (tests/test_slow_model.py).
+    client, provider, _ = native_app([{"hang": True}])
+    clock = client.app.state.runner.call_later = HeldClock()
+    cid, run_id = start(client, project_dir, provider)
+    fire(client, armed(clock, timeout=30)[0])  # (set as its run began)
+    said = asked(until(client, cid, asked))["question"]
+    assert said.startswith("Codex") and said.endswith(f"has not answered for 5 min.{ASKED}"), said
+    assert client.post(f"/api/runs/{run_id}/cancel", headers=OWN).status_code == 202
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "cancelled"

@@ -381,6 +381,11 @@ class LoopMixin:
             session.commit()
             run_id, payload = agent.run_id, agent_out(agent)
         self.bus.emit(cid, run_id, "agent.updated", payload)
+        # (K-yavas: a step or a call of it began, or a call ended - its own, not one of its answer
+        # to a message or its speech beside its work, whose ctx `_ctxs` does not hold)
+        if "last_event_at" in fields and agent_id not in self._answering and (
+                known := self._ctxs.get(agent_id)) is not None:
+            self._slow(known)
         status = fields.get("status")
         if status in ("waiting", "completed", "failed"):
             # K-oda-takim: an agent `discuss` was refused (at work) may join now: its asker is told.
@@ -771,6 +776,7 @@ class LoopMixin:
                 # (Shielded: a second Stop does not leave one of them running.)
                 await asyncio.shield(asyncio.gather(
                     *(self._servers.pop(key).end() for key in mine), return_exceptions=True))
+            await self._slow_ended(ctx)  # (K-yavas: before the turn's end is on record)
             if later:  # (last: a second Stop leaves nothing above undone)
                 await self._stopped_later(later)
                 later = []
@@ -1022,12 +1028,14 @@ class LoopMixin:
             while True:
                 # shortcut: its pictures go once, with no retry without them as a step's
                 # (`_sent_with_files`): a refusal fails the run; add one if that is seen.
+                self._slow(ctx, arm=True)  # (K-yavas: not while its tests run after it)
                 usage = await cast(CliSessionClient, self._model_of(ctx)).run_session(
                     info.model_id, self._history(ctx, offered), offered, call_tool,
                     transcript.on_text, transcript.of, **({"effort": effort} if effort else {}),
                     on_live=lambda item: self._show_live(ctx, item),
                     **({"queue_wait": None} if waits else {}),
                 )
+                self._slow_off(ctx)
                 ended = True
                 self._count_tokens(
                     ctx, usage.input_tokens, usage.output_tokens,
@@ -1054,6 +1062,7 @@ class LoopMixin:
                 return exc.ended, str(exc) or None
             raise
         finally:
+            self._slow_off(ctx)
             with contextlib.suppress(Exception):  # (a card never fails the run)
                 self._reached(ctx, ended or transcript.opened > before)
             transcript.end()  # whatever it had written is kept, also on Stop or failure
@@ -1118,6 +1127,7 @@ class LoopMixin:
 
         async def on_delta(text: str) -> None:
             nonlocal last_flush
+            self._slow(ctx)
             content = self._live[message_id][1] + text
             self._live[message_id] = (cid, content)
             self.bus.emit_transient(cid, "message.delta", {"message_id": message_id, "text": text})
@@ -1127,6 +1137,7 @@ class LoopMixin:
 
         async def on_thinking(_text: str) -> None:
             nonlocal last_thinking
+            self._slow(ctx)
             if time.monotonic() - last_thinking >= 1.0:
                 last_thinking = time.monotonic()
                 self.bus.emit_transient(
@@ -1137,6 +1148,7 @@ class LoopMixin:
         early: dict[str, int | None] = {}
         ended = False
         try:
+            self._slow(ctx, arm=True)  # (K-yavas: its model is asked from here to the step's end)
             # Only the tools this agent's role allows are offered to the model. The
             # roles are read at every step: one created a moment ago can be used now.
             # (and show, to every agent at its own work: it puts a file before the user -
@@ -1184,6 +1196,7 @@ class LoopMixin:
             self._model_step_larger(ctx, info, exc)
             raise
         finally:
+            self._slow_off(ctx)
             # Also on cancel or failure: whatever text arrived is kept.
             content = self._live.pop(message_id)[1]
             payload = self._save_message(

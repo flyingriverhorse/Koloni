@@ -2262,7 +2262,7 @@ class QuestionOut(Out):
     id: str
     run_id: str
     agent_id: str
-    tool_call_id: str
+    tool_call_id: str | None  # (None: a card of the turn's own - its model is slow, K-yavas)
     question: str
     options: list[str]
     # KOLONİ's own question, not the agent's: leave for a tool. Its options are the only

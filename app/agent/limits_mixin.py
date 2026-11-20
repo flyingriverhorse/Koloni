@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 
 from app import away, project_map, recipe_run, signs
 from app.agent.cards import _goes_on, _steps_of_chain
-from app.agent.ctx import Ctx, _NobodyToAsk, _Unwatched
+from app.agent.ctx import Ctx, _NobodyToAsk, _Slow, _Unwatched
 from app.agent.words import (
     ANSWER_PREFIX,
     BACKLOG_NOT_THIS,
@@ -42,14 +42,17 @@ from app.db.models import (
     OwnRequest,
     Project,
     Provider,
+    Question,
     Run,
     ToolCall,
     Trigger,
     now,
 )
 from app.model_client import ModelClient, OwnStop
+from app.model_session import QUEUE_WAIT_SECONDS
 from app.providers import works_with_own_tools
-from app.roles import find_role
+from app.roles import find_role, shown_name
+from app.serialize import question_out
 from app.team import quoted
 from app.workspace import standing_asks
 
@@ -87,6 +90,24 @@ TODO_TOO_LONG = ("stopped after {hours} hour{s}, the longest a To-do task's turn
 # counts no steps, ends where nothing real moved for Settings' minutes (`_progress`).
 NO_PROGRESS = ("stopped: nothing moved in {minutes} minutes - no file of the turn changed, no "
                "agent finished its work, no failing command passed")
+# K-yavas (the user, 20 Nov 2026): in a turn the user watches, the Orchestrator's model silent this
+# long is asked about on a card (`_slow`) - measured: Qoder's free queue held one 5.5 and 7 min,
+# Codex at its 5-hour limit answered every 7-10 min; a CLI's own silence limit
+# (`model_first_token_seconds`, 15 min) is longer, so the card comes first. Qoder's queue line
+# past QUEUE_WAIT_SECONDS asks sooner. shortcut: a constant, not a setting; make it a setting if
+# the user asks.
+WATCHED_SLOW_MINUTES = 5
+SLOW_SILENT = "{who} has not answered for {minutes} min."
+SLOW_QUEUED = "{provider} has kept {model} queued for {minutes} min."
+SLOW_ASKED = "{said} Keep waiting, or stop this turn and pick another model?"
+SLOW_WAIT = "Keep waiting"
+SLOW_STOP = "Stop and pick another model"
+# shortcut: one wording for every lead - a plan turn's (the team's strongest model) and a
+# comparison side's (that side's model) are picked elsewhere; word it from `would_run`'s source
+# if a user is seen sent to the wrong place.
+SLOW_STOPPED = ("You stopped this turn: {said} What it did so far is kept. To go on, pick another "
+                "model for the Orchestrator - in the chat's model picker, or on the Agents page "
+                "where the Orchestrator role has a model of its own - and send your message again.")
 
 # How a stop at the end of the steps given once more (K-devam-butce, `GIVEN_ONCE`) is on
 # record (B-327: not "step_limit", whose words everywhere say the app's limit).
@@ -604,6 +625,139 @@ class LimitsMixin:
             self._progress(run_id, arm=True)
             return
         self._over_budget(run_id, NO_PROGRESS.format(minutes=minutes))
+
+    # --- a watched turn's Orchestrator whose model is slow (K-yavas) -------------------------
+
+    def _slow(self: "AgentRunner", ctx: Ctx, arm: bool = False) -> None:
+        """The Orchestrator of a turn the user watches heard from its model - a step began, words
+        or thinking came, a call of it began or ended (`_set_agent`'s `last_event_at`, `_touch`) -
+        or, `arm`, its model is asked now: its slow clock starts again, and a card of it is closed.
+        Not `_progress`'s notion of a turn that moves: an open model step is busy there, and here
+        that is the slow model itself.
+        shortcut: no sub-agent has one - a provider that fails it moves it on (`_moved_on`), and
+        its opener waits in a call; give it one if a slow sub-agent is felt.
+        shortcut: a step's tool call being written gives no word (no delta): one written for
+        WATCHED_SLOW_MINUTES is asked about too; count its pieces if that is seen.
+        shortcut: its own answer to a message and its speech in a discussion, beside its work,
+        neither touch the clock nor have one (`_slow_off` too); give them one if a slow speech is
+        felt."""
+        if ctx.depth or ctx.answering or ctx.discussion:
+            return
+        slow = self._slow_turns.get(ctx.run_id)
+        if slow is None and arm and self._attended(ctx):
+            slow = self._slow_turns[ctx.run_id] = _Slow(ctx.agent_id)
+        if slow is None or slow.agent_id != ctx.agent_id or not (arm or slow.timer):
+            return
+        self._slow_off(ctx)
+        self._slow_timer(ctx.run_id)
+
+    def _slow_timer(self: "AgentRunner", run_id: str) -> None:
+        """`_slow`'s clock, set anew: WATCHED_SLOW_MINUTES from now."""
+        slow = self._slow_turns[run_id]
+        if slow.timer is not None:
+            slow.timer.cancel()  # (one that went off: nothing)
+        later = self.call_later or asyncio.get_running_loop().call_later
+        slow.timer = later(WATCHED_SLOW_MINUTES * 60.0, self._slow_due, run_id)
+
+    def _slow_off(self: "AgentRunner", ctx: Ctx) -> None:
+        """`_slow`: its model is no longer asked, or was heard from - no clock, and its card is
+        closed (it ends by itself; `_slow_ended` waits for that)."""
+        slow = self._slow_turns.get(ctx.run_id)
+        if slow is not None and slow.agent_id == ctx.agent_id and not (
+                ctx.depth or ctx.answering or ctx.discussion):
+            slow.off()
+
+    def _slow_dropped(self: "AgentRunner", run_id: str) -> None:
+        """`_forget_turn`: what `_slow_ended` did not take - nothing is left of the turn."""
+        if (slow := self._slow_turns.pop(run_id, None)) is not None:
+            slow.off()
+
+    async def _slow_ended(self: "AgentRunner", ctx: Ctx) -> None:
+        """`_loop_end`: the Orchestrator's work is over - its card's end is waited for before the
+        turn's is on record (its `_ask_user` puts the run back to "running" as it ends)."""
+        if ctx.depth or ctx.answering or ctx.discussion:
+            return
+        self._slow_off(ctx)
+        slow = self._slow_turns.pop(ctx.run_id, None)
+        if slow is not None and slow.card is not None:
+            await asyncio.shield(asyncio.gather(slow.card, return_exceptions=True))
+
+    def _slow_queued(self: "AgentRunner", ctx: Ctx, queue: dict | None) -> None:
+        """`_show_live`: Qoder has kept the Orchestrator's model queued past QUEUE_WAIT_SECONDS -
+        asked now, and once until its model is heard from (the line comes every ~30 s)."""
+        slow = self._slow_turns.get(ctx.run_id)
+        if (queue and (queue.get("elapsed_s") or 0) >= QUEUE_WAIT_SECONDS and slow is not None
+                and slow.agent_id == ctx.agent_id and not slow.waited):
+            self._slow_due(ctx.run_id, queue)
+
+    def _slow_due(self: "AgentRunner", run_id: str, queue: dict | None = None) -> None:
+        """`_slow`'s minutes are up - or, `queue`, Qoder's line said so (`_slow_queued`): the user
+        is asked on one card, unless the wait is not the model's - a card or anything else of the
+        turn waits for the user (they are slow, not the model), a call of the Orchestrator's is at
+        work (KOLONİ's time: a sub-agent, a command), or it is not at work itself (in line for a
+        place): then its clock starts again. The card says its model and how long: Qoder's own
+        count where its last line said queued, else the limits gone by with no word.
+        shortcut: a CLI's spawn_agent answered at once stays at work on record till its sub-agent
+        is back - no card meanwhile; tell the two apart if a CLI is seen silent then."""
+        slow = self._slow_turns.get(run_id)
+        ctx = self._ctxs.get(slow.agent_id) if slow is not None else None
+        if slow is None or ctx is None or slow.timer is None or (
+                slow.card is not None and not slow.card.done()):
+            return
+        with self._factory() as session:
+            lead = session.get_one(Agent, ctx.agent_id)
+            busy = lead.status != "running" or self._waits_for_user(session, run_id) or (
+                session.scalar(select(ToolCall.id).where(
+                    ToolCall.agent_id == ctx.agent_id,
+                    ToolCall.status.in_(("pending", "running"))).limit(1)) is not None)
+            provider, model = shown_name(lead.provider_name or "Its CLI"), lead.model_id
+        if busy:
+            if queue is None:
+                self._slow_timer(run_id)
+            return
+        slow.waited += 1
+        queue = queue or self._cli_live.get(ctx.agent_id, ("", {}))[1].get("queue")
+        said = SLOW_QUEUED.format(
+            provider=provider, model=model or "its model", minutes=round(queue["elapsed_s"] / 60)
+        ) if queue and queue.get("elapsed_s") else SLOW_SILENT.format(
+            who=f"{provider} · {model}" if model else provider,
+            minutes=slow.waited * WATCHED_SLOW_MINUTES)
+        slow.card = asyncio.ensure_future(self._slow_asked(ctx, said))
+
+    async def _slow_asked(self: "AgentRunner", ctx: Ctx, said: str) -> None:
+        """`_slow_due`'s card, asked beside the model's work, which keeps its place: Keep waiting -
+        its clock again, a whole limit; Stop and pick another model - KOLONİ's line, then the turn
+        ends as the user's Stop ends it, its work kept. No answer: it waits - a watched turn never
+        ends by itself. The Lead never answers it (no `kind`). Closed, not answered, when its model
+        is heard from or no longer asked (`_slow_off`), at Stop, and at the turn's end.
+        shortcut: no "Use <model>" answer - the Orchestrator's model is the chat's, the user's own
+        pick, and `_moved_on` moves no lead; offer the next of its tier if the user asks."""
+        ids: list[str] = []
+        try:
+            _status, word = await self._ask_user(ctx, None, {
+                "question": SLOW_ASKED.format(said=said), "options": [SLOW_WAIT, SLOW_STOP]},
+                leave=True, ids=ids, aside=False)
+        except asyncio.CancelledError:
+            self._slow_closed(ctx, ids)
+            raise
+        if word.removeprefix(ANSWER_PREFIX) == SLOW_STOP:
+            self._koloni_line(ctx.cid, ctx.run_id, SLOW_STOPPED.format(said=said))
+            self.cancel(ctx.run_id)
+        elif (slow := self._slow_turns.get(ctx.run_id)) is not None and slow.timer is not None:
+            self._slow_timer(ctx.run_id)
+
+    def _slow_closed(self: "AgentRunner", ctx: Ctx, ids: list[str]) -> None:
+        """`_slow_asked`'s card closed with no answer: on record as not answered."""
+        if not ids:
+            return
+        with self._factory() as session:
+            question = session.get_one(Question, ids[0])
+            if question.status != "pending":
+                return
+            question.status = "cancelled"
+            session.commit()
+            payload = question_out(question)
+        self.bus.emit(ctx.cid, ctx.run_id, "question.updated", payload)
 
     def _attended(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether the user can be asked on a card in this turn: one they started - not a

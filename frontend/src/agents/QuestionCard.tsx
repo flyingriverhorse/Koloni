@@ -25,6 +25,7 @@ const TITLES: [(option: string) => boolean, string][] = [
   [option => option === 'Try again' || option === 'Skip', 'A recipe step did not finish'],
   [option => option === 'Take it in and go on', 'Go on from the kept work?'],
   [option => option === 'Start it', 'Start this MCP server?'],
+  [option => option === 'Keep waiting', 'The model is slow to answer'],
 ]
 
 /**

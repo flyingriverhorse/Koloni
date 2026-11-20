@@ -37,6 +37,7 @@ from alembic.config import Config as AlembicConfig
 from app import agent as agent_module
 from app import triggers as kept
 from app.agent import _NobodyToAsk
+from app.agent.limits_mixin import WATCHED_SLOW_MINUTES
 from app.config import load_settings
 from app.db.models import AllowedCommand, Project, Provider, Trigger
 from app.db.session import make_engine, make_session_factory
@@ -1792,17 +1793,24 @@ def test_with_the_user_there_a_rule_still_covers_the_command_with_more_arguments
 
 class HeldClock:
     """Stands where the event loop's `call_later` is: what was set is kept, and happens
-    when the test says so - no minute is ever waited for."""
+    when the test says so - no minute is ever waited for. `but`: clocks the test is not about
+    (K-yavas: a watched Orchestrator's, `NOT_SLOW`), left to the event loop."""
 
-    def __init__(self):
+    def __init__(self, but: tuple[float, ...] = ()):
         self.set: list[SimpleNamespace] = []
+        self.but = but
 
     def __call__(self, delay, callback, *args):
+        if delay in self.but:
+            return asyncio.get_running_loop().call_later(delay, callback, *args)
         timer = SimpleNamespace(delay=delay, cancelled=False)
         timer.fire = lambda: callback(*args)
         timer.cancel = lambda: setattr(timer, "cancelled", True)
         self.set.append(timer)
         return timer
+
+
+NOT_SLOW = (WATCHED_SLOW_MINUTES * 60.0,)  # (`HeldClock`'s `but`)
 
 
 def test_the_steps_of_all_its_agents_are_one_budget(make_client, wait_run, project_dir):
@@ -1855,7 +1863,7 @@ def test_at_the_end_of_its_minutes_everything_of_the_turn_is_stopped(
                 {"say": "ran it"}],
         default_steps={"Lead": [
             step(call("spawn_agent", {"role": "Coder", "task": "run it"}, "s")), text("done")]})
-    clock = client.app.state.runner.call_later = HeldClock()
+    clock = client.app.state.runner.call_later = HeldClock(but=NOT_SLOW)
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
     pid, cid = place(client, project_dir, permission_mode="ask")
     made = trigger(client, pid, cid,

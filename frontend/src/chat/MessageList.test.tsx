@@ -1239,3 +1239,21 @@ test('what KOLONİ told the lead the same, several times in a row, is one line w
   expect(notes[0]).toHaveTextContent('told by KOLONİ, about what it was given from memory ×3')
   expect(screen.getAllByText('Same words.')).toHaveLength(2)
 })
+
+test('KOLONİ’s card that the Orchestrator’s model is slow hangs off no call: under the turn’s last message, with its two answers', async () => {
+  const onAnswer = vi.fn(async () => {})
+  const said = 'Codex · gpt-6-astra has not answered for 5 min. Keep waiting, or stop this turn and pick another model?'
+  const asked = question('q', 'r', { tool_call_id: null, leave: true, question: said, options: ['Keep waiting', 'Stop and pick another model'] })
+  const state = convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'running')], messages: [userMessage('r', 'do it')], questions: [asked] })
+  const { rerender } = render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
+  expect(screen.getByText('The model is slow to answer')).toHaveClass('cmd-approval-kicker')
+  expect(screen.getByText(said)).toHaveClass('card-said')
+  await userEvent.click(screen.getByRole('button', { name: 'Stop and pick another model' }))
+  expect(onAnswer).toHaveBeenCalledWith('q', 'Stop and pick another model')
+  // Answered, or closed with no answer (its model spoke, or the turn ended): gone - not left under the model's answer.
+  for (const over of [{ status: 'answered' as const, answer: 'Keep waiting' }, { status: 'cancelled' as const }]) {
+    rerender(<MessageList {...handlers} state={{ ...state, questions: [{ ...asked, ...over }] }} onAnswer={onAnswer} />)
+    expect(screen.queryByText(said)).not.toBeInTheDocument()
+    expect(screen.queryByText('not answered')).not.toBeInTheDocument()
+  }
+})

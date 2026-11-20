@@ -377,15 +377,16 @@ class RecordMixin:
     def _still_waiting(session, cid: str, run_id: str | None, but: str | None = None
                        ) -> list[str]:
         """G7: what waits for the user, as it stands now: the questions of turn `run_id` nobody
-        answered, and - of any turn of the chat but `but` - a plan still to decide on and a
-        kept copy still to take in or discard. What somebody wrote is quoted (`board.said`)."""
+        answered - not KOLONİ's card under no call, its model slow (K-yavas): moot once closed -
+        and, of any turn of the chat but `but`, a plan still to decide on and a kept copy still to
+        take in or discard. What somebody wrote is quoted (`board.said`)."""
         names = dict(session.execute(select(Agent.id, Agent.name).join(
             Run, Run.id == Agent.run_id).where(Run.conversation_id == cid)).all())
         other = Run.id != but if but else true()
         waits = [f"{names.get(asked.agent_id, 'an agent')} asked, not answered: "
                  f"{board.said(asked.question)}" for asked in session.scalars(
                      select(Question).where(
-                         Question.run_id == run_id,
+                         Question.run_id == run_id, Question.tool_call_id.is_not(None),
                          Question.status.in_(("pending", "cancelled", "interrupted"))
                      ).order_by(Question.created_at))]
         waits += [f"the plan, to approve or turn down: {board.said(str(plan.get('text') or ''))}"

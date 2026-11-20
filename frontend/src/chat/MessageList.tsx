@@ -384,6 +384,16 @@ function ChatQuestion({ state, question, onAnswer }: { state: ConvState; questio
   )
 }
 
+/**
+ * KOLONİ's own card of a turn that hangs off no call (its Orchestrator's model is slow to answer), under its last message -
+ * while it asks: answered or closed, it says nothing more (its model spoke; a Stop has KOLONİ's line).
+ */
+function TurnQuestions({ state, runId, last, onAnswer }: { state: ConvState; runId: string; last: boolean; onAnswer: (questionId: string, answer: string) => Promise<void> }) {
+  if (!last) return null
+  return state.questions
+    .filter(q => q.run_id === runId && q.tool_call_id === null && q.status === 'pending')
+    .map(q => <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />)
+}
 
 /** A merge's card's words on its agent, as the inspector gives them: its name, whether it finished, and - a Lead's, a recipe's copy - what Take in takes in with it. */
 function mergeSaid(state: ConvState, merge: Merge): { name: string; unfinished: boolean; also: string } {
@@ -1136,6 +1146,7 @@ export function MessageList({
               </div>
             ))}
             {thinking && <div className="msg-status mono">Thinking…</div>}
+            <TurnQuestions state={state} runId={message.run_id} last={last} onAnswer={onAnswer} />
             {/* The Lead's "While you're away" card (slice 106), under the turn that put it. */}
             {last &&
               state.away

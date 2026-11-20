@@ -1162,7 +1162,8 @@ class Question(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), index=True)
     agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"))
-    tool_call_id: Mapped[str] = mapped_column(ForeignKey("tool_calls.id"))
+    # None: a card of the turn's own, under no call (K-yavas: its Orchestrator's model is slow).
+    tool_call_id: Mapped[str | None] = mapped_column(ForeignKey("tool_calls.id"))
     question: Mapped[str] = mapped_column(Text)
     options: Mapped[list] = mapped_column(JSON)  # choices offered; empty for a free answer
     # KOLONİ's own question, not the agent's: may this tool run? Its options are all there
