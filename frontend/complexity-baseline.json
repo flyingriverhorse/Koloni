@@ -71,7 +71,6 @@
   "src/models/ModelPicker.tsx::ModelPicker": 46,
   "src/models/ModelRow.tsx::ModelRow": 38,
   "src/models/ModelsPage.tsx::ModelsPage": 36,
-  "src/models/ModelsPage.tsx::stateOf": 14,
   "src/models/ProviderConnection.tsx::CliNotes": 25,
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
   "src/models/ProviderModels.tsx::ProviderModels": 14,

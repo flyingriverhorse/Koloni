@@ -140,6 +140,11 @@ export function stateOf(provider: Provider, avail: Availability | null | undefin
   if (avail.signed_in) return ['ok', avail.plan ? `signed in · ${avail.plan}` : 'signed in']
   if (avail.installed) return ['ok', 'installed']
   if (avail.models.some(m => m.state === 'usable')) return ['ok', 'running']
+  return notUsable(avail)
+}
+
+/** The state of a provider none of whose models is known to be usable: from why its list failed. */
+function notUsable(avail: Availability): ReturnType<typeof stateOf> {
   const why = avail.models.find(m => m.why)?.why ?? ''
   if (/\b(401|403)\b|unauthori[sz]ed|invalid.{0,20}key|api key/i.test(why)) return ['bad', 'key refused · check it']
   if (/unreachable|timed? ?out|refused/i.test(why)) return ['bad', 'not answering']
