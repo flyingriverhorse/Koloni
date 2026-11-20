@@ -118,7 +118,6 @@
   "src/usage/UsagePage.tsx::UsagePage": 26,
   "src/views/FilesWindow.tsx::FilesWindow": 91,
   "src/views/FilesWindow.tsx::Opened": 70,
-  "src/views/model3d.ts::load": 23,
   "src/views/TwoPane.tsx::TwoPane>map": 19,
   "src/voice/VoiceControls.tsx::GeminiTab": 17
 }
