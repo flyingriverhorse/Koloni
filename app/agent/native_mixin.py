@@ -9,6 +9,7 @@ import json
 import time
 import uuid
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -185,7 +186,7 @@ class NativeMixin:
             return ctx.cid, None
         return ctx.cid, owner if await self._working_copy(ctx, owner) is not None else None
 
-    async def _native_work(  # noqa: C901
+    async def _native_work(
         self: "AgentRunner", ctx: Ctx, info: ModelInfo, hold: "_Hold"
     ) -> tuple[str, str | None]:
         """An agent that is a CLI working with its own tools. KOLONİ cannot ask before
@@ -281,14 +282,7 @@ class NativeMixin:
         # shortcut: Qoder - as Claude Code's protocol, unmeasured (B-306); same.
         # shortcut: agy - its KOLONİ home and hooks are laid out from `root`; same.
         root = str(copy.root) if copy is not None else ctx.root
-        denied = None
-        if hide and getattr(ctx.model, "command", "") == "copilot":
-            # shortcut: a folder it also works in (`also`, its sandbox's readwritePaths) is
-            # not walked: its secret files are open to the commands; walk them too if needed.
-            denied = await asyncio.to_thread(
-                sandbox_denied, Path(root), Path(ctx.root), self.settings.db_path.parent,
-                self.settings.runtime_root / "agy-home",  # (as `providers` names it for agy)
-                self.settings.runtime_root / CLI_HOMES)
+        denied = await self._native_work_denied(ctx, root, hide)
         if copy is not None and owner:
             # Each run of it is a new process: told at its start, every time.
             self._told_copy.discard(ctx.agent_id)
@@ -297,50 +291,9 @@ class NativeMixin:
             told = replace(told, instructions=told.instructions + self._told_of_copy(
                 ctx, owner, reads))
         transcript = _Transcript(self, ctx, held=False)
-        # (A server switched off on the Tools page is given to nobody: not named as withheld.)
-        servers = (list(ctx.mcp) if ctx.mcp and not collaborates else [])
-        if servers:
-            off = self._servers_off()
-            servers = [name for name in servers if name not in off]
-        if servers:
-            # K-native-tools: a server's tools reach a CLI only as KOLONİ's own (`_mcp`).
-            # (Said once a run, as a skill not given is: `_observe`.)
-            # shortcut: on a message of its own before agy speaks, and said also where `_mcp`
-            # would give none anyway (Docker, nobody watching); fold it in if that confuses.
-            self._note(ctx, transcript, "use_mcp_server", {"servers": servers}, "denied",
-                       f"the tools of the MCP server{'s' if len(servers) > 1 else ''} "
-                       f"{', '.join(servers)} were not given to {who}: it is handed none of "
-                       "KOLONİ's tools, and a server's tools reach a CLI only through them")
-        if not collaborates:
-            # B-310: an agy older than the one measured with KOLONİ's tools (`cli_surface`).
-            # shortcut: its version is known only once it runs, so it can still be picked - a
-            # reading Spec writer's step among them, whose document then is only its report.
-            self._note(ctx, transcript, "koloni_tools", {}, "denied",
-                       f"{who} cannot open sub-agents or write with KOLONİ's tools here: it is "
-                       "handed none of them (the Models page says why)")
-        if getattr(ctx.model, "command", "") == "codex" and not ro:
-            # B-358: where its commands keep their temporary files (`run_native`) - KOLONİ's
-            # own making, before the folder is looked at. In a copy the folder alone: an ignore
-            # file there would be one more of its files to take in.
-            if copy is None:
-                await asyncio.to_thread(koloni.scratch, root)
-            else:
-                with contextlib.suppress(OSError):
-                    (Path(root) / koloni.SCRATCH).mkdir(parents=True, exist_ok=True)
-        # What the folder's files held before it started, so its changes can be seen.
-        view = await asyncio.to_thread(ProjectView, root)
-        watch = _Watch(view, copy)
-        watch.ctx, watch.transcript, watch.hold = ctx, transcript, hold
-        watch.since = time.monotonic()
-        watch.standing = await asyncio.to_thread(standing_files, ctx.folder)
-        self._git_at_start.setdefault(ctx.run_id, _git_parts(watch.standing, Path(ctx.folder)))
-        if copy is not None:
-            # What changes in the project while it works is on record, as by a maker not known
-            # (B4-04: a hand change beside a CLI that keeps to its copy was on none). Looked
-            # at while it works only for one whose commands write there too (native agy: a
-            # CLI that asks first is refused a write outside its copy - `_approve`).
-            watch.project = await asyncio.to_thread(ProjectView, ctx.root)
-            watch.unheld = not _sandboxed(ctx.model)
+        self._native_work_notes(ctx, transcript, who, collaborates)
+        await self._native_work_scratch(ctx, copy, root, ro)
+        view, watch = await self._native_work_watch(ctx, root, copy, transcript, hold)
 
         sent_back = 0  # (89m: by its Stop hook, in this turn)
 
@@ -350,58 +303,8 @@ class NativeMixin:
                 told = await self._tests_at_stop(ctx, transcript, watch, sent_back)
                 sent_back += bool(told)
                 return True, json.dumps(told)
-            if name == PATCH_MAY_RUN:  # (nor this: Codex's patch run as a command, R175)
-                return True, json.dumps(await self._runs_as_patch(ctx, watch, arguments))
-            if name == "approve":
-                # Not a tool the agent uses: the CLI asking leave for one of its own.
-                with self._factory() as session:
-                    before = session.scalar(select(func.max(ToolCall.seq)).where(
-                        ToolCall.run_id == ctx.run_id)) or 0
-                try:
-                    return True, json.dumps(await self._approve(ctx, transcript, watch, arguments))
-                except asyncio.CancelledError:
-                    # The CLI no longer waits for this answer (Claude Code's
-                    # control_cancel_request), or the turn stops: what it opened is closed as
-                    # Stop closes it, never as a yes.
-                    # shortcut: the agent's other open cards and commands go with it (a change,
-                    # a question, a command are not told apart by call here); tell them apart
-                    # if a CLI that asks about two at once is seen to withdraw only one.
-                    self._interrupt_open_calls(ctx.run_id, ctx.cid, ctx.agent_id,
-                                               after_call=before)
-                    raise
-            # What the CLI changed itself goes on record first; what the tool (a
-            # sub-agent, say) changes is that tool's doing and is already on record.
-            await self._look(ctx, transcript, watch, "changed by the CLI")
-            request = ToolCallRequest(f"cli_{uuid.uuid4().hex[:16]}", name, arguments)
-            ((call_id, _payload),) = self._record_calls(ctx, transcript.take(), [request])
-            try:
-                # While KOLONİ works for it the CLI does nothing of its own: another
-                # agent with tools of its own - a sub-agent it opens, say - may work.
-                async with hold.away():
-                    status, output = await self._run_from_cli(ctx, call_id, request)
-                    await self._while_paused(ctx)  # (29c, as a session's: `_session_loop`)
-            finally:
-                async with watch.looking:
-                    await asyncio.to_thread(view.changes)  # taken in, not reported
-            if ctx.agent_id in self._stuck and (end := await self._circled(ctx)) is not None:
-                # (A stop of KOLONİ's own: the CLI's session ends with it.) shortcut: a native
-                # Orchestrator's guard stop after its work landed still ends failed (KOLONİ's
-                # line says so, `_circled`); end it completed too if that is seen.
-                raise OwnStop(end[1] or LANDED_NATIVE)
-            # The only way anything reaches it while it works: with the result of a
-            # tool it asked KOLONİ for. If it asks for none, it is handed nothing - and
-            # is not told either that a fact it was given no longer stands.
-            notes = self._deliver(ctx) + self._no_longer_given(ctx)
-            return status == "succeeded", "\n\n".join([output, *notes])
-
-        async def on_item(phase: str, item: dict) -> None:
-            await self._observe(ctx, transcript, watch, phase, item)
-
-        def on_live(door: Steer | None) -> None:  # (89d: `steer`)
-            if door is None:
-                self._doors.pop(ctx.agent_id, None)
-            else:
-                self._doors[ctx.agent_id] = door
+            return await self._native_work_call(
+                ctx, transcript, watch, view, hold, name, arguments)
 
         # Only an agent that cannot be asked counts as one nothing can be asked of - and
         # one that only reads has nothing to be asked about.
@@ -430,7 +333,8 @@ class NativeMixin:
             usage = await model.run_native(
                 info.model_id, history, offered, root,
                 call_tool,
-                transcript.on_text, on_item, withheld=withheld,
+                transcript.on_text, partial(self._observe, ctx, transcript, watch),
+                withheld=withheld,
                 linked=tuple(str(real) for real in copy.links.values()) if copy else (),
                 # (Not in a copy: what the copy's agent writes there goes straight in. A
                 # CLI that does not ask writes there unasked: only at Full auto, then.)
@@ -448,7 +352,8 @@ class NativeMixin:
                 pass_env=pass_env, denied=denied, planted=self._planted(ctx.run_id),
                 skills={skill.name: skill.folder for skill in self._skills(ctx)},
                 skills_told=self._skills_told(told, False) if claude else "",
-                on_live=on_live, on_end=lambda end: setattr(watch, "end", end),
+                on_live=partial(self._native_work_door, ctx),
+                on_end=lambda end: setattr(watch, "end", end),
                 # 89m: one that changes files, at its own work (no answer, discussion, room).
                 **({"tests_at_stop": True} if gated and claude and "write" not in withheld and not (
                     ctx.answering or ctx.discussion or self._member_of(ctx)) else {}),
@@ -471,31 +376,7 @@ class NativeMixin:
             self._settle_session(ctx)
             raise
         finally:
-            # Stopped, or failed: what it wrote unnamed is taken back all the same - with no card
-            # now, as is one still open. (Off the event loop, and to its end whatever comes: a
-            # second Stop must not cut the rest of this short.)
-            with contextlib.suppress(Exception, asyncio.CancelledError):
-                for card, _theirs, whose, _run in list(self._keeps.get(ctx.folder, {}).values()):
-                    if whose == ctx.agent_id:
-                        card.cancel()
-                putting = asyncio.ensure_future(asyncio.to_thread(
-                    _put_back, Path(ctx.folder), watch.standing, watch.named, frozenset(),
-                    watch.since, self._taken_folder(ctx)))
-
-                def said(done: asyncio.Future) -> None:
-                    # (Once it is done - also where a second Stop cut the wait for it short.)
-                    with contextlib.suppress(Exception):
-                        if taken := done.result()[0]:
-                            self._taken_back(ctx, taken, transcript.take(), ask=False)
-                            if self._closing:  # (after `shutdown`: no task it would not end)
-                                return
-                            # (Kept, as `shutdown` ends it: the loop holds a task weakly.)
-                            self._telling.add(standing := asyncio.ensure_future(
-                                self._stand_in_watches(ctx.folder, watch.standing, taken)))
-                            standing.add_done_callback(self._telling.discard)
-
-                putting.add_done_callback(said)
-                await asyncio.shield(putting)
+            await self._native_work_puts_back(ctx, transcript, watch)
             with contextlib.suppress(Exception):
                 self._reached(ctx, ended or transcript.opened > before)
             if not ended:
@@ -510,22 +391,7 @@ class NativeMixin:
             if asks:
                 with contextlib.suppress(Exception):
                     await self._settle_watch(ctx, watch)
-            try:
-                # Whatever it changed and did not report - or changed just before it
-                # was stopped - is on record too.
-                self._record_found(
-                    ctx, transcript, await watch.look(view.changes), "changed by the CLI",
-                    copy=copy,
-                )
-                if watch.project is not None:
-                    # Before its copy is taken in: that is not its doing in the project.
-                    self._record_found(ctx, transcript, await watch.look(watch.project.changes),
-                                       IN_THE_PROJECT)
-            except Exception:  # the last look must not cost the transcript its ending
-                pass
-            finally:
-                transcript.end()
-                self._native_looks(ctx.root, -1)
+            await self._native_work_last_look(ctx, transcript, watch, view, copy)
         self._count_tokens(
             ctx, usage.input_tokens, usage.output_tokens,
             # (A result that has no word of a cache: not known.)
@@ -536,6 +402,188 @@ class NativeMixin:
         )
         self._ran_on(ctx, usage.model, getattr(usage, "picked_why", None))
         return "completed", None
+
+    async def _native_work_denied(self: "AgentRunner", ctx: Ctx, root: str,
+                                  hide: bool) -> tuple[str, ...] | None:
+        """`_native_work`: what Copilot's sandbox is to keep its commands from, where secrets
+        are hidden."""
+        assert ctx.root is not None  # (as `_native_work` has it)
+        denied = None
+        if hide and getattr(ctx.model, "command", "") == "copilot":
+            # shortcut: a folder it also works in (`also`, its sandbox's readwritePaths) is
+            # not walked: its secret files are open to the commands; walk them too if needed.
+            denied = await asyncio.to_thread(
+                sandbox_denied, Path(root), Path(ctx.root), self.settings.db_path.parent,
+                self.settings.runtime_root / "agy-home",  # (as `providers` names it for agy)
+                self.settings.runtime_root / CLI_HOMES)
+        return denied
+
+    def _native_work_notes(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", who: str,
+                           collaborates: bool) -> None:
+        """`_native_work`: what a CLI that is handed none of KOLONİ's tools was not given, said
+        in its transcript."""
+        # (A server switched off on the Tools page is given to nobody: not named as withheld.)
+        servers = (list(ctx.mcp) if ctx.mcp and not collaborates else [])
+        if servers:
+            off = self._servers_off()
+            servers = [name for name in servers if name not in off]
+        if servers:
+            # K-native-tools: a server's tools reach a CLI only as KOLONİ's own (`_mcp`).
+            # (Said once a run, as a skill not given is: `_observe`.)
+            # shortcut: on a message of its own before agy speaks, and said also where `_mcp`
+            # would give none anyway (Docker, nobody watching); fold it in if that confuses.
+            self._note(ctx, transcript, "use_mcp_server", {"servers": servers}, "denied",
+                       f"the tools of the MCP server{'s' if len(servers) > 1 else ''} "
+                       f"{', '.join(servers)} were not given to {who}: it is handed none of "
+                       "KOLONİ's tools, and a server's tools reach a CLI only through them")
+        if not collaborates:
+            # B-310: an agy older than the one measured with KOLONİ's tools (`cli_surface`).
+            # shortcut: its version is known only once it runs, so it can still be picked - a
+            # reading Spec writer's step among them, whose document then is only its report.
+            self._note(ctx, transcript, "koloni_tools", {}, "denied",
+                       f"{who} cannot open sub-agents or write with KOLONİ's tools here: it is "
+                       "handed none of them (the Models page says why)")
+
+    async def _native_work_scratch(self: "AgentRunner", ctx: Ctx, copy: copies.Copy | None,
+                                   root: str, ro: bool) -> None:
+        if getattr(ctx.model, "command", "") == "codex" and not ro:
+            # B-358: where its commands keep their temporary files (`run_native`) - KOLONİ's
+            # own making, before the folder is looked at. In a copy the folder alone: an ignore
+            # file there would be one more of its files to take in.
+            if copy is None:
+                await asyncio.to_thread(koloni.scratch, root)
+            else:
+                with contextlib.suppress(OSError):
+                    (Path(root) / koloni.SCRATCH).mkdir(parents=True, exist_ok=True)
+
+    async def _native_work_watch(
+        self: "AgentRunner", ctx: Ctx, root: str, copy: copies.Copy | None,
+        transcript: "_Transcript", hold: "_Hold",
+    ) -> tuple[ProjectView, "_Watch"]:
+        """`_native_work`: the folder as it stands before the CLI starts, and its watch."""
+        assert ctx.root is not None  # (as `_native_work` has it)
+        # What the folder's files held before it started, so its changes can be seen.
+        view = await asyncio.to_thread(ProjectView, root)
+        watch = _Watch(view, copy)
+        watch.ctx, watch.transcript, watch.hold = ctx, transcript, hold
+        watch.since = time.monotonic()
+        watch.standing = await asyncio.to_thread(standing_files, ctx.folder)
+        self._git_at_start.setdefault(ctx.run_id, _git_parts(watch.standing, Path(ctx.folder)))
+        if copy is not None:
+            # What changes in the project while it works is on record, as by a maker not known
+            # (B4-04: a hand change beside a CLI that keeps to its copy was on none). Looked
+            # at while it works only for one whose commands write there too (native agy: a
+            # CLI that asks first is refused a write outside its copy - `_approve`).
+            watch.project = await asyncio.to_thread(ProjectView, ctx.root)
+            watch.unheld = not _sandboxed(ctx.model)
+        return view, watch
+
+    async def _native_work_call(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch",
+        view: ProjectView, hold: "_Hold", name: str, arguments: str,
+    ) -> tuple[bool, str]:
+        """`_native_work`'s `call_tool`, but for its Stop hook: what the CLI asks KOLONİ for."""
+        if name == PATCH_MAY_RUN:  # (nor this: Codex's patch run as a command, R175)
+            return True, json.dumps(await self._runs_as_patch(ctx, watch, arguments))
+        if name == "approve":
+            # Not a tool the agent uses: the CLI asking leave for one of its own.
+            with self._factory() as session:
+                before = session.scalar(select(func.max(ToolCall.seq)).where(
+                    ToolCall.run_id == ctx.run_id)) or 0
+            try:
+                return True, json.dumps(await self._approve(ctx, transcript, watch, arguments))
+            except asyncio.CancelledError:
+                # The CLI no longer waits for this answer (Claude Code's
+                # control_cancel_request), or the turn stops: what it opened is closed as
+                # Stop closes it, never as a yes.
+                # shortcut: the agent's other open cards and commands go with it (a change,
+                # a question, a command are not told apart by call here); tell them apart
+                # if a CLI that asks about two at once is seen to withdraw only one.
+                self._interrupt_open_calls(ctx.run_id, ctx.cid, ctx.agent_id,
+                                           after_call=before)
+                raise
+        # What the CLI changed itself goes on record first; what the tool (a
+        # sub-agent, say) changes is that tool's doing and is already on record.
+        await self._look(ctx, transcript, watch, "changed by the CLI")
+        request = ToolCallRequest(f"cli_{uuid.uuid4().hex[:16]}", name, arguments)
+        ((call_id, _payload),) = self._record_calls(ctx, transcript.take(), [request])
+        try:
+            # While KOLONİ works for it the CLI does nothing of its own: another
+            # agent with tools of its own - a sub-agent it opens, say - may work.
+            async with hold.away():
+                status, output = await self._run_from_cli(ctx, call_id, request)
+                await self._while_paused(ctx)  # (29c, as a session's: `_session_loop`)
+        finally:
+            async with watch.looking:
+                await asyncio.to_thread(view.changes)  # taken in, not reported
+        if ctx.agent_id in self._stuck and (end := await self._circled(ctx)) is not None:
+            # (A stop of KOLONİ's own: the CLI's session ends with it.) shortcut: a native
+            # Orchestrator's guard stop after its work landed still ends failed (KOLONİ's
+            # line says so, `_circled`); end it completed too if that is seen.
+            raise OwnStop(end[1] or LANDED_NATIVE)
+        # The only way anything reaches it while it works: with the result of a
+        # tool it asked KOLONİ for. If it asks for none, it is handed nothing - and
+        # is not told either that a fact it was given no longer stands.
+        notes = self._deliver(ctx) + self._no_longer_given(ctx)
+        return status == "succeeded", "\n\n".join([output, *notes])
+
+    def _native_work_door(self: "AgentRunner", ctx: Ctx, door: Steer | None) -> None:
+        """`_native_work`'s `on_live` (89d: `steer`)."""
+        if door is None:
+            self._doors.pop(ctx.agent_id, None)
+        else:
+            self._doors[ctx.agent_id] = door
+
+    async def _native_work_puts_back(self: "AgentRunner", ctx: Ctx, transcript: "_Transcript",
+                                     watch: "_Watch") -> None:
+        """`_native_work`'s end, first: what it wrote unnamed is taken back."""
+        # Stopped, or failed: what it wrote unnamed is taken back all the same - with no card
+        # now, as is one still open. (Off the event loop, and to its end whatever comes: a
+        # second Stop must not cut the rest of this short.)
+        with contextlib.suppress(Exception, asyncio.CancelledError):
+            for card, _theirs, whose, _run in list(self._keeps.get(ctx.folder, {}).values()):
+                if whose == ctx.agent_id:
+                    card.cancel()
+            putting = asyncio.ensure_future(asyncio.to_thread(
+                _put_back, Path(ctx.folder), watch.standing, watch.named, frozenset(),
+                watch.since, self._taken_folder(ctx)))
+
+            def said(done: asyncio.Future) -> None:
+                # (Once it is done - also where a second Stop cut the wait for it short.)
+                with contextlib.suppress(Exception):
+                    if taken := done.result()[0]:
+                        self._taken_back(ctx, taken, transcript.take(), ask=False)
+                        if self._closing:  # (after `shutdown`: no task it would not end)
+                            return
+                        # (Kept, as `shutdown` ends it: the loop holds a task weakly.)
+                        self._telling.add(standing := asyncio.ensure_future(
+                            self._stand_in_watches(ctx.folder, watch.standing, taken)))
+                        standing.add_done_callback(self._telling.discard)
+
+            putting.add_done_callback(said)
+            await asyncio.shield(putting)
+
+    async def _native_work_last_look(
+        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch",
+        view: ProjectView, copy: copies.Copy | None,
+    ) -> None:
+        """`_native_work`'s end, last: its last look, and its transcript's ending."""
+        try:
+            # Whatever it changed and did not report - or changed just before it
+            # was stopped - is on record too.
+            self._record_found(
+                ctx, transcript, await watch.look(view.changes), "changed by the CLI",
+                copy=copy,
+            )
+            if watch.project is not None:
+                # Before its copy is taken in: that is not its doing in the project.
+                self._record_found(ctx, transcript, await watch.look(watch.project.changes),
+                                   IN_THE_PROJECT)
+        except Exception:  # the last look must not cost the transcript its ending
+            pass
+        finally:
+            transcript.end()
+            self._native_looks(ctx.root, -1)
 
     async def _tests_at_stop(
         self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch | None",
