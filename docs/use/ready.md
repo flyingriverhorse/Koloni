@@ -43,7 +43,9 @@ The **Ready for you** panel opens from the right. Esc closes it.
 The Ready page lists everything that waits, oldest first, under **Needs your answer** and **Ready to
 take in**, with the open chat's **Told you** last. The buttons at the top show one kind at a
 time: **All**, **Chats**, **To-do**, **Memory**, **While away** and **Other folders**. Each row says where it
-comes from and how long it has waited, and has **Open chat** to go to its chat. When new To-do tasks
+comes from and how long it has waited, and has **Open chat** to go to its chat. A chat's row names its
+agent: "Coder asks" for its own question or request, "for Coder" on KOLONİ's own card about it, such as
+its step limit or its work waiting for **Take in**. When new To-do tasks
 are proposed, **Approve all** approves them one by one.
 
 What waits:
