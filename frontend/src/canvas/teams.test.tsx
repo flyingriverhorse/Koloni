@@ -649,3 +649,24 @@ test('each pair of agents that talked has a colour of its own, the same on every
   const teams = new Set(teamColours(['web', 'docs', 'api']).values())
   for (const colour of colours.values()) expect(teams.has(colour)).toBe(false)
 })
+
+test('a step says what your choice left out of it, after its tick and round; its class and title say its state', () => {
+  const state = team('running', 'Build it')
+  state.conversation.teams[0].state!.steps[0].left_out = ['Tester', 'Writer']
+  const data = deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData
+  draw(<TeamNode {...props('team:r:web', data)} />)
+  const container = document.body
+  const items = within(screen.getByRole('list', { name: 'Feature: its steps' })).getAllByRole('listitem')
+  expect(items[0].textContent).toBe('Write the spec ✓ · left out by your choice: Tester, Writer')
+  expect(items.map(li => li.className)).toEqual(['team-step team-step-done', 'team-step team-step-now', 'team-step team-step-next', 'team-step team-step-next'])
+  expect(items.map(li => li.title)).toEqual(['Write the spec', 'Build it', 'Reviews', 'You'])
+  expect(items.map(li => li.getAttribute('aria-current'))).toEqual([null, 'step', null, null])
+  // at work and open: Stop, Finish now, then fold - and no line at its foot
+  expect(Array.from(container.querySelectorAll('.team-title > button'), button => `${button.className}: ${button.textContent}`)).toEqual([
+    'btn btn-small team-stop nodrag: Stop',
+    'btn btn-small team-stop nodrag: Finish now',
+    'link-btn team-fold nodrag: fold',
+  ])
+  expect(container.querySelector('.team-frame')).toHaveClass('team-running')
+  expect(container.querySelector('.team-frame')).not.toHaveClass('team-shut')
+})
