@@ -80,23 +80,16 @@ class RecordMixin:
         after_call: int = 0, only: set | None = None,
     ) -> None:
         """Settle what was cut short: the whole run's, or only one agent's (and of that
-        agent's calls, only those made after call number `after_call`). With `only` -
-        the calls of an answer turn - nothing but those calls: the agent's own work,
-        which may be waiting on the user, is not the answer's to settle."""
-        one_agent = (
-            (
-                ToolCall.agent_id == agent_id,
-                FileChange.agent_id == agent_id,
-                Question.agent_id == agent_id,
-            )
-            if agent_id
-            else (true(), true(), true())
-        )
+        agent's calls, only those made after call number `after_call`). With `only` - the
+        calls of an answer turn, or the one a CLI no longer waits for (`_run_from_cli`) -
+        nothing but those calls and what hangs on them (a card, a command, a discussion): the
+        agent's own other work, which may be waiting on the user, is not theirs to settle."""
         with self._factory() as session:
             open_calls = session.scalars(
                 select(ToolCall)
                 .where(ToolCall.run_id == run_id, ToolCall.status.in_(("pending", "running")))
-                .where(one_agent[0], ToolCall.seq > after_call)
+                .where(ToolCall.agent_id == agent_id if agent_id else true(),
+                       ToolCall.seq > after_call)
                 .where(ToolCall.id.in_(only) if only is not None else true())
                 .order_by(ToolCall.seq)
             ).all()
@@ -107,9 +100,22 @@ class RecordMixin:
             payloads = [tool_call_out(call) for call in open_calls]
         for payload in payloads:
             self.bus.emit(cid, run_id, "tool_call.updated", payload)
-        if only is not None:
-            return
-        self.commands.close_open(run_id, cid, agent_id)
+        cut_short = [call.id for call in open_calls]
+        if only is None or cut_short:
+            self._interrupt_hanging(run_id, cid, agent_id, cut_short,
+                                    None if only is None else cut_short)
+
+    def _interrupt_hanging(self: "AgentRunner", run_id: str, cid: str, agent_id: str | None,
+                           cut_short: list[str], calls: list[str] | None) -> None:
+        """`_interrupt_open_calls`: what hangs on the calls `calls` - else the run's, or its
+        agent's, all of it: its commands, cards, questions and discussion."""
+
+        def of(model):
+            if calls is not None:
+                return model.tool_call_id.in_(calls)
+            return model.agent_id == agent_id if agent_id else true()
+
+        self.commands.close_open(run_id, cid, agent_id, calls)
         # A change still waiting for a decision dies with its run. One the user had said
         # yes to, whose agent never got its place, is not "rejected" - that is the user's
         # own no: it was never made ("discarded"), and when the yes was said stays.
@@ -118,7 +124,7 @@ class RecordMixin:
                 select(FileChange)
                 .where(FileChange.run_id == run_id,
                        FileChange.status.in_(("proposed", "approved")))
-                .where(one_agent[1])
+                .where(of(FileChange))
             ).all()
             for change in waiting:
                 change.status, change.decided_at = (
@@ -132,7 +138,6 @@ class RecordMixin:
         # whose call was cut short here - its agent never got its place, or its answer
         # never came - is not left "approved", which is what one that went out is:
         # "interrupted", as its call is.
-        cut_short = [call.id for call in open_calls]
         with self._factory() as session:
             undecided = session.scalars(
                 select(WebRequest)
@@ -140,7 +145,7 @@ class RecordMixin:
                     WebRequest.status == "proposed",
                     and_(WebRequest.status == "approved",
                          WebRequest.tool_call_id.in_(cut_short))))
-                .where(WebRequest.agent_id == agent_id if agent_id else true())
+                .where(of(WebRequest))
             ).all()
             for asked in undecided:
                 if asked.status == "approved":
@@ -156,7 +161,7 @@ class RecordMixin:
             unanswered = session.scalars(
                 select(Question)
                 .where(Question.run_id == run_id, Question.status == "pending")
-                .where(one_agent[2])
+                .where(of(Question))
             ).all()
             for question in unanswered:
                 question.status = "cancelled"
@@ -164,18 +169,21 @@ class RecordMixin:
             payloads = [question_out(question) for question in unanswered]
         for payload in payloads:
             self.bus.emit(cid, run_id, "question.updated", payload)
-        self._interrupt_talks(run_id, cid, agent_id)
+        self._interrupt_talks(run_id, cid, agent_id, calls)
 
-    def _interrupt_talks(self: "AgentRunner", run_id: str, cid: str, agent_id: str | None) -> None:
-        # And a discussion that was going on: the whole run's, or the one this agent opened.
+    def _interrupt_talks(self: "AgentRunner", run_id: str, cid: str, agent_id: str | None,
+                         calls: list[str] | None = None, status: str = "cancelled") -> None:
+        # And a discussion that was going on: the whole run's, the one this agent opened, or one
+        # of these calls - cut off ("cancelled"), or broken by an error ("failed": `_discuss_cut`).
         with self._factory() as session:
             talks = session.scalars(
                 select(Discussion)
                 .where(Discussion.run_id == run_id, Discussion.status == "running")
                 .where(Discussion.agent_id == agent_id if agent_id else true())
+                .where(Discussion.tool_call_id.in_(calls) if calls is not None else true())
             ).all()
             for talk in talks:
-                talk.status, talk.ended_at = "cancelled", now()
+                talk.status, talk.ended_at = status, now()
             session.commit()
             payloads = [discussion_out(session, talk) for talk in talks]
         for payload in payloads:

@@ -111,6 +111,13 @@ test('an ended discussion says how it ended', () => {
   expect(node?.data).toMatchObject({ line: 'Ended: nothing left to say', running: false, speaking: null })
 })
 
+test('a discussion an error broke says it failed, not that it was stopped', () => {
+  const broke = { ...state, discussions: [talk({ status: 'failed', ended_at: '2026-10-05T10:01:00Z' })] }
+  expect(deriveGraph(broke).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({ line: 'Failed', running: false })
+  render(<MessageList {...handlers} state={broke} onOpenDiscussion={() => {}} />)
+  expect(screen.getByRole('button', { name: /Discussion.*Ship it\?/ })).toHaveTextContent('3 agents · failed')
+})
+
 test('a discussion that ended at its budget says so on its node, in its window and in the chat', () => {
   const spent = { ...state, discussions: [talk({ status: 'ended', outcome: 'budget' })] }
   expect(deriveGraph(spent).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({ line: 'Ended: at its budget' })

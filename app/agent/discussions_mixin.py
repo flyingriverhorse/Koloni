@@ -267,16 +267,17 @@ class DiscussionsMixin:
     def _discuss_cut(self: "AgentRunner", ctx: Ctx, call_id: str,
                      members: list[tuple[Ctx, bool]], exc: BaseException) -> None:
         """`_discuss` cut short by a raise - Stop too: none opened for it is left "waiting" for
-        good, nor the discussion "running" (cut off, as Stop leaves it). Measured 20 Nov: a CLI
-        that gives up on the call goes on and its turn completes - no Stop closes them then."""
+        good, nor the discussion "running" (cut off, as Stop leaves it; "failed", as its call,
+        where an error broke it). Measured 20 Nov: a CLI that gives up on the call goes on and
+        its turn completes - no Stop closes them then."""
         cancelled = isinstance(exc, asyncio.CancelledError)
+        status = "cancelled" if cancelled else "failed"
         for member, new in members:
             if new:
                 with contextlib.suppress(Exception):
-                    self._set_agent(ctx.cid, member.agent_id, ended_at=now(),
-                                    status="cancelled" if cancelled else "failed")
+                    self._set_agent(ctx.cid, member.agent_id, ended_at=now(), status=status)
         with contextlib.suppress(Exception):
-            self._interrupt_talks(ctx.run_id, ctx.cid, ctx.agent_id)
+            self._interrupt_talks(ctx.run_id, ctx.cid, ctx.agent_id, status=status)
         if cancelled:  # (any other raise: its call is closed by `_run_call` or the turn's end)
             with contextlib.suppress(Exception):
                 self._interrupt_open_calls(ctx.run_id, ctx.cid, ctx.agent_id, only={call_id})

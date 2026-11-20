@@ -1051,10 +1051,10 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:
             backlog.turn_ended(session, run, "interrupted")
         away.settle(session, notes)  # (nor is a night started again: `notes`, its notification)
         cut_short = []
+        # Every open call, whatever its run says (CL-228, 20 Nov: a CLI's discuss call, given up
+        # on before 0.1.3, stayed "running" after its turn completed): none is running any more.
         for call in session.scalars(
-            select(ToolCall).where(
-                ToolCall.run_id.in_(run_ids), ToolCall.status.in_(("pending", "running"))
-            )
+            select(ToolCall).where(ToolCall.status.in_(("pending", "running")))
         ):
             call.status, call.result, call.ended_at = "interrupted", restarted, now()
             cut_short.append(call.id)

@@ -2071,7 +2071,7 @@ class DiscussionOut(Out):
     topic: str
     max_rounds: int
     round: int
-    status: Literal["running", "ended", "cancelled", "interrupted"]
+    status: Literal["running", "ended", "cancelled", "failed", "interrupted"]
     outcome: Literal["agreed", "round_limit", "ended_by_user", "too_few", "budget"] | None
     created_at: datetime
     ended_at: datetime | None

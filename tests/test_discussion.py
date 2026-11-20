@@ -565,6 +565,44 @@ def test_restart_closes_a_discussion_and_keeps_finished_members_finished(tmp_pat
         assert s.get(Agent, "old").report == "coded"
 
 
+def test_restart_closes_the_call_of_a_discussion_its_finished_turn_left_running(tmp_path):
+    # (CL-228, seen 20 Nov after a restart: a turn from before 0.1.3 had completed with its
+    # discussion and its discuss call still "running"; the restart closed the discussion only.)
+    from app.agent import recover_interrupted
+    from app.db.models import Agent, Conversation, Discussion, Message, Project, Run, ToolCall
+    from app.db.session import make_engine, make_session_factory, upgrade_db
+
+    db = tmp_path / "r.db"
+    upgrade_db(db)
+    factory = make_session_factory(make_engine(db))
+    with factory() as s:
+        s.add(Project(id="p", name="p", root_path=str(tmp_path)))
+        s.flush()
+        s.add(Conversation(id="c", project_id="p"))
+        s.flush()
+        s.add(Run(id="r", conversation_id="c", status="completed"))
+        s.flush()
+        s.add(Agent(id="lead", run_id="r", role_name="Lead", name="Lead", tools=[],
+                    status="completed"))
+        s.flush()
+        s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
+        s.flush()
+        s.add(ToolCall(id="t", run_id="r", agent_id="lead", message_id="m", seq=1,
+                       provider_call_id="cli_1", name="discuss", arguments="{}",
+                       status="running"))
+        s.flush()
+        s.add(Discussion(id="d", run_id="r", agent_id="lead", tool_call_id="t", topic="x",
+                         max_rounds=3, round=1))
+        s.commit()
+    assert recover_interrupted(factory) == 0  # (no turn of it was open)
+    with factory() as s:
+        talk, asked = s.get(Discussion, "d"), s.get(ToolCall, "t")
+        assert talk.status == "interrupted"
+        assert (asked.status, asked.ended_at is not None) == ("interrupted", True), asked.result
+        assert asked.result.startswith("interrupted: the server restarted")
+        assert (s.get(Run, "r").status, s.get(Agent, "lead").status) == ("completed", "completed")
+
+
 def test_a_discussion_that_breaks_leaves_none_it_opened_waiting(make_client, wait_run, project_dir):
     # (Review of B-376: a member left "waiting" would hold the Lead's answer for good.)
     client, _model = make_client({
@@ -580,8 +618,9 @@ def test_a_discussion_that_breaks_leaves_none_it_opened_waiting(make_client, wai
     snap = wait_run(client, cid, run_id)
     assert [(a["name"], a["status"]) for a in snap["agents"][1:]] == [
         ("Reviewer", "failed"), ("Researcher", "failed")]
-    # nor the discussion "running": it is over, as one cut short is; its call failed (not cut off)
+    # nor the discussion "running": it is over - "failed", as its call, not "cancelled" (which the
+    # discussion window shows as "Stopped": nobody stopped it)
     (talk,) = snap["discussions"]
-    assert (talk["status"], talk["outcome"]) == ("cancelled", None) and talk["ended_at"], talk
+    assert (talk["status"], talk["outcome"]) == ("failed", None) and talk["ended_at"], talk
     (asked,) = [t for t in snap["tool_calls"] if t["name"] == "discuss"]
     assert (asked["status"], bool(asked["ended_at"])) == ("failed", True), asked
