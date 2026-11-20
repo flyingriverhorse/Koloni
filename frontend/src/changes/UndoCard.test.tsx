@@ -91,6 +91,28 @@ test('an undo posts to the turn alone, with no turns to check', async () => {
   await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
   await screen.findByRole('button', { name: 'Close' })
   expect(String(asked.mock.calls[1][0])).toBe('/api/runs/r1/undo')
+  expect(screen.getByText('Nothing was taken back.')).toBeInTheDocument()
+})
+
+test('what the card says while it looks, and once done; a copy with no files on record says so', async () => {
+  const turns = [{ run_id: 'r1', topic: 'Talk', turn: 1, request: '' }]
+  const copies = [{ folder: 'C:/kept/tree', files: [] }]
+  const skip = [{ path: 'a.txt', why: 'changed since' }]
+  serve({ GET: [{ ...none, turns, copies }], POST: [{ ...none, turns, copies, skip }] })
+  render(<UndoCard path="/runs/r1/undo" title="Undo these changes" confirm="Undo" onClose={() => {}} />)
+  expect(screen.getByText('Looking at what it would take back…')).toBeInTheDocument()
+  expect(screen.getByText('Undo these changes?')).toBeInTheDocument()
+  expect(await screen.findByRole('region', { name: 'Kept working copy to discard — the folder is deleted' })).toHaveTextContent(
+    'C:/kept/tree — these files exist only there: none on record',
+  )
+  expect(screen.queryByText('Looking at what it would take back…')).toBeNull()
+  expect(screen.queryByText('Nothing to take back.')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  expect(await screen.findByText('Undo these changes: done')).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'Messages whose changes were taken back' })).toHaveTextContent('A message with no words')
+  expect(screen.getByRole('region', { name: 'Skipped' })).toHaveTextContent('a.txt — changed since')
+  expect(screen.getByRole('region', { name: 'Kept working copy discarded — the folder is deleted' })).toBeInTheDocument()
+  expect(screen.queryByRole('note')).toBeNull()
 })
 
 test('a turn still running says why, and nothing is offered to do', async () => {
