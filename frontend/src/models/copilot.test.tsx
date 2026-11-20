@@ -262,7 +262,7 @@ test('the "How it runs" line itself says what each native CLI asks before', asyn
   for (const [other, said] of [
     [codex, 'asks before each command and patch, but not those its own rules count as safe'],
     [copilot, 'asks before each command, write and read'],
-    [qoder, 'asks before every tool it uses (not yet measured)'],
+    [qoder, "stops before it acts on the versions measured so far: they do not apply KOLONİ's hook"],
   ] as const) {
     const shown = render(<ModelsPage providers={[provider({ ...other, mode: 'native' }), provider({})]} picked={other.id} {...handlers} />)
     expect(options().at(-1)).toBe(`Native: its own tools, in the project; ${said}`)
@@ -270,12 +270,14 @@ test('the "How it runs" line itself says what each native CLI asks before', asyn
   }
 })
 
-test('Qoder natively says it is not yet measured, and that a tool it uses unasked stops the run', () => {
+test('Qoder natively says the versions measured so far stop before they act, and what is not measured', () => {
   const qoder = provider({ id: 'qd', name: 'Qoder', kind: 'qoder_cli', base_url: null, mode: 'native' })
   render(<ModelsPage providers={[qoder, provider({})]} picked="qd" {...handlers} />)
-  const note = screen.getByText(/Native, not yet measured: Qoder works in the project folder/)
-  expect(note).toHaveTextContent('Whether Qoder really does is not measured yet')
-  expect(note).toHaveTextContent('a tool of its own seen running without KOLONİ being asked stops the run')
+  const note = screen.getByText(/Native: the Qoder versions measured so far do not apply KOLONİ's hook/)
+  expect(note).toHaveTextContent('a native turn stops before Qoder does anything and says to run it as a session')
+  expect(note).toHaveTextContent('A Qoder that applies the hook passes that check')
+  expect(note).toHaveTextContent('is not measured')
+  expect(note).not.toHaveTextContent('after that one tool has run')
   expect(note).not.toHaveTextContent('without your own Qoder settings')
 })
 

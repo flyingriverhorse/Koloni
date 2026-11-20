@@ -7,7 +7,7 @@ What KOLONİ supports for each CLI. How to set one up is in [Set up a CLI](../mo
 | Claude Code | `claude` | session, step, native | every tool it uses | yes (one short request) | 2.1.310, 2.1.311, 2.1.312 |
 | Codex | `codex` | session, step, native (step first on a model server of your own) | each command and patch, but not those its own rules count as safe | yes | 0.163.0, 0.164.0 |
 | GitHub Copilot CLI | `copilot` | session, native | each command, write and read | yes | 1.0.91, 1.0.103 |
-| Qoder | `qodercli` | session, native | every tool it uses (not yet measured) | no | — |
+| Qoder | `qodercli` | session, native | nothing: the versions measured so far do not apply KOLONİ's hook, so a native turn stops before it acts | no | — |
 | agy | `agy` | reads, native | every tool it uses | yes | 1.3.3, 1.4.7, 1.4.8 |
 
 ## A version that was not measured

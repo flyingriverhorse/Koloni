@@ -2789,9 +2789,10 @@ def _turn_result(event: dict, subs: dict[str, dict]) -> list[dict]:
 
 class QoderNativeClient(ClaudeNativeClient):
     """B-306: Qoder working natively, over Claude Code's control protocol (`_control`): its CLI
-    takes Claude Code's flags (qodercli 1.1.51's --help, 29 Oct 2026). Not measured: whether
-    it takes KOLONİ's hook and asks before its tools. `_control` stops one that does not apply
-    the hook before it is given the prompt; `_heard` stops one that runs a tool unasked.
+    takes Claude Code's flags (qodercli 1.1.51's --help, 29 Oct 2026). Seen live: the versions
+    tried so far do not apply KOLONİ's hook, and `_control` stops such a one before it is given
+    the prompt. Not measured: how one that applies it asks before its tools; `_heard` stops one
+    that runs a tool unasked.
     shortcut: its tools are taken to be Claude Code's by name (Bash, Write, Edit, Read); one
     named otherwise is a tool KOLONİ does not know to `_approve`: a card at every level (Full
     auto too) - measure the names in its init line live."""

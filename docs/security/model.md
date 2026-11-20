@@ -144,9 +144,10 @@ What is not framed:
 - A command that names a secret file, or searches the whole folder when the folder holds one, is asked
   about at every level. Exceptions: when it runs **Native**, Codex runs commands its own rules count as
   safe (a read of `.env` or of a file outside the project) without asking KOLONİ; agy reading with its
-  own tools reads without asking; and that Qoder asks is not yet measured. A script that opens a secret
-  file without naming it is not caught. Only Docker and Copilot's sandbox hide secret files from
-  commands.
+  own tools reads without asking; and Qoder run **Native** stops before it acts on the versions measured
+  so far (they do not apply KOLONİ's hook), while how one that applies it asks is not measured. A script
+  that opens a secret file without naming it is not caught. Only Docker and Copilot's sandbox hide secret
+  files from commands.
 - A command you approve can still print, encode or send a secret it was given.
 - A branch deleted because it held a secret you gave still has its commits in git's reflog, in the
   project's `.git`, until git prunes them.
