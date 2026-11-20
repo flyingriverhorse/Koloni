@@ -653,6 +653,17 @@ interface TestedProps {
   onAdd: () => void
 }
 
+// Finding the command is all a check may do: running it would use up the plan. Copilot on a GitHub
+// account is asked besides whether it is signed in (no turn; "not known" passes too).
+const foundOnly = (kind: ProviderKind, provider: Provider | null, ownServer: boolean) =>
+  kind === 'copilot_cli' && !provider?.base_url ? (
+    <>The copilot command was found, and Copilot did not say it is signed out. It was not run.</>
+  ) : ownServer && provider?.base_url ? (
+    <>The {COMMAND[kind]} command was found, and your model server answered. It was not run.</>
+  ) : (
+    <>The {COMMAND[kind]} command was found. It was not run, so sign-in is not checked.</>
+  )
+
 /** What a Test or a real run found. */
 export function TestResult({ tested, kind, cli, provider, ownServer, canAdd, onAdd }: TestedProps) {
   return tested.ok ? (
@@ -675,15 +686,7 @@ export function TestResult({ tested, kind, cli, provider, ownServer, canAdd, onA
           )}
         </>
       ) : cli ? (
-        // Finding the command is all a check may do: running it would use up the plan. Copilot on a GitHub
-        // account is asked besides whether it is signed in (no turn; "not known" passes too).
-        kind === 'copilot_cli' && !provider?.base_url ? (
-          <>The copilot command was found, and Copilot did not say it is signed out. It was not run.</>
-        ) : ownServer && provider?.base_url ? (
-          <>The {COMMAND[kind]} command was found, and your model server answered. It was not run.</>
-        ) : (
-          <>The {COMMAND[kind]} command was found. It was not run, so sign-in is not checked.</>
-        )
+        foundOnly(kind, provider, ownServer)
       ) : (
         <>
           Reachable · {tested.model_id}
