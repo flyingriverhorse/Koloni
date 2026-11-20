@@ -338,7 +338,7 @@ class OutsideMixin:
                 .order_by(McpServer.created_at, literal_column("mcp_servers.rowid"))
             ).all())
 
-    async def _mcp_call(  # noqa: C901
+    async def _mcp_call(
         self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer, tool: dict,
         arguments: str, args: dict,
     ) -> tuple[str, str]:
@@ -363,25 +363,10 @@ class OutsideMixin:
         # Slice 92: a server not yet trusted is asked about at every level, whatever the mark;
         # a tool marked "Ask" is the user's word too, over Full auto.
         if not server.trusted or tool["mark"] != "free":
-            # As it is sent - and what does not show in it written out: the user's yes
-            # is to what they see.
-            given = mcp_client.visible(json.dumps(args, ensure_ascii=False))
-            if len(given) > 600:
-                given = f"{given[:600]}… ({len(given)} characters: the call has all of it)"
-            question = (f"May the tool {quoted(tool['name'])} of the MCP server "
-                        f"{quoted(server.name)} run? It would be given: {given}")
-            if not server.trusted:
-                question += mcp_client.watched(server, tool, MAX_QUESTION_CHARS - len(question))
-            _status, answer = await self._ask_user(ctx, call_id, {
-                "question": question, "options": ["Allow", "Deny"],
-            }, leave=True)
-            if answer.removeprefix(ANSWER_PREFIX).strip().casefold() != "allow":
+            allowed = await self._mcp_asked(ctx, call_id, name, server, tool, args)
+            if allowed is None:
                 return "denied", WEB_REJECTED.format(what="tool call")
-            # As the server stands now: the user may have changed it while they were asked.
-            found = self._mcp(ctx).get(name)
-            if found is None:
-                raise ToolError(f"{name} is no longer available")
-            server, tool = found
+            server, tool = allowed
         key = (ctx.agent_id, server.id)
         try:
             client = self._servers.get(key)
@@ -410,6 +395,32 @@ class OutsideMixin:
             told.append(f"{len(text)} characters, cut at {mcp_client.MAX_RESULT}.")
         return "failed" if failed else "succeeded", "\n".join([*told, web.framed(
             text[:mcp_client.MAX_RESULT], f"result of the MCP tool {shown}")])
+
+    async def _mcp_asked(
+        self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer, tool: dict,
+        args: dict,
+    ) -> tuple[McpServer, dict] | None:
+        """`_mcp_call`'s card for a call: the server and the tool as they stand once the user
+        said yes, or None for their no."""
+        # As it is sent - and what does not show in it written out: the user's yes
+        # is to what they see.
+        given = mcp_client.visible(json.dumps(args, ensure_ascii=False))
+        if len(given) > 600:
+            given = f"{given[:600]}… ({len(given)} characters: the call has all of it)"
+        question = (f"May the tool {quoted(tool['name'])} of the MCP server "
+                    f"{quoted(server.name)} run? It would be given: {given}")
+        if not server.trusted:
+            question += mcp_client.watched(server, tool, MAX_QUESTION_CHARS - len(question))
+        _status, answer = await self._ask_user(ctx, call_id, {
+            "question": question, "options": ["Allow", "Deny"],
+        }, leave=True)
+        if answer.removeprefix(ANSWER_PREFIX).strip().casefold() != "allow":
+            return None
+        # As the server stands now: the user may have changed it while they were asked.
+        found = self._mcp(ctx).get(name)
+        if found is None:
+            raise ToolError(f"{name} is no longer available")
+        return found
 
     async def _mcp_may_start(
         self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer,
