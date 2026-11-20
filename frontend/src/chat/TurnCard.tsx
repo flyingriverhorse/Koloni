@@ -13,11 +13,11 @@ interface Props {
   state: ConvState
   run: Run
   lead: Agent | undefined
-  /** The turn's last message of the Lead's with words: its ■ stays in sight while it is read, the turn still at work. */
+  /** The turn's answer, its last message of the Lead's with words: once the turn is over the foot copies it and reads it. */
   answer: Message | undefined
   children: ReactNode
-  /** Once the turn is over: what it did, and its answer's Copy and Read aloud. Null while it runs. */
-  foot: ReactNode | null
+  /** What the turn did (TurnSummary), once it is over; null while it runs. */
+  summary: ReactNode | null
   /** Something in it waits for your word: said where its time would be. */
   waits: boolean
 }
@@ -27,17 +27,21 @@ function lastAt(state: ConvState, run: Run, lead: Agent | undefined) {
   return state.messages.filter(m => m.run_id === run.id && (!m.agent_id || m.agent_id === lead?.id)).at(-1)?.created_at ?? run.created_at
 }
 
+/** The turn's message read aloud now, if one is. */
+const saidOf = (state: ConvState, run: Run, speaking: string | null) => state.messages.find(m => m.id === speaking && m.run_id === run.id)
+
 /**
  * One Lead turn in the chat (0.1.4): who answered, with what model and when; the turn's groups as the chat draws them;
- * and once it is over a quiet foot. A turn at work has none - only the ■ of an answer Auto-read reads as it is written.
+ * and once it is over a quiet foot. A turn at work has none - only the ■ of what of it Auto-read reads.
  */
-export function TurnCard({ state, run, lead, answer, children, foot, waits }: Props) {
+export function TurnCard({ state, run, lead, answer, children, summary, waits }: Props) {
   const teams = useApp(s => s.teams)
-  const reading = useVoice(s => s.speaking !== null && s.speaking === answer?.id)
+  // (Whole answer reads a step's words while the next step is written: the ■ stays with the step still heard.)
+  const said = useVoice(s => saidOf(state, run, s.speaking))
   const name = titleOf(lead?.name || 'Agent', teams)
   const model = lead?.model_id && modelName(lead.model_id)
   const at = lastAt(state, run, lead)
-  const end = foot ?? (reading && answer ? <AnswerActions message={answer} /> : null)
+  const over = summary !== null
   return (
     <article className="turn-card" aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
       <div className="turn-head">
@@ -49,21 +53,26 @@ export function TurnCard({ state, run, lead, answer, children, foot, waits }: Pr
         {waits ? <span className="tag tag-warn">{WAITS}</span> : <time dateTime={at}>{when(at)}</time>}
       </div>
       {children}
-      {end && <footer className="turn-foot">{end}</footer>}
+      {(over || said) && (
+        // Its parts in fixed places: at the turn's end the ■ the keyboard is on stays the same button.
+        <footer className="turn-foot">
+          {summary}
+          {answer && <AnswerActions message={answer} said={said} over={over} />}
+        </footer>
+      )}
     </article>
   )
 }
 
 /**
- * Under a turn's answer: Copy its words as written (markdown), once it is whole, and Read aloud - its ■ while it is
- * read. Icons only: no words of theirs join the answer's.
+ * Under a turn's answer: Copy its words as written (markdown), once the turn is over and it is whole, and Read aloud -
+ * of it, or of the turn's message read now (`said`), with its ■. Icons only: no words of theirs join the answer's.
  */
-export function AnswerActions({ message }: { message: Message }) {
+export function AnswerActions({ message, said = message, over }: { message: Message; said?: Message; over: boolean }) {
   const [copied, setCopied] = useState(false)
-  const written = message.status === 'complete'
   return (
     <span className="turn-actions">
-      {written && (
+      {over && message.status === 'complete' && (
         // (As a message's ⋯ copies: no clipboard here, or the browser refused, and it stays "Copy".)
         <button
           type="button"
@@ -77,7 +86,7 @@ export function AnswerActions({ message }: { message: Message }) {
           {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
       )}
-      <ReadAloud id={message.id} content={message.content} written={written} />
+      <ReadAloud id={said.id} content={said.content} written={said.status === 'complete'} />
     </span>
   )
 }

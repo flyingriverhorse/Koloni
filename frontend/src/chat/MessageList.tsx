@@ -46,7 +46,7 @@ import { TalkRow, talkOf } from './TalkRow'
 import { requestsOf } from '../agents/teamRequests'
 import { ToolRow } from './ToolRow'
 import { ToolRun } from './ToolRun'
-import { AnswerActions, TurnCard } from './TurnCard'
+import { TurnCard } from './TurnCard'
 import { TurnSummary } from './TurnSummary'
 import { callsByMessage, toolRuns } from './toolRuns'
 import { answerLast } from './chatLine'
@@ -1076,14 +1076,8 @@ export function MessageList({
         <TurnSummary key={`did:${runId}`} state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />
       ) : null
     if (inside.length === 0 || run.compare_id || !lead) return [...inside, summary]
-    const foot = summary && (
-      <>
-        {summary}
-        {answer && <AnswerActions message={answer} />}
-      </>
-    )
     return [
-      <TurnCard key={`turn:${runId}`} state={state} run={run} lead={lead} answer={answer} foot={foot} waits={false}>
+      <TurnCard key={`turn:${runId}`} state={state} run={run} lead={lead} answer={answer} summary={summary} waits={false}>
         {inside}
       </TurnCard>,
     ]
