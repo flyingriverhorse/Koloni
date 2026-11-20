@@ -541,3 +541,12 @@ test('a folder on this machine is added by its full path, as a repository is, wi
   await userEvent.click(within(window).getByRole('button', { name: 'Add and learn' }))
   expect(props.onAdd).toHaveBeenCalledWith({ topic: 'Mylib', sources: ['folder: C:\\work\\mylib'], max_pages: 500, max_usd: 0.5, max_code_files: 100, learn_with: null, removed: [], weekly: false })
 })
+
+test('the guide tab’s first line: when it was learned and on what, and that it is old where it is', async () => {
+  await open({ items: [{ ...MLFLOW, state: { ...LEARNED, stale: 'its sources changed' } }] })
+  const line = screen.getByText(/learned .* on Claude Code · haiku/)
+  expect(line).toHaveClass('muted')
+  expect(line).toHaveTextContent(/^learned .* on Claude Code · haiku · old: its sources changed/)
+  expect(line.closest('[role="tabpanel"]')).toHaveClass('knowledge-panel')
+  expect(screen.queryByText('Learning again with another model rewrites only the map: its sections are kept.')).toBeNull()
+})
