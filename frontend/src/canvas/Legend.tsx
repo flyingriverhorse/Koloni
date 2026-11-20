@@ -9,7 +9,7 @@ const LINES: [dash: string | undefined, colour: string, width: number, what: str
   [DASH.spawn, 'var(--border-strong)', 1.5, 'Handed to a sub-agent'],
   [DASH.plan, 'var(--border-strong)', 1.5, 'From an approved plan down to the Orchestrator that carries it out'],
   [DASH.po, 'var(--border-strong)', 1.5, 'From the Orchestrator down to the Assistant PO, asked once its turn ended for follow-up tasks on the To-do list'],
-  [DASH.talk, 'var(--member-line)', 1.5,'A member’s line to its discussion or room (between teams, from its frame to the lane)'],
+  [DASH.talk, 'var(--member-line)', 1.5, 'A member’s line to its discussion or room (between teams, from its frame to the lane)'],
   [undefined, 'var(--accent)', 2, 'From a team to its card at its top right: what it shared, noted and remembered (dotted: from an agent with no team to its card, or to a contract’s card from its request’s line)'],
   [DASH.waits, 'var(--border-strong)', 1, 'Waits for a file another agent holds'],
   [DASH.findings, 'var(--warn)', 1.5, 'Findings handed on: from the agent that found them to the one given them; in a team, it runs back over or under the work line'],

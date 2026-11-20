@@ -166,7 +166,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // Everyone's card: beside the Lead - each side's, in a compare turn -, level with it, on a short line from it; what
     // hangs off the Lead starts under it.
     const everyone = everyoneCards(own, edges, roots, runId)
-    const head =(team: string) => TEAM_HEAD + Math.max(arcOf(team), columnsOf(team).some(column => column.atOnce) ? AT_ONCE_HEAD : 0)
+    const head = (team: string) => TEAM_HEAD + Math.max(arcOf(team), columnsOf(team).some(column => column.atOnce) ? AT_ONCE_HEAD : 0)
     const foot = (team: string) => TEAM_PAD + TEAM_FOOT + arcOf(team)
 
     /** A frame laid out by its work line: a column for each of its steps, left to right; returns the height used. */

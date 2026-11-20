@@ -678,6 +678,10 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
    * into the far one's side dot: before, the line left the right dot and doubled back behind both cards. (`waits:` by its
    * id: a night's job to its report waits too.)
    * shortcut: a member or a holder in another column keeps React Flow's curve, which can loop back; route it if that is seen.
+   * shortcut: two places stacked in one column share one vertical at its right, and a member's line to its own card on
+   * the right crosses it; give each place its own offset if they are seen to tangle.
+   * shortcut: in a team turn, the Orchestrator's 💬 line to an agent of no frame under the frames bends 20 px left of it,
+   * inside the frames' left wall (React Flow's curve cut there too); route it left of the frames if that is seen.
    */
   const looseLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
     const fromFrame = byId.get(e.source)?.kind === 'team'

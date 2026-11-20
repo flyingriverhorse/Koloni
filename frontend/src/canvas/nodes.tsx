@@ -144,7 +144,8 @@ export function DiscussionNode({ data, selected }: NodeProps<Node<DiscussionData
       label={data.line}
       tone={data.running ? 'running' : 'idle'}
       selected={selected}
-      // (No line starts at a discussion or a room.)
+      // (Every line to a discussion or a room goes into it. One inside a frame may be drawn from its right dot, but its
+      // arrow is there and covers the dot.)
       unused="out"
     >
       <div className="node-line">{data.topic}</div>

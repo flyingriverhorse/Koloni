@@ -151,7 +151,8 @@ test('a card shows only the dots a line uses (21 Nov): every dot kept, the unuse
   const room: RoomData = { goal: 'Ship it', line: 'round 2', members: ['Coder'], watched: '', items: '', last: [], running: false, attention: false }
   const po: PoData = { provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 2900, output_tokens: 200, proposed: 2, dropped: [], dropped_more: 0 }
   const cards: [ReactNode, string[]][] = [
-    // (Nothing comes into a message or a file; nothing leaves a discussion or a room; a plan and the PO have their straight line.)
+    // (Nothing comes into a message or a file; every line to a discussion or a room goes into it; a plan and the PO have
+    // their straight line.)
     [<RequestNode key="request" {...props('request:a', asked)} />, ['right']],
     [<AttachmentNode key="file" {...props('attachment:f', { name: 'a.ts', label: 'TS', colour: '--file-code', meta: '1 line' })} />, ['right']],
     [<DiscussionNode key="discussion" {...props('discussion:t', talk)} />, ['left']],
