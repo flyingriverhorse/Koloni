@@ -10,6 +10,34 @@ interface Props {
   onWrite: (runId: string, content: string) => Promise<void>
 }
 
+type Turns = ReturnType<typeof notebookRuns>
+type Turn = Turns[number] | ReturnType<typeof notebookRun>
+
+/** At the top, where more than one turn has a notebook: whose notes are shown, and the way to another's. */
+const turnPicker = (state: ConvState | null, run: Turn, turns: Turns, current: Turn, setPicked: (runId: string | null) => void) =>
+  state &&
+  run &&
+  turns.length > 1 && (
+    <div className="note-turns">
+      <select
+        className="input"
+        aria-label="Whose notes"
+        value={run.id}
+        // Picking the turn the tab would show anyway is picking none: it goes on following.
+        onChange={e => setPicked(e.target.value === current?.id ? null : e.target.value)}
+      >
+        {turns.map(turn => (
+          <option key={turn.id} value={turn.id}>
+            {turnLabel(state, turn)}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+
+/** No note can be posted: the notebook is closed, one is on its way, or nothing is written. */
+const cannotPost = (closed: ReturnType<typeof closedReason>, busy: boolean, draft: string) => closed !== null || busy || !draft.trim()
+
 /**
  * The shared notebook of a turn: what its agents and you noted for everyone. It shows the
  * turn at work (or the last one) until you pick an earlier turn at the top; the notebook
@@ -55,23 +83,7 @@ export function NotesPanel({ state, onWrite }: Props) {
 
   return (
     <>
-      {state && run && turns.length > 1 && (
-        <div className="note-turns">
-          <select
-            className="input"
-            aria-label="Whose notes"
-            value={run.id}
-            // Picking the turn the tab would show anyway is picking none: it goes on following.
-            onChange={e => setPicked(e.target.value === current?.id ? null : e.target.value)}
-          >
-            {turns.map(turn => (
-              <option key={turn.id} value={turn.id}>
-                {turnLabel(state, turn)}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      {turnPicker(state, run, turns, current, setPicked)}
       {empty ? (
         <div className="msg-list msg-empty muted">
           Notes that agents and you leave for everyone working on a message show here.
@@ -91,7 +103,7 @@ export function NotesPanel({ state, onWrite }: Props) {
           disabled={closed !== null}
           onChange={e => setDraft(e.target.value)}
         />
-        <button type="submit" className="btn btn-small btn-primary" disabled={closed !== null || busy || !draft.trim()}>
+        <button type="submit" className="btn btn-small btn-primary" disabled={cannotPost(closed, busy, draft)}>
           Post note
         </button>
       </form>
