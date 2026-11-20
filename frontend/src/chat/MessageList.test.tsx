@@ -1457,9 +1457,14 @@ test('two open questions in one turn show one queued-message note, under both', 
 
 test('an answered question closes to its row in the card, and the foot counts it', () => {
   const asked = askedBy({ status: 'answered', answer: 'hey' })
-  const state = { ...asked, runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [...asked.messages, assistantMessage('m2', 'r', 'Going with hey.')] }
+  // (Not counted: KOLONİ's own card, and one the Orchestrator answered for you.)
+  const others = [
+    question('k', 'r', { tool_call_id: '9', leave: true, status: 'answered', answer: 'Allow' }),
+    question('d', 'r', { tool_call_id: '9', status: 'answered', answer: 'strict', lead_why: 'the task says so' }),
+  ]
+  const state = { ...asked, runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [...asked.messages, assistantMessage('m2', 'r', 'Going with hey.')], questions: [...asked.questions, ...others] }
   render(<MessageList {...handlers} state={state} />)
   const card = screen.getByRole('article', { name: /^Orchestrator, / })
   expect(within(card).getByText('Which greeting?').closest('.question-row')).toHaveTextContent('hey')
-  expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent('1 question')
+  expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent(/^1 question/)
 })

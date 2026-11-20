@@ -22,9 +22,13 @@ const n = (value: number | null) => (value === null ? '–' : value.toLocaleStri
 const leftOpen = (merges: number, proposed: boolean, serving: boolean) =>
   [merges > 0 && 'changes to take in or discard', proposed && 'changes to approve', serving && 'a server running'].filter(Boolean).join(', ')
 
-/** The questions the turn put to you ('': none). Not those the Orchestrator answered for you: Decided for you has those. */
+/**
+ * The questions the turn's agents put to you ('': none). Not KOLONİ's own cards (leave for a tool, a recipe's Go on?),
+ * which are asked as a command's are - not counted here either - nor those the Orchestrator answered for you: Decided
+ * for you has those.
+ */
 function askedOf(state: ConvState, runId: string): string {
-  const asked = state.questions.filter(q => q.run_id === runId && q.lead_why == null).length
+  const asked = state.questions.filter(q => q.run_id === runId && !q.leave && q.lead_why == null).length
   return asked === 0 ? '' : `${asked} question${asked === 1 ? '' : 's'}`
 }
 
