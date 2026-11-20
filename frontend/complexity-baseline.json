@@ -13,7 +13,6 @@
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
   "src/shell/FolderButton.tsx::FolderButton": 25,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,
-  "src/tools/ToolsPage.tsx::ToolsPage": 22,
   "src/triggers/TriggerForm.tsx::TriggerForm": 30,
   "src/views/FilesWindow.tsx::FilesWindow": 91,
   "src/views/FilesWindow.tsx::Opened": 70
