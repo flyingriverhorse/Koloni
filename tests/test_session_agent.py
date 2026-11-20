@@ -29,7 +29,6 @@ from tests.test_parallel import statuses, until
 from tests.test_questions import OWN
 from tests.test_spawn import begin, call, reported, role_id, spawn, step
 from tests.test_team_requests_scenarios import API, LEADS, WEB, two_teams
-from tests.test_web_tool_scenarios import Net
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_session_cli.py"))]
 
@@ -294,13 +293,14 @@ def test_a_message_whose_reply_the_cli_stopped_waiting_for_is_closed_with_the_tu
 
 def test_a_request_its_cli_gave_up_on_on_its_way_is_interrupted(
         session_app, wait_run, project_dir, tmp_path, monkeypatch):
-    Net(monkeypatch)
     on_its_way, go, on = threading.Event(), tmp_path / "go", tmp_path / "on"
 
     async def hangs(*_asked):
         on_its_way.set()
         await asyncio.Event().wait()
 
+    # (No test touches the network: the name and the request are stood in for.)
+    monkeypatch.setattr(app.web, "resolve", lambda host: ["93.184.216.34"])
     monkeypatch.setattr(app.web, "raw", hangs)
     client, provider, _ = session_app([
         {"send": "http_request", "args": {"method": "GET", "url": "https://example.com/x"}},
