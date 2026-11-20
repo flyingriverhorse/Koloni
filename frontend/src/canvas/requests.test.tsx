@@ -10,6 +10,7 @@ import { foldGraph } from './foldGraph'
 import { CARD_GAP, COL_GAP, NODE_H, NODE_W, REQUEST_INSET, TEAM_HEAD, blockSize, crosses, layoutGraph, requestLine } from './layout'
 import type { SharedData } from './sharedColumn'
 import { SharedNode } from './SharedNode'
+import { ApiError, api } from '../api/client'
 import { useApp } from '../state/store'
 import { NodeActions } from './toggleGroup'
 
@@ -309,4 +310,31 @@ test('two requests on one line, each with its contract: one card for both, its a
   expect(rows(g, 'shared:r:ask:5')).toEqual(['file: contracts/get-api-items-20-a-page.md', 'file: contracts/items-again.md'])
   const { positions, lines } = layoutGraph(g.nodes, g.edges)
   expect(lines['shared:shared:r:ask:5'].x2).toBe(positions['shared:r:ask:5'].x)
+})
+
+test('a shared file’s row says what became of its Take in, in place of the button; with no project there is none to take it into', async () => {
+  const data = (projectId: string | null): SharedData => ({ who: 'Web app', colour: '#888', projectId, runId: 'r', rows: [{ kind: 'file', text: 'spec.md', path: 'web-app/spec.md' }, { kind: 'file', text: 'notes.md', path: 'web-app/notes.md' }] })
+  const draw = (projectId: string | null) =>
+    render(
+      <ReactFlowProvider>
+        <SharedNode {...({ id: 's', data: data(projectId), selected: false } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)} />
+      </ReactFlowProvider>,
+    )
+  const post = vi.spyOn(api, 'post').mockResolvedValueOnce({ path: 'spec.md' }).mockRejectedValueOnce(new ApiError(409, 'notes.md is already there'))
+  const { container, unmount } = draw('p1')
+  expect(Array.from(container.querySelectorAll('.shared-row'), row => row.textContent)).toEqual(['fileweb-app/spec.mdTake in', 'fileweb-app/notes.mdTake in'])
+  expect(container.querySelector('.shared-kind')).toHaveClass('shared-kind-file')
+  await userEvent.click(screen.getByRole('button', { name: 'Take web-app/spec.md into the project' }))
+  expect(post).toHaveBeenCalledWith('/projects/p1/shared/take', { path: 'web-app/spec.md' })
+  const took = await screen.findByText('in the project as spec.md')
+  expect(took).toHaveClass('muted', 'shared-taken')
+  expect(took).toHaveAttribute('title', 'in the project as spec.md')
+  expect(screen.queryByRole('button', { name: 'Take web-app/spec.md into the project' })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Take web-app/notes.md into the project' }))
+  expect(await screen.findByText('notes.md is already there')).toHaveClass('shared-taken')
+  unmount()
+  post.mockRestore()
+  draw(null)
+  expect(screen.getByRole('button', { name: 'web-app/spec.md' })).toHaveAttribute('title', 'Read .koloni/shared/web-app/spec.md in the Workspace')
+  expect(screen.queryByRole('button', { name: /into the project$/ })).toBeNull()
 })
