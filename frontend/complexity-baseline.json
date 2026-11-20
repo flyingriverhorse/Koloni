@@ -5,7 +5,6 @@
   "src/chat/ChatPanel.tsx::ChatPanel": 77,
   "src/chat/Composer.tsx::Composer": 75,
   "src/chat/MessageList.tsx::MessageList>map": 51,
-  "src/commands/WebApproval.tsx::WebApproval": 28,
   "src/inspector/Inspector.tsx::Inspector": 77,
   "src/knowledge/KnowledgePage.tsx::Card": 74,
   "src/knowledge/KnowledgeParts.tsx::Sources": 33,
