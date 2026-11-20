@@ -379,6 +379,9 @@ test('slice 92: the card lists its files, what runs as a program, its allowed-to
   rerender(<SkillApproval skill={pending} onDecide={vi.fn()} />)
   expect(screen.getByText('It declares no allowed-tools.')).toBeInTheDocument()
   expect(screen.queryByText(/Files that run as programs|shell block|Claude Code would run|#! line/)).toBeNull()
+  // one block is said as one
+  rerender(<SkillApproval skill={{ ...pending, shell_blocks: 1 }} onDecide={vi.fn()} />)
+  expect(screen.getByText(/Its SKILL\.md has a shell block: commands it/)).toHaveClass('cmd-approval-note')
 })
 
 test("a skill's card comes and goes with its events, and waits for the user", () => {
