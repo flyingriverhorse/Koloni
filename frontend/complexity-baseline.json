@@ -101,7 +101,6 @@
   "src/triggers/TriggersPage.tsx::TriggersPage": 16,
   "src/triggers/triggerText.ts::validate": 29,
   "src/usage/Prices.tsx::PriceRow": 22,
-  "src/usage/TodayView.tsx::TodayView": 14,
   "src/usage/UsagePage.tsx::UsagePage": 26,
   "src/views/FilesWindow.tsx::FilesWindow": 91,
   "src/views/FilesWindow.tsx::Opened": 70,
