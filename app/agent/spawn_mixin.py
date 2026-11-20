@@ -884,7 +884,7 @@ class SpawnMixin:
             stopped = await _through_stops(saving) or stopped
         return ending, stopped
 
-    async def _spawn(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:  # noqa: C901
+    async def _spawn(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """Open a sub-agent - and, a team's lead, the chat's other teams' leads with it (B-87:
         a Lead opened them one by one, each waiting for the one before) - wait for them, and
         return the reports as the tool result.
@@ -918,15 +918,9 @@ class SpawnMixin:
             held = self._at_once.setdefault(call_id, ({call_id}, asyncio.Event()))
             held[0].update(one.id for one in requests)
         opened = asyncio.Event()
-
-        async def arriving() -> tuple[str, str]:
-            try:
-                return await self._spawn_on(ctx, call_id, args, opened)
-            finally:  # (refused or stopped before it started: KOLONİ's wait for none of it)
-                self._arrive(call_id)
-
         first = asyncio.ensure_future(
-            arriving() if more else self._spawn_on(ctx, call_id, args, opened))
+            self._spawn_arriving(ctx, call_id, args, opened) if more
+            else self._spawn_on(ctx, call_id, args, opened))
         waiting = asyncio.ensure_future(opened.wait())
         try:
             await asyncio.wait((first, waiting), return_when=asyncio.FIRST_COMPLETED)
@@ -965,6 +959,19 @@ class SpawnMixin:
         finally:
             for made_id, _payload in made:
                 self._opening.pop(made_id, None)
+        return self._spawn_reports(mine, beside, done, group, more)
+
+    async def _spawn_arriving(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict,
+                              opened: asyncio.Event) -> tuple[str, str]:
+        """`_spawn`'s own call where candidates are opened beside it (`_at_once`)."""
+        try:
+            return await self._spawn_on(ctx, call_id, args, opened)
+        finally:  # (refused or stopped before it started: KOLONİ's wait for none of it)
+            self._arrive(call_id)
+
+    def _spawn_reports(self: "AgentRunner", mine: dict, beside: list[dict], done: list,
+                       group: tuple | None, more: tuple | None) -> tuple[str, str]:
+        """`_spawn`'s result once its own agent and those opened beside it are back."""
         for one, said in zip(beside, done[1:], strict=True):
             mine[one["role"].casefold()] = (None, said[0] if isinstance(said, tuple) else "failed")
         # Its own failing loses none of their reports: they came with no other call.
