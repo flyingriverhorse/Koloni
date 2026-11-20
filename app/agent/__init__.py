@@ -2119,7 +2119,41 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                                 keep=copy.branch in self._keep_branches)
             self._keep_branches.discard(copy.branch)
 
-    async def _working_copy(self, ctx: Ctx, owner: str) -> copies.Copy | None:  # noqa: C901
+    async def _copy_record(self, ctx: Ctx, owner: str, made: copies.Copy | None,
+                           left: dict | None) -> dict:
+        """What goes on its agent's record with a working copy just made (`_working_copy`)."""
+        # Where its files are goes on record with it: what a kept copy's folder
+        # happens to hold does not say how it is laid out (`_kept_as`).
+        # So does its part, by that tree, None too: the folder says nothing of it
+        # (`copies.load`), and a part copy's of before at that place is not this one's.
+        where = {"tree": str(made.root), "parts": {str(made.root): made.part}
+                 } if made is not None else {}
+        # K-dallar: and the branch it was made on, for its Take in card.
+        # shortcut: the branch as the turn began (`_git_start`); an agent's own switch
+        # earlier in the turn is not seen. Read it here if that misleads.
+        if made is not None and (seen := self._git_at.get(ctx.run_id)):
+            where["branch"] = seen["branch"] or None
+        if made is not None and made.branch:  # (D2: the git map names its team)
+            # (And where it was first made from, and - opened again - the commit it
+            # stopped on: what a go-on holds it to, `_branch_again`.)
+            where["on_branch"], where["start"] = made.branch, made.start
+            if left:
+                where["tip"] = left["tip"] or left["start"][1]
+            # (git's config as its work begins, if no watch took it yet: a pull
+            # request's push asks where it changed - `_merge_branch`.)
+            if ctx.run_id not in self._git_at_start:
+                self._git_at_start[ctx.run_id] = _git_parts(await asyncio.to_thread(
+                    standing_files, str(made.project)), made.project)
+        elif left:
+            # Its branch not opened again, and still there: a later go-on tries it again
+            # (not `on_branch`: the git map would name this copy's agent its team).
+            where.update(left_on=left["branch"], start=left["start"], tip=left["tip"])
+            if why := self._no_branch.get(owner):  # (told before its first step)
+                self._nudges.setdefault(owner, []).append(
+                    (left["at"], NOT_ON_BRANCH_AGAIN.format(why=why)))
+        return where
+
+    async def _working_copy(self, ctx: Ctx, owner: str) -> copies.Copy | None:
         """The working copy an agent is about to change a file or run a command in, made
         now if this is the first of its line. None where there is none and the agent
         works in the project as before: a project too big to copy or one that could
@@ -2160,35 +2194,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     made.secrets = lambda run_id=ctx.run_id: self.given_spellings(run_id)
                     made.made_at = started
                 self._copies[owner] = made
-                # Where its files are goes on record with it: what a kept copy's folder
-                # happens to hold does not say how it is laid out (`_kept_as`).
-                # So does its part, by that tree, None too: the folder says nothing of it
-                # (`copies.load`), and a part copy's of before at that place is not this one's.
-                where = {"tree": str(made.root), "parts": {str(made.root): made.part}
-                         } if made is not None else {}
-                # K-dallar: and the branch it was made on, for its Take in card.
-                # shortcut: the branch as the turn began (`_git_start`); an agent's own switch
-                # earlier in the turn is not seen. Read it here if that misleads.
-                if made is not None and (seen := self._git_at.get(ctx.run_id)):
-                    where["branch"] = seen["branch"] or None
-                if made is not None and made.branch:  # (D2: the git map names its team)
-                    # (And where it was first made from, and - opened again - the commit it
-                    # stopped on: what a go-on holds it to, `_branch_again`.)
-                    where["on_branch"], where["start"] = made.branch, made.start
-                    if left:
-                        where["tip"] = left["tip"] or left["start"][1]
-                    # (git's config as its work begins, if no watch took it yet: a pull
-                    # request's push asks where it changed - `_merge_branch`.)
-                    if ctx.run_id not in self._git_at_start:
-                        self._git_at_start[ctx.run_id] = _git_parts(await asyncio.to_thread(
-                            standing_files, str(made.project)), made.project)
-                elif left:
-                    # Its branch not opened again, and still there: a later go-on tries it again
-                    # (not `on_branch`: the git map would name this copy's agent its team).
-                    where.update(left_on=left["branch"], start=left["start"], tip=left["tip"])
-                    if why := self._no_branch.get(owner):  # (told before its first step)
-                        self._nudges.setdefault(owner, []).append(
-                            (left["at"], NOT_ON_BRANCH_AGAIN.format(why=why)))
+                where = await self._copy_record(ctx, owner, made, left)
                 self._set_agent(self._ctxs[owner].cid, owner, copy={"state": state, **where})
         copy = self._copies[owner]
         if owner != ctx.agent_id and ctx.agent_id not in self._below_in_copy:
