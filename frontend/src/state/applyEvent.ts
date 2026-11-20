@@ -115,6 +115,22 @@ export const TERMINAL: ReadonlySet<Run['status']> = new Set([
 
 export function fromSnapshot(s: Snapshot): ConvState {
   return {
+    ...workOf(s),
+    ...sharedOf(s),
+    ...keptOf(s),
+    lastEventId: s.last_event_id,
+    thinkingRunId: null,
+    thinkingAgentId: null,
+    thinkingAgents: [],
+    summarisingAgents: [],
+    live: {},
+    shown: 0,
+  }
+}
+
+/** A snapshot's turns and what their agents did and asked for. (The three parts of a state, in its keys' order.) */
+function workOf(s: Snapshot) {
+  return {
     conversation: s.conversation,
     messages: s.messages,
     runs: s.runs,
@@ -132,6 +148,12 @@ export function fromSnapshot(s: Snapshot): ConvState {
     pendingRoles: s.pending_roles,
     // (A server from before skills sends none.)
     pendingSkills: s.pending_skills ?? [],
+  }
+}
+
+/** What its agents asked you and said to each other: questions, discussions, rooms, the notebook. */
+function sharedOf(s: Snapshot) {
+  return {
     questions: s.questions,
     discussions: s.discussions,
     discussionPosts: s.discussion_posts,
@@ -140,6 +162,12 @@ export function fromSnapshot(s: Snapshot): ConvState {
     roomItems: s.room_items ?? [],
     roomPosts: s.room_posts ?? [],
     boardPosts: s.board_posts,
+  }
+}
+
+/** What is held and kept beside the work: files held, working copies, attachments, cards and warnings. */
+function keptOf(s: Snapshot) {
+  return {
     // (A server from before files were held sends none.)
     claims: s.claims ?? [],
     // (A server from before working copies sends none.)
@@ -149,13 +177,6 @@ export function fromSnapshot(s: Snapshot): ConvState {
     triggerProposals: s.trigger_proposals ?? [],
     notesOffers: s.notes_offers ?? [],
     warnings: s.warnings ?? [],
-    lastEventId: s.last_event_id,
-    thinkingRunId: null,
-    thinkingAgentId: null,
-    thinkingAgents: [],
-    summarisingAgents: [],
-    live: {},
-    shown: 0,
   }
 }
 
@@ -184,6 +205,23 @@ export function applyEvent(
     if (id <= state.lastEventId) return state
     state = { ...state, lastEventId: id }
   }
+  // (By family, each asked in turn: null is "not mine" - the state itself, "mine, and nothing changed".)
+  return (
+    runEvent(state, type, payload) ??
+    agentEvent(state, id, type, payload) ??
+    roomEvent(state, type, payload) ??
+    requestEvent(state, type, payload) ??
+    messageEvent(state, type, payload) ??
+    toolEvent(state, type, payload) ??
+    commandEvent(state, type, payload) ??
+    chatEvent(state, type, payload) ??
+    keptEvent(state, type, payload) ??
+    state
+  )
+}
+
+/** A turn started, went on, ended; its model thinks. */
+function runEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
   switch (type) {
     case 'run.started':
     case 'run.updated':
@@ -207,6 +245,14 @@ export function applyEvent(
         thinkingAgents: agent_id ? [...without(state.thinkingAgents, agent_id), agent_id].sort() : state.thinkingAgents,
       }
     }
+    default:
+      return null
+  }
+}
+
+/** An agent, what agents said to each other, and a warning about what one read (`id`: the event's). */
+function agentEvent(state: ConvState, id: number | null, type: string, payload: unknown): ConvState | null {
+  switch (type) {
     case 'agent.created':
     case 'agent.updated':
       return { ...state, agents: upsert(state.agents, payload as Agent) }
@@ -221,6 +267,14 @@ export function applyEvent(
       // (Kept, so it has an id: the warning's own - which a snapshot read meanwhile may have too.)
       if (id === null || state.warnings.some(w => w.id === id)) return state
       return { ...state, warnings: [...state.warnings, { ...(payload as Omit<InjectionWarning, 'id'>), id }] }
+    default:
+      return null
+  }
+}
+
+/** A room, its items and posts; the notebook; a question to you. */
+function roomEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
+  switch (type) {
     case 'room.created':
     case 'room.updated':
       return { ...state, rooms: upsert(state.rooms, payload as Room) }
@@ -235,6 +289,14 @@ export function applyEvent(
     case 'question.created':
     case 'question.updated':
       return { ...state, questions: upsert(state.questions, payload as Question) }
+    default:
+      return null
+  }
+}
+
+/** A role or a skill an agent asked for, and your decision on it. */
+function requestEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
+  switch (type) {
     case 'role_request.created': {
       const request = payload as PendingRole
       const others = state.pendingRoles.filter(r => r.tool_call_id !== request.tool_call_id)
@@ -253,6 +315,14 @@ export function applyEvent(
       const { tool_call_id } = payload as { tool_call_id: string }
       return { ...state, pendingSkills: state.pendingSkills.filter(r => r.tool_call_id !== tool_call_id) }
     }
+    default:
+      return null
+  }
+}
+
+/** A message, and its text as it is written. */
+function messageEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
+  switch (type) {
     case 'message.created':
     case 'message.completed': {
       const message = payload as Message
@@ -281,12 +351,28 @@ export function applyEvent(
       if (!message || message.status !== 'streaming') return state
       return { ...state, messages: upsert(state.messages, { ...message, content }) }
     }
+    default:
+      return null
+  }
+}
+
+/** A tool call, a change to a file. */
+function toolEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
+  switch (type) {
     case 'tool_call.created':
     case 'tool_call.updated':
       return { ...state, toolCalls: upsert(state.toolCalls, payload as ToolCall) }
     case 'file_change.created':
     case 'file_change.updated':
       return { ...state, fileChanges: upsert(state.fileChanges, payload as FileChange) }
+    default:
+      return null
+  }
+}
+
+/** A command, and its output as it comes. */
+function commandEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
+  switch (type) {
     case 'command.created': {
       // Whatever the server left out, a command on screen always has an output to show.
       const created = payload as Omit<Command, 'output'> & { output?: string }
@@ -314,6 +400,14 @@ export function applyEvent(
       if (!command || command.status !== 'running') return state
       return { ...state, commands: upsert(state.commands, { ...command, output }) }
     }
+    default:
+      return null
+  }
+}
+
+/** The chat itself: what it runs and asks the web for without asking you, its settings and teams, its topics. */
+function chatEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
+  switch (type) {
     case 'allowed_commands.updated':
       return { ...state, allowedCommands: (payload as { rules: AllowedCommand[] }).rules }
     case 'web_request.updated':
@@ -329,6 +423,14 @@ export function applyEvent(
     case 'topic.created':
     case 'topic.updated':
       return { ...state, topics: upsert(state.topics, payload as Topic) }
+    default:
+      return null
+  }
+}
+
+/** What is kept beside the work: a working copy, an attachment, what a CLI says of itself, what was shown, who holds what. */
+function keptEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
+  switch (type) {
     case 'merge.updated':
       return { ...state, merges: upsert(state.merges, payload as Merge) }
     case 'attachment.created':
@@ -348,7 +450,7 @@ export function applyEvent(
       // Who holds which file now, all of it: said again whenever it changes.
       return { ...state, claims: (payload as { claims: Claim[] }).claims }
     default:
-      return state
+      return null
   }
 }
 
