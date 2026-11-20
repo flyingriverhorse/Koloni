@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Changed
+
+- **CLIs**: GitHub Copilot CLI run **Native** works in the agents' scratch folder as Claude Code's Bash tool does: a command that starts in a new shell of its own (one that names no shell) is judged in the project folder, so `cd .koloni/tmp/...; python a.py` and a delete only inside `.koloni/tmp/` run without a card at Full auto; a command in a shell it named, or any after one that did, is still asked ([docs](docs/reference/known-limits.md)).
+
 ## [0.1.3] - 2026-11-20
 
 ### Changed

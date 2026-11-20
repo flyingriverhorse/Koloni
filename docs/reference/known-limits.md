@@ -67,6 +67,10 @@ and credit messages.
   are not measured, nor is Qoder - so a `cd` into
   `.koloni/tmp/` by Claude Code's PowerShell tool or by Qoder is still asked. A command of theirs that
   itself names a folder to run in is asked at every level: KOLONİ cannot check it.
+- GitHub Copilot CLI run **Native** does not say where its commands run either, but one that names no
+  shell of its own starts in a new shell in the project folder (read in Copilot 1.0.67's code; later
+  versions, Linux and macOS not measured), so there a `cd` into `.koloni/tmp/` or a delete only inside
+  it runs without a card at Full auto, and once a command has named a shell, each is asked as before.
 - A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
   script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it

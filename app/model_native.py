@@ -2925,13 +2925,53 @@ SHELL_STATE = re.compile(
     r"|(?:^|[\s;&|({])\.[ \t]+\S")
 
 
+# k-copilot-cd: where a command of its shell runs when it says none. Read in Copilot 1.0.67's
+# app.js (its npm package, 20 Nov 2026; not run): `shellTool` runs a call in `shellId ??
+# (counter++)` - one that names no shell gets a new one, made at `currentLocation`: the session's
+# workingDirectory, KOLONİ's project (set at its start and by `updateLocation(workingDir)` at tool
+# init, its one caller; moved only by a client's call KOLONİ never makes - setWorkingDirectory,
+# an options update, a `/cd`). Its agent loop emits the tool.execution_start of every call of a
+# model message before it calls any of them, and the permission request comes from inside the
+# call: the start goes first to its one stdout. Each command is a new process in its shell's
+# first folder (`spawnChild`): not even a named shell keeps a `cd` there. Live once (14 Nov 2026,
+# 1.0.107, Windows, Full auto): after a `cd` into the scratch, its next command ran at the project.
+# shortcut: 1.0.107's code is not read, nor its native shell schema (another spelling of shellId
+# is a key not here: not known) or JSON-RPC writer (a start out of order: a card); bash on Linux
+# and macOS not seen. Read it again after an update of Copilot's (K-cli-surface).
+SHELL_ARGUMENTS = frozenset({"command", "description", "mode", "detach", "initialwait",
+                             "requestsandboxbypass", "requestsandboxbypassreason"})
+
+
 class _ShellPatches(dict):
     """B-389: the commands of a Copilot run that were patches, by tool call id (`_permit`);
     `moved`: a command it was let run may have changed its shell session (`SHELL_STATE`) - from
-    then on, every patch it runs as a command is asked as the command it is."""
+    then on, every patch it runs as a command is asked as the command it is. `started`: its shell
+    calls whose start it said; `unknown`: one of them may run in a shell not new (`start`)."""
 
     moved = False
-HEADLESS = ["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
+    unknown = False
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.started: set[str] = set()
+
+    def start(self, call_id: str, data: dict) -> None:
+        """A tool call it said it starts. Of its shell: one with SHELL_ARGUMENTS alone, not in a
+        sub-agent of its own, runs in a new shell; one more, and every call of the run, not
+        known (an id it makes itself may be one a call named)."""
+        if data.get("toolName") not in COPILOT_RUNS:
+            return
+        given = data.get("arguments")
+        self.unknown |= bool(data.get("parentToolCallId")) or not isinstance(given, dict) or not {
+            re.sub(r"[\W_]", "", str(key)).casefold() for key in given} <= SHELL_ARGUMENTS
+        self.started.add(call_id)
+
+    def new_shell(self, call_id: str) -> bool:
+        """Whether this call, as read so far, runs in a new shell at the project."""
+        return bool(call_id) and call_id in self.started and not self.unknown
+
+
+HEADLESS =["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
 # Its own tools a session is given (`availableTools`): its shell and what goes with it, and
 # its file tools, each asked about as a command, a write or a read. Not grep or glob (a
 # search reads a secret's lines with no card for the file), web_fetch or web_search, sql,
@@ -3100,6 +3140,7 @@ class CopilotNativeClient(CodexNativeClient):
                 if data.get("mcpServerName") == SERVER:
                     return [{"type": "item.completed",
                              "item": {"type": "mcp_tool_call", "server": SERVER}}]
+                heredocs.start(call_id, data)
                 using[call_id] = data
                 # A command is on record from when it is asked about (`_approve`), as Codex's.
                 return [{"type": "busy", "id": call_id, "on": True}]
@@ -3246,7 +3287,7 @@ class CopilotNativeClient(CodexNativeClient):
             error = told.get("error")
             return {}, _brief(self._hide(str(_dict(error).get("message") or error)))
 
-        async def answer(data: dict) -> None:
+        async def answer(data: dict, new_shell: bool) -> None:
             nonlocal heard, broke
             request_id = str(data.get("requestId") or "")
             request = _dict(data.get("permissionRequest"))
@@ -3257,7 +3298,7 @@ class CopilotNativeClient(CodexNativeClient):
             busy.add(key)
             try:
                 result = await self._permit(request, use_id, root, asked, answered, on_item,
-                                            call_tool, heredocs)
+                                            call_tool, heredocs, new_shell)
                 if result["kind"] == "reject":
                     busy.discard(use_id)  # it may never say a rejected tool is done
                 # (Its answer is not waited for: one that refuses KOLONİ's ends the run, `read`.)
@@ -3332,7 +3373,9 @@ class CopilotNativeClient(CodexNativeClient):
                                 f"{self.label}'s, not KOLONİ: the run was stopped")
                             end_now()
                             return
-                        task = asyncio.ensure_future(answer(data))
+                        # (By what was read before this request, not after: `_ShellPatches`.)
+                        task = asyncio.ensure_future(answer(data, heredocs.new_shell(str(
+                            _dict(data.get("permissionRequest")).get("toolCallId") or ""))))
                         answering.add(task)
                         task.add_done_callback(answering.discard)
                         continue
@@ -3538,7 +3581,7 @@ class CopilotNativeClient(CodexNativeClient):
     async def _permit(  # noqa: C901
         self, request: dict, use_id: str, root: Path, asked: set[str],
         answered: set[tuple[str, str]], on_item: OnItem, call_tool: CallTool,
-        heredocs: "_ShellPatches",
+        heredocs: "_ShellPatches", new_shell: bool,
     ) -> dict:
         """KOLONİ's answer to a permission request of Copilot's: what `AgentRunner._approve`
         says, asked as Codex's requests are (`CodexNativeClient._decide`) - a command as its
@@ -3546,7 +3589,8 @@ class CopilotNativeClient(CodexNativeClient):
         diff) or, without that, its Edit; a file it reads as its Read (a secret's is a card,
         slice 88). A call of one of KOLONİ's own tools is let through: those are held to
         KOLONİ's rules where they run. Anything else is rejected, and that is on record.
-        `heredocs`: where a command is a patch (B-389), its changes, by `use_id`."""
+        `heredocs`: where a command is a patch (B-389), its changes, by `use_id`. `new_shell`:
+        it was read to run in a new shell at the project (`_ShellPatches.new_shell`)."""
         kind = str(request.get("kind"))
         if kind == "mcp" and request.get("serverName") == SERVER:
             return APPROVE_ONCE
@@ -3591,6 +3635,8 @@ class CopilotNativeClient(CodexNativeClient):
             else:
                 question = ("Bash", {"command": named, **given,
                                      **({"cwd": str(where)} if where else {}),
+                                     # (none said: KOLONİ's own word, `_approve_command`'s)
+                                     **({"new_shell": True} if new_shell and not where else {}),
                                      "paths": list(request.get("possiblePaths") or []),
                                      "writes": bool(request.get("hasWriteFileRedirection")),
                                      # Its own word that a part is not read-only can only

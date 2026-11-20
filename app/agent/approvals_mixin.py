@@ -345,10 +345,13 @@ class ApprovalsMixin:
             inside(cwd)[0]) if isinstance(cwd, str) and cwd else ".")
         # Where it runs when it names no cwd: the root (Claude Code's Bash tool alone, measured;
         # not its PowerShell or Monitor, nor a sub-agent of its own - `under` -, which may
-        # start elsewhere) or not known (None: `with_cwd`). A cwd the model wrote (agy's) is
-        # judged as not known as well.
+        # start elsewhere; and a Copilot command KOLONİ read to start a new shell in the project,
+        # not a copy - `new_shell`, read only where the input is KOLONİ's own, "cli", never the
+        # model's: `model_native._ShellPatches`) or not known (None: `with_cwd`). A cwd the
+        # model wrote (agy's) is judged as not known as well.
         kind = getattr(ctx.model, "cwd_from", "none")
-        unnamed = "." if kind == "root" and tool == "Bash" and under is None else None
+        unnamed = "." if under is None and (kind == "root" and tool == "Bash" or (
+            kind == "cli" and given.get("new_shell") is True and copy is None)) else None
         claimed = kind == "model" and isinstance(cwd, str) and bool(cwd)
         if claimed and not searched:
             searched = await asyncio.to_thread(search_reason, command, root, ".")
@@ -404,9 +407,9 @@ class ApprovalsMixin:
                 reads_here, command, root, where in ("", ".")),
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
             # `unnamed` - "." for Claude Code's Bash tool, whose every call starts in the project
-            # (`ClaudeNativeClient.cwd_from`, measured); None for one whose shell may stand
-            # anywhere: its PowerShell and Monitor, Qoder, Codex or agy without one, and
-            # Copilot, whose 1.0.91 sends none
+            # (`ClaudeNativeClient.cwd_from`, measured), and Copilot's in a new shell; None for
+            # one whose shell may stand anywhere: its PowerShell and Monitor, Qoder, Codex or agy
+            # without one, and Copilot's other commands - its 1.0.91 sends no cwd
             # (measured 24 Oct 2026). Its paths are then judged at the root all the same, and a
             # line that begins with a `cd` into the scratch is a card: `with_cwd`.)
             # shortcut: Qoder's shell is not measured; if it keeps a `cd`, a later relative
