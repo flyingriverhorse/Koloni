@@ -49,6 +49,9 @@
   --tool-to-do: #8f4a6e;
   /* A request between teams and the shared folder (K-takimlar-arasi): its line, label and badges. */
   --request: #2b6f63;
+  /* A member's line to its discussion or room (21 Nov): an ochre of its own - not a sub-agent line's grey, nor the
+     honey of what is at work (contrast.test.ts). */
+  --member-line: #9a7a3a;
   --tool-memory: #8a5f1e;
   /* A file attached to a message, by its kind (slice 85b): its chip's edge and label. */
   --file-code: #3f5a75;
@@ -126,6 +129,7 @@
   --tool-team: #a698d4;
   --tool-to-do: #d495b6;
   --request: #7fbfb2;
+  --member-line: #b89a5a;
   --tool-memory: #d6a85a;
   --file-code: #8aa6c4;
   --file-img: #a698d4;

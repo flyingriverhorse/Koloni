@@ -123,6 +123,13 @@ for (const [name, theme] of [
     for (const bg of ['--bg', '--surface'])
       expect(ratio(theme['--border-strong'], theme[bg]), `--border-strong on ${bg}`).toBeGreaterThanOrEqual(3)
   })
+
+  test(`a member's line to its discussion is seen, and told apart from a sub-agent's grey and from the honey of work, in the ${name} theme`, () => {
+    for (const bg of ['--bg', '--surface'])
+      expect(ratio(theme['--member-line'], theme[bg]), `--member-line on ${bg}`).toBeGreaterThanOrEqual(3)
+    for (const other of ['--border-strong', '--accent'])
+      expect(distance(theme['--member-line'], theme[other]), `--member-line from ${other}`).toBeGreaterThanOrEqual(15)
+  })
 }
 
 // Coloured code (slice 42a): each colour of it reads on a plain line, an added one and a removed one,

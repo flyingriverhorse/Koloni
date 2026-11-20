@@ -203,9 +203,12 @@ const talkOf = (e: GraphEdge, drawn: Partial<Edge>, talkHues: Map<string, string
   talkHue: e.talk && e.messages ? talkHues.get(pairOf(e)) : undefined,
 })
 
-/** A line's colour: a card's, a request's, findings', its talk pair's, at work or handed, or none of those. */
+/**
+ * A line's colour: a card's, a request's, findings', its talk pair's, at work or handed, a member's to its discussion or
+ * room (talk with no messages: its own colour, not a sub-agent's grey - the user's, 21 Nov), or none of those.
+ */
 const edgeColour = (e: GraphEdge, talkHue: string | undefined, talking: boolean): string =>
-  e.shared ? e.shared.colour : e.request ? 'var(--request)' : e.findings !== undefined ? 'var(--warn)' : talkHue ?? (talking ? 'var(--tool-team)' : e.active || e.handed ? 'var(--accent)' : 'var(--border-strong)')
+  e.shared ? e.shared.colour : e.request ? 'var(--request)' : e.findings !== undefined ? 'var(--warn)' : talkHue ?? (talking ? 'var(--tool-team)' : e.active || e.handed ? 'var(--accent)' : e.talk ? 'var(--member-line)' : 'var(--border-strong)')
 
 /** A line's classes: it waits, carries findings, hands a file on, and is lit or faded while something is; none, undefined. */
 const edgeClass = (e: GraphEdge, lit: GraphEdge[] | null): string | undefined =>
@@ -223,9 +226,12 @@ const edgeWidth = (e: GraphEdge, lit: GraphEdge[] | null, talking: boolean): num
 const edgeDash = (e: GraphEdge, talking: boolean): string | undefined =>
   e.shared ? (e.shared.dotted || e.shared.arm ? DASH.shared : undefined) : e.request?.open ? DASH.request : e.request ? undefined : talking ? DASH.talkLine : e.handed ? DASH.handed : e.findings !== undefined ? DASH.findings : e.waits ? DASH.waits : e.talk ? DASH.talk : e.spawn ? DASH.spawn : undefined
 
-/** What is in focus: the talk line whose words are shown, else the card or frame lit, else the agent or discussion picked. */
+/** What lights its lines and the nodes at their ends when picked. */
+const FOCUSED: ReadonlySet<string> = new Set(['agent', 'discussion', 'room'])
+
+/** What is in focus: the talk line whose words are shown, else the card or frame lit, else the agent, discussion or room picked. */
 function focusOf(byId: Map<string, GraphNode>, talkEdge: GraphEdge | undefined, lightId: string | null, shown: GraphNode | undefined): string | null {
-  return talkEdge?.id ?? (lightId && byId.has(lightId) ? lightId : null) ?? (shown?.kind === 'agent' || shown?.kind === 'discussion' ? shown.id : null)
+  return talkEdge?.id ?? (lightId && byId.has(lightId) ? lightId : null) ?? (shown && FOCUSED.has(shown.kind) ? shown.id : null)
 }
 
 /** The lines lit by what is in focus, and the nodes - null while nothing is. */
@@ -660,11 +666,23 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   // The discussions' lane, where it stands; and a height above the whole turn, for a line from an agent with no frame.
   const lane = Math.min(...graph.edges.filter(e => e.member).map(e => rect(e.target).x))
   const above = Math.min(...graph.nodes.filter(n => !n.parent && auto.positions[n.id]).map(n => rect(n.id).y)) - DOOR_PAD / 2
-  /** A line inside one frame, or talk between agents of none; any other line not drawn by `edges.tsx` is React Flow's. */
+  /**
+   * A line between two of no frame (`insideLine`). B-133: talk is its bubble too (count, pair colour, who, a click) - not
+   * "2 messages". The user's option A (21 Nov): two cards one over the other in a column - a member under its discussion
+   * or room, an agent and the one whose file it waits for - are joined round their right, on one line down that side,
+   * into the far one's side dot: before, the line left the right dot and doubled back behind both cards. (`waits:` by its
+   * id: a night's job to its report waits too.)
+   * shortcut: a member or a holder in another column keeps React Flow's curve, which can loop back; route it if that is seen.
+   */
+  const looseLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
+    if (e.talk && e.messages) return { type: 'lane', data }
+    if ((e.talk || e.id.startsWith('waits:')) && stacked(s, t)) return { type: 'lane', targetHandle: 'side-in', data }
+    return {}
+  }
+  /** A line inside one frame, or between two of none; any other line not drawn by `edges.tsx` is React Flow's. */
   const insideLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
     const [from, to] = [frameOf(e.source) ?? (e.work ? e.source : undefined), frameOf(e.target)]
-    // B-133: talk between agents framed by no team is its bubble too (count, pair colour, who, a click) - not "2 messages".
-    if (!from && !to && e.talk && e.messages) return { type: 'lane', data }
+    if (!from && !to) return looseLine(e, s, t, data)
     if (!from || from !== to) return {}
     // Findings back, and talk between two of its agents: on an arc over or under the work line, in the room the layout
     // left in the frame - never under a card (the user, 6 Nov).

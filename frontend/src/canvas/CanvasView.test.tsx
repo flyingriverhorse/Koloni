@@ -455,6 +455,56 @@ test('a discussion picked lights who took part; pointed at, it fades nothing', a
   expect([faded('agent:d'), faded('agent:rev'), faded('discussion:t')]).toEqual([false, false, false])
 })
 
+test('a room picked lights who is in it, as a discussion does', async () => {
+  const room = { id: 'o', run_id: 'd', agent_id: 'd', goal: 'Build it together', status: 'working', outcome: null, why: null, members: ['rev'].map(agent_id => ({ agent_id, role: 'Reviewer', status: 'in' })) }
+  const conv = convState({
+    runs: [run('d')],
+    messages: [userMessage('d', 'work together')],
+    agents: [agent('d'), agent('d', 'completed', { id: 'rev', parent_agent_id: 'd', role_name: 'Reviewer', depth: 1 }), agent('d', 'completed', { id: 'res', parent_agent_id: 'd', role_name: 'Researcher', depth: 1 })],
+    rooms: [room] as unknown as ConvState['rooms'],
+  })
+  const faded = (id: string) => node(id)!.classList.contains('canvas-faded')
+  render(<CanvasView state={conv} onSelect={() => {}} selectedId="room:o" />)
+  await waitFor(() => expect(faded('agent:res')).toBe(true))
+  expect([faded('agent:rev'), faded('room:o')]).toEqual([false, false])
+})
+
+/** A line's last two corners as drawn: where it comes into its card from. */
+const lastLeg = (id: string) => {
+  const d = document.querySelector(`.react-flow__edge[data-id="${id}"] .react-flow__edge-path`)?.getAttribute('d') ?? ''
+  return [...d.matchAll(/(-?[\d.]+)[ ,](-?[\d.]+)/g)].map(m => [Number(m[1]), Number(m[2])]).slice(-2)
+}
+
+test('option A (the user’s, 21 Nov): with no team, members stacked under their discussion join one line at its right and come in there, arrowed, in their own colour', async () => {
+  // (The screenshot: the Discussion over Coder and Reviewer in one column, their dotted lines out of their right dots and
+  // back behind the cards into its left one.)
+  const { measure, stage } = laidOut()
+  const at = '2026-10-05T10:00:00Z'
+  const sub = (id: string, role: string) => agent('d', 'completed', { id, parent_agent_id: 'd', role_name: role, depth: 1 })
+  const conv = convState({
+    runs: [run('d')],
+    messages: [userMessage('d', 'talk it over')],
+    agents: [agent('d'), sub('rev', 'Reviewer'), sub('res', 'Researcher')],
+    discussions: [{ id: 't', run_id: 'd', agent_id: 'd', tool_call_id: 'x', topic: 'Keep hi?', status: 'ended', outcome: 'agreed', round: 1, max_rounds: 3, created_at: at, ended_at: at, members: ['rev', 'res', 'd'].map(agent_id => ({ agent_id, status: 'in' as const, opened_here: true })) }] as unknown as ConvState['discussions'],
+  })
+  render(<CanvasView state={conv} onSelect={() => {}} selectedId={null} />)
+  await waitFor(() => expect(node('agent:res')).not.toBeNull())
+  measure()
+  stage(1200)
+  await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="agent:res>discussion:t"]')).not.toBeNull())
+  for (const id of ['agent:rev>discussion:t', 'agent:res>discussion:t']) {
+    expect(look(id).slice(0, 3)).toEqual(['react-flow__edge react-flow__edge-lane nopan selectable', 'stroke: var(--member-line); stroke-width: 1.5; stroke-dasharray: 2 5;', true])
+    // In from the right: its last leg runs leftward into the card.
+    const [[x1], [x2]] = lastLeg(id)
+    expect(x1, id).toBeGreaterThan(x2)
+  }
+  // The Orchestrator's own line into it, from the column before, as it was - in the members' colour; its lines to them grey.
+  expect(look('agent:d>discussion:t').slice(0, 3)).toEqual(['react-flow__edge react-flow__edge-default nopan selectable', 'stroke: var(--member-line); stroke-width: 1.5; stroke-dasharray: 2 5;', false])
+  const [[o1], [o2]] = lastLeg('agent:d>discussion:t')
+  expect(o1).toBeLessThan(o2)
+  expect(look('agent:d>agent:rev')[1]).toBe('stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 6 5;')
+})
+
 test('the user’s (4 Nov): a step’s earlier round is one line that opens in place; a chip picks its agent and opens its window, as its card does', async () => {
   const step = (id: string, name: string, now: boolean, group = false) => ({ id, name, state: now ? ('now' as const) : ('next' as const), round: 0, room: false, own_check: false, left_out: [], group })
   const ids = ['coder', 'rev', 'coder2', 'rev2']
@@ -524,13 +574,16 @@ test('a line says what it is: a spawn dashed, in the accent at work; findings an
     expect(look('agent:r>agent:v')).toEqual(['react-flow__edge react-flow__edge-default nopan selectable', 'stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 6 5;', false, '1 message in fill: var(--muted); font-size: var(--text-kicker);'])
     // (The Coder it was handed to is at work on it.)
     expect(look('findings:f1')).toEqual(['react-flow__edge react-flow__edge-default edge-findings nopan animated selectable', 'stroke: var(--warn); stroke-width: 2; stroke-dasharray: 8 3;', false, '1 finding in fill: var(--warn); font-size: var(--text-kicker);'])
-    expect(look('waits:agent:w>agent:c')).toEqual(['react-flow__edge react-flow__edge-default edge-waits nopan selectable', 'stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 3 4;', false, null])
+    // (The Tester waits for the Coder two cards up its column: round their right, arrowed into the Coder's side.)
+    expect(look('waits:agent:w>agent:c')).toEqual(['react-flow__edge react-flow__edge-lane edge-waits nopan selectable', 'stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 3 4;', true, null])
+    const [[x1], [x2]] = lastLeg('waits:agent:w>agent:c')
+    expect(x1).toBeGreaterThan(x2)
     expect(look('handed:attachment:f>agent:c')).toEqual(['react-flow__edge react-flow__edge-default edge-handed nopan selectable', 'stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4;', false, null])
     // The Reviewer picked: its lines lit and thick, the rest faded - its nodes too.
     rerender(<CanvasView state={conv} selectedId="agent:v" onSelect={() => {}} />)
     await waitFor(() => expect(look('findings:f1')[0]).toContain('edge-lit'))
     expect(look('findings:f1').slice(0, 2)).toEqual(['react-flow__edge react-flow__edge-default edge-findings edge-lit nopan animated selectable', 'stroke: var(--warn); stroke-width: 3; stroke-dasharray: 8 3;'])
-    expect(look('waits:agent:w>agent:c')[0]).toBe('react-flow__edge react-flow__edge-default edge-waits edge-faded nopan selectable')
+    expect(look('waits:agent:w>agent:c')[0]).toBe('react-flow__edge react-flow__edge-lane edge-waits edge-faded nopan selectable')
     expect(['agent:r', 'agent:v', 'agent:c', 'agent:w'].map(id => node(id)?.classList.contains('canvas-faded'))).toEqual([false, false, false, true])
   } finally {
     Reflect.deleteProperty(SVGElement.prototype, 'getBBox')

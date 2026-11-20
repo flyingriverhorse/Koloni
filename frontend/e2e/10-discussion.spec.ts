@@ -31,6 +31,19 @@ test('agents discuss in a shared place, and you can speak in it', async ({ page 
   await expect(node).toHaveCount(1)
   await expect(node).toContainText('Should the greeting stay hi?')
   await expect(page.locator('.react-flow__node-agent')).toHaveCount(3)
+  // The user's option A (21 Nov): the two under it in its column join it round their right, into its side - no line
+  // doubles back behind the cards to its left.
+  const behind = () =>
+    page.locator('.react-flow__edges').evaluate(() => {
+      const place = document.querySelector('.react-flow__node-discussion')!.getBoundingClientRect()
+      const stacked = [...document.querySelectorAll('.react-flow__edge')].flatMap(edge => {
+        const [source, target] = (edge.getAttribute('data-id') ?? '').split('>')
+        const card = document.querySelector(`.react-flow__node[data-id="${source}"]`)?.getBoundingClientRect()
+        return target?.startsWith('discussion:') && card && Math.abs(card.x - place.x) < 1 ? [edge] : []
+      })
+      return { stacked: stacked.length, behind: stacked.filter(edge => edge.querySelector('path')!.getBoundingClientRect().left < place.right - 1).length }
+    })
+  await expect.poll(behind).toEqual({ stacked: 2, behind: 0 })
 
   // In the chat it is one row; what the lead said in the discussion is not chat.
   await expect(chat.getByRole('button', { name: /Discussion.*Should the greeting stay hi\?/ })).toContainText('3 agents')

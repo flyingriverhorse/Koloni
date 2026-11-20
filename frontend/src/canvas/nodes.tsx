@@ -16,7 +16,9 @@ type Tone = 'idle' | 'running' | 'approval'
 
 /**
  * Where lines leave and come in at a node's top and foot: in a team's frame between two of a column, a findings arc, and
- * a line across to another frame (K-canvas-dili), an approved plan down to its Lead. Only the line shows.
+ * a line across to another frame (K-canvas-dili), an approved plan down to its Lead. And at its right side, a line from
+ * one under or over it in its column (the user's option A, 21 Nov). Only the line shows. (After the left dot: a line
+ * that names none still comes in on the left.)
  */
 const Ends = () => (
   <>
@@ -26,8 +28,13 @@ const Ends = () => (
     <Handle type="target" id="up-in" position={Position.Bottom} isConnectable={false} className="found-handle" />
     <Handle type="source" id="plan-out" position={Position.Bottom} isConnectable={false} className="found-handle" />
     <Handle type="target" id="plan-in" position={Position.Top} isConnectable={false} className="found-handle" />
+    <Handle type="target" id="side-in" position={Position.Right} isConnectable={false} className="found-handle" />
   </>
 )
+
+/** Which of a card's two dots no line ever uses: hidden, the Handle kept (a line that names none still finds it). */
+type Unused = 'in' | 'out' | 'both'
+const hiddenIf = (unused: Unused | undefined, side: 'in' | 'out') => (unused === side || unused === 'both' ? 'found-handle' : undefined)
 
 interface CardProps {
   icon: ReactNode
@@ -35,20 +42,21 @@ interface CardProps {
   label?: string
   tone?: Tone
   selected?: boolean
+  unused?: Unused
   children: ReactNode
 }
 
-function Card({ icon, title, label, tone = 'idle', selected, children }: CardProps) {
+function Card({ icon, title, label, tone = 'idle', selected, unused, children }: CardProps) {
   return (
     <div className={`node node-${tone}${selected ? ' node-selected' : ''}`}>
-      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <Handle type="target" position={Position.Left} isConnectable={false} className={hiddenIf(unused, 'in')} />
       <div className="node-head">
         <span className="node-icon">{icon}</span>
         <span className="node-title">{title}</span>
         {label && <span className="node-label mono">{label}</span>}
       </div>
       <div className="node-body">{children}</div>
-      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Handle type="source" position={Position.Right} isConnectable={false} className={hiddenIf(unused, 'out')} />
       <Ends />
     </div>
   )
@@ -131,6 +139,8 @@ export function DiscussionNode({ data, selected }: NodeProps<Node<DiscussionData
       label={data.line}
       tone={data.running ? 'running' : 'idle'}
       selected={selected}
+      // (No line starts at a discussion or a room.)
+      unused="out"
     >
       <div className="node-line">{data.topic}</div>
       {/* Whose turn it is, or who takes part: the last things said are in the side panel (the user's, 5 Nov). */}
@@ -156,6 +166,7 @@ export function RoomNode({ data, selected }: NodeProps<Node<RoomData & Record<st
       label={data.line}
       tone={data.attention ? 'approval' : data.running ? 'running' : 'idle'}
       selected={selected}
+      unused="out"
     >
       <div className="node-line">{data.goal}</div>
       {data.attention ? (
