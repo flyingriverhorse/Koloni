@@ -264,22 +264,61 @@ export function AwayStatus({ away, onOpen }: { away: Away | null; onOpen: () => 
   )
 }
 
+/** The line under a job's title, as it stands. */
+const lineOf = (away: Away, job: AwayJob) =>
+  job.state === 'done'
+    ? [doneSaid(job), amount(job.spent, away.currency)].filter(Boolean).join(' · ')
+    : job.state === 'next'
+      ? 'Not started'
+      : // (Live: a command it waits for was said twice - as its why, and on its Allow line.)
+        job.asks.some(one => one.kind && one.text === job.why)
+        ? null
+        : job.why
+
 /** One job of a night, with what you can do about it as it stands. */
 export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen: (cid: string) => void }) {
   const { busy, error, ask } = useAsk()
   const store = useApp.getState
   const chat = job.conversation_id
-  const line =
-    job.state === 'done'
-      ? [doneSaid(job), amount(job.spent, away.currency)].filter(Boolean).join(' · ')
-      : job.state === 'next'
-        ? 'Not started'
-        : // (Live: a command it waits for was said twice - as its why, and on its Allow line.)
-          job.asks.some(one => one.kind && one.text === job.why)
-          ? null
-          : job.why
+  const line = lineOf(away, job)
   // B-122: a job that changed nothing is not "done" as one with work to take in is.
   const word = unchanged(job) ? 'Done, nothing changed' : STATE_WORD[job.state]
+  /** What you can do about it: answer what it asks, Take in, Try again, open its chat. */
+  const actions = () => (
+    <div className="memory-actions">
+      {job.state === 'waits' &&
+        job.asks
+          .filter(one => one.kind)
+          .map(one => (
+            <span key={one.id} className="away-ask">
+              <span className="mono">{one.text}</span>
+              <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask(() => store().answerAsk(one, true))}>
+                Allow and go on
+              </button>
+              <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => store().answerAsk(one, false))}>
+                Refuse
+              </button>
+            </span>
+          ))}
+      {/* (One that needs the project itself waits with its copy: Take in it as it is, then do the rest there.) */}
+      {(job.state === 'done' || job.state === 'waits') && job.kept.length > 0 && (
+        // (Not taken - a line that clashes with the project's, say: its chat's card of the kept copy decides it.)
+        <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask(() => store().takeIn(job.kept)).then(done => done || !chat || onOpen(chat))}>
+          Take in
+        </button>
+      )}
+      {(job.state === 'failed' || job.state === 'stopped') && away.status === 'ended' && job.task_id && (
+        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => store().awayDo(away.id, `jobs/${job.task_id}/again`))}>
+          Try again
+        </button>
+      )}
+      {chat && (
+        <button type="button" className="btn btn-small" onClick={() => onOpen(chat)}>
+          {job.state === 'done' && job.kept.length ? 'See the changes' : 'Open its chat'}
+        </button>
+      )}
+    </div>
+  )
   return (
     <li className={`away-job away-${job.state}`} aria-label={`${job.title}: ${word}`}>
       <span className="away-mark" aria-hidden="true">
@@ -297,39 +336,7 @@ export function JobRow({ away, job, onOpen }: { away: Away; job: AwayJob; onOpen
         {job.shared.length > 0 && (
           <div className="away-shared">Another job changed {job.shared.join(', ')} too: the two are joined line by line when you take both in.</div>
         )}
-        <div className="memory-actions">
-          {job.state === 'waits' &&
-            job.asks
-              .filter(one => one.kind)
-              .map(one => (
-                <span key={one.id} className="away-ask">
-                  <span className="mono">{one.text}</span>
-                  <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask(() => store().answerAsk(one, true))}>
-                    Allow and go on
-                  </button>
-                  <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => store().answerAsk(one, false))}>
-                    Refuse
-                  </button>
-                </span>
-              ))}
-          {/* (One that needs the project itself waits with its copy: Take in it as it is, then do the rest there.) */}
-          {(job.state === 'done' || job.state === 'waits') && job.kept.length > 0 && (
-            // (Not taken - a line that clashes with the project's, say: its chat's card of the kept copy decides it.)
-            <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask(() => store().takeIn(job.kept)).then(done => done || !chat || onOpen(chat))}>
-              Take in
-            </button>
-          )}
-          {(job.state === 'failed' || job.state === 'stopped') && away.status === 'ended' && job.task_id && (
-            <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => store().awayDo(away.id, `jobs/${job.task_id}/again`))}>
-              Try again
-            </button>
-          )}
-          {chat && (
-            <button type="button" className="btn btn-small" onClick={() => onOpen(chat)}>
-              {job.state === 'done' && job.kept.length ? 'See the changes' : 'Open its chat'}
-            </button>
-          )}
-        </div>
+        {actions()}
         {error && (
           <div role="alert" className="alert">
             {error}
