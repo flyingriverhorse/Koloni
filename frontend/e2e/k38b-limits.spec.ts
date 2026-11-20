@@ -24,8 +24,8 @@ for (const [width, height] of [
   [1440, 900],
 ] as const) {
   // At 1024 the chat's column (0.1.4) and the inspector leave about 224px of the stage: no room for the window beside
-  // the column (it lies over the chat, in front: move.ts placeWindow's shortcut), nor for Workspace as well - beside
-  // the column it would lie over the Lead's card. So Workspace is opened at 1440 only.
+  // the column (it lies over the chat, in front: move.ts placeWindow's shortcut); with Workspace beside the column as
+  // well, none for the turn - its Lead's card can no longer be double-clicked. So Workspace is opened at 1440 only.
   const roomy = width > 1024
   for (const theme of ['light', 'dark'] as const) {
     test(`K-38b-sinirlar ${width}x${height} (${theme}): an agent's window opens ${roomy ? 'off the chat, not over Workspace' : 'in front, off the message box'}, and counts what came new`, async ({ page }) => {
