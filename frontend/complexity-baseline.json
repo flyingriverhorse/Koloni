@@ -20,7 +20,6 @@
   "src/knowledge/KnowledgeParts.tsx::Sources": 33,
   "src/memory/Find.tsx::Find": 27,
   "src/memory/MemoryPage.tsx::MemoryPage": 36,
-  "src/models/ModelPicker.tsx::ModelPicker": 46,
   "src/models/ModelsPage.tsx::ModelsPage": 36,
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
   "src/shell/FolderButton.tsx::FolderButton": 25,
