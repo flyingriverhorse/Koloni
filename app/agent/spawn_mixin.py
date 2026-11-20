@@ -2151,7 +2151,7 @@ class SpawnMixin:
         if not_to_be_had:
             raise ToolError(not_to_be_had)
 
-    async def _see_through(  # noqa: C901
+    async def _see_through(
         self: "AgentRunner", ctx: Ctx, child: Ctx, asks: bool, declined: str,
         started: Callable[[], None] | None = None,
     ) -> tuple[str, str]:
@@ -2172,30 +2172,13 @@ class SpawnMixin:
         loop in its working copy, writes there unasked: a file the sub-agent holds can change
         under it (said to the holder: `_changed_under`); KOLONİ's own write tools are refused
         it (`HELD_BELOW`). Hold such an opener's own writes too if that is seen."""
-        told = None
-        if self._opening:
-            with self._factory() as session:
-                told = self._opening.get(session.scalar(
-                    select(Agent.tool_call_id).where(Agent.id == child.agent_id)) or "")
-            if told is not None and getattr(ctx.model, "native", False) and getattr(
-                    child.model, "native", False) and (
-                    await self._native_place(child) == await self._native_place(ctx)):
-                told = None
+        told = await self._see_through_told(ctx, child)
         if told is not None:
             self._went_on.add(child.agent_id)
         if asks:
-            if told is not None:
-                told.set_result(SPAWN_PROPOSED.format(name=child.name))
-            decision, lead_why = await self._spawn_word(ctx, child, went_on=told is not None)
-            if decision == "reject":
-                # On record at once; the opener then takes its place again to go on.
-                # (B-386: a coordinator taken up from its room ran there - it stays counted.)
-                self._set_agent(ctx.cid, child.agent_id, ended_at=now(), status="completed" if (
-                    child.agent_id in self._taken_up) else "rejected")
-                await self._settle(ctx)
-                if lead_why:
-                    declined = LEAD_DECLINED.format(why=lead_why[0])
-                return "denied", declined + await self._declined(ctx, child)
+            denied = await self._see_through_no(ctx, child, told, declined)
+            if denied is not None:
+                return denied
 
         if started is not None:
             started()
@@ -2207,31 +2190,12 @@ class SpawnMixin:
             # opener that goes on is refused a file its sub-agent holds: `_claim`.)
             self.claims.awaiting(ctx.agent_id, child.agent_id)
             try:
-                async def run_it() -> tuple[str, str | None]:
-                    async with self._working(child, queued=True):
-                        self._set_agent(
-                            ctx.cid, child.agent_id, status="running", started_at=now()
-                        )
-                        if why := await self._candidate_copy(child):
-                            return "failed", why
-                        try:
-                            ended, error = await self._run_child(child)
-                        except asyncio.CancelledError:
-                            # B-405: Stop (the turn's, Stop everything's) in its work in a copy.
-                            await self._through_any_stop(child.run_id, self._stopped_in_copy(child))
-                            raise
-                        if ended == "completed" and child.agent_id in self._candidates:
-                            # K-evrim: measured as its last act, its place still held - a card
-                            # for the command waits as for any command of its own.
-                            self._scored[child.agent_id] = await self._measure(child)
-                        return ended, error
-
-                status, error = await run_it()
+                status, error = await self._see_through_run(ctx, child)
                 moved = ""
                 if status == "failed" and (
                         went := await self._moved_on(ctx, child, went_on=told is not None)):
                     child, moved = went[0], "\n\n" + went[1]
-                    status, error = await run_it()
+                    status, error = await self._see_through_run(ctx, child)
                 report = self._last_text(child.agent_id, final_only=status == "completed")
                 # (Only those are told the format, `FINDINGS_PROMPT`.)
                 found = self._found(child, report) if status == "completed" else None
@@ -2274,16 +2238,85 @@ class SpawnMixin:
             did = ledger.did(session, child.agent_id, handoff.counted_on(child.model))
         counted += f"\n\n{did}" if did else ""
         if status == "completed":
-            said = (report or "(it ended without a report)") + counted
-            if left_out:
-                said += f"\n\n{left_out}"
-            self._channel(ctx, child.agent_id, ctx.agent_id, "report", said)
-            if ANSWERED.search(report or ""):  # (a fixer's answers: its disputes, none too)
-                self._disputed[ctx.run_id] = [
-                    f"- {line.strip()[:MAX_WHAT]}" for line in DISPUTED.findall(report or "")]
-            # (A recipe's review's go where its row says - to its step's roles: B-117.)
-            on = "" if child.agent_id in self._reviews else _hand_on(found)
-            return "succeeded", f"{child.name} finished.\n\n{said}{on}{looked}"
+            return self._see_through_finished(ctx, child, report, counted, left_out, found, looked)
+        return self._see_through_failed(ctx, child, error, report, counted, left_out, looked)
+
+    async def _see_through_told(self: "AgentRunner", ctx: Ctx,
+                                child: Ctx) -> asyncio.Future | None:
+        """`_see_through`: the answer a CLI's call over MCP waits for (`_run_from_cli`) where
+        its opener goes on - None where it waits as before."""
+        told = None
+        if self._opening:
+            with self._factory() as session:
+                told = self._opening.get(session.scalar(
+                    select(Agent.tool_call_id).where(Agent.id == child.agent_id)) or "")
+            if told is not None and getattr(ctx.model, "native", False) and getattr(
+                    child.model, "native", False) and (
+                    await self._native_place(child) == await self._native_place(ctx)):
+                told = None
+        return told
+
+    async def _see_through_no(self: "AgentRunner", ctx: Ctx, child: Ctx,
+                              told: asyncio.Future | None,
+                              declined: str) -> tuple[str, str] | None:
+        """`_see_through`'s card: the user's word on the sub-agent - None for a yes, else what
+        its opener is told of their no."""
+        if told is not None:
+            told.set_result(SPAWN_PROPOSED.format(name=child.name))
+        decision, lead_why = await self._spawn_word(ctx, child, went_on=told is not None)
+        if decision == "reject":
+            # On record at once; the opener then takes its place again to go on.
+            # (B-386: a coordinator taken up from its room ran there - it stays counted.)
+            self._set_agent(ctx.cid, child.agent_id, ended_at=now(), status="completed" if (
+                child.agent_id in self._taken_up) else "rejected")
+            await self._settle(ctx)
+            if lead_why:
+                declined = LEAD_DECLINED.format(why=lead_why[0])
+            return "denied", declined + await self._declined(ctx, child)
+        return None
+
+    async def _see_through_run(self: "AgentRunner", ctx: Ctx,
+                               child: Ctx) -> tuple[str, str | None]:
+        """`_see_through`: the sub-agent's work, in its place among the agents at work."""
+        async with self._working(child, queued=True):
+            self._set_agent(
+                ctx.cid, child.agent_id, status="running", started_at=now()
+            )
+            if why := await self._candidate_copy(child):
+                return "failed", why
+            try:
+                ended, error = await self._run_child(child)
+            except asyncio.CancelledError:
+                # B-405: Stop (the turn's, Stop everything's) in its work in a copy.
+                await self._through_any_stop(child.run_id, self._stopped_in_copy(child))
+                raise
+            if ended == "completed" and child.agent_id in self._candidates:
+                # K-evrim: measured as its last act, its place still held - a card
+                # for the command waits as for any command of its own.
+                self._scored[child.agent_id] = await self._measure(child)
+            return ended, error
+
+    def _see_through_finished(
+        self: "AgentRunner", ctx: Ctx, child: Ctx, report: str, counted: str,
+        left_out: str | None, found: list[dict] | None, looked: str,
+    ) -> tuple[str, str]:
+        """`_see_through`'s result for a sub-agent that finished: its report, to its opener."""
+        said = (report or "(it ended without a report)") + counted
+        if left_out:
+            said += f"\n\n{left_out}"
+        self._channel(ctx, child.agent_id, ctx.agent_id, "report", said)
+        if ANSWERED.search(report or ""):  # (a fixer's answers: its disputes, none too)
+            self._disputed[ctx.run_id] = [
+                f"- {line.strip()[:MAX_WHAT]}" for line in DISPUTED.findall(report or "")]
+        # (A recipe's review's go where its row says - to its step's roles: B-117.)
+        on = "" if child.agent_id in self._reviews else _hand_on(found)
+        return "succeeded", f"{child.name} finished.\n\n{said}{on}{looked}"
+
+    def _see_through_failed(
+        self: "AgentRunner", ctx: Ctx, child: Ctx, error: str | None, report: str, counted: str,
+        left_out: str | None, looked: str,
+    ) -> tuple[str, str]:
+        """`_see_through`'s result for a sub-agent that did not finish: why, to its opener."""
         # B-373: a halt of KOLONİ's own (`_halt`) is no failure: no try-again advice follows.
         halted = self._halt_why.get(child.agent_id, TEAM_STOPPED) if (
             child.agent_id in self._halted) else None
