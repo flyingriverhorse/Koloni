@@ -460,3 +460,20 @@ test('the Assistant PO stands under all of its turn, in its Lead’s column, and
   expect(pos['po:a']).toEqual({ x: FIRST, y: 2 * row })
   expect(pos['request:b']).toEqual({ x: 0, y: 3 * row })
 })
+
+test('21 Nov: a compare turn’s second Everyone card stands beside its own Orchestrator, as the first does', () => {
+  // (Its card keeps its own run's id: it was laid out as an agent's card, one column further right on a long line.)
+  const state = convState({
+    runs: [run('s1', 'completed', { compare_id: 'cmp' }), run('s2', 'completed', { compare_id: 'cmp' })],
+    messages: [userMessage('s1', 'compare it'), { ...userMessage('s2', 'compare it'), id: 'm-s2' }],
+    agents: [agent('s1', 'completed'), agent('s2', 'completed')],
+  })
+  const g = foldGraph(oneTurn(deriveGraph(state, [], [{ path: 'notes.md', at: '2026-10-05T10:00:00Z' }]), 's1'), {})
+  expect(g.nodes.filter(n => n.kind === 'shared').map(n => n.id)).toEqual(['shared:s1:top', 'shared:s2:top'])
+  const { positions: pos, lines } = layoutGraph(g.nodes, g.edges)
+  for (const side of ['s1', 's2']) {
+    expect(pos[`shared:${side}:top`], side).toEqual({ x: pos[`agent:${side}`].x + NODE_W + COL_GAP, y: pos[`agent:${side}`].y })
+    expect(lines[`shared:shared:${side}:top`], side).toBeDefined()
+  }
+  expectSound(g.nodes)
+})

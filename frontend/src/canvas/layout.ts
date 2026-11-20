@@ -163,10 +163,10 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
       const arcs = edges.filter(e => team && arced(e) && byId.get(e.source)?.team === team && byId.get(e.target)?.team === team).length
       return arcs ? ARC_ROOM + (arcs - 1) * ARC_STEP : 0
     }
-    // Everyone's card - the Lead's, contracts/, decisions/, or only the way to all the shared files: beside the Lead,
-    // level with it, on a short line from it; what hangs off the Lead starts under it.
-    const everyone = own.find(n => n.kind === 'shared' && n.id === `shared:${runId}:top`)
-    const head = (team: string) => TEAM_HEAD + Math.max(arcOf(team), columnsOf(team).some(column => column.atOnce) ? AT_ONCE_HEAD : 0)
+    // Everyone's card: beside the Lead - each side's, in a compare turn -, level with it, on a short line from it; what
+    // hangs off the Lead starts under it.
+    const everyone = everyoneCards(own, edges, roots, runId)
+    const head =(team: string) => TEAM_HEAD + Math.max(arcOf(team), columnsOf(team).some(column => column.atOnce) ? AT_ONCE_HEAD : 0)
     const foot = (team: string) => TEAM_PAD + TEAM_FOOT + arcOf(team)
 
     /** A frame laid out by its work line: a column for each of its steps, left to right; returns the height used. */
@@ -200,7 +200,10 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     }
 
     /** The room everyone's card takes under the Lead's box, beside which it stands; none under any other. */
-    const underEveryone = (agent: GraphNode) => (everyone && agent === roots[0] ? blockSize(everyone.data as SharedData).height + ROW_GAP : 0)
+    const underEveryone = (agent: GraphNode) => {
+      const card = everyone.find(([lead]) => lead === agent)?.[1]
+      return card ? blockSize(card.data as SharedData).height + ROW_GAP : 0
+    }
     /** The room between `before` and a child not of its team: the foot of the frame that ends, the header of the one that starts. */
     const frameRoom = (before: GraphNode | null, child: GraphNode) => (before?.team ? foot(before.team) + (child.team ? FRAME_GAP : 0) : 0) + (child.team ? head(child.team) : 0)
     /** A child laid out - with its frame, where that is laid out by its work line; returns the height used. */
@@ -274,7 +277,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // the first height in its box that crosses no box. A contract's on an arm from its request's line, low in the gap.
     // Each card, where it would lie on a box or another card, moves right past it.
     // shortcut: a line that would still cross a box is not drawn (the card stays); route it round if that is met.
-    used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, roots[0], everyone, used)
+    used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, everyone, used)
     used = besideTurn(own, talks, lane, top, used, positions, sizes)
     used += poUnder(own, top + used, positions)
     const under = filesUnder(own, runId, top, positions, box)
@@ -313,8 +316,25 @@ interface Cards extends Placing {
   draw: (id: string, line: Line, ...but: string[]) => void
 }
 
-/** The turn's cards placed (`lead`: its first agent; `everyone`: everyone's card); returns the height the turn uses, from `used`. */
-function sharedCards(placing: Placing, lead: GraphNode | undefined, everyone: GraphNode | undefined, used: number): number {
+/**
+ * Everyone's card - the Lead's, contracts/, decisions/, or only the way to all the shared files - with the Lead it stands
+ * beside (of `roots`; none: no agent is drawn). A compare turn has one for each side's Lead (21 Nov): found by its line,
+ * as it keeps its own run's id.
+ */
+function everyoneCards(own: GraphNode[], edges: GraphEdge[], roots: GraphNode[], runId: string): [GraphNode | undefined, GraphNode][] {
+  const first = own.find(n => n.kind === 'shared' && n.id === `shared:${runId}:top`)
+  if (!roots.length) return first ? [[undefined, first]] : []
+  const lineTo = (root: GraphNode) => own.find(n => n.kind === 'shared' && n.id.endsWith(':top') && edges.some(e => e.shared && e.source === root.id && e.target === n.id))
+  const pairs: [GraphNode, GraphNode][] = []
+  for (const root of roots) {
+    const card = lineTo(root) ?? (root === roots[0] ? first : undefined)
+    if (card) pairs.push([root, card])
+  }
+  return pairs
+}
+
+/** The turn's cards placed (`everyone`: everyone's cards, each with its Lead); returns the height the turn uses, from `used`. */
+function sharedCards(placing: Placing, everyone: [GraphNode | undefined, GraphNode][], used: number): number {
   const { own, edges, positions, sizes, lines, byId, top } = placing
   const cards = own.filter(n => n.kind === 'shared')
   if (!cards.length) return used
@@ -337,9 +357,9 @@ function sharedCards(placing: Placing, lead: GraphNode | undefined, everyone: Gr
     if (!crosses(line, [...boxesBut(...but), ...taken.slice(0, -1)])) lines[id] = line
   }
   const laying: Cards = { ...placing, taken, rectOf, boxesBut, put, lineOf, draw }
-  if (everyone) everyoneCard(laying, everyone, lead)
+  for (const [lead, card] of everyone) everyoneCard(laying, card, lead)
   const fromOf = (card: GraphNode) => byId.get(lineOf(card)?.source ?? '')
-  const others = cards.filter(card => card !== everyone).sort((a, b) => (positions[fromOf(a)?.id ?? '']?.y ?? Infinity) - (positions[fromOf(b)?.id ?? '']?.y ?? Infinity))
+  const others = cards.filter(card => !everyone.some(([, one]) => one === card)).sort((a, b) => (positions[fromOf(a)?.id ?? '']?.y ?? Infinity) - (positions[fromOf(b)?.id ?? '']?.y ?? Infinity))
   const arm = (card: GraphNode) => Boolean(lineOf(card)?.shared?.arm)
   for (const card of others.filter(card => !arm(card) && fromOf(card)?.kind === 'team')) {
     const line = lineOf(card)!
