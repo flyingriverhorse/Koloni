@@ -3349,7 +3349,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         for payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, "file_change.updated", payload)
 
-    async def _merge(  # noqa: C901
+    async def _merge(
         self, ctx: Ctx, copy: copies.Copy, status: str, ended: Callable[[], None],
         asked: bool = False,
     ) -> str:
@@ -3384,24 +3384,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             conversation = session.get_one(Conversation, ctx.cid)
             mode = conversation.permission_mode
             command = session.get_one(Project, conversation.project_id).check_command
-        refused = None
-        if not watched:
-            # The trigger's own leave, read now: what was taken back since is gone.
-            refused = None if status == "completed" else NOT_FINISHED
-            refused = refused or self._nobody_to_ask(ctx, "write", "change files")
-        # (`asked`: the user said yes already, on a recipe's "Ready for you".)
-        unasked = status == "completed" and (
-            (asked or mode != "ask") if watched else not refused)
-        check, by_itself = None, False
-        if command:
-            check = {"command": command, "state": "not_run", "exit_code": None, "output": None}
-            # B-355: watched, it runs by itself at every level before the card - the user's own
-            # command, in the copy - and the card shows what it said.
-            by_itself = watched or unasked and self._nobody_to_ask(
-                ctx, "command", f"run {quoted(command)}", command=command
-            ) == ""
-            if not watched and unasked and not by_itself:
-                check["note"] = CHECK_NOT_ALLOWED  # taken as before, and said so
+        refused, unasked = self._merge_leave(ctx, status, asked, watched, mode)
+        check, by_itself = self._merge_check(ctx, command, watched, unasked)
         files: dict[str, dict] = {}
         merge_id = None
         while True:
@@ -3409,59 +3393,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if merge_id is None and not files and not fault:
                 return ""
             if check and by_itself and merge_id is None and not fault and as_shown(files):
-                clash = unchosen(list(files.values()), {})
-                if not clash:  # (nobody watches: its trigger's leave for this very command)
-                    await self._check(ctx, copy, files, check, {}, None, leave=not watched)
-                # K-buyuk-proje: run without the other parts, on a root file they all read.
-                partial = _root_changed(copy, files)
-                if not watched and partial and not clash and check["state"] == "passed":
-                    why = CHECK_WITHOUT_PARTS.format(part=copy.part)
-                    self._record_merge(ctx, None, "pending", files, check)
-                    self._keep_copy(ctx.agent_id, why)
-                    return KEPT.format(name=ctx.name, why=why, folder=copy.root)
-                if not watched and (clash or check["state"] != "passed"):
-                    # Nobody is asked, and nothing is taken that was not checked: the
-                    # copy stays, with what the check said, for the user to decide.
-                    self._record_merge(ctx, None, "pending", files, check)
-                    if clash:
-                        self._keep_copy(ctx.agent_id, "files of it clash with the project's")
-                        return CLASHES.format(
-                            name=ctx.name, files=", ".join(clash[:MAX_PATHS_TOLD]),
-                            folder=copy.root,
-                        )
-                    self._keep_copy(ctx.agent_id, "its check did not pass")
-                    return CHECK_FAILED.format(
-                        name=ctx.name, command=quoted(command), folder=copy.root
-                    )
-                if (watched and mode == "full_auto" and ctx.depth and not clash and not partial
-                        and check["state"] == "failed"
-                        and self._check_rounds.get(ctx.run_id, 0) < MAX_SENT_BACK):
-                    # K-fullauto-sorma: at Full auto a check that fails goes back to the Lead
-                    # first, `MAX_SENT_BACK` times a turn - as a stopped agent's work does
-                    # (B-322): the copy is kept, and the agent told to go on is in it again.
-                    self._check_rounds[ctx.run_id] = self._check_rounds.get(ctx.run_id, 0) + 1
-                    self._record_merge(ctx, None, "pending", files, check)
-                    self._keep_live(ctx.agent_id, copy, "its check did not pass")
-                    # K-model-puan 3: the last such round also names the tier above.
-                    last = self._check_rounds[ctx.run_id] >= MAX_SENT_BACK
-                    return CHECK_TO_LEAD.format(
-                        name=ctx.name, command=quoted(command), rounds=MAX_SENT_BACK,
-                        output="\n".join((check["output"] or "").splitlines()[-TESTS_TAIL_LINES:])
-                    ) + (self._one_tier_up(ctx, after_check=True) if last else "")
-                unasked = unasked and not clash and check["state"] == "passed" and not partial
+                said, passed = await self._checked_first(
+                    ctx, copy, files, check, command, watched, mode)
+                if said is not None:
+                    return said
+                unasked = unasked and passed
             if merge_id is None and unasked and not fault:
                 self._join(copy, files, {})
                 taken = self._apply(ctx, copy, files, False, unattended=not watched)
                 await self._seen_by_watchers(ctx, taken)
             left = [one for one in files.values() if one["state"] in OPEN]
             if fault and not left:
-                # Nothing of it is left to ask about, and it still cannot be looked at:
-                # a command may have made files in it that no card listed. What was
-                # taken is taken, the copy stays where it is, and the turn goes on.
-                if merge_id is not None:
-                    self._record_merge(ctx, merge_id, "pending", files, check)
-                self._keep_copy(ctx.agent_id, fault)
-                return KEPT.format(name=ctx.name, why=fault, folder=copy.root)
+                return self._unread_kept(ctx, copy, files, check, merge_id, fault)
             if not watched or not left:
                 break
             merge_id = self._record_merge(ctx, merge_id, "pending", files, check)
@@ -3496,6 +3439,101 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._join(copy, files, choices)
             taken = self._apply(ctx, copy, files, True, choices=choices)
             await self._seen_by_watchers(ctx, taken)
+        return await self._merge_over(ctx, copy, files, check, merge_id, watched, refused)
+
+    def _merge_leave(self, ctx: Ctx, status: str, asked: bool, watched: bool, mode: str
+                     ) -> tuple[str | None, bool]:
+        """Why a turn nobody watches may take nothing in (`_merge`), and whether what can be
+        taken is taken unasked."""
+        refused = None
+        if not watched:
+            # The trigger's own leave, read now: what was taken back since is gone.
+            refused = None if status == "completed" else NOT_FINISHED
+            refused = refused or self._nobody_to_ask(ctx, "write", "change files")
+        # (`asked`: the user said yes already, on a recipe's "Ready for you".)
+        unasked = status == "completed" and (
+            (asked or mode != "ask") if watched else not refused)
+        return refused, unasked
+
+    def _merge_check(self, ctx: Ctx, command: str | None, watched: bool, unasked: bool
+                     ) -> tuple[dict | None, bool]:
+        """The project's check as a merge's card has it before it ran (`_merge`; None: the
+        project has none), and whether it runs by itself."""
+        check, by_itself = None, False
+        if command:
+            check = {"command": command, "state": "not_run", "exit_code": None, "output": None}
+            # B-355: watched, it runs by itself at every level before the card - the user's own
+            # command, in the copy - and the card shows what it said.
+            by_itself = watched or unasked and self._nobody_to_ask(
+                ctx, "command", f"run {quoted(command)}", command=command
+            ) == ""
+            if not watched and unasked and not by_itself:
+                check["note"] = CHECK_NOT_ALLOWED  # taken as before, and said so
+        return check, by_itself
+
+    async def _checked_first(
+        self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict, command: str,
+        watched: bool, mode: str,
+    ) -> tuple[str | None, bool]:
+        """The project's check run by itself before anything of a copy is taken (`_merge`).
+        What the opener is told where the copy is kept on what it said - None: the merge goes
+        on - and whether the check lets what is about to be taken go in unasked."""
+        clash = unchosen(list(files.values()), {})
+        if not clash:  # (nobody watches: its trigger's leave for this very command)
+            await self._check(ctx, copy, files, check, {}, None, leave=not watched)
+        # K-buyuk-proje: run without the other parts, on a root file they all read.
+        partial = _root_changed(copy, files)
+        if not watched and partial and not clash and check["state"] == "passed":
+            why = CHECK_WITHOUT_PARTS.format(part=copy.part)
+            self._record_merge(ctx, None, "pending", files, check)
+            self._keep_copy(ctx.agent_id, why)
+            return KEPT.format(name=ctx.name, why=why, folder=copy.root), False
+        if not watched and (clash or check["state"] != "passed"):
+            # Nobody is asked, and nothing is taken that was not checked: the
+            # copy stays, with what the check said, for the user to decide.
+            self._record_merge(ctx, None, "pending", files, check)
+            if clash:
+                self._keep_copy(ctx.agent_id, "files of it clash with the project's")
+                return CLASHES.format(
+                    name=ctx.name, files=", ".join(clash[:MAX_PATHS_TOLD]),
+                    folder=copy.root,
+                ), False
+            self._keep_copy(ctx.agent_id, "its check did not pass")
+            return CHECK_FAILED.format(
+                name=ctx.name, command=quoted(command), folder=copy.root
+            ), False
+        if (watched and mode == "full_auto" and ctx.depth and not clash and not partial
+                and check["state"] == "failed"
+                and self._check_rounds.get(ctx.run_id, 0) < MAX_SENT_BACK):
+            # K-fullauto-sorma: at Full auto a check that fails goes back to the Lead
+            # first, `MAX_SENT_BACK` times a turn - as a stopped agent's work does
+            # (B-322): the copy is kept, and the agent told to go on is in it again.
+            self._check_rounds[ctx.run_id] = self._check_rounds.get(ctx.run_id, 0) + 1
+            self._record_merge(ctx, None, "pending", files, check)
+            self._keep_live(ctx.agent_id, copy, "its check did not pass")
+            # K-model-puan 3: the last such round also names the tier above.
+            last = self._check_rounds[ctx.run_id] >= MAX_SENT_BACK
+            return CHECK_TO_LEAD.format(
+                name=ctx.name, command=quoted(command), rounds=MAX_SENT_BACK,
+                output="\n".join((check["output"] or "").splitlines()[-TESTS_TAIL_LINES:])
+            ) + (self._one_tier_up(ctx, after_check=True) if last else ""), False
+        return None, not clash and check["state"] == "passed" and not partial
+
+    def _unread_kept(self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict | None,
+                     merge_id: str | None, fault: str) -> str:
+        """A copy that cannot be looked at, with nothing of it left to ask about (`_merge`)."""
+        # Nothing of it is left to ask about, and it still cannot be looked at:
+        # a command may have made files in it that no card listed. What was
+        # taken is taken, the copy stays where it is, and the turn goes on.
+        if merge_id is not None:
+            self._record_merge(ctx, merge_id, "pending", files, check)
+        self._keep_copy(ctx.agent_id, fault)
+        return KEPT.format(name=ctx.name, why=fault, folder=copy.root)
+
+    async def _merge_over(self, ctx: Ctx, copy: copies.Copy, files: dict, check: dict | None,
+                          merge_id: str | None, watched: bool, refused: str | None) -> str:
+        """A copy's way into the project is over (`_merge`), nothing of it left to ask about:
+        it is kept for what was not taken, or on record as taken or not."""
         # Refused for where it is - a path through a link or, nobody watching, one no
         # trigger allows - not for nobody being there to decide (below), nor for the
         # user having kept the project's own file.
