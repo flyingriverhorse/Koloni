@@ -6666,7 +6666,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return any(session.get_one(Agent, agent).status not in AGENT_TERMINAL
                        for agent in line)
 
-    async def _ready_for_you(self, ctx: Ctx, child: Ctx) -> str:  # noqa: C901
+    def _findings_of(self, session: Session, rows: list[tuple[Team, dict]]) -> str | None:
+        # K-r146: who left the findings a row stops on, for Fix the findings' Coder.
+        fixer = None
+        for team, state in rows:
+            if (state.get("why") or "").startswith(FINDINGS_LEFT) and FIXER in team_roles(
+                    session, team):
+                fixer = next((agent.name for agent in session.scalars(select(Agent).where(
+                    Agent.id.in_(state["agents"])).order_by(Agent.created_at.desc()))
+                    if _blocking(agent.findings)), fixer)
+        return fixer
+
+    async def _ready_for_you(self, ctx: Ctx, child: Ctx) -> str:
         """The Lead hears back from an agent, every row of the turn's recipes has come to its
         end, stopped or failed, one of them at an "in" end, and no agent works in the recipe's
         copy any more: the user is asked once for all of them (design §5, "Ready for you").
@@ -6716,14 +6727,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     ToolCall.status == "succeeded",
                     ToolCall.agent_id.in_(state["agents"])).limit(1))
                 else NOTHING_APART for team, state in apart}
-            # K-r146: who left the findings a row stops on, for Fix the findings' Coder.
-            fixer = None
-            for team, state in rows:
-                if (state.get("why") or "").startswith(FINDINGS_LEFT) and FIXER in team_roles(
-                        session, team):
-                    fixer = next((agent.name for agent in session.scalars(select(Agent).where(
-                        Agent.id.in_(state["agents"])).order_by(Agent.created_at.desc()))
-                        if _blocking(agent.findings)), fixer)
+            fixer = self._findings_of(session, rows)
         if waits or not any(s["status"] == recipe_run.READY for _t, s in rows) or any(
                 s["status"] == recipe_run.RUNNING for _t, s in rows + apart) or (
                 self._busy_in_copy(ctx)):
