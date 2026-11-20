@@ -100,10 +100,35 @@ interface Props {
   onOpenSkill?: (name: string) => void
 }
 
+/** The skills of its role an agent is not given, each with why; a name opens the skill where there is a way to. */
+function LeftOut({ agent, onOpenSkill }: Pick<Props, 'agent' | 'onOpenSkill'>) {
+  const leftOut = Object.entries(agent.skills?.left_out ?? {})
+  return (
+    leftOut.length > 0 && (
+      <div className="muted cmd-approval-note">
+        Skills:{' '}
+        {leftOut.map(([name, why], at) => (
+          <Fragment key={name}>
+            {at > 0 && ', '}
+            {onOpenSkill ? (
+              <button type="button" className="link-btn" onClick={() => onOpenSkill(name)}>
+                {name}
+              </button>
+            ) : (
+              name
+            )}{' '}
+            ({why})
+          </Fragment>
+        ))}{' '}
+        left out
+      </div>
+    )
+  )
+}
+
 /** Asks before a sub-agent starts: which role, on which model, the whole task, and what it may use. */
 export function SpawnApproval({ agent, openedBy, continuesTurn, stays, onDecide, onOpenSkill }: Props) {
   const where = ranOn(agent.provider_name, agent.model_id, agent.model_from)
-  const leftOut = Object.entries(agent.skills?.left_out ?? {})
   return (
     <DecisionCard kicker="Open this sub-agent?" approve="Open agent" onDecide={onDecide}>
       <div className="cmd-approval-where">
@@ -144,25 +169,7 @@ export function SpawnApproval({ agent, openedBy, continuesTurn, stays, onDecide,
         </div>
       )}
       {/* K-skill-uyum: what of its role's skills it does not get here, and why. */}
-      {leftOut.length > 0 && (
-        <div className="muted cmd-approval-note">
-          Skills:{' '}
-          {leftOut.map(([name, why], at) => (
-            <Fragment key={name}>
-              {at > 0 && ', '}
-              {onOpenSkill ? (
-                <button type="button" className="link-btn" onClick={() => onOpenSkill(name)}>
-                  {name}
-                </button>
-              ) : (
-                name
-              )}{' '}
-              ({why})
-            </Fragment>
-          ))}{' '}
-          left out
-        </div>
-      )}
+      <LeftOut agent={agent} onOpenSkill={onOpenSkill} />
     </DecisionCard>
   )
 }

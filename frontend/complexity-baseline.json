@@ -9,7 +9,6 @@
   "src/agents/RoleLibrary.tsx::RoleLibrary>map": 14,
   "src/agents/RolePanel.tsx::RolePanel": 29,
   "src/agents/SkillWindow.tsx::SkillBars>map": 17,
-  "src/agents/SpawnApproval.tsx::SpawnApproval": 13,
   "src/agents/teamRequests.ts::standsLine": 13,
   "src/agents/teamRun.ts::readyLine>map": 15,
   "src/agents/TeamsBoard.tsx::TeamRow": 19,
