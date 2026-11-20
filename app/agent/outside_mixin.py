@@ -491,7 +491,7 @@ class OutsideMixin:
                 return folder
         return None
 
-    async def _outside(  # noqa: C901
+    async def _outside(
         self: "AgentRunner", ctx: Ctx, call_id: str, ws: Workspace, name: str, args: dict
     ) -> Workspace:
         """Where a file tool or a command may go: the project, the folders the project
@@ -587,21 +587,27 @@ class OutsideMixin:
             return ws
         self._not_the_store(path, folder)
         if Workspace(ctx.folder).is_own(folder):
-            real = Path(os.path.realpath(ws.root / path))
-            if await self._reads_left_out(ctx, name, real):
-                # Granted this path alone, for this call; a secret's name is still refused
-                # (`Workspace.resolve`), and a key in it still asked about.
-                ws = Workspace(ws.root, ws.links, [*ws.also, real])
-                if name == "read_file" and await asyncio.to_thread(_shows_a_key, ws, path):
-                    await self._ask_outside(ctx, call_id, path, None)
-                return ws
-            # An agent in a working copy, naming a file of the project itself: what it
-            # changes goes into its copy, and is taken in from there.
-            raise ToolError(OF_THE_PROJECT.format(path=path))
+            return await self._outside_own(ctx, call_id, ws, name, path)
         await self._ask_outside(ctx, call_id, path, folder, access)
         # shortcut: "once" opens the path's whole folder for this one call - a search there
         # goes through all of it; hold it to the path alone if that is ever too much.
         return Workspace(ws.root, ws.links, [*ws.also, folder])
+
+    async def _outside_own(self: "AgentRunner", ctx: Ctx, call_id: str, ws: Workspace,
+                           name: str, path: str) -> Workspace:
+        """`_outside`, at a path of the project itself from an agent's copy: a read of what
+        the copy left out, or refused."""
+        real = Path(os.path.realpath(ws.root / path))
+        if await self._reads_left_out(ctx, name, real):
+            # Granted this path alone, for this call; a secret's name is still refused
+            # (`Workspace.resolve`), and a key in it still asked about.
+            ws = Workspace(ws.root, ws.links, [*ws.also, real])
+            if name == "read_file" and await asyncio.to_thread(_shows_a_key, ws, path):
+                await self._ask_outside(ctx, call_id, path, None)
+            return ws
+        # An agent in a working copy, naming a file of the project itself: what it
+        # changes goes into its copy, and is taken in from there.
+        raise ToolError(OF_THE_PROJECT.format(path=path))
 
     async def _reads_left_out(self: "AgentRunner", ctx: Ctx, name: str, target: Path) -> bool:
         """K-kopya-git: whether a read tool may open a place of the project itself from the
