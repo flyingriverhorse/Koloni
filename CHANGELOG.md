@@ -21,6 +21,12 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-20
+
+### Changed
+
+- **Canvas**, **Chat**: nothing you see or do changes. The page's code that draws the canvas, follows the chat's events, summarises tools, rooms, commands and triggers, and reads pasted text and attachments was split into smaller parts, each checked to behave exactly as before, so later fixes there are safer.
+
 ## [0.1.2] - 2026-11-20
 
 ### Changed
