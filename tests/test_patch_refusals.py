@@ -160,8 +160,11 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
     want = {**sent, "docker_image": "python:3.12", "search_url": "http://127.0.0.1:9/search",
             "check_command": "pytest", "measure_command": "score", "embedding_model": "embed",
             "pass_env": "A_KEY", "also_in": [str((tmp_path / "other").resolve())]}
-    assert {name: out[name] for name in want if name in out} == {
-        name: value for name, value in want.items() if name in out}
+    del want["notify_url"]  # (a secret: no answer shows it)
+    assert {name: out[name] for name in want} == want
+    # (It was kept all the same: with the desktop off, the day's summary still has where to go.)
+    assert answer(client, f"/api/projects/{pid}", {"notify_desktop": False})[0] == 200
+    assert answer(client, f"/api/projects/{pid}", {"notify_url": ""}) == DAY_NOTE
     # (What an empty text and a null take away again.)
     status, out = answer(client, f"/api/projects/{pid}", {
         "check_command": " ", "pass_env": "", "search_url": "", "embedding_model": " ",
@@ -208,6 +211,11 @@ def test_a_project_is_refused_for_the_first_rule_it_breaks(client, pid, missing,
     assert answer(client, url, {"docker_image": "", "docker_network": True}, own=False)[0] == 200
     assert answer(client, url, {**docker, "notify_url": "http://127.0.0.1:9/"}, own=False) == DOCKER
     assert answer(client, url, {**docker, **teams}) == DOCKER
+    # Where each of the rest is from is asked before it is looked at: what would be refused
+    # from the app's own page is, from anywhere else, refused for that.
+    for later in (pull, desktop, links, embeds, search, notify, day):
+        assert answer(client, url, later, own=False) == NO_ORIGIN, later
+        assert answer(client, url, {"check_command": "x", **later}, own=False) == NO_ORIGIN, later
     assert answer(client, url, teams) == (422, "unknown team")
     assert answer(client, url, {**teams, "also_in": [folder]}) == (422, "unknown team")
     assert answer(client, url, {"also_in": [folder], "read_in": ["not absolute"]}) == not_there
