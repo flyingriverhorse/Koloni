@@ -178,6 +178,13 @@ const planLine = (e: GraphEdge): Edge => ({
   style: { stroke: 'var(--border-strong)', strokeWidth: 1.5, strokeDasharray: e.po ? DASH.po : DASH.plan },
 })
 
+/** A line between two agents of a frame, not from its door: down or up its column, else across to the next one. */
+function columnLine(e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> {
+  if (stacked(s, t)) return { type: 'lane', data, ...(t.y > s.y ? { sourceHandle: 'found-out', targetHandle: 'found-in' } : { sourceHandle: 'up-out', targetHandle: 'up-in' }) }
+  // (Talk with an agent of an earlier column is drawn from that one.)
+  return { type: 'lane', data, ...(t.x < s.x && { source: e.target, target: e.source }) }
+}
+
 /** A talk line's two ends, in one order: who talked with whom, whichever spoke first. */
 const pairOf = (e: GraphEdge) => [e.source, e.target].sort().join('|')
 
@@ -615,9 +622,23 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   // The discussions' lane, where it stands; and a height above the whole turn, for a line from an agent with no frame.
   const lane = Math.min(...graph.edges.filter(e => e.member).map(e => rect(e.target).x))
   const above = Math.min(...graph.nodes.filter(n => !n.parent && auto.positions[n.id]).map(n => rect(n.id).y)) - DOOR_PAD / 2
+  /** A line inside one frame, or talk between agents of none; any other line not drawn by `edges.tsx` is React Flow's. */
+  const insideLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
+    const [from, to] = [frameOf(e.source) ?? (e.work ? e.source : undefined), frameOf(e.target)]
+    // B-133: talk between agents framed by no team is its bubble too (count, pair colour, who, a click) - not "2 messages".
+    if (!from && !to && e.talk && e.messages) return { type: 'lane', data }
+    if (!from || from !== to) return {}
+    // Findings back, and talk between two of its agents: on an arc over or under the work line, in the room the layout
+    // left in the frame - never under a card (the user, 6 Nov).
+    if (arced(e)) {
+      const { source, target, turned, band, ring, into } = arcWay(e, graph.nodes, graph.edges, rect, frameOf)
+      return { type: 'arc', source, target, sourceHandle: null, targetHandle: { top: 'found-in', foot: 'up-in', side: null }[into], data: { ...data, findings: e.findings, band, ring, turned } }
+    }
+    if (e.source === from) return { type: 'lane', sourceHandle: 'door-out', data }
+    return columnLine(e, s, t, data)
+  }
   /** How a line of a team's frame, its door or a line across is drawn (`edges.tsx`); any other as React Flow draws it. */
   const lineOf = (e: GraphEdge): Partial<Edge> => {
-    const [from, to] = [frameOf(e.source) ?? (e.work ? e.source : undefined), frameOf(e.target)]
     const [s, t] = [rect(e.source), rect(e.target)]
     const data: LineData = { messages: e.messages, last: e.last }
     // To a discussion in the lane: from the member's frame (or over the turn), down the gap left of the lane.
@@ -641,19 +662,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
     // A frame's line to Ready for you: up or down on a bus right of every frame, not over another frame - left of the
     // discussions' lane where there is one, then over it into Ready (layout.ts).
     if (byId.get(e.target)?.kind === 'ready') return { type: 'lane', data: { bus: lane < Infinity ? lane - DOOR_PAD / 2 : undefined } }
-    // B-133: talk between agents framed by no team is its bubble too (count, pair colour, who, a click) - not "2 messages".
-    if (!from && !to && e.talk && e.messages) return { type: 'lane', data }
-    if (!from || from !== to) return {}
-    // Findings back, and talk between two of its agents: on an arc over or under the work line, in the room the layout
-    // left in the frame - never under a card (the user, 6 Nov).
-    if (arced(e)) {
-      const { source, target, turned, band, ring, into } = arcWay(e, graph.nodes, graph.edges, rect, frameOf)
-      return { type: 'arc', source, target, sourceHandle: null, targetHandle: { top: 'found-in', foot: 'up-in', side: null }[into], data: { ...data, findings: e.findings, band, ring, turned } }
-    }
-    if (e.source === from) return { type: 'lane', sourceHandle: 'door-out', data }
-    if (stacked(s, t)) return { type: 'lane', data, ...(t.y > s.y ? { sourceHandle: 'found-out', targetHandle: 'found-in' } : { sourceHandle: 'up-out', targetHandle: 'up-in' }) }
-    // (Talk with an agent of an earlier column is drawn from that one.)
-    return { type: 'lane', data, ...(t.x < s.x && { source: e.target, target: e.source }) }
+    return insideLine(e, s, t, data)
   }
   // What is lit: the talk line whose words are shown, or the agent selected and its lines; the rest fades (W).
   // (A line of another turn's is not on this one.)
