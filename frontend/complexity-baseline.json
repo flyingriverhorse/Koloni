@@ -40,7 +40,6 @@
   "src/canvas/sharedColumn.ts::sharedColumn": 36,
   "src/canvas/timeline.ts::timeline": 46,
   "src/canvas/timeline.ts::timeline>wait": 13,
-  "src/canvas/TimelineStrip.tsx::TimelineStrip>map": 13,
   "src/canvas/TurnList.tsx::TurnList": 13,
   "src/changes/CommitStep.tsx::CommitStep": 17,
   "src/changes/DiffView.tsx::piecesOf": 19,

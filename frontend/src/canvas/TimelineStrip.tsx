@@ -7,7 +7,7 @@ import { StatusLabel } from '../shell/StatusLabel'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { totalCost } from '../usage/cost'
-import { type Mark, type Wait, place, timeline, took } from './timeline'
+import { type Lane, type Mark, type Wait, place, timeline, took } from './timeline'
 
 interface Props {
   state: ConvState
@@ -38,6 +38,9 @@ function storedHeight(): number {
 const n = (value: number | null) => (value === null ? '–' : value.toLocaleString('en-US'))
 const lengthOf = (wait: Wait) => took(wait.from !== null && wait.to !== null ? wait.to - wait.from : null)
 const waitLabel = (wait: Wait) => (wait.who === 'you' ? WAITS : wait.who ? `waits for ${wait.who}` : 'waits')
+/** A lane's row: how deep it is drawn, and dashed where it is a CLI's own sub-agent - which its name's title says in words. */
+const laneClass = (lane: Lane) => `tl-row tl-depth-${Math.min(lane.depth, 4)}${lane.cli ? ' tl-cli' : ''}`
+const laneTitle = (lane: Lane) => (lane.cli ? `${lane.name} (its CLI’s own sub-agent)` : lane.name)
 /** The sign of a mark, beside its colour: an end (failed, stopped, a limit), or something opened or ended on the way. */
 const SIGN: Record<string, [sign: string, kind: string]> = { failed: ['✕', 'bad'], 'limit reached': ['!', 'bad'], stopped: ['■', 'stop'] }
 
@@ -185,9 +188,9 @@ export function TimelineStrip({ state, runId, onOpen, onClose }: Props) {
               const open = () => onOpen(lane.agentId)
               const up = lane.parent === null ? 0 : index.get(lane.id)! - index.get(lane.parent)!
               return (
-                <tr key={lane.id} className={`tl-row tl-depth-${Math.min(lane.depth, 4)}${lane.cli ? ' tl-cli' : ''}`}>
+                <tr key={lane.id} className={laneClass(lane)}>
                   <td>
-                    <button type="button" className="tl-name" style={{ paddingInlineStart: `${lane.depth * 14 + 4}px` }} title={lane.cli ? `${lane.name} (its CLI’s own sub-agent)` : lane.name} onClick={open}>
+                    <button type="button" className="tl-name" style={{ paddingInlineStart: `${lane.depth * 14 + 4}px` }} title={laneTitle(lane)} onClick={open}>
                       {lane.name}
                     </button>
                   </td>
