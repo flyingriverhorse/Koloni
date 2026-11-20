@@ -156,12 +156,15 @@ ASK_PROMPT = (
 )
 # B-204 (live): a Codex Orchestrator wrote "is this OK?" in its answer, went on without waiting,
 # then told the Coder "the user approved". After ASK_PROMPT, to the Lead only (a sub-agent has
-# ASK_NOT_REPORT); ending its turn on a question stays fine: the user replies to it.
+# ASK_NOT_REPORT). Deciding comes first, the card only where the decision is the user's: a
+# model takes the first way it reads, and this is no call to ask more. A turn that ends on a
+# question is not forbidden, but not offered either: a recipe's Lead may never end its turn to
+# ask (RECIPE_RULES), and a night job's question waits for nobody.
 ASKED_IN_WORDS = (
-    "Never write a question to the user and go on as if it were answered: ask it with ask_user "
-    "and wait, or decide yourself and say what you decided. Never tell another agent that the "
-    "user approved or chose something the user did not answer. Ending your turn with a question "
-    "is fine: the user replies to it."
+    "Never write a question to the user and then carry on in the same turn as if it were "
+    "answered: decide yourself and say what you decided, or, where the decision is theirs, ask "
+    "with ask_user and wait. Never tell another agent the user approved or chose anything they "
+    "did not say themselves."
 )
 SUB_AGENT_PROMPT = (
     "Your name here is {name}. Your task comes from the {parent} (your opener). When you are "

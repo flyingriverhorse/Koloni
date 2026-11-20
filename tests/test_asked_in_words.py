@@ -14,6 +14,14 @@ from tests.test_session_agent import (
 from tests.test_spawn import role_id, spawn
 
 
+def test_the_rule_decides_first_and_gives_no_leave_to_end_a_turn_on_a_question():
+    # Review: a model takes the first remedy it reads (a card for every "is this OK?" would be
+    # more asking); and a leave to end the turn on a question goes against a recipe's Lead
+    # (RECIPE_RULES: never end your turn to ask) and a night job's, which nobody answers.
+    assert ASKED_IN_WORDS.index("decide yourself") < ASKED_IN_WORDS.index("ask_user")
+    assert "in the same turn" in ASKED_IN_WORDS and "fine" not in ASKED_IN_WORDS, ASKED_IN_WORDS
+
+
 def instructions(stdin: str) -> str:
     """What a CLI was told it is: the instructions of the JSON document on its input."""
     return json.loads(stdin[stdin.index("\n\n{") + 2:])["instructions"]
