@@ -735,11 +735,6 @@ interface Props {
   onModels?: LoadModels
 }
 
-/**
- * The Recipes tab (slice 84a): the recipes on the left, ready ones and yours, and "Or write it"; the chosen one drawn in the middle;
- * the chosen part of it on the right. Saved only when the server finds it can run; a ready one is copied to be changed.
- * shortcut: choosing another recipe drops what was changed and not saved, unasked; ask first if work is lost that way.
- */
 /** A refused save, read: `at` what is said at a part, `whole` what is said of the recipe as a whole. */
 function refusedOf(err: unknown, drawn: RecipeGraph) {
   // The server says what keeps it from running, at the part it is about: shown there. What the request's own check refused (an
@@ -772,6 +767,11 @@ function byPart(at: ReturnType<typeof refusedOf>['at']) {
 
 const notYet = (things: number) => `It cannot run yet: ${things === 1 ? 'one part says why' : `${things} things to change, each at its part`}.`
 
+/**
+ * The Recipes tab (slice 84a): the recipes on the left, ready ones and yours, and "Or write it"; the chosen one drawn in the middle;
+ * the chosen part of it on the right. Saved only when the server finds it can run; a ready one is copied to be changed.
+ * shortcut: choosing another recipe drops what was changed and not saved, unasked; ask first if work is lost that way.
+ */
 export function RecipesTab({ roles, teams, list, projectId, actions, reload, models, providers, onModels }: Props) {
   const recipes = list && typeof list !== 'string' ? list.recipes : []
   const [picked, setChosen] = useState<string | null>(null)

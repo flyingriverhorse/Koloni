@@ -164,7 +164,8 @@ test('as a button: always there, its preview a window; what Save said is read ou
   await userEvent.click(within(preview).getByRole('button', { name: 'Save these tiers' }))
   await waitFor(() => expect(shownAs()).toEqual(['BUTTON.btn btn-small', 'SPAN.visually-hidden']))
   expect(screen.getByRole('status')).toHaveTextContent(/^The tiers are saved: each role now runs on the first model of its tier that may be picked for it\.$/)
-  expect(screen.getByRole('button', { name: 'Fill tiers' })).toHaveFocus()
+  // (the focus goes there in an effect, after the button is drawn)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Fill tiers' })).toHaveFocus())
   // not as a button, with a tier there already and nothing saved here: nothing at all; with no way to fill, nothing either
   rerender(<FillTiers key="box" providers={[tiered]} onFillAll={onFillAll} onSaveFillAll={onSaveFillAll} />)
   expect(container).toBeEmptyDOMElement()
