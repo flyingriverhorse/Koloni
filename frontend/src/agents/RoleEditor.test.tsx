@@ -775,3 +775,22 @@ test('a role on Copilot’s auto says Copilot picks the model and its level: non
   const facts = { efforts: [], sources: { efforts: 'Copilot picks it (auto)' } } as never
   expect(levelsKnown([], namedLevel(facts))).toBe('Copilot picks the model and its level: nothing is sent.')
 })
+
+test('a new role’s summary says where it runs, for each way to choose it; with no name yet it is “…”', async () => {
+  render(<AgentsPage roles={[role({})]} providers={[provider('p1', 'Local', true), provider('p2', 'Claude Code', true)]} {...handlers()} />)
+  await userEvent.click(screen.getByRole('button', { name: 'New role' }))
+  const lines = () => Array.from(screen.getByText(/^be called/).closest('[aria-live]')!.querySelectorAll('p'), p => p.textContent)
+  // as it opens: the Orchestrator picks, from the lowest tier to the highest; no name, no tool, no limit
+  expect(lines()[0]).toMatch(/^be called …, in /)
+  expect(lines().slice(1)).toEqual(['run on the model the Orchestrator picks for each job, fast to strongest', 'do nothing yet: give it at least one tool', 'never wait for your yes'])
+  await userEvent.click(seg('As the chat'))
+  expect(lines()[1]).toBe('run on the chat’s model')
+  await userEvent.click(seg('One tier'))
+  expect(lines()[1]).toMatch(/^run on the first (fast|balanced|strongest) model of your team guide$/)
+  await userEvent.click(seg('One model'))
+  expect(lines()[1]).toBe('run on Local · its default model')
+  await userEvent.type(screen.getByLabelText('Model name'), 'opus')
+  expect(lines()[1]).toBe('run on Local · opus')
+  await userEvent.type(screen.getByLabelText('At most this many steps'), '40')
+  expect(lines().at(-1)).toBe('stop one agent at 40 steps')
+})

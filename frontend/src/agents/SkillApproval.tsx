@@ -73,6 +73,37 @@ export function ScriptsLeave({
   )
 }
 
+/** What a skill may use and would run: its allowed-tools, the lines that run as it loads, its shell blocks. */
+function SkillRuns({ skill }: { skill: SkillPreview }) {
+  return (
+    <>
+      <div className="muted cmd-approval-note">
+        {skill.allowed_tools.length > 0 ? (
+          <>
+            It declares allowed-tools: <span className="mono">{skill.allowed_tools.join(', ')}</span>. KOLONİ gives a skill
+            none of them: its agents keep their role’s tools, and Claude Code is given it without that line.
+          </>
+        ) : (
+          'It declares no allowed-tools.'
+        )}
+      </div>
+      {skill.runs_as_it_loads.length > 0 && (
+        <div className="cmd-approval-note">
+          Lines Claude Code would run as the skill loads (!`…`), past every card:
+          <pre className="cmd-approval-command">{skill.runs_as_it_loads.join('\n')}</pre>
+          So it is not given to Claude Code as a skill of its own; other agents read these lines as text.
+        </div>
+      )}
+      {skill.shell_blocks > 0 && (
+        <div className="cmd-approval-note">
+          Its SKILL.md has {skill.shell_blocks === 1 ? 'a shell block' : `${skill.shell_blocks} shell blocks`}: commands it
+          tells an agent to run, each held to the rules of any command.
+        </div>
+      )}
+    </>
+  )
+}
+
 /** A skill as it is shown before it is added: where from, what it holds, and what of it is not copied. */
 export function SkillShown({ skill }: { skill: SkillPreview }) {
   return (
@@ -115,29 +146,7 @@ export function SkillShown({ skill }: { skill: SkillPreview }) {
           seen here.
         </div>
       )}
-      <div className="muted cmd-approval-note">
-        {skill.allowed_tools.length > 0 ? (
-          <>
-            It declares allowed-tools: <span className="mono">{skill.allowed_tools.join(', ')}</span>. KOLONİ gives a skill
-            none of them: its agents keep their role’s tools, and Claude Code is given it without that line.
-          </>
-        ) : (
-          'It declares no allowed-tools.'
-        )}
-      </div>
-      {skill.runs_as_it_loads.length > 0 && (
-        <div className="cmd-approval-note">
-          Lines Claude Code would run as the skill loads (!`…`), past every card:
-          <pre className="cmd-approval-command">{skill.runs_as_it_loads.join('\n')}</pre>
-          So it is not given to Claude Code as a skill of its own; other agents read these lines as text.
-        </div>
-      )}
-      {skill.shell_blocks > 0 && (
-        <div className="cmd-approval-note">
-          Its SKILL.md has {skill.shell_blocks === 1 ? 'a shell block' : `${skill.shell_blocks} shell blocks`}: commands it
-          tells an agent to run, each held to the rules of any command.
-        </div>
-      )}
+      <SkillRuns skill={skill} />
       {skill.scripts.length > 0 && (
         <Seen
           seen={skill.seen}

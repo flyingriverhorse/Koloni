@@ -8,6 +8,7 @@ import { agent, convState } from '../test-fixtures'
 import { AgentsPage } from './AgentsPage'
 import { SkillsSection } from '../tools/Skills'
 import { SkillApproval } from './SkillApproval'
+import { SkillBars } from './SkillWindow'
 import { SpawnApproval } from './SpawnApproval'
 
 const found: SkillFound = {
@@ -379,6 +380,9 @@ test('slice 92: the card lists its files, what runs as a program, its allowed-to
   rerender(<SkillApproval skill={pending} onDecide={vi.fn()} />)
   expect(screen.getByText('It declares no allowed-tools.')).toBeInTheDocument()
   expect(screen.queryByText(/Files that run as programs|shell block|Claude Code would run|#! line/)).toBeNull()
+  // one block is said as one
+  rerender(<SkillApproval skill={{ ...pending, shell_blocks: 1 }} onDecide={vi.fn()} />)
+  expect(screen.getByText(/Its SKILL\.md has a shell block: commands it/)).toHaveClass('cmd-approval-note')
 })
 
 test("a skill's card comes and goes with its events, and waits for the user", () => {
@@ -387,4 +391,42 @@ test("a skill's card comes and goes with its events, and waits for the user", ()
   expect(waitingCards(state)).toBe(1)
   state = applyEvent(state, 2, 'skill_request.resolved', { tool_call_id: 'k1' })
   expect(state.pendingSkills).toEqual([])
+})
+
+test('a spawn card with no way to open a skill names those left out as text, a comma between; none left out, no line', () => {
+  const coder = agent('r', 'proposed', { role_name: 'Researcher', skills: { given: [], left_out: { ship: 'no shell', tidy: 'not for this CLI' }, in_brief: [] } })
+  const { rerender } = render(<SpawnApproval agent={coder} onDecide={vi.fn()} />)
+  expect(screen.getByText(/left out/)).toHaveClass('muted', 'cmd-approval-note')
+  expect(screen.getByText(/left out/)).toHaveTextContent('Skills: ship (no shell), tidy (not for this CLI) left out')
+  expect(screen.queryByRole('button', { name: 'ship' })).toBeNull()
+  rerender(<SpawnApproval agent={coder} onDecide={vi.fn()} onOpenSkill={vi.fn()} />)
+  expect(screen.getByText(/left out/)).toHaveTextContent('Skills: ship (no shell), tidy (not for this CLI) left out')
+  expect(screen.getByRole('button', { name: 'tidy' })).toHaveClass('link-btn')
+  rerender(<SpawnApproval agent={agent('r', 'proposed', { role_name: 'Researcher' })} onDecide={vi.fn()} />)
+  expect(screen.queryByText(/left out/)).toBeNull()
+})
+
+test('a skill’s bars: where each ran, what it measures in words, and how it was given - read, in its brief, or neither', async () => {
+  const rows = [
+    row({ agents: 6, taken_in: 5, used: 2, in_brief: 3, steps: 12.4, cost: null }),
+    row({ role_name: 'Tester', provider_name: null, model_id: null, agents: 5, taken_in: 1, used: 4, in_brief: 0, steps: null, cost: null }),
+    row({ role_name: 'Writer', agents: 2, used: 0, in_brief: 0 }),
+  ]
+  const { container } = render(<SkillBars rows={rows} />)
+  const bars = () => Array.from(container.querySelectorAll('.skill-bar'), bar => Array.from(bar.children, cell => `${cell.tagName}:${cell.textContent}`))
+  const classes = () => Array.from(container.querySelectorAll('.skill-bar'), bar => bar.className)
+  expect(classes()).toEqual(['skill-bar', 'skill-bar', 'skill-bar skill-bar-given'])
+  expect(bars()).toEqual([
+    ['SPAN:Local · big-model · Coder', 'METER:', 'SPAN:5/6', 'SPAN:read in 2 of 6 · given in full in its brief in 3 of 6'],
+    ['SPAN:a provider not on record · a model not on record · Tester', 'METER:', 'SPAN:1/5', 'SPAN:read in 4 of 5'],
+    ['SPAN:Local · big-model · Writer', 'SPAN:', 'SPAN:< 5 jobs', 'SPAN:given, not read'],
+  ])
+  const meter = () => container.querySelector('meter')!
+  expect([meter().getAttribute('aria-label'), meter().max, meter().value]).toEqual(['Local · big-model · Coder: taken in', 6, 5])
+  await userEvent.click(screen.getByRole('button', { name: 'Steps' }))
+  expect(bars().map(bar => [bar[1], bar[2]])).toEqual([['METER:', 'SPAN:12 steps'], ['SPAN:', 'SPAN:–'], ['SPAN:', 'SPAN:< 5 jobs']])
+  expect([meter().getAttribute('aria-label'), meter().max, meter().value]).toEqual(['Local · big-model · Coder: steps', 12.4, 12.4])
+  await userEvent.click(screen.getByRole('button', { name: 'Cost' }))
+  expect(bars().map(bar => bar[1])).toEqual(['SPAN:', 'SPAN:', 'SPAN:'])
+  expect(screen.getByRole('button', { name: 'Cost' })).toHaveAttribute('aria-pressed', 'true')
 })

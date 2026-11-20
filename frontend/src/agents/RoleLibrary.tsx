@@ -58,6 +58,8 @@ export function CategoryForm({ name = '', colour = 'rose', button, onSave, onCan
 
 type Filter = 'all' | 'loose' | 'off'
 const teamsText = (n: number) => (n === 0 ? 'no team' : n === 1 ? '1 team' : `${n} teams`)
+/** A category's Delete, as its menu says it: one that still has roles says to move them first. */
+const deleteTitle = (roles: number) => (roles ? `Delete — move its ${roles === 1 ? 'role' : `${roles} roles`} first` : 'Delete')
 
 interface Props {
   /** Every role the library shows: not the Lead, not a team's lead. */
@@ -211,7 +213,7 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
                     // Only an empty one of the user's goes: no role is ever left without a category, and KOLONİ's four stay.
                     BUILT_IN_CATEGORIES.includes(group.key)
                       ? ['Delete — one of KOLONİ’s four: rename it instead', true, () => undefined]
-                      : [every.length ? `Delete — move its ${every.length === 1 ? 'role' : `${every.length} roles`} first` : 'Delete', every.length > 0, () => act(actions?.deleteCategory(group.key))],
+                      : [deleteTitle(every.length), every.length > 0, () => act(actions?.deleteCategory(group.key))],
                   ] satisfies [string, boolean, () => void][]
                 ).map(([title, disabled, run]) => (
                   <button

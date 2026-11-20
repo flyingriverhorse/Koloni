@@ -315,6 +315,19 @@ function AgentCard({ id, data, selected }: AgentProps) {
 
 const BRANCH_MARK = { done: ' ✓', now: ' …', next: '', stopped: ' (stopped)' } as const
 
+/** How a step came out, at the end of its line: its tick or skip, its round, who checked it and what was left out of it. */
+const stepEnd = (step: TeamData['steps'][number]) => (
+  <>
+    {step.state === 'done' && ' ✓'}
+    {/* (Its condition not met - no problem was found before it - is no rule broken.) */}
+    {step.state === 'skipped' && (step.unmet ? ` · skipped: ${step.unmet}` : ' · skipped')}
+    {step.round > 0 && ` · round ${step.round + 1}`}
+    {step.own_check && ' · checked by its own writer'}
+    {/* B-173: not a silent ✓ - what the user's choice left out of it. */}
+    {step.left_out.length > 0 && ` · left out by your choice: ${step.left_out.join(', ')}`}
+  </>
+)
+
 /**
  * A chat team's recipe in the turn (slice 84b-2): a frame in its colour, drawn behind its agents' boxes. Its header
  * says the team, the recipe and its steps (done ticked, the one now filled), what its agents reported they used, and
@@ -333,6 +346,22 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
       .catch(err => setError(errorText(err)))
       .finally(() => setSent(false))
   }
+  /** The user's words to a team at work: Stop, and for a recipe's team Finish now. */
+  const words = () => (
+    <>
+      {atWork && !data.byRoles && (
+        <button type="button" className="btn btn-small team-stop nodrag" aria-label={`Stop ${data.team}`} disabled={sent} onClick={() => send(stopTeam)}>
+          Stop
+        </button>
+      )}
+      {/* (A recipe's team: its steps are drawn. Finish now takes its work to Ready for you as it stands.) */}
+      {atWork && !data.byRoles && data.steps.length > 0 && (
+        <button type="button" className="btn btn-small team-stop nodrag" aria-label={`Finish ${data.team} now`} disabled={sent} onClick={() => send(finishTeam)}>
+          Finish now
+        </button>
+      )}
+    </>
+  )
   return (
     <div className={`team-frame team-${data.stands}${data.open ? '' : ' team-shut'}`} style={{ '--team': data.colour } as CSSProperties}>
       <div className="team-head">
@@ -341,17 +370,7 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
           <b className="team-name">{data.team}</b>
           <span className="team-recipe">{data.recipe}</span>
           <span className="team-tokens mono muted">{data.tokens}</span>
-          {atWork && !data.byRoles && (
-            <button type="button" className="btn btn-small team-stop nodrag" aria-label={`Stop ${data.team}`} disabled={sent} onClick={() => send(stopTeam)}>
-              Stop
-            </button>
-          )}
-          {/* (A recipe's team: its steps are drawn. Finish now takes its work to Ready for you as it stands.) */}
-          {atWork && !data.byRoles && data.steps.length > 0 && (
-            <button type="button" className="btn btn-small team-stop nodrag" aria-label={`Finish ${data.team} now`} disabled={sent} onClick={() => send(finishTeam)}>
-              Finish now
-            </button>
-          )}
+          {words()}
           <button type="button" className="link-btn team-fold nodrag" aria-expanded={data.open} aria-label={`${data.open ? 'Fold' : 'Open'} ${data.team}`} onClick={() => toggle(id)}>
             {data.open ? 'fold' : 'open'}
           </button>
@@ -369,13 +388,7 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
               {step.scores && ` · ${step.scores}`}
               {step.missed != null && ` · target ${step.missed} not reached`}
               {step.room && <span className="team-step-room">Room</span>}
-              {step.state === 'done' && ' ✓'}
-              {/* (Its condition not met - no problem was found before it - is no rule broken.) */}
-              {step.state === 'skipped' && (step.unmet ? ` · skipped: ${step.unmet}` : ' · skipped')}
-              {step.round > 0 && ` · round ${step.round + 1}`}
-              {step.own_check && ' · checked by its own writer'}
-              {/* B-173: not a silent ✓ - what the user's choice left out of it. */}
-              {step.left_out.length > 0 && ` · left out by your choice: ${step.left_out.join(', ')}`}
+              {stepEnd(step)}
             </li>
           ))}
         </ol>

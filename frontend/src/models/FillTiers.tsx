@@ -12,6 +12,12 @@ interface Props {
   button?: boolean
 }
 
+/** Providers there are, and none of their models has a tier. */
+const noTier = (providers: Provider[]) => providers.length > 0 && !providers.some(p => p.models.some(m => m.tier))
+
+/** The preview stands open in its window: as a button, with something shown, and not while it saves. */
+const inWindow = (asButton: boolean, shown: FillAll | null, busy: boolean) => asButton && shown !== null && !busy
+
 /**
  * While no model has a tier every role runs on the conversation's model: a line says so at the top
  * of Agents, and its link opens one preview of every provider's tiers from the catalogue. Nothing changes
@@ -34,7 +40,7 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
     focus.current = null
   })
   // In its window, Esc leaves it wherever the focus is (not while it saves).
-  const open = asButton && shown !== null && !busy
+  const open = inWindow(asButton, shown, busy)
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => {
@@ -45,7 +51,7 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
-  const none = providers.length > 0 && !providers.some(p => p.models.some(m => m.tier))
+  const none = noTier(providers)
   if (!onFillAll || !onSaveFillAll) return null
   if (!shown && !none && !asButton)
     return saved ? (
@@ -85,7 +91,7 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
     </div>
   )
 
-  const opener = (
+  const opener = () => (
     <button
       ref={button}
       type="button"
@@ -102,10 +108,11 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
       {asButton ? 'Fill tiers' : 'Fill the tiers'}
     </button>
   )
-  if (!shown && asButton)
-    return (
+  /** With no preview open: the button alone (and what Save said, read out) - or, in the box, the line that no model has a tier. */
+  const closed = () =>
+    asButton ? (
       <>
-        {opener}
+        {opener()}
         {saved && (
           <span role="status" className="visually-hidden">
             {saved}
@@ -113,17 +120,16 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
         )}
         {alert}
       </>
-    )
-  if (!shown)
-    return (
+    ) : (
       // One calm line (spec 81: no strip), as the Models page says its empty slots.
       <section className="muted provider-note fill-tiers" aria-label="No model has a tier">
         <span>No model has a tier yet, so the Orchestrator cannot pick one: every role runs on the conversation’s model.</span>{' '}
-        {opener}
+        {opener()}
         {alert}
       </section>
     )
-  const preview = (
+  if (!shown) return closed()
+  const preview = (shown: FillAll) => (
     <section className={`fill-tiers fill-tiers-open${asButton ? ' fill-tiers-window' : ''}`} aria-labelledby="fill-tiers-heading">
       <h3 id="fill-tiers-heading" ref={heading} tabIndex={-1}>
         Tiers from the catalogue
@@ -222,10 +228,10 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
   return asButton ? (
     <div className="dialog-back">
       <div className="provider-dialog" role="dialog" aria-modal="true" aria-labelledby="fill-tiers-heading">
-        {preview}
+        {preview(shown)}
       </div>
     </div>
   ) : (
-    preview
+    preview(shown)
   )
 }

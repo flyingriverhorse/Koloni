@@ -194,6 +194,65 @@ function built({ parts }: Exclude<Parsed, string>, ending: string, mtl: { create
   return group
 }
 
+/** A model's bytes from its address; a string says why it is not drawn. */
+async function bytesOf(src: string, signal?: AbortSignal): Promise<ArrayBuffer | string> {
+  const answer = await fetch(src, { signal }).catch(() => null)
+  if (answer?.status === 413) return TOO_LARGE
+  if (!answer?.ok) return 'It could not be read.'
+  const data = await answer.arrayBuffer().catch(() => null) // (cut off when it is no longer wanted)
+  if (!data) return 'It could not be read.'
+  if (data.byteLength > MAX_BYTES) return TOO_LARGE
+  return data
+}
+
+/** A model parsed, and the unit its file says; and what its parsing reads with: the loaders' manager, its folder, `guard`'s check of it. */
+type Drawn = { object: THREE.Object3D; unit: string | null }
+type Reading = { manager: THREE.LoadingManager; base: string; check: (url: string) => string; signal?: AbortSignal }
+
+/** The model parsed by its name's ending; a string says why it is not drawn. */
+async function drawnBy(ending: string | undefined, data: ArrayBuffer, reading: Reading): Promise<Drawn | string> {
+  if (ending === 'stl' || ending === 'obj') return offThreadDrawn(data, ending, reading)
+  if (ending === 'gltf' || ending === 'glb') return gltfDrawn(data, reading)
+  if (ending === '3mf') return threeMfDrawn(data, reading.manager)
+  return UNREADABLE
+}
+
+async function offThreadDrawn(data: ArrayBuffer, ending: string, { manager, base, signal }: Reading): Promise<Drawn | string> {
+  const parsed = await offThread(data, ending, signal)
+  if (typeof parsed === 'string') return parsed
+  const materials = parsed.mtl ? await new MTLLoader(manager).setPath(base).loadAsync(parsed.mtl).catch(() => null) : null
+  materials?.preload()
+  return { object: built(parsed, ending, materials), unit: null }
+}
+
+async function gltfDrawn(data: ArrayBuffer, { manager, base, check, signal }: Reading): Promise<Drawn | string> {
+  const json = gltfJson(data)
+  if (gltfTooLarge(json)) return TOO_LARGE_UNPACKED
+  const beside = await besideOf(json, base, check, signal)
+  if (typeof beside === 'string') return beside
+  // Only what was read and counted, or what it carries in itself; anything else it asks for is refused.
+  manager.setURLModifier((url: string) => beside.get(url) ?? (/^(data|blob):/i.test(url) ? url : REFUSED))
+  let object: THREE.Object3D
+  try {
+    object = (await new GLTFLoader(manager).parseAsync(data, base)).scene
+  } finally {
+    beside.forEach(url => URL.revokeObjectURL(url))
+  }
+  return { object, unit: 'm' } // (glTF's own unit: metres)
+}
+
+function threeMfDrawn(data: ArrayBuffer, manager: THREE.LoadingManager): Drawn | string {
+  // What it unpacks to, from its zip's own list, before anything is unpacked.
+  let unpacked = 0
+  unzipSync(new Uint8Array(data), { filter: (file: { originalSize: number }) => ((unpacked += file.originalSize), false) })
+  if (unpacked > MAX_UNPACKED) return TOO_LARGE_UNPACKED
+  const object = new ThreeMFLoader(manager).parse(data)
+  // shortcut: the zip is read twice (the loader keeps its unit to itself); upgrade if large 3MFs are slow.
+  const [model] = Object.values(unzipSync(new Uint8Array(data), { filter: (file: { name: string }) => file.name.endsWith('.model') }))
+  const said = model && /<model\b[^>]*\bunit\s*=\s*["'](\w+)["']/.exec(new TextDecoder().decode(model as Uint8Array))?.[1]
+  return { object, unit: UNITS[said ?? 'millimeter'] ?? said } // (the 3MF format's own default: millimetres)
+}
+
 /**
  * A model read from its address and parsed by its name; a string says why it is not drawn.
  * `onChange`: what it names beside it (an .mtl's textures, a 3MF's) came after it was given back.
@@ -201,12 +260,8 @@ function built({ parts }: Exclude<Parsed, string>, ending: string, mtl: { create
  * three's 3MF reader needs DOMParser, which a worker has not; move them too if large ones hold the page.
  */
 export async function load(src: string, name: string, { signal, onChange }: { signal?: AbortSignal; onChange?: () => void } = {}): Promise<Loaded | string> {
-  const answer = await fetch(src, { signal }).catch(() => null)
-  if (answer?.status === 413) return TOO_LARGE
-  if (!answer?.ok) return 'It could not be read.'
-  const data = await answer.arrayBuffer().catch(() => null) // (cut off when it is no longer wanted)
-  if (!data) return 'It could not be read.'
-  if (data.byteLength > MAX_BYTES) return TOO_LARGE
+  const data = await bytesOf(src, signal)
+  if (typeof data === 'string') return data
   const bytes = data.byteLength // (an STL's or OBJ's bytes are moved to the worker, not copied)
   const base = new URL('.', new URL(src, location.href)).href
   const manager = new THREE.LoadingManager()
@@ -214,42 +269,14 @@ export async function load(src: string, name: string, { signal, onChange }: { si
   manager.setURLModifier(check)
   manager.onLoad = () => onChange?.()
   const ending = name.split('.').at(-1)?.toLowerCase()
-  let object: THREE.Object3D
-  let unit: string | null = null
+  let read: Drawn | string
   try {
-    if (ending === 'stl' || ending === 'obj') {
-      const parsed = await offThread(data, ending, signal)
-      if (typeof parsed === 'string') return parsed
-      const materials = parsed.mtl ? await new MTLLoader(manager).setPath(base).loadAsync(parsed.mtl).catch(() => null) : null
-      materials?.preload()
-      object = built(parsed, ending, materials)
-    } else if (ending === 'gltf' || ending === 'glb') {
-      const json = gltfJson(data)
-      if (gltfTooLarge(json)) return TOO_LARGE_UNPACKED
-      const beside = await besideOf(json, base, check, signal)
-      if (typeof beside === 'string') return beside
-      // Only what was read and counted, or what it carries in itself; anything else it asks for is refused.
-      manager.setURLModifier((url: string) => beside.get(url) ?? (/^(data|blob):/i.test(url) ? url : REFUSED))
-      try {
-        object = (await new GLTFLoader(manager).parseAsync(data, base)).scene
-      } finally {
-        beside.forEach(url => URL.revokeObjectURL(url))
-      }
-      unit = 'm' // (glTF's own unit: metres)
-    } else if (ending === '3mf') {
-      // What it unpacks to, from its zip's own list, before anything is unpacked.
-      let unpacked = 0
-      unzipSync(new Uint8Array(data), { filter: (file: { originalSize: number }) => ((unpacked += file.originalSize), false) })
-      if (unpacked > MAX_UNPACKED) return TOO_LARGE_UNPACKED
-      object = new ThreeMFLoader(manager).parse(data)
-      // shortcut: the zip is read twice (the loader keeps its unit to itself); upgrade if large 3MFs are slow.
-      const [model] = Object.values(unzipSync(new Uint8Array(data), { filter: (file: { name: string }) => file.name.endsWith('.model') }))
-      const said = model && /<model\b[^>]*\bunit\s*=\s*["'](\w+)["']/.exec(new TextDecoder().decode(model as Uint8Array))?.[1]
-      unit = UNITS[said ?? 'millimeter'] ?? said // (the 3MF format's own default: millimetres)
-    } else return UNREADABLE
+    read = await drawnBy(ending, data, { manager, base, check, signal })
   } catch {
     return UNREADABLE
   }
+  if (typeof read === 'string') return read
+  const { object, unit } = read
   if (!object) return UNREADABLE
   const count = triangles(object)
   if (count > MAX_TRIANGLES) {

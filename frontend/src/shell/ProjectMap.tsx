@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import type { Project, ProjectMap as MapOf } from '../api/types'
 
+/** The map in a line: the project, whether it is in git, how many parts - and that not every folder was looked in. */
+const mapLine = (name: string, map: MapOf, parts: number) => (
+  <p>
+    {name} ({[map.git && 'git', `${parts} ${parts === 1 ? 'part' : 'parts'}`].filter(Boolean).join(', ')})
+    {map.partial && <span className="muted"> · not every folder was looked in</span>}
+  </p>
+)
+
+/** Beside Refresh: what was last done - or, before the map (or why it is not) is read, that it is looked for. */
+const statusSaid = (map: MapOf | null, error: string | null, said: string) => (map || error ? said : 'Looking…')
+
 /**
  * K-buyuk-proje: the project map - its parts, found by their files without any model, each
  * test command typed over in place and saved at once (Enter or Save), not by the project's Save.
@@ -59,12 +70,7 @@ export function ProjectMap({ project }: { project: Project }) {
         chat’s Orchestrator is told of them when there is more than one. A test command runs in its part’s folder; saved empty, the part has no test. A
         command you write here runs in its part without a card, at every level; KOLONİ’s guess is asked as any command.
       </span>
-      {map && (
-        <p>
-          {project.name} ({[map.git && 'git', `${parts.length} ${parts.length === 1 ? 'part' : 'parts'}`].filter(Boolean).join(', ')})
-          {map.partial && <span className="muted"> · not every folder was looked in</span>}
-        </p>
-      )}
+      {map && mapLine(project.name, map, parts.length)}
       {map && parts.length === 0 && <p className="muted">No part found: no folder has a project file.</p>}
       {parts.length > 0 && (
         <table className="usage-table project-map" aria-label="Parts of this folder">
@@ -138,7 +144,7 @@ export function ProjectMap({ project }: { project: Project }) {
           Refresh
         </button>
         <span role="status" className="muted">
-          {map || error ? said : 'Looking…'}
+          {statusSaid(map, error, said)}
         </span>
       </div>
     </>

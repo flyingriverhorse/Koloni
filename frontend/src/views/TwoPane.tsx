@@ -139,6 +139,14 @@ function rowsOf(files: TreeFile[], isOpen: (key: string) => boolean): Row[] {
   return rows
 }
 
+/** A row's name as it is read out: a file's with where it is, that it is new and how it stands; a folder's with that something in it changed. */
+const rowLabel = (row: Row) =>
+  row.file ? [row.name, row.file.where && `in ${row.file.where}`, row.file.dot && 'new', row.file.meta].filter(Boolean).join(' ') : row.changed ? `${row.name} changed` : row.name
+
+/** Whether a row is the one chosen: the file shown - or, with no file chosen, the folder asked for while it is the active row. */
+const chosen = (row: Row, selected: Props['selected'], reveal: Props['reveal'], active: string | undefined) =>
+  row.file ? row.key === selected : !selected && row.key === reveal?.key && row.key === active ? true : undefined
+
 export function TwoPane({ name, title, label = 'Files', files, selected, reveal, onOpen, isOpen, onFolder, head, children }: Props) {
   const box = useWidth()
   const tree = useRef<HTMLDivElement>(null)
@@ -272,8 +280,8 @@ export function TwoPane({ name, title, label = 'Files', files, selected, reveal,
                   aria-posinset={row.posInSet}
                   aria-expanded={row.folder ? isOpen(row.key) : undefined}
                   // (the folder asked for is chosen only while no file is: one row chosen at a time)
-                  aria-selected={row.file ? row.key === selected : !selected && row.key === reveal?.key && row.key === active ? true : undefined}
-                  aria-label={row.file ? [row.name, row.file.where && `in ${row.file.where}`, row.file.dot && 'new', row.file.meta].filter(Boolean).join(' ') : row.changed ? `${row.name} changed` : row.name}
+                  aria-selected={chosen(row, selected, reveal, active)}
+                  aria-label={rowLabel(row)}
                   title={row.file?.title}
                   tabIndex={n === current ? 0 : -1}
                   className={`tree-row${row.folder ? ' tree-folder' : ''}`}

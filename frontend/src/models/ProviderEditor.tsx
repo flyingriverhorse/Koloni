@@ -22,6 +22,10 @@ const KINDS: [kind: ProviderKind, label: string][] = [
   ['agy_cli', 'agy (CLI)'],
 ]
 const limit = (text: string) => (/^\d+$/.test(text.trim()) ? Number(text) : null)
+
+/** The most at once, when it is a limit (or none) that is not the saved one: left out otherwise, and while it is not a number. */
+const limitChange = (most: number | null | undefined, provider: Provider | null): Pick<NewProvider, 'max_running'> =>
+  most !== undefined && most !== (provider?.max_running ?? null) ? { max_running: most } : {}
 /** How each CLI can be run; the first is its default. */
 const MODES: Partial<Record<ProviderKind, Mode[]>> = {
   claude_cli: ['session', 'step', 'native'],
@@ -244,7 +248,7 @@ export function ProviderEditor({
   // (A saved provider's models are not in it: its Models tab saves them itself.)
   function guide(): Pick<NewProvider, 'for_agents' | 'note' | 'models' | 'only_listed' | 'max_running'> {
     return {
-      ...(most !== undefined && most !== (provider?.max_running ?? null) ? { max_running: most } : {}),
+      ...limitChange(most, provider),
       ...(!rows.length && forAgents !== (provider?.for_agents ?? false) ? { for_agents: forAgents } : {}),
       ...(note.trim() !== (provider?.note ?? '') ? { note: note.trim() } : {}),
       ...(!provider && listed.length ? { models: listed } : {}),
@@ -284,29 +288,24 @@ export function ProviderEditor({
     }
   }
 
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    setTested(null)
-    if (!provider) {
-      const values: NewProvider = cli
-        ? {
-            name: name.trim(),
-            kind,
-            default_model: model.trim(),
-            executable: executable.trim(),
-            ...(modes.length > 1 && runs ? { mode: runs } : {}),
-            ...(copilot ? { base_url: served.base_url, api_key: key, options: served.options } : {}),
-            ...(ownServer && address.trim() ? { base_url: address.trim() } : {}),
-            ...setup,
-            ...guide(),
-          }
-        : { name: name.trim(), kind, base_url: address.trim(), api_key: key, default_model: model.trim(), ...scoped, ...guide() }
-      void run(async () => {
-        await onCreate(values)
-        onDone()
-      })
-      return
-    }
+  /** A new provider, as the form says it. */
+  const created = (): NewProvider =>
+    cli
+      ? {
+          name: name.trim(),
+          kind,
+          default_model: model.trim(),
+          executable: executable.trim(),
+          ...(modes.length > 1 && runs ? { mode: runs } : {}),
+          ...(copilot ? { base_url: served.base_url, api_key: key, options: served.options } : {}),
+          ...(ownServer && address.trim() ? { base_url: address.trim() } : {}),
+          ...setup,
+          ...guide(),
+        }
+      : { name: name.trim(), kind, base_url: address.trim(), api_key: key, default_model: model.trim(), ...scoped, ...guide() }
+
+  /** What the form changes of a saved provider. */
+  function changed(saved: Provider): ProviderChange {
     const values: ProviderChange = cli
       ? {
           name: name.trim(),
@@ -314,13 +313,28 @@ export function ProviderEditor({
           executable: executable.trim(),
           ...(modes.length > 1 && runs ? { mode: runs } : {}),
           ...(copilot ? served : {}),
-          ...(ownServer && address.trim() !== (provider.base_url ?? '') ? { base_url: address.trim() } : {}),
+          ...(ownServer && address.trim() !== (saved.base_url ?? '') ? { base_url: address.trim() } : {}),
           ...setup,
           ...guide(),
         }
       : { name: name.trim(), base_url: address.trim(), default_model: model.trim(), ...scoped, ...guide() }
     // An empty key field means "leave the saved key alone".
     if ((!cli || copilot) && key) values.api_key = key
+    return values
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    setTested(null)
+    if (!provider) {
+      const values = created()
+      void run(async () => {
+        await onCreate(values)
+        onDone()
+      })
+      return
+    }
+    const values = changed(provider)
     void run(async () => {
       await onSave(provider.id, values)
       setKey('')

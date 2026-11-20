@@ -8,6 +8,55 @@ import { argumentKey, commandShown, count, downloadOf, isValue, MASK, masked, NA
 const short = ([program, ...args]: string[]) =>
   [programOf(program), ...(args.length > 1 ? ['…'] : []), ...args.slice(-1).map(arg => arg.split(/[\\/]/).pop())].join(' ')
 
+type Read = ReturnType<typeof readPasted> | null
+/** The servers read from what was pasted, and those of it that cannot be added: none while nothing, or nothing that reads, is pasted. */
+const serversOf = (read: Read) => (read && 'servers' in read ? read.servers : [])
+const unsupportedOf = (read: Read) => (read && 'servers' in read ? read.unsupported : [])
+
+/** A read server as its card says it: the name it is given here, whether it is here already, what of it has no value. */
+type Shown = { name: string; added: boolean; missing: string[] }
+
+/** A card's tags, in its head: new or already here, and what stands in the way of adding it. */
+const serverTags = (server: Shown, secret: boolean, downloads: string | null) => (
+  <span className="paste-server-tags">
+    {server.added ? <span className="tag">already added — will be skipped</span> : <span className="tag tag-ok">new</span>}
+    {secret && (
+      <span className="tag">
+        <Lock size={11} aria-hidden="true" /> key kept secret
+      </span>
+    )}
+    {downloads && <span className="tag tag-warn">downloads on first read</span>}
+    {!server.added && server.missing.length > 0 && <span className="tag tag-warn">needs a value</span>}
+    {!server.added && !NAME.test(server.name) && <span className="tag tag-warn">needs a name</span>}
+  </span>
+)
+
+/** The notes at a card's foot: its token put away, a value to type, what its first read downloads. */
+const serverNotes = (server: Shown, secret: boolean, downloads: string | null, program: string) => (
+  <>
+    {secret && (
+      <p className="paste-note paste-note-ok">
+        <b>The token was in what you pasted:</b> it is moved to the secret field and never shown again. Clear your
+        clipboard if you like.
+      </p>
+    )}
+    {!server.added && server.missing.length > 0 && (
+      <p className="paste-note">
+        <b>
+          {server.missing.join(' and ')} {server.missing.length === 1 ? 'has' : 'have'} no value in what you pasted:
+        </b>{' '}
+        “Edit before adding” to type it.
+      </p>
+    )}
+    {downloads && (
+      <p className="paste-note">
+        <b>Downloads on first read:</b> {programOf(program)} fetches <span className="mono">{downloads}</span> from the
+        internet. You are asked before it runs.
+      </p>
+    )}
+  </>
+)
+
 interface Props {
   servers: McpServer[]
   onAdd: (values: NewMcpServer) => Promise<McpServer>
@@ -31,7 +80,7 @@ export function PasteServers({ servers, onAdd, onEdit, onDone }: Props) {
   const [failed, setFailed] = useState(new Map<string, string>())
   const [busy, setBusy] = useState(false)
   const read = text.trim() ? readPasted(text) : null
-  const found = (read && 'servers' in read ? read.servers : []).map(server => {
+  const found = serversOf(read).map(server => {
     const env = Object.fromEntries(
       Object.entries(server.env).map(([variable, value]) => [variable, value === MASK ? (kept.get(`${server.name}\n${variable}`) ?? '') : value]),
     )
@@ -85,7 +134,7 @@ export function PasteServers({ servers, onAdd, onEdit, onDone }: Props) {
   }
 
   const flip = (list: string[], key: string) => (list.includes(key) ? list.filter(one => one !== key) : [...list, key])
-  const unsupported = read && 'servers' in read ? read.unsupported : []
+  const unsupported = unsupportedOf(read)
   return (
     <div className="paste-two">
       <section className="paste-side" aria-labelledby="paste-text-label">
@@ -159,17 +208,7 @@ export function PasteServers({ servers, onAdd, onEdit, onDone }: Props) {
                       >
                         <span className="paste-server-name mono">{server.name || 'no name yet'}</span>
                         <span className="muted mono paste-server-command">{short(server.shown)}</span>
-                        <span className="paste-server-tags">
-                          {server.added ? <span className="tag">already added — will be skipped</span> : <span className="tag tag-ok">new</span>}
-                          {secret && (
-                            <span className="tag">
-                              <Lock size={11} aria-hidden="true" /> key kept secret
-                            </span>
-                          )}
-                          {downloads && <span className="tag tag-warn">downloads on first read</span>}
-                          {!server.added && server.missing.length > 0 && <span className="tag tag-warn">needs a value</span>}
-                          {!server.added && !NAME.test(server.name) && <span className="tag tag-warn">needs a name</span>}
-                        </span>
+                        {serverTags(server, secret, downloads)}
                         <CaretDown size={12} aria-hidden="true" className="paste-server-caret" />
                       </button>
                     </div>
@@ -221,26 +260,7 @@ export function PasteServers({ servers, onAdd, onEdit, onDone }: Props) {
                           </>
                         )}
                       </div>
-                      {secret && (
-                        <p className="paste-note paste-note-ok">
-                          <b>The token was in what you pasted:</b> it is moved to the secret field and never shown again. Clear your
-                          clipboard if you like.
-                        </p>
-                      )}
-                      {!server.added && server.missing.length > 0 && (
-                        <p className="paste-note">
-                          <b>
-                            {server.missing.join(' and ')} {server.missing.length === 1 ? 'has' : 'have'} no value in what you pasted:
-                          </b>{' '}
-                          “Edit before adding” to type it.
-                        </p>
-                      )}
-                      {downloads && (
-                        <p className="paste-note">
-                          <b>Downloads on first read:</b> {programOf(program)} fetches <span className="mono">{downloads}</span> from the
-                          internet. You are asked before it runs.
-                        </p>
-                      )}
+                      {serverNotes(server, secret, downloads, program)}
                     </div>
                   </li>
                 )

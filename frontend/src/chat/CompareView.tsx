@@ -35,6 +35,23 @@ const WAITING: Record<string, string> = {
 }
 const n = (value: number | null) => (value === null ? '–' : value.toLocaleString('en-US'))
 
+/** A side's time, tokens and cost: each a dash while it is not known. */
+const sideMeta = (side: CompareSide) => (
+  <dl className="compare-meta">
+    <div>
+      <dt>Time</dt> <dd>{side.seconds === null ? '–' : `${Math.round(side.seconds)} s`}</dd>
+    </div>
+    <div>
+      <dt>Tokens</dt>
+      <dd>{side.input_tokens === null && side.output_tokens === null ? '–' : `in ${n(side.input_tokens)} · out ${n(side.output_tokens)}`}</dd>
+    </div>
+    <div>
+      {/* (A sum for each currency, as the turn's summary says it: one is never added to another.) */}
+      <dt>Cost</dt> <dd>{side.cost ? side.cost.map(money).join(' + ') : '–'}</dd>
+    </div>
+  </dl>
+)
+
 /**
  * One message sent to two models (slice 54), side by side under it: each one's answer, the files
  * it changed in its own copy (with their diffs), its time, tokens and cost. Nothing of either is in
@@ -127,19 +144,7 @@ export function CompareView({ compareId, state, providers, onLoad, onDecide, onD
                   })}
                 </ul>
               )}
-              <dl className="compare-meta">
-                <div>
-                  <dt>Time</dt> <dd>{side.seconds === null ? '–' : `${Math.round(side.seconds)} s`}</dd>
-                </div>
-                <div>
-                  <dt>Tokens</dt>
-                  <dd>{side.input_tokens === null && side.output_tokens === null ? '–' : `in ${n(side.input_tokens)} · out ${n(side.output_tokens)}`}</dd>
-                </div>
-                <div>
-                  {/* (A sum for each currency, as the turn's summary says it: one is never added to another.) */}
-                  <dt>Cost</dt> <dd>{side.cost ? side.cost.map(money).join(' + ') : '–'}</dd>
-                </div>
-              </dl>
+              {sideMeta(side)}
               {/* (Not a side that left nothing: choosing it would take nothing.) */}
               {compare.status === 'ready' && (side.answer || side.changed_files.length > 0) && (
                 <>

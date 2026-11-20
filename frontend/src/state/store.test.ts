@@ -1059,3 +1059,51 @@ test('the first load does not overwrite the conversations list read after it ask
   await loading
   expect(useApp.getState().conversations.map(c => c.id)).toEqual(['new'])
 })
+
+test('what an event of the open chat has the page read again, in the order it asks', async () => {
+  const asked: string[] = []
+  const worker = { id: 'x', run_id: 'r', status: 'running', waiting_for: null }
+  vi.mocked(fetch).mockImplementation(async (url, init) => {
+    const path = String(url)
+    asked.push(`${init?.method ?? 'GET'} ${path}`)
+    if (/conversations\/[^/]+$/.test(path)) return new Response(JSON.stringify({ ...snapshot('a'), messages: [], agents: [worker] }), { status: 200 })
+    return new Response(/\/(board|away|memory|quota)$/.test(path) ? '{}' : '[]', { status: 200 })
+  })
+  useApp.setState({ projectId: 'p' })
+  await useApp.getState().openConversation('a')
+  await vi.advanceTimersByTimeAsync(0)
+  const source = FakeEventSource.open()[0]
+  /** What is asked for at once as the event arrives (what those answers ask for in turn is not this test's). */
+  const on = async (type: string, payload: unknown = {}) => {
+    asked.length = 0
+    source.emit(type, payload)
+    const at = [...asked]
+    await vi.advanceTimersByTimeAsync(0)
+    return at
+  }
+  const board = ['GET /api/board', 'GET /api/projects/p/board']
+  const roles = ['GET /api/roles', 'GET /api/teams', 'GET /api/categories']
+  const rest = [...board, 'GET /api/conversations/a/away', 'GET /api/projects/p/away', 'GET /api/conversations']
+  expect(await on('role.created')).toEqual(roles)
+  expect(await on('skill.created')).toEqual([...roles, 'GET /api/skills'])
+  // (Nobody has looked at the memory or the backlog: neither is read.)
+  expect(await on('memory.changed')).toEqual([])
+  expect(await on('backlog.changed')).toEqual(rest)
+  expect(await on('triggers.changed')).toEqual(['GET /api/projects/p/triggers', 'GET /api/triggers/paused', 'GET /api/projects/p/triggers/changes', 'GET /api/conversations/a/trigger-proposals'])
+  expect(await on('notes.offered')).toEqual(['GET /api/conversations/a/notes-offers'])
+  expect(await on('conversation.updated', { ...conversation, id: 'a' })).toEqual(['GET /api/conversations'])
+  expect(await on('view.shown')).toEqual([])
+  // The board: a file changed hands, a turn stopped or went on, an agent started or began to wait - not what it says.
+  expect(await on('claims.changed', { claims: [] })).toEqual(board)
+  expect(await on('run.updated', started('r1', 'running'))).toEqual(board)
+  expect(await on('run.finished', started('r1', 'completed'))).toEqual(board)
+  expect(await on('agent.created', { ...worker, id: 'y', provider_name: null })).toEqual(board)
+  expect(await on('agent.updated', { ...worker })).toEqual([])
+  expect(await on('agent.updated', { ...worker, status: 'blocked', waiting_for: { path: 'a.py' } })).toEqual(board)
+  expect(await on('agent.updated', { ...worker, status: 'blocked', waiting_for: { path: 'b.py' } })).toEqual(board)
+  expect(await on('agent.updated', { ...worker, status: 'blocked', waiting_for: { path: 'b.py' }, report: 'said' })).toEqual([])
+  expect(await on('agent.updated', { ...worker, id: 'z' })).toEqual([])
+  useApp.setState({ memory: {} as never, backlog: [] })
+  expect(await on('memory.changed')).toEqual(['GET /api/projects/p/memory'])
+  expect(await on('backlog.changed')).toEqual(['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/auto', ...rest])
+})

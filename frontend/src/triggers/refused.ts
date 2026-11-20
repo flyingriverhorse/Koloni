@@ -31,32 +31,37 @@ function pathOf(call: ToolCall): string {
   }
 }
 
+// Refused in other words: a provider that works with its own tools, or a note put forward for the core.
+function inOtherWords(call: ToolCall): Omit<Refused, 'id'> {
+  const provider = OWN_TOOLS.exec(call.result ?? '')?.[1]
+  if (provider) return { what: `open an agent on ${provider}, which works with its own tools`, allow: null }
+  return { what: call.name === 'remember' ? 'put a note forward for the core' : call.name, allow: null }
+}
+
+/** A command that was refused (`ran`: RUN's match in `wanted`). */
+function ranLine(wanted: string, ran: RegExpExecArray): Omit<Refused, 'id'> {
+  try {
+    const line: unknown = JSON.parse(ran[1])
+    if (typeof line === 'string') {
+      // The line the server compared, exactly: that is what a trigger would have to allow.
+      // In another folder no trigger allows it.
+      return { what: `run \`${line}\`${ran[2] ?? ''}`, allow: ran[2] ? null : { command: line } }
+    }
+  } catch {
+    // not a line this page can read back: listed as it was said
+  }
+  return { what: wanted, allow: null }
+}
+
 function refusal(call: ToolCall): Omit<Refused, 'id'> {
   const wanted = WANTED.exec(call.result ?? '')?.[1]
-  if (!wanted) {
-    // Refused in other words: a provider that works with its own tools, or a note put forward for the core.
-    const provider = OWN_TOOLS.exec(call.result ?? '')?.[1]
-    if (provider) return { what: `open an agent on ${provider}, which works with its own tools`, allow: null }
-    return { what: call.name === 'remember' ? 'put a note forward for the core' : call.name, allow: null }
-  }
+  if (!wanted) return inOtherWords(call)
   if (wanted === 'change files') {
     const path = pathOf(call)
     return { what: path ? `write ${path}` : 'change files', allow: { write: true } }
   }
   const ran = RUN.exec(wanted)
-  if (ran) {
-    try {
-      const line: unknown = JSON.parse(ran[1])
-      if (typeof line === 'string') {
-        // The line the server compared, exactly: that is what a trigger would have to allow.
-        // In another folder no trigger allows it.
-        return { what: `run \`${line}\`${ran[2] ?? ''}`, allow: ran[2] ? null : { command: line } }
-      }
-    } catch {
-      // not a line this page can read back: listed as it was said
-    }
-    return { what: wanted, allow: null }
-  }
+  if (ran) return ranLine(wanted, ran)
   if (/^open an? .+ (sub-agent|for a discussion)$/.test(wanted)) return { what: wanted, allow: { agents: 1 } }
   return { what: wanted, allow: null }
 }

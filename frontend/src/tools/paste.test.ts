@@ -129,6 +129,26 @@ test('a claude mcp add line: a shell prompt before it, carried on with \\ ` or ^
   expect(readPasted("claude mcp add notes -- node don't.js")).toEqual({ servers: [{ name: 'notes', command: ['node', "don't.js"], env: {} }], unsupported: [] })
 })
 
+test('a claude mcp add line that is not understood: no variable after -e, an option not known, no name, no command', () => {
+  for (const line of ['claude mcp add -e fetch -- uvx x', 'claude mcp add fetch -e', 'claude mcp add --verbose fetch -- uvx x', 'claude mcp add -- uvx x', 'claude mcp add -s user', 'claude mcp add fetch', 'claude mcp add fetch --'])
+    expect(readPasted(line)).toEqual({ error: UNDERSTOOD })
+  // A header and a scope are passed over with their values; variables after the name are read too; the command's own options are its own.
+  expect(readPasted('claude mcp add -H "X-Key: 1" -s user fetch -e A=1 B=2 -e C=3 -- uvx -e --x')).toEqual({
+    servers: [{ name: 'fetch', command: ['uvx', '-e', '--x'], env: { A: '1', B: '2', C: '3' } }],
+    unsupported: [],
+  })
+  expect(readPasted('claude mcp add fetch uvx -e')).toEqual({ servers: [{ name: 'fetch', command: ['uvx', '-e'], env: {} }], unsupported: [] })
+  expect(readPasted('claude mcp add -t sse remote')).toEqual({ servers: [], unsupported: ['remote'] })
+})
+
+test('one entry that is no server stops the reading; one over the network is named and the others still read', () => {
+  expect(readPasted('{"a": {"command": "npx"}, "b": 1}')).toEqual({ error: UNDERSTOOD })
+  expect(readPasted('{"a": {"command": "npx"}, "b": {"type": "stdio"}}')).toEqual({ error: UNDERSTOOD })
+  expect(readPasted('{"a": {"type": "http"}, "b": {"command": "npx", "args": [1, true]}}')).toEqual({ servers: [{ name: 'b', command: ['npx', '1', 'true'], env: {} }], unsupported: ['a'] })
+  expect(readPasted('{"mcp": {"x": 1}, "command": "npx"}')).toEqual({ servers: [{ name: '', command: ['npx'], env: {} }], unsupported: [] })
+  expect(readPasted('{"mcpServers": 1}')).toEqual({ error: UNDERSTOOD })
+})
+
 test('put away: each value masked and kept apart; a server over the network left as its name; nothing to put away is null', () => {
   const read = masked(JSON.stringify({ mcpServers: { github, remote: { url: 'https://example.test/?key=k1', headers: { Authorization: 'Bearer zz' } } } }))!
   expect(read.away).toEqual([['github\nGITHUB_PERSONAL_ACCESS_TOKEN', 'ghp_secret123456']])

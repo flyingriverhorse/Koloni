@@ -122,14 +122,19 @@ export const LANGUAGES = ['Auto', 'English', 'Türkçe', 'Deutsch', 'Español', 
 /** Said once, by the save that put a setting or the rules into the folder’s .koloni/ (slice 86c). */
 export const KEPT_IN_FOLDER = 'Saved in .koloni/ in this folder (kept in git)'
 
-/** What the folder’s .koloni/settings.json asks for that is not saved here, in words: “run commands in Docker image X, with network access”. */
-function askedFor(asks: Project['koloni']['asks'], project: Project): string {
+/** Where it asks commands to run, or only the Docker image they use (false: neither is asked). */
+function commandsAsked(asks: Project['koloni']['asks'], project: Project) {
   const where = asks.exec_location ?? project.exec_location
   const image = 'docker_image' in asks ? asks.docker_image : project.docker_image
+  return asks.exec_location || (where === 'docker' && 'docker_image' in asks)
+    ? where === 'docker' ? `run commands in Docker image ${image}` : 'run commands on this machine'
+    : 'docker_image' in asks && `use the Docker image ${image ?? 'none'}`
+}
+
+/** What the folder’s .koloni/settings.json asks for that is not saved here, in words: “run commands in Docker image X, with network access”. */
+function askedFor(asks: Project['koloni']['asks'], project: Project): string {
   const parts = [
-    asks.exec_location || (where === 'docker' && 'docker_image' in asks)
-      ? where === 'docker' ? `run commands in Docker image ${image}` : 'run commands on this machine'
-      : 'docker_image' in asks && `use the Docker image ${image ?? 'none'}`,
+    commandsAsked(asks, project),
     'docker_network' in asks && (asks.docker_network ? 'with network access' : 'without network access'),
     asks.search_order && (asks.search_order === 'cli' ? 'search with a CLI first' : 'search with the built-in search first'),
   ]
@@ -153,6 +158,10 @@ export const SECTIONS: [Section, string][] = [
   ['own-commands', 'Slash commands'],
   ['folder', 'This folder'],
 ]
+
+/** Under a section's Save, once it is saved and not changed since: that it is - and, by the save that put the settings into the folder, that. */
+const savedSaid = (saved: boolean, keptBefore: boolean, koloni: Project['koloni'] | undefined) =>
+  saved ? (!keptBefore && koloni?.settings_kept ? KEPT_IN_FOLDER : 'Saved') : ''
 
 const alone = (sections: ReactNode) => (
   <nav className="agents-list" aria-label="Project settings sections">
@@ -251,7 +260,7 @@ export function ProjectSettings({ project, dockerAvailable, dockerError, desktop
                 Save
               </button>
               <span role="status" className="muted">
-                {savedSection === section && !shown.changed ? (!keptBefore && koloni?.settings_kept ? KEPT_IN_FOLDER : 'Saved') : ''}
+                {savedSaid(savedSection === section && !shown.changed, keptBefore, koloni)}
               </span>
             </div>
           )}

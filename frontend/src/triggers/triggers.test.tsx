@@ -210,6 +210,7 @@ test('a webhook’s key and address are shown once, with a way to copy them and 
   expect(shown).toHaveTextContent('Anyone on this machine who has this address can run the trigger.')
   await userEvent.click(within(shown).getByRole('button', { name: 'Copy the address' }))
   expect(copy).toHaveBeenCalledWith(address)
+  expect(await within(shown).findByRole('button', { name: 'Copied' })).toHaveClass('btn', 'btn-small')
   // put away, it is gone for good: nothing on the page still holds it
   await userEvent.click(within(shown).getByRole('button', { name: 'I have copied it' }))
   expect(screen.queryByText(address)).not.toBeInTheDocument()
@@ -658,4 +659,15 @@ test('the form opened takes the focus on its first field; Cancel gives it back t
   expect(within(form()).getByLabelText('Name')).toHaveFocus()
   await userEvent.click(within(form()).getByRole('button', { name: 'Cancel' }))
   expect(screen.getByRole('button', { name: 'New trigger' })).toHaveFocus()
+})
+
+test('before the triggers are read the page says it is reading them - or why it could not', () => {
+  const { container, rerender } = render(<TriggersPage triggers={null} conversations={[conversation]} draft={null} origin="http://127.0.0.1:8790" {...handlers()} />)
+  expect(container.querySelector('.triggers-page')?.children).toHaveLength(1)
+  expect(screen.getByText('Reading the project’s triggers…')).toHaveClass('muted')
+  expect(screen.queryByRole('heading', { name: 'Triggers' })).toBeNull()
+  rerender(<TriggersPage triggers={null} error="the server is not answering" conversations={[conversation]} draft={null} origin="http://127.0.0.1:8790" {...handlers()} />)
+  expect(container.querySelector('.triggers-page')?.children).toHaveLength(1)
+  expect(screen.getByRole('alert')).toHaveTextContent(/^the server is not answering$/)
+  expect(screen.queryByText('Reading the project’s triggers…')).toBeNull()
 })

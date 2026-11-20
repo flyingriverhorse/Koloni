@@ -82,6 +82,13 @@ export const filesOf = (state: Pick<ConvState, 'fileChanges'>, row: { state: Cha
 
 /** How long a row's why is in the chat's one line; the card in full says all of it. */
 const WHY_CHARS = 60
+const shortWhy = (why: ChatTeamState['why']) => (why && why.length > WHY_CHARS ? `${why.slice(0, WHY_CHARS - 1)}…` : why)
+
+/** What a row has for Take in, by its files' count: a team with no recipe is kept apart. */
+function toTakeIn(recipe: string, count: number): string {
+  const files = `${count} file${count === 1 ? '' : 's'}`
+  return recipe ? files : count ? `${files}, kept apart` : 'nothing to take in'
+}
 
 /**
  * K-hazir-satir: KOLONİ's Ready for you card as the chat says it, in one line - "Teams' work is ready · Web app 3 files ·
@@ -104,10 +111,8 @@ export function readyLine(state: Pick<ConvState, 'conversation' | 'runs' | 'file
   const anyEnded = rows.some(row => ended(row))
   const said = rows.map(row => {
     const { team, status, why, recipe } = row.state
-    const count = filesOf({ fileChanges: changes }, row)
-    const files = `${count} file${count === 1 ? '' : 's'}`
-    const what = recipe ? files : count ? `${files}, kept apart` : 'nothing to take in'
-    const short = why && why.length > WHY_CHARS ? `${why.slice(0, WHY_CHARS - 1)}…` : why
+    const what = toTakeIn(recipe, filesOf({ fileChanges: changes }, row))
+    const short = shortWhy(why)
     if (anyEnded) {
       const word = ended(row) ?? (['ready', 'done', 'in'].includes(status) ? 'is ready' : status)
       return `${team} ${word}${asked?.open !== false && short ? `: ${short}` : ''} (${what})`

@@ -36,51 +36,79 @@ export function foldGraph(graph: Graph, folds: Folds): Graph {
   // What is hidden in a folded team frame, by the frame (its one line): talk with it is drawn to the frame's door. And
   // what is hidden in a folded round, by the round's line: every line of it is drawn to that.
   const folded = new Map<string, string>()
+  const nodes = drawnNodes(graph.nodes, folds, shut, folded)
+  return { nodes, edges: drawnEdges(graph.edges, nodes, folded) }
+}
+
+type Folded = Map<string, string>
+
+/** The nodes that are drawn; what is hidden is put down in `shut`, and in `folded` by the frame or round it is hidden in. */
+function drawnNodes(all: GraphNode[], folds: Folds, shut: Set<string>, folded: Folded): GraphNode[] {
   const nodes: GraphNode[] = []
-  for (const node of graph.nodes) {
+  for (const node of all) {
     // A group comes before what is inside it - a team's frame before its agents, a round's line before its own.
-    if ((node.parent && shut.has(node.parent)) || (node.team && shut.has(node.team)) || (node.round && shut.has(node.round))) {
+    if (inShut(node, shut)) {
       shut.add(node.id)
       const frame = node.team && shut.has(node.team) ? node.team : node.round && shut.has(node.round) ? node.round : folded.get(node.parent ?? '')
       if (frame) folded.set(node.id, frame)
       continue
     }
     if (!isGroup(node)) {
-      // K-belge-ciktilari: an output card the user unfolded shows all its rows.
-      const all = node.kind === 'shared' && folds[node.id] ? (node.data as SharedData).all : undefined
-      nodes.push(all ? { ...node, data: { ...(node.data as SharedData), rows: all } } : node)
+      nodes.push(withRows(node, folds))
       continue
     }
     const open = opens(node, folds)
     if (!open) shut.add(node.id)
     nodes.push({ ...node, data: { ...(node.data as GroupData), open } as GraphNode['data'] })
   }
+  return nodes
+}
+
+const inShut = (node: GraphNode, shut: Set<string>) => (node.parent && shut.has(node.parent)) || (node.team && shut.has(node.team)) || (node.round && shut.has(node.round))
+
+function withRows(node: GraphNode, folds: Folds): GraphNode {
+  // K-belge-ciktilari: an output card the user unfolded shows all its rows.
+  const all = node.kind === 'shared' && folds[node.id] ? (node.data as SharedData).all : undefined
+  return all ? { ...node, data: { ...(node.data as SharedData), rows: all } } : node
+}
+
+/** The lines that are drawn between the nodes that are (`nodes`): one to what is hidden goes to the frame or round it is hidden in. */
+function drawnEdges(all: GraphEdge[], nodes: GraphNode[], folded: Folded): GraphEdge[] {
   const drawn = new Set(nodes.map(n => n.id))
   const rounds = new Set(nodes.filter(n => n.kind === 'round').map(n => n.id))
   const edges: GraphEdge[] = []
-  for (const e of graph.edges) {
+  for (const e of all) {
     // (A copy: what is added up on it is not added to the graph it was folded from.)
     if (drawn.has(e.source) && drawn.has(e.target)) edges.push({ ...e })
     // A lane discussion's member in a folded frame: the frame, to light it.
     else if (e.member && folded.has(e.source) && drawn.has(e.target)) edges.push({ ...e, id: `${e.id}@${folded.get(e.source)}`, source: folded.get(e.source)! })
-    else if (e.messages) {
-      const [source, target] = [drawn.has(e.source) ? e.source : folded.get(e.source), drawn.has(e.target) ? e.target : folded.get(e.target)]
-      if (!source || !target || source === target) continue
-      // (Several on one way, one line: they add up, its last words the newest.)
-      const same = edges.find(one => one.messages && [one.source, one.target].sort().join() === [source, target].sort().join())
-      if (!same) edges.push({ ...e, id: `${e.id}@${source === e.source ? target : source}`, source, target, cross: false })
-      else Object.assign(same, { messages: (same.messages ?? 0) + e.messages }, (e.lastAt ?? '') >= (same.lastAt ?? '') && { last: e.last, lastAt: e.lastAt })
-    }
+    else if (e.messages) talkLine(e, e.messages, drawn, folded, edges)
     // An end in a folded round: the round's line - one line of a kind for each way, its findings added up.
-    else if ([e.source, e.target].some(id => rounds.has(folded.get(id) ?? ''))) {
-      const [source, target] = [drawn.has(e.source) ? e.source : folded.get(e.source), drawn.has(e.target) ? e.target : folded.get(e.target)]
-      if (!source || !target || source === target) continue
-      const same = edges.find(one => one.source === source && one.target === target && !one.work === !e.work && !one.spawn === !e.spawn && (one.findings === undefined) === (e.findings === undefined))
-      if (!same) edges.push({ ...e, id: `${e.id}@${source}>${target}`, source, target })
-      else Object.assign(same, { active: same.active || e.active }, e.findings !== undefined && { findings: (same.findings ?? 0) + e.findings })
-    }
+    else if ([e.source, e.target].some(id => rounds.has(folded.get(id) ?? ''))) roundLine(e, drawn, folded, edges)
   }
-  return { nodes, edges }
+  return edges
+}
+
+/** A line's two ends as drawn: each itself, or what it is hidden in (undefined: in nothing that is drawn). */
+const endsOf = (e: GraphEdge, drawn: Set<string>, folded: Folded) => [drawn.has(e.source) ? e.source : folded.get(e.source), drawn.has(e.target) ? e.target : folded.get(e.target)]
+
+/** Talk with an end that is hidden (`messages`: how many it counts), added to `edges`. */
+function talkLine(e: GraphEdge, messages: number, drawn: Set<string>, folded: Folded, edges: GraphEdge[]) {
+  const [source, target] = endsOf(e, drawn, folded)
+  if (!source || !target || source === target) return
+  // (Several on one way, one line: they add up, its last words the newest.)
+  const same = edges.find(one => one.messages && [one.source, one.target].sort().join() === [source, target].sort().join())
+  if (!same) edges.push({ ...e, id: `${e.id}@${source === e.source ? target : source}`, source, target, cross: false })
+  else Object.assign(same, { messages: (same.messages ?? 0) + messages }, (e.lastAt ?? '') >= (same.lastAt ?? '') && { last: e.last, lastAt: e.lastAt })
+}
+
+/** A line with an end in a folded round, added to `edges`. */
+function roundLine(e: GraphEdge, drawn: Set<string>, folded: Folded, edges: GraphEdge[]) {
+  const [source, target] = endsOf(e, drawn, folded)
+  if (!source || !target || source === target) return
+  const same = edges.find(one => one.source === source && one.target === target && !one.work === !e.work && !one.spawn === !e.spawn && (one.findings === undefined) === (e.findings === undefined))
+  if (!same) edges.push({ ...e, id: `${e.id}@${source}>${target}`, source, target })
+  else Object.assign(same, { active: same.active || e.active }, e.findings !== undefined && { findings: (same.findings ?? 0) + e.findings })
 }
 
 /** Every group of the graph that has something inside, opened or closed. */

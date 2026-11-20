@@ -146,6 +146,20 @@ function TaskState({ task, on }: { task: ListedConversation['backlog_task']; on?
   return <span className={`tag${task.waiting || task.status === 'blocked' ? ' tag-warn' : ''}`}>{word}</span>
 }
 
+/** The names of an archived chat's triggers that still run: switched on, and not all held back. */
+const stillRunning = (c: ListedConversation, triggers: Props['triggers'], triggersPaused: boolean) =>
+  c.archived_at && !triggersPaused ? (triggers ?? []).filter(t => t.conversation_id === c.id && t.enabled).map(t => t.name) : []
+
+/** What a chat's last turn ran with - its agents, its model, its tokens where they are known; nothing where the Board has no turn of it. */
+const ranOf = (turn: BoardConversation['turn'] | undefined) =>
+  turn && [count(turn.agents, 'agent'), ranOn(turn.provider_name, turn.model_id), turn.tokens != null && `${turn.tokens.toLocaleString('en-US')} tokens`]
+
+const triggerNote = (running: string[]) => (
+  <span className="muted conv-trigger">
+    {running.length === 1 ? 'Its trigger' : 'Its triggers'} {running.join(', ')} still {running.length === 1 ? 'runs' : 'run'}
+  </span>
+)
+
 export function ConversationList({ conversations, projects = [], currentId, onOpen, onNew, onArchive, onDelete, board, triggers, triggersPaused = false, onRefresh }: Props) {
   const [by, setBy] = useState<'date' | 'name'>('date')
   // The folders whose group was opened or closed here by hand, by their project's id ('none': the chats with no folder).
@@ -227,10 +241,9 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
   const rows = (list: ListedConversation[], underArchived = false) => (
     <ul className="conv-list">
       {list.map(c => {
-        const running = c.archived_at && !triggersPaused ? (triggers ?? []).filter(t => t.conversation_id === c.id && t.enabled).map(t => t.name) : []
+        const running = stillRunning(c, triggers, triggersPaused)
         // Its last turn as the Board has it (of the folders it reads): its agents, model and tokens.
-        const turn = on.get(c.id)?.turn
-        const ran = turn && [count(turn.agents, 'agent'), ranOn(turn.provider_name, turn.model_id), turn.tokens != null && `${turn.tokens.toLocaleString('en-US')} tokens`]
+        const ran = ranOf(on.get(c.id)?.turn)
         return (
           <li key={c.id} className="conv-item">
             <input
@@ -260,11 +273,7 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
             <button type="button" className="btn btn-small" aria-label={`${c.archived_at ? 'Unarchive' : 'Archive'} ${c.title}`} onClick={() => void archive(c, !c.archived_at)}>
               {c.archived_at ? 'Unarchive' : 'Archive'}
             </button>
-            {running.length > 0 && (
-              <span className="muted conv-trigger">
-                {running.length === 1 ? 'Its trigger' : 'Its triggers'} {running.join(', ')} still {running.length === 1 ? 'runs' : 'run'}
-              </span>
-            )}
+            {running.length > 0 && triggerNote(running)}
           </li>
         )
       })}

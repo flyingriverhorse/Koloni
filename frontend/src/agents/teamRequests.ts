@@ -88,9 +88,12 @@ export function lineLabel(request: TeamRequest): string {
   return `request · ${shortWhat(request.what)}${request.stands === 'waits' ? ' · waits' : ''}`
 }
 
+/** The asked team's lead as the card names it; before it has one, "Backend / API's lead". */
+const leadName = (request: TeamRequest) => (request.lead ? request.lead.name || request.lead.role_name : `${request.to}'s lead`)
+
 /** How it stands, as the chat's card says it: "Backend / API lead gave it to its Coder · at work · Web app's Coder waits". */
 export function standsLine(request: TeamRequest, member?: Agent): string {
-  const lead = request.lead ? request.lead.name || request.lead.role_name : `${request.to}'s lead`
+  const lead = leadName(request)
   switch (request.stands) {
     case 'answered':
       return `${lead} answered ✓`

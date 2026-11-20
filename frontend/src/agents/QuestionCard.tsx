@@ -41,6 +41,21 @@ function questionTitle(question: Pick<Question, 'question' | 'leave' | 'options'
   return { who, title: TITLES.find(([is]) => is(first))?.[1] ?? 'KOLONİ needs your word', said: text }
 }
 
+/** The card's head: the one line it is said in, or who asks, its title and the text under it. */
+function QuestionHead({ question, line }: Pick<Props, 'question' | 'line'>) {
+  const { who, title, said } = questionTitle(question)
+  return line ? (
+    <div className="question-text">{line.text}</div>
+  ) : (
+    <>
+      {/* (Who asks, on every card: an agent's words read as the agent's, KOLONİ's as its own.) */}
+      <div className="card-who">{who}</div>
+      <div className="kicker cmd-approval-kicker">{title}</div>
+      {said && <p className="card-said question-text">{said}</p>}
+    </>
+  )
+}
+
 /**
  * A question an agent is waiting on: pick an option or answer in your own words. One that
  * asks leave for a tool (`leave`) is KOLONİ's own, not the agent's, and its options are all
@@ -71,19 +86,9 @@ export function QuestionCard({ question, onAnswer, line }: Props) {
     else if (draft.trim()) void answer(draft.trim())
   }
 
-  const { who, title, said } = questionTitle(question)
   return (
     <form className={`cmd-approval${line ? ' question-line' : ''}`} onSubmit={submit}>
-      {line ? (
-        <div className="question-text">{line.text}</div>
-      ) : (
-        <>
-          {/* (Who asks, on every card: an agent's words read as the agent's, KOLONİ's as its own.) */}
-          <div className="card-who">{who}</div>
-          <div className="kicker cmd-approval-kicker">{title}</div>
-          {said && <p className="card-said question-text">{said}</p>}
-        </>
-      )}
+      <QuestionHead question={question} line={line} />
       {question.options.length > 0 && (
         <div className="question-options">
           {question.options.map(option => (

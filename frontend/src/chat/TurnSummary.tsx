@@ -18,6 +18,14 @@ interface Props {
 
 const n = (value: number | null) => (value === null ? '–' : value.toLocaleString('en-US'))
 
+/** What of the turn is left for you, in words ('': nothing). */
+const leftOpen = (merges: number, proposed: boolean, serving: boolean) =>
+  [merges > 0 && 'changes to take in or discard', proposed && 'changes to approve', serving && 'a server running'].filter(Boolean).join(', ')
+
+/** The turn's tokens: as its parts say them, else in and out - a dash where neither is known. */
+const tokensSaid = (parts: ReturnType<typeof partTokens>, sent: number | null, wrote: number | null) =>
+  parts ?? (sent === null && wrote === null ? '–' : `in ${n(sent)} · out ${n(wrote)}`)
+
 /**
  * Under an answer whose message did work (slice 107): one quiet line - "2 agents · 3 files
  * changed · details ▸" - of what is known, and nothing at all under a plain answer. "details"
@@ -51,7 +59,7 @@ export function TurnSummary({ state, run, onOpenChange, onUsage, prices = [] }: 
   // (a server it started keeps running after it: slice 42b)
   const serving = state.commands.some(c => c.run_id === run.id && c.keep_running && c.status === 'running')
   const note = keptNote(turnTeams(state, run.id), state.fileChanges, run.id)
-  const left = [merges > 0 && 'changes to take in or discard', proposed && 'changes to approve', serving && 'a server running'].filter(Boolean).join(', ')
+  const left = leftOpen(merges, proposed, serving)
   const line = [workText(work, true), left].filter(Boolean).join(' · ')
   if (!line && !note) return null
   const rows: [string, ReactNode][] = [
@@ -70,7 +78,7 @@ export function TurnSummary({ state, run, onOpenChange, onUsage, prices = [] }: 
       </>,
     ],
     ['Sub-agents', work.agents],
-    ['Tokens', partTokens(state, run) ?? (sent === null && wrote === null ? '–' : `in ${n(sent)} · out ${n(wrote)}`)],
+    ['Tokens', tokensSaid(partTokens(state, run), sent, wrote)],
     ['Known cost', spent ? totalCost(spent, prices) : '–'],
     ['Left open', left || 'nothing'],
     // G1.3, B-84: its recipes' teams that ended before their end, and what Take in takes in with the kept copy.

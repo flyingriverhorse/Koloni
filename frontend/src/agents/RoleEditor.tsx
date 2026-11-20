@@ -406,6 +406,16 @@ function RoleLimits({ at, lead, steps, setSteps, maxSteps, tokens, setTokens, ma
   )
 }
 
+/** Where a role runs, in the summary's words: by who picks its model. */
+const runsOn = (values: RoleValues, uses: Uses, providers: Provider[]) =>
+  uses === 'pick'
+    ? `the model the Orchestrator picks for each job, ${values.tier_min ?? TIERS[0]} to ${values.tier_max ?? TIERS[TIERS.length - 1]}`
+    : uses === 'tier'
+      ? `the first ${values.tier} model of your team guide`
+      : uses === 'model'
+        ? `${providers.find(p => p.id === values.provider_id)?.name ?? 'a provider'} · ${values.model_id ? modelName(values.model_id) : 'its default model'}`
+        : 'the chat’s model'
+
 function RoleSummary({ values, teamLead, categories, uses, providers, observer, maxSteps, maxTokens }: {
   values: RoleValues
   teamLead: boolean
@@ -417,14 +427,7 @@ function RoleSummary({ values, teamLead, categories, uses, providers, observer, 
   maxTokens: number | null | undefined
 }) {
   const asks = ROLE_TOOLS.filter(tool => tool.asks && values.tools.includes(tool.name)).map(tool => tool.label.toLowerCase())
-  const where =
-    uses === 'pick'
-      ? `the model the Orchestrator picks for each job, ${values.tier_min ?? TIERS[0]} to ${values.tier_max ?? TIERS[TIERS.length - 1]}`
-      : uses === 'tier'
-        ? `the first ${values.tier} model of your team guide`
-        : uses === 'model'
-          ? `${providers.find(p => p.id === values.provider_id)?.name ?? 'a provider'} · ${values.model_id ? modelName(values.model_id) : 'its default model'}`
-          : 'the chat’s model'
+  const where = runsOn(values, uses, providers)
   return (
     <div className="role-summary" aria-live="polite">
       <p>

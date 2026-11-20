@@ -87,3 +87,29 @@ test('a refused save is said and the typed command stays', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('origin not allowed')
   expect(box).toHaveValue('npm test')
 })
+
+test('the map’s line: one part, no git, and that not every folder was looked in; while it is read, Looking…; none found says so', async () => {
+  let told: (read: MapOf) => void = () => {}
+  vi.spyOn(api, 'get').mockImplementation(() => new Promise(resolve => (told = resolve as typeof told)))
+  const { rerender } = render(<ProjectMap project={project} />)
+  expect(screen.getByRole('status')).toHaveTextContent(/^Looking…$/)
+  expect(screen.queryByText(/^Skyulf \(/)).toBeNull()
+  told({ ...map, git: false, big: false, partial: true, not_copied: [], parts: [part('app/')] })
+  expect(await screen.findByText(/^Skyulf \(1 part\)/)).toHaveTextContent(/^Skyulf \(1 part\) · not every folder was looked in$/)
+  expect(screen.getByText('· not every folder was looked in')).toHaveClass('muted')
+  expect(screen.getByRole('status')).toHaveTextContent(/^$/)
+  expect(screen.queryByText(/Not copied|Too big to copy|No part found/)).toBeNull()
+  rerender(<ProjectMap project={{ ...project, id: 'q' }} />)
+  told({ ...map, git: false, parts: [] })
+  expect(await screen.findByText('Skyulf (0 parts)')).toBeInTheDocument()
+  expect(screen.getByText('No part found: no folder has a project file.')).toHaveClass('muted')
+  expect(screen.getByText('Too big to copy: agents work in the folder itself.')).toHaveClass('choice-note')
+  expect(screen.queryByRole('table')).toBeNull()
+})
+
+test('a map that cannot be read says why, and no longer says it is looking', async () => {
+  vi.spyOn(api, 'get').mockRejectedValue(new Error('down'))
+  render(<ProjectMap project={project} />)
+  expect(await screen.findByRole('alert')).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent(/^$/)
+})
