@@ -61,7 +61,7 @@ function fromOf(item: ReadyItem, folder: (projectId: string | null) => string | 
   const agent = item.state.agents.find(a => a.id === item.row.agentId)
   const name = agent && titleOf(agent.name || agent.role_name, teams)
   const where = item.source === 'other' ? folder(item.state.conversation.project_id) : undefined
-  return [name && (koloniAbout(item.row) ? `for ${name}` : `${name} asks`),`“${item.state.conversation.title}”`, where].filter(Boolean).join(' · ')
+  return [name && (koloniAbout(item.row) ? `for ${name}` : `${name} asks`), `“${item.state.conversation.title}”`, where].filter(Boolean).join(' · ')
 }
 
 /** A chat's card, with its chat's words. */
