@@ -168,3 +168,15 @@ test('once one is used, the other side’s rows are one closed row, and the pick
   await userEvent.click(screen.getByRole('button', { name: 'Undo these changes' }))
   expect(screen.getByRole('region', { name: 'Undo these changes' })).toBeInTheDocument()
 })
+
+test('a side’s time, tokens and cost: each a dash while it is not known', async () => {
+  const sides = [side('a', 'pa', 'alpha-1', 'Alpha made it.'), side('b', 'pb', 'beta-1', '', { status: 'running', seconds: null, input_tokens: null, output_tokens: null }), ]
+  const onLoad = vi.fn().mockResolvedValue({ id: 'k', conversation_id: 'c', status: 'running', chosen_run_id: null, sides } satisfies Compare)
+  const state = convState({ runs: [run('a', 'completed', { compare_id: 'k' }), run('b', 'running', { compare_id: 'k' })], messages: [userMessage('a', 'make greeting.txt'), userMessage('b', 'make greeting.txt')] })
+  render(<MessageList state={state} providers={providers} onRemoveQueued={vi.fn()} onOpenChange={vi.fn()} onDecide={vi.fn()} onDecideCommand={vi.fn()} onLoadCompare={onLoad} onDecideCompare={vi.fn()} />)
+  const meta = (name: string) => Array.from(screen.getByRole('region', { name }).querySelectorAll('.compare-meta > div'), one => one.textContent)
+  await screen.findByRole('region', { name: 'Alpha · alpha-1' })
+  expect(meta('Alpha · alpha-1')).toEqual(['Time 3 s', 'Tokensin 21 · out 8', 'Cost –'])
+  expect(meta('Beta · beta-1')).toEqual(['Time –', 'Tokens–', 'Cost –'])
+  expect(screen.getByRole('region', { name: 'Beta · beta-1' }).querySelector('.compare-meta')?.previousElementSibling).toHaveClass('compare-files')
+})
