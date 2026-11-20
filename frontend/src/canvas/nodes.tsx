@@ -428,6 +428,9 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
       {/* (Its line to Ready for you: low, under its card - canvas.css. A frame of roles has none: its dot hidden, kept for
           a member's line and a line moved onto it, folded.) */}
       <Handle type="source" position={Position.Right} isConnectable={false} className={data.byRoles ? 'team-out found-handle' : 'team-out'} />
+      {/* Findings handed out of it, from under it (only the line shows). After team-out: a line that names no dot leaves
+          by the first. */}
+      <Handle type="source" id="found-out" position={Position.Bottom} isConnectable={false} className="found-handle" />
       {/* Its door, by its header: the Lead's line comes in there, and the work line inside starts there. */}
       <Handle type="target" id="door-in" position={Position.Left} isConnectable={false} className="team-door" />
       <Handle type="source" id="door-out" position={Position.Left} isConnectable={false} className="team-door" />

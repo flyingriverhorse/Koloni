@@ -625,6 +625,35 @@ test('a closed box of files keeps their line: one dashed line from the box to th
   expect(document.querySelector('.react-flow__edge.edge-handed')?.getAttribute('data-id')).toMatch(/@files:r>agent:r$/)
 })
 
+test('findings handed out of a team’s frame to an agent outside it get their line, from under the frame', async () => {
+  // (Live: "Fix the findings" opens a Coder outside the frame; only the Reviewer's card counted what it was handed.)
+  const { measure, stage } = laidOut()
+  const step = { id: 'review', name: 'Review', state: 'now' as const, round: 0, room: false, own_check: false, left_out: [], group: false }
+  const conv = convState({
+    conversation: {
+      ...conversation,
+      teams_mode: 'manual',
+      teams: [{ team_id: 'web', recipe_id: null, no_recipe: false, picked_by: 'user', why: null, state: { run_id: 't', team: 'Web app', recipe: 'Review only', status: 'running', why: null, steps: [step], agents: ['rev'], ended_ready: false, passes: [{ part: 'review', agents: ['rev'] }] } }],
+    },
+    runs: [run('t')],
+    messages: [userMessage('t', 'Review it')],
+    agents: [agent('t'), agent('t', 'completed', { id: 'rev', role_name: 'Reviewer', parent_agent_id: 't', depth: 1 }), agent('t', 'running', { id: 'fix', role_name: 'Coder', parent_agent_id: 't', depth: 1 })],
+    channelMessages: [{ id: 'f1', run_id: 't', from_agent_id: 'rev', to_agent_id: 'fix', kind: 'findings', content: '- one | kind: code | role: Coder', created_at: '2026-10-05T10:00:00Z' }],
+  })
+  // (Its label is measured with getBBox, which jsdom has none of.)
+  Object.defineProperty(SVGElement.prototype, 'getBBox', { configurable: true, value: () => ({ x: 0, y: 0, width: 40, height: 10 }) })
+  try {
+    render(<CanvasView state={conv} selectedId={null} onSelect={() => {}} />)
+    await waitFor(() => expect(node('agent:fix')).not.toBeNull())
+    measure()
+    stage(1200)
+    await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="findings:f1"]')).not.toBeNull())
+    expect(look('findings:f1')[1]).toBe('stroke: var(--warn); stroke-width: 2; stroke-dasharray: 8 3;')
+  } finally {
+    Reflect.deleteProperty(SVGElement.prototype, 'getBBox')
+  }
+})
+
 test('a team’s frame is drawn behind, never dragged or picked; an agent picked dims it; Fold all and Open all fold every frame', async () => {
   const step = (id: string, name: string) => ({ id, name, state: 'now' as const, round: 0, room: false, own_check: false, left_out: [], group: false })
   const conv = convState({
