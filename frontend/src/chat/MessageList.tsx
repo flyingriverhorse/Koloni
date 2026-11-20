@@ -1079,6 +1079,8 @@ export function MessageList({
   // Each turn's answer: its last message of the Lead's with words. It opens with its point, and its foot copies and reads it.
   const answerOf = new Map(ordered.filter(m => m.role === 'assistant' && m.content).map(m => [m.run_id, m]))
   // (A room's agents' questions are in its window, not in the chat: the room's row says it waits for you.)
+  // shortcut: one the Orchestrator invited into a room asks in the chat too, with the note only in the room's window;
+  // go by the questions the chat draws if that is ever missed.
   const inRooms = new Set(state.rooms.flatMap(room => [...inRoom(state, room).keys()]))
   /**
    * A Lead turn's groups after its opener in one card (0.1.4), what it did in the card's foot once it is over. No card
