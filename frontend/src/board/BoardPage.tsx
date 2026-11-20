@@ -94,6 +94,9 @@ interface RowProps {
   onRerun?: (conversationId: string) => Promise<void>
 }
 
+/** How a chat's last turn broke, said beside its facts (null: it did not, or the chat is at work). */
+const brokeOf = (turn: BoardConversation['turn'], column: Column) => (turn && column !== 'work' && BROKE.has(turn.status) ? ENDED[turn.status] : null)
+
 /**
  * A chat's row: its title opens it; under it when it last did something, or for one that ended how and when, with
  * how many agents; its agents at work, or how those of its last turn came out.
@@ -117,7 +120,7 @@ function ChatRow({ conversation, column, current, onOpen, onRerun }: RowProps) {
     }
   }
   const end = turn?.ended_at ?? turn?.started_at
-  const broke = turn && column !== 'work' && BROKE.has(turn.status) ? ENDED[turn.status] : null
+  const broke = brokeOf(turn, column)
   const facts = (() => {
     if (column === 'work') {
       const at = lastAt(conversation)
@@ -163,6 +166,20 @@ function ChatRow({ conversation, column, current, onOpen, onRerun }: RowProps) {
     </li>
   )
 }
+
+/** The one line to what waits for you (Ready for you), with the way there where there is one. */
+const readyLine = (waiting: number, onReady: Props['onReady']) =>
+  waiting > 0 && (
+    <p className="ready-line">
+      <span className="dot" aria-hidden="true" />
+      <span>{waiting === 1 ? '1 thing waits for you' : `${waiting} things wait for you`}</span>
+      {onReady && (
+        <button type="button" className="usage-open" onClick={onReady}>
+          Open Ready for you →
+        </button>
+      )}
+    </p>
+  )
 
 /**
  * The project now (tek-ev §2): how many agents are at work against its limit, one line to what waits for you (Ready
@@ -242,17 +259,7 @@ export function BoardPage({ board, error, currentId, onLoad, onOpen, waiting = 0
           That conversation could not be opened: {notOpened}
         </div>
       )}
-      {waiting > 0 && (
-        <p className="ready-line">
-          <span className="dot" aria-hidden="true" />
-          <span>{waiting === 1 ? '1 thing waits for you' : `${waiting} things wait for you`}</span>
-          {onReady && (
-            <button type="button" className="usage-open" onClick={onReady}>
-              Open Ready for you →
-            </button>
-          )}
-        </p>
-      )}
+      {readyLine(waiting, onReady)}
       {board && board.conflicts.length > 0 && (
         <ul className="board-conflicts" aria-label="Two conversations want one file">
           {board.conflicts.map(conflict => (
