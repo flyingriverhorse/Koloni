@@ -104,8 +104,9 @@ const meets = (a: Area, b: Area) => a.left < b.left + b.width && b.left < a.left
  * edge, which the CSS keeps off the inspector and the canvas's buttons - into the biggest part of the stage above,
  * below, left or right of the chat. And it starts below the header of another window it would lie over, so that one
  * is still seen and pressed.
- * shortcut: with no part beside the chat as big as LEAST (a stage too narrow beside the chat's column) it lies
- * over the chat, in front, as before; and below a chat moved up it may reach the zoom buttons - upgrade if seen.
+ * shortcut: with no part beside the chat as big as LEAST (a stage too narrow beside the chat's column: 1024px with the
+ * inspector over it) it lies over the chat, in front, as before - there over the chat's Hide button too; narrower
+ * than LEAST its bar would hide its own Close (the bar needs about 270px). Upgrade if met.
  */
 export function placeWindow(want: Area, stage: Size, chat: Area | null, others: Area[]): Area {
   let box = want
@@ -134,8 +135,8 @@ export function placeWindow(want: Area, stage: Size, chat: Area | null, others: 
 /**
  * The `ref` of a window that opens in the stage's top right: in front, and placed by `placeWindow` - once, as it
  * opens. Held by its right edge as its CSS holds it, so an inspector coming over the stage later still pushes it left.
- * shortcut: placed only as it opens - a chat opened, moved or made taller later, or a stage grown smaller, is not
- * followed (its px height stays); upgrade to placing it again on MOVED and the stage's resize if it is seen over them.
+ * shortcut: placed only as it opens - a chat opened or widened later, or a stage grown smaller, is not followed (its
+ * px height stays); upgrade to placing it again on the chat's width and the stage's resize if it is seen over them.
  */
 export function placed(window: HTMLElement | null) {
   const stage = window?.parentElement
