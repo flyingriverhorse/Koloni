@@ -12,7 +12,6 @@
   "src/canvas/CanvasView.tsx::CanvasView>lineOf": 25,
   "src/canvas/CanvasView.tsx::CanvasView>map": 15,
   "src/canvas/CanvasView.tsx::CanvasView>map#2": 48,
-  "src/canvas/nodes.tsx::ReadyNode": 28,
   "src/changes/MergeCard.tsx::Check": 21,
   "src/changes/MergeCard.tsx::MergeCard": 70,
   "src/changes/UndoCard.tsx::UndoCard": 22,
