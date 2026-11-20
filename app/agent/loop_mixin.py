@@ -764,7 +764,6 @@ class LoopMixin:
             later = self._cancel_later(ctx.run_id, ctx.agent_id) if (
                 stopped or ctx.depth == 0) else []
         try:
-            await self._slow_ended(ctx)  # (before the turn's end is on record)
             # Its work is over, however it ended - Stop, and KOLONİ going down, too: the
             # MCP servers started for it end with it. (Not a turn in which it only
             # answered: it starts none there, and its own work may still be going on.)
@@ -774,6 +773,7 @@ class LoopMixin:
                 # (Shielded: a second Stop does not leave one of them running.)
                 await asyncio.shield(asyncio.gather(
                     *(self._servers.pop(key).end() for key in mine), return_exceptions=True))
+            await self._slow_ended(ctx)  # (K-yavas: before the turn's end is on record)
             if later:  # (last: a second Stop leaves nothing above undone)
                 await self._stopped_later(later)
                 later = []

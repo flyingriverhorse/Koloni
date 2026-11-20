@@ -8,6 +8,7 @@ nobody watches are as before."""
 import asyncio
 import threading
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 
 from app.agent.limits_mixin import WATCHED_SLOW_MINUTES
@@ -23,7 +24,7 @@ from tests.test_parallel import now_snap, until
 from tests.test_recipe_run_scenarios import answer, asked
 from tests.test_spawn import begin, spawn
 from tests.test_team_requests_scenarios import agent
-from tests.test_triggers import HeldClock, leave, run_now, trigger
+from tests.test_triggers import HeldClock, leave, on_loop, run_now, trigger
 from tests.test_triggers import setup as trigger_setup
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
@@ -247,6 +248,24 @@ def test_stop_and_pick_another_model_ends_the_turn_and_its_cli_and_says_what_to_
 
 
 # --- where it is not -----------------------------------------------------------------------------
+
+
+def test_its_answer_to_a_message_and_its_speech_in_a_discussion_leave_its_clock_alone(
+        make_client, wait_run, project_dir, gate):
+    # (they run on its own agent, beside its own work: their steps neither set nor stop its clock)
+    client, _model = make_client([gate.step(text("done"))])
+    runner = client.app.state.runner
+    clock = runner.call_later = HeldClock()
+    cid, run_id = begin(client, project_dir)
+    gate.wait_partial()
+    (timer,) = armed(clock)
+    lead = runner._ctxs[agent(now_snap(client, cid), "Lead")["id"]]
+    for beside in (replace(lead, answering=True), replace(lead, discussion="d")):
+        on_loop(client, lambda beside=beside: runner._slow(beside, arm=True))
+        on_loop(client, lambda beside=beside: runner._slow_off(beside))
+    assert slow_timers(clock) == [timer]
+    gate.release()
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
 
 
 def test_a_sub_agent_has_no_slow_clock(make_client, wait_run, project_dir, gate):

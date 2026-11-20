@@ -633,10 +633,14 @@ class LimitsMixin:
         shortcut: no sub-agent has one - a provider that fails it moves it on (`_moved_on`), and
         its opener waits in a call; give it one if a slow sub-agent is felt.
         shortcut: a step's tool call being written gives no word (no delta): one written for
-        WATCHED_SLOW_MINUTES is asked about too; count its pieces if that is seen."""
+        WATCHED_SLOW_MINUTES is asked about too; count its pieces if that is seen.
+        shortcut: its own answer to a message and its speech in a discussion, beside its work,
+        neither touch the clock nor have one (`_slow_off` too); give them one if a slow speech is
+        felt."""
+        if ctx.depth or ctx.answering or ctx.discussion:
+            return
         slow = self._slow_turns.get(ctx.run_id)
-        if slow is None and arm and not (
-                ctx.depth or ctx.answering or ctx.discussion) and self._attended(ctx):
+        if slow is None and arm and self._attended(ctx):
             slow = self._slow_turns[ctx.run_id] = _Slow(ctx.agent_id)
         if slow is None or slow.agent_id != ctx.agent_id or not (arm or slow.timer):
             return
@@ -655,7 +659,8 @@ class LimitsMixin:
         """`_slow`: its model is no longer asked, or was heard from - no clock, and its card is
         closed (it ends by itself; `_slow_ended` waits for that)."""
         slow = self._slow_turns.get(ctx.run_id)
-        if slow is not None and slow.agent_id == ctx.agent_id:
+        if slow is not None and slow.agent_id == ctx.agent_id and not (
+                ctx.depth or ctx.answering or ctx.discussion):
             slow.off()
 
     def _slow_dropped(self: "AgentRunner", run_id: str) -> None:
