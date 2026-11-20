@@ -926,6 +926,25 @@ function ChatChoice({ auto, providers, onChoice, onModels }: { auto: BacklogAuto
   )
 }
 
+/** How the run stands, beside Run the backlog: why it is paused or stopped, what it waits for, how many run, or whether it is on. */
+function runLine(auto: BacklogAuto | null, listed: BacklogTask[]) {
+  const working = listed.filter(task => task.status === 'doing').length
+  // (By itself it takes the todo tasks never worked on; Run the backlog queues them all.)
+  const queued = listed.filter(task => task.status === 'todo' && (task.queued || (auto?.on && !task.conversation_id)))
+  // B-349: nothing at work and every queued task waits, some for one in review: that is why.
+  const held = working || !queued.every(task => waitsFor(task, listed).length) ? [] : listed.filter(one => one.status === 'review' && queued.some(task => task.after.includes(one.id)))
+  return (
+    auto?.halt ??
+    (held.length
+      ? `Nothing running: waits for ${waitWords(held)}`
+      : working || queued.length
+        ? `Running ${working} of ${working + queued.length}`
+        : auto?.on
+          ? 'On, waiting: no new task is todo'
+          : 'Off')
+  )
+}
+
 /**
  * The project's backlog, kept like a product owner would: what waits for your word on top, one row
  * each; your tasks in order (priority first, then the order you give); and "Run the backlog", which
@@ -938,64 +957,86 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
   const waits = waitsOf(backlog ?? [], onDecide, onChange)
   const listed = backlog?.filter(task => task.status !== 'proposed') ?? []
   const todo = listed.some(task => task.status === 'todo')
-  const working = listed.filter(task => task.status === 'doing').length
-  // (By itself it takes the todo tasks never worked on; Run the backlog queues them all.)
-  const queued = listed.filter(task => task.status === 'todo' && (task.queued || (auto?.on && !task.conversation_id)))
-  // B-349: nothing at work and every queued task waits, some for one in review: that is why.
-  const held = working || !queued.every(task => waitsFor(task, listed).length) ? [] : listed.filter(one => one.status === 'review' && queued.some(task => task.after.includes(one.id)))
-  const run =
-    auto?.halt ??
-    (held.length
-      ? `Nothing running: waits for ${waitWords(held)}`
-      : working || queued.length
-        ? `Running ${working} of ${working + queued.length}`
-        : auto?.on
-          ? 'On, waiting: no new task is todo'
-          : 'Off')
+  const run = runLine(auto, listed)
   const same = (a: BacklogTask, b?: BacklogTask) => (b && b.priority === a.priority ? b : undefined)
+
+  /** Its head: how the run stands, Runs by itself, Run settings, Full auto said, and Run the backlog. */
+  const head = () => (
+    <div className="conv-head">
+      <h2>To-do</h2>
+      <div className="memory-actions">
+        {/* Why Run the backlog is grey, said where it is seen. */}
+        <span id="backlog-next" className="muted">
+          {run}
+          {auto?.cannot_run && (
+            <>
+              {' · '}
+              <span className="backlog-warn">{auto.cannot_run}</span>
+            </>
+          )}
+        </span>
+        {auto && <AutoSwitch auto={auto} onAuto={onAuto} />}
+        {auto && (
+          <button type="button" className="btn btn-small" aria-expanded={settings} aria-controls="backlog-settings" onClick={() => setSettings(!settings)}>
+            Run settings <span aria-hidden="true">▾</span>
+          </button>
+        )}
+        {auto?.permission_mode === 'full_auto' && (
+          <span>
+            <span className="tag tag-warn">Full auto</span>{' '}
+            <Hint doc={GUIDE.todoRunSettings} id="backlog-level-note">
+              Full auto: its chats change files and run commands without asking. Commands that run other programs, and anything it
+              would ask you, still wait for you - it never answers for you.
+            </Hint>
+          </span>
+        )}
+        <button
+          type="button"
+          className="btn btn-primary"
+          aria-describedby="backlog-next"
+          title={auto?.cannot_run ?? undefined}
+          disabled={busy || !todo || !!auto?.cannot_run}
+          onClick={() => void ask(onRun)}
+        >
+          Run the backlog
+        </button>
+      </div>
+    </div>
+  )
+
+  /** Your tasks: being read, none yet, or in order. */
+  const tasks = () =>
+    !backlog ? (
+      !error && <p className="muted">Reading the To-do list…</p>
+    ) : listed.length === 0 ? (
+      <p className="muted hive-empty">No task yet. A task is work for later: type its title in “Add a task” above, and Run the backlog starts it in a chat of its own.</p>
+    ) : (
+      <section className="memory-section" aria-label="Your tasks">
+        <h3 className="kicker">
+          Your tasks <span className="muted">· {listed.length}</span>
+        </h3>
+        <ol className="backlog-rows" aria-label="Tasks">
+          {listed.map((task, i) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              listed={listed}
+              above={same(task, listed[i - 1])}
+              below={same(task, listed[i + 1])}
+              dragged={dragged}
+              onDrag={setDragged}
+              onChange={onChange}
+              onDelete={onDelete}
+              onOpen={onOpen}
+            />
+          ))}
+        </ol>
+      </section>
+    )
 
   return (
     <div className="memory-page">
-      <div className="conv-head">
-        <h2>To-do</h2>
-        <div className="memory-actions">
-          {/* Why Run the backlog is grey, said where it is seen. */}
-          <span id="backlog-next" className="muted">
-            {run}
-            {auto?.cannot_run && (
-              <>
-                {' · '}
-                <span className="backlog-warn">{auto.cannot_run}</span>
-              </>
-            )}
-          </span>
-          {auto && <AutoSwitch auto={auto} onAuto={onAuto} />}
-          {auto && (
-            <button type="button" className="btn btn-small" aria-expanded={settings} aria-controls="backlog-settings" onClick={() => setSettings(!settings)}>
-              Run settings <span aria-hidden="true">▾</span>
-            </button>
-          )}
-          {auto?.permission_mode === 'full_auto' && (
-            <span>
-              <span className="tag tag-warn">Full auto</span>{' '}
-              <Hint doc={GUIDE.todoRunSettings} id="backlog-level-note">
-                Full auto: its chats change files and run commands without asking. Commands that run other programs, and anything it
-                would ask you, still wait for you - it never answers for you.
-              </Hint>
-            </span>
-          )}
-          <button
-            type="button"
-            className="btn btn-primary"
-            aria-describedby="backlog-next"
-            title={auto?.cannot_run ?? undefined}
-            disabled={busy || !todo || !!auto?.cannot_run}
-            onClick={() => void ask(onRun)}
-          >
-            Run the backlog
-          </button>
-        </div>
-      </div>
+      {head()}
       {auto && settings && (
         <section id="backlog-settings" className="memory-side" aria-label="Run settings">
           <p className="choice-note">The To-do list’s chats only, instead of the project’s (Settings › This project).</p>
@@ -1029,33 +1070,7 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
       <AddTask onAdd={onAdd} onDraft={onDraft} onPlan={onPlan} providers={providers} drafter={auto?.drafter} />
       {waits.length > 0 && <Waiting waits={waits} onDecide={onDecide} onChange={onChange} onOpen={onOpen} />}
       <Declined backlog={backlog} onDecide={onDecide} />
-      {!backlog ? (
-        !error && <p className="muted">Reading the To-do list…</p>
-      ) : listed.length === 0 ? (
-        <p className="muted hive-empty">No task yet. A task is work for later: type its title in “Add a task” above, and Run the backlog starts it in a chat of its own.</p>
-      ) : (
-        <section className="memory-section" aria-label="Your tasks">
-          <h3 className="kicker">
-            Your tasks <span className="muted">· {listed.length}</span>
-          </h3>
-          <ol className="backlog-rows" aria-label="Tasks">
-            {listed.map((task, i) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                listed={listed}
-                above={same(task, listed[i - 1])}
-                below={same(task, listed[i + 1])}
-                dragged={dragged}
-                onDrag={setDragged}
-                onChange={onChange}
-                onDelete={onDelete}
-                onOpen={onOpen}
-              />
-            ))}
-          </ol>
-        </section>
-      )}
+      {tasks()}
     </div>
   )
 }
