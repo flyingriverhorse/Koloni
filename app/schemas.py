@@ -1769,6 +1769,9 @@ class BoardAgent(BaseModel):
     # else it may ask (a command, a sub-agent, a folder) is in neither.
     changes_to_approve: int
     questions: int
+    # Of its questions, its own: not KOLONİ's card about it (`Question.leave`). B-204: only
+    # these are said as the agent asking.
+    own_questions: int
 
 
 class BoardOutcome(BaseModel):

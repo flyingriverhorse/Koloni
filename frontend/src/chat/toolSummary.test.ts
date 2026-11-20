@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import type { ToolCall } from '../api/types'
 import { toolCall } from '../test-fixtures'
 import { toolName, toolSummary } from './toolSummary'
 
@@ -22,6 +23,19 @@ test('agent tools name the role they are about', () => {
 test('the Lead’s pick of teams says each team and why, on one line (slice 84b)', () => {
   const picks = { teams: [{ team: 'Web app', recipe: 'Feature', why: 'new page' }, { team: 'Docs' }, { why: 'no team' }] }
   expect(toolSummary({ name: 'pick_teams', arguments: JSON.stringify(picks) })).toBe('pick_teams Web app: new page; Docs')
+})
+
+test('a question never put to you reads as what it wanted to ask, and that it was not asked', () => {
+  const asked = (status: ToolCall['status'], args: unknown, name = 'ask_user') => toolSummary(toolCall('1', 'r', name, status, JSON.stringify(args)))
+  // refused (your message waits, Take in's options, a team's lead in its recipe, nobody watching), or failed ("Ready for you", asked a third time)
+  expect(asked('denied', { question: '  Which greeting?\nhello or hey', options: ['hello', 'hey'] })).toBe('Wanted to ask: Which greeting? · not asked')
+  expect(asked('failed', { question: 'Ready for you: the work' })).toBe('Wanted to ask: Ready for you: the work · not asked')
+  expect(asked('denied', { question: 5 })).toBe('Wanted to ask you · not asked')
+  // one that was asked, waits or was stopped has its card or its row: named as before
+  for (const status of ['running', 'succeeded', 'interrupted'] as const) expect(asked(status, { question: 'Which?' })).toBe('ask_user')
+  expect(toolSummary({ name: 'ask_user', arguments: '{"question":"Which?"}' })).toBe('ask_user')
+  // Codex's own way to ask, declined natively (what its request holds is not measured: not read)
+  expect(asked('denied', { questions: [{ question: 'Strict?' }] }, 'codex__item_tool_requestUserInput')).toBe('Wanted to ask you with its own tool · not asked')
 })
 
 test('a deletion names the file', () => {

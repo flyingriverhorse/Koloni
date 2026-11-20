@@ -115,6 +115,29 @@ STEER_SECONDS = 5.0
 # B-197: why KOLONİ declined a request of Codex's, steered into its turn (as `AGENT_STEERED`).
 DECLINED_WHY = ("KOLONİ declined that request of yours: {why}\n\n"
                 "(KOLONİ's words - not the user's.)")
+# B-204: its own way to ask the user, by its schema's name. Declined, with the way to KOLONİ's
+# card said in its turn (`DECLINED_WHY`) and in the no's message.
+# shortcut: not measured - whether Codex sends it inside KOLONİ, and what it does with the note;
+# measure one short turn natively and as a session, and answer it as typed if it keeps asking.
+# shortcut: an MCP elicitation that is no tool-call approval is taken for a server's question
+# (every server but KOLONİ's is off on its line) and declined as before, with no note; read
+# from its schema, not measured - point it to ask_user too if Codex is seen asking so.
+ASKS_USER = "item/tool/requestUserInput"
+# (Where ask_user refuses too - a trigger's turn, the user's message waiting - it decides: else
+# it would go back to its own tool, and a session stop on it.)
+ASK_WITH_KOLONI = ("ask the user only with the koloni server's ask_user tool, which waits for "
+                   "their answer; where that tool is not offered or refuses, decide yourself "
+                   "and say what you decided.")
+# ...and its row in the chat, native (a session keeps no row of a CLI's own requests). A tool's
+# result, replayed to models later: "the user", not "you".
+ASKED_ON_CARD = ("KOLONİ declined {label}'s own way to ask the user and told it to ask with "
+                 "ask_user, on KOLONİ's card")
+
+
+def _pointed_to_card() -> dict:
+    """KOLONİ's no to `ASKS_USER`: an error, with the way said in it and in `why`."""
+    no = f"KOLONİ declines this request: {ASK_WITH_KOLONI}"
+    return {"error": {"code": -32601, "message": no}, "why": ASK_WITH_KOLONI}
 # K-48: a write its read-only sandbox refused, by what PowerShell says of it - Codex calls the
 # command completed, exit code 0 (a non-terminating error), so it is told by its output.
 # Matched on its words with their spaces made one (PowerShell wraps its error to the console's
@@ -318,7 +341,8 @@ class _Asked:
     patch's changes, as it last said them, until it asks; each patch's files that were
     asked about (path -> the id each was asked under); the requests already answered
     (item id, approval id); the commands that were patches (`_heredoc_patch`), by item id;
-    how many of its requests were declined (`CodexSessionClient._decide`)."""
+    how many of its requests were declined, and how many times in a row it asked the user with
+    its own tool (`CodexSessionClient._decide`)."""
 
     def __init__(self, root: Path | None = None) -> None:
         self.root = root
@@ -328,6 +352,7 @@ class _Asked:
         self.answered: set[tuple[str, object]] = set()
         self.heredocs: dict[str, list[dict]] = {}
         self.declined = 0
+        self.own_asks = 0
 
 
 def _note_patch(method: object, params: dict, item: dict, asked: _Asked) -> None:
@@ -1469,8 +1494,10 @@ class CodexNativeClient(CliStepClient):
             await on_item("completed", {
                 "type": "mcp_tool_call", "server": "codex", "tool": method,
                 "arguments": {} if whose else params, "status": "declined",
-                "error": {"message": why}})
+                "error": {"message": ASKED_ON_CARD.format(label=self.label)
+                          if method == ASKS_USER else why}})
             return ({"result": DECLINED[method]} if method in DECLINED
+                    else _pointed_to_card() if method == ASKS_USER
                     else {"error": {"code": -32601, "message": "KOLONİ declines this request"}})
         asked.items.add(item_id)
         asked.answered.add((item_id, params.get("approvalId")))
@@ -1596,14 +1623,27 @@ class CodexSessionClient(CodexNativeClient):
         self, method: str, params: dict, asked: _Asked, call_tool: CallTool, on_item: OnItem,
     ) -> dict:
         """A call of KOLONİ's own tools is let through (held to KOLONİ's rules where it runs);
-        everything else is declined - a patch with why, steered into its turn (`_converse`).
+        everything else is declined - a patch with why, and its own question with the way to
+        KOLONİ's card, steered into its turn (`_converse`).
         Never `call_tool`: here that is the agent's, and would put a call on its record."""
         if method == "mcpServer/elicitation/request" and params.get("serverName") == SERVER \
                 and _dict(params.get("_meta")).get("codex_approval_kind") == "mcp_tool_call":
+            # (It went to KOLONİ's tools - ask_user, as told, or other work: each a counted step.)
+            asked.own_asks = 0
             return {"result": {"action": "accept", "content": {}}}
         # shortcut: a decline is in the log and the raw stream, not on the agent's record (a
         # session keeps no record of a CLI's own tools); record it if it is missed there.
         log.info("%s as a session: declined %s", self.label, method)
+        if method == ASKS_USER:
+            # The model asking the user is no forbidden act: not one of those declines. But
+            # nothing else would stop one that keeps asking so, with no KOLONİ tool between
+            # (no step is counted, and each answer is no silence): a limit of its own.
+            asked.own_asks += 1
+            if asked.own_asks >= self.DECLINES_AT_MOST:
+                raise OwnStop(f"{self.label} used its own tool to ask the user {asked.own_asks} "
+                              "times in a row, though told to ask with ask_user, so the session "
+                              "was stopped")
+            return _pointed_to_card()
         asked.declined += 1
         if asked.declined >= self.DECLINES_AT_MOST:
             raise OwnStop(f"{self.label} asked {asked.declined} times for what KOLONİ declines "

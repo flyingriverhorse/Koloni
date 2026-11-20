@@ -206,14 +206,16 @@ def board_of(
         )
     }
     # What the agents that ask now put before the user, by kind: a change to approve, a
-    # question. (Asked only of them: a record left by a turn that ended asks nothing.)
+    # question - and of those, its own, not KOLONİ's card about it (`Question.leave`). (Asked
+    # only of them: a record left by a turn that ended asks nothing.)
     asking = [agent.id for agent, _cid in at_work if runner.asking(agent.id)]
-    changes, questions = ({
+    changes, questions, own = ({
         agent_id: n for agent_id, n in session.execute(
             select(table.agent_id, func.count(table.id))
-            .where(table.agent_id.in_(asking), table.status == status)
+            .where(table.agent_id.in_(asking), table.status == status, *also)
             .group_by(table.agent_id))
-    } for table, status in ((FileChange, "proposed"), (Question, "pending")))
+    } for table, status, also in ((FileChange, "proposed", ()), (Question, "pending", ()),
+                                  (Question, "pending", (Question.leave.is_(False),))))
     # The agents a tool runs for now: their quiet is measured against a longer time.
     in_tool = set(session.scalars(
         select(ToolCall.agent_id).where(
@@ -301,6 +303,7 @@ def board_of(
             "in_tool": agent.id in in_tool,
             "changes_to_approve": changes.get(agent.id, 0),
             "questions": questions.get(agent.id, 0),
+            "own_questions": own.get(agent.id, 0),
         })
         wanted = agent.waiting_for
         if not wanted or home.get(wanted["agent_id"], cid) == cid:

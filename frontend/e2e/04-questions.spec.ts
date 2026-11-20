@@ -42,7 +42,8 @@ test('a sub-agent’s question reaches you in the chat and its answer goes back 
 
   await ask(page, 'be careful with the greeting')
   await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
-  await expect(chat.getByText('Reviewer asks')).toBeVisible()
+  // (said over the card, and on it)
+  await expect(chat.getByText('Reviewer asks').first()).toBeVisible()
   await expect(chat.getByText('Strict or lenient?')).toBeVisible()
 
   await chat.getByRole('button', { name: 'strict', exact: true }).click()

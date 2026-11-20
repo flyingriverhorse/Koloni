@@ -154,6 +154,18 @@ ASK_PROMPT = (
     "When the request is ambiguous, or a decision is the user's to make, ask with ask_user "
     "instead of guessing; do not ask what you can find out yourself."
 )
+# B-204 (live): a Codex Orchestrator wrote "is this OK?" in its answer, went on without waiting,
+# then told the Coder "the user approved". After ASK_PROMPT, to the Lead only (a sub-agent has
+# ASK_NOT_REPORT). Deciding comes first, the card only where the decision is the user's: a
+# model takes the first way it reads, and this is no call to ask more. A turn that ends on a
+# question is not forbidden, but not offered either: a recipe's Lead may never end its turn to
+# ask (RECIPE_RULES), and a night job's question waits for nobody.
+ASKED_IN_WORDS = (
+    "Never write a question to the user and then carry on in the same turn as if it were "
+    "answered: decide yourself and say what you decided, or, where the decision is theirs, ask "
+    "with ask_user and wait. Never tell another agent the user approved or chose anything they "
+    "did not say themselves."
+)
 SUB_AGENT_PROMPT = (
     "Your name here is {name}. Your task comes from the {parent} (your opener). When you are "
     "done, reply with a short report of what you found or did; it is returned to them."
@@ -1371,7 +1383,7 @@ class ContextMixin:
                 if turn.spoken.get("style"):
                     system += " " + SAY_STYLE.format(style=quoted(turn.spoken["style"]))
         if "ask_user" in ctx.tools and self._watched(ctx.run_id):
-            system += "\n\n" + ASK_PROMPT
+            system += "\n\n" + ASK_PROMPT + (" " + ASKED_IN_WORDS if ctx.depth == 0 else "")
         if "plan_away" in has:
             system += "\n\n" + AWAY_PROMPT
         if "message_agent" in ctx.tools:
