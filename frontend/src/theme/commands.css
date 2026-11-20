@@ -113,6 +113,19 @@
   font-size: var(--text-meta);
 }
 
+/* A long button ("Always allow GET to <host>", "Always run <prefix>") wraps, as a question's options do: in a turn's
+   card in the narrowest chat it ran past the chat's edge (0.1.4). */
+.cmd-approval .change-actions .btn {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.cmd-approval .change-actions .btn > svg {
+  flex: none;
+}
+
 /* One message, two models side by side (slice 54), in a narrow chat too: what is wider scrolls
    in its own side. */
 .compare-sides {
