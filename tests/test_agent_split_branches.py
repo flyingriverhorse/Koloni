@@ -1,7 +1,10 @@
 """Branches of the agent runner's tools that no other test reached, kept as they were when their
 functions were split (C901): each ran green on the function before its split."""
 
+import time
+
 from app.db.models import ProjectKnowledge
+from tests.conftest import scaled
 from tests.test_agent_writes import wait_status
 from tests.test_agy_agent import agy_app  # noqa: F401
 from tests.test_agy_agent import start as start_agy
@@ -188,5 +191,8 @@ def test_a_cli_stopped_during_its_keep_card_leaves_nothing_to_hold_the_folder(
     client.post(f"/api/runs/{run_id}/cancel", headers={"Origin": ORIGIN})
     snap = wait_run(client, cid, run_id, timeout=20)
     assert snap["runs"][0]["status"] == "cancelled", snap["runs"][0]
-    assert not client.app.state.runner._keeps.get(str(project_dir))
+    keeps, deadline = client.app.state.runner._keeps, time.monotonic() + scaled(5)
+    while keeps.get(str(project_dir)) and time.monotonic() < deadline:
+        time.sleep(0.05)  # (the cancelled card leaves the table a moment after its cancel)
+    assert not keeps.get(str(project_dir))
     assert not (project_dir / ".git/hooks/pre-commit").exists()
