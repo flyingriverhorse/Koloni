@@ -157,9 +157,27 @@ def test_a_conversation_whose_sub_agents_changes_wait_for_the_user_says_so_on_th
     assert on_board(board(client, pid), cid)["merges_pending"] == 0
 
 
-def test_a_kept_copy_to_take_in_waits_on_the_board_as_in_its_chat(settings_env, project_dir):
+def test_a_copy_kept_at_its_step_limit_waits_on_the_board_until_it_is_discarded(
+    make_client, wait_run, project_dir
+):
     # (live, 20 Nov 2026: a Coder's copy kept at its step limit showed under Ready to take in in
     # its chat, but the board counted only a pending card - Ready said nothing waits, no toast)
+    from tests.test_copy_scenarios import looping, stopped_at_its_roles_steps
+
+    client, _model, cid, run_id = stopped_at_its_roles_steps(make_client, project_dir, [
+        step(write("a.txt", "A")), *looping("a")[:2], text("never said")], mode="auto_edit")
+    snap = wait_run(client, cid, run_id)
+    (kept,) = snap["merges"]
+    assert kept["status"] == "kept" and kept["files"], kept
+    pid = snap["conversation"]["project_id"]
+    assert on_board(board(client, pid), cid)["merges_pending"] == 1, snap["merges"]
+    assert client.post(f"/api/merges/{kept['id']}/reject").status_code == 200  # (Discard)
+    assert on_board(board(client, pid), cid)["merges_pending"] == 0, (
+        client.get(f"/api/conversations/{cid}").json()["merges"])
+
+
+def test_a_kept_copy_to_take_in_waits_on_the_board_as_in_its_chat(settings_env, project_dir):
+    # (A copy a restart kept counts as one kept at a step limit; one that holds no file, none.)
     from app.db.models import Merge
     from tests.test_copy_later_scenarios import again, interrupted
 
