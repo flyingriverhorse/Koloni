@@ -12,6 +12,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 - **Canvas**, **Chat**, **Agents**, **Models**, **Settings**: nothing you see or do changes. The page's code that draws the canvas, follows the chat's events, summarises tools, rooms, commands and triggers, reads pasted text and attachments, and shows the cards, the Models, Agents, To-do, Board, Triggers and Settings pages was split into smaller parts, each checked to behave exactly as before, so later fixes there are safer.
 
+### Fixed
+
+- **Canvas**, **Chat**: a discussion whose Orchestrator gave up waiting for it (a CLI that stops a tool call it has waited on too long), or that broke off with an error, no longer shows as running for good: it ends as **Stopped** (one given up on also has its call shown as interrupted, as when you press Stop).
+
 ## [0.1.2] - 2026-11-20
 
 ### Changed

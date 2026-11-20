@@ -247,12 +247,7 @@ class DiscussionsMixin:
                     ctx.cid, talk_id, status="ended", outcome=outcome, ended_at=now()
                 )
         except BaseException as exc:
-            # (A raise - Stop too - leaves none opened for it "waiting" for good.)
-            for member, new in members:
-                if new:
-                    with contextlib.suppress(Exception):
-                        self._set_agent(ctx.cid, member.agent_id, ended_at=now(), status=(
-                            "cancelled" if isinstance(exc, asyncio.CancelledError) else "failed"))
+            self._discuss_cut(ctx, call_id, members, exc)
             raise
         finally:
             self._ending.pop(talk_id, None)
@@ -268,6 +263,23 @@ class DiscussionsMixin:
                 told = await self._after_step(ctx, member, member.agent_id not in left, self._found(
                     member, last_word.get(member.agent_id))) or told
         return "succeeded", f"The discussion ended: {WHY[outcome]}\n\n{said_all}{told}"
+
+    def _discuss_cut(self: "AgentRunner", ctx: Ctx, call_id: str,
+                     members: list[tuple[Ctx, bool]], exc: BaseException) -> None:
+        """`_discuss` cut short by a raise - Stop too: none opened for it is left "waiting" for
+        good, nor the discussion "running" (cut off, as Stop leaves it). Measured 20 Nov: a CLI
+        that gives up on the call goes on and its turn completes - no Stop closes them then."""
+        cancelled = isinstance(exc, asyncio.CancelledError)
+        for member, new in members:
+            if new:
+                with contextlib.suppress(Exception):
+                    self._set_agent(ctx.cid, member.agent_id, ended_at=now(),
+                                    status="cancelled" if cancelled else "failed")
+        with contextlib.suppress(Exception):
+            self._interrupt_talks(ctx.run_id, ctx.cid, ctx.agent_id)
+        if cancelled:  # (any other raise: its call is closed by `_run_call` or the turn's end)
+            with contextlib.suppress(Exception):
+                self._interrupt_open_calls(ctx.run_id, ctx.cid, ctx.agent_id, only={call_id})
 
     def _discuss_joins(self: "AgentRunner", ctx: Ctx, known: Ctx, states: dict) -> None:
         """`_discuss`: an agent of the turn that is invited can join now, or ToolError."""
@@ -569,14 +581,17 @@ class DiscussionsMixin:
                         cut = True
                         work.cancel()
                         await asyncio.gather(work, return_exceptions=True)
+                        # Here, not after: cut off from above too (its opener's call given up
+                        # on), when nothing else closes them in a turn that completes.
+                        with contextlib.suppress(Exception):
+                            self._interrupt_open_calls(
+                                member.run_id, member.cid, member.agent_id, only=turn.own_calls
+                            )
             finally:
                 # It only spoke: it is what it was, also when it was cut off.
                 self._answering.pop(member.agent_id, None)
                 self._set_agent(member.cid, member.agent_id, status=previous)
             if cut:
-                self._interrupt_open_calls(
-                    member.run_id, member.cid, member.agent_id, only=turn.own_calls
-                )
                 return None
             status, error = work.result()
             with self._factory() as session:
