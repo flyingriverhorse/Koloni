@@ -123,9 +123,34 @@ test('its panel lists each other folder, shortened, with its access, which a cli
 })
 
 test('a chat not in this folder, or a plain chat, has no other folders in the panel', async () => {
+  const get = vi.spyOn(api, 'get')
   button()
   await userEvent.click(screen.getByRole('button', { name: 'Folder: Skyulf-Agent' }))
   expect(within(panel()).queryByRole('region', { name: 'Also in this chat' })).toBeNull()
+  // (nor a part to work in: no map is read)
+  expect(get).not.toHaveBeenCalled()
+})
+
+test('a plain chat’s panel says so, with no Change and no word of a chat keeping its folder; a refusal that is no 409 offers no new chat', async () => {
+  const { onMove } = button({ project: null, onMove: vi.fn(async () => Promise.reject(new ApiError(422, 'not a folder'))) })
+  await userEvent.click(screen.getByRole('button', { name: 'Folder: No folder' }))
+  expect(within(panel()).getByText('A plain chat: no files and no commands')).toBeInTheDocument()
+  expect(within(panel()).queryByRole('button', { name: /^Change/ })).toBeNull()
+  expect(within(panel()).queryByText(/A chat with messages keeps its folder/)).toBeNull()
+  await userEvent.click(within(panel()).getByRole('button', { name: /^notes/ }))
+  expect(onMove).toHaveBeenCalledWith('n')
+  expect(within(panel()).getByRole('alert')).toHaveTextContent('not a folder')
+  expect(within(panel()).queryByRole('button', { name: /^Open a new chat/ })).toBeNull()
+})
+
+test('a chat that may not leave its folder for none is offered a new chat with no folder', async () => {
+  button({ onMove: vi.fn(async () => Promise.reject(new ApiError(409, 'this chat changed files'))) })
+  await userEvent.click(screen.getByRole('button', { name: 'Folder: Skyulf-Agent' }))
+  await userEvent.click(within(panel()).getByRole('button', { name: /^Change/ }))
+  expect(within(panel()).getByText('A chat with messages keeps its folder: a new chat opens in the one you pick.')).toBeInTheDocument()
+  await userEvent.click(within(panel()).getByRole('button', { name: /^No folder/ }))
+  expect(within(panel()).getByRole('alert')).toHaveTextContent('this chat changed files')
+  expect(within(panel()).getByRole('button', { name: 'Open a new chat with no folder' })).toBeInTheDocument()
 })
 
 test('a folder is added from KOLONİ’s folder browser, to read at first; one refused says why in the browser', async () => {
