@@ -218,7 +218,7 @@ class QuestionsMixin:
                     how=self._how_lead(ctx), answer=quoted(answer), why=quoted(why))
         return "succeeded", ANSWER_PREFIX + answer
 
-    def _lead_may_answer(  # noqa: C901
+    def _lead_may_answer(
         self: "AgentRunner", ctx: Ctx, kind: str | None, text: str, options: list[str],
         asked: asyncio.Future, says: Callable[[str, str], None],
     ) -> Callable[[], None]:
@@ -256,10 +256,7 @@ class QuestionsMixin:
             question too, once the Lead was `tried` and did not answer - the job waits for the
             user. Stood down (answered, or no longer asked), this one is on its way out."""
             nonlocal held
-            if asked in self._lead_taking:  # (K-bekleyen: not told while the Lead takes it)
-                self._lead_taking.discard(asked)
-                if tried and not asked.done():
-                    self._tell_waits(ctx, asked)  # (it did not answer: now it waits for you)
+            self._lead_takes_no_more(ctx, asked, tried)
             if held:
                 held, self._lead_asked[ctx.run_id] = False, self._lead_asked[ctx.run_id] - 1
                 leaving = 0 if tried and not asked.done() else 1
@@ -287,6 +284,15 @@ class QuestionsMixin:
                 task.cancel()
             let_go(False)
         return stand_down
+
+    def _lead_takes_no_more(self: "AgentRunner", ctx: Ctx, asked: asyncio.Future,
+                            tried: bool) -> None:
+        """`_lead_may_answer`'s `let_go`: the Lead takes the question no more; one it was
+        `tried` on and left unanswered is said to wait."""
+        if asked in self._lead_taking:  # (K-bekleyen: not told while the Lead takes it)
+            self._lead_taking.discard(asked)
+            if tried and not asked.done():
+                self._tell_waits(ctx, asked)  # (it did not answer: now it waits for you)
 
     async def _lead_answers(  # noqa: C901
         self: "AgentRunner", ctx: Ctx, text: str, options: list[str], asked: asyncio.Future,
