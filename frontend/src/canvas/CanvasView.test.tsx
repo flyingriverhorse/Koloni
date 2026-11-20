@@ -714,6 +714,31 @@ test('21 Nov: inside a frame each arrow points at the line’s real end - a room
   expect(arrows('agent:ts>room:o')).toEqual([true, false])
 })
 
+test('21 Nov: a member’s straight line to its room in the column before is drawn from the room, its arrow at the room', async () => {
+  // (Nothing in its way: React Flow's line between the two dots, not a way round - its arrow turned too.)
+  const { measure, stage } = laidOut()
+  const step = (id: string, name: string) => ({ id, name, state: 'now' as const, round: 0, room: false, own_check: false, left_out: [], group: false })
+  const conv = convState({
+    conversation: {
+      ...conversation,
+      teams_mode: 'manual',
+      teams: [{ team_id: 'web', recipe_id: null, no_recipe: false, picked_by: 'user', why: null, state: { run_id: 't', team: 'Web app', recipe: 'Feature', status: 'running', why: null, steps: [step('spec', 'Spec'), step('build', 'Build')], agents: ['sp', 'cd'], ended_ready: false, passes: [{ part: 'spec', agents: ['sp'] }, { part: 'build', agents: ['cd'] }] } }],
+    },
+    runs: [run('t')],
+    messages: [userMessage('t', 'Build it')],
+    agents: [agent('t'), ...['sp', 'cd'].map(id => agent('t', 'running', { id, name: id, role_name: id, parent_agent_id: 't', depth: 1 }))],
+    rooms: [{ id: 'o', run_id: 't', agent_id: 't', goal: 'Build it together', status: 'working', outcome: null, why: null, members: ['sp', 'cd'].map(agent_id => ({ agent_id, role: 'Coder', status: 'in' })) }] as unknown as ConvState['rooms'],
+  })
+  render(<CanvasView state={conv} selectedId={null} onSelect={() => {}} />)
+  await waitFor(() => expect(node('agent:cd')).not.toBeNull())
+  measure()
+  stage(1200)
+  await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="agent:cd>room:o"]')).not.toBeNull())
+  const path = document.querySelector('.react-flow__edge[data-id="agent:cd>room:o"] .react-flow__edge-path')
+  expect(look('agent:cd>room:o')[0]).toBe('react-flow__edge react-flow__edge-lane nopan animated selectable')
+  expect([path?.hasAttribute('marker-start'), path?.hasAttribute('marker-end')]).toEqual([true, false])
+})
+
 test('a team’s frame is drawn behind, never dragged or picked; an agent picked dims it; Fold all and Open all fold every frame', async () => {
   const step = (id: string, name: string) => ({ id, name, state: 'now' as const, round: 0, room: false, own_check: false, left_out: [], group: false })
   const conv = convState({

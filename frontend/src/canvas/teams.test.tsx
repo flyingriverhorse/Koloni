@@ -713,11 +713,16 @@ test('B-103: an agent kept beside the recipe never takes a team’s colour at Re
   expect((deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData).colour).toBe(chatColours(state).get('web'))
 })
 
-test('B-101: a frame drawn from its roles has nothing to stop or finish', () => {
+test('B-101: a frame drawn from its roles has nothing to stop or finish, and no line to Ready for you: that dot is hidden', () => {
   const data = deriveGraph(team('running', 'Build it')).nodes.find(n => n.id === 'team:r:web')!.data as TeamData
+  const readyDot = () => document.querySelector('.team-out')
+  draw(<TeamNode {...props('team:r:web', data)} />)
+  expect(readyDot()).not.toHaveClass('found-handle')
+  cleanup()
   draw(<TeamNode {...props('team:r:web', { ...data, byRoles: true })} />)
   expect(screen.queryByRole('button', { name: 'Stop Web app' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Finish Web app now' })).toBeNull()
+  expect(readyDot()).toHaveClass('found-handle')
 })
 
 test('each pair of agents that talked has a colour of its own, the same on every screen, none a team colour', () => {
