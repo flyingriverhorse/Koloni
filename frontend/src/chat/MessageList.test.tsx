@@ -1299,3 +1299,66 @@ test('KOLONİ’s card that the Orchestrator’s model is slow hangs off no call
     expect(screen.queryByText('not answered')).not.toBeInTheDocument()
   }
 })
+
+test('a Lead turn is one card named after the Lead (the Orchestrator, as the screen calls it) and its time, holding its step, its call and its answer', () => {
+  const answer = { ...assistantMessage('m2', 'r', 'It greets twice.\n\nThe second one is a copy.'), created_at: AT }
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('r', 'completed')],
+        agents: [agent('r', 'completed')],
+        messages: [userMessage('r', 'look at a.py'), assistantMessage('m', 'r', 'I read it first.'), answer],
+        toolCalls: [toolCall('1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
+      })}
+    />,
+  )
+  const card = screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })
+  expect(card).toHaveTextContent('qwen')
+  for (const part of ['I read it first.', 'read_file a.py', 'It greets twice.']) expect(within(card).getByText(part)).toBeInTheDocument()
+  // The user's message stands above it, not in it.
+  expect(screen.getByText('look at a.py').closest('.turn-card')).toBeNull()
+  // The answer opens with its point; the words before it do not.
+  expect(card.querySelector('.msg-answer > p:first-child')).toHaveTextContent('It greets twice.')
+  expect(screen.getByText('I read it first.').closest('.msg-assistant')).not.toHaveClass('msg-answer')
+})
+
+test('a compare run and a turn with only the user’s message get no card', () => {
+  const { unmount } = render(<MessageList {...handlers} state={convState({ runs: [run('r')], agents: [agent('r')], messages: [userMessage('r', 'hm')], thinkingRunId: 'r' })} />)
+  // (Thinking… stays under the message, as before.)
+  expect(screen.getByText('Thinking…').closest('.msg-group')).toHaveTextContent('hm')
+  expect(screen.queryByRole('article')).toBeNull()
+  unmount()
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('a', 'completed', { compare_id: 'k' }), run('b', 'completed', { compare_id: 'k' })],
+        agents: [agent('a', 'completed'), agent('b', 'completed')],
+        messages: [userMessage('a', 'go'), assistantMessage('ma', 'a', 'A side.'), userMessage('b', 'go'), assistantMessage('mb', 'b', 'B side.')],
+        toolCalls: [toolCall('1', 'a', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'ma' })],
+      })}
+    />,
+  )
+  expect(screen.getByText('read_file a.py')).toBeInTheDocument()
+  expect(screen.queryByRole('article')).toBeNull()
+})
+
+test('while the turn runs the card has no foot; at its end the summary and Copy stand in the foot', () => {
+  const state = (status: 'running' | 'completed') =>
+    convState({
+      runs: [run('r', status)],
+      agents: [agent('r', status), agent('r', status, { id: 'k', parent_agent_id: 'r', depth: 1 })],
+      messages: [userMessage('r', 'go'), assistantMessage('m', 'r', 'Done.')],
+    })
+  const { rerender } = render(<MessageList {...handlers} state={state('running')} />)
+  const card = screen.getByRole('article', { name: /^Orchestrator, / })
+  expect(card.querySelector('footer')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull()
+  rerender(<MessageList {...handlers} state={state('completed')} />)
+  // The same card, its foot added under what was there: nothing above it moves.
+  expect(screen.getByRole('article', { name: /^Orchestrator, / })).toBe(card)
+  expect(within(card).getByRole('region', { name: 'What it did' }).parentElement).toHaveClass('turn-foot')
+  expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
+  expect(within(card).getByRole('button', { name: 'Copy' }).closest('footer')).toHaveClass('turn-foot')
+})

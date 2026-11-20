@@ -35,7 +35,7 @@ import { refusedIn } from '../triggers/refused'
 import type { Allow } from '../triggers/triggerText'
 import { WouldHaveAsked } from '../triggers/WouldHaveAsked'
 import { TriggerProposalCard } from '../triggers/TriggerProposalCard'
-import { ReadAloud, SaidAloud } from '../voice/VoiceControls'
+import { SaidAloud } from '../voice/VoiceControls'
 import { AwayCard, AwayFrom } from '../backlog/Away'
 import { NightRow } from '../ready/NightRow'
 import { type BranchSaid, useApp } from '../state/store'
@@ -46,6 +46,7 @@ import { TalkRow, talkOf } from './TalkRow'
 import { requestsOf } from '../agents/teamRequests'
 import { ToolRow } from './ToolRow'
 import { ToolRun } from './ToolRun'
+import { AnswerActions, TurnCard } from './TurnCard'
 import { TurnSummary } from './TurnSummary'
 import { callsByMessage, toolRuns } from './toolRuns'
 import { answerLast } from './chatLine'
@@ -515,10 +516,10 @@ export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProp
   }
 }
 
-type TurnCard = Extract<Waiting, { what: 'plan' | 'merge' | 'away' | 'trigger' | 'notes' | 'night' }>
+type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'away' | 'trigger' | 'notes' | 'night' }>
 
 /** What waits for you that no agent asked leave for: the turn's plan and its work to take in, a night's card and jobs, what was proposed. */
-function turnCard(state: ConvState, row: TurnCard, on: Handlers, onDecidePlan: WaitingProps['onDecidePlan'], continueSteps: number | null | undefined): ReactNode {
+function turnCard(state: ConvState, row: TurnWaiting, on: Handlers, onDecidePlan: WaitingProps['onDecidePlan'], continueSteps: number | null | undefined): ReactNode {
   switch (row.what) {
     case 'plan':
       return <PlanCard run={row.item} onDecide={(...decision) => onDecidePlan(row.item.id, ...decision)} />
@@ -723,6 +724,28 @@ function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, R
     topicBefore = topic?.id ?? null
   }
   return dividers
+}
+
+/** What starts a turn: the user's message or a trigger's. It stands above the turn's card, not in it. */
+const OPENERS = new Set<Message['role']>(['user', 'trigger'])
+
+/**
+ * The chat's groups (one per message of `ordered`, null where nothing is drawn) with each turn's after its opener in
+ * one card - the one `card` gives, or none: then they stand as they are. A turn with nothing after its opener has none.
+ */
+function turnsOf(ordered: Message[], card: (runId: string, inside: ReactNode[]) => ReactNode, groups: ReactNode[]): ReactNode[] {
+  const out: ReactNode[] = []
+  let inside: ReactNode[] = []
+  // (A turn's messages are next to one another: `ordered` is sorted by turn.)
+  ordered.forEach((message, i) => {
+    if (OPENERS.has(message.role)) out.push(groups[i])
+    else if (groups[i]) inside.push(groups[i])
+    if (ordered[i + 1]?.run_id === message.run_id) return
+    const wrapped = inside.length > 0 ? card(message.run_id, inside) : null
+    out.push(...(wrapped ? [wrapped] : inside))
+    inside = []
+  })
+  return out
 }
 
 export function MessageList({
@@ -1037,6 +1060,27 @@ export function MessageList({
       }
       return inLine.has(call.id) ? null : views.get(call.id)?.node
     })
+  // Each turn's answer: its last message of the Lead's with words. It opens with its point, and its foot copies and reads it.
+  const answerOf = new Map(ordered.filter(m => m.role === 'assistant' && m.content).map(m => [m.run_id, m]))
+  /** The card of a Lead turn (0.1.4): none for a comparison - its sides stand under their models' names - or a turn with no Lead. */
+  const card = (runId: string, inside: ReactNode[]) => {
+    const run = runs.get(runId)
+    const lead = state.agents.find(a => a.run_id === runId && a.depth === 0)
+    if (!run || run.compare_id || !lead) return null
+    const answer = answerOf.get(runId)
+    const over = run.started_at && TERMINAL.has(run.status)
+    const foot = over ? (
+      <>
+        <TurnSummary state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />
+        {answer && <AnswerActions message={answer} />}
+      </>
+    ) : null
+    return (
+      <TurnCard key={`turn:${runId}`} state={state} run={run} lead={lead} answer={answer} foot={foot} waits={false}>
+        {inside}
+      </TurnCard>
+    )
+  }
 
   if (state.messages.length === 0) {
     return <div className="msg-list msg-empty muted">Send a message to start.</div>
@@ -1055,7 +1099,7 @@ export function MessageList({
       }}
     >
       <AwayFrom chat={state.conversation.id} />
-      {ordered.map(message => {
+      {turnsOf(ordered, card, ordered.map(message => {
         const count = repeated.get(message.id)
         if (count === undefined) return null
         const run = runs.get(message.run_id)
@@ -1142,8 +1186,7 @@ export function MessageList({
               message.content &&
               !compare && (
                 <>
-                  <div className="msg msg-assistant markdown">
-                    <ReadAloud id={message.id} content={message.content} written={message.status === 'complete'} />
+                  <div className={`msg msg-assistant markdown${answerOf.get(message.run_id) === message ? ' msg-answer' : ''}`}>
                     <Markdown written={message.status === 'complete'}>{message.content}</Markdown>
                   </div>
                   <SaidAloud message={message} />
@@ -1214,10 +1257,9 @@ export function MessageList({
               />
             )}
             {notice && <RunNotice notice={notice} />}
-            {last && run?.started_at && TERMINAL.has(run.status) && !compare && <TurnSummary state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />}
           </div>
         )
-      })}
+      }))}
       {away && (
         <button
           type="button"

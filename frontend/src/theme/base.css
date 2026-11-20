@@ -693,6 +693,11 @@ p.hive-empty {
   min-height: 0;
 }
 
+/* Open, its turns are cards on the panel's ground (0.1.4). */
+.chat:not(.chat-closed) {
+  background: var(--panel);
+}
+
 /* Moved by the user (shell/move.ts): where it was put - and on a stage grown smaller since,
    never past its edge. Taller than there is room for above where it was put, it is drawn lower.
    shortcut: move.ts keeps it clear of the zoom buttons (bottom right) where it is put, not here; a
@@ -1732,13 +1737,117 @@ a.view-run {
   gap: 6px;
 }
 
-/* 🔊 at the top right of an answer (slice 32a): the words flow round it. */
-.read-aloud {
-  float: right;
+/* One Lead turn (0.1.4, MessageList's TurnCard): who answered, the turn's steps and answer, and a quiet foot. In the
+   light theme the card and the list under it are nearly one colour: its border draws it. */
+.turn-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.turn-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.turn-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-title);
+}
+
+/* (A long team title or model id ends in an ellipsis: the time stays in sight.) */
+.turn-name,
+.turn-model {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.turn-name {
+  font-weight: var(--weight-strong);
+}
+
+.turn-model {
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+/* Its time, or what waits for you, at the right. */
+.turn-head > :last-child {
+  flex: none;
+  margin-left: auto;
+}
+
+.turn-head time {
+  color: var(--faint);
+  font-size: var(--text-meta);
+}
+
+.turn-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* (An ended turn with no words and nothing done to tell: no foot, and no gap for one.) */
+.turn-foot:empty {
+  display: none;
+}
+
+/* What the turn did draws the foot's rule, not its own (board.css). */
+.turn-foot:has(.turn-summary) {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.turn-foot .turn-summary {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Copy and Read aloud (slice 32a) at the foot's right: seen on the card's hover or focus, on a touch screen, and while
+   it reads. Hidden by opacity only: a keyboard and a screen reader reach them all the same. */
+.turn-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.turn-card:is(:hover, :focus-within) .turn-actions,
+.turn-actions:has([aria-label='Stop reading']) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .turn-actions {
+    opacity: 1;
+  }
+}
+
+.turn-actions .icon-btn {
   width: 26px;
   height: 26px;
-  margin: -2px -4px 0 6px;
-  color: var(--muted);
 }
 
 /* Under an answer: what was said aloud of it. */

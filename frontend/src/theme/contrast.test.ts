@@ -164,3 +164,13 @@ test('the bold of a chat answer is the text colour, not the accent', () => {
   // (Outside the chat, in the Inspector and Workspace, the bold stays orange: the rule above.)
   expect(rule('.msg.msg-assistant strong')).toBe('--text')
 })
+
+test('a turn’s card is drawn by its border on its own ground, and its foot’s buttons hide by opacity only', () => {
+  // (In the light theme the card and the list under it are nearly one colour: the border draws the card.)
+  const card = base.match(/\n\.turn-card \{([^}]*)\}/)?.[1] ?? ''
+  expect(card).toContain('border: 1px solid var(--border);')
+  expect(card).toContain('background: var(--surface);')
+  // (Hidden any other way they would leave the tab order and a screen reader: 32a.)
+  expect(base.match(/\n\.turn-actions \{([^}]*)\}/)?.[1]).toContain('opacity: 0;')
+  expect(base).not.toMatch(/\.turn-actions[^{]*\{[^}]*(visibility|display: none)/)
+})

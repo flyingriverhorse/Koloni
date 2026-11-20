@@ -54,10 +54,14 @@ wait for you. Drag its grip to move it, and its top edge to resize it.
 
 ### What the chat shows
 
+- Each turn of the Orchestrator's is one card under your message: who answered, with which model and
+  when, then its steps and its answer.
 - Two or more tool calls in a row by the same agent fold into one line, such as "Read 4 files, listed 4
   folders". Failed or rejected calls are always shown.
-- Under a turn that did something, one line sums it up, such as "2 agents · 3 files changed", with what is
-  left open. **details ▸** shows the files, sub-agents, tokens and known cost.
+- At the foot of a turn that did something, once it is over, one line sums it up, such as "2 agents · 3
+  files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and known cost.
+- **Copy** (the answer as written) and **Read aloud** stand at the foot's right; they show when you point
+  at the card or tab into it.
 - A message's **⋯** menu has **Copy**, **Restore to before this message** and **Show its work on the
   canvas**. The **↺** button on a message whose work changed files is **Undo these changes**.
 
