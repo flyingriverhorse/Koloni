@@ -350,8 +350,9 @@ class ApprovalsMixin:
         # model's: `model_native._ShellPatches`) or not known (None: `with_cwd`). A cwd the
         # model wrote (agy's) is judged as not known as well.
         kind = getattr(ctx.model, "cwd_from", "none")
+        new_shell = kind == "cli" and given.get("new_shell") is True
         unnamed = "." if under is None and (kind == "root" and tool == "Bash" or (
-            kind == "cli" and given.get("new_shell") is True and copy is None)) else None
+            new_shell and copy is None)) else None
         claimed = kind == "model" and isinstance(cwd, str) and bool(cwd)
         if claimed and not searched:
             searched = await asyncio.to_thread(search_reason, command, root, ".")
@@ -365,8 +366,11 @@ class ApprovalsMixin:
         at = (cwd if where is None else where) if isinstance(cwd, str) and cwd else unnamed
         # (Live: `rm -rf .koloni/tmp/w2` of Claude Code's Bash asked, where KOLONİ's own
         # command did not. A delete only in the scratch is no harm where it is known to run at
-        # the project's own root - not a copy's, nor a cwd the model wrote: `_night_asks`.)
-        scratch_of = str(root) if at in ("", ".") and copy is None and not claimed else None
+        # the project's own root - not a copy's, nor a cwd the model wrote: `_night_asks`. Nor
+        # Copilot's in a new shell, never put to the user: 1.0.67 has no sandbox, and a link a
+        # script makes there after the ask is followed - `scratch_delete_only`.)
+        scratch_of = str(root) if at in ("", ".") and copy is None and not claimed and (
+            not new_shell) else None
         reason = web_off or reason or searched or (
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
             if copy is not None else "") or self._branch_asks(

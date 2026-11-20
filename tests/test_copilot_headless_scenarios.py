@@ -844,6 +844,7 @@ def test_copilots_bash_heredoc_is_a_patch_only_where_its_shell_is_bash(
 
 SCRATCH_LINE = "cd .koloni/tmp/w2; python a.py"
 SCRATCH_DELETE = "Remove-Item -Recurse -Force .koloni/tmp/w2"
+CONTROL = "cd .koloni/tmp/w2; python b.py"  # (each card's control: from a new shell, unasked)
 READ = "1.0.67"  # (the one version whose shell was read: `model_native.SHELL_READ`)
 
 
@@ -851,23 +852,63 @@ def scratch(project_dir):
     (project_dir / ".koloni" / "tmp" / "w2").mkdir(parents=True)
 
 
+def control_ran(snap):
+    assert [(c["command"], c["cwd"], c["status"]) for c in snap["commands"][:1]] == [
+        (CONTROL, ".", "exited")]
+
+
 @pytest.mark.parametrize("args", [
     {}, {"description": "Run it", "mode": "sync", "initial_wait": 30, "detach": False}],
     ids=["its-command-alone", "as-a-model-calls-it"])
-def test_at_full_auto_work_in_the_scratch_and_a_delete_there_from_a_new_shell_run_unasked(
+def test_at_full_auto_work_in_the_scratch_from_a_new_shell_runs_unasked(
     args, copilot_native, wait_run, project_dir  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": SCRATCH_LINE, "args": args},
-                                       {"shell": SCRATCH_DELETE, "args": args},
-                                       {"say": "ok"}], version=READ)
+    client, provider = copilot_native([{"shell": SCRATCH_LINE, "args": args}, {"say": "ok"}],
+                                      version=READ)
     statuses = watched(client)
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
-    assert answers(copilot_native) == [("shell", APPROVE)] * 2
+    assert answers(copilot_native) == [("shell", APPROVE)]
     nothing_was_asked(snap, statuses)
     assert [(c["command"], c["cwd"], c["status"]) for c in snap["commands"]] == [
-        (SCRATCH_LINE, ".", "exited"), (SCRATCH_DELETE, ".", "exited")]
+        (SCRATCH_LINE, ".", "exited")]
+
+
+def test_from_a_new_shell_a_delete_in_the_scratch_is_still_a_card(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    # (Never put to the user: 1.0.67 has no sandbox, and a junction a script makes there after
+    # the ask is followed by the delete - `commands.scratch_delete_only`.)
+    scratch(project_dir)
+    client, provider = copilot_native([{"shell": CONTROL}, {"shell": SCRATCH_DELETE},
+                                       {"say": "ok"}], version=READ)
+    cid, run_id = start(client, project_dir, provider)
+    asked = card_for(client, cid, SCRATCH_DELETE)
+    assert (asked["cwd"], asked["danger"]) == (".", "Deletes files or disks.")
+    client.post(f"/api/commands/{asked['id']}/reject")
+    snap = wait_run(client, cid, run_id)
+    assert answers(copilot_native) == [("shell", APPROVE), ("shell", REJECT)]
+    control_ran(snap)
+
+
+def test_a_new_shell_is_kolonis_own_word_never_one_copilot_or_its_model_sends(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    # (A "new_shell" in its request is not read, nor one in its model's arguments: a key not
+    # known, its shell not known to be new - `_permit` writes KOLONİ's own last.)
+    scratch(project_dir)
+    client, provider = copilot_native([
+        {"ask": {"kind": "shell", "fullCommandText": SCRATCH_LINE, "shellType": "powershell",
+                 "new_shell": True},
+         "tool": "powershell", "args": {"command": SCRATCH_LINE, "new_shell": True}},
+        {"say": "ok"}], version=READ)
+    cid, run_id = start(client, project_dir, provider)
+    asked = card_for(client, cid, SCRATCH_LINE)
+    assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")
+    client.post(f"/api/commands/{asked['id']}/reject")
+    wait_run(client, cid, run_id)
+    assert answers(copilot_native) == [("shell", REJECT)]
 
 
 @pytest.mark.parametrize("steps", [
@@ -884,16 +925,15 @@ def test_where_its_shell_is_not_known_to_be_new_work_in_the_scratch_is_still_a_c
     steps, copilot_native, wait_run, project_dir  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": SCRATCH_DELETE}, *steps, {"say": "ok"}],
+    client, provider = copilot_native([{"shell": CONTROL}, *steps, {"say": "ok"}],
                                       version=READ)
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, SCRATCH_LINE)
     assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")
     client.post(f"/api/commands/{asked['id']}/reject")
     snap = wait_run(client, cid, run_id)
-    # (the delete before it, in a new shell: unasked)
     assert answers(copilot_native) == [("shell", APPROVE)] * len(steps) + [("shell", REJECT)]
-    assert snap["commands"][0]["status"] == "exited"
+    control_ran(snap)
 
 
 @pytest.mark.parametrize("line", ["cd ..; Remove-Item -Recurse x",
@@ -902,14 +942,15 @@ def test_from_a_new_shell_a_cd_out_of_the_project_or_into_a_protected_folder_is_
     line, copilot_native, wait_run, project_dir  # noqa: F811
 ):
     scratch(project_dir)
-    client, provider = copilot_native([{"shell": SCRATCH_DELETE}, {"shell": line}, {"say": "ok"}],
+    client, provider = copilot_native([{"shell": CONTROL}, {"shell": line}, {"say": "ok"}],
                                       version=READ)
     cid, run_id = start(client, project_dir, provider)
     asked = card_for(client, cid, line)
     assert asked["cwd"] == "." and asked["danger"]
     client.post(f"/api/commands/{asked['id']}/reject")
-    wait_run(client, cid, run_id)
+    snap = wait_run(client, cid, run_id)
     assert answers(copilot_native) == [("shell", APPROVE), ("shell", REJECT)]
+    control_ran(snap)
 
 
 @pytest.mark.parametrize("told", [

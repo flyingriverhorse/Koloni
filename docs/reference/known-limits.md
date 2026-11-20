@@ -70,9 +70,9 @@ and credit messages.
 - GitHub Copilot CLI run **Native** does not say where its commands run either. On a Copilot version
   whose code was read - only 1.0.67 so far, by the version Copilot itself reports - a command that
   names no shell of its own starts in a new shell in the project folder, so there a `cd` into
-  `.koloni/tmp/` or a delete only inside it runs without a card at Full auto. On any other version
-  (later ones, Linux and macOS are not measured), and once a command has named a shell, each is asked
-  as before.
+  `.koloni/tmp/` runs without a card at Full auto; a delete inside `.koloni/tmp/` from such a shell is
+  still a card. On any other version (later ones, Linux and macOS are not measured), and once a
+  command has named a shell, the `cd` is asked as before.
 - A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
   script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it

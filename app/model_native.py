@@ -1435,6 +1435,7 @@ class CodexNativeClient(CliStepClient):
         why = (f"KOLONİ declined this request of {self.label}'s: only a command or a patch "
                "it said it was making is answered")
         questions: list[tuple[str, dict]] = []
+        # (These two alone: never a "new_shell", KOLONİ's own word for Copilot's - `_permit`.)
         given = {key: params[key] for key in ("reason", "cwd") if params.get(key)}
         again = (item_id, params.get("approvalId")) in asked.answered
         command = _unwrapped(str(params.get("command") or ""))
@@ -2940,7 +2941,10 @@ SHELL_STATE = re.compile(
 # running app.js's own - 1.0.67's seam handlers `Vbo`); one that does not say: not known.
 # shortcut: 1.0.107's code is not read, nor its native shell schema (another spelling of shellId
 # is a key not here: not known) or JSON-RPC writer (a start out of order: a card); bash on Linux
-# and macOS not seen. Add a version to SHELL_READ only once read or measured (K-cli-surface).
+# and macOS not seen. Add a version to SHELL_READ only once read or measured (K-cli-surface): the
+# one its own `status.get` answers when KOLONİ runs it natively - HEADLESS has --no-auto-update,
+# so copilot.exe runs its own built-in package, which may not be what a plain `copilot
+# --version` says - and the code read must be that version's.
 SHELL_ARGUMENTS = frozenset({"command", "description", "mode", "detach", "initialwait",
                              "requestsandboxbypass", "requestsandboxbypassreason"})
 SHELL_READ = frozenset({"1.0.67"})
@@ -3655,8 +3659,6 @@ class CopilotNativeClient(CodexNativeClient):
             else:
                 question = ("Bash", {"command": named, **given,
                                      **({"cwd": str(where)} if where else {}),
-                                     # (none said: KOLONİ's own word, `_approve_command`'s)
-                                     **({"new_shell": True} if new_shell and not where else {}),
                                      "paths": list(request.get("possiblePaths") or []),
                                      "writes": bool(request.get("hasWriteFileRedirection")),
                                      # Its own word that a part is not read-only can only
@@ -3664,7 +3666,10 @@ class CopilotNativeClient(CodexNativeClient):
                                      "not_read_only": any(
                                          _dict(one).get("readOnly") is False
                                          for one in request.get("commands") or []),
-                                     "urls": urls})
+                                     "urls": urls,
+                                     # (KOLONİ's own word, last: nothing it was sent can be it.
+                                     # `_approve_command`; Codex's `_decide` sends none.)
+                                     "new_shell": bool(new_shell and not where)})
         elif named and kind == "write":
             # What it will write is its one fileEdit (newFileContents is no sure word: an
             # empty one is not a deletion); a write that names more files, or another one
