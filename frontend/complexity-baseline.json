@@ -9,7 +9,6 @@
   "src/backlog/Away.tsx::JobRow": 24,
   "src/backlog/BacklogPage.tsx::BacklogPage": 27,
   "src/canvas/CanvasView.tsx::CanvasView": 38,
-  "src/canvas/CanvasView.tsx::CanvasView>map": 15,
   "src/changes/MergeCard.tsx::Check": 21,
   "src/changes/MergeCard.tsx::MergeCard": 70,
   "src/changes/UndoCard.tsx::UndoCard": 22,

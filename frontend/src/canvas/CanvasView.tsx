@@ -178,6 +178,15 @@ const planLine = (e: GraphEdge): Edge => ({
   style: { stroke: 'var(--border-strong)', strokeWidth: 1.5, strokeDasharray: e.po ? DASH.po : DASH.plan },
 })
 
+/**
+ * A team's frame is drawn behind its agents' boxes, which stand on their own (slice 84b-2): it is not moved. A card
+ * stands by its team, and is lit, not selected (K-shared-bagli). (A round's line likewise.)
+ */
+const standing = (n: GraphNode) => ({
+  ...(n.kind === 'team' && { zIndex: -1, draggable: false, selectable: false, focusable: false }),
+  ...((n.kind === 'shared' || n.kind === 'round') && { draggable: false, selectable: false, focusable: false }),
+})
+
 /** A line between two agents of a frame, not from its door: down or up its column, else across to the next one. */
 function columnLine(e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> {
   if (stacked(s, t)) return { type: 'lane', data, ...(t.y > s.y ? { sourceHandle: 'found-out', targetHandle: 'found-in' } : { sourceHandle: 'up-out', targetHandle: 'up-in' }) }
@@ -709,10 +718,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       ...(isGroup(n) && { dragHandle: '.group-head' }),
       // Inside its box, and never dragged out of it.
       ...(n.parent && { parentId: n.parent, extent: 'parent' as const }),
-      // A team's frame is drawn behind its agents' boxes, which stand on their own (slice 84b-2): it is not moved. A card
-      // stands by its team, and is lit, not selected (K-shared-bagli).
-      ...(n.kind === 'team' && { zIndex: -1, draggable: false, selectable: false, focusable: false }),
-      ...((n.kind === 'shared' || n.kind === 'round') && { draggable: false, selectable: false, focusable: false }),
+      ...standing(n),
       // One call that is selected shows on the tool node that lists it.
       selected: n.id === shown?.id,
       // An agent or a talk line picked: what is not its fades, its frame a little.
