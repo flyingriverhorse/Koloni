@@ -3,6 +3,8 @@ is given, remember / recall; and, beside them in the runner, the user's note on 
 notebook (`note_from_user`) and an agent's turn on a message (`_reply_turn`) - `MemoryMixin`.
 """
 
+import asyncio
+import contextlib
 import re
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -381,6 +383,13 @@ class MemoryMixin:
                 left_out = await self._take_in(
                     target, status, lambda: self._set_agent(ctx.cid, target.agent_id, **done)
                 )
+        except asyncio.CancelledError:
+            # Its own calls in this turn, as a session's end closes them (`_settle_session`):
+            # cut off from above too (its opener's call given up on), when no Stop closes them.
+            with contextlib.suppress(Exception):
+                self._interrupt_open_calls(turn.run_id, turn.cid, turn.agent_id,
+                                           turn.calls_from, turn.own_calls)
+            raise
         finally:
             self._in_reply.discard(target.agent_id)
             self.claims.returned(ctx.agent_id, target.agent_id)

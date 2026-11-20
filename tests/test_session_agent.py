@@ -269,25 +269,66 @@ def test_a_team_lead_that_gives_up_waiting_for_another_team_is_at_work_again(
     assert waiter(snap)["status"] == "completed"
 
 
-def test_a_message_whose_reply_the_cli_stopped_waiting_for_is_closed_with_the_turn(
+def test_an_agent_whose_cli_gives_up_waiting_for_a_file_is_at_work_again(
         session_app, wait_run, project_dir, tmp_path):
-    go, answer = tmp_path / "go", Gate()
+    go, on, holds = tmp_path / "go", tmp_path / "on", Gate()
+    client, provider, _ = session_app([
+        {"send": "write_file", "args": {"path": "hello.py", "content": "print('two')\n"}},
+        {"wait_for": str(go)}, {"cancel": True}, {"wait_for": str(on)}, {"say": "Went on."}],
+        default_steps=[step(call("edit_file", {"path": "hello.py", "old_string": "'hi'",
+                                               "new_string": "'one'"}, "e")),
+                       holds.step(text("done"))])
+    first, one = start(client, project_dir, None)
+    holds.wait_partial()  # (its Lead holds hello.py, which it changed)
+    second, other = start(client, project_dir, provider)
+
+    def lead(snap):
+        return snap["agents"][0] if snap["agents"] else {"status": None}
+
+    until(client, second, lambda s: lead(s)["status"] == "blocked", timeout=20)
+    go.touch()
+    # (Review of the slice: only "waiting" was taken back - it stayed "blocked", for no file.)
+    snap = until(client, second, lambda s: one_call(s, "write_file")["status"] != "running"
+                 and lead(s)["status"] != "blocked", timeout=10)
+    assert (cut(one_call(snap, "write_file")), lead(snap)["status"], lead(snap)["waiting_for"]) == (
+        ("interrupted", UNFINISHED, True), "running", None)
+    on.touch()
+    assert wait_run(client, second, other)["runs"][0]["status"] == "completed"
+    holds.release()
+    assert wait_run(client, first, one)["runs"][0]["status"] == "completed"
+
+
+def test_a_message_whose_reply_the_cli_stopped_waiting_for_is_closed_with_the_turn(
+        session_app, wait_run, project_dir, tmp_path, monkeypatch):
+    go, held = tmp_path / "go", threading.Event()
     client, provider, _ = session_app([
         {"send": "message_agent", "args": {"to": "Lead", "message": "ok?"}},
         {"wait_for": str(go)}, {"say": "A done"}],
         default_steps={"Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1")),
-                                answer.step(text("my answer")), text("done")]})
+                                step(call("recall", {"query": "the plan"}, "r1")), text("done")]})
+
+    def held_up(*_asked):
+        held.wait(scaled(60))
+        return ""
+
+    # (The Lead's answer looks in the memory and is held there: a call of its own is open.)
+    monkeypatch.setattr(client.app.state.runner, "_recall", held_up)
     assert client.patch(f"/api/roles/{role_id(client, 'Coder')}",
                         json={"provider_id": provider["id"]}).status_code == 200
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
-    until(client, cid, lambda s: [t["status"] for t in s["tool_calls"]
-                                  if t["name"] == "message_agent"] == ["running"], timeout=20)
-    answer.wait_partial()  # (the Lead answers it: the message waits for that)
-    go.touch()  # (the Coder's turn ends, its message's reply never came)
-    snap = wait_run(client, cid, run_id)
+    try:
+        until(client, cid, lambda s: [t["status"] for t in s["tool_calls"]
+                                      if t["name"] in ("message_agent", "recall")]
+              == ["running", "running"], timeout=20)
+        go.touch()  # (the Coder's turn ends, its message's reply never came)
+        snap = wait_run(client, cid, run_id)
+    finally:
+        held.set()
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert cut(one_call(snap, "message_agent")) == ("interrupted", UNFINISHED, True), (
-        snap["tool_calls"])
+    # (Review of the slice: the answer turn cut off left its recall "running" for good.)
+    assert [cut(one_call(snap, name)) for name in ("message_agent", "recall")] == [
+        ("interrupted", UNFINISHED, True)] * 2, snap["tool_calls"]
+    assert one_call(snap, "spawn_agent")["status"] == "succeeded"
     assert statuses(snap) == {"Lead": "completed", "Coder": "completed"}
 
 

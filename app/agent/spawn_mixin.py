@@ -743,16 +743,20 @@ class SpawnMixin:
 
     def _at_work_again(self: "AgentRunner", ctx: Ctx) -> None:
         """`_run_from_cli`: an agent whose wait in a call its CLI gave up on (`_handing_over`,
-        `_users_word`) is at work again - "waiting" no more - its CLI goes on; not while the
-        turn is being stopped, nor while it waits for anything else.
+        `_users_word`, a file another agent holds) is at work again - "waiting" or "blocked" no
+        more - its CLI goes on; not while the turn is being stopped, nor while it waits for
+        anything else.
         shortcut: without the place it gave up for the wait (`_step_aside`), which it takes at
         its next wait's end (`_settle`): meanwhile the turn may have one more at work than the
-        chat's setting. Take one here, without waiting, if that is seen to matter."""
+        chat's setting. Take one here, without waiting, if that is seen to matter.
+        shortcut: one given up on while it stood in line for its place again (`_settle`) stays
+        "queued" until its next change - another call of it may stand there still; tell them
+        apart if that is seen."""
         task = self._tasks.get(ctx.run_id)
         if (task is not None and task.cancelling()) or self._waits(ctx.agent_id):
             return
         with self._factory() as session:
-            waiting = session.get_one(Agent, ctx.agent_id).status == "waiting"
+            waiting = session.get_one(Agent, ctx.agent_id).status in ("waiting", "blocked")
         if waiting:
             self._set_agent(ctx.cid, ctx.agent_id, status="running")
 

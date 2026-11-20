@@ -12,7 +12,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Fixed
 
-- **Canvas**, **Chat**, **CLIs**: a KOLONİ tool call that a CLI agent stopped waiting for - a command, a wait for another team, a message to another agent, a web request - no longer shows as running after the turn: it ends as interrupted, as when you press Stop, also when the CLI gives up on it in the middle of its turn (the agent then shows as at work again, not waiting). What it started is stopped as by Stop; a server you let keep running keeps running. After a restart, such a call left running by an earlier turn is closed too. A discussion broken by an error now shows **Failed**, not **Stopped**.
+- **Canvas**, **Chat**, **CLIs**: a KOLONİ tool call that a CLI agent stopped waiting for - a command, a wait for another team, a message to another agent, a web request - no longer shows as running after the turn: it ends as interrupted, as when you press Stop, also when the CLI cancels it in the middle of its turn (the agent then shows as at work again, not waiting). What it started is stopped as by Stop; a server you let keep running keeps running. After a restart, such a call left running by an earlier turn is closed too. A discussion broken by an error now shows **Failed**, not **Stopped**.
 
 ## [0.1.3] - 2026-11-20
 
