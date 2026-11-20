@@ -40,7 +40,7 @@ const tags = [
   ),
 ].map(m => ({ name: m[1], tint: m[2], pct: Number(m[3]) / 100, ground: m[4], fg: m[5] }))
 
-const texts = ['--text', '--muted', '--faint', '--accent', '--ok', '--warn', '--del', '--request']
+const texts = ['--text', '--text-soft', '--muted', '--faint', '--accent', '--ok', '--warn', '--del', '--request']
 const flats = ['--bg', '--surface', '--panel']
 const light = colours(block(':root'))
 const darkOwn = colours(block('.dark'))
@@ -151,9 +151,16 @@ for (const [name, theme, own] of [
   })
 }
 
+// The colour a base.css rule gives first, by its selector as written.
+const rule = (selector: string) => base.match(new RegExp(`${selector.replace(/\./g, '\\.')} \\{\\s*color: var\\((--[\\w-]+)\\);`))?.[1]
+
 test('an answer colours its paths, commands and bold words with the tokens checked above (K-sohbet-renk)', () => {
-  const rule = (selector: string) => base.match(new RegExp(`${selector.replace(/\./g, '\\.')} \\{\\s*color: var\\((--[\\w-]+)\\);`))?.[1]
   expect(rule('.markdown .md-path')).toBe('--code-title')
   expect(rule('.markdown .md-command')).toBe('--code-keyword')
   expect(rule('.markdown strong')).toBe('--accent')
+})
+
+test('the bold of a chat answer is the text colour, not the accent', () => {
+  // (Outside the chat, in the Inspector and Workspace, the bold stays orange: the rule above.)
+  expect(rule('.msg.msg-assistant strong')).toBe('--text')
 })

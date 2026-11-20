@@ -10,6 +10,8 @@
   --surface: #fffaf1;
   --panel: #fbf6ed;
   --text: #2a2218;
+  /* A chat answer's words: a step softer than --text, easier on the eye over a long read. */
+  --text-soft: #3b3124;
   --muted: #6e604a;
   --faint: #706249;
   --border: #e0d6c4;
@@ -82,6 +84,11 @@
   --text-mono: 11.5px; /* what a program wrote or is given: commands, paths, code, output */
   --text-meta: 11px; /* a line of facts about something: counts, times, states, tags */
   --text-kicker: 10px; /* the small capitals over a section, and a tag inside a line of facts */
+  /* A chat answer, read at length: larger than the page's body, its code and headings to match. */
+  --text-read: 14.5px; /* a chat answer's words and the user's message */
+  --text-lead: 15.5px; /* an answer's first paragraph, and its third-level heading */
+  --text-code: 12.5px; /* code in a chat answer */
+  --text-section: 17px; /* a chat answer's first- and second-level heading */
   --weight-title: 600; /* titles and headings */
   --weight-strong: 500; /* a name in a row, a button */
   --weight-body: 400;
@@ -93,6 +100,7 @@
   --surface: #1a1e26;
   --panel: #161a21;
   --text: #e4e6ea;
+  --text-soft: #cfd4dc;
   /* One step lighter than --faint, told apart from it (K-38f1): 5.87 on a chosen row. */
   --muted: #b0b6c2;
   /* No darker: this reads at 4.79 on a chosen row, and one step darker is under 4.5. */

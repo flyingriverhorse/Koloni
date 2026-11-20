@@ -1665,10 +1665,12 @@ a.view-run {
 }
 
 .msg-bubble {
-  max-width: 85%;
-  padding: 7px 11px;
-  border-radius: 12px 12px 3px 12px;
+  max-width: min(85%, 60ch);
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px 14px;
   background: var(--accent-soft);
+  font-size: var(--text-read);
+  line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1875,6 +1877,123 @@ a.view-run {
 
 .markdown strong {
   color: var(--accent);
+}
+
+/* A chat answer (0.1.4): larger, airier and softer words, its bold and code without loud colour or a box.
+   Only MessageList draws .msg-assistant, so the Inspector, Workspace and Knowledge keep the look above. */
+.msg.msg-assistant {
+  font-size: var(--text-read);
+  color: var(--text-soft);
+}
+
+/* (On the lines, not the answer: a code block and a table would inherit it.) */
+.msg.msg-assistant :is(p, li) {
+  line-height: 1.7;
+}
+
+.msg.msg-assistant :is(p, li, blockquote, h1, h2, h3, h4) {
+  max-width: 72ch;
+}
+
+/* The turn's answer opens with its point. */
+.msg.msg-assistant.msg-answer > p:first-child {
+  font-size: var(--text-lead);
+  line-height: 1.55;
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}
+
+.msg.msg-assistant strong {
+  color: var(--text);
+  font-weight: var(--weight-title);
+}
+
+/* (On the code itself: .markdown code sets its own size, which a size on pre would not reach.) */
+.msg.msg-assistant code {
+  font-size: var(--text-code);
+}
+
+.msg.msg-assistant :not(pre) > code {
+  padding: 0;
+  background: none;
+}
+
+/* A path and a command keep their colours (K-sohbet-renk), and code in a link its link's. */
+.msg.msg-assistant :not(pre, a) > code:not(.md-path, .md-command) {
+  color: var(--text);
+}
+
+/* (Without its own line height a code block's lines stand as far apart as the answer's.) */
+.msg.msg-assistant pre {
+  font-size: var(--text-code);
+  line-height: 1.5;
+}
+
+.msg.msg-assistant blockquote {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--accent-fill) 55%, transparent);
+  border-radius: 0 8px 8px 0;
+  background: var(--hover);
+}
+
+.msg.msg-assistant :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.2em 0 0.4em;
+  font-weight: var(--weight-title);
+}
+
+.msg.msg-assistant :is(h1, h2) {
+  font-size: var(--text-section);
+}
+
+.msg.msg-assistant h3 {
+  font-size: var(--text-lead);
+}
+
+.msg.msg-assistant :is(h4, h5, h6) {
+  font-size: var(--text-read);
+  color: var(--muted);
+}
+
+/* (The rules above outrank .markdown's own first and last child: kept here, and inside a quote.) */
+.msg.msg-assistant > :first-child {
+  margin-top: 0;
+}
+
+.msg.msg-assistant > :last-child,
+.msg.msg-assistant blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.msg.msg-assistant hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.msg.msg-assistant li + li {
+  margin-top: 0.3em;
+}
+
+.msg.msg-assistant li::marker {
+  color: var(--muted);
+}
+
+.msg.msg-assistant .contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.msg.msg-assistant table {
+  font-size: var(--text-body);
+}
+
+.msg.msg-assistant th {
+  text-align: left;
+  background: var(--hover);
+}
+
+.msg.msg-assistant :is(th, td) {
+  vertical-align: top;
 }
 
 /* A drawn ```mermaid block (slice 68); a wide one scrolls rather than widen the message. */
