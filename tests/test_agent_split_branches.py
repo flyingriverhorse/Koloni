@@ -3,11 +3,16 @@ functions were split (C901): each ran green on the function before its split."""
 
 from app.db.models import ProjectKnowledge
 from tests.test_agent_writes import wait_status
-from tests.test_chat_flow import text
+from tests.test_agy_agent import agy_app  # noqa: F401
+from tests.test_agy_agent import start as start_agy
+from tests.test_browser import fake, served  # noqa: F401
+from tests.test_chat_flow import start_in_mode, text
 from tests.test_experts_scenarios import EXPERT
 from tests.test_experts_work_scenarios import docs
 from tests.test_knowledge_page import expert
-from tests.test_mcp_scenarios import LONG, calls, events, give, server
+from tests.test_mcp_scenarios import LONG, ORIGIN, calls, events, give, server
+from tests.test_native_agent import native_app  # noqa: F401
+from tests.test_native_agent import start as start_native
 from tests.test_room_open_scenarios import begin as room_begin
 from tests.test_room_open_scenarios import open_room
 from tests.test_room_scenarios import LONG as ROOM_LONG
@@ -16,6 +21,7 @@ from tests.test_skill_scenarios import SKILL_MD
 from tests.test_skills import folder_of
 from tests.test_spawn import begin, call, spawn, step
 from tests.test_web_tool_scenarios import Net, go, results, setup
+from tests.test_yazma_denetimi import open_card
 
 
 def test_a_search_with_no_query_is_refused_before_anybody_is_asked(
@@ -116,3 +122,71 @@ def test_an_expert_whose_model_to_learn_with_is_gone_learns_nothing(
     refused = next(t for t in snap["tool_calls"] if t["provider_call_id"] == "l1")
     assert (refused["status"], refused["result"]) == (
         "failed", "error: the model it learns with is gone: the user chooses another")
+
+
+def test_a_browser_tool_whose_argument_is_not_what_it_takes_is_refused(
+    fake, served, make_client, wait_run, project_dir  # noqa: F811
+):
+    client, _model = make_client([
+        step(call("browser_open", {"url": served}, "b1")),
+        step(call("browser_type", {"selector": "#name", "text": 5}, "b2")),
+        step(call("browser_key", {"key": 5}, "b3")),
+        step(call("browser_scroll", {"dy": "down"}, "b4")),
+        text("done")])
+    cid, run_id = start_in_mode(client, project_dir, "full_auto")
+    snap = wait_run(client, cid, run_id, timeout=15)
+    said = {t["provider_call_id"]: (t["status"], t["result"]) for t in snap["tool_calls"]}
+    assert said["b2"] == ("failed", "error: missing required argument: text"), said
+    assert said["b3"] == ("failed", "error: missing required argument: key"), said
+    assert said["b4"] == ("failed", "error: missing required argument: dy"), said
+
+
+def test_a_discussion_opens_no_member_past_the_turns_limit_of_agents(
+    make_client, wait_run, project_dir
+):
+    client, _model = make_client({"Lead": [
+        step(call("discuss", {"topic": "x", "with": ["Reviewer", "Tester"]}, "a")),
+        text("done")]})
+    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
+                        spawn_max_agents=1)
+    snap = wait_run(client, cid, run_id)
+    (refused,) = snap["tool_calls"]
+    assert (refused["status"], refused["result"]) == (
+        "failed", "error: limit of 1 sub-agents per turn reached: no Tester can be opened. "
+        "Invite agents that already exist.")
+    assert snap["discussions"] == [] and len(snap["agents"]) == 1
+
+
+def test_an_agy_older_than_the_bridge_is_told_which_servers_tools_it_was_not_given(
+    agy_app, wait_run, project_dir, tmp_path  # noqa: F811
+):
+    client, provider, _ = agy_app([{"say": "I did it myself."}], version="1.4.8")
+    server(client, tmp_path)
+    give(client, "Lead", "fake")
+    cid, run_id = start_agy(client, project_dir, provider)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    said = [(t["name"], t["status"], t["result"]) for t in snap["tool_calls"]]
+    assert said == [
+        ("use_mcp_server", "denied",
+         "the tools of the MCP server fake were not given to agy: it is handed none of KOLONİ's "
+         "tools, and a server's tools reach a CLI only through them"),
+        ("koloni_tools", "denied",
+         "agy cannot open sub-agents or write with KOLONİ's tools here: it is handed none of "
+         "them (the Models page says why)")], said
+
+
+def test_a_cli_stopped_during_its_keep_card_leaves_nothing_to_hold_the_folder(
+    native_app, wait_run, project_dir  # noqa: F811
+):
+    (project_dir / ".git" / "hooks").mkdir(parents=True)
+    client, provider, _ = native_app([
+        {"run": "pytest -q", "touches": {".git/hooks/pre-commit": "#!/bin/sh\necho hi\n"}},
+        {"say": "ok"}])
+    cid, run_id = start_native(client, project_dir, provider)
+    open_card(client, cid)
+    client.post(f"/api/runs/{run_id}/cancel", headers={"Origin": ORIGIN})
+    snap = wait_run(client, cid, run_id, timeout=20)
+    assert snap["runs"][0]["status"] == "cancelled", snap["runs"][0]
+    assert not client.app.state.runner._keeps.get(str(project_dir))
+    assert not (project_dir / ".git/hooks/pre-commit").exists()
