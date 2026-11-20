@@ -713,11 +713,38 @@ def save_fill_all(body: FillAllIn, session: Session = Depends(get_session)):
     return list_providers(session)
 
 
+async def _cli_ready(request: Request, provider: Provider, told: dict) -> str | None:
+    """Whether a CLI is installed and signed in, written into `told`; why none of its models
+    can be used, where one is not."""
+    kind = provider.kind
+    why = None
+    told["installed"] = catalog.installed(kind, provider.executable)
+    if not told["installed"]:
+        told["install"], why = catalog.install(kind), "not installed"
+    else:
+        # (On a model server of the user's its sign-in is not used: not asked.)
+        home = cli_home(request.app.state.settings.runtime_root, provider)
+        if provider.base_url:
+            told["signed_in"] = None
+        elif kind == "copilot_cli":
+            told["signed_in"] = await _copilot_signed_in(provider)
+        else:
+            told["signed_in"], told["plan"] = await catalog.status(
+                kind, provider.executable, home)
+        if home is not None:
+            # K-claude-hesap: its own folder's login, in the user's own terminal.
+            told["login"] = _login(kind, provider.executable, home)
+        if told["signed_in"] is False:
+            told["sign_in"] = told.get("login") or catalog.sign_in(kind)
+            why = "not signed in"
+    return why
+
+
 @router.get(
     "/{provider_id}/availability", response_model=AvailabilityOut,
     dependencies=[Depends(require_origin)],
 )
-async def availability(  # noqa: C901
+async def availability(
     provider_id: str, request: Request, free: bool = False,
     session: Session = Depends(get_session),
 ):
@@ -744,25 +771,7 @@ async def availability(  # noqa: C901
     told: dict = {"installed": None}
     why = None  # why none of them can be used
     if kind in CLI_NAMES:
-        told["installed"] = catalog.installed(kind, provider.executable)
-        if not told["installed"]:
-            told["install"], why = catalog.install(kind), "not installed"
-        else:
-            # (On a model server of the user's its sign-in is not used: not asked.)
-            home = cli_home(request.app.state.settings.runtime_root, provider)
-            if provider.base_url:
-                told["signed_in"] = None
-            elif kind == "copilot_cli":
-                told["signed_in"] = await _copilot_signed_in(provider)
-            else:
-                told["signed_in"], told["plan"] = await catalog.status(
-                    kind, provider.executable, home)
-            if home is not None:
-                # K-claude-hesap: its own folder's login, in the user's own terminal.
-                told["login"] = _login(kind, provider.executable, home)
-            if told["signed_in"] is False:
-                told["sign_in"] = told.get("login") or catalog.sign_in(kind)
-                why = "not signed in"
+        why = await _cli_ready(request, provider, told)
     elif kind == "anthropic" and not provider.api_key:
         why = "needs an API key"
     listed, failed = (None, None) if why else await _listed_by(
