@@ -136,6 +136,24 @@ test('a price has two more boxes, for what is read from a cache and written to i
   expect(Object.keys(onPrice.mock.lastCall?.[0])).not.toContain('cache_write')
 })
 
+test('models.dev’s price read on no known day says no day, and its cache prices are where the boxes start', async () => {
+  const catalogue = [
+    { model_id: 'claude-haiku-5-5', provider_name: 'Paid', input: 0.1, output: 0.5, cache_read: null, cache_write: 0.125, currency: 'USD', read_on: null },
+    { model_id: 'claude-sonnet-5-5', provider_name: 'Paid', input: 2, output: 10, cache_read: null, cache_write: null, currency: 'USD', read_on: null },
+  ]
+  const saved = [{ model_id: 'claude-sonnet-5-5', input: 3, output: 15, currency: 'USD' }]
+  render(
+    <UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(usage)} onOpen={vi.fn()} providers={[provider({})]} prices={saved} cataloguePrices={catalogue} onPrice={vi.fn()} onRemovePrice={vi.fn()} />,
+  )
+  await screen.findByRole('table', { name: 'Usage by provider and model' })
+  const prices = within(screen.getByRole('region', { name: 'Prices' }))
+  expect(prices.getByText('models.dev’s price, used until you save your own.')).toBeInTheDocument()
+  expect(prices.getByText('Your price is used. models.dev’s: 2 / 10 USD.')).toBeInTheDocument()
+  expect(prices.getByLabelText('A million read from the cache, for claude-haiku-5-5')).toHaveValue('')
+  expect(prices.getByLabelText('A million written to it, for claude-haiku-5-5')).toHaveValue('0.125')
+  expect(prices.getByRole('button', { name: 'Save the price of claude-haiku-5-5' })).toBeEnabled()
+})
+
 test('a model models.dev has a price for is listed at it, can be given the user’s own, and put back', async () => {
   const onPrice = vi.fn().mockResolvedValue(undefined)
   const onRemovePrice = vi.fn().mockResolvedValue(undefined)

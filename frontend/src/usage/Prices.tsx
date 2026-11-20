@@ -20,15 +20,37 @@ interface Props {
 
 /** A price as typed: a number that is not negative, or null. */
 const amount = (text: string) => (/^\d+(\.\d+)?$/.test(text.trim()) ? Number(text) : null)
+/** A cache price box: left empty, or holding a price. */
+const emptyOrPrice = (text: string, value: number | null) => !text.trim() || value !== null
+
+/** What a row's boxes start from: the price shown, as typed; empty where it has none. */
+const startOf = (shown: Price | CataloguePrice | undefined) => ({
+  input: shown ? String(shown.input) : '',
+  output: shown ? String(shown.output) : '',
+  currency: shown?.currency ?? '',
+  cacheRead: shown?.cache_read != null ? String(shown.cache_read) : '',
+  cacheWrite: shown?.cache_write != null ? String(shown.cache_write) : '',
+})
+
+/** Under a row whose model models.dev has a price for: whether it or the user's is used. */
+function CatalogueNote({ price, catalogue }: { price: Price | undefined; catalogue: CataloguePrice }) {
+  return (
+    <span className="muted price-cache">
+      {price
+        ? `Your price is used. models.dev’s${catalogue.read_on ? ` (${day(catalogue.read_on)})` : ''}: ${catalogue.input} / ${catalogue.output} ${catalogue.currency}.`
+        : `models.dev’s price${catalogue.read_on ? ` (${day(catalogue.read_on)})` : ''}, used until you save your own.`}
+    </span>
+  )
+}
 
 function PriceRow({ model, price, catalogue, onPrice, onRemovePrice }: { model: string; price: Price | undefined; catalogue?: CataloguePrice } & Pick<Props, 'onPrice' | 'onRemovePrice'>) {
   // The user's price, else the catalogue's to start from: saved, it is the user's and wins.
-  const shown = price ?? catalogue
-  const [input, setInput] = useState(shown ? String(shown.input) : '')
-  const [output, setOutput] = useState(shown ? String(shown.output) : '')
-  const [currency, setCurrency] = useState(shown?.currency ?? '')
-  const [cacheRead, setCacheRead] = useState(shown?.cache_read != null ? String(shown.cache_read) : '')
-  const [cacheWrite, setCacheWrite] = useState(shown?.cache_write != null ? String(shown.cache_write) : '')
+  const start = startOf(price ?? catalogue)
+  const [input, setInput] = useState(start.input)
+  const [output, setOutput] = useState(start.output)
+  const [currency, setCurrency] = useState(start.currency)
+  const [cacheRead, setCacheRead] = useState(start.cacheRead)
+  const [cacheWrite, setCacheWrite] = useState(start.cacheWrite)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const sent = amount(input)
@@ -36,7 +58,7 @@ function PriceRow({ model, price, catalogue, onPrice, onRemovePrice }: { model: 
   // Each may be left empty; one that holds something must be a price.
   const read = amount(cacheRead)
   const wrote = amount(cacheWrite)
-  const ready = sent !== null && written !== null && Boolean(currency.trim()) && (!cacheRead.trim() || read !== null) && (!cacheWrite.trim() || wrote !== null)
+  const ready = sent !== null && written !== null && Boolean(currency.trim()) && emptyOrPrice(cacheRead, read) && emptyOrPrice(cacheWrite, wrote)
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
@@ -101,13 +123,7 @@ function PriceRow({ model, price, catalogue, onPrice, onRemovePrice }: { model: 
             <input className="input mono" inputMode="decimal" aria-label={`A million written to it, for ${model}`} value={cacheWrite} placeholder="optional" onChange={e => setCacheWrite(e.target.value)} />
           </label>
         </div>
-        {catalogue && (
-          <span className="muted price-cache">
-            {price
-              ? `Your price is used. models.dev’s${catalogue.read_on ? ` (${day(catalogue.read_on)})` : ''}: ${catalogue.input} / ${catalogue.output} ${catalogue.currency}.`
-              : `models.dev’s price${catalogue.read_on ? ` (${day(catalogue.read_on)})` : ''}, used until you save your own.`}
-          </span>
-        )}
+        {catalogue && <CatalogueNote price={price} catalogue={catalogue} />}
       </form>
       {error && (
         <div role="alert" className="alert">
