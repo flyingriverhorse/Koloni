@@ -129,7 +129,7 @@ class TalkMixin:
         return ("Noted. The user sees it on the project's git map, and KOLONİ compares it "
                 "with git at the end of the turn.")
 
-    def _offered(self: "AgentRunner", ctx: Ctx, tools, always: bool = False,  # noqa: C901
+    def _offered(self: "AgentRunner", ctx: Ctx, tools, always: bool = False,
                  show: bool = False) -> list[dict]:
         """The schemas of `tools` for this agent, as things stand right now."""
         if not ctx.answering and ctx.agent_id in self._following:
@@ -210,26 +210,11 @@ class TalkMixin:
                   len(schemas))
         schemas[at:at] = away_tool
         if door is not None and door.step and door.step[1]:
-            # Where the chat's recipes are, read at every step as the roles are (slice 84b-2).
-            # (R57: a Lead refused the Coder at the spec step asked for it first again.)
-            refused = sorted(role for role in self._refused_roles.get(ctx.run_id, ())
-                             if role.casefold() not in door.step[0])
-            for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
-                spawn["description"] += f"\nNow: {door.step[1]}." + (
-                    f"\nRefused in this turn, and no role of this step either: "
-                    f"{', '.join(refused)}. Do not ask for {'it' if len(refused) == 1 else 'them'}"
-                    " again here: open the step's own roles." if refused else "") + (
-                    f"\n{RECIPE_RULES}." if running else "")
+            self._offered_step(ctx, schemas, door.step, running)
         if self._reports_git(ctx):
             schemas = [*schemas, REPORT_GIT_SCHEMA]
         if files:
-            # The files the user attached (slice 85b): read, and handed on by their names.
-            for one in (s["function"] for s in schemas
-                        if s["function"]["name"] in ("spawn_agent", "message_agent")):
-                one["parameters"]["properties"]["attachments"] = ATTACHMENTS_PROPERTY if (
-                    "read_attachment" not in off) else ATTACHMENTS_UNREAD
-            if "read_attachment" not in off:
-                schemas = [*schemas, READ_ATTACHMENT_SCHEMA]
+            schemas = self._offered_files(schemas, off)
         if ctx.part or ctx.depth == 0 and self._map_told(ctx):
             # K-buyuk-proje: only with parts to name (the Lead's brief lists them): a project of
             # one part is offered spawn_agent as it was.
@@ -247,6 +232,32 @@ class TalkMixin:
         return schemas + between + [
             mcp_client.schema(server.name, tool) for server, tool in self._mcp(ctx).values()
         ] + skill_schemas(known, "run_command" in tools) + pick
+
+    def _offered_step(self: "AgentRunner", ctx: Ctx, schemas: list[dict],
+                      step: tuple[frozenset[str], str], running: bool) -> None:
+        """`_offered`'s spawn_agent in a recipe's step (`Door.step`): told where the recipe is."""
+        # Where the chat's recipes are, read at every step as the roles are (slice 84b-2).
+        # (R57: a Lead refused the Coder at the spec step asked for it first again.)
+        refused = sorted(role for role in self._refused_roles.get(ctx.run_id, ())
+                         if role.casefold() not in step[0])
+        for spawn in (s["function"] for s in schemas if s["function"]["name"] == "spawn_agent"):
+            spawn["description"] += f"\nNow: {step[1]}." + (
+                f"\nRefused in this turn, and no role of this step either: "
+                f"{', '.join(refused)}. Do not ask for {'it' if len(refused) == 1 else 'them'}"
+                " again here: open the step's own roles." if refused else "") + (
+                f"\n{RECIPE_RULES}." if running else "")
+
+    def _offered_files(self: "AgentRunner", schemas: list[dict],
+                       off: frozenset[str]) -> list[dict]:
+        """`_offered`'s schemas where the user attached files."""
+        # The files the user attached (slice 85b): read, and handed on by their names.
+        for one in (s["function"] for s in schemas
+                    if s["function"]["name"] in ("spawn_agent", "message_agent")):
+            one["parameters"]["properties"]["attachments"] = ATTACHMENTS_PROPERTY if (
+                "read_attachment" not in off) else ATTACHMENTS_UNREAD
+        if "read_attachment" not in off:
+            schemas = [*schemas, READ_ATTACHMENT_SCHEMA]
+        return schemas
 
     def _earlier(self: "AgentRunner", ctx: Ctx) -> list[topics.Earlier]:
         """The agents of earlier turns of the topic that this agent can go on with: for

@@ -75,7 +75,7 @@ class RecordMixin:
             run_id, payload = call.run_id, tool_call_out(call)
         self.bus.emit(cid, run_id, "tool_call.updated", payload)
 
-    def _interrupt_open_calls(  # noqa: C901
+    def _interrupt_open_calls(
         self: "AgentRunner", run_id: str, cid: str, agent_id: str | None = None,
         after_call: int = 0, only: set | None = None,
     ) -> None:
@@ -164,6 +164,9 @@ class RecordMixin:
             payloads = [question_out(question) for question in unanswered]
         for payload in payloads:
             self.bus.emit(cid, run_id, "question.updated", payload)
+        self._interrupt_talks(run_id, cid, agent_id)
+
+    def _interrupt_talks(self: "AgentRunner", run_id: str, cid: str, agent_id: str | None) -> None:
         # And a discussion that was going on: the whole run's, or the one this agent opened.
         with self._factory() as session:
             talks = session.scalars(
