@@ -115,14 +115,17 @@ STEER_SECONDS = 5.0
 # B-197: why KOLONİ declined a request of Codex's, steered into its turn (as `AGENT_STEERED`).
 DECLINED_WHY = ("KOLONİ declined that request of yours: {why}\n\n"
                 "(KOLONİ's words - not the user's.)")
-# B-204: its own way to ask the user, by its schema's name (an MCP elicitation is a server's,
-# not the model's: no other server is on). Declined, with the way to KOLONİ's card said in its
-# turn (`DECLINED_WHY`) and in the no's message.
+# B-204: its own way to ask the user, by its schema's name. Declined, with the way to KOLONİ's
+# card said in its turn (`DECLINED_WHY`) and in the no's message.
 # shortcut: not measured - whether Codex sends it inside KOLONİ, and what it does with the note;
 # measure one short turn natively and as a session, and answer it as typed if it keeps asking.
+# shortcut: an MCP elicitation that is no tool-call approval is taken for a server's question
+# (every server but KOLONİ's is off on its line) and declined as before, with no note; read
+# from its schema, not measured - point it to ask_user too if Codex is seen asking so.
 ASKS_USER = "item/tool/requestUserInput"
 ASK_WITH_KOLONI = ("the user is asked only with the koloni server's ask_user tool: ask your "
-                   "question with it, and KOLONİ gives you their answer.")
+                   "question with it, and KOLONİ gives you their answer (without that tool, "
+                   "decide yourself and say what you decided).")
 # ...and its row in the chat, native (a session keeps no row of a CLI's own requests).
 ASKED_ON_CARD = ("KOLONİ declined {label}'s own way to ask you and told it to ask with "
                  "ask_user, on KOLONİ's card")
