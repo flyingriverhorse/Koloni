@@ -884,7 +884,7 @@ class SpawnMixin:
             stopped = await _through_stops(saving) or stopped
         return ending, stopped
 
-    async def _spawn(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:  # noqa: C901
+    async def _spawn(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """Open a sub-agent - and, a team's lead, the chat's other teams' leads with it (B-87:
         a Lead opened them one by one, each waiting for the one before) - wait for them, and
         return the reports as the tool result.
@@ -918,15 +918,9 @@ class SpawnMixin:
             held = self._at_once.setdefault(call_id, ({call_id}, asyncio.Event()))
             held[0].update(one.id for one in requests)
         opened = asyncio.Event()
-
-        async def arriving() -> tuple[str, str]:
-            try:
-                return await self._spawn_on(ctx, call_id, args, opened)
-            finally:  # (refused or stopped before it started: KOLONİ's wait for none of it)
-                self._arrive(call_id)
-
         first = asyncio.ensure_future(
-            arriving() if more else self._spawn_on(ctx, call_id, args, opened))
+            self._spawn_arriving(ctx, call_id, args, opened) if more
+            else self._spawn_on(ctx, call_id, args, opened))
         waiting = asyncio.ensure_future(opened.wait())
         try:
             await asyncio.wait((first, waiting), return_when=asyncio.FIRST_COMPLETED)
@@ -965,6 +959,19 @@ class SpawnMixin:
         finally:
             for made_id, _payload in made:
                 self._opening.pop(made_id, None)
+        return self._spawn_reports(mine, beside, done, group, more)
+
+    async def _spawn_arriving(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict,
+                              opened: asyncio.Event) -> tuple[str, str]:
+        """`_spawn`'s own call where candidates are opened beside it (`_at_once`)."""
+        try:
+            return await self._spawn_on(ctx, call_id, args, opened)
+        finally:  # (refused or stopped before it started: KOLONİ's wait for none of it)
+            self._arrive(call_id)
+
+    def _spawn_reports(self: "AgentRunner", mine: dict, beside: list[dict], done: list,
+                       group: tuple | None, more: tuple | None) -> tuple[str, str]:
+        """`_spawn`'s result once its own agent and those opened beside it are back."""
         for one, said in zip(beside, done[1:], strict=True):
             mine[one["role"].casefold()] = (None, said[0] if isinstance(said, tuple) else "failed")
         # Its own failing loses none of their reports: they came with no other call.
@@ -1999,7 +2006,7 @@ class SpawnMixin:
             return None
         return provider.id, model_name
 
-    def _propose(  # noqa: C901
+    def _propose(
         self: "AgentRunner", ctx: Ctx, call_id: str, role: Role, task: str, provider: Provider,
         model_name: str | None, model: ModelClient, chosen: bool, not_to_be_had: str | None,
         earlier: topics.Earlier | None = None, why: str = "", effort: str | None = None,
@@ -2054,35 +2061,8 @@ class SpawnMixin:
             raise ToolError(PAID_NO.format(to=shown_name(provider.name)))
         if step is not None and only_in_project(model, tools):
             raise ToolError(ONLY_IN_THE_PROJECT.format(provider=shown_name(provider.name)))
-        if not self._watched(ctx.run_id):
-            # Before any of the limits a turn the user is watching has ("set the level
-            # to Full auto"): nobody is there to do that. A model of the agent's own
-            # choosing can cost money, and is asked about: here it is not had. Nor is a
-            # CLI that works with tools of its own.
-            if chosen:
-                raise _NobodyToAsk(self._nobody_to_ask(
-                    ctx, "model", f"give a sub-agent another model ({provider.name}); "
-                    "leave provider and model out"))
-            if paid:  # (nor a move onto a provider paid per token: nobody is there to say yes)
-                raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
-            if self._cannot_be_held(model, provider):
-                raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
-        elif ctx.run_id in self._backlog_turns and self._cannot_be_held(model, provider):
-            raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
-        if self._level(ctx) + 1 > max_depth:
-            raise ToolError(
-                f"depth limit reached: sub-agents may be at most {max_depth} level(s) below "
-                "the Orchestrator. Do this part yourself."
-            )
-        if opened >= most:
-            raise ToolError(over)
-        if not set(tools) - NOT_WORK:
-            raise ToolError(
-                f"the {role.name} role would have no tools here: none of its tools are "
-                "ones the Orchestrator may hand on"
-            )
-        if not_to_be_had:
-            raise ToolError(not_to_be_had)
+        self._propose_unwatched(ctx, provider, model, chosen, paid)
+        self._propose_within(ctx, role, tools, max_depth, opened, most, over, not_to_be_had)
         refused = None
         if not self._watched(ctx.run_id):
             # No await from this count to the agent's opening: two asked for at once
@@ -2132,7 +2112,46 @@ class SpawnMixin:
             self._paid_asked[child.agent_id] = ((ctx.run_id, provider.id), not other)
         return child, asks
 
-    async def _see_through(  # noqa: C901
+    def _propose_unwatched(self: "AgentRunner", ctx: Ctx, provider: Provider, model: ModelClient,
+                           chosen: bool, paid: str | None) -> None:
+        """`_propose`: what is not had in a turn nobody watches, nor in a backlog task's."""
+        if not self._watched(ctx.run_id):
+            # Before any of the limits a turn the user is watching has ("set the level
+            # to Full auto"): nobody is there to do that. A model of the agent's own
+            # choosing can cost money, and is asked about: here it is not had. Nor is a
+            # CLI that works with tools of its own.
+            if chosen:
+                raise _NobodyToAsk(self._nobody_to_ask(
+                    ctx, "model", f"give a sub-agent another model ({provider.name}); "
+                    "leave provider and model out"))
+            if paid:  # (nor a move onto a provider paid per token: nobody is there to say yes)
+                raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
+            if self._cannot_be_held(model, provider):
+                raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
+        elif ctx.run_id in self._backlog_turns and self._cannot_be_held(model, provider):
+            raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
+
+    def _propose_within(
+        self: "AgentRunner", ctx: Ctx, role: Role, tools: list[str], max_depth: int, opened: int,
+        most: int, over: str, not_to_be_had: str | None,
+    ) -> None:
+        """`_propose`'s limits: how deep, how many, with what tools - and what cannot be had."""
+        if self._level(ctx) + 1 > max_depth:
+            raise ToolError(
+                f"depth limit reached: sub-agents may be at most {max_depth} level(s) below "
+                "the Orchestrator. Do this part yourself."
+            )
+        if opened >= most:
+            raise ToolError(over)
+        if not set(tools) - NOT_WORK:
+            raise ToolError(
+                f"the {role.name} role would have no tools here: none of its tools are "
+                "ones the Orchestrator may hand on"
+            )
+        if not_to_be_had:
+            raise ToolError(not_to_be_had)
+
+    async def _see_through(
         self: "AgentRunner", ctx: Ctx, child: Ctx, asks: bool, declined: str,
         started: Callable[[], None] | None = None,
     ) -> tuple[str, str]:
@@ -2153,30 +2172,13 @@ class SpawnMixin:
         loop in its working copy, writes there unasked: a file the sub-agent holds can change
         under it (said to the holder: `_changed_under`); KOLONİ's own write tools are refused
         it (`HELD_BELOW`). Hold such an opener's own writes too if that is seen."""
-        told = None
-        if self._opening:
-            with self._factory() as session:
-                told = self._opening.get(session.scalar(
-                    select(Agent.tool_call_id).where(Agent.id == child.agent_id)) or "")
-            if told is not None and getattr(ctx.model, "native", False) and getattr(
-                    child.model, "native", False) and (
-                    await self._native_place(child) == await self._native_place(ctx)):
-                told = None
+        told = await self._see_through_told(ctx, child)
         if told is not None:
             self._went_on.add(child.agent_id)
         if asks:
-            if told is not None:
-                told.set_result(SPAWN_PROPOSED.format(name=child.name))
-            decision, lead_why = await self._spawn_word(ctx, child, went_on=told is not None)
-            if decision == "reject":
-                # On record at once; the opener then takes its place again to go on.
-                # (B-386: a coordinator taken up from its room ran there - it stays counted.)
-                self._set_agent(ctx.cid, child.agent_id, ended_at=now(), status="completed" if (
-                    child.agent_id in self._taken_up) else "rejected")
-                await self._settle(ctx)
-                if lead_why:
-                    declined = LEAD_DECLINED.format(why=lead_why[0])
-                return "denied", declined + await self._declined(ctx, child)
+            denied = await self._see_through_no(ctx, child, told, declined)
+            if denied is not None:
+                return denied
 
         if started is not None:
             started()
@@ -2188,31 +2190,12 @@ class SpawnMixin:
             # opener that goes on is refused a file its sub-agent holds: `_claim`.)
             self.claims.awaiting(ctx.agent_id, child.agent_id)
             try:
-                async def run_it() -> tuple[str, str | None]:
-                    async with self._working(child, queued=True):
-                        self._set_agent(
-                            ctx.cid, child.agent_id, status="running", started_at=now()
-                        )
-                        if why := await self._candidate_copy(child):
-                            return "failed", why
-                        try:
-                            ended, error = await self._run_child(child)
-                        except asyncio.CancelledError:
-                            # B-405: Stop (the turn's, Stop everything's) in its work in a copy.
-                            await self._through_any_stop(child.run_id, self._stopped_in_copy(child))
-                            raise
-                        if ended == "completed" and child.agent_id in self._candidates:
-                            # K-evrim: measured as its last act, its place still held - a card
-                            # for the command waits as for any command of its own.
-                            self._scored[child.agent_id] = await self._measure(child)
-                        return ended, error
-
-                status, error = await run_it()
+                status, error = await self._see_through_run(ctx, child)
                 moved = ""
                 if status == "failed" and (
                         went := await self._moved_on(ctx, child, went_on=told is not None)):
                     child, moved = went[0], "\n\n" + went[1]
-                    status, error = await run_it()
+                    status, error = await self._see_through_run(ctx, child)
                 report = self._last_text(child.agent_id, final_only=status == "completed")
                 # (Only those are told the format, `FINDINGS_PROMPT`.)
                 found = self._found(child, report) if status == "completed" else None
@@ -2255,16 +2238,85 @@ class SpawnMixin:
             did = ledger.did(session, child.agent_id, handoff.counted_on(child.model))
         counted += f"\n\n{did}" if did else ""
         if status == "completed":
-            said = (report or "(it ended without a report)") + counted
-            if left_out:
-                said += f"\n\n{left_out}"
-            self._channel(ctx, child.agent_id, ctx.agent_id, "report", said)
-            if ANSWERED.search(report or ""):  # (a fixer's answers: its disputes, none too)
-                self._disputed[ctx.run_id] = [
-                    f"- {line.strip()[:MAX_WHAT]}" for line in DISPUTED.findall(report or "")]
-            # (A recipe's review's go where its row says - to its step's roles: B-117.)
-            on = "" if child.agent_id in self._reviews else _hand_on(found)
-            return "succeeded", f"{child.name} finished.\n\n{said}{on}{looked}"
+            return self._see_through_finished(ctx, child, report, counted, left_out, found, looked)
+        return self._see_through_failed(ctx, child, error, report, counted, left_out, looked)
+
+    async def _see_through_told(self: "AgentRunner", ctx: Ctx,
+                                child: Ctx) -> asyncio.Future | None:
+        """`_see_through`: the answer a CLI's call over MCP waits for (`_run_from_cli`) where
+        its opener goes on - None where it waits as before."""
+        told = None
+        if self._opening:
+            with self._factory() as session:
+                told = self._opening.get(session.scalar(
+                    select(Agent.tool_call_id).where(Agent.id == child.agent_id)) or "")
+            if told is not None and getattr(ctx.model, "native", False) and getattr(
+                    child.model, "native", False) and (
+                    await self._native_place(child) == await self._native_place(ctx)):
+                told = None
+        return told
+
+    async def _see_through_no(self: "AgentRunner", ctx: Ctx, child: Ctx,
+                              told: asyncio.Future | None,
+                              declined: str) -> tuple[str, str] | None:
+        """`_see_through`'s card: the user's word on the sub-agent - None for a yes, else what
+        its opener is told of their no."""
+        if told is not None:
+            told.set_result(SPAWN_PROPOSED.format(name=child.name))
+        decision, lead_why = await self._spawn_word(ctx, child, went_on=told is not None)
+        if decision == "reject":
+            # On record at once; the opener then takes its place again to go on.
+            # (B-386: a coordinator taken up from its room ran there - it stays counted.)
+            self._set_agent(ctx.cid, child.agent_id, ended_at=now(), status="completed" if (
+                child.agent_id in self._taken_up) else "rejected")
+            await self._settle(ctx)
+            if lead_why:
+                declined = LEAD_DECLINED.format(why=lead_why[0])
+            return "denied", declined + await self._declined(ctx, child)
+        return None
+
+    async def _see_through_run(self: "AgentRunner", ctx: Ctx,
+                               child: Ctx) -> tuple[str, str | None]:
+        """`_see_through`: the sub-agent's work, in its place among the agents at work."""
+        async with self._working(child, queued=True):
+            self._set_agent(
+                ctx.cid, child.agent_id, status="running", started_at=now()
+            )
+            if why := await self._candidate_copy(child):
+                return "failed", why
+            try:
+                ended, error = await self._run_child(child)
+            except asyncio.CancelledError:
+                # B-405: Stop (the turn's, Stop everything's) in its work in a copy.
+                await self._through_any_stop(child.run_id, self._stopped_in_copy(child))
+                raise
+            if ended == "completed" and child.agent_id in self._candidates:
+                # K-evrim: measured as its last act, its place still held - a card
+                # for the command waits as for any command of its own.
+                self._scored[child.agent_id] = await self._measure(child)
+            return ended, error
+
+    def _see_through_finished(
+        self: "AgentRunner", ctx: Ctx, child: Ctx, report: str, counted: str,
+        left_out: str | None, found: list[dict] | None, looked: str,
+    ) -> tuple[str, str]:
+        """`_see_through`'s result for a sub-agent that finished: its report, to its opener."""
+        said = (report or "(it ended without a report)") + counted
+        if left_out:
+            said += f"\n\n{left_out}"
+        self._channel(ctx, child.agent_id, ctx.agent_id, "report", said)
+        if ANSWERED.search(report or ""):  # (a fixer's answers: its disputes, none too)
+            self._disputed[ctx.run_id] = [
+                f"- {line.strip()[:MAX_WHAT]}" for line in DISPUTED.findall(report or "")]
+        # (A recipe's review's go where its row says - to its step's roles: B-117.)
+        on = "" if child.agent_id in self._reviews else _hand_on(found)
+        return "succeeded", f"{child.name} finished.\n\n{said}{on}{looked}"
+
+    def _see_through_failed(
+        self: "AgentRunner", ctx: Ctx, child: Ctx, error: str | None, report: str, counted: str,
+        left_out: str | None, looked: str,
+    ) -> tuple[str, str]:
+        """`_see_through`'s result for a sub-agent that did not finish: why, to its opener."""
         # B-373: a halt of KOLONİ's own (`_halt`) is no failure: no try-again advice follows.
         halted = self._halt_why.get(child.agent_id, TEAM_STOPPED) if (
             child.agent_id in self._halted) else None

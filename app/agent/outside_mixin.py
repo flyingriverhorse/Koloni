@@ -77,7 +77,7 @@ OF_THE_PROJECT = (
 class OutsideMixin:
     # --- the web tools (`app.web`) ---------------------------------------------
 
-    async def _web(self: "AgentRunner", ctx: Ctx, call_id: str, name: str,  # noqa: C901
+    async def _web(self: "AgentRunner", ctx: Ctx, call_id: str, name: str,
                    args: dict) -> tuple[str, str]:
         """A web search, an HTTP request or a notification: refused, asked about or let
         through as the turn stands, then made. Returns the call's status and its text.
@@ -114,61 +114,11 @@ class OutsideMixin:
             raise ToolError(network_off)
         try:
             if name == "notify":
-                refused = self._nobody_to_ask(ctx, "notify", "send a notification")
-                if refused:
-                    return "failed", refused
-                if not notify_url and not on_desktop:
-                    raise ToolError("the user has set no notification address for this project")
-                message = web.note(args.get("message"))
-                # To the desktop and to the address, where the user set both: each is
-                # tried, and what is said names the one that failed - never the address.
-                went: list[str] = []
-                failed: list[str] = []
-                if on_desktop:
-                    try:
-                        if not self._toasts.take(cid):
-                            raise ToolError(
-                                "at most 6 desktop notifications a minute are shown for "
-                                "one conversation: wait before the next"
-                            )
-                        went.append(await web.show(title, message))
-                    except (ToolError, web.WebError) as exc:
-                        failed.append(str(exc))
-                if notify_url:
-                    try:
-                        if no_network:
-                            raise ToolError(
-                                f"not sent to the user's notification address: {network_off}"
-                            )
-                        self._within(self._requests, cid, "30 requests")
-                        went.append(await web.notify(notify_url, message, form))
-                    except (ToolError, web.WebError) as exc:
-                        failed.append(str(exc))
-                if not failed:
-                    return "succeeded", " and ".join(went)
-                why = "; ".join(failed)
-                return "failed", f"{went[0]}, but: {why}" if went else f"error: {why}"
+                return await self._web_notify(
+                    ctx, args, notify_url, form, on_desktop, title, no_network, network_off)
             if name == "web_search":
-                query = args.get("query")
-                if not isinstance(query, str) or not query.strip():
-                    raise ToolError("missing required argument: query")
-                query = web.query_of(query)
-                refused = self._nobody_to_ask(ctx, "web", "search the web")
-                if refused:
-                    return "failed", refused
-                # (K-fullauto-sorma: at Full auto the expert's search is not asked either -
-                # it costs nothing, `paid=not expert`.)
-                if refused is None and asks and (expert or not self._web_rules(cid)[0]):
-                    asked = WebRequest(kind="search", target=query)
-                    if await self._ask_web(ctx, call_id, asked) == "reject":
-                        return "denied", WEB_REJECTED.format(what="search")
-                self._within(self._searches, cid, "10 searches")
-                # A search the API made is paid for in tokens: they are this agent's.
-                return "succeeded", await web.search(
-                    query, search_url, order,
-                    lambda sent, made: self._count_tokens(ctx, sent, made, step=False),
-                    agy=search_agy, paid=not expert,
-                )
+                return await self._web_search(
+                    ctx, call_id, args, asks, expert, search_url, order, search_agy)
             verb, url, headers, body = web.planned(
                 args.get("method"), args.get("url"), args.get("headers"), args.get("body")
             )
@@ -220,6 +170,74 @@ class OutsideMixin:
             )
         except web.WebError as exc:
             raise ToolError(str(exc)) from None
+
+    async def _web_notify(
+        self: "AgentRunner", ctx: Ctx, args: dict, notify_url: str | None, form: str,
+        on_desktop: bool, title: str, no_network: bool, network_off: str,
+    ) -> tuple[str, str]:
+        """`_web`'s notification, to where the user said (a `web.WebError` is `_web`'s to turn)."""
+        cid = ctx.cid
+        refused = self._nobody_to_ask(ctx, "notify", "send a notification")
+        if refused:
+            return "failed", refused
+        if not notify_url and not on_desktop:
+            raise ToolError("the user has set no notification address for this project")
+        message = web.note(args.get("message"))
+        # To the desktop and to the address, where the user set both: each is
+        # tried, and what is said names the one that failed - never the address.
+        went: list[str] = []
+        failed: list[str] = []
+        if on_desktop:
+            try:
+                if not self._toasts.take(cid):
+                    raise ToolError(
+                        "at most 6 desktop notifications a minute are shown for "
+                        "one conversation: wait before the next"
+                    )
+                went.append(await web.show(title, message))
+            except (ToolError, web.WebError) as exc:
+                failed.append(str(exc))
+        if notify_url:
+            try:
+                if no_network:
+                    raise ToolError(
+                        f"not sent to the user's notification address: {network_off}"
+                    )
+                self._within(self._requests, cid, "30 requests")
+                went.append(await web.notify(notify_url, message, form))
+            except (ToolError, web.WebError) as exc:
+                failed.append(str(exc))
+        if not failed:
+            return "succeeded", " and ".join(went)
+        why = "; ".join(failed)
+        return "failed", f"{went[0]}, but: {why}" if went else f"error: {why}"
+
+    async def _web_search(
+        self: "AgentRunner", ctx: Ctx, call_id: str, args: dict, asks: bool, expert: bool,
+        search_url: str | None, order: str, search_agy: bool,
+    ) -> tuple[str, str]:
+        """`_web`'s search: asked about as the turn stands, then made."""
+        cid = ctx.cid
+        query = args.get("query")
+        if not isinstance(query, str) or not query.strip():
+            raise ToolError("missing required argument: query")
+        query = web.query_of(query)
+        refused = self._nobody_to_ask(ctx, "web", "search the web")
+        if refused:
+            return "failed", refused
+        # (K-fullauto-sorma: at Full auto the expert's search is not asked either -
+        # it costs nothing, `paid=not expert`.)
+        if refused is None and asks and (expert or not self._web_rules(cid)[0]):
+            asked = WebRequest(kind="search", target=query)
+            if await self._ask_web(ctx, call_id, asked) == "reject":
+                return "denied", WEB_REJECTED.format(what="search")
+        self._within(self._searches, cid, "10 searches")
+        # A search the API made is paid for in tokens: they are this agent's.
+        return "succeeded", await web.search(
+            query, search_url, order,
+            lambda sent, made: self._count_tokens(ctx, sent, made, step=False),
+            agy=search_agy, paid=not expert,
+        )
 
     def _within(self: "AgentRunner", rate: web.Rate, cid: str, most: str) -> None:
         if not rate.take(cid):
@@ -338,7 +356,7 @@ class OutsideMixin:
                 .order_by(McpServer.created_at, literal_column("mcp_servers.rowid"))
             ).all())
 
-    async def _mcp_call(  # noqa: C901
+    async def _mcp_call(
         self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer, tool: dict,
         arguments: str, args: dict,
     ) -> tuple[str, str]:
@@ -363,25 +381,10 @@ class OutsideMixin:
         # Slice 92: a server not yet trusted is asked about at every level, whatever the mark;
         # a tool marked "Ask" is the user's word too, over Full auto.
         if not server.trusted or tool["mark"] != "free":
-            # As it is sent - and what does not show in it written out: the user's yes
-            # is to what they see.
-            given = mcp_client.visible(json.dumps(args, ensure_ascii=False))
-            if len(given) > 600:
-                given = f"{given[:600]}… ({len(given)} characters: the call has all of it)"
-            question = (f"May the tool {quoted(tool['name'])} of the MCP server "
-                        f"{quoted(server.name)} run? It would be given: {given}")
-            if not server.trusted:
-                question += mcp_client.watched(server, tool, MAX_QUESTION_CHARS - len(question))
-            _status, answer = await self._ask_user(ctx, call_id, {
-                "question": question, "options": ["Allow", "Deny"],
-            }, leave=True)
-            if answer.removeprefix(ANSWER_PREFIX).strip().casefold() != "allow":
+            allowed = await self._mcp_asked(ctx, call_id, name, server, tool, args)
+            if allowed is None:
                 return "denied", WEB_REJECTED.format(what="tool call")
-            # As the server stands now: the user may have changed it while they were asked.
-            found = self._mcp(ctx).get(name)
-            if found is None:
-                raise ToolError(f"{name} is no longer available")
-            server, tool = found
+            server, tool = allowed
         key = (ctx.agent_id, server.id)
         try:
             client = self._servers.get(key)
@@ -410,6 +413,32 @@ class OutsideMixin:
             told.append(f"{len(text)} characters, cut at {mcp_client.MAX_RESULT}.")
         return "failed" if failed else "succeeded", "\n".join([*told, web.framed(
             text[:mcp_client.MAX_RESULT], f"result of the MCP tool {shown}")])
+
+    async def _mcp_asked(
+        self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer, tool: dict,
+        args: dict,
+    ) -> tuple[McpServer, dict] | None:
+        """`_mcp_call`'s card for a call: the server and the tool as they stand once the user
+        said yes, or None for their no."""
+        # As it is sent - and what does not show in it written out: the user's yes
+        # is to what they see.
+        given = mcp_client.visible(json.dumps(args, ensure_ascii=False))
+        if len(given) > 600:
+            given = f"{given[:600]}… ({len(given)} characters: the call has all of it)"
+        question = (f"May the tool {quoted(tool['name'])} of the MCP server "
+                    f"{quoted(server.name)} run? It would be given: {given}")
+        if not server.trusted:
+            question += mcp_client.watched(server, tool, MAX_QUESTION_CHARS - len(question))
+        _status, answer = await self._ask_user(ctx, call_id, {
+            "question": question, "options": ["Allow", "Deny"],
+        }, leave=True)
+        if answer.removeprefix(ANSWER_PREFIX).strip().casefold() != "allow":
+            return None
+        # As the server stands now: the user may have changed it while they were asked.
+        found = self._mcp(ctx).get(name)
+        if found is None:
+            raise ToolError(f"{name} is no longer available")
+        return found
 
     async def _mcp_may_start(
         self: "AgentRunner", ctx: Ctx, call_id: str, name: str, server: McpServer,
@@ -491,7 +520,7 @@ class OutsideMixin:
                 return folder
         return None
 
-    async def _outside(  # noqa: C901
+    async def _outside(
         self: "AgentRunner", ctx: Ctx, call_id: str, ws: Workspace, name: str, args: dict
     ) -> Workspace:
         """Where a file tool or a command may go: the project, the folders the project
@@ -587,21 +616,27 @@ class OutsideMixin:
             return ws
         self._not_the_store(path, folder)
         if Workspace(ctx.folder).is_own(folder):
-            real = Path(os.path.realpath(ws.root / path))
-            if await self._reads_left_out(ctx, name, real):
-                # Granted this path alone, for this call; a secret's name is still refused
-                # (`Workspace.resolve`), and a key in it still asked about.
-                ws = Workspace(ws.root, ws.links, [*ws.also, real])
-                if name == "read_file" and await asyncio.to_thread(_shows_a_key, ws, path):
-                    await self._ask_outside(ctx, call_id, path, None)
-                return ws
-            # An agent in a working copy, naming a file of the project itself: what it
-            # changes goes into its copy, and is taken in from there.
-            raise ToolError(OF_THE_PROJECT.format(path=path))
+            return await self._outside_own(ctx, call_id, ws, name, path)
         await self._ask_outside(ctx, call_id, path, folder, access)
         # shortcut: "once" opens the path's whole folder for this one call - a search there
         # goes through all of it; hold it to the path alone if that is ever too much.
         return Workspace(ws.root, ws.links, [*ws.also, folder])
+
+    async def _outside_own(self: "AgentRunner", ctx: Ctx, call_id: str, ws: Workspace,
+                           name: str, path: str) -> Workspace:
+        """`_outside`, at a path of the project itself from an agent's copy: a read of what
+        the copy left out, or refused."""
+        real = Path(os.path.realpath(ws.root / path))
+        if await self._reads_left_out(ctx, name, real):
+            # Granted this path alone, for this call; a secret's name is still refused
+            # (`Workspace.resolve`), and a key in it still asked about.
+            ws = Workspace(ws.root, ws.links, [*ws.also, real])
+            if name == "read_file" and await asyncio.to_thread(_shows_a_key, ws, path):
+                await self._ask_outside(ctx, call_id, path, None)
+            return ws
+        # An agent in a working copy, naming a file of the project itself: what it
+        # changes goes into its copy, and is taken in from there.
+        raise ToolError(OF_THE_PROJECT.format(path=path))
 
     async def _reads_left_out(self: "AgentRunner", ctx: Ctx, name: str, target: Path) -> bool:
         """K-kopya-git: whether a read tool may open a place of the project itself from the

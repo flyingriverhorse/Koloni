@@ -1159,7 +1159,7 @@ class ContextMixin:
             said += f"\n\n{path}:\n```\n{content}\n```"
         return FILES_NOW + said if said else ""
 
-    def _history(self: "AgentRunner", ctx: Ctx, offered: list[dict] | None, quiet: bool = False,  # noqa: C901
+    def _history(self: "AgentRunner", ctx: Ctx, offered: list[dict] | None, quiet: bool = False,
                  skills: bool = True) -> list[dict]:
         """What this agent has seen, as chat-completions messages trimmed to the budget.
 
@@ -1282,14 +1282,7 @@ class ContextMixin:
                 ctx.depth == 0) else []
             read_how, told_files, seen = self._history_files(session, ctx, off, rows, messages)
             carried = self._history_carried(session, ctx, family)
-            calls: dict[str, list[ToolCall]] = {}
-            for call in session.scalars(
-                select(ToolCall)
-                .join(Run, Run.id == ToolCall.run_id)
-                .where(Run.conversation_id == cid)
-                .order_by(ToolCall.seq)
-            ):
-                calls.setdefault(call.message_id, []).append(call)
+            calls = self._history_calls(session, cid)
             # A note from an agent that is not of this conversation: of another one of
             # the project (what KOLONİ said of a file both work on).
             far = {
@@ -1332,6 +1325,19 @@ class ContextMixin:
         if not quiet:
             self._showing[ctx.agent_id] = seen  # (on the cards once the request is made)
         return messages
+
+    def _history_calls(self: "AgentRunner", session: Session,
+                       cid: str) -> dict[str, list[ToolCall]]:
+        """`_history`'s tool calls of the conversation, by the message they were made in."""
+        calls: dict[str, list[ToolCall]] = {}
+        for call in session.scalars(
+            select(ToolCall)
+            .join(Run, Run.id == ToolCall.run_id)
+            .where(Run.conversation_id == cid)
+            .order_by(ToolCall.seq)
+        ):
+            calls.setdefault(call.message_id, []).append(call)
+        return calls
 
     def _history_system(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str],
                         turn: Run | None) -> tuple[str, str]:

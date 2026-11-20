@@ -218,7 +218,7 @@ class QuestionsMixin:
                     how=self._how_lead(ctx), answer=quoted(answer), why=quoted(why))
         return "succeeded", ANSWER_PREFIX + answer
 
-    def _lead_may_answer(  # noqa: C901
+    def _lead_may_answer(
         self: "AgentRunner", ctx: Ctx, kind: str | None, text: str, options: list[str],
         asked: asyncio.Future, says: Callable[[str, str], None],
     ) -> Callable[[], None]:
@@ -256,10 +256,7 @@ class QuestionsMixin:
             question too, once the Lead was `tried` and did not answer - the job waits for the
             user. Stood down (answered, or no longer asked), this one is on its way out."""
             nonlocal held
-            if asked in self._lead_taking:  # (K-bekleyen: not told while the Lead takes it)
-                self._lead_taking.discard(asked)
-                if tried and not asked.done():
-                    self._tell_waits(ctx, asked)  # (it did not answer: now it waits for you)
+            self._lead_takes_no_more(ctx, asked, tried)
             if held:
                 held, self._lead_asked[ctx.run_id] = False, self._lead_asked[ctx.run_id] - 1
                 leaving = 0 if tried and not asked.done() else 1
@@ -288,7 +285,16 @@ class QuestionsMixin:
             let_go(False)
         return stand_down
 
-    async def _lead_answers(  # noqa: C901
+    def _lead_takes_no_more(self: "AgentRunner", ctx: Ctx, asked: asyncio.Future,
+                            tried: bool) -> None:
+        """`_lead_may_answer`'s `let_go`: the Lead takes the question no more; one it was
+        `tried` on and left unanswered is said to wait."""
+        if asked in self._lead_taking:  # (K-bekleyen: not told while the Lead takes it)
+            self._lead_taking.discard(asked)
+            if tried and not asked.done():
+                self._tell_waits(ctx, asked)  # (it did not answer: now it waits for you)
+
+    async def _lead_answers(
         self: "AgentRunner", ctx: Ctx, text: str, options: list[str], asked: asyncio.Future,
         says: Callable[..., None], kept: bool = False,
     ) -> None:
@@ -367,11 +373,8 @@ class QuestionsMixin:
             async with slots:
                 if asked.done():
                     return  # (answered while it waited its turn)
-                if mode is not None:
-                    if self._lead_spent.get(ctx.run_id, 0) >= LEAD_CLI_MOST:
-                        return self._koloni_line(ctx.cid, ctx.run_id, LEAD_COULD_NOT.format(
-                            why=f"it answered {LEAD_CLI_MOST} in this turn, the most on a CLI"))
-                    self._lead_spent[ctx.run_id] = self._lead_spent.get(ctx.run_id, 0) + 1
+                if mode is not None and not self._lead_cli_takes(ctx):
+                    return
                 model_id = lead.model_name or (await model.info()).model_id
                 asking = replace(lead, model_name=model_id)
                 try:
@@ -388,6 +391,22 @@ class QuestionsMixin:
                 self._koloni_line(ctx.cid, ctx.run_id, LEAD_COULD_NOT.format(
                     why="timed out" if isinstance(exc, TimeoutError) else "the call failed"))
             return
+        self._lead_said_it(ctx, said, options, asked, says, key)
+
+    def _lead_cli_takes(self: "AgentRunner", ctx: Ctx) -> bool:
+        """`_lead_answers`, a Lead on a CLI: one more of the turn's `LEAD_CLI_MOST` is its to
+        answer and is counted - or it is said that none is left."""
+        if self._lead_spent.get(ctx.run_id, 0) >= LEAD_CLI_MOST:
+            self._koloni_line(ctx.cid, ctx.run_id, LEAD_COULD_NOT.format(
+                why=f"it answered {LEAD_CLI_MOST} in this turn, the most on a CLI"))
+            return False
+        self._lead_spent[ctx.run_id] = self._lead_spent.get(ctx.run_id, 0) + 1
+        return True
+
+    def _lead_said_it(self: "AgentRunner", ctx: Ctx, said: str, options: list[str],
+                      asked: asyncio.Future, says: Callable[..., None],
+                      key: tuple | None) -> None:
+        """`_lead_answers`'s end: what the Lead said, taken as its answer or said not to count."""
         picked = lead_pick(_answer(said), options)
         if asked.done():
             return

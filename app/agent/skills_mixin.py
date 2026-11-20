@@ -162,7 +162,7 @@ class SkillsMixin:
             not web_off_reason(line, self._off()))
         return {"command": line}, leave
 
-    async def _add_skill(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str,  # noqa: C901
+    async def _add_skill(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str,
                          str]:
         """Propose a skill to the user - at every level, on a card: what it holds is read
         now and shown, and that, as it was read, is what is kept on their yes."""
@@ -170,16 +170,7 @@ class SkillsMixin:
         if not all(isinstance(where, str | None) for where in (folder, github)) or not (
                 isinstance(wanted, list) and all(isinstance(name, str) for name in wanted)):
             raise ToolError("folder and github must be strings and roles a list of role names")
-        roles = []
-        with self._factory() as session:
-            for name in wanted:
-                role = find_role(session, name)
-                if role is None:
-                    raise ToolError(f"there is no role named {name}")
-                if is_team_lead(session, role):
-                    raise ToolError(f"{role.name} is a team's coordinator: its skills are the "
-                                    "user's to give, on the Agents page")
-                roles.append(role.name)
+        roles = self._add_skill_roles(wanted)
         try:
             # (A folder in no place KOLONİ never opens; from GitHub only the listing, the
             # SKILL.md, the licence and the scripts: what the card shows.)
@@ -237,6 +228,20 @@ class SkillsMixin:
         self.bus.emit(ctx.cid, ctx.run_id, "skill.created", payload)
         given = f" and given to {', '.join(proposal['roles'])}" if proposal["roles"] else ""
         return "succeeded", f'added the skill "{found.name}"{given}.'
+
+    def _add_skill_roles(self: "AgentRunner", wanted: list[str]) -> list[str]:
+        """`_add_skill`'s roles as they are named on record: each there is, and no team's lead."""
+        roles = []
+        with self._factory() as session:
+            for name in wanted:
+                role = find_role(session, name)
+                if role is None:
+                    raise ToolError(f"there is no role named {name}")
+                if is_team_lead(session, role):
+                    raise ToolError(f"{role.name} is a team's coordinator: its skills are the "
+                                    "user's to give, on the Agents page")
+                roles.append(role.name)
+        return roles
 
     def asks_skill(self: "AgentRunner", call_id: str) -> bool:
         """Whether this call waits for the user's word on a skill an agent asked to add."""

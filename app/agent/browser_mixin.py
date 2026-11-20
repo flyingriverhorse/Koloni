@@ -67,7 +67,7 @@ def _number(args: dict, key: str) -> float | None:
 class BrowserMixin:
     # --- the agent's own browser (slice 51, `app.browser`) -----------------------------
 
-    async def _browser(self: "AgentRunner", ctx: Ctx, ws: Workspace, call_id: str, name: str,  # noqa: C901
+    async def _browser(self: "AgentRunner", ctx: Ctx, ws: Workspace, call_id: str, name: str,
                        args: dict) -> str:
         """A browser tool: on the agent's own headless browser, started at its first. Only
         this machine's previews are opened (`browser.allowed`) - nor is anything a page loads
@@ -124,52 +124,65 @@ class BrowserMixin:
                     one.once.add(site)
                 one.once -= {host for host, ask in rules.items() if ask and host != site}
                 one.sites = frozenset(one.once) | {host for host, ask in rules.items() if not ask}
-            if name == "browser_open" and site is not None:
-                url = args["url"].strip()
-                browser.outside(url, one.sites, one.closed, main=True)
-                said = "opened " + await one.open(url)
-            elif name == "browser_open":
-                said = "opened " + await one.open(browser.allowed(args.get("url"), ws, one.closed))
-            elif name == "browser_console":
-                said = one.console()
-            elif name == "browser_read":
-                said = await one.read()
-            elif name == "browser_screenshot":
-                said = await self._shot(ctx, one, call_id, args.get("marks") is True)
-            elif name == "browser_click":
-                at, named = await one.point(args.get("selector"), args.get("text"),
-                                            _number(args, "x"), _number(args, "y"),
-                                            _number(args, "mark"))
-                if one.away:
-                    await self._page_stop(ctx, call_id, one, "click", await one.what(at=at))
-                said = await one.click_at(at, named)
-            elif name == "browser_type":
-                if not isinstance(args.get("text"), str):
-                    raise ToolError("missing required argument: text")
-                said = await one.type(
-                    args.get("selector"), args["text"],
-                    (lambda found: self._page_stop(ctx, call_id, one, "type", found))
-                    if one.away else None)
-            elif name == "browser_key":
-                if not isinstance(args.get("key"), str):
-                    raise ToolError("missing required argument: key")
-                key = args["key"]
-                if one.away and (len(key) == 1 or key == "Enter"):
-                    found = await one.what()
-                    # (Else a password goes in a key at a time, past its card.)
-                    if len(key) == 1 and browser.keys_held(found):
-                        raise ToolError(KEY_HELD)
-                    if key in ("Enter", " "):
-                        await self._page_stop(ctx, call_id, one, "press", found)
-                said = await one.key(args["key"])
-            else:
-                dy = _number(args, "dy")
-                if dy is None:
-                    raise ToolError("missing required argument: dy")
-                said = await one.scroll(dy)
+            said = await self._browser_does(ctx, ws, call_id, name, args, one, site)
             return said + one.refused()
         except browser.BrowserError as exc:
             raise ToolError(str(exc) + (one.refused() if one else "")) from None
+
+    async def _browser_does(
+        self: "AgentRunner", ctx: Ctx, ws: Workspace, call_id: str, name: str, args: dict,
+        one: "browser.Browser", site: str | None,
+    ) -> str:
+        """`_browser`'s tool itself, on the agent's browser as it stands: what it says."""
+        if name == "browser_open" and site is not None:
+            url = args["url"].strip()
+            browser.outside(url, one.sites, one.closed, main=True)
+            said = "opened " + await one.open(url)
+        elif name == "browser_open":
+            said = "opened " + await one.open(browser.allowed(args.get("url"), ws, one.closed))
+        elif name == "browser_console":
+            said = one.console()
+        elif name == "browser_read":
+            said = await one.read()
+        elif name == "browser_screenshot":
+            said = await self._shot(ctx, one, call_id, args.get("marks") is True)
+        elif name == "browser_click":
+            at, named = await one.point(args.get("selector"), args.get("text"),
+                                        _number(args, "x"), _number(args, "y"),
+                                        _number(args, "mark"))
+            if one.away:
+                await self._page_stop(ctx, call_id, one, "click", await one.what(at=at))
+            said = await one.click_at(at, named)
+        elif name == "browser_type":
+            if not isinstance(args.get("text"), str):
+                raise ToolError("missing required argument: text")
+            said = await one.type(
+                args.get("selector"), args["text"],
+                (lambda found: self._page_stop(ctx, call_id, one, "type", found))
+                if one.away else None)
+        elif name == "browser_key":
+            said = await self._browser_key(ctx, call_id, one, args)
+        else:
+            dy = _number(args, "dy")
+            if dy is None:
+                raise ToolError("missing required argument: dy")
+            said = await one.scroll(dy)
+        return said
+
+    async def _browser_key(self: "AgentRunner", ctx: Ctx, call_id: str, one: "browser.Browser",
+                           args: dict) -> str:
+        """`_browser`'s browser_key: a key pressed, held on a site's page as a click is."""
+        if not isinstance(args.get("key"), str):
+            raise ToolError("missing required argument: key")
+        key = args["key"]
+        if one.away and (len(key) == 1 or key == "Enter"):
+            found = await one.what()
+            # (Else a password goes in a key at a time, past its card.)
+            if len(key) == 1 and browser.keys_held(found):
+                raise ToolError(KEY_HELD)
+            if key in ("Enter", " "):
+                await self._page_stop(ctx, call_id, one, "press", found)
+        return await one.key(args["key"])
 
     async def _site(self: "AgentRunner", ctx: Ctx, call_id: str, url: str, host: str) -> bool:
         """K-tarayici-disari: whether the agent opens `host`, a site out on the internet

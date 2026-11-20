@@ -28,6 +28,8 @@ from app.db.models import (
     DiscussionMember,
     DiscussionPost,
     Message,
+    Provider,
+    Role,
     Run,
     now,
     settings_of,
@@ -45,6 +47,7 @@ from app.discussion import (
 from app.model_native import CodexNativeClient
 from app.providers import NotListed, allowed
 from app.roles import (
+    Door,
     agent_roles,
     can_change_things,
     closed,
@@ -53,7 +56,7 @@ from app.roles import (
     shown_name,
 )
 from app.serialize import discussion_out, discussion_post_out
-from app.team import ONLY_IN_THE_PROJECT, only_in_project, would_run
+from app.team import ONLY_IN_THE_PROJECT, Would, only_in_project, would_run
 from app.tools import ToolError
 
 if TYPE_CHECKING:
@@ -140,7 +143,7 @@ class DiscussionsMixin:
         ending.set()
         return True
 
-    async def _discuss(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:  # noqa: C901
+    async def _discuss(self: "AgentRunner", ctx: Ctx, call_id: str, args: dict) -> tuple[str, str]:
         """Open a discussion, let its members speak in rounds, and return what was said. In a
         recipe's step (slice 84e) the members it opens are the step's agents, as spawn_agent
         opens them: the step goes on as the discussion ends - it writes no file."""
@@ -180,97 +183,23 @@ class DiscussionsMixin:
                     raise ToolError("leave yourself out of `with`: you take part yourself")
                 known = here.get(name.casefold())
                 if known is not None:
-                    state = self._answering.get(known.agent_id, states.get(known.agent_id))
-                    if state not in ("completed", "failed", "waiting"):
-                        # K-oda-takim: told once it waits (`_set_agent`): a coordinator at work
-                        # waits for its team's agents before long.
-                        self._discuss_later.setdefault(known.agent_id, set()).add(ctx.agent_id)
-                        raise ToolError(
-                            f"{known.name} cannot join now: only an agent that has finished "
-                            "or is waiting can. You are told when it is waiting."
-                        )
+                    self._discuss_joins(ctx, known, states)
                     plans.append((known, None))
                     continue
-                role = find_agent_role(session, name)
-                if role is None:
-                    if self._a_lead(session, ctx.cid, name):
-                        raise ToolError(f"{name} is not at work yet: {LEADS_LATER}")
-                    agents = ", ".join(c.name for c in here.values() if c is not ctx)
-                    raise ToolError(
-                        f"{name} is neither an agent of this turn nor a role. "
-                        f"Agents: {agents or 'none yet'}. Roles: {role_names}."
-                    )
-                if ctx.run_id in self._answered:  # (B-376: none opened after the last answer)
-                    raise ToolError(TURN_ANSWERED)
-                # The same door as spawn_agent's and a room member's (slice 62).
-                shut = closed(role, teams, named) or self._room_refused(session, ctx, role.name)
-                if shut:
-                    raise ToolError(f"{shut}. Roles: {role_names}.")
+                role = self._discuss_role(session, ctx, name, here, role_names, teams, named)
                 new = sum(1 for _known, spec in plans if spec is not None)
-                if self._level(ctx) + 1 > max_depth:
-                    raise ToolError(
-                        f"depth limit reached: no {role.name} can be opened below you. "
-                        "Invite agents that already exist."
-                    )
-                # (In a recipe, what its step draws: slice 84e.)
-                step = self._recipe_count(session, ctx, role, max_agents)
-                if step is not None and step[0] + new >= step[1]:
-                    raise ToolError(step[2])
-                if step is None and opened + new >= max_agents:
-                    raise ToolError(
-                        f"limit of {max_agents} sub-agents per turn reached: no {role.name} "
-                        "can be opened. Invite agents that already exist."
-                    )
+                self._discuss_within(session, ctx, role, new, opened, max_depth, max_agents)
                 tools = effective_tools(role.tools, self._caps(ctx))
-                # A member opened here is an agent opened below the lead like any other.
-                refused = self._nobody_to_ask(
-                    ctx, "agent", f"open a {role.name} for a discussion", opening=new + 1)
-                if refused:
-                    raise _NobodyToAsk(refused)
-                if refused is None and (approval == "always" or (
-                    approval == "auto" and mode == "ask" and can_change_things(tools)
-                )):
-                    raise ToolError(
-                        f"opening a {role.name} needs the user's approval: open it with "
-                        "spawn_agent first, then invite it by its name"
-                    )
+                refused = self._discuss_unasked(ctx, role, tools, new, mode, approval)
                 # shortcut: no `step` here (B-301's next provider): a recipe's discussion member
                 # on a provider it cannot be a step on is refused below; pass it if that is seen.
                 backlog_turn = ctx.run_id in self._backlog_turns
                 would = would_run(session, role, conversation,
                                   unattended=refused is not None or backlog_turn, tools=tools)
                 provider, model_name = would.provider, would.model_id
-                # PAID_SWITCH: a move onto a provider paid per token is the user's word - on
-                # spawn_agent's card, as a member needing approval is opened (above).
-                if paid := self._paid_for(session, ctx, role, conversation, provider, tools):
-                    said = self._paid_word.get((ctx.run_id, provider.id))
-                    if said is False:
-                        raise ToolError(PAID_NO.format(to=shown_name(provider.name)))
-                    if refused is not None:
-                        raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
-                    if said is None and approval != "never":
-                        raise ToolError(f"opening a {role.name} needs the user's word ({paid}): "
-                                        "open it with spawn_agent first, then invite it by its "
-                                        "name")
-                if refused is not None and self._cannot_be_held(None, provider):
-                    raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
-                if backlog_turn and self._cannot_be_held(None, provider):
-                    raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
-                try:
-                    allowed(provider, model_name)
-                except NotListed as exc:
-                    raise ToolError(f"no {role.name} can be opened: {exc.to_agent}") from None
-                if would.refused is not None:  # (B-385: a model closed to agents)
-                    raise ToolError(would.refused.to_agent)
-                if over := past_its_limit(session, provider):  # (81c, as for any sub-agent)
-                    raise ToolError(over)
-                if recipe and only_in_project(self.providers.client(provider, model_name), tools):
-                    # (As `_propose`: gone on with later, it would write in the project itself.)
-                    raise ToolError(ONLY_IN_THE_PROJECT.format(provider=shown_name(provider.name)))
-                if refused is not None and self._cannot_be_held(
-                    self.providers.client(provider, model_name)
-                ):
-                    raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
+                self._discuss_paid(
+                    session, ctx, role, conversation, provider, tools, refused, approval)
+                self._discuss_on(session, ctx, role, would, tools, refused, backlog_turn, recipe)
                 plans.append((None, (
                     role, tools, provider.name,
                     self.providers.client(provider, model_name), provider.id, model_name,
@@ -283,24 +212,7 @@ class DiscussionsMixin:
                 raise ToolError(rooms.NOT_BETWEEN.format(teams=", ".join(between)))
         if any(spec is not None for _known, spec in plans):
             await self._recipe_copy_ready(ctx)
-        members: list[tuple[Ctx, bool]] = []
-        for known, spec in plans:
-            if known is not None:
-                members.append((known, False))
-                continue
-            role, tools, provider_name, model, provider_id, model_name = spec
-            new_ctx = self._open_agent(
-                ctx.run_id, ctx.cid, ctx.root, ctx.agent_id, role.name, tools, topic,
-                ctx.depth + 1, status="waiting", instructions=role.instructions,
-                parent_role=ctx.role, provider_name=provider_name, model=model,
-                model_name=model_name, provider_id=provider_id,
-                # (In a recipe: where a card of its step is put.)
-                call_id=call_id if recipe else None,
-            )
-            self._set_agent(ctx.cid, new_ctx.agent_id, started_at=now())
-            self._in_run(ctx, new_ctx, role)
-            members.append((new_ctx, True))
-        members.append((ctx, False))
+        members = self._discuss_opens(ctx, call_id, topic, plans, recipe)
 
         with self._factory() as session:
             talk = Discussion(
@@ -324,60 +236,10 @@ class DiscussionsMixin:
         self._spent_in[talk_id] = 0
         left: dict[str, str] = {}  # agent id -> why it is out
         last_word: dict[str, str] = {}
-        outcome = "round_limit"
-
-        def over() -> bool:
-            """Whether the speeches so far reported more than the budget: looked at
-            between speeches, so the one that went over it is on record whole."""
-            return budget is not None and self._spent_in[talk_id] > budget
-
         try:
             async with self._handing_over(ctx):
-                for number in range(1, rounds + 1):
-                    self._user_spoke[talk_id] = False
-                    self._set_discussion(ctx.cid, talk_id, round=number)
-                    passes: list[bool] = []
-                    for member, _new in members:
-                        if ending.is_set() or over() or len(members) - len(left) < 2:
-                            break
-                        if member.agent_id in left:
-                            continue
-                        said = await self._speak(member, talk_id, ending)
-                        if said is None:
-                            break  # the user ended it in the middle of this speech
-                        ok, text_ = said
-                        if not ok:
-                            left[member.agent_id] = text_
-                            with self._factory() as session:
-                                row = session.scalar(select(DiscussionMember).where(
-                                    DiscussionMember.discussion_id == talk_id,
-                                    DiscussionMember.agent_id == member.agent_id,
-                                ))
-                                if row:
-                                    row.status = "left"
-                                    session.commit()
-                            self._post(ctx.cid, ctx.run_id, talk_id, member.agent_id, number,
-                                       text_, kind="left")
-                            self._set_discussion(ctx.cid, talk_id)
-                            continue
-                        passed = is_pass(text_)
-                        passes.append(passed)
-                        text_ = fit(text_)
-                        last_word[member.agent_id] = text_
-                        self._post(ctx.cid, ctx.run_id, talk_id, member.agent_id, number,
-                                   text_ or "(said nothing)", passed=passed)
-                    if ending.is_set():
-                        outcome = "ended_by_user"
-                        break
-                    if len(members) - len(left) < 2:
-                        outcome = "too_few"
-                        break
-                    if over():
-                        outcome = "budget"  # nobody else speaks, and no round begins
-                        break
-                    if passes and all(passes) and not self._user_spoke[talk_id]:
-                        outcome = "agreed"
-                        break
+                outcome = await self._discuss_rounds(
+                    ctx, talk_id, members, rounds, budget, ending, left, last_word)
                 # Over before the one who opened it takes its place back: from here on
                 # nothing more can be said in it, and ending it has nothing left to end.
                 self._ending.pop(talk_id, None)
@@ -399,6 +261,217 @@ class DiscussionsMixin:
 
         _talk, _members, said_all = self._posts(talk_id)
         kept = memory(topic, outcome, said_all)
+        self._discuss_told(ctx, members, kept, left, last_word)
+        told = ""
+        for member, new in members if recipe else ():
+            if new:  # (Its step's places, as a room's members end theirs.)
+                told = await self._after_step(ctx, member, member.agent_id not in left, self._found(
+                    member, last_word.get(member.agent_id))) or told
+        return "succeeded", f"The discussion ended: {WHY[outcome]}\n\n{said_all}{told}"
+
+    def _discuss_joins(self: "AgentRunner", ctx: Ctx, known: Ctx, states: dict) -> None:
+        """`_discuss`: an agent of the turn that is invited can join now, or ToolError."""
+        state = self._answering.get(known.agent_id, states.get(known.agent_id))
+        if state not in ("completed", "failed", "waiting"):
+            # K-oda-takim: told once it waits (`_set_agent`): a coordinator at work
+            # waits for its team's agents before long.
+            self._discuss_later.setdefault(known.agent_id, set()).add(ctx.agent_id)
+            raise ToolError(
+                f"{known.name} cannot join now: only an agent that has finished "
+                "or is waiting can. You are told when it is waiting."
+            )
+
+    def _discuss_role(self: "AgentRunner", session, ctx: Ctx, name: str, here: dict[str, Ctx],
+                      role_names: str, teams: Door, named: frozenset[str]) -> Role:
+        """`_discuss`: the role a new member is invited in - one there is, and may be opened."""
+        role = find_agent_role(session, name)
+        if role is None:
+            if self._a_lead(session, ctx.cid, name):
+                raise ToolError(f"{name} is not at work yet: {LEADS_LATER}")
+            agents = ", ".join(c.name for c in here.values() if c is not ctx)
+            raise ToolError(
+                f"{name} is neither an agent of this turn nor a role. "
+                f"Agents: {agents or 'none yet'}. Roles: {role_names}."
+            )
+        if ctx.run_id in self._answered:  # (B-376: none opened after the last answer)
+            raise ToolError(TURN_ANSWERED)
+        # The same door as spawn_agent's and a room member's (slice 62).
+        shut = closed(role, teams, named) or self._room_refused(session, ctx, role.name)
+        if shut:
+            raise ToolError(f"{shut}. Roles: {role_names}.")
+        return role
+
+    def _discuss_within(self: "AgentRunner", session, ctx: Ctx, role: Role, new: int,
+                        opened: int, max_depth: int, max_agents: int) -> None:
+        """`_discuss`: a new member is within the turn's limits - how deep, how many."""
+        if self._level(ctx) + 1 > max_depth:
+            raise ToolError(
+                f"depth limit reached: no {role.name} can be opened below you. "
+                "Invite agents that already exist."
+            )
+        # (In a recipe, what its step draws: slice 84e.)
+        step = self._recipe_count(session, ctx, role, max_agents)
+        if step is not None and step[0] + new >= step[1]:
+            raise ToolError(step[2])
+        if step is None and opened + new >= max_agents:
+            raise ToolError(
+                f"limit of {max_agents} sub-agents per turn reached: no {role.name} "
+                "can be opened. Invite agents that already exist."
+            )
+
+    def _discuss_unasked(self: "AgentRunner", ctx: Ctx, role: Role, tools: list[str], new: int,
+                         mode: str, approval: str) -> str | None:
+        """`_discuss`: a new member is opened with nobody asked - else it is not opened here.
+        What `_nobody_to_ask` says of the turn: None where it is watched."""
+        # A member opened here is an agent opened below the lead like any other.
+        refused = self._nobody_to_ask(
+            ctx, "agent", f"open a {role.name} for a discussion", opening=new + 1)
+        if refused:
+            raise _NobodyToAsk(refused)
+        if refused is None and (approval == "always" or (
+            approval == "auto" and mode == "ask" and can_change_things(tools)
+        )):
+            raise ToolError(
+                f"opening a {role.name} needs the user's approval: open it with "
+                "spawn_agent first, then invite it by its name"
+            )
+        return refused
+
+    def _discuss_paid(
+        self: "AgentRunner", session, ctx: Ctx, role: Role, conversation: Conversation,
+        provider: Provider, tools: list[str], refused: str | None, approval: str,
+    ) -> None:
+        # PAID_SWITCH: a move onto a provider paid per token is the user's word - on
+        # spawn_agent's card, as a member needing approval is opened (above).
+        if paid := self._paid_for(session, ctx, role, conversation, provider, tools):
+            said = self._paid_word.get((ctx.run_id, provider.id))
+            if said is False:
+                raise ToolError(PAID_NO.format(to=shown_name(provider.name)))
+            if refused is not None:
+                raise _NobodyToAsk(PAID_UNATTENDED.format(to=shown_name(provider.name)))
+            if said is None and approval != "never":
+                raise ToolError(f"opening a {role.name} needs the user's word ({paid}): "
+                                "open it with spawn_agent first, then invite it by its "
+                                "name")
+
+    def _discuss_on(
+        self: "AgentRunner", session, ctx: Ctx, role: Role, would: Would, tools: list[str],
+        refused: str | None, backlog_turn: bool, recipe: bool,
+    ) -> None:
+        """`_discuss`: a new member can be had on the provider and model it would run on."""
+        provider, model_name = would.provider, would.model_id
+        if refused is not None and self._cannot_be_held(None, provider):
+            raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
+        if backlog_turn and self._cannot_be_held(None, provider):
+            raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
+        try:
+            allowed(provider, model_name)
+        except NotListed as exc:
+            raise ToolError(f"no {role.name} can be opened: {exc.to_agent}") from None
+        if would.refused is not None:  # (B-385: a model closed to agents)
+            raise ToolError(would.refused.to_agent)
+        if over := past_its_limit(session, provider):  # (81c, as for any sub-agent)
+            raise ToolError(over)
+        if recipe and only_in_project(self.providers.client(provider, model_name), tools):
+            # (As `_propose`: gone on with later, it would write in the project itself.)
+            raise ToolError(ONLY_IN_THE_PROJECT.format(provider=shown_name(provider.name)))
+        if refused is not None and self._cannot_be_held(
+            self.providers.client(provider, model_name)
+        ):
+            raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
+
+    def _discuss_opens(self: "AgentRunner", ctx: Ctx, call_id: str, topic: str,
+                       plans: list[tuple], recipe: bool) -> list[tuple[Ctx, bool]]:
+        """`_discuss`'s members, those invited that are not agents yet opened - and itself last."""
+        members: list[tuple[Ctx, bool]] = []
+        for known, spec in plans:
+            if known is not None:
+                members.append((known, False))
+                continue
+            role, tools, provider_name, model, provider_id, model_name = spec
+            new_ctx = self._open_agent(
+                ctx.run_id, ctx.cid, ctx.root, ctx.agent_id, role.name, tools, topic,
+                ctx.depth + 1, status="waiting", instructions=role.instructions,
+                parent_role=ctx.role, provider_name=provider_name, model=model,
+                model_name=model_name, provider_id=provider_id,
+                # (In a recipe: where a card of its step is put.)
+                call_id=call_id if recipe else None,
+            )
+            self._set_agent(ctx.cid, new_ctx.agent_id, started_at=now())
+            self._in_run(ctx, new_ctx, role)
+            members.append((new_ctx, True))
+        members.append((ctx, False))
+        return members
+
+    def _discuss_over(self: "AgentRunner", talk_id: str, budget: int | None) -> bool:
+        """Whether the speeches so far reported more than the budget: looked at
+        between speeches, so the one that went over it is on record whole."""
+        return budget is not None and self._spent_in[talk_id] > budget
+
+    async def _discuss_rounds(
+        self: "AgentRunner", ctx: Ctx, talk_id: str, members: list[tuple[Ctx, bool]],
+        rounds: int, budget: int | None, ending: asyncio.Event, left: dict[str, str],
+        last_word: dict[str, str],
+    ) -> str:
+        """`_discuss`'s rounds of speeches: how they ended (`WHY`)."""
+        for number in range(1, rounds + 1):
+            self._user_spoke[talk_id] = False
+            self._set_discussion(ctx.cid, talk_id, round=number)
+            passes = await self._discuss_round(
+                ctx, talk_id, members, number, budget, ending, left, last_word)
+            if ending.is_set():
+                return "ended_by_user"
+            if len(members) - len(left) < 2:
+                return "too_few"
+            if self._discuss_over(talk_id, budget):
+                return "budget"  # nobody else speaks, and no round begins
+            if passes and all(passes) and not self._user_spoke[talk_id]:
+                return "agreed"
+        return "round_limit"
+
+    async def _discuss_round(
+        self: "AgentRunner", ctx: Ctx, talk_id: str, members: list[tuple[Ctx, bool]],
+        number: int, budget: int | None, ending: asyncio.Event, left: dict[str, str],
+        last_word: dict[str, str],
+    ) -> list[bool]:
+        """One round of `_discuss`: each member still in speaks; who passed."""
+        passes: list[bool] = []
+        for member, _new in members:
+            if ending.is_set() or self._discuss_over(talk_id, budget) or (
+                    len(members) - len(left) < 2):
+                break
+            if member.agent_id in left:
+                continue
+            said = await self._speak(member, talk_id, ending)
+            if said is None:
+                break  # the user ended it in the middle of this speech
+            ok, text_ = said
+            if not ok:
+                left[member.agent_id] = text_
+                with self._factory() as session:
+                    row = session.scalar(select(DiscussionMember).where(
+                        DiscussionMember.discussion_id == talk_id,
+                        DiscussionMember.agent_id == member.agent_id,
+                    ))
+                    if row:
+                        row.status = "left"
+                        session.commit()
+                self._post(ctx.cid, ctx.run_id, talk_id, member.agent_id, number,
+                           text_, kind="left")
+                self._set_discussion(ctx.cid, talk_id)
+                continue
+            passed = is_pass(text_)
+            passes.append(passed)
+            text_ = fit(text_)
+            last_word[member.agent_id] = text_
+            self._post(ctx.cid, ctx.run_id, talk_id, member.agent_id, number,
+                       text_ or "(said nothing)", passed=passed)
+        return passes
+
+    def _discuss_told(self: "AgentRunner", ctx: Ctx, members: list[tuple[Ctx, bool]], kept: str,
+                      left: dict[str, str], last_word: dict[str, str]) -> None:
+        """`_discuss`'s end for its members: each is given what was said, and one opened for
+        it is over."""
         for member, new in members:
             if member is ctx:
                 continue  # it gets the same as the result of its call
@@ -416,12 +489,6 @@ class DiscussionsMixin:
                     ctx.cid, member.agent_id, status="completed", ended_at=now(),
                     report=last_word.get(member.agent_id) or None,
                 )
-        told = ""
-        for member, new in members if recipe else ():
-            if new:  # (Its step's places, as a room's members end theirs.)
-                told = await self._after_step(ctx, member, member.agent_id not in left, self._found(
-                    member, last_word.get(member.agent_id))) or told
-        return "succeeded", f"The discussion ended: {WHY[outcome]}\n\n{said_all}{told}"
 
     async def _speak(
         self: "AgentRunner", member: Ctx, discussion_id: str, ending: asyncio.Event
