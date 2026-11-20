@@ -118,7 +118,6 @@
   "src/tools/PasteServers.tsx::PasteServers>map": 20,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,
   "src/tools/ToolsPage.tsx::ToolsPage": 22,
-  "src/topics/topics.ts::chainOf": 14,
   "src/triggers/refused.ts::refusal": 14,
   "src/triggers/TriggerCard.tsx::TriggerCard": 27,
   "src/triggers/TriggerForm.tsx::TriggerForm": 30,
