@@ -26,47 +26,54 @@ function shownRun(conv: ConvState): Run | null {
   return ran[ran.length - 1] ?? null
 }
 
-export function RunStatus({ conv, connection }: { conv: ConvState | null; connection: 'open' | 'reconnecting' }) {
-  const run = conv && shownRun(conv)
+/** Whom the bar names, and how many of the turn's agents are at work. */
+function atWorkIn(conv: ConvState, run: Run) {
   // While a sub-agent is the one at work, say which.
-  const worker =
-    conv && run && !TERMINAL.has(run.status)
-      ? conv.agents.findLast(a => a.run_id === run.id && a.depth > 0 && a.status === 'running')
-      : undefined
+  const worker = !TERMINAL.has(run.status) ? conv.agents.findLast(a => a.run_id === run.id && a.depth > 0 && a.status === 'running') : undefined
   // Several may be at work at the same time.
-  const atWork =
-    conv && run && !TERMINAL.has(run.status)
-      ? conv.agents.filter(a => a.run_id === run.id && a.status === 'running').length
-      : 0
+  const atWork = !TERMINAL.has(run.status) ? conv.agents.filter(a => a.run_id === run.id && a.status === 'running').length : 0
   // The turn waits for your word on what an agent changed in its working copy: that agent
   // is done, and is the one to name - not whoever else is still at work.
-  const decides =
-    conv && run?.status === 'waiting_approval'
-      ? conv.agents.find(a => a.run_id === run.id && pendingMerge(conv, a.id) !== null)
-      : undefined
-  const named = decides ?? (atWork > 1 ? undefined : worker)
-  // How full its lead's context is, as its window shows it; where the window is not known, what its last step sent -
-  // not for a CLI, whose count is not what it holds. "–" where nothing was measured: the button is there all the same,
-  // for its panel (Compact now, each agent's context).
-  // shortcut: after a summary it still says what its last step sent, until a next step measures it again; say
-  // "before its summary" there if that misleads.
-  const lead = conv && run ? conv.agents.find(a => a.run_id === run.id && a.depth === 0 && a.started_at) : undefined
-  const full = lead && (contextFull(lead.input_tokens, lead.context_window) ?? (lead.provider_mode || lead.input_tokens === null ? 'context –' : `context ${lead.input_tokens.toLocaleString('en-US')} tokens`))
+  const decides = run.status === 'waiting_approval' ? conv.agents.find(a => a.run_id === run.id && pendingMerge(conv, a.id) !== null) : undefined
+  return { named: decides ?? (atWork > 1 ? undefined : worker), atWork }
+}
+
+/**
+ * How full its lead's context is, as its window shows it; where the window is not known, what its last step sent -
+ * not for a CLI, whose count is not what it holds. "–" where nothing was measured: the button is there all the same,
+ * for its panel (Compact now, each agent's context).
+ * shortcut: after a summary it still says what its last step sent, until a next step measures it again; say
+ * "before its summary" there if that misleads.
+ */
+function leadContext(conv: ConvState, run: Run) {
+  const lead = conv.agents.find(a => a.run_id === run.id && a.depth === 0 && a.started_at)
+  return lead && (contextFull(lead.input_tokens, lead.context_window) ?? (lead.provider_mode || lead.input_tokens === null ? 'context –' : `context ${lead.input_tokens.toLocaleString('en-US')} tokens`))
+}
+
+/** The turn the bar reports on: its word (or, waiting, whom), its tokens, and its lead's context. */
+function runTag(conv: ConvState, run: Run) {
+  const { named, atWork } = atWorkIn(conv, run)
+  const full = leadContext(conv, run)
+  return (
+    <>
+      <span className={LABEL[run.status][1]} data-run={run.status}>
+        <span className="dot" />
+        {/* (Waiting: the dot and whom - how many wait, and the way there, is the Ready pill beside it: tek-ev §1.) */}
+        {run.status === 'waiting_approval' ? named && (named.name || named.role_name) : LABEL[run.status][0]}
+        {run.status !== 'waiting_approval' && (named ? ` · ${named.name || named.role_name}` : atWork > 1 && ` · ${atWork} agents`)}
+      </span>
+      <span className="mono muted topbar-tokens">{partTokens(conv, run) ?? tokens(turnTokens(conv, run))}</span>
+      {full && <Contexts conv={conv} run={run} label={full} />}
+    </>
+  )
+}
+
+export function RunStatus({ conv, connection }: { conv: ConvState | null; connection: 'open' | 'reconnecting' }) {
+  const run = conv && shownRun(conv)
   return (
     <>
       {connection === 'reconnecting' && <span className="tag tag-warn">Reconnecting…</span>}
-      {run && (
-        <>
-          <span className={LABEL[run.status][1]} data-run={run.status}>
-            <span className="dot" />
-            {/* (Waiting: the dot and whom - how many wait, and the way there, is the Ready pill beside it: tek-ev §1.) */}
-            {run.status === 'waiting_approval' ? named && (named.name || named.role_name) : LABEL[run.status][0]}
-            {run.status !== 'waiting_approval' && (named ? ` · ${named.name || named.role_name}` : atWork > 1 && ` · ${atWork} agents`)}
-          </span>
-          <span className="mono muted topbar-tokens">{partTokens(conv, run) ?? tokens(turnTokens(conv, run))}</span>
-          {full && <Contexts conv={conv} run={run} label={full} />}
-        </>
-      )}
+      {run && runTag(conv, run)}
     </>
   )
 }

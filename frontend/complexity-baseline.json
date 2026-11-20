@@ -39,7 +39,6 @@
   "src/room/RoomWindow.tsx::RoomWindow": 42,
   "src/shell/FolderButton.tsx::FolderButton": 25,
   "src/shell/HoldStatus.tsx::HoldStatus": 23,
-  "src/shell/RunStatus.tsx::RunStatus": 29,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,
   "src/tools/ToolsPage.tsx::ToolsPage": 22,
   "src/triggers/TriggerCard.tsx::TriggerCard": 27,
