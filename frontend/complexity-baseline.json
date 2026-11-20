@@ -80,7 +80,6 @@
   "src/shell/HoldStatus.tsx::HoldStatus": 23,
   "src/shell/ModelBanner.tsx::ModelBanner": 16,
   "src/shell/RunStatus.tsx::RunStatus": 29,
-  "src/shell/Settings.tsx::AppSettings": 15,
   "src/shell/Toasts.tsx::news>flatMap": 20,
   "src/state/applyEvent.ts::applyEvent": 74,
   "src/state/applyEvent.ts::fromSnapshot": 15,
