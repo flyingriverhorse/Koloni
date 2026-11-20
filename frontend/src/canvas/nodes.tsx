@@ -130,6 +130,8 @@ export function FilesNode({ id, data, selected }: NodeProps<Node<GroupData & Rec
           {data.open ? <CaretDown size={12} /> : <CaretRight size={12} />}
         </button>
       </div>
+      {/* Closed, its files' lines leave from it, one to each agent handed files (foldGraph): only the line shows. */}
+      <Handle type="source" position={Position.Right} isConnectable={false} className="found-handle" />
     </div>
   )
 }

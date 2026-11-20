@@ -34,7 +34,8 @@ function opens(node: GraphNode, folds: Folds): boolean {
 export function foldGraph(graph: Graph, folds: Folds): Graph {
   const shut = new Set<string>() // closed groups, and everything hidden inside them
   // What is hidden in a folded team frame, by the frame (its one line): talk with it is drawn to the frame's door. And
-  // what is hidden in a folded round, by the round's line: every line of it is drawn to that.
+  // what is hidden in a folded round, by the round's line, or in a closed box of files, by the box: every line of it is
+  // drawn to that.
   const folded = new Map<string, string>()
   const nodes = drawnNodes(graph.nodes, folds, shut, folded)
   return { nodes, edges: drawnEdges(graph.edges, nodes, folded) }
@@ -49,7 +50,7 @@ function drawnNodes(all: GraphNode[], folds: Folds, shut: Set<string>, folded: F
     // A group comes before what is inside it - a team's frame before its agents, a round's line before its own.
     if (inShut(node, shut)) {
       shut.add(node.id)
-      const frame = node.team && shut.has(node.team) ? node.team : node.round && shut.has(node.round) ? node.round : folded.get(node.parent ?? '')
+      const frame = hiddenIn(node, shut, folded)
       if (frame) folded.set(node.id, frame)
       continue
     }
@@ -66,6 +67,10 @@ function drawnNodes(all: GraphNode[], folds: Folds, shut: Set<string>, folded: F
 
 const inShut = (node: GraphNode, shut: Set<string>) => (node.parent && shut.has(node.parent)) || (node.team && shut.has(node.team)) || (node.round && shut.has(node.round))
 
+/** What a hidden node is drawn as: its folded frame or round, what its box is hidden in, or - a file - its closed box. */
+const hiddenIn = (node: GraphNode, shut: Set<string>, folded: Folded) =>
+  node.team && shut.has(node.team) ? node.team : node.round && shut.has(node.round) ? node.round : (folded.get(node.parent ?? '') ?? (node.kind === 'attachment' ? node.parent : undefined))
+
 function withRows(node: GraphNode, folds: Folds): GraphNode {
   // K-belge-ciktilari: an output card the user unfolded shows all its rows.
   const all = node.kind === 'shared' && folds[node.id] ? (node.data as SharedData).all : undefined
@@ -75,7 +80,8 @@ function withRows(node: GraphNode, folds: Folds): GraphNode {
 /** The lines that are drawn between the nodes that are (`nodes`): one to what is hidden goes to the frame or round it is hidden in. */
 function drawnEdges(all: GraphEdge[], nodes: GraphNode[], folded: Folded): GraphEdge[] {
   const drawn = new Set(nodes.map(n => n.id))
-  const rounds = new Set(nodes.filter(n => n.kind === 'round').map(n => n.id))
+  // (A closed box of files as a folded round: its files' lines one line from it to each agent - 21 Nov.)
+  const rounds = new Set(nodes.filter(n => n.kind === 'round' || n.kind === 'files').map(n => n.id))
   const edges: GraphEdge[] = []
   for (const e of all) {
     // (A copy: what is added up on it is not added to the graph it was folded from.)

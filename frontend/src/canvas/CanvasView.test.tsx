@@ -613,6 +613,18 @@ test('more files than a few are one box, folded with Collapse all and opened wit
   expect(screen.queryByRole('button', { name: 'Collapse all' })).toBeNull()
 })
 
+test('a closed box of files keeps their line: one dashed line from the box to the agent handed them', async () => {
+  const { measure, stage } = laidOut()
+  const file = (id: string): Attachment => ({ id, conversation_id: 'c', message_id: 'u-r', frame_of: null, name: `${id}.md`, kind: 'text', mime: 'text/plain', size: 10, summary: '1 line', given_to: ['r'], shown_to: {}, keep_in_project: false, created_at: '2026-10-05T10:00:00Z' })
+  const conv = convState({ runs: [run('r')], messages: [userMessage('r', 'read these')], agents: [agent('r')], attachments: ['a', 'b', 'c', 'd', 'e'].map(file) })
+  render(<CanvasView state={conv} selectedId={null} onSelect={() => {}} />)
+  await waitFor(() => expect(node('files:r')).not.toBeNull())
+  measure()
+  stage(1200)
+  await waitFor(() => expect(document.querySelectorAll('.react-flow__edge.edge-handed')).toHaveLength(1))
+  expect(document.querySelector('.react-flow__edge.edge-handed')?.getAttribute('data-id')).toMatch(/@files:r>agent:r$/)
+})
+
 test('a team’s frame is drawn behind, never dragged or picked; an agent picked dims it; Fold all and Open all fold every frame', async () => {
   const step = (id: string, name: string) => ({ id, name, state: 'now' as const, round: 0, room: false, own_check: false, left_out: [], group: false })
   const conv = convState({
