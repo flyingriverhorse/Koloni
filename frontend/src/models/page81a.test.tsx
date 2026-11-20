@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Limits, ModelFacts, Provider, Tiers, Usage } from '../api/types'
-import { readingOf } from './cards'
+import { ProviderCard, readingOf } from './cards'
 import { ModelsPage } from './ModelsPage'
 
 // Slice 81a: the Models page as cards with gauges, the tiers' order under them, a provider in a window.
@@ -110,6 +110,31 @@ test('a gauge says only what is known: what is left of a plan’s narrowest wind
   expect(readingOf(provider({}), { avail: answered })).toEqual({ share: 1, value: 'on', label: 'running' })
   const silent = { installed: null, models: [{ name: 'qwen', state: 'unknown', why: 'unreachable' }] } as never
   expect(readingOf(provider({}), { avail: silent })).toEqual({ share: 0, value: 'off', label: 'not answering' })
+})
+
+test('a card says it is open, the default and a state in the way louder; a plan’s other windows behind ⓘ, a key’s in sight', () => {
+  const reading = { share: 0.5, value: '50%', label: 'left this week', more: 'This week 80% left' }
+  const card = (over: Partial<Parameters<typeof ProviderCard>[0]>) => (
+    <ProviderCard provider={codex} isDefault={false} state={['ok', 'signed in']} reading={reading} open={false} onOpen={vi.fn()} onSwitch={vi.fn()} {...over} />
+  )
+  const { container, rerender } = render(card({ open: true, isDefault: true, state: ['bad', 'not installed'], onCheck: vi.fn() }))
+  const button = () => container.querySelector('#provider-card-cx')
+  expect(button()).toHaveAttribute('aria-current', 'true')
+  expect(button()).toHaveTextContent('subscription · default')
+  expect(screen.getByText('not installed')).toHaveClass('provider-card-state')
+  const check = screen.getByRole('button', { name: 'Check Codex' })
+  expect(check).toHaveTextContent('Check')
+  expect(check).toHaveAttribute('title', 'Looks again whether it can be used now; no model is run')
+  expect(screen.getByText('This week 80% left')).toHaveClass('hint-para')
+  rerender(card({ onCheck: vi.fn(), busy: true }))
+  expect(button()).not.toHaveAttribute('aria-current')
+  expect(button()).not.toHaveTextContent('default')
+  expect(screen.getByText('signed in')).toHaveClass('provider-card-status')
+  expect(screen.getByRole('button', { name: 'Check Codex' })).toHaveTextContent('Checking…')
+  // An API key's `more` is a limit it cannot keep: on the card; with nothing to do or say, no foot.
+  const { container: key } = render(card({ provider: deepseek, reading: { share: null, value: '$1', label: 'today', plain: true, more: 'cannot be kept' } }))
+  expect(within(within(key).getByRole('button', { name: /^DeepSeek/ })).getByText('cannot be kept')).toHaveClass('provider-card-state')
+  expect(key.querySelector('.provider-card-foot')).toBeNull()
 })
 
 test('a gauge still read says so, a spend not read says why, and a plan’s credits unlimited are said behind ⓘ', () => {
