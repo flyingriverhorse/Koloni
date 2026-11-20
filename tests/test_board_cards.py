@@ -90,10 +90,18 @@ def test_koloni_s_own_card_for_an_agent_waits_but_is_not_the_agent_asking(
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = talk(client, pid, permission_mode="ask")
-    go(client, cid)
-    snap = until(client, cid, lambda s: any(q["status"] == "pending" for q in s["questions"]))
+    run_id = go(client, cid)
+
+    def asking():
+        return [a for a in on_board(board(client, pid), cid)["agents"]
+                if a["status"] == "waiting_approval"]
+
+    # (the card is on record a moment before its agent is held as asking: both are waited for)
+    snap = until(client, cid, lambda s: any(q["status"] == "pending" for q in s["questions"])
+                 and asking(), timeout=20)
     (card,) = snap["questions"]
-    asking = [a for a in on_board(board(client, pid), cid)["agents"]
-              if a["status"] == "waiting_approval"]
-    assert card["leave"] and [(a["name"], a["questions"], a["own_questions"]) for a in asking] == [
-        ("Researcher", 1, 0)], (card, asking)
+    assert card["leave"] and [(a["name"], a["questions"], a["own_questions"]) for a in asking()] == [
+        ("Researcher", 1, 0)], (card, asking())
+    said = client.post(f"/api/questions/{card['id']}/answer", json={"answer": "Stop here"})
+    assert said.status_code == 200, said.text
+    wait_run(client, cid, run_id)
