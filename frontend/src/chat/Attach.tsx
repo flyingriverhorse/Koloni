@@ -282,6 +282,17 @@ function ProjectPicker({ id, projectId, onPick }: { id: string; projectId: strin
   )
 }
 
+/** The text a model is given of a file: not read yet (undefined), none (null), or its first 20,000 characters. */
+function GivenText({ text }: { text: string | null | undefined }) {
+  return (
+    <>
+      {text === undefined && <div className="muted">Reading…</div>}
+      {text === null && <div className="muted">No text of it is given to a model.</div>}
+      {text && <pre className="att-text-preview mono">{text.length > 20000 ? `${text.slice(0, 20000)}\n…` : text}</pre>}
+    </>
+  )
+}
+
 /** A file as it was added, looked at: the picture, the video, or the text a model is given of it. */
 export function AttachmentPreview({ file }: { file: Attachment }) {
   const [text, setText] = useState<string | null | undefined>()
@@ -305,9 +316,7 @@ export function AttachmentPreview({ file }: { file: Attachment }) {
       {/* (No Download in its controls: one would keep its address, key and all, in the browser's list of downloads.) */}
       {file.kind === 'video' && file.size <= MAX_BYTES && <video className="view-image" src={fileUrl(file.id)} controls controlsList="nodownload" preload="metadata" aria-label={file.name} />}
       {file.kind === 'video' && file.size > MAX_BYTES && <div className="muted">{file.summary}</div>}
-      {reads && text === undefined && <div className="muted">Reading…</div>}
-      {reads && text === null && <div className="muted">No text of it is given to a model.</div>}
-      {reads && text && <pre className="att-text-preview mono">{text.length > 20000 ? `${text.slice(0, 20000)}\n…` : text}</pre>}
+      {reads && <GivenText text={text} />}
       {file.kind === 'executable' && <div className="muted">Kept by name and size only: it is never read or run.</div>}
     </div>
   )
