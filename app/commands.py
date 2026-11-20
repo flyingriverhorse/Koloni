@@ -1054,12 +1054,13 @@ def with_cwd(command: str, cwd: object) -> str:
     <cwd>; <command>` - so that `cwd=.koloni/tmp` with `echo x > ../settings.json`, or
     `cwd=.claude`, names what it reaches (a `cwd` in the scratch alone is no climb: `_ENTERS`).
     What runs is the command alone. `cwd` None: where it runs is not known - a CLI that names
-    none and may keep its shell's folder (Qoder; Copilot, whose 1.0.91 sends none; Codex or agy
-    without one), so its `cd .koloni/tmp; ls` would leave the next line, `echo x >
+    none and may keep its shell's folder (Qoder; Copilot's other commands - it sends none; Codex
+    or agy without one), so its `cd .koloni/tmp; ls` would leave the next line, `echo x >
     ../rules.md`, in the scratch and judged at the root: such a line is judged as one more
     change of folder, a card as it was. "." is the root, known: KOLONİ's own run_command, a
-    CLI's report, and Claude Code's Bash tool, whose every call starts there
-    (`ClaudeNativeClient.cwd_from`, measured). Whose word a CLI's cwd is: `cwd_from`.
+    CLI's report, Claude Code's Bash tool, whose every call starts there
+    (`ClaudeNativeClient.cwd_from`, measured), and a Copilot command read to start in a new
+    shell (`model_native._ShellPatches`). Whose word a CLI's cwd is: `cwd_from`.
     shortcut: Codex is trusted to name the folder its shell stands in for each command;
     measure it if it is seen to keep a `cd` unnamed."""
     if cwd is None and _ENTERS.match(command):

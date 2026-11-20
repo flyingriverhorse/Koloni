@@ -2935,19 +2935,25 @@ SHELL_STATE = re.compile(
 # an options update, a `/cd`). Its agent loop emits the tool.execution_start of every call of a
 # model message before it calls any of them, and the permission request comes from inside the
 # call: the start goes first to its one stdout. Each command is a new process in its shell's
-# first folder (`spawnChild`): not even a named shell keeps a `cd` there. Live once (14 Nov 2026,
-# 1.0.107, Windows, Full auto): after a `cd` into the scratch, its next command ran at the project.
+# first folder (`spawnChild`): not even a named shell keeps a `cd` there. Measured on 1.0.105
+# (20 Nov 2026, Windows, run as here: headless stdio, empty COPILOT_HOME; status.get "1.0.105"):
+# with no shellId each call got a new one (0, 1, 2) and printed the project after a call that did
+# `cd .koloni/tmp/w2; ...`; even shellId "k1" printed the project after its own `cd`; every start
+# came before its permission request; no resolvedWorkingDirectory; its arguments were command,
+# description and shellId. (`Set-Content ../rules.md x` came with possiblePaths []: Copilot does not
+# name that path - KOLONİ's own judgement is what asks.)
 # So only on a version in SHELL_READ, by its own word (`status.get`: its package's version, the
 # running app.js's own - 1.0.67's seam handlers `Vbo`); one that does not say: not known.
-# shortcut: 1.0.107's code is not read, nor its native shell schema (another spelling of shellId
-# is a key not here: not known) or JSON-RPC writer (a start out of order: a card); bash on Linux
-# and macOS not seen. Add a version to SHELL_READ only once read or measured (K-cli-surface): the
+# shortcut: 1.0.105's code is not read (measured only), nor its native shell schema (another
+# spelling of shellId is a key not here: not known) or JSON-RPC writer (a start out of order: a
+# card); bash on Linux and macOS not seen. Each Copilot update turns this off until its version is
+# read or measured. Add a version to SHELL_READ only once read or measured (K-cli-surface): the
 # one its own `status.get` answers when KOLONİ runs it natively - HEADLESS has --no-auto-update,
 # so copilot.exe runs its own built-in package, which may not be what a plain `copilot
 # --version` says - and the code read must be that version's.
 SHELL_ARGUMENTS = frozenset({"command", "description", "mode", "detach", "initialwait",
                              "requestsandboxbypass", "requestsandboxbypassreason"})
-SHELL_READ = frozenset({"1.0.67"})
+SHELL_READ = frozenset({"1.0.67", "1.0.105"})
 
 
 class _ShellPatches(dict):
