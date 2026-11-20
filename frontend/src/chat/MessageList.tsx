@@ -492,6 +492,16 @@ export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProp
       return <SkillApproval skill={row.item} onDecide={(decision, scope) => on.onDecideRole(row.item.tool_call_id, decision, scope)} />
     case 'outside':
       return <OutsideApproval call={row.item} who={nameOf(row.item.agent_id)} onDecide={outsideWord(on.onDecideRole, row.item.id)} plain={state.conversation.project_id === null} />
+    default:
+      return turnCard(state, row, on, onDecidePlan, continueSteps)
+  }
+}
+
+type TurnCard = Extract<Waiting, { what: 'plan' | 'merge' | 'away' | 'trigger' | 'notes' | 'night' }>
+
+/** What waits for you that no agent asked leave for: the turn's plan and its work to take in, a night's card and jobs, what was proposed. */
+function turnCard(state: ConvState, row: TurnCard, on: Handlers, onDecidePlan: WaitingProps['onDecidePlan'], continueSteps: number | null | undefined): ReactNode {
+  switch (row.what) {
     case 'plan':
       return <PlanCard run={row.item} onDecide={(...decision) => onDecidePlan(row.item.id, ...decision)} />
     case 'merge':
@@ -671,6 +681,25 @@ function TriggerMessage({ message, run, onShow }: { message: Message; run?: Run;
   )
 }
 
+// Where the topic changes: a line before the first message of a turn whose topic is not
+// that of the turn before it. "New" only the first time the topic is seen.
+function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, Run>) {
+  const dividers = new Map<string, string>()
+  const met = new Set<string>()
+  let [turnBefore, topicBefore]: [string | null, string | null | undefined] = [null, undefined]
+  for (const message of ordered) {
+    if (message.run_id === turnBefore) continue
+    turnBefore = message.run_id
+    const topic = state.topics.find(t => t.id === runs.get(message.run_id)?.topic_id)
+    if (topic && topicBefore !== undefined && topic.id !== topicBefore) {
+      dividers.set(message.id, `${met.has(topic.id) ? 'Continuing' : 'New topic'}: ${titleOf(state, topic)}`)
+    }
+    if (topic) met.add(topic.id)
+    topicBefore = topic?.id ?? null
+  }
+  return dividers
+}
+
 export function MessageList({
   state,
   onRemoveQueued,
@@ -761,21 +790,7 @@ export function MessageList({
     ),
   )
 
-  // Where the topic changes: a line before the first message of a turn whose topic is not
-  // that of the turn before it. "New" only the first time the topic is seen.
-  const dividers = new Map<string, string>()
-  const met = new Set<string>()
-  let [turnBefore, topicBefore]: [string | null, string | null | undefined] = [null, undefined]
-  for (const message of ordered) {
-    if (message.run_id === turnBefore) continue
-    turnBefore = message.run_id
-    const topic = state.topics.find(t => t.id === runs.get(message.run_id)?.topic_id)
-    if (topic && topicBefore !== undefined && topic.id !== topicBefore) {
-      dividers.set(message.id, `${met.has(topic.id) ? 'Continuing' : 'New topic'}: ${titleOf(state, topic)}`)
-    }
-    if (topic) met.add(topic.id)
-    topicBefore = topic?.id ?? null
-  }
+  const dividers = topicDividers(state, ordered, runs)
 
   // A comparison (slice 54): its message once, under the first side's turn, with the two side by side;
   // each side's answer is there, and what it did - with whatever waits for you - under its model's name.
