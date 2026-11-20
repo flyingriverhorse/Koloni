@@ -189,6 +189,17 @@ test('a second thing waiting in the same conversation updates its toast, names w
   expect(live).toBeEmptyDOMElement()
 })
 
+test('a question is told as one, by who asks; what else waits keeps its words', () => {
+  const at = (agents: BoardAgent[]) => boardOf(talk('a', 'Docs', { agents }))
+  const { rerender, container } = render(<Toasts board={at([worker()])} shownId={null} onOpen={() => {}} />)
+  const live = container.querySelector('[aria-live="polite"]') as HTMLElement
+  rerender(<Toasts board={at([worker({ status: 'waiting_approval', questions: 1 })])} shownId={null} onOpen={() => {}} />)
+  expect(live).toHaveTextContent('Orchestrator asks you · Docs')
+  // a sub-agent that begins to ask, while the Orchestrator still does
+  rerender(<Toasts board={at([worker({ status: 'waiting_approval', questions: 1 }), worker({ name: 'Coder', status: 'waiting_approval', questions: 1 })])} shownId={null} onOpen={() => {}} />)
+  expect(live).toHaveTextContent('Coder asks you · Docs')
+})
+
 test('a toast pointed at or focused stays; a fourth one does not push out the one being read', () => {
   vi.useFakeTimers()
   const names = ['A', 'B', 'C', 'D']

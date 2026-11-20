@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Away, BacklogTask } from '../api/types'
 import { Rail } from '../shell/Rail'
 import { resetStoreForTests, useApp } from '../state/store'
-import { command, conversation, convState, memoryRecord, projectMemory, question, run } from '../test-fixtures'
+import { agent, command, conversation, convState, memoryRecord, projectMemory, question, run } from '../test-fixtures'
 import { readyItems } from './ready'
 import { ReadyPage, ReadyPanel } from './ReadyViews'
 import { useReady } from './useReady'
@@ -77,6 +77,12 @@ test('decision 1: the command beside Run is the whole command, in a monospace bl
   expect(within(row).getByText(LONG).tagName).toBe('PRE')
   expect(within(row).getByText(LONG)).toHaveClass('mono')
   expect(within(row).getByRole('button', { name: 'Run once' })).toBeInTheDocument()
+})
+
+test('a chat’s row says who asks as the screen calls them: the Orchestrator, not its record’s Lead', () => {
+  useApp.setState({ readyChats: { x: { ...other, agents: [agent('rx', 'waiting')] } } })
+  render(<Shown page />)
+  expect(screen.getByRole('group', { name: 'chat: Orchestrator asks · “Fix the login”' })).toBeInTheDocument()
 })
 
 test('the page: the same list, by where it is from', async () => {

@@ -35,14 +35,20 @@ const asks = (agent: Agents[number]) => agent.status === 'waiting_approval' || a
 
 type Talk = Board['conversations'][number]
 
-/** What began to wait in a conversation since it was read as `old` ("Coder waits", "A plan waits", "Changes wait"). */
+/**
+ * What began to wait in a conversation since it was read as `old`: "Coder asks you" (a question), "Coder waits for you",
+ * "A plan waits for you", "Changes wait for you".
+ * shortcut: the Board counts KOLONİ's own card asking leave for an agent's call among its questions (app/api/board.py), so
+ * that card is told as the agent asking too; give the Board a count of the agent's own questions if that misleads.
+ */
 function whatWaits(c: Talk, old: Talk | undefined) {
   // Said of what is new: an agent that began to ask, or else changes put before you, or a plan.
   const asked = new Set(old?.agents.filter(asks).map(a => a.id))
   const merged = c.merges_pending > (old?.merges_pending ?? 0)
   const planned = Boolean(c.turn?.plan_waits) && !(old?.turn?.id === c.turn?.id && old?.turn?.plan_waits)
   const who = c.agents.find(a => asks(a) && !asked.has(a.id)) ?? (merged || planned ? undefined : c.agents.find(asks))
-  return who ? `${titleOf(who.name)} waits` : planned && !merged ? 'A plan waits' : 'Changes wait'
+  if (who) return `${titleOf(who.name)} ${who.questions > 0 ? 'asks you' : 'waits for you'}`
+  return planned && !merged ? 'A plan waits for you' : 'Changes wait for you'
 }
 
 /** What changed for the user between two readings of the Board: something began to wait, or a turn ended. */
@@ -52,7 +58,7 @@ function news(before: Board, after: Board, at: number): Note[] {
     const old = was.get(c.conversation_id)
     const notes: Note[] = []
     if (waitCount(c) > (old ? waitCount(old) : 0)) {
-      notes.push({ key: `waits ${c.conversation_id}`, source: c.conversation_id, conversationId: c.conversation_id, text: `${whatWaits(c, old)} for you · ${c.title}`, at })
+      notes.push({ key: `waits ${c.conversation_id}`, source: c.conversation_id, conversationId: c.conversation_id, text: `${whatWaits(c, old)} · ${c.title}`, at })
     }
     const turn = c.turn
     const ended = turn && TERMINAL.has(turn.status) && (old?.turn?.id !== turn.id || !TERMINAL.has(old.turn.status))

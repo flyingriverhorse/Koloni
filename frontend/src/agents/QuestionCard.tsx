@@ -2,6 +2,8 @@ import { PaperPlaneRight, Question as QuestionIcon } from '@phosphor-icons/react
 import { type FormEvent, useState } from 'react'
 import { errorText } from '../api/client'
 import type { Question } from '../api/types'
+import { useApp } from '../state/store'
+import { titleOf } from './agentStatus'
 import { READY_FOR_YOU, TEAMS_READY, shownOption, shownQuestion } from './teamRun'
 
 interface Props {
@@ -29,13 +31,26 @@ const TITLES: [(option: string) => boolean, string][] = [
 ]
 
 /**
- * A question card's title and the text under it (sample A). An agent's question is its own title, the card saying the
- * agent asks. KOLONİ's own (`leave`) has a fixed title, its text whole under it; its Ready for you card is "Teams' work
- * is ready", its fixed "Ready for you: " prefix left out.
+ * Who asks on an agent's card: the agent as the screen calls it ("Orchestrator", "Coder"), from the chat it is in - the
+ * open one, or another chat's on Ready for you. Null where the page holds no such agent, or its name would read as
+ * KOLONİ's (a role an agent made may be named anything): only KOLONİ's own cards say KOLONİ asks.
  */
-function questionTitle(question: Pick<Question, 'question' | 'leave' | 'options'>): { who: string; title: string; said: string | null } {
+function useAsker(agentId: string): string | null {
+  return useApp(s => {
+    const agent = [s.conv, ...Object.values(s.readyChats)].flatMap(chat => chat?.agents ?? []).find(a => a.id === agentId)
+    const name = agent && titleOf(agent.name || agent.role_name, s.teams)
+    return name && !/^\s*kolon[iİı]\s*$/i.test(name) ? name : null
+  })
+}
+
+/**
+ * A question card's title and the text under it (sample A). An agent's question is its own title, the card saying who
+ * asks. KOLONİ's own (`leave`) has a fixed title, its text whole under it; its Ready for you card is "Teams' work is
+ * ready", its fixed "Ready for you: " prefix left out.
+ */
+function questionTitle(question: Pick<Question, 'question' | 'leave' | 'options'>, asker: string | null): { who: string; title: string; said: string | null } {
   const text = question.question
-  if (!question.leave) return { who: 'The agent asks', title: text, said: null }
+  if (!question.leave) return { who: `${asker ?? 'The agent'} asks`, title: text, said: null }
   const who = 'KOLONİ asks'
   if (text.startsWith(READY_FOR_YOU)) return { who, title: TEAMS_READY, said: text.slice(READY_FOR_YOU.length).replace(/^:\s*/, '') }
   const first = question.options[0] ?? ''
@@ -44,7 +59,7 @@ function questionTitle(question: Pick<Question, 'question' | 'leave' | 'options'
 
 /** The card's head: the one line it is said in, or who asks, its title and the text under it. */
 function QuestionHead({ question, line }: Pick<Props, 'question' | 'line'>) {
-  const { who, title, said } = questionTitle(question)
+  const { who, title, said } = questionTitle(question, useAsker(question.agent_id))
   return line ? (
     <div className="question-text">{line.text}</div>
   ) : (

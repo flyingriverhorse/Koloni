@@ -1,6 +1,8 @@
 import { X } from '@phosphor-icons/react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { titleOf } from '../agents/agentStatus'
 import { errorText } from '../api/client'
+import type { Team } from '../api/types'
 import { NightRow } from './NightRow'
 import { WaitRow } from '../backlog/BacklogPage'
 import { count, since } from '../board/columns'
@@ -48,14 +50,14 @@ function handlersOf(state: ConvState, openChat: OpenChat): RequestHandlers & { o
   }
 }
 
-/** Where a row comes from, in words: its agent and chat (and folder), or the list it is on. */
-function fromOf(item: ReadyItem, folder: (projectId: string | null) => string | undefined): string {
+/** Where a row comes from, in words: its agent as the screen calls it, and chat (and folder), or the list it is on. */
+function fromOf(item: ReadyItem, folder: (projectId: string | null) => string | undefined, teams: Team[]): string {
   if (item.what === 'task') return 'To-do'
   if (item.what === 'memory') return item.suggestion ? 'Memory · for your preferences' : 'Memory'
   if (item.what === 'night') return "While you're away"
   const agent = item.state.agents.find(a => a.id === item.row.agentId)
   const where = item.source === 'other' ? folder(item.state.conversation.project_id) : undefined
-  return [agent && `${agent.name || agent.role_name} asks`, `“${item.state.conversation.title}”`, where].filter(Boolean).join(' · ')
+  return [agent && `${titleOf(agent.name || agent.role_name, teams)} asks`, `“${item.state.conversation.title}”`, where].filter(Boolean).join(' · ')
 }
 
 /** A chat's card, with its chat's words. */
@@ -70,8 +72,9 @@ function ChatCard({ state, row, openChat }: { state: ConvState; row: WaitingRow;
 function ReadyRow({ item, openChat, error, off }: { item: ReadyItem; openChat: OpenChat; error?: string; off?: boolean }) {
   const projects = useApp(s => s.projects)
   const memory = useApp(s => s.memory)
+  const teams = useApp(s => s.teams)
   const chat = chatOf(item)
-  const from = fromOf(item, projectId => projects.find(p => p.id === projectId)?.name)
+  const from = fromOf(item, projectId => projects.find(p => p.id === projectId)?.name, teams)
   const s = useApp.getState()
   // A night's job, whether from the night or from its chat's card: what it asks, and the way to its chat - nothing more.
   const night = item.what === 'night' ? item.job : item.what === 'card' && item.row.what === 'night' ? item.row.item.job : null
