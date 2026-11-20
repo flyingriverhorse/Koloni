@@ -147,7 +147,7 @@ function roundLines({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }
   const rect = (id: string) => ({ ...(auto.positions[id] ?? { x: 0, y: 0 }), ...(auto.sizes[id] ?? { width: NODE_W, height: NODE_H }) })
   const placed = nodes.filter(n => !n.parent && auto.positions[n.id])
   const [frames, cards] = [placed.filter(n => n.kind === 'team'), placed.filter(n => n.kind !== 'team')]
-  const round: Record<string, { source: string; target: string; points: Point[]; at?: Point }> = {}
+  const round: Record<string, { source: string; target: string; points: Point[]; at?: Point; turned?: boolean }> = {}
   edges.filter(e => e.cross).forEach((e, i) => {
     const [a, b] = [byId.get(e.source)?.team, byId.get(e.target)?.team]
     if (!a || !b || !auto.positions[a] || !auto.positions[b]) return
@@ -158,8 +158,8 @@ function roundLines({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }
     const frame = byId.get(e.target)?.team
     const door = byId.get(e.source)?.kind === 'team'
     if (!frame || e.cross || arced(e) || !(door || byId.get(e.source)?.team === frame) || !auto.positions[e.source]) continue
-    const { source, target, points } = frameLine(e, rect, door, [...cards.filter(n => n.team === frame).map(n => rect(n.id)), ...wallsOf(rect(frame))])
-    if (points) round[e.id] = { source, target, points }
+    const { source, target, points, turned } = frameLine(e, rect, door, [...cards.filter(n => n.team === frame).map(n => rect(n.id)), ...wallsOf(rect(frame))])
+    if (points) round[e.id] = { source, target, points, turned }
   }
   return round
 }
@@ -193,8 +193,9 @@ const standing = (n: GraphNode) => ({
 /** A line between two agents of a frame, not from its door: down or up its column, else across to the next one. */
 function columnLine(e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> {
   if (stacked(s, t)) return { type: 'lane', data, ...(t.y > s.y ? { sourceHandle: 'found-out', targetHandle: 'found-in' } : { sourceHandle: 'up-out', targetHandle: 'up-in' }) }
-  // (Talk with an agent of an earlier column is drawn from that one.)
-  return { type: 'lane', data, ...(t.x < s.x && { source: e.target, target: e.source }) }
+  // (A line to a node of an earlier column is drawn from that one - `frameLine` - its arrow at its start.)
+  const turned = t.x < s.x
+  return { type: 'lane', data: { ...data, turned }, ...(turned && { source: e.target, target: e.source }) }
 }
 
 /** A talk line's two ends, in one order: who talked with whom, whichever spoke first. */
@@ -709,7 +710,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
     }
     // Round the cards and headers: talk across two frames, a frame's line that would run under a card.
     const way = round[e.id]
-    if (way) return { type: 'member', source: way.source, target: way.target, sourceHandle: null, targetHandle: null, data: { ...data, points: way.points, at: way.at } }
+    if (way) return { type: 'member', source: way.source, target: way.target, sourceHandle: null, targetHandle: null, data: { ...data, points: way.points, at: way.at, turned: way.turned } }
     // K-shared-bagli: to its card, where the layout found it room - else none.
     if (e.shared) return auto.lines[e.id] ? { type: 'level', data: { line: auto.lines[e.id], colour: e.shared.colour, arm: !!e.shared.arm } } : { hidden: true }
     // A request between teams: frame to frame in the gap, past every other box (K-takimlar-arasi).

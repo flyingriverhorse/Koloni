@@ -654,6 +654,38 @@ test('findings handed out of a team’s frame to an agent outside it get their l
   }
 })
 
+test('21 Nov: inside a frame each arrow points at the line’s real end - a room’s members’ into the room, though drawn from it', async () => {
+  // (A line to a node of an earlier column is drawn from that one: its arrow was at the member, as if the room led to it.)
+  const { measure, stage } = laidOut()
+  const step = (id: string, name: string, group = false) => ({ id, name, state: 'now' as const, round: 0, room: false, own_check: false, left_out: [], group })
+  const ids = ['sp', 'rv', 'sc', 'ts']
+  const conv = convState({
+    conversation: {
+      ...conversation,
+      teams_mode: 'manual',
+      teams: [{ team_id: 'web', recipe_id: null, no_recipe: false, picked_by: 'user', why: null, state: { run_id: 't', team: 'Web app', recipe: 'Feature', status: 'running', why: null, steps: [step('spec', 'Spec'), step('reviews', 'Reviews', true)], agents: ['wl', ...ids], ended_ready: false, passes: [{ part: 'spec', agents: ['sp'] }, { part: 'reviews', agents: ['rv', 'sc', 'ts'] }] } }],
+    },
+    runs: [run('t')],
+    messages: [userMessage('t', 'Review it')],
+    agents: [agent('t'), agent('t', 'running', { id: 'wl', role_name: 'Web app coordinator', parent_agent_id: 't', depth: 1 }), ...ids.map(id => agent('t', 'running', { id, name: id, role_name: id, parent_agent_id: 'wl', depth: 2 }))],
+    rooms: [{ id: 'o', run_id: 't', agent_id: 'wl', goal: 'Review it', status: 'working', outcome: null, why: null, members: ['rv', 'sc', 'ts'].map(agent_id => ({ agent_id, role: 'Reviewer', status: 'in' })) }] as unknown as ConvState['rooms'],
+  })
+  render(<CanvasView state={conv} selectedId={null} onSelect={() => {}} />)
+  await waitFor(() => expect(node('agent:ts')).not.toBeNull())
+  measure()
+  stage(1200)
+  await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="agent:ts>room:o"]')).not.toBeNull())
+  const arrows = (id: string) => {
+    const path = document.querySelector(`.react-flow__edge[data-id="${id}"] .react-flow__edge-path`)
+    return [path?.hasAttribute('marker-start'), path?.hasAttribute('marker-end')]
+  }
+  // Under the room, from its foot up into it; beside the one under it - the agents at once -, drawn from the room: the
+  // arrow at its start, the room.
+  expect(arrows('agent:rv>room:o')).toEqual([false, true])
+  expect(arrows('agent:sc>room:o')).toEqual([true, false])
+  expect(arrows('agent:ts>room:o')).toEqual([true, false])
+})
+
 test('a team’s frame is drawn behind, never dragged or picked; an agent picked dims it; Fold all and Open all fold every frame', async () => {
   const step = (id: string, name: string) => ({ id, name, state: 'now' as const, round: 0, room: false, own_check: false, left_out: [], group: false })
   const conv = convState({

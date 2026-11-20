@@ -844,13 +844,14 @@ function straight(points: Point[]): Point[] {
 }
 
 /**
- * A frame's own line - from its door, or between two of its nodes, not on an arc - as the canvas draws it: its ends (talk
- * with an agent of an earlier column is drawn from that one), and its points where it goes round a card (`laneLine`);
- * none: React Flow draws it from its handles (`laneLegs`). `boxes`: the frame's nodes and its walls (`wallsOf`).
+ * A frame's own line - from its door, or between two of its nodes, not on an arc - as the canvas draws it: its ends (a
+ * line to a node of an earlier column - a member's to its room, a helper's spawn line - is drawn from that one, `turned`:
+ * its arrow at its start), and its points where it goes round a card (`laneLine`); none: React Flow draws it from its
+ * handles (`laneLegs`). `boxes`: the frame's nodes and its walls (`wallsOf`).
  */
-export function frameLine(e: GraphEdge, rect: (id: string) => Point & Size, door: boolean, boxes: (Point & Size)[]): { source: string; target: string; points: Point[] | null } {
+export function frameLine(e: GraphEdge, rect: (id: string) => Point & Size, door: boolean, boxes: (Point & Size)[]): { source: string; target: string; points: Point[] | null; turned: boolean } {
   const [s, t] = [rect(e.source), rect(e.target)]
   const turned = !door && !stacked(s, t) && t.x < s.x
   const [source, target] = turned ? [e.target, e.source] : [e.source, e.target]
-  return { source, target, points: laneLine(rect(source), rect(target), door, boxes) }
+  return { source, target, points: laneLine(rect(source), rect(target), door, boxes), turned }
 }
