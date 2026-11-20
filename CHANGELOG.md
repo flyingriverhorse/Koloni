@@ -29,6 +29,7 @@ How to write an entry (every release looks the same):
 
 - **Models**: while KOLONİ's browser tab is in the background, the page no longer asks every 15 seconds whether the model server answers; it asks once as you come back to the tab.
 - **CLIs**: GitHub Copilot CLI run **Native**, on a version whose code was read or measured (1.0.67 and 1.0.105 so far, by the version Copilot reports; after an update of Copilot's, not until that version is measured), works in the agents' scratch folder: a command that starts in a new shell of its own (one that names no shell) is judged in the project folder, so `cd .koloni/tmp/...; python a.py` runs without a card at Full auto; a delete inside `.koloni/tmp/` is still asked there, and on any other version, in a shell it named, or after one that did, the `cd` is still asked too ([docs](docs/reference/known-limits.md)).
+- **Chat**, **Canvas**, **Models**, **Agents**, **To-do**, **Memory**, **Triggers**, **Usage**: nothing you see or do changes. More of the page's code - the chat's messages and message box, rooms, the canvas and its lines, the Models and Usage pages, roles and recipes, To-do, Memory, Knowledge, triggers and the approval cards - was split into smaller parts, each checked to behave exactly as before, so later fixes there are safer.
 
 ### Fixed
 
