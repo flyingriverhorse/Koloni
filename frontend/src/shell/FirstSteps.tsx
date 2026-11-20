@@ -84,6 +84,10 @@ function UseOther({ other, onUse }: { other: Provider; onUse: Props['onUse'] }) 
   )
 }
 
+/** The folder step's words: what a folder is, or - done - the open chat's folder (a plain chat: only that one is added). */
+const folderText = (project: boolean, folder: string | null) =>
+  !project ? 'A folder: the project your agents work in.' : folder ? <>Project folder: <span className="mono" title={folder}>{folder}</span></> : 'A project folder is added.'
+
 /**
  * The first run's one path (0.1.0-ilk-calistirma), in the middle of the canvas: a provider, a folder, a message -
  * each read from what is so, never ticked by itself, so all three done they are gone without a flag. The first not
@@ -114,7 +118,7 @@ export function FirstSteps({ health, project, folder, wrote, turn, again, provid
     },
     {
       done: project,
-      text: !project ? 'A folder: the project your agents work in.' : folder ? <>Project folder: <span className="mono" title={folder}>{folder}</span></> : 'A project folder is added.',
+      text: folderText(project, folder),
       button: 'Choose a folder',
       go: openFolderPanel,
     },
