@@ -912,9 +912,10 @@ def test_from_a_new_shell_a_cd_out_of_the_project_or_into_a_protected_folder_is_
     assert answers(copilot_native) == [("shell", APPROVE), ("shell", REJECT)]
 
 
-@pytest.mark.parametrize("told", [{"version": "1.0.107"}, {}, {"version": READ,
-                                                                "status_hang": True}],
-                         ids=["a-later-one", "another", "says-nothing"])
+@pytest.mark.parametrize("told", [
+    {"version": "1.0.107"}, {}, {"version": READ, "status_hang": True},
+    {"version": READ, "status_error": True}],
+    ids=["a-later-one", "another", "says-nothing", "refuses-to-say"])
 def test_on_a_copilot_whose_shell_was_not_read_work_in_the_scratch_is_still_a_card(
     told, copilot_native, wait_run, project_dir  # noqa: F811
 ):
