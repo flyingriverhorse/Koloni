@@ -104,7 +104,6 @@
   "src/shell/Toasts.tsx::news>flatMap": 20,
   "src/state/applyEvent.ts::applyEvent": 74,
   "src/state/applyEvent.ts::fromSnapshot": 15,
-  "src/state/store.ts::(anon)>openConversation>openEvents": 20,
   "src/tools/PasteServers.tsx::PasteServers": 13,
   "src/tools/PasteServers.tsx::PasteServers>map": 20,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,

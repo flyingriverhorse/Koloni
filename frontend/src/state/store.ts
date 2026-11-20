@@ -730,6 +730,66 @@ export const useApp = create<AppStore>()((set, get) => {
     )
   }
 
+  /** What an event of the open conversation says changed elsewhere: read again. */
+  function readAgainOn(type: string) {
+    // An agent added a role: the Agents page and the next spawn should know it.
+    if (type === 'role.created') void get().loadRoles().catch(() => {})
+    // A skill was added on your card, and given to roles.
+    if (type === 'skill.created') void Promise.all([get().loadRoles(), get().loadSkills()]).catch(() => {})
+    // The project's memory changed, here or in another conversation: if it is on
+    // screen it is read again. (By type: from elsewhere the event has no id.)
+    if (type === 'memory.changed' && get().memory) void get().loadMemory()
+    // So does its backlog: what waits there is counted on the board too.
+    if (type === 'backlog.changed') {
+      if (get().backlog) void get().loadBacklog()
+      void get().loadBoard()
+      // ...and so does a night while you're away (slice 106): its card here, the top bar.
+      void readCards().catch(() => {})
+      void get().loadAway().catch(() => {})
+      // The next task may have started by itself, in a conversation of its own.
+      void refreshConversations().catch(() => {})
+    }
+    // A trigger was made, changed, paused, came due or saw its turn end.
+    if (type === 'triggers.changed') {
+      void get().loadTriggers()
+      // ...and so may a trigger an agent proposed here (slice 69): its card.
+      void readProposals().catch(() => {})
+    }
+    // K-bilgi 6: a turn of the folder added to its Project notes offer, or one was answered.
+    if (type === 'notes.offered') void readNotesOffers().catch(() => {})
+    // Renamed (its first message names it): its tab keeps the new name once it is left.
+    if (type === 'conversation.updated') void refreshConversations().catch(() => {})
+  }
+
+  /** (Before the event is folded into the conversation: an agent is compared with what it was.) */
+  function readBoardOn(type: string, payload: unknown) {
+    // The board is read again when a file changes hands, a turn stops to ask or goes
+    // on, or an agent starts, ends or begins to wait - not for each thing an agent says.
+    const was = type === 'agent.updated' && get().conv?.agents.find(a => a.id === (payload as Agent).id)
+    const moved = was && (was.status !== (payload as Agent).status || was.waiting_for?.path !== (payload as Agent).waiting_for?.path)
+    if (moved || ['claims.changed', 'agent.created', 'run.updated', 'run.finished'].includes(type)) void get().loadBoard()
+  }
+
+  /** The window an event of the open conversation opens: an agent's own, a room's, a discussion's. */
+  function openWindowOn(type: string, payload: unknown) {
+    // An agent that works with its own tools shows its work in its own window.
+    if (type === 'agent.created') {
+      const started = payload as { id: string; provider_name: string | null }
+      const provider = get().providers.find(p => p.name === started.provider_name)
+      if (provider?.mode === 'native' || provider?.mode === 'reads') set({ agentWindowId: started.id })
+    }
+    // A room is something to watch too: its window opens over the canvas as it opens - the focus left where it is.
+    // (Another's window open - the user may be writing in it: the new one comes as a tab beside it.)
+    if (type === 'room.created') {
+      const roomId = (payload as { id: string }).id
+      set(s => ({ roomWindows: Object.values(s.roomWindows).includes('open') ? { ...s.roomWindows, [roomId]: 'small' } : withOpen(s.roomWindows, roomId) }))
+    }
+    // A discussion is something to watch: its shared place opens as it starts.
+    if (type === 'discussion.created') {
+      set({ discussionWindowId: (payload as { id: string }).id, agentWindowId: null, agentWindowRaw: false })
+    }
+  }
+
   return {
     ready: false,
     loadError: null,
@@ -1720,54 +1780,9 @@ export const useApp = create<AppStore>()((set, get) => {
         id,
         snapshot.last_event_id,
         (eventId, type, payload) => {
-          // An agent added a role: the Agents page and the next spawn should know it.
-          if (type === 'role.created') void get().loadRoles().catch(() => {})
-          // A skill was added on your card, and given to roles.
-          if (type === 'skill.created') void Promise.all([get().loadRoles(), get().loadSkills()]).catch(() => {})
-          // The project's memory changed, here or in another conversation: if it is on
-          // screen it is read again. (By type: from elsewhere the event has no id.)
-          if (type === 'memory.changed' && get().memory) void get().loadMemory()
-          // So does its backlog: what waits there is counted on the board too.
-          if (type === 'backlog.changed') {
-            if (get().backlog) void get().loadBacklog()
-            void get().loadBoard()
-            // ...and so does a night while you're away (slice 106): its card here, the top bar.
-            void readCards().catch(() => {})
-            void get().loadAway().catch(() => {})
-            // The next task may have started by itself, in a conversation of its own.
-            void refreshConversations().catch(() => {})
-          }
-          // A trigger was made, changed, paused, came due or saw its turn end.
-          if (type === 'triggers.changed') {
-            void get().loadTriggers()
-            // ...and so may a trigger an agent proposed here (slice 69): its card.
-            void readProposals().catch(() => {})
-          }
-          // K-bilgi 6: a turn of the folder added to its Project notes offer, or one was answered.
-          if (type === 'notes.offered') void readNotesOffers().catch(() => {})
-          // Renamed (its first message names it): its tab keeps the new name once it is left.
-          if (type === 'conversation.updated') void refreshConversations().catch(() => {})
-          // The board is read again when a file changes hands, a turn stops to ask or goes
-          // on, or an agent starts, ends or begins to wait - not for each thing an agent says.
-          const was = type === 'agent.updated' && get().conv?.agents.find(a => a.id === (payload as Agent).id)
-          const moved = was && (was.status !== (payload as Agent).status || was.waiting_for?.path !== (payload as Agent).waiting_for?.path)
-          if (moved || ['claims.changed', 'agent.created', 'run.updated', 'run.finished'].includes(type)) void get().loadBoard()
-          // An agent that works with its own tools shows its work in its own window.
-          if (type === 'agent.created') {
-            const started = payload as { id: string; provider_name: string | null }
-            const provider = get().providers.find(p => p.name === started.provider_name)
-            if (provider?.mode === 'native' || provider?.mode === 'reads') set({ agentWindowId: started.id })
-          }
-          // A room is something to watch too: its window opens over the canvas as it opens - the focus left where it is.
-          // (Another's window open - the user may be writing in it: the new one comes as a tab beside it.)
-          if (type === 'room.created') {
-            const roomId = (payload as { id: string }).id
-            set(s => ({ roomWindows: Object.values(s.roomWindows).includes('open') ? { ...s.roomWindows, [roomId]: 'small' } : withOpen(s.roomWindows, roomId) }))
-          }
-          // A discussion is something to watch: its shared place opens as it starts.
-          if (type === 'discussion.created') {
-            set({ discussionWindowId: (payload as { id: string }).id, agentWindowId: null, agentWindowRaw: false })
-          }
+          readAgainOn(type)
+          readBoardOn(type, payload)
+          openWindowOn(type, payload)
           set(s => {
             if (!s.conv || s.conv.conversation.id !== id) return s
             const conv = applyEvent(s.conv, eventId, type, payload)
