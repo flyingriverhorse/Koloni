@@ -111,6 +111,13 @@ const COSTS: Record<Paid, string> = {
 
 type AddProps = Pick<Props, 'onAdd' | 'onDraft' | 'onPlan' | 'providers'> & { drafter: BacklogAuto['drafter'] }
 
+/** Who writes the drafts and what that costs - or why nobody can, or that it is not read yet. */
+const whoWrites = (drafter: BacklogAuto['drafter'], asked: Provider | undefined) =>
+  drafter?.why ??
+  (asked
+    ? `${asked.name} (${drafter?.model_id ?? asked.default_model ?? 'its default model'}) writes them: ${COSTS[paidOf(asked)]}. Nothing is saved until you add it.`
+    : 'Who writes them is not read yet.')
+
 /** One line: a title, then Enter. The rest of the task opens under it once a title is typed; Esc closes it. What is typed may
  *  instead be written as tasks by a model (6 Nov), shown under it to change: each is added only by your word. */
 function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
@@ -123,11 +130,7 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
   const [by, setBy] = useState('')
   const note = [task.title, task.detail].map(part => part?.trim()).filter(Boolean).join('\n')
   const asked = providers.find(one => one.id === drafter?.provider_id)
-  const who =
-    drafter?.why ??
-    (asked
-      ? `${asked.name} (${drafter?.model_id ?? asked.default_model ?? 'its default model'}) writes them: ${COSTS[paidOf(asked)]}. Nothing is saved until you add it.`
-      : 'Who writes them is not read yet.')
+  const who = whoWrites(drafter, asked)
   function submit(event: FormEvent) {
     event.preventDefault()
     // Emptied only if nothing was typed since: the list shows the task before the add is through
@@ -153,6 +156,32 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
       }
     })
   const setDraft = (one: NewBacklogTask, next: NewBacklogTask) => setDrafts(now => now.map(kept => (kept === one ? next : kept)))
+  /** The rest of the task, opened under its title: its fields, Add task, and the ways to have it written or planned. */
+  const rest = () => (
+    <>
+      <MoreFields id="new-task" task={task} onTask={change} />
+      <div className="memory-actions">
+        <button type="submit" className="btn btn-small btn-primary" disabled={busy}>
+          Add task
+        </button>
+        {onDraft && (
+          <button type="button" className="btn btn-small" aria-describedby="draft-who" disabled={!asked || !!drafter?.why || drafting.busy} onClick={() => draft(onDraft)}>
+            {drafting.busy ? 'Writing…' : 'Write it with the Product owner'}
+          </button>
+        )}
+        {onPlan && (
+          <button type="button" className="btn btn-small" disabled={drafting.busy} onClick={() => void drafting.ask(() => onPlan(PLAN_ASK + note))}>
+            Plan it in a chat
+          </button>
+        )}
+      </div>
+      {onDraft && (
+        <p id="draft-who" className="muted">
+          {who}
+        </p>
+      )}
+    </>
+  )
   return (
     <>
       <form className="backlog-add" aria-label="Add a task" onSubmit={submit} onKeyDown={e => e.key === 'Escape' && setFolded(true)}>
@@ -171,31 +200,7 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
             onChange={e => change({ ...task, title: e.target.value })}
           />
         </div>
-        {task.title.trim() && !folded && (
-          <>
-            <MoreFields id="new-task" task={task} onTask={change} />
-            <div className="memory-actions">
-              <button type="submit" className="btn btn-small btn-primary" disabled={busy}>
-                Add task
-              </button>
-              {onDraft && (
-                <button type="button" className="btn btn-small" aria-describedby="draft-who" disabled={!asked || !!drafter?.why || drafting.busy} onClick={() => draft(onDraft)}>
-                  {drafting.busy ? 'Writing…' : 'Write it with the Product owner'}
-                </button>
-              )}
-              {onPlan && (
-                <button type="button" className="btn btn-small" disabled={drafting.busy} onClick={() => void drafting.ask(() => onPlan(PLAN_ASK + note))}>
-                  Plan it in a chat
-                </button>
-              )}
-            </div>
-            {onDraft && (
-              <p id="draft-who" className="muted">
-                {who}
-              </p>
-            )}
-          </>
-        )}
+        {task.title.trim() && !folded && rest()}
         {(error || drafting.error) && (
           <div role="alert" className="alert">
             {error ?? drafting.error}
@@ -587,6 +592,10 @@ interface RowProps {
   onOpen: Props['onOpen']
 }
 
+/** A task's second line: how it stands, where its tag does not say that already, and that a change to it waits. */
+const subLine = (state: ReturnType<typeof runState>, tag: string, pending: BacklogTask['pending']) =>
+  [state !== tag && state, pending && 'A change to it waits for you above'].filter(Boolean).join(' · ')
+
 function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDelete, onOpen }: RowProps) {
   const { busy, error, ask } = useAsk()
   const { open: menuOpen, setOpen: setMenuOpen, close: closeMenu, button: menuButton, panel: menuPanel } = usePanel()
@@ -599,7 +608,7 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
   const state = runState(task, listed)
   const [tag, tone] = stateTag(task)
   // Its second line: what the tag does not say already.
-  const sub = [state !== tag && state, task.pending && 'A change to it waits for you above'].filter(Boolean).join(' · ')
+  const sub = subLine(state, tag, task.pending)
   const [deleting, setDeleting] = useState(false)
   // "Keep it" was pressed: the ⋯ it brings back takes the focus.
   const [kept, setKept] = useState(false)
@@ -620,6 +629,71 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
   ]
   // Dropped on: the dragged task takes this one's place - and its priority, as the list is by priority first.
   const dropHere = dragged !== null && dragged.id !== task.id
+  /** The task being changed: its fields, what it waits for, Save and Cancel. */
+  const editForm = (editing: NewBacklogTask) => (
+    <form
+      className="memory-edit"
+      aria-label={`Edit ${task.title}`}
+      onSubmit={event => {
+        event.preventDefault()
+        void ask(() => onChange(task.id, { ...cleaned(editing), after: waits })).then(done => done && setEditing(null))
+      }}
+    >
+      <TaskFields id={id} task={editing} onTask={setEditing} />
+      {others.length > 0 && (
+        <div className="field">
+          <label htmlFor={`${id}-after`}>Waits for (it starts once these are done)</label>
+          <select
+            id={`${id}-after`}
+            className="input"
+            multiple
+            autoFocus={toWaits}
+            size={Math.min(4, others.length)}
+            value={waits}
+            onChange={e => setWaits(Array.from(e.target.selectedOptions, option => option.value))}
+          >
+            {others.map(one => (
+              <option key={one.id} value={one.id}>
+                {one.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div className="memory-actions">
+        <button type="submit" className="btn btn-small btn-primary" disabled={busy || !editing.title.trim()}>
+          Save
+        </button>
+        <button type="button" className="btn btn-small" onClick={() => setEditing(null)}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+  /** Under an opened task: what it says, an agent's view of it, and its status to set. */
+  const opened = () => (
+    <div className="backlog-more">
+      <Said task={task} />
+      {task.assessment && (
+        <div className="memory-side">
+          {/* An opinion, never a status: done is yours to say. */}
+          <span className="kicker">An agent’s view — an opinion, not a status</span>
+          <q className="memory-text backlog-pre">{task.assessment}</q>
+        </div>
+      )}
+      <div className="memory-actions">
+        <label className="visually-hidden" htmlFor={`${id}-status`}>{`Status of ${task.title}`}</label>
+        <select id={`${id}-status`} className="input backlog-status" value={task.status} disabled={busy || task.status === 'proposed'} onChange={e => change({ status: e.target.value as (typeof STATUSES)[number] })}>
+          {task.status === 'proposed' && <option value="proposed">proposed</option>}
+          {STATUSES.map(s => (
+            <option key={s} value={s}>
+              {STATUS_WORD[s]}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
 
   return (
     <li
@@ -636,44 +710,7 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
       }}
     >
       {editing ? (
-        <form
-          className="memory-edit"
-          aria-label={`Edit ${task.title}`}
-          onSubmit={event => {
-            event.preventDefault()
-            void ask(() => onChange(task.id, { ...cleaned(editing), after: waits })).then(done => done && setEditing(null))
-          }}
-        >
-          <TaskFields id={id} task={editing} onTask={setEditing} />
-          {others.length > 0 && (
-            <div className="field">
-              <label htmlFor={`${id}-after`}>Waits for (it starts once these are done)</label>
-              <select
-                id={`${id}-after`}
-                className="input"
-                multiple
-                autoFocus={toWaits}
-                size={Math.min(4, others.length)}
-                value={waits}
-                onChange={e => setWaits(Array.from(e.target.selectedOptions, option => option.value))}
-              >
-                {others.map(one => (
-                  <option key={one.id} value={one.id}>
-                    {one.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="memory-actions">
-            <button type="submit" className="btn btn-small btn-primary" disabled={busy || !editing.title.trim()}>
-              Save
-            </button>
-            <button type="button" className="btn btn-small" onClick={() => setEditing(null)}>
-              Cancel
-            </button>
-          </div>
-        </form>
+        editForm(editing)
       ) : (
         <div className="backlog-row">
           {/* Only the grip drags (by mouse); from the keyboard, ⋯'s Move up and Move down. */}
@@ -758,29 +795,7 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
           )}
         </div>
       )}
-      {open && !editing && (
-        <div className="backlog-more">
-          <Said task={task} />
-          {task.assessment && (
-            <div className="memory-side">
-              {/* An opinion, never a status: done is yours to say. */}
-              <span className="kicker">An agent’s view — an opinion, not a status</span>
-              <q className="memory-text backlog-pre">{task.assessment}</q>
-            </div>
-          )}
-          <div className="memory-actions">
-            <label className="visually-hidden" htmlFor={`${id}-status`}>{`Status of ${task.title}`}</label>
-            <select id={`${id}-status`} className="input backlog-status" value={task.status} disabled={busy || task.status === 'proposed'} onChange={e => change({ status: e.target.value as (typeof STATUSES)[number] })}>
-              {task.status === 'proposed' && <option value="proposed">proposed</option>}
-              {STATUSES.map(s => (
-                <option key={s} value={s}>
-                  {STATUS_WORD[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
+      {open && !editing && opened()}
       {error && (
         <div role="alert" className="alert">
           {error}
