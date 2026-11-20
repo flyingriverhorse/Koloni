@@ -5868,7 +5868,113 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._apart(child.cid, child.run_id, apart)
         self._in_recipe.discard(child.agent_id)
 
-    def _on_row(self, child: Ctx, heard: Callable[[dict, dict], None],  # noqa: C901
+    def _failure_card(self, child: Ctx, team: Team, step: RecipeStep, state: dict,
+                      offer: tuple[str, Provider, str | None] | None,
+                      cant: tuple[str, str | None, datetime | None] | None,
+                      full: bool) -> tuple | None:
+        """The card of a row's step that failed (`_row_on`); None where nobody is asked."""
+        # (A room is not tried again one member at a time: slice 84e.)
+        ask = (f"{team.name}: {step.name} failed ({child.name}). Skip it, or stop the "
+               f"{state['recipe']} recipe?", ["Skip", "Stop"]) if isinstance(
+            step.who, WhoRoom) else _cant_card(
+            team.name, step.name, child, cant, offer) if cant else (
+            f"{team.name}: {step.name} failed ({child.name}). Try it again, skip it, "
+            f"or stop the {state['recipe']} recipe?", ["Try again", "Skip", "Stop"])
+        if full and set(ask[1]) <= FAILED_WORDS:
+            # Where it could run elsewhere (money), at a reset or signed in again:
+            # the card, as before (`_cant_card`); Stop is the user's.
+            again = "Try again" in ask[1] and step.id not in state.get("retried", [])
+            if again or step.done_when != "no_findings":
+                ask = (ask[0], ["Try again" if again else "Skip"])
+            else:
+                # A check (review, tests...) is never skipped by KOLONİ's word: the
+                # work stands unchecked, and the user decides at Ready for you - as
+                # with findings left (`advance`); `unchecked` keeps Full auto from
+                # taking it in by itself (`_ready_for_you`).
+                ask = None
+                state["status"], state["unchecked"] = recipe_run.READY, True
+                state["why"] = (f"{step.name} failed ({child.name}), and nothing was "
+                                "checked")
+        return ask
+
+    def _part_over(self, state: dict, left: list, next_part: dict) -> str:
+        """A row's part is done and nobody is asked: it moves on (`_row_on`)."""
+        # (No other role to check it: its writer does, said on its node.)
+        for slot, _at, _roles in left:
+            recipe_run.checks(state, next_part["at"], slot, None)
+        state.pop("approved", None)
+        state.pop("words", None)  # (the user's for the part done: `_spawn_one`)
+        if (state.get("carried") or [None])[0] == state["at"]:
+            del state["carried"]
+        return recipe_run.advance(state)
+
+    def _row_on(self, child: Ctx, team: Team, state: dict, entry: dict, step: RecipeStep,
+                graph: RecipeGraph, there: tuple | None,
+                offer: tuple[str, Provider, str | None] | None,
+                cant: tuple[str, str | None, datetime | None] | None,
+                full: bool) -> tuple[str, tuple | None]:
+        """A row moved on as far as it goes without the user (`_on_row`, its state heard
+        already): what the child's opener is told of it, and the card to ask."""
+        said, ask = "", None
+        # (A failure where another agent filled its slot is no failure of the step, nor is
+        # one of a branch another was done before, or may still be: `gives_up`.)
+        failed = entry["ok"] is False and entry in state["here"] and not any(
+            e["slot"] == entry["slot"] and e["ok"] for e in state["here"]) and not (
+            isinstance(step.who, WhoCandidates) and any(
+                e["ok"] is None and e["step"] == step.id for e in recipe_run.at_work(state))
+        ) and step.id not in recipe_run.lost(state) and not recipe_run.gives_up(state, step.id)
+        if state["status"] != recipe_run.RUNNING:
+            pass
+        elif entry not in state["here"] and entry["ok"] is False:
+            said = f"Open {child.role} again for {step.name}." + (
+                f" KOLONİ opens it on {quoted(there[3])}, as the user chose: leave provider, "
+                "model and tier out." if there else "")
+        elif failed and step.if_fails == "stop":
+            state["status"] = recipe_run.FAILED
+            state["why"] = f"{step.name}: {child.name} failed"
+        elif failed:
+            ask = self._failure_card(child, team, step, state, offer, cant, full)
+        elif (words := state.pop("changes", None)) is not None:
+            # B-112: the user's own words at its Ask me - its step again, with them (their
+            # latest answer's alone: `_spawn_one`; a turn ended first, the next run's
+            # agents of this part: `recipe_run.carried`).
+            state.pop("carried", None)
+            if words:
+                state["words"] = words
+            else:
+                state.pop("words", None)
+            said = GOES_AGAIN.format(step=recipe_run.name_of(graph, state["at"]),
+                                     roles=", ".join(recipe_run.open_to(state)),
+                                     told=WORDS_TOLD if words else "")
+        elif (cand := recipe_run.pick_due(state)) is not None and entry["step"] == cand.id:
+            # (In a branch too: before the step after it opens - by its own agent's end.)
+            ask = self._pick_card(child.run_id, team.name, cand, state, full)
+        elif not recipe_run.complete(state):
+            said = ("Its branch is done first: KOLONİ stops the others' agents, and the step "
+                    "goes on once they have stopped." if recipe_run.lost(state) else
+                    "The step goes on once its other agents are done.")
+        elif state.get("approved") != state["at"] and any(
+                s.ask_me for s in recipe_run.steps_of(graph, state["at"])):
+            # (With the part's agents: their files are what the card's yes is bound to, G5.4.)
+            ask = (f"{team.name}: {recipe_run.name_of(graph, state['at'])} is done. Go on "
+                   f"with the {state['recipe']} recipe?", ASK_ME,
+                   [e["agent"] for e in state["here"]])
+        elif (left := recipe_run.unchecked(next_part := recipe_run.ahead(state))) and (
+                checkers := self._checkers(next_part)):
+            # (Batch-17: in place of the writer passing its own check unasked.)
+            _slot, at, roles = left[0]
+            writers = " and ".join([", ".join(roles[:-1]), roles[-1]] if roles[1:] else roles)
+            # (A card holds six choices; the rest the user may write.)
+            more = f" Or write one of: {', '.join(checkers[4:])}." if checkers[4:] else ""
+            ask = (f"{team.name}: {recipe_run.name_of(graph, at)}: nobody but {writers}, "
+                   f"who did the work, can check it. Who checks?{more}",
+                   [*checkers[:4], writers + (ITSELF if len(roles) == 1 else THEMSELVES),
+                    "Stop"])
+        else:
+            said = self._part_over(state, left, next_part)
+        return said, ask
+
+    def _on_row(self, child: Ctx, heard: Callable[[dict, dict], None],
                 offer: tuple[str, Provider, str | None] | None = None,
                 cant: tuple[str, str | None, datetime | None] | None = None,
                 full: bool = False) -> tuple[str, tuple | None]:
@@ -5882,7 +5988,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         instead - Try again once, then Skip (a room: Skip, slice 84e) -, as one option."""
         out: list = ["", None]
 
-        def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:  # noqa: C901
+        def how(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
             entry = recipe_run.entry_of(state, child.agent_id)
             if entry is None:
                 return False
@@ -5894,7 +6000,6 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if entry["ok"] is False and isinstance(step.who, WhoRoom) and any(
                     e.get("unchecked") and e["step"] == step.id for e in state["here"]):
                 entry["ok"], entry["found"], entry["unchecked"] = True, False, True
-            said, ask = "", None
             there = self._run_there.get((child.run_id, child.role.casefold()))
             # K-tarif-kol: a "first" group's branch is done - the others' agents are stopped, and
             # the group goes on once none is at work (`complete`): what they wrote stays in the
@@ -5908,90 +6013,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 gone = recipe_run.lost(state)
                 closing.extend(e["agent"] for e in recipe_run.at_work(state)
                                if e["ok"] is False and e["step"] in gone)
-            # (A failure where another agent filled its slot is no failure of the step, nor is
-            # one of a branch another was done before, or may still be: `gives_up`.)
-            failed = entry["ok"] is False and entry in state["here"] and not any(
-                e["slot"] == entry["slot"] and e["ok"] for e in state["here"]) and not (
-                isinstance(step.who, WhoCandidates) and any(
-                    e["ok"] is None and e["step"] == step.id for e in recipe_run.at_work(state))
-            ) and step.id not in recipe_run.lost(state) and not recipe_run.gives_up(state, step.id)
-            if state["status"] != recipe_run.RUNNING:
-                pass
-            elif entry not in state["here"] and entry["ok"] is False:
-                said = f"Open {child.role} again for {step.name}." + (
-                    f" KOLONİ opens it on {quoted(there[3])}, as the user chose: leave provider, "
-                    "model and tier out." if there else "")
-            elif failed and step.if_fails == "stop":
-                state["status"] = recipe_run.FAILED
-                state["why"] = f"{step.name}: {child.name} failed"
-            elif failed:
-                # (A room is not tried again one member at a time: slice 84e.)
-                ask = (f"{team.name}: {step.name} failed ({child.name}). Skip it, or stop the "
-                       f"{state['recipe']} recipe?", ["Skip", "Stop"]) if isinstance(
-                    step.who, WhoRoom) else _cant_card(
-                    team.name, step.name, child, cant, offer) if cant else (
-                    f"{team.name}: {step.name} failed ({child.name}). Try it again, skip it, "
-                    f"or stop the {state['recipe']} recipe?", ["Try again", "Skip", "Stop"])
-                if full and set(ask[1]) <= FAILED_WORDS:
-                    # Where it could run elsewhere (money), at a reset or signed in again:
-                    # the card, as before (`_cant_card`); Stop is the user's.
-                    again = "Try again" in ask[1] and step.id not in state.get("retried", [])
-                    if again or step.done_when != "no_findings":
-                        ask = (ask[0], ["Try again" if again else "Skip"])
-                    else:
-                        # A check (review, tests...) is never skipped by KOLONİ's word: the
-                        # work stands unchecked, and the user decides at Ready for you - as
-                        # with findings left (`advance`); `unchecked` keeps Full auto from
-                        # taking it in by itself (`_ready_for_you`).
-                        ask = None
-                        state["status"], state["unchecked"] = recipe_run.READY, True
-                        state["why"] = (f"{step.name} failed ({child.name}), and nothing was "
-                                        "checked")
-            elif (words := state.pop("changes", None)) is not None:
-                # B-112: the user's own words at its Ask me - its step again, with them (their
-                # latest answer's alone: `_spawn_one`; a turn ended first, the next run's
-                # agents of this part: `recipe_run.carried`).
-                state.pop("carried", None)
-                if words:
-                    state["words"] = words
-                else:
-                    state.pop("words", None)
-                said = GOES_AGAIN.format(step=recipe_run.name_of(graph, state["at"]),
-                                         roles=", ".join(recipe_run.open_to(state)),
-                                         told=WORDS_TOLD if words else "")
-            elif (cand := recipe_run.pick_due(state)) is not None and entry["step"] == cand.id:
-                # (In a branch too: before the step after it opens - by its own agent's end.)
-                ask = self._pick_card(child.run_id, team.name, cand, state, full)
-            elif not recipe_run.complete(state):
-                said = ("Its branch is done first: KOLONİ stops the others' agents, and the step "
-                        "goes on once they have stopped." if recipe_run.lost(state) else
-                        "The step goes on once its other agents are done.")
-            elif state.get("approved") != state["at"] and any(
-                    s.ask_me for s in recipe_run.steps_of(graph, state["at"])):
-                # (With the part's agents: their files are what the card's yes is bound to, G5.4.)
-                ask = (f"{team.name}: {recipe_run.name_of(graph, state['at'])} is done. Go on "
-                       f"with the {state['recipe']} recipe?", ASK_ME,
-                       [e["agent"] for e in state["here"]])
-            elif (left := recipe_run.unchecked(next_part := recipe_run.ahead(state))) and (
-                    checkers := self._checkers(next_part)):
-                # (Batch-17: in place of the writer passing its own check unasked.)
-                _slot, at, roles = left[0]
-                writers = " and ".join([", ".join(roles[:-1]), roles[-1]] if roles[1:] else roles)
-                # (A card holds six choices; the rest the user may write.)
-                more = f" Or write one of: {', '.join(checkers[4:])}." if checkers[4:] else ""
-                ask = (f"{team.name}: {recipe_run.name_of(graph, at)}: nobody but {writers}, "
-                       f"who did the work, can check it. Who checks?{more}",
-                       [*checkers[:4], writers + (ITSELF if len(roles) == 1 else THEMSELVES),
-                        "Stop"])
-            else:
-                # (No other role to check it: its writer does, said on its node.)
-                for slot, _at, _roles in left:
-                    recipe_run.checks(state, next_part["at"], slot, None)
-                state.pop("approved", None)
-                state.pop("words", None)  # (the user's for the part done: `_spawn_one`)
-                if (state.get("carried") or [None])[0] == state["at"]:
-                    del state["carried"]
-                said = recipe_run.advance(state)
+            said, ask = self._row_on(
+                child, team, state, entry, step, graph, there, offer, cant, full)
             opener = self._ctxs.get(child.parent_id or "")
             out[:] = [f"\n\n{self._where(team.name, state, bool(opener and _cli(opener)))}. "
                       f"{said}".rstrip(), ask]
