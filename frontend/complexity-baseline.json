@@ -32,7 +32,6 @@
   "src/models/ModelsPage.tsx::ModelsPage": 36,
   "src/models/ProviderConnection.tsx::CliNotes": 25,
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
-  "src/room/RoomWindow.tsx::RoomWindow": 42,
   "src/shell/FolderButton.tsx::FolderButton": 25,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,
   "src/tools/ToolsPage.tsx::ToolsPage": 22,

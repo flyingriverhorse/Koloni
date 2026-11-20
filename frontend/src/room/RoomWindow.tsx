@@ -139,6 +139,184 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
     </div>
   )
 
+  /** Its head: the goal, how it ended once over, paused while it is - and —, ×. */
+  const bar = () => (
+    <div className="changes-bar">
+      <UsersThree size={15} color="var(--tool-team)" />
+      <span className="changes-title room-title">Room · {room.goal}</span>
+      {!running && (
+        <span className={`tag ${allDone(state, room) ? 'tag-ok' : 'tag-warn'}`} title={roomLine(room)}>
+          {roomTag(state, room)}
+        </span>
+      )}
+      {/* (29c: said as it changes) */}
+      <span role="status">
+        {paused && (
+          <span className="tag tag-warn" title={roomLine(room)}>
+            paused
+          </span>
+        )}
+      </span>
+      <span className="changes-spacer" />
+      {running && (
+        <button type="button" className="icon-btn" aria-label="Make the room small" title="Make it small: a tab at the canvas's foot" onClick={onShrink}>
+          <Minus size={14} />
+        </button>
+      )}
+      <button type="button" className="icon-btn" aria-label="Close the room" title={running ? 'Close: while it runs it keeps its tab' : 'Close'} onClick={close}>
+        <X size={14} />
+      </button>
+    </div>
+  )
+
+  /** Who is in it and who opened it, who watches it, what it spent, and once over its line. */
+  const about = () => (
+    <section aria-label="The room">
+      <div className="mono muted">
+        {room.members.map(m => memberName(state, m)).join(' · ')} · opened by {room.agent_id ? nameIn(state, room.agent_id) : 'you'}
+      </div>
+      {watchedBy(state, room) && <div className="mono muted">{watchedBy(state, room)}</div>}
+      {showMembers && (
+        <div className="room-members">
+          {room.members.map((member, index) => (
+            <span key={member.agent_id ?? index} className="tag">
+              {memberTag(state, room, member)}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="mono room-spent" role="group" aria-label="Spent of its budget">
+        {spentLines(room).join(' · ')}
+      </div>
+      {!running && room.summary && <p className="room-summary" title={room.summary}>{room.summary}</p>}
+    </section>
+  )
+
+  /** The questions still open: while it runs, and once over as left unanswered. */
+  const openQuestions = () =>
+    open.length > 0 && (
+      <section aria-label={running ? 'Open questions' : 'Left unanswered'}>
+        <div className="kicker">{running ? 'Open questions' : 'Left unanswered'}</div>
+        {open.map(post => (
+          <div key={post.id} className="channel-message">
+            <div className="channel-head">
+              <span className="mono">
+                {post.number}. {nameIn(state, post.agent_id)}
+                {post.to_agent_id && ` to ${nameIn(state, post.to_agent_id)}`}
+              </span>
+            </div>
+            <div className="channel-body">{post.text}</div>
+          </div>
+        ))}
+      </section>
+    )
+
+  /* What its agents wait on you for, and what they said or left of their own work: they were opened by no call of the
+     lead's, so it is brought here - its only place - while the room runs and after. The box only while something waits. */
+  const asksBox = () => (
+    <div aria-label={asks ? 'Waits for you' : undefined} role={asks ? 'region' : undefined} className={asks ? 'room-ask' : 'room-asks'}>
+      {asks && <div className="kicker">Waits for you</div>}
+      {members.map(member => (
+        <SubtreeRequests key={member.id} root={member} state={state} on={on} known={{ roles, providers }} />
+      ))}
+      {invitedTo(state, room).map(agent => (
+        <SpawnApproval
+          key={agent.id}
+          agent={agent}
+          openedBy={nameIn(state, state.toolCalls.find(t => t.id === agent.tool_call_id)?.agent_id ?? null)}
+          stays={staysOn(state, agent, roles, providers)}
+          onDecide={decision => on.onDecideSpawn(agent.id, decision)}
+        />
+      ))}
+    </div>
+  )
+
+  /** Give it more: posts, tokens or minutes added to its limits, while it runs. */
+  const giveForm = () =>
+    running && giving && (
+      <form className="room-more" aria-label="Give it more" onSubmit={give}>
+        {MORE.map(key => (
+          <Fragment key={key}>
+            <label htmlFor={`more-${room.id}-${key}`}>More {key}</label>
+            <input
+              id={`more-${room.id}-${key}`}
+              className="input"
+              inputMode="numeric"
+              value={more[key]}
+              // A limit the room does not have stays none: there is nothing to add to.
+              disabled={room.budget[key] === null}
+              placeholder={room.budget[key] === null ? 'no limit' : ''}
+              onChange={e => setMore({ ...more, [key]: e.target.value })}
+            />
+          </Fragment>
+        ))}
+        <button type="submit" className="btn btn-small btn-primary" disabled={busy || !canGive}>
+          Add
+        </button>
+      </form>
+    )
+
+  /** While it runs: a word of yours, Give it more, Pause or Resume, and End. */
+  const sayForm = () =>
+    running && (
+      <form className="discussion-say" onSubmit={say}>
+        <input
+          className="input"
+          aria-label="Say something in the room"
+          placeholder="Say something…"
+          maxLength={1500}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+        />
+        <button type="submit" className="btn btn-small btn-primary" disabled={busy || !draft.trim()}>
+          Post
+        </button>
+        <button type="button" className="btn btn-small" aria-expanded={giving} onClick={() => setGiving(!giving)}>
+          Give it more
+        </button>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          title={paused ? 'Its members go on where they stopped' : 'Its members finish the step at hand, then post nothing and spend nothing until you resume it'}
+          onClick={() => void act(() => onPause(room.id, !paused))}
+        >
+          {paused ? 'Resume' : 'Pause'}
+        </button>
+        <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={() => void act(() => onEnd(room.id))}>
+          End
+        </button>
+      </form>
+    )
+
+  /** The switch that lets the Lead follow a room you opened. (A room an agent opened is followed - or not - by its own word.) */
+  const followSwitch = () =>
+    running && room.agent_id === null && (
+      <label className={`choice room-follow${room.lead_follows === 'stopped' ? ' choice-disabled' : ''}`} htmlFor={`follow-${room.id}`}>
+        <input
+          id={`follow-${room.id}`}
+          type="checkbox"
+          role="switch"
+          aria-label="Let the Orchestrator follow"
+          aria-describedby={`follow-${room.id}-line${FOLLOW_SHOWN[room.lead_follows] ? ` follow-${room.id}-shown` : ''}`}
+          checked={room.lead_follows === 'on'}
+          disabled={busy || room.lead_follows === 'stopped'}
+          onChange={e => void act(() => onFollow(room.id, e.target.checked))}
+        />
+        {/* (Its note behind ⓘ, but for what it spends or why it stopped - on the same line, one at a time: the switch
+            keeps to one line at the window's foot, B-195.) */}
+        <span>
+          Let the Orchestrator follow <Hint doc={GUIDE.roomWindow} id={`follow-${room.id}-line`}>{FOLLOW_NOTE[room.lead_follows]}</Hint>
+          {FOLLOW_SHOWN[room.lead_follows] && (
+            <span id={`follow-${room.id}-shown`} className="muted">
+              {' '}
+              {FOLLOW_SHOWN[room.lead_follows]}
+            </span>
+          )}
+        </span>
+      </label>
+    )
+
   return (
     <section
       ref={inFront}
@@ -149,53 +327,10 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
       className="changes room-window"
       onKeyDown={onKeyDown}
     >
-      <div className="changes-bar">
-        <UsersThree size={15} color="var(--tool-team)" />
-        <span className="changes-title room-title">Room · {room.goal}</span>
-        {!running && (
-          <span className={`tag ${allDone(state, room) ? 'tag-ok' : 'tag-warn'}`} title={roomLine(room)}>
-            {roomTag(state, room)}
-          </span>
-        )}
-        {/* (29c: said as it changes) */}
-        <span role="status">
-          {paused && (
-            <span className="tag tag-warn" title={roomLine(room)}>
-              paused
-            </span>
-          )}
-        </span>
-        <span className="changes-spacer" />
-        {running && (
-          <button type="button" className="icon-btn" aria-label="Make the room small" title="Make it small: a tab at the canvas's foot" onClick={onShrink}>
-            <Minus size={14} />
-          </button>
-        )}
-        <button type="button" className="icon-btn" aria-label="Close the room" title={running ? 'Close: while it runs it keeps its tab' : 'Close'} onClick={close}>
-          <X size={14} />
-        </button>
-      </div>
+      {bar()}
 
       <div className="agent-feed room-panel">
-        <section aria-label="The room">
-          <div className="mono muted">
-            {room.members.map(m => memberName(state, m)).join(' · ')} · opened by {room.agent_id ? nameIn(state, room.agent_id) : 'you'}
-          </div>
-          {watchedBy(state, room) && <div className="mono muted">{watchedBy(state, room)}</div>}
-          {showMembers && (
-            <div className="room-members">
-              {room.members.map((member, index) => (
-                <span key={member.agent_id ?? index} className="tag">
-                  {memberTag(state, room, member)}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="mono room-spent" role="group" aria-label="Spent of its budget">
-            {spentLines(room).join(' · ')}
-          </div>
-          {!running && room.summary && <p className="room-summary" title={room.summary}>{room.summary}</p>}
-        </section>
+        {about()}
 
         {fromYou.length > 0 && (
           <section aria-label="From you" className="room-ask">
@@ -254,63 +389,11 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
           </details>
         )}
 
-        {open.length > 0 && (
-          <section aria-label={running ? 'Open questions' : 'Left unanswered'}>
-            <div className="kicker">{running ? 'Open questions' : 'Left unanswered'}</div>
-            {open.map(post => (
-              <div key={post.id} className="channel-message">
-                <div className="channel-head">
-                  <span className="mono">
-                    {post.number}. {nameIn(state, post.agent_id)}
-                    {post.to_agent_id && ` to ${nameIn(state, post.to_agent_id)}`}
-                  </span>
-                </div>
-                <div className="channel-body">{post.text}</div>
-              </div>
-            ))}
-          </section>
-        )}
+        {openQuestions()}
 
-        {/* What its agents wait on you for, and what they said or left of their own work: they were opened by no call of the
-            lead's, so it is brought here - its only place - while the room runs and after. The box only while something waits. */}
-        <div aria-label={asks ? 'Waits for you' : undefined} role={asks ? 'region' : undefined} className={asks ? 'room-ask' : 'room-asks'}>
-          {asks && <div className="kicker">Waits for you</div>}
-          {members.map(member => (
-            <SubtreeRequests key={member.id} root={member} state={state} on={on} known={{ roles, providers }} />
-          ))}
-          {invitedTo(state, room).map(agent => (
-            <SpawnApproval
-              key={agent.id}
-              agent={agent}
-              openedBy={nameIn(state, state.toolCalls.find(t => t.id === agent.tool_call_id)?.agent_id ?? null)}
-              stays={staysOn(state, agent, roles, providers)}
-              onDecide={decision => on.onDecideSpawn(agent.id, decision)}
-            />
-          ))}
-        </div>
+        {asksBox()}
 
-        {running && giving && (
-          <form className="room-more" aria-label="Give it more" onSubmit={give}>
-            {MORE.map(key => (
-              <Fragment key={key}>
-                <label htmlFor={`more-${room.id}-${key}`}>More {key}</label>
-                <input
-                  id={`more-${room.id}-${key}`}
-                  className="input"
-                  inputMode="numeric"
-                  value={more[key]}
-                  // A limit the room does not have stays none: there is nothing to add to.
-                  disabled={room.budget[key] === null}
-                  placeholder={room.budget[key] === null ? 'no limit' : ''}
-                  onChange={e => setMore({ ...more, [key]: e.target.value })}
-                />
-              </Fragment>
-            ))}
-            <button type="submit" className="btn btn-small btn-primary" disabled={busy || !canGive}>
-              Add
-            </button>
-          </form>
-        )}
+        {giveForm()}
       </div>
       {/* (Over the buttons: a refusal coming does not move them from under the pointer, B-195.) */}
       {error && (
@@ -318,62 +401,8 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
           {error}
         </div>
       )}
-      {running && (
-        <form className="discussion-say" onSubmit={say}>
-          <input
-            className="input"
-            aria-label="Say something in the room"
-            placeholder="Say something…"
-            maxLength={1500}
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-          />
-          <button type="submit" className="btn btn-small btn-primary" disabled={busy || !draft.trim()}>
-            Post
-          </button>
-          <button type="button" className="btn btn-small" aria-expanded={giving} onClick={() => setGiving(!giving)}>
-            Give it more
-          </button>
-          <button
-            type="button"
-            className="btn btn-small"
-            disabled={busy}
-            title={paused ? 'Its members go on where they stopped' : 'Its members finish the step at hand, then post nothing and spend nothing until you resume it'}
-            onClick={() => void act(() => onPause(room.id, !paused))}
-          >
-            {paused ? 'Resume' : 'Pause'}
-          </button>
-          <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={() => void act(() => onEnd(room.id))}>
-            End
-          </button>
-        </form>
-      )}
-      {/* (A room an agent opened is followed - or not - by its own word.) */}
-      {running && room.agent_id === null && (
-        <label className={`choice room-follow${room.lead_follows === 'stopped' ? ' choice-disabled' : ''}`} htmlFor={`follow-${room.id}`}>
-          <input
-            id={`follow-${room.id}`}
-            type="checkbox"
-            role="switch"
-            aria-label="Let the Orchestrator follow"
-            aria-describedby={`follow-${room.id}-line${FOLLOW_SHOWN[room.lead_follows] ? ` follow-${room.id}-shown` : ''}`}
-            checked={room.lead_follows === 'on'}
-            disabled={busy || room.lead_follows === 'stopped'}
-            onChange={e => void act(() => onFollow(room.id, e.target.checked))}
-          />
-          {/* (Its note behind ⓘ, but for what it spends or why it stopped - on the same line, one at a time: the switch
-              keeps to one line at the window's foot, B-195.) */}
-          <span>
-            Let the Orchestrator follow <Hint doc={GUIDE.roomWindow} id={`follow-${room.id}-line`}>{FOLLOW_NOTE[room.lead_follows]}</Hint>
-            {FOLLOW_SHOWN[room.lead_follows] && (
-              <span id={`follow-${room.id}-shown`} className="muted">
-                {' '}
-                {FOLLOW_SHOWN[room.lead_follows]}
-              </span>
-            )}
-          </span>
-        </label>
-      )}
+      {sayForm()}
+      {followSwitch()}
     </section>
   )
 }

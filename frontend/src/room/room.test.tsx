@@ -131,6 +131,50 @@ test('a running room is a window of its own: its topic, who is in it and how eac
   expect(window).not.toHaveTextContent('done ·')
 })
 
+test('running: ×’s title, nothing listed or said yet, no box while nothing waits, Pause’s title, a follow that stopped', () => {
+  const bare = convState({ ...state, rooms: [room({ lead_follows: 'stopped' })], roomItems: [], roomPosts: [] })
+  const { container } = panel(bare)
+  expect(screen.getByRole('button', { name: 'Close the room' })).toHaveAttribute('title', 'Close: while it runs it keeps its tab')
+  expect(container.querySelector('.room-members')).toHaveTextContent('Coder · at work')
+  expect(screen.getByRole('region', { name: 'Items' })).toHaveTextContent(/^Nothing is on the list yet\.$/)
+  const talk = container.querySelectorAll('details.room-fold')
+  expect(talk).toHaveLength(1)
+  expect(talk[0]).toHaveAttribute('open')
+  expect(talk[0]).toHaveTextContent(/^Said in the room 0 messagesNothing has been said yet\.$/)
+  expect(screen.queryByRole('region', { name: 'Open questions' })).toBeNull()
+  expect(container.querySelector('.room-asks')).not.toHaveAttribute('role')
+  expect(screen.getByRole('button', { name: 'Pause' })).toHaveAttribute('title', 'Its members finish the step at hand, then post nothing and spend nothing until you resume it')
+  const follow = screen.getByRole('switch', { name: 'Let the Orchestrator follow' })
+  expect(follow).toBeDisabled()
+  expect(follow).toHaveAttribute('aria-describedby', 'follow-o-line follow-o-shown')
+  expect(follow.closest('label')).toHaveAttribute('class', 'choice room-follow choice-disabled')
+  expect(screen.getByText('Stopped: answered, few steps left, or a CLI session.')).toHaveAttribute('id', 'follow-o-shown')
+})
+
+test('over: ×’s title, a member who left, a dropped item and one with nothing more, one message, a question left unanswered', () => {
+  const over = convState({
+    ...state,
+    rooms: [room({ status: 'ended', outcome: 'agreed', members: [{ agent_id: 'coder', role: 'Coder', status: 'done' }, { agent_id: 'rev', role: 'Reviewer', status: 'left' }] })],
+    roomItems: [item(1, 'Change the greeting', { paths: ['hello.py'], holder_agent_id: 'coder', status: 'dropped' }), item(2, 'Write the notes', { status: 'done' })],
+    roomPosts: [post(1, 'coder', 'question', 'Which greeting?', { to_agent_id: 'rev', open: true })],
+  })
+  const { container } = panel(over)
+  expect(screen.getByRole('button', { name: 'Close the room' })).toHaveAttribute('title', 'Close')
+  expect(screen.queryByRole('button', { name: 'Make the room small' })).toBeNull()
+  // (Not every item done: the warning colour.)
+  expect(container.querySelector('.changes-bar .tag')).toHaveAttribute('class', 'tag tag-warn')
+  expect(container.querySelector('.room-members')).toHaveTextContent('Reviewer · left')
+  const [dropped, notes] = Array.from(container.querySelectorAll('details.room-item'))
+  expect(dropped).toHaveTextContent(/^✗ dropped1\. Change the greetingCoderhello\.py$/)
+  expect(notes).toHaveTextContent(/^✓ done2\. Write the notesNothing more on it\.$/)
+  const talk = container.querySelector('details.room-fold')
+  expect(talk).not.toHaveAttribute('open')
+  expect(talk?.querySelector('.room-fold-count')).toHaveTextContent(/^1 message$/)
+  expect(screen.getByRole('region', { name: 'Left unanswered' })).toHaveTextContent(/^Left unanswered1\. Coder to ReviewerWhich greeting\?$/)
+  expect(screen.queryByRole('switch')).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'Say something in the room' })).toBeNull()
+})
+
 test('29c: a running room is paused and resumed beside Give it more and End; paused, its head and its tab say so', async () => {
   const onPause = vi.fn(async () => {})
   panel(state, { onPause })
