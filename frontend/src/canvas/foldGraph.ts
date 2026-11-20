@@ -28,8 +28,10 @@ function opens(node: GraphNode, folds: Folds): boolean {
 }
 
 /**
- * The graph as it is drawn: what sits inside a closed group is left out, and so is any
- * line to it. (Which turn is drawn is decided before: the canvas hands in one turn's graph.)
+ * The graph as it is drawn: what sits inside a closed group is left out, and a line to it is
+ * drawn to the group - a folded frame (talk, a lane member), a folded round or a closed box of
+ * files (its lines, one of a kind each way) - or left out. (Which turn is drawn is decided
+ * before: the canvas hands in one turn's graph.)
  */
 export function foldGraph(graph: Graph, folds: Folds): Graph {
   const shut = new Set<string>() // closed groups, and everything hidden inside them
