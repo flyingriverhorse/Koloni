@@ -581,14 +581,17 @@ class DiscussionsMixin:
                         cut = True
                         work.cancel()
                         await asyncio.gather(work, return_exceptions=True)
+                        # Here, not after: cut off from above too (its opener's call given up
+                        # on), when nothing else closes them in a turn that completes.
+                        with contextlib.suppress(Exception):
+                            self._interrupt_open_calls(
+                                member.run_id, member.cid, member.agent_id, only=turn.own_calls
+                            )
             finally:
                 # It only spoke: it is what it was, also when it was cut off.
                 self._answering.pop(member.agent_id, None)
                 self._set_agent(member.cid, member.agent_id, status=previous)
             if cut:
-                self._interrupt_open_calls(
-                    member.run_id, member.cid, member.agent_id, only=turn.own_calls
-                )
                 return None
             status, error = work.result()
             with self._factory() as session:

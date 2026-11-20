@@ -29,7 +29,7 @@ How to write an entry (every release looks the same):
 
 ### Fixed
 
-- **Canvas**, **Chat**: a discussion whose Orchestrator gave up waiting for it (a CLI that stops a tool call it has waited on too long), or that broke off with an error, no longer shows as running for good: it ends as **Stopped**, and its call as interrupted, as when you press Stop.
+- **Canvas**, **Chat**: a discussion whose Orchestrator gave up waiting for it (a CLI that stops a tool call it has waited on too long), or that broke off with an error, no longer shows as running for good: it ends as **Stopped** (one given up on also has its call shown as interrupted, as when you press Stop).
 
 ## [0.1.2] - 2026-11-20
 

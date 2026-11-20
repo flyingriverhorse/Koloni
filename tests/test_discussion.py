@@ -3,6 +3,7 @@
 import asyncio
 import json
 import sqlite3
+import threading
 from types import SimpleNamespace
 
 from alembic import command
@@ -294,12 +295,20 @@ class GivesUp(ScriptedModel):
     def __init__(self):
         super().__init__([])
         self.speaking = asyncio.Event()
+        self.release = threading.Event()
+
+    def recalls(self, ctx, args):
+        """The Reviewer's `recall`, run in a thread: held until the test lets it go."""
+        self.loop.call_soon_threadsafe(self.speaking.set)
+        self.release.wait(scaled(60))
+        return "nothing kept"
 
     async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None,
                           **_more):
+        self.loop = asyncio.get_running_loop()
         if "You are in a discussion" in str(messages):
-            self.speaking.set()
-            await asyncio.sleep(scaled(60))  # (cut off with the call)
+            # (cut off with the discuss call while its own call runs)
+            await call_tool("recall", json.dumps({"query": "go"}))
         else:
             asked = asyncio.ensure_future(call_tool("discuss", json.dumps(
                 {"topic": "Go?", "with": ["Reviewer"], "rounds": 2})))
@@ -317,7 +326,8 @@ def test_a_discussion_whose_call_its_cli_gave_up_on_is_not_left_running(
 ):
     # (Measured 20 Nov, Codex as the Lead: its discuss call given up on in round 1, the turn
     # completed - and the discussion and its call stayed "running" for good.)
-    with TestClient(create_app(load_settings(settings_env), model=GivesUp()),
+    model = GivesUp()
+    with TestClient(create_app(load_settings(settings_env), model=model),
                     base_url="http://127.0.0.1:8790") as client:
         told, emit = [], client.app.state.bus.emit
 
@@ -327,14 +337,19 @@ def test_a_discussion_whose_call_its_cli_gave_up_on_is_not_left_running(
             return emit(conversation_id, run_id, kind, payload)
 
         client.app.state.bus.emit = watched
+        client.app.state.runner._recall = model.recalls
         cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
-        snap = wait_run(client, cid, run_id)
+        try:
+            snap = wait_run(client, cid, run_id)
+        finally:
+            model.release.set()
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (talk,) = snap["discussions"]
     assert (talk["status"], talk["outcome"]) == ("cancelled", None) and talk["ended_at"], talk
     assert told[-1:] == ["cancelled"]  # (an open discussion window and the canvas are told)
-    (asked,) = [t for t in snap["tool_calls"] if t["name"] == "discuss"]
-    assert (asked["status"], bool(asked["ended_at"])) == ("interrupted", True), asked
+    calls = {t["name"]: (t["status"], bool(t["ended_at"])) for t in snap["tool_calls"]}
+    # nor the Reviewer's own call it was cut off in: no Stop closes it in a turn that completed
+    assert calls == {"discuss": ("interrupted", True), "recall": ("interrupted", True)}, calls
     assert statuses(snap)["Reviewer"] == "cancelled"
 
 
@@ -565,6 +580,8 @@ def test_a_discussion_that_breaks_leaves_none_it_opened_waiting(make_client, wai
     snap = wait_run(client, cid, run_id)
     assert [(a["name"], a["status"]) for a in snap["agents"][1:]] == [
         ("Reviewer", "failed"), ("Researcher", "failed")]
-    # nor the discussion "running": it is over, as one cut short is
+    # nor the discussion "running": it is over, as one cut short is; its call failed (not cut off)
     (talk,) = snap["discussions"]
     assert (talk["status"], talk["outcome"]) == ("cancelled", None) and talk["ended_at"], talk
+    (asked,) = [t for t in snap["tool_calls"] if t["name"] == "discuss"]
+    assert (asked["status"], bool(asked["ended_at"])) == ("failed", True), asked
