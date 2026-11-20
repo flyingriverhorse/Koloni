@@ -1869,25 +1869,13 @@ class RoomsMixin:
             )
         return (content or "").strip()
 
-    async def _create_role(self: "AgentRunner", ctx: Ctx, call_id: str,  # noqa: C901
+    async def _create_role(self: "AgentRunner", ctx: Ctx, call_id: str,
                            args: dict) -> tuple[str, str]:
         """Add a role to the user's list; in ask mode only after they agree."""
         description, instructions = args.get("description", ""), args.get("instructions", "")
         if not isinstance(description, str) or not isinstance(instructions, str):
             raise ToolError("description and instructions must be strings")
-        try:
-            name = check_name(args.get("name"))
-            tools = check_tools(args.get("tools", []))
-            # K-uzman: an expert - what it knows and where it reads it; it reads only.
-            known = None if args.get("sources") is None and args.get("knows") is None else (
-                knowledge.checked(Knowledge.model_validate(
-                    {"topic": args.get("knows") or name, "sources": args.get("sources") or []}
-                ).model_dump()))
-            expert_tools(tools, known)
-        except ValidationError as exc:
-            raise ToolError(f"knows and sources: {exc.errors()[0]['msg']}") from None
-        except ValueError as exc:
-            raise ToolError(str(exc)) from None
+        name, tools, known = self._create_role_args(args)
         # An address it is to read is one more GET of this agent's, a topic to research one more
         # search too: only one that makes them, and the user is shown it below Full auto (the
         # card lists the sources).
@@ -1915,25 +1903,7 @@ class RoomsMixin:
                 "name": name, "description": description.strip(),
                 "instructions": instructions.strip(), "tools": tools, "knowledge": known,
             }
-            future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
-            self._role_requests[call_id] = (ctx.cid, proposal, future)
-            self.bus.emit(ctx.cid, ctx.run_id, "role_request.created", proposal)
-            self._update_run(ctx.run_id, ctx.cid, status="waiting_approval")
-
-            def resolved(*_heard) -> None:
-                # Once, and the moment the user has spoken: the agent may stand in line
-                # for a place before it goes on, and the card is not left to be decided
-                # a second time.
-                if self._role_requests.pop(call_id, None) is not None:
-                    self.bus.emit(
-                        ctx.cid, ctx.run_id, "role_request.resolved", {"tool_call_id": call_id}
-                    )
-
-            try:
-                decision = await self._users_word(ctx, future, resolved)
-            finally:
-                resolved()
-                self._update_run(ctx.run_id, ctx.cid, status="running")
+            decision = await self._create_role_card(ctx, call_id, proposal)
             if decision == "reject":
                 return "denied", ROLE_REJECTED.format(name=name)
 
@@ -1968,6 +1938,47 @@ class RoomsMixin:
             opened += (" It is an expert: it learns its sources when it is asked to (learn), or "
                        "on its Knowledge tab.")
         return "succeeded", f'created role "{name}" with tools: {", ".join(tools)}. {opened}'
+
+    def _create_role_args(self: "AgentRunner", args: dict) -> tuple[str, list[str], dict | None]:
+        """`_create_role`'s name, tools and what it knows, as they were checked."""
+        try:
+            name = check_name(args.get("name"))
+            tools = check_tools(args.get("tools", []))
+            # K-uzman: an expert - what it knows and where it reads it; it reads only.
+            known = None if args.get("sources") is None and args.get("knows") is None else (
+                knowledge.checked(Knowledge.model_validate(
+                    {"topic": args.get("knows") or name, "sources": args.get("sources") or []}
+                ).model_dump()))
+            expert_tools(tools, known)
+        except ValidationError as exc:
+            raise ToolError(f"knows and sources: {exc.errors()[0]['msg']}") from None
+        except ValueError as exc:
+            raise ToolError(str(exc)) from None
+        return name, tools, known
+
+    async def _create_role_card(self: "AgentRunner", ctx: Ctx, call_id: str,
+                                proposal: dict) -> str:
+        """`_create_role`'s card: the role put before the user, and their word on it."""
+        future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+        self._role_requests[call_id] = (ctx.cid, proposal, future)
+        self.bus.emit(ctx.cid, ctx.run_id, "role_request.created", proposal)
+        self._update_run(ctx.run_id, ctx.cid, status="waiting_approval")
+
+        def resolved(*_heard) -> None:
+            # Once, and the moment the user has spoken: the agent may stand in line
+            # for a place before it goes on, and the card is not left to be decided
+            # a second time.
+            if self._role_requests.pop(call_id, None) is not None:
+                self.bus.emit(
+                    ctx.cid, ctx.run_id, "role_request.resolved", {"tool_call_id": call_id}
+                )
+
+        try:
+            decision = await self._users_word(ctx, future, resolved)
+        finally:
+            resolved()
+            self._update_run(ctx.run_id, ctx.cid, status="running")
+        return decision
 
     def _mapped(self: "AgentRunner", ctx: Ctx) -> list[dict]:
         """K-bilgi part 4: the knowledge its role uses as a map where it works."""
