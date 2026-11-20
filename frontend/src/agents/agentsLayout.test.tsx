@@ -583,6 +583,26 @@ test('a stage’s "New role…" makes a role in that team beside the teams, and 
   await vi.waitFor(() => expect(h.teamActions.placeRole).toHaveBeenCalledWith('web', 's', 'web-0'))
 })
 
+test('a role panel’s head: on or off, made by an agent, how a team’s lead is shown; a role with no team to go in says so', async () => {
+  const scout = role({ id: 'x', name: 'Scout', kind: 'build', builtin: false, enabled: false, created_by_agent: true })
+  const { unmount } = render(<AgentsPage roles={[lead, scout]} {...handlers()} />)
+  await userEvent.click(within(library()).getByRole('button', { name: /^Scout/ }))
+  let panel = screen.getByRole('complementary', { name: 'Role Scout' })
+  expect(panel.querySelector('h2 .tag')).toHaveTextContent(/^off$/)
+  expect(panel.querySelector('h2 .tag')?.className).toBe('tag')
+  expect(panel.querySelector('.role-panel-head .tag-accent')).toHaveTextContent('Created by an agent')
+  expect(panel).not.toHaveTextContent('— shown as')
+  expect(panel).toHaveTextContent('In teamsNo team yet')
+  expect(within(panel).queryByRole('combobox', { name: 'Put Scout in a team' })).toBeNull()
+  unmount()
+  render(<AgentsPage roles={[lead, coder]} teams={teams} {...handlers()} />)
+  await userEvent.click(within(await openTeam('Web app')).getByRole('button', { name: 'Web app lead: Instructions' }))
+  panel = screen.getByRole('complementary', { name: 'Role Web app lead' })
+  expect(panel.querySelector('.role-panel-head')).toHaveTextContent('— shown as Web app coordinator')
+  expect(panel.querySelector('h2 .tag')).toBeNull()
+  expect(panel.querySelector('.tag-accent')).toBeNull()
+})
+
 test('a copy made from a stage’s "New role…" goes in that team too', async () => {
   const h = handlers()
   render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...h} />)
