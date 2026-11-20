@@ -14,6 +14,14 @@ interface Props {
   onDecide: (decision: 'approve' | 'reject', text?: string, overBudget?: boolean) => Promise<void>
 }
 
+/** A plan that was decided, on record: approved, or rejected with why. */
+const decided = (plan: NonNullable<Run['plan']>) => (
+  <div role="note" className="muted cmd-approval-note">
+    {plan.status === 'approved' ? 'Plan approved: its work starts as a new turn.' : `Plan rejected${plan.why ? `: ${plan.why}` : '.'}`}
+    <div className="mono">{plannedBy(plan)}</div>
+  </div>
+)
+
 /**
  * Under a plan turn: the plan it wrote (shown above, as the Lead's answer) put before the
  * user - approved as it is or edited, or turned down with why. Decided, it stays on record.
@@ -38,14 +46,7 @@ export function PlanCard({ run, stale = false, onDecide }: Props) {
       </div>
     )
   }
-  if (plan.status !== 'proposed') {
-    return (
-      <div role="note" className="muted cmd-approval-note">
-        {plan.status === 'approved' ? 'Plan approved: its work starts as a new turn.' : `Plan rejected${plan.why ? `: ${plan.why}` : '.'}`}
-        <div className="mono">{plannedBy(plan)}</div>
-      </div>
-    )
-  }
+  if (plan.status !== 'proposed') return decided(plan)
 
   async function decide(decision: 'approve' | 'reject', text?: string, overBudget = false) {
     setBusy(true)
@@ -62,6 +63,34 @@ export function PlanCard({ run, stale = false, onDecide }: Props) {
     }
   }
 
+  /** The user's words to a plan: Approve (as it is, or edited), Edit, Reject - a plan gone stale can only be rejected. */
+  const words = (text: string) => (
+    <div className="change-actions">
+      {!stale && (
+        <button
+          ref={approveButton}
+          type="button"
+          className="btn btn-small btn-primary"
+          disabled={busy || editing?.trim() === ''}
+          onClick={() => decide('approve', editing ?? undefined)}
+        >
+          <Check size={13} />
+          {editing !== null ? 'Approve edited plan' : 'Approve'}
+        </button>
+      )}
+      {editing === null && !stale && (
+        <button type="button" className="btn btn-small" disabled={busy} onClick={() => setEditing(text)}>
+          <PencilSimple size={13} />
+          Edit
+        </button>
+      )}
+      <button type="button" className="btn btn-small" disabled={busy} onClick={() => (why === null ? setWhy('') : decide('reject', why.trim() || undefined))}>
+        <X size={13} />
+        {why === null ? 'Reject' : 'Reject plan'}
+      </button>
+    </div>
+  )
+
   return (
     <div className="cmd-approval">
       <div className="kicker cmd-approval-kicker">{stale ? 'This plan was not decided' : 'Approve this plan?'}</div>
@@ -76,30 +105,7 @@ export function PlanCard({ run, stale = false, onDecide }: Props) {
       {why !== null && (
         <input autoFocus className="input" aria-label="Why not (optional)" placeholder="Why not, in a sentence (optional)" maxLength={500} value={why} disabled={busy} onChange={e => setWhy(e.target.value)} />
       )}
-      <div className="change-actions">
-        {!stale && (
-          <button
-            ref={approveButton}
-            type="button"
-            className="btn btn-small btn-primary"
-            disabled={busy || editing?.trim() === ''}
-            onClick={() => decide('approve', editing ?? undefined)}
-          >
-            <Check size={13} />
-            {editing !== null ? 'Approve edited plan' : 'Approve'}
-          </button>
-        )}
-        {editing === null && !stale && (
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => setEditing(plan.text)}>
-            <PencilSimple size={13} />
-            Edit
-          </button>
-        )}
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => (why === null ? setWhy('') : decide('reject', why.trim() || undefined))}>
-          <X size={13} />
-          {why === null ? 'Reject' : 'Reject plan'}
-        </button>
-      </div>
+      {words(plan.text)}
       {error && (
         <div role="alert" className="alert">
           {error}
