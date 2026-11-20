@@ -398,6 +398,7 @@ from app.tools import (
     WEB_SCHEMAS,
     WRITE_TOOLS,
     AlreadyApplied,
+    PlannedChange,
     ToolError,
     parse_arguments,
     plan_command,
@@ -7398,7 +7399,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 )
             raise
 
-    async def _write(  # noqa: C901
+    async def _write(
         self, ctx: Ctx, ws: Workspace, call_id: str, name: str, args: dict
     ) -> tuple[str, str]:
         """Record a file change, get it decided (ask mode) and apply it.
@@ -7422,23 +7423,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             planned = plan_write(ws, name, args)
         except AlreadyApplied as exc:
             return "succeeded", str(exc)
-        # A file outside the project is written where it is: a copy has none of it, and
-        # no room's item covers it (the user said yes to it, on its card).
-        # shortcut: and no claim holds it (claims are of project files) - two agents may
-        # write it at once; claim it by its full path if that is ever seen.
-        outside = Path(planned.path).is_absolute()
-        if not outside and (kept := self._keeps_out(
-                ctx, path=planned.path, what=f"{name} {planned.path}")):
-            raise ToolError(kept)
-        # In a room: only under an item of one's own - before the file is waited for.
-        if not outside:
-            self._under_an_item(ctx, planned.path)
-        # K-buyuk-proje: not another part's, in a copy of one part (made or about to be) - before
-        # the file is waited for, so a refused write holds no file.
-        part = None if outside else self._copy_part(self._works_in(ctx))
-        if part is not None and not copies._holds(part, planned.path, Path(ctx.folder)):
-            raise ToolError(NOT_IN_THE_PART.format(
-                path=planned.path, part=part, project=ctx.folder))
+        outside = self._write_place(ctx, name, planned)
         # The file is this agent's from here until its work is over - through the
         # user's decision too, where one is asked for. Held by another agent, the call
         # waits here, before any change is put on record.
@@ -7449,15 +7434,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         owner = self._works_in(ctx)
         copy = await self._working_copy(ctx, owner) if owner and not outside else None
         if copy is not None:
-            ws = copy.workspace()
-            # Not what would never reach the project: a folder shared with it, or one
-            # that is left out of a copy.
-            parts = planned.path.split("/")
-            left_out = copies.under(parts, copies.NOT_COPIED)
-            if left_out:
-                raise ToolError(NOT_IN_A_COPY.format(path=planned.path, name=left_out))
-            if not ws.is_own(ws.resolve(planned.path)) or copies.under(parts, copies.LINKED):
-                raise ToolError(SHARED_WITH_PROJECT.format(path=planned.path))
+            ws = self._copy_ws(copy, planned)
         read = self._has_seen(ctx, planned.path)
         # Not written over what another agent left: the agent looks first. After a wait
         # that goes for every change; without one, for a whole write of a file the agent
@@ -7493,7 +7470,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             mode = session.get_one(Conversation, cid).permission_mode
         self.bus.emit(cid, run_id, "file_change.created", payload)
 
-        decision, failure = "approve", ""
+        decision = "approve"
         # Such a file is asked about at every level, as a secret is (in a copy: when the
         # copy is taken, `_apply`) - but an instruction file alone at Full auto
         # (`standing_asks`).
@@ -7513,6 +7490,58 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
         # No await between writing the file and recording the outcome: the change
         # is either recorded as decided or was never started.
+        outcome, failure, payload = self._write_decided(change_id, decision, ws, copy)
+        self.bus.emit(cid, run_id, "file_change.updated", payload)
+        if outcome == "applied":
+            self._saw(ctx, ws, planned.path)
+            if copy is None:
+                # (A write that made the scratch: git ignores it from now, K-koloni-klasor. The
+                # write stays on record for its card and undo; no list of the turn's shows it.)
+                koloni.scratch(ctx.folder, made=True)
+            # (In a copy: beside a CLI that works in the same one, as a sub-agent may.)
+            await self._seen_by_watchers(ctx, {planned.path}, copy)
+        return self._write_said(ctx, planned, outcome, failure, copy, owner)
+
+    def _write_place(self, ctx: Ctx, name: str, planned: PlannedChange) -> bool:
+        """Whether a write (`_write`) is of a file outside the project; refused, with why,
+        where the agent may not write the file there."""
+        # A file outside the project is written where it is: a copy has none of it, and
+        # no room's item covers it (the user said yes to it, on its card).
+        # shortcut: and no claim holds it (claims are of project files) - two agents may
+        # write it at once; claim it by its full path if that is ever seen.
+        outside = Path(planned.path).is_absolute()
+        if not outside and (kept := self._keeps_out(
+                ctx, path=planned.path, what=f"{name} {planned.path}")):
+            raise ToolError(kept)
+        # In a room: only under an item of one's own - before the file is waited for.
+        if not outside:
+            self._under_an_item(ctx, planned.path)
+        # K-buyuk-proje: not another part's, in a copy of one part (made or about to be) - before
+        # the file is waited for, so a refused write holds no file.
+        part = None if outside else self._copy_part(self._works_in(ctx))
+        if part is not None and not copies._holds(part, planned.path, Path(ctx.folder)):
+            raise ToolError(NOT_IN_THE_PART.format(
+                path=planned.path, part=part, project=ctx.folder))
+        return outside
+
+    def _copy_ws(self, copy: copies.Copy, planned: PlannedChange) -> Workspace:
+        """Where a write (`_write`) is made in a working copy; refused where it has no place."""
+        ws = copy.workspace()
+        # Not what would never reach the project: a folder shared with it, or one
+        # that is left out of a copy.
+        parts = planned.path.split("/")
+        left_out = copies.under(parts, copies.NOT_COPIED)
+        if left_out:
+            raise ToolError(NOT_IN_A_COPY.format(path=planned.path, name=left_out))
+        if not ws.is_own(ws.resolve(planned.path)) or copies.under(parts, copies.LINKED):
+            raise ToolError(SHARED_WITH_PROJECT.format(path=planned.path))
+        return ws
+
+    def _write_decided(self, change_id: str, decision: str, ws: Workspace,
+                       copy: copies.Copy | None) -> tuple[str, str, dict]:
+        """A change (`_write`) written, or on record as turned down: what came of it, why it
+        failed, and its record's event."""
+        failure = ""
         with self._factory() as session:
             change = session.get(FileChange, change_id)
             if decision == "reject":
@@ -7530,16 +7559,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     change.status, change.decided_at = "in_copy", None
                     session.commit()
             payload = file_change_out(change)
-        self.bus.emit(cid, run_id, "file_change.updated", payload)
-        if outcome == "applied":
-            self._saw(ctx, ws, planned.path)
-            if copy is None:
-                # (A write that made the scratch: git ignores it from now, K-koloni-klasor. The
-                # write stays on record for its card and undo; no list of the turn's shows it.)
-                koloni.scratch(ctx.folder, made=True)
-            # (In a copy: beside a CLI that works in the same one, as a sub-agent may.)
-            await self._seen_by_watchers(ctx, {planned.path}, copy)
+        return outcome, failure, payload
 
+    def _write_said(self, ctx: Ctx, planned: PlannedChange, outcome: str, failure: str,
+                    copy: copies.Copy | None, owner: str | None) -> tuple[str, str]:
+        """A write's (`_write`) final status and its result text for the model."""
         path = planned.path
         if outcome == "applied":
             _, added, removed = unified_diff(planned.before, planned.after, path)
