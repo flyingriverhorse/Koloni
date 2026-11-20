@@ -8,7 +8,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Added
 
-- **Chat**: when the Orchestrator's model has said nothing for 5 minutes in a turn you started (or Qoder has kept its free model queued for 90 seconds), a card asks whether to keep waiting or stop and pick another model, instead of the turn sitting there until you press Stop ([docs](agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer)).
+- **Chat**: when the Orchestrator's model has said nothing for 5 minutes in a turn you started (or Qoder has kept its free model queued for 90 seconds), a card asks whether to keep waiting or stop and pick another model, instead of the turn sitting there until you press Stop; like any card, it waits for you on the Ready page, in the Chats list and in a note in the corner ([docs](agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer)).
 
 ### Changed
 
