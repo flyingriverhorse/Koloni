@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Limits, ModelFacts, Provider, Tiers, Usage } from '../api/types'
 import { ProviderCard, readingOf } from './cards'
+import { type GuideRow, ModelRow } from './ModelRow'
 import { ModelsPage } from './ModelsPage'
 
 // Slice 81a: the Models page as cards with gauges, the tiers' order under them, a provider in a window.
@@ -432,6 +433,37 @@ test('a tier that is not the catalogue’s is marked “you”; the catalogue’
   // Changed here, before it is saved: yours too.
   await userEvent.selectOptions(within(filled).getByLabelText('Tier of filled'), 'balanced')
   expect(within(filled).getByTitle('Set by you, not the catalogue’s')).toBeInTheDocument()
+})
+
+test('a CLI’s model is on its plan, one that takes no levels says none, Copilot’s shows the catalogue’s window, and what was tried can be forgotten', async () => {
+  const { api } = await import('../api/client')
+  const forget = vi.spyOn(api, 'delete').mockResolvedValue(undefined)
+  const onFacts = vi.fn(async () => facts({ efforts: [], context_window: 200000, price: { input: 3, output: 15, currency: 'USD' }, inputs: [{ kind: 'image', takes: false, source: 'tried' }] }))
+  const sonnet: GuideRow = { name: 'sonnet', note: '', tier: 'fast', agents: true }
+  const noop = vi.fn()
+  const draw = (on: Provider, context: GuideRow['context'] = null) => (
+    <table>
+      <tbody>
+        <ModelRow row={{ ...sonnet, context }} provider={on} used={null} onFacts={onFacts} onTier={noop} onAgents={noop} onEnabled={noop} onInputs={noop} onContext={noop} onNote={noop} onNoteDone={noop} onRemove={noop} />
+      </tbody>
+    </table>
+  )
+  const { rerender } = render(draw(claude))
+  await waitFor(() => expect(screen.getByRole('row')).toHaveTextContent('200k–noneplan'))
+  await userEvent.click(screen.getByRole('button', { name: 'What is known of sonnet' }))
+  const known = screen.getAllByRole('row')[1]
+  expect(known).toHaveTextContent('Thinking levelsnone')
+  expect(known).toHaveTextContent('Price if paid per token (1M)3 / 15 USD')
+  await userEvent.click(within(known).getByRole('button', { name: 'Forget what was tried' }))
+  expect(forget).toHaveBeenCalledWith('/providers/cc/tried-inputs?model=sonnet')
+  await waitFor(() => expect(onFacts).toHaveBeenCalledTimes(2))
+  forget.mockRestore()
+  const copilot = provider({ id: 'gh', name: 'Copilot', kind: 'copilot_cli', base_url: null })
+  rerender(draw(copilot))
+  expect(await screen.findByTitle('The catalogue’s context window')).toHaveTextContent('200k')
+  rerender(draw(copilot, 'long_context'))
+  expect(screen.queryByTitle('The catalogue’s context window')).toBeNull()
+  expect(screen.getByLabelText('Context of sonnet')).toHaveValue('long_context')
 })
 
 test('the Models tab is read first: a tier or agents switched is saved at once and said; a model is named only when added', async () => {

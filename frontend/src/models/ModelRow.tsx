@@ -1,7 +1,7 @@
 import { CaretDown, CaretRight, X } from '@phosphor-icons/react'
 import { type ReactNode, useId, useState } from 'react'
 import { api } from '../api/client'
-import { EFFORTS, TIERS, type Availability, type Effort, type ModelInput, type Provider, type Tier } from '../api/types'
+import { EFFORTS, TIERS, type Availability, type Effort, type ModelFacts, type ModelInput, type Provider, type Tier } from '../api/types'
 import { type LoadFacts, sourceOf, useModelFacts } from './levels'
 import { InputIcons, inputsLine, MarkInputs, withMarks } from './inputs'
 import { type ContextTier, isCli } from './ModelsPage'
@@ -129,73 +129,117 @@ export function ModelRow({
   const tiered = provider?.kind === 'copilot_cli' && !provider.base_url
   const catalogued = facts?.context_window ? tokens(facts.context_window) : null
   const on = row.enabled !== false
+
+  /** Its name, the button that unfolds it, whether it can be used now, what it takes, and whether it is retired or off. */
+  const nameCell = () => (
+    <td>
+      <span className="model-name">
+        <button
+          type="button"
+          className="icon-btn"
+          aria-expanded={open}
+          aria-label={`What is known of ${name}`}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
+        </button>
+        {avail !== undefined && <span className="model-mark">{avail && <Mark {...avail} />}</span>}
+        <span className="mono model-name-text">{name}</span>
+        <InputIcons facts={withMarks(facts, row.inputs)} />
+        {(avail?.retired || facts?.deprecated) && <span className="tag">being retired</span>}
+        {!on && <Off why={row.off_why} />}
+      </span>
+    </td>
+  )
+
+  /** Unfolded: each fact with its source, Find again on a server, what it takes, its note for agents and its use. */
+  const factsRow = () => (
+    <tr className="model-facts">
+      <td colSpan={9}>
+        {/* shortcut: what a model knows up to is not read from models.dev yet; add it when the catalogue's copy keeps it. */}
+        <dl className="model-facts-grid">
+          <Known name="Context window" value={said(facts?.context_window)} from={from('context_window')} />
+          <Known name="Max output" value={said(facts?.max_output)} from={from('max_output')} />
+          {provider && (provider.kind === 'openai_compat' || provider.kind === 'anthropic') && (
+            <div>
+              <dt>Changed on the server?</dt>
+              <dd>
+                <button
+                  type="button"
+                  className="link-btn"
+                  title="Asks the server, or Anthropic, again for its window and levels; no model is run"
+                  onClick={() => void api.post(`/providers/${provider.id}/find-again`).then(() => setForgot(n => n + 1), () => {})}
+                >
+                  Find again
+                </button>
+              </dd>
+            </div>
+          )}
+          <Known
+            name="Thinking levels"
+            value={efforts ? (efforts.length ? efforts.map(level => EFFORTS[level]).join(', ') : 'none') : null}
+            from={from('efforts')}
+          />
+          <Known
+            name={plan ? 'Price if paid per token (1M)' : 'Price in / out (1M)'}
+            value={
+              price
+                ? `${price.input} / ${price.output} ${price.currency}${price.cache_read != null ? `, cache read ${price.cache_read}` : ''}`
+                : null
+            }
+            from={from('price')}
+          />
+          <Known name="Known tier" value={facts?.tier ?? null} from={from('tier')} />
+          <Known name="Takes besides text" value={inputsLine(withMarks(facts, row.inputs)?.inputs)} />
+          <div>
+            <dt>Mark by hand</dt>
+            <dd>
+              <MarkInputs name={name} marked={row.inputs} known={facts?.inputs} onChange={onInputs} />
+              {provider && facts?.inputs?.some(said => said.source === 'tried') && (
+                // A refusal for another reason is not the model's word for good: the user takes it back.
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() =>
+                    void api.delete(`/providers/${provider.id}/tried-inputs?model=${encodeURIComponent(name)}`).then(() => setForgot(n => n + 1), () => {})
+                  }
+                >
+                  Forget what was tried
+                </button>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>
+              <label htmlFor={noteId}>Its note for agents</label>
+            </dt>
+            <dd>
+              <input
+                id={noteId}
+                className="input"
+                aria-label={`Note of ${name}`}
+                value={row.note}
+                maxLength={120}
+                placeholder="Optional: what it is for"
+                onChange={e => onNote(e.target.value)}
+                onBlur={onNoteDone}
+              />
+            </dd>
+          </div>
+          {/* shortcut: which roles the Lead picked it for is not in the usage record; add it with Agents' history (81b). */}
+          <Known name="Used in 30 days" value={used} />
+        </dl>
+      </td>
+    </tr>
+  )
+
   return (
     <>
     {/* Switched off: faded as a model with no tier is, and said. */}
     <tr className={!on ? 'model-untiered model-off' : row.tier ? undefined : 'model-untiered'}>
-      <td>
-        <span className="model-name">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-expanded={open}
-            aria-label={`What is known of ${name}`}
-            onClick={() => setOpen(!open)}
-          >
-            {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
-          </button>
-          {avail !== undefined && <span className="model-mark">{avail && <Mark {...avail} />}</span>}
-          <span className="mono model-name-text">{name}</span>
-          <InputIcons facts={withMarks(facts, row.inputs)} />
-          {(avail?.retired || facts?.deprecated) && <span className="tag">being retired</span>}
-          {!on && <Off why={row.off_why} />}
-        </span>
-      </td>
-      <td>
-        <select
-          className="input"
-          aria-label={`Tier of ${name}`}
-          title="How strong this model is"
-          value={row.tier ?? ''}
-          onChange={e => onTier((e.target.value || null) as Tier | null)}
-        >
-          <option value="">no tier</option>
-          {TIERS.map(tier => (
-            <option key={tier} value={tier}>
-              {tier}
-            </option>
-          ))}
-        </select>
-        {/* (One changed here and not saved yet is yours too: the facts are of the saved row.) */}
-        {row.tier && facts && (facts.tier !== row.tier || facts.sources.tier === 'you') && (
-          <span className="src" title="Set by you, not the catalogue’s">
-            you
-          </span>
-        )}
-      </td>
-      {tiered ? (
-        <td>
-          <select
-            className="input"
-            aria-label={`Context of ${name}`}
-            title="Copilot’s context window. Long costs more and holds only for the models Copilot offers it for."
-            value={row.context ?? 'default'}
-            onChange={e => onContext(e.target.value as ContextTier)}
-          >
-            <option value="default">Default</option>
-            <option value="long_context">Long</option>
-          </select>
-          {/* shortcut: the catalogue has one window per model, which for Copilot may be the long tier's; the long
-              tier's own size is not known, so none is shown for it. Show both once they are measured. */}
-          {row.context !== 'long_context' && catalogued && (
-            <span className="src" title="The catalogue’s context window">
-              {catalogued}
-            </span>
-          )}
-        </td>
-      ) : (
-        <Fact value={catalogued} />
-      )}
+      {nameCell()}
+      <TierCell name={name} row={row} facts={facts} onTier={onTier} />
+      <ContextCell tiered={tiered} name={name} row={row} catalogued={catalogued} onContext={onContext} />
       <Fact value={facts?.max_output ? tokens(facts.max_output) : null} />
       <Fact value={levels(efforts)} />
       <Fact value={plan ? 'plan' : price ? `${price.input} / ${price.output}` : null} />
@@ -226,85 +270,74 @@ export function ModelRow({
         </button>
       </td>
     </tr>
-    {open && (
-      <tr className="model-facts">
-        <td colSpan={9}>
-          {/* shortcut: what a model knows up to is not read from models.dev yet; add it when the catalogue's copy keeps it. */}
-          <dl className="model-facts-grid">
-            <Known name="Context window" value={said(facts?.context_window)} from={from('context_window')} />
-            <Known name="Max output" value={said(facts?.max_output)} from={from('max_output')} />
-            {provider && (provider.kind === 'openai_compat' || provider.kind === 'anthropic') && (
-              <div>
-                <dt>Changed on the server?</dt>
-                <dd>
-                  <button
-                    type="button"
-                    className="link-btn"
-                    title="Asks the server, or Anthropic, again for its window and levels; no model is run"
-                    onClick={() => void api.post(`/providers/${provider.id}/find-again`).then(() => setForgot(n => n + 1), () => {})}
-                  >
-                    Find again
-                  </button>
-                </dd>
-              </div>
-            )}
-            <Known
-              name="Thinking levels"
-              value={efforts ? (efforts.length ? efforts.map(level => EFFORTS[level]).join(', ') : 'none') : null}
-              from={from('efforts')}
-            />
-            <Known
-              name={plan ? 'Price if paid per token (1M)' : 'Price in / out (1M)'}
-              value={
-                price
-                  ? `${price.input} / ${price.output} ${price.currency}${price.cache_read != null ? `, cache read ${price.cache_read}` : ''}`
-                  : null
-              }
-              from={from('price')}
-            />
-            <Known name="Known tier" value={facts?.tier ?? null} from={from('tier')} />
-            <Known name="Takes besides text" value={inputsLine(withMarks(facts, row.inputs)?.inputs)} />
-            <div>
-              <dt>Mark by hand</dt>
-              <dd>
-                <MarkInputs name={name} marked={row.inputs} known={facts?.inputs} onChange={onInputs} />
-                {provider && facts?.inputs?.some(said => said.source === 'tried') && (
-                  // A refusal for another reason is not the model's word for good: the user takes it back.
-                  <button
-                    type="button"
-                    className="link-btn"
-                    onClick={() =>
-                      void api.delete(`/providers/${provider.id}/tried-inputs?model=${encodeURIComponent(name)}`).then(() => setForgot(n => n + 1), () => {})
-                    }
-                  >
-                    Forget what was tried
-                  </button>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                <label htmlFor={noteId}>Its note for agents</label>
-              </dt>
-              <dd>
-                <input
-                  id={noteId}
-                  className="input"
-                  aria-label={`Note of ${name}`}
-                  value={row.note}
-                  maxLength={120}
-                  placeholder="Optional: what it is for"
-                  onChange={e => onNote(e.target.value)}
-                  onBlur={onNoteDone}
-                />
-              </dd>
-            </div>
-            {/* shortcut: which roles the Lead picked it for is not in the usage record; add it with Agents' history (81b). */}
-            <Known name="Used in 30 days" value={used} />
-          </dl>
-        </td>
-      </tr>
-    )}
+    {open && factsRow()}
     </>
+  )
+}
+
+/** A model's tier as you set it, and "you" where it is not the catalogue's. */
+function TierCell({ name, row, facts, onTier }: { name: string; row: GuideRow; facts: ModelFacts | null | undefined; onTier: (tier: Tier | null) => void }) {
+  return (
+    <td>
+      <select
+        className="input"
+        aria-label={`Tier of ${name}`}
+        title="How strong this model is"
+        value={row.tier ?? ''}
+        onChange={e => onTier((e.target.value || null) as Tier | null)}
+      >
+        <option value="">no tier</option>
+        {TIERS.map(tier => (
+          <option key={tier} value={tier}>
+            {tier}
+          </option>
+        ))}
+      </select>
+      {/* (One changed here and not saved yet is yours too: the facts are of the saved row.) */}
+      {row.tier && facts && (facts.tier !== row.tier || facts.sources.tier === 'you') && (
+        <span className="src" title="Set by you, not the catalogue’s">
+          you
+        </span>
+      )}
+    </td>
+  )
+}
+
+/** Copilot on GitHub's context tier, with the catalogue's window beside it; any other model's window as a fact. */
+function ContextCell({
+  tiered,
+  name,
+  row,
+  catalogued,
+  onContext,
+}: {
+  tiered: boolean
+  name: string
+  row: GuideRow
+  catalogued: string | null
+  onContext: (context: ContextTier) => void
+}) {
+  return tiered ? (
+    <td>
+      <select
+        className="input"
+        aria-label={`Context of ${name}`}
+        title="Copilot’s context window. Long costs more and holds only for the models Copilot offers it for."
+        value={row.context ?? 'default'}
+        onChange={e => onContext(e.target.value as ContextTier)}
+      >
+        <option value="default">Default</option>
+        <option value="long_context">Long</option>
+      </select>
+      {/* shortcut: the catalogue has one window per model, which for Copilot may be the long tier's; the long
+          tier's own size is not known, so none is shown for it. Show both once they are measured. */}
+      {row.context !== 'long_context' && catalogued && (
+        <span className="src" title="The catalogue’s context window">
+          {catalogued}
+        </span>
+      )}
+    </td>
+  ) : (
+    <Fact value={catalogued} />
   )
 }
