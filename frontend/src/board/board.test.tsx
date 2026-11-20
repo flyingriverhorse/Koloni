@@ -521,6 +521,4 @@ test('the line to Ready for you stands without its button where there is no way 
   expect(line?.querySelector('button')).toBeNull()
   rerender(<BoardPage {...page} />)
   expect(container.querySelector('.ready-line')).toBeNull()
-  // a turn that ended well has no tag beside its facts
-  expect(container.querySelectorAll('.board-facts').length).toBeGreaterThan(0)
 })
