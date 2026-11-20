@@ -126,4 +126,7 @@ test('at its narrowest the chat has nothing that scrolls sideways, a long approv
   expect(past, "what of the card runs past the list's end").toEqual([])
   expect(wide, 'the list scrolls sideways by').toBeLessThanOrEqual(1)
   expect(sideways).toEqual([])
+  // The path wraps in its paragraph, all of it in sight.
+  const said = card.getByText(/^Saved it under \/srv\/kept_notes/)
+  expect(await said.evaluate(el => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().height > 30)).toBe(true)
 })
