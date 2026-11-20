@@ -7459,17 +7459,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
     # --- a draw.io diagram as a picture (K-drawio, `app.diagram`) ------------------------
 
-    async def _diagram(self, ctx: Ctx, ws: Workspace, call_id: str, args: dict) -> str:  # noqa: C901
-        """diagram_image: the diagram drawn by the viewer in a headless browser that loads
-        nothing (`diagram.draw`), its picture written beside it - in the agent's copy where it
-        works in one. Nobody is asked: the user gives the tool by role (K-drawio)."""
-        path, format = args.get("path"), args.get("format") or "png"
-        if not isinstance(path, str) or not path.strip():
-            raise ToolError("missing required argument: path")
-        if format not in diagram.FORMATS:
-            raise ToolError('format is "png" or "svg"')
-        if ctx.root is None:
-            raise ToolError("this chat has no project folder: there is no diagram to draw")
+    def _diagram_text(self, ws: Workspace, path: str) -> tuple[str, str]:
+        """A draw.io file of the project an agent named, by its path there and what it holds."""
         try:
             target = ws.resolve(path)
             rel = ws.rel(target) if ws.is_own(target) else None
@@ -7486,6 +7477,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise ToolError(f"{path} is not UTF-8 text: not a draw.io file") from None
         except WorkspaceError as exc:
             raise ToolError(str(exc)) from None
+        return rel, xml
+
+    async def _diagram(self, ctx: Ctx, ws: Workspace, call_id: str, args: dict) -> str:
+        """diagram_image: the diagram drawn by the viewer in a headless browser that loads
+        nothing (`diagram.draw`), its picture written beside it - in the agent's copy where it
+        works in one. Nobody is asked: the user gives the tool by role (K-drawio)."""
+        path, format = args.get("path"), args.get("format") or "png"
+        if not isinstance(path, str) or not path.strip():
+            raise ToolError("missing required argument: path")
+        if format not in diagram.FORMATS:
+            raise ToolError('format is "png" or "svg"')
+        if ctx.root is None:
+            raise ToolError("this chat has no project folder: there is no diagram to draw")
+        rel, xml = self._diagram_text(ws, path)
         # (A trigger's turn writes only where the trigger lets it.)
         if refused := self._nobody_to_ask(ctx, "write", "draw a diagram's picture"):
             raise _NobodyToAsk(refused)
