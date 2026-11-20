@@ -74,7 +74,6 @@
   "src/models/cards.tsx::ProviderCard": 35,
   "src/models/cards.tsx::readingOf": 24,
   "src/models/FillTiers.tsx::FillTiers": 20,
-  "src/models/LocalServerTab.tsx::LocalServerTab": 13,
   "src/models/ModelPicker.tsx::ModelPicker": 46,
   "src/models/ModelRow.tsx::ModelRow": 38,
   "src/models/ModelsPage.tsx::ModelsPage": 36,
