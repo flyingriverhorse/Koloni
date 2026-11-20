@@ -1,7 +1,6 @@
 {
   "src/agents/RecipesTab.tsx::PartPanel": 51,
   "src/App.tsx::App": 91,
-  "src/changes/MergeCard.tsx::Check": 21,
   "src/changes/MergeCard.tsx::MergeCard": 70,
   "src/changes/UndoCard.tsx::UndoCard": 22,
   "src/chat/ChatPanel.tsx::ChatPanel": 77,
