@@ -2486,69 +2486,26 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         finally:
             self._deciding.discard(merge_id)
 
-    async def _decide_kept(self, merge_id: str, decision: str, choices: dict[str, str]) -> bool:  # noqa: C901
-        # shortcut: compared and written on the event loop, as a live card's Apply is;
-        # hand it to a thread if a large kept copy is felt.
-        runtime = self.settings.runtime_root
-        with self._factory() as session:
-            merge = session.get(Merge, merge_id)
-            if merge is None or merge.status != "interrupted" or not merge.kept_in:
-                return False
-            try:
-                name = copies.named(runtime, merge.kept_in)
-            except ValueError:
-                return False
-            agent = session.get_one(Agent, merge.agent_id)
-            run = session.get_one(Run, merge.run_id)
-            root = session.get_one(
-                Project, session.get_one(Conversation, run.conversation_id).project_id
-            ).root_path
-            ctx = Ctx(
-                run.id, run.conversation_id, root, agent.id, agent.role_name,
-                tuple(agent.tools), agent.depth, name=agent.name,
-            )
-            unattended = run.unattended
-            files = {one["path"]: dict(one) for one in merge.files}
-            tree, recorded, part = _kept_as(session, agent.id, copies.place(runtime, name))
-            times = _last_changes(session, _line_on_record(session, agent.id))
-        # What Apply was asked for: the folder goes only when all of that was taken.
-        asked = [path for path, one in files.items() if one["state"] in OPEN]
-        copy = None
-        if decision == "approve":
-            if not asked:
-                return False  # nothing on the card can be applied: it is only to discard
-            try:
-                copy = copies.kept(Path(root), runtime, name, tree, recorded, part)
-            except (OSError, ValueError):
-                return False
-            # What a merge comes to is kept in memory alone, and this may be another
-            # process than the one that showed the card: made again, off the event loop.
-            await asyncio.to_thread(_look_again, copy, files, times, choices)
-            # All of the card or none of it: one file shown again, and nothing is taken.
-            if not [one for one in files.values() if one.pop("again", False)]:
-                self._join(copy, files, choices)
-                await self._seen_by_watchers(ctx, self._apply(
-                    ctx, copy, files, True, unattended=unattended, choices=choices
-                ))
-            for one in files.values():  # shown again: labelled as a kept copy's files are
-                if one.get("shown"):
-                    _no_diff_no_trust(one)
-        # (A file the copy no longer changes has left the card: nothing of it is kept.)
-        # Nor does it go while it holds files that were never offered, or were refused
-        # (a path through a link): what they hold is nowhere else, and deleting it is
-        # the user's to say (Discard). A file of which the user kept the project's own
-        # is done with: that was their word on it.
-        left = decision == "approve" and any(
-            not _kept_the_projects(one) and one.get("note") != copies.IGNORED and (
-                one["state"] in ("left_out", "refused")
-                or (path in asked and one["state"] != "applied")
-            )
-            for path, one in files.items()
-        )
-        if not left:
-            copies.forget(runtime, name)
-            with contextlib.suppress(OSError, ValueError):
-                copies.remove(runtime, name)
+    async def _kept_taken(self, ctx: Ctx, copy: copies.Copy, files: dict, times: dict,
+                          choices: dict[str, str], unattended: bool) -> None:
+        """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none."""
+        # What a merge comes to is kept in memory alone, and this may be another
+        # process than the one that showed the card: made again, off the event loop.
+        await asyncio.to_thread(_look_again, copy, files, times, choices)
+        # All of the card or none of it: one file shown again, and nothing is taken.
+        if not [one for one in files.values() if one.pop("again", False)]:
+            self._join(copy, files, choices)
+            await self._seen_by_watchers(ctx, self._apply(
+                ctx, copy, files, True, unattended=unattended, choices=choices
+            ))
+        for one in files.values():  # shown again: labelled as a kept copy's files are
+            if one.get("shown"):
+                _no_diff_no_trust(one)
+
+    def _kept_closed(self, ctx: Ctx, merge_id: str, decision: str, files: dict,
+                     asked: list[str], left: bool) -> tuple[bool, list[tuple[str, dict]]]:
+        """A kept copy's card and its line's records after the user's decision (`_decide_kept`;
+        `left`: the copy stays): whether its work was applied, and the events of both."""
         with self._factory() as session:
             merge = session.get_one(Merge, merge_id)
             merge.files, merge.decided_at = list(files.values()), now()
@@ -2583,6 +2540,61 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             payloads = [("merge.updated", merge_out(merge))] + [
                 ("file_change.updated", file_change_out(change)) for change in changes
             ]
+        return applied, payloads
+
+    async def _decide_kept(self, merge_id: str, decision: str, choices: dict[str, str]) -> bool:
+        # shortcut: compared and written on the event loop, as a live card's Apply is;
+        # hand it to a thread if a large kept copy is felt.
+        runtime = self.settings.runtime_root
+        with self._factory() as session:
+            merge = session.get(Merge, merge_id)
+            if merge is None or merge.status != "interrupted" or not merge.kept_in:
+                return False
+            try:
+                name = copies.named(runtime, merge.kept_in)
+            except ValueError:
+                return False
+            agent = session.get_one(Agent, merge.agent_id)
+            run = session.get_one(Run, merge.run_id)
+            root = session.get_one(
+                Project, session.get_one(Conversation, run.conversation_id).project_id
+            ).root_path
+            ctx = Ctx(
+                run.id, run.conversation_id, root, agent.id, agent.role_name,
+                tuple(agent.tools), agent.depth, name=agent.name,
+            )
+            unattended = run.unattended
+            files = {one["path"]: dict(one) for one in merge.files}
+            tree, recorded, part = _kept_as(session, agent.id, copies.place(runtime, name))
+            times = _last_changes(session, _line_on_record(session, agent.id))
+        # What Apply was asked for: the folder goes only when all of that was taken.
+        asked = [path for path, one in files.items() if one["state"] in OPEN]
+        copy = None
+        if decision == "approve":
+            if not asked:
+                return False  # nothing on the card can be applied: it is only to discard
+            try:
+                copy = copies.kept(Path(root), runtime, name, tree, recorded, part)
+            except (OSError, ValueError):
+                return False
+            await self._kept_taken(ctx, copy, files, times, choices, unattended)
+        # (A file the copy no longer changes has left the card: nothing of it is kept.)
+        # Nor does it go while it holds files that were never offered, or were refused
+        # (a path through a link): what they hold is nowhere else, and deleting it is
+        # the user's to say (Discard). A file of which the user kept the project's own
+        # is done with: that was their word on it.
+        left = decision == "approve" and any(
+            not _kept_the_projects(one) and one.get("note") != copies.IGNORED and (
+                one["state"] in ("left_out", "refused")
+                or (path in asked and one["state"] != "applied")
+            )
+            for path, one in files.items()
+        )
+        if not left:
+            copies.forget(runtime, name)
+            with contextlib.suppress(OSError, ValueError):
+                copies.remove(runtime, name)
+        applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         for kind, payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
         if applied:
