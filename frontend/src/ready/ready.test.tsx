@@ -85,6 +85,13 @@ test('a chat’s row says who asks as the screen calls them: the Orchestrator, n
   expect(screen.getByRole('group', { name: 'chat: Orchestrator asks · “Fix the login”' })).toBeInTheDocument()
 })
 
+test('KOLONİ’s own card about an agent is for it: the agent asks nothing (as the chat’s Ready for you says)', () => {
+  const card = question('qx', 'rx', { leave: true, question: 'Researcher came to its limit of 5 steps', options: ['Continue (+25 steps)', 'Stop here'] })
+  useApp.setState({ readyChats: { x: { ...other, commands: [], agents: [agent('rx', 'waiting')], questions: [card] } } })
+  render(<Shown page />)
+  expect(screen.getByRole('group', { name: 'chat: for Orchestrator · “Fix the login”' })).toBeInTheDocument()
+})
+
 test('the page: the same list, by where it is from', async () => {
   render(<Shown page />)
   const shows = screen.getByRole('group', { name: 'Show' })
