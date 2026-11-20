@@ -129,7 +129,10 @@ def test_a_server_with_a_key_is_asked_with_it_and_the_key_is_not_shown(server_ap
         client.put("/api/local-server", headers=OWN, json={
             "executable": str(exe), "args": [f"--port={port}", "-c", "512", "--api-key", key]})
         client.post("/api/local-server/start", headers=OWN)
-        told = until(client, lambda t: t["n_ctx"] is not None and "key:" in t["output"])
+        # (The model and the window are asked one after the other: on a slow runner the first
+        # ask can still meet a server not yet listening while the second does not - wait for both.)
+        told = until(client, lambda t: t["model"] is not None and t["n_ctx"] is not None
+                     and "key:" in t["output"])
         assert (told["model"], told["n_ctx"]) == ("none.gguf", 512)
         assert key not in told["output"]
         client.post("/api/local-server/stop", headers=OWN)
@@ -153,7 +156,8 @@ def test_start_shows_the_model_window_output_and_gpu_then_stop_ends_it(server_ap
         assert r.json()["models"] == [str(Path("models") / "a.gguf"), str(Path("models") / "b.gguf")]
         assert client.post("/api/local-server/start", headers=OWN).json()["state"] == "running"
         assert client.post("/api/local-server/start", headers=OWN).status_code == 409
-        told = until(client, lambda t: t["n_ctx"] is not None and "listening" in t["output"])
+        told = until(client, lambda t: t["model"] is not None and t["n_ctx"] is not None
+                     and "listening" in t["output"])
         assert (told["state"], told["model"], told["n_ctx"]) == ("running", "a.gguf", 4096)
         # Masked as a command's output is: the key it printed is not shown.
         assert "sk-fake" not in told["output"] and "***" in told["output"]
