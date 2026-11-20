@@ -21,6 +21,7 @@ from app.agent import (
     SUB_ANSWERED,
     lead_pick,
 )
+from app.agent.limits_mixin import WATCHED_SLOW_MINUTES
 from app.agent.questions_mixin import (
     ASKED_AGAIN,
     LEAD_AGAIN,
@@ -588,7 +589,8 @@ def test_the_same_question_asked_again_is_given_the_leads_answer_without_a_new_c
     fire(client, until(lambda: [t for t in clock.set if t.delay == 0.0])[0])
     until(lambda: whys().count(LEAD_BEFORE.format(why="Names first.")) == 1)
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
-    assert [t.delay for t in clock.set] == [600.0, 0.0]  # (B-394: the third is not asked)
+    # (B-394: the third is not asked; the Orchestrator's slow clock, K-yavas, aside)
+    assert [t.delay for t in clock.set if t.delay != WATCHED_SLOW_MINUTES * 60] == [600.0, 0.0]
     assert runs() == ["script", ONE_SHOT, "later"]  # one run of the Lead's CLI, not three
     with client.app.state.session_factory() as session:
         assert len(list(session.scalars(select(OwnRequest)))) == 1

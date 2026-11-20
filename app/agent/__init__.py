@@ -140,6 +140,7 @@ from app.agent.ctx import (
     _Member,
     _NobodyToAsk,
     _Room,
+    _Slow,
     _Unwatched,
     _Watch,
     announce_memory,
@@ -1263,6 +1264,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._progress_timers: dict[str, asyncio.TimerHandle] = {}
         # ...and when an agent below its Orchestrator last took a step of its work (`_counted`)
         self._worked_below: dict[str, datetime] = {}
+        # K-yavas: run id -> a watched turn's Orchestrator whose model is asked (`_slow`)
+        self._slow_turns: dict[str, _Slow] = {}
         # Slice 84b-2. run id -> its lead, for a turn that runs a chat team's recipe: as in a
         # room, its agents change files in the lead's one copy, taken in at "Ready for you".
         self._recipe_copy: dict[str, str] = {}
@@ -1490,6 +1493,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         _cid, shown = self._cli_live.setdefault(ctx.agent_id, (ctx.cid, {
             "agent_id": ctx.agent_id, "context": None, "plan": None, "queue": None}))
         shown.update({key: item[key] for key in ("context", "plan", "queue") if key in item})
+        self._slow_queued(ctx, item.get("queue"))
         if ctx.agent_id not in self._live_due:
             self._live_due[ctx.agent_id] = asyncio.get_running_loop().call_later(
                 LIVE_SECONDS, self._send_live, ctx.agent_id)
@@ -1905,6 +1909,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             timer.cancel()
         if (timer := self._progress_timers.pop(run_id, None)) is not None:
             timer.cancel()
+        self._slow_dropped(run_id)
         self._worked_below.pop(run_id, None)
         self._recipe_copy.pop(run_id, None)
         self._disputed.pop(run_id, None)
@@ -4822,6 +4827,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """A CLI said something or did something with its own tools: its time goes on
         record, at most every half a minute - so its node's "last step N s ago" may be that
         much behind; its quiet past 5 or 20 minutes is said in minutes."""
+        self._slow(ctx)  # (K-yavas: at every word, not every half a minute)
         at = time.monotonic()
         if at - self._touched.get(ctx.agent_id, float("-inf")) >= 30:
             self._touched[ctx.agent_id] = at

@@ -130,6 +130,24 @@ class _Unwatched:
     since: float = 0.0
 
 
+@dataclass
+class _Slow:
+    """K-yavas: a watched turn's Orchestrator while its model is asked (`AgentRunner._slow`):
+    its clock (None: off), the card about it, and how many cards since its model said anything."""
+
+    agent_id: str
+    timer: asyncio.TimerHandle | None = None
+    card: asyncio.Future | None = None
+    waited: int = 0
+
+    def off(self) -> None:
+        """No clock, and its card closed (it ends by itself)."""
+        for left in (self.timer, self.card):
+            if left is not None:
+                left.cancel()
+        self.timer, self.waited = None, 0
+
+
 class _Transcript:
     """What a CLI that keeps its own loop says, kept as assistant messages.
 

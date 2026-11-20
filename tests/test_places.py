@@ -44,7 +44,7 @@ from tests.test_migration_0002 import _config
 from tests.test_parallel import until
 from tests.test_recovery import seed
 from tests.test_spawn import call, new_role, step
-from tests.test_triggers import HeldClock, on_loop, run_now, trigger
+from tests.test_triggers import NOT_SLOW, HeldClock, on_loop, run_now, trigger
 from tests.test_triggers import until as until_true
 from tests.test_web_tool_scenarios import Net, get
 
@@ -912,7 +912,7 @@ def test_the_minutes_of_an_unattended_turn_do_not_run_while_it_stands_in_line(
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
     first.wait_partial()
-    clock = client.app.state.runner.call_later = HeldClock()
+    clock = client.app.state.runner.call_later = HeldClock(but=NOT_SLOW)
     made = trigger(client, pid, b, budget={"steps": 15, "minutes": 7, "per_day": 24})
     run_b = run_now(client, made["id"])
     queued(client, b)
@@ -941,7 +941,7 @@ def test_the_minutes_run_on_while_another_agent_of_the_turn_waits_for_a_file(
     run_a = go(client, a)
     first.wait_partial()
     runner = client.app.state.runner
-    clock = runner.call_later = HeldClock()
+    clock = runner.call_later = HeldClock(but=NOT_SLOW)
     run_b = run_now(client, trigger(
         client, pid, b, budget={"steps": 15, "minutes": 7, "per_day": 24})["id"])
     queued(client, b)

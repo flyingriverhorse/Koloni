@@ -9120,7 +9120,7 @@ export interface components {
              */
             status: "pending" | "answered" | "cancelled" | "interrupted" | "superseded";
             /** Tool Call Id */
-            tool_call_id: string;
+            tool_call_id: string | null;
         };
         /**
          * QueuedOnOut

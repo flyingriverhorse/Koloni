@@ -101,7 +101,9 @@ once longer. While it waits, the agent's window says so, for example "Qoder: in 
 43 s (waits up to 60 min)", and its box on the canvas says "queued 2 min". A sub-agent still queued after 90
 seconds is moved to the next model of its tier, where KOLONİ picked its model and the tier has another; a
 move that may cost money is asked on a card first (see [Ready and approval cards](../use/ready.md)). In
-a turn you watch, a lead, or a sub-agent that cannot be moved, waits as long as Qoder keeps it queued; in
+a turn you watch, a lead, or a sub-agent that cannot be moved, waits as long as Qoder keeps it queued -
+for the Orchestrator, after 90 seconds a card asks whether to keep waiting or stop and pick another model
+(see [Step limits](../agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer)); in
 a trigger's or a job's turn while you're away it gives up after 90 seconds. Run **Native**, Qoder shows no queue line,
 and is not moved.
 
