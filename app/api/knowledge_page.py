@@ -478,7 +478,19 @@ def copy_knowledge(knowledge_id: str, body: KnowledgeCopyIn,
     return state(to.root_path, knows.knowledge_of(there))
 
 
-def copy(session: Session, row: ProjectKnowledge, project: Project, to: Project,  # noqa: C901
+def _roles_follow(session: Session, row: ProjectKnowledge, target: ProjectKnowledge,
+                  to: Project) -> None:
+    if target is not row:  # (its roles know it there too, as an expert's guide followed it)
+        there_already = {role.id for role, _mode in users(session, target)}
+        for role, mode in users(session, row):
+            if role.id not in there_already:
+                # (A copy does not change what a role is an expert in there: Map where it is one.)
+                full_there = mode == knows.FULL and knows.used_here(
+                    session, role, to.id, knows.FULL)
+                use(session, role, target, knows.MAP_MODE if full_there else mode)
+
+
+def copy(session: Session, row: ProjectKnowledge, project: Project, to: Project,
          replace: bool) -> ProjectKnowledge:
     """Its guide, and what its learning says of it - not the pages read, other people's - into
     another of the user's projects, deleting the pages its learning there kept. A project's
@@ -511,14 +523,7 @@ def copy(session: Session, row: ProjectKnowledge, project: Project, to: Project,
         target = ProjectKnowledge(project_id=to.id, **knows.columns_of(known))
         session.add(target)
         session.flush()
-    if target is not row:  # (its roles know it there too, as an expert's guide followed it)
-        there_already = {role.id for role, _mode in users(session, target)}
-        for role, mode in users(session, row):
-            if role.id not in there_already:
-                # (A copy does not change what a role is an expert in there: Map where it is one.)
-                full_there = mode == knows.FULL and knows.used_here(
-                    session, role, to.id, knows.FULL)
-                use(session, role, target, knows.MAP_MODE if full_there else mode)
+    _roles_follow(session, row, target, to)
     try:
         if not knowledge.copy_to(root, there, known):
             raise HTTPException(409, "it has no guide in this project to copy")
