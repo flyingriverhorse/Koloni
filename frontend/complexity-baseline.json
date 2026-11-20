@@ -10,7 +10,6 @@
   "src/knowledge/KnowledgeParts.tsx::Sources": 33,
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
   "src/tools/ServerEditor.tsx::ServerEditor": 51,
-  "src/triggers/TriggerForm.tsx::TriggerForm": 30,
   "src/views/FilesWindow.tsx::FilesWindow": 91,
   "src/views/FilesWindow.tsx::Opened": 70
 }

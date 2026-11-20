@@ -64,9 +64,11 @@ test('an end after so many runs, or after a day, is sent as the server takes it;
   await userEvent.click(f.getByRole('radio', { name: 'After so many runs' }))
   await userEvent.clear(f.getByLabelText('Runs, then it switches itself off'))
   await userEvent.type(f.getByLabelText('Runs, then it switches itself off'), '0')
+  expect(f.getByRole('group', { name: 'Ends' })).not.toHaveAttribute('aria-describedby')
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
   expect(h.onCreate).not.toHaveBeenCalled()
   expect(f.getByLabelText('Runs, then it switches itself off')).toHaveAccessibleDescription('From 1 to 1000.')
+  expect(f.getByRole('group', { name: 'Ends' })).toHaveAttribute('aria-describedby', 'trigger-ends-error')
   await userEvent.clear(f.getByLabelText('Runs, then it switches itself off'))
   await userEvent.type(f.getByLabelText('Runs, then it switches itself off'), '7')
   // A clock trigger may be told to run even when nothing changed.

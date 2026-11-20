@@ -324,6 +324,7 @@ test('the Friday card is Fridays at 17:00, the first on the next Friday; the day
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
   // none ticked: said beside the days, and nothing made
   expect(f.getByLabelText('Days')).toHaveAccessibleDescription('Tick at least one day.')
+  expect(week).toHaveAccessibleDescription('Tick at least one day.')
   expect(h.onCreate).not.toHaveBeenCalled()
   await userEvent.click(within(week).getByRole('checkbox', { name: 'Thursday' }))
   await userEvent.click(within(week).getByRole('checkbox', { name: 'Monday' }))
@@ -467,6 +468,28 @@ test('a command allowed from the chat ticks its rule when the conversation’s l
 test('one more sub-agent allowed from the chat raises the number by one', () => {
   page([trigger({ permissions: { write: false, commands: [], agents: 1 } })], handlers(), { draft: { triggerId: 't1', allow: { agents: 1 } } })
   expect(within(form()).getByLabelText('May open sub-agents')).toHaveValue(2)
+  expect(within(form()).getByRole('status')).toHaveTextContent('Not saved yet: “May open sub-agents” was raised by one from the chat. Look it over and save.')
+})
+
+test('a command from the chat is said once the list is read, and is put in the add field only in its own conversation', async () => {
+  const h = handlers(rules)
+  render(<TriggersPage triggers={[trigger()]} conversations={[conversation, second]} draft={{ triggerId: 't1', allow: { command: 'python check.py' } }} origin="" {...h} />)
+  const f = within(form())
+  expect(f.queryByText(/Not saved yet/)).toBeNull()
+  await f.findByLabelText('make lint')
+  expect(f.getByRole('status')).toHaveTextContent('“python check.py” is not on this conversation’s list yet: add it below, then tick it.')
+  await userEvent.selectOptions(f.getByLabelText('Conversation'), 'c2')
+  await f.findByLabelText('npm test')
+  expect(f.getByLabelText("Add a command to this conversation's list")).toHaveValue('')
+})
+
+test('a project with no conversation says to start one; the field asks for one and no command list is read', async () => {
+  const h = page([], handlers(), { conversations: [] })
+  await newTrigger()
+  const f = within(form())
+  expect(f.getByLabelText('Conversation')).toHaveAccessibleDescription(/^This project has no conversation yet: start one first\./)
+  expect(within(f.getByLabelText('Conversation')).getByRole('option', { name: 'Choose a conversation' })).toBeInTheDocument()
+  expect(h.onRules).not.toHaveBeenCalled()
 })
 
 test('a request for a trigger that is gone says so, and opens nothing', () => {
