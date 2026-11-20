@@ -63,7 +63,6 @@
   "src/shell/FolderButton.tsx::FolderButton": 25,
   "src/shell/HoldStatus.tsx::HoldStatus": 23,
   "src/shell/RunStatus.tsx::RunStatus": 29,
-  "src/shell/Toasts.tsx::news>flatMap": 20,
   "src/state/applyEvent.ts::applyEvent": 74,
   "src/state/applyEvent.ts::fromSnapshot": 15,
   "src/state/store.ts::(anon)>openConversation>openEvents": 20,
