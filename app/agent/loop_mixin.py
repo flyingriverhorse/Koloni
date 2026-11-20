@@ -381,8 +381,11 @@ class LoopMixin:
             session.commit()
             run_id, payload = agent.run_id, agent_out(agent)
         self.bus.emit(cid, run_id, "agent.updated", payload)
-        if "last_event_at" in fields and (known := self._ctxs.get(agent_id)) is not None:
-            self._slow(known)  # (K-yavas: a step or a call of it began, or a call ended)
+        # (K-yavas: a step or a call of it began, or a call ended - its own, not one of its answer
+        # to a message or its speech beside its work, whose ctx `_ctxs` does not hold)
+        if "last_event_at" in fields and agent_id not in self._answering and (
+                known := self._ctxs.get(agent_id)) is not None:
+            self._slow(known)
         status = fields.get("status")
         if status in ("waiting", "completed", "failed"):
             # K-oda-takim: an agent `discuss` was refused (at work) may join now: its asker is told.

@@ -384,11 +384,14 @@ function ChatQuestion({ state, question, onAnswer }: { state: ConvState; questio
   )
 }
 
-/** KOLONİ's own cards of a turn that hang off no call (its Orchestrator's model is slow to answer), under its last message. */
+/**
+ * KOLONİ's own card of a turn that hangs off no call (its Orchestrator's model is slow to answer), under its last message -
+ * while it asks: answered or closed, it says nothing more (its model spoke; a Stop has KOLONİ's line).
+ */
 function TurnQuestions({ state, runId, last, onAnswer }: { state: ConvState; runId: string; last: boolean; onAnswer: (questionId: string, answer: string) => Promise<void> }) {
   if (!last) return null
   return state.questions
-    .filter(q => q.run_id === runId && q.tool_call_id === null)
+    .filter(q => q.run_id === runId && q.tool_call_id === null && q.status === 'pending')
     .map(q => <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />)
 }
 

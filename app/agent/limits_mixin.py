@@ -103,7 +103,8 @@ SLOW_ASKED = "{said} Keep waiting, or stop this turn and pick another model?"
 SLOW_WAIT = "Keep waiting"
 SLOW_STOP = "Stop and pick another model"
 SLOW_STOPPED = ("You stopped this turn: {said} What it did so far is kept. To go on, pick another "
-                "model in the chat's model picker and send your message again.")
+                "model for the Orchestrator - in the chat's model picker, or on the Agents page "
+                "where the Orchestrator role has a model of its own - and send your message again.")
 
 # How a stop at the end of the steps given once more (K-devam-butce, `GIVEN_ONCE`) is on
 # record (B-327: not "step_limit", whose words everywhere say the app's limit).

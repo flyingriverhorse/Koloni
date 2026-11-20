@@ -1250,8 +1250,10 @@ test('KOLONİ’s card that the Orchestrator’s model is slow hangs off no call
   expect(screen.getByText(said)).toHaveClass('card-said')
   await userEvent.click(screen.getByRole('button', { name: 'Stop and pick another model' }))
   expect(onAnswer).toHaveBeenCalledWith('q', 'Stop and pick another model')
-  // Closed with no answer (its model spoke, or the turn ended): one row that says so.
-  rerender(<MessageList {...handlers} state={{ ...state, questions: [{ ...asked, status: 'cancelled' }] }} onAnswer={onAnswer} />)
-  expect(screen.queryByRole('button', { name: 'Keep waiting' })).not.toBeInTheDocument()
-  expect(screen.getByText('not answered')).toBeInTheDocument()
+  // Answered, or closed with no answer (its model spoke, or the turn ended): gone - not left under the model's answer.
+  for (const over of [{ status: 'answered' as const, answer: 'Keep waiting' }, { status: 'cancelled' as const }]) {
+    rerender(<MessageList {...handlers} state={{ ...state, questions: [{ ...asked, ...over }] }} onAnswer={onAnswer} />)
+    expect(screen.queryByText(said)).not.toBeInTheDocument()
+    expect(screen.queryByText('not answered')).not.toBeInTheDocument()
+  }
 })

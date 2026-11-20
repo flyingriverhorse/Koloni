@@ -121,7 +121,9 @@ Qwen3.8-Flash queued for 2 min."
 
 - **Keep waiting**: the turn waits on; the next card comes only after another 5 minutes with no word.
 - **Stop and pick another model**: the turn ends as at **Stop**, what it did kept, and KOLONİ's line
-  says to pick another model in the chat's model picker and send your message again.
+  says to pick another model for the Orchestrator and send your message again: in the chat's model
+  picker, or on the Agents page where the Orchestrator role has a model of its own (see
+  [A role's model](../models/tiers.md#a-roles-model)).
 - No answer: it keeps waiting. The card closes by itself once the model answers.
 
 A sub-agent has no such card (one whose provider fails is moved to the next model of its tier), and
