@@ -116,6 +116,41 @@ export function GitStatus({ projectId }: { projectId: string }) {
       .finally(() => setSwitching(false))
   }
   const work = gitRows(git, conv)
+  /** K-git-not: New branch, folded behind its button; open, its name and Create. */
+  const newBranchForm = (git: Git) => (
+    <form
+      ref={form}
+      className="git-new"
+      onSubmit={event => {
+        event.preventDefault()
+        switchTo(made.trim(), true)
+      }}
+      // (left empty: folded again)
+      onBlur={event => {
+        if (!made.trim() && !event.currentTarget.contains(event.relatedTarget)) setNaming(false)
+      }}
+    >
+      <button
+        ref={newBranch}
+        type="button"
+        className="btn btn-small"
+        aria-expanded={naming}
+        disabled={!!git.switch_blocked}
+        title={git.switch_blocked ?? `a branch made where ${git.branch || 'the project'} stands, and the project onto it`}
+        onClick={() => setNaming(on => !on)}
+      >
+        + New branch
+      </button>
+      {naming && (
+        <>
+          <input className="mono" aria-label="New branch name" placeholder="new-branch-name" value={made} maxLength={200} autoFocus onChange={event => setMade(event.target.value)} />
+          <button type="submit" className="btn btn-small" disabled={switching || !!git.switch_blocked || !made.trim()} title={git.switch_blocked ?? undefined}>
+            Create
+          </button>
+        </>
+      )}
+    </form>
+  )
   return (
     <>
       <button
@@ -157,38 +192,7 @@ export function GitStatus({ projectId }: { projectId: string }) {
             </button>
           </div>
           {git.switch_blocked && <p className="muted git-note">Can't switch branches now: {git.switch_blocked}.</p>}
-          <form
-            ref={form}
-            className="git-new"
-            onSubmit={event => {
-              event.preventDefault()
-              switchTo(made.trim(), true)
-            }}
-            // (left empty: folded again)
-            onBlur={event => {
-              if (!made.trim() && !event.currentTarget.contains(event.relatedTarget)) setNaming(false)
-            }}
-          >
-            <button
-              ref={newBranch}
-              type="button"
-              className="btn btn-small"
-              aria-expanded={naming}
-              disabled={!!git.switch_blocked}
-              title={git.switch_blocked ?? `a branch made where ${git.branch || 'the project'} stands, and the project onto it`}
-              onClick={() => setNaming(on => !on)}
-            >
-              + New branch
-            </button>
-            {naming && (
-              <>
-                <input className="mono" aria-label="New branch name" placeholder="new-branch-name" value={made} maxLength={200} autoFocus onChange={event => setMade(event.target.value)} />
-                <button type="submit" className="btn btn-small" disabled={switching || !!git.switch_blocked || !made.trim()} title={git.switch_blocked ?? undefined}>
-                  Create
-                </button>
-              </>
-            )}
-          </form>
+          {newBranchForm(git)}
           {refused && (
             <p role="alert" className="git-note">
               {refused}

@@ -308,33 +308,58 @@ function GeminiTab() {
     event.preventDefault()
     if (await put({ api_key: key.trim() })) setKey('')
   }
+  /** The key: that one is saved, with the way to remove it - or the box to give one. */
+  const keyPart = () =>
+    has ? (
+      <div className="voice-key">
+        A key is saved.
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => {
+            stopReading()
+            void put({ api_key: '' })
+          }}
+        >
+          Remove key
+        </button>
+      </div>
+    ) : (
+      <form className="voice-key" onSubmit={save}>
+        <label htmlFor="gemini-key">Gemini API key</label>
+        {/* Write-only: once saved it stays on the server, and the page never sees it again. */}
+        <input id="gemini-key" className="input" type="password" autoComplete="off" spellCheck={false} placeholder="From Google AI Studio" value={key} onChange={e => setKey(e.target.value)} />
+        <button type="submit" className="btn btn-small" disabled={busy || !key.trim()}>
+          Save key
+        </button>
+      </form>
+    )
+  /** The model, the voice and the rate it reads at. */
+  const fields = () => (
+    <div className="voice-fields">
+      <label htmlFor="gemini-model">Model</label>
+      <select id="gemini-model" className="input" value={saved?.model ?? GEMINI_MODELS[0][0]} disabled={!has || busy} onChange={e => void put({ model: e.target.value })}>
+        {GEMINI_MODELS.map(([id, name]) => (
+          <option key={id} value={id}>
+            {name}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="gemini-voice">Voice</label>
+      <select id="gemini-voice" className="input" value={saved?.voice ?? 'Kore'} disabled={!has || busy} onChange={e => void put({ voice: e.target.value })}>
+        {GEMINI_VOICES.map(name => (
+          <option key={name}>{name}</option>
+        ))}
+      </select>
+      {/* The same rate as the browser's voices: played faster or slower here, nothing more is sent. */}
+      <label htmlFor="gemini-rate">Rate</label>
+      <input id="gemini-rate" type="range" min={0.5} max={2} step={0.1} value={rate} aria-valuetext={`${rate}×`} onChange={e => setVoice({ rate: Number(e.target.value) })} />
+    </div>
+  )
   return (
     <>
-      {has ? (
-        <div className="voice-key">
-          A key is saved.
-          <button
-            type="button"
-            className="btn btn-small"
-            disabled={busy}
-            onClick={() => {
-              stopReading()
-              void put({ api_key: '' })
-            }}
-          >
-            Remove key
-          </button>
-        </div>
-      ) : (
-        <form className="voice-key" onSubmit={save}>
-          <label htmlFor="gemini-key">Gemini API key</label>
-          {/* Write-only: once saved it stays on the server, and the page never sees it again. */}
-          <input id="gemini-key" className="input" type="password" autoComplete="off" spellCheck={false} placeholder="From Google AI Studio" value={key} onChange={e => setKey(e.target.value)} />
-          <button type="submit" className="btn btn-small" disabled={busy || !key.trim()}>
-            Save key
-          </button>
-        </form>
-      )}
+      {keyPart()}
       {saved?.note && (
         <div role="status" className="composer-warning">
           {saved.note}
@@ -359,25 +384,7 @@ function GeminiTab() {
         {has ? 'When off, this computer’s voices read.' : 'With no key saved, this computer’s voices read.'}
       </span>
       {has && on && fallback && <div className="muted cmd-approval-note">Gemini could not read the last time: this computer’s voices read until you preview it again.</div>}
-      <div className="voice-fields">
-        <label htmlFor="gemini-model">Model</label>
-        <select id="gemini-model" className="input" value={saved?.model ?? GEMINI_MODELS[0][0]} disabled={!has || busy} onChange={e => void put({ model: e.target.value })}>
-          {GEMINI_MODELS.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
-        <label htmlFor="gemini-voice">Voice</label>
-        <select id="gemini-voice" className="input" value={saved?.voice ?? 'Kore'} disabled={!has || busy} onChange={e => void put({ voice: e.target.value })}>
-          {GEMINI_VOICES.map(name => (
-            <option key={name}>{name}</option>
-          ))}
-        </select>
-        {/* The same rate as the browser's voices: played faster or slower here, nothing more is sent. */}
-        <label htmlFor="gemini-rate">Rate</label>
-        <input id="gemini-rate" type="range" min={0.5} max={2} step={0.1} value={rate} aria-valuetext={`${rate}×`} onChange={e => setVoice({ rate: Number(e.target.value) })} />
-      </div>
+      {fields()}
       <label className="voice-style" htmlFor="gemini-style">
         How Gemini says it
         <textarea

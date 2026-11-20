@@ -272,6 +272,21 @@ function Card({ item, open, page, onOpen, onLearn }: { item: KnowledgeItem; open
           ))}
     </span>
   )
+  /** The Guide tab: when it was learned and on what, then the guide. */
+  const guideTab = () => (
+    <>
+      {learned && (
+        <p className="muted">
+          learned {day(learned.learned_at)} on {learned.model}
+          {state.stale && <> · old: {state.stale}</>}
+          {labels && <> · Entries: {labels}</>}
+        </p>
+      )}
+      {/* (A section is kept by its pages, whatever model wrote it.) */}
+      {state.guide?.includes('\n## Sections\n') && <p className="muted">Learning again with another model rewrites only the map: its sections are kept.</p>}
+      <Guide state={state} onRead={page.onReadFile} />
+    </>
+  )
   return (
     <article className="knowledge-card" aria-label={known.topic}>
       <div className="knowledge-card-head">
@@ -387,20 +402,7 @@ function Card({ item, open, page, onOpen, onLearn }: { item: KnowledgeItem; open
           {/* Each is kept while another is shown: what is typed in Settings stays, and holds Learn until it is saved (B-365). */}
           {tabs.map(([key]) => (
             <div key={key} id={`${tabId(key)}-panel`} role="tabpanel" aria-labelledby={tabId(key)} className="knowledge-panel" hidden={tab !== key}>
-              {key === 'guide' && (
-                <>
-                  {learned && (
-                    <p className="muted">
-                      learned {day(learned.learned_at)} on {learned.model}
-                      {state.stale && <> · old: {state.stale}</>}
-                      {labels && <> · Entries: {labels}</>}
-                    </p>
-                  )}
-                  {/* (A section is kept by its pages, whatever model wrote it.) */}
-                  {state.guide?.includes('\n## Sections\n') && <p className="muted">Learning again with another model rewrites only the map: its sections are kept.</p>}
-                  <Guide state={state} onRead={page.onReadFile} />
-                </>
-              )}
+              {key === 'guide' && guideTab()}
               {/* A page a search found (or what was kept from one while answering), taken off: not read or kept from the next learning. */}
               {key === 'pages' && <Pages state={state} removed={known.removed ?? []} busy={busy} onRemove={source => save({ ...known, removed: [...(known.removed ?? []), source] }, 'Removed: Learn again to leave it out of the guide.')} />}
               {/* K-bilgi 7: what a clicked learning's questions of its guide found no page and line for (a scan is not asked). */}

@@ -57,6 +57,9 @@ function keep(key: string, value: string) {
 
 const tabId = (name: string) => `chat-tab-${name.replaceAll(' ', '-')}`
 
+/** The Workspace button's name, with what waits for you and whether something is new. */
+const workspaceLabel = (waiting: number | null, fresher: boolean) => ['Workspace', waiting !== null && `${waiting} waiting`, fresher && 'new'].filter(Boolean).join(' ')
+
 export function ChatPanel() {
   const conv = useApp(s => s.conv)
   const send = useApp(s => s.send)
@@ -287,7 +290,7 @@ export function ChatPanel() {
       aria-expanded={filesOpen}
       aria-controls="files-window"
       // (named in words, as it reads: "Workspace 2 waiting new")
-      aria-label={['Workspace', waitingHere !== null && `${waitingHere} waiting`, fresher && 'new'].filter(Boolean).join(' ')}
+      aria-label={workspaceLabel(waitingHere, fresher)}
       title="Workspace: the project's files, what agents changed, wrote or showed, and what waits for you"
       onClick={event => {
         if (filesOpen) return closeFiles()

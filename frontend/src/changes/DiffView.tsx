@@ -37,22 +37,27 @@ function piecesOf(lines: DiffLine[], opened: ReadonlySet<number>): Piece[] {
     }
     let end = i
     while (end < lines.length && lines[end].kind === 'ctx') end++
-    // (at a file's or a hunk's start or end, nothing is kept on that side)
-    const head = i === 0 || lines[i - 1].kind === 'hunk' ? 0 : AROUND
-    const tail = end === lines.length || lines[end].kind === 'hunk' ? 0 : AROUND
-    const count = end - i - head - tail
-    const at = lines[i + head]?.oldNo ?? 0
-    for (let k = i; k < end; k++) {
-      if (count < LEAST_FOLDED || opened.has(at) || k !== i + head) out.push(k)
-      else {
-        out.push({ at, count, sent: true })
-        k += count - 1
-      }
-    }
+    unchanged(lines, i, end, opened, out)
     next = (lines[end - 1].oldNo ?? 0) + 1
     i = end
   }
   return out
+}
+
+/** A run of unchanged lines, from `i` up to `end`, put into `out`: AROUND of them kept beside a change, the rest one fold unless it is opened. */
+function unchanged(lines: DiffLine[], i: number, end: number, opened: ReadonlySet<number>, out: Piece[]) {
+  // (at a file's or a hunk's start or end, nothing is kept on that side)
+  const head = i === 0 || lines[i - 1].kind === 'hunk' ? 0 : AROUND
+  const tail = end === lines.length || lines[end].kind === 'hunk' ? 0 : AROUND
+  const count = end - i - head - tail
+  const at = lines[i + head]?.oldNo ?? 0
+  for (let k = i; k < end; k++) {
+    if (count < LEAST_FOLDED || opened.has(at) || k !== i + head) out.push(k)
+    else {
+      out.push({ at, count, sent: true })
+      k += count - 1
+    }
+  }
 }
 
 /** Side by side: a removed line across from the one added in its place, an unchanged one on both sides. */

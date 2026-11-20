@@ -411,3 +411,21 @@ describe('reading the list again', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 })
+
+test('an archived chat with two triggers switched on says both still run; one switched off is not named', () => {
+  const triggers = [
+    { id: 't', conversation_id: 'b', name: 'nightly check', enabled: true },
+    { id: 'u', conversation_id: 'b', name: 'on push', enabled: true },
+    { id: 'v', conversation_id: 'b', name: 'weekly', enabled: false },
+    { id: 'w', conversation_id: 'a', name: 'elsewhere', enabled: true },
+  ] as Trigger[]
+  const conversations = [listed('a', 'Fix the greeting', false), { ...listed('b', 'Watch the build', false), archived_at: '2026-10-17T08:00:00Z' }]
+  render(<ConversationList conversations={conversations} triggers={triggers} currentId="a" onOpen={() => {}} onNew={() => {}} onArchive={vi.fn()} />)
+  expect(screen.getByText('Its triggers nightly check, on push still run')).toHaveClass('muted', 'conv-trigger')
+  // (a chat not archived says nothing of its trigger)
+  expect(screen.getAllByText(/still runs?$/)).toHaveLength(1)
+  expect(screen.getByRole('button', { name: /^Fix the greeting/ })).toHaveAttribute('aria-current', 'true')
+  expect(screen.getByRole('button', { name: /^Watch the build/ })).not.toHaveAttribute('aria-current')
+  expect(screen.getByRole('button', { name: 'Unarchive Watch the build' })).toHaveTextContent(/^Unarchive$/)
+  expect(screen.getByRole('button', { name: 'Archive Fix the greeting' })).toHaveTextContent(/^Archive$/)
+})

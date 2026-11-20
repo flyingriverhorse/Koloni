@@ -128,3 +128,16 @@ test('G1.3: under a recipe turn whose team ended before its end, the details say
   await userEvent.click(within(line).getByRole('button', { name: 'details ▸' }))
   expect(within(line).getByText('Web app: rule broken: Test it was not done. Take in also takes in what Web app left before it stopped.')).toBeInTheDocument()
 })
+
+test('what is left open is said in its order - changes to approve, then a server running - on the line and in the details', async () => {
+  const serving = command('k', 'r', { command: 'npm run dev', keep_running: true, status: 'running', exit_code: null, ended_at: null })
+  const state = convState({ runs: [run('r', 'completed')], messages: said('r'), agents: [agent('r', 'completed')], commands: [serving], fileChanges: [fileChange('f', 'r', { status: 'proposed' })] })
+  render(<MessageList state={state} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={noop} onDecideCommand={noop} />)
+  const line = screen.getByRole('region', { name: WORK })
+  expect(line.querySelector('.turn-summary-line > span')).toHaveTextContent(/changes to approve, a server running$/)
+  expect(line.querySelector('dl')).toBeNull()
+  await userEvent.click(within(line).getByRole('button', { name: /^details/ }))
+  expect(within(line).getByRole('button', { name: /^details/ })).toHaveAttribute('aria-expanded', 'true')
+  expect(Array.from(line.querySelectorAll('dl > div > dt'), term => term.textContent)).toEqual(['Files changed', 'Sub-agents', 'Tokens', 'Known cost', 'Left open'])
+  expect(line).toHaveTextContent('Left open changes to approve, a server running')
+})

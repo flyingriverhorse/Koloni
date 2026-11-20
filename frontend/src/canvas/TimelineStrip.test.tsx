@@ -139,3 +139,10 @@ test('B-316: a Lead waiting on its sub-agents says whom; what still waits for yo
   await userEvent.click(within(rows[2]).getByRole('button', { name: 'waits for you' }))
   expect(useApp.getState().readyPanel).toEqual({ open: true, at: 'waiting-q' })
 })
+
+test('a row’s class says its depth and whether it is a CLI’s own; its name’s title says so in words', () => {
+  render(<TimelineStrip state={state} runId="r" onOpen={() => {}} onClose={() => {}} />)
+  const rows = within(screen.getByRole('table', { name: 'Its agents in time' })).getAllByRole('row').slice(1)
+  expect(rows.map(row => row.className)).toEqual(['tl-row tl-depth-0', 'tl-row tl-depth-1 tl-cli', 'tl-row tl-depth-1'])
+  expect(rows.map(row => within(row).getByRole('button').title)).toEqual(['Orchestrator', 'Look around (its CLI’s own sub-agent)', 'Reviewer'])
+})

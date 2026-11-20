@@ -60,3 +60,19 @@ test('a press that is refused says why beside the button, which can be pressed a
   expect(use).toBeEnabled()
   expect(use).toHaveFocus()
 })
+
+test('the folder step says the open chat’s folder once it is done, or only that one is added', () => {
+  steps({ health: { ...down, model_reachable: true }, project: true, folder: 'D:\\work\\shop' })
+  const step = screen.getByText('D:\\work\\shop').closest('li')
+  expect(step).toHaveClass('first-step', 'first-step-done')
+  expect(step).toHaveTextContent(/^Done: Project folder: D:\\work\\shop$/)
+  expect(screen.getByText('D:\\work\\shop')).toHaveClass('mono')
+  expect(screen.getByText('D:\\work\\shop')).toHaveAttribute('title', 'D:\\work\\shop')
+  expect(screen.getByText('Your first message: what you want done.').closest('li')).toHaveAttribute('aria-current', 'step')
+})
+
+test('a plain chat’s folder step, done, says a project folder is added; not done, what a folder is', () => {
+  steps({ health: { ...down, model_reachable: true }, project: true, folder: null })
+  expect(screen.getByText('A project folder is added.').closest('li')).toHaveTextContent(/^Done: A project folder is added\.$/)
+  expect(screen.queryByText('A folder: the project your agents work in.')).toBeNull()
+})

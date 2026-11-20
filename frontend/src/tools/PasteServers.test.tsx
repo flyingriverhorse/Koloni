@@ -211,3 +211,23 @@ test('"Edit before adding" takes the server that needs a value first, though ano
   expect(form().getByLabelText('Name')).toHaveValue('brave')
   expect(form().getByLabelText('Value 1')).toHaveValue('')
 })
+
+test('nothing pasted says so; two values left to the reader are named together, and the card’s tags stand in their order', async () => {
+  const h = handlers()
+  await pasteTab(h, [])
+  const read = screen.getByRole('region', { name: '2 · What KOLONİ read from it' })
+  expect(within(read).getByText('Nothing pasted yet.')).toHaveClass('muted', 'provider-note')
+  expect(within(read).queryByRole('list')).toBeNull()
+  await userEvent.paste(JSON.stringify({ command: 'node', args: ['C:/srv/index.js'], env: { API_KEY: '${input:key}', OTHER: '${input:other}' } }))
+  expect(within(read).queryByText('Nothing pasted yet.')).toBeNull()
+  expect(screen.getByText(/API_KEY and OTHER have no value in what you pasted:/).closest('p')).toHaveTextContent(
+    /^API_KEY and OTHER have no value in what you pasted: “Edit before adding” to type it\.$/,
+  )
+  expect(Array.from(card('no name yet').querySelectorAll('.paste-server-tags > .tag'), tag => `${tag.className}: ${tag.textContent}`)).toEqual([
+    'tag tag-ok: new',
+    'tag tag-warn: needs a value',
+    'tag tag-warn: needs a name',
+  ])
+  expect(screen.getByRole('textbox', { name: 'Name of this server' })).toHaveAttribute('aria-invalid', 'true')
+  expect(within(read).queryByText(/The token was in what you pasted|Downloads on first read/)).toBeNull()
+})

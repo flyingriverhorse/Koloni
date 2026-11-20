@@ -486,3 +486,37 @@ test('a task the Orchestrator added waits for your OK here, and one it rejected 
   await userEvent.click(within(rejected).getByRole('button', { name: 'Add' }))
   expect(props.onDecide).toHaveBeenLastCalledWith('help text', 'approve')
 })
+
+test('who writes the drafts is said by what is known: a model named for it, the provider’s default, or that it is not read yet', async () => {
+  const props = page()
+  const { rerender } = render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter({ model_id: 'big' })} onDraft={vi.fn()} />)
+  await userEvent.type(screen.getByLabelText('Title'), 'x')
+  const write = () => screen.getByRole('button', { name: 'Write it with the Product owner' })
+  expect(write()).toHaveAccessibleDescription('Cloud (big) writes them: one request you pay for. Nothing is saved until you add it.')
+  expect(write()).toBeEnabled()
+  expect(document.getElementById('draft-who')).toHaveClass('muted')
+  // no chat to plan it in: no button for it; the opened task's buttons in their order
+  expect(Array.from(document.querySelectorAll('.backlog-add .memory-actions > button'), button => button.textContent)).toEqual(['Add task', 'Write it with the Product owner'])
+  rerender(<BacklogPage {...props} backlog={[]} providers={[{ ...paid, default_model: null }]} auto={drafter()} onDraft={vi.fn()} />)
+  expect(write()).toHaveAccessibleDescription('Cloud (its default model) writes them: one request you pay for. Nothing is saved until you add it.')
+  rerender(<BacklogPage {...props} backlog={[]} providers={[]} auto={drafter()} onDraft={vi.fn()} />)
+  expect(write()).toHaveAccessibleDescription('Who writes them is not read yet.')
+  expect(write()).toBeDisabled()
+  // with no way to draft, neither the button nor its line
+  rerender(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onPlan={vi.fn(async () => {})} />)
+  expect(screen.queryByRole('button', { name: 'Write it with the Product owner' })).toBeNull()
+  expect(document.getElementById('draft-who')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeEnabled()
+})
+
+test('while the drafts are written the button says so, and neither it nor Plan it in a chat can be pressed', async () => {
+  const props = page()
+  const onDraft = vi.fn(() => new Promise<never>(() => {}))
+  render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} onPlan={vi.fn(async () => {})} />)
+  await userEvent.type(screen.getByLabelText('Title'), 'x')
+  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Product owner' }))
+  expect(await screen.findByRole('button', { name: 'Writing…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Writing…' })).toHaveAttribute('aria-describedby', 'draft-who')
+  expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Add task' })).toBeEnabled()
+})

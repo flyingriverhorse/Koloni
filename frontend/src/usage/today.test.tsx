@@ -117,3 +117,10 @@ test('over the month’s budget, "Say it in words" says so and asks again only o
   expect(await screen.findByRole('figure', { name: /Model text/ })).toHaveTextContent('A costly day.')
   expect(screen.queryByRole('group', { name: 'Over this month’s budget' })).toBeNull()
 })
+
+test('where the day is sent each day, the line says at what time', async () => {
+  view({ noteAt: '18:30' })
+  const line = await screen.findByText(/^Since midnight, counted from the record/)
+  expect(line).toHaveClass('muted', 'memory-hint')
+  expect(line).toHaveTextContent(/^Since midnight, counted from the record: no model is asked\. Sent as text at 18:30 each day\.$/)
+})

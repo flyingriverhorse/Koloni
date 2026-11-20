@@ -42,6 +42,55 @@ interface Props {
 /** The form that is open: a new trigger from these values (an agent's proposal's, its id said), or one that is there. */
 type Open = { id: null; initial: FormValues; allow: null; proposalId?: string } | { id: string; initial: FormValues; allow: Allow | null; proposalId?: undefined }
 
+/** The page before its triggers are read: that they are being read, or why they could not be. */
+const notRead = (error: Props['error']) => (
+  <div className="triggers-page">
+    {error ? (
+      <div role="alert" className="alert">
+        {error}
+      </div>
+    ) : (
+      <p className="muted">Reading the project’s triggers…</p>
+    )}
+  </div>
+)
+
+/** The open form's key: another for each thing it is opened on. */
+const formKey = (open: Open) => `${open.id ?? 'new'}:${open.initial.name}:${open.allow ? JSON.stringify(open.allow) : ''}`
+
+/** A webhook's address, shown once: to copy, and to put away. */
+const addressOf = (made: { name: string; address: string }, copied: boolean, setCopied: (copied: boolean) => void, onPutAway: () => void) => (
+  <section className="trigger-key" aria-label={`The address of ${made.name}`}>
+    <h3>{made.name} runs when this address is sent a POST request</h3>
+    <div className="trigger-address">
+      <code className="mono">{made.address}</code>
+      <button
+        type="button"
+        className="btn btn-small"
+        onClick={() => {
+          // (No clipboard on a page that is not served securely: the address can still be selected.)
+          void navigator.clipboard?.writeText(made.address).then(
+            () => setCopied(true),
+            () => setCopied(false),
+          )
+        }}
+      >
+        <Copy size={12} />
+        {copied ? 'Copied' : 'Copy the address'}
+      </button>
+    </div>
+    <p className="trigger-key-warn">
+      This is shown once: it cannot be read back later. Anyone on this machine who has this address can run the trigger. If it is lost or leaks, make a new key on the trigger; this address then stops working.
+    </p>
+    <p className="muted trigger-note">The agent gets what the request carries as something to look at, never as an instruction. Only requests from this machine are accepted.</p>
+    <div className="role-actions">
+      <button type="button" className="btn btn-small" onClick={onPutAway}>
+        I have copied it
+      </button>
+    </div>
+  </section>
+)
+
 /**
  * Triggers start a turn by the clock, on changed files, or on a request from outside - in a
  * conversation you choose, with a message you wrote, and with nobody watching. Such a turn
@@ -89,19 +138,7 @@ export function TriggersPage({ triggers, error, changes = null, conversations, d
     setOpen(null)
   }
 
-  if (!triggers) {
-    return (
-      <div className="triggers-page">
-        {error ? (
-          <div role="alert" className="alert">
-            {error}
-          </div>
-        ) : (
-          <p className="muted">Reading the project’s triggers…</p>
-        )}
-      </div>
-    )
-  }
+  if (!triggers) return notRead(error)
 
   // Each only fills the form; nothing is made until it is added.
   const start = (initial: FormValues) => setOpen({ id: null, initial, allow: null })
@@ -163,41 +200,11 @@ export function TriggersPage({ triggers, error, changes = null, conversations, d
           That trigger is no longer there.
         </div>
       )}
-      {made && (
-        <section className="trigger-key" aria-label={`The address of ${made.name}`}>
-          <h3>{made.name} runs when this address is sent a POST request</h3>
-          <div className="trigger-address">
-            <code className="mono">{made.address}</code>
-            <button
-              type="button"
-              className="btn btn-small"
-              onClick={() => {
-                // (No clipboard on a page that is not served securely: the address can still be selected.)
-                void navigator.clipboard?.writeText(made.address).then(
-                  () => setCopied(true),
-                  () => setCopied(false),
-                )
-              }}
-            >
-              <Copy size={12} />
-              {copied ? 'Copied' : 'Copy the address'}
-            </button>
-          </div>
-          <p className="trigger-key-warn">
-            This is shown once: it cannot be read back later. Anyone on this machine who has this address can run the trigger. If it is lost or leaks, make a new key on the trigger; this address then stops working.
-          </p>
-          <p className="muted trigger-note">The agent gets what the request carries as something to look at, never as an instruction. Only requests from this machine are accepted.</p>
-          <div className="role-actions">
-            <button type="button" className="btn btn-small" onClick={() => setMade(null)}>
-              I have copied it
-            </button>
-          </div>
-        </section>
-      )}
+      {made && addressOf(made, copied, setCopied, () => setMade(null))}
       {open && (
         <TriggerForm
           // One form at a time, made anew for each thing it is opened on.
-          key={`${open.id ?? 'new'}:${open.initial.name}:${open.allow ? JSON.stringify(open.allow) : ''}`}
+          key={formKey(open)}
           initial={open.initial}
           editing={open.id !== null}
           conversations={conversations}

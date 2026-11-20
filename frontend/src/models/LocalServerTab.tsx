@@ -60,6 +60,9 @@ function gpuOf({ gpu }: LocalServer): string {
   return `GPU memory ${gb(gpu.memory_used)} / ${gb(gpu.memory_total)} · load ${gpu.load === null ? '–' : `${gpu.load}%`} · llama-server ${gb(gpu.share)}`
 }
 
+/** The models to choose from: those in the folder, the one named first when it is not among them. */
+const modelChoices = (named: string, inFolder: string[]) => (named && !inFolder.includes(named) ? [named, ...inFolder] : inFolder)
+
 const POLL_MS = 3000
 
 /**
@@ -122,7 +125,7 @@ export function LocalServerTab({
   if (!told || !form || exe === null) return error ? <div role="alert" className="alert">{error}</div> : <p className="muted">Reading…</p>
   const set = (field: keyof ServerForm) => (value: string) => setForm({ ...form, [field]: value })
   // The model named stays a choice when it is not in the folder: nothing is lost by opening the form.
-  const models = form.model && !told.models.includes(form.model) ? [form.model, ...told.models] : told.models
+  const models = modelChoices(form.model, told.models)
   return (
     <form className="local-server" onSubmit={e => void run(running ? 'restart' : 'start', e)}>
       <p role="status" className="local-server-state">

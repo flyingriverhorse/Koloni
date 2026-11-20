@@ -156,3 +156,20 @@ test('what is shown beside a name can be a mark of its own; the words are still 
   )
   expect(item('a.py +1 −0 Applied')).toHaveTextContent(/^a\.py●$/)
 })
+
+test('a row says where its file is and shows its mark in place of the words; a changed file dots its folders, and only the file chosen is selected', () => {
+  const more: TreeFile[] = [
+    { id: 'a', path: 'src/app.py', title: 'app.py', meta: 'modified', where: 'koloni-wt', mark: 'M', changed: true },
+    { id: 'b', path: 'src/old.py', title: 'old.py', meta: 'shown' },
+  ]
+  pane({ files: more, selected: 'b' })
+  const row = (name: string | RegExp) => {
+    const one = item(name)
+    return { name: one.getAttribute('aria-label'), class: one.className, selected: one.getAttribute('aria-selected'), tab: one.tabIndex, inside: Array.from(one.children, child => `${child.className}:${child.textContent}`) }
+  }
+  expect(row(/^src/)).toEqual({ name: 'src changed', class: 'tree-row tree-folder', selected: null, tab: -1, inside: ['tree-name:src', 'tree-changed:'] })
+  expect(row(/^app\.py/)).toEqual({ name: 'app.py in koloni-wt modified', class: 'tree-row', selected: 'false', tab: -1, inside: ['tree-name:app.py', 'tree-where:koloni-wt', 'tree-meta mono:M'] })
+  expect(row(/^old\.py/)).toEqual({ name: 'old.py shown', class: 'tree-row', selected: 'true', tab: 0, inside: ['tree-name:old.py', 'tree-meta mono:shown'] })
+  expect(item(/^app\.py/)).toHaveStyle({ paddingLeft: '36px' })
+  expect(item(/^src/)).toHaveStyle({ paddingLeft: '8px' })
+})

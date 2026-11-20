@@ -92,3 +92,16 @@ test('an image a CLI looked at with its own tool is shown under its step', () =>
   render(<ToolRow call={looked} />)
   expect(screen.getByRole('img', { name: 'Image logo.png' })).toBeInTheDocument()
 })
+
+test('a row opened shows its arguments and its result - or that there is none yet; with no chat open a screenshot has no picture', async () => {
+  useApp.setState({ conv: null })
+  const { container, rerender } = render(<ToolRow call={toolCall('t3', 'r', 'browser_open', 'running', '')} />)
+  expect(container.querySelector('.tool-row-detail')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { expanded: false }))
+  expect(Array.from(container.querySelector('.tool-row-detail')!.children, one => `${one.className}: ${one.textContent}`)).toEqual(['kicker: Arguments', 'mono: {}', 'kicker: Result', 'mono: (no result yet)'])
+  rerender(<ToolRow call={toolCall('t3', 'r', 'browser_open', 'succeeded', '{"url":"http://x/"}', { result: 'opened' })} />)
+  expect(Array.from(container.querySelectorAll('.tool-row-detail > pre'), one => one.textContent)).toEqual(['{"url":"http://x/"}', 'opened'])
+  rerender(<ToolRow call={shotCall('succeeded')} />)
+  expect(screen.getByText('took a screenshot')).toBeInTheDocument()
+  expect(screen.queryByRole('img')).toBeNull()
+})

@@ -39,6 +39,14 @@ function lasted(from: string | null, to: string | null) {
   return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} m` : `${minutes} m`
 }
 
+/** The one line of a card that was started or put away. */
+const saidOnce = (card: Away) =>
+  card.status === 'dismissed'
+    ? 'Not now: this card was put away.'
+    : card.status === 'running'
+      ? `Started at ${clock(card.started_at)}: working while you're away. Its jobs are on the To-do list.`
+      : `${card.why ?? 'Every job was looked at.'} The report is on the canvas.`
+
 /**
  * The Lead's "While you're away" card in the chat (slice 106): the night's jobs, the places kept out and
  * the limits, all yours to change; only Start starts it. Once started or put away, one line says so.
@@ -54,12 +62,7 @@ export function AwayCard({ card }: { card: Away }) {
   if (card.status !== 'planned') {
     return (
       <p className="away-said muted" role="note">
-        <Moon size={13} />{' '}
-        {card.status === 'dismissed'
-          ? 'Not now: this card was put away.'
-          : card.status === 'running'
-            ? `Started at ${clock(card.started_at)}: working while you're away. Its jobs are on the To-do list.`
-            : `${card.why ?? 'Every job was looked at.'} The report is on the canvas.`}
+        <Moon size={13} /> {saidOnce(card)}
       </p>
     )
   }
@@ -411,6 +414,54 @@ export function AwayNight({ away, onOpen }: { away: Away; onOpen: (cid: string) 
   )
 }
 
+/** The report's sums: how many jobs were done, wait, could not be done and were stopped. */
+function AwaySums({ away, toTake }: { away: Away; toTake: number }) {
+  return (
+    <div className="away-sums">
+      <span className="away-done">
+        <b>{away.counts.done ?? 0}</b> done{toTake ? `, ${toTake} for you to take in` : ''}
+      </span>
+      <span className="away-waits">
+        <b>{away.counts.waits ?? 0}</b> {(away.counts.waits ?? 0) === 1 ? 'waits' : 'wait'} for your word
+      </span>
+      <span className="away-failed">
+        <b>{away.counts.failed ?? 0}</b> could not be done
+      </span>
+      {(away.counts.stopped ?? 0) > 0 && (
+        <span className="away-stopped">
+          <b>{away.counts.stopped}</b> stopped
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** The report's section for the places kept out: what tried to change them, or that nothing did. */
+function KeptOut({ away }: { away: Away }) {
+  return (
+    <div className="away-sec">
+      <h4>Kept out, as you asked</h4>
+      {away.tried.length || away.slipped.length ? (
+        <ul>
+          {away.tried.map((one, i) => (
+            <li key={i} className="mono">
+              {one.what} - refused
+            </li>
+          ))}
+          {/* (found in its copy in the morning, not refused at night: look before you take it in) */}
+          {away.slipped.map((one, i) => (
+            <li key={`s${i}`} className="mono away-shared">
+              {one.what}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="muted">Nothing tried to change {away.kept_out.join(', ')}.</div>
+      )}
+    </div>
+  )
+}
+
 /**
  * The morning's report (slice 106), on the canvas as the night's own node: what was done, for you to take
  * in; what waits for your word; what could not be done; what was proposed and not started; and the places
@@ -443,22 +494,7 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
         {someIn ? 'what you took in is in your project, the rest only once you take it in' : 'nothing of it is in your project before you take it in'}
       </div>
       {away.why && <div className="muted">{away.why}</div>}
-      <div className="away-sums">
-        <span className="away-done">
-          <b>{away.counts.done ?? 0}</b> done{toTake ? `, ${toTake} for you to take in` : ''}
-        </span>
-        <span className="away-waits">
-          <b>{away.counts.waits ?? 0}</b> {(away.counts.waits ?? 0) === 1 ? 'waits' : 'wait'} for your word
-        </span>
-        <span className="away-failed">
-          <b>{away.counts.failed ?? 0}</b> could not be done
-        </span>
-        {(away.counts.stopped ?? 0) > 0 && (
-          <span className="away-stopped">
-            <b>{away.counts.stopped}</b> stopped
-          </span>
-        )}
-      </div>
+      <AwaySums away={away} toTake={toTake} />
       {kept.length > 1 && (
         <button type="button" className="btn btn-small btn-primary nodrag" disabled={busy} onClick={() => void ask(() => useApp.getState().takeIn(kept))}>
           Take in all ({done.filter(job => job.kept.length).length})
@@ -488,28 +524,7 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
           ))}
         </div>
       )}
-      {away.kept_out.length > 0 && (
-        <div className="away-sec">
-          <h4>Kept out, as you asked</h4>
-          {away.tried.length || away.slipped.length ? (
-            <ul>
-              {away.tried.map((one, i) => (
-                <li key={i} className="mono">
-                  {one.what} - refused
-                </li>
-              ))}
-              {/* (found in its copy in the morning, not refused at night: look before you take it in) */}
-              {away.slipped.map((one, i) => (
-                <li key={`s${i}`} className="mono away-shared">
-                  {one.what}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="muted">Nothing tried to change {away.kept_out.join(', ')}.</div>
-          )}
-        </div>
-      )}
+      {away.kept_out.length > 0 && <KeptOut away={away} />}
       {error && (
         <div role="alert" className="alert">
           {error}

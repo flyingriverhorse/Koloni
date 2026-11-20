@@ -386,3 +386,37 @@ test('B-146: Ready for you lists a card that waits for its Start and a night job
   expect(openConversation).toHaveBeenCalledWith('c3')
   expect(answerAsk).not.toHaveBeenCalled()
 })
+
+test('the one-line card says a night that runs, and one that ended with no reason given', () => {
+  stub()
+  const { rerender } = render(<AwayCard card={card({ status: 'running', started_at: null })} />)
+  expect(screen.getByRole('note')).toHaveClass('away-said', 'muted')
+  expect(screen.getByRole('note')).toHaveTextContent("Started at : working while you're away. Its jobs are on the To-do list.")
+  rerender(<AwayCard card={card({ status: 'ended' })} />)
+  expect(screen.getByRole('note')).toHaveTextContent('Every job was looked at. The report is on the canvas.')
+})
+
+test('the report’s sums: counts that are not there are 0, one waits and two wait, stopped only when there are', () => {
+  stub()
+  const night = card({ status: 'ended', kept_out: [], counts: { waits: 1 } })
+  const { container, rerender } = render(<AwayReport away={night} onOpen={() => {}} />)
+  const sums = () => Array.from(container.querySelectorAll('.away-sums > span'), one => `${one.className}: ${one.textContent}`)
+  expect(sums()).toEqual(['away-done: 0 done', 'away-waits: 1 waits for your word', 'away-failed: 0 could not be done'])
+  // nothing is kept out: the report has no section for it
+  expect(screen.queryByRole('heading', { name: 'Kept out, as you asked' })).toBeNull()
+  rerender(<AwayReport away={card({ status: 'ended', counts: { done: 2, waits: 2, failed: 1, stopped: 3 } })} onOpen={() => {}} />)
+  expect(sums()).toEqual(['away-done: 2 done', 'away-waits: 2 wait for your word', 'away-failed: 1 could not be done', 'away-stopped: 3 stopped'])
+  // kept out and nothing tried it: the section says so, in the report's last place
+  expect(container.querySelector('.away-report > .away-sec:last-child')).toHaveTextContent('Kept out, as you askedNothing tried to change src/payments.')
+})
+
+test('the report’s kept-out list: what was refused first, then what slipped into a copy', () => {
+  stub()
+  const night = card({ status: 'ended', tried: [{ task_id: 't1', what: 'Coder: run rm secret' }], slipped: [{ task_id: 't1', what: 'one: changed x.py' }] })
+  const { container, rerender } = render(<AwayReport away={night} onOpen={() => {}} />)
+  const lines = () => Array.from(container.querySelectorAll('.away-sec ul > li'), one => `${one.className}: ${one.textContent}`)
+  expect(lines()).toEqual(['mono: Coder: run rm secret - refused', 'mono away-shared: one: changed x.py'])
+  expect(screen.queryByText(/Nothing tried to change/)).toBeNull()
+  rerender(<AwayReport away={{ ...night, tried: [] }} onOpen={() => {}} />)
+  expect(lines()).toEqual(['mono away-shared: one: changed x.py'])
+})

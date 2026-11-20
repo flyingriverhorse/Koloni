@@ -1,5 +1,5 @@
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
-import { type CSSProperties, useContext, useEffect, useState } from 'react'
+import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import type { SharedFile } from '../api/types'
 import { noteId } from '../notes/notesText'
@@ -52,31 +52,29 @@ export function SharedNode({ id, data }: NodeProps<Node<SharedData & Record<stri
       .post<{ path: string }>(`/projects/${data.projectId}/shared/take`, { path })
       .then(done => setTaken(was => ({ ...was, [path]: `in the project as ${done.path}` })))
       .catch(error => setTaken(was => ({ ...was, [path]: errorText(error) })))
+  const fileRow = (path: string, at: number, kind: ReactNode) => (
+    <div key={at} className="shared-row">
+      {kind}
+      {/* Read before it is taken in: in the Workspace window. */}
+      <button type="button" className="link-btn nodrag shared-name" title={`Read .koloni/shared/${path} in the Workspace`} onClick={() => useApp.getState().openFiles(keyOf(`.koloni/shared/${path}`))}>
+        {path}
+      </button>
+      {taken[path] ? (
+        <span className="muted shared-taken" title={taken[path]}>
+          {taken[path]}
+        </span>
+      ) : (
+        data.projectId && (
+          <button type="button" className="link-btn nodrag shared-take" aria-label={`Take ${path} into the project`} title={`Take into the project as ${path}`} onClick={() => void take(path)}>
+            Take in
+          </button>
+        )
+      )}
+    </div>
+  )
   const row = (one: SharedRow, at: number) => {
     const kind = <span className={`shared-kind shared-kind-${one.kind}`}>{one.kind}</span>
-    if (one.kind === 'file' && one.path) {
-      const path = one.path
-      return (
-        <div key={at} className="shared-row">
-          {kind}
-          {/* Read before it is taken in: in the Workspace window. */}
-          <button type="button" className="link-btn nodrag shared-name" title={`Read .koloni/shared/${path} in the Workspace`} onClick={() => useApp.getState().openFiles(keyOf(`.koloni/shared/${path}`))}>
-            {path}
-          </button>
-          {taken[path] ? (
-            <span className="muted shared-taken" title={taken[path]}>
-              {taken[path]}
-            </span>
-          ) : (
-            data.projectId && (
-              <button type="button" className="link-btn nodrag shared-take" aria-label={`Take ${path} into the project`} title={`Take into the project as ${path}`} onClick={() => void take(path)}>
-                Take in
-              </button>
-            )
-          )}
-        </div>
-      )
-    }
+    if (one.kind === 'file' && one.path) return fileRow(one.path, at, kind)
     if (one.kind === 'notebook' && one.note) {
       const note = one.note
       return (

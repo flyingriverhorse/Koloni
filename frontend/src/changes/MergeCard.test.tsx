@@ -526,3 +526,33 @@ test('K-dal-takim D2: a pull request opened says what was pushed and where it is
   expect(step).toHaveTextContent('Pushed to origin/koloni/fix as one commit (abcdef1234)')
   expect(within(step).getByRole('link', { name: 'https://github.com/owner/repo/pull/7' })).toHaveAttribute('href', 'https://github.com/owner/repo/pull/7')
 })
+
+test('a commit that asks: both ways wait for a message, .git/config is said when it was changed, and with them is sent', async () => {
+  const onCommit = vi.fn().mockResolvedValue(undefined)
+  const asks = merge({ ...taken, commit: { ...taken.commit!, asks: ['hooks', 'config'] } })
+  render(<MergeCard merge={asks} name="Coder" onDecide={vi.fn()} onCommit={onCommit} />)
+  const step = screen.getByRole('group', { name: "Commit of Coder's changes" })
+  expect(within(step).getByRole('alert')).toHaveTextContent(
+    "An agent changed this repository's commit hooks or git settings in this turn: commit with them, or without them? .git/config was changed: look at it first. Without them is refused, as git runs what it names when files are added.",
+  )
+  expect(Array.from(step.querySelectorAll('.change-actions > button'), button => `${button.className}: ${button.textContent}`)).toEqual([
+    'btn btn-small: Commit with them',
+    'btn btn-small: Commit without them',
+    'btn btn-small: Not now',
+  ])
+  await userEvent.clear(within(step).getByLabelText('Message'))
+  expect(within(step).getByRole('button', { name: 'Commit with them' })).toBeDisabled()
+  expect(within(step).getByRole('button', { name: 'Commit without them' })).toBeDisabled()
+  expect(within(step).getByRole('button', { name: 'Not now' })).toBeEnabled()
+  await userEvent.type(within(step).getByLabelText('Message'), 'mine')
+  await userEvent.click(within(step).getByRole('button', { name: 'Commit with them' }))
+  expect(onCommit).toHaveBeenCalledWith('mine', 'with')
+})
+
+test('a commit that asks nothing has the one Commit, waiting for a message too', async () => {
+  render(<MergeCard merge={merge(taken)} name="Coder" onDecide={vi.fn()} onCommit={vi.fn()} />)
+  const step = screen.getByRole('group', { name: "Commit of Coder's changes" })
+  expect(Array.from(step.querySelectorAll('.change-actions > button'), button => `${button.className}: ${button.textContent}`)).toEqual(['btn btn-small btn-primary: Commit', 'btn btn-small: Not now'])
+  await userEvent.clear(within(step).getByLabelText('Message'))
+  expect(within(step).getByRole('button', { name: 'Commit' })).toBeDisabled()
+})

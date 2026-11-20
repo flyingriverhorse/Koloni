@@ -214,6 +214,11 @@ function ContinueNote({ toLimits }: { toLimits?: () => void }) {
   )
 }
 
+/** "Answer in" as it is sent: spaces once between its words, "auto" in any case as ''. */
+const tidied = (text: string) => (/^auto$/i.test(text.trim()) ? '' : text.trim().replace(/ +/g, ' '))
+/** Auto (''), or a language's name: at most 40 letters, spaces and hyphens. */
+const isLanguage = (sent: string) => sent === '' || (sent.length <= 40 && /^\p{L}+(?:[ -]\p{L}+)*$/u.test(sent))
+
 /** Settings › The app › Agents: what holds in every project - the language agents write in, when a chat is compacted, how many steps an agent may take. */
 function AppSettings({ toLimits }: { toLimits?: () => void }) {
   // As the server keeps them (undefined until read), and as typed. '' is Auto.
@@ -241,8 +246,8 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
     )
   }, [])
   // As the server tidies it; "Auto" is ''. A language's name only - it goes into every agent's brief.
-  const languageSent = /^auto$/i.test(languageText.trim()) ? '' : languageText.trim().replace(/ +/g, ' ')
-  const languageValid = languageSent === '' || (languageSent.length <= 40 && /^\p{L}+(?:[ -]\p{L}+)*$/u.test(languageSent))
+  const languageSent = tidied(languageText)
+  const languageValid = isLanguage(languageSent)
   const languageChanged = language !== undefined && languageSent !== language
   const wholes = [compaction, steps, stuck, ceiling, treeFiles, treeMb]
   const valid = languageValid && wholes.every(one => !one.bad)

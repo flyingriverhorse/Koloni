@@ -44,6 +44,30 @@ interface Props {
   sized?: boolean
 }
 
+/** Under a step: how big its result is, and how long it took where that is known. */
+const sizeNote = (result: string, seconds: ReturnType<typeof commandSeconds>) => (
+  <div className="tool-row-note mono muted">
+    result {result.length.toLocaleString('en-US')} chars{seconds !== null && ` · ${seconds}s`}
+  </div>
+)
+
+/** The picture of a step, small under it: a click puts it beside the chat. */
+const shotButton = (call: ToolCall, shot: string, cid: string) => (
+  <button type="button" className="tool-row-shot" title="Open beside the chat" onClick={() => useApp.getState().openFiles(keyOf(shot))}>
+    <img src={`/api/conversations/${cid}/views/${call.id}/${encodeURIComponent(shot.split('/').at(-1) ?? '')}`} alt={`${call.name === 'browser_screenshot' ? 'Screenshot' : 'Image'} ${shot.split('/').at(-1)}`} />
+  </button>
+)
+
+/** An opened row: the call's arguments and its result, as recorded. */
+const detailOf = (call: ToolCall) => (
+  <div className="tool-row-detail">
+    <div className="kicker">Arguments</div>
+    <pre className="mono">{call.arguments || '{}'}</pre>
+    <div className="kicker">Result</div>
+    <pre className="mono">{call.result ?? '(no result yet)'}</pre>
+  </div>
+)
+
 export function ToolRow({ call, waits = null, sized = false }: Props) {
   const [open, setOpen] = useState(false)
   const [label, color] = waits ? ['waiting', 'var(--muted)'] : TOOL_STATUS[call.status]
@@ -69,25 +93,10 @@ export function ToolRow({ call, waits = null, sized = false }: Props) {
       </button>
       {/* A search or a request: which way answered, without opening the row. */}
       {answered && <div className="tool-row-note mono muted">{answered}</div>}
-      {sized && call.result !== null && (
-        <div className="tool-row-note mono muted">
-          result {call.result.length.toLocaleString('en-US')} chars{seconds !== null && ` · ${seconds}s`}
-        </div>
-      )}
+      {sized && call.result !== null && sizeNote(call.result, seconds)}
       {/* The agent's screenshot (slice 51), or the image it looked at (28e): small under the step; a click puts it beside the chat, as `show` does. */}
-      {shot && cid && (
-        <button type="button" className="tool-row-shot" title="Open beside the chat" onClick={() => useApp.getState().openFiles(keyOf(shot))}>
-          <img src={`/api/conversations/${cid}/views/${call.id}/${encodeURIComponent(shot.split('/').at(-1) ?? '')}`} alt={`${call.name === 'browser_screenshot' ? 'Screenshot' : 'Image'} ${shot.split('/').at(-1)}`} />
-        </button>
-      )}
-      {open && (
-        <div className="tool-row-detail">
-          <div className="kicker">Arguments</div>
-          <pre className="mono">{call.arguments || '{}'}</pre>
-          <div className="kicker">Result</div>
-          <pre className="mono">{call.result ?? '(no result yet)'}</pre>
-        </div>
-      )}
+      {shot && cid && shotButton(call, shot, cid)}
+      {open && detailOf(call)}
     </div>
   )
 }

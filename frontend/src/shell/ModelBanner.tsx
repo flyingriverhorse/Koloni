@@ -60,6 +60,16 @@ function wrongs(readings: Health[], cannot: Cannot[], quietFor: string | null): 
 /** Each one's line in the list of several, named where its line does not name it, with its reason. */
 const listed = ({ name, line, reason }: Wrong) => `${line.startsWith(name) ? '' : `${name}: `}${line}${reason ? ` ${reason}` : ''}`
 
+/** The bar's line: the one thing wrong as it says itself, or how many and which. */
+const lineOf = (wrong: Wrong[], several: boolean) =>
+  several
+    ? `${wrong.length} ${wrong.every(one => one.down) ? "providers aren't answering" : 'need a look'}: ${wrong.map(one => one.name).join(', ')}.`
+    : wrong[0].line
+
+/** Nothing is wrong any more, and a dismissal is still kept: known only once the chat is read, and not while First steps say it. */
+const wellAgain = (readings: Health[] | null, quietFor: string | null, state: string | null, dismissed: string | null) =>
+  readings && !quietFor && !state && dismissed !== null
+
 const stored = () => {
   try {
     return sessionStorage.getItem(KEY)
@@ -88,12 +98,10 @@ export function ModelBanner({ readings, cannot = [], quietFor = null, onModels }
   const wrong = readings ? wrongs(readings, cannot, quietFor) : []
   const state = wrong.length > 0 ? wrong.map(one => one.key).sort().join('\n') : null
   // Well again, it is shown again the next time it is not. (Not while the chat is read, nor while First steps say it.)
-  if (readings && !quietFor && !state && dismissed !== null) remember(null)
+  if (wellAgain(readings, quietFor, state, dismissed)) remember(null)
   if (!state || state === dismissed) return null
   const several = wrong.length > 1
-  const line = several
-    ? `${wrong.length} ${wrong.every(one => one.down) ? "providers aren't answering" : 'need a look'}: ${wrong.map(one => one.name).join(', ')}.`
-    : wrong[0].line
+  const line = lineOf(wrong, several)
   const reason = several ? null : wrong[0].reason
   return (
     <div className="banner">

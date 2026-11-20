@@ -512,3 +512,13 @@ test('"Re-run the ones that failed" is there only for a card with one that faile
   await userEvent.click(screen.getByRole('button', { name: 'Re-run the ones that failed' }))
   expect(within(card('Greeting')).queryByRole('alert')).not.toBeInTheDocument()
 })
+
+test('the line to Ready for you stands without its button where there is no way there, and not at all with nothing waiting', () => {
+  const { container, rerender } = render(<BoardPage {...page} waiting={2} />)
+  const line = container.querySelector('.ready-line')
+  expect(line).toHaveTextContent(/^2 things wait for you$/)
+  expect(line?.previousElementSibling).toHaveClass('memory-hint')
+  expect(line?.querySelector('button')).toBeNull()
+  rerender(<BoardPage {...page} />)
+  expect(container.querySelector('.ready-line')).toBeNull()
+})
