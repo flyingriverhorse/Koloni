@@ -583,6 +583,19 @@ test('a stage’s "New role…" makes a role in that team beside the teams, and 
   await vi.waitFor(() => expect(h.teamActions.placeRole).toHaveBeenCalledWith('web', 's', 'web-0'))
 })
 
+test('a copy made from a stage’s "New role…" goes in that team too', async () => {
+  const h = handlers()
+  render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...h} />)
+  await userEvent.click(within(region('Stage 1, Plan', await openTeam('Web app'))).getByRole('button', { name: '+ Add a role' }))
+  await userEvent.click(screen.getByRole('option', { name: 'New role…' }))
+  const made = screen.getByRole('complementary', { name: 'New role' })
+  await userEvent.click(within(made).getByRole('button', { name: 'A copy' }))
+  await userEvent.selectOptions(within(made).getByLabelText('Copy of'), 'Tester')
+  expect(within(made).getByLabelText('Name')).toHaveValue('Tester copy')
+  await userEvent.click(within(made).getByRole('button', { name: 'Create role' }))
+  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Tester copy', teams: ['web'], kind: 'check', tier: 'fast' }))
+})
+
 test('a category with two roles says to move both before it is deleted', async () => {
   const scouts = [role({ id: 'x', name: 'Scout', kind: 'k1', builtin: false }), role({ id: 'y', name: 'Ranger', kind: 'k1', builtin: false })]
   render(<AgentsPage roles={[lead, coder, tester, ...scouts]} teams={teams} {...handlers()} categories={[...categories, { key: 'k1', name: 'Research', colour: 'rose' as const }]} />)

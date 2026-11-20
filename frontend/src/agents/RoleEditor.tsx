@@ -51,44 +51,49 @@ export function Section({ title, id: at, children }: { title: string; id?: strin
 
 type SetValues = (patch: Partial<RoleValues>) => void
 
+/** The form's first values: its role's, a copy's, or a new role's. */
+const startOf = (role: Role | null, from: Role | undefined, kind: string, team: string | undefined, categories: NonNullable<EditorProps['categories']>): RoleValues =>
+  from
+    ? {
+        name: role ? role.name : `${from.name} copy`,
+        description: from.description,
+        instructions: from.instructions,
+        tools: from.tools,
+        provider_id: from.provider_id,
+        model_id: from.model_id,
+        models: from.models,
+        tier: from.tier,
+        tier_min: from.tier_min,
+        tier_max: from.tier_max,
+        kind: from.kind,
+        pick_from: from.pick_from,
+        max_steps: from.max_steps,
+        max_tokens: from.max_tokens,
+        effort: from.effort,
+        max_effort: from.max_effort,
+        context_window: from.context_window,
+        skills: from.skills,
+        inside_cli: from.inside_cli,
+        ...(!role && team && { teams: [team] }),
+      }
+    : // (Build, where the user has not deleted it; else the first category.)
+      { ...EMPTY, kind: categories.some(one => one.key === kind) ? kind : (categories[0]?.key ?? kind), ...(team && { teams: [team] }) }
+
+/** A limit's field as it opens: the number kept, or empty for none. */
+const textOf = (limit: number | null | undefined) => (limit ? String(limit) : '')
+
 export function RoleEditor({ role, runs, takes: savedTakes, found: savedFound, providers, onModels, onFacts, onSave, onCreate, onDelete, onReset, onDone, onCancel, at, copyOf, kind = 'build', team, teamLead = false, categories = [], off }: EditorProps) {
   // A copy is filled from its role (decision 6), named "<name> copy"; its teams are not.
   const from = role ?? copyOf
-  const [values, setValues] = useState<RoleValues>(
-    from
-      ? {
-          name: role ? role.name : `${from.name} copy`,
-          description: from.description,
-          instructions: from.instructions,
-          tools: from.tools,
-          provider_id: from.provider_id,
-          model_id: from.model_id,
-          models: from.models,
-          tier: from.tier,
-          tier_min: from.tier_min,
-          tier_max: from.tier_max,
-          kind: from.kind,
-          pick_from: from.pick_from,
-          max_steps: from.max_steps,
-          max_tokens: from.max_tokens,
-          effort: from.effort,
-          max_effort: from.max_effort,
-          context_window: from.context_window,
-          skills: from.skills,
-          inside_cli: from.inside_cli,
-          ...(!role && team && { teams: [team] }),
-        }
-      : // (Build, where the user has not deleted it; else the first category.)
-        { ...EMPTY, kind: categories.some(one => one.key === kind) ? kind : (categories[0]?.key ?? kind), ...(team && { teams: [team] }) },
-  )
+  const [values, setValues] = useState<RoleValues>(startOf(role, from, kind, team, categories))
   const isLead = !!role?.builtin && role.name === 'Lead'
   const uses = usesOf(values, isLead)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const set = (patch: Partial<RoleValues>) => setValues(v => ({ ...v, ...patch }))
-  const [steps, setSteps] = useState(from?.max_steps ? String(from.max_steps) : '')
-  const [tokens, setTokens] = useState(from?.max_tokens ? String(from.max_tokens) : '')
-  const [windowText, setWindowText] = useState(from?.context_window ? String(from.context_window) : '')
+  const [steps, setSteps] = useState(textOf(from?.max_steps))
+  const [tokens, setTokens] = useState(textOf(from?.max_tokens))
+  const [windowText, setWindowText] = useState(textOf(from?.context_window))
   const maxSteps = limitOf(steps)
   const maxTokens = limitOf(tokens)
   const contextWindow = limitOf(windowText)
@@ -137,6 +142,40 @@ export function RoleEditor({ role, runs, takes: savedTakes, found: savedFound, p
     part?.scrollIntoView?.({ block: 'start' })
     part?.querySelector<HTMLElement>('input:not([readonly]), textarea, select')?.focus()
   }, [at])
+  /** Save or Create role, Cancel, Reset to default for a built-in one, and Delete role for one of your own. */
+  const actions = () => (
+    <div className="role-actions">
+      {role ? (
+        <button type="submit" className="btn btn-primary" disabled={busy || !limitsOk}>
+          Save
+        </button>
+      ) : (
+        <button type="submit" className="btn btn-primary" disabled={busy || !canCreate || !limitsOk}>
+          Create role
+        </button>
+      )}
+      {onCancel && (
+        <button type="button" className="btn" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+      )}
+      {role?.builtin && (
+        <button type="button" className="btn" disabled={busy} onClick={() => void run(() => onReset(role.id))}>
+          Reset to default
+        </button>
+      )}
+      {role && !role.builtin && !teamLead && (
+        <button
+          type="button"
+          className="btn btn-danger"
+          disabled={busy}
+          onClick={() => void run(() => onDelete(role.id))}
+        >
+          Delete role
+        </button>
+      )}
+    </div>
+  )
   return (
     <form className="role-editor" onSubmit={submit}>
       <RoleWhat role={role} values={values} set={set} teamLead={teamLead} categories={categories} />
@@ -196,37 +235,7 @@ export function RoleEditor({ role, runs, takes: savedTakes, found: savedFound, p
           {error}
         </div>
       )}
-      <div className="role-actions">
-        {role ? (
-          <button type="submit" className="btn btn-primary" disabled={busy || !limitsOk}>
-            Save
-          </button>
-        ) : (
-          <button type="submit" className="btn btn-primary" disabled={busy || !canCreate || !limitsOk}>
-            Create role
-          </button>
-        )}
-        {onCancel && (
-          <button type="button" className="btn" disabled={busy} onClick={onCancel}>
-            Cancel
-          </button>
-        )}
-        {role?.builtin && (
-          <button type="button" className="btn" disabled={busy} onClick={() => void run(() => onReset(role.id))}>
-            Reset to default
-          </button>
-        )}
-        {role && !role.builtin && !teamLead && (
-          <button
-            type="button"
-            className="btn btn-danger"
-            disabled={busy}
-            onClick={() => void run(() => onDelete(role.id))}
-          >
-            Delete role
-          </button>
-        )}
-      </div>
+      {actions()}
     </form>
   )
 }
