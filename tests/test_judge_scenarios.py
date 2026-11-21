@@ -396,3 +396,19 @@ def test_ok_takes_a_command_the_check_let_run_off_decided_for_you(judging, wait_
     assert seen.status_code == 200 and seen.json()["judged"] == {**ran["judged"], "seen": True}
     assert client.post(url, headers=OWN).status_code == 409
     assert client.post(f"/api/commands/{asked['id']}/seen", headers=OWN).status_code == 404
+
+
+@pytest.mark.no_po
+def test_a_folder_the_clis_model_wrote_is_not_taken_on_its_word_by_the_check(agy_app, wait_run,  # noqa: F811
+                                                                              project_dir):
+    # (agy's Cwd is its model's argument: its shell may stand at the root, where `rm -rf .`
+    # takes the whole project - "You may delete build/" covers nothing there)
+    client, cli, default = agy_app(
+        [{"tool": "run_command", "asks": True,
+          "parameters": {"CommandLine": "rm -rf .", "Cwd": "build"}, "output": ""},
+         {"say": "left it"}], mode="native", default_steps=[verdict_line("run", RULE)])
+    (project_dir / "build").mkdir()
+    judged_by_local(client, cli)
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE, provider=cli)
+    asked = carded(client, cid, run_id, lambda *args: wait_run(*args, 30))
+    assert asked["status"] == "proposed" and asked["judged"] is None and default.calls == []
