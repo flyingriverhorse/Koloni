@@ -85,10 +85,13 @@ for (const theme of ['light', 'dark'] as const)
   })
 
 // 0.1.4: in the narrowest column (340px) a turn's card leaves an approval card about 250px, and a button does not wrap
-// (`.btn` is nowrap): "Always allow GET to <host>" ran past the chat's edge. The page is handed a Lead's call that waits
-// for its GET, and an answer with an unbroken path in it, as a real turn would have them.
-const HOST = 'docs.notes-archive.example.org'
+// (`.btn` is nowrap): "Always allow GET to <host>" ran past the chat's edge. So did a host of 40 characters in its
+// tag (nowrap too) and a Windows path outside the project (no place to break at a dot or a backslash). The page is
+// handed a Lead's call that waits for its GET, one that waits to read outside the project, and an answer with an
+// unbroken path in it, as a real turn would have them.
+const HOST = 'kept-notes.archive-mirror.eu-central-1.example.org'
 const PATH = `/srv/${'kept_notes_of_the_server'.repeat(8)}.md`
+const FOLDER = `D:\\Archive\\${'kept_notes_of_the_server_'.repeat(3)}old`
 
 test('at its narrowest the chat has nothing that scrolls sideways, a long approval button and an unbroken path included', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -107,6 +110,10 @@ test('at its narrowest the chat has nothing that scrolls sideways, a long approv
         id: 'c-get', run_id: answer.run_id, agent_id: lead.id, message_id: answer.id, origin: 'koloni', parent_call_id: null, outside_folder: null, why_asked: null,
         seq: 100, provider_call_id: 'c-get', name: 'http_request', arguments: JSON.stringify({ method: 'GET', url }), status: 'running', result: null, started_at: answer.created_at, ended_at: null,
       },
+      {
+        id: 'c-read', run_id: answer.run_id, agent_id: lead.id, message_id: answer.id, origin: 'koloni', parent_call_id: null, outside_folder: FOLDER, why_asked: null,
+        seq: 101, provider_call_id: 'c-read', name: 'read_file', arguments: JSON.stringify({ path: `${FOLDER}\\notes.md` }), status: 'pending', result: null, started_at: answer.created_at, ended_at: null,
+      },
     ],
     web_requests: [
       { id: 'w-get', run_id: answer.run_id, agent_id: lead.id, tool_call_id: 'c-get', kind: 'http', method: 'GET', target: url, host: HOST, headers: [], body_chars: null, status: 'proposed', created_at: answer.created_at, decided_at: null },
@@ -117,6 +124,7 @@ test('at its narrowest the chat has nothing that scrolls sideways, a long approv
   const chat = page.getByRole('region', { name: 'Chat' })
   const card = chat.getByRole('article')
   await expect(card.getByRole('button', { name: `Always allow GET to ${HOST}` })).toBeVisible()
+  await expect(card.getByRole('button', { name: `Allow reading this folder: ${FOLDER}` })).toBeVisible()
   await expect(card.getByText(/^Saved it under \/srv\/kept_notes/)).toBeVisible()
 
   await page.addStyleTag({ content: '.stage { --chat-w: 340px !important; }' })

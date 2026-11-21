@@ -93,12 +93,20 @@
   overflow-wrap: anywhere;
 }
 
+/* A long host or path breaks anywhere in a narrow chat, all of it in sight (never cut short: it is read before it is
+   allowed) - a dot or a backslash is no place to break. */
 .cmd-approval-where {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
   font-size: var(--text-meta);
+  overflow-wrap: anywhere;
+}
+
+.cmd-approval-where .tag {
+  min-width: 0;
+  white-space: normal;
 }
 
 .cmd-approval-note {
