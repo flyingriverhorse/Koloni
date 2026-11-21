@@ -1,5 +1,5 @@
 import { CaretDown, CaretRight, Check, Question as QuestionIcon } from '@phosphor-icons/react'
-import { type FormEvent, type KeyboardEvent, type ReactNode, useId, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { titleOf } from '../agents/agentStatus'
 import { shownOption } from '../agents/teamRun'
 import { errorText } from '../api/client'
@@ -31,17 +31,59 @@ const NO_DRAFT: Draft = { choice: null, own: '' }
  * focus goes back to the message box.
  */
 export function AskCard({ conv, open, tab, onAnswer }: Props) {
-  const [at, setAt] = useState(0)
-  const [folded, setFolded] = useState(false)
+  // The question shown, by its id: another answered or come, it stays on the one shown. (None chosen: the first.)
+  const [shown, setShown] = useState<string | null>(null)
+  // Folded in a chat, by its id: another chat's card is open.
+  const [folds, setFolds] = useState<Record<string, boolean>>({})
   // Each question's choice and words, by its id: going between two keeps both.
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const asks = conv ? leadQuestions(conv) : []
+  const chat = conv?.conversation.id ?? ''
+  const unfold = useCallback(() => setFolds(was => ({ ...was, [chat]: false })), [chat])
+  const focus = useAskedFor(asks, setShown, unfold)
   if (!conv || asks.length === 0) return null
-  const index = Math.min(at, asks.length - 1)
-  const question = asks[index]
-  // (Round, never off: a button the focus is on stays where it is.)
-  const go = (by: number) => setAt((index + by + asks.length) % asks.length)
-  const pager = asks.length > 1 && (
+  const question = asks.find(q => q.id === shown) ?? asks[0]
+  const folded = folds[conv.conversation.id] ?? false
+  const head = (
+    <div className="ask-head">
+      <AskedBy conv={conv} question={question} />
+      <Pager asks={asks} question={question} onGo={setShown} />
+      <button
+        type="button"
+        className="icon-btn ask-fold"
+        aria-label="Fold the question"
+        aria-expanded={!folded}
+        onClick={() => setFolds(was => ({ ...was, [conv.conversation.id]: !folded }))}
+      >
+        {folded ? <CaretRight size={13} /> : <CaretDown size={13} />}
+      </button>
+    </div>
+  )
+  // (Closed, or on Talk or Notes, hidden, not gone: an answer half written in it stays. Its form is the question's own:
+  // what one refused is not said on another.)
+  return (
+    <div id={ASK_CARD_ID} role="form" aria-label="Orchestrator asks" className="ask-card" hidden={!open || tab !== 'Chat'}>
+      {head}
+      {!folded && (
+        <AskForm
+          key={question.id}
+          question={question}
+          focus={focus}
+          draft={drafts[question.id] ?? NO_DRAFT}
+          onDraft={draft => setDrafts(was => ({ ...was, [question.id]: draft }))}
+          onAnswer={answer => onAnswer(question.id, answer)}
+        />
+      )}
+    </div>
+  )
+}
+
+/** ‹ 1/2 › while it asks two or more: round, never off, so a button the focus is on stays where it is. */
+function Pager({ asks, question, onGo }: { asks: Question[]; question: Question; onGo: (id: string) => void }) {
+  if (asks.length < 2) return null
+  const index = asks.indexOf(question)
+  const go = (by: number) => onGo(asks[(index + by + asks.length) % asks.length].id)
+  return (
     <span className="ask-pager">
       <button type="button" className="icon-btn" aria-label="Previous question" onClick={() => go(-1)}>
         ‹
@@ -54,27 +96,27 @@ export function AskCard({ conv, open, tab, onAnswer }: Props) {
       </button>
     </span>
   )
-  const head = (
-    <div className="ask-head">
-      <AskedBy conv={conv} question={question} />
-      {pager}
-      <button type="button" className="icon-btn ask-fold" aria-label="Fold the question" aria-expanded={!folded} onClick={() => setFolded(!folded)}>
-        {folded ? <CaretRight size={13} /> : <CaretDown size={13} />}
-      </button>
-    </div>
-  )
-  // (Closed, or on Talk or Notes, hidden, not gone: an answer half written in it stays.)
-  return (
-    <AskForm
-      question={question}
-      head={head}
-      folded={folded}
-      hidden={!open || tab !== 'Chat'}
-      draft={drafts[question.id] ?? NO_DRAFT}
-      onDraft={draft => setDrafts(was => ({ ...was, [question.id]: draft }))}
-      onAnswer={answer => onAnswer(question.id, answer)}
-    />
-  )
+}
+
+/** A question's line in its turn asks for its question (`ASKED`): the card goes to it, open, and its first option takes the focus. */
+const ASKED = 'koloni-ask-question'
+
+/** Follows a line's ask; true while the shown question's first option is to take the focus once drawn. */
+function useAskedFor(asks: Question[], show: (id: string) => void, unfold: () => void) {
+  const [wanted, setWanted] = useState<string | null>(null)
+  const ids = asks.map(q => q.id).join(' ')
+  useEffect(() => {
+    const onAsk = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail
+      if (!ids.split(' ').includes(id)) return
+      show(id)
+      unfold()
+      setWanted(id)
+    }
+    document.addEventListener(ASKED, onAsk)
+    return () => document.removeEventListener(ASKED, onAsk)
+  }, [ids, show, unfold])
+  return { wanted, done: () => setWanted(null) }
 }
 
 /** "Orchestrator asks · 10:42": who asks, and when its turn began. */
@@ -92,14 +134,19 @@ function AskedBy({ conv, question }: { conv: ConvState; question: Question }) {
 /** The card's form: the question, its options and your own answer, and Submit. */
 function AskForm(p: {
   question: Question
-  head: ReactNode
-  folded: boolean
-  hidden: boolean
+  focus: { wanted: string | null; done: () => void }
   draft: Draft
   onDraft: (draft: Draft) => void
   onAnswer: (answer: string) => Promise<void>
 }) {
-  const { question, head, folded, hidden, onAnswer } = p
+  const { question, onAnswer } = p
+  const first = useRef<HTMLInputElement>(null)
+  const { wanted, done } = p.focus
+  useEffect(() => {
+    if (wanted !== question.id) return
+    first.current?.focus()
+    done()
+  }, [wanted, question.id, done])
   const { choice, own } = p.draft
   const setChoice = (to: string) => p.onDraft({ ...p.draft, choice: to })
   const name = useId()
@@ -126,8 +173,9 @@ function AskForm(p: {
 
   // 1-9 pick an option (not while your own answer is written, nor mid-composition); Enter sends.
   function onKeyDown(event: KeyboardEvent<HTMLFormElement>) {
-    // (A button of its own - ‹ › ⌄, Submit - keeps its own Enter.)
+    // (A button of its own - Submit - keeps its own Enter; a digit with Ctrl, Alt or Meta is the browser's.)
     if (event.nativeEvent.isComposing || (event.target as HTMLElement).closest('button')) return
+    if (event.ctrlKey || event.altKey || event.metaKey) return
     if (event.key === 'Enter') {
       event.preventDefault()
       void submit()
@@ -144,16 +192,14 @@ function AskForm(p: {
   }
 
   return (
-    <form id={ASK_CARD_ID} className="ask-card" aria-label="Orchestrator asks" hidden={hidden} onSubmit={submit} onKeyDown={onKeyDown}>
-      {head}
-      {!folded && (
+    <form className="ask-form" onSubmit={submit} onKeyDown={onKeyDown}>
         <div className="ask-body">
           <div className="ask-title">{title}</div>
           {more && <p className="ask-more">{more}</p>}
           <div role="radiogroup" aria-label={title} className="ask-options">
             {question.options.map((option, i) => (
               <label key={option} className="ask-option">
-                <input type="radio" name={name} checked={choice === option} disabled={busy} onChange={() => setChoice(option)} />
+                <input type="radio" ref={i === 0 ? first : undefined} name={name} checked={choice === option} disabled={busy} onChange={() => setChoice(option)} />
                 <span className="ask-n" aria-hidden>
                   {i + 1}
                 </span>
@@ -162,7 +208,15 @@ function AskForm(p: {
               </label>
             ))}
             <div className="ask-option ask-own">
-              <input type="radio" name={name} aria-label="Answer in your own words" checked={choice === OWN} disabled={busy} onChange={() => setChoice(OWN)} />
+              <input
+                type="radio"
+                ref={question.options.length === 0 ? first : undefined}
+                name={name}
+                aria-label="Answer in your own words"
+                checked={choice === OWN}
+                disabled={busy}
+                onChange={() => setChoice(OWN)}
+              />
               <span className="ask-n" aria-hidden>
                 {question.options.length + 1}
               </span>
@@ -188,22 +242,14 @@ function AskForm(p: {
             </button>
           </div>
         </div>
-      )}
     </form>
   )
 }
 
-/** The card's checked option, else its first, else - folded - its fold: where the line in the turn takes the focus. */
-function focusCard() {
-  const card = document.getElementById(ASK_CARD_ID)
-  const at = (selector: string) => card?.querySelector<HTMLElement>(selector)
-  ;(at('input[type=radio]:checked') ?? at('input[type=radio]') ?? at('.ask-fold'))?.focus()
-}
-
-/** In its turn, the Orchestrator's open question as one line: a click goes to the card over the message box. */
+/** In its turn, the Orchestrator's open question as one line: a click goes to its question on the card over the message box. */
 export function AskLine({ question, who }: { question: Question; who: string }) {
   return (
-    <button type="button" className="ask-line" onClick={focusCard}>
+    <button type="button" className="ask-line" onClick={() => document.dispatchEvent(new CustomEvent(ASKED, { detail: question.id }))}>
       <QuestionIcon size={13} aria-hidden />
       <span className="ask-line-words">
         {who} asks: {firstLine(question.question)} · <span className="ask-line-waits">waits for you</span>

@@ -2238,6 +2238,11 @@ a.view-run {
   display: none;
 }
 
+.ask-form {
+  display: flex;
+  flex-direction: column;
+}
+
 .ask-head {
   display: flex;
   align-items: center;

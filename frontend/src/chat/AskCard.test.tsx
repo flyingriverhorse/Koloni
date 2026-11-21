@@ -4,7 +4,7 @@ import { expect, test, vi } from 'vitest'
 import { when } from '../canvas/turns'
 import type { ChatTab } from '../state/store'
 import { agent, convState, question, run } from '../test-fixtures'
-import { AskCard } from './AskCard'
+import { AskCard, AskLine } from './AskCard'
 
 const asking = (...questions: ReturnType<typeof question>[]) =>
   convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r')], questions: questions.length ? questions : [question('q', 'r', { options: ['hey', 'hello'] })] })
@@ -119,4 +119,55 @@ test('going between two questions keeps the focus on the pager and each question
   await userEvent.click(within(card()).getByRole('button', { name: 'Previous question' }))
   expect(card()).toContainElement(document.activeElement as HTMLElement)
   expect(radio(/^b$/)).toBeChecked()
+})
+
+const two = () => [question('q', 'r', { question: 'First?', options: ['a', 'b'] }), question('q2', 'r', { question: 'Second?', tool_call_id: '2', options: ['c', 'd'] })]
+
+test('a question’s line in its turn pages the card to that question and puts the focus on its first option', async () => {
+  const [first, second] = two()
+  render(
+    <>
+      <AskLine question={second} who="Orchestrator" />
+      <AskCard conv={asking(first, second)} open tab="Chat" onAnswer={vi.fn(async () => {})} />
+    </>,
+  )
+  expect(within(card()).getByText('1/2')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Orchestrator asks: Second? · waits for you' }))
+  expect(within(card()).getByText('Second?')).toBeInTheDocument()
+  expect(radio(/^c$/)).toHaveFocus()
+})
+
+test('the card follows its question by id: another one answered, it stays on the one shown; a refusal of one is not said on another', async () => {
+  const [first, second] = two()
+  const third = question('q3', 'r', { question: 'Third?', tool_call_id: '3', options: ['e'] })
+  const onAnswer = vi.fn(async () => {})
+  const { rerender } = render(<AskCard conv={asking(first, second, third)} open tab="Chat" onAnswer={onAnswer} />)
+  await userEvent.click(within(card()).getByRole('button', { name: 'Next question' }))
+  expect(within(card()).getByText('Second?')).toBeInTheDocument()
+  rerender(<AskCard conv={asking({ ...first, status: 'answered', answer: 'a' }, second, third)} open tab="Chat" onAnswer={onAnswer} />)
+  expect(within(card()).getByText('Second?')).toBeInTheDocument()
+  onAnswer.mockRejectedValueOnce({ detail: 'the question is over' })
+  await userEvent.click(radio(/^c$/))
+  await userEvent.click(within(card()).getByRole('button', { name: 'Submit' }))
+  expect(await within(card()).findByRole('alert')).toHaveTextContent('the question is over')
+  await userEvent.click(within(card()).getByRole('button', { name: 'Next question' }))
+  expect(within(card()).getByText('Third?')).toBeInTheDocument()
+  expect(within(card()).queryByRole('alert')).toBeNull()
+})
+
+test('folded in one chat, the card is open in another', async () => {
+  const conv = asking()
+  const { rerender } = render(<AskCard conv={conv} open tab="Chat" onAnswer={vi.fn(async () => {})} />)
+  await userEvent.click(within(card()).getByRole('button', { name: 'Fold the question' }))
+  expect(within(card()).queryByRole('radiogroup')).toBeNull()
+  rerender(<AskCard conv={{ ...conv, conversation: { ...conv.conversation, id: 'c2' } }} open tab="Chat" onAnswer={vi.fn(async () => {})} />)
+  expect(within(card()).getByRole('radiogroup')).toBeInTheDocument()
+})
+
+test('a digit with Ctrl, Alt or Meta is left to the browser', async () => {
+  draw()
+  await userEvent.click(radio(/hey/))
+  await userEvent.keyboard('{Control>}2{/Control}{Alt>}2{/Alt}')
+  expect(radio(/hey/)).toBeChecked()
+  expect(radio(/hello/)).not.toBeChecked()
 })

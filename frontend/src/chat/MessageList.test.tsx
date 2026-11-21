@@ -20,7 +20,7 @@ import {
 import { ALIBABA_CONSOLE } from '../agents/failure'
 import { when } from '../canvas/turns'
 import { MessageList } from './MessageList'
-import { ASK_CARD_ID } from './chatLine'
+import { AskCard } from './AskCard'
 
 /** A step's row by its words: in the chat its file is a pill in them (0.1.5). */
 const stepSaid = (words: string) => (_: string, el: Element | null) => el?.classList.contains('tool-row-summary') === true && el.textContent === words
@@ -687,14 +687,11 @@ const askedBy = (over: Parameters<typeof question>[2] = {}) =>
   })
 
 test('in its turn the open question is one line that takes the focus to the card over the box', async () => {
-  // (The card itself is over the message box, ChatPanel's AskCard: a stand-in here.)
+  // (The card itself is over the message box: ChatPanel's AskCard.)
   render(
     <>
       <MessageList {...handlers} state={askedBy()} />
-      <form id={ASK_CARD_ID}>
-        <input type="radio" name="a" aria-label="hello" />
-        <input type="radio" name="a" aria-label="hey" />
-      </form>
+      <AskCard conv={askedBy()} open tab="Chat" onAnswer={vi.fn(async () => {})} />
     </>,
   )
   const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
