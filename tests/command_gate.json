@@ -23403,17 +23403,9 @@ false
 "xfail": [
 "Select-String -LiteralPath ../../b/tree/y -Pattern x",
 "Select-String -Path ../../b/tree/secret.txt -Pattern .",
-"Set-Content node_modules/../src/a.py hi",
-"cp a.py .venv/../app/x.py",
-"cp a.py node_modules/../src/a.py",
-"cp hook node_modules/../.git/hooks/pre-commit",
-"echo x > node_modules/../.git/hooks/pre-commit",
-"echo x > node_modules/../src/a.py",
-"echo x > node_modules/x/../../src/a.py",
 "grep --regexp=x ../../b/tree/secret",
 "grep -ex ../../b/tree/secret",
 "grep -ex ../../b/tree/y",
-"mv a.py venv/../src/",
 "npm --include dev install",
 "npm --install-strategy hoisted ci",
 "npm --install-strategy hoisted install",
@@ -23426,8 +23418,6 @@ false
 "pip --log x install y",
 "pip --proxy http://x install y",
 "pip --timeout 5 install y",
-"python -m venv --clear <own>/venv",
-"python -m venv --clear <own>\\.venv",
 "rg --files ../..",
 "rg --files ../../b",
 "rg --regexp=x ../../b/tree",
@@ -23439,14 +23429,11 @@ false
 "sed -i --file=x.sed ../../b/tree/x",
 "sed -i -es/a/b/ ../../b/tree/x",
 "sed -i -fx.sed ../../b/tree/x",
-"sed -i s/a/b/ node_modules/../src/a.py",
 "sls -LiteralPath ../../b/tree/s",
 "sls -Path ../../b/tree/y -Pattern x",
 "sls -Path ../../b/y -Pattern x",
 "sls -Path ../../y x",
-"tee node_modules/../src/a.py",
 "uv --cache-dir x sync",
-"uv --color never sync",
-"virtualenv <own>\\.venv"
+"uv --color never sync"
 ]
 }

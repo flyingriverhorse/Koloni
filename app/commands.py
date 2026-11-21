@@ -1099,7 +1099,9 @@ def _in_linked(word: str, own: re.Pattern | None = None) -> bool:
         path = os.path.normcase(path)[found.end():]
     elif _full(path):
         return False
-    parts = posixpath.normpath(path.replace("\\", "/").lstrip("/") or ".").split("/")
+    # (as written, or where it leads: `node_modules/../src` passes through the link)
+    parts = [*re.split(r"[\\/]", path),
+             *posixpath.normpath(path.replace("\\", "/").lstrip("/") or ".").split("/")]
     return any(part.casefold() in LINKED for part in parts)
 
 
@@ -1171,13 +1173,14 @@ def _verb(words: list[str]) -> tuple[str, list[str]]:
     return program, rest
 
 
-def _makes_venv(words: list[str]) -> bool:
-    """Whether a part makes a venv at a linked folder (`_in_linked`): `python -m venv` or
-    `-m virtualenv`, or `virtualenv`, with any options - over one there it rewrites it."""
+def _makes_venv(words: list[str], own: re.Pattern | None = None) -> bool:
+    """Whether a part makes a venv at a linked folder (`_in_linked`, by the copy's own full path
+    too: `own`): `python -m venv` or `-m virtualenv`, or `virtualenv`, with any options - over one
+    there it rewrites it."""
     module = _module_run(words)
     made = module[1:] if module[:1] in (["venv"], ["virtualenv"]) else (
         words[1:] if _program(words[0]) == "virtualenv" else [])
-    return any(_in_linked(word) for word in made if not word.startswith("-"))
+    return any(_in_linked(word, own) for word in made if not word.startswith("-"))
 
 
 def _recursive(word: str) -> bool:
@@ -1187,14 +1190,16 @@ def _recursive(word: str) -> bool:
             or bool(re.fullmatch(r"-[a-z]{1,4}", word)) and "r" in word)
 
 
-def _through_links(words: list[str]) -> str:
+def _through_links(words: list[str], own: re.Pattern | None = None) -> str:
     """Why a command may reach through a linked folder into the project's own, "" for none:
     a delete that goes down into folders or names a linked one, what deletes folders by
     itself (`find -delete`, `git worktree remove`, `robocopy /MIR` or `/PURGE`), and what
-    empties a dependency folder to make it anew (`_REBUILDERS`)."""
+    empties a dependency folder to make it anew (`_REBUILDERS`, `_makes_venv`; `own`: the copy's
+    tree's spellings)."""
     program, rest = _program(words[0]), words[1:]
     manager, verb = _verb(words)
-    if (manager, *[word.casefold() for word in verb[:1]]) in _REBUILDERS or _makes_venv(words):
+    if (manager, *[word.casefold() for word in verb[:1]]) in _REBUILDERS or _makes_venv(
+            words, own):
         return REBUILDS_THROUGH_LINKS
     if (program == "find" and "-delete" in rest
             or program == "robocopy" and any(w.casefold() in ("/mir", "/purge") for w in rest)
@@ -1228,7 +1233,7 @@ _TILDE = re.compile(r"(?:^|(?<=[\s'\"=:(,]))~(?=[\\/\s'\")]|$)")
 _LOCAL_SHARE = re.compile(r"(?i)[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/]"
                           r"(?:([a-z])\$(?=[\\/])|(?=[a-z]:))")
 # A full path in a line (from a drive or a root), and a `..` part in one.
-_FULL_PATH = re.compile(r"(?:^|(?<=[\s'\"=<>(,;|&]))(?:[A-Za-z]:|[\\/])[^\s'\"<>|;&,()]*")
+_FULL_PATH = re.compile(r"(?:^|(?<=[\s'\"=<>(,;|&:]))(?:[A-Za-z]:|[\\/])[^\s'\"<>|;&,()]*")
 _UP = re.compile(r"(?:^|[\\/])\.\.(?:[\\/]|$)")
 
 
@@ -1257,6 +1262,12 @@ def _expanded(command: str) -> str:
     climbs = ntpath.normpath if os.name == "nt" else posixpath.normpath
     return _FULL_PATH.sub(lambda found: climbs(found[0]) if _UP.search(found[0]) else found[0],
                           line)
+
+
+def _path_lines(command: str) -> list[str]:
+    """A command as its full paths are matched (`_spellings`): as written and as the machine
+    reads it (`_as_path_line`) - reading it so may only add what is asked."""
+    return list(dict.fromkeys((os.path.normcase(command), _as_path_line(command))))
 
 
 def _as_path_line(command: str) -> str:
@@ -1397,13 +1408,13 @@ def _names_elsewhere(command: str, project: str, runtime: Path | str, own: str |
     worktree of the project, its own folder aside - the copy's own tree (`own`) taken out of the
     line first; or above the tree by `..` (`_climbs_out`). `own` None: the copy is not made yet,
     and every copy is another's."""
-    written = _as_path_line(command)
+    lines = _path_lines(command)
     if own is not None:
-        written = _spellings(own).sub("", written)
+        lines = [_spellings(own).sub("", line) for line in lines]
     here = os.path.normcase(os.path.realpath(project))
     for place in [*map(str, folders(Path(runtime))), *(
             one for one in worktrees if os.path.normcase(os.path.realpath(one)) != here)]:
-        if _spellings(place).search(written):
+        if any(map(_spellings(place).search, lines)):
             return place
     return _climbs_out(command, cwd, own)
 
@@ -1427,8 +1438,8 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
     shortcut: a line PowerShell is handed encoded (`-EncodedCommand`), a name spliced by
     backticks (`ki`ll`), and what code handed to `python -c` / `node -e` does are not read;
     `runs_another` and `runs_inline` ask of those where a night's rules hold."""
-    written = _spellings(str(runtime)).sub("", _as_path_line(command))
-    if _spellings(project).search(written):
+    if any(_spellings(project).search(_spellings(str(runtime)).sub("", line))
+           for line in _path_lines(command)):
         return NAMES_PROJECT.format(root=project)
     own = str(own) if own is not None else None
     if elsewhere := _names_elsewhere(command, project, runtime, own, cwd, worktrees):
@@ -1447,9 +1458,9 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
             return why
     # (and as `_commands_in` reads a part: past a wrapper, `env X=1 uv sync`)
     parts = [words for words in _commands_in(_expanded(command)) if words] if linked else []
-    if why := next((why for words in parts if (why := _through_links(words))), ""):
-        return why
     mine = _spellings(own) if own is not None else None
+    if why := next((why for words in parts if (why := _through_links(words, mine))), ""):
+        return why
     return WRITES_THROUGH_LINKS if any(_writes_links(words, mine) for words in parts) else ""
 
 

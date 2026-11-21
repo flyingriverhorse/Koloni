@@ -667,6 +667,39 @@ def test_in_a_copy_with_links_a_write_in_them_by_its_own_full_path_is_asked(tmp_
         assert said == WRITES_THROUGH_LINKS, command
 
 
+# A path is asked where it reads as written OR where it leads (review round 3): reading where it
+# leads may only add - `node_modules/..` is where a junction is left (Git Bash's `..` after one
+# is not measured).
+WRITES = ["echo x > {p}", "echo x >> {p}", "cp a.py {p}", "mv a.py {p}", "Set-Content {p} hi",
+          "tee {p}", "sed -i s/a/b/ {p}", "Copy-Item a.py -Destination:{p}"]
+THROUGH_LINKS = ["node_modules/../src/a.py", ".venv/../app/x.py", "venv/../src/",
+                 "node_modules/x/../../src/a.py", "node_modules/../.git/hooks/pre-commit"]
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', 'bash -c "{c}"', "env X=1 {c}"])
+@pytest.mark.parametrize("path", THROUGH_LINKS)
+@pytest.mark.parametrize("write", WRITES)
+def test_a_write_through_a_linked_folder_is_asked_wherever_it_leads(write, path, wrapper):
+    command = wrapper.replace("{c}", write.replace("{p}", path))
+    assert copy_reason(command, True, "/work/proj", "/work/rt"), command
+
+
+def test_a_full_path_through_another_folder_after_an_option_names_the_project(tmp_path):
+    project, runtime, _own, _held, _worktree = places(tmp_path)  # noqa: F811
+    other = tmp_path / "other" / ".." / "proj" / "y"
+    said = copy_reason(f"Copy-Item x -Destination:{other}", False, str(project), runtime)
+    assert said == NAMES_PROJECT.format(root=str(project))
+
+
+@pytest.mark.parametrize("make", ["python -m venv --clear {v}", "virtualenv {v}",
+                                  "python -m virtualenv {v}", "python -m venv {v}"])
+def test_a_venv_made_at_its_own_linked_folder_by_its_full_path_is_a_rebuild(tmp_path, make):
+    project, runtime, own, _held, _worktree = places(tmp_path)  # noqa: F811
+    for venv in (own / ".venv", own / "venv"):
+        said = copy_reason(make.replace("{v}", str(venv)), True, str(project), runtime, own)
+        assert "rebuild" in said, venv
+
+
 @pytest.mark.parametrize("command", [
     "cp node_modules/x/a.js src/", "cat node_modules/x/package.json", "echo x > build/out.txt",
     "python .venv/Scripts/x.py", "Set-Content src/x.txt hi", "pytest 2>&1 | tee out.txt",
