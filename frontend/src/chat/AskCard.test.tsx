@@ -171,3 +171,18 @@ test('a digit with Ctrl, Alt or Meta is left to the browser', async () => {
   expect(radio(/hey/)).toBeChecked()
   expect(radio(/hello/)).not.toBeChecked()
 })
+
+test('☾ Away: your own answer as you type holds the Orchestrator off it - the page says so at most once in 30 s', async () => {
+  const { api } = await import('../api/client')
+  const { useApp } = await import('../state/store')
+  const post = vi.spyOn(api, 'post').mockResolvedValue(undefined as never)
+  const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+  draw(asking(question('qt', 'r', { options: ['hey', 'hello'] })))
+  await userEvent.type(within(card()).getByLabelText('Your answer'), 'by name')
+  expect(post.mock.calls.filter(([path]) => path === '/questions/qt/typing')).toHaveLength(1)
+  now.mockReturnValue(1_031_000)
+  useApp.getState().typing('qt')
+  expect(post.mock.calls.filter(([path]) => path === '/questions/qt/typing')).toHaveLength(2)
+  post.mockRestore()
+  now.mockRestore()
+})

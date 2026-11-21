@@ -36,6 +36,30 @@ interface Props {
   planFirst: boolean
   /** Turn Plan first on or off; without it there is no conversation to set it on. */
   onPlanFirst?: (on: boolean) => void
+  /** K-yargıç: the project checks your own words before a harmful-looking command waits for you. */
+  checkFirst?: boolean
+  /** Turn it on or off; without it (a plain chat) there is no project to set it on. */
+  onCheckFirst?: (on: boolean) => void
+}
+
+const CHECK_FIRST =
+  'Before a harmful-looking command waits for you at Full auto or while you’re away, your own words are read first; it runs without a card only where a line of yours names it.'
+
+/** A switch row of the panel: its name and what it does. */
+function SwitchRow({ id, name, says, on, onChange }: { id: string; name: string; says: string; on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="level-row">
+      <input type="checkbox" role="switch" className="switch" checked={on} aria-labelledby={id} aria-describedby={`${id}-says`} onChange={e => onChange(e.target.checked)} />
+      <span className="level-words">
+        <span id={id} className="level-name">
+          {name}
+        </span>
+        <span id={`${id}-says`} className="level-says">
+          {says}
+        </span>
+      </span>
+    </label>
+  )
 }
 
 /**
@@ -43,7 +67,7 @@ interface Props {
  * after it -; a click opens each level with a line on what it does, and Plan first. Esc closes it, the focus back on its
  * button.
  */
-export function LevelMenu({ mode, onMode, planFirst, onPlanFirst }: Props) {
+export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = false, onCheckFirst }: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
   const id = useId()
   const level = LEVELS[mode]
@@ -100,28 +124,11 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst }: Props) {
               </button>
             ))}
           </div>
+          {onCheckFirst && <SwitchRow id={`${id}-check`} name="Check what I said first" says={CHECK_FIRST} on={checkFirst} onChange={onCheckFirst} />}
           {onPlanFirst && (
             <>
               <hr className="level-sep" />
-              <label className="level-row">
-                <input
-                  type="checkbox"
-                  role="switch"
-                  className="switch"
-                  checked={planFirst}
-                  aria-labelledby={`${id}-plan`}
-                  aria-describedby={`${id}-plan-says`}
-                  onChange={e => onPlanFirst(e.target.checked)}
-                />
-                <span className="level-words">
-                  <span id={`${id}-plan`} className="level-name">
-                    Plan first
-                  </span>
-                  <span id={`${id}-plan-says`} className="level-says">
-                    {PLAN_FIRST}
-                  </span>
-                </span>
-              </label>
+              <SwitchRow id={`${id}-plan`} name="Plan first" says={PLAN_FIRST} on={planFirst} onChange={onPlanFirst} />
             </>
           )}
         </div>

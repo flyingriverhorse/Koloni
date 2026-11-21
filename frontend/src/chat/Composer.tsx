@@ -53,6 +53,9 @@ interface Props {
   planFirst?: boolean
   /** Turn Plan first on or off; without it there is nothing to set it on. */
   onPlanFirst?: (on: boolean) => void
+  /** Check what I said first (K-yargıç), the project's; without its setter (a plain chat) the level menu has no switch. */
+  checkFirst?: boolean
+  onCheckFirst?: (on: boolean) => void
   /** Where this project's commands run; decides whether full auto needs a warning. */
   location?: 'host' | 'docker'
   /** The conversation's model: its button, first under the message box. */
@@ -97,6 +100,8 @@ export function Composer({
   onPermissionMode,
   planFirst = false,
   onPlanFirst,
+  checkFirst = false,
+  onCheckFirst,
   location = 'host',
   model,
   unseen = null,
@@ -328,6 +333,8 @@ export function Composer({
             onMode={onPermissionMode}
             planFirst={planFirst}
             onPlanFirst={onPlanFirst}
+            checkFirst={checkFirst}
+            onCheckFirst={onCheckFirst}
             dictate={voice}
             running={running}
             canSend={canSend}
@@ -604,6 +611,8 @@ function ComposerBar(p: {
   onMode: (mode: PermissionMode) => void
   planFirst: boolean
   onPlanFirst?: (on: boolean) => void
+  checkFirst: boolean
+  onCheckFirst?: (on: boolean) => void
   dictate: ReactNode
   running: boolean
   canSend: boolean
@@ -613,7 +622,7 @@ function ComposerBar(p: {
   return (
     <div className="composer-bar" hidden={p.hidden}>
       {p.attach}
-      <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} />
+      <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} checkFirst={p.checkFirst} onCheckFirst={p.onCheckFirst} />
       <span className="composer-actions">
         <AutoRead />
         {p.dictate}

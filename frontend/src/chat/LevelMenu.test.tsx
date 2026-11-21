@@ -57,3 +57,18 @@ test('the arrows move between the levels only; a level is chosen by a click, Ent
   await userEvent.keyboard('{Enter}')
   expect(onMode).toHaveBeenCalledWith('full_auto')
 })
+
+test('Check what I said first: a switch under the levels that saves the project’s check; none without a project', async () => {
+  const onCheckFirst = vi.fn()
+  const { unmount } = render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} onPlanFirst={vi.fn()} checkFirst={false} onCheckFirst={onCheckFirst} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  const check = screen.getByRole('switch', { name: 'Check what I said first' })
+  expect(check).not.toBeChecked()
+  expect(check).toHaveAccessibleDescription(/your own words are read first; it runs without a card only where a line of yours names it/)
+  await userEvent.click(check)
+  expect(onCheckFirst).toHaveBeenCalledWith(true)
+  unmount()
+  render(<LevelMenu mode="full_auto" onMode={vi.fn()} planFirst={false} checkFirst />)
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Full auto' }))
+  expect(screen.queryByRole('switch', { name: 'Check what I said first' })).toBeNull()
+})
