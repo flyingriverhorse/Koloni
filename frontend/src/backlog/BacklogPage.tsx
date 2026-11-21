@@ -1050,8 +1050,8 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
           role. Its first message is the task’s title, detail and what makes it done. A task that waits for others (⋯, Waits for) starts
           once they are done. When the work ends, the task shows “done?”: you decide whether it is done; what needs your word still waits
           for it. With Runs by itself on, todo tasks start as there is room. A Product owner or an Assistant product owner can propose
-          tasks and changes; they wait here for your word. Going away? Tell the Orchestrator in a chat (“I'm going to sleep, finish this
-          and that”): it puts the jobs on a card, and they start only when you press Start.
+          tasks and changes; they wait here for your word. Going away? Press ☾ Away on a chat’s status line: that chat finishes its turn,
+          then the tasks you tick are worked through, each in a copy of its own, until you are back.
         </Hint>
       </div>
       {/* What it runs and spends stays in sight, never behind an ⓘ. */}

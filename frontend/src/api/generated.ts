@@ -325,24 +325,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/away/{away_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Change Card */
-        patch: operations["change_card_api_away__away_id__patch"];
-        trace?: never;
-    };
-    "/api/away/{away_id}/dismiss": {
+    "/api/away/{away_id}/back": {
         parameters: {
             query?: never;
             header?: never;
@@ -352,10 +335,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Dismiss
-         * @description Not now: the card is put away, nothing started.
+         * Come Back
+         * @description I'm back: Away ends, its summary in the chat; the job at work finishes.
          */
-        post: operations["dismiss_api_away__away_id__dismiss_post"];
+        post: operations["come_back_api_away__away_id__back_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -397,26 +380,6 @@ export interface paths {
          * @description The night's report was on the user's screen: KOLONİ opened from now on does not go to it.
          */
         post: operations["seen_api_away__away_id__seen_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/away/{away_id}/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Start
-         * @description The user's Start: the only way a night begins.
-         */
-        post: operations["start_api_away__away_id__start_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -973,7 +936,11 @@ export interface paths {
          */
         get: operations["read_cards_api_conversations__cid__away_get"];
         put?: never;
-        post?: never;
+        /**
+         * Go Away
+         * @description The user's Go away from this chat: the only way Away begins.
+         */
+        post: operations["go_away_api_conversations__cid__away_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5012,31 +4979,30 @@ export interface components {
             text: string;
         };
         /**
-         * AwayIn
-         * @description The user's changes to a "While you're away" card before its Start (slice 106).
+         * AwayGoIn
+         * @description The user's Go away (☾ Away): the To-do tasks ticked, the panel's order of the list, the
+         *     places kept out and the limits - none unless named.
          */
-        AwayIn: {
-            /** Jobs */
-            jobs?: components["schemas"]["AwayJobIn"][] | null;
-            /** Kept Out */
-            kept_out?: string[] | null;
+        AwayGoIn: {
+            /**
+             * Kept Out
+             * @default []
+             */
+            kept_out: string[];
             /** Money */
             money?: number | null;
+            /**
+             * Order
+             * @default []
+             */
+            order: string[];
+            /**
+             * Task Ids
+             * @default []
+             */
+            task_ids: string[];
             /** Until */
             until?: string | null;
-        };
-        /** AwayJobIn */
-        AwayJobIn: {
-            /** Line */
-            line?: string | null;
-            /** Recipe */
-            recipe?: string | null;
-            /** Task Id */
-            task_id?: string | null;
-            /** Team */
-            team?: string | null;
-            /** Title */
-            title: string;
         };
         /**
          * AwayJobOut
@@ -5109,7 +5075,8 @@ export interface components {
         };
         /**
          * AwayOut
-         * @description A "While you're away" card and its night (`app.away`).
+         * @description ☾ Away (`app.away`): the Orchestrator's offer ("planned"), or the user's Go away and
+         *     what came of it.
          */
         AwayOut: {
             /** At Least */
@@ -5122,6 +5089,11 @@ export interface components {
             };
             /** Currency */
             currency: string;
+            /**
+             * Decided
+             * @default []
+             */
+            decided: string[];
             /** Ended At */
             ended_at: string | null;
             /** Id */
@@ -12059,42 +12031,7 @@ export interface operations {
             };
         };
     };
-    change_card_api_away__away_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                away_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AwayIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AwayOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dismiss_api_away__away_id__dismiss_post: {
+    come_back_api_away__away_id__back_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -12174,37 +12111,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    start_api_away__away_id__start_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                away_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AwayOut"];
-                };
             };
             /** @description Validation Error */
             422: {
@@ -13178,6 +13084,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AwayOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    go_away_api_conversations__cid__away_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AwayGoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwayOut"];
                 };
             };
             /** @description Validation Error */

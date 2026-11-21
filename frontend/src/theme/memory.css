@@ -509,16 +509,92 @@ a.btn {
   margin-top: 8px;
 }
 
-/* While you're away (slice 106): the Lead's card in the chat, the night on the To-do page and in the top bar,
-   and the morning's report on the canvas. The night's colour is the Files tools' blue, which reads on every ground. */
-.away-card {
-  border: 1.5px solid var(--tool-files);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+/* ☾ Away (slice 106): the chip and its panel on the message box's line, the Orchestrator's Go away line and the
+   summary in the chat, Away on the To-do page and in the top bar, and its report on the canvas. Its colour is the
+   Files tools' blue, which reads on every ground; text keeps the theme's own pairs (contrast.test.ts). */
+.away-chip {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel);
+  color: var(--text-soft);
+  font-size: var(--text-note);
+}
+.away-chip.on {
+  border-color: var(--tool-files);
+  color: var(--text);
+}
+.away-chip:disabled {
+  color: var(--muted);
+}
+.away-chip-wrap {
+  flex: none;
+  margin-left: auto;
+}
+.away-chip-wrap .away-chip {
+  margin-left: 0;
+}
+.away-panel {
+  width: 380px;
   padding: 12px 14px;
+  border-color: var(--tool-files);
+  white-space: normal;
+  color: var(--text);
+}
+.away-panel-body,
+.away-summary {
   display: grid;
   gap: 8px;
+}
+.away-panel-head {
+  margin: 0;
+  font-size: var(--text-heading);
+}
+.away-summary,
+.away-offer {
+  border: 1px solid var(--tool-files);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 10px 12px;
   max-width: 640px;
+}
+.away-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-note);
+}
+.away-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.away-col {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+.away-col ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: var(--text-note);
+}
+.away-limits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: var(--text-note);
+}
+.away-k {
+  color: var(--muted);
+  margin-right: 6px;
 }
 .away-head {
   margin: 0;
@@ -527,19 +603,8 @@ a.btn {
   gap: 8px;
   font-size: var(--text-heading);
 }
-.away-moon {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--tool-files);
-  color: var(--surface);
-  display: grid;
-  place-items: center;
-  font-size: var(--text-note);
-}
 .away-tasks,
-.away-jobs,
-.away-rules {
+.away-jobs {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -557,7 +622,6 @@ a.btn {
   padding: 7px 10px;
   background: var(--panel);
 }
-.away-n,
 .away-mark {
   min-width: 20px;
   height: 20px;
@@ -566,10 +630,6 @@ a.btn {
   place-items: center;
   font-size: var(--text-meta);
   font-weight: 600;
-}
-.away-n {
-  background: var(--accent-fill);
-  color: var(--accent-fg);
 }
 .away-mark {
   border: 1.5px solid currentColor;
@@ -623,18 +683,6 @@ a.btn {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-}
-.away-add {
-  border: 1.5px dashed var(--border-strong);
-  border-radius: var(--radius);
-  background: none;
-  color: var(--accent);
-  padding: 5px;
-  font: inherit;
-  cursor: pointer;
-}
-.away-rules li {
-  font-size: var(--text-note);
 }
 .away-inline {
   display: inline-block;

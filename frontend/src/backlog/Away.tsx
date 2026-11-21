@@ -1,14 +1,12 @@
-import { Moon, PencilSimple, X } from '@phosphor-icons/react'
-import { useState, type CSSProperties } from 'react'
-import type { Away, AwayChange, AwayJob } from '../api/types'
+import { Moon } from '@phosphor-icons/react'
+import { type CSSProperties, useEffect, useState } from 'react'
+import type { Away, AwayJob } from '../api/types'
+import { AwayPanel } from '../chat/AwayPanel'
 import { useAsk } from '../memory/useAsk'
+import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
-import { doneSaid } from './awayText'
+import { amount, clock, doneSaid } from './awayText'
 
-/** A time as this machine's clock says it: "23:42". */
-const clock = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : ''
-const amount = (n: number | null | undefined, currency?: string | null) => (n == null ? '' : `${n.toFixed(2)}${currency ? ` ${currency}` : ''}`)
 const STATE_WORD: Record<AwayJob['state'], string> = {
   planned: '',
   next: 'Next',
@@ -19,19 +17,8 @@ const STATE_WORD: Record<AwayJob['state'], string> = {
   stopped: 'Stopped',
 }
 const STATE_MARK: Record<AwayJob['state'], string> = { planned: '', next: '·', working: '●', waits: '!', done: '✓', failed: '✕', stopped: '■' }
-type Job = NonNullable<AwayChange['jobs']>[number]
 /** A job done that left nothing: nothing kept in its copy, nothing taken in from it. */
 const unchanged = (job: AwayJob) => job.state === 'done' && !job.kept.length && !job.taken.length
-// (task_id kept: a job that is a To-do task stays that task when the card is changed - B-409.)
-const toJob = ({ title, line, team, recipe, task_id }: AwayJob): Job => ({ title, line, team, recipe, task_id })
-
-/** Hours from now to a time; 0 for none. */
-const hoursTo = (iso: string | null | undefined) => (iso ? (Date.parse(iso) - Date.now()) / 3_600_000 : 0)
-
-/** How far off a stop is, said beside it: under an hour too (live, it was said only past 12 hours). */
-const inAbout = (hours: number) =>
-  hours <= 0 ? '' : ` (that is in about ${hours < 1 ? `${Math.max(1, Math.round(hours * 60))} minutes` : `${Math.round(hours)} hours`}${hours > 12 ? ', tomorrow' : ''})`
-
 /** How long from one time to another (now, without it): "1 h 48 m". */
 function lasted(from: string | null, to: string | null) {
   if (!from) return ''
@@ -39,196 +26,91 @@ function lasted(from: string | null, to: string | null) {
   return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} m` : `${minutes} m`
 }
 
-/** The one line of a card that was started or put away. */
-const saidOnce = (card: Away) =>
-  card.status === 'dismissed'
-    ? 'Not now: this card was put away.'
-    : card.status === 'running'
-      ? `Started at ${clock(card.started_at)}: working while you're away. Its jobs are on the To-do list.`
-      : `${card.why ?? 'Every job was looked at.'} The report is on the canvas.`
-
 /**
- * The Lead's "While you're away" card in the chat (slice 106): the night's jobs, the places kept out and
- * the limits, all yours to change; only Start starts it. Once started or put away, one line says so.
+ * ☾ Away: the Orchestrator's one line under its answer, once it put the work on To-do - "Go away now? Until 08:00 · at
+ * most 2.00 USD". Go away takes this chat's new tasks with the limits it heard; Change opens the Away panel here.
  */
-export function AwayCard({ card }: { card: Away }) {
+export function AwayOffer({ conv, offer }: { conv: ConvState; offer: Away }) {
+  const [changing, setChanging] = useState(false)
   const { busy, error, ask } = useAsk()
-  const [editing, setEditing] = useState<{ jobs: Job[]; kept: string } | null>(null)
-  // (The chat the card is in: its project's "When you're away", every chat's - tek-ev.)
-  const whenAway = useApp(s =>
-    s.conv?.conversation.id === card.conversation_id ? (s.projects.find(p => p.id === s.conv?.conversation.project_id)?.when_away ?? null) : null,
-  )
-  const act = (action: 'change' | 'start' | 'dismiss', change?: AwayChange) => ask(() => useApp.getState().awayDo(card.id, action, change))
-  if (card.status !== 'planned') {
-    return (
-      <p className="away-said muted" role="note">
-        <Moon size={13} /> {saidOnce(card)}
-      </p>
+  const backlog = useApp(s => s.backlog)
+  useEffect(() => {
+    if (!backlog) void useApp.getState().loadBacklog()
+  }, [backlog])
+  const cid = conv.conversation.id
+  if (changing) return <AwayPanel conv={conv} offer={offer} onClose={() => setChanging(false)} />
+  const mine = (backlog ?? []).filter(t => t.proposed_in === cid && (t.status === 'proposed' || t.status === 'todo') && t.po?.lead !== 'no').slice(0, 10)
+  const limits = [offer.until && `Until ${clock(offer.until)}`, offer.money != null && `at most ${amount(offer.money, offer.currency)}`, offer.kept_out.length > 0 && `kept out ${offer.kept_out.join(', ')}`]
+  const go = () =>
+    void ask(() =>
+      useApp.getState().goAway(cid, { task_ids: mine.map(t => t.id), order: [], until: clock(offer.until) || null, money: offer.money, kept_out: offer.kept_out }),
     )
-  }
-  const jobs = card.jobs.map(toJob)
-  const save = () =>
-    editing &&
-    void act('change', {
-      jobs: editing.jobs.filter(job => job.title.trim()),
-      kept_out: editing.kept.split(/[,\n]/).map(one => one.trim()).filter(Boolean),
-    }).then(done => done && setEditing(null))
   return (
-    <section className="away-card" aria-label="While you're away">
-      <h3 className="away-head">
-        <span className="away-moon" aria-hidden="true">
-          ☾
-        </span>
-        While you're away
-      </h3>
-      <p className="muted">The Orchestrator's jobs for while you're away: change anything before you start.</p>
-      <ol className="away-tasks">
-        {(editing?.jobs ?? jobs).map((job, i) => (
-          <li key={i} className="away-task">
-            <span className="away-n">{i + 1}</span>
-            {editing ? (
-              <div className="away-grow">
-                <input
-                  className="input"
-                  aria-label={`Job ${i + 1}`}
-                  maxLength={200}
-                  value={job.title}
-                  onChange={e => setEditing({ ...editing, jobs: editing.jobs.map((one, j) => (j === i ? { ...one, title: e.target.value } : one)) })}
-                />
-                <input
-                  className="input"
-                  aria-label={`What makes job ${i + 1} done`}
-                  placeholder="What makes it done (optional)"
-                  maxLength={4000}
-                  value={job.line ?? ''}
-                  onChange={e => setEditing({ ...editing, jobs: editing.jobs.map((one, j) => (j === i ? { ...one, line: e.target.value || null } : one)) })}
-                />
-              </div>
-            ) : (
-              <div className="away-grow">
-                <b>{job.title}</b>
-                {job.line && <div className="muted away-line">{job.line}</div>}
-              </div>
-            )}
-            {(job.team || job.recipe) && <span className="tag">{[job.team, job.recipe].filter(Boolean).join(' · ')}</span>}
-            {!editing && (
-              <button type="button" className="icon-btn" aria-label={`Change ${job.title}`} onClick={() => setEditing({ jobs, kept: card.kept_out.join(', ') })}>
-                <PencilSimple size={13} />
-              </button>
-            )}
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label={`Take out ${job.title}`}
-              disabled={busy || (editing?.jobs ?? jobs).length === 1}
-              onClick={() =>
-                editing ? setEditing({ ...editing, jobs: editing.jobs.filter((_, j) => j !== i) }) : void act('change', { jobs: jobs.filter((_, j) => j !== i) })
-              }
-            >
-              <X size={13} />
-            </button>
-          </li>
-        ))}
-      </ol>
-      {editing && (
-        <>
-          <button type="button" className="away-add" disabled={editing.jobs.length >= 10} onClick={() => setEditing({ ...editing, jobs: [...editing.jobs, { title: '', line: null, team: null, recipe: null }] })}>
-            + Add a job
-          </button>
-          <label className="field" htmlFor={`away-kept-${card.id}`}>
-            <span>Kept out (files or folders of the project: one a line, or commas between)</span>
-            <textarea id={`away-kept-${card.id}`} className="input mono" rows={2} value={editing.kept} onChange={e => setEditing({ ...editing, kept: e.target.value })} />
-          </label>
-        </>
-      )}
-      <ul className="away-rules">
-        <li>
-          <b>Each job works in its own copy.</b> Your project does not change while you're away; you take the work in when you're back.
-        </li>
-        <li>
-          <b>If a job needs your word, it waits</b> and the next one goes on.{' '}
-          {/* (K-vekil-karar: suggested here, one click - never turned on unasked.) */}
-          {whenAway === 'lead' ? (
-            'The Orchestrator answers what it safely can for you; you see it under "Decided for you".'
-          ) : whenAway === 'waits' ? (
-            <button type="button" className="link-btn" disabled={busy} onClick={() => void ask(() => useApp.getState().saveProjectSettings({ when_away: 'lead' }))}>
-              Let the Orchestrator answer what it safely can
-            </button>
-          ) : null}
-        </li>
-        <li>
-          {card.kept_out.length ? (
-            <>
-              Kept out: {card.kept_out.map(path => <span key={path} className="away-inline mono">{path}</span>)}
-            </>
-          ) : (
-            'Nothing is kept out.'
-          )}
-        </li>
-        <Limits card={card} busy={busy} onChange={change => void act('change', change)} />
-        <JobCeiling minutes={card.job_minutes} />
-      </ul>
-      <div className="memory-actions">
-        {editing ? (
-          <>
-            <button type="button" className="btn btn-small btn-primary" disabled={busy || !editing.jobs.some(job => job.title.trim())} onClick={save}>
-              Save the list
-            </button>
-            <button type="button" className="btn btn-small" onClick={() => setEditing(null)}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void act('start')}>
-              Start
-            </button>
-            <button type="button" className="btn btn-small" disabled={busy} onClick={() => setEditing({ jobs, kept: card.kept_out.join(', ') })}>
-              Change the list
-            </button>
-            <button type="button" className="btn btn-small" disabled={busy} onClick={() => void act('dismiss')}>
-              Not now
-            </button>
-            <span className="muted">The jobs go onto the To-do list too.</span>
-          </>
-        )}
-      </div>
+    <div className="away-offer" role="group" aria-label="Go away now?">
+      <span aria-hidden>☾</span> <b>Go away now?</b> {limits.filter(Boolean).join(' · ')}
+      <button type="button" className="btn btn-small btn-primary" disabled={busy || !backlog} onClick={go}>
+        Go away
+      </button>
+      <button type="button" className="btn btn-small" onClick={() => setChanging(true)}>
+        Change
+      </button>
       {error && (
         <div role="alert" className="alert">
           {error}
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
-/** The card's limits: a stop time and a spend limit, each only if set (the user, 6 Nov: no defaults). */
-function Limits({ card, busy, onChange }: { card: Away; busy: boolean; onChange: (change: AwayChange) => void }) {
+/**
+ * ☾ Away's summary in the chat you went away from: its span, what was done and waits in Ready, what was decided for
+ * you, what waits for your word (answered here) and what it spent - the project's newest Away; else its one line.
+ */
+export function AwaySummary({ line, conv }: { line: string; conv: ConvState }) {
+  const away = useApp(s => s.away)
+  const [head, sums] = line.split(/\): /, 2)
+  if (!away || away.status !== 'ended' || away.conversation_id !== conv.conversation.id || sums === undefined)
+    return (
+      <p className="msg msg-from away-said" role="note">
+        <Moon size={13} />
+        {line}
+      </p>
+    )
+  const done = away.jobs.filter(job => job.state === 'done')
+  const open = (cid: string) => void useApp.getState().openConversation(cid)
   return (
-    <li>
-      Stop at{' '}
-      <input
-        type="time"
-        className="input away-inline"
-        aria-label="Stop at"
-        defaultValue={clock(card.until)}
-        disabled={busy}
-        onBlur={e => e.target.value !== clock(card.until) && onChange({ until: e.target.value || null })}
-      />{' '}
-      {!card.until && '(empty: no time limit) '}
-      or after{' '}
-      <input
-        type="number"
-        className="input away-inline"
-        aria-label="Stop after spending"
-        min={0}
-        step={0.5}
-        defaultValue={card.money ?? ''}
-        disabled={busy}
-        onBlur={e => String(card.money ?? '') !== e.target.value && onChange({ money: e.target.value === '' ? null : Number(e.target.value) })}
-      /> {card.currency}{card.money == null && ' (empty: no spend limit)'}, whichever comes first{inAbout(hoursTo(card.until))}.
-      {card.on_plan ? ` No money is counted on ${card.on_plan}, a plan: there only the time holds${card.until ? '' : ', once you set one'}.` : ''} Your provider limits hold too.
-    </li>
+    <section className="msg msg-from away-summary" aria-label="While you were away">
+      <h3 className="away-head">
+        <span aria-hidden>☾</span> {head})
+      </h3>
+      <p className="away-sums-line">{sums}</p>
+      {done.length > 0 && (
+        <p className="away-line">
+          <span className="away-k">done</span> {done.map(job => job.title).join(' · ')} - wait in Ready to take in
+        </p>
+      )}
+      {away.decided.length > 0 && (
+        <p className="away-line">
+          <span className="away-k">decided</span> {away.decided.join(' · ')}
+        </p>
+      )}
+      <ol className="away-jobs">
+        {away.jobs
+          .filter(job => job.state === 'waits')
+          .map(job => (
+            <JobRow key={job.task_id ?? job.title} away={away} job={job} onOpen={open} />
+          ))}
+      </ol>
+      <div className="memory-actions">
+        <button type="button" className="btn btn-small btn-primary" onClick={() => useApp.getState().showReady(true)}>
+          Review and take in
+        </button>
+        <button type="button" className="btn btn-small" onClick={() => void useApp.getState().openTurn(away.conversation_id, away.run_id).then(() => useApp.getState().select('away:' + away.id))}>
+          On the canvas
+        </button>
+      </div>
+    </section>
   )
 }
 
@@ -245,7 +127,7 @@ export function AwayFrom({ chat }: { chat: string }) {
   )
 }
 
-/** In the top bar on every page while a night runs: which job, until when, and Stop all. */
+/** In the top bar on every page while you're away: which To-do task of how many, until when; I'm back and Stop all. */
 export function AwayStatus({ away, onOpen }: { away: Away | null; onOpen: () => void }) {
   const { busy, ask } = useAsk()
   if (!away || away.status !== 'running') return null
@@ -254,8 +136,11 @@ export function AwayStatus({ away, onOpen }: { away: Away | null; onOpen: () => 
   return (
     <span className="away-status">
       <button type="button" className="away-pill" onClick={onOpen}>
-        ☾ Away · job {n} of {away.jobs.length}
+        ☾ Away · To-do {n} of {away.jobs.length}
         {away.until && ` · until ${clock(away.until)}`}
+      </button>
+      <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().comeBack(away.id))}>
+        I’m back
       </button>
       <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().awayDo(away.id, 'stop'))}>
         Stop all
@@ -439,6 +324,11 @@ function AwaySums({ away, toTake }: { away: Away; toTake: number }) {
           <b>{away.counts.stopped}</b> stopped
         </span>
       )}
+      {away.decided.length > 0 && (
+        <span className="away-decided">
+          <b>{away.decided.length}</b> decided for you
+        </span>
+      )}
     </div>
   )
 }
@@ -512,6 +402,16 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
       {section('Could not be done', of('failed'))}
       {section('Stopped', of('stopped'))}
       {section('Not started', of('next'))}
+      {away.decided.length > 0 && (
+        <div className="away-sec">
+          <h4>Decided for you</h4>
+          <ul>
+            {away.decided.map((said, i) => (
+              <li key={i}>{said}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {away.proposed.length > 0 && (
         <div className="away-sec">
           <h4>Proposed while you were away, not started</h4>
@@ -539,11 +439,4 @@ export function AwayReport({ away, onOpen }: { away: Away; onOpen: (cid: string)
       )}
     </div>
   )
-}
-
-/** A job's ceiling, where Settings › The app has one; else that it stops where nothing moves. */
-function JobCeiling({ minutes }: { minutes: number | null }) {
-  if (minutes === null) return <li>A job works as long as it makes progress: it stops when nothing moves for a while, what it did kept in its copy, and the next one goes on.</li>
-  const most = minutes % 60 ? `${minutes} minutes` : `${minutes / 60} hour${minutes === 60 ? '' : 's'}`
-  return <li>A job works at most {most}, and stops sooner when nothing moves: then what it did is kept in its copy, and the next one goes on.</li>
 }

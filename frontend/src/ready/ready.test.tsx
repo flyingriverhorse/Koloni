@@ -11,7 +11,7 @@ import { useReady } from './useReady'
 
 const task = (id: string, over: Partial<BacklogTask> = {}): BacklogTask => ({
   id, title: `Task ${id}`, detail: null, criteria: null, priority: 'normal', status: 'proposed', position: 0, conversation_id: null, created_by: 'agent',
-  pending: null, assessment: null, not_in: false, after: [], queued: false, stuck: null, waiting: false, ...over,
+  pending: null, assessment: null, not_in: false, after: [], queued: false, stuck: null, waiting: false, created_at: '2026-10-05T10:00:00Z', ...over,
 })
 
 /** The open chat "c", asking a question; another chat "x" of the folder whose agent asks to run a long command. */

@@ -1,13 +1,13 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
-import type { Away, AwayJob, Project } from '../api/types'
+import type { Away, AwayJob, BacklogTask } from '../api/types'
 import { type Node, type NodeProps, ReactFlowProvider } from '@xyflow/react'
 import { type AwayJobData, deriveGraph } from '../canvas/deriveGraph'
 import { AwayJobNode } from '../canvas/nodes'
 import { useApp } from '../state/store'
 import { agent, convState, run, userMessage } from '../test-fixtures'
-import { AwayCard, AwayFrom, AwayNight, AwayReport, AwayStatus } from './Away'
+import { AwayFrom, AwayNight, AwayOffer, AwayReport, AwayStatus, AwaySummary } from './Away'
 
 const job = (over: Partial<AwayJob>): AwayJob => ({
   title: 'job',
@@ -54,6 +54,7 @@ const card = (over: Partial<Away>): Away => ({
   at_least: false,
   counts: { done: 0, waits: 0, failed: 0, not_started: 0 },
   proposed: [],
+  decided: [],
   ...over,
 })
 
@@ -67,63 +68,17 @@ const stub = () => {
 
 afterEach(() => useApp.setState({ conv: null }))
 
-test('the card lists the jobs and what is kept out; only Start starts it, and Change the list edits it first', async () => {
+test('the top bar says which To-do task of how many and until when, with I’m back and Stop all - only while away', async () => {
   const { awayDo } = stub()
-  render(<AwayCard card={card({})} />)
-  const it = screen.getByRole('region', { name: "While you're away" })
-  expect(it).toHaveTextContent('Forgot my password page')
-  expect(it).toHaveTextContent('the link, the email, the form')
-  expect(it).toHaveTextContent('Kept out: src/payments')
-  expect(awayDo).not.toHaveBeenCalled() // shown, nothing started
-  await userEvent.click(screen.getByRole('button', { name: 'Change the list' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Take out README install' }))
-  await userEvent.click(screen.getByRole('button', { name: '+ Add a job' }))
-  await userEvent.type(screen.getByRole('textbox', { name: 'Job 2' }), 'Welcome email retries')
-  await userEvent.click(screen.getByRole('button', { name: 'Save the list' }))
-  expect(awayDo).toHaveBeenCalledWith('a1', 'change', {
-    jobs: [
-      { title: 'Forgot my password page', line: 'the link, the email, the form', team: 'Web app', recipe: null, task_id: 't1' },
-      { title: 'Welcome email retries', line: null, team: null, recipe: null },
-    ],
-    kept_out: ['src/payments'],
-  })
-  await userEvent.click(screen.getByRole('button', { name: 'Start' }))
-  expect(awayDo).toHaveBeenLastCalledWith('a1', 'start', undefined)
-  await userEvent.click(screen.getByRole('button', { name: 'Not now' }))
-  expect(awayDo).toHaveBeenLastCalledWith('a1', 'dismiss', undefined)
-})
-
-test('K-vekil-karar: the card suggests the Lead answers while you are away, one click, never on its own', async () => {
-  // (The project's, every chat's since tek-ev.)
-  const saveProjectSettings = vi.fn(async () => {})
-  const folder = (when_away: 'waits' | 'lead') => [{ id: 'p1', when_away } as Project]
-  useApp.setState({ saveProjectSettings, conv: convState({ conversation: { ...convState({}).conversation, id: 'c1', project_id: 'p1' } }), projects: folder('waits') })
-  const { rerender } = render(<AwayCard card={card({})} />)
-  expect(saveProjectSettings).not.toHaveBeenCalled()
-  await userEvent.click(screen.getByRole('button', { name: 'Let the Orchestrator answer what it safely can' }))
-  expect(saveProjectSettings).toHaveBeenCalledWith({ when_away: 'lead' })
-  useApp.setState({ projects: folder('lead') })
-  rerender(<AwayCard card={card({})} />)
-  expect(screen.queryByRole('button', { name: 'Let the Orchestrator answer what it safely can' })).toBeNull()
-  expect(screen.getByRole('region', { name: "While you're away" })).toHaveTextContent('The Orchestrator answers what it safely can for you')
-})
-
-test('once started or put away, the card is one line', () => {
-  stub()
-  const { rerender } = render(<AwayCard card={card({ status: 'dismissed' })} />)
-  expect(screen.getByRole('note')).toHaveTextContent('Not now: this card was put away.')
-  rerender(<AwayCard card={card({ status: 'ended', why: 'Stopped by you.' })} />)
-  expect(screen.getByRole('note')).toHaveTextContent('Stopped by you. The report is on the canvas.')
-  expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
-})
-
-test('the top bar says which job of how many and until when, with Stop all - only while the night runs', async () => {
-  const { awayDo } = stub()
+  const comeBack = vi.fn(async () => {})
+  useApp.setState({ comeBack })
   const night = card({ status: 'running', jobs: [job({ state: 'done' }), job({ state: 'working' }), job({ state: 'next' })] })
   const { rerender } = render(<AwayStatus away={night} onOpen={() => {}} />)
-  expect(screen.getByRole('button', { name: /^☾ Away · job 2 of 3 · until \d\d:\d\d$/ })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /^☾ Away · To-do 2 of 3 · until \d\d:\d\d$/ })).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Stop all' }))
   expect(awayDo).toHaveBeenCalledWith('a1', 'stop')
+  await userEvent.click(screen.getByRole('button', { name: 'I’m back' }))
+  expect(comeBack).toHaveBeenCalledWith('a1')
   rerender(<AwayStatus away={{ ...night, status: 'ended' }} onOpen={() => {}} />)
   expect(screen.queryByRole('button', { name: 'Stop all' })).toBeNull()
 })
@@ -290,7 +245,7 @@ test('the report: Take in all takes in every done job, and what was proposed whi
   const { takeIn } = stub()
   const decideTask = vi.fn(async () => {})
   useApp.setState({ decideTask })
-  const proposed = { id: 'p1', title: 'Rate-limit the reset form', detail: null, criteria: null, priority: 'normal' as const, status: 'proposed' as const, position: 3, conversation_id: null, created_by: 'agent' as const, pending: null, assessment: null, not_in: false, after: [], queued: false, waiting: false }
+  const proposed = { id: 'p1', title: 'Rate-limit the reset form', detail: null, criteria: null, priority: 'normal' as const, status: 'proposed' as const, position: 3, conversation_id: null, created_by: 'agent' as const, pending: null, assessment: null, not_in: false, after: [], queued: false, waiting: false, created_at: '2026-10-26T22:00:00Z' }
   const night = card({
     status: 'ended',
     started_at: '2026-10-26T21:42:00Z',
@@ -319,37 +274,6 @@ test("a Take in that is refused (a line clashes) opens the job's chat, where its
   expect(onOpen).toHaveBeenCalledWith('c2')
 })
 
-test('the card says how long a job may work, that a plan counts no money, and a stop many hours away', () => {
-  stub()
-  const until = new Date(Date.now() + 20 * 3_600_000).toISOString()
-  render(<AwayCard card={card({ until, on_plan: 'Claude' })} />)
-  const it = screen.getByRole('region', { name: "While you're away" })
-  expect(it).toHaveTextContent('A job works at most 1 hour, and stops sooner when nothing moves')
-  expect(it).toHaveTextContent('No money is counted on Claude, a plan')
-  expect(it).toHaveTextContent('(that is in about 20 hours, tomorrow)')
-  expect(it).not.toHaveTextContent('no time limit')
-})
-
-test('a card with no stop time says the time limit is off (the user, 6 Nov)', () => {
-  stub()
-  render(<AwayCard card={card({ until: null, on_plan: 'Claude' })} />)
-  const it = screen.getByRole('region', { name: "While you're away" })
-  expect(screen.getByLabelText('Stop at')).toHaveValue('')
-  expect(it).toHaveTextContent('(empty: no time limit) or after')
-  expect(it).toHaveTextContent('there only the time holds, once you set one.')
-  expect(it).not.toHaveTextContent('in about')
-  expect(it).not.toHaveTextContent('no spend limit')
-})
-
-test('a card with no money says there is no spend limit, never a dollar default (the user, 6 Nov)', () => {
-  stub()
-  render(<AwayCard card={card({ money: null })} />)
-  const it = screen.getByRole('region', { name: "While you're away" })
-  expect(screen.getByLabelText('Stop after spending')).toHaveValue(null)
-  expect(it).toHaveTextContent('USD (empty: no spend limit), whichever comes first')
-  expect(it).not.toHaveTextContent(/\$\d|5\.00|null/)
-})
-
 test('a job that waits says its command once, and one that needs the project itself may be taken in as it is', async () => {
   const { takeIn } = stub()
   const ask = { kind: 'commands' as const, id: 'k1', text: 'Coder asks to run "npm test"' }
@@ -364,12 +288,6 @@ test('a job that waits says its command once, and one that needs the project its
   expect(within(screen.getByRole('listitem', { name: /^two/ })).getAllByText(ask.text)).toHaveLength(1)
   await userEvent.click(within(screen.getByRole('listitem', { name: /^build/ })).getByRole('button', { name: 'Take in' }))
   expect(takeIn).toHaveBeenCalledWith(['m2'])
-})
-
-test('the card says a stop under an hour away in minutes', () => {
-  stub()
-  render(<AwayCard card={card({ until: new Date(Date.now() + 40 * 60_000 + 20_000).toISOString() })} />)
-  expect(screen.getByRole('region', { name: "While you're away" })).toHaveTextContent('(that is in about 40 minutes)')
 })
 
 test("the report says apart what a job's copy changed in a place kept out, and a night with nothing for you folds to one line", () => {
@@ -398,7 +316,7 @@ test('a night job that waits keeps the night open, even with no question on its 
   expect(within(screen.getByRole('listitem', { name: 'two: Waits for you' })).getByRole('button', { name: 'Open its chat' })).toBeVisible()
 })
 
-test('B-146: Ready for you lists a card that waits for its Start and a night job that waits for your word - the job answered in its chat', async () => {
+test('B-146: Ready for you lists a job of Away that waits for your word - not the Orchestrator’s offer; the job answered in its chat', async () => {
   const { answerAsk } = stub()
   const openConversation = vi.fn(async () => {})
   useApp.setState({ openConversation })
@@ -407,26 +325,18 @@ test('B-146: Ready for you lists a card that waits for its Start and a night job
   const ask = { kind: 'commands' as const, id: 'k1', text: 'Coder asks to run "npm test"' }
   const night = card({ id: 'a0', status: 'ended', jobs: [job({ title: 'two', task_id: 't2', conversation_id: 'c3', state: 'waits', why: ask.text, asks: [ask] }), job({ title: 'one', task_id: 't1', state: 'done' })] })
   const state = convState({ runs: [run('r', 'completed')], away: [night, card({})] })
-  expect(waitingSummary(waitingOf(state))).toBe('1 away card to start · 1 away job waiting')
+  expect(waitingSummary(waitingOf(state))).toBe('1 away job waiting')
   const on = { onRemoveQueued: vi.fn(), onOpenChange: vi.fn(), onDecide: vi.fn(), onDecideCommand: vi.fn(), onDecideWeb: vi.fn() }
   render(<WaitingList state={state} on={on as never} onDecidePlan={vi.fn()} known={{ roles: [], providers: [] }} />)
   expect(screen.queryByText('Nothing waits for you.')).toBeNull()
-  expect(screen.getByRole('region', { name: "While you're away" })).toBeInTheDocument()
+  // (the offer is the Go away line under its turn, no card that waits)
+  expect(screen.queryByRole('group', { name: 'Go away now?' })).toBeNull()
   // Ready for you (tek-ev decision 1): what the night's job asks, whole - answered in its chat, where the card is.
   expect(screen.getByText(ask.text)).toHaveClass('mono')
   expect(screen.queryByRole('button', { name: 'Allow and go on' })).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Open its chat to answer' }))
   expect(openConversation).toHaveBeenCalledWith('c3')
   expect(answerAsk).not.toHaveBeenCalled()
-})
-
-test('the one-line card says a night that runs, and one that ended with no reason given', () => {
-  stub()
-  const { rerender } = render(<AwayCard card={card({ status: 'running', started_at: null })} />)
-  expect(screen.getByRole('note')).toHaveClass('away-said', 'muted')
-  expect(screen.getByRole('note')).toHaveTextContent("Started at : working while you're away. Its jobs are on the To-do list.")
-  rerender(<AwayCard card={card({ status: 'ended' })} />)
-  expect(screen.getByRole('note')).toHaveTextContent('Every job was looked at. The report is on the canvas.')
 })
 
 test('the report’s sums: counts that are not there are 0, one waits and two wait, stopped only when there are', () => {
@@ -452,4 +362,61 @@ test('the report’s kept-out list: what was refused first, then what slipped in
   expect(screen.queryByText(/Nothing tried to change/)).toBeNull()
   rerender(<AwayReport away={{ ...night, tried: [] }} onOpen={() => {}} />)
   expect(lines()).toEqual(['mono away-shared: one: changed x.py'])
+})
+
+const task = (id: string, over: Partial<BacklogTask> = {}): BacklogTask => ({
+  id, title: `Task ${id}`, detail: null, criteria: null, priority: 'normal', status: 'proposed', position: 0, conversation_id: null, created_by: 'agent',
+  pending: null, assessment: null, not_in: false, after: [], queued: false, stuck: null, waiting: false, created_at: '2026-11-16T10:00:00Z',
+  proposed_in: 'c', ...over,
+})
+
+test('the Go away line: Go away takes this chat’s new tasks with the limits it heard; Change opens the panel here', async () => {
+  const goAway = vi.fn(async () => {})
+  useApp.setState({ goAway, backlog: [task('t1'), task('t2'), task('old', { status: 'todo', proposed_in: null }), task('no', { po: { chat: 'c', why: 'x', lead: 'no', lead_why: null, seen: false, injection: [] } })] })
+  const offer = card({ id: 'o1', conversation_id: 'c', jobs: [], kept_out: ['secret106'], until: '2026-11-22T05:00:00Z', money: 2 })
+  render(<AwayOffer conv={convState()} offer={offer} />)
+  const line = screen.getByRole('group', { name: 'Go away now?' })
+  expect(line).toHaveTextContent(/Go away now\? Until \d\d:\d\d · at most 2\.00 USD · kept out secret106/)
+  await userEvent.click(within(line).getByRole('button', { name: 'Go away' }))
+  expect(goAway).toHaveBeenCalledWith('c', { task_ids: ['t1', 't2'], order: [], until: expect.stringMatching(/^\d\d:\d\d$/), money: 2, kept_out: ['secret106'] })
+  await userEvent.click(within(line).getByRole('button', { name: 'Change' }))
+  expect(screen.getByRole('heading', { name: 'You’re away' })).toBeInTheDocument()
+  expect(screen.getByRole('checkbox', { name: 'Task t1' })).toBeChecked()
+  expect(screen.getByRole('checkbox', { name: 'Task old' })).not.toBeChecked()
+  useApp.setState({ backlog: null })
+})
+
+test('the summary: its span, done of n, what was decided, what waits with Allow and go on, what it spent; Ready and the canvas', async () => {
+  const { answerAsk } = stub()
+  const showReady = vi.fn()
+  const openTurn = vi.fn(async () => {})
+  const select = vi.fn()
+  const ask = { kind: 'commands' as const, id: 'k1', text: 'Lead asks to run "rm -rf ../old"' }
+  const away = card({
+    id: 'a9', conversation_id: 'c', status: 'ended', started_at: '2026-11-21T21:10:00Z', ended_at: '2026-11-22T05:42:00Z', decided: ['Opened a Tester', 'ran "rm -rf build" (your words)'],
+    jobs: [job({ title: 'Add a bye line', task_id: 't1', state: 'done', kept: ['m1'] }), job({ title: 'Say hello twice', task_id: 't2', state: 'waits', why: ask.text, asks: [ask] })],
+  })
+  useApp.setState({ away, showReady, openTurn, select })
+  const line = 'While you were away (23:10 – 07:42): 1 of 2 To-do done · 2 decided for you · 1 waits · 0.84 USD'
+  render(<AwaySummary line={line} conv={convState()} />)
+  const summary = screen.getByRole('region', { name: 'While you were away' })
+  expect(within(summary).getByRole('heading')).toHaveTextContent('While you were away (23:10 – 07:42)')
+  expect(summary).toHaveTextContent('1 of 2 To-do done · 2 decided for you · 1 waits · 0.84 USD')
+  expect(summary).toHaveTextContent('done Add a bye line - wait in Ready to take in')
+  expect(summary).toHaveTextContent('decided Opened a Tester · ran "rm -rf build" (your words)')
+  await userEvent.click(within(summary).getByRole('button', { name: 'Allow and go on' }))
+  expect(answerAsk).toHaveBeenCalledWith(ask, true)
+  await userEvent.click(within(summary).getByRole('button', { name: 'Review and take in' }))
+  expect(showReady).toHaveBeenCalledWith(true)
+  await userEvent.click(within(summary).getByRole('button', { name: 'On the canvas' }))
+  expect(openTurn).toHaveBeenCalledWith('c', 'r')
+  expect(select).toHaveBeenCalledWith('away:a9')
+  useApp.setState({ away: null })
+})
+
+test('an older summary, or one of another chat, is its one line', () => {
+  useApp.setState({ away: card({ conversation_id: 'other', status: 'ended' }) })
+  render(<AwaySummary line="While you were away (01:00 – 02:00): 0 of 1 To-do done" conv={convState()} />)
+  expect(screen.getByRole('note')).toHaveTextContent('While you were away (01:00 – 02:00): 0 of 1 To-do done')
+  useApp.setState({ away: null })
 })

@@ -8,7 +8,7 @@ import type {
   Availability,
   Away,
   AwayAsk,
-  AwayChange,
+  AwayGo,
   BacklogAuto,
   BacklogChoice,
   BacklogTask,
@@ -250,14 +250,17 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   runBacklog(): Promise<void>
   /** What the user typed, written as tasks by a model asked once ("Write it with the Product owner"); nothing is saved. Throws ApiError. */
   draftTasks(text: string): Promise<BacklogDraft>
-  /** The open project's night while you're away (slice 106): the one that runs, else its last; null: none, or not read yet. */
+  /** The open project's ☾ Away (slice 106): the one that runs, else its last; null: none, or not read yet. */
   away: Away | null
   loadAway(): Promise<void>
-  /**
-   * Your word on a "While you're away" card or its night: a change to the card (before Start), Start,
-   * Not now, Stop all, or Try again for a job. The card and the night are read again. Throws ApiError.
-   */
-  awayDo(awayId: string, action: 'change' | 'start' | 'dismiss' | 'stop' | `jobs/${string}/again`, change?: AwayChange): Promise<void>
+  /** Go away from a chat: its turn finishes, then the To-do tasks ticked are worked through. Throws ApiError. */
+  goAway(cid: string, body: AwayGo): Promise<void>
+  /** I'm back: Away ends, its summary in the chat; the job at work finishes. Throws ApiError. */
+  comeBack(awayId: string): Promise<void>
+  /** Stop all, or Try again for a job once Away is over. Away is read again. Throws ApiError. */
+  awayDo(awayId: string, action: 'stop' | `jobs/${string}/again`): Promise<void>
+  /** You type an answer to a question: the Orchestrator does not decide it for you meanwhile (at most once in 30 s). */
+  typing(questionId: string): void
   /** Yes or no to what a waiting job asks, at its own endpoint (Allow and go on, Refuse). Throws ApiError. */
   answerAsk(ask: AwayAsk, yes: boolean): Promise<void>
   /** Take in a job's kept copies, one after another (Take in, Take in all). Throws ApiError. */
@@ -607,6 +610,8 @@ let conversationsAsked = 0
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let memoryReads = 0
 let backlogReads = 0
+// When each question's answer was last said to be typed (`typing`): once in 30 s is enough to hold it.
+const typed = new Map<string, number>()
 // The backlog's choice being saved: Run the backlog waits for it - a model name is saved as its field
 // is left, which a click on Run the backlog does.
 let backlogChoice: Promise<unknown> = Promise.resolve()
@@ -1150,10 +1155,26 @@ export const useApp = create<AppStore>()((set, get) => {
       if (get().projectId === projectId) set({ away })
     },
 
-    async awayDo(awayId, action, change) {
-      if (action === 'change') await api.patch('/away/' + awayId, change)
-      else await api.post('/away/' + awayId + '/' + action)
+    async goAway(cid, body) {
+      await api.post('/conversations/' + cid + '/away', body)
       await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
+    },
+
+    async comeBack(awayId) {
+      await api.post('/away/' + awayId + '/back')
+      await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
+    },
+
+    async awayDo(awayId, action) {
+      await api.post('/away/' + awayId + '/' + action)
+      await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
+    },
+
+    typing(questionId) {
+      const now = Date.now()
+      if (now - (typed.get(questionId) ?? -Infinity) < 30_000) return
+      typed.set(questionId, now)
+      void api.post('/questions/' + questionId + '/typing').catch(() => {})
     },
 
     async answerAsk(ask, yes) {

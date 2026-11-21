@@ -19,7 +19,6 @@ export type Waiting = { kind: WaitingKind; key: string; agentId: string | null; 
   | { what: 'outside'; item: ToolCall }
   | { what: 'plan'; item: Run }
   | { what: 'merge'; item: Merge }
-  | { what: 'away'; item: Away }
   | { what: 'night'; item: { away: Away; job: AwayJob } }
   | { what: 'trigger'; item: TriggerProposal }
   | { what: 'notes'; item: NotesOffer }
@@ -76,8 +75,7 @@ export function waitingOf(conv: ConvState): Waiting[] {
     ...conv.toolCalls.filter(asksOutside).map(t => ({ ...decision, key: t.id, agentId: t.agent_id, what: 'outside' as const, item: t })),
     // (Only the newest turn's plan can still be approved.)
     ...(last?.plan?.status === 'proposed' ? [{ ...decision, key: last.id, agentId: null, what: 'plan' as const, item: last }] : []),
-    // B-146: a "While you're away" card that waits for its Start, and a night's job that waits for your word.
-    ...conv.away.filter(a => a.status === 'planned').map(a => ({ ...decision, key: a.id, agentId: null, what: 'away' as const, item: a })),
+    // B-146: a job of Away that waits for your word. (The Orchestrator's offer to go away is no card: its Go away line.)
     ...conv.away.flatMap(a =>
       a.status === 'planned' ? [] : a.jobs.filter(job => job.state === 'waits').map(job => ({ ...decision, key: `${a.id}:${job.task_id}`, agentId: null, what: 'night' as const, item: { away: a, job } })),
     ),
@@ -120,7 +118,6 @@ const WORDS: Record<Exclude<Waiting['what'], 'question'>, [string, string]> = {
   outside: ['folder outside the project', 'folders outside the project'],
   plan: ['plan', 'plans'],
   merge: ['Take in to finish', 'Take ins to finish'],
-  away: ['away card to start', 'away cards to start'],
   night: ['away job waiting', 'away jobs waiting'],
   trigger: ['trigger to approve', 'triggers to approve'],
   notes: ['offer for Project notes', 'offers for Project notes'],
