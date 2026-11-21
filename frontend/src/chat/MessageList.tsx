@@ -1138,7 +1138,7 @@ export function MessageList({
     if (!split?.fold) return inside.map(drawGroup)
     const spent = run.started_at && run.ended_at ? took(Date.parse(run.ended_at) - Date.parse(run.started_at)) : null
     return [
-      <TurnSteps key="steps" count={split.count} took={spent} calls={split.calls} state={state}>
+      <TurnSteps key="steps" ended={run.status} count={split.count} took={spent} calls={split.calls} state={state}>
         {split.fold.map(drawGroup)}
       </TurnSteps>,
       ...split.kept.map(drawGroup),

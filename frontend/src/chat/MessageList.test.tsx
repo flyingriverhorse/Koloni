@@ -1681,3 +1681,17 @@ test('a night’s closing line and the room you opened stay plain lines in the n
   expect(line).toHaveTextContent('Meet on the greeting')
   expect(line.closest('details')).toBeNull()
 })
+
+test('the fold’s line says how the turn ended: completed in its time, or failed, stopped or interrupted after its steps', () => {
+  const ended = (status: 'failed' | 'cancelled' | 'interrupted') => {
+    const state = twoSteps('completed')
+    return { ...state, runs: [run('r', status, { ended_at: ENDED, error: status === 'failed' ? 'boom' : null })], agents: [agent('r', 'completed')] }
+  }
+  const { container, rerender } = render(<MessageList {...handlers} state={ended('failed')} />)
+  const summary = () => container.querySelector('details.turn-steps > summary')
+  expect(summary()).toHaveTextContent(/^Failed after 2 steps$/)
+  rerender(<MessageList {...handlers} state={ended('cancelled')} />)
+  expect(summary()).toHaveTextContent(/^Stopped after 2 steps$/)
+  rerender(<MessageList {...handlers} state={ended('interrupted')} />)
+  expect(summary()).toHaveTextContent(/^Interrupted after 2 steps$/)
+})

@@ -1,5 +1,6 @@
 import { BookOpen, Browser, Globe, type Icon, MagnifyingGlass, PencilSimple, TerminalWindow, Wrench } from '@phosphor-icons/react'
 import type { Command, FileChange, Message, ToolCall } from '../api/types'
+import { commandStatus } from '../commands/commandStatus'
 import { toolName, toolSummary } from './toolSummary'
 
 /** Each message's calls, in the order they were made. */
@@ -60,7 +61,9 @@ export function kindOf(call: ToolCall, commands: Command[], fileChanges: FileCha
  * refused or were cut off (`marks`); its state. Only what was done is counted: what did not
  * end well is in its mark, and what still runs is the one named.
  */
-export function runHead(calls: ToolCall[], { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] }) {
+export function runHead(given: ToolCall[], { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] }) {
+  // A command that exited with an error ended its call well (app/agent): its own record says it failed.
+  const calls = given.map(call => (call.status === 'succeeded' && commands.some(c => c.tool_call_id === call.id && commandStatus(c).tone === 'del') ? { ...call, status: 'failed' as const } : call))
   const kinds = new Map<string, ToolCall[]>()
   for (const call of calls.filter(c => c.status === 'succeeded')) {
     const kind = kindOf(call, commands, fileChanges)
