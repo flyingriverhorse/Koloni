@@ -94,6 +94,9 @@ export interface Layout {
 
 type Line = { x1: number; y1: number; x2: number; y2: number }
 
+/** Discussions and rooms in the order they began; one with no time on record keeps its place (a stable sort's tie). */
+const began = (a: GraphNode, b: GraphNode) => (a.at && b.at ? a.at.localeCompare(b.at) : 0)
+
 /**
  * Left-to-right, one block per run: the request, then the agent tree. Every agent is a
  * box sized from what is inside it (tools, own sub-agents, commands, files, top to
@@ -148,8 +151,9 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     const roots = agents.filter(a => !agents.some(p => key(p) === parentOf(a)))
     // The shared places: rooms, and discussions by their opener. One between teams (its lines `member`) is in the lane
     // (below): by its opener, its lines to members in other frames ran through the frames between (the user, 4 Nov).
-    const lane = own.filter(n => TALL.has(n.kind) && edges.some(e => e.member && e.target === n.id))
-    const talks = ['room', 'discussion'].flatMap(kind => own.filter(n => n.kind === kind && !lane.includes(n)))
+    // Both in the order they began: a discussion held before a room opened stands over it.
+    const lane = own.filter(n => TALL.has(n.kind) && edges.some(e => e.member && e.target === n.id)).sort(began)
+    const talks = ['room', 'discussion'].flatMap(kind => own.filter(n => n.kind === kind && !lane.includes(n))).sort(began)
     // A room whose opener is not drawn stands by the turn's first agent.
     const opener = (talk: GraphNode) => (agents.some(a => key(a) === talk.agentId) ? talk.agentId : roots[0] && key(roots[0]))
     const byId = new Map(own.map(n => [n.id, n]))

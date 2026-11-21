@@ -231,6 +231,8 @@ export interface GraphNode {
   team?: string
   /** An agent of a step's earlier round: that round's line, which it is folded into. */
   round?: string
+  /** When a discussion or room began: laid out in that order (layout.ts), whichever kind came first. */
+  at?: string
   data:
     | RequestData
     | AgentData
@@ -1098,6 +1100,7 @@ function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge
       runId: discussion.run_id,
       refId: discussion.id,
       agentId: discussion.agent_id,
+      at: discussion.created_at,
       data: {
         topic: discussion.topic.slice(0, 140),
         line: discussionLine(discussion),
@@ -1142,7 +1145,7 @@ function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[]) {
     const drawn = room.members.map(m => m.agent_id).filter(one => nodes.some(n => n.id === `agent:${one}`))
     const { team } = frameOfAll(nodes, drawn)
     const laned = !team && nodes.some(n => n.kind === 'team' && n.runId === room.run_id)
-    nodes.push({ id, kind: 'room', runId: room.run_id, refId: room.id, agentId: lead.id, data, ...(team && { team }) })
+    nodes.push({ id, kind: 'room', runId: room.run_id, refId: room.id, agentId: lead.id, at: room.created_at, data, ...(team && { team }) })
     headOfColumn(nodes, id, team, drawn)
     for (const member of room.members) {
       const source = `agent:${member.agent_id}`
