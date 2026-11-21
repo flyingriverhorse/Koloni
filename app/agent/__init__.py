@@ -47,7 +47,7 @@ import threading
 import time
 import uuid
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -935,6 +935,12 @@ def _summary_after(t: _LeadTurn, status: str, refused: bool) -> bool | None:
     return True if status == "failed" and refused and _sends_again(t) else None
 
 
+def _project_key(project: Path | str) -> str:
+    """A project's folder as one key, however it was spelt: a copy's `project` is resolved, a
+    turn's folder may not be (macOS's /var is /private/var)."""
+    return os.path.normcase(str(Path(project).resolve()))
+
+
 class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
@@ -1204,6 +1210,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # backlog task started while another works: `backlog.chain`).
         self._branch_runs: dict[str, str] = {}
         self._merging_in: dict[str, asyncio.Lock] = {}
+        # owner -> its project's key and what went into the project while its copy is being made
+        # (`_into_copies`): brought into the copy once it is (`_working_copy`).
+        self._made_now: dict[str, tuple[str, set[str]]] = {}
         # D2: the branches the user kept after their merge (`_drop_branch`); merge id -> what
         # else they said with their word on a branch's card (`keep_branch`, `way`).
         self._keep_branches: set[str] = set()
@@ -2195,33 +2204,44 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # (A branch opened again keeps its earlier work, whatever happens here.)
                 left = self._left_on.pop(owner, None)
                 again = left is not None
-                making = asyncio.ensure_future(asyncio.to_thread(self._make_copy(
-                    ctx, owner, name, _links_in_copy(self._ctxs[owner].model),
-                    self._copy_part(owner), left)))
+                # A file another's Take in writes while the copy is made may be copied as it
+                # was: what goes in meanwhile is noted (`_into_copies`), and brought into it.
+                noted: set[str] = set()
+                self._made_now[owner] = (_project_key(ctx.folder), noted)
                 try:
-                    made = await asyncio.shield(making)
-                except asyncio.CancelledError:
-                    # Stopped while the copy was being made: it is not left behind.
-                    late = None
-                    with contextlib.suppress(Exception):
-                        late = await making
-                    with contextlib.suppress(Exception):
-                        copies.remove(self.settings.runtime_root, name)
-                    if late is not None:
-                        self._drop_branch(late, force=not again)
-                    raise
-                except copies.TooBig:
-                    made, state = None, "too_big"
-                except Exception:
-                    # Whatever kept the copy from being made (a file of the project's
-                    # that cannot be read): the agent works in the project, as it does
-                    # where that is too big - and is not sent to try again at each change.
-                    made, state = None, "failed"
-                else:
-                    state = "own"
-                    made.secrets = lambda run_id=ctx.run_id: self.given_spellings(run_id)
-                    made.made_at = started
-                self._copies[owner] = made
+                    making = asyncio.ensure_future(asyncio.to_thread(self._make_copy(
+                        ctx, owner, name, _links_in_copy(self._ctxs[owner].model),
+                        self._copy_part(owner), left)))
+                    try:
+                        made = await asyncio.shield(making)
+                    except asyncio.CancelledError:
+                        # Stopped while the copy was being made: it is not left behind.
+                        late = None
+                        with contextlib.suppress(Exception):
+                            late = await making
+                        with contextlib.suppress(Exception):
+                            copies.remove(self.settings.runtime_root, name)
+                        if late is not None:
+                            self._drop_branch(late, force=not again)
+                        raise
+                    except copies.TooBig:
+                        made, state = None, "too_big"
+                    except Exception:
+                        # Whatever kept the copy from being made (a file of the project's
+                        # that cannot be read): the agent works in the project, as it does
+                        # where that is too big - and is not sent to try again at each change.
+                        made, state = None, "failed"
+                    else:
+                        state = "own"
+                        made.secrets = lambda run_id=ctx.run_id: self.given_spellings(run_id)
+                        made.made_at = started
+                    # (No await from the copy made to here: what goes in later finds it.)
+                    self._copies[owner] = made
+                    if made is not None and [path for path in noted if made.refresh(path)]:
+                        with contextlib.suppress(OSError):
+                            made.save()
+                finally:
+                    del self._made_now[owner]
                 where = await self._copy_record(ctx, owner, made, left)
                 self._set_agent(self._ctxs[owner].cid, owner, copy={"state": state, **where})
         copy = self._copies[owner]
@@ -2523,15 +2543,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     async def _kept_taken(self, ctx: Ctx, copy: copies.Copy, files: dict, times: dict,
                           choices: dict[str, str], unattended: bool) -> None:
         """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none."""
-        # What a merge comes to is kept in memory alone, and this may be another
-        # process than the one that showed the card: made again, off the event loop.
-        await asyncio.to_thread(_look_again, copy, files, times, choices)
-        # All of the card or none of it: one file shown again, and nothing is taken.
-        if not [one for one in files.values() if one.pop("again", False)]:
-            self._join(copy, files, choices)
-            await self._seen_by_watchers(ctx, self._apply(
-                ctx, copy, files, True, unattended=unattended, choices=choices
-            ))
+        taken = None
+        async with self._way_in(copy.project):
+            # What a merge comes to is kept in memory alone, and this may be another
+            # process than the one that showed the card: made again, off the event loop.
+            await asyncio.to_thread(_look_again, copy, files, times, choices)
+            # All of the card or none of it: one file shown again, and nothing is taken.
+            if not [one for one in files.values() if one.pop("again", False)]:
+                self._join(copy, files, choices)
+                taken = self._apply(ctx, copy, files, True, unattended=unattended,
+                                    choices=choices)
+        if taken is not None:
+            await self._seen_by_watchers(ctx, taken)
         for one in files.values():  # shown again: labelled as a kept copy's files are
             if one.get("shown"):
                 _no_diff_no_trust(one)
@@ -2973,6 +2996,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if said := await self._secret_branch_gone(ctx, copy):
                 self._koloni_line(ctx.cid, ctx.run_id, said)
 
+    def _way_in(self, project: Path | str) -> asyncio.Lock:
+        """The one way into a project's folder: a Take in (`_merge`, `_kept_taken`) and a branch's
+        merge (`_merge_branch`) write there in turn, never while another is under way. Held only
+        around the last look and the writes - never while a card waits."""
+        return self._merging_in.setdefault(_project_key(project), asyncio.Lock())
+
     async def _merge_branch(  # noqa: C901
         self, ctx: Ctx, copy: copies.Copy, status: str, ended: Callable[[], None]
     ) -> str:
@@ -3041,10 +3070,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # git's config as the card last showed it.)
         sent: dict[str, str] = {}
         config_shown = None
-        # shortcut: one lock for merges, no file claim - a Take in of another line (`_apply`)
-        # may write a file between git's look and its merge; git then refuses, said on the card.
-        # Hold the claims of the branch's files if a merge is ever seen to meet one.
-        lock = self._merging_in.setdefault(os.path.normcase(str(copy.project)), asyncio.Lock())
+        # (One way in, `_way_in`: no Take in writes between git's look and its merge.)
+        lock = self._way_in(copy.project)
         while True:
             act = None
             # D2: which way it goes - the project's setting, or what the user chose here. (Read
@@ -3124,6 +3151,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     except git.Refused as exc:
                         state["note"] = str(exc)
                     else:
+                        self._into_copies(copy.project, look["files"], copy)
                         try:
                             holds = await asyncio.to_thread(git.summary, copy.project, sha)
                         except git.Refused:
@@ -3432,8 +3460,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     return said
                 unasked = unasked and passed
             if merge_id is None and unasked and not fault:
-                self._join(copy, files, {})
-                taken = self._apply(ctx, copy, files, False, unattended=not watched)
+                async with self._way_in(copy.project):
+                    self._join(copy, files, {})
+                    taken = self._apply(ctx, copy, files, False, unattended=not watched)
                 await self._seen_by_watchers(ctx, taken)
             left = [one for one in files.values() if one["state"] in OPEN]
             if fault and not left:
@@ -3461,16 +3490,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 if check and not unchosen(list(files.values()), choices):
                     await self._check(ctx, copy, files, check, choices, merge_id, leave=True)
                 continue
-            if await asyncio.to_thread(_moved, copy, files, choices):
-                # All of the card or none of it: a file is not as it was shown, and the
-                # card is shown again as it is now (the API says why).
-                # shortcut: one that moves between here and its write is still not written
-                # over (`_apply`), but the rest is taken (and the API says so); hold the
-                # files if that is seen.
-                continue
-            # No await from here to the last file written.
-            self._join(copy, files, choices)
-            taken = self._apply(ctx, copy, files, True, choices=choices)
+            async with self._way_in(copy.project):
+                if await asyncio.to_thread(_moved, copy, files, choices):
+                    # All of the card or none of it: a file is not as it was shown, and the
+                    # card is shown again as it is now (the API says why).
+                    # shortcut: one the user moves between here and its write is still not
+                    # written over (`_apply`), but the rest is taken (and the API says so);
+                    # hold the files if that is seen.
+                    continue
+                # No await from here to the last file written.
+                self._join(copy, files, choices)
+                taken = self._apply(ctx, copy, files, True, choices=choices)
             await self._seen_by_watchers(ctx, taken)
         return await self._merge_over(ctx, copy, files, check, merge_id, watched, refused)
 
@@ -4126,19 +4156,30 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 copy.taken(path)
                 one["state"], one["note"] = "applied", None
                 taken.add(path)
-        changed = [copy] if taken else []
-        for other in self._copies.values():
-            if (
-                other is not None and other is not copy and other.project == copy.project
-                and [path for path in taken if other.refresh(path)]
-            ):
-                changed.append(other)
-        for one_copy in changed:
-            # What each was made from is different now: written down for a restart. (One
-            # that is not is only behind - a file it says changed, the project has.)
+        if taken:
+            # What it was made from is different now: written down for a restart.
             with contextlib.suppress(OSError):
-                one_copy.save()
+                copy.save()
+        self._into_copies(copy.project, taken, copy)
         return taken
+
+    def _into_copies(self, project: Path, paths: Iterable[str], but: copies.Copy | None = None
+                     ) -> None:
+        """What just went into the project (`paths`) goes into its other working copies where
+        they have not changed it (`Copy.refresh`: not a branch's), and is noted for one being
+        made right now, to go into it once it is (`_working_copy`). What each was made from is
+        different then: written down for a restart. (One that is not is only behind - a file it
+        says changed, the project has.) Nothing here waits."""
+        paths = list(paths)
+        key = _project_key(project)
+        for where, noted in self._made_now.values():
+            if where == key:
+                noted.update(paths)
+        for other in self._copies.values():
+            if (other is not None and other is not but and other.project == project
+                    and [path for path in paths if other.refresh(path)]):
+                with contextlib.suppress(OSError):
+                    other.save()
 
     def _apply_text(
         self, session: Session, ctx: Ctx, ws: Workspace, path: str, rows: list[FileChange],
