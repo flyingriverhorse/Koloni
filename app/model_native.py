@@ -3956,6 +3956,15 @@ class CopilotNativeClient(CodexNativeClient):
                     r'(?:^|failed with message: )Model "[^"]+" is not available', unasked):
                 raise OwnStop(
                     f"Copilot can't use {self._model} on your account: pick another model")
+            # Live (1.0.114, 21 Nov 2026): a routing the plan lacks - 'Auto preference
+            # "hydrafusion" is disabled: This tier is not available for the user's Copilot plan.;
+            # choose ...' - is the routing's, not the model's (its row stays on: `_refused`).
+            tier = re.search(r'Auto preference "[^"]+" is disabled: ([^;]+)', unasked)
+            if tier:
+                routing = str(self._session._routing or "its routing").capitalize()
+                raise OwnStop(
+                    f"Copilot refused {self._model} at {routing} ({tier[1].strip().rstrip('.')}): "
+                    "pick another routing for it on the Models page or in the chat's model panel")
             raise OwnStop(f"{self.label} {await self._version()} could not be asked before it "
                           f"acts ({unasked}); run it as a session instead")
         if failure or not idle:

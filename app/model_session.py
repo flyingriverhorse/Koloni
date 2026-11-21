@@ -966,8 +966,10 @@ class CopilotSessionClient(CliSessionClient):
 
     def capi(self) -> dict:
         """Its routing as session.create takes it (`CapiSessionOptions`, 1.0.114's package: one
-        of autoTier or fusionTier, never both); {} with none.
-        shortcut: read in the package, not sent to a live one; measure it (`getCurrent`)."""
+        of autoTier or fusionTier, never both); {} with none. Measured live (1.0.114, 21 Nov
+        2026): `session.model.getCurrent` keeps it (Fusion Standard as Auto Balance), both at once
+        is refused, and a tier the plan lacks is refused at session.create (`CopilotNativeClient`).
+        shortcut: protocol 3's flat `capi` is not measured (no 1.0.105 left to run it on)."""
         return {"capi": {ROUTE_FLAGS[str(self._model)][1]: self._routing}} if (
             self._routing) else {}
 

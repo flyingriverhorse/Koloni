@@ -4,7 +4,7 @@ session-mode stand-in (`fake_copilot_cli.py`), which the same provider's talker 
 
 FAKE_CLI_PLAN names a JSON file: {"record": path, "script": [...]}; "handshake" ("ping":
 the ping is refused, "version": it speaks protocol 2, "create": session.create is
-refused, "model": it is refused for its model, "gone": it ends before answering, "silent": it never answers) makes the start go
+refused, "model": it is refused for its model, "tier": for its routing, "gone": it ends before answering, "silent": it never answers) makes the start go
 wrong; "starts" names a file it adds each argv it is started with to. It writes down how
 it was started, what session.create and session.send were given, and every answer KOLONİ
 gave to a permission request ("answers"). Asked `status.get`, at any point, it says the plan's
@@ -220,6 +220,13 @@ if handshake == "model":  # the message seen live for a model not on the account
     model = create["params"].get("model")
     send({"id": create["id"], "error": {"code": -32603, "message": (
         f'Request session.create failed with message: Model "{model}" is not available.')}})
+    expect("never")
+if handshake == "tier":  # the message seen live for Fusion High on a plan without it (21 Nov 2026)
+    send({"id": create["id"], "error": {"code": -32603, "message": (
+        "Request session.create failed with message: session construction failed: model "
+        'resolution leaf failed: Auto preference "hydrafusion" is disabled: This tier is not '
+        "available for the user's Copilot plan.; choose an enabled Auto preference or another "
+        "model")}})
     expect("never")
 send({"id": create["id"], "result": {
     "sessionId": "s1", "workspacePath": str(Path(home or cwd) / "session-state" / "s1"),

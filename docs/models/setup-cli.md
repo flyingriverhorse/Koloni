@@ -138,8 +138,9 @@ address** on this machine or your network.
   its **Context**, and in the chat's model panel under **Thinking**. Auto: **Efficiency**, **Balance** or
   **Intelligence**; Fusion: **Standard** (as Auto Balance), **High** or **Max** - High and Max cost more
   than `auto`. **Default** sends none: Copilot's own. It is saved on the model's row, so every chat and agent
-  on that provider and model uses it; for two chats to differ, add a second Copilot provider. Read in
-  Copilot's 1.0.114 package, not yet run live.
+  on that provider and model uses it; for two chats to differ, add a second Copilot provider. Run live
+  on 1.0.114: Copilot keeps the tier and says the model it picked and why. High and Max are only on some
+  Copilot plans: on one without them Copilot refuses the turn, and KOLONİ says to pick another routing.
 - **Versions**: KOLONİ asks Copilot its version and protocol as it starts it, the way a run starts it.
   Copilot updates itself when you run it yourself, and KOLONİ then runs that version too. On the newer
   protocol (1.0.114 on) it runs **Native** through KOLONİ's hook, and each PowerShell command starts in the

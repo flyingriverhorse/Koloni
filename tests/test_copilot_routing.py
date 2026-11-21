@@ -131,3 +131,20 @@ def test_natively_its_routing_goes_in_its_session(
     assert not {"autoTier", "fusionTier"} <= set(capi)  # never both
     assert "autoTier" not in made  # (not a session.create field of its own)
     assert not {"--auto-tier", "--fusion-tier"} & set(seen["argv"])
+
+
+def test_a_routing_the_plan_lacks_is_named_as_the_cause(
+    settings_env, tmp_path, wait_run, project_dir, monkeypatch
+):
+    """Live (1.0.114, 21 Nov 2026): Fusion High on a plan without it is refused at session.create.
+    The turn says the routing is the cause - not "run it as a session", which would be refused
+    too - and not in the words that switch a model's row off (`_refused`)."""
+    plan(tmp_path, monkeypatch, script=[], protocol=4, version="1.0.114", handshake="tier")
+    cli = CopilotNativeClient(None, "fusion", timeout=30, launcher=HEADLESS, options={},
+                              routing="high")
+    run = run_once(settings_env, cli, project_dir, wait_run)
+    assert run["status"] == "failed"
+    assert run["error"] == (
+        "Copilot refused fusion at High (This tier is not available for the user's Copilot "
+        "plan): pick another routing for it on the Models page or in the chat's model panel")
+    assert "on your account" not in run["error"]

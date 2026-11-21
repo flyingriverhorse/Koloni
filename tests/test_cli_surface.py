@@ -91,7 +91,7 @@ COPILOT = "GitHub Copilot CLI"
     ("1.0.200", 3, f"{COPILOT} 1.0.200 not measured; running the old way"),
     ("1.0.200", 5, f"{COPILOT} 1.0.200 is newer than KOLONİ knows; running the old way"),
     ("1.0.200", 2, f"{COPILOT} 1.0.200 speaks a protocol KOLONİ does not know; running the old way"),
-    ("1.0.114", 4, f"{COPILOT} 1.0.114 not measured with KOLONİ")])
+    ("1.0.115", 4, f"{COPILOT} 1.0.115 not measured with KOLONİ")])
 def test_copilot_runs_natively_or_the_old_way_by_its_protocol_and_its_card_says(
     copilot_native, wait_run, project_dir, version, protocol, said  # noqa: F811
 ):
@@ -187,15 +187,15 @@ def test_the_script_names_what_an_installed_cli_no_longer_has(tmp_path):
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell and a .cmd stand-in")
 def test_the_script_asks_the_copilot_koloni_runs_and_searches_the_package_it_runs(tmp_path):
-    # (No real CLI is run: each one is a stand-in, Copilot a .cmd that says 1.0.114.)
+    # (No real CLI is run: each one is a stand-in, Copilot a .cmd that says 1.0.115.)
     surface = json.loads((ROOT / "app" / "cli_surface.json").read_text("utf-8"))
     names = surface["copilot"]["names"]
     seen = tmp_path / "seen.txt"
     copilot = tmp_path / "copilot.cmd"
     copilot.write_text(f'@echo off\r\necho %*^|%COPILOT_HOME%> "{seen}"\r\n'
                        f'dir /b "%COPILOT_HOME%" >> "{seen}" 2>nul\r\n'
-                       "echo GitHub Copilot CLI 1.0.114.\r\n", encoding="ascii")
-    package = tmp_path / "local" / "copilot" / "pkg" / "win32-x64" / "1.0.114"
+                       "echo GitHub Copilot CLI 1.0.115.\r\n", encoding="ascii")
+    package = tmp_path / "local" / "copilot" / "pkg" / "win32-x64" / "1.0.115"
     (package / "prebuilds" / "win32-x64").mkdir(parents=True)
     (package / "prebuilds" / "win32-x64" / "runtime.node").write_bytes(
         b"\x00".join(n.encode() for n in names[:-1]))
@@ -217,7 +217,7 @@ def test_the_script_asks_the_copilot_koloni_runs_and_searches_the_package_it_run
         env={**os.environ, "LOCALAPPDATA": str(tmp_path / "local")})
     said = told.stdout
     assert told.returncode == 1, said + told.stderr
-    assert "copilot: version GitHub Copilot CLI 1.0.114. (NOT measured" in said
+    assert "copilot: version GitHub Copilot CLI 1.0.115. (NOT measured" in said
     assert f"copilot: searching {package} (the package it runs)" in said
     assert f"copilot: missing {names[-1]}" in said and "codex: all" in said
     # asked as KOLONİ starts it: no update of its own, in an empty home of KOLONİ's, gone after

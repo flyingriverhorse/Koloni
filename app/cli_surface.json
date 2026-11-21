@@ -23,7 +23,7 @@
   },
   "copilot": {
     "label": "GitHub Copilot CLI",
-    "measured": ["1.0.91", "1.0.103", "1.0.105"],
+    "measured": ["1.0.91", "1.0.103", "1.0.105", "1.0.114"],
     "names": [
       "ping", "protocolVersion", "sandbox.getHostSupport", "session.create", "session.send",
       "session.event", "session.permissions.handlePendingPermissionRequest",
