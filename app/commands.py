@@ -2,6 +2,7 @@
 
 import contextlib
 import fnmatch
+import ntpath
 import os
 import posixpath
 import re
@@ -1055,32 +1056,57 @@ WRITES_THROUGH_LINKS = (
 _WRITES_LAST = frozenset({"cp", "mv", "copy", "move", "copy-item", "cpi", "move-item", "mi"})
 _WRITES_ANY = frozenset({"set-content", "sc", "add-content", "ac", "out-file", "tee",
                          "tee-object"})
+# A copy's or move's target by its option (`Copy-Item -Destination x`, `cp -t x`).
+_TARGET_OPTIONS = ("-destination", "-t", "--target-directory")
 
 
-def _in_linked(word: str) -> bool:
-    """Whether a path a command names leads into a linked folder of a copy by its first part
-    (`node_modules/x`, `.\\.venv\\x`, `-Path:venv/x`)."""
-    parts = [part for part in re.split(r"[\\/]", re.sub(r"^-[\w-]*:", "", word.strip("'\"")))
-             if part not in ("", ".")]
-    return bool(parts) and parts[0].casefold() in LINKED
+def _in_linked(word: str, own: re.Pattern | None = None) -> bool:
+    """Whether a path a command names leads into a linked folder of a copy, by any of its parts
+    once read where it leads (`node_modules/x`, `.\\.venv\\x`, `-Path:venv/x`,
+    `src/../node_modules/x`) - by the copy's own full path too (`own`: its tree's spellings)."""
+    path = re.sub(r"^-[\w-]*[:=]", "", word.strip("'\""))
+    found = own.match(os.path.normcase(path)) if own is not None else None
+    if found:
+        path = os.path.normcase(path)[found.end():]
+    elif _full(path):
+        return False
+    parts = posixpath.normpath(path.replace("\\", "/").lstrip("/") or ".").split("/")
+    return any(part.casefold() in LINKED for part in parts)
 
 
-def _writes_links(words: list[str]) -> bool:
+def _writes_links(words: list[str], own: re.Pattern | None = None) -> bool:
     """Whether a part writes in a linked folder (`_in_linked`): by a redirect (`>`, `>>`, `2>`,
-    glued to the path or not), a copy's or move's target, `Set-Content` / `Add-Content` /
+    glued to the path or to what comes before), a copy's or move's target (its last word, or
+    its `-Destination` / `-t` / `--target-directory`), `Set-Content` / `Add-Content` /
     `Out-File` / `tee`, or `sed -i`.
     shortcut: by the path as written from where the part runs - one after a `cd` into the
-    folder, or a program's own way of writing (`npm config set`, a script), is not seen."""
+    folder - and what writes by a program's own way (`New-Item -Value`, `[IO.File]::WriteAllText`,
+    `touch`, `mkdir`, `robocopy`, `xcopy`, `tar -C`, `unzip -d`, `Expand-Archive`, `perl -pi`,
+    code in `python -c`, `npm config set`, `pip-sync`, `corepack`, a script) is not seen."""
     for at, word in enumerate(words):
-        glued = re.match(r"[\d*]?>{1,2}(?!&)", word)
-        if glued and (_in_linked(word[glued.end():]) if word[glued.end():] else (
-                at + 1 < len(words) and _in_linked(words[at + 1]))):
+        redirect = re.search(r">{1,2}(?!&)", word)
+        target = word[redirect.end():] or (words[at + 1] if at + 1 < len(words) else "") if (
+            redirect) else ""
+        if target and _in_linked(target, own):
             return True
-    program, named = _program(words[0]), [word for word in words[1:] if not word.startswith("-")]
+    program, rest = _program(words[0]), words[1:]
     if program in _WRITES_LAST:
-        return bool(named) and _in_linked(named[-1])
+        targets = [value for at, word in enumerate(rest)
+                   if (value := _option_value(rest, at, _TARGET_OPTIONS)) is not None]
+        named = [word for word in rest if not word.startswith("-")]
+        return any(_in_linked(one, own) for one in targets or named[-1:])
     in_place = program == "sed" and any(word.startswith(("-i", "--in-place")) for word in words)
-    return (program in _WRITES_ANY or in_place) and any(map(_in_linked, words[1:]))
+    return (program in _WRITES_ANY or in_place) and any(_in_linked(one, own) for one in rest)
+
+
+def _option_value(words: list[str], at: int, options: Iterable[str]) -> str | None:
+    """The value of the option at `at` where it is one of `options` (`-t x`, `-Destination:x`,
+    `--target-directory=x`), by any case; None for another word."""
+    name, sep, glued = re.split(r"([:=])", words[at], maxsplit=1) if re.search(
+        r"[:=]", words[at]) else (words[at], "", "")
+    if name.casefold() not in options:
+        return None
+    return glued if sep else (words[at + 1] if at + 1 < len(words) else "")
 
 
 # npm 11's own names for its commands (`lib/utils/cmd-list.js`): a verb is read as npm reads it.
@@ -1165,9 +1191,16 @@ def _spellings(path: str) -> re.Pattern:
 # The user's own folders a command may name by a variable (`%LOCALAPPDATA%`, `$env:TEMP`,
 # `${HOME}`, `$HOME`) or `~`: read with KOLONİ's own values (`_as_path_line`).
 _USERS_FOLDERS = frozenset({"LOCALAPPDATA", "APPDATA", "USERPROFILE", "HOME", "TEMP", "TMP",
-                            "TMPDIR", "XDG_DATA_HOME"})
+                            "TMPDIR", "XDG_DATA_HOME", "HOMEDRIVE", "HOMEPATH", "SYSTEMDRIVE"})
 _VARIABLE = re.compile(r"(?i)%(\w+)%|\$\{?env:(\w+)\}?|\$\{(\w+)\}|\$(\w+)")
 _TILDE = re.compile(r"(?:^|(?<=[\s'\"=:(,]))~(?=[\\/\s'\")]|$)")
+# This machine's own drives by a share or a device path: `\\localhost\c$\x`, `\\127.0.0.1\c$\x`,
+# `\\?\C:\x`, `\\.\C:\x`.
+_LOCAL_SHARE = re.compile(r"(?i)[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/]"
+                          r"(?:([a-z])\$(?=[\\/])|(?=[a-z]:))")
+# A full path in a line (from a drive or a root), and a `..` part in one.
+_FULL_PATH = re.compile(r"(?:^|(?<=[\s'\"=<>(,;|&]))(?:[A-Za-z]:|[\\/])[^\s'\"<>|;&,()]*")
+_UP = re.compile(r"(?:^|[\\/])\.\.(?:[\\/]|$)")
 
 
 def _users_folder(found: re.Match) -> str:
@@ -1178,17 +1211,29 @@ def _users_folder(found: re.Match) -> str:
     return os.environ.get(name.upper() if os.name == "nt" else name) or home or found[0]
 
 
-def _as_path_line(command: str) -> str:
-    """A command as its full paths are matched (`_spellings`): the user's folders by their
-    variables read (`_USERS_FOLDERS`, `~`), in `os.path.normcase`'s case, and separators doubled
-    or with `.` between them as one (`C:\\\\Users`, `C://x`, `/c//x`, `C:\\.\\x`) - a doubled one
-    that starts a word stays (`\\\\server\\share`); on Windows a name's last dots go
-    (`proj.\\x` is `proj\\x` there)."""
+def _expanded(command: str) -> str:
+    """A command with its paths as the machine reads them: the user's folders by their variables
+    (`_USERS_FOLDERS`, `%HOMEDRIVE%%HOMEPATH%`, `~`) with KOLONİ's own values, this machine's
+    drives by a share (`_LOCAL_SHARE`), separators doubled or with `.` between them as one
+    (`C:\\\\Users`, `C://x`, `/c//x`, `C:\\.\\x`) - a doubled one that starts a word stays
+    (`\\\\server\\share`) - and a full path's `..` gone where it leads (`C:\\a\\..\\proj`); on
+    Windows a name's last dots go (`proj.\\x`, `proj.` are `proj` there).
+    shortcut: a short name (`PROJ~1`) and a name's last spaces are not read so; resolve them if
+    an agent is seen to write one."""
     line = _TILDE.sub(lambda _found: os.path.expanduser("~"), _VARIABLE.sub(_users_folder, command))
-    line = os.path.normcase(line)
+    line = _LOCAL_SHARE.sub(lambda found: f"{found[1]}:" if found[1] else "", line)
     if os.name == "nt":
-        line = re.sub(r"(?<![\\/.\s])\.+(?=[\\/])", "", line)
-    return re.sub(r"(?<=[^\s'\"=(])[\\/](?:\.?[\\/])+", lambda _found: os.sep, line)
+        line = re.sub(r"(?<=\w)\.+(?=[\\/\s'\")]|$)", "", line)
+    line = re.sub(r"(?<=[^\s'\"=(])[\\/](?:\.?[\\/])+", lambda _found: os.sep, line)
+    climbs = ntpath.normpath if os.name == "nt" else posixpath.normpath
+    return _FULL_PATH.sub(lambda found: climbs(found[0]) if _UP.search(found[0]) else found[0],
+                          line)
+
+
+def _as_path_line(command: str) -> str:
+    """A command as its full paths are matched (`_spellings`): `_expanded`, in
+    `os.path.normcase`'s case."""
+    return os.path.normcase(_expanded(command))
 
 
 NAMES_PROJECT = (
@@ -1237,15 +1282,45 @@ def _cd_to(words: list[str], at: str | None, own: re.Pattern | None) -> str | No
     return _in_copy(named[0], at or ".", own)
 
 
-def _climbing(words: list[str], at: str | None, own: re.Pattern | None) -> str:
+# What reads its first word that is no option as a pattern or a script, not a path (`rg
+# "from '../x'" src`, `sed "s#../a#../b#"`), and the options that give one (`-e`, `-Pattern`).
+_PATTERNED = frozenset({"rg", "ripgrep", "ag", "ack", "grep", "egrep", "fgrep", "select-string",
+                        "sls", "findstr", "sed", "awk", "perl"})
+_PATTERN_OPTIONS = frozenset({"-e", "--regexp", "-pattern", "--expression", "-f", "--file"})
+
+
+def _path_words(words: list[str]) -> list[str]:
+    """The words of a part that may be paths: a search's or sed's pattern left out
+    (`_PATTERNED`)."""
+    if _program(words[0]) not in _PATTERNED:
+        return words
+    kept, patterned, at = words[:1], False, 1
+    while at < len(words):
+        word = words[at]
+        if word.casefold() in _PATTERN_OPTIONS:
+            patterned, at = True, at + 2
+            continue
+        if word.startswith("-") or patterned:
+            kept.append(word)
+        else:
+            patterned = True  # (this word: the pattern)
+        at += 1
+    return kept
+
+
+def _climbing(words: list[str], at: str | None, own: re.Pattern | None, code: bool = False) -> str:
     """A path among `words` that leads above a copy's tree by `..` from its folder `at` - from
     one not known (None), any that climbs; split at what may stand around a path in a line
-    or in code handed to an interpreter (`--dir="../x"`, `>"..\\x"`, `open(r'..\\x')`)."""
-    for word in words:  # (a program too: `..\.venv\Scripts\python.exe`)
-        for piece in re.split(r"[=<>,@'\"(]", re.sub(r"^-[\w-]*:", "", word.strip("'\""))):
-            if ".." in re.split(r"[\\/]", piece) and (at is None and not _full(piece) or _above(
-                    _in_copy(piece, at or ".", own))):
-                return piece
+    (`--dir="../x"`, `>"..\\x"`) - and, in a line of code handed to an interpreter (`code`), at
+    its quotes and brackets (`open(r'..\\x')`); as written and as the shell reads it (`_as_read`:
+    `.''./`, sh's `.\\./`). A search's pattern is none (`_path_words`)."""
+    split = r"[=<>,@'\"(]" if code else r"[=<>,@]"
+    for word in _path_words(words) if words else ():  # (a program too: `..\.venv\Scripts\x`)
+        for written in dict.fromkeys((word, _as_read(word))):
+            for piece in re.split(split, re.sub(r"^-[\w-]*:", "", written.strip("'\""))):
+                if ".." in re.split(r"[\\/]", piece) and (at is None and not _full(piece) or _above(
+                        _in_copy(piece, at or ".", own))):
+                    return piece
     return ""
 
 
@@ -1260,6 +1335,14 @@ def _climbs_out(command: str, cwd: str | None, own: str | None) -> str:
     folder a command runs in, and its copy's folder, are the wall."""
     if cwd is None:
         return ""
+    # (as written - sh's `.\./` is `../` - and with its paths as the machine reads them: the
+    # copy's own tree by a variable, `C:\.\x`)
+    return next(filter(None, (_climbs_in(line, cwd, own, bool(_INLINE.search(command)))
+                              for line in dict.fromkeys((command, _expanded(command))))), "")
+
+
+def _climbs_in(command: str, cwd: str, own: str | None, code: bool) -> str:
+    """`_climbs_out` of one reading of a line (`code`: it hands an interpreter code)."""
     mine = _spellings(own) if own is not None else None
     start = posixpath.normpath(cwd.replace("\\", "/"))
     at: str | None = start
@@ -1269,7 +1352,7 @@ def _climbs_out(command: str, cwd: str | None, own: str | None) -> str:
             if _above(went) or went is None and _climbing(words[1:], None, mine):
                 return words[-1]
             at = went
-        elif piece := _climbing(words, at, mine):
+        elif piece := _climbing(words, at, mine, code):
             return piece
     for words in _parts(command, _BLOCKS):  # (what a shell's variable is set to)
         if piece := _climbing([word.split("=", 1)[1] for word in words
@@ -1310,8 +1393,11 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
     folder to make it anew, `_REBUILDERS`, or writes there, `_writes_links` - may go through a
     link into the project's own (K-70-junction), in a shell too (`cmd /c rd /s x`).
     shortcut: by the path as written, either slash, in any case on Windows; a short name
-    (`PROJ~1`), a variable or a script that names it is not seen - nor a delete in a script,
-    or by a program `_through_links` does not list."""
+    (`PROJ~1`), a variable but the user's folders' (`_USERS_FOLDERS`) or a script that names it
+    is not seen - nor a delete in a script, or by a program `_through_links` does not list.
+    shortcut: a line PowerShell is handed encoded (`-EncodedCommand`), a name spliced by
+    backticks (`ki`ll`), and what code handed to `python -c` / `node -e` does are not read;
+    `runs_another` and `runs_inline` ask of those where a night's rules hold."""
     written = _spellings(str(runtime)).sub("", _as_path_line(command))
     if _spellings(project).search(written):
         return NAMES_PROJECT.format(root=project)
@@ -1331,10 +1417,11 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
         elif words and (why := _through_links(words)):
             return why
     # (and as `_commands_in` reads a part: past a wrapper, `env X=1 uv sync`)
-    parts = [words for words in _commands_in(command) if words] if linked else []
+    parts = [words for words in _commands_in(_expanded(command)) if words] if linked else []
     if why := next((why for words in parts if (why := _through_links(words))), ""):
         return why
-    return WRITES_THROUGH_LINKS if any(map(_writes_links, parts)) else ""
+    mine = _spellings(own) if own is not None else None
+    return WRITES_THROUGH_LINKS if any(_writes_links(words, mine) for words in parts) else ""
 
 
 SECRET_FILE = "Opens a secret file (keys, passwords): asked at every level."

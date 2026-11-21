@@ -392,8 +392,10 @@ def test_a_copys_command_naming_another_copy_a_worktree_or_above_it_is_asked(tmp
         (f"Set-Content {held / 'b' / 'tree' / 'x.txt'} hi", str(held)),
         (f"Copy-Item x {worktree}/y", str(worktree)), ("cd src; cp x ../../y", "../../y"),
         ("cd ..; ls", ".."), ("ls -la ../..", "../.."),
-        # (by its own full path, and up out of it)
-        (f"cp x {own}/../../b/tree/y", f"{own}/../../b/tree/y"),
+        # (by its own full path, and up out of it: read as the path it leads to)
+        (f"cp x {own}/../../b/tree/y", str(held)),
+        # (`..` spliced with quotes, sh's `.\.`)
+        ("cp x .''./.''./b/tree/y", "../../b/tree/y"), (r"cp x .\./.\./b", "../../b"),
         # (quoted, glued to an option or a redirect)
         ('cp x --target-directory="../../b/tree"', "../../b/tree"),
         ('echo x >"../base.json"', "../base.json"),
@@ -410,7 +412,11 @@ def test_a_copys_command_naming_its_own_copy_or_below_is_not_asked(tmp_path):
     for command in [f"python {own}/x.py > {own}/out.txt", *LIVE, "git log HEAD..main",
                     "git diff main...HEAD", f"cd {own}/src && pytest", "cd src; cp x ../y",
                     "cd src && cd .. && pytest", "cd $X; pytest", "D=src/x; cp y $D/z",
-                    "python -c \"print('a..b')\""]:
+                    "python -c \"print('a..b')\"",
+                    # (a search's or sed's pattern is no path: JS / TS imports)
+                    "rg \"from '../utils'\" src", "grep -rn \"from '../\" src",
+                    "sed -i \"s#'../a'#'../b'#\" src/x.ts", "rg '../utils' src",
+                    "grep -e '../x' src", "Select-String -Pattern '\\.\\./x' -Path src/a.ts"]:
         assert asked_in_copy(tmp_path, command) == "", command
 
 
@@ -473,6 +479,42 @@ def test_a_copies_folder_by_the_users_environment_is_still_seen(tmp_path, monkey
         command = f"cp y {one}/b/tree/x"
         said = copy_reason(command, False, str(project), runtime, own)
         assert said == OUT_OF_COPY.format(path=str(users)), command
+        # (its own tree spelt so, and up out of it)
+        mine = users / "a" / "tree"
+        command = f"cp y {one}/a/tree/../../b/tree/x"
+        said = copy_reason(command, False, str(project), runtime, mine)
+        assert said == OUT_OF_COPY.format(path=str(users)), command
+    for doubled in spellings(str(users / "a" / "tree")):
+        command = f"cp y {doubled}/../../b/tree/x"
+        said = copy_reason(command, False, str(project), runtime, users / "a" / "tree")
+        assert said == OUT_OF_COPY.format(path=str(users)), command
+
+
+def test_a_full_path_up_through_another_folder_names_where_it_leads(tmp_path):
+    project = tmp_path / "proj"
+    said = NAMES_PROJECT.format(root=str(project))
+    other = tmp_path / "other" / ".." / "proj" / "src" / "y"
+    assert copy_reason(f"cp x {other}", False, str(project), tmp_path / "rt") == said
+    # (KOLONİ on its own repository: its runtime in the project is cut, never what leads past it)
+    inside = project / "runtime" / ".." / "src" / "y"
+    assert copy_reason(f"cp x {inside}", False, str(project), project / "runtime") == said
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows' own spellings of a path")
+def test_windows_spellings_of_a_path_still_name_it(tmp_path, monkeypatch):
+    project, runtime, _own, held, _worktree = places(tmp_path)  # noqa: F811
+    said = NAMES_PROJECT.format(root=str(project))
+    drive, rest = str(project)[:2], str(project)[2:]
+    monkeypatch.setenv("HOMEDRIVE", drive)
+    monkeypatch.setenv("HOMEPATH", str(tmp_path)[2:])
+    monkeypatch.setenv("SystemDrive", drive)
+    for spelt in [f"{project}.", f"{project}..", "%HOMEDRIVE%%HOMEPATH%\\proj\\x",
+                  f"%SystemDrive%{rest}\\x", f"$env:SystemDrive{rest}\\x",
+                  f"$env:HOMEDRIVE{rest}\\x", f"\\\\localhost\\{drive[0]}$\\{rest[1:]}\\x",
+                  f"\\\\127.0.0.1\\{drive[0]}$\\{rest[1:]}\\x", f"\\\\?\\{project}\\x"]:
+        assert copy_reason(f"Copy-Item x {spelt}", False, str(project), runtime) == said, spelt
+    assert copy_reason(f"Copy-Item x {held}\\b\\tree.", False, str(project), runtime,
+                       held / "a" / "tree") == OUT_OF_COPY.format(path=str(held))
 
 
 @pytest.mark.parametrize("command", [
@@ -529,10 +571,22 @@ def test_a_venv_made_elsewhere_in_a_copy_is_no_rebuild_of_a_linked_one():
     "Move-Item a VENV/x", "Set-Content node_modules/x.js hi", "Add-Content .venv/x hi",
     '"hi" | Out-File node_modules/x', "echo x | tee node_modules/x",
     'cmd /c "echo x > node_modules/a.js"', "Set-Content -Path:node_modules/x.js hi",
+    # (glued on both sides; a copy's target by its option; a path that leads there)
+    "echo x>node_modules/a.js", r"Copy-Item -Destination node_modules\x a.js",
+    r"Copy-Item a.js -Destination:node_modules\x", "cp -t node_modules/x a.js",
+    "cp --target-directory=node_modules/x a.js", "echo x > src/../node_modules/a.js",
 ])
 def test_in_a_copy_with_links_a_write_in_them_is_asked(command):
     assert copy_reason(command, True, "/work/proj", "/work/rt") == WRITES_THROUGH_LINKS, command
     assert copy_reason(command, False, "/work/proj", "/work/rt") == "", command
+
+
+def test_in_a_copy_with_links_a_write_in_them_by_its_own_full_path_is_asked(tmp_path):
+    project, runtime, own, _held, _worktree = places(tmp_path)  # noqa: F811
+    for command in [f"echo x > {own}/node_modules/a.js", f"cp a.js {own}/node_modules/x/",
+                    f"Set-Content {own}/.venv/x hi"]:
+        said = copy_reason(command, True, str(project), runtime, own)
+        assert said == WRITES_THROUGH_LINKS, command
 
 
 @pytest.mark.parametrize("command", [
