@@ -10035,6 +10035,8 @@ export interface components {
         };
         /** RunOut */
         RunOut: {
+            /** By User */
+            by_user: boolean;
             /** Compare Id */
             compare_id: string | null;
             /** Conversation Id */

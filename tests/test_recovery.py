@@ -102,6 +102,7 @@ def test_a_message_queued_before_a_restart_is_not_sent_until_the_user_sends_it(t
     with TestClient(create_app(settings, model=model), base_url="http://127.0.0.1:8790") as client:
         runs = {r["id"]: r for r in client.get("/api/conversations/c").json()["runs"]}
         assert (runs["r2"]["status"], runs["r2"]["started_at"]) == ("interrupted", None)
+        assert (runs["r1"]["by_user"], runs["r2"]["by_user"]) == (False, True)  # (Send: r2's)
         assert model.calls == []  # (nothing runs by itself)
         assert client.post("/api/runs/r2/send").status_code == 403  # (the user's, from the page)
         assert client.post("/api/runs/r1/send", headers=OWN).status_code == 409  # (it ran)

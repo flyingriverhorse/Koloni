@@ -52,6 +52,7 @@ const run: Run = {
   plan_turn: false,
   plan: null,
   compare_id: null,
+  by_user: true,
 }
 const msg: Message = {
   id: 'm',

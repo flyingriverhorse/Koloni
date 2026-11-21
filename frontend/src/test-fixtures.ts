@@ -69,6 +69,7 @@ export function run(id: string, status: Run['status'] = 'running', over: Partial
     plan_turn: false,
     plan: null,
     compare_id: null,
+    by_user: true,
     ...over,
   }
 }

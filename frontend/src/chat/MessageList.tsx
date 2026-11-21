@@ -190,8 +190,8 @@ function runNotice(run: Run, lead?: Agent, providers: Provider[] = []): Notice |
     case 'cancelled':
       return run.started_at ? { title: 'Stopped', alert: false } : null
     case 'interrupted':
-      // (A message of yours that never began is said under it: `NotSent`. A trigger's, here as before.)
-      return run.started_at || run.unattended ? { title: 'Interrupted by a server restart', text: 'Send a message to continue.', alert: false } : null
+      // (A message of yours that never began is said under it: `NotSent`. A trigger's or KOLONİ's own, here as before.)
+      return run.started_at || !run.by_user || run.unattended ? { title: 'Interrupted by a server restart', text: 'Send a message to continue.', alert: false } : null
     default:
       return null
   }

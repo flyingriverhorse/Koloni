@@ -161,6 +161,8 @@ test.each([
   [run('r', 'cancelled'), 'Stopped', null],
   [run('r', 'interrupted'), 'Interrupted by a server restart', 'Send a message to continue.'],
   [run('r', 'interrupted', { started_at: null, unattended: true }), 'Interrupted by a server restart', 'Send a message to continue.'],
+  // (A turn KOLONİ made and never began - an approved plan's work, a re-run: no message of the user's to send again.)
+  [run('r', 'interrupted', { started_at: null, by_user: false }), 'Interrupted by a server restart', 'Send a message to continue.'],
 ])('a turn that did not complete says why, as a card that only tells', (endedRun, title, said) => {
   render(
     <MessageList
@@ -171,6 +173,7 @@ test.each([
   const card = screen.getByText(title).closest('.cmd-approval')
   expect(card).toHaveClass('card-tell')
   if (said) expect(card).toHaveTextContent(`${title}${said}`)
+  expect(screen.queryByText(/Not sent/)).toBeNull()
 })
 
 test('a failed turn says the one thing to do about it under why it failed; where nothing is known to help, nothing', () => {
