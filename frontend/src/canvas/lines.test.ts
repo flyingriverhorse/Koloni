@@ -265,6 +265,20 @@ test('a room the Lead opened with two teams’ leads stands in the lane, out of 
   for (const frame of ['team:r:web', 'team:r:api']) expect(positions['room:o'].x).toBeGreaterThan(positions[frame].x + sizes[frame].width)
 })
 
+test('in the lane a room and a discussion between teams stand in the order they began, the room first when it opened first', () => {
+  // (deriveGraph puts every discussion before every room: a room opened first stood under a discussion held after it.)
+  const room = { id: 'o', run_id: 'r', agent_id: 'r', goal: 'One API?', status: 'working', outcome: null, why: null, created_at: at, members: ['wl', 'bl'].map(agent_id => ({ agent_id, role: 'Lead', status: 'in' })) } as unknown as Room
+  const later = '2026-10-05T11:00:00Z'
+  const talk = { id: 'd', run_id: 'r', agent_id: 'r', tool_call_id: 'x', topic: 'Ship it?', status: 'ended', outcome: 'agreed', round: 1, max_rounds: 3, created_at: later, ended_at: later, members: ['wc', 'bc'].map(agent_id => ({ agent_id, status: 'in', opened_here: false })) } as unknown as Discussion
+  const g = foldGraph(deriveGraph(twoTeams({ rooms: [room], discussions: [talk] })), {})
+  // Both in the lane: joined to their members by lines `member`.
+  expect(['room:o', 'discussion:d'].map(id => g.edges.some(e => e.member && e.target === id))).toEqual([true, true])
+  const { positions } = layoutGraph(g.nodes, g.edges)
+  const [o, d] = [positions['room:o'], positions['discussion:d']]
+  expect(d.x).toBe(o.x)
+  expect(o.y).toBeLessThan(d.y)
+})
+
 test('findings from outside a frame, or from another frame, come in at its door; talk with an agent outside, too', () => {
   const g = deriveGraph(
     twoTeams({
