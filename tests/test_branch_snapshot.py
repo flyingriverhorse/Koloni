@@ -143,7 +143,8 @@ def test_nested_repositories_and_dependencies_stay_out_of_the_snapshot(repo, run
     for at in range(5):  # (more than the cap below: not counted, as not taken)
         (repo / "node_modules" / f"m{at}.js").write_text("module\n")
     tree, no_hooks = runtime / "wt", runtime / "no-hooks"
-    branch, _into, _sha, snapshot, why = git.add_worktree(repo, tree, "x", no_hooks, (2, 10**9))
+    branch, _into, _sha, snapshot, why, _left = git.add_worktree(
+        repo, tree, "x", no_hooks, (2, 10**9))
     assert snapshot and why is None
     held = run(repo, "ls-tree", "--name-only", snapshot).split()
     assert "new.txt" in held and "sub" not in held and "node_modules" not in held
@@ -159,7 +160,7 @@ def test_over_the_caps_a_branch_starts_from_head_and_says_why_with_nothing_hashe
     for name in ("n1.txt", "n2.txt", "n3.txt"):
         (repo / name).write_text(f"{name} is new\n")
     head = run(repo, "rev-parse", "HEAD")
-    branch, _into, sha, snapshot, why = git.add_worktree(
+    branch, _into, sha, snapshot, why, _left = git.add_worktree(
         repo, runtime / "wt", "x", runtime / "no-hooks", most)
     assert snapshot is None and sha == head
     assert why == git.TOO_MANY.format(count="3 files, 0 MB")

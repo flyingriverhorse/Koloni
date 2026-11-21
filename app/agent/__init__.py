@@ -892,6 +892,10 @@ TAKEN_IN_FIRST = ("{files}: {name}'s Take in is in your folder, not committed - 
 # How many of a project's latest Take in cards are looked at for that (`_taken_in`).
 # shortcut: an older one is not named, only its files under "in the way"; look further if missed.
 MOST_TAKEN_IN = 20
+# W-1: what of the user's a branch's snapshot left out (`git._snapshot`): said quietly on its card.
+NOT_IN_BRANCH = ("Not in its branch: {count} of your files ({files}) - a secret by its name, or "
+                 "through a link")
+NAMED_LEFT = 3
 # W-1, the user's answer (3): a branch that began from their last commit, and why.
 FROM_HEAD = ("{branch} started from your last commit, not your folder as it was: {why}. Your "
              "uncommitted changes were not in it.")
@@ -2105,6 +2109,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         start, tip, (left or {}).get("snapshot"))
                     if left:
                         made.from_head = left.get("from_head")
+                        made.not_taken = tuple(left.get("not_taken") or ())
                     return made
                 except git.Refused as exc:
                     self._no_branch[owner] = str(exc)
@@ -2180,7 +2185,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._on_branch[target.agent_id] = branch
             self._left_on[target.agent_id] = {
                 "branch": branch, "start": record["start"], "tip": record.get("tip"), "at": at,
-                "snapshot": record.get("snapshot"), "from_head": record.get("from_head")}
+                "snapshot": record.get("snapshot"), "from_head": record.get("from_head"),
+                "not_taken": record.get("not_taken")}
 
     def _drop_branch(self, copy: copies.Copy, force: bool = False) -> None:
         """K-dal-takim: a branch copy's folder is deleted - git's record of its worktree goes,
@@ -2213,6 +2219,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             where["on_branch"], where["start"] = made.branch, made.start
             # (W-1: the snapshot of the user's folder it began from, or why from a commit.)
             where["snapshot"], where["from_head"] = made.snapshot_sha, made.from_head
+            where["not_taken"] = list(made.not_taken)
             if left:
                 where["tip"] = left["tip"] or left["start"][1]
             # (git's config as its work begins, if no watch took it yet: a pull
@@ -2224,7 +2231,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # Its branch not opened again, and still there: a later go-on tries it again
             # (not `on_branch`: the git map would name this copy's agent its team).
             where.update(left_on=left["branch"], start=left["start"], tip=left["tip"],
-                         snapshot=left.get("snapshot"), from_head=left.get("from_head"))
+                         snapshot=left.get("snapshot"), from_head=left.get("from_head"),
+                         not_taken=left.get("not_taken"))
             if why := self._no_branch.get(owner):  # (told before its first step)
                 self._nudges.setdefault(owner, []).append(
                     (left["at"], NOT_ON_BRANCH_AGAIN.format(why=why)))
@@ -3515,13 +3523,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     ) -> tuple[str | None, dict[str, str | None]]:
         """W-1 and (A).3: what a branch's card says beside git's look - why its agents' work does
         not go in over what the user had not committed when it began (`BRANCH_ON_YOURS`), and,
-        apart from what stands in the way, whose Take in is in it ("taken_in", `_taken_in`) and
-        that it began from the user's last commit ("started", `FROM_HEAD`)."""
+        apart from what stands in the way, whose Take in is in it ("taken_in", `_taken_in`), that
+        it began from the user's last commit ("started", `FROM_HEAD`) and what of theirs its
+        snapshot left out ("not_taken", `NOT_IN_BRANCH`: the first `NAMED_LEFT` of them)."""
         yours = BRANCH_ON_YOURS.format(files=_few(look["yours"])) if look.get("yours") else None
+        left = list(copy.not_taken)
+        more = len(left) - NAMED_LEFT
         return yours, {
             "taken_in": self._taken_in(project_id, look["dirty"]),
             "started": FROM_HEAD.format(branch=copy.branch, why=copy.from_head) if (
-                copy.from_head) else None}
+                copy.from_head) else None,
+            "not_taken": NOT_IN_BRANCH.format(count=len(left), files=", ".join(
+                left[:NAMED_LEFT]) + (f" and {more} more" if more > 0 else "")) if left else None}
 
     def _taken_in(self, project_id: str, dirty: list[str]) -> str | None:
         """(A).3: where what stands in a branch's way (`dirty`) is another agent's work taken in

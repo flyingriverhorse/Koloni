@@ -448,6 +448,9 @@ class Copy:
     # card); None where nothing was left out.
     snapshot_sha: str | None = None
     from_head: str | None = None
+    # ... and what of the user's own the snapshot left out: a secret by its name, a link (said on
+    # its card, `git._taker`).
+    not_taken: tuple[str, ...] = ()
 
     def holds(self, path: str) -> bool:
         """Whether a path from the project root is one this copy holds (`part`): all that Take
@@ -964,20 +967,21 @@ def make_branch(
         raise OSError(NO_PLACE)
     project, root = Path(project).resolve(), held / _plain(name) / TREE
     root.parent.mkdir(parents=True)
-    branch, again, why = None, short.startswith(git.BRANCH_PREFIX), None
+    branch, again, why, left = None, short.startswith(git.BRANCH_PREFIX), None, []
     try:
         if again:
             branch, into, sha = git.reopen_worktree(
                 project, root, short, root.parent / NO_HOOKS, start, tip,
                 under=folders(runtime_root))
         else:
-            branch, into, sha, snapshot, why = git.add_worktree(
+            branch, into, sha, snapshot, why, left = git.add_worktree(
                 project, root, short, root.parent / NO_HOOKS, (MAX_FILES, MAX_BYTES))
         files, _links, _size = _scan(root, stop=True)
         listed = _git_listed(project)
         links = _scan(project, avoid=held.resolve(), held=listed)[1] if listed is not None else []
         copy = Copy(project, root, {}, {}, {}, git=True, branch=branch,
-                    start=(into, sha), snapshot_sha=snapshot, from_head=why)
+                    start=(into, sha), snapshot_sha=snapshot, from_head=why,
+                    not_taken=tuple(left))
         for path in files:
             copy.base[_key(path)] = hashlib.sha256((root / path).read_bytes()).hexdigest()
             copy.names[_key(path)] = path

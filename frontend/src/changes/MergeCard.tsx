@@ -538,6 +538,11 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
           {branch.started}
         </div>
       )}
+      {branch?.not_taken && (
+        <div className="muted cmd-approval-note" role="note" aria-label="Not in its branch">
+          {branch.not_taken}
+        </div>
+      )}
       {branch && inTheWay > 0 && notMergedYet(branch, pr, name)}
       {look.length > 0 && (
         <div className="muted cmd-approval-note" role="note" aria-label="Worth a look">

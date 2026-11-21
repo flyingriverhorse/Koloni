@@ -1194,9 +1194,9 @@ TOO_LONG = "it took longer than {seconds:.0f} seconds"
 SNAPSHOT_SECONDS = 180.0
 # Of what git says, as much as a card's line holds: its start and its end.
 WHY_CHARS = 300
-# Secrets a snapshot leaves out besides those named so (`workspace.is_secret`, which also names a
-# credentials.json that a project's own rules take for code): Google's OAuth quickstart's token.
-SNAPSHOT_SECRETS = frozenset({"token.json"})
+# Secrets a snapshot leaves out besides those the project's own rules name (`secret_in_project`,
+# which take a credentials.json for code): Google's OAuth quickstart's two files.
+SNAPSHOT_SECRETS = frozenset({"credentials.json", "token.json"})
 # How many links and junctions at the top of the new files a snapshot steps round, at most.
 MOST_LINKS = 200
 # A snapshot's own index is written whole: no shared index of the user's is split off or expired
@@ -1234,25 +1234,30 @@ def merge_base_known(git: str) -> bool:
     return _version(git)[1] >= (2, 40)
 
 
-def _left_out_of_snapshot(path: str) -> bool:
-    """Of the user's files a snapshot would take (as git lists them), those it leaves out, by
-    their names: a repository inside (git lists one by its folder: `sub/`), a secret - never an
-    object in their .git, reachable from a branch of KOLONİ's (`is_secret`, `SNAPSHOT_SECRETS`) -,
-    what a copy leaves out or links (`copies._apart`: node_modules, .venv, build) and KOLONİ's own
-    `.koloni/` - its settings file, written when a project's setting is saved, would make every
-    branch one from a snapshot; its rules, recipes and notes are read in the project."""
+def _ours(path: str) -> bool:
+    """Whether a path git lists is the user's own work a snapshot weighs: not a repository inside
+    (git lists one by its folder: `sub/`), not what a copy leaves out or links (`copies._apart`:
+    node_modules, .venv, build - a folder of that name too), not KOLONİ's own `.koloni/` - its
+    settings file, written when a project's setting is saved, would make every branch one from a
+    snapshot; its rules, recipes and notes are read in the project."""
     from app import copies  # (here: copies imports git where it uses it)
 
-    name = path.rstrip("/").rsplit("/", 1)[-1].casefold()
-    return (path.endswith("/") or is_secret(path) or secret_in_project(path)
-            or name in SNAPSHOT_SECRETS or copies._apart(path)
-            or path.replace("\\", "/").casefold().startswith(".koloni/"))
+    return not (path.endswith("/") or copies._apart(f"{path}/-")
+                or path.replace("\\", "/").casefold().startswith(".koloni/"))
 
 
-def _through_link(project: Path, path: str, seen: dict[str, bool]) -> bool:
-    """Whether a path of the folder is, or is in, a link or a junction - what git would follow out
-    of the folder (Git for Windows walks a junction as a folder). Each place looked at once
-    (`seen`, by path); one that cannot be looked at counts as one."""
+def _secret_named(path: str) -> bool:
+    """A secret by its name, as the project's own rules have one (`secret_in_project`: a .env, a
+    key file - not code named like one, a credentials.py), or Google's OAuth files
+    (`SNAPSHOT_SECRETS`), which those rules take for code: never an object in the user's .git,
+    reachable from a branch of KOLONİ's."""
+    return secret_in_project(path) or path.rsplit("/", 1)[-1].casefold() in SNAPSHOT_SECRETS
+
+
+def _through_link(project: Path, path: str, seen: dict[str, bool]) -> str | None:
+    """The link or junction a path of the folder is, or is in - what git would follow out of the
+    folder (Git for Windows walks a junction as a folder); None where none is. Each place looked
+    at once (`seen`, by path); one that cannot be looked at counts as one."""
     parts = path.rstrip("/").split("/")
     for at in range(1, len(parts) + 1):
         key = "/".join(parts[:at])
@@ -1263,8 +1268,27 @@ def _through_link(project: Path, path: str, seen: dict[str, bool]) -> bool:
             except OSError:
                 seen[key] = True
         if seen[key]:
-            return True
-    return False
+            return key
+    return None
+
+
+def _taker(project: Path) -> tuple[Callable[..., bool], set[str]]:
+    """What a snapshot takes of the user's paths (`takes(path, link=False)`: their own work, not a
+    secret by its name, not a link nor through one), and the set of their own it leaves out - a
+    secret, a link - filled as it is asked: said on the branch's card."""
+    seen: dict[str, bool] = {}
+    left: set[str] = set()
+
+    def takes(path: str, link: bool = False) -> bool:
+        if not _ours(path):
+            return False
+        through = path if link else _through_link(project, path, seen)
+        if through or _secret_named(path):
+            left.add(through or path)
+            return False
+        return True
+
+    return takes, left
 
 
 def _pattern(path: str) -> str:
@@ -1272,40 +1296,39 @@ def _pattern(path: str) -> str:
     return "/" + re.sub(r"([\\*?\[\]!# ])", r"\\\1", path.rstrip("/"))
 
 
-def _untracked(project: Path, call: Callable[..., bytes], seen: dict[str, bool]) -> list[str]:
+def _untracked(project: Path, call: Callable[..., bytes], takes: Callable[..., bool]
+               ) -> list[str]:
     """The user's new files git does not ignore, as a snapshot takes them: none through a link or
     a junction - one among what git lists first (`--directory`) is never walked into (one back into
-    the folder would loop), one deeper in a new folder is walked but not taken -, nor one
-    `_left_out_of_snapshot` names. Refused where git could not read all of the folder (a path too
+    the folder would loop), one deeper in a new folder is walked but not taken -, nor what else
+    `takes` (`_taker`) does not. Refused where git could not read all of the folder (a path too
     long, a folder it may not open): what it skips would be missing unsaid.
     shortcut: a junction deep in a new folder is walked by git until the snapshot's deadline;
     step round each (a walk of new folders of our own) if a big one is ever met."""
     top = _listed(call("ls-files", None, "ls-files", "-z", "--others", "--exclude-standard",
                        "--directory", whole=True))
-    links = [one for one in top if _through_link(project, one, seen)]
+    links = [one for one in top if one.endswith("/") and not takes(one.rstrip("/"))]
     if len(links) > MOST_LINKS:
         raise Refused(f"it has more than {MOST_LINKS} links or junctions")
     found = top
     if any(one.endswith("/") and one not in links for one in top):
         found = _listed(call("ls-files", None, "ls-files", "-z", "--others", "--exclude-standard",
                              *(f"--exclude={_pattern(one)}" for one in links), whole=True))
-    return [one for one in found
-            if not _left_out_of_snapshot(one) and not _through_link(project, one, seen)]
+    return [one for one in found if takes(one)]
 
 
-def _left_staged(project: Path, call: Callable[..., bytes], head: str,
-                 seen: dict[str, bool]) -> None:
-    """What the user staged that a snapshot leaves out - a name `_left_out_of_snapshot` names, a
-    path through a link, a link or a submodule - is as HEAD has it in the snapshot's index (out of
-    it, where HEAD has none)."""
+def _left_staged(call: Callable[..., bytes], head: str, takes: Callable[..., bool]) -> None:
+    """What the user staged that a snapshot does not take (`takes`: a secret, a link or a path
+    through one, what is no work of theirs) and a submodule are as HEAD has them in the
+    snapshot's index (out of it, where HEAD has none)."""
     parts = call("diff-index", None, "diff-index", "--cached", "-z", "--no-renames",
                  head).split(b"\0")
     back = []
     # (each ":<old mode> <new mode> <old id> <new id> <letter>", then its path)
     for fields, raw in zip(parts[::2], parts[1::2], strict=False):
         words, path = fields.decode("ascii", "replace").lstrip(":").split(), _listed(raw)
-        if len(words) == 5 and path and (words[1] in NOT_FILES or _left_out_of_snapshot(
-                path[0]) or _through_link(project, path[0], seen)):
+        if len(words) == 5 and path and (words[1] == "160000" or not takes(
+                path[0], words[1] == "120000")):
             back.append(path[0])
     if back:
         call("reset", _nul(back), "reset", "-q", head, "--pathspec-from-file=-",
@@ -1343,10 +1366,10 @@ def _snapshot_git(
 def _snapshot(
     project: Path, git: str, folder: Path, head: str, no_hooks: Path, most: tuple[int, int],
     branch: str,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, list[str]]:
     """The user's folder as it is, as a commit on `head` (the project's commit now): what HEAD
-    holds with what is staged, changed and new on top - but what git ignores, what
-    `_left_out_of_snapshot` names and what is, or is in, a link or a junction (staged too). Made
+    holds with what is staged, changed and new on top - but what git ignores and what `_taker`
+    does not take: a secret by its name, what is, or is in, a link or a junction (staged too). Made
     from an index of its own in the git folder (`folder`), the user's copied in for what it knows
     of each file: every git call that writes an index is given it (GIT_INDEX_FILE), none of the
     user's index, files, HEAD or branches is touched, no ref is made, and no hook, filter,
@@ -1354,8 +1377,9 @@ def _snapshot(
     within one deadline (`SNAPSHOT_SECONDS`). Returns the commit and why there is none: (None,
     None) where the folder is as HEAD has it (a branch from HEAD, as before); (None, why) where
     it has more new and changed files than `most` - (files, bytes), counted before any is read -
-    or this git cannot measure a branch from it (`merge_base_known`). Refused where git fails,
-    could not read all of the folder, or the deadline passed.
+    or this git cannot measure a branch from it (`merge_base_known`) - and, with the commit,
+    what of the user's own it left out (a secret, a link: said on the card). Refused where git
+    fails, could not read all of the folder, or the deadline passed.
     shortcut: a submodule's own changes are not in it (its pointer as HEAD has it); look into it
     if a project with submodules is put on a branch."""
     _drop_stale_indexes(folder)
@@ -1380,28 +1404,27 @@ def _snapshot(
 def _snapshot_of(
     project: Path, git: str, call: Callable[..., bytes], head: str, most: tuple[int, int],
     branch: str,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, list[str]]:
     """`_snapshot`, its index and its git (`call`) ready."""
-    seen: dict[str, bool] = {}
-    new = _untracked(project, call, seen)
+    takes, left = _taker(project)
+    new = _untracked(project, call, takes)
     changed = [path for path in _listed(call(
         "diff-files", None, "diff-files", "--name-only", "-z", "--no-renames",
-        "--ignore-submodules=all"))
-        if not _left_out_of_snapshot(path) and not _through_link(project, path, seen)]
+        "--ignore-submodules=all")) if takes(path)]
     if too_many := _over(project, [*new, *changed], most):
-        return None, TOO_MANY.format(count=too_many)
+        return None, TOO_MANY.format(count=too_many), []
     if new or changed:
         call("update-index", _nul([*new, *changed]), "update-index", "--add", "--remove", "-z",
              "--stdin")
-    _left_staged(project, call, head, seen)
+    _left_staged(call, head, takes)
     tree = call("write-tree", None, "write-tree").decode("ascii").strip()
     if tree == call("rev-parse", None, "rev-parse", f"{head}^{{tree}}").decode("ascii").strip():
-        return None, None
+        return None, None, []
     if not merge_base_known(git):
-        return None, OLD_GIT.format(version=_version(git)[0])
+        return None, OLD_GIT.format(version=_version(git)[0]), []
     return call("commit-tree", None, "-c", "commit.gpgsign=false", "commit-tree", tree, "-p",
                 head, "-m", SNAPSHOT_MESSAGE.format(branch=branch), **KOLONI_ID
-                ).decode("ascii").strip(), None
+                ).decode("ascii").strip(), None, sorted(left)
 
 
 def _listed(out: bytes) -> list[str]:
@@ -1429,15 +1452,16 @@ def _cut(said: str) -> str:
 
 def add_worktree(
     project: Path, tree: Path, name: str, no_hooks: Path, most: tuple[int, int]
-) -> tuple[str, str, str, str | None, str | None]:
+) -> tuple[str, str, str, str | None, str | None, list[str]]:
     """Open a worktree at `tree` (a folder that is not there yet) on a new branch
     `koloni/<name>` - `-2`, `-3` where that is taken - from the user's folder as it is
     (`_snapshot`, `most` its caps), or from where the project's branch is: no hook, no filter of
     the repository's runs. Returns the branch, the project's branch it was made from and that
     one's commit (what `branch_look` holds a merge to), the snapshot it starts from (None: from
     that commit) and why not from the folder (None where it is as that commit has it) - a
-    snapshot git could not make, too (`NOT_TAKEN`). Refused, with why, as `_on_a_branch`, and
-    where git will not."""
+    snapshot git could not make, too (`NOT_TAKEN`) - and what of the user's own the snapshot left
+    out (a secret by its name, a link). Refused, with why, as `_on_a_branch`, and where git will
+    not."""
     git, folder, into = _on_a_branch(project)
     code, out, _said = _in(project, git, "for-each-ref", "--format=%(refname:lstrip=2)",
                            f"refs/heads/{BRANCH_PREFIX}")
@@ -1453,14 +1477,14 @@ def add_worktree(
     code, out, _said = _in(project, git, "rev-parse", "--verify", "HEAD")
     sha = out.decode("ascii", "replace").strip()
     try:
-        snapshot, why = _snapshot(project, git, folder, sha, no_hooks, most, branch)
+        snapshot, why, left = _snapshot(project, git, folder, sha, no_hooks, most, branch)
     except (Refused, OSError) as exc:  # (no branch lost for it: from HEAD, and said)
-        snapshot, why = None, NOT_TAKEN.format(why=_cut(str(exc)))
+        snapshot, why, left = None, NOT_TAKEN.format(why=_cut(str(exc))), []
     code, out, said = _worktree_add(project, git, no_hooks, "-b", branch, str(tree),
                                     snapshot or sha)
     if code != 0:
         raise Refused(f"git worktree add failed: {_text(out, said)[-TAIL:]}")
-    return branch, into, sha, snapshot, why
+    return branch, into, sha, snapshot, why, left
 
 
 def reopen_worktree(

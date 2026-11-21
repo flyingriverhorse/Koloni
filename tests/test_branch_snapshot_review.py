@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from app import copies, git
-from app.agent import BRANCH_OVER_YOURS, AgentRunner
+from app.agent import BRANCH_OVER_YOURS, NOT_IN_BRANCH, AgentRunner
 from tests import test_dal_takim
 from tests.conftest import Gate, scaled
 from tests.test_branch_snapshot import has_object, needs_merge_base, porcelain
@@ -35,9 +35,14 @@ def junction(link, target):
 
 def snapshot_of(repo, runtime, most=MOST):
     """The snapshot a new branch starts from, and why there is none."""
-    _branch, _into, _sha, snapshot, why = git.add_worktree(
+    return left_of(repo, runtime, most)[:2]
+
+
+def left_of(repo, runtime, most=MOST):
+    """The snapshot, why there is none, and what of the user's it left out."""
+    _branch, _into, _sha, snapshot, why, left = git.add_worktree(
         repo, runtime / "wt", "x", runtime / "no-hooks", most)
-    return snapshot, why
+    return snapshot, why, left
 
 
 def held(repo, snapshot):
@@ -93,8 +98,8 @@ def test_a_junction_in_your_folder_is_never_taken_nor_what_it_leads_to(repo, run
     (repo / "newdir").mkdir()
     (repo / "newdir" / "in.txt").write_text("in\n")
     junction(repo / "newdir" / "deep", there)
-    snapshot, why = snapshot_of(repo, runtime)
-    assert snapshot and why is None
+    snapshot, why, left = left_of(repo, runtime)
+    assert snapshot and why is None and left == ["junc", "newdir/deep"]
     taken = held(repo, snapshot)
     assert "new.txt" in taken and "newdir/in.txt" in taken
     assert not [path for path in taken if "junc" in path or "deep" in path]
@@ -348,13 +353,38 @@ def test_what_a_snapshot_leaves_out_stays_out_where_you_staged_it_too(repo, runt
 
 
 @needs_merge_base
-def test_google_s_credentials_and_token_files_stay_out(repo, runtime):
-    for name in ("credentials.json", "token.json", "new.txt"):
-        (repo / name).write_text(f"{name}\n")
-    snapshot, why = snapshot_of(repo, runtime)
+def test_secrets_by_their_names_stay_out_and_code_named_like_one_is_taken(repo, runtime):
+    code = ("credentials.py", "api_keys.ts")
+    for name in code:
+        (repo / name).write_text("committed\n")
+    run(repo, "add", *code)
+    run(repo, "commit", "-qm", "code named like a secret")
+    for name in code:
+        (repo / name).write_text("edited\n")  # (an edit not committed: in the snapshot)
+    (repo / "src").mkdir()
+    for name in (*code, ".env.example"):
+        (repo / "src" / name).write_text("new\n")
+    for name in ("credentials.json", "token.json", ".env"):  # (Google's OAuth files; a .env)
+        (repo / name).write_text("SECRET\n")
+    snapshot, why, left = left_of(repo, runtime)
     taken = held(repo, snapshot)
-    assert "new.txt" in taken and "credentials.json" not in taken and "token.json" not in taken
+    assert {"src/credentials.py", "src/api_keys.ts", "src/.env.example"} <= set(taken)
+    assert [run(repo, "show", f"{snapshot}:{name}") for name in code] == ["edited", "edited"]
+    assert not {"credentials.json", "token.json", ".env"} & set(taken)
+    assert left == [".env", "credentials.json", "token.json"] and why is None
     assert not has_object(repo, run(repo, "hash-object", "token.json"))
+
+
+@needs_merge_base
+def test_the_card_says_what_of_yours_is_not_in_the_branch(make_client, wait_run, repo):
+    client, cid, run_id = on_branch(make_client, repo, [
+        step(edit("two", "TWO-agent")), text("A done")],
+        wip={"notes.txt": "mine\n", ".env": "KEY=1\n", "token.json": "{}\n"})
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    (merge,) = snap["merges"]
+    assert merge["branch"]["not_taken"] == NOT_IN_BRANCH.format(
+        count=2, files=".env, token.json")
+    assert merge["status"] == "applied" and merge["branch"]["note"] is None
 
 
 @needs_merge_base

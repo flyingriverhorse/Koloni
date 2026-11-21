@@ -1470,7 +1470,8 @@ class MergeBranchOut(BaseModel):
     remote) - `pr_off`, why a pull request cannot be chosen now.
     W-1: `taken_in`, whose Take in, in the folder and not committed, is among what is in the way
     ((A).3); `started`, that the branch began from the user's last commit, not their folder as it
-    was, and why - said, never in the way (not in `note`, which the card counts so)."""
+    was, and why; `not_taken`, what of theirs its snapshot left out (a secret, a link) - both said,
+    never in the way (not in `note`, which the card counts so)."""
 
     name: str
     into: str | None = None
@@ -1483,6 +1484,7 @@ class MergeBranchOut(BaseModel):
     pr_off: str | None = Field(None, exclude_if=lambda value: value is None)
     taken_in: str | None = Field(None, exclude_if=lambda value: value is None)
     started: str | None = Field(None, exclude_if=lambda value: value is None)
+    not_taken: str | None = Field(None, exclude_if=lambda value: value is None)
 
 
 Side = Literal["agent", "project"]

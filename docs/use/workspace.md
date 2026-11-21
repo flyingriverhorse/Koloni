@@ -102,7 +102,9 @@ your branch and HEAD are not touched; it is the branch's first commit and shows 
 koloni/*name*`. Left out, whether you staged them or not: what git ignores (`.env`, build output),
 files named as secrets (`.env.local`, a key file, `credentials.json`, `token.json`), `node_modules`,
 `.venv` and `venv` (linked in instead), a git repository inside your folder, KOLONİ's own `.koloni`
-folder, and every link or junction with what it leads to.
+folder, and every link or junction with what it leads to. Code named like a secret (`credentials.py`,
+`.env.example`) is taken as any file. The card says in one line which of your files were left out as a
+secret or a link.
 
 The card, the merge and a pull request carry the agent's work alone, measured from that commit - never
 your uncommitted files. A merge waits for your commit:

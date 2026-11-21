@@ -7811,7 +7811,8 @@ export interface components {
          *     remote) - `pr_off`, why a pull request cannot be chosen now.
          *     W-1: `taken_in`, whose Take in, in the folder and not committed, is among what is in the way
          *     ((A).3); `started`, that the branch began from the user's last commit, not their folder as it
-         *     was, and why - said, never in the way (not in `note`, which the card counts so).
+         *     was, and why; `not_taken`, what of theirs its snapshot left out (a secret, a link) - both said,
+         *     never in the way (not in `note`, which the card counts so).
          */
         MergeBranchOut: {
             /** Ask Way */
@@ -7824,6 +7825,8 @@ export interface components {
             into?: string | null;
             /** Name */
             name: string;
+            /** Not Taken */
+            not_taken?: string | null;
             /** Note */
             note?: string | null;
             /** Pr Off */
