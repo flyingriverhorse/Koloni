@@ -22,7 +22,12 @@ from tests.fakes import Script, ScriptedExecutor, ScriptedModel
 from tests.keyed import OWN, TestClient
 from tests.test_agent_commands import cmd
 from tests.test_agent_writes import wait_status
+from tests.test_agy_agent import agy_app  # noqa: F401  (a fixture)
 from tests.test_chat_flow import text
+from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
+from tests.test_codex_app_server_scenarios import ACCEPT, RUN, answers
+from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
+from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_spawn import call, step
 from tests.test_team import ADDRESS, SECRET
 
@@ -61,9 +66,10 @@ def judging(settings_env):
 
 
 def begin(client, project_dir, content, *, check="judge", mode="full_auto", rules=None,
-          preferences=None, origin=OWN):
+          preferences=None, origin=OWN, provider=None):
     """A project with the check as given, the user's rules and preferences saved, a chat at
-    `mode` and its first message - sent from the app's own page unless `origin` says else."""
+    `mode` (its Lead on `provider`, where given) and its first message - sent from the app's own
+    page unless `origin` says else."""
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     assert client.patch(f"/api/projects/{pid}", json={"full_auto_check": check},
                         headers=OWN).status_code == 200
@@ -74,8 +80,9 @@ def begin(client, project_dir, content, *, check="judge", mode="full_auto", rule
         assert client.put("/api/preferences", json={"text": preferences},
                           headers=OWN).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode,
-                                                    "lead_hands_code": False}, headers=OWN)
+    client.patch(f"/api/conversations/{cid}", json={
+        "permission_mode": mode, "lead_hands_code": False,
+        **({"provider_id": provider["id"]} if provider else {})}, headers=OWN)
     run = client.post(f"/api/conversations/{cid}/messages", json={"content": content},
                       headers=origin).json()["run"]
     return pid, cid, run["id"]
@@ -307,3 +314,63 @@ def test_a_secret_in_the_users_words_is_masked_before_the_judge(judging, wait_ru
     prompt = judge.calls[0][0]["content"]
     assert SECRET not in prompt and raw.HIDDEN in prompt
     assert snap["commands"][0]["judged"]["source"] == "message"
+
+
+# --- a native CLI's own command goes through the same check -------------------------------------
+
+
+def judged_by_local(client, cli):
+    """The default provider's model (the scripted one) is the Fast tier's first: the judge."""
+    local = next(p for p in client.get("/api/providers").json() if p["id"] != cli["id"])
+    assert client.patch(f"/api/providers/{local['id']}", headers=OWN, json={
+        "models": [{"name": local["default_model"] or "big-model", "tier": "fast"}],
+        "for_agents": True}).status_code == 200
+
+
+def ran_on_the_rule(client, project_dir, cli, wait_run):
+    judged_by_local(client, cli)
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE, provider=cli)
+    snap = wait_run(client, cid, run_id, 30)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (ran,) = snap["commands"]
+    assert ran["status"] != "proposed" and ran["origin"] == "cli"
+    assert (ran["judged"]["verdict"], ran["judged"]["quote"]) == ("run", RULE)
+
+
+@pytest.mark.no_po
+def test_codex_runs_a_delete_the_users_rule_names_without_a_card(native_app, wait_run,  # noqa: F811
+                                                                 project_dir):
+    client, cli, default = native_app([{"run": "rm -rf build", "output": ""}, {"say": "cleaned"}],
+                                      default_steps=[verdict_line("run", RULE)])
+    ran_on_the_rule(client, project_dir, cli, wait_run)
+    assert answers(native_app) == [(RUN, ACCEPT)] and len(default.calls) == 1
+
+
+@pytest.mark.no_po
+def test_claude_codes_own_bash_runs_a_delete_the_users_rule_names_without_a_card(
+        claude_app, wait_run, project_dir):  # noqa: F811
+    client, cli, default = claude_app(
+        [{"tool": "Bash", "input": {"command": "rm -rf build"}, "result": ""},
+         {"say": "cleaned"}], default_steps=[verdict_line("run", RULE)])
+    ran_on_the_rule(client, project_dir, cli, wait_run)
+    assert len(default.calls) == 1
+
+
+@pytest.mark.no_po
+def test_copilots_shell_runs_a_delete_the_users_rule_names_without_a_card(
+        copilot_native, wait_run, project_dir):  # noqa: F811
+    client, cli = copilot_native([{"shell": "rm -rf build", "output": ""}, {"say": "cleaned"}],
+                                 default_steps=[verdict_line("run", RULE)])
+    ran_on_the_rule(client, project_dir, cli, wait_run)
+
+
+@pytest.mark.no_po
+def test_agys_run_command_runs_a_delete_the_users_rule_names_without_a_card(
+        agy_app, wait_run, project_dir):  # noqa: F811
+    client, cli, default = agy_app(
+        [{"tool": "run_command", "asks": True, "parameters": {"CommandLine": "rm -rf build"},
+          "output": ""}, {"say": "cleaned"}],
+        mode="native", default_steps=[verdict_line("run", RULE)])
+    ran_on_the_rule(client, project_dir, cli, wait_run)
+    assert len(default.calls) == 1
+

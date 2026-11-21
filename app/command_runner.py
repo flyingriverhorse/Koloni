@@ -478,7 +478,7 @@ class CommandRunner:
     async def ask_for(
         self, run_id: str, cid: str, agent_id: str, call_id: str, command: str,
         ask: bool = True, always: bool = False, held: bool = False, reads: bool = False,
-        web_off: bool = False, cwd: str | None = None,
+        web_off: bool = False, cwd: str | None = None, judgement: dict | None = None,
     ) -> tuple[bool, str]:
         """A command a CLI is about to run with a tool of its own: put it on record,
         get it decided the way KOLONİ's own commands are, and say whether it may run.
@@ -489,29 +489,34 @@ class CommandRunner:
         where the CLI says it runs, on the record as KOLONİ's own commands' is ("." for
         the root), so that the card is judged the same when it is read again. What it
         prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
-        screen and the record - the CLI's own model has read it already."""
+        screen and the record - the CLI's own model has read it already. `judgement`: as
+        `run`'s."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
-            row = Command(
-                run_id=run_id, agent_id=agent_id, tool_call_id=call_id, command=command,
-                cwd=cwd, location="host", timeout_seconds=0, origin="cli", web_off=web_off,
-            )
-            session.add(row)
-            session.commit()
-            command_id, payload = row.id, command_out(row, held=held)
             mode = conversation.permission_mode
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
             tests = session.scalar(select(Project.test_commands).where(
                 Project.id == conversation.project_id))
+            # (as `run`'s: the user's own test command in its part's folder is not asked)
+            own = project_map.own_test(tests, command, cwd)
+            # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
+            judged = with_cwd(command, cwd)
+            asks = ask and (always or names_secret(judged)
+                            or bool(standing_asked(judged, mode != "full_auto"))
+                            or (mode != "full_auto"
+                                and not (is_allowed(command, prefixes) or reads or own)))
+            row = Command(
+                run_id=run_id, agent_id=agent_id, tool_call_id=call_id, command=command,
+                cwd=cwd, location="host", timeout_seconds=0, origin="cli", web_off=web_off,
+                # (as `run`'s: a level lowered while the check was out asks all the same)
+                judged=None if asks and judgement and judgement["verdict"] == "run"
+                else judgement,
+            )
+            session.add(row)
+            session.commit()
+            command_id, payload = row.id, command_out(row, held=held)
         self.bus.emit(cid, run_id, "command.created", payload)
-        # (as `run`'s: the user's own test command in its part's folder is not asked)
-        own = project_map.own_test(tests, command, cwd)
-        # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
-        judged = with_cwd(command, cwd)
-        if ask and (always or names_secret(judged)
-                    or standing_asked(judged, mode != "full_auto")
-                    or (mode != "full_auto"
-                        and not (is_allowed(command, prefixes) or reads or own))):
+        if asks:
             decision = await self._wait_for_decision(
                 run_id, cid, agent_id, command_id, payload["suggested_prefix"])
             if decision == "reject":

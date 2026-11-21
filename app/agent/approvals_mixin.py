@@ -371,12 +371,17 @@ class ApprovalsMixin:
         # script makes there after the ask is followed - `scratch_delete_only`.)
         scratch_of = str(root) if at in ("", ".") and copy is None and not claimed and (
             not new_shell) else None
-        reason = web_off or reason or searched or (
+        # One that names a folder to read in only by its full path is asked about, as
+        # KOLONİ's own commands are.
+        always = self._read_named(ctx, command) is not None or where is None
+        before = web_off or reason or searched or (
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
-            if copy is not None else "") or self._branch_asks(
-            ctx, command, copy is not None) or self._night_asks(
+            if copy is not None else "") or self._branch_asks(ctx, command, copy is not None)
+        # K-yargic: harm alone may first be checked against the user's own words (`_judged`).
+        night, judged = await self._judged(ctx, command, at, "" if before else self._night_asks(
             ctx, command, at, scratch_of) or (
-            self._night_asks(ctx, command, None) if claimed else "")
+            self._night_asks(ctx, command, None) if claimed else ""), asked_anyway=always)
+        reason = before or night
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
         noted = {"command": command, **({"reason": reason} if reason else {}),
@@ -401,12 +406,9 @@ class ApprovalsMixin:
         call_id = self._note(ctx, transcript, "run_command", noted, None, None, parent=under)
         if reason:  # (on its card)
             self._set_call(ctx.cid, call_id, why_asked=reason)
-        # One that names a folder to read in only by its full path is asked about, as
-        # KOLONİ's own commands are.
         allowed, command_id = await self.commands.ask_for(
             ctx.run_id, ctx.cid, ctx.agent_id, call_id, command, ask=refused is None,
-            always=self._read_named(ctx, command) is not None or bool(reason)
-            or where is None, held=bool(searched), web_off=bool(web_off),
+            always=always or bool(reason), held=bool(searched), web_off=bool(web_off),
             reads=not given.get("not_read_only") and await asyncio.to_thread(
                 reads_here, command, root, where in ("", ".")),
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
@@ -420,7 +422,7 @@ class ApprovalsMixin:
             # path is judged at the wrong place - a `cd` into a protected folder is a card
             # itself. Measure it, and read a cwd from the hook's payload if it carries one.
             cwd=(where if where is not None else cwd)
-            if isinstance(cwd, str) and cwd else unnamed,
+            if isinstance(cwd, str) and cwd else unnamed, judgement=judged,
         )
         if not allowed:
             self._set_call(ctx.cid, call_id, status="denied", result=rejected(command),
