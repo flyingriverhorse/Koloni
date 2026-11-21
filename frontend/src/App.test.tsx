@@ -319,25 +319,26 @@ const emptyPages = (over: Record<string, unknown> = {}) => {
     return answer(url, over)
   })
 }
-const PAGES = ['Agents', 'Models', 'Tools', 'Ready', 'Board', 'To-do', 'Usage', 'Memory', 'Knowledge', 'Triggers', 'Chats', 'Canvas']
-
 test('each page of the rail is the one in the workspace; a page of a folder, in a plain chat, asks for a folder, and Usage has no day', async () => {
+  // (The canvas is known by its first steps: a test above may have hidden them.)
+  localStorage.removeItem('koloni-first-steps')
   vi.stubGlobal('fetch', emptyPages())
   const { container } = render(<App />)
   await screen.findByText('this machine')
   const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
-  /** Each page as the workspace shows it: its box's class and its heading, else its first words. */
-  const visit = async () => {
-    const seen: [string, string, string | undefined][] = []
-    for (const name of PAGES) {
-      await userEvent.click(rail(name))
-      await act(() => new Promise(done => setTimeout(done, 30)))
-      const page = container.querySelector('.workspace')!.firstElementChild as HTMLElement
-      seen.push([name, page.className, (page.querySelector('h1, h2') ?? page.querySelector('p'))?.textContent ?? undefined])
-    }
-    return seen
+  /** The page in the workspace: its box's class and its heading, else its first words. */
+  const shown = () => {
+    const page = container.querySelector('.workspace')!.firstElementChild as HTMLElement
+    return [page.className, (page.querySelector('h1, h2') ?? page.querySelector('p'))?.textContent]
   }
-  expect(await visit()).toEqual([
+  /** Each page of the rail chosen in turn, and shown as said. */
+  const visit = async (pages: [string, string, string][]) => {
+    for (const [name, ...said] of pages) {
+      await userEvent.click(rail(name))
+      await vi.waitFor(() => expect([name, ...shown()]).toEqual([name, ...said]))
+    }
+  }
+  await visit([
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
@@ -357,7 +358,7 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
   vi.stubGlobal('fetch', emptyPages({ '/api/conversations/n': { ...snapshot, conversation: plain } }))
   await act(() => useApp.getState().openConversation('n'))
   const noFolder = (page: string) => `This chat has no folder - pick one with the folder button to use the ${page}.`
-  expect(await visit()).toEqual([
+  await visit([
     ['Agents', 'paged', 'Agents'],
     ['Models', 'paged', 'Models'],
     ['Tools', 'memory-page tools-page', 'Tools'],
@@ -371,9 +372,9 @@ test('each page of the rail is the one in the workspace; a page of a folder, in 
     ['Chats', 'conv-page', 'Conversations'],
     ['Canvas', 'stage', 'First steps'],
   ])
-  await userEvent.click(rail('Usage'))
-  await act(() => new Promise(done => setTimeout(done, 30)))
-  expect(screen.queryByText(/^The day could not be read/)).toBeNull()
+  // (The day of a folder says it is read as soon as it is drawn: here there is none.)
+  await visit([['Usage', 'memory-page', 'Usage']])
+  expect(screen.queryByText(/^Reading the day…$|^The day could not be read/)).toBeNull()
 })
 
 test("the top bar's pill says what the Lead decided for you when nothing waits; it opens and shuts Ready for you, but not on the Ready page", async () => {
