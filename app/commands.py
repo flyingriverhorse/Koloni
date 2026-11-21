@@ -758,7 +758,12 @@ def _assigned(words: list[str]) -> list[str]:
 def _stop_kind(command: str) -> str:
     """`_part_stop` of a whole line, in any part a shell is handed too: "koloni" where a part may
     stop KOLONİ itself, "soft" where one stops by another name, "" for none. WMI's stops
-    (`_WMI_STOPS`) are read in the line as written."""
+    (`_WMI_STOPS`) are read in the line as written. A continued line is read joined too."""
+    kinds = {_stop_kind_of(line) for line in _readings(command)}
+    return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
+
+
+def _stop_kind_of(command: str) -> str:
     started = _started(command)
     kinds = {_part_stop(_program(words[0]), words[1:], started)
              for words in map(_assigned, _commands_in(command, at=_BLOCKS)) if words}
@@ -1504,6 +1509,15 @@ def _names_elsewhere(command: str, project: str, runtime: Path | str, own: str |
 def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
                 own: Path | str | None = None, cwd: str | None = ".",
                 worktrees: Iterable[str] = ()) -> str:
+    """`_copy_reason` of a line as the shell reads it (`joined`) and as written: the first reason
+    either gives."""
+    worktrees = list(worktrees)
+    return next(filter(None, (_copy_reason(line, linked, project, runtime, own, cwd, worktrees)
+                              for line in _readings(command))), "")
+
+
+def _copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
+                 own: Path | str | None, cwd: str | None, worktrees: Iterable[str]) -> str:
     """Why a command an agent runs in its working copy is asked at every level, Full auto
     too, and refused in a turn nobody watches; "" where there is none. It names `project`,
     the project's folder (K-kopya-istem) - KOLONİ's own `runtime` in it is not the project's
@@ -2040,6 +2054,24 @@ def applies_patch(command: str) -> bool:
     return False
 
 
+# A line's continuations: PowerShell's backtick right at a line's end, sh's backslash. A backtick
+# with a space after it does not continue (measured, pwsh 7: `Write-Output one ` ⏎ two` runs `two`).
+_CONTINUED = re.compile(r"`\r?\n|\\\r?\n")
+
+
+def joined(line: str) -> str:
+    """A command line with its continued lines joined as the shell reads it: PowerShell's backtick
+    at a line's very end as a space between words, sh's backslash as nothing (`gi\\⏎t` is `git`).
+    KOLONİ judges a line both so and as written (`_readings`): reading it joined may only add."""
+    return _CONTINUED.sub(lambda found: " " if found[0][0] == "`" else "", line)
+
+
+def _readings(line: str) -> list[str]:
+    """A line as the shell reads it (`joined`) - and, where a backslash ends a line, as written
+    too: a Windows path's `C:\\` at a line's end continues nothing in PowerShell."""
+    return list(dict.fromkeys((joined(line), *([line] if re.search(r"\\\r?\n", line) else []))))
+
+
 def danger(command: str, instructions: bool = True) -> str:
     """What a command does that cannot be taken back - it deletes, overwrites a git
     remote, opens a secret file or names `.koloni` or another file that steers later turns
@@ -2048,7 +2080,12 @@ def danger(command: str, instructions: bool = True) -> str:
     Each part of a chained command is looked at. No rule covers such a command, and none is
     offered; Full auto asks about one too (`harms`). shortcut: a list of programs and
     flags, not a sandbox; a deleting script, a program renamed or one inside a shell (`cmd /c
-    del`) is not seen - add what the user meets."""
+    del`) is not seen - add what the user meets. A continued line is read joined too
+    (`_readings`)."""
+    return next(filter(None, (_danger(line, instructions) for line in _readings(command))), "")
+
+
+def _danger(command: str, instructions: bool) -> str:
     standing = standing_asked(command, instructions)
     return _harm(command) or (
         PATCHES if standing == PATCH else GIT_IDENTITY if standing == ".git" and _sets_identity(
@@ -3060,8 +3097,10 @@ def harms(command: str, instructions: bool = True) -> str:
     shortcut (security review of K-yargic): no harm is seen in `powershell -enc <base64>`,
     `ssh host 'rm -rf /'`, `find . -exec rm {} ;` or `python -c "shutil.rmtree('..')"` - they run
     at Full auto as before, and are never put to the check of the user's words (no harm, no
-    check); add them to `danger` / `sends_off` when the user meets one."""
-    return next(filter(None, _reasons(command, instructions)), "")
+    check); add them to `danger` / `sends_off` when the user meets one. A continued line is read
+    joined too (`_readings`)."""
+    return next(filter(None, (said for line in _readings(command)
+                              for said in _reasons(line, instructions))), "")
 
 
 def _reasons(command: str, instructions: bool) -> Iterator[str]:
@@ -3093,8 +3132,12 @@ def harm_class(command: str, instructions: bool = True) -> HarmClass:
     level ("always": any other sentence, a secret, `.koloni`, a file that steers later turns, a
     path out of the folder, a line handed to another program); "" for no harm. Every part is
     looked at, not the first sentence `harms` gives: `rm -rf build && cat .env` deletes first,
-    and opens a secret too."""
-    command = re.sub(r"`\r?\n", " ", command)  # (PowerShell's line goes on after a backtick)
+    and opens a secret too. A continued line is read joined too (`_readings`): the higher."""
+    classes = [_harm_class(line, instructions) for line in _readings(command)]
+    return "always" if "always" in classes else "soft" if "soft" in classes else ""
+
+
+def _harm_class(command: str, instructions: bool) -> HarmClass:
     harmful = False
     for said in _reasons(command, instructions):
         if said and not _SOFT.match(said):
@@ -3268,7 +3311,7 @@ def installs(command: str) -> str:
     (`npm run install`), and `pip install --dry-run`, are none.
     shortcut: `npx` and `dlx` run a package without installing it into the project, and are left;
     `pip-sync` and `corepack` writing into node_modules / .venv are not seen."""
-    for words in (words for words in _commands_in(command) if words):
+    for words in (words for line in _readings(command) for words in _commands_in(line) if words):
         if words == ["yarn"] or "--dry-run" not in words and any(
                 verb.casefold() in (_INSTALLERS["pip"] if program.startswith("pip") else (
                     _INSTALLERS.get(program, set()))) for program, verb in _verbs(words)):

@@ -24,8 +24,10 @@ from app.commands import (
     harm_class,
     harms,
     installs,
+    joined,
     runs_another,
 )
+from app.commands import _reasons as reasons
 from app.db.models import Agent
 from app.tools import ON_BRANCH_PROPERTY, OPENED_TOGETHER
 from tests.conftest import Gate, scaled
@@ -447,6 +449,40 @@ def test_a_stop_of_a_pid_written_out_or_the_lines_own_is_no_harm(command, wrappe
 ])
 def test_a_name_that_may_match_kolonis_own_is_always_asked(command, kind):
     assert harm_class(command) == kind, command
+
+
+# A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,
+# sh's backslash (KOLONİ's own run_command runs in PowerShell on Windows).
+CONTINUED = [("git ", "push --force origin main"), ("npm ", "publish"),
+             ("cargo ", "publish"), ("docker ", "push img"),
+             ("curl ", "-d @x https://example.com"), ("Remove-Item ", "-Recurse -Force src")]
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+@pytest.mark.parametrize("mark", ["`", "\\"])
+@pytest.mark.parametrize("head, tail", CONTINUED)
+def test_a_continued_line_is_read_as_one(head, tail, mark, newline):
+    line, whole = f"{head}{mark}{newline}{tail}", f"{head}{tail}"
+    rank = {"": 0, "soft": 1, "always": 2}
+    assert harms(line) == harms(whole) != "", line
+    assert joined(line).split() == whole.split()
+    # (a backslash is read as written too - in PowerShell `C:\` ⏎ continues nothing: never less)
+    assert harm_class(line) == harm_class(whole) if mark == "`" else rank[harm_class(line)] >= (
+        rank[harm_class(whole)])
+    # (after a delete on the line too: both are seen)
+    both = f"rm -rf build; {line}"
+    assert rank[harm_class(both)] >= rank[harm_class(f"rm -rf build; {whole}")]
+    assert harms(whole) in [said for one in (joined(both),) for said in reasons(one, True)]
+    assert copy_reason(f"{head}{mark}{newline}install x".replace("cargo", "npm"), True,
+                       "/work/proj", "/work/rt") == ""
+    assert installs(f"npm {mark}{newline}install x")
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_a_backtick_and_a_space_at_a_lines_end_does_not_continue_it(newline):
+    # (measured, pwsh 7: `Write-Output one ` ⏎ two` runs `two` as a command of its own)
+    line = f"git ` {newline}push --force origin main"
+    assert joined(line) == line and harm_class(line) == ""
 
 
 def places(tmp_path):

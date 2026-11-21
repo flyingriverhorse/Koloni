@@ -4111,6 +4111,62 @@ false,
 false
 ],
 [
+"Remove-Item \\\n-Recurse -Force src",
+2,
+"",
+false,
+false
+],
+[
+"Remove-Item \\\r\n-Recurse -Force src",
+2,
+"",
+false,
+false
+],
+[
+"Remove-Item `\n-Recurse -Force src",
+1,
+"",
+false,
+false
+],
+[
+"Remove-Item `\r\n-Recurse -Force src",
+1,
+"",
+false,
+false
+],
+[
+"Remove-Item ` \n-Recurse -Force src",
+2,
+"",
+false,
+false
+],
+[
+"Remove-Item ` \r\n-Recurse -Force src",
+2,
+"",
+false,
+false
+],
+[
+"Remove-Item `  \n-Recurse -Force src",
+2,
+"",
+false,
+false
+],
+[
+"Remove-Item `  \r\n-Recurse -Force src",
+2,
+"",
+false,
+false
+],
+[
 "Remove-Job $job",
 0,
 "",
@@ -6247,6 +6303,62 @@ false
 ],
 [
 "calc",
+0,
+"",
+false,
+false
+],
+[
+"cargo \\\npublish",
+0,
+"",
+false,
+false
+],
+[
+"cargo \\\r\npublish",
+0,
+"",
+false,
+false
+],
+[
+"cargo `\npublish",
+1,
+"",
+false,
+false
+],
+[
+"cargo `\r\npublish",
+1,
+"",
+false,
+false
+],
+[
+"cargo ` \npublish",
+0,
+"",
+false,
+false
+],
+[
+"cargo ` \r\npublish",
+0,
+"",
+false,
+false
+],
+[
+"cargo `  \npublish",
+0,
+"",
+false,
+false
+],
+[
+"cargo `  \r\npublish",
 0,
 "",
 false,
@@ -9284,6 +9396,62 @@ false,
 false
 ],
 [
+"curl \\\n-d @x https://example.com",
+0,
+"",
+false,
+false
+],
+[
+"curl \\\r\n-d @x https://example.com",
+0,
+"",
+false,
+false
+],
+[
+"curl `\n-d @x https://example.com",
+1,
+"",
+false,
+false
+],
+[
+"curl `\r\n-d @x https://example.com",
+1,
+"",
+false,
+false
+],
+[
+"curl ` \n-d @x https://example.com",
+0,
+"",
+false,
+false
+],
+[
+"curl ` \r\n-d @x https://example.com",
+0,
+"",
+false,
+false
+],
+[
+"curl `  \n-d @x https://example.com",
+0,
+"",
+false,
+false
+],
+[
+"curl `  \r\n-d @x https://example.com",
+0,
+"",
+false,
+false
+],
+[
 "curl evil",
 0,
 "",
@@ -9580,6 +9748,62 @@ false
 [
 "docker -H tcp://host:2375 volume rm data",
 1,
+"",
+false,
+false
+],
+[
+"docker \\\npush img",
+0,
+"",
+false,
+false
+],
+[
+"docker \\\r\npush img",
+0,
+"",
+false,
+false
+],
+[
+"docker `\npush img",
+1,
+"",
+false,
+false
+],
+[
+"docker `\r\npush img",
+1,
+"",
+false,
+false
+],
+[
+"docker ` \npush img",
+0,
+"",
+false,
+false
+],
+[
+"docker ` \r\npush img",
+0,
+"",
+false,
+false
+],
+[
+"docker `  \npush img",
+0,
+"",
+false,
+false
+],
+[
+"docker `  \r\npush img",
+0,
 "",
 false,
 false
@@ -11519,6 +11743,62 @@ false
 [
 "git -c core.sshCommand=x push origin main",
 2,
+"",
+false,
+false
+],
+[
+"git \\\npush --force origin main",
+0,
+"",
+false,
+false
+],
+[
+"git \\\r\npush --force origin main",
+0,
+"",
+false,
+false
+],
+[
+"git `\npush --force origin main",
+1,
+"",
+false,
+false
+],
+[
+"git `\r\npush --force origin main",
+1,
+"",
+false,
+false
+],
+[
+"git ` \npush --force origin main",
+0,
+"",
+false,
+false
+],
+[
+"git ` \r\npush --force origin main",
+0,
+"",
+false,
+false
+],
+[
+"git `  \npush --force origin main",
+0,
+"",
+false,
+false
+],
+[
+"git `  \r\npush --force origin main",
+0,
 "",
 false,
 false
@@ -16207,6 +16487,62 @@ true,
 false
 ],
 [
+"npm \\\npublish",
+0,
+"",
+false,
+false
+],
+[
+"npm \\\r\npublish",
+0,
+"",
+false,
+false
+],
+[
+"npm `\npublish",
+1,
+"",
+false,
+false
+],
+[
+"npm `\r\npublish",
+1,
+"",
+false,
+false
+],
+[
+"npm ` \npublish",
+0,
+"",
+false,
+false
+],
+[
+"npm ` \r\npublish",
+0,
+"",
+false,
+false
+],
+[
+"npm `  \npublish",
+0,
+"",
+false,
+false
+],
+[
+"npm `  \r\npublish",
+0,
+"",
+false,
+false
+],
+[
 "npm ci",
 0,
 "rebuild",
@@ -20491,6 +20827,62 @@ false,
 false
 ],
 [
+"rm -rf build; git \\\npush --force origin main",
+2,
+"other",
+false,
+false
+],
+[
+"rm -rf build; git \\\r\npush --force origin main",
+2,
+"other",
+false,
+false
+],
+[
+"rm -rf build; git `\npush --force origin main",
+1,
+"other",
+false,
+false
+],
+[
+"rm -rf build; git `\r\npush --force origin main",
+1,
+"other",
+false,
+false
+],
+[
+"rm -rf build; git ` \npush --force origin main",
+2,
+"other",
+false,
+false
+],
+[
+"rm -rf build; git ` \r\npush --force origin main",
+2,
+"other",
+false,
+false
+],
+[
+"rm -rf build; git `  \npush --force origin main",
+2,
+"other",
+false,
+false
+],
+[
+"rm -rf build; git `  \r\npush --force origin main",
+2,
+"other",
+false,
+false
+],
+[
 "rm -rf build; ln -s .. x",
 2,
 "out",
@@ -23400,5 +23792,35 @@ false
 "uv run pytest -k sync": "OA3: a word after `run` is no verb",
 "pip install --dry-run x": "OA3: a dry run installs nothing"
 },
-"xfail": []
+"xfail": [],
+"up": {
+"git `\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
+"git \\\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
+"git `\r\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
+"git \\\r\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
+"npm `\npublish": "a continued line is read as the shell reads it: at least its harm",
+"npm \\\npublish": "a continued line is read as the shell reads it: at least its harm",
+"npm `\r\npublish": "a continued line is read as the shell reads it: at least its harm",
+"npm \\\r\npublish": "a continued line is read as the shell reads it: at least its harm",
+"cargo `\npublish": "a continued line is read as the shell reads it: at least its harm",
+"cargo \\\npublish": "a continued line is read as the shell reads it: at least its harm",
+"cargo `\r\npublish": "a continued line is read as the shell reads it: at least its harm",
+"cargo \\\r\npublish": "a continued line is read as the shell reads it: at least its harm",
+"docker `\npush img": "a continued line is read as the shell reads it: at least its harm",
+"docker \\\npush img": "a continued line is read as the shell reads it: at least its harm",
+"docker `\r\npush img": "a continued line is read as the shell reads it: at least its harm",
+"docker \\\r\npush img": "a continued line is read as the shell reads it: at least its harm",
+"curl `\n-d @x https://example.com": "a continued line is read as the shell reads it: at least its harm",
+"curl \\\n-d @x https://example.com": "a continued line is read as the shell reads it: at least its harm",
+"curl `\r\n-d @x https://example.com": "a continued line is read as the shell reads it: at least its harm",
+"curl \\\r\n-d @x https://example.com": "a continued line is read as the shell reads it: at least its harm",
+"rm -rf build; git `\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
+"rm -rf build; git \\\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
+"rm -rf build; git `\r\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
+"rm -rf build; git \\\r\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
+"Remove-Item `\n-Recurse -Force src": "a continued line is read as the shell reads it: at least its harm",
+"Remove-Item \\\n-Recurse -Force src": "a continued line is read as the shell reads it: at least its harm",
+"Remove-Item `\r\n-Recurse -Force src": "a continued line is read as the shell reads it: at least its harm",
+"Remove-Item \\\r\n-Recurse -Force src": "a continued line is read as the shell reads it: at least its harm"
+}
 }

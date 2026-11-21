@@ -5,7 +5,8 @@ open where it missed: commands 650e22a asked about ran with no card. `command_ga
 each line's verdict as 650e22a gave it - the reviewers' probe lines, the briefs' lines and the
 command tests' strings - and HEAD must give at least that: `harm_class` (none < soft < always),
 a card from `copy_reason` in a copy with links, `installs()`. A line meant to go down (an
-over-ask cured) is in its `allow`, with why; a known regression still open, in its `xfail`."""
+over-ask cured) is in its `allow`, with why; a known regression still open, in its `xfail`; a
+line meant to go up (a hole 650e22a had too: a continued line) in its `up` - harm at least."""
 
 import json
 import os
@@ -60,6 +61,7 @@ def test_no_command_is_asked_less_than_650e22a_asked_it(tmp_path, monkeypatch):
         if win32 and sys.platform != "win32" or template in GATE["allow"]:
             continue
         line = re.sub(r"<[a-z_]+(?:\|[a-z]+)?>", lambda m: values.get(m[0], m[0]), template)
+        harm = max(harm, 1) if template in GATE["up"] else harm  # (meant to go up: harm at least)
         now = verdict(line, tmp_path)
         if now[0] < harm or card and not now[1] or install and not now[2]:
             below.append(template)
@@ -76,4 +78,5 @@ def test_the_gate_holds_its_lines_once_and_every_allowed_line_has_a_reason():
     names = [row[0] for row in GATE["lines"]]
     assert len(names) == len(set(names))
     assert set(GATE["allow"]) <= set(names) and set(GATE["xfail"]) <= set(names)
+    assert set(GATE["up"]) <= set(names) and not set(GATE["up"]) & set(GATE["allow"])
     assert all(reason.strip() for reason in GATE["allow"].values())
