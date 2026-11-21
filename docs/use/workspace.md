@@ -32,6 +32,22 @@ change until its work is taken in.
 - On Linux and macOS a copy keeps whether each file is runnable, so a script such as `./gradlew` still
   runs, and Take in carries that back to your project. A new file written with **Write files** gets your
   usual mode (`0644` with the common umask).
+- Work goes into your folder one way at a time: a Take in waits while a branch is merged, and the other
+  way round. What went in reaches the other agents' copies where they did not change those files, and a
+  copy made at that moment gets all of it.
+
+Agents at work beside each other are told that each works in a copy of its own: change only what
+their task needs, write nothing outside their copy, stop no program by its name, start a server on a
+free port, and install nothing into the linked `node_modules`, `.venv` or `venv`. A command an agent
+runs in its copy is asked at every level, Full auto too, when it:
+
+- names another agent's copy, a worktree of your project, or a place above its copy (`../..`);
+- installs into the linked `node_modules`, `.venv` or `venv`, which are your project's own (in a turn
+  you watch; a trigger's turn runs only the commands its trigger allows, as before);
+- stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`). By its id
+  (`taskkill /PID`, `kill 1234`, `Stop-Process -Id`) is fine.
+
+KOLONİ reads the command as written: a path built in a script or held in a variable is not seen.
 
 [![A working copy's life: the copy is made, the agent works in it, a card in Ready for you, Run the test, then Take in, Merge or Open pull request, or Discard; clashes, commits, and what is removed or kept; and a lane for an agent on a branch: its work committed when it stops, go on on the same branch or in a copy, and a branch holding a secret never kept](../diagrams/working-copy.svg)](../diagrams/working-copy.svg)
 
@@ -71,6 +87,13 @@ project's `origin` must be the GitHub repository gh sees. Until then the card sa
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").
+
+Its worktree, in KOLONİ's copies folder, is locked while the agent works (`git worktree list -v` says
+"KOLONİ: an agent works here; KOLONİ removes it"), so your own `git worktree prune`, `remove` or `move`
+leaves it alone. KOLONİ unlocks it before it removes it. When KOLONİ starts, it removes git's records of
+its own worktrees whose folder is gone (after a crash, say), and nothing else: never your worktrees,
+never a branch. The Orchestrator is told that `koloni/…` branches and these worktrees are not its to
+delete, rename or switch to.
 
 In its copy, git works for the agent on its own branch, and it is told so: status, diff, history and
 its commits there, with a few plain options, run as its other commands do. Any other option, and git

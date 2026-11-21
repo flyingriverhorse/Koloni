@@ -26,6 +26,9 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Chat**: an agent's window, a discussion's, Workspace and a room's window no longer open over the open chat on a small window; beside it they may lie over each other, the one opened last in front.
 - **Chat**: in a 340 px chat the "details" of what a turn did no longer drops to a second line.
 - **Agents**: an agent on a branch is told that git works in its copy (status, diff, history, commits on its branch) and that the rest of git is asked about ([docs](use/workspace.md#branches)).
+- **Workspace**: KOLONİ's worktrees for agents on a branch are locked while their agents work (`git worktree list -v` says "KOLONİ: an agent works here; KOLONİ removes it"), so your own `git worktree prune`, `remove` or `move` leaves them alone; KOLONİ unlocks one before it removes it, and at start removes only its own records whose folder is gone - never another worktree, never a branch ([docs](use/workspace.md#branches)).
+- **Agents**: an agent in a copy is told that other agents may work at the same time, each in a copy of its own: to change only the files its task needs, to write, move or delete nothing outside its copy, to stop only processes it started and never programs by name, to start a server or test on a free port, and - where `node_modules`, `.venv` and `venv` are linked in - to install nothing into them and say in its report what to install ([docs](use/workspace.md#working-copies)).
+- **Agents**: the Orchestrator is told that sub-agents it opens together work at the same time, to give each its own files or folders, and that `koloni/…` branches and the worktrees in KOLONİ's copies folder are not its to delete, rename or switch to ([docs](use/workspace.md#branches)).
 
 ### Fixed
 
@@ -33,11 +36,14 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **CLIs**: with Codex run **Native**, a command that prints nothing for more than 30 seconds (a quiet test run, a build) no longer ends Codex's turn as one that never started; only a command still at work after 11 minutes ends it ([docs](reference/known-limits.md)).
 - **Chat**: a message still queued when KOLONİ restarted is no longer marked "Interrupted by a server restart" as if it had run: it says "Not sent: KOLONİ restarted", and its **Send** sends it as your newest message; nothing sends it by itself ([docs](use/chat-and-canvas.md#writing-a-message)).
 - **Workspace**: a file you pick right after the page loads stays open; it fell back to "Pick a file in the tree." once KOLONİ had read the project's git branch. Only a switch to another branch opens the Workspace anew.
+- **Workspace**: a copy made while another agent's work was being taken in now gets all of that work, not part of it; a Take in waits while a branch is merged; and the other agents' copies now get what a branch's merge brought, as they get what a Take in brought ([docs](use/workspace.md#working-copies)).
 
 ### Security
 
 - **Workspace**: your repository's git hooks (pre-commit, commit-msg, post-commit, also from a core.hooksPath such as husky's) no longer run for an agent's own git commands in its copy, nor for an MCP server's it starts there, and git's fsmonitor and commit signing are off for them ([docs](use/workspace.md#branches)).
 - **Agents**: on a branch, an agent's command that clears or sets git's own environment (`unset GIT_…`, `env -i`, `$env:GIT_… =`, `Remove-Item Env:\GIT_…`), or runs one of git's own programs by its name (`git-push`), is asked at every level, Full auto too: it would bring your repository's hooks back ([docs](use/workspace.md#branches)).
+- **Chat**: a command an agent runs in its copy that names another agent's copy, a worktree of the project or a place above its copy (`../..`), or installs into the project's linked `node_modules`, `.venv` or `venv` (in a turn you watch), is asked at every level, Full auto too ([docs](use/permissions.md#what-asks-at-each-level)).
+- **Chat**: a command that stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`) is asked: from a copy always; in the project, Full auto's **Check what I said first** may let it run on a line of yours. Stopping a program by its id (`taskkill /PID`, `kill 1234`, `Stop-Process -Id`) stays as before ([docs](use/permissions.md#what-asks-at-each-level)).
 
 ## [0.1.4] - 2026-11-21
 
