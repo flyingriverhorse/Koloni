@@ -79,9 +79,13 @@ at every level, Full auto too. In a project that runs in Docker the agent is tol
 work in its copy: the worktree points to a folder on this machine, not in the container.
 
 Your repository's git hooks (pre-commit, commit-msg, post-commit, also those of a `core.hooksPath` such
-as husky's) do not run for an agent's own git commands in its copy - a commit on its branch included.
-On a branch, a command that clears or sets git's own environment (`unset GIT_…`, `env -i`,
+as husky's) do not run for an agent's own git commands in its copy - a commit on its branch included -
+nor for an MCP server's it starts there; nor does your `core.fsmonitor`, and its commits are not
+signed. On a branch, a command that clears or sets git's own environment (`unset GIT_…`, `env -i`,
 `$env:GIT_… =`) would bring them back: it is asked at every level, Full auto too.
+
+Those settings reach whatever the agent runs in its copy, your project's tests too: a test that needs
+your git hooks or signed commits does not get them there.
 
 A secret you gave in this turn (see [Security model](../security/model.md#secrets)) never leaves on a
 branch:

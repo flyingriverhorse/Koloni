@@ -36,8 +36,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Security
 
-- **Workspace**: your repository's git hooks (pre-commit, commit-msg, post-commit, also from a core.hooksPath such as husky's) no longer run for an agent's own git commands in its copy ([docs](use/workspace.md#branches)).
-- **Agents**: on a branch, an agent's command that clears or sets git's own environment (`unset GIT_…`, `env -i`, `$env:GIT_… =`, `Remove-Item Env:\GIT_…`) is asked at every level, Full auto too: it would bring your repository's hooks back ([docs](use/workspace.md#branches)).
+- **Workspace**: your repository's git hooks (pre-commit, commit-msg, post-commit, also from a core.hooksPath such as husky's) no longer run for an agent's own git commands in its copy, nor for an MCP server's it starts there, and git's fsmonitor and commit signing are off for them ([docs](use/workspace.md#branches)).
+- **Agents**: on a branch, an agent's command that clears or sets git's own environment (`unset GIT_…`, `env -i`, `$env:GIT_… =`, `Remove-Item Env:\GIT_…`), or runs one of git's own programs by its name (`git-push`), is asked at every level, Full auto too: it would bring your repository's hooks back ([docs](use/workspace.md#branches)).
 
 ## [0.1.4] - 2026-11-21
 

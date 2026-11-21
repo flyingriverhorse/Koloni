@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import knows, mcp_client, web
+from app import copies, knows, mcp_client, web
 from app.agent.cards import _handed, _shows_a_key, folders_of, within
 from app.agent.ctx import NO_FOLDER, Ctx, _NobodyToAsk
 from app.agent.merge import _kept
@@ -386,18 +386,23 @@ class OutsideMixin:
                 return "denied", WEB_REJECTED.format(what="tool call")
             server, tool = allowed
         key = (ctx.agent_id, server.id)
+        # Told the copy's path (`MCP_IN_A_COPY`), its git there is given what the agent's
+        # commands' is: no hook of the repository's (`copies.git_env`).
+        copy = self._copies.get(self._works_in(ctx) or "")
+        git = copies.git_env(copy.root, server.env) if copy is not None else {}
         try:
             client = self._servers.get(key)
-            # One started before the user changed the server is the program before: ended.
+            # One started before the user changed the server is the program before: ended -
+            # and one started before its agent had a copy, or in another.
             if (client is None or not client.alive
-                    or client.started_as != (server.command, server.env)):
+                    or client.started_as != (server.command, server.env) or client.git != git):
                 if client is not None:
                     await self._servers.pop(key).end()
                 server, refused, yes = await self._mcp_may_start(ctx, call_id, name, server)
                 if refused:
                     return "denied", refused
                 client = self._servers[key] = await mcp_client.Client.start(
-                    server.command, server.env, self.settings.mcp_home)
+                    server.command, server.env, self.settings.mcp_home, git)
                 if yes:  # kept once it started
                     with self._factory() as session:
                         if (row := session.get(McpServer, server.id)) is not None:

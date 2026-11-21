@@ -225,6 +225,16 @@ async def test_a_missing_folder_is_a_start_error(tmp_path):
         await HostExecutor().start("cmd1", "echo hi", tmp_path / "nope")
 
 
+async def test_a_copy_whose_empty_hooks_folder_cannot_be_made_is_a_start_error(tmp_path):
+    from app import copies
+
+    tree = tmp_path / "agent1" / copies.TREE
+    tree.mkdir(parents=True)
+    (tree.parent / copies.NO_HOOKS).write_text("a file where the folder goes")
+    with pytest.raises(StartError):
+        await HostExecutor().start("cmd1", "echo hi", tree, copy=tree)
+
+
 async def test_a_shell_builtin_reports_success_and_failure(tmp_path):
     _, ok = await run("echo hi", tmp_path)
     assert ok == 0

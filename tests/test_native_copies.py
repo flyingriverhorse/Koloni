@@ -81,7 +81,7 @@ def test_a_native_claude_sub_agent_works_in_its_copy_and_its_changes_are_taken_a
     # git there looks no higher than the copies folder: never into a repository above it
     assert seen["git_ceiling"] == str(tree.parent.parent)
     # ... and runs no hook of the one it finds: its hooks folder is an empty one beside the tree
-    assert seen["git_config"].endswith(f"'core.hooksPath={tree.parent / copies.NO_HOOKS}'")
+    assert f"'core.hooksPath={tree.parent / copies.NO_HOOKS}'" in seen["git_config"]
     argv = seen["argv"]
     # the folders the copy shares with the project, by where they really are
     assert [argv[i + 1] for i, a in enumerate(argv) if a == "--add-dir"] == [
@@ -393,7 +393,7 @@ def test_what_a_native_codex_sub_agent_changes_is_found_in_its_copy_and_taken_at
     assert Path(seen["cwd"]) == tree
     assert seen["thread"]["cwd"] == str(tree)
     assert seen["git_ceiling"] == str(tree.parent.parent)
-    assert seen["git_config"].endswith(f"'core.hooksPath={tree.parent / copies.NO_HOOKS}'")
+    assert f"'core.hooksPath={tree.parent / copies.NO_HOOKS}'" in seen["git_config"]
     assert "a copy of the project of your own" in seen["stdin"]
     question = snap["questions"][0]
     assert client.post(f"/api/questions/{question['id']}/answer",
@@ -610,8 +610,8 @@ def test_a_native_agy_sub_agent_works_in_its_copy_and_its_change_is_taken_at_the
     tree = copies.folder(load_settings(settings_env).runtime_root) / coder["id"] / copies.TREE
     assert Path(seen["cwd"]) == tree and SKIP in seen["argv"]
     assert seen["env"]["GIT_CEILING_DIRECTORIES"] == str(tree.parent.parent)
-    assert seen["env"]["GIT_CONFIG_PARAMETERS"].endswith(
-        f"'core.hooksPath={tree.parent / copies.NO_HOOKS}'")
+    assert f"'core.hooksPath={tree.parent / copies.NO_HOOKS}'" in seen["env"][
+        "GIT_CONFIG_PARAMETERS"]
     told = json.loads(seen["stdin"])["message"]["content"]
     assert f'The project folder is "{tree}"' in told
     assert "a copy of the project of your own" in told

@@ -16,7 +16,7 @@ from app import copies, git
 from app.commands import SHARED_GIT
 from app.db.models import Agent, BacklogTask
 from app.model_client import ModelUnavailable
-from tests.conftest import Gate
+from tests.conftest import Gate, scaled
 from tests.test_backlog import setup
 from tests.test_backlog_auto import tasks, worked
 from tests.test_chat_flow import text
@@ -559,16 +559,37 @@ def test_git_in_a_copy_is_given_an_empty_hooks_folder_after_the_config_it_had(tm
     tree = tmp_path / "it's" / "agent1" / copies.TREE  # (a quote in the path)
     tree.mkdir(parents=True)
     empty = tree.parent / copies.NO_HOOKS
-    ours = "'core.hooksPath=" + str(empty).replace("'", "'\\''") + "'"
+    ours = ("'core.hooksPath=" + str(empty).replace("'", "'\\''") + "' 'core.fsmonitor=false' "
+            "'commit.gpgsign=false'")
     told = copies.git_env(tree, {"GIT_CONFIG_PARAMETERS": "'user.name=x'"})
     assert told == {"GIT_CEILING_DIRECTORIES": copies.ceiling(tree),
                     "GIT_CONFIG_PARAMETERS": f"'user.name=x' {ours}"}
     assert copies.git_env(tree, {})["GIT_CONFIG_PARAMETERS"] == ours and empty.is_dir()
-    # git reads both back as written: the quote, and a Windows path's backslashes
-    for key, value in (("core.hooksPath", str(empty)), ("user.name", "x")):
+    # git reads them back as written: the quote, and a Windows path's backslashes
+    for key, value in (("core.hooksPath", str(empty)), ("user.name", "x"),
+                       ("core.fsmonitor", "false"), ("commit.gpgsign", "false")):
         done = subprocess.run(["git", "config", "--get", key], cwd=tree, capture_output=True,
                               text=True, env={**os.environ, **told})
         assert (done.returncode, done.stdout.strip()) == (0, value), done.stderr
+
+
+def test_no_fsmonitor_of_the_repository_runs_for_git_in_a_branch_copy(repo, runtime, tmp_path):
+    from tests.test_git_view import marker
+
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+    mark, line = marker(tmp_path, "fsmonitor", passes=False)
+    run(repo, "config", "core.fsmonitor", line)
+
+    def status(env=None):
+        done = subprocess.run(["git", "status", "--porcelain"], cwd=copy.root, env=env,
+                              capture_output=True, text=True)
+        assert done.returncode == 0, done.stderr
+
+    status()
+    assert mark.exists()  # (the control: git by itself runs it)
+    mark.unlink()
+    status({**os.environ, **copies.git_env(copy.root, os.environ)})
+    assert not mark.exists()
 
 
 def hooked(folder, marker):
@@ -977,6 +998,13 @@ def test_in_a_worktree_git_beyond_the_agents_own_work_is_asked(command):
     "[Environment]::SetEnvironmentVariable('GIT_CONFIG_PARAMETERS', $null); git commit -m x",
     "set GIT_CONFIG_PARAMETERS= && git commit -m x", 'set "GIT_CONFIG_PARAMETERS=" && git status',
     'cmd /c "set GIT_DIR=x&& git status"',
+    # the review's (each ran the repository's hook end to end): a name not written out, env by
+    # its path, a wildcard of PowerShell's env: drive
+    "$n='GIT_CONFIG_PARAMETERS'; [Environment]::SetEnvironmentVariable($n,$null); git commit -qam x",
+    r"& 'C:\Program Files\Git\usr\bin\env.exe' -i PATH=x git commit -qam x",
+    "/usr/bin/env -i PATH=/usr/bin git commit -m x", r"\env -i git commit -m x",
+    'unset "${!GI@}"; git commit -m x', "Remove-Item Env:GIT*; git commit -m x",
+    'Remove-Item "Env:$v"; git commit -m x',
 ])
 def test_a_command_that_clears_or_sets_gits_own_environment_is_asked(command):
     from app.commands import reaches_shared_git
@@ -985,13 +1013,36 @@ def test_a_command_that_clears_or_sets_gits_own_environment_is_asked(command):
 
 
 @pytest.mark.parametrize("command", [
+    "/usr/lib/git-core/git-push origin HEAD", "git-reset --hard", "git-branch -D main",
+    "git-update-ref refs/heads/main HEAD~1",
+    r"& 'C:\Program Files\Git\mingw64\libexec\git-core\git-push.exe' origin HEAD",
+])
+def test_one_of_gits_own_programs_by_its_name_is_git_and_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
+
+
+@pytest.mark.parametrize("command", [
     "git commit -m x", "git status", "env git status", "env -C src git status", "npm test",
     "env NODE_ENV=test npm test", "printenv PATH", "unset FOO; git status", "export X=1; git log",
+    "python scripts/git-stats.py", "cd /home/me/git-projects/x && git status",
+    "echo $env:PATH; git status", "Get-ChildItem env:",
 ])
 def test_git_with_its_environment_left_alone_is_not_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command, "koloni/x") == ""
+
+
+@pytest.mark.parametrize("word", ["unset ", "declare +x ", "export -n "])
+def test_a_long_line_of_unsets_is_judged_at_once(word):
+    """The review: `unset ` 8 000 times (48 KB) took 1.9 s, 192 KB 30 s - on the event loop."""
+    from app.commands import reaches_shared_git
+
+    began = time.monotonic()
+    reaches_shared_git(word * (200_000 // len(word)), "koloni/x")
+    assert time.monotonic() - began < scaled(2.0)
 
 
 def test_gits_own_files_are_found_in_any_case_and_lfs_too(repo, runtime):

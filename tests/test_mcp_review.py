@@ -463,13 +463,18 @@ def test_a_sub_agent_in_a_copy_is_told_its_copys_path_and_a_lead_the_projects(
                  text("done")],
         "Coder": [step(call("write_file", WRITES, "w")), step(call("fake__where", {}, "m")),
                   text("did it")]})
-    server(client, tmp_path, free=True)
+    _made, record, _ = server(client, tmp_path, free=True)
     give(client, "Lead", "fake")
     give(client, "Coder", "fake")
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     copy = copy_of(client, snap, "Coder")
+    # git that the Coder's server runs in its copy runs no hook of the repository there, as its
+    # commands' does (`copies.git_env`); the Lead's, in the project, is given nothing of it
+    told = sorted((e["env"].get("GIT_CONFIG_PARAMETERS") or "" for e in events(record, "start")),
+                  key=bool)
+    assert len(told) == 2 and told[0] == "" and told[1].startswith(f"'core.hooksPath={copy.parent / copies.NO_HOOKS}'")
     before, *after = (request[0]["content"] for request in model.calls_of["Coder"])
     # until it has a copy it works in the project; from the step after, in the copy
     assert THE_FOLDER.format(project_dir) in before and str(copy) not in before
