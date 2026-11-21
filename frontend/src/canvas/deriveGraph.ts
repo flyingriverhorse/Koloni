@@ -8,7 +8,7 @@ import { talkOf } from '../chat/TalkRow'
 import { atGivenSteps, isKept, pendingMerge } from '../changes/copies'
 import { waitLine } from '../claims/claims'
 import { discussionLine, nameIn, speakerOf } from '../discussion/discussionText'
-import { byWatcher, isRunning, leadOf, memberTag, nameIn as nameInRoom, roomGoal, roomLine, waitsForYou, watchedBy } from '../room/roomText'
+import { atWork, byWatcher, isRunning, leadOf, memberTag, movesIn, nameIn as nameInRoom, roomLine, waitsForYou, watchedBy } from '../room/roomText'
 import { toolSummary } from '../chat/toolSummary'
 import { TERMINAL, type ConvState } from '../state/applyEvent'
 import { plannedBy } from '../chat/planText'
@@ -399,9 +399,10 @@ function activityOf(agent: Agent, run: Run, state: ConvState, teams: Team[]): st
 /** What a waiting agent waits for in its turn's room; null: not for the room. */
 function roomWait(agent: Agent, run: Run, state: ConvState): string | null {
   // In a turn whose room still runs: the lead waits for all of it; a member for a post, or -
-  // before the work starts - for the others' step in the round that shares it out.
+  // before the work starts - for the others' step in the round that shares it out. Paused, a member waits for the Resume.
   const room = state.rooms.find(r => r.run_id === run.id && isRunning(r))
   if (room && agent.depth === 0) return 'Waiting for the room'
+  if (room?.paused && room.members.some(m => m.agent_id === agent.id)) return 'Paused with the room'
   if (room && state.toolCalls.some(t => t.agent_id === agent.id && t.name === 'wait_for_post' && t.status === 'running')) {
     return 'Waiting for a post in the room'
   }
@@ -1126,13 +1127,14 @@ function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[]) {
     const items = state.roomItems.filter(i => i.room_id === room.id)
     const said = state.roomPosts.filter(p => p.room_id === room.id).sort((a, b) => a.number - b.number)
     const data: RoomData = {
-      goal: roomGoal(state, room).slice(0, 140),
+      // (Its goal, not who opened it - that left the goal a few letters on the card; its window says who did.)
+      goal: room.goal.slice(0, 140),
       line: roomLine(room),
       members: room.members.map(m => memberTag(state, room, m)),
       watched: watchedBy(state, room),
       items: items.length ? `${items.filter(i => i.status === 'done').length} of ${items.length} items done` : '',
       last: said.slice(-2).map(p => ({ who: `${nameInRoom(state, p.agent_id)}${byWatcher(state, room, p.agent_id) ? ' (watching)' : ''}`, text: p.text.slice(0, 90) })),
-      running: isRunning(room),
+      running: atWork(room),
       attention: waitsForYou(state, room),
     }
     // A room in a recipe's step (slice 84e) is drawn in the frame its members are in: their team's. One of two teams'
@@ -1145,7 +1147,7 @@ function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[]) {
     for (const member of room.members) {
       const source = `agent:${member.agent_id}`
       if (!nodes.some(n => n.id === source)) continue
-      edges.push({ id: `${source}>${id}`, source, target: id, active: data.running && member.status === 'in', talk: true, ...(laned && { member: true }) })
+      edges.push({ id: `${source}>${id}`, source, target: id, active: movesIn(state, room, member), talk: true, ...(laned && { member: true }) })
     }
   }
 }

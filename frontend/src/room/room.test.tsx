@@ -270,6 +270,23 @@ test('B-167: paused, a member held once its step is over is "paused" in the tags
   expect(screen.getByRole('region', { name: 'The room' })).toHaveTextContent('Coder · at work')
 })
 
+test('paused, the room stops looking busy on the canvas: its card, and the lines of the members it holds; one still finishing its step keeps its moving line', () => {
+  const held = convState({
+    ...state,
+    agents: [...state.agents.filter(a => a.id !== 'coder'), member('coder', 'Coder', 'waiting'), member('tester', 'Tester', 'running')],
+    rooms: [room({ paused: true, members: [...room().members, { agent_id: 'tester', role: 'Tester', status: 'in' }] })],
+  })
+  const { nodes, edges } = deriveGraph(held)
+  expect(nodes.find(n => n.kind === 'room')!.data).toMatchObject({ running: false })
+  expect(edges.filter(e => e.target === 'room:o').map(e => [e.source, e.active])).toEqual([['agent:coder', false], ['agent:rev', false], ['agent:tester', true]])
+  const doing = (id: string) => (nodes.find(n => n.id === id)!.data as { activity: string }).activity
+  expect([doing('agent:coder'), doing('agent:lead')]).toEqual(['Paused with the room', 'Waiting for the room'])
+  // Resumed, it is at work again.
+  const resumed = deriveGraph(convState({ ...held, rooms: [room({ members: held.rooms[0].members })] }))
+  expect(resumed.nodes.find(n => n.kind === 'room')!.data).toMatchObject({ running: true })
+  expect(resumed.edges.filter(e => e.target === 'room:o').map(e => e.active)).toEqual([true, false, true])
+})
+
 test('tokens no model reported are said to be none reported, not a zero', () => {
   expect(spentLines(room({ spent: { posts: 0, tokens: null, minutes: 0 } }))[1]).toBe('no tokens reported of 400000')
   expect(spentLines(room({ budget: { posts: 40, tokens: null, minutes: 30 }, spent: { posts: 0, tokens: null, minutes: 0 } }))[1]).toBe(
@@ -875,7 +892,8 @@ test('R178: the Orchestrator watching a room is said on its window and its card,
   expect(screen.getByRole('region', { name: 'The room' })).toHaveTextContent(said)
   expect(screen.getAllByText('watching')).toHaveLength(1) // (its post, not a member's)
   const node = deriveGraph(watched).nodes.find(n => n.kind === 'room')!
-  expect(node.data).toMatchObject({ watched: said, last: [expect.anything(), { who: 'Orchestrator (watching)', text: 'Keep it short.' }] })
+  // (Its card shows its goal, whole as far as it fits; who opened it is on the line under it and in its window.)
+  expect(node.data).toMatchObject({ goal: 'Fix the greeting together', watched: said, last: [expect.anything(), { who: 'Orchestrator (watching)', text: 'Keep it short.' }] })
   cleanup()
   panel() // (nobody follows it: nothing is said)
   expect(screen.queryByText(/Watched by/)).toBeNull()

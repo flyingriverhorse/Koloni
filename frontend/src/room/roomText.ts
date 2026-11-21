@@ -15,6 +15,9 @@ const OUTCOME: Record<NonNullable<Room['outcome']>, string> = {
 /** Whether a room still runs: it can be written into, ended and given more. */
 export const isRunning = (room: Room) => room.status === 'sharing' || room.status === 'working'
 
+/** Whether a room is at work, as its card's ring says it: it runs and no Pause holds it. */
+export const atWork = (room: Room) => isRunning(room) && !room.paused
+
 /** Where a room stands, in a few words. */
 export function roomLine(room: Room): string {
   if (isRunning(room) && room.paused) return 'Paused: nothing is posted or spent until you resume it'
@@ -71,9 +74,16 @@ export const ITEM: Record<RoomItem['status'], string> = { open: 'open', taken: '
  * said "at work" while it waited for the Resume).
  */
 export function memberTag(state: Pick<ConvState, 'agents'>, room: Room, member: Room['members'][number]): string {
-  const held = isRunning(room) && room.paused && member.status === 'in' && state.agents.find(a => a.id === member.agent_id)?.status === 'waiting'
-  return `${memberName(state, member)} · ${held ? 'paused' : MEMBER[member.status]}`
+  return `${memberName(state, member)} · ${held(state, room, member) ? 'paused' : MEMBER[member.status]}`
 }
+
+/** Whether a Pause holds a member: its step is over and it waits for the Resume (B-167). */
+export const held = (state: Pick<ConvState, 'agents'>, room: Room, member: Room['members'][number]) =>
+  isRunning(room) && room.paused && member.status === 'in' && state.agents.find(a => a.id === member.agent_id)?.status === 'waiting'
+
+/** Whether a member's line to its room moves: at work in it, not held by a Pause - one still finishing its step moves. */
+export const movesIn = (state: Pick<ConvState, 'agents'>, room: Room, member: Room['members'][number]) =>
+  isRunning(room) && member.status === 'in' && !held(state, room, member)
 
 /** What an agent of the room is called: "You" for nobody (your own post). */
 export function nameIn(state: Pick<ConvState, 'agents'>, agentId: string | null): string {
@@ -101,11 +111,6 @@ export function watchedBy(state: Pick<ConvState, 'agents'>, room: Room): string 
 /** Whether a post is the watcher's own - its opener's or the Lead's, never a member's. */
 export const byWatcher = (state: Pick<ConvState, 'agents'>, room: Room, agentId: string | null) =>
   agentId !== null && agentId === leadOf(state, room)?.id && !room.members.some(m => m.agent_id === agentId)
-
-/** A room's goal, saying who opened it where an agent did: "Lead opened a room: …". */
-export function roomGoal(state: Pick<ConvState, 'agents'>, room: Room): string {
-  return room.agent_id ? `${nameIn(state, room.agent_id)} opened a room: ${room.goal}` : room.goal
-}
 
 /** The agents a member - or its opener, following it - asked into the room that wait for your word: the room's opener opens them, not the member. */
 export function invitedTo(state: Pick<ConvState, 'agents' | 'toolCalls'>, room: Room): Agent[] {
