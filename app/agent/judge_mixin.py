@@ -2,6 +2,8 @@
 against what the user themself wrote before it waits for them on a card - `JudgeMixin`."""
 
 import asyncio
+import hashlib
+import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -39,7 +41,17 @@ class JudgeMixin:
         messages in this chat (`Run.by_user`), each masked (`raw.hidden`) - never an agent's
         words, a tool's result or a file. One tool-less request of the Fast tier's first model
         (`ask_once`), in the turn's usage (`_own_request`); a verdict is kept for the turn by
-        command and folder (`_judge_cache`)."""
+        command, folder and those words as they are (`_judge_cache`: a rule taken away is asked
+        again). Whatever goes wrong in it but a Stop is today's card."""
+        try:
+            return await self._judging(ctx, command, cwd, reason, asked_anyway)
+        except Exception:
+            log.warning("run %s: the check of the user's words failed", ctx.run_id, exc_info=True)
+            return reason, None
+
+    async def _judging(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, reason: str,
+                       asked_anyway: bool) -> tuple[str, dict | None]:
+        """`_judged`'s work, which may raise."""
         if (not reason or asked_anyway or ctx.run_id in self._sides
                 or harm_class(with_cwd(command, cwd), False) != "soft"
                 or not self._full_auto(ctx)):
@@ -49,7 +61,9 @@ class JudgeMixin:
             project = project_of(session, conversation)
             if project is None or project.full_auto_check != "judge":
                 return reason, None
-            key = (command.strip(), cwd)
+            texts = self._users_words(session, ctx.cid, project.rules)
+            key = (command.strip(), cwd, hashlib.sha256(
+                json.dumps(texts, sort_keys=True).encode()).hexdigest())
             if key in (cache := self._judge_cache.setdefault(ctx.run_id, {})):
                 return self._judgement(reason, cache[key])
             limit = project.turn_token_limit
@@ -60,20 +74,26 @@ class JudgeMixin:
                         session, session.get_one(Provider, fast[0].provider_id), project)):
                 return reason, None
             asking, mode = self._on(session, ctx, *fast)
-            messages = session.scalars(
-                select(Message.content).join(Run, Run.id == Message.run_id).where(
-                    Message.conversation_id == ctx.cid, Message.role == "user",
-                    Message.agent_id.is_(None), Run.by_user.is_(True))
-                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
-                .limit(judge.MOST_MESSAGES)).all()
-            texts = judge.said(raw.hidden(kept.preferences(session) or ""),
-                               raw.hidden(project.rules or ""), list(map(raw.hidden, messages)))
         asked = judge.prompt(texts, {
             "command": raw.hidden(command), "where": raw.hidden(cwd) if cwd else "not known",
-            "flagged_because": reason,
+            "flagged_because": raw.hidden(reason),
             "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}")})
         cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts)
         return self._judgement(reason, cache[key])
+
+    @staticmethod
+    def _users_words(session, cid: str, rules: str | None) -> dict[str, list[str]]:
+        """What the judge reads (`judge.said`), each masked: the user's preferences, this
+        project's `rules` as saved, and their own messages in chat `cid` - those whose turn the
+        app's own page started (`Run.by_user`), not one KOLONİ or an agent wrote as theirs."""
+        messages = session.scalars(
+            select(Message.content).join(Run, Run.id == Message.run_id).where(
+                Message.conversation_id == cid, Message.role == "user",
+                Message.agent_id.is_(None), Run.by_user.is_(True))
+            .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+            .limit(judge.MOST_MESSAGES)).all()
+        return judge.said(raw.hidden(kept.preferences(session) or ""), raw.hidden(rules or ""),
+                          list(map(raw.hidden, messages)))
 
     async def _judge_asks(self: "AgentRunner", ctx: Ctx, asking: Ctx, mode: str | None,
                           asked: str, texts: dict[str, list[str]]) -> dict | None:

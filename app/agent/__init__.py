@@ -1260,9 +1260,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # B-394: run -> (agent, question, options) -> how often it was asked, and its answer.
         self._asked_again: dict[
             str, dict[tuple[str, str, tuple[str, ...]], tuple[int, str]]] = {}
-        # K-yargic: run -> (command, its folder) -> what the check of the user's words said of
-        # it (None: it failed), asked once a turn (`_judged`).
-        self._judge_cache: dict[str, dict[tuple[str, str | None], dict | None]] = {}
+        # K-yargic: run -> (command, its folder, a digest of the user's words) -> what the check
+        # of the user's words said of it (None: it failed), asked once a turn (`_judged`).
+        self._judge_cache: dict[str, dict[tuple[str, str | None, str], dict | None]] = {}
         # K-fullauto-sorma: run -> how often a failing check went back to the Lead (`_merge`).
         self._check_rounds: dict[str, int] = {}
         self._away_cut: dict[str, str] = {}

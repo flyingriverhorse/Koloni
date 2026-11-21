@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from app import koloni, raw
 from app.agent.ctx import Ctx, _Unwatched
@@ -18,6 +19,7 @@ from app.config import load_settings
 from app.db.models import OwnRequest
 from app.main import create_app
 from app.model_client import StepResult
+from tests.conftest import Gate
 from tests.fakes import Script, ScriptedExecutor, ScriptedModel
 from tests.keyed import NO_ORIGIN, OWN, TestClient
 from tests.test_agent_commands import cmd
@@ -417,3 +419,54 @@ def test_a_folder_the_clis_model_wrote_is_not_taken_on_its_word_by_the_check(agy
     _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE, provider=cli)
     asked = carded(client, cid, run_id, lambda *args: wait_run(*args, 30))
     assert asked["status"] == "proposed" and asked["judged"] is None and default.calls == []
+
+
+# --- the security review's fix round (LOW-5, 6, 7) ------------------------------------------------
+
+
+@pytest.mark.no_po
+def test_a_rule_taken_away_in_the_turn_is_checked_again(judging, wait_run, project_dir):
+    gate = Gate()
+    client, _lead, judge, _executor = judging(
+        [cmd("rm -rf build", id="k1"), gate.step(cmd("rm -rf build", id="k2")), text("done")],
+        [verdict_line("run", RULE), verdict_line("run", RULE)], [Script([])])
+    pid, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
+    gate.wait_partial()  # (the first ran on the rule; the user takes the rule away)
+    assert client.put(f"/api/projects/{pid}/rules", json={"rules": ""},
+                      headers=OWN).status_code == 200
+    gate.release()
+    commands = wait_status(client, cid, "waiting_approval")["commands"]
+    (asked,) = [one for one in commands if one["status"] == "proposed"]
+    assert asked["judged"]["verdict"] == "ask" and len(judge.calls) == 2
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("breaks", ["its answer", "the database"])
+def test_whatever_breaks_in_the_check_the_card_is_todays(judging, wait_run, project_dir,
+                                                         monkeypatch, breaks):
+    def broken(*_args):
+        raise RecursionError("too deep") if breaks == "its answer" else OperationalError(
+            "SELECT", None, Exception("database is locked"))
+
+    monkeypatch.setattr("app.judge.verdict" if breaks == "its answer"
+                        else "app.agent.judge_mixin.project_of", broken)
+    client, _lead, _judge, executor = judging([cmd("rm -rf build"), text("left it")],
+                                              [verdict_line("run", RULE)], [])
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
+    asked = carded(client, cid, run_id, wait_run)
+    assert asked["status"] == "proposed" and asked["judged"] is None and executor.started == []
+
+
+@pytest.mark.no_po
+def test_the_reason_the_judge_is_given_is_masked_too(judging, wait_run, project_dir, monkeypatch):
+    monkeypatch.setattr("app.agent.away_mixin.harms",
+                        lambda *_args: f"Deletes files or disks. {SECRET}")
+    client, _lead, judge, _executor = judging([cmd("rm -rf build"), text("left it")],
+                                              [verdict_line("ask")], [])
+    raw.read_again()
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
+    carded(client, cid, run_id, wait_run)
+    prompt = judge.calls[0][0]["content"]
+    assert SECRET not in prompt and f'"flagged_because": "Deletes files or disks. {raw.HIDDEN}"' in prompt
