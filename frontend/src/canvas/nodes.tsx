@@ -3,7 +3,8 @@ import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import { AGENT_STATUS, WAITS } from '../agents/agentStatus'
-import { LiveFacts } from '../agents/LiveFacts'
+import { liveFacts } from '../agents/liveLine'
+import { useNow } from '../agents/useNow'
 import { SignChip } from '../agents/signs'
 import { ranOn } from '../shell/modelName'
 import { StatusLabel } from '../shell/StatusLabel'
@@ -298,13 +299,32 @@ export function RoundNode({ id, data }: NodeProps<Node<RoundData & Record<string
 const toneOf = (status: AgentData['status']): Tone =>
   status === 'running' || status === 'waiting' ? 'running' : status === 'waiting_approval' || status === 'proposed' ? 'approval' : 'idle'
 
-/** An agent at work's line (0.1.5): what it does - cut first where the box is too narrow -, for how long, its tokens and tier. */
-function AtWork({ data }: { data: AgentData }) {
+/** An agent's state line, in its state's colour; what was counted of its calls first, so that its state is what gets cut off. */
+function StateLine({ id, data, said }: { id: string; data: AgentData; said: string }) {
+  const sign = data.sign && <SignChip agentId={id.replace(/^agent:/, '')} sign={data.sign} stopped={data.signStopped} />
+  if (data.status === 'running') return <WorkingLine data={data} said={said} sign={sign} />
   return (
-    <>
-      <span className="node-live-what">{data.activity}</span>
-      <LiveFacts since={data.since} wrote={data.wrote} kind={data.kind} />
-    </>
+    <div className="node-line mono" title={data.asks || said}>
+      {sign}
+      <StatusLabel color={AGENT_STATUS[data.status][1]}>{said}</StatusLabel>
+    </div>
+  )
+}
+
+/**
+ * An agent at work's line (0.1.5): what it does - cut first where the box is too narrow -, for how long, its tokens and
+ * tier; the same facts under the pointer. Its dot blinks.
+ */
+function WorkingLine({ data, said, sign }: { data: AgentData; said: string; sign: ReactNode }) {
+  const facts = liveFacts(useNow(1000), data.since, data.wrote, data.kind)
+  return (
+    <div className="node-line mono node-now" title={data.asks || [said, facts].filter(Boolean).join(' · ')}>
+      {sign}
+      <StatusLabel color={AGENT_STATUS[data.status][1]}>
+        <span className="node-live-what">{data.activity}</span>
+        {facts && <span className="live-facts"> · {facts}</span>}
+      </StatusLabel>
+    </div>
   )
 }
 
@@ -330,11 +350,7 @@ function AgentCard({ id, data, selected }: AgentProps) {
       <div className="node-body">
         {/* Its state's colour, as everywhere; its dot blinks while it is at work. Waiting for your answer, what it asks is
             under the pointer. */}
-        <div className={`node-line mono${data.status === 'running' ? ' node-now' : ''}`} title={data.asks || said}>
-          {/* What was counted of its calls first, so that its state is what gets cut off. */}
-          {data.sign && <SignChip agentId={id.replace(/^agent:/, '')} sign={data.sign} stopped={data.signStopped} />}
-          <StatusLabel color={AGENT_STATUS[data.status][1]}>{data.status === 'running' ? <AtWork data={data} /> : said}</StatusLabel>
-        </div>
+        <StateLine id={id} data={data} said={said} />
         {(data.summary || data.spent) && <div className="node-meta mono">{[data.summary, data.spent].filter(Boolean).join(' · ')}</div>}
       </div>
       <Handle type="source" position={Position.Right} isConnectable={false} />

@@ -86,8 +86,8 @@ test('an agent at work says what it does, how long it has worked, the tokens it 
   try {
     const at = { ...coder, status: 'running' as const, finished: false, activity: 'pytest tests/test_mail.py', since: '2026-10-05T10:00:03Z', wrote: 1234, kind: 'Fast' }
     draw(<AgentNode {...props('agent:kid', at)} />)
-    // (In full under the pointer, as before.)
-    const line = screen.getByTitle('Working · pytest tests/test_mail.py')
+    // (In full under the pointer, with the same facts as the line.)
+    const line = screen.getByTitle('Working · pytest tests/test_mail.py · 12s · ↓ 1.2k tokens · Fast')
     expect(line).toHaveClass('node-now')
     expect(line).toHaveTextContent(/^pytest tests\/test_mail\.py · 12s · ↓ 1\.2k tokens · Fast$/)
     // What it does is what gets cut: the facts after it keep their room.
@@ -95,10 +95,11 @@ test('an agent at work says what it does, how long it has worked, the tokens it 
     expect(line.querySelector('.live-facts')).toHaveTextContent('12s · ↓ 1.2k tokens · Fast')
     act(() => void vi.advanceTimersByTime(50_000))
     expect(line).toHaveTextContent(/ · 1m 02s · /)
+    expect(line).toHaveAttribute('title', 'Working · pytest tests/test_mail.py · 1m 02s · ↓ 1.2k tokens · Fast')
     // A CLI that does not say its tokens: no count, never a made-up one.
     cleanup()
     draw(<AgentNode {...props('agent:kid', { ...at, wrote: null })} />)
-    expect(screen.getByTitle('Working · pytest tests/test_mail.py')).not.toHaveTextContent(/tokens/)
+    expect(screen.getByTitle(/^Working · pytest tests\/test_mail\.py · \d+m? ?\d+s · Fast$/)).not.toHaveTextContent(/tokens/)
     cleanup()
     draw(<AgentNode {...props('agent:kid', coder)} />)
     expect(screen.getByTitle('Done ✓')).not.toHaveClass('node-now')
