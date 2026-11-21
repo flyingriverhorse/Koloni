@@ -164,6 +164,7 @@ from app.agent.memory_mixin import MemoryMixin
 from app.agent.merge import CHECK_PRESS_RUN as CHECK_PRESS_RUN
 from app.agent.merge import MAX_LINES_COMPARED as MAX_LINES_COMPARED
 from app.agent.merge import (
+    _as_branch,
     _branch_files,
     _check_is_over,
     _cli,
@@ -175,6 +176,7 @@ from app.agent.merge import (
     _held,
     _is_stale,
     _kept_as,
+    _kept_branch,
     _kept_files,
     _kept_the_projects,
     _last_changes,
@@ -2669,6 +2671,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             unattended = run.unattended
             files = {one["path"]: dict(one) for one in merge.files}
             tree, recorded, part = _kept_as(session, agent.id, copies.place(runtime, name))
+            on_branch = _kept_branch(session, agent.id, copies.place(runtime, name))
             times = _last_changes(session, _line_on_record(session, agent.id))
         # What Apply was asked for: the folder goes only when all of that was taken.
         asked = [path for path, one in files.items() if one["state"] in OPEN]
@@ -2677,7 +2680,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if not asked:
                 return False  # nothing on the card can be applied: it is only to discard
             try:
-                copy = copies.kept(Path(root), runtime, name, tree, recorded, part)
+                copy = _as_branch(copies.kept(Path(root), runtime, name, tree, recorded, part),
+                                  on_branch)
             except (OSError, ValueError):
                 return False
             await self._kept_taken(ctx, copy, files, times, choices, unattended)
@@ -2697,6 +2701,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             copies.forget(runtime, name)
             with contextlib.suppress(OSError, ValueError):
                 copies.remove(runtime, name)
+            self._kept_branch_gone(Path(root), copies.place(runtime, name), on_branch, decision)
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         for kind, payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
@@ -2715,6 +2720,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._change_rows(ctx.cid, ctx.run_id, lambda _row, _team, _lead, state: (
                 state.pop("words", None) is not None) | (state.pop("carried", None) is not None))
         return True
+
+    def _kept_branch_gone(
+        self, project: Path, held: Path, on_branch: dict | None, decision: str
+    ) -> None:
+        """W-1: a kept branch copy's folder is gone (`_decide_kept`) - git's record of its worktree
+        goes, and its branch (`git.drop_branch`, unlocked first): forced where the user turned it
+        down, or took all of it in and no go-on is on record to open it again (`tip`); else only
+        where git finds it merged. Where git will not, the branch stays, as unmerged work does."""
+        if on_branch is None:
+            return
+        with contextlib.suppress(git.Refused):
+            git.drop_branch(project, held / copies.TREE, on_branch["branch"],
+                            self.settings.runtime_root / "no-hooks",
+                            force=decision == "reject" or not on_branch["tip"])
 
     def decide_merge(
         self, merge_id: str, decision: str, choices: dict[str, str] | None = None,

@@ -708,6 +708,31 @@ def _kept_as(session, agent_id: str, held: Path) -> tuple[Path | None, list[str]
     return None, recorded, part
 
 
+def _kept_branch(session, agent_id: str, held: Path) -> dict | None:
+    """W-1: the branch a kept copy in the folder `held` is a worktree of, as its agent's record
+    says - {"branch", "start", "snapshot", "tip"} - only where that record names this copy's tree
+    (KOLONİ's own record: never the copy's `BASE_FILE`, which its agent can write). None for a copy
+    of no branch, or one the record says nothing sure of."""
+    record = session.get_one(Agent, agent_id).copy or {}
+    branch, start, snapshot = record.get("on_branch"), record.get("start"), record.get("snapshot")
+    if record.get("tree") != str(held / copies.TREE) or not isinstance(branch, str) or (
+            not branch.startswith(git.BRANCH_PREFIX)) or not isinstance(start, list) or len(
+            start) != 2 or not all(isinstance(one, str) for one in start):
+        return None
+    return {"branch": branch, "start": (start[0], start[1]), "tip": record.get("tip"),
+            "snapshot": snapshot if isinstance(snapshot, str) else None}
+
+
+def _as_branch(copy: copies.Copy, record: dict | None) -> copies.Copy:
+    """A kept copy loaded from disk (`copies.kept`) as the branch copy it is (`_kept_branch`;
+    None: as it is): its files merge line by line from what the branch was made of
+    (`Copy.started_from`)."""
+    if record is not None:
+        copy.branch, copy.start, copy.snapshot_sha = (
+            record["branch"], record["start"], record["snapshot"])
+    return copy
+
+
 def recover_copies(session_factory, runtime_root: Path) -> None:
     """The working copies a previous process left behind; no turn is running any more.
     One that holds what never reached the project - its card was waiting, or its agent
@@ -736,8 +761,8 @@ def recover_copies(session_factory, runtime_root: Path) -> None:
             tree, recorded, part = _kept_as(session, line[0], held)
             copy = fresh = None
             try:
-                copy = copies.kept(Path(project.root_path), runtime_root, name, tree, recorded,
-                                   part)
+                copy = _as_branch(copies.kept(Path(project.root_path), runtime_root, name, tree,
+                                              recorded, part), _kept_branch(session, line[0], held))
                 # Looked at once: whether it holds anything, and what its card shows.
                 fresh = _kept_files(copy, run.unattended, _last_changes(session, line))
                 if not fresh:

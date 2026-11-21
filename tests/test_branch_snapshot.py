@@ -583,3 +583,75 @@ def test_a_branch_copys_file_merges_line_by_line_from_what_it_was_made_of(repo, 
     copy.base[copies._key("nine.txt")] = "0" * 64
     assert copy.started_from("nine.txt") is None
 
+
+# --- a kept branch copy after a restart (W-1 Task 5) ---------------------------------------------
+
+
+@needs_merge_base
+@pytest.mark.parametrize("decision", ["approve", "reject"])
+def test_after_a_restart_a_kept_branch_copy_merges_line_by_line_and_its_branch_goes_with_it(
+    make_client, wait_run, repo, decision
+):
+    from app.agent import recover_copies
+    from app.db.models import Agent
+
+    numbered(repo)
+    (repo / "notes.txt").write_text("the user's own\n")  # (not committed: the snapshot holds it)
+    client, _model = make_client([text("hi")])
+    client.headers["Origin"] = ORIGIN
+    pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"]["id"]
+    (lead,) = wait_run(client, cid, run_id)["agents"]
+    root = client.app.state.settings.runtime_root
+    copy = copies.make_branch(repo, root, lead["id"], "x")  # (its agent at work: a crash)
+    assert copy.snapshot_sha
+    with client.app.state.session_factory() as session:
+        session.get_one(Agent, lead["id"]).copy = {
+            "state": "own", "tree": str(copy.root), "on_branch": copy.branch,
+            "start": list(copy.start), "snapshot": copy.snapshot_sha}
+        session.commit()
+    line(copy.root, 9, "9-agent")  # (its work, not committed when the app stopped)
+    line(repo, 5, "5-user")  # (the user's, meanwhile)
+    recover_copies(client.app.state.session_factory, root)  # (as at the next start)
+    (merge,) = client.get(f"/api/conversations/{cid}").json()["merges"]
+    assert [(f["path"], f["state"]) for f in merge["files"]] == [("nine.txt", "merged")]
+    assert client.post(f"/api/merges/{merge['id']}/{decision}").status_code == 200
+    took = decision == "approve"
+    assert (repo / "nine.txt").read_text().splitlines()[4::4] == [
+        "5-user", "9-agent" if took else "9"]
+    assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
+    assert not os.path.lexists(copy.root)
+    assert "?? notes.txt" in porcelain(repo)
+
+
+@needs_merge_base
+def test_a_kept_copys_branch_is_believed_only_where_its_agents_record_names_its_tree(
+    make_client, wait_run, repo, tmp_path
+):
+    from app.agent.merge import _as_branch, _kept_branch
+    from app.db.models import Agent
+
+    client, _model = make_client([text("hi")])
+    client.headers["Origin"] = ORIGIN
+    pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"]["id"]
+    (lead,) = wait_run(client, cid, run_id)["agents"]
+    held = tmp_path / "copies" / "agent1"
+    said = {"state": "own", "tree": str(held / copies.TREE), "on_branch": "koloni/x",
+            "start": ["main", "a" * 40], "snapshot": "b" * 40}
+    with client.app.state.session_factory() as session:
+        for record, found in ((said, ("koloni/x", ("main", "a" * 40), "b" * 40)),
+                              ({**said, "tree": str(tmp_path / "other")}, None),
+                              ({**said, "on_branch": "main"}, None),
+                              ({**said, "start": "main"}, None)):
+            session.get_one(Agent, lead["id"]).copy = record
+            got = _kept_branch(session, lead["id"], held)
+            assert (got and (got["branch"], got["start"], got["snapshot"])) == found or (
+                got is None and found is None)
+        loaded = copies.Copy(repo, held / copies.TREE, {}, {}, {})
+        _as_branch(loaded, _kept_branch(session, lead["id"], held))
+        assert loaded.branch is None  # (the last record named no start it could be held to)
