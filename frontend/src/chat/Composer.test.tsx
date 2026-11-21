@@ -62,13 +62,13 @@ test('while the Orchestrator asks, the message box says to answer above - open, 
   expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
 })
 
-test('while running, Stop is a square with no words just before Queue, in Send’s place; More and Plan first keep their names (one line: the user’s report)', () => {
-  render(<Composer {...props} running onPlanFirst={vi.fn()} />)
+test('while running, Stop is a square with no words on the status line over the box, Queue in Send’s place; More and Plan first keep their names', () => {
+  const { container } = render(<Composer {...props} running onPlanFirst={vi.fn()} />)
   const stop = screen.getByRole('button', { name: 'Stop' })
   const queue = screen.getByRole('button', { name: 'Queue' })
   expect(stop).toHaveTextContent(/^$/)
   expect(stop).toHaveAttribute('title')
-  expect(stop.nextElementSibling).toBe(queue)
+  expect(stop.closest('.composer-status')).toBe(container.querySelector('.composer')!.firstElementChild)
   expect(queue).toHaveAttribute('title', 'Queue')
   // Where their words are not shown, the names stay (and a tooltip says them).
   expect(screen.getByRole('button', { name: 'More' })).toHaveAttribute('title', 'More')

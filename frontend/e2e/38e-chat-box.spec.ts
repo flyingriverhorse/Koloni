@@ -248,7 +248,8 @@ for (const theme of ['light', 'dark'] as const)
       await page.getByLabel('Message').fill('change the greeting again')
       await page.getByRole('button', { name: 'Send' }).click()
       await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
-      await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible()
+      // (Stop is on the line over the box, 0.1.5.)
+      await expect(chat.locator('.composer-status').getByRole('button', { name: 'Stop' })).toBeVisible()
       const row = chat.locator('.composer-controls')
       const { around, parts } = await row.evaluate(el => ({
         around: el.getBoundingClientRect().toJSON() as DOMRect,
@@ -256,7 +257,7 @@ for (const theme of ['light', 'dark'] as const)
           .filter(c => (c as HTMLElement).offsetParent && !c.closest('[hidden]'))
           .map(c => ({ name: c.getAttribute('aria-label') ?? c.textContent, top: c.getBoundingClientRect().top, right: c.getBoundingClientRect().right })),
       }))
-      expect(parts.map(part => part.name)).toEqual(expect.arrayContaining(['Permission level', 'More', 'Stop', 'Queue']))
+      expect(parts.map(part => part.name)).toEqual(expect.arrayContaining(['Permission level', 'More', 'Queue']))
       for (const part of parts) {
         // (each in the row's one line, and none past its end)
         expect(part.top - around.top, `${part.name} on the first line`).toBeLessThan(12)

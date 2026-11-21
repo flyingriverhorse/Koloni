@@ -211,9 +211,9 @@ for (const theme of ['light', 'dark'] as const) {
     const lead = page.locator('.react-flow__node-agent')
     const now = lead.locator('.node-now')
     try {
-      // the command itself, and how long it has run: the time grows
-      await expect(now).toHaveText(/^(<1|\d+)s · Working · python -u slow\.py$/, { timeout: 15_000 })
-      await expect(now).toHaveText(/^([2-9]|\d\d)s · /)
+      // the command itself, then how long it has worked (0.1.5: what is cut is the command): the time grows
+      await expect(now).toHaveText(/^python -u slow\.py · (<1|\d+)s( · |$)/, { timeout: 15_000 })
+      await expect(now).toHaveText(/ · ([2-9]|\d\d)s( · |$)/)
       const moves = () =>
         Promise.all([
           now.locator('.status').evaluate(dot => getComputedStyle(dot, '::before').animationName),

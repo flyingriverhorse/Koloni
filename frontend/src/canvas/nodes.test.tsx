@@ -30,7 +30,7 @@ test('what started a turn says who: you, or a trigger by its name with nobody wa
 
 const coder: AgentData = {
   role: 'Coder', name: 'Coder 3', parentId: 'lead', provider: 'Codex', modelId: 'gpt-6.1', modelFrom: null, status: 'completed', activity: 'Completed', since: null,
-  sign: null, signStopped: false, findings: null, inside: 0, summary: '3 tools · 2 commands · 1 file', attention: false, finished: true, open: true,
+  wrote: null, kind: null, sign: null, signStopped: false, findings: null, inside: 0, summary: '3 tools · 2 commands · 1 file', attention: false, finished: true, open: true,
 }
 
 test('the user’s (5 Nov): an agent’s node is three lines - name and model, its state in plain words, what it did counted', () => {
@@ -81,20 +81,28 @@ test('its state in plain words: working at what, waiting for your OK (lit), done
   expect(screen.getByTitle(asks)).toHaveTextContent(/^Waits for your answer$/)
 })
 
-test('an agent at work says on one line what it does now, with a blinking dot and for how long; done, neither (slice 84d)', () => {
+test('an agent at work says what it does, how long it has worked, the tokens it wrote and its tier; the command is what gets cut', () => {
   vi.useFakeTimers({ now: Date.parse('2026-10-05T10:00:15Z') })
   try {
-    const at = { ...coder, status: 'running' as const, finished: false, activity: 'pytest tests/test_mail.py', since: '2026-10-05T10:00:03Z' }
+    const at = { ...coder, status: 'running' as const, finished: false, activity: 'pytest tests/test_mail.py', since: '2026-10-05T10:00:03Z', wrote: 1234, kind: 'Fast' }
     draw(<AgentNode {...props('agent:kid', at)} />)
+    // (In full under the pointer, as before.)
     const line = screen.getByTitle('Working · pytest tests/test_mail.py')
     expect(line).toHaveClass('node-now')
-    // the time first, so that a long command is what gets cut off
-    expect(line).toHaveTextContent(/^12s · Working · pytest tests\/test_mail\.py$/)
+    expect(line).toHaveTextContent(/^pytest tests\/test_mail\.py · 12s · ↓ 1\.2k tokens · Fast$/)
+    // What it does is what gets cut: the facts after it keep their room.
+    expect(line.querySelector('.node-live-what')).toHaveTextContent(/^pytest tests\/test_mail\.py$/)
+    expect(line.querySelector('.live-facts')).toHaveTextContent('12s · ↓ 1.2k tokens · Fast')
     act(() => void vi.advanceTimersByTime(50_000))
-    expect(line).toHaveTextContent(/^1m 02s · Working/)
+    expect(line).toHaveTextContent(/ · 1m 02s · /)
+    // A CLI that does not say its tokens: no count, never a made-up one.
+    cleanup()
+    draw(<AgentNode {...props('agent:kid', { ...at, wrote: null })} />)
+    expect(screen.getByTitle('Working · pytest tests/test_mail.py')).not.toHaveTextContent(/tokens/)
     cleanup()
     draw(<AgentNode {...props('agent:kid', coder)} />)
     expect(screen.getByTitle('Done ✓')).not.toHaveClass('node-now')
+    expect(document.querySelector('.live-facts')).toBeNull()
   } finally {
     vi.useRealTimers()
   }

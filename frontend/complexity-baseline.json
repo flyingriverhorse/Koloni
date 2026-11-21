@@ -1,6 +1,6 @@
 {
   "src/App.tsx::App": 91,
   "src/chat/ChatPanel.tsx::ChatPanel": 75,
-  "src/chat/Composer.tsx::Composer": 74,
+  "src/chat/Composer.tsx::Composer": 73,
   "src/inspector/Inspector.tsx::Inspector": 77
 }

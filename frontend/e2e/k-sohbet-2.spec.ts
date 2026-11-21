@@ -54,3 +54,19 @@ test('a finished turn folds its steps into one line that counts what failed; a s
   await fold.locator('summary').click()
   await expect(chat.getByText('I’ll read it first.')).toBeVisible()
 })
+
+test('while a command runs the status line over the box and the Orchestrator’s box say what it does and for how long; Stop there ends the turn', async ({ page }) => {
+  await openFreshConversation(page)
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await page.getByLabel('Permission level').selectOption('full_auto')
+  await page.getByLabel('Message').fill('run slow.py')
+  await page.getByRole('button', { name: 'Send' }).click()
+  const status = chat.locator('.composer-status')
+  await expect(status).toContainText(/python -u slow\.py · \d+s/, { timeout: 15_000 })
+  await expect(page.locator('.react-flow__node-agent .node-now')).toContainText(/python -u slow\.py · \d+s/)
+  // Its clock ticks every second: no live region reads it out.
+  expect(await status.evaluate(el => el.closest('[aria-live],[role=status],[role=alert]') === null && !el.querySelector('[aria-live],[role=status]'))).toBe(true)
+  await status.getByRole('button', { name: 'Stop' }).click()
+  await expect(page.getByText('STOPPED', { exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(status).toHaveText(/^Orchestrator is ready/)
+})

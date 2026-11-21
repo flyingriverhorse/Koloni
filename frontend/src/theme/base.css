@@ -200,6 +200,12 @@ textarea {
   vertical-align: 1px;
 }
 
+/* What is known of work under way, after what it does (0.1.5): kept whole while the words before it are cut. */
+.live-facts {
+  flex: none;
+  white-space: pre;
+}
+
 .alert {
   color: var(--del);
   font-size: var(--text-body);
@@ -2162,6 +2168,89 @@ a.view-run {
   position: relative;
 }
 
+/* The line over the message box (0.1.5, "Kovan konsolu"): who is ready, or what the turn does now with Stop, or that it
+   waits for your answer; at work, a thin amber light sweeps along its foot. */
+.composer-status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: var(--text-note);
+  white-space: nowrap;
+}
+
+.composer-status b {
+  color: var(--text-soft);
+  font-weight: var(--weight-title);
+}
+
+.composer-status-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.composer-status-running .composer-status-dot,
+.composer-status-asks .composer-status-dot {
+  background: var(--accent);
+}
+
+/* What it does is cut first; how long, its tokens and tier, and how many wait stay in sight. */
+.composer-status-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-status-queued {
+  flex: none;
+  white-space: pre;
+}
+
+.composer-status .composer-stop {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+}
+
+.composer-status-running::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 40%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: composer-sweep 1.8s ease-in-out infinite;
+}
+
+@keyframes composer-sweep {
+  from {
+    left: -40%;
+  }
+
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-status-running::after {
+    left: 0;
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
+}
+
 /* (Two rows at most, the rest scrolled to: with ten files the box and Send went below the chat - B-106.) */
 .att-chips {
   display: flex;
@@ -2445,20 +2534,6 @@ a.view-run {
   display: none;
 }
 
-/* While a turn runs Stop stands beside Queue: even at the chat's widest (a 460px row) the words
-   do not fit beside it. */
-.composer-controls:has(.composer-stop) .composer-words {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
-
-.composer-controls:has(.composer-stop) .composer-icon {
-  display: inline;
-}
-
 @container composer (max-width: 450px) {
   .composer-words {
     position: absolute;
@@ -2539,14 +2614,8 @@ a.view-run {
 }
 
 /* Under ~360px the mic and Auto-read are under More (Composer, B-106), and the row is one line down to the
-   narrowest chat, 220px (R56: it was two at 240px, the level not yet given way). While a turn runs, Stop beside
-   Queue needs a 220px row (a 240px chat): narrower, what is left goes on a second line.
-   shortcut: two lines there; fold Plan first under More while a turn runs if one line is wanted. */
+   narrowest chat, 220px (R56: it was two at 240px, the level not yet given way). */
 @container composer (max-width: 219px) {
-  .composer-controls:has(.composer-stop) {
-    flex-wrap: wrap;
-  }
-
   .composer-line {
     gap: 4px;
   }

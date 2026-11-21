@@ -3,7 +3,8 @@ import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import { AGENT_STATUS, WAITS } from '../agents/agentStatus'
-import { SignChip, Since } from '../agents/signs'
+import { LiveFacts } from '../agents/LiveFacts'
+import { SignChip } from '../agents/signs'
 import { ranOn } from '../shell/modelName'
 import { StatusLabel } from '../shell/StatusLabel'
 import { AwayReport } from '../backlog/Away'
@@ -297,6 +298,16 @@ export function RoundNode({ id, data }: NodeProps<Node<RoundData & Record<string
 const toneOf = (status: AgentData['status']): Tone =>
   status === 'running' || status === 'waiting' ? 'running' : status === 'waiting_approval' || status === 'proposed' ? 'approval' : 'idle'
 
+/** An agent at work's line (0.1.5): what it does - cut first where the box is too narrow -, for how long, its tokens and tier. */
+function AtWork({ data }: { data: AgentData }) {
+  return (
+    <>
+      <span className="node-live-what">{data.activity}</span>
+      <LiveFacts since={data.since} wrote={data.wrote} kind={data.kind} />
+    </>
+  )
+}
+
 function AgentCard({ id, data, selected }: AgentProps) {
   const tone = toneOf(data.status)
   const name = data.name || data.role
@@ -322,10 +333,7 @@ function AgentCard({ id, data, selected }: AgentProps) {
         <div className={`node-line mono${data.status === 'running' ? ' node-now' : ''}`} title={data.asks || said}>
           {/* What was counted of its calls first, so that its state is what gets cut off. */}
           {data.sign && <SignChip agentId={id.replace(/^agent:/, '')} sign={data.sign} stopped={data.signStopped} />}
-          <StatusLabel color={AGENT_STATUS[data.status][1]}>
-            {data.since && <Since at={data.since} />}
-            {said}
-          </StatusLabel>
+          <StatusLabel color={AGENT_STATUS[data.status][1]}>{data.status === 'running' ? <AtWork data={data} /> : said}</StatusLabel>
         </div>
         {(data.summary || data.spent) && <div className="node-meta mono">{[data.summary, data.spent].filter(Boolean).join(' · ')}</div>}
       </div>

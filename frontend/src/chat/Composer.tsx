@@ -1,4 +1,4 @@
-import { Article, CaretDown, DotsThree, GearSix, ListChecks, PaperPlaneRight, Stop } from '@phosphor-icons/react'
+import { Article, CaretDown, DotsThree, GearSix, ListChecks, PaperPlaneRight } from '@phosphor-icons/react'
 import { type ClipboardEvent, type KeyboardEvent, type ReactNode, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { errorText, overWhat } from '../api/client'
 import type { PermissionMode, Provider } from '../api/types'
@@ -15,6 +15,7 @@ import { AttachMenu, Chips, type Pending } from './Attach'
 import { fromProject, linksIn, MAX_BYTES, MAX_FILES, sizeText, upload, VIDEO_HEAD } from './attachments'
 import { leadQuestion } from './chatLine'
 import { Compare, type Second } from './Compare'
+import { ComposerStatus } from './ComposerStatus'
 import { takeFrames } from './frames'
 import { asCode } from './pastedCode'
 
@@ -518,6 +519,8 @@ export function Composer({
         void add(Array.from(event.dataTransfer.files))
       }}
     >
+      {/* What the chat does now, over the box (0.1.5): ready, at work with Stop, or waiting for your answer. */}
+      <ComposerStatus conv={conv} compact={compact} running={running} onStop={onStop} />
       {dropping && (
         <div className="att-drop" aria-hidden="true">
           Drop files here to add them to your message
@@ -751,12 +754,6 @@ export function Composer({
           </More>
           <div className="composer-actions">
             {!voiceInMore && voice}
-            {/* While a turn runs: Stop a square beside the button in Send's place, which then queues. */}
-            {running && (
-              <button type="button" className="icon-btn composer-stop" aria-label="Stop" title="Stop the work" onClick={onStop}>
-                <Stop size={14} weight="fill" />
-              </button>
-            )}
             <button type="button" className="btn btn-primary" title={running ? 'Queue' : 'Send'} disabled={!canSend} onClick={() => void send()}>
               <PaperPlaneRight size={14} />
               <span className="composer-say">{running ? 'Queue' : 'Send'}</span>

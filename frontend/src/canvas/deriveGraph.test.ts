@@ -83,26 +83,28 @@ test('agent activity comes from records, in priority order', () => {
   expect(activity({ live: { r: { context: null, plan: null, queue } } })).toBe('Queued at Qoder')
 })
 
-test('what an agent does now (slice 84d): a command by what it runs, a file by what is done to it, and since when; nothing while no tool runs', () => {
-  const now = (over: Partial<ConvState>, status: Run['status'] = 'running') => {
-    const g = deriveGraph(convState({ runs: [run('r', status)], agents: [agent('r')], messages: [userMessage('r', 'x')], ...over }))
-    const { activity: said, since } = g.nodes.find(n => n.id === 'agent:r')!.data as AgentData
-    return [said, since]
+test('what an agent does now (slice 84d): a command by what it runs, a file by what is done to it; since it began work, the tokens it wrote and its tier', () => {
+  const now = (over: Partial<ConvState>, status: Run['status'] = 'running', lead = agent('r')) => {
+    const g = deriveGraph(convState({ runs: [run('r', status)], agents: [lead], messages: [userMessage('r', 'x')], ...over }))
+    const { activity: said, since, wrote, kind } = g.nodes.find(n => n.id === 'agent:r')!.data as AgentData
+    return [said, since, wrote, kind]
   }
   const started = { started_at: '2026-10-05T10:00:01Z' }
+  const began = agent('r').started_at
   const ran = toolCall('t1', 'r', 'run_command', 'running', '{"command":"pytest tests/test_mail.py"}', started)
-  // the command's own start, not its call's: it may have waited for leave first
   expect(now({ toolCalls: [ran], commands: [command('k', 'r', { status: 'running', command: 'pytest tests/test_mail.py', ended_at: null })] })).toEqual([
     'pytest tests/test_mail.py',
-    '2026-10-05T10:00:03Z',
+    began,
+    null,
+    'qwen',
   ])
-  expect(now({ toolCalls: [toolCall('1', 'r', 'edit_file', 'running', '{"path":"mail.py"}', started)] })).toEqual(['editing mail.py', started.started_at])
-  expect(now({ toolCalls: [toolCall('1', 'r', 'write_file', 'running', '{"path":"cart.py"}', started)] })).toEqual(['editing cart.py', started.started_at])
-  expect(now({ toolCalls: [toolCall('1', 'r', 'search', 'running', '{"pattern":"TODO"}', started)] })).toEqual(['search "TODO"', started.started_at])
-  // its model at work, waiting, or done: no tool, so no time
-  expect(now({ thinkingAgents: ['r'] })).toEqual(['Thinking…', null])
-  expect(now({ toolCalls: [ran] }, 'waiting_approval')).toEqual(['Waits for your approval', null])
-  expect(now({ toolCalls: [{ ...ran, status: 'succeeded' }] }, 'completed')).toEqual(['Completed', null])
+  expect(now({ toolCalls: [toolCall('1', 'r', 'edit_file', 'running', '{"path":"mail.py"}', started)] })[0]).toBe('editing mail.py')
+  expect(now({ toolCalls: [toolCall('1', 'r', 'write_file', 'running', '{"path":"cart.py"}', started)] })[0]).toBe('editing cart.py')
+  expect(now({ toolCalls: [toolCall('1', 'r', 'search', 'running', '{"pattern":"TODO"}', started)] })[0]).toBe('search "TODO"')
+  // Its model at work too: the time is the agent's, not a tool's.
+  expect(now({ thinkingAgents: ['r'] }, 'running', agent('r', 'running', { output_tokens: 1234, tier: 'fast' }))).toEqual(['Thinking…', began, 1234, 'Fast'])
+  // Waiting for you: no time.
+  expect(now({ toolCalls: [ran] }, 'waiting_approval')[1]).toBeNull()
 })
 
 test('each agent at work says for itself whether its model is thinking or writing', () => {

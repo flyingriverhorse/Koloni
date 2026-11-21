@@ -664,6 +664,25 @@ button.shared-row:hover,
   animation: pulse 1.2s ease-in-out infinite;
 }
 
+/* Its line at work (0.1.5): what it does is cut first; for how long, its tokens and tier stay in sight. */
+.node-now .status {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.node-now .status::before {
+  flex: none;
+  align-self: center;
+}
+
+.node-live-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .node-now .status::before,
   .react-flow .react-flow__edge.animated path {

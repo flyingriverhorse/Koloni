@@ -18,6 +18,7 @@ import { shown } from '../chat/attachments'
 import { decidedOf, waitingOf, waitingSummary } from '../chat/waiting'
 import { firstLine } from '../chat/chatLine'
 import { outputCards } from './outputs'
+import { liveKind } from '../agents/liveLine'
 import { type SharedData, sharedColumn } from './sharedColumn'
 
 export type NodeKind =
@@ -98,8 +99,12 @@ export interface AgentData extends GroupData {
   /** The lead agent shows how its turn ended; otherwise an agent shows its own state. */
   status: Run['status'] | Agent['status']
   activity: string
-  /** While a tool or command of its runs: when that started (the line says for how long); null otherwise. */
+  /** While it is at work: when it began (its line says for how long); null otherwise. */
   since: string | null
+  /** The tokens it wrote, where its CLI tells them; null: not known. */
+  wrote: number | null
+  /** Its tier by name, else its model's; null: neither known. */
+  kind: string | null
   /** What was counted of its own tool calls; null: nothing. */
   sign: Agent['sign']
   /** Its work was ended for that count (a turn nobody watched): its error says so. */
@@ -380,19 +385,19 @@ const DOING: Record<string, string> = { read_file: 'reading', edit_file: 'editin
  * what is done to it, any other call by its summary. Null: none runs.
  * shortcut: a CLI's own Read or Edit is said by its tool's name alone (its path is in `file_path`); read that too if it is missed.
  */
-function toolNow(agent: Agent, state: ConvState): { what: string; since: string | null } | null {
+function toolNow(agent: Agent, state: ConvState): string | null {
   const call = state.toolCalls.find(t => t.agent_id === agent.id && t.status === 'running')
   if (!call) return null
   // (A CLI's own command too: it is on record by the call that ran it.)
   const command = state.commands.find(c => c.tool_call_id === call.id)
-  if (command) return { what: command.command, since: command.started_at }
+  if (command) return command.command
   const summary = toolSummary(call)
   const doing = DOING[call.name]
-  return { what: doing && summary !== call.name ? doing + summary.slice(call.name.length) : summary, since: call.started_at }
+  return doing && summary !== call.name ? doing + summary.slice(call.name.length) : summary
 }
 
 /** What an agent is doing right now, read off its own records (`teams`: to name a team's lead as its node does). */
-function activityOf(agent: Agent, run: Run, state: ConvState, teams: Team[]): string {
+export function activityOf(agent: Agent, run: Run, state: ConvState, teams: Team[]): string {
   const status = statusOf(agent, run, state)
   if (status === 'waiting_approval' && wonders(agent, state)) return 'Waits for your answer'
   if (status === 'waiting_approval' || status === 'proposed') return 'Waits for your approval'
@@ -455,12 +460,18 @@ function waitingFor(agent: Agent, run: Run, state: ConvState, teams: Team[]): st
   return child ? `Waiting for ${titleOf(child.name || child.role_name, teams)}` : 'Waiting for a sub-agent'
 }
 
+/** While an agent is at work: since when, the tokens it wrote, its tier or model (a lead's turn's, from before models were per agent). */
+function liveOf(agent: Agent, run: Run, status: AgentData['status']): Pick<AgentData, 'since' | 'wrote' | 'kind'> {
+  if (status !== 'running') return { since: null, wrote: null, kind: null }
+  return { since: agent.started_at, wrote: agent.output_tokens, kind: liveKind(agent, agent.depth === 0 ? run.model_id : null) }
+}
+
 /** What an agent at work does now. */
 function workingOn(agent: Agent, state: ConvState): string {
   // R130: its model is in Qoder's queue (K-qoder-kuyruk) - waiting there, not working.
   if (state.live[agent.id]?.queue) return 'Queued at Qoder'
   const working = toolNow(agent, state)
-  if (working) return working.what
+  if (working) return working
   const writing = state.messages.some(
     m => m.agent_id === agent.id && m.status === 'streaming' && m.content,
   )
@@ -937,7 +948,7 @@ function agentNodes(
     status,
     activity: activityOf(agent, run, state, teams),
     asks: askedLine(agent, state),
-    since: status === 'running' ? (toolNow(agent, state)?.since ?? null) : null,
+    ...liveOf(agent, run, status),
     sign: agent.sign,
     signStopped: agent.status === 'failed' && !!agent.sign && !!agent.error?.includes(agent.sign.text),
     findings: findingsLine(agent.findings),
