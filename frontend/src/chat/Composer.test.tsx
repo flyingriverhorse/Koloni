@@ -534,7 +534,10 @@ test('Plan first is set in the level’s menu only: the row has no button for it
   expect(onPlanFirst).toHaveBeenLastCalledWith(true)
   rerender(<Composer {...props} planFirst onPlanFirst={onPlanFirst} />)
   expect(menu().getByRole('switch', { name: 'Plan first' })).toBeChecked()
-  expect(screen.queryByRole('button', { name: /Plan first/ })).toBeNull()
+  // On, the level says so; it is the row's only button that does.
+  const level = screen.getByRole('button', { name: 'Permission level: Ask before changes, Plan first on' })
+  expect(level).toHaveTextContent(/^Ask · plan$/)
+  expect(screen.getAllByRole('button', { name: /Plan first/ })).toEqual([level])
 })
 
 test('/plan turns Plan first over, before a Planner role of the same start; without a conversation it is off', async () => {

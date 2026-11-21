@@ -39,8 +39,9 @@ interface Props {
 }
 
 /**
- * The permission level in the message box's row (0.1.5): its comb and its short name; a click opens each level with a
- * line on what it does, and Plan first. Esc closes it, the focus back on its button.
+ * The permission level in the message box's row (0.1.5): its comb and its short name - with Plan first on, " · plan"
+ * after it -; a click opens each level with a line on what it does, and Plan first. Esc closes it, the focus back on its
+ * button.
  */
 export function LevelMenu({ mode, onMode, planFirst, onPlanFirst }: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
@@ -53,14 +54,20 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst }: Props) {
         type="button"
         className="btn btn-small composer-level"
         data-level={mode}
-        aria-label={`Permission level: ${level.name}`}
+        aria-label={`Permission level: ${level.name}${planFirst ? ', Plan first on' : ''}`}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title={`${level.name}: ${level.says}`}
+        title={`${level.name}: ${level.says}${planFirst ? `. Plan first on: ${PLAN_FIRST.toLowerCase()}` : ''}`}
         onClick={() => (open ? close() : setOpen(true))}
       >
         <Comb cells={level.cells} />
         <span className="composer-level-name">{level.short}</span>
+        {planFirst && (
+          <>
+            {' '}
+            <span className="composer-level-plan">· plan</span>
+          </>
+        )}
       </button>
       {open && (
         <div ref={panel} tabIndex={-1} role="dialog" aria-label="Permission level" className="allow-list-panel level-panel">

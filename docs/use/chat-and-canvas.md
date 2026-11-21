@@ -50,8 +50,8 @@ unread and how many things wait for you.
   tier goes first, then the tokens, then the time, then the model's name (down to its icon); what it does is cut last.
 - Under the message, one row: **Attach**, the permission level as three comb cells and its name (a click
   lists the levels, each with a line on what it does, and the **Plan first** switch - see
-  [Permission levels](permissions.md) and [Plan first](plan-first.md)), **Auto-read**, **Dictate** and
-  **Send**.
+  [Permission levels](permissions.md) and [Plan first](plan-first.md); while Plan first is on, the level
+  reads, say, "Auto-edit · plan"), **Auto-read**, **Dictate** and **Send**.
 - Under the box, quiet words: **Workspace** with its number, **New topic**, **Chat settings**, **More**
   (Compare and Work together) and, at the right, how many things wait elsewhere ("2 more wait elsewhere"),
   which opens Ready for you.
