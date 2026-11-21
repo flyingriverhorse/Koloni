@@ -8,7 +8,6 @@
   "src/inspector/Inspector.tsx::Inspector": 77,
   "src/knowledge/KnowledgePage.tsx::Card": 74,
   "src/models/ProviderEditor.tsx::ProviderEditor": 74,
-  "src/tools/ServerEditor.tsx::ServerEditor": 51,
   "src/views/FilesWindow.tsx::FilesWindow": 91,
   "src/views/FilesWindow.tsx::Opened": 70
 }
