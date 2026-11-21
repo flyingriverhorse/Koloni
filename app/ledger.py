@@ -149,10 +149,14 @@ FAILED = re.compile(r"\b[1-9]\d* failed\b", re.IGNORECASE)  # (its sum: "1 faile
 WEB = ("web_search", "http_request", "claude__WebSearch", "claude__WebFetch")
 # B-382: a passing run said plainly, so that its opener spends no steps running it again.
 PASSED = "last test run passed ({command}, exit 0: checked already - no need to run it again)"
-# ...said only of a command that is a test run - its first word the tool (or a Python, uv,
-# poetry or npx running it) - not one that names one (`echo pytest`).
-RUNS_TESTS = re.compile(r"\s*(?:\S*[\\/])?(?:(?:python[\d.]*|py)(?:\.exe)?\s+-m\s+|"
-                        r"(?:uv|poetry)\s+run\s+|npx\s+)?(?:" + TESTS.pattern + ")", re.IGNORECASE)
+# ...said only of a command that is a test run - its first real word the tool, after `cd <dir> &&`,
+# `VAR=val`, `time` or a runner (uv, poetry, npx, a Python's -m) - not one that names one (`echo
+# pytest`), nor a lint script (`npm run test:lint`, `tox -e lint`).
+_WORD = r"""(?:"[^"]*"|'[^']*'|\S+)"""
+RUNS_TESTS = re.compile(
+    rf"\s*(?:cd\s+{_WORD}\s*&&\s*)?(?:\w+={_WORD}?\s+)*(?:time\s+)?(?:(?:uv|poetry)\s+run\s+|npx\s+)?"
+    r"(?:\S*[\\/])?(?:(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\d[\d.]*)?\s+-m\s+)?(?:\S*[\\/])?"
+    r"(?:" + TESTS.pattern + r")(?!\S*lint|(?<=tox|nox)\s+-[es]\s*\S*lint)", re.IGNORECASE)
 
 
 def _many(count: int, what: str) -> str:
@@ -169,17 +173,31 @@ def _family(session: Session, agent_id: str) -> tuple[str, set[str]]:
     return run_id, ids
 
 
+def _failed(one: Command) -> bool:
+    """A test run that failed: timed out, exited non-zero - not pytest's 5, no tests collected -
+    or counted a failure."""
+    nothing = one.exit_code == 5 and "pytest" in one.command.casefold()
+    return one.status == "timed_out" or (one.exit_code != 0 and not nothing) or bool(
+        FAILED.search(one.output[-4000:]))
+
+
 def failed_tests(session: Session, agent_id: str) -> Command | None:
-    """The last test run of an agent and the agents it opened, where it failed: exited non-zero,
-    timed out, or counted a failure; None where it passed or none ran (killed: no result)."""
+    """Of the test runs of an agent and the agents it opened, the last run of each test command
+    (a passing `npm test` hides no failing `pytest`): the latest that failed; None where none did
+    or none ran (killed: no result)."""
     run_id, ids = _family(session, agent_id)
-    last = next((one for one in session.scalars(
-        select(Command).where(Command.run_id == run_id, Command.agent_id.in_(ids),
-                              Command.status.in_(("exited", "timed_out")))
-        .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc()))
-        if RUNS_TESTS.match(one.command)), None)
-    return last if last and (last.status == "timed_out" or last.exit_code != 0 or FAILED.search(
-        last.output[-4000:])) else None
+    seen: set[str] = set()
+    for one in session.scalars(
+            select(Command).where(Command.run_id == run_id, Command.agent_id.in_(ids),
+                                  Command.status.in_(("exited", "timed_out")))
+            .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())):
+        same = " ".join(one.command.split()).casefold()
+        if same in seen or not RUNS_TESTS.match(one.command):
+            continue
+        seen.add(same)
+        if _failed(one):
+            return one
+    return None
 
 
 def did(session: Session, agent_id: str, seen: bool = True) -> str | None:

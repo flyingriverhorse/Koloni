@@ -163,9 +163,9 @@ def _if_found(graph: RecipeGraph, part: str) -> bool:
     """Whether a part runs only if the part before it found a problem (`RecipeStep.when`; such a
     step is in no group: `conditions`).
     A problem is what the review's report says - its findings, `Already failing before:` lines,
-    no Findings section, or "none" with nothing checked - or its last test run failing
-    (`ledger.failed_tests`: a command whose first word is a test tool, so a grep with no match
-    is none), whatever its report says (`AgentRunner._found`).
+    no Findings section, or "none" with nothing checked - or a test command whose last run
+    failed (`ledger.failed_tests`: its first real word a test tool, so a grep with no match is
+    none), whatever its report says (`AgentRunner._found`).
     shortcut: a test run not on record (a CLI's command KOLONİ does not see) counts by the report
     alone, and a `Checked:` line saying it failed under `Findings: none` is no problem; read that
     line too if a Tester is seen to pass failing tests so."""
