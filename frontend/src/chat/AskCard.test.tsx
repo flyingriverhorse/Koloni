@@ -1,0 +1,93 @@
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { expect, test, vi } from 'vitest'
+import { when } from '../canvas/turns'
+import type { ChatTab } from '../state/store'
+import { agent, convState, question, run } from '../test-fixtures'
+import { AskCard } from './AskCard'
+
+const asking = (...questions: ReturnType<typeof question>[]) =>
+  convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r')], questions: questions.length ? questions : [question('q', 'r', { options: ['hey', 'hello'] })] })
+
+/** The card over the box, and the message box under it (the focus goes back there). */
+function draw(conv = asking(), onAnswer = vi.fn(async () => {}), { open = true, tab = 'Chat' as ChatTab } = {}) {
+  const view = render(
+    <>
+      <AskCard conv={conv} open={open} tab={tab} onAnswer={onAnswer} />
+      <textarea className="composer-input" aria-label="Message" />
+    </>,
+  )
+  return { ...view, onAnswer }
+}
+const card = () => screen.getByRole('form', { name: 'Orchestrator asks' })
+const radio = (name: string | RegExp) => within(card()).getByRole('radio', { name })
+
+test('the Orchestrator’s question waits over the message box: who asks and in which turn, numbered options, your own answer and Submit', async () => {
+  const { onAnswer } = draw()
+  expect(card()).toHaveTextContent(`Orchestrator asks · ${when(run('r').created_at)}`)
+  expect(within(card()).getByText('Which greeting?')).toBeInTheDocument()
+  expect(within(card()).getByRole('radiogroup')).toBeInTheDocument()
+  expect(radio(/hey/).closest('label')).toHaveTextContent(/^1hey$/)
+  expect(radio(/hello/).closest('label')).toHaveTextContent(/^2hello$/)
+  expect(within(card()).getByLabelText('Your answer')).toBeInTheDocument()
+  const submit = within(card()).getByRole('button', { name: 'Submit' })
+  expect(submit).toBeDisabled()
+  await userEvent.click(radio(/hello/))
+  expect(radio(/hello/)).toBeChecked()
+  await userEvent.click(submit)
+  expect(onAnswer).toHaveBeenCalledWith('q', 'hello')
+})
+
+test('keys 1-9 pick an option and Enter sends it; in your own answer digits are text', async () => {
+  const { onAnswer } = draw()
+  await userEvent.click(radio(/hey/))
+  await userEvent.keyboard('2{Enter}')
+  expect(onAnswer).toHaveBeenCalledWith('q', 'hello')
+  await userEvent.type(within(card()).getByLabelText('Your answer'), 'good 2{Enter}')
+  expect(onAnswer).toHaveBeenLastCalledWith('q', 'good 2')
+})
+
+test('two questions: ‹ 1/2 › goes between them; no ✕; ⌄ folds it to its head', async () => {
+  draw(asking(question('q', 'r', { question: 'First?' }), question('q2', 'r', { question: 'Second?', tool_call_id: '2' })))
+  expect(within(card()).getByText('1/2')).toBeInTheDocument()
+  expect(within(card()).getByText('First?')).toBeInTheDocument()
+  await userEvent.click(within(card()).getByRole('button', { name: 'Next question' }))
+  expect(within(card()).getByText('2/2')).toBeInTheDocument()
+  expect(within(card()).getByText('Second?')).toBeInTheDocument()
+  expect(within(card()).queryByRole('button', { name: /close|skip|dismiss/i })).toBeNull()
+  const fold = within(card()).getByRole('button', { name: 'Fold the question' })
+  expect(fold).toHaveAttribute('aria-expanded', 'true')
+  await userEvent.click(fold)
+  expect(fold).toHaveAttribute('aria-expanded', 'false')
+  expect(within(card()).queryByRole('radiogroup')).toBeNull()
+  // (One question alone has no pager.)
+})
+
+test('answered, the focus goes back to the message box; an answer refused says why, and the card stays', async () => {
+  const { onAnswer } = draw()
+  await userEvent.click(radio(/hey/))
+  await userEvent.click(within(card()).getByRole('button', { name: 'Submit' }))
+  expect(onAnswer).toHaveBeenCalledWith('q', 'hey')
+  expect(screen.getByLabelText('Message')).toHaveFocus()
+  onAnswer.mockRejectedValueOnce({ detail: 'the question is over' })
+  await userEvent.click(within(card()).getByRole('button', { name: 'Submit' }))
+  expect(await within(card()).findByRole('alert')).toHaveTextContent('the question is over')
+})
+
+test('only the Orchestrator’s own question: KOLONİ’s card, a ready card, a sub-agent’s question show none; closed or on Talk, none', () => {
+  const conv = convState({
+    runs: [run('r', 'waiting_approval')],
+    agents: [agent('r'), agent('r', 'running', { id: 'k', depth: 1, parent_agent_id: 'r' })],
+    questions: [
+      question('koloni', 'r', { leave: true, question: 'Allow?', options: ['Allow', 'Deny'] }),
+      question('ready', 'r', { leave: true, question: 'Ready for you: Web app. Take it in?', options: ['Take in'] }),
+      question('sub', 'r', { agent_id: 'k' }),
+    ],
+  })
+  const { container, unmount } = draw(conv)
+  expect(container.querySelector('.ask-card')).toBeNull()
+  unmount()
+  // (Closed, or on Talk: hidden, not gone - an answer half written in it stays.)
+  expect(draw(asking(), undefined, { open: false }).container.querySelector('.ask-card')).not.toBeVisible()
+  expect(draw(asking(), undefined, { tab: 'Talk' }).container.querySelector('.ask-card')).not.toBeVisible()
+})

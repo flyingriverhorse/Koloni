@@ -21,6 +21,7 @@ import { HEIGHT, NARROWEST, WIDEST, WIDTH_KEY, latestOf, storedWidth, unreadOf, 
 import { ofChat } from '../ready/ready'
 import { useReady } from '../ready/useReady'
 import { nextTopic, titleOf } from '../topics/topics'
+import { AskCard } from './AskCard'
 import { Composer, type ComposerTopic } from './Composer'
 import { MessageList, type RequestHandlers } from './MessageList'
 import { toFront } from '../shell/move'
@@ -448,6 +449,8 @@ export function ChatPanel() {
           </div>
         )}
       </div>
+      {/* The Orchestrator's question, just over the message box (0.1.5). */}
+      <AskCard conv={conv} open={open} tab={tab} onAnswer={answerQuestion} />
       {/* Open, under the chat; closed, the small box's one line - the same box, the same draft. */}
       <Composer
         compact={!open}

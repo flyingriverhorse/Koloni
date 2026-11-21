@@ -20,6 +20,7 @@ import {
 import { ALIBABA_CONSOLE } from '../agents/failure'
 import { when } from '../canvas/turns'
 import { MessageList } from './MessageList'
+import { ASK_CARD_ID } from './chatLine'
 
 /** A step's row by its words: in the chat its file is a pill in them (0.1.5). */
 const stepSaid = (words: string) => (_: string, el: Element | null) => el?.classList.contains('tool-row-summary') === true && el.textContent === words
@@ -685,12 +686,22 @@ const askedBy = (over: Parameters<typeof question>[2] = {}) =>
     questions: [question('q', 'r', { options: ['hello', 'hey'], ...over })],
   })
 
-test('a question the lead asks is answered under its call', async () => {
-  const onAnswer = vi.fn().mockResolvedValue(undefined)
-  render(<MessageList {...handlers} state={askedBy()} onAnswer={onAnswer} />)
-  expect(screen.getByText('Which greeting?')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'hey' }))
-  expect(onAnswer).toHaveBeenCalledWith('q', 'hey')
+test('in its turn the open question is one line that takes the focus to the card over the box', async () => {
+  // (The card itself is over the message box, ChatPanel's AskCard: a stand-in here.)
+  render(
+    <>
+      <MessageList {...handlers} state={askedBy()} />
+      <form id={ASK_CARD_ID}>
+        <input type="radio" name="a" aria-label="hello" />
+        <input type="radio" name="a" aria-label="hey" />
+      </form>
+    </>,
+  )
+  const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
+  const line = within(card).getByRole('button', { name: 'Orchestrator asks: Which greeting? · waits for you' })
+  expect(within(card).queryByRole('button', { name: 'hey' })).toBeNull()
+  await userEvent.click(line)
+  expect(screen.getByRole('radio', { name: 'hello' })).toHaveFocus()
 })
 
 const WAITS_FOR_ANSWER = 'Your message waits until this question is answered'
@@ -714,7 +725,7 @@ test('a message queued behind a question says it waits for the answer, under the
 test('an answered question shows the question and what you said, and no card', () => {
   render(<MessageList {...handlers} state={askedBy({ status: 'answered', answer: 'hey' })} />)
   expect(screen.getByText('Which greeting?')).toBeInTheDocument()
-  expect(screen.getByText('hey')).toBeInTheDocument()
+  expect(screen.getByText('hey', { selector: 'summary span' })).toBeInTheDocument()
   expect(screen.queryByLabelText('Your answer')).not.toBeInTheDocument()
   expect(screen.queryByText(/ask_user/)).not.toBeInTheDocument()
 })
@@ -1491,12 +1502,13 @@ test('a turn with no Lead gets no card, and what it did stands under its last me
   expect(screen.getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
 })
 
-test('the Lead’s open question sits in its turn’s card, and the card says it waits for you where its time would be', () => {
+test('the Lead’s open question is a line in its turn, and the turn says it waits for you where its time would be', () => {
   render(<MessageList {...handlers} state={askedBy()} />)
   const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
-  expect(within(card).getByText('Which greeting?')).toBeInTheDocument()
-  expect(within(card).getByRole('button', { name: 'hey' })).toBeInTheDocument()
-  expect(within(card).getByText('waits for you')).toBeInTheDocument()
+  expect(within(card).getByRole('button', { name: /^Orchestrator asks: Which greeting\?/ })).toBeInTheDocument()
+  // (Its options and your answer are on the card over the message box.)
+  expect(within(card).queryByLabelText('Your answer')).toBeNull()
+  expect(card.querySelector('.turn-head')).toHaveTextContent(/waits for you$/)
   expect(card.querySelector('time')).toBeNull()
 })
 
@@ -1517,7 +1529,7 @@ test('two open questions in one turn show one queued-message note, under both', 
   for (const one of ['Which greeting?', 'Which colour?']) expect(text.indexOf(one)).toBeLessThan(text.indexOf(WAITS_FOR_ANSWER))
 })
 
-test('an answered question closes to its row in the card, and the foot counts it', () => {
+test('answered, "Question: … / Answered: …" opens to its options with the given one ticked; the foot counts it', async () => {
   const asked = askedBy({ status: 'answered', answer: 'hey' })
   // (Not counted: KOLONİ's own card, and one the Orchestrator answered for you.)
   const others = [
@@ -1527,7 +1539,11 @@ test('an answered question closes to its row in the card, and the foot counts it
   const state = { ...asked, runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [...asked.messages, assistantMessage('m2', 'r', 'Going with hey.')], questions: [...asked.questions, ...others] }
   render(<MessageList {...handlers} state={state} />)
   const card = screen.getByRole('article', { name: /^Orchestrator, / })
-  expect(within(card).getByText('Which greeting?').closest('.question-row')).toHaveTextContent('hey')
+  const row = within(card).getByText('Which greeting?').closest('details.asked-row') as HTMLElement
+  expect(row.querySelector('summary')).toHaveTextContent(/^Question: Which greeting\?Answered: hey$/)
+  await userEvent.click(row.querySelector('summary')!)
+  expect(within(row).getByRole('listitem', { name: 'hey, your answer' })).toBeInTheDocument()
+  expect(within(row).getByRole('listitem', { name: 'hello' })).toBeInTheDocument()
   expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent(/^1 question/)
 })
 

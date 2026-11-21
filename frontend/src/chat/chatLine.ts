@@ -3,6 +3,7 @@
  * that each can be checked on its own.
  */
 import { titleOf } from '../agents/agentStatus'
+import { isReadyCard } from '../agents/teamRun'
 import type { Message, Question } from '../api/types'
 import { activeRun, type ConvState } from '../state/applyEvent'
 import { waitingOf } from './waiting'
@@ -34,9 +35,18 @@ export const unreadOf = (inChat: Message[], seen: ReadonlySet<string>): number =
 
 export const firstLine = (text: string) => text.split('\n').map(part => part.trim()).find(Boolean) ?? ''
 
-/** The Orchestrator's question that waits for your answer (KOLONİ's own card about one of its calls is not its question). */
-export const leadQuestion = (conv: ConvState): Question | undefined =>
-  conv.questions.find(q => q.status === 'pending' && !q.leave && conv.agents.some(a => a.id === q.agent_id && a.depth === 0))
+/** The card over the message box that holds the Orchestrator's question (AskCard): its line in the turn takes the focus there. */
+export const ASK_CARD_ID = 'ask-card'
+
+/** The Orchestrator's own question, asked or over: not KOLONİ's card about one of its calls, nor its Ready for you card. */
+export const isLeadAsk = (conv: ConvState, q: Question): boolean =>
+  !q.leave && !isReadyCard(q) && conv.agents.some(a => a.id === q.agent_id && a.depth === 0)
+
+/** The Orchestrator's questions that wait for your answer, in the order asked (0.1.5: on the card over the message box). */
+export const leadQuestions = (conv: ConvState): Question[] => conv.questions.filter(q => q.status === 'pending' && isLeadAsk(conv, q))
+
+/** The Orchestrator's question that waits for your answer: the first. */
+export const leadQuestion = (conv: ConvState): Question | undefined => leadQuestions(conv)[0]
 
 /** What the closed chat says happened last: what the Orchestrator asks, else who is at work, else the first line of the newest message in it. */
 export function latestOf(conv: ConvState, inChat: Message[]): string {

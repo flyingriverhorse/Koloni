@@ -2232,6 +2232,232 @@ a.view-run {
   animation: composer-sweep 1.8s ease-in-out infinite;
 }
 
+/* The Orchestrator's question over the message box (0.1.5): a framed card, its options numbered, scrolled when tall. */
+.ask-card {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  max-height: min(420px, 45vh);
+  margin: 0 10px 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: auto;
+}
+
+.ask-card[hidden] {
+  display: none;
+}
+
+.ask-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 4px 2px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+.ask-who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ask-pager {
+  display: flex;
+  flex: none;
+  align-items: center;
+  font-size: var(--text-meta);
+}
+
+.ask-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px 12px;
+}
+
+.ask-title {
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+  overflow-wrap: anywhere;
+}
+
+.ask-more {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-note);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* An option is its number, its words and - chosen - a tick: the radio is there for the keyboard and a screen reader,
+   its focus drawn on the row. */
+.ask-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: var(--text-note);
+  cursor: pointer;
+}
+
+.ask-option:hover,
+.ask-option:has(input[type='radio']:checked) {
+  background: var(--hover);
+}
+
+.ask-option input[type='radio'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.ask-option:has(input[type='radio']:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.ask-n {
+  flex: none;
+  width: 10px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-title);
+  text-align: right;
+}
+
+.ask-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ask-check {
+  flex: none;
+  color: var(--accent);
+}
+
+.ask-own .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ask-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* In its turn: the open question as one line that goes to the card; once over, what was asked and answered. */
+.ask-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 8px 2px 10px;
+  border: 0;
+  border-left: 1px solid var(--accent);
+  background: none;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: var(--text-note);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ask-line:hover {
+  background: var(--hover);
+}
+
+.ask-line-words {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ask-line-waits {
+  color: var(--warn);
+}
+
+.asked-row > summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 2px 8px 2px 10px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-note);
+  list-style: none;
+  cursor: pointer;
+}
+
+.asked-row > summary::-webkit-details-marker {
+  display: none;
+}
+
+.asked-row > summary:hover {
+  color: var(--text);
+}
+
+.asked-q,
+.asked-a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.asked-q b {
+  color: var(--text-soft);
+  font-weight: var(--weight-title);
+}
+
+.asked-a span {
+  color: var(--text-soft);
+}
+
+.asked-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0 6px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--border);
+  list-style: none;
+  font-size: var(--text-note);
+}
+
+.asked-options li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.asked-options svg {
+  color: var(--accent);
+}
+
+.asked-none {
+  width: 12px;
+}
+
 @keyframes composer-sweep {
   from {
     left: -40%;

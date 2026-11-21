@@ -51,7 +51,8 @@ import { ToolRun } from './ToolRun'
 import { TurnCard } from './TurnCard'
 import { TurnSummary } from './TurnSummary'
 import { callsByMessage, stepIcon, toolRuns } from './toolRuns'
-import { answerLast } from './chatLine'
+import { answerLast, isLeadAsk } from './chatLine'
+import { AskedRow, AskLine } from './AskCard'
 import { asksOutside } from './toolSummary'
 import { PARTS, type Waiting, decidedOf, waitingId, waitingOf } from './waiting'
 import { DecidedForYou } from './DecidedForYou'
@@ -900,14 +901,21 @@ export function MessageList({
       : undefined
   }
 
+  /**
+   * A question put in a call: the Orchestrator's own one line in its turn (0.1.5: its card is over the message box), and
+   * once over what was asked and answered; KOLONİ's and a Ready for you card as their cards.
+   */
+  const askRow = (q: Question) => {
+    if (!isLeadAsk(state, q)) return <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />
+    return q.status === 'pending' ? <AskLine key={q.id} question={q} who={nameOf(q.agent_id)} /> : <AskedRow key={q.id} question={q} />
+  }
+
   /** The questions put in a call, one after another, and the Lead's card where a Take in met a clash. */
   const questionCards = (call: ToolCall, asks: Question[]) => {
     const clash = clashOf(call)
     return (
       <Fragment key={call.id}>
-        {asks.map(q => (
-          <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />
-        ))}
+        {asks.map(askRow)}
         {clash && (
           <MergeCard
             merge={clash}

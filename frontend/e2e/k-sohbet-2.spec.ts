@@ -70,3 +70,29 @@ test('while a command runs the status line over the box and the Orchestrator’s
   await expect(page.getByText('STOPPED', { exact: true })).toBeVisible({ timeout: 15_000 })
   await expect(status).toHaveText(/^Orchestrator is ready/)
 })
+
+test('1 and Enter answer the card over the box; the turn keeps one line, then Question / Answered', async ({ page }) => {
+  await openFreshConversation(page)
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await page.getByLabel('Message').fill('which greeting do you want to use?')
+  await page.getByRole('button', { name: 'Send' }).click()
+  const card = chat.getByRole('form', { name: 'Orchestrator asks' })
+  await expect(card).toContainText(/^Orchestrator asks · /)
+  // In its turn, one line: a click takes the focus to the card.
+  const line = chat.getByRole('article').getByRole('button', { name: 'Orchestrator asks: Which greeting should I use? · waits for you' })
+  await line.click()
+  await expect(card.getByRole('radio', { name: 'hello' })).toBeFocused()
+  // Nothing of the card is past the chat's edge, over the message box.
+  const [inCard, box] = [await card.boundingBox(), await chat.locator('.composer').boundingBox()]
+  expect(inCard!.y + inCard!.height).toBeLessThanOrEqual(box!.y + 1)
+  await page.keyboard.press('2')
+  await expect(card.getByRole('radio', { name: 'hey' })).toBeChecked()
+  await page.keyboard.press('Enter')
+  await expect(chat.getByText('Going with hey.')).toBeVisible()
+  await expect(card).toHaveCount(0)
+  await expect(page.getByLabel('Message')).toBeFocused()
+  const asked = chat.locator('details.asked-row')
+  await expect(asked.locator('summary')).toHaveText(/^Question: Which greeting should I use\?\s*Answered: hey$/)
+  await asked.locator('summary').click()
+  await expect(asked.getByRole('listitem', { name: 'hey, your answer' })).toBeVisible()
+})
