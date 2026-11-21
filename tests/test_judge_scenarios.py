@@ -359,20 +359,25 @@ def test_claude_codes_own_bash_runs_a_delete_the_users_rule_names_without_a_card
 @pytest.mark.no_po
 def test_copilots_shell_runs_a_delete_the_users_rule_names_without_a_card(
         copilot_native, wait_run, project_dir):  # noqa: F811
+    # (a version whose new shell was read: it starts at the project, a folder known)
     client, cli = copilot_native([{"shell": "rm -rf build", "output": ""}, {"say": "cleaned"}],
-                                 default_steps=[verdict_line("run", RULE)])
+                                 default_steps=[verdict_line("run", RULE)], version="1.0.67")
     ran_on_the_rule(client, project_dir, cli, wait_run)
 
 
 @pytest.mark.no_po
-def test_agys_run_command_runs_a_delete_the_users_rule_names_without_a_card(
+def test_agys_run_command_with_no_folder_is_a_card_the_check_never_sees(
         agy_app, wait_run, project_dir):  # noqa: F811
+    # (security review of K-yargıç, MEDIUM-3: where its shell stands is not known - `rm -rf build`
+    # there may be another build/ than the one the user's rule names)
     client, cli, default = agy_app(
         [{"tool": "run_command", "asks": True, "parameters": {"CommandLine": "rm -rf build"},
-          "output": ""}, {"say": "cleaned"}],
+          "output": ""}, {"say": "left it"}],
         mode="native", default_steps=[verdict_line("run", RULE)])
-    ran_on_the_rule(client, project_dir, cli, wait_run)
-    assert len(default.calls) == 1
+    judged_by_local(client, cli)
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE, provider=cli)
+    asked = carded(client, cid, run_id, lambda *args: wait_run(*args, 30))
+    assert asked["status"] == "proposed" and asked["judged"] is None and default.calls == []
 
 
 # --- Decided for you: OK ------------------------------------------------------------------------
