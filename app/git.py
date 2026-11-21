@@ -1454,7 +1454,7 @@ def add_worktree(
     sha = out.decode("ascii", "replace").strip()
     try:
         snapshot, why = _snapshot(project, git, folder, sha, no_hooks, most, branch)
-    except Refused as exc:  # (no branch lost for it: from HEAD, and said)
+    except (Refused, OSError) as exc:  # (no branch lost for it: from HEAD, and said)
         snapshot, why = None, NOT_TAKEN.format(why=_cut(str(exc)))
     code, out, said = _worktree_add(project, git, no_hooks, "-b", branch, str(tree),
                                     snapshot or sha)

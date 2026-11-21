@@ -355,3 +355,42 @@ def test_google_s_credentials_and_token_files_stay_out(repo, runtime):
     taken = held(repo, snapshot)
     assert "new.txt" in taken and "credentials.json" not in taken and "token.json" not in taken
     assert not has_object(repo, run(repo, "hash-object", "token.json"))
+
+
+@needs_merge_base
+def test_a_staged_submodule_entry_stays_out(repo, runtime):
+    head = run(repo, "rev-parse", "HEAD")
+    run(repo, "update-index", "--add", "--cacheinfo", f"160000,{head},sub")
+    (repo / "a.txt").write_text("changed\n")
+    snapshot, why = snapshot_of(repo, runtime)
+    assert snapshot and why is None
+    assert "sub" not in held(repo, snapshot) and "160000" not in run(repo, "ls-tree", snapshot)
+
+
+def test_a_snapshot_whose_index_cannot_be_copied_leaves_the_branch_from_head(
+    repo, runtime, monkeypatch
+):
+    def fails(*_args, **_kwargs):
+        raise OSError("the index is held")
+
+    (repo / "a.txt").write_text("changed\n")
+    monkeypatch.setattr(git.shutil, "copy2", fails)
+    snapshot, why = snapshot_of(repo, runtime)
+    assert snapshot is None and "the index is held" in why
+    assert run(runtime / "wt", "rev-parse", "HEAD") == run(repo, "rev-parse", "HEAD")
+
+
+@needs_merge_base
+def test_a_clash_over_what_you_committed_since_is_a_conflict_not_yours(repo, runtime):
+    (repo / "nine.txt").write_text("".join(f"{n}\n" for n in range(1, 10)))
+    run(repo, "add", "nine.txt")
+    run(repo, "commit", "-qm", "nine")
+    lines = (repo / "nine.txt").read_text().splitlines(keepends=True)
+    (repo / "nine.txt").write_text("".join([*lines[:4], "5-mine\n", *lines[5:]]))
+    copy = copies.make_branch(repo, runtime, "agent1", "x")  # (5-mine not committed then)
+    (copy.root / "nine.txt").write_text("".join([*lines[:4], "5-agent\n", *lines[5:]]))
+    assert git.commit_branch(copy.root, copy.branch, ["nine.txt"], "agent", runtime / "no-hooks")
+    (repo / "nine.txt").write_text("".join([*lines[:4], "5-mine-other\n", *lines[5:]]))
+    run(repo, "commit", "-qam", "mine, otherwise")  # (nothing left to commit: theirs is in)
+    look = git.branch_look(repo, copy.branch, copy.start, copy.snapshot_sha)
+    assert (look["conflicts"], look["yours"], look["dirty"]) == (["nine.txt"], [], [])
