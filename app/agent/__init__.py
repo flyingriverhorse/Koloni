@@ -730,9 +730,9 @@ IN_A_COPY = (
 NO_GIT = "git does not work in the copy."
 GIT_ON_BRANCH = (
     "The copy is a git worktree on its own branch {branch}: git status, diff, log, show, add and "
-    "commit work there, and your commits go onto {branch}. What reaches the user's own repository "
-    "- switching branches, stashing, reset, merge, push, config - and an option those commands do "
-    "not usually take are asked about every time."
+    "commit work there with a few plain options, and your commits go onto {branch}. Any other "
+    "option, and what reaches the user's own repository - switching branches, stashing, reset, "
+    "merge, push, config - is asked about every time."
 )
 # Said with it to an agent that has tools of the user's MCP servers: an agent whose
 # instructions are written once (a CLI session) was told the project's path there.
