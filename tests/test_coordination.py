@@ -286,7 +286,9 @@ def test_at_start_koloni_forgets_its_worktree_that_a_crash_left(make_client, wai
 # By a name that is not KOLONİ's own (python, node, uvicorn): the user's words may let it run.
 KILLS = ["taskkill /IM notepad.exe /F", "taskkill /f /im chrome.exe", "taskkill //F //IM x.exe",
          "pkill vite", "killall ruby", "Stop-Process -Name java", "spps -n code",
-         "kill -Name java"]
+         "kill -Name java", "Stop-Process -Name:java", "spps -name:code", "kill -name:vim",
+         "Stop-Process -Name java,ruby", 'Stop-Process -Name "java","ruby"',
+         "taskkill /IM:notepad.exe /F", "tskill notepad", "pkill -9 vite"]
 # By a name KOLONİ itself may run under, a filter, a wildcard, or a process looked up (by its
 # port, say: 8790 is KOLONİ's) - always asked.
 KILLS_KOLONI = [
@@ -305,11 +307,34 @@ KILLS_KOLONI = [
     'wmic process where name="node.exe" delete', "wmic process where processid=1 call terminate",
     "Invoke-CimMethod -Query \"select * from Win32_Process\" -MethodName Terminate",
     "fuser -k 8000/tcp", "npx kill-port 3000", "npx -y kill-port 8790", "fkill node",
+    # (review round 2: a switch with its value after `:`; .NET's and CIM's own; tskill; a package
+    # runner's kill-port; a pid that is everyone's, a group or a variable; owners and parents)
+    "taskkill /IM:python.exe /F", 'taskkill /FI:"IMAGENAME eq node.exe"', "taskkill /im:node.exe",
+    "[Diagnostics.Process]::GetProcessesByName('node') | % { $_.Kill() }",
+    "[System.Diagnostics.Process]::GetProcesses() | % Kill",
+    "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Remove-CimInstance",
+    "gwmi Win32_Process | rwmi", "tskill python", "npm exec kill-port 3000",
+    "npm x kill-port 3000", "pnpm dlx kill-port 3000", "pnpm exec kill-port 3000",
+    "yarn dlx kill-port 3000", "kill -9 -1", "kill -- -1", "kill -s KILL -1", "kill 0",
+    "kill -9 -1234", "kill $PPID", "kill $pid", "Stop-Process -Name:python",
+    "Stop-Process -N:python", "spps -name:node", "kill -name:node", "Stop-Process -Name node,java",
+    'Stop-Process -Name "java","node"', "pkill -u me", "pkill -U 1000 x", "pkill -P 1",
+    "pkill -s 0", "pkill -t pts/1", "pkill -G staff", "killall -u me",
+    # (the CLIs KOLONİ runs agents on: other agents' runs)
+    "killall claude", "pkill codex", "Stop-Process -Name copilot", "taskkill /IM qodercli.exe",
+    "killall agy",
 ]
 KILLS_HANDED = ["Get-Process python | Stop-Process", 'cmd /c "taskkill /IM x.exe"']
 BY_ID = ["taskkill /PID 1234 /F", "kill 1234", "kill -9 1234", "Stop-Process -Id 1234",
          "Stop-Process 1234", "Stop-Process -Force 1234", "Stop-Process -Id:1234",
-         "$p = Start-Process python -PassThru; Stop-Process -Id $p.Id"]
+         "$p = Start-Process python -PassThru; Stop-Process -Id $p.Id", "kill -l", "kill %1",
+         # (a process the line itself started - what ALONGSIDE tells agents to do)
+         "$p = Start-Process python -PassThru; Get-Process -Id $p.Id; Stop-Process -Id $p.Id",
+         "python -m uvicorn app:app --port 0 & sleep 2; kill $!"]
+# Words of a line that are no process looked up or stopped: a message, a path, a search.
+NO_STOP = ['git commit -m "fix: kill stale ps entries"', "cat docs/ps/kill.md",
+           'git grep -n "taskkill\\|tasklist"', 'grep -rn "Stop-Process" . | grep -v Get-Process',
+           'Select-String -Pattern "kill" -Path ps.log', "grep -n terminate x.py && ps aux"]
 
 
 @pytest.mark.parametrize("command", KILLS)
@@ -333,9 +358,11 @@ def test_from_a_copy_stopping_programs_by_name_is_always_asked(command):
     assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME
 
 
-@pytest.mark.parametrize("command", BY_ID)
+@pytest.mark.parametrize("command", BY_ID + NO_STOP)
 def test_stopping_a_program_by_its_id_is_no_harm(command):
-    assert harms(command) == "" and copy_reason(command, True, "/work/proj", "/work/rt") == ""
+    # (no harm: unasked at Full auto; nothing of a copy's: not refused in a turn nobody watches)
+    assert harms(command) == "", command
+    assert copy_reason(command, True, "/work/proj", "/work/rt") == "", command
 
 
 @pytest.mark.parametrize("command", [
