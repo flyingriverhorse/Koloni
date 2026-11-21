@@ -654,6 +654,16 @@ def test_windows_spellings_of_a_path_still_name_it(tmp_path, monkeypatch):
                   f"$env:HOMEDRIVE{rest}\\x", f"\\\\localhost\\{drive[0]}$\\{rest[1:]}\\x",
                   f"\\\\127.0.0.1\\{drive[0]}$\\{rest[1:]}\\x", f"\\\\?\\{project}\\x"]:
         assert copy_reason(f"Copy-Item x {spelt}", False, str(project), runtime) == said, spelt
+    # (a name's last dots before `;` or `,`; this machine by its name, any 127.x, `[::1]` or
+    # `\\?\UNC\`; a folder of the machine's by any variable that holds one path, then up)
+    monkeypatch.setenv("SystemRoot", f"{drive}\\WINDOWS")
+    monkeypatch.setenv("ProgramData", f"{drive}\\ProgramData")
+    share = f"{drive[0]}$\\{rest[1:]}\\x"
+    for spelt in [f"{project}.; ls", f"{project}., y", f"\\\\{os.environ['COMPUTERNAME']}\\{share}",
+                  f"\\\\127.0.0.2\\{share}", f"\\\\[::1]\\{share}",
+                  f"\\\\?\\UNC\\localhost\\{share}", f"%SYSTEMROOT%\\..{rest}\\x",
+                  f"$env:windir\\..{rest}\\x", f"$env:ProgramData\\..{rest}\\x"]:
+        assert copy_reason(f"Copy-Item x {spelt}", False, str(project), runtime) == said, spelt
     assert copy_reason(f"Copy-Item x {held}\\b\\tree.", False, str(project), runtime,
                        held / "a" / "tree") == OUT_OF_COPY.format(path=str(held))
 
@@ -742,6 +752,7 @@ def test_a_venv_made_elsewhere_in_a_copy_is_no_rebuild_of_a_linked_one():
     "echo x>node_modules/a.js", r"Copy-Item -Destination node_modules\x a.js",
     r"Copy-Item a.js -Destination:node_modules\x", "cp -t node_modules/x a.js",
     "cp --target-directory=node_modules/x a.js", "echo x > src/../node_modules/a.js",
+    "cp -rt node_modules/x a.js", "mv -ft node_modules/x a.js", "cp -tnode_modules/x a.js",
 ])
 def test_in_a_copy_with_links_a_write_in_them_is_asked(command):
     assert copy_reason(command, True, "/work/proj", "/work/rt") == WRITES_THROUGH_LINKS, command

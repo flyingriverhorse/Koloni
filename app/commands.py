@@ -1106,6 +1106,8 @@ _WRITES_ANY = frozenset({"set-content", "sc", "add-content", "ac", "out-file", "
                          "tee-object"})
 # A copy's or move's target by its option (`Copy-Item -Destination x`, `cp -t x`).
 _TARGET_OPTIONS = ("-destination", "-t", "--target-directory")
+# GNU cp's and mv's short options in one word, the target's `t` among them (`-S` takes a value).
+_CLUSTER_TARGET = re.compile(r"-[^-St]*t(.*)")
 
 
 def _in_linked(word: str, own: re.Pattern | None = None) -> bool:
@@ -1144,7 +1146,12 @@ def _writes_links(words: list[str], own: re.Pattern | None = None) -> bool:
         targets = [value for at, word in enumerate(rest)
                    if (value := _option_value(rest, at, _TARGET_OPTIONS)) is not None]
         named = [word for word in rest if not word.startswith("-")]
-        return any(_in_linked(one, own) for one in targets or named[-1:])
+        # (GNU's `-t` in a cluster, `cp -rt x a.js`, `cp -tx a.js`: as well, never instead - in
+        # PowerShell `cp` is Copy-Item, whose `-Container` is no target)
+        clustered = [found[1] or (rest[at + 1] if at + 1 < len(rest) else "")
+                     for at, word in enumerate(rest)
+                     if program in ("cp", "mv") and (found := _CLUSTER_TARGET.fullmatch(word))]
+        return any(_in_linked(one, own) for one in (targets or named[-1:]) + clustered)
     in_place = program == "sed" and any(word.startswith(("-i", "--in-place")) for word in words)
     return (program in _WRITES_ANY or in_place) and any(_in_linked(one, own) for one in rest)
 
@@ -1289,42 +1296,47 @@ def _spellings(path: str) -> re.Pattern:
                       + r")(?![\w.-])")
 
 
-# The user's own folders a command may name by a variable (`%LOCALAPPDATA%`, `$env:TEMP`,
-# `${HOME}`, `$HOME`) or `~`: read with KOLONİ's own values (`_as_path_line`).
-_USERS_FOLDERS = frozenset({"LOCALAPPDATA", "APPDATA", "USERPROFILE", "HOME", "TEMP", "TMP",
-                            "TMPDIR", "XDG_DATA_HOME", "HOMEDRIVE", "HOMEPATH", "SYSTEMDRIVE"})
+# A folder a command may name by a variable (`%LOCALAPPDATA%`, `$env:SystemRoot`, `${HOME}`,
+# `$HOME`) or `~`: read with KOLONİ's own value where that is one full path (`_as_path_line`) -
+# never by the shell's own place (`$PWD`, `$OLDPWD`, `$_`), which KOLONİ's is not.
+_SHELLS_OWN = frozenset({"PWD", "OLDPWD", "_"})
 _VARIABLE = re.compile(r"(?i)%(\w+)%|\$\{?env:(\w+)\}?|\$\{(\w+)\}|\$(\w+)")
 _TILDE = re.compile(r"(?:^|(?<=[\s'\"=:(,]))~(?=[\\/\s'\")]|$)")
-# This machine's own drives by a share or a device path: `\\localhost\c$\x`, `\\127.0.0.1\c$\x`,
-# `\\?\C:\x`, `\\.\C:\x`.
-_LOCAL_SHARE = re.compile(r"(?i)[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/]"
-                          r"(?:([a-z])\$(?=[\\/])|(?=[a-z]:))")
+# This machine's own drives by a share or a device path: `\\localhost\c$\x`, `\\127.0.0.2\c$\x`,
+# `\\[::1]\c$\x`, `\\<its name>\c$\x`, `\\?\UNC\localhost\c$\x`, `\\?\C:\x`, `\\.\C:\x`.
+_THIS_MACHINE = os.environ.get("COMPUTERNAME", "")
+_LOCAL_SHARE = re.compile(r"(?i)[\\/]{2}(?:[?.][\\/]UNC[\\/])?(?:localhost|127(?:\.\d{1,3}){3}|"
+                          r"\[::1\]|\?|\." + (f"|{re.escape(_THIS_MACHINE)}" if _THIS_MACHINE
+                                              else "")
+                          + r")[\\/](?:([a-z])\$(?=[\\/])|(?=[a-z]:))")
 # A full path in a line (from a drive or a root), and a `..` part in one.
 _FULL_PATH = re.compile(r"(?:^|(?<=[\s'\"=<>(,;|&:]))(?:[A-Za-z]:|[\\/])[^\s'\"<>|;&,()]*")
 _UP = re.compile(r"(?:^|[\\/])\.\.(?:[\\/]|$)")
 
 
-def _users_folder(found: re.Match) -> str:
+def _variable_folder(found: re.Match) -> str:
     name = next(filter(None, found.groups()))
-    if name.upper() not in _USERS_FOLDERS:
-        return found[0]
     home = os.path.expanduser("~") if name.upper() in ("HOME", "USERPROFILE") else None
-    return os.environ.get(name.upper() if os.name == "nt" else name) or home or found[0]
+    value = None if name.upper() in _SHELLS_OWN else (
+        os.environ.get(name.upper() if os.name == "nt" else name) or home)
+    # (one full path: `PATH`'s list, a word or a number is no folder)
+    return value if value and _full(value) and os.pathsep not in value else found[0]
 
 
 def _expanded(command: str) -> str:
-    """A command with its paths as the machine reads them: the user's folders by their variables
-    (`_USERS_FOLDERS`, `%HOMEDRIVE%%HOMEPATH%`, `~`) with KOLONİ's own values, this machine's
+    """A command with its paths as the machine reads them: a folder by its variable
+    (`_variable_folder`, `%HOMEDRIVE%%HOMEPATH%`, `~`) with KOLONİ's own value, this machine's
     drives by a share (`_LOCAL_SHARE`), separators doubled or with `.` between them as one
     (`C:\\\\Users`, `C://x`, `/c//x`, `C:\\.\\x`) - a doubled one that starts a word stays
     (`\\\\server\\share`) - and a full path's `..` gone where it leads (`C:\\a\\..\\proj`); on
     Windows a name's last dots go (`proj.\\x`, `proj.` are `proj` there).
     shortcut: a short name (`PROJ~1`) and a name's last spaces are not read so; resolve them if
     an agent is seen to write one."""
-    line = _TILDE.sub(lambda _found: os.path.expanduser("~"), _VARIABLE.sub(_users_folder, command))
+    line = _TILDE.sub(lambda _found: os.path.expanduser("~"),
+                      _VARIABLE.sub(_variable_folder, command))
     line = _LOCAL_SHARE.sub(lambda found: f"{found[1]}:" if found[1] else "", line)
     if os.name == "nt":
-        line = re.sub(r"(?<=\w)\.+(?=[\\/\s'\")]|$)", "", line)
+        line = re.sub(r"(?<=\w)\.+(?=[\\/\s'\");,]|$)", "", line)
     line = re.sub(r"(?<=[^\s'\"=(])[\\/](?:\.?[\\/])+", lambda _found: os.sep, line)
     climbs = ntpath.normpath if os.name == "nt" else posixpath.normpath
     return _FULL_PATH.sub(lambda found: climbs(found[0]) if _UP.search(found[0]) else found[0],
@@ -1543,8 +1555,8 @@ def _copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
     folder to make it anew, `_REBUILDERS`, or writes there, `_writes_links` - may go through a
     link into the project's own (K-70-junction), in a shell too (`cmd /c rd /s x`).
     shortcut: by the path as written, either slash, in any case on Windows; a short name
-    (`PROJ~1`), a variable but the user's folders' (`_USERS_FOLDERS`) or a script that names it
-    is not seen - nor a delete in a script, or by a program `_through_links` does not list.
+    (`PROJ~1`), a variable KOLONİ has no folder in (`_variable_folder`) or a script that names
+    it is not seen - nor a delete in a script, or by a program `_through_links` does not list.
     shortcut: a line PowerShell is handed encoded (`-EncodedCommand`), a name spliced by
     backticks (`ki`ll`), and what code handed to `python -c` / `node -e` does are not read;
     `runs_another` and `runs_inline` ask of those where a night's rules hold."""
