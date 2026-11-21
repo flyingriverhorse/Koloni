@@ -334,6 +334,7 @@ function notMergedYet(branch: Branch, pr: boolean, name: string) {
           <span className="mono">{branch.dirty.join(', ')}</span>
         </div>
       )}
+      {branch.taken_in && <div>{branch.taken_in}</div>}
       {branch.note && <div>{branch.note}</div>}
       {!pr && branch.conflicts.length + branch.dirty.length > 0 && (
         <div>Merge looks again first: nothing is merged while any of this stands.</div>
@@ -532,6 +533,11 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
         </div>
       )}
       {also && <div className="muted cmd-approval-note">{also}</div>}
+      {branch?.started && (
+        <div className="muted cmd-approval-note" role="note" aria-label="Where it started">
+          {branch.started}
+        </div>
+      )}
       {branch && inTheWay > 0 && notMergedYet(branch, pr, name)}
       {look.length > 0 && (
         <div className="muted cmd-approval-note" role="note" aria-label="Worth a look">

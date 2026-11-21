@@ -441,6 +441,13 @@ class Copy:
     # ... and the project's branch it was made from, with that one's commit then: what its merge
     # is held to (`git.branch_look`'s drift).
     start: tuple[str, str] | None = None
+    # W-1: the commit of the user's folder as the branch began (`git._snapshot`; not `snapshot`,
+    # which is a look at the copy's files) - what its agents' work is measured from on its way
+    # back (`git.agents_share`); None: it began at `start`'s commit. And why it did not begin
+    # from the folder where it holds work of the user's that was not committed (said on its
+    # card); None where nothing was left out.
+    snapshot_sha: str | None = None
+    from_head: str | None = None
 
     def holds(self, path: str) -> bool:
         """Whether a path from the project root is one this copy holds (`part`): all that Take
@@ -915,18 +922,21 @@ def _carry(source: Copy, copy: Copy, paths: Iterable[str],
 
 def make_branch(
     project: Path, runtime_root: Path, name: str, short: str, linked: bool = True,
-    start: Sequence[str] | None = None, tip: str | None = None,
+    start: Sequence[str] | None = None, tip: str | None = None, snapshot: str | None = None,
 ) -> Copy:
     """K-dal-takim: a copy whose tree is a git worktree on a new branch `koloni/<short>`, made
-    from where the project's branch is (`git.add_worktree`), in `<copies folder>/<name>` as a
-    copy is. It holds what git tracks (`Copy.git`): what the project's git ignores is read in
-    the project. The dependency folders are linked in as a copy's. `git.Refused` where git will
-    not (no repository, HEAD on no branch); TooBig over a copy's caps - nothing left behind.
+    from the user's folder as it is - or, over a copy's caps in new files or with an older git,
+    from where the project's branch is, and why (`git.add_worktree`: `Copy.snapshot_sha`,
+    `Copy.from_head`) - in `<copies folder>/<name>` as a copy is. It holds what git tracks
+    (`Copy.git`): what the project's git ignores is read in the project. The dependency folders
+    are linked in as a copy's. `git.Refused` where git will not (no repository, HEAD on no
+    branch); TooBig over a copy's caps - nothing left behind.
     shortcut: the worktree is checked out whole before the caps are counted; count `git
     ls-files` first if a project that big is ever put on a branch.
     `short` a branch of KOLONİ's own (`koloni/x`): that branch as it is, opened again for an agent
-    that goes on (`git.reopen_worktree`, held to the `start` and `tip` on its record) - and never
-    deleted here, which would take its work."""
+    that goes on (`git.reopen_worktree`, held to the `start` and `tip` on its record; `snapshot`,
+    the one it began from, as its record has it) - and never deleted here, which would take its
+    work."""
     from app import git  # (here: git's executors import commands, which imports this)
 
     held = folder(runtime_root)
@@ -934,17 +944,20 @@ def make_branch(
         raise OSError(NO_PLACE)
     project, root = Path(project).resolve(), held / _plain(name) / TREE
     root.parent.mkdir(parents=True)
-    branch, again = None, short.startswith(git.BRANCH_PREFIX)
+    branch, again, why = None, short.startswith(git.BRANCH_PREFIX), None
     try:
-        branch, into, sha = git.reopen_worktree(
-            project, root, short, root.parent / NO_HOOKS, start, tip,
-            under=folders(runtime_root)) if again else (
-            git.add_worktree(project, root, short, root.parent / NO_HOOKS))
+        if again:
+            branch, into, sha = git.reopen_worktree(
+                project, root, short, root.parent / NO_HOOKS, start, tip,
+                under=folders(runtime_root))
+        else:
+            branch, into, sha, snapshot, why = git.add_worktree(
+                project, root, short, root.parent / NO_HOOKS, (MAX_FILES, MAX_BYTES))
         files, _links, _size = _scan(root, stop=True)
         listed = _git_listed(project)
         links = _scan(project, avoid=held.resolve(), held=listed)[1] if listed is not None else []
         copy = Copy(project, root, {}, {}, {}, git=True, branch=branch,
-                    start=(into, sha))
+                    start=(into, sha), snapshot_sha=snapshot, from_head=why)
         for path in files:
             copy.base[_key(path)] = hashlib.sha256((root / path).read_bytes()).hexdigest()
             copy.names[_key(path)] = path

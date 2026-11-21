@@ -408,8 +408,10 @@ def _branch_files(
     For a thread."""
     listed = list(look["files"].items())
     try:
+        # (W-1: from the snapshot it began from - the user's uncommitted work is not the branch's.)
         diffs = git.branch_diffs(copy.project, copy.branch or "",
-                                 [path for path, _ in listed[:MOST_BRANCH_DIFFS]])
+                                 [path for path, _ in listed[:MOST_BRANCH_DIFFS]],
+                                 at=copy.snapshot_sha)
     except git.Refused:
         diffs = {}
     ws, found = Workspace(copy.project), {}

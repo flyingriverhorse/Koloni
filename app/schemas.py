@@ -1467,7 +1467,10 @@ class MergeBranchOut(BaseModel):
     D2: `resolve`, an agent may be asked to put the conflicts together (in the branch's
     worktree); `way`, "pull_request" where the project's finished work goes as one;
     `ask_way`, the card asks which way (the project's first finished branch with a GitHub
-    remote) - `pr_off`, why a pull request cannot be chosen now."""
+    remote) - `pr_off`, why a pull request cannot be chosen now.
+    W-1: `taken_in`, whose Take in, in the folder and not committed, is among what is in the way
+    ((A).3); `started`, that the branch began from the user's last commit, not their folder as it
+    was, and why - said, never in the way (not in `note`, which the card counts so)."""
 
     name: str
     into: str | None = None
@@ -1478,6 +1481,8 @@ class MergeBranchOut(BaseModel):
     way: Literal["pull_request"] | None = Field(None, exclude_if=lambda value: value is None)
     ask_way: bool | None = Field(None, exclude_if=lambda value: not value)
     pr_off: str | None = Field(None, exclude_if=lambda value: value is None)
+    taken_in: str | None = Field(None, exclude_if=lambda value: value is None)
+    started: str | None = Field(None, exclude_if=lambda value: value is None)
 
 
 Side = Literal["agent", "project"]
