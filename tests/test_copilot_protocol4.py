@@ -500,3 +500,66 @@ def test_a_patch_that_moves_a_file_before_another_closes_each_card_by_the_id_it_
     assert not [t for t in snap["tool_calls"] if "c.txt" in (t["result"] or "")
                 and "changed by the CLI" in t["result"]]
     assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
+
+
+# --- The re-review's round --------------------------------------------------------------------
+
+
+def test_a_write_commands_own_request_after_its_hook_is_one_record_that_ends(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    # (Copilot's word that a part is not read-only adds nothing: KOLONİ's own read is stricter.)
+    client, provider = p4(copilot_native, [
+        {"shell": "npm run build", "then_native": True, "readonly": False}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)  # full_auto
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert answers(copilot_native) == [("hook", APPROVE), ("shell", APPROVE)]
+    assert [(c["command"], c["status"]) for c in snap["commands"]] == [("npm run build", "exited")]
+
+
+def test_a_follow_up_judged_again_is_shown_without_kolonis_prefix_and_closes_the_first(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    client, provider = p4(copilot_native, [
+        {"shell": "npm run build", "then_native": True, "paths": ["dist"]}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    first = wait_status(client, cid, "waiting_approval")["commands"][0]
+    client.post(f"/api/commands/{first['id']}/approve", json={})
+    deadline, second = time.monotonic() + scaled(10), None
+    while second is None and time.monotonic() < deadline:
+        snap = client.get(f"/api/conversations/{cid}").json()
+        second = next((c for c in snap["commands"] if c["status"] == "proposed"
+                       and c["id"] != first["id"]), None)
+        time.sleep(0.02)
+    assert second is not None and second["command"] == "npm run build"  # (no prefix shown)
+    client.post(f"/api/commands/{second['id']}/approve", json={})
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert answers(copilot_native) == [("hook", APPROVE), ("shell", APPROVE)]
+    rows = {c["id"]: c for c in snap["commands"]}
+    assert rows[second["id"]]["status"] == "exited"
+    assert rows[first["id"]]["status"] not in ("proposed", "approved", "running")
+    assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
+
+
+def test_a_record_that_never_ends_fails_the_run_with_why(
+    copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+):
+    held = threading.Event()
+    kept = CopilotNativeClient._heard
+
+    async def stuck(self, kind, item, *more):
+        if kind == "item.completed" and item.get("type") == "command_execution":
+            await asyncio.to_thread(held.wait, scaled(30))
+        return await kept(self, kind, item, *more)
+
+    monkeypatch.setattr(CopilotNativeClient, "_heard", stuck)
+    monkeypatch.setattr(app.model_native, "RECORD_SECONDS", 1.0)
+    client, provider = p4(copilot_native, [{"shell": "pytest -q"}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)
+    try:
+        run = wait_run(client, cid, run_id)["runs"][0]
+    finally:
+        held.set()
+    assert run["status"] == "failed" and "could not put all it did on record" in run["error"]

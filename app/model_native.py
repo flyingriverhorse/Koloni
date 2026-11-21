@@ -3019,6 +3019,9 @@ GROUPED = {"requestPermission": ("permissions", "request"),
 QUOTA_SECONDS = 5.0
 # How long its version is waited for (`CopilotNativeClient._version`), as `--version` was.
 VERSION_SECONDS = 10.0
+# How long, its turn over, what it did may still take to be put on record (`keep`) before the run
+# fails saying so - a look over a large project takes seconds, never minutes.
+RECORD_SECONDS = 300.0
 # The run's first word where its commands cannot be kept from the secret files (slice 105).
 NO_SANDBOX = ("Copilot cannot sandbox commands on this machine: secret files are not hidden "
               "from them")
@@ -3251,12 +3254,12 @@ def _subjects(request: dict, root: Path) -> list[str]:
 
 def _says_more(request: dict) -> bool:
     """Whether a request of Copilot's says more than a hook's request showed (protocol 4): it
-    asks to leave its sandbox, or, of a command, what it may reach or write to, or that a part of
-    it is not read-only - then it is judged again, whatever was answered at the hook."""
+    asks to leave its sandbox, or, of a command, what it may reach or write to - then it is judged
+    again, whatever was answered at the hook. (Its word that a part is not read-only is not more:
+    KOLONİ's own read of a command, `reads_here`, is stricter.)"""
     return bool(request.get("requestSandboxBypass")) or request.get("kind") == "shell" and bool(
         request.get("possibleUrls") or request.get("possiblePaths")
-        or request.get("hasWriteFileRedirection")
-        or any(_dict(one).get("readOnly") is False for one in request.get("commands") or []))
+        or request.get("hasWriteFileRedirection"))
 
 
 def _exit_code(said: str, data: dict) -> int | None:
@@ -3776,7 +3779,10 @@ class CopilotNativeClient(CodexNativeClient):
             (k-copilot-cd). (`status.get` asked of a live 1.0.105, 20 Nov 2026.)"""
             from app.cli_surface import measured  # (it imports this module)
 
-            told, _no = await ask("status.get", {})
+            try:
+                told, _no = await asyncio.wait_for(ask("status.get", {}), VERSION_SECONDS)
+            except TimeoutError:
+                return "it did not say its version"
             said = told.get("version")
             heredocs.version = said.strip()[:40] if isinstance(said, str) and said.strip() else None
             if not heredocs.version:
@@ -3880,7 +3886,12 @@ class CopilotNativeClient(CodexNativeClient):
             await self._end(process, job)
             records.put_nowait(None)  # (all it was heard to do is on record before its end)
             with contextlib.suppress(BaseException):
-                await asyncio.shield(keeping)
+                await asyncio.shield(asyncio.wait({keeping}, timeout=RECORD_SECONDS))
+            if not keeping.done():
+                keeping.cancel()
+                broke = broke or ModelUnavailable(
+                    f"{self.label}'s turn ended, but KOLONİ could not put all it did on record "
+                    f"in {RECORD_SECONDS:g} seconds")
             complaint = b""
             with contextlib.suppress(Exception):
                 complaint = await asyncio.wait_for(asyncio.shield(stderr), 2)
@@ -3989,6 +4000,12 @@ class CopilotNativeClient(CodexNativeClient):
             # (what a request after it would name: its command as sent, KOLONİ's prefix on)
             clears = _subjects({**mapped, "fullCommandText": f"{_at_root(root)}"
                                 f"{mapped['fullCommandText']}"} if new_shell else mapped, root)
+        sent = request.get("fullCommandText")
+        if kind == "shell" and isinstance(sent, str) and (prefix := _at_root(root)) and (
+                sent.startswith(prefix)):
+            # Its own request after its hook's, judged again (`_says_more`): KOLONİ's prefix
+            # taken off, the one word that it runs at the project - as at the hook (`_from_hook`).
+            request, new_shell = {**request, "fullCommandText": sent[len(prefix):]}, True
         what = str(request.get("kind"))  # (a hook's: the kind of request it is judged as)
         # Asking to go outside its sandbox is a reason: a card at every level, as Codex's.
         given = {"reason": str(request.get("requestSandboxBypassReason")

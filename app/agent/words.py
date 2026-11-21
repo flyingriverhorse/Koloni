@@ -79,6 +79,8 @@ KOLONIS = "KOLONİ"
 MAX_WHY = 300
 
 UNFINISHED = "interrupted: this tool call did not finish"
+# A command its CLI asked about again for the same call: it ran under the second record.
+ASKED_AGAIN = "asked again: its CLI's own request for it named more, and it ran as asked there"
 
 # What every refusal in a turn nobody is watching (a trigger started it) says: nothing
 # waits, and nothing is done that would have to be asked about. The words are for the

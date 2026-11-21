@@ -226,3 +226,18 @@ def test_the_script_asks_the_copilot_koloni_runs_and_searches_the_package_it_run
     assert home.strip() and "koloni-copilot-home-" in home
     assert len(seen.read_text("ascii").splitlines()) == 1  # (nothing in it)
     assert not Path(home.strip()).exists()
+
+
+def test_its_run_refuses_a_protocol_3_copilot_that_does_not_say_its_version_in_time(
+    copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+):
+    async def unchecked(client):
+        return client
+
+    monkeypatch.setattr(cli_surface, "checked", unchecked)
+    monkeypatch.setattr(app.model_native, "VERSION_SECONDS", 1.0)
+    client, provider = copilot_native([{"say": "done"}], version="1.0.105", status_hang=True)
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    assert run["status"] == "failed" and "it did not say its version" in run["error"], run
+    assert "create" not in copilot_native.record()
