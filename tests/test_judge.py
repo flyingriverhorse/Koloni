@@ -245,7 +245,6 @@ def test_a_refuse_keeps_the_users_sentence_and_where_it_stands():
     # (a sentence of a line: judged alone, not with the other half of its line)
     ("Pushing to feature branches is fine; never force-push.", "never force-push.",
      "never force-push."),
-    ("Never delete these:\n- build/\n- dist/", "Never delete these:", "Never delete these:"),
     ("Rules:\n- Do not run git clean -fdx here.", "Do not run git clean -fdx here.",
      "Do not run git clean -fdx here."),
     ("main'e asla itme.", "main'e asla itme.", "main'e asla itme."),
@@ -264,8 +263,11 @@ def test_a_refuse_stands_on_a_whole_sentence_of_the_users_that_says_no(words, qu
     ("Don't push to main without asking me.", "Don't push to main without asking me."),
     ("Never push to main unless I say so.", "Never push to main unless I say so."),
     ("Testler geçmeden main'e itme.", "Testler geçmeden main'e itme."),
-    # (an item under a heading that forbids: the item itself says no "no")
+    # (an item under a heading that forbids: the item itself says no "no"; and the heading
+    # alone, which says nothing of what it forbids - the security review of slice 2)
     ("Never delete these:\n- the build/ output folder", "the build/ output folder"),
+    ("Never delete these:\n- build/\n- dist/", "Never delete these:"),
+    ("Never delete these:", "Never delete these:"),
     ("Should we never push to main?", "Should we never push to main?"),
     (NO_MAIN, "push to main"),
     ("`git push origin main` - never.", "`git push origin main` - never."),

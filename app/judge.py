@@ -174,9 +174,10 @@ def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
     """The judge's word, from its JSON line (the first "{" to the last "}"); None for no JSON
     object. "run" and "refuse" hold only with a whole sentence of the user's (`source_of`) - a
     run never on a line with a question, nor on one whose line or heading forbids or sets a
-    condition (`_forbids`); a refuse only on a sentence, no question, that says no and sets no
-    condition (its line's other sentences and its heading aside) - kept as they wrote it;
-    anything else is "ask", with the judge's one line only where it said ask itself."""
+    condition (`_forbids`); a refuse only on a sentence, no question and no heading (one that
+    ends in ":" says nothing of what it forbids: the agent would be told no item), that says no
+    and sets no condition (its line's other sentences and its heading aside) - kept as they
+    wrote it; anything else is "ask", with the judge's one line only where it said ask itself."""
     try:
         got = json.loads(answer[answer.find("{"):answer.rfind("}") + 1])
     except ValueError:
@@ -190,7 +191,8 @@ def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
     unit = _plain(shown)
     holds = word == "run" and not (
         "?" in context.partition("\n")[0] or _forbids(_plain(context))) or (
-        word == "refuse" and "?" not in shown and _says_no(unit) and not CONDITION.search(unit))
+        word == "refuse" and "?" not in shown and not shown.endswith(":") and _says_no(unit)
+        and not CONDITION.search(unit))
     if source and holds:
         return {"verdict": word, "quote": shown, "source": source, "why": why}
     return {"verdict": "ask", "quote": "", "source": "", "why": why if word == "ask" else ""}
