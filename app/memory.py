@@ -1746,6 +1746,7 @@ def overview(session: Session, project: Project) -> dict:
         "rules_kept": folder is not None,
         # K-yargic: Full auto's check reads the saved ones, never the folder's file.
         "rules_differ": folder is not None and (folder or None) != project.rules,
+        "rules_saved": project.rules,
         "rules_not_read": rules_unread(project.root_path),
         "rules_changed_at": project.rules_changed_at,
         "decisions": decisions(session, project),

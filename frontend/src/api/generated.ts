@@ -8697,6 +8697,8 @@ export interface components {
             rules_kept: boolean;
             /** Rules Not Read */
             rules_not_read?: string | null;
+            /** Rules Saved */
+            rules_saved?: string | null;
             /**
              * Suggestions
              * @default []

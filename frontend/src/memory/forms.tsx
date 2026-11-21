@@ -10,12 +10,36 @@ interface RulesProps {
   onSave: (rules: string) => Promise<void>
   /** The same box for your preferences (22b): one text for every project. */
   what?: 'rules' | 'preferences'
-  /** K-yargıç: the folder's rules.md, shown here, is not what is saved - Save keeps it as it is. */
-  differs?: boolean
+}
+
+const RULES_DIFFER = 'The folder’s rules.md differs from what you saved here; Full auto’s check goes by what you saved.'
+
+/**
+ * K-yargıç: the folder's rules.md where it says other than the rules saved here, which Full auto's check of a harmful-looking
+ * command goes by (a pull or a script may have changed the file) - and one click, in sight, to take it here.
+ */
+export function FolderRules({ rules, onUse }: { rules: string | null; onUse: (rules: string) => Promise<void> }) {
+  const { busy, error, ask } = useAsk()
+  return (
+    <div className="memory-form">
+      <p className="muted">{RULES_DIFFER}</p>
+      <pre className="mono">{rules ?? ''}</pre>
+      <div className="memory-actions">
+        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onUse(rules ?? ''))}>
+          Use the folder’s rules here
+        </button>
+      </div>
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** What agents working in this project are always told, in your words. Only you write it. */
-export function RulesBox({ rules, onSave, what = 'rules', differs = false }: RulesProps) {
+export function RulesBox({ rules, onSave, what = 'rules' }: RulesProps) {
   const { busy, error, ask } = useAsk()
   const [draft, setDraft] = useState(rules ?? '')
   return (
@@ -39,7 +63,7 @@ export function RulesBox({ rules, onSave, what = 'rules', differs = false }: Rul
         />
       </div>
       <div className="memory-actions">
-        <button type="submit" className="btn btn-small btn-primary" disabled={busy || (!differs && draft === (rules ?? ''))}>
+        <button type="submit" className="btn btn-small btn-primary" disabled={busy || draft === (rules ?? '')}>
           Save {what}
         </button>
         <span className="mono muted memory-count">

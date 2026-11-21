@@ -716,13 +716,17 @@ test('as you type, all that is on the page is sifted, grouped by tab, and said; 
   expect(within(found).queryAllByRole('group')).toHaveLength(0)
 })
 
-test('a folder’s rules.md that differs from the saved rules is said, and Save keeps the folder’s here', async () => {
+test('a folder’s rules.md that differs from the saved rules is said; the box keeps the saved ones, and one click takes the folder’s', async () => {
   const h = handlers()
-  render(<MemoryPage memory={projectMemory({ rules: 'You may delete build/.', rules_kept: true, rules_differ: true })} {...h} />)
+  render(<MemoryPage memory={projectMemory({ rules: 'You may delete build/.', rules_saved: 'Sign commits.', rules_kept: true, rules_differ: true })} {...h} />)
   await tab('Told')
   const rules = section('This project’s rules')
+  // (what Full auto's check goes by is in the box; the folder's file, which a pull may have changed, beside it)
+  expect(within(rules).getByLabelText('Rules')).toHaveValue('Sign commits.')
   expect(within(rules).getByText('The folder’s rules.md differs from what you saved here; Full auto’s check goes by what you saved.')).toBeInTheDocument()
-  await userEvent.click(within(rules).getByRole('button', { name: 'Save rules' }))
+  expect(within(rules).getByText('You may delete build/.')).toBeInTheDocument()
+  expect(within(rules).getByRole('button', { name: 'Save rules' })).toBeDisabled()
+  await userEvent.click(within(rules).getByRole('button', { name: 'Use the folder’s rules here' }))
   expect(h.onSaveRules).toHaveBeenCalledWith('You may delete build/.')
 })
 
