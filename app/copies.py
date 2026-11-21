@@ -157,6 +157,9 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     GIT_CONFIG_PARAMETERS, not GIT_CONFIG_COUNT/KEY/VALUE: GIT_CONFIG_KEY_0 is a secret by its
     name (`commands.secret_name`), held back where its count is not - and git stops at a count
     with no key."""
+    # shortcut: an empty core.hooksPath stops the hooks git finds in a folder, not hooks set in its
+    # config (`hook.<name>.command` / `.event`: git 2.53 ran none, probed 21 Nov); turn those off
+    # here too once a git that runs them is seen.
     empty = tree.parent / NO_HOOKS
     empty.mkdir(exist_ok=True)
     ours = "'" + f"core.hooksPath={empty}".replace("'", "'\\''") + "'"  # (git's own quoting)

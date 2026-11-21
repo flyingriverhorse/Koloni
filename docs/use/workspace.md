@@ -80,6 +80,8 @@ work in its copy: the worktree points to a folder on this machine, not in the co
 
 Your repository's git hooks (pre-commit, commit-msg, post-commit, also those of a `core.hooksPath` such
 as husky's) do not run for an agent's own git commands in its copy - a commit on its branch included.
+On a branch, a command that clears or sets git's own environment (`unset GIT_…`, `env -i`,
+`$env:GIT_… =`) would bring them back: it is asked at every level, Full auto too.
 
 A secret you gave in this turn (see [Security model](../security/model.md#secrets)) never leaves on a
 branch:

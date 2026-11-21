@@ -957,6 +957,43 @@ def test_in_a_worktree_git_beyond_the_agents_own_work_is_asked(command):
     assert reaches_shared_git(command) == SHARED_GIT
 
 
+@pytest.mark.parametrize("command", [
+    # git's own variables cleared or unset: what KOLONİ gives git in a copy (`copies.git_env`: no
+    # hook, no repository above) would go - a commit would run the repository's hooks again
+    "unset GIT_CONFIG_PARAMETERS; git commit -m x", "unset -v GIT_CEILING_DIRECTORIES; git status",
+    "export -n GIT_CONFIG_PARAMETERS; git commit -m x", "declare +x GIT_DIR; git status",
+    "env -u GIT_CONFIG_PARAMETERS git commit -m x", "env -uGIT_CONFIG_PARAMETERS git status",
+    "env --unset=GIT_CONFIG_PARAMETERS git commit -m x", "env --unset GIT_WORK_TREE git status",
+    "env -i git commit -m x", "env - git commit -m x", "env --ignore-environment git status",
+    "env -v -i PATH=/usr/bin git commit -m x", "timeout 5 env -i git status",
+    "sh -c 'unset GIT_CONFIG_PARAMETERS; git commit -m x'", "env -i python x.py",
+    # ... or set (to nothing, or to something else)
+    "export GIT_CONFIG_PARAMETERS=''; git commit -m x", "GIT_CONFIG_PARAMETERS= git commit -m x",
+    "GIT_CEILING_DIRECTORIES=/ git status", "export GIT_WORK_TREE=../..; git status",
+    "$env:GIT_CONFIG_PARAMETERS = ''; git commit -m x", "${env:GIT_DIR} = 'x'; git status",
+    "Remove-Item env:GIT_CONFIG_PARAMETERS; git commit -m x",
+    r"Remove-Item Env:\GIT_CONFIG_PARAMETERS; git commit -m x",
+    "Remove-Item -Path 'Env:/GIT_DIR'; git status", r"Remove-Item Env:\*; git commit -m x",
+    "[Environment]::SetEnvironmentVariable('GIT_CONFIG_PARAMETERS', $null); git commit -m x",
+    "set GIT_CONFIG_PARAMETERS= && git commit -m x", 'set "GIT_CONFIG_PARAMETERS=" && git status',
+    'cmd /c "set GIT_DIR=x&& git status"',
+])
+def test_a_command_that_clears_or_sets_gits_own_environment_is_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
+
+
+@pytest.mark.parametrize("command", [
+    "git commit -m x", "git status", "env git status", "env -C src git status", "npm test",
+    "env NODE_ENV=test npm test", "printenv PATH", "unset FOO; git status", "export X=1; git log",
+])
+def test_git_with_its_environment_left_alone_is_not_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == ""
+
+
 def test_gits_own_files_are_found_in_any_case_and_lfs_too(repo, runtime):
     copy = copies.make_branch(repo, runtime, "agent1", "x")
     (copy.root / "sub").mkdir()

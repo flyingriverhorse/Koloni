@@ -52,6 +52,7 @@ How to write an entry (every release looks the same):
 ### Security
 
 - **Workspace**: your repository's git hooks (pre-commit, commit-msg, post-commit, also from a core.hooksPath such as husky's) no longer run for an agent's own git commands in its copy ([docs](docs/use/workspace.md#branches)).
+- **Agents**: on a branch, an agent's command that clears or sets git's own environment (`unset GIT_…`, `env -i`, `$env:GIT_… =`, `Remove-Item Env:\GIT_…`) is asked at every level, Full auto too: it would bring your repository's hooks back ([docs](docs/use/workspace.md#branches)).
 
 ## [0.1.4] - 2026-11-21
 
