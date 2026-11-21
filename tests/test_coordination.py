@@ -644,6 +644,32 @@ def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command
 
 
+# An option before the verb that is not known may take a value or not: either word after it may
+# be the verb, and the line counts if either reading finds one (review round 3: a matrix).
+OPTIONS_BEFORE = {"npm": ["--include dev", "--install-strategy hoisted", "--omit dev", "-p",
+                          "--loglevel warn", "--some-new value", "--some-new"],
+                  "pip": ["--proxy http://x", "--cache-dir x", "--log x", "--timeout 5",
+                          "--exists-action w", "--some-new value"],
+                  "uv": ["--color never", "--cache-dir x", "-q", "--some-new value"]}
+VERBS_AFTER = {"npm": ["install", "ci", "i x"], "pip": ["install y"], "uv": ["sync", "add x"]}
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', "env X=1 {c}", "npm exec -- {c}",
+                                     "npx {c}"])
+@pytest.mark.parametrize("command", [
+    f"{program} {option} {verb}" for program, options in OPTIONS_BEFORE.items()
+    for option in options for verb in VERBS_AFTER[program]])
+def test_an_install_past_options_not_known_is_one(command, wrapper):
+    assert installs(wrapper.replace("{c}", command)), command
+
+
+@pytest.mark.parametrize("command", ["npm --omit dev ci", "npm --install-strategy hoisted ci",
+                                     "npm -p ci", "uv --color never sync", "uv --cache-dir x sync",
+                                     "uv --some-new value venv"])
+def test_a_rebuild_past_options_not_known_is_one(command):
+    assert "rebuild" in copy_reason(command, True, "/work/proj", "/work/rt"), command
+
+
 @pytest.mark.parametrize("command", [
     "python -m venv --clear .venv", "virtualenv .venv", "py -m venv --clear venv",
     # (argparse takes a prefix of --clear; any venv made at a linked folder rewrites it)

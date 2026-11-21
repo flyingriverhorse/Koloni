@@ -1152,6 +1152,31 @@ _NPM_INSTALLS = _NPM_CI | {
 _PM_VALUES = frozenset({"--prefix", "-C", "--cwd", "--dir", "--filter", "-F", "--workspace", "-w",
                         "--registry", "--cache", "--userconfig", "--globalconfig", "--loglevel",
                         "--directory", "--project", "--python", "-p", "--config-file"})
+# Each package manager's own options before its verb, as it reads them: (those that take a value,
+# flags) - `-p` takes a value in uv's, in npm's it is `--parseable`. One not here is read both
+# ways (`_verbs`).
+_PM_OPTIONS = {
+    "npm": (frozenset({"--prefix", "-C", "--workspace", "-w", "--registry", "--cache",
+                       "--userconfig", "--globalconfig", "--loglevel", "--include", "--omit",
+                       "--install-strategy"}),
+            frozenset({"-p", "--parseable", "-s", "--silent", "-q", "--quiet", "-g", "--global",
+                       "-y", "--yes", "-d", "--verbose", "--json", "-D", "-S", "-O", "-E"})),
+    "pnpm": (frozenset({"-C", "--dir", "--filter", "-F", "--reporter"}),
+             frozenset({"-w", "--workspace-root", "-r", "--recursive", "-s", "--silent", "-g"})),
+    "yarn": (frozenset({"--cwd"}), frozenset({"-s", "--silent", "-W"})),
+    "uv": (frozenset({"--directory", "--project", "--python", "-p", "--config-file", "--cache-dir",
+                      "--color"}),
+           frozenset({"-q", "--quiet", "-v", "--verbose", "--offline", "--no-cache", "-n",
+                      "--frozen", "--locked"})),
+    "pip": (frozenset({"--proxy", "--cache-dir", "--log", "--timeout", "--exists-action",
+                       "--python", "--index-url", "-i", "--retries", "--cert", "--client-cert"}),
+            frozenset({"-q", "--quiet", "-v", "--verbose", "--isolated", "--no-cache-dir",
+                       "--disable-pip-version-check", "--user"})),
+    "poetry": (frozenset({"-C", "--directory", "-P", "--project"}),
+               frozenset({"-q", "--quiet", "-n", "--no-interaction", "-v"})),
+}
+# The runners whose first word is the package they run (`npx x`): what they hand on.
+_RUNNERS_OF = frozenset(name for name, words in _RUNS_PACKAGE.items() if not words)
 # What empties a dependency folder and makes it anew - measured 29 Oct through a junction:
 # `npm ci` emptied the project's node_modules, `uv venv` its .venv; `uv sync` makes the venv
 # anew when its interpreter changed. shortcut: `pnpm install --frozen-lockfile`, `yarn
@@ -1162,15 +1187,39 @@ _PM_VALUES = frozenset({"--prefix", "-C", "--cwd", "--dir", "--filter", "-F", "-
 _REBUILDERS = frozenset({*(("npm", verb) for verb in _NPM_CI), ("uv", "venv"), ("uv", "sync")})
 
 
-def _verb(words: list[str]) -> tuple[str, list[str]]:
-    """A package manager's program and its words from the verb on, the options before it read
-    past (`_PM_VALUES`) - `uv pip x` as pip's own, a module an interpreter runs as the program
-    (`_module_run`)."""
+def _verbs(words: list[str]) -> list[tuple[str, str]]:
+    """Every (program, verb) a package manager's part may run: its words past the options before
+    the verb - an option of `_PM_OPTIONS` read as it is; one not known, without `=`, both as a
+    flag and as taking a value, so either word after it may be the verb (fail closed) - `uv pip
+    x` as pip's own, a module an interpreter runs as the program (`_module_run`), and what
+    `npm exec` / `npx` hands a package manager (`npm exec -- npm i x`)."""
     words = _module_run(words) or words
-    program, rest = _program(words[0]), _after_options(words[1:], _PM_VALUES)
-    if program == "uv" and rest[:1] == ["pip"]:
-        return "pip", _after_options(rest[1:], _PM_VALUES)
-    return program, rest
+    program = _program(words[0])
+    values, flags = _PM_OPTIONS.get("pip" if program.startswith("pip") else program,
+                                    (_PM_VALUES, frozenset()))
+    rest, found, at, maybe = words[1:], [], 0, False
+    while at < len(rest):
+        word = rest[at]
+        if word.startswith("-"):
+            known = "=" in word or word in flags or word in values
+            at += 2 if "=" not in word and word in values else 1
+            maybe = not known  # (its value, or the verb)
+            continue
+        found.append(at)
+        if not maybe:
+            break
+        at, maybe = at + 1, False
+    verbs = [(program, rest[at]) for at in found]
+    for at in found:
+        inner = [word for word in (rest[at:] if program in _RUNNERS_OF else rest[at + 1:])
+                 if word != "--"]
+        handed = program in _RUNNERS_OF or rest[at].casefold() in _RUNS_PACKAGE.get(program, ())
+        if program == "uv" and rest[at] == "pip":
+            verbs += _verbs(["pip", *rest[at + 1:]])
+        elif handed and inner and (_program(inner[0]) in _INSTALLERS or _program(
+                inner[0]).startswith("pip")):
+            verbs += _verbs(inner)
+    return verbs
 
 
 def _makes_venv(words: list[str], own: re.Pattern | None = None) -> bool:
@@ -1197,9 +1246,8 @@ def _through_links(words: list[str], own: re.Pattern | None = None) -> str:
     empties a dependency folder to make it anew (`_REBUILDERS`, `_makes_venv`; `own`: the copy's
     tree's spellings)."""
     program, rest = _program(words[0]), words[1:]
-    manager, verb = _verb(words)
-    if (manager, *[word.casefold() for word in verb[:1]]) in _REBUILDERS or _makes_venv(
-            words, own):
+    if any((manager, verb.casefold()) in _REBUILDERS for manager, verb in _verbs(words)) or (
+            _makes_venv(words, own)):
         return REBUILDS_THROUGH_LINKS
     if (program == "find" and "-delete" in rest
             or program == "robocopy" and any(w.casefold() in ("/mir", "/purge") for w in rest)
@@ -3213,7 +3261,7 @@ def _module_run(words: list[str]) -> list[str]:
 
 def installs(command: str) -> str:
     """Whether a part of a command installs or removes packages, in one sentence; "" for none:
-    one of `_INSTALLERS`' verbs as its verb, past the options before it (`_verb`: `npm --prefix
+    one of `_INSTALLERS`' verbs as its verb, past the options before it (`_verbs`: `npm --prefix
     web install x`, `pnpm -C web i`, `uv pip install`), by a program starting with `pip` (pip3.12,
     pipenv) or run as a module (`python -X utf8 -m pip install`, `py -m pip`), a bare `yarn` -
     and in what a shell or a wrapper is handed (`cmd /c "npm i x"`). A script run by its name
@@ -3221,10 +3269,9 @@ def installs(command: str) -> str:
     shortcut: `npx` and `dlx` run a package without installing it into the project, and are left;
     `pip-sync` and `corepack` writing into node_modules / .venv are not seen."""
     for words in (words for words in _commands_in(command) if words):
-        program, rest = _verb(words)
-        verbs = _INSTALLERS["pip"] if program.startswith("pip") else _INSTALLERS.get(program, set())
-        if words == ["yarn"] or rest[:1] and rest[0].casefold() in verbs and (
-                "--dry-run" not in rest):
+        if words == ["yarn"] or "--dry-run" not in words and any(
+                verb.casefold() in (_INSTALLERS["pip"] if program.startswith("pip") else (
+                    _INSTALLERS.get(program, set()))) for program, verb in _verbs(words)):
             return ("It installs or removes packages: in a working copy its dependency folders "
                     "are the project's own, linked in.")
     return ""

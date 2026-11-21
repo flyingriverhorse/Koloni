@@ -23400,19 +23400,5 @@ false
 "uv run pytest -k sync": "OA3: a word after `run` is no verb",
 "pip install --dry-run x": "OA3: a dry run installs nothing"
 },
-"xfail": [
-"npm --include dev install",
-"npm --install-strategy hoisted ci",
-"npm --install-strategy hoisted install",
-"npm --omit dev ci",
-"npm -p ci",
-"npm exec -- npm i x",
-"pip --cache-dir x install y",
-"pip --exists-action w install y",
-"pip --log x install y",
-"pip --proxy http://x install y",
-"pip --timeout 5 install y",
-"uv --cache-dir x sync",
-"uv --color never sync"
-]
+"xfail": []
 }
