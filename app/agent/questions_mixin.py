@@ -332,6 +332,7 @@ class QuestionsMixin:
     async def _lead_answers(
         self: "AgentRunner", ctx: Ctx, text: str, options: list[str], asked: asyncio.Future,
         says: Callable[..., None], kept: bool = False, kind: str | None = None,
+        decision: "_Decision | None" = None,
     ) -> None:
         """The Lead's one answer, with no tools, to a question asked of the user while they are
         away (`_lead_may_answer`): the question and its options are data, quoted; what comes
@@ -412,7 +413,7 @@ class QuestionsMixin:
         slots = self._lead_slots.setdefault(ctx.run_id, asyncio.Semaphore(LEAD_AT_ONCE))
         try:
             async with slots:
-                if not self._lead_goes_on(ctx, asked, kind, mode):
+                if not self._lead_goes_on(ctx, asked, kind, mode, decision):
                     return
                 model_id = lead.model_name or (await model.info()).model_id
                 asking = replace(lead, model_name=model_id)
@@ -433,11 +434,18 @@ class QuestionsMixin:
         self._lead_said_it(ctx, said, options, asked, says, key)
 
     def _lead_goes_on(self: "AgentRunner", ctx: Ctx, asked: asyncio.Future, kind: str | None,
-                      mode: str | None) -> bool:
+                      mode: str | None, decision: "_Decision | None" = None) -> bool:
         """`_lead_answers`, its turn come: whether it still asks - not answered while it waited,
-        nor the user's again (☾ Away: they came back meanwhile, `_when`), and on a CLI one more
-        of the turn's (`_lead_cli_takes`)."""
-        if asked.done() or kind is not None and self._when(ctx, kind)[0] is None:
+        nor the user's again (☾ Away: they came back meanwhile, `_when` - never, or the rest of
+        the project's minutes from when it was asked: `decision` is armed for those), and on a
+        CLI one more of the turn's (`_lead_cli_takes`)."""
+        now = None if asked.done() or kind is None else self._when(ctx, kind)[0]
+        if asked.done() or kind is not None and now is None:
+            return False
+        if decision is not None and now is not None and now > decision.delay and (
+                left := decision.left(now)) > 0:
+            decision.arm(left)
+            decision.delay = now
             return False
         return mode is None or self._lead_cli_takes(ctx)
 
@@ -572,6 +580,11 @@ class _Decision:
         self.timer: asyncio.TimerHandle | None = None
         self.going: list[asyncio.Task] = []
         self.delay = 0.0  # (its time as armed: at once while away, else the project's minutes)
+        self.since = asyncio.get_running_loop().time()  # (when it was asked)
+
+    def left(self, delay: float) -> float:
+        """What is left of `delay` counted from when it was asked."""
+        return delay - (asyncio.get_running_loop().time() - self.since)
 
     def arm(self, delay: float, typed: bool = False) -> None:
         """`typed`: armed again for the rest of the user's typing - its own time stays."""
@@ -586,7 +599,7 @@ class _Decision:
         held while they typed, and the rule's time now longer - armed again for that."""
         if self.asked.done():
             return self.let_go(False)
-        if self.going:
+        if any(not task.done() for task in self.going):
             return None
         now = None if forced else self.runner._when(self.ctx, self.kind)[0]
         if not forced and now is None:
@@ -597,7 +610,7 @@ class _Decision:
             return self.arm(left, typed=True)
         task = asyncio.ensure_future(self.runner._lead_answers(
             self.ctx, self.text, self.options, self.asked, self.says, self.kind == "ask_user",
-            self.kind))
+            self.kind, self))
         self.going.append(task)
         task.add_done_callback(lambda _task: self.let_go(True))
         return None

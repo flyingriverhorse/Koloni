@@ -6,6 +6,7 @@ never reached by it."""
 
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import select
 
 from app.agent.questions_mixin import TYPING_HOLD_SECONDS
@@ -240,8 +241,11 @@ def test_a_card_held_while_you_typed_is_not_decided_once_you_are_back(make_clien
     assert answered["lead_why"] is None
 
 
+@pytest.mark.parametrize("minutes", [None, 10])
 def test_an_answer_still_queued_for_the_orchestrator_is_not_given_once_you_are_back(
-        make_client, wait_run, project_dir, gate):
+        make_client, wait_run, project_dir, gate, minutes):
+    # (minutes: the project lets the Orchestrator after them - back, the card waits what is left
+    # of them, from when it was asked; None: everything waits.)
     # (Round 2: three cards decided while away, two with the model; I'm back - the third, which
     # waited for its turn, is not sent.)
     from tests.conftest import Gate
@@ -256,7 +260,8 @@ def test_an_answer_still_queued_for_the_orchestrator_is_not_given_once_you_are_b
     })
     clock = held(client)
     pid, cid = away_chat(client, project_dir, permission_mode="auto_edit", spawn_approval="never",
-                         spawn_max_parallel=3, when_away="waits")
+                         spawn_max_parallel=3, **({"when_away": "lead", "away_minutes": minutes}
+                                                  if minutes else {"when_away": "waits"}))
     run_id = post(client, cid)
     timers = until(lambda: (found := lead_timers(clock, 0.0)) and len(found) == 3 and found)
     for timer in timers:
@@ -273,6 +278,8 @@ def test_an_answer_still_queued_for_the_orchestrator_is_not_given_once_you_are_b
     asked = client.get(f"/api/conversations/{cid}").json()["questions"]
     assert sorted(q["status"] for q in asked) == ["answered", "answered", "pending"]
     assert len(model.calls_of["Lead"]) == 3  # (its turn's step and two answers - not a third)
+    left = [t.delay for t in clock.set if 0 < t.delay <= 600 and not t.cancelled]
+    assert (len(left) == 1 and left[0] > 590) if minutes else left == []
     (waiting,) = [q for q in asked if q["status"] == "pending"]
     client.post(f"/api/questions/{waiting['id']}/answer", json={"answer": "by name"},
                 headers=OWN)
