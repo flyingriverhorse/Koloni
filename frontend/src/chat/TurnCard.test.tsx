@@ -39,14 +39,29 @@ test('the card names who answered, its model and the time of its last message; a
   expect(container.querySelector('time')).toBeNull()
 })
 
-test('Copy writes the answer’s markdown and says Copied', async () => {
+test('a night’s closing line, put on the turn before it, leaves that turn’s time as it was', () => {
+  // (KOLONİ puts "While you were away: …" on the conversation's last turn, hours after its answer.)
+  const night = { ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'), role: 'away' as const, agent_id: null, created_at: '2026-10-27T07:10:00' }
+  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [userMessage('r', 'go'), { ...answer, created_at: AT }, night] })
+  render(<MessageList {...handlers} state={state} />)
+  expect(screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })).toBeInTheDocument()
+})
+
+test('Copy writes the answer’s markdown and says Copied, once', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-  render(<AnswerActions message={answer} over />)
-  await userEvent.click(screen.getByRole('button', { name: 'Copy' }))
+  const { container } = render(<AnswerActions message={answer} over />)
+  const copy = screen.getByRole('button', { name: 'Copy' })
+  await userEvent.click(copy)
   expect(writeText).toHaveBeenCalledWith('It is **done**: see `a.py`.')
-  // Said in words the button holds, not in an attribute: a live region speaks a change of its words.
-  expect(await screen.findByRole('button', { name: 'Copied' })).toHaveTextContent(/^Copied$/)
+  // Said by a live region of its own, not the button's: its words changing back to "Copy" as the focus leaves are not said.
+  expect(await screen.findByRole('button', { name: 'Copied' })).toBe(copy)
+  const said = container.querySelector('[aria-live="polite"]')
+  expect(said).not.toBe(copy)
+  expect(said).toHaveTextContent(/^Copied$/)
+  await userEvent.tab()
+  expect(copy).toHaveAccessibleName('Copy')
+  expect(said).toBeEmptyDOMElement()
 })
 
 test('Copy and Read aloud are reachable with the keyboard', async () => {

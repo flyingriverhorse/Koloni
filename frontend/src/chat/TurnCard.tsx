@@ -22,9 +22,12 @@ interface Props {
   waits: boolean
 }
 
-/** When the turn last said something: its last message of the Lead's or of KOLONİ's (a sub-agent's are not in the chat). */
+/**
+ * When the turn last said something: its last message of the Lead's or of KOLONİ's (a sub-agent's are not in the chat) -
+ * not a night's closing line, which KOLONİ puts on the last turn there was, hours later.
+ */
 function lastAt(state: ConvState, run: Run, lead: Agent | undefined) {
-  return state.messages.filter(m => m.run_id === run.id && (!m.agent_id || m.agent_id === lead?.id)).at(-1)?.created_at ?? run.created_at
+  return state.messages.filter(m => m.run_id === run.id && m.role !== 'away' && (!m.agent_id || m.agent_id === lead?.id)).at(-1)?.created_at ?? run.created_at
 }
 
 /** The turn's message read aloud now, if one is. */
@@ -73,19 +76,23 @@ export function AnswerActions({ message, said = message, over }: { message: Mess
   return (
     <span className="turn-actions">
       {over && message.status === 'complete' && (
-        // (As a message's ⋯ copies: no clipboard here, or the browser refused, and it stays "Copy".)
-        <button
-          type="button"
-          className="icon-btn"
-          title={copied ? 'Copied' : 'Copy'}
-          aria-live="polite"
-          onClick={() => void navigator.clipboard?.writeText(message.content).then(() => setCopied(true), () => {})}
-          onBlur={() => setCopied(false)}
-        >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-          {/* (Its name in words, not an aria-label: a live region says a change of its words, not of an attribute.) */}
-          <span className="visually-hidden">{copied ? 'Copied' : 'Copy'}</span>
-        </button>
+        <>
+          {/* (As a message's ⋯ copies: no clipboard here, or the browser refused, and it stays "Copy".) */}
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={copied ? 'Copied' : 'Copy'}
+            title={copied ? 'Copied' : 'Copy'}
+            onClick={() => void navigator.clipboard?.writeText(message.content).then(() => setCopied(true), () => {})}
+            onBlur={() => setCopied(false)}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+          {/* "Copied" said once, by a region of its own: emptied as the focus leaves, which a screen reader does not say. */}
+          <span className="visually-hidden" aria-live="polite">
+            {copied ? 'Copied' : ''}
+          </span>
+        </>
       )}
       <ReadAloud id={said.id} content={said.content} written={said.status === 'complete'} />
     </span>
