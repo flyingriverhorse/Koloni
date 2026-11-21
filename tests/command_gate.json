@@ -53925,9 +53925,7 @@ false
 "npm run-script install": "OA3: a script's name is no verb (web-off still asks it: any install word reaches)",
 "uv pip compile r.in": "OA3: uv pip compile writes a lock file and installs nothing (web-off still asks it)"
 },
-"xfail": [
-"git commit -m \"`kill -9 $(pgrep python)`\""
-],
+"xfail": [],
 "up": {
 "git `\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
 "git \\\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",

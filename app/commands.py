@@ -2298,8 +2298,13 @@ def _readings(line: str) -> list[str]:
     line's end continues nothing in a comment (`rm x # done `⏎`npm publish`), glued to a word
     in `pwsh -Command` (`build`⏎`git push`), after a Windows path (`C:\\`⏎) or in bash, where a
     backtick opens what it runs (`echo `⏎`rm -rf build`⏎``) - reading it both ways may only
-    add (review round 4)."""
-    return list(dict.fromkeys((joined(line), line)))
+    add (review round 4). And what its backticks hold, each a line of its own: bash runs it, in
+    double quotes too, so a message holding a backtick pair is no message (`git commit -m
+    "`kill -9 $(pgrep x)`"`).
+    shortcut: pairs taken in order - nested substitutions (`` `a \\`b\\`` ``) and PowerShell's own
+    escapes (`` `t ``) read as pairs are not parsed as bash does; do so in 0.1.6."""
+    insides = re.findall(r"`([^`]*)`", line)
+    return list(dict.fromkeys((joined(line), line, *(["\n".join(insides)] if insides else []))))
 
 
 def danger(command: str, instructions: bool = True) -> str:

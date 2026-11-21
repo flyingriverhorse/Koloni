@@ -583,6 +583,17 @@ def test_a_send_after_a_line_end_is_seen_whether_it_continues_or_not(line, sent)
     assert harms(sent) in [said for one in readings(line) for said in reasons(one, True)], line
 
 
+# Bash runs what a backtick pair holds, in double quotes too: a message holding one is no message
+# (review round 4).
+@pytest.mark.parametrize("command", [
+    'git commit -m "`kill -9 $(pgrep python)`"', 'git commit -m "x `pgrep python | xargs kill` y"',
+    'echo "`pkill python`"', 'git commit -m "fix: `taskkill /F /IM python.exe`"',
+    "x=`pkill python`"])
+def test_what_a_backtick_pair_holds_is_read(command):
+    assert harm_class(command) == "always", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME, command
+
+
 def places(tmp_path):
     """A project, KOLONİ's runtime, this copy's own tree in its copies folder, the folder, and
     one of the project's worktrees."""
