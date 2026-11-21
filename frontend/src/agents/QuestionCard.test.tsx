@@ -2,7 +2,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
-import { question } from '../test-fixtures'
+import { resetStoreForTests, useApp } from '../state/store'
+import { agent, convState, question } from '../test-fixtures'
 import { QuestionCard } from './QuestionCard'
 
 test('an option is answered with one click', async () => {
@@ -94,6 +95,31 @@ test('an agent’s question is its own title; said in one line, the line stands 
   expect(screen.getAllByRole('button').map(button => button.textContent)).toEqual(['hello', 'hey', 'details →'])
   await userEvent.click(screen.getByRole('button', { name: 'details →' }))
   expect(onDetails).toHaveBeenCalledOnce()
+})
+
+test('an agent’s card names who asks as the screen calls it, from its chat or another; KOLONİ’s keeps its words, and no agent passes for it', () => {
+  const who = (agentId: string, over: Parameters<typeof question>[2] = {}) => {
+    const { container, unmount } = render(<QuestionCard question={question('q', 'r', { agent_id: agentId, ...over })} onAnswer={vi.fn()} />)
+    const said = container.querySelector('.card-who')?.textContent
+    unmount()
+    return said
+  }
+  try {
+    // the open chat's Orchestrator and its Coder; another chat's Reviewer (Ready for you)
+    useApp.setState({
+      conv: convState({ agents: [agent('r'), agent('r', 'running', { id: 'kid', role_name: 'Coder', depth: 1 })] }),
+      readyChats: { x: convState({ agents: [agent('rx', 'running', { role_name: 'Reviewer' })] }) },
+    })
+    expect([who('r'), who('kid'), who('rx')]).toEqual(['Orchestrator asks', 'Coder asks', 'Reviewer asks'])
+    // one the page does not hold
+    expect(who('gone')).toBe('The agent asks')
+    expect(who('kid', { leave: true, options: ['Allow', 'Deny'] })).toBe('KOLONİ asks')
+    // a role an agent made, named so
+    useApp.setState({ conv: convState({ agents: [agent('r', 'running', { role_name: 'KOLONİ' }), agent('r', 'running', { id: 'k2', role_name: 'koloni ' })] }) })
+    expect([who('r'), who('k2')]).toEqual(['The agent asks', 'The agent asks'])
+  } finally {
+    resetStoreForTests()
+  }
 })
 
 test('a question without options asks for the answer alone', () => {

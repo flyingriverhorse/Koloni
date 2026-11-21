@@ -1,6 +1,7 @@
 """Model providers: who an agent's model steps go to, and the settings behind it."""
 
 import json
+import socket
 import sqlite3
 
 import httpx2
@@ -203,6 +204,20 @@ def test_health_of_a_closed_server_asks_it_once_and_sees_it_come_up(make_client,
     up = True
     health = client.get("/api/health").json()
     assert (health["model_reachable"], health["model_id"], health["error"]) == (True, "qwen", None)
+
+
+def test_health_asks_the_server_of_a_named_model_whose_tools_are_known(make_client):
+    # Its `info` asks it nothing then: /health said a closed local server answered.
+    client, _ = make_client([])
+    with socket.socket() as held:  # (bound, never listening: refused - and no one else's port)
+        held.bind(("127.0.0.1", 0))
+        model = OpenAICompatClient(f"http://127.0.0.1:{held.getsockname()[1]}/v1", model_id="qwen")
+        model._window_said, model._tools_cache["qwen"] = True, True  # (read while it was up)
+        client.app.state.providers.override = model
+        health = client.get("/api/health").json()
+    assert (health["model_reachable"], health["model_id"]) == (False, None), health
+    assert health["error"].startswith(f"{UNREACHABLE}: ") and health["error"] != f"{UNREACHABLE}: ", (
+        health)
 
 
 # --- which model an agent gets ---------------------------------------------------

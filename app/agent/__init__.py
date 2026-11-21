@@ -140,6 +140,7 @@ from app.agent.ctx import (
     _Member,
     _NobodyToAsk,
     _Room,
+    _Slow,
     _Unwatched,
     _Watch,
     announce_memory,
@@ -538,7 +539,7 @@ CANDIDATES_WATCHED = ("{step}: candidates need the user watching and the recipe'
                       "comparison")
 NOT_BROUGHT = ("Not brought into the recipe's copy from {name}'s: {files} - changed there since "
                "the candidates began; the recipe's own are kept.")
-NOT_FINISHED = "stopped before its end"
+CANDIDATE_STOPPED = "stopped before its end"
 PICK_CARD = "{team}: {step}: {table}. Which candidate's work goes on?"
 # B-370: the best is kept - a later round's pick goes on only where it beats it.
 BEST_SO_FAR = ("Best so far: {score}, {name}'s work - it stays unless the one picked scores "
@@ -874,7 +875,7 @@ PR_OPENED = ("{name}'s changes on branch {branch} were pushed to origin and a pu
              "were in it.")
 # A commit message is proposed as one line of at most this many characters.
 COMMIT_LINE = 72
-NOT_FINISHED = "the agent did not finish its work, and nobody is watching this turn"
+UNFINISHED_UNWATCHED = "the agent did not finish its work, and nobody is watching this turn"
 
 
 @dataclass
@@ -1007,6 +1008,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._line_up: list[tuple[Ctx, asyncio.Future[None]]] = []
         # agent id -> how many words of the user's (a decision, an answer) it waits for
         self._asks: dict[str, int] = {}
+        # agent id -> how many cards asked beside its work wait for the user (`_heard_aside`):
+        # not `_asks`, which gives its place up - only `asking` counts these
+        self._asks_aside: dict[str, int] = {}
         # agent id -> how many others (sub-agents, a reply) it is waiting for
         self._out: dict[str, int] = {}
         # The agents that gave their place up for a wait and are owed one when they
@@ -1263,6 +1267,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._progress_timers: dict[str, asyncio.TimerHandle] = {}
         # ...and when an agent below its Orchestrator last took a step of its work (`_counted`)
         self._worked_below: dict[str, datetime] = {}
+        # K-yavas: run id -> a watched turn's Orchestrator whose model is asked (`_slow`)
+        self._slow_turns: dict[str, _Slow] = {}
         # Slice 84b-2. run id -> its lead, for a turn that runs a chat team's recipe: as in a
         # room, its agents change files in the lead's one copy, taken in at "Ready for you".
         self._recipe_copy: dict[str, str] = {}
@@ -1490,6 +1496,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         _cid, shown = self._cli_live.setdefault(ctx.agent_id, (ctx.cid, {
             "agent_id": ctx.agent_id, "context": None, "plan": None, "queue": None}))
         shown.update({key: item[key] for key in ("context", "plan", "queue") if key in item})
+        self._slow_queued(ctx, item.get("queue"))
         if ctx.agent_id not in self._live_due:
             self._live_due[ctx.agent_id] = asyncio.get_running_loop().call_later(
                 LIVE_SECONDS, self._send_live, ctx.agent_id)
@@ -1905,6 +1912,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             timer.cancel()
         if (timer := self._progress_timers.pop(run_id, None)) is not None:
             timer.cancel()
+        self._slow_dropped(run_id)
         self._worked_below.pop(run_id, None)
         self._recipe_copy.pop(run_id, None)
         self._disputed.pop(run_id, None)
@@ -3448,7 +3456,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         refused = None
         if not watched:
             # The trigger's own leave, read now: what was taken back since is gone.
-            refused = None if status == "completed" else NOT_FINISHED
+            refused = None if status == "completed" else UNFINISHED_UNWATCHED
             refused = refused or self._nobody_to_ask(ctx, "write", "change files")
         # (`asked`: the user said yes already, on a recipe's "Ready for you".)
         unasked = status == "completed" and (
@@ -4822,6 +4830,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """A CLI said something or did something with its own tools: its time goes on
         record, at most every half a minute - so its node's "last step N s ago" may be that
         much behind; its quiet past 5 or 20 minutes is said in minutes."""
+        self._slow(ctx)  # (K-yavas: at every word, not every half a minute)
         at = time.monotonic()
         if at - self._touched.get(ctx.agent_id, float("-inf")) >= 30:
             self._touched[ctx.agent_id] = at
@@ -7096,7 +7105,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 FileChange.agent_id.in_([child.agent_id, *helpers])).limit(1)) is not None
 
         score = self._scored.pop(child.agent_id, None) or {
-            "score": None, "why": NOT_FINISHED} if child.agent_id in self._candidates else None
+            "score": None, "why": CANDIDATE_STOPPED} if child.agent_id in self._candidates else None
 
         def ended(state: dict, entry: dict) -> None:
             # (B-192: a suggestion sends no work back - it is the user's, on the card.)

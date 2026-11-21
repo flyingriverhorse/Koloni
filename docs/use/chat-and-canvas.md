@@ -3,7 +3,7 @@
 The chat is where you talk to the Orchestrator. The canvas behind it draws each turn from what was
 recorded: the agents, their tools, commands and the files they changed. Nothing on it is simulated.
 
-![The main screen: the chat at the bottom left, and on the canvas the turn drawn as You, the Orchestrator and the Reviewer it opened](../images/main-screen.png)
+![The main screen: the chat at the left, and on the canvas the turn drawn as You, the Orchestrator and the Reviewer it opened](../images/main-screen.png)
 
 *A turn on the canvas, with the chat beside it.*
 
@@ -13,6 +13,9 @@ recorded: the agents, their tools, commands and the files they changed. Nothing 
 
 ## The chat
 
+Open, the chat is a column at the left of the canvas, as tall as it. Drag its right edge to make it
+wider or narrower (or focus the edge and use the arrow keys); the width is kept.
+
 The chat panel has three tabs:
 
 - **Chat**: "Your conversation with the Orchestrator".
@@ -20,8 +23,8 @@ The chat panel has three tabs:
 - **Notes**: "A shared notebook: you and the agents leave notes here, kept from message to message and
   given to new agents".
 
-**Hide chat** (or Esc) folds it to one line that says how many messages are unread and how many things
-wait for you. Drag its grip to move it, and its top edge to resize it.
+**Hide chat** (or Esc) folds it to one line at the canvas's bottom left that says how many messages are
+unread and how many things wait for you.
 
 ### Writing a message
 
@@ -54,10 +57,15 @@ wait for you. Drag its grip to move it, and its top edge to resize it.
 
 ### What the chat shows
 
+- Each turn of the Orchestrator's is one card under your message: who answered, with which model and
+  when, then its steps, each a quiet pill, and its answer.
 - Two or more tool calls in a row by the same agent fold into one line, such as "Read 4 files, listed 4
-  folders". Failed or rejected calls are always shown.
-- Under a turn that did something, one line sums it up, such as "2 agents · 3 files changed", with what is
-  left open. **details ▸** shows the files, sub-agents, tokens and known cost.
+  folders". Failed or rejected calls are always shown, and a question the Orchestrator was not let ask
+  stands on its own line: "Wanted to ask: … · not asked".
+- At the foot of a turn that did something, once it is over, one line sums it up, such as "2 agents · 3
+  files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and known cost.
+- **Copy** (the answer as written) and **Read aloud** stand at the foot's right; they show when you point
+  at the card or tab into it, and always under a turn with nothing else at its foot.
 - A message's **⋯** menu has **Copy**, **Restore to before this message** and **Show its work on the
   canvas**. The **↺** button on a message whose work changed files is **Undo these changes**.
 
@@ -103,13 +111,22 @@ box shows what they said to each other, titled "*A* ↔ *B*". Drag it by its tit
 arrow keys on its grip. This browser keeps one place for it, the same in every chat. A double click on
 its title, or Enter on its grip, puts it back.
 
-A plan turn (see [Plan first](plan-first.md#on-the-canvas)) shows a small **Plan** node. In the work
-turn of an approved plan, the plan stands over the Orchestrator, on a dashed line down to it.
+A plan turn (see [Plan first](plan-first.md#on-the-canvas)) shows a small **Plan** node under your
+message, on a short dashed line down from it. In the work turn of an approved plan, the plan stands over
+the Orchestrator, on a dashed line down to it.
+
+In a turn with no team, a discussion or room stands in the column after the agent that opened it, above
+its members; several stand in the order they began. The dotted line of each member under it, in a colour
+of its own, goes round the right side of that column and comes into the discussion or room from the
+right, with an arrow; an opener that takes part comes in at its left, from the column before. An agent
+waiting for a file another agent in its column holds is joined to it the same way. Click a discussion or
+a room to light the agents in it.
 
 In a turn with teams, each team has a frame. Discussions and rooms between teams stand in a lane of their
 own, outside every frame; a room opened with two teams' leads stands there too. A member's dotted line
-runs from its team's frame to the lane; the legend calls it "A member's line to its discussion or room
-(between teams, from its frame to the lane)".
+runs from its team's frame to the lane; the legend calls it "A member's line to its discussion or room:
+with no team, from the members under it round the right of their column and in at its side, with an
+arrow; between teams, from its frame to the lane".
 
 Where the **Assistant PO** was asked after the turn, a small **Assistant PO** box stands under the turn,
 on a dashed line down from the Orchestrator. It shows the model asked, how many tasks it proposed and

@@ -16,7 +16,9 @@ type Tone = 'idle' | 'running' | 'approval'
 
 /**
  * Where lines leave and come in at a node's top and foot: in a team's frame between two of a column, a findings arc, and
- * a line across to another frame (K-canvas-dili), an approved plan down to its Lead. Only the line shows.
+ * a line across to another frame (K-canvas-dili), an approved plan down to its Lead. And at its right side, a line from
+ * one under or over it in its column (the user's option A, 21 Nov). Only the line shows. (After the left dot: a line
+ * that names none still comes in on the left.)
  */
 const Ends = () => (
   <>
@@ -26,8 +28,13 @@ const Ends = () => (
     <Handle type="target" id="up-in" position={Position.Bottom} isConnectable={false} className="found-handle" />
     <Handle type="source" id="plan-out" position={Position.Bottom} isConnectable={false} className="found-handle" />
     <Handle type="target" id="plan-in" position={Position.Top} isConnectable={false} className="found-handle" />
+    <Handle type="target" id="side-in" position={Position.Right} isConnectable={false} className="found-handle" />
   </>
 )
+
+/** Which of a card's two dots no line ever uses: hidden, the Handle kept (a line that names none still finds it). */
+type Unused = 'in' | 'out' | 'both'
+const hiddenIf = (unused: Unused | undefined, side: 'in' | 'out') => (unused === side || unused === 'both' ? 'found-handle' : undefined)
 
 interface CardProps {
   icon: ReactNode
@@ -35,20 +42,22 @@ interface CardProps {
   label?: string
   tone?: Tone
   selected?: boolean
+  unused?: Unused
   children: ReactNode
 }
 
-function Card({ icon, title, label, tone = 'idle', selected, children }: CardProps) {
+function Card({ icon, title, label, tone = 'idle', selected, unused, children }: CardProps) {
   return (
     <div className={`node node-${tone}${selected ? ' node-selected' : ''}`}>
-      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <Handle type="target" position={Position.Left} isConnectable={false} className={hiddenIf(unused, 'in')} />
       <div className="node-head">
         <span className="node-icon">{icon}</span>
-        <span className="node-title">{title}</span>
-        {label && <span className="node-label mono">{label}</span>}
+        {/* (Whole on hover where the card's width cuts it: "Ended: nothin…" is how a discussion ended.) */}
+        <span className="node-title" title={title}>{title}</span>
+        {label && <span className="node-label mono" title={label}>{label}</span>}
       </div>
       <div className="node-body">{children}</div>
-      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Handle type="source" position={Position.Right} isConnectable={false} className={hiddenIf(unused, 'out')} />
       <Ends />
     </div>
   )
@@ -66,6 +75,8 @@ export function RequestNode({ data, selected }: NodeProps<Node<RequestData & Rec
       title={data.trigger === null ? 'You' : 'Trigger'}
       label={clock(data.time)}
       selected={selected}
+      // (No line comes into what started a turn.)
+      unused="in"
     >
       {/* (Three lines at most - the user's, 5 Nov: what was written, whole, is in the side panel.) */}
       {data.trigger !== null && data.trigger !== '' && <div className="node-meta mono">{data.trigger} · nobody watching</div>}
@@ -80,7 +91,8 @@ export function RequestNode({ data, selected }: NodeProps<Node<RequestData & Rec
 export function AttachmentNode({ data, selected }: NodeProps<Node<AttachmentData & Record<string, unknown>>>) {
   return (
     <div className={`node node-attachment${selected ? ' node-selected' : ''}`} style={{ '--c': `var(${data.colour})` } as CSSProperties}>
-      <Handle type="target" position={Position.Left} isConnectable={false} />
+      {/* (No line comes into a file.) */}
+      <Handle type="target" position={Position.Left} isConnectable={false} className="found-handle" />
       <span className="file-ic mono" aria-hidden="true">
         {data.label}
       </span>
@@ -119,6 +131,8 @@ export function FilesNode({ id, data, selected }: NodeProps<Node<GroupData & Rec
           {data.open ? <CaretDown size={12} /> : <CaretRight size={12} />}
         </button>
       </div>
+      {/* Closed, its files' lines leave from it, one to each agent handed files (foldGraph): only the line shows. */}
+      <Handle type="source" position={Position.Right} isConnectable={false} className="found-handle" />
     </div>
   )
 }
@@ -131,8 +145,11 @@ export function DiscussionNode({ data, selected }: NodeProps<Node<DiscussionData
       label={data.line}
       tone={data.running ? 'running' : 'idle'}
       selected={selected}
+      // (Every line to a discussion or a room goes into it. One inside a frame may be drawn from its right dot, but its
+      // arrow is there and covers the dot.)
+      unused="out"
     >
-      <div className="node-line">{data.topic}</div>
+      <div className="node-line" title={data.topic}>{data.topic}</div>
       {/* Whose turn it is, or who takes part: the last things said are in the side panel (the user's, 5 Nov). */}
       {data.speaking ? (
         <div className="node-meta mono" style={{ color: 'var(--accent)' }}>
@@ -156,8 +173,9 @@ export function RoomNode({ data, selected }: NodeProps<Node<RoomData & Record<st
       label={data.line}
       tone={data.attention ? 'approval' : data.running ? 'running' : 'idle'}
       selected={selected}
+      unused="out"
     >
-      <div className="node-line">{data.goal}</div>
+      <div className="node-line" title={data.goal}>{data.goal}</div>
       {data.attention ? (
         <div className="node-meta mono" style={{ color: 'var(--warn)' }}>
           Waits for you
@@ -178,6 +196,8 @@ export function PlanNode({ data, selected }: NodeProps<Node<PlanData & Record<st
       label={data.status === 'writing' ? 'being written' : data.status}
       tone={data.status === 'proposed' ? 'approval' : data.status === 'writing' ? 'running' : 'idle'}
       selected={selected}
+      // (Its lines are straight, top and foot: from the message over it, or down to the Orchestrator under it.)
+      unused="both"
     >
       <div className="node-said">{data.by ?? 'Only reads; nothing changes before you approve.'}</div>
     </Card>
@@ -188,7 +208,8 @@ export function PlanNode({ data, selected }: NodeProps<Node<PlanData & Record<st
 export function PoNode({ data, selected }: NodeProps<Node<PoData & Record<string, unknown>>>) {
   const { openTodo } = useContext(NodeActions)
   return (
-    <Card icon={<Lightbulb size={13} />} title="Assistant PO" label={data.model_id ?? 'model not known'} selected={selected}>
+    // (Its line comes straight down into its top.)
+    <Card icon={<Lightbulb size={13} />} title="Assistant PO" label={data.model_id ?? 'model not known'} selected={selected} unused="both">
       <div className="node-line" style={data.heard ? undefined : { color: 'var(--warn)' }}>
         {poSaid(data)}
       </div>
@@ -296,8 +317,9 @@ function AgentCard({ id, data, selected }: AgentProps) {
         </span>
       </div>
       <div className="node-body">
-        {/* Its state's colour, as everywhere; its dot blinks while it is at work. */}
-        <div className={`node-line mono${data.status === 'running' ? ' node-now' : ''}`} title={said}>
+        {/* Its state's colour, as everywhere; its dot blinks while it is at work. Waiting for your answer, what it asks is
+            under the pointer. */}
+        <div className={`node-line mono${data.status === 'running' ? ' node-now' : ''}`} title={data.asks || said}>
           {/* What was counted of its calls first, so that its state is what gets cut off. */}
           {data.sign && <SignChip agentId={id.replace(/^agent:/, '')} sign={data.sign} stopped={data.signStopped} />}
           <StatusLabel color={AGENT_STATUS[data.status][1]}>
@@ -406,8 +428,12 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
           {error}
         </p>
       )}
-      {/* (Its line to Ready for you: low, under its card - canvas.css.) */}
-      <Handle type="source" position={Position.Right} isConnectable={false} className="team-out" />
+      {/* (Its line to Ready for you: low, under its card - canvas.css. A frame of roles has none: its dot hidden, kept for
+          a member's line and a line moved onto it, folded.) */}
+      <Handle type="source" position={Position.Right} isConnectable={false} className={data.byRoles ? 'team-out found-handle' : 'team-out'} />
+      {/* Findings handed out of it, from under it (only the line shows). After team-out: a line that names no dot leaves
+          by the first. */}
+      <Handle type="source" id="found-out" position={Position.Bottom} isConnectable={false} className="found-handle" />
       {/* Its door, by its header: the Lead's line comes in there, and the work line inside starts there. */}
       <Handle type="target" id="door-in" position={Position.Left} isConnectable={false} className="team-door" />
       <Handle type="source" id="door-out" position={Position.Left} isConnectable={false} className="team-door" />
@@ -415,23 +441,21 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
   )
 }
 
-/**
- * Where the turn's teams meet (slice 84b-2): dashed while it waits, saying for whom; "NEEDS YOU" once every team is at
- * its end, with each team's line and the checks its agents reported (never one nobody reported); "In the project ✓"
- * after Take in. What waits for you is answered in one place, the chat's Ready for you (K-bekleyenler): here, its count,
- * what it holds in one line, and the way there.
- */
-export function ReadyNode({ data, selected }: NodeProps<Node<ReadyData & Record<string, unknown>>>) {
-  const { openList } = useContext(NodeActions)
+/** Where Ready for you stands: the question it asks, the recipe's copy kept, whether it needs you, and its word for it. */
+function readyStands(data: ReadyData) {
   const asked = data.questionId
   // B-67: its turn ended before Take in - the recipe's copy is kept, Take in or Discard is still yours.
   const kept = asked === null ? data.kept : null
   // (B-142: a Take in's clash waits in the list too - not "Nothing waits to be taken in.")
   const needs = asked !== null || kept !== null || data.rows.some(row => row.kept) || data.waiting.mine > 0
-  const label = needs ? 'NEEDS YOU' : data.taken ? 'IN' : data.waits ? 'WAITS' : 'DONE'
+  return { asked, kept, needs, label: needs ? 'NEEDS YOU' : data.taken ? 'IN' : data.waits ? 'WAITS' : 'DONE' }
+}
+
+/** What Ready for you says of the work: kept, waited for, at its end, in the project or not all of it. */
+function readySaid(data: ReadyData, kept: string | null, needs: boolean): string {
   // B-84: what is in the project is said team by team - one taken in before is not "nothing".
   const inSoFar = data.inProject.length ? `In the project: ${data.inProject.join(', ')}.` : 'Nothing is in the project yet.'
-  const said = kept
+  return kept
     ? `The work ended before Take in${data.left ? ` (${data.left})` : ''}: the work is kept in the recipe’s copy, not in the project.`
     : data.waits
       ? `Waits for ${data.waits}.`
@@ -444,6 +468,18 @@ export function ReadyNode({ data, selected }: NodeProps<Node<ReadyData & Record<
             : data.notStarted.length
               ? `${data.notStarted.join(', ')} did not start.`
               : 'Nothing waits to be taken in.'
+}
+
+/**
+ * Where the turn's teams meet (slice 84b-2): dashed while it waits, saying for whom; "NEEDS YOU" once every team is at
+ * its end, with each team's line and the checks its agents reported (never one nobody reported); "In the project ✓"
+ * after Take in. What waits for you is answered in one place, the chat's Ready for you (K-bekleyenler): here, its count,
+ * what it holds in one line, and the way there.
+ */
+export function ReadyNode({ data, selected }: NodeProps<Node<ReadyData & Record<string, unknown>>>) {
+  const { openList } = useContext(NodeActions)
+  const { asked, kept, needs, label } = readyStands(data)
+  const said = readySaid(data, kept, needs)
   return (
     <div className={`node ready-node ${needs ? 'ready-needs' : data.taken ? 'ready-in' : 'ready-waits'}${selected ? ' node-selected' : ''}`}>
       <Handle type="target" position={Position.Left} isConnectable={false} className="ready-door" />

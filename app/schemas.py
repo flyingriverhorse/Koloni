@@ -1769,6 +1769,9 @@ class BoardAgent(BaseModel):
     # else it may ask (a command, a sub-agent, a folder) is in neither.
     changes_to_approve: int
     questions: int
+    # Of its questions, its own: not KOLONİ's card about it (`Question.leave`). B-204: only
+    # these are said as the agent asking.
+    own_questions: int
 
 
 class BoardOutcome(BaseModel):
@@ -1808,7 +1811,8 @@ class BoardConversation(BaseModel):
     conversation_id: str
     title: str
     agents: list[BoardAgent]
-    # Its agents' changes that wait for the user's decision (a merge card in its chat).
+    # Its agents' changes that wait for the user's decision (a merge card in its chat), and its
+    # copies kept for Take in that hold a file.
     merges_pending: int
     # Its last turn; None before its first.
     turn: BoardTurn | None
@@ -2071,7 +2075,7 @@ class DiscussionOut(Out):
     topic: str
     max_rounds: int
     round: int
-    status: Literal["running", "ended", "cancelled", "interrupted"]
+    status: Literal["running", "ended", "cancelled", "failed", "interrupted"]
     outcome: Literal["agreed", "round_limit", "ended_by_user", "too_few", "budget"] | None
     created_at: datetime
     ended_at: datetime | None
@@ -2262,7 +2266,7 @@ class QuestionOut(Out):
     id: str
     run_id: str
     agent_id: str
-    tool_call_id: str
+    tool_call_id: str | None  # (None: a card of the turn's own - its model is slow, K-yavas)
     question: str
     options: list[str]
     # KOLONİ's own question, not the agent's: leave for a tool. Its options are the only

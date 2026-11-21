@@ -10,6 +10,9 @@ can join it.
 An agent invites 1 to 5 agents or roles, for 1 to 20 rounds (3 unless it says otherwise). The agent
 that opened it speaks last in each round.
 
+A speech is at most 1500 characters, and each speaker is told so when its turn comes. A longer one is
+cut there and ends with "[the rest was cut]"; the rest is not kept.
+
 ## When it ends
 
 A discussion ends when nobody has anything to add, at its round limit, when it reaches its token

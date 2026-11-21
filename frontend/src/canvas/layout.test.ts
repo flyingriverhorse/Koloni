@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import type { Discussion, Room } from '../api/types'
 import { agent, command, convState, fileChange, note, run, toolCall, userMessage } from '../test-fixtures'
 import { deriveGraph, type GraphEdge, type GraphNode, type NodeKind } from './deriveGraph'
 import { foldAll, foldGraph } from './foldGraph'
@@ -150,6 +151,38 @@ test('a discussion opened by the lead, and one by a sub-agent: each in its opene
   expect(pos['discussion:k']).toEqual({ x: FIRST + 2 * STEP, y: pos['agent:kid'].y })
   expect(pos['request:b'].y).toBeGreaterThan(pos['agent:kid2'].y + NODE_H)
   expectSound(nodes)
+})
+
+test('a discussion and a room one agent opened stand in its next column in the order they began, whichever kind came first', () => {
+  const at = (s: number) => `2026-10-05T10:00:0${s}Z`
+  const room: Room = {
+    id: 'o', run_id: 'r', goal: 'Build it', agent_id: 'lead', status: 'working', outcome: null, why: null,
+    budget: { posts: 40, tokens: null, minutes: 30 }, spent: { posts: 0, tokens: null, minutes: 0 }, summary: null, paused: false,
+    lead_follows: 'off', members: [{ agent_id: 'kid', role: 'Coder', status: 'in' }], created_at: at(1), ended_at: null,
+  }
+  const talk: Discussion = {
+    id: 'd', run_id: 'r', agent_id: 'lead', tool_call_id: 'x', topic: 'Ship it?', status: 'ended', outcome: 'agreed', round: 1, max_rounds: 3,
+    created_at: at(0), ended_at: at(0), members: [{ agent_id: 'kid', status: 'in', opened_here: false }],
+  }
+  // (As the canvas lays them out: through foldGraph, which keeps when each began.)
+  const drawn = (rooms: Room[], discussions: Discussion[]) => {
+    const { nodes, edges } = foldGraph(deriveGraph(convState({
+      runs: [run('r')],
+      messages: [userMessage('r', 'x')],
+      agents: [agent('r', 'waiting', { id: 'lead' }), agent('r', 'running', { id: 'kid', parent_agent_id: 'lead', depth: 1, role_name: 'Coder' })],
+      rooms,
+      discussions,
+    })), {})
+    const { positions: pos } = layoutGraph(nodes, edges)
+    return [pos['discussion:d'], pos['room:o'], pos['agent:kid']]
+  }
+  // The discussion began first: it stands over the room, the Coder under both.
+  const [d, o, kid] = drawn([room], [talk])
+  expect([d.x, o.x]).toEqual([FIRST + STEP, FIRST + STEP])
+  expect([d.y, o.y, kid.y]).toEqual([0, NODE_H + ROW_GAP, 2 * (NODE_H + ROW_GAP)])
+  // The room began first: it is on top.
+  const [later, first] = drawn([{ ...room, created_at: at(0) }], [{ ...talk, created_at: at(1) }])
+  expect([first.y, later.y]).toEqual([0, NODE_H + ROW_GAP])
 })
 
 test('records with a discussion and notes: the graph drawn from them is sound, open or closed', () => {
@@ -459,4 +492,21 @@ test('the Assistant PO stands under all of its turn, in its Lead’s column, and
   // (Under the Lead's two sub-agents, beside it: its line straight down from the Lead crosses none.)
   expect(pos['po:a']).toEqual({ x: FIRST, y: 2 * row })
   expect(pos['request:b']).toEqual({ x: 0, y: 3 * row })
+})
+
+test('21 Nov: a compare turn’s second Everyone card stands beside its own Orchestrator, as the first does', () => {
+  // (Its card keeps its own run's id: it was laid out as an agent's card, one column further right on a long line.)
+  const state = convState({
+    runs: [run('s1', 'completed', { compare_id: 'cmp' }), run('s2', 'completed', { compare_id: 'cmp' })],
+    messages: [userMessage('s1', 'compare it'), { ...userMessage('s2', 'compare it'), id: 'm-s2' }],
+    agents: [agent('s1', 'completed'), agent('s2', 'completed')],
+  })
+  const g = foldGraph(oneTurn(deriveGraph(state, [], [{ path: 'notes.md', at: '2026-10-05T10:00:00Z' }]), 's1'), {})
+  expect(g.nodes.filter(n => n.kind === 'shared').map(n => n.id)).toEqual(['shared:s1:top', 'shared:s2:top'])
+  const { positions: pos, lines } = layoutGraph(g.nodes, g.edges)
+  for (const side of ['s1', 's2']) {
+    expect(pos[`shared:${side}:top`], side).toEqual({ x: pos[`agent:${side}`].x + NODE_W + COL_GAP, y: pos[`agent:${side}`].y })
+    expect(lines[`shared:shared:${side}:top`], side).toBeDefined()
+  }
+  expectSound(g.nodes)
 })

@@ -59,7 +59,8 @@ the project, so it has none. What stops it:
   budget, a night's money;
 - **Stop**.
 
-A turn you started has no clock: you are there to press **Stop**, and the card below asks you.
+A turn you started has no clock that ends it: you are there to press **Stop**, and the cards below
+ask you.
 
 ### When the Orchestrator goes round in circles
 
@@ -105,6 +106,31 @@ In a turn nobody watches (a trigger's, a job while you're away, a To-do task) th
 Orchestrator fails with the reason on record, also where it had written something - so a To-do task
 gets its fix round, then is blocked with why - and a night or the To-do run goes on with the next
 job or task.
+
+### When the Orchestrator's model is slow to answer
+
+In a turn you started, when the Orchestrator's model has said nothing for 5 minutes while it was
+asked - no words, no call - a card under the turn asks you:
+
+> Codex · gpt-6-astra has not answered for 5 min. Keep waiting, or stop this turn and pick another
+> model?
+
+Time on a tool (a sub-agent, a command) or on another card that waits for you does not count. When
+Qoder has kept a free model queued for 90 seconds, the card comes then: "Qoder has kept
+Qwen3.8-Flash queued for 2 min."
+
+While it waits, the card counts as waiting for you outside its chat too: on the Ready page, as a
+mark on the chat in the Chats list, and in a note in the corner ("Orchestrator waits for you").
+
+- **Keep waiting**: the turn waits on; the next card comes only after another 5 minutes with no word.
+- **Stop and pick another model**: the turn ends as at **Stop**, what it did kept, and KOLONİ's line
+  says to pick another model for the Orchestrator and send your message again: in the chat's model
+  picker, or on the Agents page where the Orchestrator role has a model of its own (see
+  [A role's model](../models/tiers.md#a-roles-model)).
+- No answer: it keeps waiting. The card closes by itself once the model answers.
+
+A sub-agent has no such card (one whose provider fails is moved to the next model of its tier), and
+a turn nobody watches is as above.
 
 ## At the limit
 

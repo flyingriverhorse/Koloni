@@ -20,7 +20,7 @@ import type { ConvState } from '../state/applyEvent'
 import { type GraphEdge, type GraphNode, deriveGraph, type GroupData, type TeamData } from './deriveGraph'
 import { ArcEdge, LaneEdge, LevelEdge, type LineData, MemberEdge, RequestEdge } from './edges'
 import { type Folds, agentOf, foldAll, foldGraph, isGroup, nodeOf, readFolds, unfold, writeFolds } from './foldGraph'
-import { AT_ONCE_HEAD, AT_ONCE_PAD, DASH, DOOR_PAD, FILES_HEAD, type Layout, NODE_H, NODE_W, arcWay, crossTalk, frameLine, wallsOf, arced, keepInside, layoutGraph, memberLine, requestFrom, requestLine, stacked } from './layout'
+import { AT_ONCE_HEAD, AT_ONCE_PAD, DASH, DOOR_PAD, FILES_HEAD, type Layout, NODE_H, NODE_W, arcWay, crossTalk, frameLine, wallsOf, arced, keepInside, layoutGraph, memberFrame, memberLine, requestFrom, requestLine, stacked } from './layout'
 import { AgentNode, AttachmentNode, AwayJobNode, AwayNode, DiscussionNode, FilesNode, PlanNode, PoNode, ReadyNode, RequestNode, RoomNode, RoundNode, TeamNode } from './nodes'
 import { useOutputs } from './outputs'
 import { SharedNode, useSharedFiles } from './SharedNode'
@@ -28,6 +28,7 @@ import { SAID, SAID_LINES, SaidBox } from './Said'
 import { saidSide } from './saidSide'
 import { type Actions, NodeActions, ToggleGroup } from './toggleGroup'
 import { talkColours } from '../agents/teamRun'
+import { titleOf } from '../agents/agentStatus'
 import { MOVED } from '../shell/move'
 import { usePanel } from '../shell/usePanel'
 import { Legend } from './Legend'
@@ -147,7 +148,7 @@ function roundLines({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }
   const rect = (id: string) => ({ ...(auto.positions[id] ?? { x: 0, y: 0 }), ...(auto.sizes[id] ?? { width: NODE_W, height: NODE_H }) })
   const placed = nodes.filter(n => !n.parent && auto.positions[n.id])
   const [frames, cards] = [placed.filter(n => n.kind === 'team'), placed.filter(n => n.kind !== 'team')]
-  const round: Record<string, { source: string; target: string; points: Point[]; at?: Point }> = {}
+  const round: Record<string, { source: string; target: string; points: Point[]; at?: Point; turned?: boolean }> = {}
   edges.filter(e => e.cross).forEach((e, i) => {
     const [a, b] = [byId.get(e.source)?.team, byId.get(e.target)?.team]
     if (!a || !b || !auto.positions[a] || !auto.positions[b]) return
@@ -158,13 +159,16 @@ function roundLines({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }
     const frame = byId.get(e.target)?.team
     const door = byId.get(e.source)?.kind === 'team'
     if (!frame || e.cross || arced(e) || !(door || byId.get(e.source)?.team === frame) || !auto.positions[e.source]) continue
-    const { source, target, points } = frameLine(e, rect, door, [...cards.filter(n => n.team === frame).map(n => rect(n.id)), ...wallsOf(rect(frame))])
-    if (points) round[e.id] = { source, target, points }
+    const { source, target, points, turned } = frameLine(e, rect, door, [...cards.filter(n => n.team === frame).map(n => rect(n.id)), ...wallsOf(rect(frame))])
+    if (points) round[e.id] = { source, target, points, turned }
   }
   return round
 }
 
-/** An approved plan's line straight down to the Lead under it, or the Lead's to the Assistant PO under the turn: a relation, not a flow - no arrow, no tab stop, nothing read out. */
+/**
+ * An approved plan's line straight down to the Lead under it, a message's to its plan under it, or the Lead's to the
+ * Assistant PO under the turn: a relation, not a flow - no arrow, no tab stop, nothing read out.
+ */
 const planLine = (e: GraphEdge): Edge => ({
   id: e.id,
   source: e.source,
@@ -177,6 +181,87 @@ const planLine = (e: GraphEdge): Edge => ({
   domAttributes: { 'aria-hidden': true },
   style: { stroke: 'var(--border-strong)', strokeWidth: 1.5, strokeDasharray: e.po ? DASH.po : DASH.plan },
 })
+
+/**
+ * A team's frame is drawn behind its agents' boxes, which stand on their own (slice 84b-2): it is not moved. A card
+ * stands by its team, and is lit, not selected (K-shared-bagli). (A round's line likewise.)
+ */
+const standing = (n: GraphNode) => ({
+  ...(n.kind === 'team' && { zIndex: -1, draggable: false, selectable: false, focusable: false }),
+  ...((n.kind === 'shared' || n.kind === 'round') && { draggable: false, selectable: false, focusable: false }),
+})
+
+/** A line between two agents of a frame, not from its door: down or up its column, else across to the next one. */
+function columnLine(e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> {
+  if (stacked(s, t)) return { type: 'lane', data, ...(t.y > s.y ? { sourceHandle: 'found-out', targetHandle: 'found-in' } : { sourceHandle: 'up-out', targetHandle: 'up-in' }) }
+  // (A line to a node of an earlier column is drawn from that one - `frameLine` - its arrow at its start.)
+  const turned = t.x < s.x
+  return { type: 'lane', data: { ...data, turned }, ...(turned && { source: e.target, target: e.source }) }
+}
+
+/** A talk line's two ends, in one order: who talked with whom, whichever spoke first. */
+const pairOf = (e: GraphEdge) => [e.source, e.target].sort().join('|')
+
+/** Talk on a line: whether it is drawn as talk - one of edges.tsx's lines - and its pair's colour. */
+const talkOf = (e: GraphEdge, drawn: Partial<Edge>, talkHues: Map<string, string>) => ({
+  talking: !!e.talk && !!e.messages && !!drawn.type,
+  talkHue: e.talk && e.messages ? talkHues.get(pairOf(e)) : undefined,
+})
+
+/**
+ * A line's colour: a card's, a request's, findings', its talk pair's, at work or handed, a member's to its discussion or
+ * room (talk with no messages: its own colour, not a sub-agent's grey - the user's, 21 Nov), or none of those.
+ */
+const edgeColour = (e: GraphEdge, talkHue: string | undefined, talking: boolean): string =>
+  e.shared ? e.shared.colour : e.request ? 'var(--request)' : e.findings !== undefined ? 'var(--warn)' : talkHue ?? (talking ? 'var(--tool-team)' : e.active || e.handed ? 'var(--accent)' : e.talk ? 'var(--member-line)' : 'var(--border-strong)')
+
+/** A line's classes: it waits, carries findings, hands a file on, and is lit or faded while something is; none, undefined. */
+const edgeClass = (e: GraphEdge, lit: GraphEdge[] | null): string | undefined =>
+  [e.waits && 'edge-waits', e.findings !== undefined && 'edge-findings', e.handed && 'edge-handed', lit && (lit.includes(e) ? 'edge-lit' : 'edge-faded')].filter(Boolean).join(' ') || undefined
+
+/** What a line React Flow draws says on it: its messages, or its findings, counted. */
+const edgeLabel = (e: GraphEdge): string | undefined =>
+  e.messages ? `${e.messages} message${e.messages > 1 ? 's' : ''}` : e.findings !== undefined ? `${e.findings} finding${e.findings === 1 ? '' : 's'}` : undefined
+
+/** How thick a line is: lit, a contract's arm, at work or talk or to a card, waiting, or any other. */
+const edgeWidth = (e: GraphEdge, lit: GraphEdge[] | null, talking: boolean): number =>
+  lit?.includes(e) ? 3 : e.shared?.arm ? 1.2 : e.active || talking || e.shared ? 2 : e.waits ? 1 : 1.5
+
+/** How a line is dashed, by what it is (`DASH`); undefined, a solid line. */
+const edgeDash = (e: GraphEdge, talking: boolean): string | undefined =>
+  e.shared ? (e.shared.dotted || e.shared.arm ? DASH.shared : undefined) : e.request?.open ? DASH.request : e.request ? undefined : talking ? DASH.talkLine : e.handed ? DASH.handed : e.findings !== undefined ? DASH.findings : e.waits ? DASH.waits : e.talk ? DASH.talk : e.spawn ? DASH.spawn : undefined
+
+/** What lights its lines and the nodes at their ends when picked. */
+const FOCUSED: ReadonlySet<string> = new Set(['agent', 'discussion', 'room'])
+
+/** What is in focus: the talk line whose words are shown, else the card or frame lit, else the agent, discussion or room picked. */
+function focusOf(byId: Map<string, GraphNode>, talkEdge: GraphEdge | undefined, lightId: string | null, shown: GraphNode | undefined): string | null {
+  return talkEdge?.id ?? (lightId && byId.has(lightId) ? lightId : null) ?? (shown && FOCUSED.has(shown.kind) ? shown.id : null)
+}
+
+/** The lines lit by what is in focus, and the nodes - null while nothing is. */
+function litOf({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }, byId: Map<string, GraphNode>, focus: string | null, lightId: string | null) {
+  // (A frame picked lights its own line to its card, not a request to another team's: N4.)
+  const frameLit = focus === lightId && byId.get(focus ?? '')?.kind === 'team'
+  const lit = focus ? edges.filter(e => (frameLit ? e.source === focus && e.shared : e.id === focus || e.source === focus || e.target === focus)) : null
+  // (A team lit by its card, or its frame picked: its agents too.)
+  const litTeams = new Set(focus === lightId && lit ? [focus, ...lit.map(e => e.source)] : [])
+  const litNodes = lit && new Set([focus!, ...lit.flatMap(e => [e.source, e.target]), ...nodes.filter(n => n.team && litTeams.has(n.team)).map(n => n.id)])
+  return { lit, litNodes }
+}
+
+/**
+ * Who said what on what is lit (W's box): to and from the agent picked, or on the talk line - one of a frame's door,
+ * between the agent outside and the frame's agents. Null while neither is.
+ */
+function saidOn(state: ConvState | null, talkEdge: GraphEdge | undefined, shown: GraphNode | undefined, endsOf: (id: string) => Set<string>) {
+  if (!state || !(talkEdge || shown?.kind === 'agent')) return null
+  const [a, b] = talkEdge ? [endsOf(talkEdge.source), endsOf(talkEdge.target)] : [endsOf(shown!.id), null]
+  const meets = (one: string, other: string) => a.has(one) && (!b || b.has(other))
+  return state.channelMessages
+    .filter(m => SAID.has(m.kind) && (meets(m.from_agent_id, m.to_agent_id) || meets(m.to_agent_id, m.from_agent_id)))
+    .slice(-SAID_LINES)
+}
 
 /** The bee over the empty canvas (K-logo), once the conversation is read: played once, muted, then still on its last
  * frame (no `loop`); only the picture where motion is reduced. Decorative. Mounted with the empty state alone, so
@@ -586,19 +671,55 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   // The discussions' lane, where it stands; and a height above the whole turn, for a line from an agent with no frame.
   const lane = Math.min(...graph.edges.filter(e => e.member).map(e => rect(e.target).x))
   const above = Math.min(...graph.nodes.filter(n => !n.parent && auto.positions[n.id]).map(n => rect(n.id).y)) - DOOR_PAD / 2
+  /**
+   * A line between two of no frame (`insideLine`). B-133: talk is its bubble too (count, pair colour, who, a click) - not
+   * "2 messages" -, and so is the Orchestrator's with a sub-agent it opened, on their spawn line (not one already moved
+   * onto a folded frame: React Flow's curve, as before). The user's option A (21 Nov): two cards one over the other in a column - a member under its discussion
+   * or room, an agent and the one whose file it waits for - are joined round their right, on one line down that side,
+   * into the far one's side dot: before, the line left the right dot and doubled back behind both cards. (`waits:` by its
+   * id: a night's job to its report waits too.)
+   * shortcut: a member or a holder in another column keeps React Flow's curve, which can loop back; route it if that is seen.
+   * shortcut: two places stacked in one column share one vertical at its right; give each place its own offset if they
+   * are seen to tangle.
+   * shortcut: a member's line to its own card, at its top right, crosses that vertical; route the card's line past it if
+   * that is seen.
+   * shortcut: in a team turn, the Orchestrator's 💬 line to an agent of no frame under the frames bends 20 px left of it,
+   * inside the frames' left wall (React Flow's curve cut there too); route it left of the frames if that is seen.
+   */
+  const looseLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
+    const fromFrame = byId.get(e.source)?.kind === 'team'
+    if (e.messages && (e.talk || !fromFrame)) return { type: 'lane', data }
+    // (Not a line moved onto a frame: the frame spans the column of any agent under it, so it would seem stacked.)
+    if ((e.talk || e.id.startsWith('waits:')) && !fromFrame && stacked(s, t)) return { type: 'lane', targetHandle: 'side-in', data }
+    return {}
+  }
+  /** A line inside one frame, or between two of none; any other line not drawn by `edges.tsx` is React Flow's. */
+  const insideLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
+    const [from, to] = [frameOf(e.source) ?? (e.work ? e.source : undefined), frameOf(e.target)]
+    if (!from && !to) return looseLine(e, s, t, data)
+    if (!from || from !== to) return {}
+    // Findings back, and talk between two of its agents: on an arc over or under the work line, in the room the layout
+    // left in the frame - never under a card (the user, 6 Nov).
+    if (arced(e)) {
+      const { source, target, turned, band, ring, into } = arcWay(e, graph.nodes, graph.edges, rect, frameOf)
+      return { type: 'arc', source, target, sourceHandle: null, targetHandle: { top: 'found-in', foot: 'up-in', side: null }[into], data: { ...data, findings: e.findings, band, ring, turned } }
+    }
+    if (e.source === from) return { type: 'lane', sourceHandle: 'door-out', data }
+    return columnLine(e, s, t, data)
+  }
   /** How a line of a team's frame, its door or a line across is drawn (`edges.tsx`); any other as React Flow draws it. */
   const lineOf = (e: GraphEdge): Partial<Edge> => {
-    const [from, to] = [frameOf(e.source) ?? (e.work ? e.source : undefined), frameOf(e.target)]
     const [s, t] = [rect(e.source), rect(e.target)]
     const data: LineData = { messages: e.messages, last: e.last }
-    // To a discussion in the lane: from the member's frame (or over the turn), down the gap left of the lane.
+    // To a discussion in the lane: from the member's frame - or the folded frame for it - (or over the turn), down the gap
+    // left of the lane.
     if (e.member) {
-      const framed = frameOf(e.source)
+      const framed = memberFrame(e.source, frameOf, id => byId.get(id)?.kind)
       return { type: 'member', data: { points: memberLine(rect(framed ?? e.source), !!framed, dragged(e.target) ?? t, above) } }
     }
     // Round the cards and headers: talk across two frames, a frame's line that would run under a card.
     const way = round[e.id]
-    if (way) return { type: 'member', source: way.source, target: way.target, sourceHandle: null, targetHandle: null, data: { ...data, points: way.points, at: way.at } }
+    if (way) return { type: 'member', source: way.source, target: way.target, sourceHandle: null, targetHandle: null, data: { ...data, points: way.points, at: way.at, turned: way.turned } }
     // K-shared-bagli: to its card, where the layout found it room - else none.
     if (e.shared) return auto.lines[e.id] ? { type: 'level', data: { line: auto.lines[e.id], colour: e.shared.colour, arm: !!e.shared.arm } } : { hidden: true }
     // A request between teams: frame to frame in the gap, past every other box (K-takimlar-arasi).
@@ -608,34 +729,19 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       return line ? { type: 'request', sourceHandle: 'door-out', targetHandle: 'door-in', data: { line, label: e.request.label, title: e.request.title, open: e.request.open } } : { hidden: true }
     }
     // Into a frame: at its door - the line of the agent that opens its team, and any line from outside (`framed`).
+    // shortcut: findings from another frame come up beside the Orchestrator's door trunk and in at its door point, so
+    // they can read as the Orchestrator's; give them a door of their own if that is seen.
     if (byId.get(e.target)?.kind === 'team') return { type: 'lane', targetHandle: 'door-in', data: { ...data, findings: e.findings } }
     // A frame's line to Ready for you: up or down on a bus right of every frame, not over another frame - left of the
     // discussions' lane where there is one, then over it into Ready (layout.ts).
     if (byId.get(e.target)?.kind === 'ready') return { type: 'lane', data: { bus: lane < Infinity ? lane - DOOR_PAD / 2 : undefined } }
-    // B-133: talk between agents framed by no team is its bubble too (count, pair colour, who, a click) - not "2 messages".
-    if (!from && !to && e.talk && e.messages) return { type: 'lane', data }
-    if (!from || from !== to) return {}
-    // Findings back, and talk between two of its agents: on an arc over or under the work line, in the room the layout
-    // left in the frame - never under a card (the user, 6 Nov).
-    if (arced(e)) {
-      const { source, target, turned, band, ring, into } = arcWay(e, graph.nodes, graph.edges, rect, frameOf)
-      return { type: 'arc', source, target, sourceHandle: null, targetHandle: { top: 'found-in', foot: 'up-in', side: null }[into], data: { ...data, findings: e.findings, band, ring, turned } }
-    }
-    if (e.source === from) return { type: 'lane', sourceHandle: 'door-out', data }
-    if (stacked(s, t)) return { type: 'lane', data, ...(t.y > s.y ? { sourceHandle: 'found-out', targetHandle: 'found-in' } : { sourceHandle: 'up-out', targetHandle: 'up-in' }) }
-    // (Talk with an agent of an earlier column is drawn from that one.)
-    return { type: 'lane', data, ...(t.x < s.x && { source: e.target, target: e.source }) }
+    return insideLine(e, s, t, data)
   }
   // What is lit: the talk line whose words are shown, or the agent selected and its lines; the rest fades (W).
   // (A line of another turn's is not on this one.)
   const talkEdge = talkLine ? graph.edges.find(e => e.id === talkLine) : undefined
-  const focus = talkEdge?.id ?? (lightId && byId.has(lightId) ? lightId : null) ?? (shown?.kind === 'agent' || shown?.kind === 'discussion' ? shown.id : null)
-  // (A frame picked lights its own line to its card, not a request to another team's: N4.)
-  const frameLit = focus === lightId && byId.get(focus ?? '')?.kind === 'team'
-  const lit = focus ? graph.edges.filter(e => (frameLit ? e.source === focus && e.shared : e.id === focus || e.source === focus || e.target === focus)) : null
-  // (A team lit by its card, or its frame picked: its agents too.)
-  const litTeams = new Set(focus === lightId && lit ? [focus, ...lit.map(e => e.source)] : [])
-  const litNodes = lit && new Set([focus!, ...lit.flatMap(e => [e.source, e.target]), ...graph.nodes.filter(n => n.team && litTeams.has(n.team)).map(n => n.id)])
+  const focus = focusOf(byId, talkEdge, lightId, shown)
+  const { lit, litNodes } = litOf(graph, byId, focus, lightId)
   const faded = (id: string): boolean => {
     const node = byId.get(id)
     return !!litNodes && !litNodes.has(id) && !(node?.parent && !faded(node.parent))
@@ -671,68 +777,51 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       ...(isGroup(n) && { dragHandle: '.group-head' }),
       // Inside its box, and never dragged out of it.
       ...(n.parent && { parentId: n.parent, extent: 'parent' as const }),
-      // A team's frame is drawn behind its agents' boxes, which stand on their own (slice 84b-2): it is not moved. A card
-      // stands by its team, and is lit, not selected (K-shared-bagli).
-      ...(n.kind === 'team' && { zIndex: -1, draggable: false, selectable: false, focusable: false }),
-      ...((n.kind === 'shared' || n.kind === 'round') && { draggable: false, selectable: false, focusable: false }),
+      ...standing(n),
       // One call that is selected shows on the tool node that lists it.
       selected: n.id === shown?.id,
       // An agent or a talk line picked: what is not its fades, its frame a little.
       ...(faded(n.id) && { className: n.kind === 'team' ? 'canvas-dim' : 'canvas-faded' }),
     }
   })
-  // Who said what on what is lit (W's box): to and from the agent picked, or on the talk line - one of a frame's door,
-  // between the agent outside and the frame's agents. Null while neither is.
+  // The agents at a line's end: a frame's are its agents.
   const endsOf = (id: string) => new Set(byId.get(id)?.kind === 'team' ? graph.nodes.flatMap(n => (n.team === id && n.agentId ? [n.agentId] : [])) : [byId.get(id)?.agentId ?? ''])
-  const said =
-    state && (talkEdge || shown?.kind === 'agent')
-      ? (() => {
-          const [a, b] = talkEdge ? [endsOf(talkEdge.source), endsOf(talkEdge.target)] : [endsOf(shown!.id), null]
-          const meets = (one: string, other: string) => a.has(one) && (!b || b.has(other))
-          return state.channelMessages
-            .filter(m => SAID.has(m.kind) && (meets(m.from_agent_id, m.to_agent_id) || meets(m.to_agent_id, m.from_agent_id)))
-            .slice(-SAID_LINES)
-        })()
-      : null
+  const said = saidOn(state, talkEdge, shown, endsOf)
+  // (As its node calls it: the Lead the Orchestrator, a team's lead its coordinator.)
   const nameOf = (agentId: string) => {
     const agent = state?.agents.find(a => a.id === agentId)
-    return agent ? agent.name || agent.role_name : 'an agent'
+    return agent ? titleOf(agent.name || agent.role_name, teams) : 'an agent'
   }
   const frames = graph.nodes.filter(n => n.kind === 'team')
   const framesOpen = frames.some(n => (n.data as GroupData).open)
   // Who talked with whom: each pair of ends its own colour, on its line and its 💬 (the user, 27 Oct).
-  const pairOf = (e: GraphEdge) => [e.source, e.target].sort().join('|')
   const talkHues = talkColours([...new Set(graph.edges.filter(e => e.talk && e.messages).map(pairOf))])
   const whoOf = (id: string) => {
     const node = byId.get(id)
     return node?.kind === 'team' ? (node.data as TeamData).team : nameOf(node?.agentId ?? '')
   }
+  // Who talked on a line, its 💬 says - where both ends are someone: a folded round (talk counted on a work line into it) is nobody.
+  const whoOn = (e: GraphEdge) => ([e.source, e.target].every(id => byId.get(id)?.agentId || byId.get(id)?.kind === 'team') ? `${whoOf(e.source)} ↔ ${whoOf(e.target)}` : undefined)
   const edges: Edge[] = graph.edges.filter(e => !e.plan).map(e => {
     const drawn = lineOf(e)
-    const talking = !!e.talk && !!e.messages && !!drawn.type
-    const talkHue = e.talk && e.messages ? talkHues.get(pairOf(e)) : undefined
-    const colour = e.shared ? e.shared.colour : e.request ? 'var(--request)' : e.findings !== undefined ? 'var(--warn)' : talkHue ?? (talking ? 'var(--tool-team)' : e.active || e.handed ? 'var(--accent)' : 'var(--border-strong)')
+    const { talking, talkHue } = talkOf(e, drawn, talkHues)
+    const colour = edgeColour(e, talkHue, talking)
     return {
       id: e.id,
       source: e.source,
       target: e.target,
-      className: [e.waits && 'edge-waits', e.findings !== undefined && 'edge-findings', e.handed && 'edge-handed', lit && (lit.includes(e) ? 'edge-lit' : 'edge-faded')].filter(Boolean).join(' ') || undefined,
+      className: edgeClass(e, lit),
       // Findings handed on: from under the box that found them to the top of the one given them.
       ...(e.findings !== undefined && { sourceHandle: 'found-out', targetHandle: 'found-in' }),
       ...drawn,
       // (Its label, drawn apart from the line, fades with it.)
       ...(drawn.type && {
-        data: { ...drawn.data, faded: !!lit && !lit.includes(e), ...(talkHue && { colour: talkHue, who: `${whoOf(e.source)} ↔ ${whoOf(e.target)}` }) },
+        // (Who the two are, wherever there is talk on it: its 💬 names them.)
+        data: { ...drawn.data, faded: !!lit && !lit.includes(e), ...(talkHue && { colour: talkHue }), ...(e.messages && { who: whoOn(e) }) },
       }),
       animated: e.active,
       // (Drawn by its own line where it is one of edges.tsx's.)
-      label: drawn.type
-        ? undefined
-        : e.messages
-          ? `${e.messages} message${e.messages > 1 ? 's' : ''}`
-          : e.findings !== undefined
-            ? `${e.findings} finding${e.findings === 1 ? '' : 's'}`
-            : undefined,
+      label: drawn.type ? undefined : edgeLabel(e),
       // (a findings label in its line's colour: between two boxes close together, the label is most of the line)
       labelStyle: { fill: e.findings !== undefined ? 'var(--warn)' : 'var(--muted)', fontSize: 'var(--text-kicker)' },
       // The canvas's own background (there is no --canvas: that drew the label on black).
@@ -744,13 +833,13 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
         // agent (slice 85b): dashed, in the accent. Talk in a team's frame, or across to another: in the team colour of
         // the canvas's legend, dotted.
         stroke: colour,
-        strokeWidth: lit?.includes(e) ? 3 : e.shared?.arm ? 1.2 : e.active || talking || e.shared ? 2 : e.waits ? 1 : 1.5,
+        strokeWidth: edgeWidth(e, lit, talking),
         ...(talking && { strokeLinecap: 'round' as const }),
         // A hand-off to a sub-agent reads differently from an agent's own output.
         // A member's line to its discussion or room: a finer, dotted line. An agent that waits for a file another
         // holds: a thin dashed line to that agent, for as long as it waits. To a card: a team's line plain, an
         // agent's (no team) and a contract's arm dotted.
-        strokeDasharray: e.shared ? (e.shared.dotted || e.shared.arm ? DASH.shared : undefined) : e.request?.open ? DASH.request : e.request ? undefined : talking ? DASH.talkLine : e.handed ? DASH.handed : e.findings !== undefined ? DASH.findings : e.waits ? DASH.waits : e.talk ? DASH.talk : e.spawn ? DASH.spawn : undefined,
+        strokeDasharray: edgeDash(e, talking),
       },
     }
   })
@@ -767,6 +856,58 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       }
     }
   }
+
+  /** The box of what was said - only where something was: picking an agent that said nothing fades the rest, and that is all. */
+  const saidBox = () =>
+    said && said.length > 0 && (
+      <SaidBox
+        {...saidSide()}
+        title={talkEdge ? `${whoOf(talkEdge.source)} ↔ ${whoOf(talkEdge.target)}` : `What ${whoOf(shown!.id)} said and was told`}
+        said={said}
+        nameOf={nameOf}
+        // (Its pair's colour: the line's it was said on - the agents', or the talk line's picked.)
+        colourOf={m => talkHues.get([`agent:${m.from_agent_id}`, `agent:${m.to_agent_id}`].sort().join('|')) ?? (talkEdge && talkHues.get(pairOf(talkEdge))) ?? 'var(--accent)'}
+        // (The talk line's far end, or those who talked with the agent picked, on the left; the other on the right.)
+        right={m => (talkEdge ? !endsOf(talkEdge.source).has(m.from_agent_id) : m.from_agent_id === shown?.agentId)}
+        // (As a click on the empty canvas: the talk and the pick put away.)
+        onClose={() => {
+          setTalk(null)
+          onSelect(null)
+        }}
+      />
+    )
+  /** R52: every team's frame folded to its one line, or opened again. */
+  const foldAllPanel = () =>
+    frames.length > 0 && (
+      <Panel position="bottom-right" className="canvas-fold-all">
+        <button type="button" className="btn btn-small" onClick={() => remember(prev => ({ ...prev, ...Object.fromEntries(frames.map(n => [n.id, !framesOpen])) }))}>
+          {framesOpen ? 'Fold all' : 'Open all'}
+        </button>
+      </Panel>
+    )
+  /** No node of the turn drawn: no message yet - the bee, once the conversation is read -, or no work of it on record. */
+  const emptyNote = () =>
+    graph.nodes.length === 0 && (
+      <div className="canvas-empty muted">
+        {state && rows.length === 0 && <EmptyBee />}
+        {rows.length === 0 ? 'No message yet. Write one to start.' : 'Nothing of this message’s work is on record yet.'}
+      </div>
+    )
+  /** The turn's timeline, under the canvas, while it is open. */
+  const timelineStrip = () =>
+    timelineOpen && state && current && (
+      <TimelineStrip
+        // (Another turn, another strip: no cost or time of the one before is said for it.)
+        key={current}
+        state={state}
+        runId={current}
+        onOpen={agentId => onOpenNode?.('agent', agentId)}
+        onClose={() => {
+          showTimeline(false)
+          timelineButton.current?.focus()
+        }}
+      />
+    )
 
   return (
     <div className="canvas">
@@ -911,55 +1052,14 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
                   </>
                 )}
               </Controls>
-              {/* (Only where something was said: picking an agent that said nothing fades the rest, and that is all.) */}
-              {said && said.length > 0 && (
-                <SaidBox
-                  {...saidSide()}
-                  title={talkEdge ? `${whoOf(talkEdge.source)} ↔ ${whoOf(talkEdge.target)}` : `What ${whoOf(shown!.id)} said and was told`}
-                  said={said}
-                  nameOf={nameOf}
-                  // (Its pair's colour: the line's it was said on - the agents', or the talk line's picked.)
-                  colourOf={m => talkHues.get([`agent:${m.from_agent_id}`, `agent:${m.to_agent_id}`].sort().join('|')) ?? (talkEdge && talkHues.get(pairOf(talkEdge))) ?? 'var(--accent)'}
-                  // (The talk line's far end, or those who talked with the agent picked, on the left; the other on the right.)
-                  right={m => (talkEdge ? !endsOf(talkEdge.source).has(m.from_agent_id) : m.from_agent_id === shown?.agentId)}
-                  // (As a click on the empty canvas: the talk and the pick put away.)
-                  onClose={() => {
-                    setTalk(null)
-                    onSelect(null)
-                  }}
-                />
-              )}
-              {/* R52: every team's frame folded to its one line, or opened again. */}
-              {frames.length > 0 && (
-                <Panel position="bottom-right" className="canvas-fold-all">
-                  <button type="button" className="btn btn-small" onClick={() => remember(prev => ({ ...prev, ...Object.fromEntries(frames.map(n => [n.id, !framesOpen])) }))}>
-                    {framesOpen ? 'Fold all' : 'Open all'}
-                  </button>
-                </Panel>
-              )}
+              {saidBox()}
+              {foldAllPanel()}
             </ReactFlow>
           </NodeActions.Provider>
         </ToggleGroup.Provider>
-        {graph.nodes.length === 0 && (
-          <div className="canvas-empty muted">
-            {state && rows.length === 0 && <EmptyBee />}
-            {rows.length === 0 ? 'No message yet. Write one to start.' : 'Nothing of this message’s work is on record yet.'}
-          </div>
-        )}
+        {emptyNote()}
       </div>
-      {timelineOpen && state && current && (
-        <TimelineStrip
-          // (Another turn, another strip: no cost or time of the one before is said for it.)
-          key={current}
-          state={state}
-          runId={current}
-          onOpen={agentId => onOpenNode?.('agent', agentId)}
-          onClose={() => {
-            showTimeline(false)
-            timelineButton.current?.focus()
-          }}
-        />
-      )}
+      {timelineStrip()}
       {legendOpen && (
         <div ref={legendPanel} tabIndex={-1} className="allow-list-panel canvas-legend" role="dialog" aria-label="Canvas legend">
           <Legend />

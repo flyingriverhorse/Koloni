@@ -5339,6 +5339,8 @@ export interface components {
             model_id: string | null;
             /** Name */
             name: string;
+            /** Own Questions */
+            own_questions: number;
             /** Provider Name */
             provider_name: string | null;
             /** Questions */
@@ -6409,7 +6411,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "running" | "ended" | "cancelled" | "interrupted";
+            status: "running" | "ended" | "cancelled" | "failed" | "interrupted";
             /** Tool Call Id */
             tool_call_id: string;
             /** Topic */
@@ -9120,7 +9122,7 @@ export interface components {
              */
             status: "pending" | "answered" | "cancelled" | "interrupted" | "superseded";
             /** Tool Call Id */
-            tool_call_id: string;
+            tool_call_id: string | null;
         };
         /**
          * QueuedOnOut

@@ -1,7 +1,9 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, test, vi } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import type { Attachment, Message, Provider, Role } from '../api/types'
+import type { ConvState } from '../state/applyEvent'
+import { useApp } from '../state/store'
 import {
   agent,
   assistantMessage,
@@ -645,9 +647,10 @@ test('a question the lead asks is answered under its call', async () => {
   expect(onAnswer).toHaveBeenCalledWith('q', 'hey')
 })
 
+const WAITS_FOR_ANSWER = 'Your message waits until this question is answered'
+
 test('a message queued behind a question says it waits for the answer, under the card', () => {
   // K-lead-bekliyor (R116)
-  const WAITS_FOR_ANSWER = 'Your message waits until this question is answered'
   const { rerender } = render(<MessageList {...handlers} state={askedBy()} />)
   expect(screen.queryByText(WAITS_FOR_ANSWER)).not.toBeInTheDocument()
   const asked = askedBy()
@@ -725,7 +728,13 @@ test('once leave was given the call’s row is still there, with what was asked 
   expect(screen.queryByLabelText('Your answer')).not.toBeInTheDocument()
 })
 
-test('a sub-agent’s question is answered in the chat and names who asks', async () => {
+/** The chat open in the store, as on the page: a question's card finds there who asks. */
+function opened(state: ConvState) {
+  useApp.setState({ conv: state })
+  onTestFinished(() => useApp.setState({ conv: null }))
+}
+
+test('a sub-agent’s question is answered in the chat, and its card names who asks - once', async () => {
   const onAnswer = vi.fn().mockResolvedValue(undefined)
   const state = convState({
     runs: [run('r', 'waiting_approval')],
@@ -737,8 +746,11 @@ test('a sub-agent’s question is answered in the chat and names who asks', asyn
     toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Reviewer"}', { message_id: 'm' })],
     questions: [question('q', 'r', { agent_id: 'kid', tool_call_id: '7', question: 'Strict or lenient?' })],
   })
+  opened(state)
   render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
-  expect(screen.getByText('Reviewer asks')).toBeInTheDocument()
+  // (Its card says it: no line of the chat's over it says it again.)
+  expect(screen.getAllByText('Reviewer asks')).toHaveLength(1)
+  expect(screen.getByText('Reviewer asks')).toHaveClass('card-who')
   await userEvent.type(screen.getByLabelText('Your answer'), 'strict')
   await userEvent.click(screen.getByRole('button', { name: 'Send answer' }))
   expect(onAnswer).toHaveBeenCalledWith('q', 'strict')
@@ -747,6 +759,7 @@ test('a sub-agent’s question is answered in the chat and names who asks', asyn
 test('a question from two levels down is still answered in the chat', async () => {
   const onAnswer = vi.fn().mockResolvedValue(undefined)
   const state = { ...asking, pendingRoles: [], commands: [], fileChanges: [], questions: [question('deep', 'r', { agent_id: 'coder', tool_call_id: '8', question: 'Tabs or spaces?', options: ['tabs', 'spaces'] })] }
+  opened(state)
   render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
   expect(screen.getByText('Coder asks')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'spaces' }))
@@ -1003,6 +1016,48 @@ test('slice 107: a message still queued or at work cannot be restored to before;
   expect(writeText).toHaveBeenCalledWith('notes.pdf')
 })
 
+test('slice 107: a message taken off the queue has no ⋯ and a click draws nothing; a comparison’s has no ↺; with no canvas no Show its work', async () => {
+  const onShowTurn = vi.fn()
+  const { container, unmount } = render(<MessageList {...handlers} onShowTurn={onShowTurn} state={convState({ runs: [run('q', 'cancelled', { started_at: null })], messages: [userMessage('q', 'never mind')] })} />)
+  expect(container.querySelector('.msg-user')).toHaveAttribute('class', 'msg msg-user msg-removed')
+  expect(screen.queryByRole('button', { name: /^Copy, restore, show its work/ })).toBeNull()
+  await userEvent.click(screen.getByText('never mind'))
+  expect(onShowTurn).not.toHaveBeenCalled()
+  unmount()
+
+  const compared = convState({ runs: [run('k1', 'completed', { compare_id: 'k' })], messages: [userMessage('k1', 'compare it')], fileChanges: [fileChange('fk', 'k1', { path: 'k.txt' })] })
+  const { container: plain } = render(<MessageList {...handlers} state={compared} />)
+  expect(plain.querySelector('.msg-user')).toHaveAttribute('class', 'msg msg-user')
+  expect(screen.queryByRole('button', { name: /^Undo these changes/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: /^Copy, restore, show its work/ }))
+  expect(screen.getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual(['Copy', 'Restore to before this message'])
+})
+
+test('a lead opened for another team’s request is the request’s card; a command approved but not started says it waits for a place', () => {
+  const state = convState({
+    runs: [run('r')],
+    messages: [userMessage('r', 'go'), assistantMessage('m', 'r', '')],
+    agents: [
+      agent('r', 'waiting'),
+      agent('r', 'waiting', { id: 'cv-asker', name: 'Coder', role_name: 'Coder', depth: 1, parent_agent_id: 'r' }),
+      agent('r', 'running', { id: 'cv-lead', name: 'Backend lead', role_name: 'Backend lead', depth: 1, parent_agent_id: 'r', tool_call_id: 'cv-open' }),
+    ],
+    toolCalls: [
+      toolCall('cv-req', 'r', 'request_work', 'running', JSON.stringify({ to: 'Backend', what: 'GET /items\nin pages' }), { agent_id: 'cv-asker', message_id: 'elsewhere' }),
+      toolCall('cv-open', 'r', 'spawn_agent', 'running', JSON.stringify({ role: 'Backend lead', task: 'the items' }), { parent_call_id: 'cv-req' }),
+      toolCall('cv-cmd', 'r', 'run_command', 'running', JSON.stringify({ command: 'pytest -q' })),
+    ],
+    commands: [command('cv-k', 'r', { tool_call_id: 'cv-cmd', status: 'approved', exit_code: null, started_at: null, ended_at: null })],
+  })
+  const { container } = render(<MessageList {...handlers} state={state} />)
+  const card = container.querySelector('.request-card')
+  expect(card).toHaveTextContent('→ Backend')
+  expect(card).toHaveTextContent('GET /items')
+  expect(card).not.toHaveTextContent('in pages')
+  expect(container.querySelector('.request-card-line')).toHaveAttribute('title', 'Show its lead on the canvas')
+  expect(screen.getByText(/^Approved — it starts once its agent has a place among the agents at work/)).toHaveAttribute('role', 'note')
+})
+
 test('slice 23: a file saved into the project says where under its message, once the change is in', () => {
   const messages = [{ ...userMessage('a', 'keep this'), id: 'm-a' }]
   const saved = [
@@ -1221,6 +1276,26 @@ test('a single call stays a row of its own', () => {
   expect(screen.queryByRole('button', { name: /calls/ })).not.toBeInTheDocument()
 })
 
+test('a question the Lead was not let ask stands on its own line, not folded into the step’s calls', () => {
+  // (Refused - the user's message waited, nobody watched - or failed, asked a third time: either way it was never put to you.)
+  for (const status of ['denied', 'failed'] as const) {
+    render(
+      <MessageList
+        {...handlers}
+        state={looksAround(`j${status}`, [
+          ['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}'],
+          ['2', 'r', 'read_file', 'succeeded', '{"path":"b.py"}'],
+          ['3', 'r', 'ask_user', status, '{"question":"Which greeting?\\nhello or hey"}'],
+        ])}
+      />,
+    )
+    expect(screen.getByText('Wanted to ask: Which greeting? · not asked')).toBeInTheDocument()
+    // (the step's other calls are still one closed line)
+    expect(screen.getByRole('button', { name: 'Read 2 files, 2 calls, done' })).toHaveAttribute('aria-expanded', 'false')
+    cleanup()
+  }
+})
+
 test('what KOLONİ told the lead the same, several times in a row, is one line with ×N; the user’s and the lead’s words never are', () => {
   const WORDS = 'Its source changed since this turn began.'
   const told = (id: string) => ({ ...assistantMessage(id, 'r', WORDS), role: 'memory' as const })
@@ -1238,4 +1313,174 @@ test('what KOLONİ told the lead the same, several times in a row, is one line w
   expect(notes).toHaveLength(1)
   expect(notes[0]).toHaveTextContent('told by KOLONİ, about what it was given from memory ×3')
   expect(screen.getAllByText('Same words.')).toHaveLength(2)
+})
+
+test('KOLONİ’s card that the Orchestrator’s model is slow hangs off no call: under the turn’s last message, with its two answers', async () => {
+  const onAnswer = vi.fn(async () => {})
+  const said = 'Codex · gpt-6-astra has not answered for 5 min. Keep waiting, or stop this turn and pick another model?'
+  const asked = question('q', 'r', { tool_call_id: null, leave: true, question: said, options: ['Keep waiting', 'Stop and pick another model'] })
+  const state = convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'running')], messages: [userMessage('r', 'do it')], questions: [asked] })
+  const { rerender } = render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
+  expect(screen.getByText('The model is slow to answer')).toHaveClass('cmd-approval-kicker')
+  expect(screen.getByText(said)).toHaveClass('card-said')
+  await userEvent.click(screen.getByRole('button', { name: 'Stop and pick another model' }))
+  expect(onAnswer).toHaveBeenCalledWith('q', 'Stop and pick another model')
+  // Answered, or closed with no answer (its model spoke, or the turn ended): gone - not left under the model's answer.
+  for (const over of [{ status: 'answered' as const, answer: 'Keep waiting' }, { status: 'cancelled' as const }]) {
+    rerender(<MessageList {...handlers} state={{ ...state, questions: [{ ...asked, ...over }] }} onAnswer={onAnswer} />)
+    expect(screen.queryByText(said)).not.toBeInTheDocument()
+    expect(screen.queryByText('not answered')).not.toBeInTheDocument()
+  }
+})
+
+test('a Lead turn is one card named after the Lead (the Orchestrator, as the screen calls it) and its time, holding its step, its call and its answer', () => {
+  const answer = { ...assistantMessage('m2', 'r', 'It greets twice.\n\nThe second one is a copy.'), created_at: AT }
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('r', 'completed')],
+        agents: [agent('r', 'completed')],
+        messages: [userMessage('r', 'look at a.py'), assistantMessage('m', 'r', 'I read it first.'), answer],
+        toolCalls: [toolCall('1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
+      })}
+    />,
+  )
+  const card = screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })
+  expect(card).toHaveTextContent('qwen')
+  for (const part of ['I read it first.', 'read_file a.py', 'It greets twice.']) expect(within(card).getByText(part)).toBeInTheDocument()
+  // The user's message stands above it, not in it.
+  expect(screen.getByText('look at a.py').closest('.turn-card')).toBeNull()
+  // The answer opens with its point; the words before it do not.
+  expect(card.querySelector('.msg-answer > p:first-child')).toHaveTextContent('It greets twice.')
+  expect(screen.getByText('I read it first.').closest('.msg-assistant')).not.toHaveClass('msg-answer')
+})
+
+test('while a turn runs no line of it takes the answer’s look: its words keep their place, and at its end only the answer opens with its point', () => {
+  const state = (status: 'running' | 'completed', answer: 'streaming' | 'complete') =>
+    convState({
+      runs: [run('r', status)],
+      agents: [agent('r', status)],
+      messages: [userMessage('r', 'look at a.py'), assistantMessage('m', 'r', 'I’ll read a.py first.'), assistantMessage('m2', 'r', 'It greets', answer)],
+      toolCalls: [toolCall('1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
+    })
+  const { container, rerender } = render(<MessageList {...handlers} state={state('running', 'streaming')} />)
+  // (Else each step's words would read large at first and shrink as the next step writes.)
+  expect(container.querySelector('.msg-answer')).toBeNull()
+  rerender(<MessageList {...handlers} state={state('completed', 'complete')} />)
+  expect(screen.getByText('It greets').closest('.msg-assistant')).toHaveClass('msg-answer')
+  expect(screen.getByText('I’ll read a.py first.').closest('.msg-assistant')).not.toHaveClass('msg-answer')
+})
+
+test('a compare run and a turn with only the user’s message get no card', () => {
+  const { unmount } = render(<MessageList {...handlers} state={convState({ runs: [run('r')], agents: [agent('r')], messages: [userMessage('r', 'hm')], thinkingRunId: 'r' })} />)
+  // (Thinking… stays under the message, as before.)
+  expect(screen.getByText('Thinking…').closest('.msg-group')).toHaveTextContent('hm')
+  expect(screen.queryByRole('article')).toBeNull()
+  unmount()
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('a', 'completed', { compare_id: 'k' }), run('b', 'completed', { compare_id: 'k' })],
+        agents: [agent('a', 'completed'), agent('b', 'completed')],
+        messages: [userMessage('a', 'go'), assistantMessage('ma', 'a', 'A side.'), userMessage('b', 'go'), assistantMessage('mb', 'b', 'B side.')],
+        toolCalls: [toolCall('1', 'a', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'ma' })],
+      })}
+    />,
+  )
+  expect(screen.getByText('read_file a.py')).toBeInTheDocument()
+  expect(screen.queryByRole('article')).toBeNull()
+})
+
+test('while the turn runs the card has no foot; at its end the summary and Copy stand in the foot', () => {
+  const state = (status: 'running' | 'completed') =>
+    convState({
+      runs: [run('r', status)],
+      agents: [agent('r', status), agent('r', status, { id: 'k', parent_agent_id: 'r', depth: 1 })],
+      messages: [userMessage('r', 'go'), assistantMessage('m', 'r', 'Done.')],
+    })
+  const { rerender } = render(<MessageList {...handlers} state={state('running')} />)
+  const card = screen.getByRole('article', { name: /^Orchestrator, / })
+  expect(card.querySelector('footer')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull()
+  rerender(<MessageList {...handlers} state={state('completed')} />)
+  // The same card, its foot added under what was there: nothing above it moves.
+  expect(screen.getByRole('article', { name: /^Orchestrator, / })).toBe(card)
+  expect(within(card).getByRole('region', { name: 'What it did' }).parentElement).toHaveClass('turn-foot')
+  expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
+  expect(screen.getAllByRole('region', { name: 'What it did' })).toHaveLength(1)
+  expect(within(card).getByRole('button', { name: 'Copy' }).closest('footer')).toHaveClass('turn-foot')
+})
+
+test('a turn that ended with nothing after your message still says what it did, under the message', () => {
+  // (Stopped while a room's members worked: the Lead, waiting for the room, never wrote.)
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('r', 'cancelled')],
+        agents: [agent('r', 'cancelled'), agent('r', 'cancelled', { id: 'k', parent_agent_id: 'r', depth: 1 })],
+        messages: [userMessage('r', 'go')],
+      })}
+    />,
+  )
+  expect(screen.queryByRole('article')).toBeNull()
+  expect(screen.getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
+})
+
+test('a turn with no Lead gets no card, and what it did stands under its last message', () => {
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('r', 'completed')],
+        agents: [agent('r', 'completed', { id: 'k', parent_agent_id: null, depth: 1 })],
+        messages: [userMessage('r', 'go'), assistantMessage('m', 'r', 'Done.')],
+      })}
+    />,
+  )
+  expect(screen.queryByRole('article')).toBeNull()
+  expect(screen.getAllByRole('region', { name: 'What it did' })).toHaveLength(1)
+  expect(screen.getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
+})
+
+test('the Lead’s open question sits in its turn’s card, and the card says it waits for you where its time would be', () => {
+  render(<MessageList {...handlers} state={askedBy()} />)
+  const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
+  expect(within(card).getByText('Which greeting?')).toBeInTheDocument()
+  expect(within(card).getByRole('button', { name: 'hey' })).toBeInTheDocument()
+  expect(within(card).getByText('waits for you')).toBeInTheDocument()
+  expect(card.querySelector('time')).toBeNull()
+})
+
+test('two open questions in one turn show one queued-message note, under both', () => {
+  // (Two at once only from a CLI.)
+  const asked = askedBy()
+  const state = convState({
+    ...asked,
+    runs: [...asked.runs, run('q2', 'queued', { started_at: null })],
+    messages: [...asked.messages, userMessage('q2', 'and then')],
+    toolCalls: [...asked.toolCalls, toolCall('2', 'r', 'ask_user', 'running', '{"question":"Which colour?"}', { message_id: 'm' })],
+    questions: [...asked.questions, question('q-2', 'r', { tool_call_id: '2', question: 'Which colour?' })],
+  })
+  render(<MessageList {...handlers} state={state} />)
+  expect(screen.getAllByText(WAITS_FOR_ANSWER)).toHaveLength(1)
+  const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
+  const text = card.textContent ?? ''
+  for (const one of ['Which greeting?', 'Which colour?']) expect(text.indexOf(one)).toBeLessThan(text.indexOf(WAITS_FOR_ANSWER))
+})
+
+test('an answered question closes to its row in the card, and the foot counts it', () => {
+  const asked = askedBy({ status: 'answered', answer: 'hey' })
+  // (Not counted: KOLONİ's own card, and one the Orchestrator answered for you.)
+  const others = [
+    question('k', 'r', { tool_call_id: '9', leave: true, status: 'answered', answer: 'Allow' }),
+    question('d', 'r', { tool_call_id: '9', status: 'answered', answer: 'strict', lead_why: 'the task says so' }),
+  ]
+  const state = { ...asked, runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [...asked.messages, assistantMessage('m2', 'r', 'Going with hey.')], questions: [...asked.questions, ...others] }
+  render(<MessageList {...handlers} state={state} />)
+  const card = screen.getByRole('article', { name: /^Orchestrator, / })
+  expect(within(card).getByText('Which greeting?').closest('.question-row')).toHaveTextContent('hey')
+  expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent(/^1 question/)
 })

@@ -40,7 +40,8 @@ test('more than four fold into one "N files" box, opened by the user', () => {
   const folded = foldGraph(g, {})
   expect(folded.nodes.filter(n => n.kind === 'files').map(n => (n.data as { summary: string }).summary)).toEqual(['6 files'])
   expect(folded.nodes.some(n => n.kind === 'attachment')).toBe(false)
-  expect(folded.edges.some(e => e.handed)).toBe(false)
+  // Closed, it keeps their lines (21 Nov): one dashed line from the box to each agent handed files, as a folded round does.
+  expect(folded.edges.filter(e => e.handed).map(e => [e.source, e.target])).toEqual([['files:r', 'agent:k']])
   const opened = foldGraph(g, { 'files:r': true })
   expect(opened.nodes.filter(n => n.kind === 'attachment')).toHaveLength(6)
   expect(opened.edges.filter(e => e.handed)).toHaveLength(6)

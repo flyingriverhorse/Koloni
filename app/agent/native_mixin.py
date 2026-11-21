@@ -330,6 +330,7 @@ class NativeMixin:
             keeps = getattr(model, "resumes", False) and not ctx.discussion
             history = self._history(told, offered, skills=not claude)
             kept = self._cli_session(ctx) if keeps else None  # (after it: notes handed now)
+            self._slow(ctx, arm=True)  # (K-yavas: its model is asked until its run ends)
             usage = await model.run_native(
                 info.model_id, history, offered, root,
                 call_tool,
@@ -363,6 +364,7 @@ class NativeMixin:
                 **({"inside": inside} if inside else {}),
                 session=kept if kept and self._whole(kept) else None, keep=keeps, level=level,
             )
+            self._slow_off(ctx)  # (what follows may wait for the user)
             mark = self._session_mark(ctx) if keeps and usage.session else {}
             # (Its last command may have been after its last request: looked at once more, and
             # its turn is over once the user has said whether to keep what was taken back.)
@@ -376,6 +378,7 @@ class NativeMixin:
             self._settle_session(ctx)
             raise
         finally:
+            self._slow_off(ctx)
             await self._native_work_puts_back(ctx, transcript, watch)
             with contextlib.suppress(Exception):
                 self._reached(ctx, ended or transcript.opened > before)

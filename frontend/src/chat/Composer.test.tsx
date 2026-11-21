@@ -7,6 +7,7 @@ import { WorkTogether } from '../room/WorkTogether'
 import { resetStoreForTests, useApp } from '../state/store'
 import { useContext } from 'react'
 import { CloseMore } from '../shell/usePanel'
+import { agent, convState, question, run } from '../test-fixtures'
 import { Composer } from './Composer'
 
 // The drafts are kept in the store (slice 36): one test's is not the next one's.
@@ -46,6 +47,19 @@ test('while running, Stop appears and a new message can still be queued', async 
   await userEvent.type(screen.getByLabelText('Message'), 'also do this')
   await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
   expect(onSend).toHaveBeenCalledWith('also do this', false)
+})
+
+test('while the Orchestrator asks, the message box says to answer above - open, not as the closed chat’s small box', () => {
+  useApp.setState({ conv: convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'waiting')], questions: [question('q', 'r')] }) })
+  const { rerender } = render(<Composer {...props} running scope="c" />)
+  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+  // (Closed, nothing above the box asks: its line says what the Orchestrator asks.)
+  rerender(<Composer {...props} running scope="c" compact />)
+  expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+  // Nor on the Talk or Notes tab, over which the same box stands: the question is on the Chat tab.
+  act(() => useApp.getState().showChatTab('Notes'))
+  rerender(<Composer {...props} running scope="c" />)
+  expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
 })
 
 test('while running, Stop is a square with no words just before Queue, in Send’s place; More and Plan first keep their names (one line: the user’s report)', () => {
@@ -341,6 +355,36 @@ test('typing filters, the arrows move, Esc closes and leaves the text - and only
   // nothing matches: no menu, and Enter sends what was written
   await userEvent.type(box, 'xyz{Enter}')
   expect(onSend).toHaveBeenCalledWith('/moxyz', false)
+})
+
+test('the arrows go round the menu; Enter while a letter is composed, and Shift+Enter in the small box, send nothing', async () => {
+  const onSend = vi.fn().mockResolvedValue(undefined)
+  const { rerender } = render(<Composer {...props} onSend={onSend} />)
+  const box = screen.getByRole('textbox', { name: 'Message' })
+  await userEvent.type(box, '/mo')
+  expect(option(/^\/model/)).toHaveAttribute('aria-selected', 'true')
+  // while a letter is composed the keys are the composition's, not the menu's
+  expect(fireEvent.keyDown(box, { key: 'ArrowDown', isComposing: true })).toBe(true)
+  expect(option(/^\/model/)).toHaveAttribute('aria-selected', 'true')
+  expect(fireEvent.keyDown(box, { key: 'Enter', isComposing: true })).toBe(true)
+  expect(box).toHaveValue('/mo')
+  expect(menu()).toBeInTheDocument()
+  await userEvent.keyboard('{ArrowUp}')
+  expect(option(/^\/mode\b/)).toHaveAttribute('aria-selected', 'true')
+  await userEvent.keyboard('{ArrowUp}')
+  expect(option(/^\/model/)).toHaveAttribute('aria-selected', 'true')
+  await userEvent.keyboard('{Escape}')
+  await userEvent.clear(box)
+  await userEvent.type(box, 'hi')
+  fireEvent.keyDown(box, { key: 'Enter', isComposing: true })
+  expect(onSend).not.toHaveBeenCalled()
+  rerender(<Composer {...props} onSend={onSend} compact />)
+  const small = screen.getByRole('textbox', { name: 'Message' })
+  await userEvent.type(small, '{Shift>}{Enter}{/Shift}')
+  expect(small).toHaveValue('hi')
+  expect(onSend).not.toHaveBeenCalled()
+  await userEvent.keyboard('{Enter}')
+  expect(onSend).toHaveBeenCalledWith('hi', false)
 })
 
 test('/stop stops the turn at work; with none it is off, says why, and Enter does nothing', async () => {

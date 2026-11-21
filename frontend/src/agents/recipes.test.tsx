@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
-import type { Provider, Recipe, RecipeGraph, Recipes, Role, RoleModel, Team } from '../api/types'
+import type { Provider, Recipe, RecipeDraft, RecipeGraph, Recipes, Role, RoleModel, Team } from '../api/types'
 import { addGroup, addRoom, addStep, changeStep, connect, emptyGraph, layout, loopBack, loopCurve, loopTargets, place, remove, renameGroup, summary, START, targets, tidy, waitFor as waitOn } from './recipeGraph'
 import { type RecipeActions, RecipesTab } from './RecipesTab'
 
@@ -720,6 +720,66 @@ test('or write it: the Lead’s model draws a draft on the board, saved by nobod
   expect(given.draftRecipe).toHaveBeenCalledWith('spec, then code')
   expect(screen.getByRole('status')).toHaveTextContent('Drawn by Local (qwen)')
   expect(given.saveRecipe).not.toHaveBeenCalled()
+})
+
+test('a list not read says why, with nothing drawn and no part; with nothing to act with, nothing is made or saved', () => {
+  const { unmount } = render(<RecipesTab roles={roles} teams={teams} list="the server is down" projectId={null} actions={actions()} reload={vi.fn()} />)
+  expect(screen.getByRole('alert')).toHaveTextContent(/^The recipes could not be read: the server is down$/)
+  expect(screen.getByText('The recipes are not read yet.')).toHaveClass('muted', 'recipe-note')
+  expect(screen.queryByLabelText('Recipe’s name')).toBeNull()
+  expect(screen.queryByRole('toolbar', { name: 'Draw' })).toBeNull()
+  expect(screen.getByRole('complementary', { name: 'Recipe part' })).toHaveTextContent(/^Choose a part of the drawing to see who does it, what it gets and where it goes on\.$/)
+  unmount()
+  render(<RecipesTab roles={roles} teams={teams} list={list} projectId={null} reload={vi.fn()} />)
+  fireEvent.change(screen.getByLabelText('The recipe in words'), { target: { value: 'spec, then code' } })
+  expect(screen.getByRole('button', { name: 'Make it a recipe' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '+ Draw a new recipe' }))
+  expect(screen.getByRole('button', { name: 'Save recipe' })).toBeDisabled()
+})
+
+test('whose each recipe is; a ready one says so with no Delete; its copy may be kept in the folder and its Loop back waits for a part before; a folder’s says its file goes; Make it a recipe waits', async () => {
+  const mine: Recipe = { ...FEATURE, id: 'mine', name: 'Mine', ready: false }
+  const folder: Recipe = { ...FEATURE, id: 'f1', name: 'Fix', ready: false, project_id: 'p', file: 'fix.json' }
+  let answer: (drawn: RecipeDraft) => void = () => {}
+  const given = actions({
+    saveRecipe: vi.fn(async (_recipe, body) => ({ id: 'f2', ready: false, project_id: 'p', file: 'copy.json', ...body })),
+    draftRecipe: vi.fn(() => new Promise<RecipeDraft>(done => (answer = done))),
+  })
+  render(<RecipesTab roles={roles} teams={teams} list={{ recipes: [FEATURE, mine, folder], broken: ['bad.json: not a recipe'], writer: { why: null } }} projectId="p" actions={given} reload={vi.fn()} />)
+  expect(screen.getByRole('alert')).toHaveTextContent(/^bad\.json: not a recipe$/)
+  const item = (name: RegExp) => screen.getByRole('button', { name })
+  expect(item(/^Feature/)).toHaveTextContent(/ · ready$/)
+  expect(item(/^Mine/)).toHaveTextContent(/ · yours$/)
+  expect(item(/^Fix/)).toHaveTextContent(/ · this folder’s$/)
+  expect(item(/^Feature/).className).toBe('recipe-item recipe-item-chosen')
+  expect(item(/^Mine/).className).toBe('recipe-item')
+  expect(item(/^Mine/)).toHaveAttribute('aria-pressed', 'false')
+  expect(screen.getByText('The Orchestrator’s model draws it on the board; nothing is saved until you save it.')).toHaveClass('muted', 'recipe-note')
+  expect(screen.getByRole('status')).toHaveTextContent(/^A ready recipe: copy it to change it\.$/)
+  expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+  expect(screen.queryByLabelText('Where it is kept')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Copy it' }))
+  expect(screen.getByRole('status')).toHaveTextContent(/^A copy of a ready recipe: yours to change\.$/)
+  expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+  expect(screen.getByRole('button', { name: '+ Loop back' })).toBeDisabled()
+  fireEvent.click(part(/^Build it/))
+  expect(screen.getByRole('button', { name: '+ Loop back' })).toBeDisabled()
+  fireEvent.click(part(/^Ask me, then in/))
+  expect(screen.getByRole('button', { name: '+ Loop back' })).toBeEnabled()
+  expect(screen.getByLabelText('Where it is kept')).toHaveValue('koloni')
+  fireEvent.change(screen.getByLabelText('Where it is kept'), { target: { value: 'folder' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  await waitFor(() => expect(given.saveRecipe).toHaveBeenCalledWith(null, { name: 'Feature copy', graph: FEATURE.graph }, 'p'))
+  expect(await screen.findByText('Saved in .koloni/ in this folder (kept in git).')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+  expect(screen.getByText(/^Delete Feature copy\? Its file in \.koloni\/recipes goes too\.$/)).toBeVisible()
+  fireEvent.change(screen.getByLabelText('The recipe in words'), { target: { value: 'spec, then code' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Make it a recipe' }))
+  expect(screen.getByRole('button', { name: 'Asking the Orchestrator’s model…' })).toBeDisabled()
+  answer({ name: 'Spec first', graph: FEATURE.graph, provider_name: 'Local', model_id: null })
+  await waitFor(() => expect(screen.getByLabelText('Recipe’s name')).toHaveValue('Spec first'))
+  expect(screen.getByRole('status')).toHaveTextContent(/^Drawn by Local: change it as you like, then save it\. Nothing is saved yet\.$/)
+  expect(screen.getByRole('button', { name: 'Make it a recipe' })).toBeEnabled()
 })
 
 test('with no model to ask, "Make it a recipe" is off and says why', () => {

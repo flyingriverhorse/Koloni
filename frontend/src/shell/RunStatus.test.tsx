@@ -26,6 +26,33 @@ test('a turn waiting on something else is the same: the dot, no words', () => {
   expect(container.querySelector('.tag-warn')).toHaveTextContent(/^$/)
 })
 
+test('reconnecting is said on its own; a turn in its word and colour, the one sub-agent at work by name, and its tokens', () => {
+  const { container, rerender } = render(<RunStatus conv={null} connection="reconnecting" />)
+  expect(container).toHaveTextContent(/^Reconnecting…$/)
+  expect(screen.getByText('Reconnecting…')).toHaveClass('tag tag-warn')
+  const conv = convState({
+    runs: [run('r', 'running')],
+    agents: [
+      agent('r', 'waiting', { id: 'lead', input_tokens: 1000, output_tokens: 200 }),
+      // (No name of its own: its role's.)
+      agent('r', 'running', { id: 's1', name: '', role_name: 'Coder', depth: 1, input_tokens: 200, output_tokens: 34 }),
+    ],
+  })
+  rerender(<RunStatus conv={conv} connection="open" />)
+  expect(screen.queryByText('Reconnecting…')).toBeNull()
+  const status = container.querySelector('[data-run="running"]')
+  expect(status).toHaveClass('tag tag-accent')
+  expect(status).toHaveTextContent(/^WORKING · Coder$/)
+  expect(screen.getByText('in 1,200 · out 234')).toHaveClass('mono muted topbar-tokens')
+  expect(screen.getByRole('button', { name: 'context 1,000 tokens' })).toHaveAttribute('aria-expanded', 'false')
+  // An agent that did not say its tokens: what was said, and how many did not.
+  rerender(<RunStatus conv={{ ...conv, agents: [conv.agents[0], { ...conv.agents[1], output_tokens: null }] }} connection="open" />)
+  expect(screen.getByText('≥ 1k tokens · 1 unknown')).toBeInTheDocument()
+  // Over: its word, nobody named.
+  rerender(<RunStatus conv={{ ...conv, runs: [run('r', 'cancelled')] }} connection="open" />)
+  expect(container.querySelector('[data-run="cancelled"]')).toHaveTextContent(/^STOPPED$/)
+})
+
 // Slice 77a: how full the Lead's context is, as its window says it.
 describe('the header says how full the lead’s context is', () => {
   test('of its window, where that is known', () => {

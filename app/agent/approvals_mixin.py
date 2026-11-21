@@ -345,10 +345,14 @@ class ApprovalsMixin:
             inside(cwd)[0]) if isinstance(cwd, str) and cwd else ".")
         # Where it runs when it names no cwd: the root (Claude Code's Bash tool alone, measured;
         # not its PowerShell or Monitor, nor a sub-agent of its own - `under` -, which may
-        # start elsewhere) or not known (None: `with_cwd`). A cwd the model wrote (agy's) is
-        # judged as not known as well.
+        # start elsewhere; and a Copilot command KOLONİ read to start a new shell in the project,
+        # not a copy - `new_shell`, read only where the input is KOLONİ's own, "cli", never the
+        # model's: `model_native._ShellPatches`) or not known (None: `with_cwd`). A cwd the
+        # model wrote (agy's) is judged as not known as well.
         kind = getattr(ctx.model, "cwd_from", "none")
-        unnamed = "." if kind == "root" and tool == "Bash" and under is None else None
+        new_shell = kind == "cli" and given.get("new_shell") is True
+        unnamed = "." if under is None and (kind == "root" and tool == "Bash" or (
+            new_shell and copy is None)) else None
         claimed = kind == "model" and isinstance(cwd, str) and bool(cwd)
         if claimed and not searched:
             searched = await asyncio.to_thread(search_reason, command, root, ".")
@@ -362,8 +366,11 @@ class ApprovalsMixin:
         at = (cwd if where is None else where) if isinstance(cwd, str) and cwd else unnamed
         # (Live: `rm -rf .koloni/tmp/w2` of Claude Code's Bash asked, where KOLONİ's own
         # command did not. A delete only in the scratch is no harm where it is known to run at
-        # the project's own root - not a copy's, nor a cwd the model wrote: `_night_asks`.)
-        scratch_of = str(root) if at in ("", ".") and copy is None and not claimed else None
+        # the project's own root - not a copy's, nor a cwd the model wrote: `_night_asks`. Nor
+        # Copilot's in a new shell, never put to the user: 1.0.67 has no sandbox, and a link a
+        # script makes there after the ask is followed - `scratch_delete_only`.)
+        scratch_of = str(root) if at in ("", ".") and copy is None and not claimed and (
+            not new_shell) else None
         reason = web_off or reason or searched or (
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
             if copy is not None else "") or self._branch_asks(
@@ -404,9 +411,9 @@ class ApprovalsMixin:
                 reads_here, command, root, where in ("", ".")),
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
             # `unnamed` - "." for Claude Code's Bash tool, whose every call starts in the project
-            # (`ClaudeNativeClient.cwd_from`, measured); None for one whose shell may stand
-            # anywhere: its PowerShell and Monitor, Qoder, Codex or agy without one, and
-            # Copilot, whose 1.0.91 sends none
+            # (`ClaudeNativeClient.cwd_from`, measured), and Copilot's in a new shell; None for
+            # one whose shell may stand anywhere: its PowerShell and Monitor, Qoder, Codex or agy
+            # without one, and Copilot's other commands - its 1.0.91 sends no cwd
             # (measured 24 Oct 2026). Its paths are then judged at the root all the same, and a
             # line that begins with a `cd` into the scratch is a card: `with_cwd`.)
             # shortcut: Qoder's shell is not measured; if it keeps a `cd`, a later relative

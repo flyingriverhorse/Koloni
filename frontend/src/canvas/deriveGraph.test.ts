@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Agent, Run } from '../api/types'
+import type { Agent, Run, Team } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import type { SharedData } from './sharedColumn'
 import {
@@ -282,7 +282,25 @@ test('a waiting agent names who it waits for and a proposed one waits for you', 
   expect(activityOf(tree('running'), 'agent:kid')).toBe('Waiting for the model…')
   const asked = tree('proposed')
   expect(activityOf(asked, 'agent:kid')).toBe('Waits for your approval')
+  // (One you declined says so, as the chat, the Board and the legend do - not "Not started".)
+  expect(activityOf(tree('rejected'), 'agent:kid')).toBe('Rejected')
   expect((asked.nodes.find(n => n.id === 'agent:kid')!.data as AgentData).status).toBe('proposed')
+})
+
+test('a waiting agent calls the Lead the Orchestrator, and a team’s lead its coordinator, as their nodes do', () => {
+  const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' }, lead_on: true } as unknown as Team
+  const asked = (to: string) => toolCall(`m-${to}`, 'r', 'message_agent', 'running', JSON.stringify({ to, message: 'Which file?' }), { agent_id: 'kid' })
+  const waits = (to: string) => activityOf(tree('waiting', { toolCalls: [asked(to)] }), 'agent:kid')
+  expect(waits('Lead')).toBe('Waiting for Orchestrator')
+  const g = deriveGraph(
+    convState({
+      runs: [run('r')],
+      messages: [userMessage('r', 'x')],
+      agents: [agent('r', 'waiting', { id: 'lead' }), agent('r', 'running', { id: 'dl', parent_agent_id: 'lead', role_name: 'Docs lead', depth: 1 })],
+    }),
+    [docs],
+  )
+  expect(activityOf(g, 'agent:lead')).toBe('Waiting for Docs coordinator')
 })
 
 test('the agent that asked is the one that shows the approval', () => {
@@ -320,11 +338,18 @@ test('a spawn call that opened an agent is that agent, not a tool', () => {
 test('an agent with an open question waits for your answer', () => {
   const g = tree('running', {
     runs: [run('r', 'waiting_approval')],
-    questions: [question('q', 'r', { agent_id: 'kid' }), question('old', 'r', { agent_id: 'lead', status: 'answered', answer: 'x' })],
+    questions: [
+      question('q', 'r', { agent_id: 'kid', question: '\nShould mean() of an empty list raise ZeroDivisionError, or return 0?\nIt is called from report().' }),
+      question('old', 'r', { agent_id: 'lead', status: 'answered', answer: 'x' }),
+    ],
   })
   expect(activityOf(g, 'agent:kid')).toBe('Waits for your answer')
   expect((g.nodes.find(n => n.id === 'agent:kid')!.data as AgentData).status).toBe('waiting_approval')
   expect(activityOf(g, 'agent:lead')).toBe('Waiting for Reviewer')
+  // What it asks, under the pointer on its box (0.1.4): the question's first line; one answered asks nothing.
+  const asks = (id: string) => (g.nodes.find(n => n.id === id)!.data as AgentData).asks
+  expect(asks('agent:kid')).toBe('Should mean() of an empty list raise ZeroDivisionError, or return 0?')
+  expect(asks('agent:lead')).toBeUndefined()
 })
 
 test('an agent node names the model that agent ran on, not its turn’s', () => {
@@ -502,7 +527,8 @@ test('a plan turn has a small Plan node at its start, after the request; another
     ['plan:p', 'p', { status: 'writing', by: null }],
     ['plan:d', 'd', { status: 'proposed', by: 'Planned by big-model · the team’s strongest model' }],
   ])
-  expect(edges.filter(e => e.target === 'plan:d').map(e => e.source)).toEqual(['request:d'])
+  // A short straight line down from the message into it, as a plan's line is drawn (21 Nov: not a curve's scribble).
+  expect(edges.filter(e => e.target === 'plan:d')).toEqual([{ id: 'request:d>plan:d', source: 'request:d', target: 'plan:d', active: false, plan: true }])
 })
 
 test('the work turn of an approved plan has that plan over its Lead; a rejected plan, no plan or a later turn, none', () => {
@@ -536,10 +562,11 @@ test('an approved plan has one line of its own down to the Lead of its work turn
       }),
     )
   const { edges } = graph(['p', 'w'])
-  expect(edges.filter(e => e.plan)).toEqual([{ id: 'planned:p>agent:w', source: 'planned:p', target: 'agent:w', active: false, plan: true }])
+  const approved = (all: typeof edges) => all.filter(e => e.plan && e.source.startsWith('planned:'))
+  expect(approved(edges)).toEqual([{ id: 'planned:p>agent:w', source: 'planned:p', target: 'agent:w', active: false, plan: true }])
   // (No other line meets it: not a work, talk or spawn line.)
   expect(edges.filter(e => [e.source, e.target].includes('planned:p'))).toHaveLength(1)
-  expect(graph(['p']).edges.filter(e => e.plan)).toEqual([])
+  expect(approved(graph(['p']).edges)).toEqual([])
 })
 
 test('the user’s (7 Nov): the Assistant PO is a node under the turn’s Lead, on its own dashed line, only where it was asked', () => {

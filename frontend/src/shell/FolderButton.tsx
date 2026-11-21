@@ -321,6 +321,71 @@ export function FolderButton({ project, projects, conversations, conversation, o
     setBrowsing(start)
   }
 
+  /** What the server refused, and for a 409 a new chat in the folder it was refused for. */
+  const refusal = () =>
+    refused && (
+      <div role="alert" className="folder-refused">
+        <p className="alert">{refused.why}</p>
+        {refused.offer && (
+          <button type="button" className="btn btn-small btn-primary" onClick={() => void newChat(refused.to)}>
+            {refused.to ? `Open a new chat in ${refused.to.name}` : 'Open a new chat with no folder'}
+          </button>
+        )}
+      </div>
+    )
+
+  /** The folders to switch to: behind Change, or at once in a plain chat. */
+  const switchMain = () =>
+    (changing || !project) && (
+      <section aria-label="Switch the main folder">
+        <div className="kicker">Switch the main folder</div>
+        {project && <p className="muted">A chat with messages keeps its folder: a new chat opens in the one you pick.</p>}
+        <FolderChoices projects={projects} conversations={conversations} except={project?.id ?? 'none'} onPick={to => void move(to).then(moved => moved && close())} onBrowse={browse} />
+      </section>
+    )
+
+  /** The open panel: the main folder, where agents work, what was refused, the chat's other folders, and the folders to switch to. */
+  const dialog = () =>
+    open && (
+      <div ref={panel} tabIndex={-1} className="allow-list-panel folder-panel" role="dialog" aria-label="This chat’s folders">
+        <h3 className="folder-panel-title">This chat’s folders</h3>
+        <div className="kicker">Main folder: agents work here, commands run here</div>
+        <div className="folder-row folder-row-on">
+          {project ? (
+            row(project)
+          ) : (
+            <span className="folder-row-name">
+              <b>No folder</b>
+              <span className="muted">A plain chat: no files and no commands</span>
+            </span>
+          )}
+          {project && (
+            // (At work too: a chat that has a turn keeps its folder, a new chat opens in the other - slice 86e.)
+            <button type="button" className="btn btn-small" aria-expanded={changing} onClick={() => setChanging(!changing)}>
+              Change <CaretDown size={11} aria-hidden />
+            </button>
+          )}
+        </div>
+        {project && conversation && <PartPicker project={project} conversation={conversation} onPart={onPart} />}
+        {refusal()}
+        {project && conversation && (
+          <AlsoInChat
+            project={project}
+            projects={projects}
+            conversation={conversation}
+            onChange={onFolders}
+            onDefault={onDefault}
+            onAdd={() => {
+              // (The browser stands beside the app: a click in it would close the panel, and the browser in it.)
+              close()
+              setAdding(true)
+            }}
+          />
+        )}
+        {switchMain()}
+      </div>
+    )
+
   return (
     <>
       <button
@@ -343,60 +408,7 @@ export function FolderButton({ project, projects, conversations, conversation, o
         {count > 0 && <span className="tag tag-accent">+{count}</span>}
         <CaretDown size={11} aria-hidden />
       </button>
-      {open && (
-        <div ref={panel} tabIndex={-1} className="allow-list-panel folder-panel" role="dialog" aria-label="This chat’s folders">
-          <h3 className="folder-panel-title">This chat’s folders</h3>
-          <div className="kicker">Main folder: agents work here, commands run here</div>
-          <div className="folder-row folder-row-on">
-            {project ? (
-              row(project)
-            ) : (
-              <span className="folder-row-name">
-                <b>No folder</b>
-                <span className="muted">A plain chat: no files and no commands</span>
-              </span>
-            )}
-            {project && (
-              // (At work too: a chat that has a turn keeps its folder, a new chat opens in the other - slice 86e.)
-              <button type="button" className="btn btn-small" aria-expanded={changing} onClick={() => setChanging(!changing)}>
-                Change <CaretDown size={11} aria-hidden />
-              </button>
-            )}
-          </div>
-          {project && conversation && <PartPicker project={project} conversation={conversation} onPart={onPart} />}
-          {refused && (
-            <div role="alert" className="folder-refused">
-              <p className="alert">{refused.why}</p>
-              {refused.offer && (
-                <button type="button" className="btn btn-small btn-primary" onClick={() => void newChat(refused.to)}>
-                  {refused.to ? `Open a new chat in ${refused.to.name}` : 'Open a new chat with no folder'}
-                </button>
-              )}
-            </div>
-          )}
-          {project && conversation && (
-            <AlsoInChat
-              project={project}
-              projects={projects}
-              conversation={conversation}
-              onChange={onFolders}
-              onDefault={onDefault}
-              onAdd={() => {
-                // (The browser stands beside the app: a click in it would close the panel, and the browser in it.)
-                close()
-                setAdding(true)
-              }}
-            />
-          )}
-          {(changing || !project) && (
-            <section aria-label="Switch the main folder">
-              <div className="kicker">Switch the main folder</div>
-              {project && <p className="muted">A chat with messages keeps its folder: a new chat opens in the one you pick.</p>}
-              <FolderChoices projects={projects} conversations={conversations} except={project?.id ?? 'none'} onPick={to => void move(to).then(moved => moved && close())} onBrowse={browse} />
-            </section>
-          )}
-        </div>
-      )}
+      {dialog()}
       {browsing !== false && (
         <FolderBrowser
           start={browsing}

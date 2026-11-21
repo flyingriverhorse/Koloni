@@ -91,7 +91,7 @@ test('one call, picked from a tool node’s list, shows what it was given and wh
   const inspector = screen.getByRole('complementary', { name: 'Inspector' })
   expect(inspector).toHaveTextContent('search "("')
   expect(screen.getByText('Status').nextElementSibling).toHaveTextContent('failed')
-  expect(screen.getByText('Agent').nextElementSibling).toHaveTextContent('Lead')
+  expect(screen.getByText('Agent').nextElementSibling).toHaveTextContent('Orchestrator')
   expect(screen.getByText('Run by').nextElementSibling).toHaveTextContent('KOLONİ')
   // open at once: nothing more to click
   expect(screen.getByText('{"pattern":"("}')).toBeInTheDocument()
@@ -110,7 +110,9 @@ test('one call, picked from a tool node’s list, shows what it was given and wh
 })
 
 test('the agent node shows its key numbers, an unknown count a dash; its window has the rest, its raw steps drawn once opened', async () => {
-  render(<Inspector state={state} selectedId="agent:r" onClose={() => {}} />)
+  const { container: panel } = render(<Inspector state={state} selectedId="agent:r" onClose={() => {}} />)
+  // (Called as on its node: the Lead is the Orchestrator.)
+  expect(panel.querySelector('.insp-title')).toHaveTextContent(/^Orchestrator$/)
   // what its provider did not report is said so, and no fill is made of it
   expect(screen.getByText('Tokens').nextElementSibling).toHaveTextContent(/^– in \/ 42 out$/)
   cleanup()

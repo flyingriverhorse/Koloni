@@ -42,7 +42,12 @@ from tests.test_room_scenarios import (
 )
 from tests.test_spawn import call, names, role_id, step
 from tests.test_take_in_scenarios import CHECK, LINES, card, lines, meanwhile, needs_git, of
-from tests.test_triggers import HeldClock, cli_app, on_loop  # noqa: F401 (cli_app: a fixture)
+from tests.test_triggers import (  # noqa: F401 (cli_app: a fixture)
+    NOT_SLOW,
+    HeldClock,
+    cli_app,
+    on_loop,
+)
 
 TWO = [{"role": "Coder"}, {"role": "Reviewer"}]
 
@@ -857,7 +862,7 @@ def test_a_rooms_minutes_are_not_counted_while_it_is_only_kept_waiting_for_room(
     """As an unattended turn's (slice 26): the clock is put away while none of the
     room's members has a place and one stands in line, and set again for what is left."""
     first = Gate()
-    clock = HeldClock()
+    clock = HeldClock(but=NOT_SLOW)
     client, _model = make_client({
         "Lead": [first.step(text("A done")), text("The room is over.")],
         "Coder": [text("Nothing to add."), text("Done.")],

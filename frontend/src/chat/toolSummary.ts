@@ -42,12 +42,14 @@ export function toolName(call: Named): string {
   return mcp ? `${mcp[1]} · ${mcp[2]}` : call.name
 }
 
+type Summed = Named & Pick<ToolCall, 'arguments'> & Partial<Pick<ToolCall, 'status'>>
+
 /** One line naming a tool call and its target, e.g. `read_file src/a.py`. */
-export function toolSummary(call: Named & Pick<ToolCall, 'arguments'>): string {
+export function toolSummary(call: Summed): string {
   const name = toolName(call)
   const args = argsOf(call.arguments)
   if (!args) return name
-  const said = agentCall(call.name, args) ?? lookupCall(call.name, args) ?? browserCall(call.name, args)
+  const said = notAsked(call, args) ?? agentCall(call.name, args) ?? lookupCall(call.name, args) ?? browserCall(call.name, args)
   if (said !== null) return said
   // A note is named by its subject; its words are in the call itself.
   if (call.name === 'remember') return typeof args.about === 'string' && args.about ? 'remember ' + args.about : 'remember'
@@ -67,6 +69,20 @@ function argsOf(given: string): Args | null {
   } catch {
     return null
   }
+}
+
+/**
+ * A question never put to the user, in words - why is its result: an ask_user KOLONİ refused (the user's message waits,
+ * Take in's options, a team's lead in its recipe, nobody watching) or failed ("Ready for you", asked a third time), or
+ * native Codex's own way to ask, declined (app/model_native.py `ASKS_USER`; what it holds is not measured, so not read).
+ * Null for any other call.
+ */
+function notAsked(call: Summed, args: Args): string | null {
+  if (call.status !== 'denied' && call.status !== 'failed') return null
+  if (call.name === 'codex__item_tool_requestUserInput') return 'Wanted to ask you with its own tool · not asked'
+  if (call.name !== 'ask_user') return null
+  const first = typeof args.question === 'string' ? args.question.trim().split('\n', 1)[0] : ''
+  return first ? `Wanted to ask: ${first} · not asked` : 'Wanted to ask you · not asked'
 }
 
 /** A search, and the tools about agents and teams, by their target; null: not one of them, or its target is not as expected. */

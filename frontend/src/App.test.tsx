@@ -168,6 +168,32 @@ test('a server that runs another API than the page was built against, or does no
   }
 })
 
+test('the model server is not asked every 15 s while the tab is hidden; it is asked once as the tab comes back', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] }) // (findBy and waitFor keep real timeouts)
+  let hidden = false
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
+  const asked = () => vi.mocked(fetch).mock.calls.filter(([url]) => url === '/api/health').length
+  try {
+    render(<App />)
+    await vi.waitFor(() => expect(useApp.getState().conv?.conversation.id).toBe('c'))
+    await vi.waitFor(() => expect(useApp.getState().health).not.toBeNull())
+    await act(async () => void vi.advanceTimersByTime(15_000))
+    const before = asked()
+    expect(before).toBeGreaterThan(0)
+    hidden = true
+    await act(async () => void vi.advanceTimersByTime(60_000))
+    expect(asked()).toBe(before)
+    hidden = false
+    await act(async () => void document.dispatchEvent(new Event('visibilitychange')))
+    expect(asked()).toBe(before + 1)
+    await act(async () => void vi.advanceTimersByTime(15_000))
+    expect(asked()).toBe(before + 2)
+  } finally {
+    vi.useRealTimers()
+    Reflect.deleteProperty(document, 'hidden')
+  }
+})
+
 test('a page the server has since built anew says so, with a Reload; one of the same build says nothing (K-yenile-uyarisi)', async () => {
   const mine = Object.assign(document.createElement('script'), { type: 'module', src: '/assets/index-old.js' })
   document.head.append(mine)

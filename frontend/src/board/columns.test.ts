@@ -8,7 +8,7 @@ type BoardAgent = BoardConversation['agents'][number]
 
 const agent = (status: BoardAgent['status'], last_event_at: string | null = null, over: Partial<BoardAgent> = {}): BoardAgent => ({
   id: status, name: 'Lead', status, role: 'Lead', provider_name: null, model_id: null, holds: [], copy: null,
-  waiting_for: null, sign: null, last_event_at, in_tool: false, changes_to_approve: 0, questions: 0, ...over,
+  waiting_for: null, sign: null, last_event_at, in_tool: false, changes_to_approve: 0, questions: 0, own_questions: 0, ...over,
 })
 const talk = (over: Partial<BoardConversation> = {}): BoardConversation => ({
   conversation_id: 'a', title: 'A', agents: [], merges_pending: 0, turn: null, ...over,

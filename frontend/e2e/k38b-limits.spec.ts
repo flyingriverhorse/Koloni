@@ -1,5 +1,6 @@
-// K-38b-sinirlar in the browser: on a narrow canvas an agent's window opens clear of the chat, beside the
-// Workspace window without hiding it, and says on its header what came new while the user looked elsewhere.
+// K-38b-sinirlar in the browser: on a narrow canvas an agent's window opens clear of the chat (where the stage has room
+// beside its column), beside the Workspace window without hiding it, and says on its header what came new while the
+// user looked elsewhere.
 import { mkdirSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -22,8 +23,12 @@ for (const [width, height] of [
   [1024, 720],
   [1440, 900],
 ] as const) {
+  // At 1024 the chat's column (0.1.4) and the inspector leave about 224px of the stage: no room for the window beside
+  // the column (it lies over the chat, in front: move.ts placeWindow's shortcut). Workspace beside the column stands
+  // full height from 1400px only, so at 1024 the turn keeps the canvas above it.
+  const roomy = width > 1024
   for (const theme of ['light', 'dark'] as const) {
-    test(`K-38b-sinirlar ${width}x${height} (${theme}): an agent's window opens off the chat, not over Workspace, and counts what came new`, async ({ page }) => {
+    test(`K-38b-sinirlar ${width}x${height} (${theme}): an agent's window opens ${roomy ? 'off the chat, not over Workspace' : 'in front, off the message box'}, and counts what came new`, async ({ page }) => {
       await page.setViewportSize({ width, height })
       await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
       await openFreshConversation(page)
@@ -33,8 +38,8 @@ for (const [width, height] of [
       await expect(chat.getByText('Run this command?')).toBeVisible()
 
       // Workspace beside the chat, then the Lead picked (the inspector takes the stage's right) and its window opened.
-      await chat.getByRole('button', { name: /^Workspace/ }).click()
       const files = page.getByRole('region', { name: 'Workspace' })
+      await chat.getByRole('button', { name: /^Workspace/ }).click()
       await expect(files).toBeVisible()
       const lead = page.locator('.react-flow__node-agent', { hasText: 'Orchestrator' })
       await lead.locator('.node-title').click()
@@ -44,8 +49,12 @@ for (const [width, height] of [
       await expect(window).toBeVisible()
 
       const [stage, own, under, other] = [await box(page.locator('.stage')), await box(window), await box(chat), await box(files)]
-      expect(meets(own, under)).toBe(false)
       expect(holds(own, other) || holds(other, own)).toBe(false)
+      if (roomy) expect(meets(own, under)).toBe(false)
+      else {
+        await expect(window).toHaveAttribute('data-front', '')
+        expect(meets(own, await box(chat.getByLabel('Message')))).toBe(false)
+      }
       expect(own.x >= stage.x && own.y >= stage.y && own.x + own.width <= stage.x + stage.width && own.y + own.height <= stage.y + stage.height).toBe(true)
       await keep(page, `k38b-${width}-${theme}-opened`)
 

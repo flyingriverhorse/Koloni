@@ -102,18 +102,20 @@ def test_old_tool_output_is_trimmed_when_history_exceeds_the_budget(
         REPORT_ONCE,
         TEAM_PROMPT,
     )
+    from app.agent.context_mixin import ASKED_IN_WORDS
     from app.executors.host import SHELL_WRITES
     from app.roles import WHO_SPLITS
 
     # (The Lead's own instructions end with the split rule, K-rol-cogul: counted as they grew;
     # and the blanked read is said in a line, with its id: K-gecmis-zengin. The system
     # prompt's line on a refusal grew 77 characters, B-321, and the shell line, B-324 - counted
-    # with Windows PowerShell's, whichever shell this machine has.)
+    # with Windows PowerShell's, whichever shell this machine has - and its rule on asking, B-204.)
     monkeypatch.setattr("app.executors.host._pwsh", lambda: None)
     settings_env["KOLONI_CONTEXT_CHARS"] = str(
-        1620 + 77 + len(SHELL_WRITES) + len(WHO_SPLITS) + 1 + sum(len(told) + 2 for told in (
-            LANGUAGE_PROMPT, MESSAGE_PROMPT, PROVIDERS_PROMPT, HAND_ON_PROMPT, TEAM_PROMPT,
-            AWAY_PROMPT, BRIEF_PROMPT, REPORT_ONCE)) + len(" read big.txt (1 lines) (full: recall_output id=)") + 32)
+        1620 + 77 + len(SHELL_WRITES) + len(WHO_SPLITS) + 1 + len(" " + ASKED_IN_WORDS) + sum(
+            len(told) + 2 for told in (
+                LANGUAGE_PROMPT, MESSAGE_PROMPT, PROVIDERS_PROMPT, HAND_ON_PROMPT, TEAM_PROMPT,
+                AWAY_PROMPT, BRIEF_PROMPT, REPORT_ONCE)) + len(" read big.txt (1 lines) (full: recall_output id=)") + 32)
     (project_dir / "big.txt").write_text("x" * 600 + "\n", encoding="utf-8")
     client, model = make_client([
         StepResult("", [call("read_file", '{"path": "big.txt"}', "a")], 1, 1),

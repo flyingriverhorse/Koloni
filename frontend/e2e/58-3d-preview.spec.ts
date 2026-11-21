@@ -58,6 +58,15 @@ test('a part an agent writes opens Files on its 3D view - three.js asked for onl
     await expect(windowOf(page).getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-pressed', 'true')
 
     const first = await drawn(figure)
+    // not yet turned, its box grown (Workspace expanded): still seen whole, as Reset view has it
+    await windowOf(page).getByRole('button', { name: 'Expand workspace' }).click()
+    await expect.poll(async () => (await figure.locator('canvas').boundingBox())?.width).toBeGreaterThan(600)
+    const grown = await drawn(figure)
+    await figure.getByRole('button', { name: 'Reset view' }).click()
+    expect((await drawn(figure)).equals(grown)).toBe(true)
+    await windowOf(page).getByRole('button', { name: 'Shrink workspace' }).click()
+    await expect.poll(async () => (await figure.locator('canvas').boundingBox())?.width).toBeLessThan(600)
+    expect((await drawn(figure)).equals(first)).toBe(true)
     await figure.focus()
     await page.keyboard.press('ArrowLeft')
     const turned = await drawn(figure)

@@ -29,6 +29,12 @@
   pointer-events: none;
 }
 
+/* With the chat open, in the middle of what its column leaves (0.1.4); the first steps under it too. */
+.stage:has(> .chat:not(.chat-closed)) .canvas-empty,
+.stage:has(> .chat:not(.chat-closed)) > .first-steps {
+  left: calc((100% + var(--chat-w)) / 2);
+}
+
 /* The bee stands over the line, out of its flow: the first steps below keep their place. */
 .canvas-empty-bee {
   position: absolute;
@@ -288,10 +294,12 @@
 }
 
 /* batch-26: where a frame's line to Ready for you leaves it - low on its right edge (layout.ts TEAM_OUT), under the
-   card at its top-right; the layout makes a frame tall enough for that. */
+   card at its top-right; the layout makes a frame tall enough for that. Its middle right at TEAM_OUT (21 Nov): where a
+   member's dotted line to a discussion between teams leaves too (memberLine), so the two leave from one point. */
 .react-flow__handle.team-out {
   top: auto;
   bottom: 18px;
+  transform: translate(50%, 50%);
 }
 
 /* A recipe's steps at once, round their agents in the frame: a dashed box, its name at its top. */
@@ -958,6 +966,58 @@ button.shared-row:hover,
   flex-direction: column;
   gap: 4px;
   padding: 0 10px 8px 30px;
+}
+
+/* A turn's steps in its card (0.1.4): quiet pills - a closed line of calls, an agent's folded report, a row on its own
+   with nothing under its head - each with its click, its marks and its state; a line's count is in its name only.
+   Opened, a line or a row is flat. */
+.turn-card .tool-run,
+.turn-card .tool-row {
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* (align-self in a turn's group, justify-self in an agent's report; its focus ring is drawn outside it.) */
+.turn-card .tool-run:not(:has(> .tool-run-body)),
+.turn-card .msg-group > .tool-row:not(:has(> .tool-row-detail, > .tool-row-note, > .tool-row-shot)) {
+  align-self: flex-start;
+  justify-self: start;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.turn-card :is(.tool-run-head, .tool-row-head) {
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+/* (A row's words at its pill's size, as a line's are: the row's own is the smaller mono one.) */
+.turn-card .tool-row-summary {
+  font-size: inherit;
+}
+
+/* A pill's ground is its head's, so a hover paints the same ground again, never a second one over it: on two a failed
+   state's word reads at 4.4 in the dark theme. (A command's Stop stands beside the ground, not cut by its round end.) */
+.turn-card .tool-run:not(:has(> .tool-run-body)) > .tool-run-head,
+.turn-card .msg-group > .tool-row:not(:has(> .tool-row-detail, > .tool-row-note, > .tool-row-shot)) .tool-row-head,
+.turn-card :is(.tool-run-head, .tool-row-head):hover {
+  background: var(--hover);
+}
+
+.turn-card :is(.tool-run-head, .tool-row-head):hover {
+  color: var(--text);
+}
+
+.turn-card .tool-run-count {
+  display: none;
+}
+
+.turn-card .tool-run-body {
+  padding: 0 0 0 14px;
 }
 
 /* --- inspector ----------------------------------------------------------- */

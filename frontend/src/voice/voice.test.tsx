@@ -228,7 +228,8 @@ test('Auto-read of a short summary: at the turn’s end the Lead’s line is rea
 })
 
 test('🔊 on an answer reads all of it, its code as a code block; while it reads, ■ stops it; once read, it is 🔊 again', async () => {
-  useApp.setState({ conv: going('Here is the code:\n```py\nx = 1\ny = 2\n```\nSee [the rule](https://example.com).', 'complete'), projectId: 'p' })
+  // (Read aloud stands in the turn's foot once the turn is over.)
+  useApp.setState({ conv: going('Here is the code:\n```py\nx = 1\ny = 2\n```\nSee [the rule](https://example.com).', 'complete', { run: 'completed' }), projectId: 'p' })
   render(<><ChatPanel /><VoiceSection /></>)
   await userEvent.click(screen.getAllByRole('button', { name: 'Read aloud' })[1])
   expect(synth.said).toEqual(['Here is the code.', 'Code block, 2 lines.', 'See the rule.'])
@@ -278,7 +279,7 @@ test('with no voice for the language nothing is read in another’s, and it says
 })
 
 test('with no voice chosen the computer’s own reads; where a language has none of its own, the browser’s is marked online and the panel says so', async () => {
-  useApp.setState({ conv: going('Read me.', 'complete'), projectId: 'p' })
+  useApp.setState({ conv: going('Read me.', 'complete', { run: 'completed' }), projectId: 'p' })
   render(<><ChatPanel /><VoiceSection /></>)
   await userEvent.click(screen.getAllByRole('button', { name: 'Read aloud' })[1])
   expect((synth.queue[0].voice as { name: string }).name).toBe('Ava')

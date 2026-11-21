@@ -42,7 +42,7 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   await expect(check.locator('.channel-head')).toContainText(/^Reviewer 2\d\d/)
   await expect(hello).toContainText(/handed to [12] of 2/)
   await expect(check).toContainText(/handed to [12] of 2/)
-  await expect(hello).not.toContainText('not yet to Lead')
+  await expect(hello).not.toContainText('not yet to Orchestrator')
 
   // You write one while the turn is at work. Nobody has taken a step since, so nobody has read it.
   await chat.getByLabel('A note for every agent working on this request').fill('Leave slow.py alone.')
@@ -50,7 +50,7 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   await expect(notes).toHaveCount(3)
   await expect(notes.nth(2).locator('.channel-head')).toContainText(/^You\d\d/)
   await expect(notes.nth(2)).toContainText('Leave slow.py alone.')
-  await expect(notes.nth(2)).toContainText('handed to 0 of 3 · not yet to Lead, Reviewer, Reviewer 2')
+  await expect(notes.nth(2)).toContainText('handed to 0 of 3 · not yet to Orchestrator, Reviewer, Reviewer 2')
   await expect(chat.getByLabel('A note for every agent working on this request')).toHaveValue('')
 
   // The lead goes on once it is answered, and is handed your note before its next step.
@@ -91,7 +91,7 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   const lead = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Orchestrator$/ }) }).locator('.node-title')
   await lead.click()
-  await expect(inspector).toContainText('Lead')
+  await expect(inspector).toContainText('Orchestrator')
   await lead.dblclick()
   const own = page.getByRole('region', { name: 'Agent window' })
   await openAgentFold(own, 'Every step as recorded')

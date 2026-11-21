@@ -27,6 +27,7 @@ const agent = (over: Partial<BoardAgent> = {}): BoardAgent => ({
   in_tool: false,
   changes_to_approve: 0,
   questions: 0,
+  own_questions: 0,
   ...over,
 })
 

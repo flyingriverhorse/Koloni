@@ -1,10 +1,10 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import type { Away, BacklogTask } from '../api/types'
+import type { Away, BacklogTask, Merge } from '../api/types'
 import { Rail } from '../shell/Rail'
 import { resetStoreForTests, useApp } from '../state/store'
-import { command, conversation, convState, memoryRecord, projectMemory, question, run } from '../test-fixtures'
+import { agent, command, conversation, convState, memoryRecord, projectMemory, question, run } from '../test-fixtures'
 import { readyItems } from './ready'
 import { ReadyPage, ReadyPanel } from './ReadyViews'
 import { useReady } from './useReady'
@@ -77,6 +77,29 @@ test('decision 1: the command beside Run is the whole command, in a monospace bl
   expect(within(row).getByText(LONG).tagName).toBe('PRE')
   expect(within(row).getByText(LONG)).toHaveClass('mono')
   expect(within(row).getByRole('button', { name: 'Run once' })).toBeInTheDocument()
+})
+
+test('a chat’s row says who asks as the screen calls them: the Orchestrator, not its record’s Lead', () => {
+  useApp.setState({ readyChats: { x: { ...other, agents: [agent('rx', 'waiting')] } } })
+  render(<Shown page />)
+  expect(screen.getByRole('group', { name: 'chat: Orchestrator asks · “Fix the login”' })).toBeInTheDocument()
+})
+
+test('KOLONİ’s own card about an agent is for it: the agent asks nothing (as the chat’s Ready for you says)', () => {
+  const card = question('qx', 'rx', { leave: true, question: 'Researcher came to its limit of 5 steps', options: ['Continue (+25 steps)', 'Stop here'] })
+  useApp.setState({ readyChats: { x: { ...other, commands: [], agents: [agent('rx', 'waiting')], questions: [card] } } })
+  render(<Shown page />)
+  expect(screen.getByRole('group', { name: 'chat: for Orchestrator · “Fix the login”' })).toBeInTheDocument()
+})
+
+test('a copy kept for Take in is KOLONİ’s card about its agent too: "for Coder", not "Coder asks"', () => {
+  // (live, 20 Nov 2026: a Coder's copy kept at its step limit read "Coder asks", which it did not)
+  const file = { path: 'tests/test_calc.py', kind: 'new', state: 'ready', whole: false, diff: '', additions: 1, deletions: 0, note: null } as const
+  const kept: Merge = { id: 'g', run_id: 'rx', agent_id: 'coder', status: 'kept', files: [file], kept_in: 'C:/copies/c', check: null, commit: null, created_at: 't', decided_at: null }
+  const coder = agent('rx', 'failed', { id: 'coder', role_name: 'Coder', parent_agent_id: 'rx' })
+  useApp.setState({ readyChats: { x: { ...other, commands: [], agents: [agent('rx', 'running'), coder], merges: [kept] } } })
+  render(<Shown page />)
+  expect(screen.getByRole('group', { name: 'chat: for Coder · “Fix the login”' })).toBeInTheDocument()
 })
 
 test('the page: the same list, by where it is from', async () => {

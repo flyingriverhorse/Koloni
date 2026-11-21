@@ -14,7 +14,7 @@ const onBoard = (id: string, over: Partial<BoardConversation> = {}): BoardConver
   turn: null,
   ...over,
 })
-const asking = { id: 'x', name: 'Lead', status: 'waiting_approval' as const, role: 'Lead', provider_name: null, model_id: null, holds: [], copy: null, waiting_for: null, sign: null, last_event_at: null, in_tool: false, changes_to_approve: 0, questions: 0 }
+const asking = { id: 'x', name: 'Lead', status: 'waiting_approval' as const, role: 'Lead', provider_name: null, model_id: null, holds: [], copy: null, waiting_for: null, sign: null, last_event_at: null, in_tool: false, changes_to_approve: 0, questions: 0, own_questions: 0 }
 
 const listed = (id: string, title: string, kept: boolean): ListedConversation => ({
   ...convState().conversation,

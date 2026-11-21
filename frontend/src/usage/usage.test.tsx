@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Project, Usage } from '../api/types'
+import type { Project, Provider, Usage } from '../api/types'
 import { since } from './period'
 import { UsagePage } from './UsagePage'
 
@@ -80,6 +80,39 @@ test('it starts on this project and Today, and reads again when either is change
   await userEvent.selectOptions(screen.getByLabelText('Period'), 'All')
   expect(onLoad).toHaveBeenLastCalledWith(null, null)
   expect(await screen.findByText('No agent ran in this period.')).toBeInTheDocument()
+})
+
+test('while it is read it says so; with nothing costed it says where a cost would come from; one conversation is one', async () => {
+  let answer: (read: Usage) => void = () => {}
+  const onLoad = vi.fn(
+    () =>
+      new Promise<Usage>(resolve => {
+        answer = resolve
+      }),
+  )
+  render(<UsagePage project={project} projects={[project]} onLoad={onLoad} onOpen={vi.fn()} />)
+  expect(screen.getByText('Reading the usage…')).toBeInTheDocument()
+  answer({ ...usage, by_model: [usage.by_model[2]], by_conversation: [usage.by_conversation[0]] })
+  await screen.findByRole('table', { name: 'Usage by provider and model' })
+  expect(screen.getByText(/^Cost shows for a model with a price: yours, or else models.dev’s, where it has one\./)).toBeInTheDocument()
+  expect(screen.getByText(/^Prices come from what you write under Prices, or else from models.dev, in USD\./)).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'By conversation' }).querySelector('summary')).toHaveTextContent('By conversation1 conversation')
+})
+
+test('Plan limits are beside the boxes where a plan can be read, and the budget only for this project', async () => {
+  const cli: Provider = {
+    id: 'cc', name: 'Claude Code', kind: 'claude_cli', base_url: null, default_model: null, executable: null, mode: null, options: null, for_agents: false,
+    note: null, models: [], only_listed: false, max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null, has_key: false,
+    position: 0, created_at: 't', updated_at: 't',
+  }
+  const onLimits = vi.fn().mockResolvedValue({ unknown: 'not run yet', read_at: null, source: null, plan: null, windows: [], credits: null })
+  const budget = { budget: 12, currency: 'USD', spent: 2, share: 0.17, warn: false, over: false, at_least: false, unpriced_runs: 0 }
+  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(usage)} onOpen={vi.fn()} providers={[cli]} onLimits={onLimits} budget={budget} />)
+  expect(await screen.findByRole('region', { name: 'Plan limits' })).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'This month’s budget' })).toBeInTheDocument()
+  await userEvent.selectOptions(screen.getByLabelText('Projects'), 'All projects')
+  expect(screen.queryByRole('region', { name: 'This month’s budget' })).toBeNull()
+  expect(screen.getByRole('region', { name: 'Plan limits' })).toBeInTheDocument()
 })
 
 test('a period starts at a moment: today at this day’s midnight here, the others so many days back', () => {

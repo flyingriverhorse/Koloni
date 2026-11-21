@@ -23,13 +23,14 @@ const MODE_LABEL: Record<Mode, string> = {
   native: 'Native: its own tools, in the project',
   reads: 'Reads with its own tools; started without leave to write or run',
 }
-// What each CLI asks KOLONİ before, natively (89a Codex, 89b Claude Code, 89c Copilot; agy through its hook).
+// What each CLI asks KOLONİ before, natively (89a Codex, 89b Claude Code, 89c Copilot; agy through its hook) -
+// Qoder: what was measured instead (app/model_native.py, its hook's check).
 const NATIVE_ASKS: Partial<Record<ProviderKind, string>> = {
   claude_cli: 'asks before every tool it uses',
   agy_cli: 'asks before every tool it uses',
   codex_cli: 'asks before each command and patch, but not those its own rules count as safe',
   copilot_cli: 'asks before each command, write and read',
-  qoder_cli: 'asks before every tool it uses (not yet measured)',
+  qoder_cli: "stops before it acts on the versions measured so far: they do not apply KOLONİ's hook",
 }
 // KOLONİ's tools in either way, from the agy version they were measured to reach (app/model_agy.py BRIDGE_FROM).
 const AGY_TOOLS =
@@ -304,34 +305,45 @@ function CopilotFields({ provider, apiKey: key, setKey, address, setAddress, ser
   )
 }
 
+/** The line every CLI has: whose command it runs, where, and on whose sign-in. */
+function cliLine({ kind, copilot, ownServer, address, signs, signIn }: CliProps) {
+  return copilot
+    ? 'Runs the copilot command on this machine, with a home of its own: your Copilot settings, MCP servers and plugins stay out of it. '
+    : ownServer && address.trim()
+      ? `Runs the ${COMMAND[kind]} command on this machine, on your model server. `
+      : signs && signIn === 'koloni'
+        ? `Runs the ${COMMAND[kind]} command on this machine with this provider's own sign-in; no key is needed, and its use counts against that account's plan. `
+        : `Uses the ${COMMAND[kind]} command you are signed in to on this machine; no key is needed, and its use counts against your plan. `
+}
+
+/** A session or a run a step: its own tools are off, and what that way of running does. */
+function ToolsHint({ kind, runs }: Pick<CliProps, 'kind' | 'runs'>) {
+  return (
+    <Hint doc={GUIDE.cliRuns}>
+      Its own tools are switched off: every tool it uses is KOLONİ's, so approvals, records and Stop work as
+      with any other model.{' '}
+      {runs === 'session' &&
+        "It keeps its own loop for the whole of an agent's work and reaches KOLONİ's tools as they are needed, so it is quick and you see its text piece by piece as it works."}
+      {runs === 'step' &&
+        'Each model step is a separate run of the CLI, so it is slower and the answer arrives all at once.'}
+      {kind === 'codex_cli' &&
+        runs === 'session' &&
+        " Codex's own patch tool cannot be switched off, so KOLONİ refuses every patch it asks to make and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. Tried on short work so far."}
+      {kind === 'qoder_cli' &&
+        " A model name has to be set below if Qoder's own default model does not answer."}
+    </Hint>
+  )
+}
+
 /** What running it this way does: a line for every CLI, and a warning for each native way. */
-function CliNotes({ kind, copilot, ownServer, address, signs, signIn, runs, agy }: CliProps) {
+function CliNotes(props: CliProps) {
+  const { kind, runs, agy } = props
   return (
     <>
       <div className="muted provider-note">
-        {copilot
-          ? 'Runs the copilot command on this machine, with a home of its own: your Copilot settings, MCP servers and plugins stay out of it. '
-          : ownServer && address.trim()
-            ? `Runs the ${COMMAND[kind]} command on this machine, on your model server. `
-            : signs && signIn === 'koloni'
-              ? `Runs the ${COMMAND[kind]} command on this machine with this provider's own sign-in; no key is needed, and its use counts against that account's plan. `
-              : `Uses the ${COMMAND[kind]} command you are signed in to on this machine; no key is needed, and its use counts against your plan. `}
+        {cliLine(props)}
         {/* (A session or a run a step: the ways of running that have more to say.) */}
-        {runs !== 'native' && runs !== 'reads' && (
-          <Hint doc={GUIDE.cliRuns}>
-            Its own tools are switched off: every tool it uses is KOLONİ's, so approvals, records and Stop work as
-            with any other model.{' '}
-            {runs === 'session' &&
-              "It keeps its own loop for the whole of an agent's work and reaches KOLONİ's tools as they are needed, so it is quick and you see its text piece by piece as it works."}
-            {runs === 'step' &&
-              'Each model step is a separate run of the CLI, so it is slower and the answer arrives all at once.'}
-            {kind === 'codex_cli' &&
-              runs === 'session' &&
-              " Codex's own patch tool cannot be switched off, so KOLONİ refuses every patch it asks to make and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. Tried on short work so far."}
-            {kind === 'qoder_cli' &&
-              " A model name has to be set below if Qoder's own default model does not answer."}
-          </Hint>
-        )}
+        {runs !== 'native' && runs !== 'reads' && <ToolsHint kind={kind} runs={runs} />}
       </div>
       {runs === 'native' && kind === 'claude_cli' && (
         <p role="note" className="composer-warning provider-note">
@@ -343,6 +355,48 @@ function CliNotes({ kind, copilot, ownServer, address, signs, signIn, runs, agy 
           read-only role stays read-only. {NATIVE_COPY} {NOT_BY_TRIGGER}
         </p>
       )}
+      <AgyNotes agy={agy} runs={runs} />
+      {runs === 'native' && kind === 'codex_cli' && (
+        <p role="note" className="composer-warning provider-note">
+          Native: Codex works with its own shell and patch tool; your own Codex skills and MCP servers are switched
+          off. {NATIVE_COPY} It asks KOLONİ before each command it runs and each patch it makes, at any permission
+          level, by KOLONİ&apos;s own rules: a new file shows as a diff to approve, an edit of an existing file as a
+          sentence with its diff, and a command as a command to approve. It reads files by running commands, so its role
+          has to be allowed to write and run them. What its own Codex rules let it do unasked is marked so on the record.
+          It can open sub-agents and ask you questions through KOLONİ. {NOT_BY_TRIGGER}
+        </p>
+      )}
+      {runs === 'native' && kind === 'qoder_cli' && (
+        <p role="note" className="composer-warning provider-note">
+          Native: the Qoder versions measured so far do not apply KOLONİ&apos;s hook, so a native turn stops before
+          Qoder does anything and says to run it as a session (One session per agent) instead. A Qoder that applies
+          the hook passes that check; how it works natively after that, asking KOLONİ before each tool of its own as
+          Claude Code does, is not measured. It does not run natively in a project with Qoder settings of its own
+          (.qoder). {NATIVE_COPY} {NOT_BY_TRIGGER}
+        </p>
+      )}
+      {runs === 'native' && kind === 'copilot_cli' && (
+        <p role="note" className="composer-warning provider-note">
+          Native: Copilot works in the project folder with its own file and shell tools. It starts with a home of its
+          own, so your Copilot plugins and MCP servers stay out. It asks KOLONİ before each command it runs, each file it
+          writes and each file it reads, at any permission level, by KOLONİ&apos;s own rules: a new file shows as a diff
+          to approve, an edit of an existing file as a sentence with its diff, a command as a command to approve and a
+          secret file as a read to approve. Anything else it asks for, such as a web page, is refused. What it does
+          unasked is marked so on the record. Where this machine can, its commands run in Copilot’s sandbox, denied the
+          project’s secret files (Settings › This project › Commands and secrets); where it cannot, the run says so. It can open sub-agents
+          and ask you questions through KOLONİ. Copilot (native) runs its sub-agents one at a time here; session mode
+          runs them at once. Copilot’s own sandbox cannot start Python here (measured): tests run only through a
+          sub-agent or in session mode. {NOT_BY_TRIGGER}
+        </p>
+      )}
+    </>
+  )
+}
+
+/** agy's two ways: reading with its own tools, or native through KOLONİ's hook. */
+function AgyNotes({ agy, runs }: Pick<CliProps, 'agy' | 'runs'>) {
+  return (
+    <>
       {agy && runs === 'reads' && (
         <p role="note" className="composer-warning provider-note">
           Reads only: agy works in the project folder with its own reading tools. It is started without leave to do
@@ -361,40 +415,6 @@ function CliNotes({ kind, copilot, ownServer, address, signs, signIn, runs, agy 
           or uses a tool without it, the run is stopped. As a sub-agent it works in its own copy of the project, without
           the project&apos;s dependency folders (node_modules, .venv), so what needs them does not run there; what it
           changed is taken into the project when it is done. {AGY_TOOLS} {NOT_BY_TRIGGER}
-        </p>
-      )}
-      {runs === 'native' && kind === 'codex_cli' && (
-        <p role="note" className="composer-warning provider-note">
-          Native: Codex works with its own shell and patch tool; your own Codex skills and MCP servers are switched
-          off. {NATIVE_COPY} It asks KOLONİ before each command it runs and each patch it makes, at any permission
-          level, by KOLONİ&apos;s own rules: a new file shows as a diff to approve, an edit of an existing file as a
-          sentence with its diff, and a command as a command to approve. It reads files by running commands, so its role
-          has to be allowed to write and run them. What its own Codex rules let it do unasked is marked so on the record.
-          It can open sub-agents and ask you questions through KOLONİ. {NOT_BY_TRIGGER}
-        </p>
-      )}
-      {runs === 'native' && kind === 'qoder_cli' && (
-        <p role="note" className="composer-warning provider-note">
-          Native, not yet measured: Qoder works in the project folder with its own file and shell tools, and is
-          asked, as Claude Code is, to ask KOLONİ before every tool of its own: a change shows as a diff to approve and
-          a command as a command to approve, as the permission level says. Whether Qoder really does is not measured
-          yet: a tool of its own seen running without KOLONİ being asked stops the run, after that one tool has run. A
-          tool KOLONİ does not know by name is asked about at every level. It does not run natively in a project with
-          Qoder settings of its own (.qoder). {NATIVE_COPY} {NOT_BY_TRIGGER}
-        </p>
-      )}
-      {runs === 'native' && kind === 'copilot_cli' && (
-        <p role="note" className="composer-warning provider-note">
-          Native: Copilot works in the project folder with its own file and shell tools. It starts with a home of its
-          own, so your Copilot plugins and MCP servers stay out. It asks KOLONİ before each command it runs, each file it
-          writes and each file it reads, at any permission level, by KOLONİ&apos;s own rules: a new file shows as a diff
-          to approve, an edit of an existing file as a sentence with its diff, a command as a command to approve and a
-          secret file as a read to approve. Anything else it asks for, such as a web page, is refused. What it does
-          unasked is marked so on the record. Where this machine can, its commands run in Copilot’s sandbox, denied the
-          project’s secret files (Settings › This project › Commands and secrets); where it cannot, the run says so. It can open sub-agents
-          and ask you questions through KOLONİ. Copilot (native) runs its sub-agents one at a time here; session mode
-          runs them at once. Copilot’s own sandbox cannot start Python here (measured): tests run only through a
-          sub-agent or in session mode. {NOT_BY_TRIGGER}
         </p>
       )}
     </>

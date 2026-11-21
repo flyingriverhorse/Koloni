@@ -169,6 +169,49 @@ test('once one is used, the other side’s rows are one closed row, and the pick
   expect(screen.getByRole('region', { name: 'Undo these changes' })).toBeInTheDocument()
 })
 
+test('two sides of one provider go by their models; a pick that changed no files says its answer goes on, with nothing to undo', async () => {
+  const ready: Compare = { id: 'k', conversation_id: 'c', status: 'ready', chosen_run_id: null, sides: [side('a', 'pa', 'alpha-1', 'One.', { changed_files: [], kept: false }), side('b', 'pa', 'alpha-2', 'Two.', { kept: false })] }
+  const onDecide = vi.fn().mockResolvedValue({ ...ready, status: 'chosen', chosen_run_id: 'a' })
+  const state = convState({ runs: [run('a', 'completed', { compare_id: 'k' }), run('b', 'completed', { compare_id: 'k' })], messages: [userMessage('a', 'go'), userMessage('b', 'go')] })
+  render(<MessageList state={state} providers={providers} onRemoveQueued={vi.fn()} onOpenChange={vi.fn()} onDecide={vi.fn()} onDecideCommand={vi.fn()} onLoadCompare={vi.fn().mockResolvedValue(ready)} onDecideCompare={onDecide} />)
+  const one = await screen.findByRole('region', { name: 'Alpha · alpha-1' })
+  expect(within(one).getByText('It changed no files: its answer goes on as the conversation’s.')).toHaveClass('muted cmd-approval-note')
+  expect(screen.getByRole('region', { name: 'Alpha · alpha-2' })).not.toHaveTextContent('It changed no files')
+  expect(screen.queryByText('Chosen')).toBeNull()
+  await userEvent.click(within(one).getByRole('button', { name: 'Use Alpha · alpha-1’s work' }))
+  expect(await screen.findByRole('status')).toHaveTextContent(/^Alpha · alpha-1’s answer goes on; it changed no files; the other’s was thrown away\.$/)
+  expect(within(one).getByText('Chosen')).toHaveClass('tag tag-accent')
+  expect(screen.queryByRole('button', { name: 'Undo these changes' })).toBeNull()
+  expect(screen.queryByRole('button', { name: /^Use / })).toBeNull()
+})
+
+test('while both work their files stay in their copies; a pick that clashes says so over its card; what is refused is said', async () => {
+  const running: Compare = { id: 'k', conversation_id: 'c', status: 'running', chosen_run_id: null, sides: [side('a', 'pa', 'alpha-1', '', { status: 'running' }), side('b', 'pb', 'beta-1', '', { status: 'queued' })] }
+  const state = convState({ runs: [run('a', 'running', { compare_id: 'k' }), run('b', 'queued', { compare_id: 'k' })], messages: [userMessage('a', 'go'), userMessage('b', 'go')] })
+  const view = (onLoad: () => Promise<Compare>, s = state) => (
+    <MessageList state={s} providers={providers} onRemoveQueued={vi.fn()} onOpenChange={vi.fn()} onDecide={vi.fn()} onDecideCommand={vi.fn()} onLoadCompare={onLoad} onDecideCompare={vi.fn().mockRejectedValue(new Error('the turn is gone'))} />
+  )
+  const { unmount } = render(view(vi.fn().mockResolvedValue(running)))
+  expect(await screen.findByText('Files they write stay in their own copies until you pick one.')).toHaveClass('muted cmd-approval-note')
+  expect(screen.queryByRole('status')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Discard both' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/^the turn is gone$/)
+  unmount()
+
+  const clash: Merge = { ...kept('ma', 'a'), files: [{ ...kept('ma', 'a').files[0], state: 'conflict' }] }
+  const chosen: Compare = { ...running, status: 'chosen', chosen_run_id: 'a', sides: [side('a', 'pa', 'alpha-1', 'One.', { kept: true }), side('b', 'pb', 'beta-1', 'Two.', { kept: false })] }
+  const { unmount: gone } = render(view(vi.fn().mockResolvedValue(chosen), { ...state, merges: [clash] }))
+  expect(await screen.findByRole('status')).toHaveTextContent(/^The project changed meanwhile: say whose side is taken where they clash\.$/)
+  expect(screen.queryByRole('button', { name: 'Undo these changes' })).toBeNull()
+  expect(screen.queryByText('Files they write stay in their own copies until you pick one.')).toBeNull()
+  gone()
+
+  // Not read at all: only the refusal.
+  render(view(vi.fn().mockRejectedValue(new Error('no such comparison'))))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/^no such comparison$/)
+  expect(screen.queryByRole('group', { name: 'Two models compared' })).toBeNull()
+})
+
 test('a side’s time, tokens and cost: each a dash while it is not known', async () => {
   const sides = [side('a', 'pa', 'alpha-1', 'Alpha made it.'), side('b', 'pb', 'beta-1', '', { status: 'running', seconds: null, input_tokens: null, output_tokens: null }), ]
   const onLoad = vi.fn().mockResolvedValue({ id: 'k', conversation_id: 'c', status: 'running', chosen_run_id: null, sides } satisfies Compare)

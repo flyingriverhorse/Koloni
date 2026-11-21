@@ -33,7 +33,8 @@ was said, the reports, open questions, and what waits for you.
 
 - **Post** writes to the room.
 - **Give it more** adds posts, tokens or minutes to its budget.
-- **Pause** and **Resume** hold it and let it go on.
+- **Pause** and **Resume** hold it and let it go on. Paused, its card on the canvas loses its "at
+  work" ring, and a member it holds says "Paused with the room".
 - **End** ends it.
 - **Let the Orchestrator follow**: on, the Orchestrator reads what is said in the room, and may post,
   ask one more in, or end the room. Your words, Pause and End still come first. Off, it takes no part

@@ -1,4 +1,5 @@
-import type { Agent, Discussion } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
+import type { Agent, Discussion, Team } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 
 const OUTCOME: Record<NonNullable<Discussion['outcome']>, string> = {
@@ -9,6 +10,9 @@ const OUTCOME: Record<NonNullable<Discussion['outcome']>, string> = {
   budget: 'at its budget',
 }
 
+/** How one that did not end by itself was cut off: by Stop or its CLI giving up, or by an error. */
+const CUT: Partial<Record<Discussion['status'], string>> = { cancelled: 'Stopped', failed: 'Failed' }
+
 /** Where a discussion stands, in a few words. */
 export function discussionLine(discussion: Discussion): string {
   if (discussion.status === 'running') {
@@ -17,7 +21,7 @@ export function discussionLine(discussion: Discussion): string {
   if (discussion.status === 'ended') {
     return `Ended: ${discussion.outcome ? OUTCOME[discussion.outcome] : 'it is over'}`
   }
-  return discussion.status === 'cancelled' ? 'Stopped' : 'Interrupted'
+  return CUT[discussion.status] ?? 'Interrupted'
 }
 
 /** The member whose turn it is: the one at work while the discussion runs. */
@@ -27,7 +31,8 @@ export function speakerOf(state: ConvState, discussion: Discussion): Agent | und
   return state.agents.find(a => members.has(a.id) && a.status === 'running')
 }
 
-export function nameIn(state: ConvState, agentId: string | null): string {
+/** What a discussion calls one in it, as the canvas calls its agent: the Lead is the Orchestrator, a team's lead (given `teams`) its coordinator; "You" for nobody. */
+export function nameIn(state: Pick<ConvState, 'agents'>, agentId: string | null, teams: Team[] = []): string {
   if (agentId === null) return 'You'
-  return state.agents.find(a => a.id === agentId)?.name || 'Agent'
+  return titleOf(state.agents.find(a => a.id === agentId)?.name || 'Agent', teams)
 }

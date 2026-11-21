@@ -1,5 +1,5 @@
 import { expect, type Page, test } from './fixtures'
-import { contrasts, openFreshConversation, say, settled, shot } from './helpers'
+import { clickCanvas, contrasts, openFreshConversation, say, settled, shot } from './helpers'
 
 // K-canvas-dili (mockup W): a team's lines on the canvas. One real turn gives a real record; the page is then handed that
 // record with two teams' agents and their talk put in it (as the server gives them - no model plays a turn like that):
@@ -155,8 +155,17 @@ for (const theme of ['light', 'dark'] as const) {
         }),
       )
     await expect.poll(down).toEqual([false, false, true, false])
-    // The Lead goes in at each team's door.
+    // The Lead goes in at each team's door - straight on, its path never stepping back (21 Nov: React Flow's stubs crossed
+    // there, an S-bend into each door).
     await expect(page.locator(`.react-flow__edge[data-id="door:${(record.agents as Json[])[0].id}>team:${runId}:web"]`)).toHaveCount(1)
+    const back = () =>
+      page.locator('.react-flow__edge[data-id^="door:"] path.react-flow__edge-path').evaluateAll(all =>
+        all.map(path => {
+          const xs = [...(path.getAttribute('d') ?? '').matchAll(/(-?[\d.]+)[ ,](-?[\d.]+)/g)].map(m => Number(m[1]))
+          return xs.some((x, i) => i > 0 && x < xs[i - 1] - 0.5)
+        }),
+      )
+    await expect.poll(back).toEqual([false, false])
     // Findings back, said on their arc; talk with its last words; the line across with its doors.
     // (In the order they were drawn: two once their rounds were opened.)
     await expect(page.locator('.edge-arc')).toHaveCount(3)
@@ -192,7 +201,7 @@ for (const theme of ['light', 'dark'] as const) {
     expect(await low('.canvas-said')).toEqual([])
     expect(await clearOfChat(page)).toBe(true)
     await shot(page, `k-canvas-lines-focus-${theme}`)
-    await page.locator('.react-flow__pane').click({ position: { x: 5, y: 5 } })
+    await clickCanvas(page)
     await expect(page.locator('.react-flow__edge.edge-faded')).toHaveCount(0)
     await expect(said).toHaveCount(0)
 
@@ -250,25 +259,23 @@ test('a chat whose teams have no recipe has its agents framed by their roles, on
   await shot(page, 'k-canvas-lines-by-roles-focus')
 })
 
-// B-132: what was said opens where the chat is not, wherever the chat was put (live: at the top left, under it).
-for (const [where, spot] of [['top left', { x: 0, y: 10_000 }], ['top right', { x: 10_000, y: 10_000 }]] as const) {
-  test(`what was said is clear of the chat put at the ${where}`, async ({ page }) => {
-    test.setTimeout(60_000)
-    await page.addInitScript(at => localStorage.setItem('koloni-chat-spot', JSON.stringify(at)), spot)
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const id = await openFreshConversation(page)
-    await say(page, 'hello, where it is said', 'Hello! Ask me to read or change a file.')
-    const record = await twoTeams(page, id)
-    await page.route(`**/api/conversations/${id}`, route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()))
-    await page.reload()
-    await settled(page)
-    // (Coder 2's round of Build is done: one line, opened first.)
-    await page.getByRole('button', { name: 'Round 2 · Coder 2 · ✓ 1' }).click()
-    await page.locator('.react-flow__node[data-id="agent:wc2"] .node-head').click()
-    await expect(page.getByRole('region', { name: 'What was said' })).toContainText('0, and I am adding a test for it.')
-    expect(await clearOfChat(page)).toBe(true)
-  })
-}
+// B-132: what was said opens where the chat is not (live: at the top left, under it): beside its column at the
+// canvas's left edge, where the chat has stood since 0.1.4.
+test('what was said is clear of the chat', async ({ page }) => {
+  test.setTimeout(60_000)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const id = await openFreshConversation(page)
+  await say(page, 'hello, where it is said', 'Hello! Ask me to read or change a file.')
+  const record = await twoTeams(page, id)
+  await page.route(`**/api/conversations/${id}`, route => (route.request().method() === 'GET' ? route.fulfill({ json: record }) : route.fallback()))
+  await page.reload()
+  await settled(page)
+  // (Coder 2's round of Build is done: one line, opened first.)
+  await page.getByRole('button', { name: 'Round 2 · Coder 2 · ✓ 1' }).click()
+  await page.locator('.react-flow__node[data-id="agent:wc2"] .node-head').click()
+  await expect(page.getByRole('region', { name: 'What was said' })).toContainText('0, and I am adding a test for it.')
+  expect(await clearOfChat(page)).toBe(true)
+})
 
 // B-139: a recipe's team at work - Stop and Finish now in its head - has its title in its frame and its steps under it.
 test('a team at work has its head in its frame: title, Stop and Finish now on one line, its steps under them', async ({ page }) => {

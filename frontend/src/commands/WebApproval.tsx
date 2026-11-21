@@ -27,6 +27,31 @@ function bodyOf(call?: ToolCall): string | null {
   }
 }
 
+/** Where a search or a request goes: a search's query leaves this machine; a request's host, its headers (no values) and its body's size. */
+function whereOf(request: WebRequest, search: boolean) {
+  return (
+    <div className="cmd-approval-where">
+      {search ? (
+        <span className="mono muted">The query leaves this machine.</span>
+      ) : (
+        <>
+          <span className="tag">{request.host}</span>
+          {request.headers.map(name => (
+            <span key={name} className="mono muted">
+              {name}: ***
+            </span>
+          ))}
+          {request.body_chars !== null && <span className="mono muted">with a body of {request.body_chars} characters</span>}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Why no "always" is offered: what is asked every time. */
+const everyTime = (request: WebRequest, search: boolean) =>
+  search ? 'An expert’s search is asked every time.' : `A ${request.method}${request.method === 'GET' ? ' with a body or headers of its own' : ''} is asked every time.`
+
 /**
  * Asks before a web search or an HTTP request leaves this machine: what goes out and where,
  * and whether to remember the answer. The address and the body are shown as they will be
@@ -56,85 +81,69 @@ export function WebApproval({ request, call, expert = false, onDecide }: Props) 
     }
   }
 
-  // K-tarayici-disari A2: what the agent's browser would do on a site's page - asked every time.
-  const act = ACTS[request.kind]
-  if (act)
-    return (
-      <div className="cmd-approval">
-        <div className="kicker cmd-approval-kicker">{act}</div>
-        {/* (The site apart: the page's own words, which it chooses, are only in what is quoted.) */}
-        <div className="cmd-approval-where">{request.host && <span className="tag">{request.host}</span>}</div>
-        <pre className="mono cmd-approval-command">{request.target}</pre>
-        <div className="muted cmd-approval-note">Sending a form, a password, a sign-in or a payment on a site is asked every time, at every level.</div>
-        <div className="change-actions">
-          <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => decide('once')}>
-            <Check size={13} />
-            Yes, this once
-          </button>
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('reject')}>
-            <X size={13} />
-            Reject
-          </button>
-        </div>
-        {error && (
-          <div role="alert" className="alert">
-            {error}
-          </div>
-        )}
+  /** What the agent's browser would do on a site's page: once or not at all. */
+  const actCard = (act: string) => (
+    <div className="cmd-approval">
+      <div className="kicker cmd-approval-kicker">{act}</div>
+      {/* (The site apart: the page's own words, which it chooses, are only in what is quoted.) */}
+      <div className="cmd-approval-where">{request.host && <span className="tag">{request.host}</span>}</div>
+      <pre className="mono cmd-approval-command">{request.target}</pre>
+      <div className="muted cmd-approval-note">Sending a form, a password, a sign-in or a payment on a site is asked every time, at every level.</div>
+      <div className="change-actions">
+        <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => decide('once')}>
+          <Check size={13} />
+          Yes, this once
+        </button>
+        <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('reject')}>
+          <X size={13} />
+          Reject
+        </button>
       </div>
-    )
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+    </div>
+  )
 
-  // K-tarayici-disari: a site the agent's own browser would open.
-  if (request.kind === 'page')
-    return (
-      <div className="cmd-approval">
-        <div className="kicker cmd-approval-kicker">Open this site?</div>
-        <pre className="mono cmd-approval-command">{request.target}</pre>
-        <div className="cmd-approval-where">
-          <span className="tag">{request.host}</span>
-        </div>
-        <div className="muted cmd-approval-note">The agent’s own browser opens it, with an empty profile: none of your sign-ins. “Allow this site” lets every chat of this project open it without asking, unless you mark it Ask first.</div>
-        <div className="change-actions">
-          <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => decide('once')}>
-            <Check size={13} />
-            This time
-          </button>
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('always')}>
-            <Checks size={13} />
-            Allow this site
-          </button>
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('reject')}>
-            <X size={13} />
-            Reject
-          </button>
-        </div>
-        {error && (
-          <div role="alert" className="alert">
-            {error}
-          </div>
-        )}
+  /** A site to open: this time, for good, or not. */
+  const pageCard = () => (
+    <div className="cmd-approval">
+      <div className="kicker cmd-approval-kicker">Open this site?</div>
+      <pre className="mono cmd-approval-command">{request.target}</pre>
+      <div className="cmd-approval-where">
+        <span className="tag">{request.host}</span>
       </div>
-    )
+      <div className="muted cmd-approval-note">The agent’s own browser opens it, with an empty profile: none of your sign-ins. “Allow this site” lets every chat of this project open it without asking, unless you mark it Ask first.</div>
+      <div className="change-actions">
+        <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => decide('once')}>
+          <Check size={13} />
+          This time
+        </button>
+        <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('always')}>
+          <Checks size={13} />
+          Allow this site
+        </button>
+        <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('reject')}>
+          <X size={13} />
+          Reject
+        </button>
+      </div>
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+    </div>
+  )
 
-  return (
+  /** A search or an HTTP request: what goes out and where, and whether to remember the answer. */
+  const requestCard = () => (
     <div className="cmd-approval">
       <div className="kicker cmd-approval-kicker">{search ? 'Search the web?' : 'Make this request?'}</div>
       <pre className="mono cmd-approval-command">{search ? request.target : `${request.method} ${request.target}`}</pre>
-      <div className="cmd-approval-where">
-        {search ? (
-          <span className="mono muted">The query leaves this machine.</span>
-        ) : (
-          <>
-            <span className="tag">{request.host}</span>
-            {request.headers.map(name => (
-              <span key={name} className="mono muted">
-                {name}: ***
-              </span>
-            ))}
-            {request.body_chars !== null && <span className="mono muted">with a body of {request.body_chars} characters</span>}
-          </>
-        )}
-      </div>
+      {whereOf(request, search)}
       {body !== null && (
         <pre className="mono cmd-approval-command" aria-label="The body it sends">
           {body}
@@ -157,11 +166,7 @@ export function WebApproval({ request, call, expert = false, onDecide }: Props) 
           Reject
         </button>
       </div>
-      {!always && (
-        <CardMore>
-          {search ? 'An expert’s search is asked every time.' : `A ${request.method}${request.method === 'GET' ? ' with a body or headers of its own' : ''} is asked every time.`}
-        </CardMore>
-      )}
+      {!always && <CardMore>{everyTime(request, search)}</CardMore>}
       {always && !search && <div className="muted cmd-approval-note">“Always” is for GET to {place} only: this scheme, host and port.</div>}
       {error && (
         <div role="alert" className="alert">
@@ -170,4 +175,13 @@ export function WebApproval({ request, call, expert = false, onDecide }: Props) 
       )}
     </div>
   )
+
+  // K-tarayici-disari A2: what the agent's browser would do on a site's page - asked every time.
+  const act = ACTS[request.kind]
+  if (act) return actCard(act)
+
+  // K-tarayici-disari: a site the agent's own browser would open.
+  if (request.kind === 'page') return pageCard()
+
+  return requestCard()
 }

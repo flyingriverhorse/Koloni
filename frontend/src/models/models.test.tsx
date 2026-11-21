@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
@@ -188,6 +188,27 @@ test('K-31: a click elsewhere keeps a pick not saved unless the user lets it go;
   confirm.mockRestore()
 })
 
+test('with no provider the picker says so; its title says when the Orchestrator’s model follows the message; a refused save says why', async () => {
+  const onSave = vi.fn().mockRejectedValue(new ApiError(400, 'no such model'))
+  const { rerender } = render(<ModelPicker providers={[]} providerId={null} modelId={null} onSave={onSave} />)
+  const button = screen.getByRole('button', { name: 'Model: no provider' })
+  expect(button).toHaveAttribute('title', "no provider: the model this conversation's agents use")
+  await userEvent.click(button)
+  expect(screen.getByRole('option', { name: 'Default (none)' })).toBeInTheDocument()
+  expect(screen.queryByLabelText('Model name')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Use this model' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('no such model')
+  // The Lead role's own model, named: its levels are of that model.
+  const onFacts = vi.fn().mockResolvedValue(facts(['low']))
+  rerender(<ModelPicker providers={[provider({}), claude]} providerId={null} modelId={null} leadAuto onSave={onSave} onFacts={onFacts} lead={{ provider_id: 'p2', model_id: 'opus' }} />)
+  expect(screen.getByRole('button', { name: 'Model: Orchestrator: automatic · Local' })).toHaveAttribute(
+    'title',
+    "Orchestrator: automatic · Local: the model this conversation's agents use; the Orchestrator’s is chosen for each message by how hard it is",
+  )
+  expect(screen.getByRole('option', { name: 'Default (Local)' })).toBeInTheDocument()
+  await waitFor(() => expect(onFacts).toHaveBeenLastCalledWith('p2', 'opus'))
+})
+
 test('B-193: a CLI given no model shows the one KOLONİ names for it, else that its own default runs', () => {
   // (the fixture of tests/test_tiers.py's B-193 test: the same rule on both sides)
   const listed = [
@@ -305,6 +326,21 @@ test('Claude Code can run as a session or step by step, and says what each means
   expect(screen.getByText(/Each model step is a separate run of the CLI/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(h.onSave).toHaveBeenCalledWith('p2', expect.objectContaining({ mode: 'step' }))
+})
+
+test('each way of running says what it does: Copilot in a home of its own, a sign-in of its own, Claude Code and Codex natively', async () => {
+  const copilot = provider({ id: 'p6', name: 'Copilot', kind: 'copilot_cli', base_url: null, mode: 'session' })
+  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'native', options: { sign_in: 'koloni' } })
+  render(<ModelsPage providers={[{ ...claude, mode: 'native' }, copilot, codex]} {...handlers()} />)
+  await open('Claude Code', 'Connection')
+  expect(screen.getByRole('note')).toHaveTextContent(/^Native: Claude Code works with its own file and shell tools/)
+  await close()
+  await open('Copilot', 'Connection')
+  expect(screen.getByText(/^Runs the copilot command on this machine, with a home of its own/)).toBeInTheDocument()
+  await close()
+  await open('Codex', 'Connection')
+  expect(screen.getByText(/^Runs the codex command on this machine with this provider's own sign-in/)).toBeInTheDocument()
+  expect(screen.getByRole('note')).toHaveTextContent(/^Native: Codex works with its own shell and patch tool/)
 })
 
 test('Qoder and Codex each run the ways they safely can', async () => {

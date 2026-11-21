@@ -135,6 +135,46 @@ test('a chat whose teams are the folder’s default says so, the backlog’s cha
   expect(within(panel()).queryByRole('button', { name: 'Use for new chats in this project' })).toBeNull()
 })
 
+test('with No teams, and a folder of No teams, nothing is said of the folder; the button says the mode in its own words', async () => {
+  show({}, { id: 'p', teams_mode: 'none', teams: [] } as unknown as Project)
+  const button = screen.getByRole('button', { name: 'Teams for this chat: No teams' })
+  expect(button).toHaveTextContent(/^No teams$/)
+  await userEvent.click(button)
+  expect(panel()).not.toHaveTextContent('This folder’s default')
+  expect(within(panel()).queryByRole('button', { name: 'Use for new chats in this project' })).toBeNull()
+  expect(within(panel()).queryByRole('alert')).toBeNull()
+})
+
+test('the Orchestrator with no picks yet says when it picks; a folder that lets it pick has that as its default', async () => {
+  show({ teams_mode: 'lead', teams: [] }, { id: 'p', teams_mode: 'lead', teams: [] } as unknown as Project)
+  const button = screen.getByRole('button', { name: 'Teams for this chat: 0 teams, Orchestrator decides' })
+  expect(button).toHaveTextContent(/^0 teams · Orchestrator decides$/)
+  await userEvent.click(button)
+  expect(panel()).toHaveTextContent('The Orchestrator picks with your next message, or none for a simple question.')
+  expect(panel()).not.toHaveTextContent('To change them, switch to Manual')
+  expect(panel()).toHaveTextContent('This folder’s default for new chats, the To-do list’s too.')
+  expect(within(panel()).queryByRole('button', { name: 'Use for new chats in this project' })).toBeNull()
+})
+
+test('a pick of the Orchestrator’s whose team was deleted since says so, with no recipe and no why', async () => {
+  show({ teams_mode: 'lead', teams: [row('gone', { picked_by: 'lead' })] })
+  await userEvent.click(screen.getByRole('button', { name: 'Teams for this chat: 1 team, Orchestrator decides' }))
+  expect(panel().querySelector('.chat-team-row')).toHaveTextContent(/^A team deleted sinceOrchestrator’s pick$/)
+})
+
+test('in Manual with every team in there is no Add; a row the Orchestrator picked says so; a change refused is said', async () => {
+  const { onChange } = show({ teams_mode: 'manual', teams: [row('web', { picked_by: 'lead' }), row('docs'), row('api')] })
+  onChange.mockRejectedValueOnce(new Error('the chat is gone'))
+  await userEvent.click(screen.getByRole('button', { name: 'Teams for this chat: 3 teams, Manual' }))
+  expect(within(panel()).queryByRole('button', { name: '+ Add a team with a recipe' })).toBeNull()
+  expect(within(panel()).getAllByText('Orchestrator’s pick')).toHaveLength(1)
+  expect(within(panel()).getByRole('button', { name: 'Move Web app up' })).toBeDisabled()
+  expect(within(panel()).getByRole('button', { name: 'Move Backend / API down' })).toBeDisabled()
+  expect(panel()).not.toHaveTextContent('No team picked')
+  await userEvent.click(within(panel()).getByRole('button', { name: 'Remove Docs' }))
+  expect(await within(panel()).findByRole('alert')).toHaveTextContent('the chat is gone')
+})
+
 test('a row with no recipe of its own says its team’s default', async () => {
   show({ teams_mode: 'manual', teams: [row('api')] })
   await userEvent.click(screen.getByRole('button', { name: 'Teams for this chat: 1 team, Manual' }))

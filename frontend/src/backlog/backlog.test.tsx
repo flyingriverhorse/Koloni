@@ -246,6 +246,30 @@ test('Run the backlog and its switch: how the run stands, and where each task st
   expect(button).toHaveAccessibleDescription('Paused: the project is over this month’s budget.')
 })
 
+test('the page before its list is read and when it could not be; the run on by itself with nothing todo; a refused Run said', async () => {
+  const props = page()
+  const { rerender } = render(<BacklogPage {...props} backlog={null} />)
+  expect(screen.getByText('Reading the To-do list…')).toHaveClass('muted')
+  expect(screen.queryByRole('button', { name: 'Run settings' })).toBeNull()
+  expect(screen.queryByRole('switch', { name: 'Runs by itself' })).toBeNull()
+  expect(screen.queryByRole('region', { name: 'Your tasks' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription('Off')
+  expect(screen.getByRole('button', { name: 'Run the backlog' })).not.toHaveAttribute('title')
+  rerender(<BacklogPage {...props} backlog={null} error="the server is down" />)
+  expect(screen.getByRole('alert')).toHaveTextContent('The To-do list could not be read: the server is down')
+  expect(screen.queryByText('Reading the To-do list…')).toBeNull()
+  // On by itself: a todo task never worked on is in the run; with none todo, it waits.
+  rerender(<BacklogPage {...props} backlog={[task({ title: 'one' }), task({ title: 'two', conversation_id: 'c1', position: 1 })]} auto={{ ...CHOICE, on: true, halt: null }} />)
+  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription('Running 0 of 1')
+  rerender(<BacklogPage {...props} backlog={[task({ title: 'one', status: 'done' })]} auto={{ ...CHOICE, on: true, halt: null }} />)
+  expect(screen.getByRole('button', { name: 'Run the backlog' })).toHaveAccessibleDescription('On, waiting: no new task is todo')
+  expect(screen.queryByRole('alert')).toBeNull()
+  props.onRun.mockRejectedValueOnce(new Error('no room to start'))
+  rerender(<BacklogPage {...props} backlog={[task({ title: 'one' })]} auto={{ ...CHOICE, on: false, halt: null }} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Run the backlog' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('no room to start')
+})
+
 test('a task that waits for one at "done?" says why, and so does the run (B-349)', () => {
   const backlog = [
     task({ title: 'one', status: 'review' }),

@@ -45,9 +45,11 @@ as it is.
 
 - **One session per agent** and **One run per model step** use KOLONİ's tools and cards, with the CLI's
   own tools off.
-- **Native** uses the CLI's own tools in your folder. Claude Code, Qoder and agy ask KOLONİ before every
-  tool they use; Codex before each command and patch, except the commands its own rules count as safe,
-  which it runs without asking; Copilot before each command, write and read.
+- **Native** uses the CLI's own tools in your folder. Claude Code and agy ask KOLONİ before every tool
+  they use; Codex before each command and patch, except the commands its own rules count as safe, which
+  it runs without asking; Copilot before each command, write and read. The Qoder versions measured so
+  far do not apply KOLONİ's hook, so a native Qoder turn stops before Qoder does anything and says to
+  run it as a session; how a Qoder that applies the hook works natively is not measured.
 - **Reads with its own tools** (agy): it reads, and is started without leave to write or run.
 
 A trigger never starts a CLI that works with its own tools (Native, or agy's reads): with nobody watching,
@@ -101,7 +103,9 @@ once longer. While it waits, the agent's window says so, for example "Qoder: in 
 43 s (waits up to 60 min)", and its box on the canvas says "queued 2 min". A sub-agent still queued after 90
 seconds is moved to the next model of its tier, where KOLONİ picked its model and the tier has another; a
 move that may cost money is asked on a card first (see [Ready and approval cards](../use/ready.md)). In
-a turn you watch, a lead, or a sub-agent that cannot be moved, waits as long as Qoder keeps it queued; in
+a turn you watch, a lead, or a sub-agent that cannot be moved, waits as long as Qoder keeps it queued -
+for the Orchestrator, after 90 seconds a card asks whether to keep waiting or stop and pick another model
+(see [Step limits](../agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer)); in
 a trigger's or a job's turn while you're away it gives up after 90 seconds. Run **Native**, Qoder shows no queue line,
 and is not moved.
 

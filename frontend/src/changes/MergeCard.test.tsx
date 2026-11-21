@@ -292,6 +292,26 @@ test('a kept copy’s card shows how its check went and asks for the same choice
   expect(onDecide).toHaveBeenCalledWith('approve', { 'lines.txt': 'agent' }, {})
 })
 
+test("a branch's check runs in its worktree; a note of one that ran is muted, and a run refused says why", async () => {
+  const branch = { name: 'koloni/fix', into: 'main', conflicts: [], dirty: [], note: null }
+  const onCheck = vi.fn().mockRejectedValue(new ApiError(409, 'the worktree is busy'))
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch, check: check({ state: 'failed', exit_code: 1, note: 'one test failed' }) })} name="Coder" onDecide={vi.fn()} onCheck={onCheck} />)
+  const block = screen.getByRole('group', { name: 'Test' })
+  expect(block).toHaveTextContent(
+    "It runs in the branch's worktree, on what is committed there; what it writes is not merged. the dependency folders linked into the worktree (node_modules, .venv, venv) are the project's own, and what it writes there stays.",
+  )
+  expect(within(block).getByText('one test failed')).toHaveClass('muted')
+  expect(within(block).queryByRole('alert')).toBeNull()
+  await userEvent.click(within(block).getByRole('button', { name: 'Run the test again' }))
+  expect(await within(block).findByRole('alert')).toHaveTextContent('the worktree is busy')
+  cleanup()
+  // Not a kept copy, and nothing to run it with: neither a button nor a note under the result.
+  render(<MergeCard merge={merge({ check: check() })} name="Coder" onDecide={vi.fn()} />)
+  const plain = screen.getByRole('group', { name: 'Test' })
+  expect(plain.querySelector('.change-actions')).toBeNull()
+  expect(plain).not.toHaveTextContent('kept copy')
+})
+
 // --- the commit ------------------------------------------------------------------------------
 
 const taken = merge({

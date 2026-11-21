@@ -5,13 +5,15 @@ import type { PermissionMode, Provider } from '../api/types'
 import type { LoadModels } from '../models/ModelNameInput'
 import { fold } from '../shell/fold'
 import { CloseMore, usePanel } from '../shell/usePanel'
-import { useApp } from '../state/store'
+import type { ConvState } from '../state/applyEvent'
+import { type ChatTab, useApp } from '../state/store'
 import { AutoRead, Dictate, ReadFailed } from '../voice/VoiceControls'
 import { engine } from '../voice/engine'
 import { keep, stored, useWidth } from '../views/TwoPane'
 import { stopReading } from '../voice/voice'
 import { AttachMenu, Chips, type Pending } from './Attach'
 import { fromProject, linksIn, MAX_BYTES, MAX_FILES, sizeText, upload, VIDEO_HEAD } from './attachments'
+import { leadQuestion } from './chatLine'
 import { Compare, type Second } from './Compare'
 import { takeFrames } from './frames'
 import { asCode } from './pastedCode'
@@ -94,6 +96,16 @@ interface Command {
 /** The commands' names: a role of one of these names is left out, not shown as a second one. */
 const COMMANDS = ['new', 'room', 'stop', 'model', 'mode', 'plan', 'compare']
 
+/**
+ * What the empty box says. While the Orchestrator's question is open in the open chat, on its Chat tab, that it is
+ * answered on its card and a message sent now is queued (0.1.4); closed, the chat's line says what it asks, and the
+ * Talk and Notes tabs, over which the same box stands, do not show it.
+ */
+function placeholderOf(conv: ConvState | null, projectId: string | null, compact: boolean, tab: ChatTab): string {
+  if (!compact && tab === 'Chat' && conv && leadQuestion(conv)) return 'Answer the question above, or queue a message…'
+  return projectId ? 'Ask about this project or request a change…' : 'Ask anything - pick a folder with the folder button to work on files'
+}
+
 export function Composer({
   running,
   permissionMode,
@@ -142,6 +154,7 @@ export function Composer({
   const text = draft.slice(head.length)
   // The files added to the next message (slice 85b): the server's, as the conversation has them; those on their way here.
   const conv = useApp(s => (scope && s.conv?.conversation.id === scope ? s.conv : null))
+  const tab = useApp(s => s.chatTab)
   const files = conv?.attachments.filter(one => !one.message_id && !one.frame_of) ?? []
   const frames = Object.fromEntries(files.map(one => [one.id, conv!.attachments.filter(f => f.frame_of === one.id).length]))
   const [pending, setPending] = useState<Pending[]>([])
@@ -448,22 +461,31 @@ export function Composer({
     }
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.nativeEvent.isComposing) return
-    if (menu && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+  /** The open menu's keys: the arrows move in it, Enter (or Tab) chooses, Esc closes it. True where the key was its. */
+  function menuKey(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
-      return setAt((active + (event.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length)
+      setAt((active + (event.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length)
+      return true
     }
     // (Tab on one that is off is not taken: the focus moves on.)
-    if (menu && !event.shiftKey && (event.key === 'Enter' || (event.key === 'Tab' && !shown[active].off))) {
+    if (!event.shiftKey && (event.key === 'Enter' || (event.key === 'Tab' && !shown[active].off))) {
       event.preventDefault()
-      return choose(shown[active])
+      choose(shown[active])
+      return true
     }
-    if (menu && event.key === 'Escape') {
+    if (event.key === 'Escape') {
       event.stopPropagation() // the menu's: the chat stays open
       setKept(draft)
-      return setShut(draft)
+      setShut(draft)
+      return true
     }
+    return false
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.nativeEvent.isComposing) return
+    if (menu && menuKey(event)) return
     // At the chip's edge Backspace takes the chip away.
     if (event.key === 'Backspace' && head && event.currentTarget.selectionStart === 0 && event.currentTarget.selectionEnd === 0) {
       event.preventDefault()
@@ -625,7 +647,7 @@ export function Composer({
           onKeyDown={onKeyDown}
           // (Gone with the focus; written in again, it is back.)
           onBlur={() => setShut(draft)}
-          placeholder={projectId ? 'Ask about this project or request a change…' : 'Ask anything - pick a folder with the folder button to work on files'}
+          placeholder={placeholderOf(conv, projectId, compact, tab)}
         />
       </div>
       {/* (On the page before it says anything: a region that comes already filled is often not read out.) */}

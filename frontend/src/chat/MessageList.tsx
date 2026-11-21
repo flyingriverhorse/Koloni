@@ -11,7 +11,7 @@ import { failureText, nextStep, planConsole } from '../agents/failure'
 import { SpawnRow } from '../agents/SpawnRow'
 import { isReadyCard, keptNote, readyLine, turnTeams } from '../agents/teamRun'
 import { staysOn } from '../agents/staysOn'
-import type { Agent, Attachment, Compare, FileChange, Merge, Message, Price, Provider, NotesOffer, Question, Role, Run, ToolCall, TriggerProposal, Usage } from '../api/types'
+import type { Agent, Attachment, Command, Compare, Discussion, FileChange, Merge, Message, Price, Provider, NotesOffer, Question, Role, Run, ToolCall, TriggerProposal, Usage } from '../api/types'
 import { Minis } from './Attach'
 import { linksIn } from './attachments'
 import { ChangeActions, type ChangeAction } from '../changes/ChangeActions'
@@ -30,12 +30,13 @@ import { discussionLine } from '../discussion/discussionText'
 import { MemoryTold } from '../memory/MemoryTold'
 import { NotesOfferCard } from '../knowledge/NotesOfferCard'
 import { RoomRow } from '../room/RoomRow'
+import { inRoom } from '../room/roomText'
 import { continuesFrom, titleOf } from '../topics/topics'
 import { refusedIn } from '../triggers/refused'
 import type { Allow } from '../triggers/triggerText'
 import { WouldHaveAsked } from '../triggers/WouldHaveAsked'
 import { TriggerProposalCard } from '../triggers/TriggerProposalCard'
-import { ReadAloud, SaidAloud } from '../voice/VoiceControls'
+import { SaidAloud } from '../voice/VoiceControls'
 import { AwayCard, AwayFrom } from '../backlog/Away'
 import { NightRow } from '../ready/NightRow'
 import { type BranchSaid, useApp } from '../state/store'
@@ -46,6 +47,7 @@ import { TalkRow, talkOf } from './TalkRow'
 import { requestsOf } from '../agents/teamRequests'
 import { ToolRow } from './ToolRow'
 import { ToolRun } from './ToolRun'
+import { TurnCard } from './TurnCard'
 import { TurnSummary } from './TurnSummary'
 import { callsByMessage, toolRuns } from './toolRuns'
 import { answerLast } from './chatLine'
@@ -204,6 +206,19 @@ function outsideWord(decide: Handlers['onDecideRole'], callId: string) {
   return (decision: OutsideDecision) => (decision === 'reject' ? decide(callId, 'reject') : decide(callId, 'approve', decision))
 }
 
+/**
+ * A call that is a line of its own, never folded into a run: the Lead's pick of the chat's teams (slice 84b), the chat's
+ * one line of it; a question it was not let ask, refused or failed, read without opening anything (0.1.4).
+ */
+const ownLine = (call: ToolCall) =>
+  (call.name === 'pick_teams' && call.status === 'succeeded') || (call.name === 'ask_user' && (call.status === 'denied' || call.status === 'failed'))
+
+/** A call that is more than a row: something of it asks or waits for you, or you decide its change - or a line of its own. */
+function standsAlone(call: ToolCall, change: FileChange | undefined, { asked, web, role, skill, waits }: Record<'asked' | 'web' | 'role' | 'skill' | 'waits', unknown>) {
+  const decides = change?.status === 'proposed' || change?.status === 'approved'
+  return Boolean(asked || web || role || skill || waits || decides || ownLine(call) || asksOutside(call))
+}
+
 function ChangeLine({ change, onOpen, onDecide }: ChangeLineProps) {
   return (
     <div className={`chat-change${change.status === 'proposed' ? ' chat-change-waiting' : ''}`}>
@@ -231,11 +246,12 @@ const stood = new Set<string>()
 /**
  * Everything the agents under one sub-agent are waiting on you for. Their own
  * conversation is not in the chat, so their questions are brought here, each one
- * saying who asks. (A room's members were opened by no call of the lead's: theirs are
+ * saying who asks - a question's card says it itself. (A room's members were opened by no call of the lead's: theirs are
  * brought to the room's window the same way.)
  */
 export function SubtreeRequests({ root, state, on, known }: { root: Agent; state: ConvState; on: Handlers; known: Known }) {
   const continueSteps = useApp(s => s.projects.find(p => p.id === state.conversation.project_id)?.continue_steps)
+  const teams = useApp(s => s.teams)
   const inside = new Map<string, Agent>([[root.id, root]])
   // Agents are stored parents first, so one pass collects the whole sub-tree.
   for (const agent of state.agents) {
@@ -243,9 +259,9 @@ export function SubtreeRequests({ root, state, on, known }: { root: Agent; state
   }
   const lead = state.agents.find(a => a.run_id === root.run_id && a.depth === 0)?.name ?? ''
   const toLead = (call: ToolCall) => talkOf(call).to.trim().toLowerCase() === lead.toLowerCase()
-  const asks = (agentId: string) => (
-    <div className="asked-by mono">{inside.get(agentId)?.name || 'Agent'} asks</div>
-  )
+  // (As the screen calls it, as its question's card does: a team's lead by its team's title.)
+  const who = (agentId: string) => agentTitle(inside.get(agentId)?.name || 'Agent', teams)
+  const asks = (agentId: string) => <div className="asked-by mono">{who(agentId)} asks</div>
   return (
     <>
       {state.toolCalls
@@ -259,8 +275,9 @@ export function SubtreeRequests({ root, state, on, known }: { root: Agent; state
         .filter(q => q.status === 'pending' && inside.has(q.agent_id))
         .map(q => (
           <Fragment key={q.id}>
-            {/* Leave for a tool is KOLONİ's question, about that agent's call: the agent asks nothing. */}
-            {q.leave ? <div className="asked-by mono">for {inside.get(q.agent_id)?.name || 'Agent'}</div> : asks(q.agent_id)}
+            {/* Leave for a tool is KOLONİ's question, about that agent's call: the agent asks nothing. (An agent's own
+                question's card says who asks: 0.1.4.) */}
+            {q.leave && <div className="asked-by mono">for {who(q.agent_id)}</div>}
             <ChatQuestion state={state} question={q} onAnswer={answer => on.onAnswer(q.id, answer)} />
           </Fragment>
         ))}
@@ -371,19 +388,33 @@ function ChatQuestion({ state, question, onAnswer }: { state: ConvState; questio
   const line = isReadyCard(question) ? readyLine(state, question.run_id, { at: question.created_at, open: question.status === 'pending' }) : undefined
   if (question.status !== 'pending') return <QuestionRow question={question} text={line} />
   const details = () => useApp.getState().showReady(true, waitingId(question.id))
+  return <QuestionCard question={question} onAnswer={onAnswer} line={line === undefined ? undefined : { text: line, onDetails: details }} />
+}
+
+/**
+ * K-lead-bekliyor (R116): a message sent while a question is open is queued below, with nothing by the question saying
+ * why it waits. Said once, under the cards where `asks`' questions are (0.1.4: not once a question) - a room member's
+ * only in the room's window, so the chat's turn leaves those out.
+ */
+export function QueuedNote({ state, asks }: { state: ConvState; asks: (question: Question) => boolean }) {
+  if (!state.questions.some(q => q.status === 'pending' && asks(q)) || !state.runs.some(r => r.status === 'queued')) return null
   return (
-    <>
-      <QuestionCard question={question} onAnswer={onAnswer} line={line === undefined ? undefined : { text: line, onDetails: details }} />
-      {/* K-lead-bekliyor (R116): a message sent meanwhile is queued below, with nothing by the question saying why it waits. */}
-      {state.runs.some(r => r.status === 'queued') && (
-        <div role="note" className="muted cmd-approval-note">
-          Your message waits until this question is answered
-        </div>
-      )}
-    </>
+    <div role="note" className="muted cmd-approval-note">
+      Your message waits until this question is answered
+    </div>
   )
 }
 
+/**
+ * KOLONİ's own card of a turn that hangs off no call (its Orchestrator's model is slow to answer), under its last message -
+ * while it asks: answered or closed, it says nothing more (its model spoke; a Stop has KOLONİ's line).
+ */
+function TurnQuestions({ state, runId, last, onAnswer }: { state: ConvState; runId: string; last: boolean; onAnswer: (questionId: string, answer: string) => Promise<void> }) {
+  if (!last) return null
+  return state.questions
+    .filter(q => q.run_id === runId && q.tool_call_id === null && q.status === 'pending')
+    .map(q => <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />)
+}
 
 /** A merge's card's words on its agent, as the inspector gives them: its name, whether it finished, and - a Lead's, a recipe's copy - what Take in takes in with it. */
 function mergeSaid(state: ConvState, merge: Merge): { name: string; unfinished: boolean; also: string } {
@@ -403,6 +434,16 @@ function NotesCard({ offer }: { offer: NotesOffer }) {
 
 function ProposalCard({ proposal }: { proposal: TriggerProposal }) {
   return <TriggerProposalCard proposal={proposal} onDecide={decision => useApp.getState().decideProposal(proposal.id, decision)} onEdit={() => useApp.getState().editProposal(proposal)} />
+}
+
+/**
+ * The line over a card on Ready for you: who asks, or whom KOLONİ's own question is for. None over a merge's card (it names
+ * its agent), a ready copy (KOLONİ's to ask), the plan (the turn's) or an agent's question (its card names it: 0.1.4).
+ */
+function askedBy(row: Waiting, nameOf: (agentId: string) => string): ReactNode {
+  if (!row.agentId || row.kind === 'ready' || row.what === 'merge') return null
+  if (row.what !== 'question') return <div className="asked-by mono">{nameOf(row.agentId)} asks</div>
+  return row.item.leave && <div className="asked-by mono">for {nameOf(row.agentId)}</div>
 }
 
 /**
@@ -437,12 +478,7 @@ export function WaitingList({ state, on, onDecidePlan, known }: WaitingProps) {
               </h3>
               {mine.map(row => (
                 <Fragment key={row.key}>
-                  {/* (A merge's card names its agent; a ready copy is KOLONİ's to ask; the plan is the turn's.) */}
-                  {row.agentId && row.kind !== 'ready' && row.what !== 'merge' && (
-                    <div className="asked-by mono">
-                      {row.what === 'question' && row.item.leave ? `for ${nameOf(row.agentId)}` : `${nameOf(row.agentId)} asks`}
-                    </div>
-                  )}
+                  {askedBy(row, nameOf)}
                   {/* (By its id the chat's ready line opens the list at it: K-hazir-satir.) */}
                   <div id={waitingId(row.key)} tabIndex={-1}>
                     <WaitingCard state={state} row={row} on={on} onDecidePlan={onDecidePlan} known={known} />
@@ -497,10 +533,10 @@ export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProp
   }
 }
 
-type TurnCard = Extract<Waiting, { what: 'plan' | 'merge' | 'away' | 'trigger' | 'notes' | 'night' }>
+type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'away' | 'trigger' | 'notes' | 'night' }>
 
 /** What waits for you that no agent asked leave for: the turn's plan and its work to take in, a night's card and jobs, what was proposed. */
-function turnCard(state: ConvState, row: TurnCard, on: Handlers, onDecidePlan: WaitingProps['onDecidePlan'], continueSteps: number | null | undefined): ReactNode {
+function turnCard(state: ConvState, row: TurnWaiting, on: Handlers, onDecidePlan: WaitingProps['onDecidePlan'], continueSteps: number | null | undefined): ReactNode {
   switch (row.what) {
     case 'plan':
       return <PlanCard run={row.item} onDecide={(...decision) => onDecidePlan(row.item.id, ...decision)} />
@@ -594,16 +630,31 @@ interface UserMessageProps {
   onShow?: (runId: string) => void
 }
 
-/** The user's message: with ↺ when its work changed files, and ⋯ - Copy, Restore to before it, Show its work (slice 107). */
-function UserMessage({ message, run, files = [], saved = [], changed, onRemove, onShow }: UserMessageProps) {
+/** How a message's turn stands: taken off the queue before it began; over (it ran and ended); its work undoable. */
+function turnOf(run: Run | undefined, changed: boolean) {
   const removed = run?.status === 'cancelled' && !run.started_at
-  const [undoing, setUndoing] = useState<'undo' | 'restore' | null>(null)
   // (A turn that runs is stopped first: undoing it would race what it writes.)
   // (Not a comparison's, which would undo one side: its pick is undone under the two, `CompareView`.)
   // Only a message whose work changed files has it (slice 107 §3); a kept copy is decided on its card, or by Restore.
   const over = run && run.started_at && TERMINAL.has(run.status)
-  const undoable = over && !run.compare_id && changed
+  return { removed, over, undoable: over && !run.compare_id && changed }
+}
+
+/** The user's message: with ↺ when its work changed files, and ⋯ - Copy, Restore to before it, Show its work (slice 107). */
+function UserMessage({ message, run, files = [], saved = [], changed, onRemove, onShow }: UserMessageProps) {
+  const [undoing, setUndoing] = useState<'undo' | 'restore' | null>(null)
+  const { removed, over, undoable } = turnOf(run, changed)
   const at = when(message.created_at)
+  const menu = () =>
+    run && !removed && (
+      <MessageMenu
+        at={at}
+        copy={message.content || files.map(file => file.name).join('\n')}
+        // (Not while it is queued or at work: it would race what it writes.)
+        onRestore={over ? () => setUndoing('restore') : undefined}
+        onShow={onShow && (() => onShow(run.id))}
+      />
+    )
   return (
     <div className={`msg msg-user${removed ? ' msg-removed' : ''}`}>
       <div className="msg-user-row">
@@ -612,15 +663,7 @@ function UserMessage({ message, run, files = [], saved = [], changed, onRemove, 
             <ArrowCounterClockwise size={13} />
           </button>
         )}
-        {run && !removed && (
-          <MessageMenu
-            at={at}
-            copy={message.content || files.map(file => file.name).join('\n')}
-            // (Not while it is queued or at work: it would race what it writes.)
-            onRestore={over ? () => setUndoing('restore') : undefined}
-            onShow={onShow && (() => onShow(run.id))}
-          />
-        )}
+        {menu()}
         <div className="msg-bubble" onClick={event => run && onShow && !removed && picked(event.nativeEvent) && onShow(run.id)}>
           {message.content && <UserText>{message.content}</UserText>}
           {/* The files sent with it (slice 85b), and its links: these are chips in the chat too. */}
@@ -698,6 +741,34 @@ function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, R
     topicBefore = topic?.id ?? null
   }
   return dividers
+}
+
+/** What starts a turn: the user's message or a trigger's. It stands above the turn's card, not in it. */
+const OPENERS = new Set<Message['role']>(['user', 'trigger'])
+
+/**
+ * A Lead's words as the turn's answer, opening with its point (base.css .msg-answer): once the turn is over - while it
+ * runs, each step's words would read large at first and shrink as the next step writes.
+ */
+const answerLook = (message: Message, answer: Message | undefined, run: Run | undefined) =>
+  message === answer && run && TERMINAL.has(run.status) ? ' msg-answer' : ''
+
+/**
+ * The chat's groups (one per message of `ordered`, null where nothing is drawn) with each turn's after its opener as
+ * `card` puts them: in one card, or as they are with what the turn did under them.
+ */
+function turnsOf(ordered: Message[], card: (runId: string, inside: ReactNode[]) => ReactNode[], groups: ReactNode[]): ReactNode[] {
+  const out: ReactNode[] = []
+  let inside: ReactNode[] = []
+  // (A turn's messages are next to one another: `ordered` is sorted by turn.)
+  ordered.forEach((message, i) => {
+    if (OPENERS.has(message.role)) out.push(groups[i])
+    else if (groups[i]) inside.push(groups[i])
+    if (ordered[i + 1]?.run_id === message.run_id) return
+    out.push(...card(message.run_id, inside))
+    inside = []
+  })
+  return out
 }
 
 export function MessageList({
@@ -804,16 +875,8 @@ export function MessageList({
   // Once one side is picked, what the other did is one closed row (the user's word, 25 Oct). (Both thrown away: as they were.)
   const unused = new Set(state.runs.filter(r => r.compare_id && picks[r.compare_id] && picks[r.compare_id] !== r.id).map(r => r.id))
 
-  /** A call as the chat shows it; `stands`: it is more than a row - a card, a row that waits for you, or one of its own kind - and is never inside a run. */
-  const callView = (call: ToolCall): { node: ReactNode; stands: boolean } => {
-    const change = state.fileChanges.find(f => f.tool_call_id === call.id)
-    const command = state.commands.find(c => c.tool_call_id === call.id)
-    const child = state.agents.find(a => a.tool_call_id === call.id)
-    // (A recipe's own questions - "Go on?", then "Take the work in?" - are put in the call that opened the agent of its
-    // step, one after another: B-99.)
-    const asks = state.questions.filter(q => q.tool_call_id === call.id)
-    const asked = asks[0]
-    const pending = asks.some(q => q.status === 'pending')
+  /** The questions put in a call, one after another, and the Lead's card where a Take in met a clash. */
+  const questionCards = (call: ToolCall, asks: Question[]) => {
     // B-128: a Take in that met a clash waits on the Lead's card - under the Ready for you its turn's last Take in answered,
     // not only in the inspector (an earlier Take in's card is over).
     const tookIn = state.questions
@@ -822,7 +885,7 @@ export function MessageList({
     const clash = tookIn?.tool_call_id === call.id
       ? state.merges.find(m => m.run_id === call.run_id && m.status === 'pending' && state.agents.some(a => a.id === m.agent_id && a.depth === 0))
       : undefined
-    const question = asked && (
+    return (
       <Fragment key={call.id}>
         {asks.map(q => (
           <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />
@@ -838,113 +901,113 @@ export function MessageList({
         )}
       </Fragment>
     )
-    if (call.name === 'open_room') {
-      // Its members are asked for together, under the call; once it is open, it is the room.
-      // (One refused opened none: the turn's room is a later call's.)
-      const room = call.status !== 'failed' && state.rooms.find(r => r.agent_id === call.agent_id && r.run_id === call.run_id)
-      return { stands: true, node: (
-        <Fragment key={call.id}>
-          {room ? (
-            <RoomRow state={state} room={room} onOpen={() => onOpenRoom(room.id)} />
-          ) : (
-            <ToolRow call={call} waits={callWaits(state, call)} />
-          )}
-          {state.agents
-            .filter(a => a.tool_call_id === call.id && a.status === 'proposed')
-            .map(a => (
-              <SpawnApproval
-                key={a.id}
-                agent={a}
-                openedBy={nameOf(call.agent_id)}
-                stays={staysOn(state, a, roles, providers)}
-                onDecide={decision => onDecideSpawn(a.id, decision)}
-              />
-            ))}
-          {question}
-        </Fragment>
-      ) }
-    }
-    if (child) {
-      // A team's lead KOLONİ opened for another team's request (K-takimlar-arasi): the request's card.
-      const asked = call.parent_call_id ? requestsOf(state, call.run_id).find(r => r.call.id === call.parent_call_id) : undefined
-      return { stands: true, node: (
-        <Fragment key={call.id}>
-          {asked ? (
-            <RequestRow request={asked} lead={child} state={state} onSelect={onSelectAgent} />
-          ) : (
-            <SpawnRow agent={child} onSelect={onSelectAgent} asks={pendingMerge(state, child.id) !== null} />
-          )}
-          {question}
-          {child.status === 'proposed' && (
+  }
+
+  /** A call that opens a room: the room, once it is open, with its members asked for under it. */
+  const roomCall = (call: ToolCall, question: ReactNode) => {
+    // Its members are asked for together, under the call; once it is open, it is the room.
+    // (One refused opened none: the turn's room is a later call's.)
+    const room = call.status !== 'failed' && state.rooms.find(r => r.agent_id === call.agent_id && r.run_id === call.run_id)
+    return (
+      <Fragment key={call.id}>
+        {room ? (
+          <RoomRow state={state} room={room} onOpen={() => onOpenRoom(room.id)} />
+        ) : (
+          <ToolRow call={call} waits={callWaits(state, call)} />
+        )}
+        {state.agents
+          .filter(a => a.tool_call_id === call.id && a.status === 'proposed')
+          .map(a => (
             <SpawnApproval
-              agent={child}
-              openedBy={state.agents.find(a => a.id === child.parent_agent_id)?.name}
-              continuesTurn={continuesFrom(state, child.id)}
-              stays={staysOn(state, child, roles, providers)}
-              onDecide={decision => onDecideSpawn(child.id, decision)}
+              key={a.id}
+              agent={a}
+              openedBy={nameOf(call.agent_id)}
+              stays={staysOn(state, a, roles, providers)}
+              onDecide={decision => onDecideSpawn(a.id, decision)}
             />
-          )}
-          <SubtreeRequests root={child} state={state} on={on} known={{ roles, providers }} />
-        </Fragment>
-      ) }
-    }
-    const discussion = state.discussions.find(d => d.tool_call_id === call.id)
-    if (discussion) {
-      return { stands: true, node: (
-        <div key={call.id} className="tool-row">
-          <button
-            type="button"
-            className="tool-row-head"
-            title="Open the discussion"
-            onClick={() => onOpenDiscussion(discussion.id)}
-          >
-            <span style={{ color: 'var(--accent)', display: 'grid' }}>
-              <ChatsCircle size={13} className={discussion.status === 'running' ? 'pulse' : undefined} />
-            </span>
-            <span className="tool-row-summary">
-              <strong>Discussion</strong> <span className="muted">{discussion.topic.split('\n')[0]}</span>
-            </span>
-            <span className="tool-row-status mono muted">
-              {discussion.members.length} agents · {discussionLine(discussion).toLowerCase()}
-            </span>
-          </button>
-        </div>
-      ) }
-    }
-    if (call.name === 'message_agent') {
-      return { stands: true, node: <TalkRow key={call.id} call={call} from={nameOf(call.agent_id)} /> }
-    }
-    // Leave asked for a tool of an MCP server: the call keeps its row, with what it
-    // was given and what came back, and the question stands under it.
-    const leave = call.origin !== 'cli' && call.name !== 'ask_user'
-    if (question && !leave) return { stands: true, node: question }
+          ))}
+        {question}
+      </Fragment>
+    )
+  }
+
+  /** A call that opened an agent: its row, what it asks, and what the agents under it wait on you for. */
+  const agentCall = (call: ToolCall, child: Agent, question: ReactNode) => {
+    // A team's lead KOLONİ opened for another team's request (K-takimlar-arasi): the request's card.
+    const asked = call.parent_call_id ? requestsOf(state, call.run_id).find(r => r.call.id === call.parent_call_id) : undefined
+    return (
+      <Fragment key={call.id}>
+        {asked ? (
+          <RequestRow request={asked} lead={child} state={state} onSelect={onSelectAgent} />
+        ) : (
+          <SpawnRow agent={child} onSelect={onSelectAgent} asks={pendingMerge(state, child.id) !== null} />
+        )}
+        {question}
+        {child.status === 'proposed' && (
+          <SpawnApproval
+            agent={child}
+            openedBy={state.agents.find(a => a.id === child.parent_agent_id)?.name}
+            continuesTurn={continuesFrom(state, child.id)}
+            stays={staysOn(state, child, roles, providers)}
+            onDecide={decision => onDecideSpawn(child.id, decision)}
+          />
+        )}
+        <SubtreeRequests root={child} state={state} on={on} known={{ roles, providers }} />
+      </Fragment>
+    )
+  }
+
+  /** A call that opened a discussion: one row, which opens it. */
+  const discussionCall = (call: ToolCall, discussion: Discussion) => (
+    <div key={call.id} className="tool-row">
+      <button
+        type="button"
+        className="tool-row-head"
+        title="Open the discussion"
+        onClick={() => onOpenDiscussion(discussion.id)}
+      >
+        <span style={{ color: 'var(--accent)', display: 'grid' }}>
+          <ChatsCircle size={13} className={discussion.status === 'running' ? 'pulse' : undefined} />
+        </span>
+        <span className="tool-row-summary">
+          <strong>Discussion</strong> <span className="muted">{discussion.topic.split('\n')[0]}</span>
+        </span>
+        <span className="tool-row-status mono muted">
+          {discussion.members.length} agents · {discussionLine(discussion).toLowerCase()}
+        </span>
+      </button>
+    </div>
+  )
+
+  /** A command's call: its row, and while it waits for your word or a place, that. */
+  const commandCall = (call: ToolCall, command: Command): { node: ReactNode; stands: boolean } => ({
+    stands: command.status === 'proposed' || command.status === 'approved',
+    node: (
+      <Fragment key={call.id}>
+        <CommandRow command={command} failed={call.status === 'failed'} />
+        {command.status === 'proposed' && (
+          <CommandApproval
+            command={command}
+            why={call.why_asked}
+            onDecide={decision => onDecideCommand(command.id, decision)}
+          />
+        )}
+        {command.status === 'approved' && (
+          <div role="note" className="muted cmd-approval-note">
+            Approved — {WAITS_FOR_A_PLACE}
+          </div>
+        )}
+      </Fragment>
+    ),
+  })
+
+  /** Any other call: its row, and under it what of it waits for your word. */
+  const toolCallRow = (call: ToolCall, { question, asked, pending, change }: { question: ReactNode; asked: Question | undefined; pending: boolean; change: FileChange | undefined }) => {
     const role = state.pendingRoles.find(r => r.tool_call_id === call.id)
     const skill = state.pendingSkills.find(r => r.tool_call_id === call.id)
-    if (command) {
-      return { stands: command.status === 'proposed' || command.status === 'approved', node: (
-        <Fragment key={call.id}>
-          <CommandRow command={command} failed={call.status === 'failed'} />
-          {command.status === 'proposed' && (
-            <CommandApproval
-              command={command}
-              why={call.why_asked}
-              onDecide={decision => onDecideCommand(command.id, decision)}
-            />
-          )}
-          {command.status === 'approved' && (
-            <div role="note" className="muted cmd-approval-note">
-              Approved — {WAITS_FOR_A_PLACE}
-            </div>
-          )}
-        </Fragment>
-      ) }
-    }
     const web = state.webRequests.find(w => w.tool_call_id === call.id && w.status === 'proposed')
     const waits = pending ? 'waits for your answer' : callWaits(state, call)
-    const decides = change?.status === 'proposed' || change?.status === 'approved'
-    // (The Lead's pick of the chat's teams, slice 84b, is the chat's one line of it: never folded into a run.)
-    const picked = call.name === 'pick_teams' && call.status === 'succeeded'
-    return { stands: Boolean(asked || web || role || skill || waits || decides || picked || asksOutside(call)), node: (
+    return { stands: standsAlone(call, change, { asked, web, role, skill, waits }), node: (
       <Fragment key={call.id}>
         {/* (Nothing of it runs before the user's yes: it waits, it does not run.) */}
         <ToolRow call={call} waits={waits} />
@@ -970,6 +1033,32 @@ export function MessageList({
       </Fragment>
     ) }
   }
+
+  /** A call as the chat shows it; `stands`: it is more than a row - a card, a row that waits for you, or one of its own kind - and is never inside a run. */
+  const callView = (call: ToolCall): { node: ReactNode; stands: boolean } => {
+    const change = state.fileChanges.find(f => f.tool_call_id === call.id)
+    const command = state.commands.find(c => c.tool_call_id === call.id)
+    const child = state.agents.find(a => a.tool_call_id === call.id)
+    // (A recipe's own questions - "Go on?", then "Take the work in?" - are put in the call that opened the agent of its
+    // step, one after another: B-99.)
+    const asks = state.questions.filter(q => q.tool_call_id === call.id)
+    const asked = asks[0]
+    const pending = asks.some(q => q.status === 'pending')
+    const question = asked && questionCards(call, asks)
+    if (call.name === 'open_room') return { stands: true, node: roomCall(call, question) }
+    if (child) return { stands: true, node: agentCall(call, child, question) }
+    const discussion = state.discussions.find(d => d.tool_call_id === call.id)
+    if (discussion) return { stands: true, node: discussionCall(call, discussion) }
+    if (call.name === 'message_agent') {
+      return { stands: true, node: <TalkRow key={call.id} call={call} from={nameOf(call.agent_id)} /> }
+    }
+    // Leave asked for a tool of an MCP server: the call keeps its row, with what it
+    // was given and what came back, and the question stands under it.
+    const leave = call.origin !== 'cli' && call.name !== 'ask_user'
+    if (question && !leave) return { stands: true, node: question }
+    if (command) return commandCall(call, command)
+    return toolCallRow(call, { question, asked, pending, change })
+  }
   // A Lead's calls in a row, no words between them: one line, at its first call (K-ozet-satiri).
   const callsOf = callsByMessage(state.toolCalls)
   const views = new Map(
@@ -994,6 +1083,36 @@ export function MessageList({
       }
       return inLine.has(call.id) ? null : views.get(call.id)?.node
     })
+  // Each turn's answer: its last message of the Lead's with words. It opens with its point, and its foot copies and reads it.
+  const answerOf = new Map(ordered.filter(m => m.role === 'assistant' && m.content).map(m => [m.run_id, m]))
+  // (A room's agents' questions are in its window, not in the chat: the room's row says it waits for you.)
+  // shortcut: one the Orchestrator invited into a room asks in the chat too, with the note only in the room's window;
+  // go by the questions the chat draws if that is ever missed.
+  const inRooms = new Set(state.rooms.flatMap(room => [...inRoom(state, room).keys()]))
+  /**
+   * A Lead turn's groups after its opener in one card (0.1.4), what it did in the card's foot once it is over. No card
+   * for a comparison - its sides stand under their models' names -, a turn with no Lead or nothing after its opener:
+   * their groups stand as they are, what it did under them.
+   */
+  const card = (runId: string, inside: ReactNode[]): ReactNode[] => {
+    const run = runs.get(runId)
+    if (!run) return inside
+    const lead = state.agents.find(a => a.run_id === runId && a.depth === 0)
+    const answer = answerOf.get(runId)
+    const summary =
+      run.started_at && TERMINAL.has(run.status) && !run.compare_id ? (
+        <TurnSummary key={`did:${runId}`} state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />
+      ) : null
+    const queued = <QueuedNote key={`queued:${runId}`} state={state} asks={q => q.run_id === runId && !inRooms.has(q.agent_id)} />
+    if (inside.length === 0 || run.compare_id || !lead) return [...inside, queued, summary]
+    return [
+      // (It waits while the server says the turn does - for a question, a card, a role: as the canvas has it.)
+      <TurnCard key={`turn:${runId}`} state={state} run={run} lead={lead} answer={answer} summary={summary} waits={run.status === 'waiting_approval'}>
+        {inside}
+        {queued}
+      </TurnCard>,
+    ]
+  }
 
   if (state.messages.length === 0) {
     return <div className="msg-list msg-empty muted">Send a message to start.</div>
@@ -1012,7 +1131,7 @@ export function MessageList({
       }}
     >
       <AwayFrom chat={state.conversation.id} />
-      {ordered.map(message => {
+      {turnsOf(ordered, card, ordered.map(message => {
         const count = repeated.get(message.id)
         if (count === undefined) return null
         const run = runs.get(message.run_id)
@@ -1099,8 +1218,7 @@ export function MessageList({
               message.content &&
               !compare && (
                 <>
-                  <div className="msg msg-assistant markdown">
-                    <ReadAloud id={message.id} content={message.content} written={message.status === 'complete'} />
+                  <div className={`msg msg-assistant markdown${answerLook(message, answerOf.get(message.run_id), run)}`}>
                     <Markdown written={message.status === 'complete'}>{message.content}</Markdown>
                   </div>
                   <SaidAloud message={message} />
@@ -1136,6 +1254,7 @@ export function MessageList({
               </div>
             ))}
             {thinking && <div className="msg-status mono">Thinking…</div>}
+            <TurnQuestions state={state} runId={message.run_id} last={last} onAnswer={onAnswer} />
             {/* The Lead's "While you're away" card (slice 106), under the turn that put it. */}
             {last &&
               state.away
@@ -1170,10 +1289,9 @@ export function MessageList({
               />
             )}
             {notice && <RunNotice notice={notice} />}
-            {last && run?.started_at && TERMINAL.has(run.status) && !compare && <TurnSummary state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />}
           </div>
         )
-      })}
+      }))}
       {away && (
         <button
           type="button"

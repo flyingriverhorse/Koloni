@@ -430,6 +430,85 @@ test('a Take in that left files out is not said to be in the project', () => {
   expect(screen.getByText('Not all of it is in the project: not applied: a.py clashes')).toBeInTheDocument()
 })
 
+/** Ready for you as the graph would hand it, nothing waiting and nothing taken in - each test changes what it is about. */
+const readyData = (over: Partial<ReadyData> = {}): ReadyData => ({
+  rows: [],
+  alsoTakes: '',
+  checks: [],
+  waits: null,
+  inProject: [],
+  notStarted: [],
+  questionId: null,
+  taken: false,
+  left: null,
+  waiting: { count: 0, summary: '', mine: 0, decided: 0 },
+  kept: null,
+  ...over,
+})
+
+test('Ready for you, each way it stands: its class, its word and its line', () => {
+  const shows = (data: ReadyData, selected = false) => {
+    cleanup()
+    draw(<ReadyNode {...props('ready:r', data)} selected={selected} />)
+    const node = document.querySelector('.ready-node')
+    return [node?.className, node?.querySelector('.node-label')?.textContent, node?.querySelector('.node-said')?.textContent]
+  }
+  expect(shows(readyData())).toEqual(['node ready-node ready-waits', 'DONE', 'Nothing waits to be taken in.'])
+  expect(shows(readyData(), true)[0]).toBe('node ready-node ready-waits node-selected')
+  expect(shows(readyData({ taken: true }))).toEqual(['node ready-node ready-in', 'IN', 'In the project ✓'])
+  expect(shows(readyData({ waits: 'Web app: Build it' }))).toEqual(['node ready-node ready-waits', 'WAITS', 'Waits for Web app: Build it.'])
+  expect(shows(readyData({ left: 'a.py clashes' }))).toEqual(['node ready-node ready-waits', 'DONE', 'Not all of it is in the project: a.py clashes'])
+  expect(shows(readyData({ notStarted: ['Docs', 'QA'] }))).toEqual(['node ready-node ready-waits', 'DONE', 'Docs, QA did not start.'])
+  // Kept, why it ended said - and without a why.
+  const keptLine = 'the work is kept in the recipe’s copy, not in the project.'
+  expect(shows(readyData({ kept: 'm', left: 'the turn ended', taken: true }))).toEqual(['node ready-node ready-needs', 'NEEDS YOU', `The work ended before Take in (the turn ended): ${keptLine}`])
+  expect(shows(readyData({ kept: 'm' }))[2]).toBe(`The work ended before Take in: ${keptLine}`)
+  // Asked, a kept copy is not said: what is in the project is.
+  expect(shows(readyData({ questionId: 'q', kept: 'm', inProject: ['Web app', 'Docs'] }))).toEqual(['node ready-node ready-needs', 'NEEDS YOU', 'Every team is at its end. In the project: Web app, Docs.'])
+  // A row's own kept copy, or a Take in of this turn's to finish, needs you too.
+  const row = { team: 'Docs', recipe: 'no recipe', colour: '#888', line: 'its own kept copy', done: false, kept: 'm2' }
+  expect(shows(readyData({ rows: [row], waits: 'Web app: Build it' }))).toEqual(['node ready-node ready-needs', 'NEEDS YOU', 'Waits for Web app: Build it.'])
+  expect(shows(readyData({ waiting: { count: 1, summary: '1 Take in to finish', mine: 1, decided: 0 }, notStarted: ['QA'] }))).toEqual(['node ready-node ready-needs', 'NEEDS YOU', 'QA did not start. Nothing is in the project yet.'])
+})
+
+test('Ready for you: its checks only while it asks, what Take in also takes, and what waits or was decided for you', () => {
+  const also = 'Take in also takes in what Docs left before it stopped.'
+  const checks = [
+    { text: 'Coder: no findings', passed: true },
+    { text: 'Reviewer: 1 finding left', passed: false },
+  ]
+  draw(<ReadyNode {...props('ready:r', readyData({ questionId: 'q', alsoTakes: also, checks }))} />)
+  expect(Array.from(document.querySelectorAll('.ready-checks > span'), span => `${span.className}: ${span.textContent}`)).toEqual(['ready-check: Coder: no findings', 'ready-check ready-check-left: Reviewer: 1 finding left'])
+  expect(screen.getByText(also)).toHaveClass('muted')
+  cleanup()
+  draw(<ReadyNode {...props('ready:r', readyData({ questionId: 'q' }))} />)
+  expect(screen.getByText('no check reported by its agents')).toHaveClass('ready-check ready-check-none')
+  cleanup()
+  // Kept, not asked: what Take in also takes, and no checks.
+  draw(<ReadyNode {...props('ready:r', readyData({ kept: 'm', alsoTakes: also, checks }))} />)
+  expect(screen.getByText(also)).toBeInTheDocument()
+  expect(document.querySelector('.ready-checks')).toBeNull()
+  cleanup()
+  // Neither: not said.
+  draw(<ReadyNode {...props('ready:r', readyData({ alsoTakes: also, checks }))} />)
+  expect(screen.queryByText(also)).toBeNull()
+  expect(document.querySelector('.ready-checks')).toBeNull()
+  cleanup()
+  // Only decided for you: no count, how many decided, and the way to the list.
+  draw(<ReadyNode {...props('ready:r', readyData({ waiting: { count: 0, summary: '2 decided for you', mine: 0, decided: 2 } }))} />)
+  expect(document.querySelector('.node-head .tag-warn')).toBeNull()
+  expect(screen.getByText('2 decided')).toHaveClass('mono muted')
+  expect(screen.getByText('2 decided for you')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Open the list →' })).toBeInTheDocument()
+  cleanup()
+  draw(<ReadyNode {...props('ready:r', readyData({ waiting: { count: 2, summary: '2 questions', mine: 0, decided: 0 } }))} />)
+  expect(document.querySelector('.node-head .tag-warn')).toHaveTextContent('2')
+  expect(screen.queryByText(/decided/)).toBeNull()
+  cleanup()
+  draw(<ReadyNode {...props('ready:r', readyData())} />)
+  expect(document.querySelector('.ready-list')).toBeNull()
+})
+
 test('B-84: a picked team not started is waited for and named; what is in the project is said team by team', () => {
   const docs = { ...row('waiting', 'none', []), team_id: 'docs', state: { ...row('waiting', 'none', []).state, team: 'Docs', recipe: 'Just write' } }
   const state = team('ready', 'You')
@@ -634,11 +713,16 @@ test('B-103: an agent kept beside the recipe never takes a team’s colour at Re
   expect((deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData).colour).toBe(chatColours(state).get('web'))
 })
 
-test('B-101: a frame drawn from its roles has nothing to stop or finish', () => {
+test('B-101: a frame drawn from its roles has nothing to stop or finish, and no line to Ready for you: that dot is hidden', () => {
   const data = deriveGraph(team('running', 'Build it')).nodes.find(n => n.id === 'team:r:web')!.data as TeamData
+  const readyDot = () => document.querySelector('.team-out')
+  draw(<TeamNode {...props('team:r:web', data)} />)
+  expect(readyDot()).not.toHaveClass('found-handle')
+  cleanup()
   draw(<TeamNode {...props('team:r:web', { ...data, byRoles: true })} />)
   expect(screen.queryByRole('button', { name: 'Stop Web app' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Finish Web app now' })).toBeNull()
+  expect(readyDot()).toHaveClass('found-handle')
 })
 
 test('each pair of agents that talked has a colour of its own, the same on every screen, none a team colour', () => {

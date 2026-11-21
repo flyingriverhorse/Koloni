@@ -57,6 +57,8 @@ def is_pass(text: str) -> bool:
 
 def fit(text: str) -> str:
     """A speech as it goes into the shared place: whole, or cut to the most allowed."""
+    # shortcut: what is cut is lost (its speaker is told the limit, `speaking_prompt`); keep the
+    # whole speech for the window, or let the speaker shorten it, if cut speeches are met.
     text = text.strip()
     return text if len(text) <= MAX_POST_CHARS else text[:MAX_POST_CHARS].rstrip() + CUT
 
@@ -79,8 +81,9 @@ def speaking_prompt(topic: str, others: list[str], said: str, number: int, most:
         f"Said so far:\n{said or '(nothing yet)'}\n\n"
         f"It is your turn (round {number} of at most {most}). Speak to the others in a few "
         "sentences: say what you think, and where you disagree with what was said, say why. "
-        "You may read files to check a claim; you cannot change anything while you are in "
-        "the discussion. If you have nothing to add, reply with exactly PASS."
+        f"Keep it to at most {MAX_POST_CHARS} characters: a longer speech is cut there, and "
+        "the rest is lost. You may read files to check a claim; you cannot change anything "
+        "while you are in the discussion. If you have nothing to add, reply with exactly PASS."
     )
 
 

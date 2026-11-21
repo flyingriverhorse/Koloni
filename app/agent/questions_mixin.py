@@ -144,15 +144,18 @@ class QuestionsMixin:
         return status, output
 
     async def _ask_user(
-        self: "AgentRunner", ctx: Ctx, call_id: str, args: dict, leave: bool = False,
+        self: "AgentRunner", ctx: Ctx, call_id: str | None, args: dict, leave: bool = False,
         ids: list[str] | None = None, kind: str | None = None, tell: bool = True,
+        aside: bool = True,
     ) -> tuple[str, str]:
         """Put a question to the user and wait, however long, for the answer. `leave`:
         the question is KOLONİ's own - may a tool run - and not the agent's; the record
         says so, and the user is shown it as such. `ids`: given, the question's id is put in it.
         `kind`: one of `DELEGABLE` where the Lead may answer it while the user is away; None
         (anything else) waits for the user. `tell`: False where the caller tells the desktop
-        itself (`_users_word`)."""
+        itself (`_users_word`). `call_id` None: a card of the turn's own, under no call.
+        `aside` False: asked beside the agent's work, which goes on and keeps its place (K-yavas:
+        its model is slow) - as `_spawn_word` waits for an opener that went on."""
         refused = self._nobody_to_ask(ctx, "question", "ask the user anything")
         if refused is not None:
             raise _NobodyToAsk(refused)  # no question is put on record: none can be answered
@@ -201,7 +204,8 @@ class QuestionsMixin:
         stand_down = self._lead_may_answer(
             ctx, kind, text, offered[:-1] if kind == "checker" else offered, future, lead_says)
         try:
-            answer = await self._users_word(ctx, future, heard, tell=tell)
+            answer = await (self._users_word(ctx, future, heard, tell=tell) if aside
+                            else self._heard_aside(ctx, future, heard, tell))
         finally:
             stand_down()
             self._answers.pop(question_id, None)
@@ -217,6 +221,25 @@ class QuestionsMixin:
                 return "succeeded", LEAD_ANSWERED.format(
                     how=self._how_lead(ctx), answer=quoted(answer), why=quoted(why))
         return "succeeded", ANSWER_PREFIX + answer
+
+    async def _heard_aside(self: "AgentRunner", ctx: Ctx, asked: asyncio.Future[str],
+                           heard: Callable[[str, bool], None], tell: bool) -> str:
+        """`_ask_user` beside the agent's work: the word on record as soon as it is there - no
+        place given up or taken back, no "waiting" on its row, as `_users_word` has. It still
+        waits for the user wherever that is counted (`asking`: the board, its toast, Ready)."""
+        if tell:
+            self._tell_waits(ctx, asked)
+        agent_id = ctx.agent_id
+        self._asks_aside[agent_id] = self._asks_aside.get(agent_id, 0) + 1
+        try:
+            word = await asked
+        finally:
+            if (left := self._asks_aside[agent_id] - 1) > 0:
+                self._asks_aside[agent_id] = left
+            else:
+                del self._asks_aside[agent_id]
+        heard(word, False)
+        return word
 
     def _lead_may_answer(
         self: "AgentRunner", ctx: Ctx, kind: str | None, text: str, options: list[str],

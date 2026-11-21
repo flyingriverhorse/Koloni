@@ -199,6 +199,105 @@ export function ChatTeams({ conversation, agents, runs = [], onStop, onFinish, t
   const colours = chatColours({ conversation, runs })
   const dot = (row: ChatTeam) => <span className="team-dot" style={{ background: colours.get(row.team_id) }} aria-hidden="true" />
 
+  /** The Orchestrator's picks, each with why; or that it picks with your next message. */
+  const leadPicks = () => (
+    <>
+      {mode === 'lead' &&
+        rows.map(row => (
+          <div key={row.team_id} className="chat-team-row">
+            <div>
+              {dot(row)}
+              <b>{teamOf(row.team_id)?.name ?? 'A team deleted since'}</b>
+              {runsBy(row) && ` with ${recipeName(runsBy(row)) ?? 'its recipe'}`}
+              <div className="muted chat-team-by">Orchestrator’s pick{row.why && `: “${row.why}”`}</div>
+              {ran(row)}
+              {warned(row)}
+            </div>
+          </div>
+        ))}
+      {mode === 'lead' && rows.length === 0 && <p className="muted cmd-approval-note">The Orchestrator picks with your next message, or none for a simple question. Until then it calls any role but one only in teams it may not pick.</p>}
+      {mode === 'lead' && rows.length > 0 && <p className="muted cmd-approval-note">To change them, switch to Manual: its picks stay there.</p>}
+    </>
+  )
+
+  /** Your rows, each a team and its recipe, to move and remove; + Add, or that none is picked. */
+  const manualPicks = () => (
+    <>
+      {mode === 'manual' &&
+        rows.map((row, at) => {
+          const team = teamOf(row.team_id)
+          const fallback = recipeName(team?.default_recipe_id)
+          return (
+            <div key={row.team_id} className="chat-team-row">
+              <div className="chat-team-picks">
+                {dot(row)}
+                <select className="input" aria-label={`Team ${at + 1}`} value={row.team_id} onChange={e => void saveRows(mine.map((one, i) => (i === at ? rowOf(e.target.value, '') : one)))}>
+                  {[...(team ? [team] : []), ...free].map(one => (
+                    <option key={one.id} value={one.id}>
+                      {one.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="muted">with</span>
+                <select className="input" aria-label={`Recipe for ${team?.name ?? `team ${at + 1}`}`} value={row.no_recipe ? NO_RECIPE : (row.recipe_id ?? '')} onChange={e => void saveRows(mine.map((one, i) => (i === at ? rowOf(one.team_id, e.target.value) : one)))}>
+                  <option value="">its default ({fallback ?? 'none'})</option>
+                  <option value={NO_RECIPE}>No recipe</option>
+                  {recipes.map(recipe => (
+                    <option key={recipe.id} value={recipe.id}>
+                      {recipe.name}
+                    </option>
+                  ))}
+                </select>
+                {row.picked_by === 'lead' && <span className="muted chat-team-by">Orchestrator’s pick</span>}
+              </div>
+              {ran(row)}
+              {warned(row)}
+              <div className="chat-team-tools">
+                <button type="button" className="icon-btn" aria-label={`Move ${team?.name ?? 'it'} up`} disabled={at === 0} onClick={() => void move(at, -1)}>
+                  <ArrowUp size={12} />
+                </button>
+                <button type="button" className="icon-btn" aria-label={`Move ${team?.name ?? 'it'} down`} disabled={at === rows.length - 1} onClick={() => void move(at, 1)}>
+                  <ArrowDown size={12} />
+                </button>
+                <button type="button" className="icon-btn" aria-label={`Remove ${team?.name ?? 'it'}`} onClick={() => void saveRows(mine.filter((_, i) => i !== at))}>
+                  <X size={12} />
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      {mode === 'manual' && free.length > 0 && (
+        // (No recipe of its own: the row follows its team's default, as the select says.)
+        <button type="button" className="link-btn" onClick={() => void saveRows([...mine, rowOf(free[0].id, '')])}>
+          + Add a team with a recipe
+        </button>
+      )}
+      {mode === 'manual' && rows.length === 0 && <p className="muted cmd-approval-note">No team picked: the Orchestrator calls any role, as with No teams.</p>}
+    </>
+  )
+
+  /** That these teams are the folder's default for new chats, or the button that makes them so. */
+  const folderDefault = () => (
+    <>
+      {/* Said where it is so: a chat Run the backlog opens starts from it too (B-78). */}
+      {project && project.teams_mode !== 'none' && project.teams_mode === mode && key(project.teams) === key(mode === 'manual' ? mine : []) && (
+        <p className="muted cmd-approval-note">This folder’s default for new chats, the To-do list’s too.</p>
+      )}
+      {project && (project.teams_mode !== mode || key(project.teams) !== key(mode === 'manual' ? mine : [])) && (
+        <button
+          type="button"
+          className="link-btn"
+          onClick={() => {
+            setError(null)
+            onDefault({ teams_mode: mode, teams: mode === 'manual' ? mine : [] }).catch(err => setError(errorText(err)))
+          }}
+        >
+          Use for new chats in this project
+        </button>
+      )}
+    </>
+  )
+
   return (
     <div className="chat-teams">
       <button ref={button} id="chat-teams-button" type="button" className="btn btn-small" aria-expanded={open} aria-label={`Teams for this chat: ${mode === 'none' ? 'No teams' : `${named}, ${LABEL[mode]}`}`} onClick={toggle}>
@@ -220,87 +319,9 @@ export function ChatTeams({ conversation, agents, runs = [], onStop, onFinish, t
               </label>
             ))}
           </div>
-          {mode === 'lead' &&
-            rows.map(row => (
-              <div key={row.team_id} className="chat-team-row">
-                <div>
-                  {dot(row)}
-                  <b>{teamOf(row.team_id)?.name ?? 'A team deleted since'}</b>
-                  {runsBy(row) && ` with ${recipeName(runsBy(row)) ?? 'its recipe'}`}
-                  <div className="muted chat-team-by">Orchestrator’s pick{row.why && `: “${row.why}”`}</div>
-                  {ran(row)}
-                  {warned(row)}
-                </div>
-              </div>
-            ))}
-          {mode === 'lead' && rows.length === 0 && <p className="muted cmd-approval-note">The Orchestrator picks with your next message, or none for a simple question. Until then it calls any role but one only in teams it may not pick.</p>}
-          {mode === 'lead' && rows.length > 0 && <p className="muted cmd-approval-note">To change them, switch to Manual: its picks stay there.</p>}
-          {mode === 'manual' &&
-            rows.map((row, at) => {
-              const team = teamOf(row.team_id)
-              const fallback = recipeName(team?.default_recipe_id)
-              return (
-                <div key={row.team_id} className="chat-team-row">
-                  <div className="chat-team-picks">
-                    {dot(row)}
-                    <select className="input" aria-label={`Team ${at + 1}`} value={row.team_id} onChange={e => void saveRows(mine.map((one, i) => (i === at ? rowOf(e.target.value, '') : one)))}>
-                      {[...(team ? [team] : []), ...free].map(one => (
-                        <option key={one.id} value={one.id}>
-                          {one.name}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="muted">with</span>
-                    <select className="input" aria-label={`Recipe for ${team?.name ?? `team ${at + 1}`}`} value={row.no_recipe ? NO_RECIPE : (row.recipe_id ?? '')} onChange={e => void saveRows(mine.map((one, i) => (i === at ? rowOf(one.team_id, e.target.value) : one)))}>
-                      <option value="">its default ({fallback ?? 'none'})</option>
-                      <option value={NO_RECIPE}>No recipe</option>
-                      {recipes.map(recipe => (
-                        <option key={recipe.id} value={recipe.id}>
-                          {recipe.name}
-                        </option>
-                      ))}
-                    </select>
-                    {row.picked_by === 'lead' && <span className="muted chat-team-by">Orchestrator’s pick</span>}
-                  </div>
-                  {ran(row)}
-                  {warned(row)}
-                  <div className="chat-team-tools">
-                    <button type="button" className="icon-btn" aria-label={`Move ${team?.name ?? 'it'} up`} disabled={at === 0} onClick={() => void move(at, -1)}>
-                      <ArrowUp size={12} />
-                    </button>
-                    <button type="button" className="icon-btn" aria-label={`Move ${team?.name ?? 'it'} down`} disabled={at === rows.length - 1} onClick={() => void move(at, 1)}>
-                      <ArrowDown size={12} />
-                    </button>
-                    <button type="button" className="icon-btn" aria-label={`Remove ${team?.name ?? 'it'}`} onClick={() => void saveRows(mine.filter((_, i) => i !== at))}>
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          {mode === 'manual' && free.length > 0 && (
-            // (No recipe of its own: the row follows its team's default, as the select says.)
-            <button type="button" className="link-btn" onClick={() => void saveRows([...mine, rowOf(free[0].id, '')])}>
-              + Add a team with a recipe
-            </button>
-          )}
-          {mode === 'manual' && rows.length === 0 && <p className="muted cmd-approval-note">No team picked: the Orchestrator calls any role, as with No teams.</p>}
-          {/* Said where it is so: a chat Run the backlog opens starts from it too (B-78). */}
-          {project && project.teams_mode !== 'none' && project.teams_mode === mode && key(project.teams) === key(mode === 'manual' ? mine : []) && (
-            <p className="muted cmd-approval-note">This folder’s default for new chats, the To-do list’s too.</p>
-          )}
-          {project && (project.teams_mode !== mode || key(project.teams) !== key(mode === 'manual' ? mine : [])) && (
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => {
-                setError(null)
-                onDefault({ teams_mode: mode, teams: mode === 'manual' ? mine : [] }).catch(err => setError(errorText(err)))
-              }}
-            >
-              Use for new chats in this project
-            </button>
-          )}
+          {leadPicks()}
+          {manualPicks()}
+          {folderDefault()}
           {confirm.shown()}
           {error && (
             <p role="alert" className="alert">

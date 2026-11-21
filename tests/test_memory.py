@@ -27,6 +27,7 @@ from app.agent import (
     REPORT_ONCE,
     shell_note,
 )
+from app.agent.context_mixin import ASKED_IN_WORDS
 from app.config import load_settings
 from app.db.models import Memory, Project
 from app.main import create_app
@@ -110,11 +111,11 @@ def plain(value, root: str):
         # the Lead's going-away rule (K-gece-dil); how it splits a job (K-rol-cogul); where a
         # sub-agent's question goes (B-182); the headings its report ends with (K-devir-1);
         # how much of a job gets a sub-agent (K-brief-kalitesi); a checker's "ran:" (K-kanit);
-        # the Lead's one report a turn (K-r152).
+        # the Lead's one report a turn (K-r152); the Lead's question never asked in words (B-204).
         for later in ("\n\n" + HAND_ON_PROMPT, " " + FINDINGS_PROMPT, "\n\n" + AWAY_PROMPT,
                       "\n\n" + BRIEF_PROMPT, "\n\n" + REPORT_ONCE, " " + RAN,
                       " " + WHO_SPLITS, " " + ASK_NOT_REPORT, " " + handoff.REPORT_PROMPT,
-                      "\n\n" + handoff.HEAD):
+                      "\n\n" + handoff.HEAD, " " + ASKED_IN_WORDS):
             # (the roles a finding may name, whatever they are, stand where {roles} is; a CLI's
             # JSON keeps its letters as they are)
             for told in (later, json.dumps(later)[1:-1],

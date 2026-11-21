@@ -319,6 +319,158 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
     setAdding(null)
     setDrawer(false)
   }
+  /** Under the tabs: what a recipe is, on Recipes; else a new team’s name while it is typed. */
+  const bar = () =>
+    (tab === 'recipes' || naming) && (
+      <div className="agents-bar">
+        {tab === 'recipes' ? (
+          <span className="muted provider-note">A recipe says who does each step, what runs at once and how far it loops back. A chat’s team runs by the recipe picked for it, else by its team’s default.</span>
+        ) : (
+          <NameForm label="New team’s name" button="Add team" max={55} onSave={name => act(teamActions?.createTeam(name).then(() => setNaming(false)))} onCancel={() => setNaming(false)} />
+        )}
+      </div>
+    )
+
+  /** The tab’s own: History, Recipes, or Teams & roles - the library and the teams. */
+  const tabContent = () =>
+    tab === 'history' ? (
+      <HistoryTab
+        onHistory={onHistory}
+        onOpenConversation={onOpenConversation}
+        recordOf={name =>
+          typeof record === 'string' ? (
+            <p role="alert" className="alert">
+              The record could not be read: {record}
+            </p>
+          ) : (
+            <RecordTable record={record.filter(row => row.role_name === name)} />
+          )
+        }
+      />
+    ) : tab === 'recipes' ? (
+      <RecipesTab roles={library} teams={teams} list={recipes} projectId={projectId} actions={recipeActions} reload={() => readRecipes(n => n + 1)} models={known} providers={providers} onModels={onModels} />
+    ) : (
+      <>
+        <RoleLibrary
+          roles={library}
+          categories={categories}
+          selected={current?.id ?? null}
+          onOpen={id => open(id)}
+          onSwitch={(role, on) => act(onPatch?.(role.id, { enabled: on }))}
+          onKind={(role, key) => {
+            setSaid(null)
+            act(onPatch?.(role.id, { kind: key }).then(() => setSaid(`${role.name} is in ${kindName(categories, key)} now.`)))
+          }}
+          onDrag={setDragging}
+          actions={categoryActions}
+          act={act}
+          open={drawer}
+          onClose={() => {
+            setDrawer(false)
+            drawerButton.current?.focus()
+          }}
+        />
+        <div className="agents-teams">
+          {/* A narrow window's library, folded to this (slice 63b). */}
+          <button ref={drawerButton} type="button" className="btn btn-small role-lib-toggle" aria-expanded={drawer} onClick={() => setDrawer(!drawer)}>
+            Roles ▸ {library.length}
+          </button>
+          <TeamsBoard
+            projectId={projectId}
+            lead={lead}
+            teams={teams}
+            roles={library}
+            categories={categories}
+            activity={activity}
+            selected={current?.id ?? null}
+            marked={marked}
+            dragging={dragging}
+            onOpen={open}
+            onPatch={(roleId, change) => onPatch?.(roleId, change) ?? Promise.resolve()}
+            // A team's default is one of KOLONİ's recipes: a team is every folder's.
+            recipes={recipes && typeof recipes !== 'string' ? recipes.recipes.filter(one => !one.project_id) : []}
+            actions={teamActions}
+            act={act}
+            say={setSaid}
+            onNewRole={newRole}
+            models={known}
+            providers={providers}
+          />
+        </div>
+      </>
+    )
+
+  /** Beside them on Teams & roles: a new role being made, or the role open. */
+  const side = () =>
+    tab !== 'team' ? null : adding !== null ? (
+      <aside className="role-panel" aria-label="New role">
+        <div className="role-panel-head">
+          <div>
+            <h2>New role</h2>
+            <span className="muted">Agents in this role are opened by the Orchestrator or a team lead.</span>
+          </div>
+        </div>
+        <div className="files-modes role-starts" role="group" aria-label="Start from">
+          {(
+            [
+              ['blank', 'Blank'],
+              ['expert', 'An expert'],
+              ['copy', 'A copy'],
+            ] as const
+          ).map(([one, title]) => (
+            <button key={one} type="button" className="view-run" aria-pressed={start === one} onClick={() => setStart(one)}>
+              {title}
+            </button>
+          ))}
+        </div>
+        {start === 'copy' && (
+          <div className="field">
+            <label htmlFor="role-copy">Copy of</label>
+            <select id="role-copy" className="input" value={copyId} onChange={e => setCopyId(e.target.value)}>
+              <option value="">Pick a role…</option>
+              {library.map(role => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {start === 'expert' ? (
+          <>
+            <ExpertForm providers={providers} onCreate={createExpert} onCancel={() => setAdding(null)} />
+            <p className="muted role-expert-may">
+              <b>It may:</b> reads only — an expert changes nothing.
+            </p>
+          </>
+        ) : (
+          (start === 'blank' || copy) && editor(null)(undefined, () => setAdding(null))
+        )}
+      </aside>
+    ) : (
+      current && (
+        <RolePanel
+          key={`${current.id}:${panelTab}`}
+          role={current}
+          teams={teams}
+          categories={categories}
+          onNewCategory={categoryActions?.addCategory}
+          tab={panelTab}
+          onPatch={(roleId, change) => onPatch?.(roleId, change) ?? Promise.resolve()}
+          onOpenTools={onOpenTools}
+          off={off}
+          serversOff={serversOff}
+          skills={skills}
+          onOpenSkills={onOpenSkills}
+          editor={editor(current)}
+          runs={runs(current)}
+          providers={providers}
+          knowledge={{ projectId, actions: knowledgeActions, items: knowledgeItems, onOpen: onOpenKnowledge }}
+          onClose={() => setSelected(null)}
+        />
+      )
+    )
+
   return (
     <div className="paged">
       <div className="page-head">
@@ -359,15 +511,7 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
           </button>
         ))}
       </div>
-      {(tab === 'recipes' || naming) && (
-        <div className="agents-bar">
-          {tab === 'recipes' ? (
-            <span className="muted provider-note">A recipe says who does each step, what runs at once and how far it loops back. A chat’s team runs by the recipe picked for it, else by its team’s default.</span>
-          ) : (
-            <NameForm label="New team’s name" button="Add team" max={55} onSave={name => act(teamActions?.createTeam(name).then(() => setNaming(false)))} onCancel={() => setNaming(false)} />
-          )}
-        </div>
-      )}
+      {bar()}
       {error && (
         <div role="alert" className="alert">
           {error}
@@ -378,140 +522,8 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
         {said}
       </span>
       <div role="tabpanel" aria-labelledby={`agents-tab-${tab}`} className={`agents-page${dragging ? ' agents-dragging' : ''}`}>
-        {tab === 'history' ? (
-          <HistoryTab
-            onHistory={onHistory}
-            onOpenConversation={onOpenConversation}
-            recordOf={name =>
-              typeof record === 'string' ? (
-                <p role="alert" className="alert">
-                  The record could not be read: {record}
-                </p>
-              ) : (
-                <RecordTable record={record.filter(row => row.role_name === name)} />
-              )
-            }
-          />
-        ) : tab === 'recipes' ? (
-          <RecipesTab roles={library} teams={teams} list={recipes} projectId={projectId} actions={recipeActions} reload={() => readRecipes(n => n + 1)} models={known} providers={providers} onModels={onModels} />
-        ) : (
-          <>
-            <RoleLibrary
-              roles={library}
-              categories={categories}
-              selected={current?.id ?? null}
-              onOpen={id => open(id)}
-              onSwitch={(role, on) => act(onPatch?.(role.id, { enabled: on }))}
-              onKind={(role, key) => {
-                setSaid(null)
-                act(onPatch?.(role.id, { kind: key }).then(() => setSaid(`${role.name} is in ${kindName(categories, key)} now.`)))
-              }}
-              onDrag={setDragging}
-              actions={categoryActions}
-              act={act}
-              open={drawer}
-              onClose={() => {
-                setDrawer(false)
-                drawerButton.current?.focus()
-              }}
-            />
-            <div className="agents-teams">
-              {/* A narrow window's library, folded to this (slice 63b). */}
-              <button ref={drawerButton} type="button" className="btn btn-small role-lib-toggle" aria-expanded={drawer} onClick={() => setDrawer(!drawer)}>
-                Roles ▸ {library.length}
-              </button>
-              <TeamsBoard
-                projectId={projectId}
-                lead={lead}
-                teams={teams}
-                roles={library}
-                categories={categories}
-                activity={activity}
-                selected={current?.id ?? null}
-                marked={marked}
-                dragging={dragging}
-                onOpen={open}
-                onPatch={(roleId, change) => onPatch?.(roleId, change) ?? Promise.resolve()}
-                // A team's default is one of KOLONİ's recipes: a team is every folder's.
-                recipes={recipes && typeof recipes !== 'string' ? recipes.recipes.filter(one => !one.project_id) : []}
-                actions={teamActions}
-                act={act}
-                say={setSaid}
-                onNewRole={newRole}
-                models={known}
-                providers={providers}
-              />
-            </div>
-          </>
-        )}
-        {tab !== 'team' ? null : adding !== null ? (
-          <aside className="role-panel" aria-label="New role">
-            <div className="role-panel-head">
-              <div>
-                <h2>New role</h2>
-                <span className="muted">Agents in this role are opened by the Orchestrator or a team lead.</span>
-              </div>
-            </div>
-            <div className="files-modes role-starts" role="group" aria-label="Start from">
-              {(
-                [
-                  ['blank', 'Blank'],
-                  ['expert', 'An expert'],
-                  ['copy', 'A copy'],
-                ] as const
-              ).map(([one, title]) => (
-                <button key={one} type="button" className="view-run" aria-pressed={start === one} onClick={() => setStart(one)}>
-                  {title}
-                </button>
-              ))}
-            </div>
-            {start === 'copy' && (
-              <div className="field">
-                <label htmlFor="role-copy">Copy of</label>
-                <select id="role-copy" className="input" value={copyId} onChange={e => setCopyId(e.target.value)}>
-                  <option value="">Pick a role…</option>
-                  {library.map(role => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {start === 'expert' ? (
-              <>
-                <ExpertForm providers={providers} onCreate={createExpert} onCancel={() => setAdding(null)} />
-                <p className="muted role-expert-may">
-                  <b>It may:</b> reads only — an expert changes nothing.
-                </p>
-              </>
-            ) : (
-              (start === 'blank' || copy) && editor(null)(undefined, () => setAdding(null))
-            )}
-          </aside>
-        ) : (
-          current && (
-            <RolePanel
-              key={`${current.id}:${panelTab}`}
-              role={current}
-              teams={teams}
-              categories={categories}
-              onNewCategory={categoryActions?.addCategory}
-              tab={panelTab}
-              onPatch={(roleId, change) => onPatch?.(roleId, change) ?? Promise.resolve()}
-              onOpenTools={onOpenTools}
-              off={off}
-              serversOff={serversOff}
-              skills={skills}
-              onOpenSkills={onOpenSkills}
-              editor={editor(current)}
-              runs={runs(current)}
-              providers={providers}
-              knowledge={{ projectId, actions: knowledgeActions, items: knowledgeItems, onOpen: onOpenKnowledge }}
-              onClose={() => setSelected(null)}
-            />
-          )
-        )}
+        {tabContent()}
+        {side()}
       </div>
     </div>
   )

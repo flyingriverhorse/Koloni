@@ -17,7 +17,8 @@ and credit messages.
 - When it runs **Native**, Codex runs the commands its own rules count as safe (a read of `.env`, or of a
   file outside the project) without asking KOLONİ, at every level; KOLONİ records them after they ran, so
   no card stands in their way. agy reading with its own tools has no hook: its reads, of a secret file
-  too, are not asked about at any level. That Qoder asks before every tool is not yet measured.
+  too, are not asked about at any level. Qoder run **Native** stops before it acts on the versions
+  measured so far (they do not apply KOLONİ's hook); how one that applies it asks is not measured.
 - A command you approve can still print, encode or send a secret it was given.
 - An agent's request for a key on a hidden card is not available to CLIs working with their own tools.
 - A branch deleted because it held a secret you gave still has its commits in git's reflog until git
@@ -67,6 +68,13 @@ and credit messages.
   are not measured, nor is Qoder - so a `cd` into
   `.koloni/tmp/` by Claude Code's PowerShell tool or by Qoder is still asked. A command of theirs that
   itself names a folder to run in is asked at every level: KOLONİ cannot check it.
+- GitHub Copilot CLI run **Native** does not say where its commands run either. On a Copilot version
+  whose code was read or measured - 1.0.67 and 1.0.105 so far, by the version Copilot itself reports -
+  a command that names no shell of its own starts in a new shell in the project folder, so there a
+  `cd` into `.koloni/tmp/` runs without a card at Full auto; a delete inside `.koloni/tmp/` from such a
+  shell is still a card. On any other version (after an update of Copilot's too, until that version is
+  measured), and once a command has named a shell, the `cd` is asked as before. Only Windows was
+  measured.
 - A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
   script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it

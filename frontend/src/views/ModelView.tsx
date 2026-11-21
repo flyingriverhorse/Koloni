@@ -28,6 +28,8 @@ interface World {
   sized: boolean
   /** Framed once: drawn anew, it is seen from where it was. */
   framed: boolean
+  /** Turned, moved or zoomed since it was last framed: a new shape of its box keeps that view. */
+  touched: boolean
   draw(): void
 }
 
@@ -63,15 +65,20 @@ export default function ModelView({ src, name }: { src: string; name: string }) 
     const controls = new OrbitControls(camera, renderer.domElement)
     const draw = () => renderer.render(scene, camera)
     controls.addEventListener('change', draw)
-    const w: World = { renderer, scene, camera, controls, model: null, grid: null, sized: false, framed: false, draw }
+    const w: World = { renderer, scene, camera, controls, model: null, grid: null, sized: false, framed: false, touched: false, draw }
     world.current = w
+    controls.addEventListener('start', () => {
+      w.touched = true // (the mouse: a drag or the wheel)
+    })
     const fill = () => {
       if (!at.clientWidth || !at.clientHeight) return // (not laid out yet: the first fit waits for its shape)
       renderer.setSize(at.clientWidth, at.clientHeight, false)
       camera.aspect = at.clientWidth / at.clientHeight
       camera.updateProjectionMatrix()
       w.sized = true
-      firstFit(w)
+      // Not yet turned by the user, it stays seen whole as its box takes its shape (the window laid out, then grown).
+      if (w.framed && !w.touched) frame(w, camera.position.clone().sub(controls.target))
+      else firstFit(w)
       draw()
     }
     fill()
@@ -165,6 +172,7 @@ export default function ModelView({ src, name }: { src: string; name: string }) 
     const next = step(event.key, w.camera.position.clone().sub(w.controls.target))
     if (!next) return
     event.preventDefault()
+    w.touched = true
     w.camera.position.copy(w.controls.target).add(next)
     w.controls.update()
     w.draw()
@@ -221,6 +229,7 @@ function frame(w: World, direction: THREE.Vector3) {
   w.camera.updateProjectionMatrix()
   w.controls.target.copy(sphere.center)
   w.controls.update()
+  w.touched = false
   w.draw()
 }
 

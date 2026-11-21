@@ -10,6 +10,8 @@
   --surface: #fffaf1;
   --panel: #fbf6ed;
   --text: #2a2218;
+  /* A chat answer's words: a step softer than --text, easier on the eye over a long read. */
+  --text-soft: #3b3124;
   --muted: #6e604a;
   --faint: #706249;
   --border: #e0d6c4;
@@ -49,6 +51,9 @@
   --tool-to-do: #8f4a6e;
   /* A request between teams and the shared folder (K-takimlar-arasi): its line, label and badges. */
   --request: #2b6f63;
+  /* A member's line to its discussion or room (21 Nov): a mustard of its own - not a sub-agent line's grey, nor the
+     honey of what is at work, nor the ochre of a team's frame it leaves (contrast.test.ts). */
+  --member-line: #8f8128;
   --tool-memory: #8a5f1e;
   /* A file attached to a message, by its kind (slice 85b): its chip's edge and label. */
   --file-code: #3f5a75;
@@ -82,6 +87,11 @@
   --text-mono: 11.5px; /* what a program wrote or is given: commands, paths, code, output */
   --text-meta: 11px; /* a line of facts about something: counts, times, states, tags */
   --text-kicker: 10px; /* the small capitals over a section, and a tag inside a line of facts */
+  /* A chat answer, read at length: larger than the page's body, its code and headings to match. */
+  --text-read: 14.5px; /* a chat answer's words and the user's message */
+  --text-lead: 15.5px; /* an answer's first paragraph, and its third-level heading */
+  --text-code: 12.5px; /* code in a chat answer */
+  --text-section: 17px; /* a chat answer's first- and second-level heading */
   --weight-title: 600; /* titles and headings */
   --weight-strong: 500; /* a name in a row, a button */
   --weight-body: 400;
@@ -93,6 +103,7 @@
   --surface: #1a1e26;
   --panel: #161a21;
   --text: #e4e6ea;
+  --text-soft: #cfd4dc;
   /* One step lighter than --faint, told apart from it (K-38f1): 5.87 on a chosen row. */
   --muted: #b0b6c2;
   /* No darker: this reads at 4.79 on a chosen row, and one step darker is under 4.5. */
@@ -126,6 +137,7 @@
   --tool-team: #a698d4;
   --tool-to-do: #d495b6;
   --request: #7fbfb2;
+  --member-line: #b0a455;
   --tool-memory: #d6a85a;
   --file-code: #8aa6c4;
   --file-img: #a698d4;

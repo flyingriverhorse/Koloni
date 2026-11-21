@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, expect, test, vi } from 'vitest'
-import type { Category, Role, RoleModel, RolesActivity, Team } from '../api/types'
+import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
+import type { Category, Recipe, RecipeGraph, Role, RoleModel, RolesActivity, Team } from '../api/types'
 import { ranOn } from '../shell/modelName'
 import { AgentsPage } from './AgentsPage'
+import type { RecipeActions } from './RecipesTab'
 import { groupsOf, lastLine, mayDo, ruleText } from './chart'
 import { ROLE_TOOLS } from './roleTools'
 
@@ -581,6 +582,80 @@ test('a stage’s "New role…" makes a role in that team beside the teams, and 
   expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Scout', teams: ['web'], kind: 'plan' }))
   // in the stage it was asked from
   await vi.waitFor(() => expect(h.teamActions.placeRole).toHaveBeenCalledWith('web', 's', 'web-0'))
+})
+
+test('a role panel’s head: on or off, made by an agent, how a team’s lead is shown; a role with no team to go in says so', async () => {
+  const scout = role({ id: 'x', name: 'Scout', kind: 'build', builtin: false, enabled: false, created_by_agent: true })
+  const { unmount } = render(<AgentsPage roles={[lead, scout]} {...handlers()} />)
+  await userEvent.click(within(library()).getByRole('button', { name: /^Scout/ }))
+  let panel = screen.getByRole('complementary', { name: 'Role Scout' })
+  expect(panel.querySelector('h2 .tag')).toHaveTextContent(/^off$/)
+  expect(panel.querySelector('h2 .tag')?.className).toBe('tag')
+  expect(panel.querySelector('.role-panel-head .tag-accent')).toHaveTextContent('Created by an agent')
+  expect(panel).not.toHaveTextContent('— shown as')
+  expect(panel).toHaveTextContent('In teamsNo team yet')
+  expect(within(panel).queryByRole('combobox', { name: 'Put Scout in a team' })).toBeNull()
+  unmount()
+  render(<AgentsPage roles={[lead, coder]} teams={teams} {...handlers()} />)
+  await userEvent.click(within(await openTeam('Web app')).getByRole('button', { name: 'Web app lead: Instructions' }))
+  panel = screen.getByRole('complementary', { name: 'Role Web app lead' })
+  expect(panel.querySelector('.role-panel-head')).toHaveTextContent('— shown as Web app coordinator')
+  expect(panel.querySelector('h2 .tag')).toBeNull()
+  expect(panel.querySelector('.tag-accent')).toBeNull()
+})
+
+test('a team’s default is one of KOLONİ’s recipes; Recipes says what one is, lists the folder’s too, with no role beside; History says a record not read', async () => {
+  const graph: RecipeGraph = { version: 1, steps: [], groups: [], ends: [], arrows: [], loops: [] }
+  const ours: Recipe = { id: 'feature', name: 'Feature', ready: true, project_id: null, file: null, graph }
+  const folders: Recipe = { id: 'f1', name: 'Folder fix', ready: false, project_id: 'p', file: 'fix.json', graph }
+  const recipeActions: RecipeActions = { recipes: vi.fn().mockResolvedValue({ recipes: [ours, folders], broken: [], writer: { why: null } }), saveRecipe: vi.fn(), deleteRecipe: vi.fn(), draftRecipe: vi.fn() }
+  const history = { days: 30, lead_turns: 0, jobs_limit: 200, roles: [{ name: 'Coder', done: 1, failed: 0, running: 0 }], teams: [], recipes: [], jobs: [] }
+  // (React Flow, on the Recipes tab, watches its pane: jsdom has nothing to watch with. Unmounted before it goes.)
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  onTestFinished(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
+  render(<AgentsPage roles={[lead, coder]} teams={teams} picked="c" recipeActions={recipeActions} projectId="p" onRecord={vi.fn().mockRejectedValue({ detail: 'down' })} onHistory={vi.fn().mockResolvedValue(history)} {...handlers()} />)
+  expect(recipeActions.recipes).toHaveBeenCalledWith('p')
+  const recipe = within(await openTeam('Web app')).getByRole('combobox', { name: "Web app's default recipe" })
+  await vi.waitFor(() => expect(within(recipe).getAllByRole('option').map(o => o.textContent)).toEqual(['none', 'Feature']))
+  expect(screen.getByRole('complementary', { name: 'Role Coder' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('tab', { name: 'Recipes' }))
+  expect(screen.getByText(/^A recipe says who does each step, what runs at once and how far it loops back\./)).toHaveClass('muted', 'provider-note')
+  expect(screen.getByRole('button', { name: /^Folder fix/ })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /^Feature/ })).toBeInTheDocument()
+  expect(screen.queryByRole('complementary', { name: 'Role Coder' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'New role' })).toBeNull()
+  await userEvent.click(screen.getByRole('tab', { name: 'History' }))
+  expect(screen.queryByText(/^A recipe says who/)).toBeNull()
+  await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Role' }), 'Coder')
+  expect(await screen.findByRole('alert')).toHaveTextContent('The record could not be read: down')
+})
+
+test('a role dragged from the library marks the page while it is dragged', async () => {
+  render(<AgentsPage roles={[lead, coder, devops]} teams={teams} {...handlers()} />)
+  const page = screen.getByRole('tabpanel')
+  expect(page.className).toBe('agents-page')
+  // (Fired on its button, the drag bubbles to the row that is dragged.)
+  const button = within(library()).getByRole('button', { name: /^DevOps/ })
+  fireEvent.dragStart(button, { dataTransfer: { setData: () => undefined } })
+  await vi.waitFor(() => expect(page.className).toBe('agents-page agents-dragging'))
+  fireEvent.dragEnd(button)
+  expect(page.className).toBe('agents-page')
+})
+
+test('a copy made from a stage’s "New role…" goes in that team too', async () => {
+  const h = handlers()
+  render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...h} />)
+  await userEvent.click(within(region('Stage 1, Plan', await openTeam('Web app'))).getByRole('button', { name: '+ Add a role' }))
+  await userEvent.click(screen.getByRole('option', { name: 'New role…' }))
+  const made = screen.getByRole('complementary', { name: 'New role' })
+  await userEvent.click(within(made).getByRole('button', { name: 'A copy' }))
+  await userEvent.selectOptions(within(made).getByLabelText('Copy of'), 'Tester')
+  expect(within(made).getByLabelText('Name')).toHaveValue('Tester copy')
+  await userEvent.click(within(made).getByRole('button', { name: 'Create role' }))
+  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Tester copy', teams: ['web'], kind: 'check', tier: 'fast' }))
 })
 
 test('a category with two roles says to move both before it is deleted', async () => {

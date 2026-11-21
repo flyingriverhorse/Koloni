@@ -13,7 +13,15 @@ import pytest
 
 from app import raw
 from app.commands import suggest_prefix
-from app.model_native import CodexNativeClient, _files, _heredoc_patch, _unwrapped
+from app.model_native import (
+    ASK_WITH_KOLONI,
+    ASKS_USER,
+    DECLINED_WHY,
+    CodexNativeClient,
+    _files,
+    _heredoc_patch,
+    _unwrapped,
+)
 from tests.test_agent_writes import wait_status
 from tests.test_attachment_agents import FAKE_CODEX, answered, plan, record
 from tests.test_claude_native import NOBODY, nothing_was_asked, unattended
@@ -312,6 +320,29 @@ def test_every_other_request_of_codexs_is_declined_and_on_record(
     assert len(declined) == 8 and all("KOLONİ" in t["result"] for t in declined)
     assert json.loads(declined[-1]["arguments"]) == {}
     assert ACCOUNT[1] not in json.dumps(snap)
+
+
+def test_codexs_own_question_is_declined_and_it_is_told_to_ask_on_kolonis_card(
+    native_app, wait_run, project_dir  # noqa: F811
+):
+    """B-204: told in its turn, before the no (after it its turn may be over), as a refused
+    patch is told why; and in the no itself."""
+    client, provider, _ = native_app([
+        {"request": ASKS_USER, "params": {"questions": [{"id": "q", "question": "Strict?"}]}},
+        {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    seen = native_app.record()
+    assert [s["input"][0]["text"] for s in seen.get("steers", [])] == [
+        DECLINED_WHY.format(why=ASK_WITH_KOLONI)], seen
+    ((method, answer),) = answers(native_app)
+    assert method == ASKS_USER and ASK_WITH_KOLONI in answer["error"]["message"], answer
+    assert seen["answers"][0]["steers_before"] == 1
+    # its row: declined, and why in plain words
+    (row,) = snap["tool_calls"]
+    assert (row["name"], row["status"]) == ("codex__item_tool_requestUserInput", "denied")
+    assert "ask_user" in row["result"], row["result"]
 
 
 # --- 6. What it did is on record as before; whose account it is, nowhere ---------------------

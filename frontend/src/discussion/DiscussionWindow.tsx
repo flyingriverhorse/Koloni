@@ -96,7 +96,7 @@ export function DiscussionWindow({ state, discussionId, onClose, onSay, onEnd }:
             </Fragment>
           )
         })}
-        {speaker && <div className="msg-status mono">{speaker.name} is speaking…</div>}
+        {speaker && <div className="msg-status mono">{nameIn(state, speaker.id)} is speaking…</div>}
       </div>
       {running && (
         <form className="discussion-say" onSubmit={say}>

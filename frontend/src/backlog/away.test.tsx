@@ -156,6 +156,39 @@ test('each job as it stands: what waits is answered here, what is done is taken 
   expect(awayDo).toHaveBeenCalledWith('a1', 'jobs/t3/again')
 })
 
+test('a job row while the night runs: what it spent, what it does now, its view, a file shared, See the changes, Not started, Refuse, no Try again yet', async () => {
+  const { answerAsk } = stub()
+  const ask = { kind: 'commands' as const, id: 'k1', text: 'Coder asks to run "npm test"' }
+  const night = card({
+    status: 'running',
+    jobs: [
+      job({ title: 'one', task_id: 't1', conversation_id: 'c2', state: 'done', kept: ['m1'], files: ['a.py'], spent: 0.5, assessment: 'Looks right', shared: ['a.py'] }),
+      job({ title: 'two', task_id: 't2', state: 'working', now: 'Running the tests', why: 'still at it' }),
+      job({ title: 'three', task_id: 't3', state: 'next', why: 'never said' }),
+      job({ title: 'four', task_id: 't4', state: 'failed', why: 'model server unreachable' }),
+      job({ title: 'five', task_id: 't5', state: 'waits', why: 'Waits in its chat', asks: [ask] }),
+    ],
+  })
+  const onOpen = vi.fn()
+  render(<AwayNight away={night} onOpen={onOpen} />)
+  const row = (name: RegExp) => screen.getByRole('listitem', { name })
+  const one = row(/^one: Done$/)
+  expect(one.querySelector('.away-line')).toHaveTextContent('1 file in its copy, waits for you · 0.50 USD')
+  expect(one.querySelector('q.away-view')).toHaveTextContent('Looks right')
+  expect(one).toHaveTextContent('Another job changed a.py too: the two are joined line by line when you take both in.')
+  await userEvent.click(within(one).getByRole('button', { name: 'See the changes' }))
+  expect(onOpen).toHaveBeenCalledWith('c2')
+  expect(row(/^two: Working$/).querySelector('.away-now')).toHaveTextContent('Running the tests')
+  expect(row(/^two: Working$/).querySelector('.away-line')).toHaveTextContent('still at it')
+  expect(row(/^three: Next$/).querySelector('.away-line')).toHaveTextContent('Not started')
+  expect(row(/^three: Next$/)).not.toHaveTextContent('never said')
+  expect(within(row(/^four/)).queryByRole('button', { name: 'Try again' })).toBeNull()
+  expect(within(row(/^four/)).queryByRole('button', { name: 'Open its chat' })).toBeNull()
+  expect(row(/^five: Waits for you$/).querySelector('.away-line')).toHaveTextContent('Waits in its chat')
+  await userEvent.click(within(row(/^five/)).getByRole('button', { name: 'Refuse' }))
+  expect(answerAsk).toHaveBeenCalledWith(ask, false)
+})
+
 test("on the canvas the night is the card's turn's: its jobs hang off the Lead, and done and waiting ones lead to the report", () => {
   const night = card({
     status: 'ended',

@@ -2,10 +2,10 @@
  * K-belge-ciktilari: the document viewer's own script, in /office/viewer.html - a frame of no origin (`sandbox="allow-scripts"`)
  * whose page loads nothing but its own files and fetches nothing (`app.views.VIEWER_HEADERS`). The app reads the file and
  * posts its bytes in; this draws a Word document, a workbook or a slide deck, and says it drew it or why not.
- * shortcut: npm audit names an XSS in echarts (pptx-preview's charts) and a moderate one in uuid. Both run here only, in no
- * origin, holding no data but the file's own: a hostile file can still send the frame itself to an address of the web - a
- * beacon that it was opened (the app takes the frame off at its second load, after that request). Upgrade when pptx-preview
- * takes a fixed echarts.
+ * shortcut: pptx-preview's echarts and uuid are lifted past their known flaws by `overrides` in package.json (echarts 6
+ * draws its charts, tried by hand on 20 Nov); drop them when pptx-preview takes fixed ones. A flaw not yet known runs here
+ * only, in no origin, holding no data but the file's own: at worst it sends the frame itself to an address of the web - a
+ * beacon that the file was opened (the app takes the frame off at its second load, after that request).
  */
 import { renderAsync } from 'docx-preview'
 import { init } from 'pptx-preview'
