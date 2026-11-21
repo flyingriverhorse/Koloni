@@ -130,7 +130,7 @@ test('the Notes tab lists the turn’s notes in order: who wrote each, when, and
   const text = document.body.textContent ?? ''
   const order = [
     'Tester', clock(first.created_at), 'hello.py is mine', 'handed to 2 of 2',
-    'You', clock(second.created_at), 'Leave the tests alone.', 'handed to 1 of 3 · not yet to Lead, Tester',
+    'You', clock(second.created_at), 'Leave the tests alone.', 'handed to 1 of 3 · not yet to Orchestrator, Tester',
   ]
   expect(order.map(piece => text.indexOf(piece)).every((at, i, all) => at >= 0 && (i === 0 || at >= all[i - 1]))).toBe(true)
 })
@@ -151,9 +151,9 @@ test('who has read a note is what the records say: it grows as the note is hande
   const proposed = agent('r', 'proposed', { id: 'asked', parent_agent_id: 'lead', role_name: 'Reviewer', depth: 1 })
   const withProposed = { ...state, agents: [...state.agents, proposed] }
   expect(readersOf(withProposed, second).unread.map(a => a.id)).toEqual(['lead', 'tester'])
-  expect(readLine(withProposed, second)).toBe('handed to 1 of 3 · not yet to Lead, Tester')
+  expect(readLine(withProposed, second)).toBe('handed to 1 of 3 · not yet to Orchestrator, Tester')
   const approved = applyEvent(withProposed, 3, 'agent.updated', { ...proposed, status: 'running' })
-  expect(readLine(approved, second)).toBe('handed to 1 of 4 · not yet to Lead, Tester, Reviewer')
+  expect(readLine(approved, second)).toBe('handed to 1 of 4 · not yet to Orchestrator, Tester, Reviewer')
   // nobody else in the turn: said, not counted
   const alone = { ...state, agents: [state.agents[0]], boardPosts: [note('n3', 'r', { agent_id: 'lead' })] }
   render(<NotesPanel state={alone} onWrite={async () => {}} />)
@@ -373,14 +373,14 @@ test('a team’s own note is for its agents and the Lead: another team’s agent
     agents: [...state.agents, writer],
   }
   const own = note('n7', 'r', { agent_id: 'tester', team_id: 'web', team: 'Web app' })
-  expect(readLine(teamed, own)).toBe('handed to 0 of 2 · not yet to Lead, Coder')
+  expect(readLine(teamed, own)).toBe('handed to 0 of 2 · not yet to Orchestrator, Coder')
   // a team with no recipe: who is in it is the canvas's guess by roles, so only those handed it are named
   const byRoles = { ...teamed, conversation: { ...teamed.conversation, teams: [{ ...web, state: null }] } }
   expect(readLine(byRoles, own)).toBe('for Web app only · handed to nobody yet')
   const handed = { ...byRoles, messages: [...byRoles.messages, handedNote(own, 'coder')] }
   expect(readLine(handed, own)).toBe('handed to 1 of 1')
   // for every team: every agent of the turn
-  expect(readLine(teamed, { ...own, everyone: true })).toBe('handed to 0 of 3 · not yet to Lead, Coder, Docs writer')
+  expect(readLine(teamed, { ...own, everyone: true })).toBe('handed to 0 of 3 · not yet to Orchestrator, Coder, Docs writer')
 })
 
 function toCss(colour: string): string {

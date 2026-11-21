@@ -83,5 +83,5 @@ export function readLine(state: ConvState, post: BoardPost): string {
   const { read, unread } = readersOf(state, post)
   if (read.length + unread.length === 0) return post.team && !post.everyone ? `for ${post.team} only · handed to nobody yet` : 'no other agent at this work'
   const line = `handed to ${read.length} of ${read.length + unread.length}`
-  return unread.length > 0 ? `${line} · not yet to ${unread.map(a => a.name || 'Agent').join(', ')}` : line
+  return unread.length > 0 ? `${line} · not yet to ${unread.map(a => titleOf(a.name || 'Agent')).join(', ')}` : line
 }
