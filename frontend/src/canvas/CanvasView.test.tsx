@@ -333,7 +333,12 @@ test('the legend: its button among the canvas’s opens what the states, lines a
   expect(legend).toHaveFocus()
   expect(button).toHaveAttribute('aria-expanded', 'true')
   for (const said of [
-    'working', 'waits for you', 'done', 'failed', 'Handed to a sub-agent', 'Waits for a file another agent holds',
+    'working', 'waits for you', 'done', 'failed', 'Handed to a sub-agent',
+    // (A night's jobs: the line to the Orchestrator's is the work's, one waiting for you dashed as a wait.)
+    'The work: to the Orchestrator, and in a team from its door, step by step - the line splits into a step’s agents and joins again after them; from the Orchestrator to a night’s jobs, and from a job that is done to the night’s report',
+    'Waits for a file another agent holds; or, from a night’s job that waits for your word, to the night’s report',
+    // (Talk on a spawn or door line keeps that line's colour: only a line of its own has the pair's.)
+    'Talk between two agents, of a team or of none: on the line that already joins them, or else on a line of its own - in a team, an arc over or under the work line, round its agents, like findings back - “💬 2 messages”; between two teams, agent to agent in the margin beside their frames. A line of its own has its pair’s colour (talk on a line already there keeps that line’s), and a click shows what was said',
     'From your message down to its plan, and from an approved plan down to the Orchestrator that carries it out',
     'A member’s line to its discussion or room: with no team, from the members under it round the right of their column and in at its side, with an arrow; between teams, from its frame to the lane',
     // (Every line drawn has its row: a file handed on, a request between teams.)
