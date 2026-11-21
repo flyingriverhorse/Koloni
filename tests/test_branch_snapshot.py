@@ -15,7 +15,7 @@ from tests import test_dal_takim
 from tests.conftest import Gate
 from tests.test_backlog_auto import worked
 from tests.test_chat_flow import text
-from tests.test_claim_scenarios import ORIGIN, calls
+from tests.test_claim_scenarios import ORIGIN, calls, write
 from tests.test_dal_takim import (
     GO_ON,
     STOP_ON_BRANCH,
@@ -112,10 +112,13 @@ def test_a_branch_starts_from_the_folder_as_it_is_and_the_users_git_is_untouched
 
 
 def test_a_clean_folder_starts_from_head_as_before(repo, runtime):
-    # (What a snapshot leaves out is no change: ignored, secret-named, dependencies, nested repos.)
+    # (What a snapshot leaves out is no change: ignored, secret-named, dependencies, nested repos,
+    # and KOLONİ's own `.koloni/` - its settings, written as a project's setting is saved.)
     with (repo / ".git" / "info" / "exclude").open("a") as file:
         file.write(".env\n")
     (repo / ".env").write_text("KEY=1\n")
+    (repo / ".koloni").mkdir()
+    (repo / ".koloni" / "settings.json").write_text("{}\n")
     (repo / "id_rsa").write_text("key\n")
     (repo / "node_modules").mkdir()
     (repo / "node_modules" / "m.js").write_text("module\n")
@@ -364,17 +367,24 @@ def test_a_conflict_with_what_the_user_committed_since_is_a_conflict_and_a_resol
     line(copy.root, 5, "5-agent")
     agents(copy, runtime, "nine.txt")
     line(repo, 5, "5-user")
-    run(repo, "commit", "-qm", "user", "nine.txt")
+    (repo / "theirs.txt").write_text("the user's, committed since\n")
+    run(repo, "add", "theirs.txt")
+    run(repo, "commit", "-qm", "user", "nine.txt", "theirs.txt")
     look = git.branch_look(repo, copy.branch, copy.start, copy.snapshot_sha)
     assert (look["share"], look["conflicts"], look["yours"]) == (None, ["nine.txt"], [])
     # D2: the user's branch merged into the branch, the clash put together there.
     before, _sha, left = git.merge_in(copy.root, copy.branch, "main", runtime / "no-hooks")
     assert left == ["nine.txt"]
-    line(copy.root, 5, "5-both")
+    (copy.root / "nine.txt").write_text(NINE.replace("5\n", "5-both\n"))  # (no marks left)
     run(copy.root, "add", "nine.txt")
     run(copy.root, "-c", "core.hooksPath=", "commit", "-qm", "resolved")
+    (repo / "theirs.txt").write_text("the user's, edited again\n")  # (not committed)
     look = git.branch_look(repo, copy.branch, copy.start, copy.snapshot_sha)
     assert (look["conflicts"], look["yours"]) == ([], []) and look["share"]
+    # What came in from the user's branch is not the agent's: not on the card, not in the way.
+    assert (look["files"], look["dirty"]) == ({"nine.txt": "M"}, ["staged.txt"])
+    diffs = git.branch_diffs(repo, copy.branch, ["nine.txt"], at=look["since"])["nine.txt"]
+    assert "-5-user" in diffs and "+5-both" in diffs
     assert run(repo, "diff", "--name-only", "HEAD", look["share"]).split() == ["nine.txt"]
     assert run(repo, "show", f"{look['share']}:nine.txt").splitlines()[4] == "5-both"
     assert before != run(copy.root, "rev-parse", "HEAD")
@@ -486,6 +496,18 @@ def test_an_agent_gone_on_with_on_its_branch_is_measured_from_the_snapshot_it_be
     (merge,) = snap["merges"]
     assert merge["status"] == "applied" and [f["path"] for f in merge["files"]] == ["lines.txt"]
     assert landed(repo) == ["lines.txt"] and lines(repo)[1] == "TWO-again"
+    assert porcelain(repo) == [" M a.txt", "?? notes.txt"]
+
+
+@needs_merge_base
+def test_a_branch_whose_agent_changed_nothing_goes_with_its_snapshot(make_client, wait_run, repo):
+    # (It wrote the user's own file as it was: nothing of its own - the branch holds the snapshot
+    # alone, which git counts as not merged.)
+    client, cid, run_id = on_branch(make_client, repo, [
+        step(write("notes.txt", MINE["notes.txt"])), text("A done")], wip=MINE)
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    assert snap["runs"][0]["status"] == "completed" and snap["merges"] == []
+    assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
     assert porcelain(repo) == [" M a.txt", "?? notes.txt"]
 
 

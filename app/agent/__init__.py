@@ -3533,7 +3533,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         except git.Refused as exc:
             return {"name": copy.branch, "into": None, "files": {}, "conflicts": [],
                     "dirty": [], "special": [], "drift": None, "half": None, "tip": None,
-                    "share": None, "yours": [], "note": str(exc)}
+                    "share": None, "yours": [], "since": None, "note": str(exc)}
         return {"name": copy.branch, **found, "note": None}
 
     def _branch_merged(self, ctx: Ctx, copy: copies.Copy) -> None:

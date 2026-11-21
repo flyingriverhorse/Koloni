@@ -1225,12 +1225,13 @@ def _left_out_of_snapshot(path: str) -> bool:
     """Of the user's files a snapshot would take (as git lists them), those it leaves out, as a
     copy does: a repository inside (git lists one by its folder: `sub/`), a secret by its name -
     never an object in their .git, reachable from a branch of KOLONİ's -, what a copy leaves out
-    or links (`copies._apart`: node_modules, .venv, build, KOLONİ's shared folder) and what is
-    no file of KOLONİ's own in `.koloni/` (its scratch)."""
+    or links (`copies._apart`: node_modules, .venv, build) and KOLONİ's own `.koloni/` - its
+    settings file, written when a project's setting is saved, would make every branch one from a
+    snapshot; its rules, recipes and notes are read in the project, not in the worktree."""
     from app import copies  # (here: copies imports git where it uses it)
 
     return (path.endswith("/") or secret_in_project(path) or copies._apart(path)
-            or stray_in_koloni(path))
+            or path.replace("\\", "/").casefold().startswith(".koloni/"))
 
 
 def _snapshot(
@@ -1559,7 +1560,7 @@ def agents_share(
     came in from the user's is no work of the agents'. Read only but for git's objects; Refused
     as `repository`, and where git fails."""
     git, _folder = repository(project)
-    return _share(project, git, snapshot, tip, onto, branch)
+    return _share(project, git, snapshot, tip, onto, branch)[:2]
 
 
 def _commit_of(project: Path, git: str, ref: str) -> str:
@@ -1571,20 +1572,22 @@ def _commit_of(project: Path, git: str, ref: str) -> str:
 
 def _share(
     project: Path, git: str, snapshot: str, tip: str, onto: str, branch: str
-) -> tuple[str | None, list[str]]:
-    """`agents_share`, with git found."""
+) -> tuple[str | None, list[str], str]:
+    """`agents_share`, with git found - and the commit the work was measured from: the snapshot,
+    or the snapshot carried onto where the branch met the user's (what the card's files and
+    diffs are measured from too, `branch_look`'s "since")."""
     onto, start = _commit_of(project, git, onto), _commit_of(project, git, f"{snapshot}^")
     code, out, said = _in(project, git, *UNASKED, "merge-base", onto, tip,
                           seconds=SHORT_SECONDS, **UNASKED_ENV)
     if code != 0:
         raise Refused(f"git merge-base failed: {_text(out, said)[-TAIL:]}")
-    met, base = out.decode("ascii", "replace").strip(), snapshot
-    if met != start and _in(project, git, "merge-base", "--is-ancestor", start, met)[0] == 0:
-        made, clash = _merged(project, git, start, met, snapshot, branch)
-        if made is None:
-            return None, clash
-        base = made
-    return _merged(project, git, base, onto, tip, branch)
+    met = out.decode("ascii", "replace").strip()
+    if met == start or _in(project, git, "merge-base", "--is-ancestor", start, met)[0] != 0:
+        return (*_merged(project, git, snapshot, onto, tip, branch), snapshot)
+    base, clash = _merged(project, git, start, met, snapshot, branch)
+    if base is None:
+        return None, clash, snapshot
+    return (*_merged(project, git, base, onto, tip, branch), base)
 
 
 def _merged(
@@ -1628,8 +1631,8 @@ def _from_snapshot(
     """For `branch_look` of a branch that began from a snapshot (W-1): what clashes, what it
     changed since the snapshot, and {"share": its work alone on HEAD (`agents_share`), "yours":
     of what clashes, what the user had not committed when it began - theirs to commit first, not
-    a conflict an agent resolves}."""
-    share, clash = _share(project, git, snapshot, ref, "HEAD", branch)
+    a conflict an agent resolves, "since": what the work is measured from (`_share`)}."""
+    share, clash, since = _share(project, git, snapshot, ref, "HEAD", branch)
     code, out, said = _in(project, git, *UNASKED, "diff-tree", "-r", "-z", "--name-only",
                           "--no-renames", "--no-commit-id", snapshot, seconds=SHORT_SECONDS,
                           **UNASKED_ENV)
@@ -1638,7 +1641,8 @@ def _from_snapshot(
     theirs = set(_listed(out))
     yours = [path for path in clash if path in theirs]
     return ([path for path in clash if path not in theirs],
-            _touched(project, git, ref, f"{snapshot}.."), {"share": share, "yours": yours})
+            _touched(project, git, ref, f"{since}.."),
+            {"share": share, "yours": yours, "since": since})
 
 
 def branch_look(
@@ -1659,7 +1663,8 @@ def branch_look(
     then scanned and merged: `holding`, `merge_branch`)}. Read only, as `look`. Refused as
     `_on_a_branch`.
     W-1, `snapshot`: the branch began from that commit of the user's folder (`_snapshot`) - "files"
-    are what changed since it, "share" what the agents changed alone, on HEAD (`agents_share`):
+    are what changed since it ("since": it, or - after the branch took the user's in - it carried
+    onto that), "share" what the agents changed alone, on HEAD (`agents_share`):
     what is then scanned and merged, never "tip", which holds the user's uncommitted work too -
     None where it clashes; "yours" the paths that clash where the user had changes not
     committed when it began, in "dirty" too (the rest of a clash is a conflict)."""

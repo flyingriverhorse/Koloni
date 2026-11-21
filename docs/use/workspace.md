@@ -99,9 +99,9 @@ The branch starts from your folder as it is, not only from your last commit: you
 and new files that git does not ignore are in the agent's worktree. KOLONİ makes that one commit
 ("KOLONİ: your folder as koloni/*name* began") from an index of its own, so your files, your index,
 your branch and HEAD are not touched; it is the branch's first commit and shows in `git log
-koloni/*name*`. Left out, as from a plain copy: what git ignores (`.env`, build output), files named as
-secrets (`.env.local`, a key file), `node_modules`, `.venv` and `venv` (linked in instead), and a git
-repository inside your folder.
+koloni/*name*`. Left out: what git ignores (`.env`, build output), files named as secrets
+(`.env.local`, a key file), `node_modules`, `.venv` and `venv` (linked in instead), a git repository
+inside your folder, and KOLONİ's own `.koloni` folder.
 
 The card, the merge and a pull request carry the agent's work alone, measured from that commit - never
 your uncommitted files. A merge waits for your commit:
