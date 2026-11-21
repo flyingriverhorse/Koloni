@@ -8,15 +8,32 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 from app import copies, git
 from app.agent import AgentRunner, recover_copies
+from app.commands import (
+    KILLS_BY_NAME,
+    OUT_OF_COPY,
+    copy_reason,
+    harm_class,
+    harms,
+    installs,
+    runs_another,
+)
 from app.db.models import Agent
 from tests.conftest import Gate, scaled
+from tests.fakes import Script, ScriptedExecutor
+from tests.test_agent_commands import cmd
+from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_claim_scenarios import ORIGIN, calls, setup, two, write
 from tests.test_dal_takim import repo, run, runtime, worktrees  # noqa: F401  (fixtures)
+from tests.test_full_auto_harm import why_asked
+from tests.test_full_auto_reads import LIVE
+from tests.test_judge_scenarios import RULE, begin, judging, verdict_line  # noqa: F401
 from tests.test_parallel import until
-from tests.test_spawn import call, step
+from tests.test_spawn import call, spawn, step
 from tests.test_take_in_scenarios import LINES, LONG, edit, lines, needs_git
 
 
@@ -217,3 +234,136 @@ def test_at_start_koloni_forgets_its_worktree_that_a_crash_left(make_client, wai
     recover_copies(client.app.state.session_factory, root)  # (as at the next start)
     assert len(worktrees(repo)) == 1
     assert run(repo, "branch", "--list", "koloni/x").strip() == "koloni/x"
+
+
+# --- what a copy's command is asked ----------------------------------------------------------
+
+KILLS = ["taskkill /IM python.exe /F", "taskkill /f /im node.exe", "taskkill //F //IM x.exe",
+         "pkill -f uvicorn", "killall node", "Stop-Process -Name python", "spps -n node",
+         "kill -Name python"]
+KILLS_HANDED = ["Get-Process python | Stop-Process", 'cmd /c "taskkill /IM x.exe"']
+BY_ID = ["taskkill /PID 1234 /F", "kill 1234", "kill -9 1234", "Stop-Process -Id 1234",
+         "Stop-Process 1234"]
+
+
+@pytest.mark.parametrize("command", KILLS)
+def test_stopping_programs_by_name_in_the_project_is_harm_the_users_words_may_let_run(command):
+    assert harms(command) == KILLS_BY_NAME and harm_class(command) == "soft"
+
+
+@pytest.mark.parametrize("command", KILLS_HANDED)
+def test_stopping_programs_by_name_handed_on_is_asked_at_every_level(command):
+    assert harms(command) == KILLS_BY_NAME and harm_class(command) == "always"
+    assert runs_another(command)
+
+
+@pytest.mark.parametrize("command", KILLS + KILLS_HANDED)
+def test_from_a_copy_stopping_programs_by_name_is_always_asked(command):
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME
+
+
+@pytest.mark.parametrize("command", BY_ID)
+def test_stopping_a_program_by_its_id_is_no_harm(command):
+    assert harms(command) == "" and copy_reason(command, True, "/work/proj", "/work/rt") == ""
+
+
+def places(tmp_path):
+    """A project, KOLONİ's runtime, this copy's own tree in its copies folder, the folder, and
+    one of the project's worktrees."""
+    root = tmp_path / "runtime"
+    held = copies.folders(root)[0]
+    return tmp_path / "proj", root, held / "a" / "tree", held, tmp_path / "wt" / "x"
+
+
+def asked_in_copy(tmp_path, command, cwd="."):
+    project, runtime, own, _held, worktree = places(tmp_path)  # noqa: F811
+    return copy_reason(command, True, str(project), runtime, own, cwd,
+                       [str(project), str(worktree)])
+
+
+def test_a_copys_command_naming_another_copy_a_worktree_or_above_it_is_asked(tmp_path):
+    _project, _runtime, own, held, worktree = places(tmp_path)
+    for command, named in [
+        ("cp x ../../b/tree/y", "../../b/tree/y"), (r"echo x > ..\base.json", r"..\base.json"),
+        (f"Set-Content {held / 'b' / 'tree' / 'x.txt'} hi", str(held)),
+        (f"Copy-Item x {worktree}/y", str(worktree)), ("cd src; cp x ../../y", "../../y"),
+        ("cd ..; ls", ".."), ("ls -la ../..", "../.."),
+        # (by its own full path, and up out of it)
+        (f"cp x {own}/../../b/tree/y", f"{own}/../../b/tree/y"),
+    ]:
+        assert asked_in_copy(tmp_path, command) == OUT_OF_COPY.format(path=named), command
+    # (from where it runs: a folder of the copy)
+    assert asked_in_copy(tmp_path, "cp x ../y", "src") == ""
+    assert asked_in_copy(tmp_path, "cp x ../../y", "src") == OUT_OF_COPY.format(path="../../y")
+
+
+def test_a_copys_command_naming_its_own_copy_or_below_is_not_asked(tmp_path):
+    _project, _runtime, own, _held, _worktree = places(tmp_path)
+    for command in [f"python {own}/x.py > {own}/out.txt", *LIVE, "git log HEAD..main",
+                    "git diff main...HEAD", f"cd {own}/src && pytest", "cd src; cp x ../y",
+                    "cd src && cd .. && pytest"]:
+        assert asked_in_copy(tmp_path, command) == "", command
+
+
+def test_before_its_copy_is_made_every_copy_is_anothers(tmp_path):
+    project, runtime, own, held, _worktree = places(tmp_path)  # noqa: F811
+    said = copy_reason(f"type {own}/x.txt", False, str(project), runtime)
+    assert said == OUT_OF_COPY.format(path=str(held))
+
+
+def chat(make_client, folder, scripts, executor):
+    """A chat at Full auto whose Lead runs commands and opens sub-agents unasked, its first
+    message sent: the client, the chat's and the run's ids."""
+    client, _model = make_client(scripts, executor=executor)
+    client.headers["Origin"] = ORIGIN
+    pid = client.post("/api/projects", json={"root_path": str(folder)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json={
+        "permission_mode": "full_auto", "spawn_approval": "never", "lead_hands_code": False,
+    }).status_code == 200
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()
+    return client, cid, posted["run"]["id"]
+
+
+def test_an_install_into_a_linked_copy_waits_at_full_auto_and_the_leads_own_runs(
+    make_client, wait_run, project_dir
+):
+    (project_dir / "node_modules").mkdir()  # (linked into the copy: the project's own)
+    executor = ScriptedExecutor([Script(["added 1 package\n"])])
+    client, cid, run_id = chat(make_client, project_dir, {
+        "Lead": [cmd("npm install left-pad", "k1"), spawn("Coder", "add left-pad"),
+                 text("done")],
+        "Coder": [cmd("npm install left-pad", "k2"), text("left it")]}, executor)
+    snap = wait_status(client, cid, "waiting_approval")
+    leads, coders = snap["commands"]
+    assert leads["status"] == "exited" and coders["status"] == "proposed"
+    assert why_asked(snap, coders) == installs("npm install left-pad")
+    assert client.post(f"/api/commands/{coders['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+    assert [command for command, _cwd in executor.started] == ["npm install left-pad"]
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("command, said", [
+    ("cp x ../../b/tree/y", OUT_OF_COPY.format(path="../../b/tree/y")),
+    # (a delete the user's words allow takes no install past its card)
+    ("rm notes.txt; npm install left-pad", installs("npm install left-pad")),
+])
+def test_at_full_auto_a_sub_agents_command_out_of_its_copy_or_into_shared_folders_waits(
+    judging, wait_run, project_dir, command, said  # noqa: F811
+):
+    (project_dir / ".venv").mkdir()  # (linked into the copy: the project's own)
+    client, _model, judge, executor = judging(
+        {"Lead": [spawn("Coder", "tidy up"), text("done")],
+         "Coder": [cmd(command, id="k1"), text("left it")]},
+        [verdict_line("run", RULE)], [])
+    _, cid, run_id = begin(client, project_dir, "tidy up",
+                           rules=f"{RULE} You may delete notes.txt and copy files anywhere.")
+    snap = wait_status(client, cid, "waiting_approval")
+    (asked,) = snap["commands"]
+    assert asked["status"] == "proposed" and why_asked(snap, asked) == said
+    assert judge.calls == []  # (asked at every level: not put to the check of the user's words)
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+    assert executor.started == []
+

@@ -26,7 +26,7 @@ from app.agent.words import (
     SHARED_WITH_PROJECT,
 )
 from app.command_runner import CARRY_ON, refused_by_rule, rejected
-from app.commands import copy_reason, reads_here, search_reason, sends_canary, web_off_reason
+from app.commands import reads_here, search_reason, sends_canary, web_off_reason
 from app.db.models import Conversation, FileChange, now
 from app.model_native import (
     CLAUDE_KNOWN,
@@ -147,8 +147,9 @@ class ApprovalsMixin:
             return False
         searched = await asyncio.to_thread(search_reason, command, root, str(folder))
         return not (web_off_reason(command, self._off()) or searched or copy is not None and (
-            copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root))
+            self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where))
             or self._branch_asks(ctx, command, copy is not None)
+            or self._shared_install(ctx, command, copy is not None and bool(copy.links))
             or self._night_asks(ctx, command, where))
 
     async def _approve(  # noqa: C901
@@ -375,8 +376,9 @@ class ApprovalsMixin:
         # KOLONİ's own commands are.
         always = self._read_named(ctx, command) is not None or where is None
         before = web_off or reason or searched or (
-            copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
-            if copy is not None else "") or self._branch_asks(ctx, command, copy is not None)
+            self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where)
+            if copy is not None else "") or self._branch_asks(ctx, command, copy is not None) or (
+            self._shared_install(ctx, command, copy is not None and bool(copy.links)))
         # K-yargic: harm alone may first be checked against the user's own words (`_judged`) -
         # not for a role that runs no command (it is refused below whatever the check says), nor
         # where it runs is not known: no folder (`at` None), or one its model wrote (`claimed`).

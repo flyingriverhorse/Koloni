@@ -16,7 +16,7 @@ from urllib.parse import quote
 from sqlalchemy import or_, select
 
 from app import raw
-from app.copies import LINKED
+from app.copies import LINKED, folders
 from app.db.models import AllowedCommand, AllowedWeb
 from app.workspace import (
     INSTRUCTION_FILES,
@@ -515,6 +515,31 @@ def _cluster(word: str, letter: str) -> bool:
     return word.startswith("-") and not word.startswith("--") and letter in word[1:]
 
 
+# K-koordinasyon: by its id an agent stops what it started; by a name, whatever runs under it.
+KILLS_BY_NAME = ("Stops programs by their name (taskkill /IM, pkill, killall, Stop-Process "
+                 "-Name): KOLONİ, other agents' runs and the user's own programs share this "
+                 "machine.")
+
+
+def _kills_by_name(program: str, rest: list[str]) -> bool:
+    """Whether a part stops programs by their name (`KILLS_BY_NAME`): `pkill`, `killall`;
+    `taskkill` by an image name or a filter (`/IM`, `/FI`; Git Bash's `//IM` too); PowerShell's
+    `Stop-Process` (`spps`) with neither an id nor its own process object - so what a pipe hands
+    it (`Get-Process x | Stop-Process`) - and its `kill` by `-Name`. By id (`taskkill /PID`, `kill
+    <pid>`, `Stop-Process -Id`) is not.
+    shortcut: `kill -n 9 <pid>` (sh's signal by number) reads as by name; `wmic process ... delete`,
+    `Get-Process x | % Kill()` and `Stop-Process $p` given ids in a variable are not told apart -
+    ask or let them through by what the user meets."""
+    said = [word.casefold() for word in rest]
+    if program in ("pkill", "killall"):
+        return True
+    if program == "taskkill":
+        return any(word.lstrip("/-") in ("im", "fi") for word in said)
+    if program in ("stop-process", "spps"):
+        return not any(word.startswith("-i") or word.isdigit() for word in said)
+    return program == "kill" and any(word.startswith(("-n", "-processn")) for word in said)
+
+
 def _after_options(rest: list[str], takes_value: frozenset[str]) -> list[str]:
     """The words from the subcommand on: the options before it skipped, with their values."""
     at = 0
@@ -530,6 +555,8 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
                 "runs is not seen.")
     if program in _DELETERS or program.startswith("mkfs"):
         return "Deletes files or disks."
+    if _kills_by_name(program, words[1:]):
+        return KILLS_BY_NAME
     if program in ("clear-content", "clc"):
         return "Empties files (Clear-Content)."
     rest = words[1:]
@@ -863,22 +890,118 @@ NAMES_PROJECT = (
     "it names the project folder ({root}), outside the working copy it works in: there it "
     "would act on the project itself"
 )
+# K-koordinasyon: agents work beside each other, each in a copy of its own.
+OUT_OF_COPY = (
+    "it names {path}, outside the copy it works in - another agent's copy, a worktree of the "
+    "project or KOLONİ's own records of the copy: write, move or delete nothing there; say in "
+    "the report what should go"
+)
 
 
-def copy_reason(command: str, linked: bool, project: str, runtime: Path | str) -> str:
+def _full(path: str) -> bool:
+    """A path from a root, a drive or the home folder: not from where a command runs."""
+    return path.startswith(("/", "\\", "~")) or bool(re.match(r"[A-Za-z]:", path))
+
+
+def _in_copy(path: str, at: str, own: re.Pattern | None) -> str | None:
+    """Where `path` leads in a copy, from its folder `at` (both relative to the copy's tree, `/`
+    between parts): ".." first where it leads above the tree. A full path only by the tree's own
+    (`own`: its spellings, `_spellings`); None for another full path, which is not followed."""
+    if _full(path):
+        found = own.match(os.path.normcase(path)) if own is not None else None
+        if found is None:
+            return None
+        path, at = os.path.normcase(path)[found.end():].lstrip("\\/"), "."
+    return posixpath.normpath(posixpath.join(at, path.replace("\\", "/") or "."))
+
+
+def _above(went: str | None) -> bool:
+    return went is not None and went.split("/")[0] == ".."
+
+
+def _cd_to(words: list[str], at: str, own: re.Pattern | None) -> str | None:
+    """Where a part that changes folder (`_CD`) leaves a command in a copy (`_in_copy`); None
+    where that is not followed: `popd`, no folder named or more than one, a variable, a
+    wildcard or `~`, a full path not of the copy's own tree."""
+    named = [word for word in words[1:] if not word.startswith("-")
+             and word.casefold() != "/d"]  # (cmd's `cd /d x`)
+    if _program(words[0]) in ("popd", "pop-location") or len(named) != 1 or re.search(
+            r"[$%`~*?]", named[0]):
+        return None
+    return _in_copy(named[0], at, own)
+
+
+def _climbs_out(command: str, cwd: str | None, own: str | None) -> str:
+    """What a command run in a copy names above the copy's tree by `..` - from where it runs
+    (`cwd`, in the copy), followed through each plain `cd` (`sl`, `pushd`, `Set-Location`) to a
+    folder of the copy, or from the tree's own full path (`own`); "" for none, and where it runs
+    is not known (`cwd` None). `HEAD..main` is no `..`.
+    shortcut: honest lines, not a wall - a `cd` not followed (a variable, another full path,
+    `popd`) ends the look, and a path built, held in a variable or a script is not seen; the
+    folder a command runs in, and its copy's folder, are the wall."""
+    if cwd is None:
+        return ""
+    mine = _spellings(own) if own is not None else None
+    at = posixpath.normpath(cwd.replace("\\", "/"))
+    for words in (words for words in _commands_in(command, at=_BLOCKS) if words):
+        if _program(words[0]) in _CD:
+            went = _cd_to(words, at, mine)
+            if went is None:
+                return ""
+            if _above(went):
+                return words[-1]
+            at = went
+            continue
+        for word in words:  # (its program too: `..\.venv\Scripts\python.exe`)
+            for piece in re.split(r"[=<>,@]", re.sub(r"^-[\w-]*:", "", word.strip("'\""))):
+                if ".." in re.split(r"[\\/]", piece) and _above(_in_copy(piece, at, mine)):
+                    return piece
+    return ""
+
+
+def _names_elsewhere(command: str, project: str, runtime: Path | str, own: str | None,
+                     cwd: str | None, worktrees: Iterable[str]) -> str:
+    """The place outside its copy a command run in it names, "" for none: by its full path, a
+    copies folder of KOLONİ's (another agent's copy, KOLONİ's records of a copy - `folders`) or a
+    worktree of the project, its own folder aside - the copy's own tree (`own`) taken out of the
+    line first; or above the tree by `..` (`_climbs_out`). `own` None: the copy is not made yet,
+    and every copy is another's."""
+    written = os.path.normcase(command)
+    if own is not None:
+        written = _spellings(own).sub("", written)
+    here = os.path.normcase(os.path.realpath(project))
+    for place in [*map(str, folders(Path(runtime))), *(
+            one for one in worktrees if os.path.normcase(os.path.realpath(one)) != here)]:
+        if _spellings(place).search(written):
+            return place
+    return _climbs_out(command, cwd, own)
+
+
+def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
+                own: Path | str | None = None, cwd: str | None = ".",
+                worktrees: Iterable[str] = ()) -> str:
     """Why a command an agent runs in its working copy is asked at every level, Full auto
     too, and refused in a turn nobody watches; "" where there is none. It names `project`,
     the project's folder (K-kopya-istem) - KOLONİ's own `runtime` in it is not the project's
-    (the copy, a skill's script: KOLONİ on its own repository). Or `linked`: the copy has
+    (the copy, a skill's script: KOLONİ on its own repository). It names a place outside its
+    copy (K-koordinasyon, `_names_elsewhere`: `own`, the copy's tree, None before it is made;
+    `cwd`, where in it the command runs, None not known; `worktrees`, the project's). It stops
+    programs by their name (`KILLS_BY_NAME`), in any part. Or `linked`: the copy has
     the project's dependency folders linked in, and a delete there - or what empties such a
     folder to make it anew, `_REBUILDERS` - may go through a link into the project's own
     (K-70-junction), in a shell too (`cmd /c rd /s x`).
-    shortcut: by the path as written, either slash, in any case on Windows; `..` out of the
-    copy, a short name (`PROJ~1`), a variable or a script that names it is not seen - nor a
-    delete in a script, or by a program `_through_links` does not list."""
+    shortcut: by the path as written, either slash, in any case on Windows; a short name
+    (`PROJ~1`), a variable or a script that names it is not seen - nor a delete in a script,
+    or by a program `_through_links` does not list."""
     written = _spellings(str(runtime)).sub("", os.path.normcase(command))
     if _spellings(project).search(written):
         return NAMES_PROJECT.format(root=project)
+    own = str(own) if own is not None else None
+    if elsewhere := _names_elsewhere(command, project, runtime, own, cwd, worktrees):
+        return OUT_OF_COPY.format(path=elsewhere)
+    if any(_kills_by_name(_program(words[0]), words[1:])
+           for words in _commands_in(command, at=_BLOCKS) if words):
+        return KILLS_BY_NAME
     for part in _PARTS.split(command) if linked else ():
         words = [word.strip("'\"") for word in _words(part.strip())]
         if words and _in_a_shell(part):
@@ -2422,13 +2545,14 @@ def _reasons(command: str, instructions: bool) -> Iterator[str]:
 HarmClass = Literal["", "soft", "always"]
 # K-yargic: what a check of the user's own words may let run - any other sentence (one added
 # later too) is asked as before.
-_SOFT = re.compile(r"(?:Deletes|Empties|Overwrites or deletes|Throws away|"
-                   r"It reaches beyond this machine|It sends work off this machine)\b")
+_SOFT = re.compile(r"(?:Deletes|Empties|Overwrites or deletes|Throws away|Stops programs by their"
+                   r" name|It reaches beyond this machine|It sends work off this machine)\b")
 
 
 def harm_class(command: str, instructions: bool = True) -> HarmClass:
     """K-yargic: whether a harm (`harms`) is one a check of the user's own words may let run
-    ("soft": each part only deletes, throws away or sends off, `_SOFT`) or one asked at every
+    ("soft": each part only deletes, throws away, stops programs by name or sends off, `_SOFT`;
+    from a copy stopping by name is asked at every level, `copy_reason`) or one asked at every
     level ("always": any other sentence, a secret, `.koloni`, a file that steers later turns, a
     path out of the folder, a line handed to another program); "" for no harm. Every part is
     looked at, not the first sentence `harms` gives: `rm -rf build && cat .env` deletes first,
@@ -2450,7 +2574,8 @@ def _asked_anyway(command: str, instructions: bool) -> bool:
     program (`runs_another`: a variable set before it, `xargs`, `sudo`, a shell), a path out of
     the folder in any word of the line, its program's own too (`_leads_out`), a glob on a
     dot-name (`.k*`, `.[k]oloni`, `.env*`), or a harm over all of the folder (`_sweeps`)."""
-    words = re.split(r"[\s;&|(){}]+", command)
+    words = re.split(r"[\s;&|(){}]+", _TASKKILL.sub(
+        lambda part: _SWITCH.sub(" ", part[0]), command))
     return bool(names_secret(command) or names_secret(_as_read(command).replace("@", " "))
                 or names_koloni(command) or standing_asked(command, instructions)
                 or runs_another(command) or any(map(_leads_out, words))
@@ -2459,6 +2584,10 @@ def _asked_anyway(command: str, instructions: bool) -> bool:
 
 # A glob or a bracket on a name that starts with a dot: it may reach `.git`, `.koloni` or a secret.
 _DOT_GLOB = re.compile(r"(?:^|[\\/=@,:])\.[^\\/]*[*?\[]")
+# taskkill's part of a line, and its switches (`/IM`, `/F`, Git Bash's `//PID`): no path out of
+# the folder (`_asked_anyway`).
+_TASKKILL = re.compile(r"(?i)\btaskkill(?:\.exe)?\b[^;&|(){}\r\n]*")
+_SWITCH = re.compile(r"(?<!\S)/{1,2}[A-Za-z]+(?!\S)")
 
 
 def _sweeps(command: str) -> bool:

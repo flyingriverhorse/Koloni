@@ -323,6 +323,7 @@ from app.commands import (
     OutputMask,
     copy_reason,
     hide_keys,
+    installs,
     search_reason,
     sends_canary,
     spellings_of,
@@ -3816,7 +3817,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if kept := self._keeps_out(ctx, command=command, what=f"run {command}"):
             raise _GateRefused(kept)
         in_copy = ws.root != Path(ctx.folder).resolve()
-        why = (copy_reason(command, bool(ws.links), ctx.folder, self.settings.runtime_root)
+        why = (self._in_copy_asks(ctx, command, bool(ws.links), ws.root, ".")
                if in_copy else "") or self._branch_asks(ctx, command, in_copy) or (
             self._night_asks(ctx, command, None, str(ws.root)))
         asks = bool(why) and (ask or gated == "ask")
@@ -4576,6 +4577,32 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._set_call(cid, call_id, status=status, result=output, ended_at=now())
         return status, output
 
+    def _copy_linked(self, ctx: Ctx, owner: str | None) -> bool:
+        """Whether the working copy of `owner`'s line has the project's dependency folders linked
+        in (`copies.LINKED`) - or will: its first change or command makes it.
+        shortcut: such a folder deeper in the project (web/.venv) is not foreseen for the first
+        command; look for it there too if that is ever needed."""
+        made = self._copies.get(owner) if owner else None
+        return bool(made.links) if made else _links_in_copy(ctx.model) and any(
+            (Path(ctx.folder) / name).is_dir() for name in copies.LINKED)
+
+    def _in_copy_asks(self, ctx: Ctx, command: str, linked: bool, own: Path | None,
+                      cwd: str | None) -> str:
+        """Why a command in a working copy is asked at every level (`copy_reason`): `own` its
+        tree (None: not made yet), `cwd` where in it the command runs (None: not known) - beside
+        the project's worktrees as git listed them as the turn began (`_git_start`)."""
+        seen = self._git_at.get(ctx.run_id) or {}
+        return copy_reason(command, linked, ctx.folder, self.settings.runtime_root, own, cwd,
+                           [one["path"] for one in seen.get("worktrees") or []])
+
+    def _shared_install(self, ctx: Ctx, command: str, linked: bool) -> str:
+        """K-koordinasyon: why an agent's command in a copy with the project's dependency folders
+        linked in (`linked`) is asked at every level in a turn the user watches - it installs
+        into them (`installs`): they are the project's own, and every agent's. "" otherwise: a
+        trigger's turn keeps its own leave, a night's job its own rule (`_night_asks`), and the
+        project's check the user set runs as theirs (`_run_in_copy`)."""
+        return installs(command) if linked and self._watched(ctx.run_id) else ""
+
     async def _command_call(self, ctx: Ctx, call_id: str, ws: Workspace,
                             request: ToolCallRequest, args: dict) -> tuple[str, str]:
         """run_command and run_skill_script, for `_run_call`."""
@@ -4586,13 +4613,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             args, unasked = self._skill_script(ctx, args)
         refused = None
         # Where it runs in a working copy, why it is asked at every level there
-        # (`copy_reason`) - for one this command makes, with the links it will have.
-        # shortcut: such a folder deeper in the project (web/.venv) is not foreseen
-        # for the first command; look for it there too if that is ever needed.
+        # (`_in_copy_asks`) - for one this command makes, with the links it will have.
         owner = self._works_in(ctx)
         made = self._copies.get(owner) if owner else None
-        linked = bool(made.links) if made else _links_in_copy(ctx.model) and any(
-            (Path(ctx.folder) / name).is_dir() for name in copies.LINKED)
+        linked = self._copy_linked(ctx, owner)
         planned = plan_command(ws, args)
         at = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"
         if kept := self._keeps_out(ctx, command=planned.command, cwd=planned.cwd_rel,
@@ -4602,9 +4626,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise ToolError(kept)
         # (Web off first: its card offers no rule, which would not cover it.)
         web_off = web_off_reason(planned.command, self._off())
-        in_a_copy = web_off or (copy_reason(
-            planned.command, linked, ctx.folder, self.settings.runtime_root) if owner
-            else "") or self._branch_asks(ctx, planned.command, bool(owner))
+        in_a_copy = web_off or (self._in_copy_asks(
+            ctx, planned.command, linked, made.root if made else None, planned.cwd_rel) if owner
+            else "") or self._branch_asks(ctx, planned.command, bool(owner)) or (
+            self._shared_install(ctx, planned.command, bool(owner) and linked))
         night = "" if in_a_copy else self._night_asks(
             ctx, planned.command, planned.cwd_rel, None if owner else ctx.root)
         # K-yargic: (not a skill's script the user lets run unasked: nobody is asked of it)
