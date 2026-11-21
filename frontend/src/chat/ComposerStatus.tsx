@@ -40,7 +40,7 @@ export function ComposerStatus({ conv, compact, running, onStop, model }: Props)
   )
 }
 
-/** The line's words: what it does is cut first where the line is too narrow; its facts stay. */
+/** The line's words: where the line is too narrow its facts go first, the last first, and only then is what it does cut. */
 function Said({ status }: { status: ChatStatus }) {
   if (status.tone === 'running')
     return (

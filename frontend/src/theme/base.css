@@ -200,10 +200,26 @@ textarea {
   vertical-align: 1px;
 }
 
-/* What is known of work under way, after what it does (0.1.5): kept whole while the words before it are cut. */
+/* What is known of work under way, after what it does (0.1.5): it takes only the room what it does leaves, so it gives
+   way first - its pieces from the last (the tier, then the tokens, then the time), each whole: a piece with no room
+   wraps under the line, out of sight. What it does is cut only once all of them are gone. */
 .live-facts {
-  flex: none;
+  display: inline-flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: max-content;
+  height: 1lh;
+  overflow: hidden;
   white-space: pre;
+  /* (Not on a baseline: once every piece is gone, the empty first one would lower it.) */
+  align-self: center;
+}
+
+/* (An empty first piece a line tall: the time too goes under the line whole, not cut.) */
+.live-facts::before {
+  content: '';
+  height: 1lh;
 }
 
 .alert {
@@ -1760,6 +1776,22 @@ a.view-run {
   font-weight: var(--weight-title);
 }
 
+/* (Its name opens the Lead's window: a button that reads as the name.) */
+button.turn-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+button.turn-name:hover {
+  text-decoration: underline;
+}
+
 /* (Too narrow for both, the model gives way first: who answered is cut last.) */
 .turn-model {
   flex-shrink: 100;
@@ -1774,6 +1806,20 @@ a.view-run {
 
 .turn-head time {
   color: var(--faint);
+  font-size: var(--text-meta);
+}
+
+/* Copilot's own reason for the model its auto or fusion picked: quiet, under the head by its name, two lines at most -
+   whole in its tooltip. */
+.turn-why {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-width: 0;
+  margin: -6px 0 0 24px;
+  overflow: hidden;
+  color: var(--muted);
   font-size: var(--text-meta);
 }
 
@@ -2195,7 +2241,7 @@ a.view-run {
   background: var(--accent);
 }
 
-/* What it does is cut first; how long, its tokens and tier, and how many wait stay in sight. */
+/* What it does is cut last, after its facts (`.live-facts`); how many wait stays in sight. */
 .composer-status-what {
   min-width: 0;
   overflow: hidden;
@@ -2936,13 +2982,7 @@ a.view-run {
   border-top: 1px solid var(--border);
 }
 
-/* Plan first beside the level, its state in a word; on, it is lit. Auto-read lit while it is on. */
-.composer-plan-first span {
-  color: var(--faint);
-}
-
-.composer-plan-first[aria-pressed='true'],
-.composer-plan-first[aria-pressed='true'] span,
+/* Auto-read lit while it is on. */
 .composer-auto-read[aria-pressed='true'] {
   color: var(--accent);
 }
@@ -2966,10 +3006,13 @@ a.view-run {
   display: none;
 }
 
-/* The model, chosen on the line over the box while the chat is ready. */
+/* The model, chosen on the line over the box. Where the line is narrow it gives way after what is known of the work
+   (it takes its room first: `.live-facts` grow by 1) and before what it does: it takes only the room that leaves, down
+   to its icon (24px: the icon and its padding). */
 .composer-status .model-picker {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 1000 1 0;
+  min-width: 24px;
+  max-width: max-content;
 }
 
 .composer-status .model-picker-button {
@@ -2989,34 +3032,32 @@ a.view-run {
   display: none;
 }
 
-/* Narrower: "Chat settings" is "Settings", and what waits "2 wait". */
+/* While the row under the box has no room for all its words (measured: `useTight`), "Chat settings" is "Settings", and
+   what waits "2 wait". */
+.composer-below[data-tight] :is(.sheet-long, .composer-waits-long) {
+  display: none;
+}
+
+.composer-below[data-tight] :is(.sheet-short, .composer-waits-short) {
+  display: inline;
+}
+
+/* Narrower: the model's lead words go (its tooltip and its window still say them). */
 @container composer (max-width: 450px) {
-  .sheet-long,
-  .composer-waits-long {
-    display: none;
-  }
-
-  .sheet-short,
-  .composer-waits-short {
-    display: inline;
-  }
-
-  /* (Its tooltip and its window still say it.) */
   .model-picker-lead {
     display: none;
   }
 }
 
-/* Narrowest (a 340-380px chat): New topic, Settings and More are their icons, with their names and tooltips; Send and
-   Queue too; Plan first is in the level's menu only; the model on the line over the box is its arrow alone (its name in
-   its tooltip); the other place a message could go takes less. The level's name always stays. */
+/* Narrowest (a 340-380px chat): New topic and More are their icons, with their names and tooltips - Settings keeps its
+   word -; Send and Queue too; the model on the line over the box is its arrow alone (its name in its tooltip); the other
+   place a message could go takes less. The level's name always stays. */
 @container composer (max-width: 360px) {
-  .composer-plan-first,
   .composer-status .model-picker-label {
     display: none;
   }
 
-  .composer-below .composer-words,
+  .composer-below .composer-words:not(.chat-sheet-button *),
   .composer-say {
     position: absolute;
     width: 1px;
@@ -3025,7 +3066,7 @@ a.view-run {
     clip-path: inset(50%);
   }
 
-  .composer-below .composer-icon {
+  .composer-below .composer-icon:not(.chat-sheet-button *) {
     display: inline;
   }
 

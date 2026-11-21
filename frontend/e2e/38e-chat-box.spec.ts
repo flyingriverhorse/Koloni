@@ -319,22 +319,45 @@ for (const width of [480, 340])
     if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-${width}`)
   })
 
-// Full auto while a turn runs: Stop over the box, Queue in its row, and each row one line inside the chat.
-for (const width of [480, 340])
-  test(`Full auto while a turn runs in a chat ${width}px wide: Stop and Queue, and each row one line`, async ({ page }) => {
-    await chatWide(page, width)
-    const chat = chatOf(page)
-    await level(page, 'full_auto')
-    await page.getByLabel('Message').fill('run slow.py')
-    await page.getByRole('button', { name: 'Send' }).click()
+/** A question left waiting in another chat, so that this one has something waiting elsewhere; its chat's id. */
+async function askElsewhere(page: Page) {
+  const other = await openFreshConversation(page)
+  await page.getByLabel('Message').fill('ask a long choice, r56')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(chatOf(page).getByRole('radio', { name: 'Stop here' })).toBeAttached({ timeout: 15_000 })
+  return other
+}
+
+/** Answers what `askElsewhere` left waiting: no spec after is left with it. */
+async function answerElsewhere(page: Page, other: string) {
+  for (const asked of (await (await page.request.get(`/api/conversations/${other}`)).json()).questions ?? [])
+    if (asked.status === 'pending') await page.request.post(`/api/questions/${asked.id}/answer`, { data: { answer: 'Stop here' }, headers: OWN })
+}
+
+// Full auto while a turn runs, a question waiting in another chat: Stop over the box, Queue in its row, and each row one
+// line inside the chat - what waits elsewhere in fewer words where the row has no room for more; Settings keeps its word.
+for (const width of [520, 480, 420, 340])
+  test(`Full auto while a turn runs in a chat ${width}px wide, a question waiting elsewhere: Stop and Queue, and each row one line`, async ({ page }) => {
+    test.setTimeout(60_000) // (two turns)
+    const other = await askElsewhere(page)
     try {
+      await chatWide(page, width)
+      const chat = chatOf(page)
+      await level(page, 'full_auto')
+      await page.getByLabel('Message').fill('run slow.py')
+      await page.getByRole('button', { name: 'Send' }).click()
       await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible()
       await expect(chat.getByRole('button', { name: 'Queue' })).toBeVisible()
+      await expect(chat.getByRole('button', { name: /^Open Ready for you: \d+ more waits? elsewhere$/ })).toBeVisible()
+      await expect(chat.getByRole('button', { name: 'This chat’s settings' })).toHaveText(/Settings/)
+      expect((await box(chat.locator('.chat-sheet-button .composer-words'))).width, 'Settings in words').toBeGreaterThan(30)
       await oneLine(chat)
       if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-full-auto-running-${width}`)
     } finally {
       // (Stopped, so that nothing runs on into the next test.)
-      if (await chat.getByRole('button', { name: 'Stop' }).isVisible()) await chat.getByRole('button', { name: 'Stop' }).click()
+      const stop = chatOf(page).getByRole('button', { name: 'Stop' })
+      if (await stop.isVisible()) await stop.click()
+      await answerElsewhere(page, other)
     }
   })
 
@@ -370,10 +393,7 @@ for (const width of [574])
   test('while a turn runs in the narrowest chat nothing of the row is past its end', async ({ page }) => {
     test.setTimeout(60_000) // (two turns)
     // A question waits in another chat; answered at the end, it is left to no spec after.
-    const other = await openFreshConversation(page)
-    await page.getByLabel('Message').fill('ask a long choice, r56')
-    await page.getByRole('button', { name: 'Send' }).click()
-    await expect(chatOf(page).getByRole('radio', { name: 'Stop here' })).toBeAttached({ timeout: 15_000 })
+    const other = await askElsewhere(page)
     try {
       await page.setViewportSize({ width, height: 900 })
       await openFreshConversation(page)
@@ -390,7 +410,6 @@ for (const width of [574])
       expect((await box(chat.locator('.chat-pane'))).height).toBeGreaterThanOrEqual(100)
       await reject(chat)
     } finally {
-      for (const asked of (await (await page.request.get(`/api/conversations/${other}`)).json()).questions ?? [])
-        if (asked.status === 'pending') await page.request.post(`/api/questions/${asked.id}/answer`, { data: { answer: 'Stop here' }, headers: OWN })
+      await answerElsewhere(page, other)
     }
   })

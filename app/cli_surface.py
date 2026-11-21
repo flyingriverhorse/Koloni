@@ -2,6 +2,7 @@
 with its version (cli-denetim spec §6). A version KOLONİ's protocol use was not measured
 with is asked, once, the request its protocol starts with; one that does not answer it runs
 the older way (its talker: KOLONİ's own tools, its own off). Never a reason not to run.
+Copilot says its version and protocol itself (`status.get`): it is judged by those.
 
 `cli_surface.json` holds, per CLI, the versions measured and the names KOLONİ relies on
 (the second for `scripts/cli-surface.ps1`)."""
@@ -18,22 +19,22 @@ from pathlib import Path
 
 from app.model_agy import BRIDGE_FROM
 from app.model_cli import _dict
-from app.model_native import HOOK, PROTOCOL, _framed
+from app.model_native import HOOK, PROTOCOLS
 
 log = logging.getLogger(__name__)
 
 SURFACE = json.loads(Path(__file__).with_name("cli_surface.json").read_text(encoding="utf-8"))
-# The CLIs with a first request to ask: agy has no protocol, so none is known.
+# The CLIs with a version to judge (`note`).
 KINDS = {"codex_cli": "codex", "claude_cli": "claude", "copilot_cli": "copilot"}
 SECONDS = 30.0  # from its start to its answer (Claude Code's own wait: START_SECONDS)
-# What each says first in its protocol, as its run says it (`_converse`, `_control`).
+# What each says first in its protocol, as its run says it (`_converse`, `_control`); agy has
+# no protocol, Copilot says its own (`_copilot`).
 FIRST = {
     "codex": {"jsonrpc": "2.0", "id": 1, "method": "initialize",
               "params": {"clientInfo": {"name": "koloni", "version": "0"}}},
     "claude": {"type": "control_request", "request_id": "init", "request": {
         "subtype": "initialize",
         "hooks": {"PreToolUse": [{"matcher": None, "hookCallbackIds": [HOOK]}]}}},
-    "copilot": {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}},
 }
 
 # shortcut: kept while KOLONİ runs, not on disk: after a restart each new version is asked
@@ -61,6 +62,8 @@ async def checked(client):
     """The client to run instead of `client` (a CLI about to work with tools of its own): itself,
     or its talker where its version was not measured and its first request went unanswered."""
     command = client.command
+    if command == "copilot":
+        return await _copilot(client, (command, client._executable or ""))
     if command not in FIRST and command != "agy":
         return client
     whose = (command, client._executable or "")
@@ -100,6 +103,30 @@ async def checked(client):
     return client.talker()
 
 
+async def _copilot(client, whose: tuple[str, str]):
+    """Copilot by what its own `status.get` says, as KOLONİ starts it: a protocol KOLONİ speaks
+    on a version measured with it (protocol 3), or with KOLONİ's hook (4), runs natively; any
+    other - one that does not say too - runs the old way, and the Models page says why."""
+    told = await client._status()
+    version, protocol = told.get("version"), told.get("protocolVersion")
+    if not isinstance(version, str) or not version.strip() or type(protocol) is not int:
+        _said[whose] = f"{SURFACE['copilot']['label']} did not say its version; running the old way"
+        return client.talker()
+    label, version = SURFACE["copilot"]["label"], version.strip()
+    known = measured("copilot", version)
+    if protocol in PROTOCOLS and (protocol == 4 or known):
+        if known:
+            _said.pop(whose, None)
+        else:
+            _said[whose] = f"{label} {version} not measured with KOLONİ"
+        return client
+    _said[whose] = f"{label} {version} " + (
+        "not measured" if protocol in PROTOCOLS
+        else "is newer than KOLONİ knows" if protocol > max(PROTOCOLS)
+        else "speaks a protocol KOLONİ does not know") + "; running the old way"
+    return client.talker()
+
+
 async def _shakes(client) -> bool:
     """Whether it answers its protocol's first request, started with its run's line in an
     empty folder (no project of anyone's, so none of a project's hooks), and ended after.
@@ -120,8 +147,7 @@ async def _shakes(client) -> bool:
         drained = asyncio.ensure_future(errors.read())  # so that it cannot fill up
         body = json.dumps(FIRST[client.command]).encode("utf-8")
         with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-            stdin.write(b"Content-Length: %d\r\n\r\n" % len(body) + body
-                        if client.command == "copilot" else body + b"\n")
+            stdin.write(body + b"\n")
             await stdin.drain()
         return await asyncio.wait_for(_answer(client.command, stdout), SECONDS)
     finally:
@@ -134,11 +160,6 @@ async def _shakes(client) -> bool:
 
 async def _answer(command: str, stdout: asyncio.StreamReader) -> bool:
     """Whether its answer to the first request is the one its run goes on from."""
-    if command == "copilot":
-        while (told := await _framed(stdout)) is not None:
-            if told.get("id") == 1 and "method" not in told:
-                return _dict(told.get("result")).get("protocolVersion") == PROTOCOL
-        return False
     async for raw in stdout:
         try:
             told = _dict(json.loads(raw))

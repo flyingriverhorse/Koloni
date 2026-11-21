@@ -254,7 +254,7 @@ function copyNote(merge: Merge, name: string, kept: boolean, branch: boolean) {
     <div className="muted cmd-approval-note">
       {kept ? (
         <>
-          Its working copy is kept in <span className="mono">{merge.kept_in}</span>. Discard deletes that folder.
+          Its working copy is kept in <span className="mono cmd-approval-path">{merge.kept_in}</span>. Discard deletes that folder.
         </>
       ) : (
         `${name} made these in a working copy of its own. Until you decide it holds these files: another agent that wants one waits.`

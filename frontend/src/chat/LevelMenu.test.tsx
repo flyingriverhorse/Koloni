@@ -29,6 +29,13 @@ test('the level is three comb cells and its name; a click opens each level with 
   expect(button).toHaveFocus()
 })
 
+test('with Plan first on, the level says so on its button - "Auto-edit · plan", named "Plan first on" -; off, nothing more', () => {
+  const { rerender } = render(<LevelMenu mode="auto_edit" onMode={vi.fn()} planFirst onPlanFirst={vi.fn()} />)
+  expect(screen.getByRole('button', { name: 'Permission level: Auto-edit files, Plan first on' })).toHaveTextContent(/^Auto-edit · plan$/)
+  rerender(<LevelMenu mode="auto_edit" onMode={vi.fn()} planFirst={false} onPlanFirst={vi.fn()} />)
+  expect(screen.getByRole('button', { name: 'Permission level: Auto-edit files' })).toHaveTextContent(/^Auto-edit$/)
+})
+
 test('without a conversation to set it on, the menu has no Plan first', async () => {
   render(<LevelMenu mode="ask" onMode={vi.fn()} planFirst={false} />)
   await userEvent.click(screen.getByRole('button', { name: 'Permission level: Ask before changes' }))

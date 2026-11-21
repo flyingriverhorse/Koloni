@@ -38,8 +38,8 @@ On the canvas, **Teams for this chat** chooses how the chat uses teams:
 | **No teams** | "As before: it calls any role itself." |
 
 **Use for new chats in this project** keeps the choice for the project's new chats (Settings › This
-project → **New chats start with** shows and changes it). **Plan first** is the switch under the message
-box, not here. While a team runs,
+project → **New chats start with** shows and changes it). **Plan first** is the switch in the permission level's
+menu under the message box, not here. While a team runs,
 **Stop** stops it and **Finish now** ends it with what it has.
 
 ### A team that was not opened

@@ -21,12 +21,13 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const notes = chat.locator('.channel-message')
+  const asks = chat.getByRole('form', { name: 'Orchestrator asks' })
 
   await page.getByLabel('Message').fill('use the notebook')
   await page.getByRole('button', { name: 'Send' }).click()
 
   // Both reviewers have noted and reported; the lead asks before it reports, so the turn is still at work.
-  await expect(chat.getByText('Anything to add before I report?')).toBeVisible({ timeout: 15_000 })
+  await expect(asks.getByText('Anything to add before I report?')).toBeVisible({ timeout: 15_000 })
   // What the lead was handed from the notebook is not chat.
   await expect(chat.getByText('hello.py is mine.')).toHaveCount(0)
 
@@ -56,7 +57,8 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   // The lead goes on once it is answered, and is handed your note before its next step.
   // The reviewers finished before it was written: they never read it, and it says so.
   await chat.getByRole('tab', { name: 'Chat' }).click()
-  await chat.getByRole('button', { name: 'no', exact: true }).click()
+  await asks.getByRole('radio', { name: 'no', exact: true }).check()
+  await page.keyboard.press('Enter')
   await expect(chat.getByText('The notes are in.')).toBeVisible()
   await expect(chat.getByText('Leave slow.py alone.')).toHaveCount(0)
   await tab.click()

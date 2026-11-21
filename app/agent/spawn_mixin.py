@@ -2021,10 +2021,12 @@ class SpawnMixin:
         if entry is None:
             return None
         # Only a name its provider is known by: not one a CLI's settings file gave, and
-        # not the words that stand in for "its own default". One Copilot's auto picked: auto.
-        asked = "auto" if earlier.model_from == "auto" else earlier.model
+        # not the words that stand in for "its own default". One Copilot's auto (or fusion)
+        # picked: auto (fusion) again.
+        routed = earlier.model_from in ("auto", "fusion")
+        asked = earlier.model_from if routed else earlier.model
         named = (
-            asked if asked and earlier.model_from in (None, "auto")
+            asked if asked and (routed or earlier.model_from is None)
             and asked not in NOT_A_MODEL and entry.allows(asked) else None
         )
         try:

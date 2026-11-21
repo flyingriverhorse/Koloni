@@ -8,12 +8,13 @@ export const TIER_NAMES: Record<Tier, string> = { strongest: 'Strongest', balanc
 const COMPACT = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
 
 /**
- * What is known of work under way, in one line, as Claude Code says it: "12s · ↓ 1.2k tokens · Fast" - how long since
- * `since`, the tokens written, the tier or model. What is not known is left out, never guessed; nothing known, ''.
+ * What is known of work under way, piece by piece, as Claude Code says it: "12s", "↓ 1.2k tokens", "Fast" - how long
+ * since `since`, the tokens written, the tier or model. What is not known is left out, never guessed; nothing known, [].
  */
-export function liveFacts(now: number, since: string | null, wrote: number | null, kind: string | null): string {
+export function liveFactList(now: number, since: string | null, wrote: number | null, kind: string | null): string[] {
   // (This browser's clock a little behind the server's: no time has passed, not an unknown one.)
-  return [since && took(Math.max(0, now - Date.parse(since))), wrote !== null && `↓ ${COMPACT.format(wrote).toLowerCase()} tokens`, kind].filter(Boolean).join(' · ')
+  const pieces = [since && took(Math.max(0, now - Date.parse(since))), wrote !== null && `↓ ${COMPACT.format(wrote).toLowerCase()} tokens`, kind]
+  return pieces.filter((piece): piece is string => Boolean(piece))
 }
 
 /** An agent's tier by its name, else its model's (`runModel`: its turn's, for a lead from before models were per agent); null: neither known. */

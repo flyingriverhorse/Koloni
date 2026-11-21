@@ -30,7 +30,8 @@ Some settings make one more model request each time. Each says so where you swit
 - Use a model server on your own machine for work that does not need a large model: it spends no money.
 - On GitHub Copilot CLI, give the provider a model. Copilot's `auto` picks one for each request; with no
   model and Medium thinking, Copilot's default spent 7.12 AI credits for the same short answer that `auto`
-  answered for 0.18 (measured once, 7 Nov 2026, Copilot CLI 1.0.105). See
+  answered for 0.18 (measured once, 7 Nov 2026, Copilot CLI 1.0.105). Copilot Fusion (`fusion`, and its
+  **High** and **Max** routing) runs each turn on several models: it costs more than `auto`. See
   [GitHub Copilot CLI](../models/setup-cli.md#github-copilot-cli).
 
 See [Usage and budgets](usage.md).

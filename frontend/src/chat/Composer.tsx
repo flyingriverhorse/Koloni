@@ -17,7 +17,6 @@ import { Compare, type Second } from './Compare'
 import { ComposerStatus } from './ComposerStatus'
 import { asCode } from './pastedCode'
 import { LevelMenu } from './LevelMenu'
-import { PLAN_FIRST } from './levels'
 import { type SlashCommand, useSlash } from './slashCommands'
 import { useAttach } from './useAttach'
 
@@ -594,7 +593,7 @@ function SlashMenu({ id, shown, active, onChoose }: { id: string; shown: SlashCo
   )
 }
 
-/** The box's one row (0.1.5): 📎, the level's comb, Plan first, then Auto-read, Dictate and Send (Queue while a turn runs). */
+/** The box's one row (0.1.5): 📎, the level's comb (Plan first is in its menu), then Auto-read, Dictate and Send (Queue while a turn runs). */
 function ComposerBar(p: {
   hidden: boolean
   attach: ReactNode
@@ -612,12 +611,6 @@ function ComposerBar(p: {
     <div className="composer-bar" hidden={p.hidden}>
       {p.attach}
       <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} />
-      {/* The same setting as the level's menu has: one click here. */}
-      {p.onPlanFirst && (
-        <button type="button" className="btn btn-small composer-plan-first" aria-pressed={p.planFirst} title={`Plan first: ${PLAN_FIRST}`} onClick={() => p.onPlanFirst?.(!p.planFirst)}>
-          Plan first <span aria-hidden>{p.planFirst ? 'on' : 'off'}</span>
-        </button>
-      )}
       <span className="composer-actions">
         <AutoRead />
         {p.dictate}
@@ -646,8 +639,9 @@ function ComposerBelow(p: {
   children: ReactNode
 }) {
   const named = p.topic !== null && p.topic !== 'new' ? p.topic : null
+  const row = useTight()
   return (
-    <div className="composer-below" hidden={p.hidden}>
+    <div ref={row} className="composer-below" hidden={p.hidden}>
       {p.workspace}
       {/* The next message goes on with the topic it is in; pressed, it starts a new one (pressed again: it goes on). */}
       {named && (
@@ -677,6 +671,30 @@ function ComposerBelow(p: {
       <Waits waits={p.waits} />
     </div>
   )
+}
+
+/**
+ * While the row under the box has no room for all its words, it is `data-tight`: "Chat settings" is "Settings" and what
+ * waits "2 wait". Measured, not guessed from its width: after each render (what is in it may have changed) and as it is
+ * resized. (Only the row is watched: its fewer words do not change its own size.)
+ */
+function useTight() {
+  const row = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => fit(row.current))
+  useLayoutEffect(() => {
+    const at = row.current
+    if (!at || typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(() => fit(at))
+    watch.observe(at)
+    return () => watch.disconnect()
+  }, [])
+  return row
+}
+
+function fit(row: HTMLElement | null) {
+  if (!row) return
+  delete row.dataset.tight
+  if (row.scrollWidth > row.clientWidth) row.dataset.tight = ''
 }
 
 /** What waits for you outside this chat (tek-ev §1): its number and a few words, which open Ready for you. */

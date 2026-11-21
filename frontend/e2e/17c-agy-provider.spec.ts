@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test, type APIRequestContext } from './fixtures'
-import { OWN, openFreshConversation, openAgentFold } from './helpers'
+import { OWN, openFreshConversation, openAgentFold, windowFromPanel } from './helpers'
 import { E2E_ROOT, FAKE_AGY, PROJECT_DIR } from './paths.mjs'
 
 /** The stand-in provider is taken off the list, however many of it there are. */
@@ -54,8 +54,9 @@ test.describe('with the agy CLI as a provider that only reads', () => {
     await expect(lead).toContainText('agy · gemini-stand-in')
     await expect(lead.locator('.node-body > *').last()).toHaveText('2 tools')
 
-    // Its window is open: it says that it only reads (why, under Details), and shows the refused step as refused.
-    const window = page.getByRole('region', { name: 'Agent window' })
+    // Its window, opened from its node: it says that it only reads (why, under Details), and shows the refused step as refused.
+    await lead.locator('.node-title').click()
+    const window = await windowFromPanel(page)
     await expect(window.getByText('reads only', { exact: true })).toBeVisible()
     await expect((await openAgentFold(window, 'Details')).getByRole('note')).toContainText('Reads only: on this provider it works with the CLI’s own tools')
     const steps = await openAgentFold(window, 'Every step as recorded')

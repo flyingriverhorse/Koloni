@@ -1,5 +1,5 @@
 import { expect, type Page, test } from './fixtures'
-import { contrasts, level, openFreshConversation, say } from './helpers'
+import { contrasts, level, openFreshConversation, say, shot } from './helpers'
 
 // The chat, round 2 (0.1.5): VS Code's sizes, a turn without a frame, its steps folded at its end. No model plays a turn
 // of many steps with a sub-agent: one real turn gives a real record, and the page is handed it with those steps in it.
@@ -71,6 +71,125 @@ test('while a command runs the status line over the box and the Orchestrator’s
   await expect(status).toHaveText(/^Orchestrator is ready/)
 })
 
+/**
+ * A line of work narrowed from 800 px, where all of it fits, down to 60, a step at a time (in one go: its clock does not tick
+ * meanwhile): at each, which of its facts are in sight, whether each is whole or out of sight, how wide what it does is,
+ * the line's height, and the model's name over the box (its width and the width it needs). `whole`: what it does with
+ * room for all; `floor`: 12 characters of its font.
+ */
+function squeeze(line: Element) {
+  const el = line as HTMLElement
+  const what = el.querySelector<HTMLElement>('.composer-status-what, .node-live-what')!
+  const facts = el.querySelector<HTMLElement>('.live-facts')!
+  const pieces = [...facts.children] as HTMLElement[]
+  const label = el.querySelector<HTMLElement>('.model-picker-label')
+  const probe = what.appendChild(Object.assign(document.createElement('span'), { style: 'display:inline-block;width:12ch' }))
+  const floor = probe.getBoundingClientRect().width
+  probe.remove()
+  const state = () => {
+    const box = facts.getBoundingClientRect()
+    return {
+      width: Math.round(el.getBoundingClientRect().width),
+      what: what.getBoundingClientRect().width,
+      height: Math.round(el.getBoundingClientRect().height),
+      shown: pieces.filter(p => p.getBoundingClientRect().top < box.bottom - 0.5).map(p => p.textContent!.trim()),
+      cut: pieces.filter(p => p.getBoundingClientRect().top < box.bottom - 0.5 && p.getBoundingClientRect().right > box.right + 0.5).map(p => p.textContent!.trim()),
+      label: label && [label.getBoundingClientRect().width, label.scrollWidth],
+    }
+  }
+  const natural = state()
+  el.style.width = '2000px'
+  const whole = what.getBoundingClientRect().width
+  const all = pieces.map(p => p.textContent!.trim())
+  const steps = []
+  for (let width = 800; width >= 60; width -= 4) {
+    el.style.width = `${width}px`
+    steps.push(state())
+  }
+  el.style.width = ''
+  return { natural, whole, floor, all, steps }
+}
+
+test('a line of work gives up its tier, then its tokens, then its time - each whole - before what it does is cut: on the canvas and over the box', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openFreshConversation(page)
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await level(page, 'full_auto')
+  await page.getByLabel('Message').fill('run slow.py')
+  await page.getByRole('button', { name: 'Send' }).click()
+  const status = chat.locator('.composer-status')
+  const node = page.locator('.react-flow__node-agent .node-now')
+  await expect(status).toContainText(/python -u slow\.py · \d+s/, { timeout: 15_000 })
+  await expect(node).toContainText(/python -u slow\.py · \d+s/)
+  for (const line of [status, node]) {
+    const { natural, whole, floor, all, steps } = await line.evaluate(squeeze)
+    const said = JSON.stringify({ natural, whole, floor, all, steps })
+    // Time first, then what else is known: two at least here.
+    expect(all.length, said).toBeGreaterThanOrEqual(2)
+    expect(all[0], said).toMatch(/^· \d+s$/)
+    // As it is, what it does is whole or 12 characters at least, and no fact is cut.
+    expect(natural.what, said).toBeGreaterThanOrEqual(Math.min(whole, floor) - 0.5)
+    expect(natural.cut, said).toEqual([])
+    for (const at of steps) {
+      // The facts go from the end, each whole; while any is in sight, what it does is whole; the line stays one line.
+      const there = JSON.stringify({ at, whole, all })
+      expect(at.shown, there).toEqual(all.slice(0, at.shown.length))
+      expect(at.cut, there).toEqual([])
+      if (at.shown.length > 0) expect(at.what, there).toBeGreaterThanOrEqual(whole - 0.05)
+      expect(at.height, there).toBe(natural.height)
+    }
+    // Narrowed, every fact went, one after another, before what it does was cut.
+    expect(steps[0].shown, said).toEqual(all)
+    expect(new Set(steps.map(at => at.shown.length)).size, said).toBe(all.length + 1)
+    expect(steps.at(-1)!.what, said).toBeLessThan(whole)
+  }
+  if (process.env.KOLONI_SHOTS) {
+    await shot(page.locator('.react-flow__node-agent:has(.node-now)'), 'k-sohbet-2-live-node')
+    for (const width of [420, 340]) {
+      const style = await page.addStyleTag({ content: `.stage { --chat-w: ${width}px !important; }` })
+      await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(width)
+      await shot(status, `k-sohbet-2-live-status-${width}`)
+      await style.evaluate(el => el.remove())
+    }
+  }
+  await status.getByRole('button', { name: 'Stop' }).click()
+  await expect(status).toHaveText(/^Orchestrator is ready/, { timeout: 15_000 })
+})
+
+test('over the box a long model name gives way after the facts and before what it does, down to its icon', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openFreshConversation(page)
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await chat.getByRole('button', { name: /^Model: / }).click()
+  await page.getByLabel('Provider').selectOption({ label: 'Local' })
+  await page.getByLabel('Model name').fill('fake-strong-with-a-long-name')
+  await page.getByLabel(/Orchestrator model: automatic/).check()
+  await chat.getByRole('button', { name: 'Use this model' }).click()
+  await level(page, 'full_auto')
+  await page.getByLabel('Message').fill('run slow.py')
+  await page.getByRole('button', { name: 'Send' }).click()
+  const status = chat.locator('.composer-status')
+  await expect(status).toContainText(/python -u slow\.py · \d+s/, { timeout: 15_000 })
+  for (const width of [420, 480]) {
+    const style = await page.addStyleTag({ content: `.stage { --chat-w: ${width}px !important; }` })
+    await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(width)
+    const { natural, whole, floor, steps } = await status.evaluate(squeeze)
+    const said = JSON.stringify({ width, natural, whole, floor })
+    // As it is, what it does is whole or 12 characters at least; the model's name is what was cut.
+    expect(natural.what, said).toBeGreaterThanOrEqual(Math.min(whole, floor) - 0.5)
+    expect(natural.label![0], said).toBeGreaterThan(0)
+    for (const at of steps) {
+      const there = JSON.stringify({ width, at, whole })
+      // The name is cut only once the facts are gone; what it does, only once the name is down to its icon.
+      if (at.label![0] < at.label![1] - 1) expect(at.shown, there).toEqual([])
+      if (at.what < whole - 0.05) expect(at.label![0], there).toBeLessThanOrEqual(1)
+    }
+    await style.evaluate(el => el.remove())
+  }
+  await status.getByRole('button', { name: 'Stop' }).click()
+  await expect(status).toHaveText(/^Orchestrator is ready/, { timeout: 15_000 })
+})
+
 test('1 and Enter answer the card over the box; the turn keeps one line, then Question / Answered', async ({ page }) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
@@ -98,7 +217,7 @@ test('1 and Enter answer the card over the box; the turn keeps one line, then Qu
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`at 340, 420 and 760 px each row of the box is one line and nothing in the chat scrolls sideways; at 340 the model's name and Plan first give way, the level's name stays (${theme})`, async ({ page }) => {
+  test(`at 340, 420 and 760 px each row of the box is one line and nothing in the chat scrolls sideways; at 340 the model's name gives way, the level's name stays (${theme})`, async ({ page }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
     await openFreshConversation(page)
@@ -124,12 +243,7 @@ for (const theme of ['light', 'dark'] as const)
         expect(row.past, `${row.at} past the chat at ${width}px`).toBe(false)
         expect(row.height, `${row.at} one line at ${width}px`).toBeLessThanOrEqual(40)
       }
-      const plan = chat.getByRole('button', { name: 'Plan first' })
-      if (width === 340) {
-        await expect(plan).toBeHidden()
-        await expect(chat.locator('.composer-status .model-picker-label')).toBeHidden()
-      }
-      if (width === 760) await expect(plan).toBeVisible()
+      if (width === 340) await expect(chat.locator('.composer-status .model-picker-label')).toBeHidden()
       await expect(chat.locator('.composer-level-name')).toBeVisible()
       await style.evaluate(el => el.remove())
     }
@@ -175,6 +289,35 @@ test('at 340 px what a turn did is one line, its details on it', async ({ page }
   const [words, button] = [(await line.locator('span').first().boundingBox())!, (await details.boundingBox())!]
   expect(Math.abs(words.y + words.height / 2 - (button.y + button.height / 2))).toBeLessThanOrEqual(2)
   expect((await line.boundingBox())!.height).toBeLessThan(26)
+})
+
+test('at 340 px a kept copy’s long folder wraps on its card: nothing in the chat scrolls sideways', async ({ page }) => {
+  const { id, snap, lead, answer } = await realTurn(page)
+  const keptIn = 'C:\\Users\\someone\\AppData\\Local\\koloni\\runtime\\copies\\conversation-3f2a9c1e\\agent-orchestrator-7b1d\\tree'
+  const file = { path: 'hello.py', kind: 'changed', state: 'ready', diff: "--- a/hello.py\n+++ b/hello.py\n@@ -1 +1 @@\n-print('hi')\n+print('hey')", additions: 1, deletions: 1, note: null }
+  const at = String(answer.created_at)
+  // A Coder the Orchestrator called, whose working copy was kept.
+  const coder = { ...lead, id: 'k2-coder', name: 'Coder', role_name: 'Coder', parent_agent_id: lead.id, depth: 1, status: 'completed', task: 'Fix the greeting', tool_call_id: 'k2-c1' }
+  const spawn = {
+    id: 'k2-c1', run_id: answer.run_id, agent_id: lead.id, message_id: 'k2-m1', origin: 'koloni', parent_call_id: null, outside_folder: null, why_asked: null,
+    seq: 101, provider_call_id: 'k2-c1', name: 'spawn_agent', arguments: JSON.stringify({ role: 'Coder', task: 'Fix the greeting' }), status: 'succeeded', result: 'ok', started_at: at, ended_at: at,
+  }
+  const kept = { id: 'k2-kept', run_id: answer.run_id, agent_id: coder.id, status: 'kept', files: [file], kept_in: keptIn, check: null, commit: null, created_at: at, decided_at: null }
+  await shown(page, id, {
+    ...snap,
+    agents: [lead, coder],
+    messages: [snap.messages.find(m => m.role === 'user'), { ...answer, id: 'k2-m1', content: 'I’ll ask the Coder.' }, answer],
+    tool_calls: [spawn],
+    merges: [kept],
+  })
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await page.addStyleTag({ content: '.stage { --chat-w: 340px !important; }' })
+  await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(340)
+  await expect(chat.getByText(keptIn)).toBeVisible()
+  const sideways = await chat.evaluate(root =>
+    [root, ...root.querySelectorAll('*')].filter(el => ['auto', 'scroll'].includes(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 1).map(el => el.className),
+  )
+  expect(sideways).toEqual([])
 })
 
 test('at 1024 px a room’s window opens beside the open chat, never over it', async ({ page }) => {

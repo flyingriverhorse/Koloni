@@ -5,6 +5,7 @@ import { EFFORTS, TIERS, type Availability, type Effort, type ModelFacts, type M
 import { type LoadFacts, sourceOf, useModelFacts } from './levels'
 import { InputIcons, inputsLine, MarkInputs, withMarks } from './inputs'
 import { type ContextTier, isCli } from './ModelsPage'
+import { type Routing, ROUTING_WHY, ROUTINGS, routingOf } from './routing'
 
 /** Beside a model: usable now, not (and why), or not known. A glyph of its own for each, not only a colour
  *  (and not the row's remove cross). */
@@ -33,6 +34,8 @@ export interface GuideRow {
   off_why?: string | null
   inputs?: ModelInput[] | null
   context?: ContextTier | null
+  /** Copilot's auto or fusion on your GitHub account: its routing; left out, what it had is kept. */
+  routing?: Routing | null
 }
 
 /** A window in tokens, short: 200k, 1M. */
@@ -93,6 +96,7 @@ export function ModelRow({
   onEnabled,
   onInputs,
   onContext,
+  onRouting,
   onNote,
   onNoteDone,
   onRemove,
@@ -109,6 +113,7 @@ export function ModelRow({
   onEnabled: (enabled: boolean) => void
   onInputs: (inputs: ModelInput[]) => void
   onContext: (context: ContextTier) => void
+  onRouting: (routing: Routing | null) => void
   onNote: (note: string) => void
   /** The note is left: it is saved. */
   onNoteDone: () => void
@@ -239,7 +244,9 @@ export function ModelRow({
     <tr className={!on ? 'model-untiered model-off' : row.tier ? undefined : 'model-untiered'}>
       {nameCell()}
       <TierCell name={name} row={row} facts={facts} onTier={onTier} />
-      <ContextCell tiered={tiered} name={name} row={row} catalogued={catalogued} onContext={onContext} />
+      <ContextCell tiered={tiered} name={name} row={row} catalogued={catalogued} onContext={onContext}>
+        <RoutingSelect routed={routingOf(provider, name)} name={name} value={row.routing} onRouting={onRouting} />
+      </ContextCell>
       <Fact value={facts?.max_output ? tokens(facts.max_output) : null} />
       <Fact value={levels(efforts)} />
       <Fact value={plan ? 'plan' : price ? `${price.input} / ${price.output}` : null} />
@@ -303,19 +310,53 @@ function TierCell({ name, row, facts, onTier }: { name: string; row: GuideRow; f
   )
 }
 
-/** Copilot on GitHub's context tier, with the catalogue's window beside it; any other model's window as a fact. */
+/** Copilot's auto's or fusion's routing on your GitHub account (`routed`); nothing for any other model. */
+function RoutingSelect({
+  routed,
+  name,
+  value,
+  onRouting,
+}: {
+  routed: 'auto' | 'fusion' | null
+  name: string
+  value: Routing | null | undefined
+  onRouting: (routing: Routing | null) => void
+}) {
+  if (!routed) return null
+  return (
+    <select
+      className="input"
+      aria-label={`Routing of ${name}`}
+      title={ROUTING_WHY[routed]}
+      value={value ?? ''}
+      onChange={e => onRouting((e.target.value || null) as Routing | null)}
+    >
+      <option value="">Default</option>
+      {ROUTINGS[routed].map(([routing, label]) => (
+        <option key={routing} value={routing}>
+          {label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/** Copilot on GitHub's context tier, with the catalogue's window beside it (and its auto's or fusion's routing,
+ *  `children`); any other model's window as a fact. */
 function ContextCell({
   tiered,
   name,
   row,
   catalogued,
   onContext,
+  children,
 }: {
   tiered: boolean
   name: string
   row: GuideRow
   catalogued: string | null
   onContext: (context: ContextTier) => void
+  children?: ReactNode
 }) {
   return tiered ? (
     <td>
@@ -336,6 +377,7 @@ function ContextCell({
           {catalogued}
         </span>
       )}
+      {children}
     </td>
   ) : (
     <Fact value={catalogued} />
