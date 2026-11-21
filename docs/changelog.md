@@ -35,6 +35,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Chat**: on the card that asks which candidate's work goes on, a candidate that stopped before its end is said to have "stopped before its end", no longer that "nobody is watching this turn".
 - **Canvas**: lines that were missing, crooked or pointing the wrong way are fixed: talk between the Orchestrator and a sub-agent it opened has a 💬 you can click; your message's line down to its Plan is short and straight; a folded box of five or more files keeps its lines; findings handed out of a team's frame get their line; the Orchestrator's lines go straight into the teams' doors; a member's line to a discussion between teams lands on its dot, leaves a folded frame by its side and no longer runs through an approved plan; arrows inside a team's frame point at the right end; and in a compare turn the second Everyone card stands beside its own Orchestrator.
 - **Canvas**: a paused room no longer looks busy: its card loses its "at work" ring, the lines of the members it holds stop moving (one still finishing its step keeps its moving line), and such a member says "Paused with the room" ([docs](agents/rooms.md#the-room-window)).
+- **Workspace**: a 3D model you have not turned yet stays seen whole when its window grows, shrinks or is still taking its size as it opens; before, it kept the view framed for the window's first size.
 
 ### Security
 
