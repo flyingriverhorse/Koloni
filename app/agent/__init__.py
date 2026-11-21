@@ -882,6 +882,10 @@ BRANCH_SPECIAL = ("{files}: the branch changes how git reads the project (.gitig
 # what the user had not committed then - the merge, or a pull request, waits for their commit.
 BRANCH_ON_YOURS = ("the agent changed {files} where you had changes not committed when it began: "
                    "commit yours, then Merge - nothing is merged or sent over them")
+# ... and where its work changes what the user had not committed when it began - committed since:
+# never merged unasked (an agent that took the snapshot off its branch would take that back).
+BRANCH_OVER_YOURS = ("{files}: the agent changed what you had not committed when it began - look "
+                     "at what Merge brings into them before you merge")
 # (A).3: what stands in a branch's way is another agent's Take in, in the folder, not committed.
 TAKEN_IN_FIRST = ("{files}: {name}'s Take in is in your folder, not committed - {how} first, "
                   "then Merge")
@@ -2274,7 +2278,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         and why - "too_big", "failed". Stopped meanwhile: it is not left behind, nor its branch
         where it was a new one. W-1: a branch's is made by the one way in (`_way_in`) - its
         snapshot of the user's folder never beside a Take in's writes - held until its thread is
-        over (the worktree checked out too, up to `git.COMMIT_SECONDS`), a Stop meanwhile too."""
+        over (the snapshot within `git.SNAPSHOT_SECONDS`, the worktree checked out within
+        `git.COMMIT_SECONDS`), a Stop meanwhile too - a second Stop as well: what is not left
+        behind is cleared before the way in is free."""
         again = left is not None
         way = self._way_in(ctx.folder) if owner in self._on_branch else contextlib.nullcontext()
         async with way:
@@ -2284,14 +2290,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             try:
                 return await asyncio.shield(making), "own"
             except asyncio.CancelledError:
-                # Stopped while the copy was being made: it is not left behind.
-                late = None
-                with contextlib.suppress(Exception):
-                    late = await making
-                with contextlib.suppress(Exception):
-                    copies.remove(self.settings.runtime_root, name)
-                if late is not None:
-                    self._drop_branch(late, force=not again)
+                # Stopped while the copy was being made: it is not left behind - to its end,
+                # whatever Stop comes meanwhile.
+                clearing = asyncio.ensure_future(self._unmade(making, name, again))
+                while not clearing.done():
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await asyncio.shield(clearing)
                 raise
             except copies.TooBig:
                 return None, "too_big"
@@ -2300,6 +2304,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # read): the agent works in the project, as it does where that is too big - and
                 # is not sent to try again at each change.
                 return None, "failed"
+
+    async def _unmade(self, making: asyncio.Future, name: str, again: bool) -> None:
+        """A copy stopped while it was being made (`_made_copy`): its thread waited for, its folder
+        removed, and its branch where it was a new one."""
+        late = None
+        with contextlib.suppress(Exception):
+            late = await making
+        with contextlib.suppress(Exception):
+            copies.remove(self.settings.runtime_root, name)
+        if late is not None:
+            self._drop_branch(late, force=not again)
 
     def _give_back(self, owner: str) -> copies.Copy | None:
         """B-322: an agent that stopped unfinished goes on - its kept copy, if its card is
@@ -3175,16 +3190,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 special = BRANCH_SPECIAL.format(files=_few(look["special"])) if (
                     look.get("special")) else None
                 yours, said_too = self._branch_notes(copy, look, project_id)
+                # (W-1: what the share changes of what the user had not committed when it began.)
+                over = BRANCH_OVER_YOURS.format(files=_few(look["over"])) if (
+                    look.get("over")) else None
                 state = {**{key: look[key] for key in ("name", "into", "conflicts", "dirty")},
-                         "note": failed or blocked or yours or look["drift"] or special,
+                         "note": failed or blocked or yours or look["drift"] or special or over,
                          "resolve": bool(look["conflicts"]) and way == "merge" and ctx.depth > 0,
                          "way": "pull_request" if way == "pull_request" else None,
                          "ask_way": ask_way, "pr_off": pr_off, **said_too}
                 # Unasked, not where a file waits for the user's word as at Take in, nor where
                 # the project moved off what the branch was made from, nor where the branch
                 # changes how git reads the tree or holds what is no file (`git.branch_look`) -
-                # nor where the card asks which way finished work goes.
-                asks = merge_id is None and (ask_way or look["drift"] or special or any(
+                # nor where the card asks which way finished work goes, nor where the work changes
+                # what the user had not committed when it began (W-1).
+                asks = merge_id is None and (ask_way or look["drift"] or special or over or any(
                     one["note"] for one in files.values() if one["state"] == "ready"))
                 if decision == "approve" and way == "pull_request":
                     # Nothing of the user's tree is touched: what clashes, or is in the way, is
@@ -3473,8 +3492,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         nor a secret given this turn - scanned as what goes up. Refused, with why."""
         if not copy.snapshot_sha or copy.start is None:
             return look["tip"]
+        # Onto where the branch left the user's branch, as a branch's push always went - not the
+        # commit it was made from: where the branch took theirs in since (D2, or its agent's own
+        # merge), their commits not pushed yet are below it, and `git.push_one` says so.
+        onto = await asyncio.to_thread(
+            git.merge_base, copy.project, f"refs/heads/{look['into'] or copy.start[0]}",
+            look["tip"])
         share, clash = await asyncio.to_thread(
-            git.agents_share, copy.project, copy.snapshot_sha, look["tip"], copy.start[1],
+            git.agents_share, copy.project, copy.snapshot_sha, look["tip"], onto,
             copy.branch or "")
         if share is None:
             raise git.Refused(BRANCH_ON_YOURS.format(files=_few(clash)))
@@ -3533,7 +3558,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         except git.Refused as exc:
             return {"name": copy.branch, "into": None, "files": {}, "conflicts": [],
                     "dirty": [], "special": [], "drift": None, "half": None, "tip": None,
-                    "share": None, "yours": [], "since": None, "note": str(exc)}
+                    "share": None, "yours": [], "since": None, "over": [], "note": str(exc)}
         return {"name": copy.branch, **found, "note": None}
 
     def _branch_merged(self, ctx: Ctx, copy: copies.Copy) -> None:

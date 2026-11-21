@@ -10,7 +10,7 @@ import time
 import pytest
 
 from app import copies, git
-from app.agent import BRANCH_ON_YOURS, FROM_HEAD, TAKEN_IN_FIRST
+from app.agent import BRANCH_ON_YOURS, BRANCH_OVER_YOURS, FROM_HEAD, TAKEN_IN_FIRST
 from tests import test_dal_takim
 from tests.conftest import Gate
 from tests.test_backlog_auto import worked
@@ -553,7 +553,9 @@ def test_a_branch_in_the_way_of_an_uncommitted_take_in_names_it_and_merges_after
         "applied", "pending"], timeout=LONG)
     taken, merge = snap["merges"]
     name = next(a["name"] for a in snap["agents"] if a["id"] == taken["agent_id"])
-    assert merge["branch"]["dirty"] == ["lines.txt"] and merge["branch"]["note"] is None
+    # (Its work changes what the snapshot held of the Take in, not committed: said, and asked.)
+    assert merge["branch"]["dirty"] == ["lines.txt"]
+    assert merge["branch"]["note"] == BRANCH_OVER_YOURS.format(files="lines.txt")
     assert merge["branch"]["taken_in"] == TAKEN_IN_FIRST.format(
         files="lines.txt", name=name, how="commit it on its card" if offered else "commit it")
     run(repo, "commit", "-qam", "the Take in")
