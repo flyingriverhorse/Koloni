@@ -6,7 +6,7 @@ neither writes a task nor approves its own proposal. Reading is open."""
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import backlog, earlier
+from app import away, backlog, earlier
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.api.providers import _model
@@ -271,7 +271,7 @@ async def run_the_backlog(project_id: str, request: Request,
     if backlog.held(session):
         raise HTTPException(409, "everything is held (Stop everything): Resume first")
     if backlog.away(session, project.id):
-        raise HTTPException(409, "the project works while you're away")
+        raise HTTPException(409, away.AWAY_NOW)
     if why := backlog.cannot_run(session, project):
         raise HTTPException(422, why)
     todo = [task for task in backlog.ordered(session, project.id)

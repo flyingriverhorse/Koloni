@@ -4,7 +4,7 @@ a night's job follows the project, not the evening's chat; and what runs without
 chat is read in one list."""
 
 from app.db.models import AllowedCommand, AllowedWeb, Conversation, Project, lead_work_of
-from tests.test_away_scenarios import card, ended, evening
+from tests.test_away_scenarios import ended, evening, go_away
 from tests.test_chat_flow import text
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
@@ -54,7 +54,7 @@ def test_a_nights_job_follows_the_project_not_the_evenings_chat(make_client, wai
     with client.app.state.session_factory() as session:
         session.get_one(Conversation, cid).lead_work = "itself"  # (a value of before, unused)
         session.commit()
-    assert client.post(f"/api/away/{card(client, cid)['id']}/start").json()[
+    assert go_away(client, cid).json()[
         "status"] == "running"
     jobs = [job["conversation_id"] for job in ended(client, pid)["jobs"]]
     assert len(jobs) == 2

@@ -144,8 +144,9 @@ def test_the_lead_steps_in_at_once_while_the_folders_night_runs(make_client, wai
     with client.app.state.session_factory() as session:
         session.add(AwayRun(project_id=pid, conversation_id=cid, run_id="r", status="running"))
         session.commit()
-    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "sort it"},
-                         headers=OWN).json()["run"]["id"]
+    # (not from the app's own page: a message of the user's own would end Away)
+    run_id = client.post(f"/api/conversations/{cid}/messages",
+                         json={"content": "sort it"}).json()["run"]["id"]
     wait_status(client, cid, "waiting_approval")
     (timer,) = lead_timers(clock, 0.0)
     fire(client, timer)
@@ -1120,10 +1121,10 @@ def test_at_night_a_card_beside_the_leads_still_lets_the_next_job_start(
         make_client, wait_run, project_dir, gate):
     from tests.conftest import Gate
     from tests.test_away_rules_scenarios import start
-    from tests.test_away_scenarios import ORIGIN, PLAN, ended, night
+    from tests.test_away_scenarios import ORIGIN, ended, night, to_do
     deleting = Gate()
     client, _model = make_client({
-        "Lead": [step(call("plan_away", PLAN)), text("card is up"),
+        "Lead": [to_do(), text("on your To-do"),
                  step(call("spawn_agent", {"role": "Coder", "task": "ask"}, "a"),
                       call("spawn_agent", {"role": "Tester", "task": "clean"}, "b")),
                  gate.step(says("by date")), text("two done")],

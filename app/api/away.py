@@ -1,7 +1,7 @@
-"""While the user is away (slice 106), for the user: the Lead's card, changed and started -
-or put away - only from the app's own page (`require_own_origin`), so that no agent, trigger
-or page of an agent's starts a night; the night's state for the To-do page, the top bar and
-the morning's node; Stop all, and Try again for a job that could not be done."""
+"""☾ Away (slice 106), for the user: Go away and I'm back only from the app's own page
+(`require_own_origin`), so that no agent, trigger or page of an agent's starts it; its state for
+the chat, the To-do page, the top bar and the morning's node; Stop all, and Try again for a job
+that could not be done."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
@@ -11,7 +11,8 @@ from app import away, backlog
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.db.models import AwayRun, BacklogTask, Conversation, Project, Run, now
-from app.schemas import AwayIn, AwayOut
+from app.schemas import AwayGoIn, AwayOut
+from app.serialize import message_out
 
 router = APIRouter(prefix="/api", tags=["away"])
 OWN = [Depends(require_own_origin)]
@@ -49,40 +50,34 @@ async def read_cards(cid: str, session: Session = Depends(get_session)):
         select(AwayRun).where(AwayRun.conversation_id == cid).order_by(AwayRun.created_at))]
 
 
-@router.patch("/away/{away_id}", response_model=AwayOut, dependencies=OWN)
-async def change_card(away_id: str, body: AwayIn, request: Request,
-                      session: Session = Depends(get_session)):
-    card = _away(session, away_id)
-    fields = body.model_dump(exclude_unset=True)
+@router.post("/conversations/{cid}/away", response_model=AwayOut, dependencies=OWN)
+async def go_away(cid: str, body: AwayGoIn, request: Request,
+                  session: Session = Depends(get_session)):
+    """The user's Go away from this chat: the only way Away begins."""
+    conversation = session.get(Conversation, cid)
+    if conversation is None:
+        raise HTTPException(404, "conversation not found")
     try:
-        away.change(session, card, fields)
+        night = away.go(session, conversation, body.model_dump(), request.app.state.runner)
     except away.Refused as exc:
         raise HTTPException(409, str(exc)) from None
-    session.commit()
-    return away.report(session, card)
+    _told(request, night.project_id)
+    session.refresh(night)
+    return away.report(session, night)
 
 
-@router.post("/away/{away_id}/start", response_model=AwayOut, dependencies=OWN)
-async def start(away_id: str, request: Request, session: Session = Depends(get_session)):
-    """The user's Start: the only way a night begins."""
+@router.post("/away/{away_id}/back", response_model=AwayOut, dependencies=OWN)
+async def come_back(away_id: str, request: Request, session: Session = Depends(get_session)):
+    """I'm back: Away ends, its summary in the chat; the job at work finishes."""
     card = _away(session, away_id)
-    try:
-        away.start(session, card, request.app.state.runner)
-    except away.Refused as exc:
-        raise HTTPException(409, str(exc)) from None
+    if card.status != "running":
+        raise HTTPException(409, "you're not away from this project")
+    said = away.back(session, card.project_id)
+    if said is not None:
+        request.app.state.bus.emit(card.conversation_id, None, "message.created",
+                                   message_out(said))
     _told(request, card.project_id)
     session.refresh(card)
-    return away.report(session, card)
-
-
-@router.post("/away/{away_id}/dismiss", response_model=AwayOut, dependencies=OWN)
-async def dismiss(away_id: str, request: Request, session: Session = Depends(get_session)):
-    """Not now: the card is put away, nothing started."""
-    card = _away(session, away_id)
-    if card.status != "planned":
-        raise HTTPException(409, "only a card not started yet is put away")
-    card.status = "dismissed"
-    session.commit()
     return away.report(session, card)
 
 
@@ -115,12 +110,13 @@ async def try_again(away_id: str, task_id: str, request: Request,
     """Try again: a job that could not be done or was stopped, worked on in its chat again - a
     turn of the user's own, the night over."""
     card = _away(session, away_id)
+    if card.status == "running":
+        raise HTTPException(409, away.AWAY_NOW)
     task = session.get(BacklogTask, task_id)
     if task is None or task.away_run_id != card.id or task.conversation_id is None:
         raise HTTPException(404, "no such job of this card")
-    if card.status == "running" or task.away_state not in ("failed", "stopped"):
-        raise HTTPException(409, "only a job that could not be done or stopped, once its run "
-                                 "is over")
+    if task.away_state not in ("failed", "stopped"):
+        raise HTTPException(409, "only a job that could not be done or stopped")
     if session.scalar(select(Run.id).where(Run.conversation_id == task.conversation_id,
                                            Run.status.not_in(backlog.ENDED)).limit(1)):
         raise HTTPException(409, "a turn of its chat is at work: try again once it is over")

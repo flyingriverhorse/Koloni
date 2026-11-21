@@ -4575,21 +4575,15 @@ class BacklogDraftOut(BaseModel):
     by: str
 
 
-class AwayJobIn(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
-    line: str | None = Field(default=None, max_length=4000)
-    team: str | None = None
-    recipe: str | None = None
-    task_id: str | None = None  # the To-do list's task the job is (B-409); None: a new one
+class AwayGoIn(BaseModel):
+    """The user's Go away (☾ Away): the To-do tasks ticked, the panel's order of the list, the
+    places kept out and the limits - none unless named."""
 
-
-class AwayIn(BaseModel):
-    """The user's changes to a "While you're away" card before its Start (slice 106)."""
-
-    jobs: list[AwayJobIn] | None = Field(default=None, min_length=1, max_length=10)
-    kept_out: list[str] | None = Field(default=None, max_length=20)
+    task_ids: list[str] = Field(default=[], max_length=10)
+    order: list[str] = Field(default=[], max_length=200)
     until: str | None = None  # HH:MM; null: no time limit
     money: float | None = Field(default=None, ge=0)  # null: no money limit
+    kept_out: list[str] = Field(default=[], max_length=20)
 
 
 class AwayAsk(BaseModel):
@@ -4639,7 +4633,8 @@ class AwayJobOut(BaseModel):
 
 
 class AwayOut(BaseModel):
-    """A "While you're away" card and its night (`app.away`)."""
+    """☾ Away (`app.away`): the Orchestrator's offer ("planned"), or the user's Go away and
+    what came of it."""
 
     id: str
     project_id: str
@@ -4671,6 +4666,8 @@ class AwayOut(BaseModel):
     counts: dict[str, int]
     # What agents proposed for the To-do list while it ran: not started, the user's to keep.
     proposed: list[BacklogTaskOut]
+    # What the Orchestrator decided for the user meanwhile (`away.decided`), oldest first.
+    decided: list[str] = []
 
 
 SnapshotOut.model_rebuild()  # (its cards are defined above)
