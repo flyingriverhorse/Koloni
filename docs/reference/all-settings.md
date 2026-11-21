@@ -36,7 +36,7 @@ reads at most** (Agents),
 
 ## Next to the message box
 
-The permission level, **Plan first**, the model button (**Provider**, **Model name**, **Thinking**,
+The permission level (its menu holds **Plan first**), the model button (**Provider**, **Model name**, **Thinking**,
 **Orchestrator model: automatic**), **New topic**, **Chat** (this chat's sheet), and **More**
 (**Work together…**, **Compare…**). See [Chat and canvas](../use/chat-and-canvas.md).
 

@@ -1662,6 +1662,30 @@ test('a command that exited with an error is counted as failed on the fold’s l
   expect(within(summary).getByText('1 failed')).toHaveClass('tag-del')
 })
 
+test('a folded turn with failed steps says the first one’s reason in one line under its line, outside the fold; with none failed, nothing', () => {
+  const reason = 'the Feature recipe of Docs is at its Write the spec step, for Spec writer: it draws 1 agent'
+  const failed = (id: string, why: string, seq: number) => toolCall(id, 'r', 'spawn_agent', 'failed', '{"role":"Coder","task":"Add farewell.py"}', { message_id: 'm', seq, result: `error: ${why}
+the rest` })
+  const state = convState({
+    runs: [run('r', 'completed', { ended_at: ENDED })],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'make farewell'), assistantMessage('m', 'r', 'I’ll ask a Coder.'), assistantMessage('m2', 'r', 'I could not finish.')],
+    toolCalls: [toolCall('90', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm', seq: 1 }), failed('91', reason, 2), failed('92', 'a later one', 3)],
+  })
+  const { container, rerender } = render(<MessageList {...handlers} state={state} />)
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(within(fold.querySelector('summary')!).getByText('2 failed')).toBeInTheDocument()
+  const why = screen.getByText(reason)
+  // Under the fold's line, outside the fold: read without opening it.
+  expect(fold).not.toContainElement(why)
+  expect(fold.nextElementSibling).toContainElement(why)
+  expect(fold.nextElementSibling).toHaveTextContent(`↳ ${reason}`)
+  expect(screen.queryByText(/a later one/)).toBeNull()
+  rerender(<MessageList {...handlers} state={{ ...state, toolCalls: state.toolCalls.slice(0, 1).concat(toolCall('93', 'r', 'read_file', 'succeeded', '{"path":"b.py"}', { message_id: 'm', seq: 2 })) }} />)
+  expect(screen.queryByText(reason)).toBeNull()
+  expect(container.querySelector('details.turn-steps')!.nextElementSibling?.textContent ?? '').not.toMatch(/^↳/)
+})
+
 test('a night’s closing line and the room you opened stay plain lines in the new flow: outside the fold, the room’s line its focus target', () => {
   const night = { ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'), role: 'away' as const, agent_id: null }
   const room = { id: 'o6', run_id: 'r', agent_id: null, goal: 'Meet on the greeting', status: 'done', outcome: null, why: null, members: [] }

@@ -1001,7 +1001,7 @@ export function MessageList({
 
   /** A call that opened a discussion: one row, which opens it. */
   const discussionCall = (call: ToolCall, discussion: Discussion) => (
-    <div key={call.id} className="tool-row">
+    <div key={call.id} className="tool-row tool-row-discussion">
       <button
         type="button"
         className="tool-row-head"

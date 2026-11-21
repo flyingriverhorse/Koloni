@@ -116,8 +116,8 @@ KOLONİ's own words, as they appear on screen.
 : A chat with no folder ("No folder · a plain chat"). It is only talk: no files and no commands.
 
 **Plan first**
-: A switch next to the message box. Each new message first gets a plan to approve before anything
-  changes.
+: A switch in the permission level's menu under the message box. Each new message first gets a plan
+  to approve before anything changes.
 
 **Project**
 : A folder your agents work in. Each project has its own settings, memory and To-do list.

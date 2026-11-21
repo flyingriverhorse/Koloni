@@ -81,7 +81,7 @@ test('its state in plain words: working at what, waiting for your OK (lit), done
   expect(screen.getByTitle(asks)).toHaveTextContent(/^Waits for your answer$/)
 })
 
-test('an agent at work says what it does, how long it has worked, the tokens it wrote and its tier; the command is what gets cut', () => {
+test('an agent at work says what it does, how long it has worked, the tokens it wrote and its tier, each fact its own piece: they give way before the command', () => {
   vi.useFakeTimers({ now: Date.parse('2026-10-05T10:00:15Z') })
   try {
     const at = { ...coder, status: 'running' as const, finished: false, activity: 'pytest tests/test_mail.py', since: '2026-10-05T10:00:03Z', wrote: 1234, kind: 'Fast' }
@@ -90,9 +90,9 @@ test('an agent at work says what it does, how long it has worked, the tokens it 
     const line = screen.getByTitle('Working · pytest tests/test_mail.py · 12s · ↓ 1.2k tokens · Fast')
     expect(line).toHaveClass('node-now')
     expect(line).toHaveTextContent(/^pytest tests\/test_mail\.py · 12s · ↓ 1\.2k tokens · Fast$/)
-    // What it does is what gets cut: the facts after it keep their room.
+    // The facts after what it does are pieces, the tier last: where the box is narrow, they go before it is cut.
     expect(line.querySelector('.node-live-what')).toHaveTextContent(/^pytest tests\/test_mail\.py$/)
-    expect(line.querySelector('.live-facts')).toHaveTextContent('12s · ↓ 1.2k tokens · Fast')
+    expect(Array.from(line.querySelectorAll('.live-facts > span'), piece => piece.textContent)).toEqual([' · 12s', ' · ↓ 1.2k tokens', ' · Fast'])
     act(() => void vi.advanceTimersByTime(50_000))
     expect(line).toHaveTextContent(/ · 1m 02s · /)
     expect(line).toHaveAttribute('title', 'Working · pytest tests/test_mail.py · 1m 02s · ↓ 1.2k tokens · Fast')

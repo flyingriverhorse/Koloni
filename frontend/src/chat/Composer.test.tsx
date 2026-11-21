@@ -62,8 +62,8 @@ test('while the Orchestrator asks, the message box says to answer above - open, 
   expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
 })
 
-test('while running, Stop is a square with no words on the status line over the box, Queue in Send’s place; More and Plan first keep their names', () => {
-  const { container } = render(<Composer {...props} running onPlanFirst={vi.fn()} />)
+test('while running, Stop is a square with no words on the status line over the box, Queue in Send’s place; More keeps its name', () => {
+  const { container } = render(<Composer {...props} running />)
   const stop = screen.getByRole('button', { name: 'Stop' })
   const queue = screen.getByRole('button', { name: 'Queue' })
   expect(stop).toHaveTextContent(/^$/)
@@ -72,7 +72,6 @@ test('while running, Stop is a square with no words on the status line over the 
   expect(queue).toHaveAttribute('title', 'Queue')
   // Where their words are not shown, the names stay (and a tooltip says them).
   expect(screen.getByRole('button', { name: 'More' })).toHaveAttribute('title', 'More')
-  expect(screen.getByRole('button', { name: 'Plan first' })).toHaveAttribute('title', expect.stringMatching(/^Plan first/))
 })
 
 test('a failed send keeps the draft and shows the reason', async () => {
@@ -524,19 +523,21 @@ test('a role of the user named as a command is not a second command of that name
 
 // --- plan first (slice 49) ---------------------------------------------------------------------
 
-test('Plan first stands beside the permission level, says on or off, and is the same setting as the level’s menu has', async () => {
+test('Plan first is set in the level’s menu only: the row has no button for it, the menu’s switch turns it on', async () => {
   const onPlanFirst = vi.fn()
   const { rerender } = render(<Composer {...props} planFirst={false} onPlanFirst={onPlanFirst} />)
-  const toggle = screen.getByRole('button', { name: 'Plan first' })
-  expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  expect(toggle).toHaveTextContent(/^Plan first off$/)
-  expect(toggle.previousElementSibling).toHaveClass('composer-level-menu')
-  await userEvent.click(toggle)
+  expect(screen.queryByRole('button', { name: /Plan first/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
+  const menu = () => within(screen.getByRole('dialog', { name: 'Permission level' }))
+  expect(menu().getByRole('switch', { name: 'Plan first' })).not.toBeChecked()
+  await userEvent.click(menu().getByRole('switch', { name: 'Plan first' }))
   expect(onPlanFirst).toHaveBeenLastCalledWith(true)
   rerender(<Composer {...props} planFirst onPlanFirst={onPlanFirst} />)
-  expect(screen.getByRole('button', { name: 'Plan first' })).toHaveAttribute('aria-pressed', 'true')
-  await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
-  expect(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('switch', { name: 'Plan first' })).toBeChecked()
+  expect(menu().getByRole('switch', { name: 'Plan first' })).toBeChecked()
+  // On, the level says so; it is the row's only button that does.
+  const level = screen.getByRole('button', { name: 'Permission level: Ask before changes, Plan first on' })
+  expect(level).toHaveTextContent(/^Ask · plan$/)
+  expect(screen.getAllByRole('button', { name: /Plan first/ })).toEqual([level])
 })
 
 test('/plan turns Plan first over, before a Planner role of the same start; without a conversation it is off', async () => {
@@ -749,7 +750,7 @@ test('the note stays past its seconds while its link has the focus, and goes whe
 
 // --- 0.1.5: the "Kovan konsolu" ---------------------------------------------------------------------------------------
 
-test('one box: status line, message, one row - Attach, level, Plan first, Auto-read, Dictate, Send; under it Workspace first, New topic, Chat settings, More, what waits elsewhere', () => {
+test('one box: status line, message, one row - Attach, level, Auto-read, Dictate, Send; under it Workspace first, New topic, Chat settings, More, what waits elsewhere', () => {
   const { container } = render(
     <Composer
       {...props}
@@ -766,7 +767,6 @@ test('one box: status line, message, one row - Attach, level, Plan first, Auto-r
   expect(within(bar).getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
     'Attach',
     'Permission level: Ask before changes',
-    'Plan first off',
     // (Auto-read and Dictate stand before Send where this browser can speak and listen: jsdom can neither.)
     'Send',
   ])
@@ -813,6 +813,43 @@ test('"N more wait elsewhere" is a quiet button under the box, only while someth
   expect(screen.getByRole('button', { name: 'Open Ready for you: 1 more waits elsewhere' })).toBeInTheDocument()
   rerender(<Composer {...props} waits={{ count: 0, onOpen }} />)
   expect(screen.queryByRole('button', { name: /^Open Ready for you/ })).toBeNull()
+})
+
+test('the row under the box is in fewer words ("Settings", "2 wait") while, measured, it has no room for all of them; with room, in all', () => {
+  let width = 400
+  let resized = () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe = vi.fn()
+      disconnect = vi.fn()
+      constructor(fit: () => void) {
+        resized = fit
+      }
+    },
+  )
+  // (jsdom lays nothing out: the row's words are 480 px long, 380 in fewer words.)
+  const row = (el: HTMLElement) => el.classList.contains('composer-below')
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    return row(this) ? width : 0
+  })
+  vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    return row(this) ? ('tight' in this.dataset ? 380 : 480) : 0
+  })
+  try {
+    const { container } = render(<Composer {...props} sheet={<p>its rows</p>} waits={{ count: 2, onOpen: vi.fn() }} />)
+    const below = container.querySelector<HTMLElement>('.composer-below')!
+    expect(below).toHaveAttribute('data-tight')
+    width = 500
+    act(() => resized())
+    expect(below).not.toHaveAttribute('data-tight')
+    width = 420
+    act(() => resized())
+    expect(below).toHaveAttribute('data-tight')
+  } finally {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  }
 })
 
 test('/model opens the model’s window while a turn runs too', async () => {
