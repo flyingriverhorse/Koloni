@@ -34,7 +34,7 @@ from tests.test_codex_app_server_scenarios import ACCEPT, DECLINE, RUN, answers
 from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
 from tests.test_judge import NO_MAIN
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
-from tests.test_spawn import call, step
+from tests.test_spawn import call, spawn, step
 from tests.test_team import ADDRESS, SECRET
 
 RULE = "You may delete build/ and dist/."
@@ -42,6 +42,11 @@ RULE = "You may delete build/ and dist/."
 # declined - not to run it again, nor anything that does the same).
 TOLD = ("KOLONİ did not run this: your user's rule says \"Never push to main.\". Do not run it "
         "again, or anything that does the same; do what the rule allows, or ask them. " + CARRY_ON)
+# ...and of one a message of theirs in the chat forbids: not quoted.
+TOLD_OF_A_MESSAGE = ("KOLONİ did not run this: a message of your user's in this chat forbids it. "
+                     "Do not run it again, or anything that does the same; do what it allows, or "
+                     "ask them. " + CARRY_ON)
+NO_BUILD = "Do not delete the build folder."
 APP = Path(__file__).resolve().parents[1] / "app"
 
 
@@ -561,6 +566,29 @@ def test_claude_codes_bash_push_the_users_rule_forbids_is_denied_with_the_rule(
     refused_on_the_rule(client, project_dir, cli, wait_run)
     (asked,) = claude_app.record()["asked"]
     assert (asked["behavior"], asked["message"]) == ("deny", TOLD)
+
+
+@pytest.mark.no_po
+def test_a_message_of_the_users_that_forbids_is_quoted_to_no_agent_nor_a_sub_agent(
+        judging, wait_run, project_dir):
+    # (security review of slice 2: a sub-agent or a CLI never saw the chat, and a token nothing
+    # masks may stand beside the sentence - the user sees it on the row, no agent is told it)
+    client, model, _judge, executor = judging(
+        {"Lead": [cmd("git push origin main", id="k1"), spawn("Coder", "tidy the build folder"),
+                  text("done")],
+         "Coder": [cmd("rm -rf build", id="k2"), text("left it")]},
+        [verdict_line("refuse", NO_MAIN), verdict_line("refuse", NO_BUILD)], [])
+    _, cid, run_id = begin(client, project_dir, f"{NO_MAIN} {NO_BUILD} Tidy up.")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert sorted((one["status"], one["judged"]["source"], one["judged"]["quote"])
+                  for one in snap["commands"]) == [
+        ("refused", "message", NO_BUILD), ("refused", "message", NO_MAIN)]
+    for name in ("Lead", "Coder"):
+        told = model.calls_of[name][1][-1]["content"]  # (its call after its command)
+        assert TOLD_OF_A_MESSAGE in told and NO_MAIN not in told and NO_BUILD not in told
+    assert NO_BUILD not in json.dumps(model.calls_of["Coder"], ensure_ascii=False)
+    assert executor.started == []
 
 
 def koloni_lines(snap):

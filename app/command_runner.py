@@ -55,6 +55,9 @@ REJECTED = (
 # `find -exec rm`) would go around the rule (the security review of slice 2).
 REFUSED = ("KOLONİ did not run this: your user's rule says \"{quote}\". Do not run it again, or "
            "anything that does the same; do what the rule allows, or ask them. " + CARRY_ON)
+REFUSED_BY_A_MESSAGE = ("KOLONİ did not run this: a message of your user's in this chat forbids "
+                        "it. Do not run it again, or anything that does the same; do what it "
+                        "allows, or ask them. " + CARRY_ON)
 # B-389 (R187, live): a patch sent as a command, refused, and the agent gave up its change. Not
 # the change was refused - the command: it is made with the file tools, as a card of its own.
 FILE_TOOLS = ("If the change is still needed, make it with edit_file / write_file (or your own "
@@ -99,8 +102,13 @@ def rejected(command: str) -> str:
 
 
 def refused_by_rule(judgement: dict) -> str:
-    """What an agent is told of a command the check of the user's words refused (`REFUSED`)."""
-    return REFUSED.format(quote=judgement["quote"])
+    """What an agent is told of a command the check of the user's words refused: the sentence
+    where it is one of their saved texts, which every agent is given (`REFUSED`); of a message of
+    theirs in the chat, only that one forbids it (`REFUSED_BY_A_MESSAGE`) - a sub-agent or a CLI
+    never saw the chat, and a token nothing masks may stand beside the sentence."""
+    if judgement.get("source") in ("preferences", "rules"):
+        return REFUSED.format(quote=judgement["quote"])
+    return REFUSED_BY_A_MESSAGE
 
 HELD_BACK = ("(secret variables held back from this command: {names} - the user can pass one "
              "in Settings › This project › Commands and secrets)")
