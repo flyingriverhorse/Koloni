@@ -205,3 +205,11 @@ test('a turn has no frame; the latest turn’s Copy and Read aloud are always sh
   expect(base).not.toMatch(/\.turn-actions[^{]*\{[^}]*(visibility|display: none)/)
   expect(base + canvas).not.toMatch(/\.turn-card/)
 })
+
+test('an older turn’s hidden Copy and Read aloud take no room: a foot of only those stands over the end of its last line', () => {
+  // (Hidden by opacity, they left a blank band under every older answer; the latest keeps its row.)
+  expect(base).toMatch(/\.chat \.msg-list > \.turn:not\(:last-of-type\) \{\s*position: relative;/)
+  const foot = base.match(/\.chat \.msg-list > \.turn:not\(:last-of-type\) > \.turn-foot:not\(:has\(\.turn-summary\)\) \{([^}]*)\}/)?.[1] ?? ''
+  expect(foot).toContain('position: absolute;')
+  expect(foot).not.toMatch(/visibility|display: none/)
+})

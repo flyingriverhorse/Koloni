@@ -1828,9 +1828,33 @@ a.view-run {
   opacity: 1;
 }
 
+/* An older turn's foot of only Copy and Read aloud takes no room while they are hidden: it stands over the end of the
+   turn's last line, on the chat's ground, and is seen on the turn's hover or focus as before (32a: in the tab order). */
+.chat .msg-list > .turn:not(:last-of-type) {
+  position: relative;
+}
+
+.chat .msg-list > .turn:not(:last-of-type) > .turn-foot:not(:has(.turn-summary)) {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  border-radius: var(--radius);
+}
+
+/* (Shown, on a ground of their own over the line's end; hidden, the words under them are not covered.) */
+.chat .msg-list > .turn:not(:last-of-type):is(:hover, :focus-within) > .turn-foot,
+.chat .msg-list > .turn:not(:last-of-type) > .turn-foot:has([aria-label='Stop reading']) {
+  background: var(--panel);
+}
+
 @media (hover: none) {
   .turn-actions {
     opacity: 1;
+  }
+
+  /* (Always seen on a touch screen: in their own row, over no words.) */
+  .chat .msg-list > .turn:not(:last-of-type) > .turn-foot:not(:has(.turn-summary)) {
+    position: static;
   }
 }
 
