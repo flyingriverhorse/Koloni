@@ -412,9 +412,22 @@ function roomWait(agent: Agent, run: Run, state: ConvState): string | null {
   return null
 }
 
-/** What a waiting agent waits for: its turn's room, another team, a reply, a sub-agent - each called as its node is. */
+/**
+ * What a waiting agent waits for in its turn's running discussion (the server holds one a turn at a time): its opener -
+ * a member too - for all of it, a member opened for it for its turn; null: not for one (an agent invited from its own
+ * work keeps its own wait).
+ */
+function talkWait(agent: Agent, run: Run, state: ConvState): string | null {
+  const talk = state.discussions.find(d => d.run_id === run.id && d.status === 'running')
+  if (talk?.agent_id === agent.id) return 'Waiting for the discussion'
+  const member = talk?.members.find(m => m.agent_id === agent.id && m.opened_here)
+  if (!member) return null
+  return member.status === 'left' ? 'Left the discussion' : 'Waiting for its turn to speak'
+}
+
+/** What a waiting agent waits for: its turn's room or discussion, another team, a reply, a sub-agent - each called as its node is. */
 function waitingFor(agent: Agent, run: Run, state: ConvState, teams: Team[]): string {
-  const room = roomWait(agent, run, state)
+  const room = roomWait(agent, run, state) ?? talkWait(agent, run, state)
   if (room !== null) return room
   const child = state.agents.findLast(a => a.parent_agent_id === agent.id && OPEN.has(a.status))
   // Waiting for a reply to a message, or for a sub-agent it opened.

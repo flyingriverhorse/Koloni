@@ -105,6 +105,25 @@ test('the canvas has the shared place as a node, joined to everyone in it', () =
   expect(nodes.flatMap(n => (n.data as { summary?: string }).summary || [])).toEqual([])
 })
 
+test('while it runs, its opener and the members opened for it say what they wait for; an invited agent keeps its own wait', () => {
+  const talking = {
+    ...state,
+    agents: [agent('r', 'waiting', { id: 'lead' }), sub('coder', 'Coder', 'waiting'), sub('rev', 'Reviewer', 'waiting'), sub('doc', 'Docs', 'waiting')],
+    discussions: [talk({ members: [
+      { agent_id: 'coder', status: 'in', opened_here: false },
+      { agent_id: 'rev', status: 'in', opened_here: true },
+      { agent_id: 'doc', status: 'left', opened_here: true },
+      { agent_id: 'lead', status: 'in', opened_here: false },
+    ] })],
+  }
+  const { nodes } = deriveGraph(talking)
+  const doing = (id: string) => (nodes.find(n => n.id === `agent:${id}`)?.data as { activity: string }).activity
+  expect(['lead', 'rev', 'doc', 'coder'].map(doing)).toEqual(['Waiting for the discussion', 'Waiting for its turn to speak', 'Left the discussion', 'Waiting for a sub-agent'])
+  // (Over, it is no longer what they wait for.)
+  const over = deriveGraph({ ...talking, discussions: [talk({ status: 'ended', outcome: 'agreed' })] }).nodes
+  expect((over.find(n => n.id === 'agent:rev')?.data as { activity: string }).activity).toBe('Waiting for a sub-agent')
+})
+
 test('an ended discussion says how it ended', () => {
   const ended = { ...state, discussions: [talk({ status: 'ended', outcome: 'agreed' })] }
   const node = deriveGraph(ended).nodes.find(n => n.kind === 'discussion')
