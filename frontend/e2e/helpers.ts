@@ -92,6 +92,11 @@ export async function say(page: Page, message: string, answer: string | RegExp) 
   await expect(page.getByRole('region', { name: 'Chat' }).getByText(answer).last()).toBeVisible({ timeout: 20_000 })
 }
 
+/** Opens every finished turn's folded steps in the chat ("Completed N steps", 0.1.5), so what they hold can be read. */
+export async function steps(chat: Locator) {
+  for (const summary of await chat.locator('details.turn-steps:not([open]) > summary').all()) await summary.click()
+}
+
 /**
  * Opens More under the message box, where it is not open (slice 38b): the
  * sub-agents, what runs without asking and Work together are in it.

@@ -50,12 +50,14 @@ import { ToolRow } from './ToolRow'
 import { ToolRun } from './ToolRun'
 import { TurnCard } from './TurnCard'
 import { TurnSummary } from './TurnSummary'
-import { callsByMessage, toolRuns } from './toolRuns'
+import { callsByMessage, stepIcon, toolRuns } from './toolRuns'
 import { answerLast } from './chatLine'
 import { asksOutside } from './toolSummary'
 import { PARTS, type Waiting, decidedOf, waitingId, waitingOf } from './waiting'
 import { DecidedForYou } from './DecidedForYou'
-import type { Group, Piece } from './splitTurn'
+import { type Group, type Piece, splitTurn } from './splitTurn'
+import { TurnSteps } from './TurnSteps'
+import { took } from '../canvas/timeline'
 import { CompareView } from './CompareView'
 import { modelName } from '../shell/modelName'
 import { foldRepeats } from '../shell/repeats'
@@ -1001,7 +1003,7 @@ export function MessageList({
     folds: !['proposed', 'approved'].includes(command.status) && !(command.keep_running && command.status === 'running'),
     node: (
       <Fragment key={call.id}>
-        <CommandRow command={command} failed={call.status === 'failed'} />
+        <CommandRow command={command} failed={call.status === 'failed'} live />
         {command.status === 'proposed' && (
           <CommandApproval
             command={command}
@@ -1025,10 +1027,11 @@ export function MessageList({
     const web = state.webRequests.find(w => w.tool_call_id === call.id && w.status === 'proposed')
     const waits = pending ? 'waits for your answer' : callWaits(state, call)
     const parts = { asked, web, role, skill, waits }
+    const Kind = stepIcon(call, state)
     return { stands: standsAlone(call, change, parts), folds: !waitsOnYou(call, change, parts), node: (
       <Fragment key={call.id}>
         {/* (Nothing of it runs before the user's yes: it waits, it does not run.) */}
-        <ToolRow call={call} waits={waits} />
+        <ToolRow call={call} waits={waits} icon={<Kind size={13} />} />
         {question}
         {web && <WebApproval request={web} call={call} onDecide={decision => onDecideWeb(web.id, decision)} />}
         {role && <RoleApproval role={role} onDecide={decision => onDecideRole(call.id, decision)} />}
@@ -1092,12 +1095,17 @@ export function MessageList({
   const toolLines = toolRuns(ordered, callsOf, call => stood.has(call.id))
   const lineAt = new Map(toolLines.map(calls => [calls[0].id, calls]))
   const inLine = new Set(toolLines.flatMap(calls => calls.slice(1).map(call => call.id)))
+  /** The newest line of calls of a turn at work: its last call is of the turn's last message. */
+  const liveLine = (line: ToolCall[]) => {
+    const run = runs.get(line[0].run_id)
+    return !!run && !TERMINAL.has(run.status) && line.at(-1)?.message_id === lastOfRun.get(run.id)
+  }
   /** A call as a piece of its message's group: a line of calls at its first, nothing at the others, else its view. */
   const callPiece = (call: ToolCall): Piece[] => {
     const line = lineAt.get(call.id)
     if (line) {
       const node = (
-        <ToolRun calls={line} state={state}>
+        <ToolRun calls={line} state={state} live={liveLine(line)}>
           {line.map(inner => views.get(inner.id)?.node)}
         </ToolRun>
       )
@@ -1113,6 +1121,22 @@ export function MessageList({
   // shortcut: one the Orchestrator invited into a room asks in the chat too, with the note only in the room's window;
   // go by the questions the chat draws if that is ever missed.
   const inRooms = new Set(state.rooms.flatMap(room => [...inRoom(state, room).keys()]))
+  /**
+   * A finished turn's groups (0.1.5): its steps before its answer folded into one line once there are two, what of them
+   * stays in sight after it in its order (a group split in two keeps its key: kept, it stays mounted), the answer on.
+   */
+  const turnBody = (run: Run, answer: Message | undefined, inside: Group[]): ReactNode[] => {
+    const split = answer && TERMINAL.has(run.status) ? splitTurn(inside, answer.id) : null
+    if (!split?.fold) return inside.map(drawGroup)
+    const spent = run.started_at && run.ended_at ? took(Date.parse(run.ended_at) - Date.parse(run.started_at)) : null
+    return [
+      <TurnSteps key="steps" count={split.count} took={spent} calls={split.calls} state={state}>
+        {split.fold.map(drawGroup)}
+      </TurnSteps>,
+      ...split.kept.map(drawGroup),
+      ...split.rest.map(drawGroup),
+    ]
+  }
   /**
    * A Lead turn's groups after its opener in one card (0.1.4), what it did in the card's foot once it is over. No card
    * for a comparison - its sides stand under their models' names -, a turn with no Lead or nothing after its opener:
@@ -1132,7 +1156,7 @@ export function MessageList({
     return [
       // (It waits while the server says the turn does - for a question, a card, a role: as the canvas has it.)
       <TurnCard key={`turn:${runId}`} state={state} run={run} lead={lead} answer={answer} summary={summary} waits={run.status === 'waiting_approval'}>
-        {inside.map(drawGroup)}
+        {turnBody(run, answer, inside)}
         {queued}
       </TurnCard>,
     ]

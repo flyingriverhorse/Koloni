@@ -11,10 +11,12 @@ import { outputPreview } from './outputPreview'
  * it a click further (the canvas's Command node had it - the user's, 5 Nov), and Stop while it runs. A CLI's own command
  * that failed is on record as ended with no exit code, its call as failed: it reads as failed.
  */
-export function CommandRow({ command, failed = false }: { command: Command; failed?: boolean }) {
-  const [open, setOpen] = useState(false)
+export function CommandRow({ command, failed = false, live = false }: { command: Command; failed?: boolean; live?: boolean }) {
+  const [picked, setOpen] = useState<boolean | null>(null)
   const { label, tone } = failed && command.status === 'exited' && command.exit_code === null ? CLI_FAILED : commandStatus(command)
   const seconds = commandSeconds(command)
+  // In the chat (`live`): open while output comes and when it failed, until a click says otherwise.
+  const open = picked ?? (live && (tone === 'del' || (command.status === 'running' && command.output !== '')))
   return (
     <div className="tool-row">
       <div className="tool-row-top">
