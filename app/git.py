@@ -2010,3 +2010,47 @@ def open_pr(
     if url is None:
         raise Refused(f"gh pr create said no address: {_text(out, said)[-TAIL:]}")
     return url
+
+
+# Coordination §4: what the checks of a disposable delete ask of the project's git
+# (`app.disposable`) - looks as `where` takes them: read only, no program of the repository's
+# run, None where git does not answer.
+
+def default_branch(project: Path) -> str | None:
+    """The project's default branch: the remote's (origin/HEAD), else the one git starts a
+    repository on (init.defaultBranch), else main or master where there is one; None where
+    git says none of these."""
+    try:
+        git, until = _looking(project)
+        remote = (_said(project, git, until, "symbolic-ref", "-q", "--short",
+                        "refs/remotes/origin/HEAD") or "").strip()
+        if remote.startswith("origin/") and remote != "origin/":
+            return remote.removeprefix("origin/")
+        started = (_said(project, git, until, "config", "--get", "init.defaultBranch")
+                   or "").strip()
+        return started or next((name for name in ("main", "master") if _said(
+            project, git, until, "rev-parse", "--verify", "-q", f"refs/heads/{name}")
+            is not None), None)
+    except Refused:
+        return None
+
+
+def ahead(project: Path, base: str, branch: str) -> int | None:
+    """How many commits the local `branch` has that the local `base` has not; None where git
+    does not say (either is no local branch)."""
+    try:
+        said = _said(project, *_looking(project), "rev-list", "--count",
+                     f"refs/heads/{base}..refs/heads/{branch}", "--")
+    except Refused:
+        return None
+    return int(said) if said and said.strip().isdigit() else None
+
+
+def tracked_under(project: Path, rel: str) -> bool | None:
+    """Whether git tracks a file at `rel` (the project's, `/` between its parts) or below it;
+    None where git does not say."""
+    try:
+        said = _said(project, *_looking(project), "ls-files", "-z", "--", rel)
+    except Refused:
+        return None
+    return None if said is None else bool(said)

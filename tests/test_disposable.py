@@ -4,12 +4,15 @@ it in the project. First what a line could delete: anything else on the line, an
 here, is no such delete."""
 
 import asyncio
+import os
+import sys
 import time
 from types import SimpleNamespace
 
 import pytest
 
-from app import koloni
+from app import disposable, koloni
+from app import git as git_
 from app.command_runner import CommandRunner
 from app.commands import disposable_targets
 from app.db.models import Agent, Command, Conversation, Message, Project, Run, ToolCall
@@ -19,6 +22,7 @@ from tests.fakes import Script, ScriptedExecutor
 from tests.keyed import OWN
 from tests.test_agent_commands import approve, cmd
 from tests.test_chat_flow import start_in_mode, text
+from tests.test_take_in_scenarios import git, needs_git, repository
 
 
 @pytest.mark.parametrize(("line", "targets"), [
@@ -225,3 +229,174 @@ def test_at_auto_edit_a_delete_found_disposable_runs_without_a_card_and_says_so(
     (ran,) = wait_run(client, cid, run_id)["commands"]
     assert (ran["status"], ran["disposable"]) == (
         "exited", {"what": "build folder build", "unasked": True})
+
+
+# --- what of it is disposable: checked against its folder and the project's git (3.4) --------
+
+def junction(link, target):
+    """`link` a junction to `target` (Windows), else a symbolic link."""
+    if sys.platform == "win32":
+        import _winapi
+        _winapi.CreateJunction(str(target), str(link))
+    else:
+        os.symlink(target, link)
+
+
+def unlinked(link):
+    if sys.platform == "win32":
+        link.rmdir()
+    else:
+        link.unlink()
+
+
+@pytest.fixture
+def repo(tmp_path, monkeypatch):
+    """A project with git: build/, dist/ and .next/ ignored, a commit on main; a branch `old`
+    at that commit (merged) and `ahead` one past it; a build folder with a file in it."""
+    empty = tmp_path / "gitconfig"
+    empty.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / ".gitignore").write_text("build/\ndist/\n.next/\n")
+    (project / "a.txt").write_text("a\n")
+    repository(project)
+    git(project, "branch", "old")
+    git(project, "branch", "ahead")
+    git(project, "switch", "-q", "ahead")
+    (project / "b.txt").write_text("b\n")
+    git(project, "add", "b.txt")
+    git(project, "commit", "-q", "-m", "b")
+    git(project, "switch", "-q", "main")
+    (project / "build").mkdir()
+    (project / "build" / "out.txt").write_text("made\n")
+    return project
+
+
+def judged(project, line, cwd=".", root=None, in_copy=False, copies_at=(), keep=None):
+    return disposable.what(line, project, root or project, cwd, in_copy=in_copy,
+                           copies_at=list(copies_at), keep=keep)
+
+
+@needs_git
+def test_a_build_folder_is_disposable_where_git_ignores_it_holds_nothing_tracked_and_no_link(
+        repo, tmp_path, monkeypatch):
+    assert judged(repo, "rm -rf build") == "build folder build"
+    (repo / "web" / "dist").mkdir(parents=True)
+    assert judged(repo, "rm -r dist", cwd="web") == "build folder dist"
+    assert judged(repo, "rm -rf web/dist") == "build folder web/dist"
+    assert judged(repo, "rm -rf build web/dist") == "build folder build; build folder web/dist"
+    # Not: nothing there; not ignored; a file git tracks in it; a link in it, or itself a link.
+    assert judged(repo, "rm -rf .next") is None
+    (repo / "target").mkdir()
+    (repo / "target" / "x").write_text("x")
+    assert judged(repo, "rm -rf target") is None
+    (repo / "dist").mkdir()
+    (repo / "dist" / "keep.txt").write_text("kept\n")
+    git(repo, "add", "-f", "dist/keep.txt")
+    assert judged(repo, "rm -rf dist") is None
+    # (git 2.53 calls no folder ignored that holds a file it tracks; one that did is no wall)
+    with monkeypatch.context() as patched:
+        patched.setattr(git_, "ignored", lambda project, paths, above=False: set(paths))
+        assert judged(repo, "rm -rf dist") is None
+        assert judged(repo, "rm -rf build") == "build folder build"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    junction(repo / "build" / "in", elsewhere)
+    assert judged(repo, "rm -rf build") is None
+    unlinked(repo / "build" / "in")
+    assert judged(repo, "rm -rf build") == "build folder build"
+    (repo / "web" / "dist").rmdir()
+    junction(repo / "web" / "dist", elsewhere)
+    assert judged(repo, "rm -rf web/dist") is None
+    # (a folder of the path a link: what is deleted is not where it is spelt)
+    unlinked(repo / "web" / "dist")
+    (repo / "web" / "dist").mkdir()
+    junction(repo / "lib", repo / "web")
+    assert judged(repo, "rm -rf web/dist") == "build folder web/dist"
+    assert judged(repo, "rm -rf lib/dist") is None
+    # (and only a line the parser reads)
+    assert judged(repo, "rm -rf build && ls") is None
+
+
+@needs_git
+def test_in_a_copy_a_build_folder_is_judged_by_the_projects_git_and_nothing_else_is_disposable(
+        repo, tmp_path):
+    copy = tmp_path / "copies" / "a" / "tree"
+    (copy / "build").mkdir(parents=True)
+    (copy / "src").mkdir()
+    assert judged(repo, "rm -rf build", root=copy, in_copy=True) == "build folder build"
+    assert judged(repo, "rm -rf src", root=copy, in_copy=True) is None
+    assert judged(repo, "git branch -d old", root=copy, in_copy=True) is None
+    assert judged(repo, "rm -rf build", root=copy, cwd=None, in_copy=True) is None
+
+
+@needs_git
+def test_a_clean_worktree_of_the_users_is_disposable_and_none_of_koloni_s_locked_or_holding_more(
+        repo, tmp_path):
+    git(repo, "worktree", "add", "-q", "-b", "feat", str(tmp_path / "wt" / "x"))
+    assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+    git(repo, "worktree", "lock", str(tmp_path / "wt" / "x"))
+    assert judged(repo, "git worktree remove ../wt/x") is None
+    git(repo, "worktree", "unlock", str(tmp_path / "wt" / "x"))
+    (tmp_path / "wt" / "x" / ".env").write_text("KEY=1\n")
+    assert judged(repo, "git worktree remove ../wt/x") is None
+    (tmp_path / "wt" / "x" / ".env").unlink()
+    junction(tmp_path / "wt" / "x" / "in", tmp_path / "wt")
+    assert judged(repo, "git worktree remove ../wt/x") is None
+    unlinked(tmp_path / "wt" / "x" / "in")
+    assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+    # (the main one - from a project that is a worktree itself too -, a folder git does not
+    # list, one under KOLONİ's copies)
+    assert judged(repo, "git worktree remove ../proj") is None
+    assert judged(tmp_path / "wt" / "x", "git worktree remove ../../proj") is None
+    (tmp_path / "wt" / "y").mkdir()
+    assert judged(repo, "git worktree remove ../wt/y") is None
+    held = tmp_path / "copies"
+    git(repo, "worktree", "add", "-q", "-b", "held", str(held / "b" / "tree"))
+    assert judged(repo, "git worktree remove ../copies/b/tree", copies_at=[held]) is None
+    assert judged(repo, "git worktree remove ../copies/b/tree") == "worktree ../copies/b/tree"
+
+
+@needs_git
+def test_a_merged_local_branch_no_one_stands_on_is_disposable(repo, tmp_path):
+    assert git_.default_branch(repo) == "main"
+    assert judged(repo, "git branch -d old") == "branch old"
+    assert judged(repo, "git branch -D old") == "branch old"
+    assert git_.ahead(repo, "main", "ahead") == 1
+    assert judged(repo, "git branch -D ahead") is None  # (commits only it holds)
+    assert judged(repo, "git branch -d ahead") == "branch ahead"  # (git's own -d refuses it)
+    assert judged(repo, "git branch -D old ahead") is None
+    # Not: the current one, the default one, the turn's own, one a worktree stands on, one
+    # that is not there, one spelt in another case, KOLONİ's own.
+    git(repo, "switch", "-q", "old")
+    assert judged(repo, "git branch -d old") is None
+    git(repo, "switch", "-q", "main")
+    assert judged(repo, "git branch -d old", keep="old") is None
+    git(repo, "branch", "free")
+    git(repo, "worktree", "add", "-q", str(tmp_path / "wt" / "f"), "free")
+    assert judged(repo, "git branch -d free") is None
+    assert judged(repo, "git branch -d nope") is None
+    assert judged(repo, "git branch -d Old") is None
+    git(repo, "branch", "koloni/x")
+    assert judged(repo, "git branch -d koloni/x") is None
+    # The default as the remote says it; main and master never.
+    git(repo, "switch", "-q", "old")
+    assert judged(repo, "git branch -d main") is None
+    git(repo, "branch", "develop")
+    git(repo, "update-ref", "refs/remotes/origin/develop", "HEAD")
+    git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/develop")
+    assert git_.default_branch(repo) == "develop"
+    assert judged(repo, "git branch -d develop") is None
+    assert judged(repo, "git branch -d main") is None
+
+
+@needs_git
+def test_what_git_tracks_under_a_folder(repo):
+    assert git_.tracked_under(repo, "build") is False
+    (repo / "src").mkdir()
+    (repo / "src" / "x.py").write_text("x\n")
+    git(repo, "add", "src/x.py")
+    assert git_.tracked_under(repo, "src") is True
+    assert git_.tracked_under(repo, "sr") is False
