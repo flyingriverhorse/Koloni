@@ -74,13 +74,15 @@ test('while a command runs the status line over the box and the Orchestrator’s
 /**
  * A line of work narrowed from 800 px, where all of it fits, down to 60, a step at a time (in one go: its clock does not tick
  * meanwhile): at each, which of its facts are in sight, whether each is whole or out of sight, how wide what it does is,
- * and the line's height. `whole`: what it does with room for all; `floor`: 12 characters of its font.
+ * the line's height, and the model's name over the box (its width and the width it needs). `whole`: what it does with
+ * room for all; `floor`: 12 characters of its font.
  */
 function squeeze(line: Element) {
   const el = line as HTMLElement
   const what = el.querySelector<HTMLElement>('.composer-status-what, .node-live-what')!
   const facts = el.querySelector<HTMLElement>('.live-facts')!
   const pieces = [...facts.children] as HTMLElement[]
+  const label = el.querySelector<HTMLElement>('.model-picker-label')
   const probe = what.appendChild(Object.assign(document.createElement('span'), { style: 'display:inline-block;width:12ch' }))
   const floor = probe.getBoundingClientRect().width
   probe.remove()
@@ -92,6 +94,7 @@ function squeeze(line: Element) {
       height: Math.round(el.getBoundingClientRect().height),
       shown: pieces.filter(p => p.getBoundingClientRect().top < box.bottom - 0.5).map(p => p.textContent!.trim()),
       cut: pieces.filter(p => p.getBoundingClientRect().top < box.bottom - 0.5 && p.getBoundingClientRect().right > box.right + 0.5).map(p => p.textContent!.trim()),
+      label: label && [label.getBoundingClientRect().width, label.scrollWidth],
     }
   }
   const natural = state()
@@ -148,6 +151,40 @@ test('a line of work gives up its tier, then its tokens, then its time - each wh
       await shot(status, `k-sohbet-2-live-status-${width}`)
       await style.evaluate(el => el.remove())
     }
+  }
+  await status.getByRole('button', { name: 'Stop' }).click()
+  await expect(status).toHaveText(/^Orchestrator is ready/, { timeout: 15_000 })
+})
+
+test('over the box a long model name gives way after the facts and before what it does, down to its icon', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openFreshConversation(page)
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await chat.getByRole('button', { name: /^Model: / }).click()
+  await page.getByLabel('Provider').selectOption({ label: 'Local' })
+  await page.getByLabel('Model name').fill('fake-strong-with-a-long-name')
+  await page.getByLabel(/Orchestrator model: automatic/).check()
+  await chat.getByRole('button', { name: 'Use this model' }).click()
+  await level(page, 'full_auto')
+  await page.getByLabel('Message').fill('run slow.py')
+  await page.getByRole('button', { name: 'Send' }).click()
+  const status = chat.locator('.composer-status')
+  await expect(status).toContainText(/python -u slow\.py · \d+s/, { timeout: 15_000 })
+  for (const width of [420, 480]) {
+    const style = await page.addStyleTag({ content: `.stage { --chat-w: ${width}px !important; }` })
+    await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(width)
+    const { natural, whole, floor, steps } = await status.evaluate(squeeze)
+    const said = JSON.stringify({ width, natural, whole, floor })
+    // As it is, what it does is whole or 12 characters at least; the model's name is what was cut.
+    expect(natural.what, said).toBeGreaterThanOrEqual(Math.min(whole, floor) - 0.5)
+    expect(natural.label![0], said).toBeGreaterThan(0)
+    for (const at of steps) {
+      const there = JSON.stringify({ width, at, whole })
+      // The name is cut only once the facts are gone; what it does, only once the name is down to its icon.
+      if (at.label![0] < at.label![1] - 1) expect(at.shown, there).toEqual([])
+      if (at.what < whole - 0.05) expect(at.label![0], there).toBeLessThanOrEqual(1)
+    }
+    await style.evaluate(el => el.remove())
   }
   await status.getByRole('button', { name: 'Stop' }).click()
   await expect(status).toHaveText(/^Orchestrator is ready/, { timeout: 15_000 })

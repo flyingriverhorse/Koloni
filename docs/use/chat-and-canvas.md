@@ -47,7 +47,7 @@ unread and how many things wait for you.
   model (choose the model there); while a turn runs, what it does now, for how long, the tokens written and
   the tier or model, with **Stop** and how many messages are queued; "waits for your answer" while it asks.
   What is not known is left out: a CLI that does not tell its tokens shows none. Where the line is narrow, the
-  tier goes first, then the tokens, then the time; what it does is cut last.
+  tier goes first, then the tokens, then the time, then the model's name (down to its icon); what it does is cut last.
 - Under the message, one row: **Attach**, the permission level as three comb cells and its name (a click
   lists the levels, each with a line on what it does, and the **Plan first** switch - see
   [Permission levels](permissions.md) and [Plan first](plan-first.md)), **Auto-read**, **Dictate** and

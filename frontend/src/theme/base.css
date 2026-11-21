@@ -2976,10 +2976,13 @@ a.view-run {
   display: none;
 }
 
-/* The model, chosen on the line over the box while the chat is ready. */
+/* The model, chosen on the line over the box. Where the line is narrow it gives way after what is known of the work
+   (it takes its room first: `.live-facts` grow by 1) and before what it does: it takes only the room that leaves, down
+   to its icon (24px: the icon and its padding). */
 .composer-status .model-picker {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 1000 1 0;
+  min-width: 24px;
+  max-width: max-content;
 }
 
 .composer-status .model-picker-button {
