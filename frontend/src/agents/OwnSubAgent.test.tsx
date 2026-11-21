@@ -84,7 +84,7 @@ test('selected on the canvas, the inspector shows its task, state, what it did a
   render(<Inspector state={turn('succeeded', 'It prints **hi**.')} selectedId="subagent:2" onClose={() => {}} />)
   const inspector = screen.getByRole('complementary', { name: 'Inspector' })
   expect(within(inspector).getByText('Look around')).toBeInTheDocument()
-  expect(within(inspector).getByText(/own sub-agent of Lead/)).toBeInTheDocument()
+  expect(within(inspector).getByText(/own sub-agent of Orchestrator/)).toBeInTheDocument()
   expect(within(inspector).getByText(/Read hello\.py and\s+say what it prints/)).toBeInTheDocument()
   expect(within(inspector).getByText('Status').nextElementSibling).toHaveTextContent('done')
   expect(within(inspector).getByText('Kind').nextElementSibling).toHaveTextContent('Explore')

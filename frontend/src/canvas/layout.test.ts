@@ -164,14 +164,15 @@ test('a discussion and a room one agent opened stand in its next column in the o
     id: 'd', run_id: 'r', agent_id: 'lead', tool_call_id: 'x', topic: 'Ship it?', status: 'ended', outcome: 'agreed', round: 1, max_rounds: 3,
     created_at: at(0), ended_at: at(0), members: [{ agent_id: 'kid', status: 'in', opened_here: false }],
   }
+  // (As the canvas lays them out: through foldGraph, which keeps when each began.)
   const drawn = (rooms: Room[], discussions: Discussion[]) => {
-    const { nodes, edges } = deriveGraph(convState({
+    const { nodes, edges } = foldGraph(deriveGraph(convState({
       runs: [run('r')],
       messages: [userMessage('r', 'x')],
       agents: [agent('r', 'waiting', { id: 'lead' }), agent('r', 'running', { id: 'kid', parent_agent_id: 'lead', depth: 1, role_name: 'Coder' })],
       rooms,
       discussions,
-    }))
+    })), {})
     const { positions: pos } = layoutGraph(nodes, edges)
     return [pos['discussion:d'], pos['room:o'], pos['agent:kid']]
   }
