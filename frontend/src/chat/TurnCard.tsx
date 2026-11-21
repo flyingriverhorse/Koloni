@@ -20,6 +20,10 @@ interface Props {
   summary: ReactNode | null
   /** Something in it waits for your word: said where its time would be. */
   waits: boolean
+  /** The chat's newest turn: its Copy and Read aloud are always in sight. */
+  latest?: boolean
+  /** It ends with its answer's words: hidden, its foot of only those stands over their end, taking no room. */
+  wordsEnd?: boolean
 }
 
 /**
@@ -34,10 +38,11 @@ function lastAt(state: ConvState, run: Run, lead: Agent | undefined) {
 const saidOf = (state: ConvState, run: Run, speaking: string | null) => state.messages.find(m => m.id === speaking && m.run_id === run.id)
 
 /**
- * One Lead turn in the chat (0.1.4): who answered, with what model and when; the turn's groups as the chat draws them;
- * and once it is over a quiet foot. A turn at work has none - only the ■ of what of it Auto-read reads.
+ * One Lead turn in the chat (0.1.5: no frame): who answered, with what model and when; the turn's groups as the chat draws
+ * them; and once it is over a quiet foot - Copy and Read aloud, what it did at their right. A turn at work has none - only
+ * the ■ of what of it Auto-read reads.
  */
-export function TurnCard({ state, run, lead, answer, children, summary, waits }: Props) {
+export function TurnCard({ state, run, lead, answer, children, summary, waits, latest = false, wordsEnd = false }: Props) {
   const teams = useApp(s => s.teams)
   // (Whole answer reads a step's words while the next step is written: the ■ stays with the step still heard.)
   const said = useVoice(s => saidOf(state, run, s.speaking))
@@ -46,7 +51,7 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits }:
   const at = lastAt(state, run, lead)
   const over = summary !== null
   return (
-    <article className="turn-card" aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
+    <article className={['turn', latest && 'turn-latest', wordsEnd && 'turn-words-end'].filter(Boolean).join(' ')} data-run={run.id} aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
       <div className="turn-head">
         <span className="turn-avatar" aria-hidden>
           {name.charAt(0)}
@@ -59,8 +64,8 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits }:
       {(over || said) && (
         // Its parts in fixed places: at the turn's end the ■ the keyboard is on stays the same button.
         <footer className="turn-foot">
-          {summary}
           {answer && <AnswerActions message={answer} said={said} over={over} />}
+          {summary}
         </footer>
       )}
     </article>

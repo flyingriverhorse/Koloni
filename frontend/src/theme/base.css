@@ -200,6 +200,12 @@ textarea {
   vertical-align: 1px;
 }
 
+/* What is known of work under way, after what it does (0.1.5): kept whole while the words before it are cut. */
+.live-facts {
+  flex: none;
+  white-space: pre;
+}
+
 .alert {
   color: var(--del);
   font-size: var(--text-body);
@@ -982,6 +988,13 @@ p.hive-empty {
   }
 }
 
+/* CL-264: the open chat's column is a hard left edge - Workspace opens beside it, as wide as is left (at least 240px, over
+   the stage's right side), never over it. Dragged or expanded, its own rules hold: that is the user's own act. */
+.chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
+  left: calc(var(--chat-w) + 14px);
+  width: max(240px, min(var(--w), calc(var(--room) - var(--chat-w) - 28px)));
+}
+
 .view-panel[hidden] {
   display: none;
 }
@@ -1544,65 +1557,21 @@ a.view-run {
   background: var(--accent-soft);
 }
 
-/* The model's line under the message box: what it runs on and where it goes - the model, New topic, then the
-   Workspace button at its end (slice 42d). */
-.composer-line {
-  flex: 1 0 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-/* As wide as its name, not the line: a wide column leaves no long empty button (0.1.4). */
-.composer-line .model-picker {
-  flex: 0 1 auto;
-  min-width: 64px;
-}
-
-/* "New topic" beside the model: pressed, the next message starts a new topic. (It, and a trigger's topic
-   beside it, may shrink: the model keeps its 64px in the narrowest chat.) */
-.composer-line .composer-new-topic {
-  flex: 0 1 auto;
-  min-width: 30px;
-  height: 30px;
-  max-width: 40%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.composer-line .composer-new-topic[aria-pressed='true'] {
+/* Under the message box, quiet words (0.1.5): Workspace first, New topic, the other place a message could go, Chat
+   settings, More, and at the right what waits elsewhere. Pressed, New topic is lit. */
+.composer-below .composer-new-topic[aria-pressed='true'] {
   background: var(--accent-soft);
-  border-color: var(--accent);
   color: var(--accent);
 }
 
-/* ⚙ Chat, last on the model's line: its words give way to its icon as the others' do. */
-.composer-line > .chat-sheet-button {
-  flex: none;
-}
-
-/* Under More (a narrow row) it says its name, as the rest there does. */
-.composer-more-panel .chat-sheet-button .composer-words {
-  position: static;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  clip-path: none;
-}
-
-/* The open chat's Workspace button: a file, and what waits beside it. */
-.composer-line .icon-btn.composer-files {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  width: auto;
-  height: 30px;
-  min-width: 30px;
-  padding: 0 7px;
+/* (The other place a message could go gives way first: its words end in "…", its whole name in its tooltip.) */
+.composer-other {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .composer-files[aria-expanded='true'] {
@@ -1685,7 +1654,7 @@ a.view-run {
   padding: 8px 12px;
   border-radius: 14px 14px 4px 14px;
   background: var(--accent-soft);
-  font-size: var(--text-read);
+  font-size: var(--text-body);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1748,36 +1717,33 @@ a.view-run {
   gap: 6px;
 }
 
-/* One Lead turn (0.1.4, MessageList's TurnCard): who answered, the turn's steps and answer, and a quiet foot. In the
-   light theme the card and the list under it are nearly one colour: its border draws it. */
-.turn-card {
+/* One Lead turn (0.1.5, MessageList's TurnCard): a small head - who answered, with which model, when -, the turn's steps
+   and answer, and a quiet foot. No frame, as VS Code's chat has it: a frame and its padding took ~30 px of a 340 px column. */
+.turn {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
 }
 
 .turn-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  font-size: var(--text-note);
 }
 
 .turn-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: var(--text-meta);
+  font-size: var(--text-kicker);
   font-weight: var(--weight-title);
 }
 
@@ -1791,20 +1757,19 @@ a.view-run {
 }
 
 .turn-name {
-  font-weight: var(--weight-strong);
+  font-weight: var(--weight-title);
 }
 
 /* (Too narrow for both, the model gives way first: who answered is cut last.) */
 .turn-model {
   flex-shrink: 100;
   color: var(--muted);
-  font-size: var(--text-note);
+  font-size: var(--text-meta);
 }
 
-/* Its time, or what waits for you, at the right. */
+/* Its time, or what waits for you, after the model. */
 .turn-head > :last-child {
   flex: none;
-  margin-left: auto;
 }
 
 .turn-head time {
@@ -1812,10 +1777,12 @@ a.view-run {
   font-size: var(--text-meta);
 }
 
+/* Copy and Read aloud at its left, what the turn did at its right, on one line of facts. */
 .turn-foot {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  min-width: 0;
 }
 
 /* (An ended turn with no words and nothing done to tell: no foot, and no gap for one.) */
@@ -1823,47 +1790,81 @@ a.view-run {
   display: none;
 }
 
-/* What the turn did draws the foot's rule, not its own (board.css). */
-.turn-foot:has(.turn-summary) {
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-
 .turn-foot .turn-summary {
   flex: 1;
   min-width: 0;
   margin: 0;
-  padding-top: 0;
+  padding-top: 3px;
   border-top: 0;
+  font-size: var(--text-meta);
 }
 
-/* Copy and Read aloud (slice 32a) at the foot's right: seen on the card's hover or focus, on a touch screen, and while
-   it reads. Hidden by opacity only: a keyboard and a screen reader reach them all the same. Under a turn with nothing
-   to tell of what it did they are the foot's only line, so they stay in sight: hidden, they left a blank band there.
-   shortcut: chosen without a look in the browser; a duration line in that foot is the other way, if this one is too loud. */
+/* (Its facts and "details" together at the right, in the foot's quiet colour.) */
+.turn-foot .turn-summary-line {
+  justify-content: flex-end;
+}
+
+.turn-foot .turn-summary-line span {
+  color: inherit;
+}
+
+.turn-foot .turn-summary-line .link-btn {
+  margin-left: 0;
+}
+
+/* Copy and Read aloud (slice 32a) under the answer: always under the latest turn's, as VS Code has them; under an older
+   one on its hover or focus, on a touch screen, and while it reads. Hidden by opacity only: a keyboard and a screen
+   reader reach them all the same. */
 .turn-actions {
   display: flex;
-  gap: 4px;
-  margin-left: auto;
+  gap: 2px;
   opacity: 0;
   transition: opacity 0.15s;
 }
 
-.turn-foot:not(:has(.turn-summary)) .turn-actions,
-.turn-card:is(:hover, :focus-within) .turn-actions,
+.chat .msg-list > .turn.turn-latest .turn-actions,
+.turn:is(:hover, :focus-within) .turn-actions,
 .turn-actions:has([aria-label='Stop reading']) {
   opacity: 1;
+}
+
+/* An older turn that ends with its answer's words: its foot of only Copy and Read aloud takes no room while they are
+   hidden - it stands over the end of the last line, takes no click, and is seen and pressed on the turn's hover or
+   focus as before (32a: in the tab order). A turn that ends with a card keeps its foot under it: over the card's
+   buttons it would take their clicks. */
+.chat .msg-list > .turn:not(.turn-latest).turn-words-end {
+  position: relative;
+}
+
+.chat .msg-list > .turn:not(.turn-latest).turn-words-end > .turn-foot:not(:has(.turn-summary)) {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
+/* (Shown, on a ground of their own over the line's end, pressed; hidden, the words under them are not covered.) */
+.chat .msg-list > .turn.turn-words-end:is(:hover, :focus-within) > .turn-foot,
+.chat .msg-list > .turn.turn-words-end > .turn-foot:has([aria-label='Stop reading']) {
+  background: var(--panel);
+  pointer-events: auto;
 }
 
 @media (hover: none) {
   .turn-actions {
     opacity: 1;
   }
+
+  /* (Always seen on a touch screen: in their own row, over no words.) */
+  .chat .msg-list > .turn:not(.turn-latest).turn-words-end > .turn-foot:not(:has(.turn-summary)) {
+    position: static;
+  }
 }
 
 .turn-actions .icon-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
 }
 
 /* Under an answer: what was said aloud of it. */
@@ -2004,38 +2005,25 @@ a.view-run {
   color: var(--accent);
 }
 
-/* A chat answer (0.1.4): larger, airier and softer words, its bold and code without loud colour or a box.
+/* A chat answer (0.1.5: at VS Code's sizes, 13 px on 1.5): softer words, its bold and code without loud colour or a box.
    Only MessageList draws .msg-assistant, so the Inspector, Workspace and Knowledge keep the look above. */
 .msg.msg-assistant {
-  font-size: var(--text-read);
+  font-size: var(--text-body);
   color: var(--text-soft);
 }
 
 /* (On the lines, not the answer: a code block and a table would inherit it.) */
 .msg.msg-assistant :is(p, li) {
-  line-height: 1.7;
+  line-height: 1.5;
 }
 
 .msg.msg-assistant :is(p, li, blockquote, h1, h2, h3, h4) {
   max-width: 72ch;
 }
 
-/* The turn's answer opens with its point. */
-.msg.msg-assistant.msg-answer > p:first-child {
-  font-size: var(--text-lead);
-  line-height: 1.55;
-  color: var(--text);
-  font-weight: var(--weight-strong);
-}
-
 .msg.msg-assistant strong {
   color: var(--text);
   font-weight: var(--weight-title);
-}
-
-/* (On the code itself: .markdown code sets its own size, which a size on pre would not reach.) */
-.msg.msg-assistant code {
-  font-size: var(--text-code);
 }
 
 .msg.msg-assistant :not(pre) > code {
@@ -2048,9 +2036,9 @@ a.view-run {
   color: var(--text);
 }
 
-/* (Without its own line height a code block's lines stand as far apart as the answer's.) */
+/* (At its code's size and with its own line height, or a code block's lines stand as far apart as the answer's.) */
 .msg.msg-assistant pre {
-  font-size: var(--text-code);
+  font-size: var(--text-mono);
   line-height: 1.5;
 }
 
@@ -2067,16 +2055,20 @@ a.view-run {
   font-weight: var(--weight-title);
 }
 
-.msg.msg-assistant :is(h1, h2) {
+.msg.msg-assistant h1 {
   font-size: var(--text-section);
 }
 
+.msg.msg-assistant h2 {
+  font-size: var(--text-subsection);
+}
+
 .msg.msg-assistant h3 {
-  font-size: var(--text-lead);
+  font-size: var(--text-body);
 }
 
 .msg.msg-assistant :is(h4, h5, h6) {
-  font-size: var(--text-read);
+  font-size: var(--text-body);
   color: var(--muted);
 }
 
@@ -2165,6 +2157,322 @@ a.view-run {
 /* Files added to a message (slice 85b): a chip each, its kind's colour on its edge and label. */
 .composer {
   position: relative;
+}
+
+/* The line over the message box (0.1.5, "Kovan konsolu"): who is ready, or what the turn does now with Stop, or that it
+   waits for your answer; at work, a thin amber light sweeps along its foot. */
+.composer-status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: var(--text-note);
+  white-space: nowrap;
+  /* (The light's sweep starts and ends outside it.) */
+  overflow: hidden;
+}
+
+.composer-status b {
+  color: var(--text-soft);
+  font-weight: var(--weight-title);
+}
+
+.composer-status-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.composer-status-running .composer-status-dot,
+.composer-status-asks .composer-status-dot {
+  background: var(--accent);
+}
+
+/* What it does is cut first; how long, its tokens and tier, and how many wait stay in sight. */
+.composer-status-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-status-queued {
+  flex: none;
+  white-space: pre;
+}
+
+.composer-status .composer-stop {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+}
+
+.composer-status-running::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 40%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: composer-sweep 1.8s ease-in-out infinite;
+}
+
+/* The Orchestrator's question over the message box (0.1.5): a framed card, its options numbered, scrolled when tall. */
+.ask-card {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  max-height: min(420px, 45vh);
+  margin: 0 10px 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: auto;
+}
+
+.ask-card[hidden] {
+  display: none;
+}
+
+.ask-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.ask-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 4px 2px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+.ask-who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ask-pager {
+  display: flex;
+  flex: none;
+  align-items: center;
+  font-size: var(--text-meta);
+}
+
+.ask-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px 12px;
+}
+
+.ask-title {
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+  overflow-wrap: anywhere;
+}
+
+.ask-more {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-note);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* An option is its number, its words and - chosen - a tick: the radio is there for the keyboard and a screen reader,
+   its focus drawn on the row. */
+.ask-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: var(--text-note);
+  cursor: pointer;
+}
+
+.ask-option:hover,
+.ask-option:has(input[type='radio']:checked) {
+  background: var(--hover);
+}
+
+.ask-option input[type='radio'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.ask-option:has(input[type='radio']:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.ask-n {
+  flex: none;
+  width: 10px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-title);
+  text-align: right;
+}
+
+.ask-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ask-check {
+  flex: none;
+  color: var(--accent);
+}
+
+.ask-own .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ask-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* In its turn: the open question as one line that goes to the card; once over, what was asked and answered. */
+.ask-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 8px 2px 10px;
+  border: 0;
+  border-left: 1px solid var(--accent);
+  background: none;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: var(--text-note);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ask-line:hover {
+  background: var(--hover);
+}
+
+.ask-line-words {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ask-line-waits {
+  color: var(--warn);
+}
+
+.asked-row > summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 2px 8px 2px 10px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-note);
+  list-style: none;
+  cursor: pointer;
+}
+
+.asked-row > summary::-webkit-details-marker {
+  display: none;
+}
+
+.asked-row > summary:hover {
+  color: var(--text);
+}
+
+.asked-q,
+.asked-a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.asked-q b {
+  color: var(--text-soft);
+  font-weight: var(--weight-title);
+}
+
+.asked-a span {
+  color: var(--text-soft);
+}
+
+.asked-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0 6px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--border);
+  list-style: none;
+  font-size: var(--text-note);
+}
+
+.asked-options li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.asked-options svg {
+  color: var(--accent);
+}
+
+.asked-none {
+  width: 12px;
+}
+
+@keyframes composer-sweep {
+  from {
+    left: -40%;
+  }
+
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-status-running::after {
+    left: 0;
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
 }
 
 /* (Two rows at most, the rest scrolled to: with ten files the box and Send went below the chat - B-106.) */
@@ -2415,105 +2723,282 @@ a.view-run {
   border-top: 0;
 }
 
-.composer-row[hidden] {
-  display: none;
-}
-
-/* Under the message box, two lines, two jobs (the user's pick of 7 Nov, sample C): what it runs on
-   (the model, New topic, Workspace); then 📎, how far the conversation may go, More (what runs
-   without asking, voice, Work together) and Send. Every control is one height. Narrower, they give
-   way in sample A's order (the container queries below). */
+/* One framed box (0.1.5, "Kovan konsolu"): the line on what the chat does now, the message, one row; under it, quiet
+   words. Panels open over all of it (usePanel); the container its narrow rules are measured by. */
 .composer-row {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
   container: composer / inline-size;
 }
 
-/* The level, Plan first, More and the buttons: one line, whatever the chat's width (the user's
-   report: it was two while a turn ran). The level gives way first; where words do not fit, Plan
-   first and More keep their icon, their name and tooltip. */
-.composer-controls {
+.composer-box {
   display: flex;
-  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.composer-box:focus-within {
+  border-color: var(--border-strong);
+}
+
+.composer-box > .composer-status {
+  border-radius: 9px 9px 0 0;
+}
+
+.composer-box > :not(.composer-status, .composer-bar) {
+  margin-inline: 6px;
+}
+
+/* (In the box the message has no frame of its own; focused, its own ring is drawn. Its placeholder is one line: in a
+   340px chat "Answer the question above, …" wrapped and was cut.) */
+.composer-box .composer-input {
+  padding-inline: 4px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.composer-box .composer-input::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-box > .composer-pasted:empty {
+  display: none;
+}
+
+.composer-bar,
+.composer-below {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   min-width: 0;
 }
 
-.composer-controls > * {
+.composer-bar {
+  padding: 0 6px 6px;
+}
+
+.composer-below {
+  padding: 0 2px;
+}
+
+.composer-bar[hidden],
+.composer-below[hidden] {
+  display: none;
+}
+
+.composer-bar > *,
+.composer-below > * {
   flex-shrink: 0;
+}
+
+/* Their buttons are quiet words and icons, one height; a hover gives them a ground. */
+.composer-bar .btn:not(.btn-primary),
+.composer-below .btn {
+  min-height: 26px;
+  padding: 0 7px;
+  border-color: transparent;
+  background: none;
+  color: var(--text-soft);
+  font-size: var(--text-note);
+  white-space: nowrap;
+}
+
+.composer-bar .btn:not(.btn-primary):hover,
+.composer-below .btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.composer-bar .btn-primary {
+  min-height: 28px;
+  padding-block: 0;
+}
+
+.composer-bar .att-clip {
+  padding-inline: 6px;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* The level: three comb cells and its name. Ask is the calm blue, Auto-edit the honey, Full auto the warning; an empty
+   cell is a faint outline. */
+.composer-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comb {
+  flex: none;
+}
+
+.comb polygon {
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 1.2;
+}
+
+.composer-level[data-level='ask'] .comb [data-cell='on'] {
+  fill: var(--cat-blue);
+  stroke: var(--cat-blue);
+}
+
+.composer-level[data-level='auto_edit'] .comb [data-cell='on'] {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.composer-level[data-level='full_auto'] .comb [data-cell='on'] {
+  fill: var(--warn);
+  stroke: var(--warn);
+}
+
+/* Its menu: each level a row with a line on what it does, then Plan first. */
+.level-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 300px;
+  padding: 6px;
+}
+
+.level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.level-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.level-row:hover,
+.level-row[aria-checked='true'] {
+  background: var(--hover);
+}
+
+.level-mark {
+  flex: none;
+  width: 12px;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.level-row input {
+  flex: none;
+  margin-top: 3px;
+}
+
+.level-words {
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+}
+
+.level-name {
+  color: var(--text);
+  font-size: var(--text-note);
+}
+
+.level-says {
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.level-sep {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+/* Plan first beside the level, its state in a word; on, it is lit. Auto-read lit while it is on. */
+.composer-plan-first span {
+  color: var(--faint);
+}
+
+.composer-plan-first[aria-pressed='true'],
+.composer-plan-first[aria-pressed='true'] span,
+.composer-auto-read[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+/* What waits elsewhere: its number in the accent, at the row's right. */
+.composer-waits {
+  margin-left: auto;
+  padding: 0 6px;
+  color: var(--text-soft);
+  font-size: var(--text-note);
+  white-space: nowrap;
+}
+
+.composer-waits b {
+  color: var(--accent);
+  font-weight: var(--weight-title);
+}
+
+.composer-waits-short,
+.sheet-short {
+  display: none;
+}
+
+/* The model, chosen on the line over the box while the chat is ready. */
+.composer-status .model-picker {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.composer-status .model-picker-button {
+  min-height: 20px;
+  padding: 0 4px;
+  border-color: transparent;
+  background: none;
+  color: var(--text-soft);
+  font-size: var(--text-note);
+}
+
+.composer-status .model-picker-button:hover {
+  background: var(--hover);
 }
 
 .composer-icon {
   display: none;
 }
 
-/* While a turn runs Stop stands beside Queue: even at the chat's widest (a 460px row) the words
-   do not fit beside it. */
-.composer-controls:has(.composer-stop) .composer-words {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
-
-.composer-controls:has(.composer-stop) .composer-icon {
-  display: inline;
-}
-
+/* Narrower: "Chat settings" is "Settings", and what waits "2 wait". */
 @container composer (max-width: 450px) {
-  .composer-words {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
+  .sheet-long,
+  .composer-waits-long {
+    display: none;
   }
 
-  .composer-icon {
+  .sheet-short,
+  .composer-waits-short {
     display: inline;
-  }
-
-  .composer-controls {
-    gap: 6px;
-  }
-
-  /* Plan first is its icon, with a dot when on (sample A); its switch is still there for the keys and a screen reader. */
-  .composer-plan {
-    position: relative;
-    padding-inline: 4px;
-  }
-
-  .composer-plan .switch {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  .composer-plan:has(:checked) {
-    color: var(--accent);
-  }
-
-  .composer-plan:has(:checked)::after {
-    content: '';
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent-fill);
-  }
-
-  .composer-plan:has(:focus-visible) {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: var(--radius);
   }
 
   /* (Its tooltip and its window still say it.) */
@@ -2522,9 +3007,16 @@ a.view-run {
   }
 }
 
-/* Narrower: Send and Queue are their icon too, the level its short name (Composer), and the model's button
-   the model alone. */
+/* Narrowest (a 340-380px chat): New topic, Settings and More are their icons, with their names and tooltips; Send and
+   Queue too; Plan first is in the level's menu only; the model on the line over the box is its arrow alone (its name in
+   its tooltip); the other place a message could go takes less. The level's name always stays. */
 @container composer (max-width: 360px) {
+  .composer-plan-first,
+  .composer-status .model-picker-label {
+    display: none;
+  }
+
+  .composer-below .composer-words,
   .composer-say {
     position: absolute;
     width: 1px;
@@ -2533,116 +3025,27 @@ a.view-run {
     clip-path: inset(50%);
   }
 
-  .model-picker-provider {
-    display: none;
+  .composer-below .composer-icon {
+    display: inline;
   }
 
-  .composer-controls,
-  .composer-controls .composer-actions {
-    gap: 4px;
+  .composer-other {
+    max-width: 30%;
   }
-}
-
-/* Under ~360px the mic and Auto-read are under More (Composer, B-106), and the row is one line down to the
-   narrowest chat, 220px (R56: it was two at 240px, the level not yet given way). While a turn runs, Stop beside
-   Queue needs a 220px row (a 240px chat): narrower, what is left goes on a second line.
-   shortcut: two lines there; fold Plan first under More while a turn runs if one line is wanted. */
-@container composer (max-width: 219px) {
-  .composer-controls:has(.composer-stop) {
-    flex-wrap: wrap;
-  }
-
-  .composer-line {
-    gap: 4px;
-  }
-}
-
-/* 📎 at the row's start, as square as the buttons beside it. */
-.composer-controls .att-clip {
-  padding-inline: 7px;
-}
-
-/* Full auto stands out, and is never cut to its first letters: as wide as its own name (a select is as wide as its
-   longest option); where the row has no room for it, Send goes on a second line (the narrowest chat).
-   shortcut: a browser without field-sizing (Firefox) gives it the longest option's width; set a width if one is used. */
-.composer-controls:has(> .composer-mode [value='full_auto']:checked) {
-  flex-wrap: wrap;
-}
-
-.composer-controls > .composer-mode:has([value='full_auto']:checked) {
-  flex-shrink: 0;
-  field-sizing: content;
-  border-color: var(--warn);
-  color: var(--warn);
-}
-
-/* (Its open list in the text's colour: an option takes its select's.) */
-.composer-mode option {
-  color: var(--text);
 }
 
 .composer-stop {
   color: var(--del);
 }
 
-/* (With no provider and no conversation yet the first row has nothing in it.) */
-.composer-row:empty {
-  display: none;
-}
-
-.composer-row .btn,
-.composer-row .input {
-  min-height: 30px;
-  padding-block: 0;
-}
-
 /* Auto-read and the mic beside Send (slice 32a): the row's one height. */
 .composer-actions .icon-btn {
-  width: 30px;
-  height: 30px;
-}
-
-/* (Down to its first letters and its arrow.) */
-.composer-controls > .composer-mode {
-  flex-shrink: 1;
-  min-width: 48px;
-}
-
-.composer-mode {
-  width: auto;
-  padding-inline: 8px;
-  font-size: var(--text-note);
-}
-
-/* Plan first (slice 49): a checkbox beside the level, in the row's type. */
-.composer-plan {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-note);
-  white-space: nowrap;
-}
-
-.composer-actions {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
+  width: 28px;
+  height: 28px;
 }
 
 .composer-more {
   position: relative;
-}
-
-/* A dot on More where Auto-read and Dictate are in it (sample A). */
-.composer-more:has(.composer-more-voice) > button::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-fill);
 }
 
 /* Opens upward from its button, over the messages. */

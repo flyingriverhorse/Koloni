@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from 'vitest'
 import type { ConvState } from '../state/applyEvent'
 import { agent, assistantMessage, command, convState, fileChange, question, run, userMessage } from '../test-fixtures'
-import { latestOf, storedWidth, waitingCards } from './chatLine'
+import { isLeadAsk, latestOf, leadQuestion, leadQuestions, storedWidth, waitingCards } from './chatLine'
 
 test('the closed chat’s line is the Lead’s answer, not KOLONİ’s line said after it', () => {
   // R178: "Tester was not opened this turn." took the summary's place.
@@ -79,4 +79,22 @@ test('a width kept out of range starts at 420', () => {
   expect(storedWidth()).toBe(500)
   localStorage.removeItem('koloni-chat-width')
   expect(storedWidth()).toBe(420)
+})
+
+test('leadQuestions lists the Orchestrator’s open questions in order; leadQuestion is the first', () => {
+  const conv = convState({
+    runs: [run('r', 'waiting_approval')],
+    agents: [agent('r'), agent('r', 'running', { id: 'k', depth: 1, parent_agent_id: 'r' })],
+    questions: [
+      question('a', 'r', { question: 'First?' }),
+      question('done', 'r', { status: 'answered', answer: 'yes' }),
+      question('koloni', 'r', { leave: true, question: 'Allow?', options: ['Allow', 'Deny'] }),
+      question('sub', 'r', { agent_id: 'k' }),
+      question('b', 'r', { question: 'Second?' }),
+    ],
+  })
+  expect(leadQuestions(conv).map(q => q.id)).toEqual(['a', 'b'])
+  expect(leadQuestion(conv)?.id).toBe('a')
+  // In its turn, its own question - asked or answered - is the Orchestrator's; KOLONİ's card and a sub-agent's are not.
+  expect(conv.questions.filter(q => isLeadAsk(conv, q)).map(q => q.id)).toEqual(['a', 'done', 'b'])
 })

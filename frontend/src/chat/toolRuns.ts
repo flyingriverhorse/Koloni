@@ -1,4 +1,6 @@
+import { BookOpen, Browser, Globe, type Icon, MagnifyingGlass, PencilSimple, TerminalWindow, Wrench } from '@phosphor-icons/react'
 import type { Command, FileChange, Message, ToolCall } from '../api/types'
+import { commandStatus } from '../commands/commandStatus'
 import { toolName, toolSummary } from './toolSummary'
 
 /** Each message's calls, in the order they were made. */
@@ -47,7 +49,7 @@ const ORDER = Object.keys(KINDS)
 const rank = (kind: string) => (ORDER.includes(kind) ? ORDER.indexOf(kind) : ORDER.length)
 
 /** The kind a call is counted under: a change to a file, a command, the agent's browser, its own (KINDS), else its tool as shown. */
-function kindOf(call: ToolCall, commands: Command[], fileChanges: FileChange[]): string {
+export function kindOf(call: ToolCall, commands: Command[], fileChanges: FileChange[]): string {
   const changes = fileChanges.some(f => f.tool_call_id === call.id) || call.name === 'write_file' || call.name === 'edit_file'
   const ran = commands.some(c => c.tool_call_id === call.id) || call.name === 'run_command'
   return changes ? 'edit_file' : ran ? 'run_command' : call.name.startsWith('browser_') ? 'browser' : Object.hasOwn(KINDS, call.name) ? call.name : toolName(call)
@@ -59,7 +61,9 @@ function kindOf(call: ToolCall, commands: Command[], fileChanges: FileChange[]):
  * refused or were cut off (`marks`); its state. Only what was done is counted: what did not
  * end well is in its mark, and what still runs is the one named.
  */
-export function runHead(calls: ToolCall[], { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] }) {
+export function runHead(given: ToolCall[], { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] }) {
+  // A command that exited with an error ended its call well (app/agent): its own record says it failed.
+  const calls = given.map(call => (call.status === 'succeeded' && commands.some(c => c.tool_call_id === call.id && commandStatus(c).tone === 'del') ? { ...call, status: 'failed' as const } : call))
   const kinds = new Map<string, ToolCall[]>()
   for (const call of calls.filter(c => c.status === 'succeeded')) {
     const kind = kindOf(call, commands, fileChanges)
@@ -89,3 +93,21 @@ export function runHead(calls: ToolCall[], { commands, fileChanges }: { commands
 
 const ENDS: ToolCall['status'][] = ['succeeded', 'failed', 'denied', 'interrupted']
 const MADE = new Set<FileChange['status']>(['applied', 'merged', 'in_copy'])
+
+/** Each kind's icon in the chat, by VS Code's meaning: a book reads, a pencil edits, a terminal runs. */
+const ICONS: Record<string, Icon> = {
+  read_file: BookOpen,
+  list_dir: BookOpen,
+  search: MagnifyingGlass,
+  recall: MagnifyingGlass,
+  run_command: TerminalWindow,
+  edit_file: PencilSimple,
+  browser: Browser,
+  web_search: Globe,
+  http_request: Globe,
+}
+
+/** The icon a step leads with in the chat: its kind's, else a tool's. */
+export function stepIcon(call: ToolCall, { commands, fileChanges }: { commands: Command[]; fileChanges: FileChange[] }): Icon {
+  return ICONS[kindOf(call, commands, fileChanges)] ?? Wrench
+}

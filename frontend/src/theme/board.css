@@ -258,7 +258,20 @@
   color: var(--text);
 }
 
+/* CL-264 #3: in a 340px chat its words end in "…" and "details" stays on their line. */
+.turn-foot .turn-summary-line {
+  flex-wrap: nowrap;
+}
+
+.turn-foot .turn-summary-line span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .turn-summary-line .link-btn {
+  flex: none;
   margin-left: auto;
 }
 

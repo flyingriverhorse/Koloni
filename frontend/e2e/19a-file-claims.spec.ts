@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { openFreshConversation, shot } from './helpers'
+import { level, openFreshConversation, shot } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -21,8 +21,7 @@ test('two agents want one file: the second waits for the first, the canvas says 
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   // Files are written without asking, so that nothing in this turn waits for the user.
   await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
-  await page.getByLabel('Permission level').selectOption('auto_edit')
-  await expect(page.getByLabel('Permission level')).toHaveValue('auto_edit')
+  await level(page, 'auto_edit')
 
   await page.getByLabel('Message').fill('two coders share a file')
   await page.getByRole('button', { name: 'Send' }).click()

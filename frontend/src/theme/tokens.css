@@ -87,11 +87,9 @@
   --text-mono: 11.5px; /* what a program wrote or is given: commands, paths, code, output */
   --text-meta: 11px; /* a line of facts about something: counts, times, states, tags */
   --text-kicker: 10px; /* the small capitals over a section, and a tag inside a line of facts */
-  /* A chat answer, read at length: larger than the page's body, its code and headings to match. */
-  --text-read: 14.5px; /* a chat answer's words and the user's message */
-  --text-lead: 15.5px; /* an answer's first paragraph, and its third-level heading */
-  --text-code: 12.5px; /* code in a chat answer */
-  --text-section: 17px; /* a chat answer's first- and second-level heading */
+  /* A chat answer's headings (0.1.5, VS Code's sizes): its words and code are the body's and the mono size. */
+  --text-section: 16px; /* a chat answer's first-level heading */
+  --text-subsection: 14px; /* a chat answer's second-level heading */
   --weight-title: 600; /* titles and headings */
   --weight-strong: 500; /* a name in a row, a button */
   --weight-body: 400;

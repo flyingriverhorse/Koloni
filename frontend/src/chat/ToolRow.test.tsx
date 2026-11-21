@@ -105,3 +105,13 @@ test('a row opened shows its arguments and its result - or that there is none ye
   expect(screen.getByText('took a screenshot')).toBeInTheDocument()
   expect(screen.queryByRole('img')).toBeNull()
 })
+
+test('in the chat a step leads with its kind’s icon and its file as a pill; its words are unchanged', () => {
+  const { container } = render(<ToolRow call={toolCall('p1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}')} icon={<svg data-kind="read" />} />)
+  expect(screen.getByText('a.py')).toHaveClass('step-file')
+  expect(screen.getByRole('button')).toHaveTextContent(/^read_file a\.py/)
+  expect(container.querySelector('[data-kind="read"]')).not.toBeNull()
+  // (What did not end well keeps its own mark.)
+  const failed = render(<ToolRow call={toolCall('p2', 'r', 'read_file', 'failed', '{"path":"b.py"}')} icon={<svg data-kind="read" />} />)
+  expect(failed.container.querySelector('[data-kind="read"]')).toBeNull()
+})

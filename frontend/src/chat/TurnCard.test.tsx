@@ -39,6 +39,18 @@ test('the card names who answered, its model and the time of its last message; a
   expect(container.querySelector('time')).toBeNull()
 })
 
+test('the foot holds Copy and Read aloud first, what it did at its right', () => {
+  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [userMessage('r', 'go'), answer] })
+  const { container } = render(
+    <TurnCard state={state} run={run('r', 'completed')} lead={agent('r', 'completed')} answer={answer} summary={<button type="button">What it did</button>} waits={false}>
+      the work
+    </TurnCard>,
+  )
+  const foot = container.querySelector('footer.turn-foot')!
+  expect(foot.firstElementChild).toHaveClass('turn-actions')
+  expect(foot.lastElementChild).toHaveAccessibleName('What it did')
+})
+
 test('a night’s closing line, put on the turn before it, leaves that turn’s time as it was', () => {
   // (KOLONİ puts "While you were away: …" on the conversation's last turn, hours after its answer.)
   const night = { ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'), role: 'away' as const, agent_id: null, created_at: '2026-10-27T07:10:00' }

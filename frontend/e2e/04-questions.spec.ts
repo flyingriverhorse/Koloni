@@ -12,16 +12,19 @@ test('the agent asks, waits through a reload, and goes on with the chosen answer
 
   await ask(page, 'which greeting do you want to use?')
   await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
-  await expect(chat.getByText('Which greeting should I use?')).toBeVisible()
+  // (0.1.5: the Orchestrator's question waits on its card over the message box.)
+  const card = chat.getByRole('form', { name: 'Orchestrator asks' })
+  await expect(card.getByText('Which greeting should I use?')).toBeVisible()
   await expect(page.locator('.react-flow__node-agent')).toContainText('Waits for your answer')
 
   // The question is a record: it is still there, still open, after a reload.
   await page.reload()
-  await expect(page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: 'hey' })).toBeVisible()
+  await expect(card.getByRole('radio', { name: 'hey' })).toBeAttached()
 
-  await page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: 'hey' }).click()
+  await card.getByRole('radio', { name: 'hey' }).check()
+  await card.getByRole('button', { name: 'Submit' }).click()
   await expect(chat.getByText('Going with hey.')).toBeVisible()
-  await expect(chat.getByLabel('Your answer')).toHaveCount(0)
+  await expect(chat.getByLabel('Your answer', { exact: true })).toHaveCount(0)
   await expect(chat.getByText('Which greeting should I use?')).toBeVisible()
   await expect(page.getByText('DONE', { exact: true })).toBeVisible()
 })
@@ -31,8 +34,9 @@ test('a question can be answered in your own words', async ({ page }) => {
   const chat = page.getByRole('region', { name: 'Chat' })
 
   await ask(page, 'which greeting do you want to use?')
-  await chat.getByLabel('Your answer').fill('good morning')
-  await chat.getByRole('button', { name: 'Send answer' }).click()
+  const card = chat.getByRole('form', { name: 'Orchestrator asks' })
+  await card.getByLabel('Your answer').fill('good morning')
+  await card.getByRole('button', { name: 'Submit' }).click()
   await expect(chat.getByText('Going with good morning.')).toBeVisible()
 })
 

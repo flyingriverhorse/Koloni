@@ -72,14 +72,14 @@ test('a running command streams its output, survives a reload, and Stop kills it
 
   await ask(page, 'run the slow job')
   await chat.getByRole('button', { name: 'Run once' }).click()
+  // (In the chat a command opens by itself as its output comes: 0.1.5.)
   const row = chat.locator('.tool-row-head').filter({ hasText: 'python -u slow.py' })
-  await row.click()
   const output = chat.locator('.tool-row-detail')
   await expect(output).toContainText('tick 2')
+  await expect(row).toHaveAttribute('aria-expanded', 'true')
 
   // A reload rebuilds the live output from the server and it keeps arriving.
   await page.reload()
-  await row.click()
   await expect(output).toContainText('tick 2')
   const before = ((await output.textContent()) ?? '').length
   await expect.poll(async () => ((await output.textContent()) ?? '').length).toBeGreaterThan(before)
@@ -87,6 +87,9 @@ test('a running command streams its output, survives a reload, and Stop kills it
   await page.getByRole('button', { name: 'Stop', exact: true }).click()
   await expect(chat.getByText('killed')).toBeVisible()
   await expect(page.getByText('STOPPED', { exact: true })).toBeVisible()
+  // (Stopped is not a failure: it closes, as a command that ended well does.)
+  await expect(row).toHaveAttribute('aria-expanded', 'false')
+  await row.click()
   // Stopped means stopped: no more output arrives.
   const stopped = ((await output.textContent()) ?? '').length
   await page.waitForTimeout(1500)

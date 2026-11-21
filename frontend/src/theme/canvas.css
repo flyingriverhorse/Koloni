@@ -664,6 +664,25 @@ button.shared-row:hover,
   animation: pulse 1.2s ease-in-out infinite;
 }
 
+/* Its line at work (0.1.5): what it does is cut first; for how long, its tokens and tier stay in sight. */
+.node-now .status {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.node-now .status::before {
+  flex: none;
+  align-self: center;
+}
+
+.node-live-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .node-now .status::before,
   .react-flow .react-flow__edge.animated path {
@@ -968,56 +987,141 @@ button.shared-row:hover,
   padding: 0 10px 8px 30px;
 }
 
-/* A turn's steps in its card (0.1.4): quiet pills - a closed line of calls, an agent's folded report, a row on its own
-   with nothing under its head - each with its click, its marks and its state; a line's count is in its name only.
-   Opened, a line or a row is flat. */
-.turn-card .tool-run,
-.turn-card .tool-row {
+/* A turn's steps in the chat (0.1.5, as VS Code draws them): quiet 12 px rows on a thin rail - a line of calls, an
+   agent's folded report, a row on its own -, each with its click, its marks and its state; a line's count is in its name
+   only. Its words in the page's type, a file in them a pill. */
+.chat .turn .tool-run,
+.chat .turn .tool-row {
   border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
   background: none;
   box-shadow: none;
 }
 
-/* (align-self in a turn's group, justify-self in an agent's report; its focus ring is drawn outside it.) */
-.turn-card .tool-run:not(:has(> .tool-run-body)),
-.turn-card .msg-group > .tool-row:not(:has(> .tool-row-detail, > .tool-row-note, > .tool-row-shot)) {
-  align-self: flex-start;
-  justify-self: start;
-  max-width: 100%;
-  overflow: visible;
-}
-
-.turn-card :is(.tool-run-head, .tool-row-head) {
-  padding: 3px 10px 3px 8px;
-  border-radius: 999px;
+.chat .turn :is(.tool-run-head, .tool-row-head) {
+  padding: 2px 8px 2px 10px;
+  border-radius: 0;
   background: none;
   color: var(--muted);
   font-size: var(--text-note);
 }
 
-/* (A row's words at its pill's size, as a line's are: the row's own is the smaller mono one.) */
-.turn-card .tool-row-summary {
+.chat .turn .tool-row-summary {
+  font-family: var(--sans);
   font-size: inherit;
 }
 
-/* A pill's ground is its head's, so a hover paints the same ground again, never a second one over it: on two a failed
-   state's word reads at 4.4 in the dark theme. (A command's Stop stands beside the ground, not cut by its round end.) */
-.turn-card .tool-run:not(:has(> .tool-run-body)) > .tool-run-head,
-.turn-card .msg-group > .tool-row:not(:has(> .tool-row-detail, > .tool-row-note, > .tool-row-shot)) .tool-row-head,
-.turn-card :is(.tool-run-head, .tool-row-head):hover {
+.chat .turn :is(.tool-run-head, .tool-row-head):hover {
   background: var(--hover);
-}
-
-.turn-card :is(.tool-run-head, .tool-row-head):hover {
   color: var(--text);
 }
 
-.turn-card .tool-run-count {
+.chat .turn .tool-run-count {
   display: none;
 }
 
-.turn-card .tool-run-body {
-  padding: 0 0 0 14px;
+.chat .turn .tool-run-body {
+  padding: 0 0 4px 14px;
+}
+
+/* What a step was given: its file, its search - cut at its end where the row is too narrow. */
+.chat .turn .tool-row-summary:has(> .step-file) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat .step-file {
+  min-width: 0;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-soft);
+  font-family: var(--mono);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A command in the chat is a box: its command and how it ended on one line, its output under it - 6 lines, then it
+   scrolls. (`.tool-row-top` is CommandRow's alone.) */
+.chat .turn .tool-row:has(> .tool-row-top) {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.chat .turn .tool-row:has(> .tool-row-top) .tool-row-summary {
+  font-family: var(--mono);
+  font-size: var(--text-mono);
+}
+
+.chat .turn .tool-row:has(> .tool-row-top) .tool-row-detail {
+  padding: 4px 8px;
+}
+
+.chat .turn .tool-row:has(> .tool-row-top) .tool-row-detail pre {
+  max-height: calc(6 * 1.45em);
+  margin: 0;
+  line-height: 1.45;
+  overflow: auto;
+}
+
+/* A finished turn's steps before its answer: one line, "Completed 5 steps in 32s", that opens to them on a rail. */
+.turn-steps > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 0;
+  color: var(--muted);
+  font-size: var(--text-note);
+  list-style: none;
+  cursor: pointer;
+}
+
+.turn-steps > summary::-webkit-details-marker {
+  display: none;
+}
+
+.turn-steps > summary:hover {
+  color: var(--text);
+}
+
+.turn-steps-caret {
+  flex: none;
+  transition: transform 0.15s;
+}
+
+.turn-steps[open] > summary .turn-steps-caret {
+  transform: rotate(90deg);
+}
+
+.turn-steps-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 0 5px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+/* (Its rows on the body's line, and a line's rows on the line's rail, not a rail of their own beside it.) */
+.chat .turn-steps-body :is(.tool-run, .tool-row:not(:has(> .tool-row-top))),
+.chat .turn .tool-run-body > .tool-row:not(:has(> .tool-row-top)) {
+  border-left: 0;
+}
+
+.chat .turn-steps-body :is(.tool-run-head, .tool-row-head) {
+  padding-left: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-steps-caret {
+    transition: none;
+  }
 }
 
 /* --- inspector ----------------------------------------------------------- */

@@ -92,6 +92,22 @@ export async function say(page: Page, message: string, answer: string | RegExp) 
   await expect(page.getByRole('region', { name: 'Chat' }).getByText(answer).last()).toBeVisible({ timeout: 20_000 })
 }
 
+/** The chat's permission level, chosen in its menu by the comb's button under the message box (0.1.5). */
+export async function level(page: Page, mode: 'ask' | 'auto_edit' | 'full_auto') {
+  const chat = page.getByRole('region', { name: 'Chat' })
+  const name = { ask: 'Ask before changes', auto_edit: 'Auto-edit files', full_auto: 'Full auto' }[mode]
+  await chat.getByRole('button', { name: /^Permission level:/ }).click()
+  // (It is checked once the server has the level, as the button then says.)
+  await chat.getByRole('dialog', { name: 'Permission level' }).getByRole('menuitemradio', { name }).click()
+  await page.keyboard.press('Escape')
+  await expect(chat.getByRole('button', { name: `Permission level: ${name}` })).toBeVisible()
+}
+
+/** Opens every finished turn's folded steps in the chat ("Completed N steps", 0.1.5), so what they hold can be read. */
+export async function steps(chat: Locator) {
+  for (const summary of await chat.locator('details.turn-steps:not([open]) > summary').all()) await summary.click()
+}
+
 /**
  * Opens More under the message box, where it is not open (slice 38b): the
  * sub-agents, what runs without asking and Work together are in it.

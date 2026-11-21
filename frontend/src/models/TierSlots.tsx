@@ -2,11 +2,11 @@ import { ArrowDown, ArrowUp } from '@phosphor-icons/react'
 import { type DragEvent, useEffect, useState } from 'react'
 import { errorText } from '../api/client'
 import { TIERS, type Tier, type TierOrder, type Tiers } from '../api/types'
+import { TIER_NAMES as NAMES } from '../agents/liveLine'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { modelName } from '../shell/modelName'
 
-const NAMES: Record<Tier, string> = { strongest: 'Strongest', balanced: 'Balanced', fast: 'Fast' }
 // A tier shows its first few; "+N more" shows the rest.
 const FIRST = 5
 

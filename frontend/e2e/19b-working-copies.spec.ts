@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { openFreshConversation, shot, agentFold } from './helpers'
+import { agentFold, level, openFreshConversation, shot } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -25,8 +25,7 @@ test('two agents work in copies of their own: nothing is in the project until yo
   const tree = files.getByRole('tree', { name: 'Files' })
   // The user is asked before files change.
   await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
-  await page.getByLabel('Permission level').selectOption('ask')
-  await expect(page.getByLabel('Permission level')).toHaveValue('ask')
+  await level(page, 'ask')
 
   await page.getByLabel('Message').fill('two coders in their own copies')
   await page.getByRole('button', { name: 'Send' }).click()

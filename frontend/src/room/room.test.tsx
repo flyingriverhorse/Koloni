@@ -843,8 +843,9 @@ test('a post handed to a member is on its own record as handed from the room', (
 })
 
 test('"Work together…" stands under More, in the row under the message box with the model, which is drawn once', async () => {
-  // (It once had the model picker's key: two children of one key in one row are drawn twice.)
-  useApp.setState({ conv: state, projectId: 'p', providers: PROVIDERS, roles: ROLES })
+  // (It once had the model picker's key: two children of one key in one row are drawn twice. 0.1.5: the model is on the
+  // line over the box while the chat is ready.)
+  useApp.setState({ conv: { ...state, runs: [run('r', 'completed')] }, projectId: 'p', providers: PROVIDERS, roles: ROLES })
   render(<ChatPanel />)
   await userEvent.click(screen.getByRole('button', { name: 'More' }))
   expect(screen.getAllByRole('button', { name: /^Model: / })).toHaveLength(1)

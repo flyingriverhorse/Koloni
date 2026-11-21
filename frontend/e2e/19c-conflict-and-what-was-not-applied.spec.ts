@@ -1,7 +1,7 @@
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { contrasts, openFreshConversation, shot, agentFold } from './helpers'
+import { agentFold, contrasts, level, openFreshConversation, shot } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -18,8 +18,7 @@ async function twoCoders(page: import('@playwright/test').Page) {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
-  await page.getByLabel('Permission level').selectOption('ask')
-  await expect(page.getByLabel('Permission level')).toHaveValue('ask')
+  await level(page, 'ask')
   await page.getByLabel('Message').fill('two coders in their own copies')
   await page.getByRole('button', { name: 'Send' }).click()
   for (const _ of [1, 2]) await chat.getByRole('button', { name: 'Open agent' }).first().click()
@@ -84,8 +83,7 @@ for (const theme of ['light', 'dark'] as const) {
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
     await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
-    await page.getByLabel('Permission level').selectOption('ask')
-    await expect(page.getByLabel('Permission level')).toHaveValue('ask')
+    await level(page, 'ask')
     await page.getByLabel('Message').fill('a coder on the config file')
     await page.getByRole('button', { name: 'Send' }).click()
     await chat.getByRole('button', { name: 'Open agent' }).click()

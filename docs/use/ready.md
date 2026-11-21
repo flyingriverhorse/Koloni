@@ -17,7 +17,7 @@ question off.
 - **The pill in the top bar**, such as "2 wait". It opens the **Ready for you** panel. When nothing
   waits but the Orchestrator decided things for you in this chat, the pill says how many it decided.
 - **In the chat**, where the card was asked. A closed chat's line says how many wait for you, and a
-  chat says when more wait elsewhere.
+  chat says under its message box when more wait elsewhere ("2 more wait elsewhere").
 - Ctrl+K lists **Ready for you** too.
 
 ### The panel

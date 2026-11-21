@@ -1,8 +1,10 @@
 # Permission levels
 
-The permission level decides what agents may do without asking you first. You pick it in the
-menu next to the message box. Each chat has its own level. The box shows the short name (**Ask**,
-**Auto-edit** or **Full auto**); its tooltip says the full one.
+The permission level decides what agents may do without asking you first. It stands in the message box's
+row as three comb cells and its name (**Ask** one cell, **Auto-edit** two, **Full auto** three): a click
+lists the levels, each with a line on what it does - Ask before changes: "Each file change and command waits
+for your card"; Auto-edit files: "Writes files at once (revertible); commands still ask"; Full auto: "Changes
+and commands run; only harmful or risky actions ask" - and **Plan first**. Each chat has its own level.
 
 | Level | In short |
 |---|---|

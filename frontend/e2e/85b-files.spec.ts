@@ -37,7 +37,10 @@ for (const theme of ['light', 'dark'] as const) {
     ])
     await expect(page.getByText('2 attached · 122 B')).toBeVisible()
     // (Files added, Send stays on the level's line.)
-    const [level, send] = await Promise.all([page.getByLabel('Permission level'), page.getByRole('button', { name: 'Send' })].map(async c => (await c.boundingBox())!.y))
+    const [level, send] = await Promise.all([page.getByRole('button', { name: /^Permission level:/ }), page.getByRole('button', { name: 'Send' })].map(async c => {
+      const at = (await c.boundingBox())!
+      return Math.round(at.y + at.height / 2)
+    }))
     expect(send).toBe(level)
     expect((await page.locator('.composer').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     if (process.env.KOLONI_SHOTS) await shot(page.locator('.composer'), `85b-composer-${theme}`)
