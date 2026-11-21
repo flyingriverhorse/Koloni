@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session, require_own_origin
@@ -94,3 +94,11 @@ async def change(
         raise HTTPException(409, why)
     question.answer, question.lead_why = text, None
     return _seen(request, session, question)
+
+
+@router.post("/questions/{question_id}/typing", status_code=204)
+async def typing(question_id: str, request: Request):
+    """☾ Away: the user types this question's answer - the Lead does not decide it for them
+    until `TYPING_HOLD_SECONDS` after the last such word (a ping nobody waits on is nothing)."""
+    request.app.state.runner.typing(question_id)
+    return Response(status_code=204)

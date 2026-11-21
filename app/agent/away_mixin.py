@@ -30,6 +30,11 @@ from app.tools import ToolError
 if TYPE_CHECKING:
     from app.agent import AgentRunner
 
+# Go away, to the away chat's Lead at work (`away_now`).
+AWAY_TOLD = ("KOLONİ: the user has gone away (Away): finish this turn deciding what you can "
+             "yourself; a question of yours to them waits for their return, so ask none you can "
+             "do without. Their To-do list is worked through after this turn.")
+
 
 def branch_held(session: Session, project_id: str, but_run: str | None = None,
                 copies: bool = False) -> tuple[str, str] | None:
@@ -77,6 +82,23 @@ class AwayMixin:
             if waiting and not self._closing:
                 away.go_on(session, project_id, self)
             announce(self._factory, self.bus, project_id, "backlog.changed")
+
+    def away_now(self: "AgentRunner", project_id: str, cid: str) -> None:
+        """Go away: every card of the project the Lead may decide (`_decidable`) is decided now,
+        whatever its time; the away chat's Lead at work is told the user went (call 8).
+        shortcut: told at its next step (`_nudge`), not into a CLI's turn at once (`steer`);
+        steer it if a CLI's Lead is seen to ask after Go away."""
+        for project, now_go in list(self._decidable.values()):
+            if project == project_id:
+                now_go()
+        for lead in [one for one in self._ctxs.values() if one.cid == cid and not one.depth]:
+            self._nudge(lead, AWAY_TOLD)
+
+    def typing(self: "AgentRunner", question_id: str) -> None:
+        """The user types an answer to a question that waits: the Lead holds off it
+        (`TYPING_HOLD_SECONDS`). Nothing kept for one nobody waits on."""
+        if question_id in self._answers:
+            self._typing_at[question_id] = asyncio.get_running_loop().time()
 
     def cut(self: "AgentRunner", run_id: str, why: str) -> None:
         """Stop a job's turn as Stop does, its copy kept (`execute`), with why on record: its

@@ -3599,6 +3599,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/questions/{question_id}/typing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Typing
+         * @description ☾ Away: the user types this question's answer - the Lead does not decide it for them
+         *     until `TYPING_HOLD_SECONDS` after the last such word (a ping nobody waits on is nothing).
+         */
+        post: operations["typing_api_questions__question_id__typing_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/recipes": {
         parameters: {
             query?: never;
@@ -5296,6 +5317,11 @@ export interface components {
             /** Conversation Id */
             conversation_id: string | null;
             /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
              * Created By
              * @enum {string}
              */
@@ -5323,6 +5349,8 @@ export interface components {
              * @enum {string}
              */
             priority: "high" | "normal" | "low";
+            /** Proposed In */
+            proposed_in?: string | null;
             /**
              * Queued
              * @default false
@@ -18038,6 +18066,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["QuestionOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    typing_api_questions__question_id__typing_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

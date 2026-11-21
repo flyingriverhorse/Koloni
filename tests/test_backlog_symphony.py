@@ -254,10 +254,11 @@ def test_at_full_auto_a_task_runs_its_tests_but_a_command_that_runs_another_wait
     runner = client.app.state.runner
     run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
     assert run_id in runner._backlog_turns
-    # the Lead answers none of its cards (at Full auto in a chat it would): stood down at once,
-    # before the chat is read - this ctx has none
-    assert runner._lead_may_answer(SimpleNamespace(run_id=run_id), "card", "", [], None,
-                                   None)() is None
+    # ☾ Away: KOLONİ's own cards ("card": kept work, a guide line) are the Lead's only at a
+    # watched Full auto - not a task's: stood down at once, no timer, nothing for Go away
+    assert runner._lead_may_answer(SimpleNamespace(run_id=run_id, cid=cid, agent_id=None),
+                                   "card", "", [], None, None)() is None
+    assert runner._decidable == {}
 
 
 def test_at_full_auto_a_task_s_instruction_file_waits_for_the_user(make_client, project_dir):
