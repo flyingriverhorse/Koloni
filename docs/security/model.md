@@ -46,6 +46,15 @@ run** covers only a plain command. A rule never covers:
   file (`-o`, `-O`, `-OutFile`), reading options from a file (`-K`, `--config`), sending data, or a
   `file:` address.
 
+[Disposable deletes](../use/permissions.md#disposable-deletes), off until you allow them, are no rule:
+KOLONİ checks each one as it is asked, and fails closed - git that does not answer, a link, a folder
+it cannot read is a card. Never disposable: a forced `git worktree remove`, KOLONİ's `koloni/…`
+branches and its copies' worktrees, a locked worktree, the default branch, `main` and `master`, a
+branch any worktree stands on, a build folder holding a file git tracks, a worktree holding a secret
+file or anything else git ignores but build and cache folders, `.git`, `.koloni`, `node_modules`, `.venv`, `venv`, a path above the folder the command runs in
+(a registered worktree aside) or any line that is not one plain delete. What is checked is the folder
+as it is then: one swapped for a link after the look and before the delete is not seen.
+
 ## Places agents never open
 
 - Your home folder, a drive's root and KOLONİ's own folder cannot be opened as a project. Settings ›
