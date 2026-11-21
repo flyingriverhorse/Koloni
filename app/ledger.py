@@ -200,6 +200,13 @@ def failed_tests(session: Session, agent_id: str) -> Command | None:
     return None
 
 
+def failed_line(one: Command) -> str:
+    """A failed test run as a finding: its command with its keys hidden, then cut."""
+    how = "timed out" if one.status == "timed_out" else f"exit {one.exit_code}"
+    command = OutputMask(secret_values(os.environ)).hide(one.command)
+    return f"last test run failed ({how}): {command[:60]}"
+
+
 def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
     """K-kanit: one line of what an agent and the agents it opened did, counted from KOLONİ's
     record (no model), so that its opener can tell what its report claims from what was done.

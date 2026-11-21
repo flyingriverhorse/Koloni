@@ -293,6 +293,26 @@ def test_a_failing_test_run_runs_the_debugger_whatever_the_tester_reports(make_c
     assert [f["blocking"] for f in tester["findings"] if "exit 1" in f["what"]] == [True], tester["findings"]
 
 
+def test_a_key_in_a_failing_test_runs_command_is_hidden_in_its_finding(
+        make_client, wait_run, project_dir, monkeypatch):
+    # (Review, 21 Nov: the finding is handed on to the Debugger and shown on the card.)
+    key = "kg-0123456789abcdefghijklmnop"
+    monkeypatch.setenv("KG_TEST_TOKEN", key)
+    executor = ScriptedExecutor([Script(["1 failed\n"], exit_code=1)])
+    client, _model = make_client({
+        "Lead": [spawn("Tester", "run the tests", "t1"),
+                 step(call("spawn_agent", {"role": "Debugger", "task": "fix it", "findings_from": "Tester"}, "d1")),
+                 spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
+        "Tester": [cmd(f"pytest --token {key}"), text(NONE)],
+        "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
+        "Tester 2": [text(NONE)], **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    cid, run_id = quality_run(client, project_dir, mode="full_auto")
+    snap = wait_run(client, cid, run_id)
+    tester = next(a for a in snap["agents"] if a["role_name"] == "Tester")
+    (said,) = [f["what"] for f in tester["findings"] if "exit 1" in f["what"]]
+    assert key not in said and "pytest --token" in said, said
+
+
 def test_a_command_that_exits_1_and_is_no_test_run_is_no_problem(make_client, wait_run, project_dir):
     # (A grep with no match exits 1: only a test run's failure is one.)
     executor = ScriptedExecutor([Script([], exit_code=1)])
