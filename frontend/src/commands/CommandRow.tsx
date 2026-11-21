@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { api } from '../api/client'
 import type { Command } from '../api/types'
 import { StatusLabel } from '../shell/StatusLabel'
-import { TONE_COLOR, commandSeconds, commandStatus } from './commandStatus'
+import { JUDGED_FROM, TONE_COLOR, commandSeconds, commandStatus } from './commandStatus'
 import { outputPreview } from './outputPreview'
 
 /**
@@ -29,12 +29,23 @@ export function CommandRow({ command, failed = false }: { command: Command; fail
         </button>
         <StopCommand command={command} />
       </div>
+      <RanOnYourWords judged={command.judged} />
       {open && <CommandOutput command={command} />}
     </div>
   )
 }
 
 const CLI_FAILED = { label: 'failed (its CLI said so)', tone: 'del' as const }
+
+/** A command that ran at Full auto with no card, by the check of the user's own words: the line it rested on. */
+function RanOnYourWords({ judged }: { judged: Command['judged'] }) {
+  if (judged?.verdict !== 'run' || !judged.source) return null
+  return (
+    <div className="tool-row-note muted">
+      Ran without asking · your rule: “{judged.quote}” ({JUDGED_FROM[judged.source]})
+    </div>
+  )
+}
 
 /** Its output: the first and last lines, and all of it on "Show all". */
 function CommandOutput({ command }: { command: Command }) {
