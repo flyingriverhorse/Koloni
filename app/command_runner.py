@@ -139,6 +139,13 @@ def _free(ask: bool, disposable: dict | None, mode: str, allows: bool) -> bool:
             and mode in ("auto_edit", "full_auto"))
 
 
+def _lapsed(disposable: dict | None, free: bool) -> bool:
+    """Whether a delete its caller found free (`allowed`) is no longer so as it is decided - the
+    project's switch turned off, the chat's level changed meanwhile: its caller made no ask of
+    its own for it (the harm ask of a watched turn), so it is asked here, as `_gate_open`'s."""
+    return disposable is not None and disposable["allowed"] and not free
+
+
 def _noted(disposable: dict | None, unasked: bool) -> dict | None:
     """What of a command goes on its record as disposable (`schemas.DisposableOut`)."""
     return None if disposable is None else {"what": disposable["what"], "unasked": unasked}
@@ -285,7 +292,8 @@ class CommandRunner:
                          project.disposable_deletes)
             asks = ask and (always or names_secret(judged) or bool(standing_asked(
                 judged, conversation.permission_mode != "full_auto"))
-                or bool(searched) or judgement is not None and not gate or (
+                or bool(searched) or judgement is not None and not gate
+                or _lapsed(disposable, free) or (
                 conversation.permission_mode != "full_auto"
                 and (planned.keep_running or not (is_allowed(planned.command, prefixes)
                                                   or reads or own or free
@@ -572,6 +580,7 @@ class CommandRunner:
             asks = ask and (always or names_secret(judged)
                             or bool(standing_asked(judged, mode != "full_auto"))
                             or judgement is not None and not gate
+                            or _lapsed(disposable, free)
                             or (mode != "full_auto"
                                 and not (is_allowed(command, prefixes) or reads or own or free)))
             row = Command(

@@ -89,7 +89,7 @@ def test_a_project_asks_as_before_until_the_user_allows_disposable_deletes_on_it
 BUILD = {"what": "build folder build", "allowed": True}
 
 
-def runner_at(tmp_path, mode, allows=True, calls=8):
+def runner_at(tmp_path, mode, allows=True, calls=9):
     """A command runner over a chat at `mode` in a project that allows disposable deletes or not;
     each card it would show is turned down and counted (`runner.asked`)."""
     db = tmp_path / "r.db"
@@ -148,10 +148,15 @@ def test_a_disposable_delete_goes_without_its_levels_card_only_where_the_project
         s.commit()
     assert asked("t6", disposable=BUILD)[1]
     with factory() as s:
-        s.get_one(Conversation, "c").permission_mode = "full_auto"
+        s.get_one(Conversation, "c").permission_mode = "auto_edit"
         s.get_one(Project, "p").disposable_deletes = False
         s.commit()
-    assert asked("t7", always=True, disposable=BUILD)[1]
+    assert asked("t7", disposable=BUILD) == (False, True, {**unasked, "unasked": False})
+    # (at Full auto too, where nothing of the level asks: its caller made no ask of its own)
+    with factory() as s:
+        s.get_one(Conversation, "c").permission_mode = "full_auto"
+        s.commit()
+    assert asked("t8", disposable=BUILD) == (False, True, {**unasked, "unasked": False})
 
 
 def given(client, disposable):
