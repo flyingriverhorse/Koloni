@@ -190,8 +190,10 @@ test('at 1024 px a room’s window opens beside the open chat, never over it', a
   const room = page.getByRole('dialog', { name: 'Room: Look at the greeting together' })
   const waiting = room.getByRole('region', { name: 'Waits for you' })
   await expect(waiting.getByText('Shall the greeting stay hi?')).toBeVisible({ timeout: 20_000 })
-  const [at, column] = [(await room.boundingBox())!, (await chat.boundingBox())!]
+  const [at, column, zoom] = [(await room.boundingBox())!, (await chat.boundingBox())!, (await page.locator('.react-flow__controls').boundingBox())!]
   expect(at.x).toBeGreaterThanOrEqual(column.x + column.width - 1)
+  // (Clear of the canvas's zoom buttons at its right.)
+  expect(at.x + at.width).toBeLessThanOrEqual(zoom.x)
   // (Its member answered, so that it ends.)
   await waiting.getByLabel('Your answer').fill('Yes')
   await waiting.getByRole('button', { name: 'Send answer' }).click()

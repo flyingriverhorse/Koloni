@@ -52,9 +52,10 @@ describe('K-38b-sinirlar: a window opening in the top right', () => {
     expect(placeWindow(want, stage, chat(14, 356, 480, 300), [])).toEqual({ left: 266, top: 14, width: 320, height: 328 })
   })
 
-  test('CL-264: the open chat column is a hard left edge - beside it, as wide as is left (to LEAST over the right side), never over it', () => {
+  test('CL-264: the open chat column is a hard left edge - beside it, as wide as is left, never narrower than LEAST', () => {
     expect(placeWindow(want, stage, { ...chat(0, 0, 300, 670), column: true }, [])).toEqual({ left: 314, top: 14, width: 272, height: 360 })
-    expect(placeWindow(want, stage, { ...chat(0, 0, 360, 670), column: true }, [])).toEqual({ left: 374, top: 14, width: 212, height: 360 })
+    // (Less than LEAST beside it: where it was before, over the chat, in front.)
+    expect(placeWindow(want, stage, { ...chat(0, 0, 360, 670), column: true }, [])).toBe(want)
     // (Not over it where it meets nothing of the column; the closed chat's small box keeps its four ways.)
     expect(placeWindow({ ...want, left: 400, width: 186 }, stage, { ...chat(0, 0, 300, 670), column: true }, [])).toEqual({ ...want, left: 400, width: 186 })
     expect(placeWindow(want, stage, chat(14, 16, 300, 640), [])).toEqual({ left: 328, top: 14, width: 258, height: 360 })
