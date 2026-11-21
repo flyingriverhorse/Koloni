@@ -116,12 +116,10 @@ test('while it runs, its opener and the members opened for it say what they wait
       { agent_id: 'lead', status: 'in', opened_here: false },
     ] })],
   }
-  const { nodes } = deriveGraph(talking)
-  const doing = (id: string) => (nodes.find(n => n.id === `agent:${id}`)?.data as { activity: string }).activity
-  expect(['lead', 'rev', 'doc', 'coder'].map(doing)).toEqual(['Waiting for the discussion', 'Waiting for its turn to speak', 'Left the discussion', 'Waiting for a sub-agent'])
+  const doing = (state: typeof talking, id: string) => (deriveGraph(state).nodes.find(n => n.id === `agent:${id}`)!.data as { activity: string }).activity
+  expect(['lead', 'rev', 'doc', 'coder'].map(id => doing(talking, id))).toEqual(['Waiting for the discussion', 'Waiting for its turn to speak', 'Left the discussion', 'Waiting for a sub-agent'])
   // (Over, it is no longer what they wait for.)
-  const over = deriveGraph({ ...talking, discussions: [talk({ status: 'ended', outcome: 'agreed' })] }).nodes
-  expect((over.find(n => n.id === 'agent:rev')?.data as { activity: string }).activity).toBe('Waiting for a sub-agent')
+  expect(doing({ ...talking, discussions: [talk({ status: 'ended', outcome: 'agreed' })] }, 'rev')).toBe('Waiting for a sub-agent')
 })
 
 test('an ended discussion says how it ended', () => {
