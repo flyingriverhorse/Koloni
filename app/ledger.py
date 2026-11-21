@@ -55,11 +55,16 @@ def _listed(items: list[str]) -> str:
     return ", ".join(items[:MOST]) + more
 
 
+def _exit(command: Command) -> str:
+    # (Claude Code reports an exit code only of a command that failed: none is not known.)
+    return "no exit code reported" if command.exit_code is None else f"exit {command.exit_code}"
+
+
 def _ended(command: Command) -> str:
     if command.keep_running:
         return "server"  # (still running, or stopped since: either way not a result that stays)
     if command.status == "exited":
-        return f"exit {command.exit_code}"
+        return _exit(command)
     return command.status.replace("_", " ")
 
 
@@ -135,7 +140,7 @@ def of_turn(session: Session, run_id: str, agents: Collection[str] | None = None
                 for one in later))
     if tests:
         last = tests[-1]
-        lines.append(f"- last tests: {_quoted(hide(last.command))} exit {last.exit_code}"
+        lines.append(f"- last tests: {_quoted(hide(last.command))} {_exit(last)}"
                      + _sum_of(last.output))
     return "\n".join([HEAD, *lines]) if lines else None
 
@@ -173,12 +178,13 @@ def _family(session: Session, agent_id: str) -> tuple[str, set[str]]:
     return run_id, ids
 
 
-def _failed(one: Command) -> bool:
+def _failed(one: Command, call: str | None) -> bool:
     """A test run that failed: timed out, exited non-zero - not pytest's 5, no tests collected -
-    or counted a failure."""
+    or counted a failure. With no exit code reported (Claude Code's pass), only where its output
+    counts a failure or its CLI said its call failed (`call`: its own timeout, say)."""
     nothing = one.exit_code == 5 and "pytest" in one.command.casefold()
-    return one.status == "timed_out" or (one.exit_code != 0 and not nothing) or bool(
-        FAILED.search(one.output[-4000:]))
+    return one.status == "timed_out" or (one.exit_code is None and call == "failed") or (
+        one.exit_code not in (0, None) and not nothing) or bool(FAILED.search(one.output[-4000:]))
 
 
 def failed_tests(session: Session, agent_id: str) -> Command | None:
@@ -187,22 +193,24 @@ def failed_tests(session: Session, agent_id: str) -> Command | None:
     or none ran (killed: no result)."""
     run_id, ids = _family(session, agent_id)
     seen: set[str] = set()
-    for one in session.scalars(
-            select(Command).where(Command.run_id == run_id, Command.agent_id.in_(ids),
-                                  Command.status.in_(("exited", "timed_out")))
+    for one, call in session.execute(
+            select(Command, ToolCall.status)
+            .outerjoin(ToolCall, ToolCall.id == Command.tool_call_id)
+            .where(Command.run_id == run_id, Command.agent_id.in_(ids),
+                   Command.status.in_(("exited", "timed_out")))
             .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())):
         same = " ".join(one.command.split()).casefold()
         if same in seen or not RUNS_TESTS.match(one.command):
             continue
         seen.add(same)
-        if _failed(one):
+        if _failed(one, call):
             return one
     return None
 
 
 def failed_line(one: Command) -> str:
     """A failed test run as a finding: its command with its keys hidden, then cut."""
-    how = "timed out" if one.status == "timed_out" else f"exit {one.exit_code}"
+    how = "timed out" if one.status == "timed_out" else _exit(one)
     command = OutputMask(secret_values(os.environ)).hide(one.command)
     return f"last test run failed ({how}): {command[:60]}"
 
@@ -229,8 +237,10 @@ def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
         select(Command).where(Command.run_id == run_id, Command.agent_id.in_(ids),
                               Command.status.in_(RAN))
         .order_by(Command.created_at, literal_column("commands.rowid"))).all()
-    failed = sum(not one.keep_running and (one.status != "exited" or one.exit_code != 0)
-                 for one in commands)
+    # (No exit code reported - Claude Code's pass - fails only where its output counts a failure.)
+    failed = sum(not one.keep_running and (
+        one.status != "exited" or one.exit_code not in (0, None)
+        or one.exit_code is None and bool(FAILED.search(one.output[-4000:]))) for one in commands)
     tests = [one for one in commands if one.status == "exited" and TESTS.search(one.command)]
     parts = []
     if seen or read:
@@ -251,8 +261,9 @@ def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
         since = session.scalar(select(FileChange.id).where(
             FileChange.run_id == run_id, FileChange.agent_id.in_(ids),
             FileChange.created_at > last.created_at).limit(1))
-        parts.append(f"last test run failed (exit {last.exit_code})" if last.exit_code != 0 or (
-            FAILED.search(last.output[-4000:])) else "last test run passed" if since or not (
+        parts.append(f"last test run failed ({_exit(last)})" if last.exit_code not in (0, None) or (
+            FAILED.search(last.output[-4000:])) else f"last test run: {_exit(last)}"
+            if last.exit_code is None else "last test run passed" if since or not (
             RUNS_TESTS.match(last.command)) else PASSED.format(command=_quoted(last.command)))
     if seen or web:
         parts.append(f"{web} web")
