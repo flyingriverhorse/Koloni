@@ -55,6 +55,7 @@ import { answerLast } from './chatLine'
 import { asksOutside } from './toolSummary'
 import { PARTS, type Waiting, decidedOf, waitingId, waitingOf } from './waiting'
 import { DecidedForYou } from './DecidedForYou'
+import type { Group, Piece } from './splitTurn'
 import { CompareView } from './CompareView'
 import { modelName } from '../shell/modelName'
 import { foldRepeats } from '../shell/repeats'
@@ -215,11 +216,16 @@ function outsideWord(decide: Handlers['onDecideRole'], callId: string) {
 const ownLine = (call: ToolCall) =>
   (call.name === 'pick_teams' && call.status === 'succeeded') || (call.name === 'ask_user' && (call.status === 'denied' || call.status === 'failed'))
 
-/** A call that is more than a row: something of it asks or waits for you, or you decide its change - or a line of its own. */
-function standsAlone(call: ToolCall, change: FileChange | undefined, { asked, web, role, skill, waits }: Record<'asked' | 'web' | 'role' | 'skill' | 'waits', unknown>) {
+type CallParts = Record<'asked' | 'web' | 'role' | 'skill' | 'waits', unknown>
+
+/** Something of a call waits for your word now: a card, a row that waits for you, a change you decide. */
+function waitsOnYou(call: ToolCall, change: FileChange | undefined, { web, role, skill, waits }: CallParts) {
   const decides = change?.status === 'proposed' || change?.status === 'approved'
-  return Boolean(asked || web || role || skill || waits || decides || ownLine(call) || asksOutside(call))
+  return Boolean(web || role || skill || waits || decides || asksOutside(call))
 }
+
+/** A call that is more than a row: something of it asks or waits for you, or you decide its change - or a line of its own. */
+const standsAlone = (call: ToolCall, change: FileChange | undefined, parts: CallParts) => Boolean(parts.asked) || ownLine(call) || waitsOnYou(call, change, parts)
 
 function ChangeLine({ change, onOpen, onDecide }: ChangeLineProps) {
   return (
@@ -239,6 +245,8 @@ type Handlers = Required<
   Omit<Props, 'state' | 'onRemoveQueued' | 'onOpenDiscussion' | 'onOpenRoom' | 'onAllowInTrigger' | 'onDecidePlan' | 'roles' | 'providers' | 'onUsage' | 'prices' | 'onLoadCompare' | 'onDecideCompare' | 'onShowTurn' | 'onShowGit'>
 >
 type Known = Required<Pick<Props, 'roles' | 'providers'>>
+/** A call as the chat shows it (`callView`). */
+type View = { node: ReactNode; stands: boolean; folds: boolean }
 /** What `SubtreeRequests` needs to put a card before you and take your word on it. */
 export type RequestHandlers = Handlers
 const NONE: never[] = []
@@ -405,17 +413,6 @@ export function QueuedNote({ state, asks }: { state: ConvState; asks: (question:
       Your message waits until this question is answered
     </div>
   )
-}
-
-/**
- * KOLONİ's own card of a turn that hangs off no call (its Orchestrator's model is slow to answer), under its last message -
- * while it asks: answered or closed, it says nothing more (its model spoke; a Stop has KOLONİ's line).
- */
-function TurnQuestions({ state, runId, last, onAnswer }: { state: ConvState; runId: string; last: boolean; onAnswer: (questionId: string, answer: string) => Promise<void> }) {
-  if (!last) return null
-  return state.questions
-    .filter(q => q.run_id === runId && q.tool_call_id === null && q.status === 'pending')
-    .map(q => <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />)
 }
 
 /** A merge's card's words on its agent, as the inspector gives them: its name, whether it finished, and - a Lead's, a recipe's copy - what Take in takes in with it. */
@@ -756,17 +753,27 @@ const OPENERS = new Set<Message['role']>(['user', 'trigger'])
 const answerLook = (message: Message, answer: Message | undefined, run: Run | undefined) =>
   message === answer && run && TERMINAL.has(run.status) ? ' msg-answer' : ''
 
+/** A message's group as the chat draws it: its pieces in their order. */
+const drawGroup = (group: Group) => (
+  <div key={group.message.id} className="msg-group">
+    {group.pieces.map(piece => (
+      <Fragment key={piece.key}>{piece.node}</Fragment>
+    ))}
+  </div>
+)
+
 /**
  * The chat's groups (one per message of `ordered`, null where nothing is drawn) with each turn's after its opener as
  * `card` puts them: in one card, or as they are with what the turn did under them.
  */
-function turnsOf(ordered: Message[], card: (runId: string, inside: ReactNode[]) => ReactNode[], groups: ReactNode[]): ReactNode[] {
+function turnsOf(ordered: Message[], card: (runId: string, inside: Group[]) => ReactNode[], groups: (Group | null)[]): ReactNode[] {
   const out: ReactNode[] = []
-  let inside: ReactNode[] = []
+  let inside: Group[] = []
   // (A turn's messages are next to one another: `ordered` is sorted by turn.)
   ordered.forEach((message, i) => {
-    if (OPENERS.has(message.role)) out.push(groups[i])
-    else if (groups[i]) inside.push(groups[i])
+    const group = groups[i]
+    if (OPENERS.has(message.role)) out.push(group && drawGroup(group))
+    else if (group) inside.push(group)
     if (ordered[i + 1]?.run_id === message.run_id) return
     out.push(...card(message.run_id, inside))
     inside = []
@@ -878,16 +885,22 @@ export function MessageList({
   // Once one side is picked, what the other did is one closed row (the user's word, 25 Oct). (Both thrown away: as they were.)
   const unused = new Set(state.runs.filter(r => r.compare_id && picks[r.compare_id] && picks[r.compare_id] !== r.id).map(r => r.id))
 
-  /** The questions put in a call, one after another, and the Lead's card where a Take in met a clash. */
-  const questionCards = (call: ToolCall, asks: Question[]) => {
-    // B-128: a Take in that met a clash waits on the Lead's card - under the Ready for you its turn's last Take in answered,
-    // not only in the inspector (an earlier Take in's card is over).
+  /**
+   * B-128: a Take in that met a clash waits on the Lead's card - under the Ready for you its turn's last Take in answered,
+   * not only in the inspector (an earlier Take in's card is over).
+   */
+  const clashOf = (call: ToolCall) => {
     const tookIn = state.questions
       .filter(q => q.run_id === call.run_id && (q.answer === 'Take in' || q.answer === 'Fix the findings') && isReadyCard(q))
       .reduce<Question | null>((last, q) => (last && last.created_at > q.created_at ? last : q), null)
-    const clash = tookIn?.tool_call_id === call.id
+    return tookIn?.tool_call_id === call.id
       ? state.merges.find(m => m.run_id === call.run_id && m.status === 'pending' && state.agents.some(a => a.id === m.agent_id && a.depth === 0))
       : undefined
+  }
+
+  /** The questions put in a call, one after another, and the Lead's card where a Take in met a clash. */
+  const questionCards = (call: ToolCall, asks: Question[]) => {
+    const clash = clashOf(call)
     return (
       <Fragment key={call.id}>
         {asks.map(q => (
@@ -982,9 +995,10 @@ export function MessageList({
     </div>
   )
 
-  /** A command's call: its row, and while it waits for your word or a place, that. */
-  const commandCall = (call: ToolCall, command: Command): { node: ReactNode; stands: boolean } => ({
+  /** A command's call: its row, and while it waits for your word or a place, that. A server that runs never folds: its Stop is in it. */
+  const commandCall = (call: ToolCall, command: Command): View => ({
     stands: command.status === 'proposed' || command.status === 'approved',
+    folds: !['proposed', 'approved'].includes(command.status) && !(command.keep_running && command.status === 'running'),
     node: (
       <Fragment key={call.id}>
         <CommandRow command={command} failed={call.status === 'failed'} />
@@ -1010,7 +1024,8 @@ export function MessageList({
     const skill = state.pendingSkills.find(r => r.tool_call_id === call.id)
     const web = state.webRequests.find(w => w.tool_call_id === call.id && w.status === 'proposed')
     const waits = pending ? 'waits for your answer' : callWaits(state, call)
-    return { stands: standsAlone(call, change, { asked, web, role, skill, waits }), node: (
+    const parts = { asked, web, role, skill, waits }
+    return { stands: standsAlone(call, change, parts), folds: !waitsOnYou(call, change, parts), node: (
       <Fragment key={call.id}>
         {/* (Nothing of it runs before the user's yes: it waits, it does not run.) */}
         <ToolRow call={call} waits={waits} />
@@ -1037,8 +1052,11 @@ export function MessageList({
     ) }
   }
 
-  /** A call as the chat shows it; `stands`: it is more than a row - a card, a row that waits for you, or one of its own kind - and is never inside a run. */
-  const callView = (call: ToolCall): { node: ReactNode; stands: boolean } => {
+  /**
+   * A call as the chat shows it; `stands`: it is more than a row - a card, a row that waits for you, or one of its own kind -
+   * and is never inside a run; `folds`: nothing of it waits for you now, and it is no agent, room or discussion of the turn.
+   */
+  const callView = (call: ToolCall): View => {
     const change = state.fileChanges.find(f => f.tool_call_id === call.id)
     const command = state.commands.find(c => c.tool_call_id === call.id)
     const child = state.agents.find(a => a.tool_call_id === call.id)
@@ -1048,17 +1066,17 @@ export function MessageList({
     const asked = asks[0]
     const pending = asks.some(q => q.status === 'pending')
     const question = asked && questionCards(call, asks)
-    if (call.name === 'open_room') return { stands: true, node: roomCall(call, question) }
-    if (child) return { stands: true, node: agentCall(call, child, question) }
+    if (call.name === 'open_room') return { stands: true, folds: false, node: roomCall(call, question) }
+    if (child) return { stands: true, folds: false, node: agentCall(call, child, question) }
     const discussion = state.discussions.find(d => d.tool_call_id === call.id)
-    if (discussion) return { stands: true, node: discussionCall(call, discussion) }
+    if (discussion) return { stands: true, folds: false, node: discussionCall(call, discussion) }
     if (call.name === 'message_agent') {
-      return { stands: true, node: <TalkRow key={call.id} call={call} from={nameOf(call.agent_id)} /> }
+      return { stands: true, folds: true, node: <TalkRow key={call.id} call={call} from={nameOf(call.agent_id)} /> }
     }
     // Leave asked for a tool of an MCP server: the call keeps its row, with what it
     // was given and what came back, and the question stands under it.
     const leave = call.origin !== 'cli' && call.name !== 'ask_user'
-    if (question && !leave) return { stands: true, node: question }
+    if (question && !leave) return { stands: true, folds: !pending && !clashOf(call), node: question }
     if (command) return commandCall(call, command)
     return toolCallRow(call, { question, asked, pending, change })
   }
@@ -1074,18 +1092,21 @@ export function MessageList({
   const toolLines = toolRuns(ordered, callsOf, call => stood.has(call.id))
   const lineAt = new Map(toolLines.map(calls => [calls[0].id, calls]))
   const inLine = new Set(toolLines.flatMap(calls => calls.slice(1).map(call => call.id)))
-  const rowsOf = (calls: ToolCall[]) =>
-    calls.map(call => {
-      const line = lineAt.get(call.id)
-      if (line) {
-        return (
-          <ToolRun key={call.id} calls={line} state={state}>
-            {line.map(inner => views.get(inner.id)?.node)}
-          </ToolRun>
-        )
-      }
-      return inLine.has(call.id) ? null : views.get(call.id)?.node
-    })
+  /** A call as a piece of its message's group: a line of calls at its first, nothing at the others, else its view. */
+  const callPiece = (call: ToolCall): Piece[] => {
+    const line = lineAt.get(call.id)
+    if (line) {
+      const node = (
+        <ToolRun calls={line} state={state}>
+          {line.map(inner => views.get(inner.id)?.node)}
+        </ToolRun>
+      )
+      return [{ key: call.id, node, folds: line.every(inner => views.get(inner.id)?.folds), calls: line }]
+    }
+    const view = views.get(call.id)
+    return inLine.has(call.id) || !view ? [] : [{ key: call.id, node: view.node, folds: view.folds, calls: [call] }]
+  }
+  const rowsOf = (calls: ToolCall[]) => calls.flatMap(callPiece).map(piece => <Fragment key={piece.key}>{piece.node}</Fragment>)
   // Each turn's answer: its last message of the Lead's with words. It opens with its point, and its foot copies and reads it.
   const answerOf = new Map(ordered.filter(m => m.role === 'assistant' && m.content).map(m => [m.run_id, m]))
   // (A room's agents' questions are in its window, not in the chat: the room's row says it waits for you.)
@@ -1097,9 +1118,9 @@ export function MessageList({
    * for a comparison - its sides stand under their models' names -, a turn with no Lead or nothing after its opener:
    * their groups stand as they are, what it did under them.
    */
-  const card = (runId: string, inside: ReactNode[]): ReactNode[] => {
+  const card = (runId: string, inside: Group[]): ReactNode[] => {
     const run = runs.get(runId)
-    if (!run) return inside
+    if (!run) return inside.map(drawGroup)
     const lead = state.agents.find(a => a.run_id === runId && a.depth === 0)
     const answer = answerOf.get(runId)
     const summary =
@@ -1107,14 +1128,195 @@ export function MessageList({
         <TurnSummary key={`did:${runId}`} state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />
       ) : null
     const queued = <QueuedNote key={`queued:${runId}`} state={state} asks={q => q.run_id === runId && !inRooms.has(q.agent_id)} />
-    if (inside.length === 0 || run.compare_id || !lead) return [...inside, queued, summary]
+    if (inside.length === 0 || run.compare_id || !lead) return [...inside.map(drawGroup), queued, summary]
     return [
       // (It waits while the server says the turn does - for a question, a card, a role: as the canvas has it.)
       <TurnCard key={`turn:${runId}`} state={state} run={run} lead={lead} answer={answer} summary={summary} waits={run.status === 'waiting_approval'}>
-        {inside}
+        {inside.map(drawGroup)}
         {queued}
       </TurnCard>,
     ]
+  }
+
+  /** The user's message, with the comparison it started and the room it was the goal of. */
+  const userBody = (message: Message, run: Run | undefined, compare: string | null) => (
+    <>
+      <UserMessage
+        message={message}
+        run={run}
+        files={state.attachments.filter(one => one.message_id === message.id && !one.frame_of)}
+        saved={state.fileChanges.filter(change => change.run_id === message.run_id && change.attachment_id && change.status === 'applied')}
+        changed={workOf(state, [message.run_id]).files > 0}
+        onRemove={() => onRemoveQueued(message.run_id)}
+        onShow={onShowTurn}
+      />
+      {compare && loadCompare && decideCompare && (
+        <CompareView
+          compareId={compare}
+          state={state}
+          providers={providers}
+          onLoad={loadCompare}
+          onDecide={decideCompare}
+          onDecideMerge={onDecideMerge}
+          onCheckMerge={onCheckMerge}
+          onCommitMerge={onCommitMerge}
+        />
+      )}
+      {/* The message was a room's goal: one line here; the room itself is in its own window, with what it asks of you. */}
+      {state.rooms
+        .filter(room => room.run_id === message.run_id && room.agent_id === null)
+        .map(room => (
+          <RoomRow key={room.id} state={state} room={room} onOpen={() => onOpenRoom(room.id)} />
+        ))}
+    </>
+  )
+
+  /** What the message says, as its kind is drawn; `folds`: a step of its turn, not a line that stays in sight. */
+  const messageBody = (message: Message, run: Run | undefined, count: number, compare: string | null): Omit<Piece, 'key'> | null => {
+    switch (message.role) {
+      case 'user':
+        return { folds: false, node: userBody(message, run, compare) }
+      case 'memory':
+        return { folds: true, node: <MemoryTold content={message.content} className="msg msg-from" count={count} /> }
+      case 'away':
+        // KOLONİ's one line at the end of a night while you were away (slice 106): the report is on the canvas.
+        return {
+          folds: false,
+          node: (
+            <p className="msg msg-from away-said" role="note">
+              <Moon size={13} />
+              {message.content}
+            </p>
+          ),
+        }
+      case 'trigger':
+        return { folds: false, node: <TriggerMessage message={message} run={run} onShow={onShowTurn} /> }
+      case 'agent':
+        // Another agent wrote to the lead; the lead's answer follows as its own message.
+        return {
+          folds: true,
+          node: <AgentSaid message={message} from={message.from_agent_id ? nameOf(message.from_agent_id) : 'KOLONİ'} agent={state.agents.find(a => a.id === message.from_agent_id)} />,
+        }
+    }
+    if (KOLONI_LINES.has(message.role)) return { folds: true, node: <KoloniLine message={message} onShowGit={onShowGit} /> }
+    if (!message.content || compare) return null
+    return {
+      folds: true,
+      node: (
+        <>
+          <div className={`msg msg-assistant markdown${answerLook(message, answerOf.get(message.run_id), run)}`}>
+            <Markdown written={message.status === 'complete'}>{message.content}</Markdown>
+          </div>
+          <SaidAloud message={message} />
+        </>
+      ),
+    }
+  }
+
+  /** Where the topic changes, its line; then what the message says. */
+  const bodyOf = (message: Message, run: Run | undefined, count: number, compare: string | null): Piece[] => {
+    const divider = dividers.get(message.id)
+    const body = messageBody(message, run, count, compare)
+    const line = (
+      <div role="separator" className="topic-divider">
+        <span>{divider}</span>
+      </div>
+    )
+    return [...(divider ? [{ key: 'divider', folds: false, node: line }] : []), ...(body ? [{ key: 'body', ...body }] : [])]
+  }
+
+  /** The message's calls; a comparison's side not used, every call of it at its first message in one closed row. */
+  const rowPieces = (message: Message, mine: ToolCall[]): Piece[] => {
+    const side = sideWork.get(message.run_id) === message.id
+    if (unused.has(message.run_id)) {
+      if (!side) return []
+      const node = (
+        // Every call of the side, at its first: the turn's later messages show none of them.
+        <details className="tool-run">
+          <summary className="tool-run-head">
+            <CaretRight size={12} className="muted" aria-hidden />
+            <span className="tool-run-what">The other side (not used)</span>
+          </summary>
+          <div className="tool-run-body">{rowsOf(ordered.filter(m => m.run_id === message.run_id).flatMap(m => callsOf.get(m.id) ?? []))}</div>
+        </details>
+      )
+      return [{ key: 'unused', folds: true, node }]
+    }
+    const head = (
+      <div role="separator" className="topic-divider">
+        <span>{sideName(state, message.run_id)}’s work</span>
+      </div>
+    )
+    return [...(side ? [{ key: 'side', folds: true, node: head }] : []), ...mine.flatMap(callPiece)]
+  }
+
+  /**
+   * Under the turn's last message: one line for each agent of the turn whose model is thinking right now, as the canvas
+   * has it. The lead is not named - the chat is its conversation. A turn that thinks with no agent named says so once.
+   */
+  const statusPieces = (message: Message, run: Run | undefined): Piece[] => {
+    if (lastOfRun.get(message.run_id) !== message.id) return []
+    const of = (ids: string[]) => state.agents.filter(a => a.run_id === message.run_id && ids.includes(a.id))
+    const thinkers = of(state.thinkingAgents)
+    const line = (a: Agent | null, said: string): Piece => ({
+      key: `${said}:${a?.id ?? ''}`,
+      folds: false,
+      node: (
+        <div className="msg-status mono">
+          {a && a.depth > 0 && `${a.name || 'Agent'} · `}
+          {said}
+        </div>
+      ),
+    })
+    const thinking = thinkers.length === 0 && run?.id === state.thinkingRunId && state.thinkingAgentId === null
+    return [...thinkers.map(a => line(a, 'Thinking…')), ...of(state.summarisingAgents).map(a => line(a, SUMMARISING)), ...(thinking ? [line(null, 'Thinking…')] : [])]
+  }
+
+  /** Under the turn's last message, the cards of the turn as a whole: none of them folds. */
+  const endPieces = (message: Message, run: Run | undefined): Piece[] => {
+    if (lastOfRun.get(message.run_id) !== message.id) return []
+    const of = <T extends { id: string | number; run_id: string }>(list: T[], draw: (one: T) => ReactNode): [string, ReactNode][] =>
+      list.filter(one => one.run_id === message.run_id).map(one => [String(one.id), draw(one)])
+    const notice = run && runNotice(run, state.agents.find(a => a.run_id === run.id && a.depth === 0), providers)
+    const cards: [string, ReactNode][] = [
+      // KOLONİ's own card of a turn that hangs off no call (its Orchestrator's model is slow to answer) - while it asks:
+      // answered or closed, it says nothing more (its model spoke; a Stop has KOLONİ's line).
+      ...of(state.questions.filter(q => q.tool_call_id === null && q.status === 'pending'), q => <ChatQuestion state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />),
+      // The Lead's "While you're away" card (slice 106), under the turn that put it.
+      ...of(state.away, card => <AwayCard card={card} />),
+      // A trigger an agent proposed in the turn (slice 69), under it.
+      ...of(state.triggerProposals, proposal => <ProposalCard proposal={proposal} />),
+      // K-bilgi 6: what the turn (and turns nobody watched) found for the Project notes, under it.
+      ...of(state.notesOffers, offer => <NotesCard offer={offer} />),
+      // Text from outside that read like orders to one of the turn's agents (93-A4): the Lead's is not named.
+      ...of(state.warnings, w => <InjectionWarning warning={w} agent={subAgents.has(w.agent_id ?? '') ? nameOf(w.agent_id) : undefined} />),
+    ]
+    if (run?.plan_turn) {
+      // (A later turn has started: as the server holds, it can only be turned down.)
+      cards.push(['plan', <PlanCard key="plan" run={run} stale={state.runs.at(-1)?.id !== run.id} onDecide={(...decision) => onDecidePlan(run.id, ...decision)} />])
+    }
+    if (run?.unattended) {
+      // Under the last message of a turn nobody was watching: what it was refused for want of somebody to ask.
+      const trigger = run.trigger_id
+      const onAllow = trigger && onAllowInTrigger ? (allow: Allow) => onAllowInTrigger(trigger, allow) : undefined
+      cards.push(['refused', <WouldHaveAsked key="refused" refused={refusedIn(state, run.id)} onAllow={onAllow} />])
+    }
+    if (notice) cards.push(['notice', <RunNotice key="notice" notice={notice} />])
+    return cards.map(([key, node]) => ({ key, node, folds: false }))
+  }
+
+  /** A message's group: what it says, its calls, what thinks under the turn's last, and the turn's cards. Null: nothing drawn. */
+  const groupOf = (message: Message): Group | null => {
+    const count = repeated.get(message.id)
+    if (count === undefined) return null
+    const run = runs.get(message.run_id)
+    const compare = run?.compare_id ?? null
+    if (compare && message.role === 'user' && firstSide.get(compare) !== run?.id) return null
+    const mine = callsOf.get(message.id) ?? []
+    const last = lastOfRun.get(message.run_id) === message.id
+    // A step whose words are none and whose calls are all in a line above: nothing of it to show (not even the list's gap).
+    if (!last && !message.content && mine.length > 0 && mine.every(call => inLine.has(call.id))) return null
+    return { message, pieces: [...bodyOf(message, run, count, compare), ...rowPieces(message, mine), ...statusPieces(message, run), ...endPieces(message, run)] }
   }
 
   if (state.messages.length === 0) {
@@ -1134,167 +1336,7 @@ export function MessageList({
       }}
     >
       <AwayFrom chat={state.conversation.id} />
-      {turnsOf(ordered, card, ordered.map(message => {
-        const count = repeated.get(message.id)
-        if (count === undefined) return null
-        const run = runs.get(message.run_id)
-        const notice =
-          run && lastOfRun.get(run.id) === message.id
-            ? runNotice(
-                run,
-                state.agents.find(a => a.run_id === run.id && a.depth === 0),
-                providers,
-              )
-            : null
-        // Under the turn's last message: one line for each agent of the turn whose model is
-        // thinking right now, as the canvas has it. The lead is not named - the chat is its
-        // conversation. A turn that thinks with no agent named says so once.
-        const last = lastOfRun.get(message.run_id) === message.id
-        const thinkers = last
-          ? state.agents.filter(a => a.run_id === message.run_id && state.thinkingAgents.includes(a.id))
-          : []
-        const summarisers = last ? state.agents.filter(a => a.run_id === message.run_id && state.summarisingAgents.includes(a.id)) : []
-        const thinking =
-          last && thinkers.length === 0 && run?.id === state.thinkingRunId && state.thinkingAgentId === null
-        const compare = run?.compare_id ?? null
-        if (compare && message.role === 'user' && firstSide.get(compare) !== run?.id) return null
-        const mine = callsOf.get(message.id) ?? []
-        // A step whose words are none and whose calls are all in a line above: nothing of it to show (not even the list's gap).
-        if (!last && !message.content && mine.length > 0 && mine.every(call => inLine.has(call.id))) return null
-        return (
-          <div key={message.id} className="msg-group">
-            {dividers.has(message.id) && (
-              <div role="separator" className="topic-divider">
-                <span>{dividers.get(message.id)}</span>
-              </div>
-            )}
-            {message.role === 'user' ? (
-              <>
-                <UserMessage
-                  message={message}
-                  run={run}
-                  files={state.attachments.filter(one => one.message_id === message.id && !one.frame_of)}
-                  saved={state.fileChanges.filter(change => change.run_id === message.run_id && change.attachment_id && change.status === 'applied')}
-                  changed={workOf(state, [message.run_id]).files > 0}
-                  onRemove={() => onRemoveQueued(message.run_id)}
-                  onShow={onShowTurn}
-                />
-                {compare && loadCompare && decideCompare && (
-                  <CompareView
-                    compareId={compare}
-                    state={state}
-                    providers={providers}
-                    onLoad={loadCompare}
-                    onDecide={decideCompare}
-                    onDecideMerge={onDecideMerge}
-                    onCheckMerge={onCheckMerge}
-                    onCommitMerge={onCommitMerge}
-                  />
-                )}
-                {/* The message was a room's goal: one line here; the room itself is in its own window, with what it asks of you. */}
-                {state.rooms
-                  .filter(room => room.run_id === message.run_id && room.agent_id === null)
-                  .map(room => (
-                    <RoomRow key={room.id} state={state} room={room} onOpen={() => onOpenRoom(room.id)} />
-                  ))}
-              </>
-            ) : message.role === 'memory' ? (
-              <MemoryTold content={message.content} className="msg msg-from" count={count} />
-            ) : KOLONI_LINES.has(message.role) ? (
-              <KoloniLine message={message} onShowGit={onShowGit} />
-            ) : message.role === 'away' ? (
-              // KOLONİ's one line at the end of a night while you were away (slice 106): the report is on the canvas.
-              <p className="msg msg-from away-said" role="note">
-                <Moon size={13} />
-                {message.content}
-              </p>
-            ) : message.role === 'trigger' ? (
-              <TriggerMessage message={message} run={run} onShow={onShowTurn} />
-            ) : message.role === 'agent' ? (
-              // Another agent wrote to the lead; the lead's answer follows as its own message.
-              <AgentSaid
-                message={message}
-                from={message.from_agent_id ? nameOf(message.from_agent_id) : 'KOLONİ'}
-                agent={state.agents.find(a => a.id === message.from_agent_id)}
-              />
-            ) : (
-              message.content &&
-              !compare && (
-                <>
-                  <div className={`msg msg-assistant markdown${answerLook(message, answerOf.get(message.run_id), run)}`}>
-                    <Markdown written={message.status === 'complete'}>{message.content}</Markdown>
-                  </div>
-                  <SaidAloud message={message} />
-                </>
-              )
-            )}
-            {sideWork.get(message.run_id) === message.id && !unused.has(message.run_id) && (
-              <div role="separator" className="topic-divider">
-                <span>{sideName(state, message.run_id)}’s work</span>
-              </div>
-            )}
-            {!unused.has(message.run_id)
-              ? rowsOf(mine)
-              : sideWork.get(message.run_id) === message.id && (
-                  // Every call of the side, at its first: the turn's later messages show none of them.
-                  <details className="tool-run">
-                    <summary className="tool-run-head">
-                      <CaretRight size={12} className="muted" aria-hidden />
-                      <span className="tool-run-what">The other side (not used)</span>
-                    </summary>
-                    <div className="tool-run-body">{rowsOf(ordered.filter(m => m.run_id === message.run_id).flatMap(m => callsOf.get(m.id) ?? []))}</div>
-                  </details>
-                )}
-            {thinkers.map(a => (
-              <div key={a.id} className="msg-status mono">
-                {a.depth > 0 && `${a.name || 'Agent'} · `}Thinking…
-              </div>
-            ))}
-            {summarisers.map(a => (
-              <div key={a.id} className="msg-status mono">
-                {a.depth > 0 && `${a.name || 'Agent'} · `}
-                {SUMMARISING}
-              </div>
-            ))}
-            {thinking && <div className="msg-status mono">Thinking…</div>}
-            <TurnQuestions state={state} runId={message.run_id} last={last} onAnswer={onAnswer} />
-            {/* The Lead's "While you're away" card (slice 106), under the turn that put it. */}
-            {last &&
-              state.away
-                .filter(card => card.run_id === message.run_id)
-                .map(card => <AwayCard key={card.id} card={card} />)}
-            {/* A trigger an agent proposed in the turn (slice 69), under it. */}
-            {last &&
-              state.triggerProposals
-                .filter(proposal => proposal.run_id === message.run_id)
-                .map(proposal => <ProposalCard key={proposal.id} proposal={proposal} />)}
-            {/* K-bilgi 6: what the turn (and turns nobody watched) found for the Project notes, under it. */}
-            {last &&
-              state.notesOffers
-                .filter(offer => offer.run_id === message.run_id)
-                .map(offer => <NotesCard key={offer.id} offer={offer} />)}
-            {/* Text from outside that read like orders to one of the turn's agents (93-A4): the Lead's is not named. */}
-            {last &&
-              state.warnings
-                .filter(w => w.run_id === message.run_id)
-                .map(w => (
-                  <InjectionWarning key={w.id} warning={w} agent={subAgents.has(w.agent_id ?? '') ? nameOf(w.agent_id) : undefined} />
-                ))}
-            {last && run?.plan_turn && (
-              // (A later turn has started: as the server holds, it can only be turned down.)
-              <PlanCard run={run} stale={state.runs.at(-1)?.id !== run.id} onDecide={(...decision) => onDecidePlan(run.id, ...decision)} />
-            )}
-            {/* Under the last message of a turn nobody was watching: what it was refused for want of somebody to ask. */}
-            {last && run?.unattended && (
-              <WouldHaveAsked
-                refused={refusedIn(state, run.id)}
-                onAllow={run.trigger_id && onAllowInTrigger ? allow => onAllowInTrigger(run.trigger_id as string, allow) : undefined}
-              />
-            )}
-            {notice && <RunNotice notice={notice} />}
-          </div>
-        )
-      }))}
+      {turnsOf(ordered, card, ordered.map(groupOf))}
       {away && (
         <button
           type="button"
