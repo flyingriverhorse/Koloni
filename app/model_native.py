@@ -150,7 +150,7 @@ WRITE_REFUSED = re.compile(r"Access to the path .{1,500}? is denied")
 WRITE_BLOCKED = "blocked: its read-only sandbox refused a write"
 # B-357: no command or patch of its own is at work longer: KOLONİ's own commands' longest
 # (MAX_TIMEOUT) and a minute. One that is ends its turn, failed - none keeps it open for good;
-# one let run that said nothing of itself (no output, no end) by then never started.
+# one let run that was never seen at work (no start, no output, no end) by then never started.
 # (Not sooner: a command may print nothing for minutes, and whether Codex sends its output as it
 # comes - `item/commandExecution/outputDelta` - is not measured.)
 # shortcut: one past the bound ends Codex's whole turn, not only the command; interrupt it and
@@ -368,12 +368,14 @@ def _note_reply(request: dict, params: dict, reply: dict, busy: set[str],
                 allowed: dict[str, float]) -> None:
     # KOLONİ's answer to a request of Codex's, kept before it is sent
     # (`CodexNativeClient._converse`).
+    item = str(params.get("itemId"))
     if _dict(reply.get("result")).get("decision") == "decline":
-        busy.discard(str(params.get("itemId")))  # it may never say it is done
-    if request.get("method") == RUN_ASKED and _dict(
+        busy.discard(item)  # it may never say it is done
+    # One said at work already (`item/started`) has started: only its time at work is bounded.
+    if request.get("method") == RUN_ASKED and item not in busy and _dict(
             reply.get("result")).get("decision") == "accept":
         # (Before it is sent: its end may be read before this call goes on.)
-        allowed[str(params.get("itemId"))] = time.monotonic()
+        allowed[item] = time.monotonic()
 
 
 def _overdue(busy: set[str], asking: set[str], since: dict[str, float],
