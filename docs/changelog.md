@@ -44,6 +44,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Models**, **CLIs**: GitHub Copilot CLI's card on the Models page names the version KOLONİ runs, which KOLONİ asks Copilot as it starts it, no longer the number a plain `copilot --version` says; an error that Copilot could not be asked before it acts names that version too.
 - **Chat**, **Canvas**: an agent's window no longer opens by itself when it starts (on any provider, Lead or sub-agent): on a **Native** provider the Orchestrator's window opened on every message. Open it from its node - the new window icon at the right of its name, or a double click -, from **Open window** in the Inspector, or from the Orchestrator's name over its turn in the chat ([docs](use/chat-and-canvas.md#the-canvas)).
 - **CLIs**: a model GitHub Copilot CLI's `fusion` picked now says fusion and goes on with fusion: before, fusion's picks were recorded as `auto`, and an agent that went on from one asked for `auto` ([docs](models/setup-cli.md#github-copilot-cli)).
+- **Chat**: in a window under 1200 px wide, an agent's window opened while the Inspector lies over the canvas no longer reaches 6 px under the Inspector where the open chat leaves too little room beside it: it opens where it would without the chat, over the chat's right edge, in front.
 
 ### Security
 

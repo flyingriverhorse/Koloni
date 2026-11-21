@@ -132,12 +132,21 @@ test('B-157: at 1048 px, opened from its node while the inspector is open, the a
   await openFreshConversation(page)
   await page.getByLabel('Message').fill('review the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByRole('region', { name: 'Chat' }).getByText('The reviewer found no problems.')).toBeVisible()
-  const reviewer = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Reviewer/ }) }).last()
-  await reviewer.locator('.node-title').click()
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await expect(chat.getByText('The reviewer found no problems.')).toBeVisible()
+  // Under 1200 px the inspector lies over the stage's right side, where a node clicked on the canvas stays - under it, a
+  // moment after the click (a double click there raced the inspector's first paint). Picked from the chat, the canvas
+  // goes to the node, clear of it: then the node is double-clicked while the inspector is open.
+  await chat.getByRole('button', { name: /Reviewer.*Review hello\.py/ }).click()
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   await expect(inspector).toBeVisible()
-  await reviewer.locator('.node-title').dblclick()
+  const title = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Reviewer/ }) }).last().locator('.node-title')
+  const reached = (el: Element) => {
+    const at = el.getBoundingClientRect()
+    return document.elementFromPoint(at.x + at.width / 2, at.y + at.height / 2) === el
+  }
+  await expect.poll(() => title.evaluate(reached)).toBe(true)
+  await title.dblclick()
   const own = page.getByRole('region', { name: 'Agent window' })
   await expect(own.getByText('Did', { exact: true })).toBeVisible()
   // (Only the panel's Open window closes it: the node's double click leaves it open.)

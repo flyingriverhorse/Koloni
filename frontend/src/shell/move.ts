@@ -104,15 +104,16 @@ const meets = (a: Area, b: Area) => a.left < b.left + b.width && b.left < a.left
  * edge, which the CSS keeps off the inspector and the canvas's buttons - into the biggest part of the stage above,
  * below, left or right of the chat. And it starts below the header of another window it would lie over, so that one
  * is still seen and pressed. The open chat's column (`column`, CL-264) is a hard left edge: a window opens beside it, as
- * wide as is left, never narrower than LEAST.
+ * wide as is left up to its own right edge (B-157: off the inspector lying over the stage), never narrower than LEAST.
  * shortcut: where less than LEAST is left beside the open column (or the closed chat's small box leaves no part as big),
  * it lies where it was before, over the chat, in front - its bar would hide its own Close narrower. Upgrade if met.
  */
 export function placeWindow(want: Area, stage: Size, chat: (Area & { column?: boolean }) | null, others: Area[]): Area {
   let box = want
   const beside = chat ? chat.left + chat.width + GAP : 0
-  if (chat?.column && meets(want, chat) && stage.width - GAP - beside >= LEAST.width) {
-    box = { ...want, left: beside, width: Math.min(stage.width - GAP - beside, Math.max(LEAST.width, want.left + want.width - beside)) }
+  const room = want.left + want.width - beside
+  if (chat?.column && meets(want, chat) && room >= LEAST.width) {
+    box = { ...want, left: beside, width: Math.min(stage.width - GAP - beside, room) }
   } else if (chat && meets(want, chat)) {
     const [right, foot] = [want.left + want.width, stage.height - GAP]
     // As near where it wants to be as goes inside this part, no bigger than it wants.
