@@ -7,13 +7,16 @@ const LINES: [dash: string | undefined, colour: string, width: number, what: str
   ['5', 'var(--accent)', 2, 'At work: its dashes move'],
   [undefined, 'var(--border-strong)', 1.5, 'The work: to the Orchestrator, and in a team from its door, step by step - the line splits into a step’s agents and joins again after them'],
   [DASH.spawn, 'var(--border-strong)', 1.5, 'Handed to a sub-agent'],
-  [DASH.plan, 'var(--border-strong)', 1.5, 'From an approved plan down to the Orchestrator that carries it out'],
+  [DASH.plan, 'var(--border-strong)', 1.5, 'From your message down to its plan, and from an approved plan down to the Orchestrator that carries it out'],
   [DASH.po, 'var(--border-strong)', 1.5, 'From the Orchestrator down to the Assistant PO, asked once its turn ended for follow-up tasks on the To-do list'],
-  [DASH.talk, 'var(--member-line)', 1.5, 'A member’s line to its discussion or room (between teams, from its frame to the lane)'],
-  [undefined, 'var(--accent)', 2, 'From a team to its card at its top right: what it shared, noted and remembered (dotted: from an agent with no team to its card, or to a contract’s card from its request’s line)'],
+  [DASH.talk, 'var(--member-line)', 1.5, 'A member’s line to its discussion or room: with no team, from the members under it round the right of their column and in at its side, with an arrow; between teams, from its frame to the lane'],
+  [undefined, 'var(--accent)', 2, 'To a card: from a team’s frame, in its colour, to what it shared, noted and remembered at its top right; from the Orchestrator to Everyone’s card; from an agent to what it made (dotted: from an agent with no team to its card, or to a contract’s card from its request’s line)'],
+  [DASH.handed, 'var(--accent)', 1.5, 'From a file you attached to the agent it was handed to (its dashes never move)'],
   [DASH.waits, 'var(--border-strong)', 1, 'Waits for a file another agent holds'],
   [DASH.findings, 'var(--warn)', 1.5, 'Findings handed on: from the agent that found them to the one given them; in a team, it runs back over or under the work line'],
-  [DASH.talkLine, 'var(--tool-team)', 2, 'Talk between two agents of a team: on the line that already joins them, or else on an arc over or under the work line, round its agents, like findings back - “💬 2 messages”; between two teams, agent to agent in the margin beside their frames. Each pair has its own colour, and a click shows what was said'],
+  [DASH.talkLine, 'var(--tool-team)', 2, 'Talk between two agents, of a team or of none: on the line that already joins them, or else on a line of its own - in a team, an arc over or under the work line, round its agents, like findings back - “💬 2 messages”; between two teams, agent to agent in the margin beside their frames. Each pair has its own colour, and a click shows what was said'],
+  // (Open, it is at work: as thick as a line at work.)
+  [DASH.request, 'var(--request)', 2, 'A request from one team to another: dashed and moving while it is open, solid once it is over'],
 ]
 
 /** What the canvas's colours, lines and signs mean, at a glance (the "?" among its buttons). */

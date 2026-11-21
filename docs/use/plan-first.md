@@ -31,9 +31,9 @@ and **Cancel**.
 
 A plan turn shows a small **Plan** node under your message, on a short dashed line down from it. It
 says how the plan stands: "being written", "proposed" or "approved" (or "rejected"). In the work turn
-of an approved plan, a small **Plan** node stands over the Orchestrator, on a dashed line down to it;
-the legend calls it "From an approved plan down to the Orchestrator that carries it out". Click a Plan
-node to read the plan in the Inspector.
+of an approved plan, a small **Plan** node stands over the Orchestrator, on a dashed line down to it.
+The legend calls both lines "From your message down to its plan, and from an approved plan down to the
+Orchestrator that carries it out". Click a Plan node to read the plan in the Inspector.
 
 ## When there is no plan
 

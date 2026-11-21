@@ -332,7 +332,15 @@ test('the legend: its button among the canvas’s opens what the states, lines a
   const legend = screen.getByRole('dialog', { name: 'Canvas legend' })
   expect(legend).toHaveFocus()
   expect(button).toHaveAttribute('aria-expanded', 'true')
-  for (const said of ['working', 'waits for you', 'done', 'failed', 'Handed to a sub-agent', 'Waits for a file another agent holds', 'A member’s line to its discussion or room (between teams, from its frame to the lane)', 'N× same error'])
+  for (const said of [
+    'working', 'waits for you', 'done', 'failed', 'Handed to a sub-agent', 'Waits for a file another agent holds',
+    'From your message down to its plan, and from an approved plan down to the Orchestrator that carries it out',
+    'A member’s line to its discussion or room: with no team, from the members under it round the right of their column and in at its side, with an arrow; between teams, from its frame to the lane',
+    // (Every line drawn has its row: a file handed on, a request between teams.)
+    'From a file you attached to the agent it was handed to (its dashes never move)',
+    'A request from one team to another: dashed and moving while it is open, solid once it is over',
+    'N× same error',
+  ])
     expect(within(legend).getByText(said)).toBeInTheDocument()
   await userEvent.keyboard('{Escape}')
   expect(screen.queryByRole('dialog', { name: 'Canvas legend' })).not.toBeInTheDocument()

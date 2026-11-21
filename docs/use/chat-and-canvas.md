@@ -108,15 +108,16 @@ message, on a short dashed line down from it. In the work turn of an approved pl
 the Orchestrator, on a dashed line down to it.
 
 In a turn with no team, a discussion or room stands in the column after the agent that opened it, above
-its members. Each member's dotted line, in a colour of its own, goes round the right side of that column
+its members; several stand in the order they began. Each member's dotted line, in a colour of its own, goes round the right side of that column
 and comes into the discussion or room from the right, with an arrow. An agent waiting for a file another
 agent in its column holds is joined to it the same way. Click a discussion or a room to light the agents
 in it.
 
 In a turn with teams, each team has a frame. Discussions and rooms between teams stand in a lane of their
 own, outside every frame; a room opened with two teams' leads stands there too. A member's dotted line
-runs from its team's frame to the lane; the legend calls it "A member's line to its discussion or room
-(between teams, from its frame to the lane)".
+runs from its team's frame to the lane; the legend calls it "A member's line to its discussion or room:
+with no team, from the members under it round the right of their column and in at its side, with an
+arrow; between teams, from its frame to the lane".
 
 Where the **Assistant PO** was asked after the turn, a small **Assistant PO** box stands under the turn,
 on a dashed line down from the Orchestrator. It shows the model asked, how many tasks it proposed and

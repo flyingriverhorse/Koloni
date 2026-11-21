@@ -282,6 +282,8 @@ test('a waiting agent names who it waits for and a proposed one waits for you', 
   expect(activityOf(tree('running'), 'agent:kid')).toBe('Waiting for the model…')
   const asked = tree('proposed')
   expect(activityOf(asked, 'agent:kid')).toBe('Waits for your approval')
+  // (One you declined says so, as the chat, the Board and the legend do - not "Not started".)
+  expect(activityOf(tree('rejected'), 'agent:kid')).toBe('Rejected')
   expect((asked.nodes.find(n => n.id === 'agent:kid')!.data as AgentData).status).toBe('proposed')
 })
 
