@@ -20,6 +20,10 @@ interface Props {
 /** Your own answer's choice: the row after the options. */
 const OWN = '\u0000own'
 
+/** What is chosen of a question, and your own words for it. */
+type Draft = { choice: string | null; own: string }
+const NO_DRAFT: Draft = { choice: null, own: '' }
+
 /**
  * The Orchestrator's question, just over the message box (0.1.5, as VS Code has it): who asks and in which turn, its
  * options numbered, your own answer as the last row, and Submit. Keys 1-9 pick an option, Enter sends; ‹ 1/2 › while it
@@ -29,19 +33,23 @@ const OWN = '\u0000own'
 export function AskCard({ conv, open, tab, onAnswer }: Props) {
   const [at, setAt] = useState(0)
   const [folded, setFolded] = useState(false)
+  // Each question's choice and words, by its id: going between two keeps both.
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const asks = conv ? leadQuestions(conv) : []
   if (!conv || asks.length === 0) return null
   const index = Math.min(at, asks.length - 1)
   const question = asks[index]
+  // (Round, never off: a button the focus is on stays where it is.)
+  const go = (by: number) => setAt((index + by + asks.length) % asks.length)
   const pager = asks.length > 1 && (
     <span className="ask-pager">
-      <button type="button" className="icon-btn" aria-label="Previous question" disabled={index === 0} onClick={() => setAt(index - 1)}>
+      <button type="button" className="icon-btn" aria-label="Previous question" onClick={() => go(-1)}>
         ‹
       </button>
       <span className="mono">
         {index + 1}/{asks.length}
       </span>
-      <button type="button" className="icon-btn" aria-label="Next question" disabled={index === asks.length - 1} onClick={() => setAt(index + 1)}>
+      <button type="button" className="icon-btn" aria-label="Next question" onClick={() => go(1)}>
         ›
       </button>
     </span>
@@ -55,9 +63,18 @@ export function AskCard({ conv, open, tab, onAnswer }: Props) {
       </button>
     </div>
   )
-  // (Each question its own choice and words: going between two keeps both.)
   // (Closed, or on Talk or Notes, hidden, not gone: an answer half written in it stays.)
-  return <AskForm key={question.id} question={question} head={head} folded={folded} hidden={!open || tab !== 'Chat'} onAnswer={answer => onAnswer(question.id, answer)} />
+  return (
+    <AskForm
+      question={question}
+      head={head}
+      folded={folded}
+      hidden={!open || tab !== 'Chat'}
+      draft={drafts[question.id] ?? NO_DRAFT}
+      onDraft={draft => setDrafts(was => ({ ...was, [question.id]: draft }))}
+      onAnswer={answer => onAnswer(question.id, answer)}
+    />
+  )
 }
 
 /** "Orchestrator asks · 10:42": who asks, and when its turn began. */
@@ -73,10 +90,19 @@ function AskedBy({ conv, question }: { conv: ConvState; question: Question }) {
 }
 
 /** The card's form: the question, its options and your own answer, and Submit. */
-function AskForm({ question, head, folded, hidden, onAnswer }: { question: Question; head: ReactNode; folded: boolean; hidden: boolean; onAnswer: (answer: string) => Promise<void> }) {
+function AskForm(p: {
+  question: Question
+  head: ReactNode
+  folded: boolean
+  hidden: boolean
+  draft: Draft
+  onDraft: (draft: Draft) => void
+  onAnswer: (answer: string) => Promise<void>
+}) {
+  const { question, head, folded, hidden, onAnswer } = p
+  const { choice, own } = p.draft
+  const setChoice = (to: string) => p.onDraft({ ...p.draft, choice: to })
   const name = useId()
-  const [choice, setChoice] = useState<string | null>(null)
-  const [own, setOwn] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const answer = choice === OWN ? own.trim() : choice
@@ -100,7 +126,8 @@ function AskForm({ question, head, folded, hidden, onAnswer }: { question: Quest
 
   // 1-9 pick an option (not while your own answer is written, nor mid-composition); Enter sends.
   function onKeyDown(event: KeyboardEvent<HTMLFormElement>) {
-    if (event.nativeEvent.isComposing) return
+    // (A button of its own - ‹ › ⌄, Submit - keeps its own Enter.)
+    if (event.nativeEvent.isComposing || (event.target as HTMLElement).closest('button')) return
     if (event.key === 'Enter') {
       event.preventDefault()
       void submit()
@@ -146,10 +173,7 @@ function AskForm({ question, head, folded, hidden, onAnswer }: { question: Quest
                 placeholder={question.options.length > 0 ? 'Or answer in your own words…' : 'Your answer…'}
                 value={own}
                 disabled={busy}
-                onChange={e => {
-                  setOwn(e.target.value)
-                  setChoice(OWN)
-                }}
+                onChange={e => p.onDraft({ choice: OWN, own: e.target.value })}
               />
             </div>
           </div>
