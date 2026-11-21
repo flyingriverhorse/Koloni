@@ -1,3 +1,5 @@
+import pytest
+
 from app.agent import recover_interrupted
 from app.config import load_settings
 from app.db.models import Agent, Conversation, FileChange, Message, Project, Run, ToolCall, now
@@ -115,6 +117,40 @@ def test_a_message_queued_before_a_restart_is_not_sent_until_the_user_sends_it(t
         # Its turn is the newest now: last in the chat and in what the Lead is given.
         assert [r["id"] for r in snap["runs"]][-1] == "r2"
         assert client.post("/api/runs/r2/send", headers=OWN).status_code == 409  # (sent once)
+
+
+@pytest.mark.parametrize("over", [
+    {"by_user": False},  # (KOLONİ's own turn, or one asked from no page of the app)
+    {"unattended": True},  # (a trigger's)
+    {"compare_id": "k"},  # (one side of a comparison)
+    {"started_at": now()},  # (it ran)
+    {"status": "queued"},  # (sent again already, and waiting)
+])
+def test_only_a_message_of_the_users_never_begun_is_sent_again(tmp_path, over):
+    settings, factory = queued_then_restarted(tmp_path)
+    model = ScriptedModel([])
+    with TestClient(create_app(settings, model=model), base_url="http://127.0.0.1:8790") as client:
+        with factory() as s:
+            for name, value in over.items():
+                setattr(s.get_one(Run, "r2"), name, value)
+            s.commit()
+        refused = client.post("/api/runs/r2/send", headers=OWN)
+        assert refused.status_code == 409, refused.text
+        assert model.calls == []
+
+
+def test_a_message_sent_again_brings_its_archived_chat_back(tmp_path):
+    settings, factory = queued_then_restarted(tmp_path)
+    with factory() as s:
+        s.get_one(Conversation, "c").archived_at = now()
+        s.commit()
+    with TestClient(create_app(settings, model=ScriptedModel([])),
+                    base_url="http://127.0.0.1:8790") as client:
+        with factory() as s:  # (a turn at work: it waits, and runs nothing here)
+            s.add(Run(id="r4", conversation_id="c", status="running", started_at=now()))
+            s.commit()
+        assert client.post("/api/runs/r2/send", headers=OWN).status_code == 200
+        assert client.get("/api/conversations/c").json()["conversation"]["archived_at"] is None
 
 
 def test_a_message_sent_again_while_a_turn_is_at_work_waits_behind_it(tmp_path):

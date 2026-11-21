@@ -81,6 +81,7 @@ async def send_again(run_id: str, request: Request, body: SendIn | None = None,
     # The newest turn: last in the chat, in what its Lead is given and in the queue.
     run.ended_at, run.created_at = None, now()
     message.created_at = conversation.updated_at = run.created_at
+    conversation.archived_at = None  # (the user writes in it again: it is back, as on a message)
     session.commit()
     bus = request.app.state.bus
     bus.emit(run.conversation_id, run.id, "run.updated", run_out(run))
