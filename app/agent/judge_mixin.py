@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
@@ -13,7 +14,7 @@ from app import away, judge, raw
 from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
-from app.commands import harm_class, runs_another, with_cwd
+from app.commands import _reasons, harm_class, with_cwd
 from app.db.models import Conversation, Message, Provider, Run, project_of
 from app.providers import ask_once
 from app.roles import LEAD, find_role
@@ -26,6 +27,18 @@ log = logging.getLogger("app.agent")
 # Said once in the chat when the check stands aside for the rest of a turn (`_judgement`).
 CHECK_STOOD_ASIDE = ("Full auto's check of your words refused {count} this turn: until the turn "
                      "ends, each harmful-looking command waits for you on a card.")
+
+
+# ☾ Away (spec §6): what a check of the user's words may let run in a job - a delete in its copy
+# alone. A line that also sends work off, reaches beyond this machine or touches a git remote's
+# branches keeps its card, whatever the user's words allow (`harms`' sentences, `_reasons`).
+_JOB_SOFT = re.compile(r"(?:Deletes|Empties|Throws away)\b(?!.*\bremote\b)")
+
+
+def only_deletes(line: str) -> bool:
+    """Whether each harm of `line` is a delete of the folder's own (`_JOB_SOFT`)."""
+    said = [one for one in _reasons(line, True) if one]
+    return bool(said) and all(_JOB_SOFT.match(one) for one in said)
 
 
 class JudgeMixin:
@@ -58,12 +71,13 @@ class JudgeMixin:
                        asked_anyway: bool) -> tuple[str, dict | None]:
         """`_judged`'s work, which may raise. ☾ Away: in a job too, its chat at Full auto
         (`_away_full_auto`) - its check reads the chat the user went away from."""
+        line, job = with_cwd(command, cwd), ctx.run_id in self._away_jobs
         if (not reason or asked_anyway or ctx.run_id in self._sides
                 or self._stood_aside(ctx.run_id)
-                or harm_class(with_cwd(command, cwd), False) != "soft"
+                # (In a job an instruction file is no file the check may let go: `standing_asked`.)
+                or harm_class(line, job) != "soft"
                 or not (self._full_auto(ctx) or self._away_full_auto(ctx))
-                # (A job holds what runs another unseen to its card, whatever its words say.)
-                or ctx.run_id in self._away_jobs and runs_another(with_cwd(command, cwd))):
+                or job and not only_deletes(line)):
             return reason, None
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)

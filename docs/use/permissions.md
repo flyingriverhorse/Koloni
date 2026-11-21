@@ -109,8 +109,9 @@ In the level menu, under the levels, **Check what I said first** is the project'
 › This project › Asking and away › **A harmful-looking command at Full auto**): "Before a
 harmful-looking command waits for you at Full auto or while you're away, your own words are read
 first; it runs without a card only where a line of yours names it." While you're away it holds in a
-To-do task's chat at Full auto too, reading the chat you went away from - never the task's words - and
-never for a command that runs another through a shell or a wrapper. A plain chat has no such switch.
+To-do task's chat at Full auto too, reading the chat you went away from - never the task's words -
+for a delete in the task's copy only: a send, a git remote's branch, a file that steers agents and a
+command that runs another through a shell or a wrapper keep their card. A plain chat has no such switch.
 
 ## Plan first
 

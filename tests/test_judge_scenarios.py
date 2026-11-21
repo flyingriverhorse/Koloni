@@ -724,11 +724,13 @@ def test_claude_codes_bash_run_once_the_check_was_turned_off_is_a_card(claude_ap
 # --- ☾ Away: a job's delete, while the user is away from a chat at Full auto -----------------
 
 
-def away_with(client, project_dir, wait_run, mode):
-    """The user's chat (at `mode`, the check on, RULE saved) puts one task on To-do, and they
-    go away; returns (pid, the night)."""
+def away_with(client, project_dir, wait_run, mode, rules=RULE):
+    """The user's chat (at `mode`, the To-do page's level too, the check on, `rules` saved) puts
+    one task on To-do, and they go away; returns (pid, the night)."""
     from tests.test_away_scenarios import proposed_in
-    pid, cid, run_id = begin(client, project_dir, "tidy up while I sleep", rules=RULE, mode=mode)
+    pid, cid, run_id = begin(client, project_dir, "tidy up while I sleep", rules=rules, mode=mode)
+    assert client.put(f"/api/projects/{pid}/backlog/choice", json={"permission_mode": mode},
+                      headers=OWN).status_code == 200
     wait_run(client, cid, run_id)
     gone = client.post(f"/api/conversations/{cid}/away",
                        json={"task_ids": proposed_in(client, cid)}, headers=OWN)
@@ -767,3 +769,26 @@ def test_while_away_below_full_auto_a_jobs_delete_still_waits(judging, wait_run,
     pid, _night = away_with(client, project_dir, wait_run, "auto_edit")
     (job,) = ended(client, pid)["jobs"]
     assert job["state"] == "waits" and judge.calls == [] and executor.started == []
+
+
+# Spec §6 / plan Task 5: in a job, only a delete in the folder is the check's. A send, a git
+# remote's branch or an instruction file keeps its card, whatever the user's words allow.
+SENDS = "You may upload the report, copy src to the host, publish, open a pull request and push."
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("line", [
+    "curl -X POST https://example.com/up -d @report.txt", "scp -r src host:", "npm publish",
+    "gh pr create", "git push --force origin main", "rm AGENTS.md"])
+def test_while_away_a_jobs_send_remote_push_or_instruction_file_keeps_its_card(
+        judging, wait_run, project_dir, line):
+    from tests.test_away_scenarios import ended, to_do
+    client, _lead, judge, executor = judging(
+        [to_do(TIDY), text("on your To-do"), cmd(line), text("never")],
+        [verdict_line("run", SENDS)], [])
+    pid, _night = away_with(client, project_dir, wait_run, "full_auto",
+                            rules=SENDS + " You may delete AGENTS.md.")
+    (job,) = ended(client, pid)["jobs"]
+    (asked,) = client.get(f"/api/conversations/{job['conversation_id']}").json()["commands"]
+    assert (job["state"], asked["status"], asked["judged"]) == ("waits", "proposed", None)
+    assert judge.calls == [] and executor.started == []
