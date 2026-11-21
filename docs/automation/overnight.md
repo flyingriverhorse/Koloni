@@ -37,7 +37,9 @@ meanwhile. It does none of that work itself: it puts each piece on To-do and off
 its answer - "☾ Go away now? Add a bye line, Say hello twice · Until 08:00 · at most 2.00 USD" with
 **Go away** and **Change** (the panel, there). The line names, and Go away takes, only the tasks the
 Orchestrator itself put on To-do in that turn, each by its name: a task a sub-agent proposed (one
-of a CLI's own sub-agents too), or an earlier turn's, stays in the panel for you to tick. The limits are only
+of a CLI's own sub-agents too), or an earlier turn's, stays in the panel for you to tick. With an
+Orchestrator on a CLI whose own sub-agents KOLONİ cannot yet tell apart (all but Claude Code), the
+line names no task: "Tick the tasks to take in Change". The limits are only
 those it heard from you. Nothing starts before your Go away. Only
 the Orchestrator offers this, in a turn you started in a chat with a folder - not in a **Plan first**
 turn, nor while the project is away. A newer offer takes the place of one not answered yet.

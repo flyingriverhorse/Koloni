@@ -261,11 +261,12 @@ def back(session: Session, project_id: str) -> Message | None:
 
 
 def offer(session: Session, conversation: Conversation, run_id: str, args: dict,
-          lead_id: str) -> str:
+          lead_id: str | None) -> str:
     """offer_away: the Orchestrator's one line offering the user to go away - with the places
     kept out and the limits it heard them name, and the tasks it put on To-do itself in this
     turn (`lead_id`'s add_task: never a sub-agent's, nor an earlier turn's - those stay in the
-    panel, for the user to tick) - in place of one this chat still shows. Nothing starts: Go
+    panel, for the user to tick; None: none, its own cannot be told apart) - in place of one this
+    chat still shows. Nothing starts: Go
     away is the user's."""
     if conversation.project_id is None:
         raise Refused("a chat with no folder has nothing to work on while the user is away")
@@ -278,7 +279,8 @@ def offer(session: Session, conversation: Conversation, run_id: str, args: dict,
             AwayRun.conversation_id == conversation.id, AwayRun.status == "planned")):
         old.status = "dismissed"
     session.add(AwayRun(project_id=project.id, conversation_id=conversation.id, run_id=run_id,
-                        jobs=_its_own(session, conversation.id, run_id, lead_id), kept_out=kept,
+                        jobs=_its_own(session, conversation.id, run_id, lead_id) if lead_id
+                        else [], kept_out=kept,
                         until=until, money=money))
     return OFFERED
 

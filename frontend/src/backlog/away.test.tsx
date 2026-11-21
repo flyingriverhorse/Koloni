@@ -423,3 +423,14 @@ test('an older summary, or one of another chat, is its one line', () => {
   expect(screen.getByRole('note')).toHaveTextContent('While you were away (01:00 – 02:00): 0 of 1 To-do done')
   useApp.setState({ away: null })
 })
+
+test('an offer with no task of its own (a CLI whose own sub-agents KOLONİ cannot tell apart) has no Go away: Change, and tick them there', async () => {
+  useApp.setState({ backlog: [task('t1')] })
+  render(<AwayOffer conv={convState()} offer={card({ id: 'o2', conversation_id: 'c', jobs: [], kept_out: [], until: null, money: null })} />)
+  const line = screen.getByRole('group', { name: 'Go away now?' })
+  expect(line).toHaveTextContent('Go away now? Tick the tasks to take in Change')
+  expect(within(line).queryByRole('button', { name: 'Go away' })).toBeNull()
+  await userEvent.click(within(line).getByRole('button', { name: 'Change' }))
+  expect(screen.getByRole('checkbox', { name: 'Task t1' })).not.toBeChecked()
+  useApp.setState({ backlog: null })
+})

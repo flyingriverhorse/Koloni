@@ -24,6 +24,8 @@ from app.commands import (
     with_cwd,
 )
 from app.db.models import Agent, AwayRun, Conversation, Merge, Run, now
+from app.model_cli import CliStepClient
+from app.model_native import ClaudeNativeClient
 from app.roles import LEAD
 from app.tools import ToolError
 
@@ -66,6 +68,19 @@ def branch_held(session: Session, project_id: str, but_run: str | None = None,
         held = "finished work waits" if merge.status == "pending" else "work is kept in its copy"
         return whose, f"{whose}'s {held} — Take in or Discard it first"
     return None
+
+
+def _tells_own_sub_agents(ctx: Ctx) -> bool:
+    """☾ Away: whether KOLONİ tells the Orchestrator's own calls of its tools from those of a
+    sub-agent of its CLI's own - always on a model KOLONİ steps (none such), and on Claude Code,
+    whose hook names them (`USED_INSIDE`).
+    shortcut: Qoder keeps Agent/Task on Claude's hook path, but whether its hook names the
+    sub-agent (`agent_type`) is not measured - nor the other CLIs' own sub-agents: their Go away
+    line takes no task; measure Qoder's hook (and Copilot's, Codex's) and add each here."""
+    model = ctx.model
+    if not isinstance(model, CliStepClient):
+        return True
+    return isinstance(model, ClaudeNativeClient) and model.command == "claude"
 
 
 class AwayMixin:
@@ -265,7 +280,7 @@ class AwayMixin:
                 raise ToolError(why)
             try:
                 said = away.offer(session, session.get_one(Conversation, ctx.cid), ctx.run_id,
-                                  args, ctx.agent_id)
+                                  args, ctx.agent_id if _tells_own_sub_agents(ctx) else None)
             except away.Refused as exc:
                 raise ToolError(str(exc)) from None
             session.commit()
