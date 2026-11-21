@@ -275,12 +275,14 @@ test('paused, the room stops looking busy on the canvas: its card, and the lines
     ...state,
     agents: [...state.agents.filter(a => a.id !== 'coder'), member('coder', 'Coder', 'waiting'), member('tester', 'Tester', 'running')],
     rooms: [room({ paused: true, members: [...room().members, { agent_id: 'tester', role: 'Tester', status: 'in' }] })],
+    toolCalls: [toolCall('9', 'r', 'wait_for_post', 'running', '{}', { agent_id: 'rev' })],
   })
   const { nodes, edges } = deriveGraph(held)
   expect(nodes.find(n => n.kind === 'room')!.data).toMatchObject({ running: false })
   expect(edges.filter(e => e.target === 'room:o').map(e => [e.source, e.active])).toEqual([['agent:coder', false], ['agent:rev', false], ['agent:tester', true]])
   const doing = (id: string) => (nodes.find(n => n.id === id)!.data as { activity: string }).activity
-  expect([doing('agent:coder'), doing('agent:lead')]).toEqual(['Paused with the room', 'Waiting for the room'])
+  // Its box says what the room's tags say: the Reviewer, "waiting for a post" there, is not one the Pause holds.
+  expect([doing('agent:coder'), doing('agent:rev'), doing('agent:lead')]).toEqual(['Paused with the room', 'Waiting for a post in the room', 'Waiting for the room'])
   // Resumed, it is at work again.
   const resumed = deriveGraph(convState({ ...held, rooms: [room({ members: held.rooms[0].members })] }))
   expect(resumed.nodes.find(n => n.kind === 'room')!.data).toMatchObject({ running: true })

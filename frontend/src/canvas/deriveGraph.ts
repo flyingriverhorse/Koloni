@@ -8,7 +8,7 @@ import { talkOf } from '../chat/TalkRow'
 import { atGivenSteps, isKept, pendingMerge } from '../changes/copies'
 import { waitLine } from '../claims/claims'
 import { discussionLine, nameIn, speakerOf } from '../discussion/discussionText'
-import { atWork, byWatcher, isRunning, leadOf, memberTag, movesIn, nameIn as nameInRoom, roomLine, waitsForYou, watchedBy } from '../room/roomText'
+import { atWork, byWatcher, held, isRunning, leadOf, memberTag, movesIn, nameIn as nameInRoom, roomLine, waitsForYou, watchedBy } from '../room/roomText'
 import { toolSummary } from '../chat/toolSummary'
 import { TERMINAL, type ConvState } from '../state/applyEvent'
 import { plannedBy } from '../chat/planText'
@@ -402,10 +402,11 @@ function activityOf(agent: Agent, run: Run, state: ConvState, teams: Team[]): st
 /** What a waiting agent waits for in its turn's room; null: not for the room. */
 function roomWait(agent: Agent, run: Run, state: ConvState): string | null {
   // In a turn whose room still runs: the lead waits for all of it; a member for a post, or -
-  // before the work starts - for the others' step in the round that shares it out. Paused, a member waits for the Resume.
+  // before the work starts - for the others' step in the round that shares it out. Paused, a member the Pause holds waits
+  // for the Resume - the one the room's tags call "paused" (`held`), not one they say waits for a post.
   const room = state.rooms.find(r => r.run_id === run.id && isRunning(r))
   if (room && agent.depth === 0) return 'Waiting for the room'
-  if (room?.paused && room.members.some(m => m.agent_id === agent.id)) return 'Paused with the room'
+  if (room?.members.some(m => m.agent_id === agent.id && held(state, room, m))) return 'Paused with the room'
   if (room && state.toolCalls.some(t => t.agent_id === agent.id && t.name === 'wait_for_post' && t.status === 'running')) {
     return 'Waiting for a post in the room'
   }
