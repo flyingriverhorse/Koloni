@@ -23790,7 +23790,9 @@ false
 "uv pip show x": "OA3: uv pip show installs nothing",
 "uv pip": "OA3: uv pip alone installs nothing",
 "uv run pytest -k sync": "OA3: a word after `run` is no verb",
-"pip install --dry-run x": "OA3: a dry run installs nothing"
+"pip install --dry-run x": "OA3: a dry run installs nothing",
+"git commit -m \"chore: terminate; kill; ps\"": "OA-a: a kill in a message, no target and no pipe handing one",
+"git commit -m \"fix(kill): stop stale ps entries\"": "OA-a: a kill in a message, no target and no pipe handing one"
 },
 "xfail": [],
 "up": {

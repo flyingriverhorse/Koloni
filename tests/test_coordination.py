@@ -357,7 +357,12 @@ BY_ID = ["taskkill /PID 1234 /F", "kill 1234", "kill -9 1234", "Stop-Process -Id
 # Words of a line that are no process looked up or stopped: a message, a path, a search.
 NO_STOP = ['git commit -m "fix: kill stale ps entries"', "cat docs/ps/kill.md",
            'git grep -n "taskkill\\|tasklist"', 'grep -rn "Stop-Process" . | grep -v Get-Process',
-           'Select-String -Pattern "kill" -Path ps.log', "grep -n terminate x.py && ps aux"]
+           'Select-String -Pattern "kill" -Path ps.log', "grep -n terminate x.py && ps aux",
+           # (review round 3, OA-a: a kill with no target that no pipe or block hands one)
+           'git commit -m "refactor(kill): by id"', 'git commit -m "tidy; kill"',
+           'git log --grep "(kill)"', 'rg -n "(kill|terminate)" app',
+           "sed -i 's/(kill)/(stop)/' src/a.ts", 'echo "a; kill"', "echo 'x (kill) y'",
+           'Write-Host "Stopping (kill)"']
 
 
 @pytest.mark.parametrize("command", KILLS)

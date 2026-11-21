@@ -533,6 +533,11 @@ _CIM_REMOVES = frozenset({"remove-ciminstance", "rcim", "remove-wmiobject", "rwm
 # too - wmic is a wrapper to `_commands_in`.
 _WMI_STOPS = re.compile(r"(?i)(?:^|(?<=[\s\"'(;&|{]))(?:wmic|invoke-cimmethod|icim|"
                         r"invoke-wmimethod)(?:\.exe)?\s[^;&|\r\n]*\b(?:delete|terminate)\b")
+# A kill or a Stop-Process handed its target otherwise than by words: by a pipe (`| xargs kill`,
+# `| Stop-Process`), or by a block the split cut off (`kill -9 $(pgrep x)`,
+# `Stop-Process (...).Id`).
+_PIPED_STOP = re.compile(r"(?i)\|\s*(?:xargs\b[^|;&]*?\s)?(?:kill|stop-process|spps)\b"
+                         r"|\b(?:kill|stop-process|spps)\b(?:\s+-\S+)*\s*[($`{@]")
 # A process object's own way to end (`$p.Kill()`, `% Terminate`, `ForEach-Object Kill`).
 _STOP_METHODS = frozenset({"kill", "terminate", "closemainwindow"})
 _KILL_PACKAGES = frozenset({"kill-port", "fkill", "fkill-cli"})
@@ -599,7 +604,7 @@ def _named(names: list[str], pattern: bool = False) -> str:
     return "soft"
 
 
-def _stop_process(said: list[str], started: set[str]) -> str:
+def _stop_process(said: list[str], started: set[str], piped: bool) -> str:
     """`_part_stop` of PowerShell's Stop-Process: by id only by `-Id` (`-i`, `-Id:1`) or numbers
     no option takes as its value - each a pid written out or one the line started; by `-Name`; a
     process object (`-InputObject`, a word in Id's place) only one the line started."""
@@ -622,10 +627,10 @@ def _stop_process(said: list[str], started: set[str]) -> str:
         at += 1
     if ids and not all(_own_id(one, started) for one in ids):
         return "koloni"
-    return _named(names) if by_name else "" if ids else "koloni"
+    return _named(names) if by_name else "" if ids else _bare(piped)
 
 
-def _kill(said: list[str], started: set[str]) -> str:
+def _kill(said: list[str], started: set[str], piped: bool) -> str:
     """`_part_stop` of `kill`: PowerShell's by `-Name` (`-n x`, `-name:x`); sh's by its pids
     after its signal (`-9`, `-s KILL`, `--`) - each a pid written out, a job, or one the line
     started (`$!`); everyone's (`-1`), a group's (`0`, a negative pid), one in another variable
@@ -650,8 +655,9 @@ def _kill(said: list[str], started: set[str]) -> str:
         else:
             targets.append(word)
         at += 1
-    return "" if targets and all(_own_id(one, started, jobs=True) for one in targets) else (
-        "koloni")
+    if not targets:
+        return _bare(piped)
+    return "" if all(_own_id(one, started, jobs=True) for one in targets) else "koloni"
 
 
 def _taskkill(said: list[str], started: set[str]) -> str:
@@ -712,7 +718,14 @@ def _runs_kill_package(program: str, said: list[str]) -> bool:
     return bool(named) and named[0].split("@")[0] in _KILL_PACKAGES
 
 
-def _part_stop(program: str, rest: list[str], started: set[str]) -> str:
+def _bare(piped: bool) -> str:
+    """A kill or a Stop-Process with no target written: of what a pipe hands it (`| xargs kill`,
+    `Get-Process x | Stop-Process`) - "koloni" -, or a word of a message or a search the quote-blind
+    split cut out (`git commit -m "fix (kill)"`) - none."""
+    return "koloni" if piped else ""
+
+
+def _part_stop(program: str, rest: list[str], started: set[str], piped: bool = True) -> str:
     """Whether a part stops a process otherwise than by an id the line knows: "" (none, or by
     such an id), "soft" (by a name not KOLONİ's) or "koloni" (what may be KOLONİ itself, another
     agent's CLI, or what is not said). `started`: the line's own processes (`_started`)."""
@@ -737,8 +750,8 @@ def _part_stop(program: str, rest: list[str], started: set[str]) -> str:
     if program in _SELECTS:
         return _pkill(program, said)
     if program in ("stop-process", "spps"):
-        return _stop_process(said, started)
-    return _kill(said, started) if program == "kill" else ""
+        return _stop_process(said, started, piped)
+    return _kill(said, started, piped) if program == "kill" else ""
 
 
 def _assigned(words: list[str]) -> list[str]:
@@ -765,7 +778,8 @@ def _stop_kind(command: str) -> str:
 
 def _stop_kind_of(command: str) -> str:
     started = _started(command)
-    kinds = {_part_stop(_program(words[0]), words[1:], started)
+    piped = bool(_PIPED_STOP.search(command))
+    kinds = {_part_stop(_program(words[0]), words[1:], started, piped)
              for words in map(_assigned, _commands_in(command, at=_BLOCKS)) if words}
     if _WMI_STOPS.search(command):
         return "koloni"
