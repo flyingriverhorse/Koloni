@@ -244,7 +244,7 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
     <div id="memory-panel-told" role="tabpanel" aria-labelledby="memory-tab-told" className="memory-panel" hidden={tab !== 'told'}>
       <TabHead
         line="Said to every agent, always."
-        more="Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either. At Full auto, with Check what I said first on (Settings › This project › Asking and away), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.”"
+        more="Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either. At Full auto, with Check what I said first on (Settings › This project › Asking and away), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”"
       />
       <Section title="Your preferences">
         {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}

@@ -1274,6 +1274,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # K-yargic: run -> (command, its folder, a digest of the user's words) -> what the check
         # of the user's words said of it (None: it failed), asked once a turn (`_judged`).
         self._judge_cache: dict[str, dict[tuple[str, str | None, str], dict | None]] = {}
+        # ...and run -> how many it refused in a row and in all (`_judgement`).
+        self._judge_refused: dict[str, tuple[int, int]] = {}
         # K-fullauto-sorma: run -> how often a failing check went back to the Lead (`_merge`).
         self._check_rounds: dict[str, int] = {}
         self._away_cut: dict[str, str] = {}
@@ -1922,6 +1924,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._lead_said.pop(run_id, None)
         self._asked_again.pop(run_id, None)
         self._judge_cache.pop(run_id, None)
+        self._judge_refused.pop(run_id, None)
         self._check_rounds.pop(run_id, None)
         self._away_cut.pop(run_id, None)
         if (timer := self._away_timers.pop(run_id, None)) is not None:

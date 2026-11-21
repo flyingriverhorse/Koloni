@@ -50,6 +50,14 @@ REJECTED = (
     "rejected: the user declined to run this command. This is their decision, not a tool "
     "error: do not run it again, or anything that does the same. " + CARRY_ON
 )
+# K-yargic: a command a sentence of the user's forbids at Full auto (`judge.verdict` "refuse"),
+# told as a declined one is: not "another way" - one no pattern of KOLONİ's sees (`python -c`,
+# `find -exec rm`) would go around the rule (the security review of slice 2).
+REFUSED = ("KOLONİ did not run this: your user's rule says \"{quote}\". Do not run it again, or "
+           "anything that does the same; do what the rule allows, or ask them. " + CARRY_ON)
+REFUSED_BY_A_MESSAGE = ("KOLONİ did not run this: a message of your user's in this chat forbids "
+                        "it. Do not run it again, or anything that does the same; do what it "
+                        "allows, or ask them. " + CARRY_ON)
 # B-389 (R187, live): a patch sent as a command, refused, and the agent gave up its change. Not
 # the change was refused - the command: it is made with the file tools, as a card of its own.
 FILE_TOOLS = ("If the change is still needed, make it with edit_file / write_file (or your own "
@@ -91,6 +99,35 @@ def rejected(command: str) -> str:
         return PATCH_REJECTED
     # (One that also deletes or the like was refused for that, not for its write.)
     return WRITE_REJECTED if _writes_file(command) and not danger(command) else REJECTED
+
+
+def refused_by_rule(judgement: dict) -> str:
+    """What an agent is told of a command the check of the user's words refused: the sentence
+    where it is one of their saved texts, which every agent is given (`REFUSED`); of a message of
+    theirs in the chat, only that one forbids it (`REFUSED_BY_A_MESSAGE`) - a sub-agent or a CLI
+    never saw the chat, and a token nothing masks may stand beside the sentence."""
+    if judgement.get("source") in ("preferences", "rules"):
+        return REFUSED.format(quote=judgement["quote"])
+    return REFUSED_BY_A_MESSAGE
+
+
+def _gate_open(mode: str, check: str) -> bool:
+    """Whether what the check of the user's words said of a command still holds: only while the
+    chat is at Full auto and the project's check is on - a run or a refusal that comes back after
+    either changed is its card, as if never checked (the security review of K-yargic's slice 2)."""
+    return mode == "full_auto" and check == "judge"
+
+
+def _refuses(judgement: dict | None, gate: bool) -> bool:
+    """Whether the check refused a command, and that holds (`_gate_open`)."""
+    return gate and judgement is not None and judgement["verdict"] == "refuse"
+
+
+def _kept(judgement: dict | None, asks: bool, gate: bool) -> dict | None:
+    """What of the check goes on a command's record: nothing once its gate closed (`_gate_open`),
+    nor a run asked all the same."""
+    stale = judgement is not None and (not gate or asks and judgement["verdict"] == "run")
+    return None if stale else judgement
 
 HELD_BACK = ("(secret variables held back from this command: {names} - the user can pass one "
              "in Settings › This project › Commands and secrets)")
@@ -191,7 +228,8 @@ class CommandRunner:
         user said yes to on a card, exactly as written, that the level alone does not ask again
         (K-evrim's measure, for its run) - what asks at every level still does; a yes on this
         one's card is added to it. `judgement`: what the check of the user's words said of it
-        (K-yargic, `AgentRunner._judged`) - not kept as a run where it is asked all the same."""
+        (K-yargic, `AgentRunner._judged`) - not kept as a run where it is asked all the same; one
+        it refused (`_refuses`) goes on record ended, "refused", and is neither asked nor run."""
         planned = plan_command(ws, args)
         searched = await asyncio.to_thread(
             search_reason, planned.command, ws.root, planned.cwd_rel)
@@ -200,7 +238,9 @@ class CommandRunner:
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            if planned.keep_running:
+            gate = _gate_open(conversation.permission_mode, project.full_auto_check)
+            forbidden = _refuses(judgement, gate)
+            if planned.keep_running and not forbidden:
                 self._may_serve(session, cid, project, ws, ask, where,
                                 lead=session.get_one(Agent, agent_id).depth == 0)
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
@@ -218,14 +258,15 @@ class CommandRunner:
             # steers later turns (`names_standing`, B-79), or has a reason in a working copy
             # (`copy_reason`, which its card shows from its call's record). One that only reads
             # is not (K-ask-okuma), nor the user's own test command run in its part's folder
-            # (`project_map.own_test`).
+            # (`project_map.own_test`). Nor is one the check of the user's words let run - while
+            # that holds (`_gate_open`).
             own = project_map.own_test(project.test_commands, planned.command, planned.cwd_rel)
             # (K-fullauto-sorma: at Full auto an instruction file alone is not asked.)
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
             asks = ask and (always or names_secret(judged) or bool(standing_asked(
                 judged, conversation.permission_mode != "full_auto"))
-                or bool(searched) or (
+                or bool(searched) or judgement is not None and not gate or (
                 conversation.permission_mode != "full_auto"
                 and (planned.keep_running or not (is_allowed(planned.command, prefixes)
                                                   or reads or own
@@ -241,14 +282,14 @@ class CommandRunner:
                 location=project.exec_location,
                 image=project.docker_image if project.exec_location == "docker" else None,
                 timeout_seconds=planned.timeout,
-                status="proposed" if asks else "approved",
+                status="refused" if forbidden else "proposed" if asks else "approved",
+                ended_at=now() if forbidden else None,
                 keep_running=planned.keep_running,
                 web_off=web_off,
                 # shortcut: a check that said run on one asked for another reason (a search that
                 # reaches a secret, `searched`) was a request spent; look for that before it if
                 # such checks are seen often.
-                judged=None if asks and judgement and judgement["verdict"] == "run"
-                else judgement,
+                judged=_kept(judgement, asks, gate),
             )
             session.add(command)
             session.commit()
@@ -256,6 +297,8 @@ class CommandRunner:
             payload = command_out(command, held=bool(searched))
             rule = payload["suggested_prefix"]
         self.bus.emit(cid, run_id, "command.created", payload)
+        if forbidden and judgement:  # K-yargic: a sentence of the user's forbids it - not run
+            return "denied", refused_by_rule(judgement)
 
         if asks:
             # (`rule` is empty when this command cannot be remembered.)
@@ -490,32 +533,39 @@ class CommandRunner:
         the root), so that the card is judged the same when it is read again. What it
         prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
         screen and the record - the CLI's own model has read it already. `judgement`: as
-        `run`'s."""
+        `run`'s (one it refused: (False, its id), as for the user's no)."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
-            tests = session.scalar(select(Project.test_commands).where(
-                Project.id == conversation.project_id))
+            tests, check = session.execute(select(
+                Project.test_commands, Project.full_auto_check).where(
+                Project.id == conversation.project_id)).one()
+            gate = _gate_open(mode, check)
+            forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)
             # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
             judged = with_cwd(command, cwd)
             asks = ask and (always or names_secret(judged)
                             or bool(standing_asked(judged, mode != "full_auto"))
+                            or judgement is not None and not gate
                             or (mode != "full_auto"
                                 and not (is_allowed(command, prefixes) or reads or own)))
             row = Command(
                 run_id=run_id, agent_id=agent_id, tool_call_id=call_id, command=command,
                 cwd=cwd, location="host", timeout_seconds=0, origin="cli", web_off=web_off,
-                # (as `run`'s: a level lowered while the check was out asks all the same)
-                judged=None if asks and judgement and judgement["verdict"] == "run"
-                else judgement,
+                status="refused" if forbidden else "proposed",
+                ended_at=now() if forbidden else None,
+                # (as `run`'s: what the check said holds only while its gate is open)
+                judged=_kept(judgement, asks, gate),
             )
             session.add(row)
             session.commit()
             command_id, payload = row.id, command_out(row, held=held)
         self.bus.emit(cid, run_id, "command.created", payload)
+        if forbidden:
+            return False, command_id
         if asks:
             decision = await self._wait_for_decision(
                 run_id, cid, agent_id, command_id, payload["suggested_prefix"])

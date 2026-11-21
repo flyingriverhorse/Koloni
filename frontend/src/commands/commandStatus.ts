@@ -11,7 +11,7 @@ export const TONE_COLOR: Record<Tone, string> = {
   muted: 'var(--muted)',
 }
 
-/** K-yargıç: where the line of the user's that a command ran on with no card stands. */
+/** K-yargıç: where the line of the user's that a command ran on with no card, or was not run by, stands. */
 export const JUDGED_FROM = { preferences: 'Your preferences', rules: 'This project’s rules', message: 'your message' } as const
 
 /** How a command's state reads to a person, and the colour it takes; a server's (slice 42b) as a page's would. */
@@ -33,23 +33,26 @@ export function commandStatus(command: Pick<Command, 'status' | 'exit_code' | 's
       return { label: 'working', tone: 'accent' }
     case 'exited':
       return exitedStatus(command.exit_code)
-    case 'timed_out':
-      return { label: 'timed out', tone: 'del' }
-    case 'killed':
-      return { label: 'killed', tone: 'muted' }
-    case 'rejected':
-      return { label: 'rejected', tone: 'muted' }
-    case 'failed_to_start':
-      return { label: 'did not start', tone: 'del' }
-    case 'blocked':
-      // K-48: its CLI called it done (exit 0), and its sandbox had refused the write.
-      return { label: 'blocked: its read-only sandbox refused a write', tone: 'del' }
     case 'interrupted':
       return interruptedStatus(command.started_at)
+    default:
+      return ENDED[command.status]
   }
 }
 
 type Status = { label: string; tone: Tone }
+
+/** The words of a command that ended with no exit code of its own (a state missing here fails the type check). */
+const ENDED: Record<'timed_out' | 'killed' | 'rejected' | 'refused' | 'failed_to_start' | 'blocked', Status> = {
+  timed_out: { label: 'timed out', tone: 'del' },
+  killed: { label: 'killed', tone: 'muted' },
+  rejected: { label: 'rejected', tone: 'muted' },
+  // K-yargıç: a line of the user's forbids it - not run, and its agent was told that line.
+  refused: { label: 'refused', tone: 'muted' },
+  failed_to_start: { label: 'did not start', tone: 'del' },
+  // K-48: its CLI called it done (exit 0), and its sandbox had refused the write.
+  blocked: { label: 'blocked: its read-only sandbox refused a write', tone: 'del' },
+}
 
 /** A server's own words for its state (`keep_running`); null where it reads as any command's, and for a command that is none. */
 function keptStatus(command: Parameters<typeof commandStatus>[0]): Status | null {

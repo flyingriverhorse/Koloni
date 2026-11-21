@@ -795,8 +795,8 @@ export interface paths {
         put?: never;
         /**
          * Seen
-         * @description K-yargıç: the user's OK on a command the check of their words let run without a card -
-         *     it leaves Decided for you.
+         * @description K-yargıç: the user's OK on a command the check of their words let run without a card, or
+         *     did not run - it leaves Decided for you.
          */
         post: operations["seen_api_commands__command_id__seen_post"];
         delete?: never;
@@ -5864,7 +5864,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "proposed" | "approved" | "running" | "exited" | "timed_out" | "killed" | "rejected" | "failed_to_start" | "interrupted" | "blocked";
+            status: "proposed" | "approved" | "running" | "exited" | "timed_out" | "killed" | "rejected" | "failed_to_start" | "interrupted" | "blocked" | "refused";
             /** Suggested Prefix */
             suggested_prefix: string;
             /** Timeout Seconds */
@@ -7022,9 +7022,10 @@ export interface components {
         /**
          * Judged
          * @description K-yargic: what the check of the user's words said of a command at Full auto: it ran with
-         *     no card ("run": on `quote`, a line of the user's found in `source`), or it was asked ("ask";
-         *     `why`, the check's own sentence where it said so). `model`: who was asked; `seen`: the
-         *     user's OK on one that ran (Decided for you).
+         *     no card ("run": on `quote`, a line of the user's found in `source`), it was not run and its
+         *     agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
+         *     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
+         *     (Decided for you).
          */
         Judged: {
             /**
@@ -7052,7 +7053,7 @@ export interface components {
              * Verdict
              * @enum {string}
              */
-            verdict: "run" | "ask";
+            verdict: "run" | "ask" | "refuse";
             /**
              * Why
              * @default

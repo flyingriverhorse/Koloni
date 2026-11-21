@@ -18,6 +18,7 @@ test('how a command’s state reads, for every state', () => {
   expect(of('timed_out')).toBe('timed out / del')
   expect(of('killed')).toBe('killed / muted')
   expect(of('rejected')).toBe('rejected / muted')
+  expect(of('refused')).toBe('refused / muted')
   expect(of('failed_to_start')).toBe('did not start / del')
   expect(of('blocked')).toBe('blocked: its read-only sandbox refused a write / del')
   expect(of('interrupted')).toBe('interrupted / warn')

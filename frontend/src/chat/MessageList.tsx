@@ -214,10 +214,11 @@ function outsideWord(decide: Handlers['onDecideRole'], callId: string) {
 
 /**
  * Whether a command folds at its turn's end: not while it waits for your word or a place, not a server that runs (its Stop
- * is in it), and not one that ran on your words without asking (K-yargıç): what ran on them stays in sight.
+ * is in it), and not one that ran on your words without asking, or that a line of yours kept from running (K-yargıç): what
+ * was decided on them stays in sight.
  */
 const commandFolds = (command: Command) =>
-  !['proposed', 'approved'].includes(command.status) && !(command.keep_running && command.status === 'running') && command.judged?.verdict !== 'run'
+  !['proposed', 'approved', 'refused'].includes(command.status) && !(command.keep_running && command.status === 'running') && command.judged?.verdict !== 'run'
 
 /**
  * A call that is a line of its own, never folded into a run: the Lead's pick of the chat's teams (slice 84b), the chat's

@@ -85,12 +85,12 @@ async def stop(command_id: str, request: Request, session: Session = Depends(get
 @router.post("/commands/{command_id}/seen", response_model=CommandOut,
              dependencies=[Depends(require_own_origin)])
 async def seen(command_id: str, request: Request, session: Session = Depends(get_session)):
-    """K-yargıç: the user's OK on a command the check of their words let run without a card -
-    it leaves Decided for you."""
+    """K-yargıç: the user's OK on a command the check of their words let run without a card, or
+    did not run - it leaves Decided for you."""
     command = session.get(Command, command_id)
     judged = command.judged if command is not None else None
-    if command is None or not judged or judged.get("verdict") != "run":
-        raise HTTPException(404, "no command the check of your words let run")
+    if command is None or not judged or judged.get("verdict") not in ("run", "refuse"):
+        raise HTTPException(404, "no command the check of your words let run or refused")
     if judged.get("seen"):
         raise HTTPException(409, "this one is seen already")
     command.judged = {**judged, "seen": True}  # (a new dict: the column sees it changed)
