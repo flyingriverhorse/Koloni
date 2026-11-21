@@ -68,13 +68,19 @@ and credit messages.
   are not measured, nor is Qoder - so a `cd` into
   `.koloni/tmp/` by Claude Code's PowerShell tool or by Qoder is still asked. A command of theirs that
   itself names a folder to run in is asked at every level: KOLONİ cannot check it.
-- GitHub Copilot CLI run **Native** does not say where its commands run either. On a Copilot version
-  whose code was read or measured - 1.0.67 and 1.0.105 so far, by the version Copilot itself reports -
-  a command that names no shell of its own starts in a new shell in the project folder, so there a
-  `cd` into `.koloni/tmp/` runs without a card at Full auto; a delete inside `.koloni/tmp/` from such a
-  shell is still a card. On any other version (after an update of Copilot's too, until that version is
-  measured), and once a command has named a shell, the `cd` is asked as before. Only Windows was
-  measured.
+- GitHub Copilot CLI run **Native** does not say where its commands run either. On its newer protocol
+  (Copilot 1.0.114 on) KOLONİ puts each PowerShell command in the project folder itself
+  (a `Set-Location` into it before each, through its hook: where it cannot go there, the command
+  does not run) and judges it there, so a
+  `cd` into `.koloni/tmp/` runs without a card at Full auto; a delete inside `.koloni/tmp/` is still a
+  card. Bash (Linux, macOS) gets no such prefix: there the `cd` is asked as before. On the older
+  protocol, a Copilot version measured with KOLONİ - 1.0.105 so far, by the version Copilot itself
+  reports - starts a command that names no shell of its own in a new shell in the project folder, with
+  the same result; once a command has named a shell, the `cd` is asked as before. Any other version of
+  the older protocol, and a Copilot that does not say its version, runs the old way (One session per
+  agent), and its Models card says so. Copilot
+  updates itself when you run it yourself, and that update reaches KOLONİ too: what KOLONİ judges is
+  the version it runs. Only Windows was measured.
 - A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
   script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it

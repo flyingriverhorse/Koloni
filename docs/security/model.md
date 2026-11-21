@@ -149,7 +149,10 @@ What is not framed:
   about at every level. Exceptions: when it runs **Native**, Codex runs commands its own rules count as
   safe (a read of `.env` or of a file outside the project) without asking KOLONİ; agy reading with its
   own tools reads without asking; and Qoder run **Native** stops before it acts on the versions measured
-  so far (they do not apply KOLONİ's hook), while how one that applies it asks is not measured. A script
+  so far (they do not apply KOLONİ's hook), while how one that applies it asks is not measured. Copilot on
+  its newer protocol (1.0.114 on) asks nothing of a command it counts as read-only, a read of a secret
+  among them: KOLONİ's own hook makes it ask before every tool, and a tool that still ran without KOLONİ
+  being asked stops the turn. A script
   that opens a secret file without naming it is not caught. Only Docker and Copilot's sandbox hide secret
   files from commands.
 - A command you approve can still print, encode or send a secret it was given.

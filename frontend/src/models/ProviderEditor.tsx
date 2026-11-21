@@ -218,7 +218,7 @@ export function ProviderEditor({
   const latest = useRef(provider)
   latest.current = provider
   const savedRows = (from = latest.current): GuideRow[] =>
-    (from?.models ?? []).map(m => ({ name: m.name, note: m.note ?? '', tier: m.tier ?? null, agents: from!.for_agents && m.agents, ...(m.enabled === false && { enabled: false, off_why: m.off_why }), inputs: m.inputs ?? null, ...(m.context && { context: m.context }) }))
+    (from?.models ?? []).map(m => ({ name: m.name, note: m.note ?? '', tier: m.tier ?? null, agents: from!.for_agents && m.agents, ...(m.enabled === false && { enabled: false, off_why: m.off_why }), inputs: m.inputs ?? null, ...(m.context && { context: m.context }), ...(m.routing && { routing: m.routing }) }))
   const [rows, setRows] = useState(() => savedRows())
   // A provider with no list says it of itself (a CLI or a server on its default model): on Connection.
   const [forAgents, setForAgents] = useState(start.forAgents)
@@ -229,7 +229,7 @@ export function ProviderEditor({
   // How many a catalogue fill left out, while what it proposed is not saved yet (null: no such proposal).
   const [leftOut, setLeftOut] = useState<number | null>(null)
   const listedOf = (list: GuideRow[]): ListedModel[] =>
-    list.map(row => ({ name: row.name, note: row.note.trim() || null, tier: row.tier, agents: row.agents, ...(row.enabled !== undefined && { enabled: row.enabled }), ...(row.inputs != null && { inputs: row.inputs }), ...(row.context !== undefined && { context: row.context }) }))
+    list.map(row => ({ name: row.name, note: row.note.trim() || null, tier: row.tier, agents: row.agents, ...(row.enabled !== undefined && { enabled: row.enabled }), ...(row.inputs != null && { inputs: row.inputs }), ...(row.context !== undefined && { context: row.context }), ...(row.routing !== undefined && { routing: row.routing }) }))
   const listed = listedOf(rows)
   // The Models tab saves each change at once (a tier, a note, a model added or removed), as the tiers' order does;
   // only a catalogue's proposal waits for its own Save. Nothing of the Connection tab is sent with it.

@@ -659,8 +659,9 @@ def test_copilot_works_natively_and_what_it_did_is_on_record(
     assert seen["create"]["model"] == "qwen-local"
     assert seen["create"]["mcpServers"]["koloni"]["tools"] == ["*"]
     assert "what does it print?" in seen["prompt"]  # the turn, as session.send's prompt
-    # B-389: a change is made with its edit tool, not a patch sent as a command
-    assert "To change a file, use your own file edit tool" in seen["prompt"]
+    # B-389: a change is made with its own file tool (apply_patch too), not a patch as a command
+    assert "To change a file, use your own file tool: create and edit, or apply_patch" in seen[
+        "prompt"]
     assert seen["cwd"] == str(project_dir)  # in the project, not a scratch folder
     assert seen["home_was_empty"] and KEY not in json.dumps(seen["argv"])
     assert "spawn_agent" in seen["tools"] and "read_file" not in seen["tools"]

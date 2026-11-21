@@ -79,12 +79,12 @@ test('a message sent while the agent waits is queued, and rejecting lets it run'
   await page.getByLabel('Message').fill('hello there')
   await page.getByRole('button', { name: 'Queue' }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
-  await expect(chat.getByText('Queued')).toBeVisible()
+  await expect(chat.getByText('Queued', { exact: true })).toBeVisible()
 
   await chat.getByRole('button', { name: 'Reject' }).click()
   await expect(chat.getByText('Okay, I left hello.py unchanged.')).toBeVisible()
   // The queued message runs next, on its own.
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
-  await expect(chat.getByText('Queued')).toHaveCount(0)
+  await expect(chat.getByText('Queued', { exact: true })).toHaveCount(0)
   expect(hello()).toBe(before)
 })

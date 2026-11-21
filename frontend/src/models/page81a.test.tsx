@@ -472,7 +472,7 @@ test('a CLI’s model is on its plan, one that takes no levels says none, Copilo
   const draw = (on: Provider, context: GuideRow['context'] = null) => (
     <table>
       <tbody>
-        <ModelRow row={{ ...sonnet, context }} provider={on} used={null} onFacts={onFacts} onTier={noop} onAgents={noop} onEnabled={noop} onInputs={noop} onContext={noop} onNote={noop} onNoteDone={noop} onRemove={noop} />
+        <ModelRow row={{ ...sonnet, context }} provider={on} used={null} onFacts={onFacts} onTier={noop} onAgents={noop} onEnabled={noop} onInputs={noop} onContext={noop} onRouting={noop} onNote={noop} onNoteDone={noop} onRemove={noop} />
       </tbody>
     </table>
   )

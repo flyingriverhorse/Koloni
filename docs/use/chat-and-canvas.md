@@ -46,20 +46,21 @@ unread and how many things wait for you.
 - The message box is one box. Its top line says what the chat does now: "Orchestrator is ready" with the
   model (choose the model there); while a turn runs, what it does now, for how long, the tokens written and
   the tier or model, with **Stop** and how many messages are queued; "waits for your answer" while it asks.
-  What is not known is left out: a CLI that does not tell its tokens shows none.
+  What is not known is left out: a CLI that does not tell its tokens shows none. Where the line is narrow, the
+  tier goes first, then the tokens, then the time, then the model's name (down to its icon); what it does is cut last.
 - Under the message, one row: **Attach**, the permission level as three comb cells and its name (a click
-  lists the levels, each with a line on what it does, and **Plan first** - see
-  [Permission levels](permissions.md)), **Plan first** (see [Plan first](plan-first.md)), **Auto-read**,
-  **Dictate** and **Send**.
+  lists the levels, each with a line on what it does, and the **Plan first** switch - see
+  [Permission levels](permissions.md) and [Plan first](plan-first.md); while Plan first is on, the level
+  reads, say, "Auto-edit · plan"), **Auto-read**, **Dictate** and **Send**.
 - Under the box, quiet words: **Workspace** with its number, **New topic**, **Chat settings**, **More**
   (Compare and Work together) and, at the right, how many things wait elsewhere ("2 more wait elsewhere"),
   which opens Ready for you.
 - **Chat settings** opens this chat's own settings: its teams and folders (each opens its own panel),
   its page scripts, what runs without asking in it, and, read only, what it takes from its project. Its
   **All settings** opens [Settings](../settings.md#this-chat) at This chat.
-- In a narrow chat the model shows as its arrow alone (its tooltip and its window say the whole name), **Chat
-  settings** reads **Settings**, what waits reads "2 wait", and **Plan first** is in the level's menu only; at
-  the narrowest **New topic**, **Settings** and **More** keep only their icon. The level always shows its name
+- In a narrow chat the model shows as its arrow alone (its tooltip and its window say the whole name); while the
+  row under the box has no room for all its words, **Chat settings** reads **Settings** and what waits reads
+  "2 wait"; at the narrowest **New topic** and **More** keep only their icon, **Settings** its word. The level always shows its name
   ("Ask", "Auto-edit", "Full auto").
 - Type `/` for slash commands: `/new`, `/room`, `/stop`, `/model`, `/mode`, `/plan`, `/compare`, a role's
   name to hand it a task, and your own commands (Settings › This project › Slash commands).
@@ -74,7 +75,8 @@ unread and how many things wait for you.
   listed 4 folders"; the newest is open while it runs and closes once words come after it. A command opens
   by itself while its output comes or when it failed, its output 6 lines tall, then scrolling.
 - Once the turn is over, everything before its answer folds into one line, "Completed 5 steps in 32s",
-  which counts what failed or was rejected ("1 failed"); a click opens it. Sub-agents, rooms, discussions,
+  which counts what failed or was rejected ("1 failed"); a click opens it. With a step that failed, the first
+  one's reason is a line under it ("↳ …"), so why something did not happen is in sight. Sub-agents, rooms, discussions,
   a server that still runs and every card that waits for you stay outside it, in sight.
 - The Orchestrator's question waits just above the message box: numbered options, your own answer and
   **Submit**; keys 1-9 pick an option and Enter sends it; "‹ 1/2 ›" when it asks two. In its turn one line
@@ -121,7 +123,8 @@ as this folder's default** keep the list.
 
 Every agent is a small box of at most three lines: its name and model, its state, and what it did,
 counted. An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
-(where its CLI tells them) and its tier or model: "pytest -q · 12s · ↓ 1.2k tokens · Fast". Its tools, commands and files are in the Inspector and its window (below). Lines show work
+(where its CLI tells them) and its tier or model: "pytest -q · 12s · ↓ 1.2k tokens · Fast". Where the box is
+narrow, the tier goes first, then the tokens, then the time; what it does is cut last. Its tools, commands and files are in the Inspector and its window (below). Lines show work
 handed to a sub-agent, agents that talked, findings handed on, and an agent waiting for a file another
 holds. **Canvas legend** explains every line and sign.
 

@@ -534,6 +534,7 @@ function modelPicker(conv: ConvState | null, providers: Provider[], roles: Role[
       onFacts={app.modelFacts}
       lead={roles.find(role => role.name === 'Lead')}
       hasHistory={(conv?.runs.length ?? 0) > 0}
+      onRouting={(id, models) => app.saveProvider(id, { models })}
     />
   )
 }

@@ -9,6 +9,8 @@ import { useConfirm } from '../shell/Confirm'
 import { usePanel } from '../shell/usePanel'
 import { type LoadFacts, LevelOptions, levelsDisabled, levelsKnown, namedLevel, takesOf, useModelFacts } from './levels'
 import { type LoadModels, ModelNameInput, ProviderOptions } from './ModelNameInput'
+import type { ListedModel } from './ModelsPage'
+import { type Routing, ROUTINGS, routingOf, withRouting } from './routing'
 
 export interface ModelChoice {
   provider_id: string | null
@@ -36,6 +38,8 @@ interface Props {
   lead?: { provider_id: string | null; model_id: string | null } | null
   /** The chat has had a turn: a model picked now starts with no cache of it. */
   hasHistory?: boolean
+  /** Copilot's auto's or fusion's routing changed: its provider's list to save, at once. */
+  onRouting?: (providerId: string, models: ListedModel[]) => Promise<void>
 }
 
 /**
@@ -128,8 +132,44 @@ function switches(hasHistory: boolean, used: Provider | undefined, picked: Provi
   )
 }
 
+/** Copilot's auto or fusion on your GitHub account, listed on its provider: its routing, saved at once on its Models row. */
+function RoutingField({ provider, model, onRouting }: { provider: Provider | undefined; model: string; onRouting: Props['onRouting'] }) {
+  const [error, setError] = useState<string | null>(null)
+  const routed = routingOf(provider, model)
+  const row = provider?.models.find(m => m.name === model)
+  if (!provider || !routed || !row || !onRouting) return null
+  const save = (routing: Routing | null) => onRouting(provider.id, withRouting(provider, model, routing)).then(() => setError(null), err => setError(errorText(err)))
+  return (
+    <div className="field">
+      <label htmlFor="pick-routing">Routing</label>
+      <select
+        id="pick-routing"
+        className="input"
+        aria-describedby="pick-routing-note"
+        value={row.routing ?? ''}
+        onChange={e => void save((e.target.value || null) as Routing | null)}
+      >
+        <option value="">Default</option>
+        {ROUTINGS[routed].map(([routing, label]) => (
+          <option key={routing} value={routing}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <span id="pick-routing-note" className="choice-note">
+        Saved on its Models row: every chat and agent on {provider.name} · {model} uses it.
+      </span>
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Which model this conversation's agents use, unless their role has its own. */
-export function ModelPicker({ providers, providerId, modelId, leadAuto = false, leadEffort = null, onSave, onModels, onFacts, lead, hasHistory = false }: Props) {
+export function ModelPicker({ providers, providerId, modelId, leadAuto = false, leadEffort = null, onSave, onModels, onFacts, lead, hasHistory = false, onRouting }: Props) {
   const [provider, setProvider] = useState(providerId ?? '')
   const [model, setModel] = useState(modelId ?? '')
   const [auto, setAuto] = useState(leadAuto)
@@ -257,6 +297,7 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
           {facts?.deprecated ? 'Its model is being retired: it still runs. ' : ''}The Orchestrator’s level here. Default: the Orchestrator role’s.
         </span>
       </div>
+      <RoutingField provider={picked} model={model.trim() || runsOn(picked) || ''} onRouting={onRouting} />
       {error && (
         <div role="alert" className="alert">
           {error}

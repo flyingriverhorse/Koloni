@@ -12,6 +12,7 @@ import type { ServerAction } from './LocalServerTab'
 import type { LoadModels } from './ModelNameInput'
 import { dayOf, type LoadFacts } from './levels'
 import { ProviderEditor, type Tab } from './ProviderEditor'
+import type { Routing } from './routing'
 import { TierSlots } from './TierSlots'
 
 export type ProviderKind = Provider['kind']
@@ -59,6 +60,8 @@ export interface ListedModel {
   inputs?: ModelInput[] | null
   /** Copilot on your GitHub account: its context window tier; left out, what it had is kept. */
   context?: ContextTier | null
+  /** Copilot's auto or fusion on your GitHub account: its routing; left out, what it had is kept. */
+  routing?: Routing | null
 }
 
 export type ContextTier = NonNullable<Provider['models'][number]['context']>

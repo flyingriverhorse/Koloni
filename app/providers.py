@@ -38,7 +38,12 @@ from app.model_native import (
     CopilotNativeClient,
     QoderNativeClient,
 )
-from app.model_session import ClaudeSessionClient, CopilotSessionClient, QoderSessionClient
+from app.model_session import (
+    ROUTINGS,
+    ClaudeSessionClient,
+    CopilotSessionClient,
+    QoderSessionClient,
+)
 from app.roles import shown_name
 
 HTTP_KINDS = ("openai_compat", "anthropic")
@@ -274,6 +279,7 @@ TIERS = ("fast", "balanced", "strongest")
 INPUTS = ("image", "video", "audio", "pdf")
 # Copilot's context window tiers, as its --help names them (CLI 1.0.103, K-copilot-baglam).
 CONTEXTS = ("default", "long_context")
+# (Its auto's and fusion's routings: `model_session.ROUTINGS`.)
 
 
 def _line(value: object, limit: int, what: str, even: bool = True) -> str | None:
@@ -293,7 +299,8 @@ def check_guide(note: str | None, models: list[dict] | None, tiered: bool = Fals
                 ) -> tuple[str | None, list[dict]]:
     """What the user tells agents about a provider, tidied and checked: the note and the
     models that can be chosen on it. `tiered`: a Copilot provider on the user's GitHub
-    account, the only one whose models take a context tier. ValueError says what is wrong."""
+    account, the only one whose models take a context tier, and whose auto and fusion take a
+    routing. ValueError says what is wrong."""
     if len(models or []) > MAX_MODELS:
         raise ValueError(f"a provider's list has at most {MAX_MODELS} models")
     listed: list[dict] = []
@@ -325,12 +332,18 @@ def check_guide(note: str | None, models: list[dict] | None, tiered: bool = Fals
             raise ValueError(f"a model's context is one of: {', '.join(CONTEXTS)}")
         if context and not tiered:
             raise ValueError("a context tier is only for Copilot on your GitHub account")
+        routing = model.get("routing")
+        if routing is not None and not (tiered and routing in ROUTINGS.get(name, ())):
+            raise ValueError("a routing is only for Copilot's auto (" + ", ".join(
+                ROUTINGS["auto"]) + ") and fusion (" + ", ".join(ROUTINGS["fusion"])
+                + ") on your GitHub account")
         listed.append({
             "name": name, "note": _line(model.get("note"), MAX_MODEL_NOTE, "a model's note"),
             "tier": tier, "agents": agents, **({"enabled": False} if enabled is False else {}),
             **({"inputs": list(dict.fromkeys(takes))} if takes is not None else {}),
             # (Only the long one is kept: the default is what passing nothing gives.)
             **({"context": context} if context == "long_context" else {}),
+            **({"routing": routing} if routing else {}),
         })
     return _line(note, MAX_NOTE, "the note"), listed
 
@@ -789,6 +802,7 @@ class Providers:
                 base_url=provider.base_url, api_key=provider.api_key,
                 options=provider.options or {},
                 context=None if provider.base_url else row.get("context"),
+                routing=None if provider.base_url else row.get("routing"),
             )
             if build is CopilotNativeClient and not provider.base_url:
                 # 89l: on GitHub's plan its headless client says what is left of it.

@@ -434,7 +434,7 @@ _LEVEL_IN_NAME = re.compile(r"-(minimal|low|medium|high|xhigh|max)$", re.IGNOREC
 def level_in_name(kind: str | None, model: str | None) -> bool:
     """B-404: whether a model's name fixes its level, so that it is sent none."""
     return (kind == "agy_cli" and bool(model and _LEVEL_IN_NAME.search(model))
-            or kind == "copilot_cli" and model == "auto")
+            or kind == "copilot_cli" and model in ("auto", "fusion"))
 
 
 class CliStepClient:

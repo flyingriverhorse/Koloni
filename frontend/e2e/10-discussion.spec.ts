@@ -46,8 +46,21 @@ test('agents discuss in a shared place, and you can speak in it', async ({ page 
   await expect.poll(behind).toEqual({ stacked: 2, behind: 0 })
 
   // In the chat it is one row; what the lead said in the discussion is not chat.
-  await expect(chat.getByRole('button', { name: /Discussion.*Should the greeting stay hi\?/ })).toContainText('3 agents')
+  const row = chat.getByRole('button', { name: /Discussion.*Should the greeting stay hi\?/ })
+  await expect(row).toContainText('3 agents')
   await expect(chat.getByText('Then we keep hi.')).toHaveCount(0)
+  // In a narrow chat its name and topic stay whole: what it says of itself is cut first, and the row stays in the chat.
+  for (const width of [340, 420]) {
+    const style = await page.addStyleTag({ content: `.stage { --chat-w: ${width}px !important; }` })
+    await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(width)
+    await expect(row).toBeVisible()
+    const fit = await row.evaluate(head => {
+      const summary = head.querySelector<HTMLElement>('.tool-row-summary')!
+      return { name: summary.scrollWidth <= summary.clientWidth, past: head.scrollWidth > head.clientWidth + 1 }
+    })
+    expect(fit, `at ${width}px`).toEqual({ name: true, past: false })
+    await style.evaluate(el => el.remove())
+  }
 
   // A reload shows the same discussion from the records; the row opens it again.
   await page.reload()

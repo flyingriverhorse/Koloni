@@ -19,10 +19,13 @@ interface Props {
   children: ReactNode
 }
 
-/** A finished turn's steps before its answer, as VS Code folds them: one closed line, "Completed 5 steps in 32s · 1 failed". */
 /** What a turn that did not complete says on its fold's line. */
 const ENDED: Partial<Record<Run['status'], string>> = { failed: 'Failed', cancelled: 'Stopped', interrupted: 'Interrupted' }
 
+/**
+ * A finished turn's steps before its answer, as VS Code folds them: one closed line, "Completed 5 steps in 32s · 1 failed";
+ * with a step that failed, its reason under the line, outside the fold - why something did not happen, without opening it.
+ */
 export function TurnSteps({ refocus, ended, count, took, calls, state, children }: Props) {
   const line = useRef<HTMLElement>(null)
   useLayoutEffect(() => {
@@ -31,18 +34,33 @@ export function TurnSteps({ refocus, ended, count, took, calls, state, children 
   }, [refocus])
   // (A command that exited with an error is counted failed by runHead, as on the line inside.)
   const { marks } = runHead(calls, state)
+  const why = firstWhy(calls)
   return (
-    <details className="turn-steps">
-      <summary ref={line}>
-        <span>{ENDED[ended] ? `${ENDED[ended]} after ${count} steps` : `Completed ${count} steps${took ? ` in ${took}` : ''}`}</span>
-        {marks.map(([end, n]) => (
-          <span key={end} className={`tag ${end === 'failed' ? 'tag-del' : 'tag-warn'}`}>
-            {`${n} ${TOOL_STATUS[end][0]}`}
-          </span>
-        ))}
-        <CaretRight size={12} className="turn-steps-caret" aria-hidden />
-      </summary>
-      <div className="turn-steps-body">{children}</div>
-    </details>
+    <>
+      <details className="turn-steps">
+        <summary ref={line}>
+          <span>{ENDED[ended] ? `${ENDED[ended]} after ${count} steps` : `Completed ${count} steps${took ? ` in ${took}` : ''}`}</span>
+          {marks.map(([end, n]) => (
+            <span key={end} className={`tag ${end === 'failed' ? 'tag-del' : 'tag-warn'}`}>
+              {`${n} ${TOOL_STATUS[end][0]}`}
+            </span>
+          ))}
+          <CaretRight size={12} className="turn-steps-caret" aria-hidden />
+        </summary>
+        <div className="turn-steps-body">{children}</div>
+      </details>
+      {why && (
+        <div className="turn-steps-why muted" title={why}>
+          <span aria-hidden>↳ </span>
+          <span>{why}</span>
+        </div>
+      )}
+    </>
   )
+}
+
+/** The first failed step's reason in one line, as KOLONİ wrote it: its result's first line, "error: " off (app/agent does the same); null with none. */
+function firstWhy(calls: ToolCall[]): string | null {
+  const line = calls.find(call => call.status === 'failed' && call.result)?.result?.split('\n', 1)[0].replace(/^error: /, '').trim()
+  return line || null
 }

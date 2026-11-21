@@ -17,6 +17,7 @@ from app.agent.ctx import Ctx, _NobodyToAsk, _Transcript, _Watch
 from app.agent.merge import _planned_edit
 from app.agent.words import (
     ANSWER_PREFIX,
+    ASKED_AGAIN,
     CANARY_REFUSED,
     CANARY_STOPPED,
     CHANGE_REJECTED,
@@ -27,7 +28,7 @@ from app.agent.words import (
 )
 from app.command_runner import CARRY_ON, refused_by_rule, rejected
 from app.commands import reads_here, search_reason, sends_canary, web_off_reason
-from app.db.models import Conversation, FileChange, now
+from app.db.models import Command, Conversation, FileChange, now
 from app.model_native import (
     CLAUDE_KNOWN,
     CLAUDE_READS,
@@ -37,7 +38,7 @@ from app.model_native import (
     INSIDE,
 )
 from app.model_session import PREFIX
-from app.serialize import file_change_out
+from app.serialize import command_event, file_change_out
 from app.team import quoted, reads_only
 from app.tools import WRITE_TOOLS, ToolError
 from app.workspace import (
@@ -434,6 +435,8 @@ class ApprovalsMixin:
                     if judged and judged["verdict"] == "refuse" else rejected(command))
             self._set_call(ctx.cid, call_id, status="denied", result=said, ended_at=now())
             return deny(said, fixed=True)
+        if (earlier := watch.commands.get(use_id)) is not None:
+            self._close_asked_again(ctx, *earlier)
         watch.commands[use_id] = (call_id, command_id)
         # What it names was on its card (asked at every level): what it writes under that
         # name stands at the look after it, that one (`_command_names`).
@@ -442,6 +445,20 @@ class ApprovalsMixin:
         if copy is None:
             watch.approved.add(use_id)
         return allow
+
+    def _close_asked_again(self: "AgentRunner", ctx: Ctx, call_id: str, command_id: str) -> None:
+        """A command its CLI asked about again for the same call (Copilot's own request after its
+        hook's, saying more: `CopilotNativeClient._permit`): it runs under the record of the second
+        ask, and the first is closed - approved, and never run under it."""
+        with self._factory() as session:
+            row = session.get_one(Command, command_id)
+            if row.status in ("proposed", "approved", "running"):
+                row.status, row.started_at, row.ended_at = "interrupted", None, now()
+                session.commit()
+            payload = command_event(row)
+        self.bus.emit(ctx.cid, ctx.run_id, "command.updated", payload)
+        self._set_call(ctx.cid, call_id, status="succeeded", ended_at=now(),
+                       result=ASKED_AGAIN)
 
     async def _approve_write(  # noqa: C901
         self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", *,
