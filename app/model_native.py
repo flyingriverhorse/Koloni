@@ -302,6 +302,26 @@ def _heredoc_patch(command: str, cwd: str, powershell: bool = False) -> list[dic
         lines = found[3].split("\n")[1:-1]
         if found[2] in lines:
             return None  # (the heredoc would end there, and what follows run as commands)
+    return _patch_lines(lines, cwd)
+
+
+def _tool_patch(text: str, cwd: str) -> list[dict] | None:
+    """The changes of Copilot's own apply_patch (B-393: its arguments are the patch's text), as
+    `_heredoc_patch` reads a patch's lines; None where it is anything more, holds a control
+    character (CR too: its grammar ends lines with LF) or names a path that is no plain one in
+    the folder it works in (`_odd_path`)."""
+    lines = text.split("\n")
+    if lines[-1] == "":
+        lines.pop()  # (its grammar's last LF is its own)
+    if CONTROL.search(text) or len(lines) < 2 or (lines[0], lines[-1]) != (
+            "*** Begin Patch", "*** End Patch"):
+        return None
+    return _patch_lines(lines[1:-1], cwd)
+
+
+def _patch_lines(lines: list[str], cwd: str) -> list[dict] | None:
+    """The changes a patch's lines say (between its Begin and End), as Codex says a patch's
+    (`_files` reads them), its paths taken from `cwd`; None where a line is no patch's."""
     changes: list[dict] = []
     for line in lines:
         header = PATCH_FILE.fullmatch(line)
@@ -2955,6 +2975,12 @@ COPILOT_WRITES = ("edit", "create")
 # Its file tool on models other than Claude (measured on 1.0.105, 20 Nov 2026: mai-code-2-flash,
 # gpt-6-luna): its arguments are the patch's text, and it asks one write with a fileEdit a file.
 COPILOT_PATCH = "apply_patch"
+# Its tools that only read or end a shell it started: let through at its hook (protocol 4).
+COPILOT_FOLLOWS = ("read_powershell", "stop_powershell", "list_powershell")
+# What KOLONİ puts before each PowerShell command at protocol 4 (`_hook_answer`): it starts in the
+# project whatever Copilot's own shell does (its modifiedArgs measured on 1.0.105 and 1.0.114:
+# the command run and the permission request shown are the modified ones).
+ROOT_PREFIX = "Set-Location -LiteralPath '{}'; "
 COPILOT_RUNS = ("powershell", "bash", "shell")
 # Its tool that only says what it is about to do: not one that ran unasked.
 # shortcut: by its name as remembered, not measured; add any other that never acts.
@@ -2971,9 +2997,17 @@ STILL_RUNNING_SHELL = re.compile(r"<shellId: \d+(?!\d| completed with exit code)
 NO_PYTHON = re.compile(r"uv trampoline failed to spawn Python child process")
 NO_PYTHON_BLOCKED = ("blocked: Copilot's sandbox could not start Python: run tests with a "
                      "sub-agent or in session mode")
-# The protocols of Copilot headless KOLONİ speaks (3: measured on 1.0.91, 24 Oct 2026; `ping`
-# and `status.get` say it). Any other runs the old way (`cli_surface.checked`).
-PROTOCOLS = frozenset({3})
+# The protocols of Copilot headless KOLONİ speaks (3: measured on 1.0.91, 24 Oct 2026; 4: 1.0.114,
+# 20 Nov 2026, only through KOLONİ's preToolUse hook; `ping` and `status.get` say it). Any other
+# runs the old way (`cli_surface.checked`).
+PROTOCOLS = frozenset({3, 4})
+# session.create's flat fields as protocol 4 groups them (Copilot 1.0.114's SDK, index.js); the
+# rest (workingDirectory, model, enableConfigDiscovery) stay where they are.
+GROUPED = {"requestPermission": ("permissions", "request"),
+           "sandboxConfig": ("permissions", "sandbox"), "hooks": ("hooks", "hasHandlers"),
+           "enableFileHooks": ("hooks", "enableRepositoryHooks"),
+           "mcpServers": ("mcp", "servers"), "availableTools": ("tools", "availableTools"),
+           "enableSkills": ("skills", "enabled"), "capi": ("github", "capi")}
 # How long its turn's end waits for `account.getQuota` (89l), in seconds.
 QUOTA_SECONDS = 5.0
 # How long its version is waited for (`CopilotNativeClient._version`), as `--version` was.
@@ -3029,7 +3063,8 @@ class _ShellPatches(dict):
     `moved`: a command it was let run may have changed its shell session (`SHELL_STATE`) - from
     then on, every patch it runs as a command is asked as the command it is. `started`: its shell
     calls whose start it said; `unknown`: one of them may run in a shell not new (`start`);
-    `version`: the version it said it is (`status.get`; None: not said, or not yet)."""
+    `version`: the version it said it is (`status.get`; None: not said, or not yet). `ours`: its
+    calls of KOLONİ's own tools (protocol 4: let through at its hook, `_from_hook`)."""
 
     moved = False
     unknown = False
@@ -3038,6 +3073,7 @@ class _ShellPatches(dict):
     def __init__(self) -> None:
         super().__init__()
         self.started: set[str] = set()
+        self.ours: set[str] = set()
 
     def start(self, call_id: str, data: dict) -> None:
         """A tool call it said it starts. Of its shell: one with SHELL_ARGUMENTS alone, not in a
@@ -3101,6 +3137,109 @@ async def _framed(stream: asyncio.StreamReader) -> dict | None:
         return _dict(json.loads(body))
     except ValueError:
         raise ValueError("a message that is not JSON") from None
+
+
+def _grouped(flat: dict) -> dict:
+    """session.create as protocol 4 takes it: its flat fields in their groups (GROUPED)."""
+    grouped: dict = {}
+    for name, value in flat.items():
+        if name in GROUPED:
+            group, field = GROUPED[name]
+            grouped.setdefault(group, {})[field] = value
+        else:
+            grouped[name] = value
+    return grouped
+
+
+def _at_root(root: Path) -> str | None:
+    """ROOT_PREFIX for this project: its path single-quoted, a ' in it doubled. None where it
+    holds a character PowerShell also reads as a single quote (U+2018-U+201B) or a control
+    one: its commands then get no prefix, and are judged without the project-folder rule."""
+    text = str(root)
+    if CONTROL.search(text) or re.search("[\u2018-\u201b]", text):
+        return None
+    return ROOT_PREFIX.format(text.replace("'", "''"))
+
+
+def _hook_answer(params: dict, root: Path) -> dict:
+    """KOLONİ's answer to a hook of Copilot's (`hooks.invoke`, protocol 4), at once - it never
+    waits on a card. Before each tool (preToolUse): "ask", never "allow" whatever it is sent, so
+    that every tool of its own comes as a permission request KOLONİ judges (`_from_hook`); a
+    PowerShell command put in the project first (`_at_root`). Any other hook: nothing.
+    shortcut: bash (Linux/macOS) gets no prefix - judged without the project-folder rule; add
+    `cd -- '<root>' &&` once measured there."""
+    if params.get("hookType") != "preToolUse":
+        return {}
+    given = _dict(params.get("input"))
+    args, prefix = given.get("toolArgs"), _at_root(root)
+    output: dict = {"permissionDecision": "ask"}
+    if given.get("toolName") == "powershell" and isinstance(args, dict) and isinstance(
+            args.get("command"), str) and prefix:
+        output["modifiedArgs"] = {**args, "command": prefix + args["command"]}
+    return {"output": output}
+
+
+def _tool_path(text: object, root: Path) -> str | None:
+    """The file a file tool of Copilot's names (its `path`: whole, or in the project), whole;
+    None where it is no plain one (`_odd_path`: up, a stream, a device, a name Windows cuts, a
+    home; or a whole one other than this system's own), so that a card names the file it acts
+    on."""
+    if not isinstance(text, str) or text != text.strip() or CONTROL.search(text):
+        return None
+    anchor = PureWindowsPath(text).anchor
+    whole = bool(re.fullmatch(r"[A-Za-z]:\\", anchor)) if sys.platform == "win32" else (
+        anchor == "\\" and text.startswith("/"))
+    if (anchor and not whole) or _odd_path(text[len(anchor):]):
+        return None
+    return str(Path(root, text))
+
+
+def _bypass(given: dict) -> dict:
+    """A shell call's asking to go outside its sandbox (`requestSandboxBypass`, by any spelling
+    of it), as its permission request says it: a card at every level (`_permit`)."""
+    said = {re.sub(r"[\W_]", "", str(key)).casefold(): value for key, value in given.items()}
+    if not any(value for key, value in said.items()
+               if "sandbox" in key and not key.endswith("reason")):
+        return {}
+    return {"requestSandboxBypass": True, "requestSandboxBypassReason": str(
+        said.get("requestsandboxbypassreason") or "to go outside its sandbox")}
+
+
+def _subjects(request: dict, root: Path) -> list[str]:
+    """What a permission request of Copilot's names, as `_permit` clears it once its hook's
+    request was answered yes (protocol 4): its command as sent, or each file it reads or writes,
+    whole (in one case, where its system's names are). [] where it names nothing of those."""
+    kind = request.get("kind")
+    if kind == "shell":
+        command = request.get("fullCommandText")
+        return [f"shell {command}"] if isinstance(command, str) and command else []
+    if kind == "read":
+        paths: list[object] = [request.get("path")]
+    elif kind == "write":
+        paths = [request.get("fileName"), *([request["resolvedPath"]] if request.get(
+            "resolvedPath") else []), *_diff_paths(request.get("diff")), *(
+            _dict(side).get("path") for edit in request.get("fileEdits") or []
+            for side in (_dict(edit).get("before"), _dict(edit).get("after")) if side)]
+    elif kind == "patch":
+        changes = _tool_patch(str(request.get("patch")), str(root))
+        paths = [path for path, _how, _diff in _files(changes)] if changes else []
+    else:
+        return []
+    try:
+        return [f"{'read' if kind == 'read' else 'write'} "
+                + os.path.normcase(str(Path(root, path).resolve()))
+                for path in paths if isinstance(path, str) and path] if all(
+            isinstance(path, str) and path for path in paths) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _exit_code(said: str, data: dict) -> int | None:
+    """A shell call's exit code: its output's trailer (EXIT_CODE), or else its completion's
+    shellExecution (protocol 4 types it; its trailer may be gone)."""
+    code = EXIT_CODE.search(said)
+    told = _dict(data.get("shellExecution")).get("exitCode")
+    return int(code[1]) if code else told if type(told) is int else None
 
 
 def _written(name: str, call_id: str, given: object, failed: bool, unasked: bool) -> dict:
@@ -3270,6 +3409,7 @@ class CopilotNativeClient(CodexNativeClient):
             if kind == "tool.execution_start":
                 call_id = str(data.get("toolCallId") or "")
                 if data.get("mcpServerName") == SERVER:
+                    heredocs.ours.add(call_id)  # (let through at its hook: `_from_hook`)
                     return [{"type": "item.completed",
                              "item": {"type": "mcp_tool_call", "server": SERVER}}]
                 heredocs.start(call_id, data)
@@ -3292,11 +3432,10 @@ class CopilotNativeClient(CodexNativeClient):
                 if patch is not None:
                     # B-389: a patch it ran as a command, on record as the patch it was asked
                     # as - each file by the id it was asked under (as Codex's: `_as_exec`).
-                    code = EXIT_CODE.search(said)
                     files = _files(patch)
                     return [*done, {"type": "item.completed", "item": {
                         "type": "file_change", "id": call_id, "declined": failed,
-                        "status": "failed" if failed or code is None or code[1] != "0"
+                        "status": "failed" if failed or _exit_code(said, data) != 0
                         else "completed",
                         "changes": [{"path": path, "kind": how} for path, how, _diff in files],
                         "parts": [f"{call_id}:{n}" for n in range(len(files))],
@@ -3307,7 +3446,7 @@ class CopilotNativeClient(CodexNativeClient):
                     # Refused or failed counts too: whether it ran is not sure. 1.0.67 starts
                     # each command anew, `spawnChild`; kept for a version whose shell keeps it.)
                     heredocs.moved |= bool(SHELL_STATE.search(str(given.get("command") or "")))
-                    code = EXIT_CODE.search(said)
+                    code = _exit_code(said, data)
                     # shortcut: REA saw toolTelemetry's sandboxApplied on 1.0.103; the MIT
                     # SDK names a `sandboxed` - either counts, until one is seen live.
                     boxed = data.get("sandboxed") is True or _dict(
@@ -3324,7 +3463,7 @@ class CopilotNativeClient(CodexNativeClient):
                         "type": "command_execution", "id": call_id,
                         "command": str(given.get("command") or ""),
                         "aggregated_output": EXIT_CODE.sub("", said),
-                        "exit_code": int(code.group(1)) if code else None,
+                        "exit_code": code,
                         "status": "failed" if failed or (code is None and not running)
                         else "completed",
                         "unasked": unasked, "sandboxed": boxed,
@@ -3374,6 +3513,8 @@ class CopilotNativeClient(CodexNativeClient):
         answered: set[tuple[str, str]] = set()  # (tool call, kind) already answered
         heredocs = _ShellPatches()  # (B-389: its commands that were patches)
         translate = self._translator(asked, heredocs)
+        names: dict[str, str] = {}  # its tool calls' names, by id
+        hooked = False  # protocol 4: every tool of its own asked through KOLONİ's hook
         session: str | None = None
         answering: set[asyncio.Future] = set()
         writing = asyncio.Lock()
@@ -3463,6 +3604,12 @@ class CopilotNativeClient(CodexNativeClient):
                                 f"it did not take KOLONİ's answer: {error}"))
                             end_now()
                         continue
+                    if "id" in message and method == "hooks.invoke":
+                        # Protocol 4: KOLONİ's hook, answered at once (any session's: never one
+                        # that lets a tool through, `_hook_answer`).
+                        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                            await send({"id": message["id"], "result": _hook_answer(params, root)})
+                        continue
                     if "id" in message:  # a request of its own: declined, never left waiting
                         await on_item("completed", {
                             "type": "mcp_tool_call", "server": "copilot", "tool": str(method),
@@ -3512,6 +3659,18 @@ class CopilotNativeClient(CodexNativeClient):
                             failure = failure or "its turn was aborted"
                         idle = True
                         return  # it has finished; whatever lingers is ended below
+                    data = _dict(event.get("data"))
+                    call = str(data.get("toolCallId") or "")
+                    if kind == "tool.execution_start":
+                        names[call] = str(data.get("toolName"))
+                    # Protocol 4 fails closed: a tool of its own that ran, KOLONİ not asked past
+                    # its hook (a shell that said its exit code ran, whatever its success says),
+                    # is on record so - and stops the turn.
+                    past = hooked and kind == "tool.execution_complete" and (
+                        call not in asked and call not in heredocs.ours
+                        and names.get(call) not in COPILOT_QUIET) and (
+                        data.get("success") is not False
+                        or isinstance(data.get("shellExecution"), dict))
                     for told in translate(event):
                         if told["type"] == "model":
                             picked_why = why_picked(told, reported, picked_why)
@@ -3523,6 +3682,12 @@ class CopilotNativeClient(CodexNativeClient):
                         else:
                             said = await self._heard(told["type"], told["item"], said, busy,
                                                      on_text, on_item)
+                    if past:
+                        broke = broke or OwnStop(
+                            f"{self.label} ran a tool of its own without KOLONİ being asked, "
+                            "past KOLONİ's hook; the run was stopped")
+                        end_now()
+                        return
                     if server.ended:
                         return
                 await process.wait()
@@ -3559,13 +3724,14 @@ class CopilotNativeClient(CodexNativeClient):
                 heredocs.version = str(told.get("version") or "") or None
 
         async def talk() -> None:
-            nonlocal unasked, started, failure, session, sent
+            nonlocal unasked, started, failure, session, sent, hooked
             reading = asyncio.ensure_future(read())
             try:
                 pong, no = await ask("ping", {})
                 protocol = pong.get("protocolVersion")
                 if no is None and (type(protocol) is not int or protocol not in PROTOCOLS):
                     no = f"it speaks protocol {str(protocol)[:20]}, not one KOLONİ knows"
+                hooked = protocol == 4
                 if no is None:
                     versioned = asyncio.ensure_future(said_version())
                     answering.add(versioned)
@@ -3574,7 +3740,7 @@ class CopilotNativeClient(CodexNativeClient):
                 if no is None and denied is not None:
                     sandbox = await self._sandbox(ask, denied, also, on_item)
                 if no is None:
-                    made, no = await ask("session.create", {
+                    flat = {
                         **sandbox,
                         "workingDirectory": str(root),
                         "requestPermission": True,  # every tool of its own is asked about
@@ -3592,7 +3758,10 @@ class CopilotNativeClient(CodexNativeClient):
                         # skills. No additionalDirectories: it would give it those folders,
                         # with their hooks; a path outside is asked about (`_approve`).
                         "enableFileHooks": False, "enableConfigDiscovery": False,
-                        "enableSkills": False})
+                        "enableSkills": False,
+                        # Protocol 4: KOLONİ's preToolUse hook asks of every tool of its own.
+                        **({"hooks": True} if hooked else {})}
+                    made, no = await ask("session.create", _grouped(flat) if hooked else flat)
                     session = made.get("sessionId") if isinstance(
                         made.get("sessionId"), str) else None
                     no = no or (None if session else "it named no session")
@@ -3731,17 +3900,36 @@ class CopilotNativeClient(CodexNativeClient):
         slice 88). A call of one of KOLONİ's own tools is let through: those are held to
         KOLONİ's rules where they run. Anything else is rejected, and that is on record.
         `heredocs`: where a command is a patch (B-389), its changes, by `use_id`. `new_shell`:
-        it was read to run in a new shell at the project (`_ShellPatches.new_shell`)."""
+        it was read to run in a new shell at the project (`_ShellPatches.new_shell`).
+        Protocol 4: a request of kind "hook" is judged as the one its tool would have made
+        (`_from_hook`); one card a call - what follows it for the same call passes unasked only
+        where all it names was answered yes there, and it asks no more of its sandbox."""
         kind = str(request.get("kind"))
         if kind == "mcp" and request.get("serverName") == SERVER:
             return APPROVE_ONCE
         asked.add(use_id)  # (declined too: it was asked about, it did not run unasked)
+        if kind != "hook" and (use_id, kind) not in answered and not request.get(
+                "requestSandboxBypass") and (subjects := _subjects(request, root)) and all(
+                (use_id, f"cleared {subject}") in answered for subject in subjects):
+            answered.add((use_id, kind))
+            return APPROVE_ONCE
+        clears: list[str] = []
+        if kind == "hook" and (use_id, kind) not in answered:
+            mapped, new_shell = self._from_hook(request, root, heredocs.ours)
+            if mapped is None:  # (one let through as it is: no card)
+                answered.add((use_id, kind))
+                return APPROVE_ONCE
+            request = mapped
+            # (what a request after it would name: its command as sent, KOLONİ's prefix on)
+            clears = _subjects({**mapped, "fullCommandText": f"{_at_root(root)}"
+                                f"{mapped['fullCommandText']}"} if new_shell else mapped, root)
+        what = str(request.get("kind"))  # (a hook's: the kind of request it is judged as)
         # Asking to go outside its sandbox is a reason: a card at every level, as Codex's.
         given = {"reason": str(request.get("requestSandboxBypassReason")
                                or "to go outside its sandbox")} if request.get(
             "requestSandboxBypass") else {}
         named = str(request.get({"shell": "fullCommandText", "write": "fileName",
-                                 "read": "path"}.get(kind, "")) or "")
+                                 "read": "path", "patch": "patch"}.get(what, "")) or "")
         why = (f"KOLONİ declined this request of {self.label}'s: only a command, a file it "
                "writes or a file it reads is answered")
         question: tuple[str, dict] | None = None
@@ -3749,7 +3937,7 @@ class CopilotNativeClient(CodexNativeClient):
         if (use_id, kind) in answered:
             why = (f"KOLONİ declined this request of {self.label}'s: it asked again for what "
                    "was answered")
-        elif named and kind == "shell":
+        elif named and what == "shell":
             # What it says the command touches, judged as a read or write of each (`_approve`);
             # where it runs, if it says (1.0.91 does not, measured 24 Oct 2026): outside the
             # folder, a card at every level (89a).
@@ -3787,7 +3975,7 @@ class CopilotNativeClient(CodexNativeClient):
                                      # (KOLONİ's own word, last: nothing it was sent can be it.
                                      # `_approve_command`; Codex's `_decide` sends none.)
                                      "new_shell": bool(new_shell and not where)})
-        elif named and kind == "write":
+        elif named and what == "write":
             # What it will write is its one fileEdit (newFileContents is no sure word: an
             # empty one is not a deletion); a write that names more files, or another one
             # (a move), is not what is asked about, so not answered yes.
@@ -3819,8 +4007,15 @@ class CopilotNativeClient(CodexNativeClient):
                 # diff - newFileContents is not taken as what the file will hold.
                 # shortcut: not shown as a change; show it as one if a version sends fileEdits.
                 question = ("Edit", {"file_path": named, "diff": diff, **given})
-        elif named and kind == "read":
+        elif named and what == "read":
             question = ("Read", {"file_path": named, **given})
+        elif named and what == "patch":
+            # Its own apply_patch at its hook (B-393): each file asked as its own, as a patch
+            # sent as a command is (`_patch_questions`).
+            changes = _tool_patch(named, str(root))
+            why = (f"KOLONİ declined this request of {self.label}'s: a patch KOLONİ cannot read "
+                   "file by file")
+            questions = _patch_questions(changes, given) if changes else []
         if question is not None:
             questions = [question]
         if not questions:
@@ -3838,5 +4033,45 @@ class CopilotNativeClient(CodexNativeClient):
             verdict = _dict(json.loads(verdict))
             if verdict.get("behavior") != "allow":
                 return {"kind": "reject", "feedback": str(verdict.get("message") or "rejected")}
+        answered.update((use_id, f"cleared {subject}") for subject in clears)
         return APPROVE_ONCE
+
+    def _from_hook(self, request: dict, root: Path, ours: set[str]) -> tuple[dict | None, bool]:
+        """A permission request of kind "hook" (protocol 4: KOLONİ's preToolUse hook said ask)
+        as the request its tool would have made, for `_permit` to judge; and whether its
+        command runs in a new shell at the project - KOLONİ's own prefix on it, taken off
+        (`_at_root`), the one word for that. None: one let through once with no card - a tool
+        that only says what it is about to do, or reads or ends a shell it started, or one of
+        KOLONİ's own. Any other stays a hook's request: declined, on record."""
+        name, args = request.get("toolName"), request.get("toolArgs")
+        call = str(request.get("toolCallId") or "")
+        if name in COPILOT_QUIET or name in COPILOT_FOLLOWS or (call and call in ours) or (
+                isinstance(name, str) and name.startswith(COPILOT_PREFIX)
+                and name[len(COPILOT_PREFIX):] in self._offered):
+            return None, False
+        given = _dict(args)
+        command = given.get("command")
+        if name in ("powershell", "bash") and isinstance(command, str):
+            prefix = _at_root(root) if name == "powershell" else None
+            new_shell = bool(prefix) and command.startswith(str(prefix))
+            return {"kind": "shell", "toolCallId": call, "shellType": name,
+                    "fullCommandText": command[len(str(prefix)):] if new_shell else command,
+                    **_bypass(given)}, new_shell
+        if name == COPILOT_PATCH and isinstance(args, str):
+            return {"kind": "patch", "toolCallId": call, "patch": args}, False
+        path = _tool_path(given.get("path"), root)
+        text, old, new = given.get("file_text"), given.get("old_str"), given.get("new_str", "")
+        if path is None:
+            return request, False
+        if name == "view":
+            return {"kind": "read", "toolCallId": call, "path": path}, False
+        if name == "create" and isinstance(text, str):
+            return {"kind": "write", "toolCallId": call, "fileName": path,
+                    "fileEdits": [{"after": {"path": path, "content": text}}]}, False
+        if name == "edit" and isinstance(old, str) and isinstance(new, str):
+            # (each line marked "- " or "+ ": none a diff's header, `_diff_paths`)
+            return {"kind": "write", "toolCallId": call, "fileName": path, "diff": "".join(
+                f"{mark} {line}\n" for mark, side in (("-", old), ("+", new))
+                for line in side.split("\n"))}, False
+        return request, False
 

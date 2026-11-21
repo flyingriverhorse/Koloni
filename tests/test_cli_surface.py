@@ -90,7 +90,7 @@ COPILOT = "GitHub Copilot CLI"
     ("1.0.200", 3, f"{COPILOT} 1.0.200 not measured; running the old way"),
     ("1.0.200", 5, f"{COPILOT} 1.0.200 is newer than KOLONİ knows; running the old way"),
     ("1.0.200", 2, f"{COPILOT} 1.0.200 speaks a protocol KOLONİ does not know; running the old way"),
-    ("1.0.114", 4, f"{COPILOT} 1.0.114 is newer than KOLONİ knows; running the old way")])
+    ("1.0.114", 4, f"{COPILOT} 1.0.114 not measured with KOLONİ")])
 def test_copilot_runs_natively_or_the_old_way_by_its_protocol_and_its_card_says(
     copilot_native, wait_run, project_dir, version, protocol, said  # noqa: F811
 ):
@@ -103,8 +103,9 @@ def test_copilot_runs_natively_or_the_old_way_by_its_protocol_and_its_card_says(
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    # natively, or its session with KOLONİ's tools
-    assert ("--headless" in copilot_native.record()["argv"]) is (said is None)
+    # natively (protocol 4: through KOLONİ's hook), or its session with KOLONİ's tools
+    assert ("--headless" in copilot_native.record()["argv"]) is (
+        said is None or said.endswith("with KOLONİ"))
     (shown,) = [one for one in client.get("/api/providers").json() if one["id"] == provider["id"]]
     assert shown["version_note"] == said
 
