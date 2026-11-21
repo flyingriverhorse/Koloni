@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Fixed
+
+- **Agents**: in a recipe such as Quality check or Upkeep, a test run that failed now runs the fix step even when the Tester's report says it found nothing; a command that is no test run (a search with no match) still does not ([docs](docs/agents/recipes.md)).
+
 ## [0.1.4] - 2026-11-21
 
 ### Added

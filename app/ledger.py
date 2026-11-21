@@ -159,6 +159,29 @@ def _many(count: int, what: str) -> str:
     return f"{count} {what}" + ("" if count == 1 else "s")
 
 
+def _family(session: Session, agent_id: str) -> tuple[str, set[str]]:
+    """An agent's run and the ids of it and every agent under it."""
+    run_id = session.get_one(Agent, agent_id).run_id
+    ids, family = {agent_id}, session.execute(
+        select(Agent.id, Agent.parent_agent_id).where(Agent.run_id == run_id)).all()
+    while more := {one for one, parent in family if parent in ids} - ids:
+        ids |= more
+    return run_id, ids
+
+
+def failed_tests(session: Session, agent_id: str) -> Command | None:
+    """The last test run of an agent and the agents it opened, where it failed: exited non-zero,
+    timed out, or counted a failure; None where it passed or none ran (killed: no result)."""
+    run_id, ids = _family(session, agent_id)
+    last = next((one for one in session.scalars(
+        select(Command).where(Command.run_id == run_id, Command.agent_id.in_(ids),
+                              Command.status.in_(("exited", "timed_out")))
+        .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc()))
+        if RUNS_TESTS.match(one.command)), None)
+    return last if last and (last.status == "timed_out" or last.exit_code != 0 or FAILED.search(
+        last.output[-4000:])) else None
+
+
 def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
     """K-kanit: one line of what an agent and the agents it opened did, counted from KOLONİ's
     record (no model), so that its opener can tell what its report claims from what was done.
@@ -166,11 +189,7 @@ def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
     what it is known to have done is said - no zero - and None where that is nothing.
     shortcut: `seen` is the agent's own model's; an agent under it on a CLI whose reads KOLONİ does
     not see adds none. Judge each by its own model if that is seen to mislead."""
-    run_id = session.get_one(Agent, agent_id).run_id
-    ids, family = {agent_id}, session.execute(
-        select(Agent.id, Agent.parent_agent_id).where(Agent.run_id == run_id)).all()
-    while more := {one for one, parent in family if parent in ids} - ids:
-        ids |= more
+    run_id, ids = _family(session, agent_id)
     calls = session.execute(select(ToolCall.name, ToolCall.arguments).where(
         ToolCall.run_id == run_id, ToolCall.agent_id.in_(ids), ToolCall.status == "succeeded",
         ToolCall.name.in_([*READS, *WEB]))).all()

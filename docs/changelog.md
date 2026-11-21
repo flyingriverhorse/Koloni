@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Agents**: in a recipe such as Quality check or Upkeep, a test run that failed now runs the fix step even when the Tester's report says it found nothing; a command that is no test run (a search with no match) still does not ([docs](agents/recipes.md)).
+
 ## [0.1.4] - 2026-11-21
 
 ### Added

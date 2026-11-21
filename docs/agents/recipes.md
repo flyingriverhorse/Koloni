@@ -36,6 +36,9 @@ A step can also have **Done when**, **Only if the step before found a problem**,
 (ask me or stop), and **Ask me to approve its work before it goes on**. That last one gives a card with
 **Go on**, **Ask for changes** and **Stop**.
 
+Before a step that runs only if a problem was found, a test run that failed is a problem, whatever
+the agent's report says.
+
 **All at once** runs steps side by side. It waits for **all branches** or for **the first one done**.
 
 **Loop back** goes back to an earlier step, **at most** 1 to 5 rounds.
