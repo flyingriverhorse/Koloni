@@ -15,6 +15,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Changed
 
 - Complexity wave F4 (part 1): 7 frontend functions of complexity 51-91 split to 12 or under; nothing the user sees changes.
+- Complexity wave F4 (part 2): `App` and the Inspector split to complexity 12 or under; nothing the user sees changes.
 - **Chat**: when the Orchestrator answers a question for you, it also reads your preferences and this project's rules as saved on the Memory page.
 
 ### Fixed
