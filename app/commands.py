@@ -2382,7 +2382,11 @@ def harms(command: str, instructions: bool = True) -> str:
     shortcut: at Full auto this check is a courtesy for honest commands, not a wall against
     obfuscation - a name spliced or escaped (`r`i`, `& (gcm ri)`, `&('r'+'i')`, `$c='ri'; & $c`)
     or a program started with its words in a list (`Start-Process ... -ArgumentList`) is not
-    seen; Ask and Auto-edit are the wall (and `runs_another` at night)."""
+    seen; Ask and Auto-edit are the wall (and `runs_another` at night).
+    shortcut (security review of K-yargic): no harm is seen in `powershell -enc <base64>`,
+    `ssh host 'rm -rf /'`, `find . -exec rm {} ;` or `python -c "shutil.rmtree('..')"` - they run
+    at Full auto as before, and are never put to the check of the user's words (no harm, no
+    check); add them to `danger` / `sends_off` when the user meets one."""
     return next(filter(None, _reasons(command, instructions)), "")
 
 
@@ -2409,8 +2413,10 @@ def harm_class(command: str, instructions: bool = True) -> HarmClass:
     """K-yargic: whether a harm (`harms`) is one a check of the user's own words may let run
     ("soft": each part only deletes, throws away or sends off, `_SOFT`) or one asked at every
     level ("always": any other sentence, a secret, `.koloni`, a file that steers later turns, a
-    path out of the folder); "" for no harm. Every part is looked at, not the first sentence
-    `harms` gives: `rm -rf build && cat .env` deletes first, and opens a secret too."""
+    path out of the folder, a line handed to another program); "" for no harm. Every part is
+    looked at, not the first sentence `harms` gives: `rm -rf build && cat .env` deletes first,
+    and opens a secret too."""
+    command = re.sub(r"`\r?\n", " ", command)  # (PowerShell's line goes on after a backtick)
     harmful = False
     for said in _reasons(command, instructions):
         if said and not _SOFT.match(said):
@@ -2418,18 +2424,27 @@ def harm_class(command: str, instructions: bool = True) -> HarmClass:
         harmful = harmful or bool(said)
     if not harmful:
         return ""
-    return "always" if names_secret(command) or names_koloni(command) or standing_asked(
-        command, instructions) or any(_leads_out(word) for words in _commands_in(
-            command, at=_BLOCKS) for word in words[1:]) else "soft"
+    return "always" if _asked_anyway(command, instructions) else "soft"
+
+
+def _asked_anyway(command: str, instructions: bool) -> bool:
+    """`harm_class`: what makes a harm one asked at every level - a secret, `.koloni`, a file
+    that steers later turns, a line handed to another program (`runs_another`: a variable set
+    before it, `xargs`, `sudo`, a shell), or a path out of the folder in any word of the line,
+    its program's own too (`_leads_out`)."""
+    return bool(names_secret(command) or names_koloni(command)
+                or standing_asked(command, instructions) or runs_another(command)
+                or any(map(_leads_out, re.split(r"[\s;&|(){}]+", command))))
 
 
 def _leads_out(word: str) -> bool:
-    """`harm_class`: whether a word names a path out of the folder (`_outside`) - also glued to
-    an option (`-Path:C:/x`, `--dir=../x`) or a redirection - or one behind a variable (`$HOME`,
-    `%USERPROFILE%`), whose place is not seen."""
+    """`_asked_anyway`: whether a word names a path out of the folder (`_outside`) - also glued
+    to an option (`-Path:C:/x`, `--dir=../x`), a redirection or an `@` (`-d@/etc/passwd`,
+    `file=@C:/x`) - or one whose place is not seen: behind a variable (`$HOME`, `%USERPROFILE%`),
+    a command's output (`` `pwd` ``) or a brace."""
     plain = _as_read(word)
-    return bool(re.search(r"[$%]", plain)) or any(
-        _outside(piece) for piece in re.split(r"[=<>,]", re.sub(r"^-[\w-]*:", "", plain))
+    return bool(re.search(r"[$%`{}]", word)) or any(
+        _outside(piece) for piece in re.split(r"[=<>,@]", re.sub(r"^-[\w-]*:", "", plain))
         if piece)
 
 
