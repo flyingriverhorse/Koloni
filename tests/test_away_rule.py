@@ -70,7 +70,7 @@ def test_going_away_decides_a_question_already_waiting(make_client, wait_run, pr
     with client.app.state.session_factory() as session:
         session.add(AwayRun(project_id=pid, conversation_id=cid, run_id="r", status="running"))
         session.commit()
-    client.portal.call(client.app.state.runner.away_now, pid, cid)
+    client.portal.call(client.app.state.runner.away_now, cid)
     assert until_answered(client, cid)["answer"] == "by name"
     wait_run(client, cid, run_id)
 
@@ -156,3 +156,24 @@ def test_a_kept_work_card_at_full_auto_is_the_leads_at_once_and_never_go_aways(
         return armed, kept
 
     assert client.portal.call(asked) == ([0.0], {})
+
+
+def test_going_away_from_one_chat_leaves_another_chats_card_to_its_own_minutes(
+        make_client, wait_run, project_dir):
+    # (The review: Go away decided cards in every chat of the project, though its money and Stop
+    # all cover only the chat gone from and its jobs.)
+    client, _model = make_client([CODER, ask(), says("by name"), text("ok"), text("done")])
+    clock = held(client)
+    pid, gone_from = away_chat(client, project_dir, when_away="lead", away_minutes=10)
+    other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{other}", json={"permission_mode": "auto_edit",
+                                                      "spawn_approval": "never"}, headers=OWN)
+    run_id = post(client, other)
+    wait_status(client, other, "waiting_approval")
+    assert lead_timers(clock, 0.0) == []
+    (timer,) = lead_timers(clock, 600.0)  # (its own minutes, as before)
+    client.portal.call(client.app.state.runner.away_now, gone_from)
+    assert question_of(client, other)["status"] == "pending" and not timer.cancelled
+    fire(client, timer)
+    assert until_answered(client, other)["answer"] == "by name"
+    wait_run(client, other, run_id)

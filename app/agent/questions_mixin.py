@@ -267,11 +267,7 @@ class QuestionsMixin:
         arm it again on a change if a question is seen to wait."""
         if kind not in DECIDES | FULL_AUTO_CARDS:
             return lambda: None
-        with self._factory() as session:
-            conversation = session.get_one(Conversation, ctx.cid)
-            project_id = conversation.project_id
-            night = project_id is not None and away.running(session, project_id) is not None
-            delay = self._decide_after(ctx, kind, conversation, night)
+        delay, night = self._when(ctx, kind)
         if delay is None and kind not in DECIDES:
             return lambda: None
         # R188: asked again word for word, its answer of before (`_lead_answers`) needs no wait.
@@ -287,8 +283,17 @@ class QuestionsMixin:
         if delay is not None:
             decision.arm(delay)
         if kind in DECIDES:
-            self._decidable[asked] = (project_id, decision.now)
+            self._decidable[asked] = (ctx.cid, decision.now)
         return decision.stand_down
+
+    def _when(self: "AgentRunner", ctx: Ctx, kind: str | None) -> tuple[float | None, bool]:
+        """`_decide_after` as the chat stands now, and whether it is gone from (☾ Away): the
+        chat the user went away from, or a job's of that Away (`away.gone_from`) - not another
+        chat of the project, whose own minutes hold (its money and Stop all are not Away's)."""
+        with self._factory() as session:
+            conversation = session.get_one(Conversation, ctx.cid)
+            night = away.gone_from(session, ctx.cid) is not None
+            return self._decide_after(ctx, kind, conversation, night), night
 
     def _decide_after(self: "AgentRunner", ctx: Ctx, kind: str | None,
                       conversation: Conversation, night: bool) -> float | None:
@@ -358,9 +363,9 @@ class QuestionsMixin:
             project = project_of(session, conversation)
             limit = project.turn_token_limit if project is not None else None
             provider = session.get(Provider, lead.provider_id or "") if lead else None
-            # (Its away setting, `settings_of` - or the project away: Go away is the user's.)
+            # (Its away setting, `settings_of` - or this chat gone from: Go away is the user's.)
             lets = (project or conversation).when_away == "lead" or (
-                project is not None and away.running(session, project.id) is not None)
+                away.gone_from(session, ctx.cid) is not None)
             # (Over the month's budget or the provider's limits: KOLONİ asks nothing itself.)
             if (not lets and conversation.permission_mode != "full_auto"
                     or lead is None or provider is None

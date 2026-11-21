@@ -83,13 +83,14 @@ class AwayMixin:
                 away.go_on(session, project_id, self)
             announce(self._factory, self.bus, project_id, "backlog.changed")
 
-    def away_now(self: "AgentRunner", project_id: str, cid: str) -> None:
-        """Go away: every card of the project the Lead may decide (`_decidable`) is decided now,
-        whatever its time; the away chat's Lead at work is told the user went (call 8).
+    def away_now(self: "AgentRunner", cid: str) -> None:
+        """Go away from chat `cid`: every card of it the Lead may decide (`_decidable`) is decided
+        now, whatever its time - not another chat's, whose own minutes hold; its Lead at work is
+        told the user went (call 8).
         shortcut: told at its next step (`_nudge`), not into a CLI's turn at once (`steer`);
         steer it if a CLI's Lead is seen to ask after Go away."""
-        for project, now_go in list(self._decidable.values()):
-            if project == project_id:
+        for chat, now_go in list(self._decidable.values()):
+            if chat == cid:
                 now_go()
         for lead in [one for one in self._ctxs.values() if one.cid == cid and not one.depth]:
             self._nudge(lead, AWAY_TOLD)

@@ -90,6 +90,13 @@ def running(session: Session, project_id: str) -> AwayRun | None:
         AwayRun.project_id == project_id, AwayRun.status == "running").limit(1))
 
 
+def gone_from(session: Session, cid: str) -> AwayRun | None:
+    """The Away that runs for chat `cid`: the user went away from it, or it is a job's of it."""
+    return session.scalar(select(AwayRun).where(
+        AwayRun.conversation_id == cid, AwayRun.status == "running").limit(1)) or night_of(
+        session, cid)
+
+
 def until_at(clock: str, at: datetime | None = None, zone: tzinfo | None = None) -> datetime:
     """The next time the local clock (`zone`'s; this machine's without it) says `clock`
     ("HH:MM"), in UTC - worked out on the clock's own time, so that a run over a change of
@@ -235,7 +242,7 @@ def go(session: Session, conversation: Conversation, given: dict, runner) -> Awa
                      "task_id": task.id, "was_todo": was_todo})
     night.jobs = jobs
     session.commit()
-    runner.away_now(project_id, conversation.id)
+    runner.away_now(conversation.id)
     go_on(session, project_id, runner)
     return night
 
