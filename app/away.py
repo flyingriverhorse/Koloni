@@ -415,7 +415,7 @@ def _chat_at_work(session: Session, away: AwayRun) -> bool:
 def _looked_at(session: Session, away: AwayRun) -> None:
     """Every task was looked at: Away goes on until the user is back - the project's address
     is told so, once."""
-    if away.id in _told_looked_at:
+    if away.id in _told_looked_at or not away.jobs:  # (none ticked: nothing to tell)
         return
     _told_looked_at.add(away.id)
     project = session.get_one(Project, away.project_id)

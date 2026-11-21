@@ -861,7 +861,6 @@ async def post_message(
                                      "to go on over it")
         # Spending past the user's own limit is the user's word: not an agent's request.
         require_own_origin(request)
-    _back(request, session, project)
     first = session.scalar(
         select(Message.id).where(Message.conversation_id == conversation_id).limit(1)
     ) is None
@@ -872,6 +871,7 @@ async def post_message(
         )
     except topics.Refused as exc:
         raise HTTPException(422, str(exc)) from None
+    _back(request, session, project)  # (a message refused above ends nothing)
     run, message = new_turn(
         session, conversation_id, topic.id, content,
         spoken=body.spoken.model_dump(exclude_none=True) if body.spoken else None,

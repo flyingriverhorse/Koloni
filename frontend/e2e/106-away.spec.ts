@@ -35,6 +35,7 @@ test('the work goes on To-do with a Go away line; Away works it through until Iâ
   await expect(chat.getByRole('checkbox', { name: 'Add a bye line, 106' })).toBeChecked()
   await expect(chat.getByRole('checkbox', { name: 'Say hello twice, 106' })).toBeChecked()
   await chat.getByRole('button', { name: 'Move Say hello twice, 106 up' }).click()
+  await reads(chat.locator('.away-panel-body'), 8)
   if (process.env.KOLONI_SHOTS) await shot(page, '106-panel')
   await chat.getByRole('button', { name: 'Go away' }).click()
 
