@@ -4667,8 +4667,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             status, output = await self._ask_secret(ctx, call_id, args)
         elif request.name == "pick_teams":
             status, output = "succeeded", self._pick_teams(ctx, args)
-        elif request.name == "plan_away":
-            status, output = "succeeded", self._plan_away(ctx, args)
+        elif request.name == "offer_away":
+            status, output = "succeeded", self._offer_away(ctx, args)
         else:
             status, output = await self._tool_call_2(ctx, call_id, ws, request, args)
         return status, output

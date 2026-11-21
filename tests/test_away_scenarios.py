@@ -25,6 +25,7 @@ from tests.test_team import team  # noqa: F401  (a fixture)
 ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 PLAN = {"jobs": [{"title": "one", "line": "hello says hello"}, {"title": "two"}],
         "kept_out": ["secret/"]}
+OFFER = {"kept_out": ["secret/"]}
 
 
 def to_do(plan=PLAN):
@@ -78,7 +79,7 @@ def ended(client, pid):
     """Away once each of its tasks was looked at - then the user is back - or once it stopped."""
     found = until(lambda: (n := night(client, pid)) and looked_at(n) and n)
     if found["status"] == "running":
-        assert client.post(f"/api/away/{found['id']}/back").status_code == 200
+        assert client.post(f"/api/away/{found['id']}/back", headers=ORIGIN).status_code == 200
     return until(lambda: (n := night(client, pid))["status"] == "ended" and n)
 
 
@@ -307,11 +308,33 @@ def test_what_agents_propose_at_night_waits_for_the_morning(make_client, wait_ru
     assert proposed["title"] == "rate-limit the form" and proposed["conversation_id"] is None
 
 
-def test_no_card_from_a_turn_nobody_watches(make_client, wait_run, project_dir):
+def test_the_offer_is_one_line_and_starts_nothing(make_client, wait_run, project_dir):
+    client, model = make_client([to_do(), step(call("offer_away", {**OFFER, "money": 2})),
+                                 text("Two tasks are on your To-do.")])
+    client.headers.update(ORIGIN)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    snap = wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages", json={
+        "content": "I'm going to sleep: do one and two"}).json()["run"]["id"])
+    (offered,) = client.get(f"/api/conversations/{cid}/away").json()
+    assert (offered["status"], offered["jobs"], offered["kept_out"], offered["money"]) == (
+        "planned", [], ["secret"], 2)
+    assert [t["name"] for t in snap["tool_calls"]] == ["add_task", "add_task", "offer_away"]
+    # nothing started: the tasks proposed from this chat, no other chat, nobody away
+    assert {t["status"] for t in tasks(client, pid).values()} == {"proposed"}
+    assert night(client, pid) is None and len(model.calls) == 3
+    assert len(client.get(f"/api/projects/{pid}/conversations").json()) == 1
+    # a newer offer takes its place; Go away puts every offer away
+    assert go_away(client, cid).status_code == 200
+    assert [c["status"] for c in client.get(f"/api/conversations/{cid}/away").json()] == [
+        "dismissed", "running"]
+
+
+def test_no_offer_from_a_turn_nobody_watches(make_client, wait_run, project_dir):
     from tests.test_trigger_scenarios import run_now, trigger
 
-    client, model = make_client([step(call("plan_away", PLAN)), text("card is up"),
-                                 step(call("plan_away", PLAN, "p2")), text("tried")])
+    client, model = make_client([step(call("offer_away", OFFER)), text("offered"),
+                                 step(call("offer_away", OFFER, "p2")), text("tried")])
     client.headers.update(ORIGIN)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -321,7 +344,7 @@ def test_no_card_from_a_turn_nobody_watches(make_client, wait_run, project_dir):
     started = run_now(client, trigger(client, pid, cid)["id"])
     snap = wait_run(client, cid, started)
     (result,) = [t["result"] for t in snap["tool_calls"] if t["run_id"] == started]
-    assert "plan_away is the Orchestrator's, at a turn of the user's own" in result
+    assert "offer_away is the Orchestrator's, at a turn of the user's own" in result
     # nor is that turn's Lead told to call it
     assert told_when_offered(model) == [True, True, False, False]
     assert [c["status"] for c in client.get(f"/api/conversations/{cid}/away").json()] == [
@@ -465,12 +488,12 @@ def test_work_that_names_sleep_or_tonight_is_no_cue(said):
 @pytest.mark.parametrize("said, noted", [
     (NIGHT_TR, True), ("I'm off to bed - overnight, finish the docs.", True),
     ("Make the colours uyumlu with the logo, and in harmony (uyum).", False)])
-def test_a_message_that_may_say_the_user_goes_away_reminds_the_lead_of_its_card(
+def test_a_message_that_may_say_the_user_goes_away_reminds_the_lead_to_offer_it(
         make_client, wait_run, project_dir, said, noted):
     # B-121 (live, haiku): a natural Turkish night message - the Lead did the work at once, no card.
     # (A scripted model shows only what the Lead is told, not that it heeds it.)
     from app.agent import AWAY_NOTE
-    client, model = make_client([step(call("plan_away", PLAN)), text("card is up")])
+    client, model = make_client([step(call("offer_away", OFFER)), text("offered")])
     client.headers.update(ORIGIN)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -479,27 +502,28 @@ def test_a_message_that_may_say_the_user_goes_away_reminds_the_lead_of_its_card(
     # (under the user's own words, which stay the last message: a CLI does what the last one asks)
     last = model.calls[0][-1]
     assert last["role"] == "user" and last["content"] == (f"{said}\n\n{AWAY_NOTE}" if noted else said)
-    offered = next(t["function"] for t in model.tool_args[0] if t["function"]["name"] == "plan_away")
-    assert "call this first and do none of that work yourself" in offered["description"]
+    offered = next(t["function"] for t in model.tool_args[0] if t["function"]["name"] == "offer_away")
+    assert "with add_task first, do none of it, then call this" in offered["description"]
 
 
 def told_when_offered(model) -> list[bool]:
-    """K-gece-dil: each step's system prompt holds the going-away rule exactly when plan_away
+    """K-gece-dil: each step's system prompt holds the going-away rule exactly when offer_away
     goes out with it; returns, step by step, whether it did."""
     from app.agent import AWAY_PROMPT
     told = [AWAY_PROMPT in str(sent[0]["content"]) for sent in model.calls]
-    assert told == ["plan_away" in {t["function"]["name"] for t in tools or ()}
+    assert told == ["offer_away" in {t["function"]["name"] for t in tools or ()}
                     for tools in model.tool_args]
     return told
 
 
-def test_going_away_in_another_language_puts_the_card_and_does_nothing_else(
+def test_going_away_in_another_language_puts_the_work_on_to_do_and_offers_it(
         make_client, wait_run, project_dir):
     # The user (27 Oct): a message in German, in words no cue lists - the Lead's own rule carries it.
     from app.agent import AWAY_CUES
     said = "Ich gehe schlafen, mach heute Nacht bitte: (1) Docstrings in hello.py, (2) lösch build/."
     assert not AWAY_CUES.search(said)
-    client, model = make_client([step(call("plan_away", PLAN)), text("card is up")])
+    client, model = make_client([step(*to_do().tool_calls, call("offer_away", {}, "o")),
+                                 text("on your To-do")])
     client.headers.update(ORIGIN)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -507,8 +531,9 @@ def test_going_away_in_another_language_puts_the_card_and_does_nothing_else(
     snap = wait_run(client, cid, run_id)
     assert [one["status"] for one in client.get(f"/api/conversations/{cid}/away").json()] == [
         "planned"]
-    assert [t["name"] for t in snap["tool_calls"]] == ["plan_away"]
-    assert tasks(client, pid) == {} and night(client, pid) is None
+    assert [t["name"] for t in snap["tool_calls"]] == ["add_task", "add_task", "offer_away"]
+    assert {t["status"] for t in tasks(client, pid).values()} == {"proposed"}
+    assert night(client, pid) is None
     assert model.calls[0][-1]["content"] == said and told_when_offered(model) == [True, True]
 
 

@@ -108,7 +108,7 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
                              "spawn_agent", "create_role", "add_skill", "ask_user",
                              "ask_folder", "ask_secret", "message_agent", "open_room", "discuss",
                              "read_backlog",
-                             "add_task", "change_task", "assess_task", "plan_away",
+                             "add_task", "change_task", "assess_task", "offer_away",
                              "propose_trigger", "post_note", "read_notes", "remember", "recall",
                              "recall_output"]
     document = json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2:])

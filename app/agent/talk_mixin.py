@@ -37,7 +37,6 @@ from app.db.models import (
     Recipe,
     Role,
     ShownFile,
-    Team,
     now,
 )
 from app.discussion import MEMORY_HEAD
@@ -58,8 +57,8 @@ from app.tools import (
     REPORT_GIT_SCHEMA,
     ROOM_SCHEMAS,
     ToolError,
-    away_schema,
     earlier_line,
+    offer_schema,
     pick_schema,
     skill_schemas,
     tool_schemas_for,
@@ -168,11 +167,8 @@ class TalkMixin:
                 [(team, team_roles(session, team)) for team in may],
                 session.scalars(select(Recipe.name).order_by(Recipe.created_at)).all(),
             )] if may else []
-            # Slice 106: the Lead at the user's own turn may put a "While you're away" card.
-            away_tool = [away_schema(
-                session.scalars(select(Team.name).order_by(Team.created_at)).all(),
-                session.scalars(select(Recipe.name).order_by(Recipe.created_at)).all(),
-            )] if self._no_away(session, ctx) is None else []
+            # ☾ Away: the Lead at the user's own turn may offer them to go away.
+            away_tool = [offer_schema()] if self._no_away(session, ctx) is None else []
             # Read at every step, like the roles: what the user unticks is gone at once.
             team = guide(list_providers(session), models_dev.load(
                 self.settings.runtime_root)) if "spawn_agent" in tools else []

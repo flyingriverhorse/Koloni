@@ -238,25 +238,24 @@ class AwayMixin:
         return away.KEPT_OUT.format(path=kept)
 
     def _no_away(self: "AgentRunner", session, ctx: Ctx) -> str | None:
-        """Why this agent may not put a "While you're away" card before the user; None: it
-        may. Only the Lead whose role keeps the To-do list, at the user's own turn of a chat
-        with a folder: never a trigger's turn, a plan, a side of a comparison or a job of the
-        night itself."""
+        """Why this agent may not offer the user to go away (☾ Away); None: it may. Only the
+        Lead whose role keeps the To-do list, at the user's own turn of a chat with a folder:
+        never a trigger's turn, a plan, a side of a comparison or a job while they are away."""
         if (ctx.role != LEAD or ctx.depth or ctx.answering or ctx.discussion or ctx.root is None
                 or "add_task" not in ctx.tools
                 or not self._watched(ctx.run_id) or ctx.run_id in self._sides
                 or ctx.run_id in self._away_jobs):
-            return "plan_away is the Orchestrator's, at a turn of the user's own"
+            return "offer_away is the Orchestrator's, at a turn of the user's own"
         run = session.get_one(Run, ctx.run_id)
-        return "plan_away is not for a plan turn" if run.plan_turn or run.unattended else None
+        return "offer_away is not for a plan turn" if run.plan_turn or run.unattended else None
 
-    def _plan_away(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
+    def _offer_away(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
         with self._factory() as session:
             if why := self._no_away(session, ctx):
                 raise ToolError(why)
             try:
-                said = away.plan(session, session.get_one(Conversation, ctx.cid), ctx.run_id,
-                                 args)
+                said = away.offer(session, session.get_one(Conversation, ctx.cid), ctx.run_id,
+                                  args)
             except away.Refused as exc:
                 raise ToolError(str(exc)) from None
             session.commit()

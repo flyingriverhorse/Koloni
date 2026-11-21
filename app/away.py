@@ -61,10 +61,10 @@ CEILING_FLAG, CEILING_RANGE, CEILING_HOURS = "turn_hours", (1, 72), 8
 MAX_JOBS, MAX_KEPT_OUT = 10, 20
 TRIES = 2  # a job that fails is tried once more
 CLOCK = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
-CARD = (
-    "Your card of {jobs} is shown to the user under your answer. Nothing starts before the "
-    "user's Start on it: they may change the list, the places kept out and the limits first. "
-    "End your turn now with one short line.")
+OFFERED = (
+    "A line under your answer offers the user to go away; nothing starts before their Go "
+    "away, which works through the tasks they tick on To-do. End your turn now with one short "
+    "line.")
 RETRY = "KOLONİ: the last try of this job failed ({why}). Try it once more."
 AGAIN = ("KOLONİ: the user asks to try this job again. The work while they were away is over: "
          "this turn works as any turn of this chat - not in a copy kept for them; what it changes "
@@ -134,52 +134,6 @@ def outside(path: str) -> bool:
     path = path.strip().strip("'\"")
     return (path.startswith(("/", "\\", "~")) or re.match(r"^[A-Za-z]:", path) is not None
             or posixpath.normpath(path.replace("\\", "/")).startswith(".."))
-
-
-def _jobs(session: Session, project_id: str, given: object) -> list[dict]:
-    if not isinstance(given, list) or not 1 <= len(given) <= MAX_JOBS:
-        raise Refused(f"jobs is a list of 1 to {MAX_JOBS} jobs, each {{title, line, team, recipe}}")
-    teams = {team.name.casefold(): team.name for team in session.scalars(select(Team))}
-    recipes = {one.name.casefold(): one.name for one in session.scalars(select(Recipe))}
-    jobs = []
-    for one in given:
-        if not isinstance(one, dict):
-            raise Refused("each job is {title, line, team, recipe}")
-        title = one.get("title")
-        if not isinstance(title, str) or not title.strip() or len(title.strip()) > 200:
-            raise Refused("each job has a title of 1 to 200 characters")
-        line = one.get("line")
-        if line is not None and (not isinstance(line, str) or len(line) > 4000):
-            raise Refused("a job's line is a string of at most 4000 characters")
-        job = {"title": title.strip(), "line": (line or "").strip() or None,
-               "team": None, "recipe": None}
-        for key, known in (("team", teams), ("recipe", recipes)):
-            name = one.get(key)
-            if name is None or name == "":
-                continue
-            if not isinstance(name, str) or name.strip().casefold() not in known:
-                raise Refused(f"no {key} {name!r}: {', '.join(known.values()) or 'there is none'}")
-            job[key] = known[name.strip().casefold()]
-        # B-409: a job that is a task of the To-do list already is that task, not a copy of it -
-        # in the task's own words, which are what its job is given (`backlog.first_message`).
-        if (task_id := one.get("task_id")) is not None:
-            task = _todo(session, project_id, task_id, job["title"])
-            if any(other.get("task_id") == task_id for other in jobs):
-                raise Refused(f"{quoted(task.title)} is on the card twice")
-            job |= {"title": task.title, "line": task.criteria, "task_id": task_id}
-        jobs.append(job)
-    return jobs
-
-
-def _todo(session: Session, project_id: str, task_id: object, title: str) -> BacklogTask:
-    """The To-do list's task a job is: one to do, of this project, that the user has OK'd."""
-    task = session.get(BacklogTask, task_id) if isinstance(task_id, str) else None
-    if task is None or task.project_id != project_id or task.status != "todo":
-        raise Refused(f"the job {quoted(title)} names no task to do on this project's To-do "
-                      "list (gone, started or done)")
-    if backlog.unseen(task):  # (as the To-do list's own runs: `backlog.chain`)
-        raise Refused(f"the job {quoted(title)} is a task that waits for the user's OK")
-    return task
 
 
 def _kept_out(given: object, root: str) -> list[str]:
@@ -298,23 +252,23 @@ def back(session: Session, project_id: str) -> Message | None:
     return message
 
 
-def plan(session: Session, conversation: Conversation, run_id: str, args: dict) -> str:
-    """plan_away: the Lead's card, in place of one this chat still shows. Nothing starts."""
+def offer(session: Session, conversation: Conversation, run_id: str, args: dict) -> str:
+    """offer_away: the Orchestrator's one line offering the user to go away - with the places
+    kept out and the limits it heard them name - in place of one this chat still shows. Nothing
+    starts: Go away is the user's."""
     if conversation.project_id is None:
         raise Refused("a chat with no folder has nothing to work on while the user is away")
     if running(session, conversation.project_id):
-        raise Refused("this project's jobs are being worked on while the user is away already")
+        raise Refused("the user is away from this project already")
     project = session.get_one(Project, conversation.project_id)
-    jobs = _jobs(session, project.id, args.get("jobs"))
     kept = _kept_out(args.get("kept_out"), project.root_path)
     until, money = _limits(args)
     for old in session.scalars(select(AwayRun).where(
             AwayRun.conversation_id == conversation.id, AwayRun.status == "planned")):
         old.status = "dismissed"
     session.add(AwayRun(project_id=project.id, conversation_id=conversation.id, run_id=run_id,
-                        jobs=jobs, kept_out=kept, until=until,
-                        money=most_money(session, project, money)))
-    return CARD.format(jobs=f"{len(jobs)} job{'' if len(jobs) == 1 else 's'}")
+                        jobs=[], kept_out=kept, until=until, money=money))
+    return OFFERED
 
 
 def tasks_of(session: Session, away: AwayRun) -> list[BacklogTask]:
