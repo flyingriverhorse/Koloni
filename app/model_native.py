@@ -2948,8 +2948,9 @@ STILL_RUNNING_SHELL = re.compile(r"<shellId: \d+(?!\d| completed with exit code)
 NO_PYTHON = re.compile(r"uv trampoline failed to spawn Python child process")
 NO_PYTHON_BLOCKED = ("blocked: Copilot's sandbox could not start Python: run tests with a "
                      "sub-agent or in session mode")
-# What Copilot headless speaks (measured on 1.0.91, 24 Oct 2026: `ping` says it).
-PROTOCOL = 3
+# The protocols of Copilot headless KOLONİ speaks (3: measured on 1.0.91, 24 Oct 2026; `ping`
+# and `status.get` say it). Any other runs the old way (`cli_surface.checked`).
+PROTOCOLS = frozenset({3})
 # How long its turn's end waits for `account.getQuota` (89l), in seconds.
 QUOTA_SECONDS = 5.0
 # How long its version is waited for (`CopilotNativeClient._version`), as `--version` was.
@@ -3143,21 +3144,24 @@ class CopilotNativeClient(CodexNativeClient):
     def talker(self) -> CliStepClient:
         return self._session  # in a discussion: KOLONİ's reading tools only
 
-    async def _version(self) -> str:
-        """Its version as KOLONİ runs it: its own `status.get`, started as a run starts it. In
-        KOLONİ's empty COPILOT_HOME the program runs its own package (status.get "1.0.105", 20
-        Nov 2026), while a plain `copilot --version` names the one Copilot updated itself to in
-        the user's home (1.0.107 then), which KOLONİ never runs. Not known if it does not say.
-        shortcut: one more Copilot started before each native run (`cli_surface.checked`), as
-        `--version` was; keep the answer by its program file if that start is ever felt."""
+    async def _status(self) -> dict:
+        """Its own `status.get` ({version, protocolVersion}) as KOLONİ runs it, started as a run
+        starts it; {} where it does not say. In KOLONİ's empty COPILOT_HOME the program runs its
+        own package (status.get "1.0.105", 20 Nov 2026), while a plain `copilot --version` names
+        the one Copilot updated itself to in the user's home (1.0.107 then), which KOLONİ never
+        runs. shortcut: one more Copilot started before each native run (`cli_surface.checked`),
+        as `--version` was; keep the answer by its program file if that start is ever felt."""
         from app.limits import _copilot_asked  # (it imports this module)
 
         with contextlib.suppress(Exception):
-            said = _dict(await _copilot_asked(self, "status.get", "its version",
-                                              VERSION_SECONDS)).get("version")
-            if isinstance(said, str) and said.strip():
-                return said.strip()
-        return "(version not known)"
+            return _dict(await _copilot_asked(self, "status.get", "its version",
+                                              VERSION_SECONDS))
+        return {}
+
+    async def _version(self) -> str:
+        """Its version as KOLONİ runs it (`_status`); not known if it does not say."""
+        said = (await self._status()).get("version")
+        return said.strip() if isinstance(said, str) and said.strip() else "(version not known)"
 
     def _leveled(self, arguments: list[str], effort: str | None) -> list[str]:
         return self._session._leveled(arguments, effort)
@@ -3513,8 +3517,9 @@ class CopilotNativeClient(CodexNativeClient):
             reading = asyncio.ensure_future(read())
             try:
                 pong, no = await ask("ping", {})
-                if no is None and pong.get("protocolVersion") != PROTOCOL:
-                    no = f"it speaks protocol {pong.get('protocolVersion')}, not {PROTOCOL}"
+                protocol = pong.get("protocolVersion")
+                if no is None and (type(protocol) is not int or protocol not in PROTOCOLS):
+                    no = f"it speaks protocol {str(protocol)[:20]}, not one KOLONİ knows"
                 if no is None:
                     versioned = asyncio.ensure_future(said_version())
                     answering.add(versioned)

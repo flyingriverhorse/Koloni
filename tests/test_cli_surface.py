@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import app.model_native
 from app import cli_surface
 from app.model_agy import AgyClient
 from app.model_cli import CodexCliClient
@@ -81,24 +82,63 @@ async def test_claude_code_not_measured_is_asked_initialize_with_its_hook(
     assert "--disable-slash-commands" in seen["argv"]  # with its run's own line
 
 
-@pytest.mark.parametrize("handshake, headless, said", [
-    (None, True, "GitHub Copilot CLI 1.0.200 not measured with KOLONİ"),
-    ("ping", False, "GitHub Copilot CLI 1.0.200 not measured; running the old way")])
-def test_copilot_not_measured_runs_natively_if_it_answers_else_as_a_session_and_its_card_says(
-    copilot_native, wait_run, project_dir, handshake, headless, said  # noqa: F811
+COPILOT = "GitHub Copilot CLI"
+
+
+@pytest.mark.parametrize("version, protocol, said", [
+    ("1.0.105", 3, None),
+    ("1.0.200", 3, f"{COPILOT} 1.0.200 not measured; running the old way"),
+    ("1.0.200", 5, f"{COPILOT} 1.0.200 is newer than KOLONİ knows; running the old way"),
+    ("1.0.200", 2, f"{COPILOT} 1.0.200 speaks a protocol KOLONİ does not know; running the old way"),
+    ("1.0.114", 4, f"{COPILOT} 1.0.114 is newer than KOLONİ knows; running the old way")])
+def test_copilot_runs_natively_or_the_old_way_by_its_protocol_and_its_card_says(
+    copilot_native, wait_run, project_dir, version, protocol, said  # noqa: F811
 ):
     # The version is the one KOLONİ runs, its own `status.get` as KOLONİ starts it - not what a
     # plain `--version` says (20 Nov 2026: 1.0.107, the package Copilot updated itself to in the
-    # user's home; KOLONİ's empty COPILOT_HOME runs the program's own, 1.0.105).
-    client, provider = copilot_native([{"say": "done"}], version="1.0.200", updated="1.0.103",
-                                      **({"handshake": handshake} if handshake else {}))
+    # user's home; KOLONİ's empty COPILOT_HOME runs the program's own, 1.0.105). Its protocol
+    # with it: a measured protocol-3 version runs natively, any other the old way.
+    client, provider = copilot_native([{"say": "done"}], version=version, protocol=protocol,
+                                      updated="1.0.103")
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     # natively, or its session with KOLONİ's tools
-    assert ("--headless" in copilot_native.record()["argv"]) is headless
+    assert ("--headless" in copilot_native.record()["argv"]) is (said is None)
     (shown,) = [one for one in client.get("/api/providers").json() if one["id"] == provider["id"]]
     assert shown["version_note"] == said
+
+
+def test_copilots_version_and_protocol_are_read_in_one_start_with_no_auto_update(
+    copilot_native, wait_run, project_dir, tmp_path  # noqa: F811
+):
+    starts = tmp_path / "starts.jsonl"
+    client, provider = copilot_native([{"say": "done"}], version="1.0.105",
+                                      starts=str(starts))
+    cid, run_id = start(client, project_dir, provider)
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
+    # its status, then its run: both headless as a run starts it, never a plain --version (it
+    # would name the package Copilot updated itself to) and never one that updates itself
+    began = [json.loads(line) for line in starts.read_text("utf-8").splitlines()]
+    assert len(began) == 2, began
+    assert all("--headless" in argv and "--no-auto-update" in argv for argv in began)
+
+
+@pytest.mark.parametrize("told, status", [
+    ({"status_error": True}, "completed"), ({"status_hang": True, "protocol": 5}, "failed")])
+def test_a_copilot_that_does_not_say_its_status_runs_natively_and_its_own_ping_decides(
+    copilot_native, wait_run, project_dir, monkeypatch, told, status  # noqa: F811
+):
+    monkeypatch.setattr(app.model_native, "VERSION_SECONDS", 1.0)  # (one that never says)
+    client, provider = copilot_native([{"say": "done"}], **told)
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    assert run["status"] == status, run["error"]
+    assert "--headless" in copilot_native.record()["argv"]  # natively: no old way chosen
+    if status == "failed":
+        assert "protocol 5" in run["error"] and "could not be asked before it acts" in run["error"]
+    (shown,) = [one for one in client.get("/api/providers").json() if one["id"] == provider["id"]]
+    assert shown["version_note"] is None
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell")

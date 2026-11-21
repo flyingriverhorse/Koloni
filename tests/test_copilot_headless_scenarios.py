@@ -852,7 +852,9 @@ def test_copilots_bash_heredoc_is_a_patch_only_where_its_shell_is_bash(
 SCRATCH_LINE = "cd .koloni/tmp/w2; python a.py"
 SCRATCH_DELETE = "Remove-Item -Recurse -Force .koloni/tmp/w2"
 CONTROL = "cd .koloni/tmp/w2; python b.py"  # (each card's control: from a new shell, unasked)
-READ = "1.0.67"  # (the one version whose shell was read: `model_native.SHELL_READ`)
+# (A version whose shell was measured, `model_native.SHELL_READ`, and that runs natively: its
+# protocol-3 version measured, `cli_surface.json`.)
+READ = "1.0.105"
 
 
 def scratch(project_dir):
@@ -961,9 +963,9 @@ def test_from_a_new_shell_a_cd_out_of_the_project_or_into_a_protected_folder_is_
 
 
 @pytest.mark.parametrize("told", [
-    {"version": "1.0.107"}, {}, {"version": READ, "status_hang": True},
+    {"version": "1.0.103"}, {}, {"version": READ, "status_hang": True},
     {"version": READ, "status_error": True}],
-    ids=["a-later-one", "another", "says-nothing", "refuses-to-say"])
+    ids=["an-earlier-one", "another", "says-nothing", "refuses-to-say"])
 def test_on_a_copilot_whose_shell_was_not_read_work_in_the_scratch_is_still_a_card(
     told, copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
 ):

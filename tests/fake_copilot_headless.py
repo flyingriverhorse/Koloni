@@ -10,7 +10,8 @@ it was started, what session.create and session.send were given, and every answe
 gave to a permission request ("answers"). Asked `status.get`, at any point, it says the plan's
 "version" ("status_hang": no answer; "status_error": refused); a plain `--version` says the plan's
 "updated" if it names one (the package Copilot updated itself to in the user's home, not the one
-KOLONİ runs), else its "version". Asked `models.list`, at any point, it answers the plan's
+KOLONİ runs), else its "version". Its ping and `status.get` say the plan's "protocol" (default 3;
+"handshake": "version" makes only the ping say 2). Asked `models.list`, at any point, it answers the plan's
 "models" (none: []). Given no "koloni" MCP server in session.create, it opens no bridge. A
 shell step's "{cwd}" in its output is the folder it works in. Asked `account.getQuota`, at any point, it answers
 the plan's "quota" ("quota_hang": never); asked `auth.getStatus`, signed in by gh unless "signed_in" is false; asked
@@ -102,7 +103,8 @@ def heard() -> dict:
                 send({"id": told["id"], "error": {"code": -32601, "message": "Unhandled method"}})
             elif not plan.get("status_hang"):
                 send({"id": told["id"], "result": {
-                    "version": plan.get("version", "1.0.91-fake"), "protocolVersion": 3}})
+                    "version": plan.get("version", "1.0.91-fake"),
+                    "protocolVersion": plan.get("protocol", 3)}})
             continue
         # What is left of its plan, no turn (1.0.91, 24 Oct 2026), whenever it is asked -
         # alone or after a session's turn (89l): the plan's "quota" (none: refused), its
@@ -160,7 +162,8 @@ if handshake == "ping":
     send({"id": started["id"], "error": {"code": -32603, "message": "not ready"}})
     expect("never")
 send({"id": started["id"], "result": {"message": "pong", "timestamp": "2026-10-24T00:00:00Z",
-                                      "protocolVersion": 2 if handshake == "version" else 3}})
+                                      "protocolVersion": 2 if handshake == "version"
+                                      else plan.get("protocol", 3)}})
 told = heard()  # (an account.getQuota alone is answered there; then it is ended)
 if told.get("method") == "auth.getStatus":
     # Whether it is signed in, no turn (1.0.103, 24 Oct 2026): the plan's "signed_in"
