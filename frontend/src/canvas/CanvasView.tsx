@@ -729,6 +729,8 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       return line ? { type: 'request', sourceHandle: 'door-out', targetHandle: 'door-in', data: { line, label: e.request.label, title: e.request.title, open: e.request.open } } : { hidden: true }
     }
     // Into a frame: at its door - the line of the agent that opens its team, and any line from outside (`framed`).
+    // shortcut: findings from another frame come up beside the Orchestrator's door trunk and in at its door point, so
+    // they can read as the Orchestrator's; give them a door of their own if that is seen.
     if (byId.get(e.target)?.kind === 'team') return { type: 'lane', targetHandle: 'door-in', data: { ...data, findings: e.findings } }
     // A frame's line to Ready for you: up or down on a bus right of every frame, not over another frame - left of the
     // discussions' lane where there is one, then over it into Ready (layout.ts).
