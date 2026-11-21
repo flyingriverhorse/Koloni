@@ -196,6 +196,27 @@ def test_a_stop_while_a_branch_merges_waits_for_git_and_the_merge_is_on_record(
     assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
 
 
+@needs_git
+def test_a_merged_branch_and_its_worktree_go_while_no_other_merge_writes(
+    make_client, wait_run, repo, monkeypatch  # noqa: F811
+):
+    held: list[bool] = []
+    real = AgentRunner._drop_copy
+
+    def drop_copy(self, owner, became="discarded"):
+        if getattr(self._copies.get(owner), "branch", None):  # (a branch's worktree goes)
+            held.extend(lock.locked() for lock in self._merging_in.values())
+        return real(self, owner, became)
+
+    monkeypatch.setattr(AgentRunner, "_drop_copy", drop_copy)
+    client, cid, run_id = on_branch(make_client, repo, [step(edit("two", "TWO-agent")),
+                                                        text("A done")])
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    assert [m["status"] for m in snap["merges"]] == ["applied"]
+    # (git's `worktree remove` and `branch -D` of one team never meet another team's merge)
+    assert held and all(held)
+
+
 # --- KOLONİ's worktrees are locked while their agents work ----------------------------------
 
 

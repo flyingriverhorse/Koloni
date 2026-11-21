@@ -3281,8 +3281,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             "state": "committed", "message": line, "sha": sha, "holds": holds,
             "notes": await self._keep_branch(copy, said, look["tip"])})
         self._branch_merged(ctx, copy)
-        # A squash leaves the branch unmerged to git: it goes all the same.
-        self._drop_copy(ctx.agent_id, "merged")
+        # A squash leaves the branch unmerged to git: it goes all the same - by the way in, as
+        # git's lock on the repository would fail it beside another team's merge.
+        async with self._way_in(copy.project):
+            self._drop_copy(ctx.agent_id, "merged")
         return self._not_applied(ctx, files, None)
 
     async def _keep_branch(self, copy: copies.Copy, said: dict, tip: str) -> list[str] | None:
