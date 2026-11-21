@@ -134,3 +134,25 @@ def test_the_rule_never_reaches_a_card_that_always_waits(make_client, wait_run, 
     assert client.post(f"/api/commands/{command['id']}/reject", json={},
                        headers=OWN).status_code == 200
     wait_run(client, cid, run_id)
+
+
+def test_a_kept_work_card_at_full_auto_is_the_leads_at_once_and_never_go_aways(
+        make_client, wait_run, project_dir):
+    import asyncio
+    client, _model = make_client([text("hi")])
+    clock = held(client)
+    cid, run_id = begin(client, project_dir, mode="full_auto")
+    wait_run(client, cid, run_id)
+    runner = client.app.state.runner
+    ctx = SimpleNamespace(run_id=run_id, cid=cid, agent_id="a")
+
+    async def asked():
+        before = len(clock.set)
+        future = asyncio.get_running_loop().create_future()
+        stand_down = runner._lead_may_answer(ctx, "card", "Keep the work?", ["Keep", "Drop"],
+                                             future, lambda *_said: None)
+        armed, kept = [t.delay for t in clock.set[before:]], dict(runner._decidable)
+        stand_down()
+        return armed, kept
+
+    assert client.portal.call(asked) == ([0.0], {})

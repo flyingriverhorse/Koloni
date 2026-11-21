@@ -13,7 +13,7 @@ from app import away, judge, raw
 from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
-from app.commands import harm_class, with_cwd
+from app.commands import harm_class, runs_another, with_cwd
 from app.db.models import Conversation, Message, Provider, Run, project_of
 from app.providers import ask_once
 from app.roles import LEAD, find_role
@@ -61,7 +61,9 @@ class JudgeMixin:
         if (not reason or asked_anyway or ctx.run_id in self._sides
                 or self._stood_aside(ctx.run_id)
                 or harm_class(with_cwd(command, cwd), False) != "soft"
-                or not (self._full_auto(ctx) or self._away_full_auto(ctx))):
+                or not (self._full_auto(ctx) or self._away_full_auto(ctx))
+                # (A job holds what runs another unseen to its card, whatever its words say.)
+                or ctx.run_id in self._away_jobs and runs_another(with_cwd(command, cwd))):
             return reason, None
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
