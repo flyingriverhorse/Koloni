@@ -153,6 +153,8 @@ WRITE_BLOCKED = "blocked: its read-only sandbox refused a write"
 # one let run that said nothing of itself (no output, no end) by then never started.
 # (Not sooner: a command may print nothing for minutes, and whether Codex sends its output as it
 # comes - `item/commandExecution/outputDelta` - is not measured.)
+# shortcut: one past the bound ends Codex's whole turn, not only the command; interrupt it and
+# go on in the same thread (`turn/interrupt`, then `turn/start`) once that is measured live.
 CALL_SECONDS = 660.0
 NEVER_STARTED = "never started: nothing came of it {seconds:g} seconds after it was allowed"
 RAN_TOO_LONG = "ended by KOLONİ: still at work after {seconds:g} seconds"
