@@ -58,13 +58,14 @@ unread and how many things wait for you.
 ### What the chat shows
 
 - Each turn of the Orchestrator's is one card under your message: who answered, with which model and
-  when, then its steps and its answer.
+  when, then its steps, each a quiet pill, and its answer.
 - Two or more tool calls in a row by the same agent fold into one line, such as "Read 4 files, listed 4
-  folders". Failed or rejected calls are always shown.
+  folders". Failed or rejected calls are always shown, and a question the Orchestrator was not let ask
+  stands on its own line: "Wanted to ask: … · not asked".
 - At the foot of a turn that did something, once it is over, one line sums it up, such as "2 agents · 3
   files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and known cost.
 - **Copy** (the answer as written) and **Read aloud** stand at the foot's right; they show when you point
-  at the card or tab into it.
+  at the card or tab into it, and always under a turn with nothing else at its foot.
 - A message's **⋯** menu has **Copy**, **Restore to before this message** and **Show its work on the
   canvas**. The **↺** button on a message whose work changed files is **Undo these changes**.
 
