@@ -107,6 +107,16 @@ test('a discussion and a room are three lines too: what about, then who speaks o
   draw(<RoomNode {...props('room:r', room)} />)
   expect(lines()).toEqual(['Roomround 2', 'Ship it', '1 of 3 items done'])
   cleanup()
+  // A word the card's width cuts is whole on hover: its head's, and what it is about.
+  const long = 'Ended: fewer than two members were still working'
+  draw(<RoomNode {...props('room:r', { ...room, line: long, goal: 'Review the cart flow and its tests together' })} />)
+  expect(screen.getByText(long)).toHaveAttribute('title', long)
+  expect(screen.getByText('Room')).toHaveAttribute('title', 'Room')
+  expect(screen.getByText('Review the cart flow and its tests together')).toHaveAttribute('title', 'Review the cart flow and its tests together')
+  cleanup()
+  draw(<DiscussionNode {...props('discussion:t', data)} />)
+  expect(screen.getByText('Keep hi?')).toHaveAttribute('title', 'Keep hi?')
+  cleanup()
   draw(<RoomNode {...props('room:r', { ...room, attention: true })} />)
   expect(lines()[2]).toBe('Waits for you')
 })

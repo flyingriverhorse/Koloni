@@ -52,8 +52,9 @@ function Card({ icon, title, label, tone = 'idle', selected, unused, children }:
       <Handle type="target" position={Position.Left} isConnectable={false} className={hiddenIf(unused, 'in')} />
       <div className="node-head">
         <span className="node-icon">{icon}</span>
-        <span className="node-title">{title}</span>
-        {label && <span className="node-label mono">{label}</span>}
+        {/* (Whole on hover where the card's width cuts it: "Ended: nothin…" is how a discussion ended.) */}
+        <span className="node-title" title={title}>{title}</span>
+        {label && <span className="node-label mono" title={label}>{label}</span>}
       </div>
       <div className="node-body">{children}</div>
       <Handle type="source" position={Position.Right} isConnectable={false} className={hiddenIf(unused, 'out')} />
@@ -148,7 +149,7 @@ export function DiscussionNode({ data, selected }: NodeProps<Node<DiscussionData
       // arrow is there and covers the dot.)
       unused="out"
     >
-      <div className="node-line">{data.topic}</div>
+      <div className="node-line" title={data.topic}>{data.topic}</div>
       {/* Whose turn it is, or who takes part: the last things said are in the side panel (the user's, 5 Nov). */}
       {data.speaking ? (
         <div className="node-meta mono" style={{ color: 'var(--accent)' }}>
@@ -174,7 +175,7 @@ export function RoomNode({ data, selected }: NodeProps<Node<RoomData & Record<st
       selected={selected}
       unused="out"
     >
-      <div className="node-line">{data.goal}</div>
+      <div className="node-line" title={data.goal}>{data.goal}</div>
       {data.attention ? (
         <div className="node-meta mono" style={{ color: 'var(--warn)' }}>
           Waits for you
