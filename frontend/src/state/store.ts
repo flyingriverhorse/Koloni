@@ -27,6 +27,7 @@ import type {
   TierOrder,
   Tiers,
   CataloguePrice,
+  Command,
   Conversation,
   ConversationsDeleted,
   ClaudeSessionSetup,
@@ -553,6 +554,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** "Decided for you" (K-vekil-karar): OK to what the Lead answered for you, or your own answer in its place. Throws ApiError. */
   decidedOk(questionId: string): Promise<void>
   decidedChange(questionId: string, answer: string): Promise<void>
+  /** K-yargıç: OK to a command Full auto's check of your words let run with no card. Throws ApiError. */
+  commandSeen(commandId: string): Promise<void>
   /** Change where the current project's commands run. Throws ApiError. */
   saveProjectSettings(values: ProjectSettingsValues): Promise<void>
   /** Use what the folder's .koloni/settings.json asks for (slice 86c), as the card showed it; the project as it is then saved. Throws ApiError (409: the file changed since). */
@@ -2083,6 +2086,11 @@ export const useApp = create<AppStore>()((set, get) => {
     async decidedChange(questionId, answer) {
       const question = await api.post<Question>(`/questions/${questionId}/change`, { answer })
       set(s => (s.conv ? { conv: applyEvent(s.conv, null, 'question.updated', question) } : s))
+    },
+
+    async commandSeen(commandId) {
+      const command = await api.post<Command>(`/commands/${commandId}/seen`, {})
+      set(s => (s.conv ? { conv: applyEvent(s.conv, null, 'command.updated', command) } : s))
     },
 
     async saveProjectSettings(values) {
