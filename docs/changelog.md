@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Changed
+
+- Complexity wave F4 (part 1): 7 frontend functions of complexity 51-91 split to 12 or under; nothing the user sees changes.
+
 ## [0.1.4] - 2026-11-21
 
 ### Added
