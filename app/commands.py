@@ -561,6 +561,10 @@ _PS_SETS = re.compile(r"(?i)\$(\w+)\s*=(?!=)\s*([^;\r\n]*)")
 _PS_LOOPS = re.compile(r"(?i)\bforeach\s*\(\s*\$(\w+)\s+in\b")
 _SH_SETS = re.compile(r"(?<![\w$.-])([A-Za-z_]\w*)=([^\s;&|]*)")
 _STARTS = re.compile(r"(?i)\s*(?:start-process|saps|start)\b.*-passthru")
+# Names the shell keeps for itself - bash's (`PPID=$!` leaves `$PPID` its parent's), PowerShell's
+# `$PID` (its own id): a stop of one is never of what the line started.
+_SHELLS_NAMES = frozenset({"ppid", "uid", "euid", "bashpid", "groups", "random", "srandom",
+                           "seconds", "lineno", "histcmd", "epochseconds", "epochrealtime"})
 # pkill's and killall's selections by an owner, a parent, a session, a terminal, a group, the
 # whole command line or a pattern: whose processes they reach is not said.
 _SELECTS = {"pkill": set("uUPstGgf"), "killall": set("ugr")}
@@ -571,16 +575,39 @@ _SELECTS_LONG = ("--full", "--euid", "--uid", "--parent", "--session", "--termin
 def _started(command: str) -> set[str]:
     """How a line names the processes it starts: `$p.id` of `$p = Start-Process x -PassThru`,
     `$pid` of sh's `PID=$!` - a variable set to nothing else on the line (`$p = Get-Process x`
-    after it, `foreach ($p in ...)`)."""
+    after it, `foreach ($p in ...)`), named nowhere else on it but where a stop takes it
+    (`_named_elsewhere`), and not one the shell keeps (`_SHELLS_NAMES`, PowerShell's `$PID`)."""
     sets: dict[str, list[str]] = {}
     for name, value in _PS_SETS.findall(command):
-        sets.setdefault(f"${name.casefold()}.id", []).append(value)
+        sets.setdefault(f"${name.casefold()}.id", []).append(
+            "" if name.casefold() == "pid" else value)
     for name, value in _SH_SETS.findall(command):
-        sets.setdefault(f"${name.casefold()}", []).append(value)
+        sets.setdefault(f"${name.casefold()}", []).append(
+            "" if name.casefold() in _SHELLS_NAMES else value)
     for name in _PS_LOOPS.findall(command):
         sets.setdefault(f"${name.casefold()}.id", []).append("")
     return {name for name, values in sets.items()
-            if all(_STARTS.match(value) or value.strip() == "$!" for value in values)}
+            if all(_STARTS.match(value) or value.strip() == "$!" for value in values)
+            and not _named_elsewhere(command, name[1:].removesuffix(".id"))}
+
+
+def _named_elsewhere(command: str, name: str) -> bool:
+    """Whether a line names a variable anywhere but where it starts a process (`$p = Start-Process
+    x -PassThru`, `PID=$!`) and where a stop takes it, in any spelling: `${p}`, `$script:p`, a
+    bare `p` (`-OutVariable p`, `Set-Variable p`, `sv p`, `Tee-Object -Variable p`, `for PID
+    in`, `read PID`, `mapfile -t PID`, `printf -v PID`, `((PID++))`), `$p, $q =` - any of which
+    may set it to another process."""
+    named = re.compile(rf"(?i)(?<![\w/-]){re.escape(name)}(?!\w)")
+    start = re.compile(rf"(?i)\s*(?:\${re.escape(name)}\s*=(?!=){_STARTS.pattern[4:]}.*"
+                       rf"|{re.escape(name)}=\$!\s*)")
+    for part in _BLOCKS.split(command):
+        if not named.search(part) or start.fullmatch(part):
+            continue
+        words = _assigned(_parts(part, _BLOCKS)[0]) if part.strip() else []
+        program = _program(words[0]) if words else ""
+        if program not in _STOP_PROGRAMS and program.rpartition(".")[2] not in _STOP_METHODS:
+            return True
+    return False
 
 
 def _own_id(word: str, started: set[str], jobs: bool = False) -> bool:

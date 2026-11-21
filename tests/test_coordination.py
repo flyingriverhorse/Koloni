@@ -352,7 +352,6 @@ BY_ID = ["taskkill /PID 1234 /F", "kill 1234", "kill -9 1234", "Stop-Process -Id
          "Stop-Process 1234", "Stop-Process -Force 1234", "Stop-Process -Id:1234",
          "$p = Start-Process python -PassThru; Stop-Process -Id $p.Id", "kill -l", "kill %1",
          # (a process the line itself started - what ALONGSIDE tells agents to do)
-         "$p = Start-Process python -PassThru; Get-Process -Id $p.Id; Stop-Process -Id $p.Id",
          "python -m uvicorn app:app --port 0 & sleep 2; kill $!"]
 # Words of a line that are no process looked up or stopped: a message, a path, a search.
 NO_STOP = ['git commit -m "fix: kill stale ps entries"', "cat docs/ps/kill.md",
@@ -456,12 +455,42 @@ def test_a_stop_of_what_a_lookup_found_is_always_asked(command, wrapper):
 @pytest.mark.parametrize("wrapper", ["{c}", "env X=1 {c}"])
 @pytest.mark.parametrize("command", [
     "taskkill /F /PID 1234", "Stop-Process -Id 1234", "kill -9 1234", "tskill 1234",
-    "$p = Start-Process x -PassThru; Stop-Process -Id $p.Id",
-    "$p = Start-Process x -PassThru; taskkill /F /PID $p.Id",
     "python x.py & kill $!", "python x.py & PID=$!; sleep 1; kill $PID", "kill %1",
 ])
 def test_a_stop_of_a_pid_written_out_or_the_lines_own_is_no_harm(command, wrapper):
     command = wrapper.replace("{c}", command)
+    assert harms(command) == "", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == "", command
+
+
+# A started variable is the line's own only where nothing else on it names it, in any spelling -
+# any other place may set it to another process - and never one the shell keeps (review round 4).
+@pytest.mark.parametrize("command", [
+    "PID=$!; for PID in $(pgrep python); do kill $PID; done",
+    "PID=$!; read PID < other.pid; kill $PID", "PID=$!; ((PID++)); kill $PID",
+    "PID=$!; mapfile -t PID < <(pgrep python); kill $PID",
+    "PID=$!; printf -v PID %s $(pgrep python); kill $PID", "PPID=$!; kill $PPID",
+    "sleep 9 & PPID=$!; kill -9 $PPID", "UID=$!; kill $UID",
+    "$PID = Start-Process python -PassThru; Stop-Process -Id $PID.Id",
+    *[f"$p = Start-Process python -PassThru; {then}; Stop-Process -Id $p.Id" for then in [
+        "${p} = Get-Process python", "$script:p = Get-Process python", "$global:p = gps node",
+        "$p, $q = (Get-Process python), 1", "Get-Process python -OutVariable p",
+        "Set-Variable p (Get-Process python)", "sv p (gps python)",
+        "gps python | Tee-Object -Variable p", "$p = gps python",
+        "Get-Process -Id $p.Id"]],
+])
+def test_a_started_variable_named_anywhere_else_is_not_the_lines_own(command):
+    assert harm_class(command) == "always", command
+
+
+@pytest.mark.parametrize("command", [
+    "$p = Start-Process x -PassThru; Stop-Process -Id $p.Id",
+    "$p = Start-Process x -PassThru; taskkill /F /PID $p.Id",
+    "$p=Start-Process python -PassThru;Stop-Process -Id $p.Id",
+    "$p = Start-Process python -ArgumentList '-m','http.server' -PassThru; Start-Sleep 2; "
+    "Stop-Process -Id $p.Id",
+])
+def test_a_process_started_on_the_line_and_named_only_by_its_stop_is_its_own(command):
     assert harms(command) == "", command
     assert copy_reason(command, False, "/work/proj", "/work/rt") == "", command
 
