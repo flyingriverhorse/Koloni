@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { download, keyRefused } from './api/client'
+import type { Board } from './api/types'
 import { AgentsPage } from './agents/AgentsPage'
 import { type AgentAsks, AgentWindow } from './agents/AgentWindow'
 import { ChatTeams } from './agents/ChatTeams'
@@ -46,6 +47,7 @@ import { Toasts } from './shell/Toasts'
 import { TopBar } from './shell/TopBar'
 import { GitStatus } from './shell/GitStatus'
 import { frontOf } from './shell/move'
+import type { ConvState } from './state/applyEvent'
 import { useApp } from './state/store'
 import { getStoredTheme, toggleTheme, type Theme } from './theme/theme'
 import { ToolsPage } from './tools/ToolsPage'
@@ -91,6 +93,14 @@ const readingsOf = ({ inUse, conv, conversations }: ReturnType<typeof useApp.get
   inUse?.of === (conv?.conversation.id ?? null) && (conv || !conversations.some(c => !c.archived_at)) ? inUse.readings : null
 /** ...and the roles of it that cannot run, with them. */
 const cannotOf = (state: ReturnType<typeof useApp.getState>) => (readingsOf(state) ? state.inUse?.cannot : undefined)
+
+/** Whether an agent of the open chat was given facts. */
+const factsGiven = (conv: ConvState | null) => conv?.agents.some(a => (a.facts_given?.length ?? 0) > 0) ?? false
+/** Each chat's turn of the folder and when it ended, as one string: another when a turn ends. */
+const turnsEndedOf = (board: Board | null) => board?.conversations.map(c => `${c.turn?.id}:${c.turn?.ended_at}`).join() ?? ''
+/** Whether a list of the facts an agent was given is on screen: an agent's window, or an agent or a turn's memory selected. */
+const givenOnScreen = (agentWindowId: string | null, selectedNodeId: string | null) =>
+  Boolean(agentWindowId) || /^(agent|memory):/.test(selectedNodeId ?? '')
 
 /** First steps' "Use … for new chats": the default changed, and done only once the reading on show is the new one's. */
 const makeDefaultAndRead = async (providerId: string) => {
@@ -170,7 +180,6 @@ export function App() {
   const waiting = useReady()
   const readyPanel = useApp(s => s.readyPanel)
   const decided = conv ? decidedOf(conv).length : 0
-  const pillSaid = waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'} for you` : `${decided} decided for you`
   const [view, setView] = useState<View>('canvas')
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const [settingsWanted, setSettingsOpen] = useState(false)
@@ -249,7 +258,7 @@ export function App() {
 
   // The memory is read when it is looked at: every time its page opens (a file may have
   // changed on disk since), and once for each folder - what of it waits for you is on Ready for you.
-  const givenFacts = conv?.agents.some(a => (a.facts_given?.length ?? 0) > 0) ?? false
+  const givenFacts = factsGiven(conv)
   useEffect(() => {
     if (!projectId) return
     if (view === 'memory' || !useApp.getState().memory) void useApp.getState().loadMemory()
@@ -260,14 +269,14 @@ export function App() {
     if (projectId) void useApp.getState().loadBacklog()
   }, [projectId, backlogWaiting])
   // ...and the memory again as a turn of the folder ends - in any chat: what it put forward waits on Ready for you.
-  const turnsEnded = board?.conversations.map(c => `${c.turn?.id}:${c.turn?.ended_at}`).join() ?? ''
+  const turnsEnded = turnsEndedOf(board)
   useEffect(() => {
     if (projectId && useApp.getState().memory) void useApp.getState().loadMemory()
   }, [projectId, turnsEnded])
   // Beside a fact an agent was given stands how its source is "now": so the memory is read
   // again whenever such a list comes on screen - an agent's window, or an agent or a turn's
   // memory selected on the canvas.
-  const givenShown = Boolean(agentWindowId) || /^(agent|memory):/.test(selectedNodeId ?? '')
+  const givenShown = givenOnScreen(agentWindowId, selectedNodeId)
   useEffect(() => {
     if (projectId && givenFacts && givenShown) void useApp.getState().loadMemory()
   }, [projectId, givenFacts, givenShown, agentWindowId, selectedNodeId])
@@ -391,27 +400,6 @@ export function App() {
     show('canvas')
     setStepsAgain(true)
   }
-  const places: Place[] = [
-    ...PAGES.map(([page, name]) => ({ kind: 'Page', name, go: () => show(page) })),
-    { kind: 'Page', name: 'Settings', go: () => setSettingsOpen(true) },
-    ...conversations.map(c => ({
-      kind: 'Conversation',
-      name: c.title,
-      go: () => {
-        void useApp.getState().openConversation(c.id)
-        show('canvas')
-      },
-    })),
-    ...roles.map(role => ({ kind: 'Role', name: role.name, go: () => go('agents', role.id) })),
-    ...providers.map(provider => ({ kind: 'Model', name: provider.name, go: () => go('models', provider.id) })),
-    ...mcpServers.map(server => ({ kind: 'Tool server', name: server.name, go: () => go('tools', server.id) })),
-    ...[...(project ? SECTIONS : []), ...APP_SECTIONS.map(([key, name]) => [key, `${name} (the app)`] as const)].map(([key, name]) => ({
-      kind: 'Setting',
-      name,
-      go: () => useApp.getState().askSettings(key),
-    })),
-    { kind: 'Help', name: 'Show the first steps', go: firstSteps },
-  ]
 
   // What an agent waits on you for: shown with it in the inspector and in its window alike.
   const agentAsks: AgentAsks = conv
@@ -466,85 +454,634 @@ export function App() {
       }
     : {}
 
+  /** The rail: its pages, Settings and the theme. */
+  const rail = () => (
+    <Rail
+      view={settingsOpen ? null : view}
+      onView={show}
+      theme={theme}
+      onToggleTheme={() => setTheme(toggleTheme())}
+      waiting={waiting.length}
+      settingsOpen={settingsOpen}
+      // (⚙ opens them on their first section: a section asked for before is not asked again.)
+      onSettings={() => {
+        useApp.setState({ settingsAsked: null })
+        setSettingsOpen(open => !open)
+      }}
+      gear={gear}
+    />
+  )
+
+  /** Ready for you's pill, while something waits for you or was decided for you. */
+  const readyPill = () => {
+    const pillSaid = waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'} for you` : `${decided} decided for you`
+    return (
+      (waiting.length > 0 || decided > 0) && (
+        <button
+          type="button"
+          className="ready-pill"
+          aria-label={pillSaid}
+          title={pillSaid}
+          aria-expanded={panelShown}
+          aria-controls={READY_PANEL}
+          onClick={() => (onReadyPage ? undefined : useApp.getState().showReady(!readyPanel.open))}
+        >
+          {waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'}` : `${decided} decided`}
+        </button>
+      )
+    )
+  }
+
+  /** The top bar: the folder, git, the title, where commands run, and what is said of the plans, the budget, the night, Stop and the triggers. */
+  const topBar = () => (
+    <TopBar
+      folder={
+        <FolderButton
+          project={project}
+          projects={projects}
+          conversations={conversations}
+          // (Not while the folder shown is not yet the chat's own.)
+          conversation={conv && project && conv.conversation.project_id === project.id ? conv.conversation : null}
+          onFolders={useApp.getState().setChatFolders}
+          onDefault={useApp.getState().saveProjectSettings}
+          onMove={useApp.getState().setFolder}
+          onPart={useApp.getState().setChatPart}
+          onNew={useApp.getState().newConversation}
+          onOpenFolder={useApp.getState().openFolder}
+          onBrowse={useApp.getState().browseFolders}
+        />
+      }
+      git={project && <GitStatus projectId={project.id} />}
+      title={conv?.conversation.title ?? 'New conversation'}
+      location={project?.exec_location}
+      turns={view === 'canvas' && !settingsOpen ? setTurnsIn : undefined}
+    >
+      <PlanUse providers={providers} onLimits={lastLimits} every={BOARD_POLL_MS} onOpen={() => show('usage')} onNear={setNear} />
+      <BudgetPill budget={budget} onOpen={() => show('usage')} />
+      <AwayStatus away={away} onOpen={() => show('backlog')} />
+      <HoldStatus
+        every={BOARD_POLL_MS}
+        onHeld={setHeld}
+        onOpen={async id => {
+          await useApp.getState().openConversation(id)
+          show('canvas')
+        }}
+      />
+      <TriggersStatus
+        triggers={triggers}
+        paused={triggersPaused}
+        held={held}
+        onPause={useApp.getState().pauseTriggers}
+        onOpen={() => show('triggers')}
+      />
+      <RunStatus conv={conv} connection={connection} />
+      {/* Ready for you's pill (tek-ev §1): how many wait for your word anywhere; it opens the panel, on every page.
+          (Nothing waits, but the Lead decided for you meanwhile: that is said, and its OK is in the panel too.) */}
+      {/* (Short, so that the bar keeps to one line with the turn's tokens down to 1250 px - B-174; its name says it whole.) */}
+      {readyPill()}
+      <span ref={setBellIn} className="bell-slot" />
+      <Help onFirstSteps={firstSteps} />
+    </TopBar>
+  )
+
+  /** Another API than the page was built against, or the page built anew. */
+  const banner = () =>
+    health && health.api_hash !== import.meta.env.VITE_API_HASH ? (
+      <div role="status" className="banner">
+        <span className="banner-text" title={UPDATED}>
+          {UPDATED}
+        </span>
+      </div>
+    ) : (
+      // The same API, but the page built anew (a change of the page alone): a reload brings it.
+      rebuilt && (
+        <div className="banner">
+          <span role="status" className="banner-text" title={REBUILT}>
+            {REBUILT}
+          </span>
+          <button type="button" className="btn btn-small banner-pick" onClick={() => location.reload()}>
+            Reload
+          </button>
+        </div>
+      )
+    )
+
+  /** The open chats' tabs, over the canvas. */
+  const openChats = () =>
+    view === 'canvas' && !settingsOpen && (
+      <OpenChats
+        tabs={kept(tabs, conversations, projects)}
+        conversations={conversations}
+        projects={projects}
+        board={everywhere}
+        openTab={conv ? tabOf(conv.conversation.project_id) : null}
+        onOpen={tab => void useApp.getState().openTab(tab)}
+        onClose={tab => void useApp.getState().closeTab(tab)}
+        onOpenFolder={useApp.getState().openFolder}
+        onBrowse={useApp.getState().browseFolders}
+      />
+    )
+
+  /** What two chats of the folder both want, over the canvas. */
+  const conflicts = () => view === 'canvas' && !settingsOpen && <ConflictStrip board={everywhere} conversationId={conv?.conversation.id ?? null} />
+
+  /** The settings, as a page over the one shown. */
+  const settingsPage = () =>
+    settingsOpen && (
+      <Settings
+        project={project}
+        picked={section ?? undefined}
+        chat={conv && project && conv.conversation.project_id === project.id ? { id: conv.conversation.id, title: conv.conversation.title } : undefined}
+        dockerAvailable={health?.docker_available ?? false}
+        dockerError={health?.docker_error ?? null}
+        // Not known yet is not "none": the server refuses it where there is none.
+        desktopAvailable={health?.desktop_available ?? true}
+        shell={health?.shell ?? null}
+        shellNote={health?.shell_note ?? null}
+        onSave={useApp.getState().saveProjectSettings}
+        onUseKoloni={useApp.getState().takeKoloniSettings}
+        spend={budget}
+        onClose={() => {
+          setSettingsOpen(false)
+          gear.current?.focus()
+        }}
+      />
+    )
+
+  // The pages of the rail, each drawn as it is shown; a page of a folder, in a plain chat, says it has none.
+  const agentsPage = () => (
+    <AgentsPage
+      key={picked('agents')?.n}
+      picked={picked('agents')?.id}
+      roles={roles}
+      teams={teams}
+      providers={providers}
+      skills={skills}
+      onOpenSkills={name => go('tools', name ? `skill:${name}` : 'skills')}
+      onSave={useApp.getState().saveRole}
+      onCreate={useApp.getState().createRole}
+      onDelete={useApp.getState().deleteRole}
+      onReset={useApp.getState().resetRole}
+      onPatch={useApp.getState().patchRole}
+      // (The store's own team and category methods, by their names.)
+      teamActions={useApp.getState()}
+      categories={categories}
+      categoryActions={useApp.getState()}
+      recipeActions={useApp.getState()}
+      knowledgeActions={useApp.getState()}
+      knowledge={knowledge ?? undefined}
+      onOpenKnowledge={() => setView('knowledge')}
+      projectId={projectId}
+      onActivity={useApp.getState().roleActivity}
+      onHistory={useApp.getState().roleHistory}
+      onOpenConversation={async id => {
+        // As the Board's: shown only once it is open.
+        await useApp.getState().openConversation(id)
+        setView('canvas')
+      }}
+      onOpenTools={name => go('tools', mcpServers.find(server => server.name === name)?.id ?? 'servers')}
+      off={builtinTools.filter(tool => !tool.on).map(tool => tool.name)}
+      serversOff={mcpServers.filter(server => !server.enabled).map(server => server.name)}
+      onModels={useApp.getState().providerModels}
+      onFacts={useApp.getState().modelFacts}
+      onRecord={useApp.getState().record}
+      onRoleModels={roleModelsNow}
+      onFillAll={useApp.getState().fillAll}
+      onSaveFillAll={useApp.getState().saveFillAll}
+    />
+  )
+  const modelsPage = () => (
+    <ModelsPage
+      key={picked('models')?.n}
+      picked={picked('models')?.id}
+      providers={providers}
+      onCreate={useApp.getState().createProvider}
+      onSave={useApp.getState().saveProvider}
+      onDelete={useApp.getState().deleteProvider}
+      onTest={useApp.getState().testProvider}
+      onModels={useApp.getState().providerModels}
+      onMakeDefault={useApp.getState().makeDefaultProvider}
+      onFill={useApp.getState().fillFromCatalogue}
+      onFillNew={useApp.getState().fillNewFromCatalogue}
+      onAvailability={useApp.getState().availability}
+      onFacts={useApp.getState().modelFacts}
+      onSuggest={useApp.getState().suggest}
+      onUpdateCatalogue={useApp.getState().updateCatalogue}
+      onCatalogue={useApp.getState().catalogue}
+      onKeepFresh={useApp.getState().keepCatalogueFresh}
+      onLocalServer={useApp.getState().localServer}
+      onRunLocalServer={useApp.getState().runLocalServer}
+      onFillAll={useApp.getState().fillAll}
+      onSaveFillAll={useApp.getState().saveFillAll}
+      onTiers={useApp.getState().tiers}
+      onSaveTiers={useApp.getState().saveTiers}
+      onLimits={useApp.getState().limits}
+      onClaudeSetup={useApp.getState().claudeSetup}
+      onUsage={usageEverywhere}
+      prices={prices}
+    />
+  )
+  const toolsPage = () => (
+    <ToolsPage
+      key={picked('tools')?.n}
+      picked={picked('tools')?.id}
+      servers={mcpServers}
+      roles={roles}
+      onAdd={useApp.getState().addMcpServer}
+      onSave={useApp.getState().saveMcpServer}
+      onDelete={useApp.getState().deleteMcpServer}
+      onRead={useApp.getState().readMcpServer}
+      onRoleServers={useApp.getState().setRoleServers}
+      builtin={builtinTools}
+      onSwitchTool={useApp.getState().switchBuiltinTool}
+      skills={skills}
+      skillActions={{
+        onPreviewSkill: useApp.getState().previewSkill,
+        onAddSkill: useApp.getState().addSkill,
+        onSkillLeave: useApp.getState().setSkillLeave,
+        onSkillOn: useApp.getState().setSkillOn,
+        onDeleteSkill: useApp.getState().deleteSkill,
+        onSkillRecord: useApp.getState().skillRecord,
+        onPatchRole: useApp.getState().patchRole,
+      }}
+    />
+  )
+  const readyPage = () => <ReadyPage items={waiting} openChat={openChat} />
+  const boardPage = () =>
+    !project ? noFolder('Board') : (
+      <BoardPage
+        // (Each folder's own: what one opened, typed or read is not carried to another.)
+        key={project.id}
+        board={board}
+        error={boardError}
+        currentId={conv?.conversation.id ?? null}
+        onLoad={useApp.getState().loadBoard}
+        onRerun={useApp.getState().rerunFailed}
+        waiting={waiting.length}
+        onReady={() => show('ready')}
+        onOpen={async id => {
+          // Only once it is open: one that is gone (deleted since the board was read)
+          // is said on the board, not shown as the conversation that was open before.
+          await useApp.getState().openConversation(id)
+          setView('canvas')
+        }}
+      />
+    )
+  const backlogPage = () =>
+    !project ? noFolder('To-do') : (
+      <BacklogPage
+        key={project.id}
+        backlog={backlog}
+        error={backlogError}
+        auto={backlogAuto}
+        away={away}
+        providers={providers}
+        onAuto={useApp.getState().setBacklogAuto}
+        onChoice={useApp.getState().setBacklogChoice}
+        onModels={useApp.getState().providerModels}
+        onAdd={useApp.getState().addTask}
+        onDraft={useApp.getState().draftTasks}
+        onPlan={async message => {
+          await useApp.getState().newConversation(project.id)
+          await useApp.getState().send(message)
+          setView('canvas')
+        }}
+        onChange={useApp.getState().changeTask}
+        onDelete={useApp.getState().deleteTask}
+        onDecide={useApp.getState().decideTask}
+        onRun={useApp.getState().runBacklog}
+        onOpen={id => {
+          void useApp.getState().openConversation(id)
+          setView('canvas')
+        }}
+      />
+    )
+  const usagePage = () => (
+    <UsagePage
+      project={project}
+      projects={projects}
+      onLoad={useApp.getState().usage}
+      budget={budget}
+      providers={providers}
+      onLimits={useApp.getState().limits}
+      prices={prices}
+      cataloguePrices={cataloguePrices}
+      onPrice={useApp.getState().savePrice}
+      onRemovePrice={useApp.getState().removePrice}
+      onModels={id => go('models', id)}
+      onSettings={() => useApp.getState().askSettings('limits')}
+      today={
+        project && (
+          // (Each folder's own day: read anew for another.)
+          <TodayView
+            key={project.id}
+            currentId={conv?.conversation.id ?? null}
+            noteAt={project.day_note_at}
+            onLoad={useApp.getState().day}
+            onWords={useApp.getState().dayWords}
+            onOpenTurn={async (id, runId) => {
+              // Shown only once it is open; one that is gone is said under the list.
+              await useApp.getState().openTurn(id, runId)
+              setView('canvas')
+            }}
+          />
+        )
+      }
+      onOpen={id => {
+        void useApp.getState().openConversation(id)
+        setView('canvas')
+      }}
+    />
+  )
+  const memoryPage = () =>
+    !project ? noFolder('Memory') : (
+      <MemoryPage
+        key={project.id}
+        searchFor={pick?.view === 'memory' ? { words: pick.id, n: pick.n } : undefined}
+        memory={memory}
+        error={memoryError}
+        onApprove={useApp.getState().approveMemory}
+        onReject={useApp.getState().rejectMemory}
+        onRestore={useApp.getState().restoreMemory}
+        onConfirm={useApp.getState().confirmMemory}
+        onCorrect={useApp.getState().correctMemory}
+        onWrite={useApp.getState().writeFact}
+        onSaveRules={useApp.getState().saveRules}
+        onSavePreferences={useApp.getState().savePreferences}
+        onAddPreference={useApp.getState().addPreference}
+        onReload={useApp.getState().loadMemory}
+        onSearch={useApp.getState().searchMemory}
+        onMeaning={useApp.getState().saveProjectSettings}
+        onExport={projectId ? () => download('GET', `/projects/${projectId}/memory/export`) : undefined}
+      />
+    )
+  const knowledgePage = () =>
+    !project ? noFolder('Knowledge page') : (
+      <KnowledgePage
+        key={project.id}
+        items={knowledge}
+        error={knowledgeError}
+        projectName={project.name}
+        providers={providers}
+        otherProjects={projects.filter(one => one.id !== project.id)}
+        onReload={useApp.getState().loadKnowledge}
+        onAdd={useApp.getState().addKnowledge}
+        onSave={useApp.getState().saveKnowledge}
+        onDelete={useApp.getState().deleteKnowledge}
+        onLearn={useApp.getState().learnKnowledge}
+        onTry={useApp.getState().tryKnowledge}
+        onCopy={useApp.getState().copyKnowledge}
+        onReadFile={useApp.getState().knowledgeFile}
+      />
+    )
+  const triggersPage = () =>
+    !project ? noFolder('Triggers') : (
+      <TriggersPage
+        key={project.id}
+        triggers={triggers}
+        error={triggersError}
+        changes={triggerChanges}
+        conversations={conversations}
+        draft={triggerDraft}
+        onDraftTaken={useApp.getState().clearTriggerDraft}
+        origin={window.location.origin}
+        onCreate={useApp.getState().createTrigger}
+        onSave={useApp.getState().saveTrigger}
+        onDelete={useApp.getState().deleteTrigger}
+        onRun={useApp.getState().runTrigger}
+        onNewKey={useApp.getState().newTriggerKey}
+        onShowTurn={(conversationId, runId) => {
+          void useApp.getState().openTurn(conversationId, runId)
+          setView('canvas')
+        }}
+        onRules={useApp.getState().allowedCommandsOf}
+        onAddRule={useApp.getState().addAllowedCommand}
+        onHosts={useApp.getState().allowedHostsOf}
+      />
+    )
+  const conversationsPage = () => (
+    <ConversationList
+      conversations={conversations}
+      projects={projects}
+      board={everywhere}
+      triggers={triggers}
+      triggersPaused={triggersPaused}
+      onArchive={useApp.getState().archiveConversation}
+      onDelete={useApp.getState().deleteConversations}
+      currentId={conv?.conversation.id ?? null}
+      onRefresh={useApp.getState().loadConversations}
+      onOpen={id => {
+        void useApp.getState().openConversation(id)
+        setView('canvas')
+      }}
+      onNew={() => {
+        void useApp.getState().newConversation()
+        setView('canvas')
+      }}
+    />
+  )
+
+  /** First steps, over the canvas. */
+  const stepsCard = () => (
+    <FirstSteps
+      health={health}
+      project={projects.length > 0}
+      folder={project?.root_path ?? null}
+      // (The list may be read before the first send: the open chat's own turn says it at once.)
+      wrote={conversations.some(c => c.wrote) || (conv?.runs.length ?? 0) > 0}
+      turn={conv ? conv.runs.length > 0 : conversations.some(c => !c.archived_at) ? undefined : false}
+      again={stepsAgain}
+      providers={providers}
+      pinned={!!providerOpen}
+      onProvider={() => go('models', 'new')}
+      onUse={makeDefaultAndRead}
+      onHidden={() => setStepsAgain(false)}
+      onSaysProvider={setStepsSayProvider}
+    />
+  )
+  /** The open chat's teams, over the canvas. */
+  const chatTeams = () =>
+    conv && (
+      <ChatTeams
+        conversation={conv.conversation}
+        agents={conv.agents}
+        runs={conv.runs}
+        onStop={useApp.getState().stopTeam}
+        onFinish={useApp.getState().finishTeam}
+        teams={teams}
+        onRecipes={() => useApp.getState().recipes(null).then(read => read.recipes)}
+        onChange={useApp.getState().setChatTeams}
+        project={project && conv.conversation.project_id === project.id ? project : null}
+        onDefault={useApp.getState().saveProjectSettings}
+        roles={roles}
+        providers={providers}
+        onRoleModels={() => useApp.getState().roleModels(conv.conversation.id)}
+        // (The role's own model, as "A model of its own" on its card sets it: no tier left to pick another.)
+        onRunOn={(roleId, providerId, modelId) => useApp.getState().patchRole(roleId, { provider_id: providerId, model_id: modelId, tier: null, tier_min: null, tier_max: null })}
+      />
+    )
+  const canvasPage = () => (
+    <>
+      {/* The canvas fills the stage; the chat lies over its left edge, open, or its bottom left corner, closed. */}
+      {/* The window over the canvas pressed or used last is the one in front. */}
+      <div className="stage" onPointerDownCapture={event => frontOf(event.target)} onFocusCapture={event => frontOf(event.target)}>
+        <ChatPanel />
+        {stepsCard()}
+        <CanvasView
+          key={conv?.conversation.id ?? 'none'}
+          state={conv}
+          selectedId={selectedNodeId}
+          onSelect={select}
+          turnId={turnId}
+          onTurn={useApp.getState().showTurn}
+          onRenameTopic={useApp.getState().renameTopic}
+          over={agentWindowId ?? discussionWindowId ?? roomWindowId}
+          turnsIn={turnsIn}
+          onOpenNode={(kind, refId) => {
+            if (kind === 'agent') useApp.getState().openAgentWindow(refId)
+            if (kind === 'discussion') useApp.getState().openDiscussion(refId)
+            if (kind === 'room') useApp.getState().showRoom(refId)
+            if (kind === 'memory') setView('memory')
+            // (The Assistant PO's node, opened, or its To-do →.)
+            if (kind === 'po' || kind === 'backlog') setView('backlog')
+          }}
+          onOpenList={() => useApp.getState().showReady(true)}
+          onStopTeam={useApp.getState().stopTeam}
+          onFinishTeam={useApp.getState().finishTeam}
+          teams={teams}
+        />
+        {chatTeams()}
+        {conv && agentWindowId && (
+          <AgentWindow
+            state={conv}
+            memory={memory}
+            providers={providers}
+            agentId={agentWindowId}
+            onClose={useApp.getState().closeAgentWindow}
+            onOpenChange={openChange}
+            {...agentAsks}
+            onSelectAgent={agentId => {
+              select(`agent:${agentId}`)
+              useApp.getState().openAgentWindow(agentId)
+            }}
+          />
+        )}
+        {conv && discussionWindowId && (
+          <DiscussionWindow
+            state={conv}
+            discussionId={discussionWindowId}
+            onClose={useApp.getState().closeDiscussion}
+            onSay={useApp.getState().sayInDiscussion}
+            onEnd={useApp.getState().endDiscussion}
+          />
+        )}
+      </div>
+      <Inspector
+        state={conv}
+        providers={providers}
+        selectedId={selectedNodeId}
+        onClose={() => select(null)}
+        onOpenChange={openChange}
+        onSelect={select}
+        onOpenAgent={agentId => useApp.getState().openAgentWindow(agentId)}
+        onOpenDiscussion={id => useApp.getState().openDiscussion(id)}
+        onOpenRoom={useApp.getState().showRoom}
+        {...agentAsks}
+        renderChange={change => (
+          <>
+            <ChangeActions
+              key={change.id}
+              change={change}
+              onDecide={action => decide(change.id, action)}
+            />
+            <div className="insp-diff">
+              <DiffView diff={change.diff} />
+            </div>
+          </>
+        )}
+      />
+    </>
+  )
+  /** Each page of the rail but the canvas, by its view. */
+  const pageOf: Partial<Record<View, () => ReactNode>> = {
+    agents: agentsPage,
+    models: modelsPage,
+    tools: toolsPage,
+    ready: readyPage,
+    board: boardPage,
+    backlog: backlogPage,
+    usage: usagePage,
+    memory: memoryPage,
+    knowledge: knowledgePage,
+    triggers: triggersPage,
+    conversations: conversationsPage,
+  }
+  /** The page shown: the one of its view, else the canvas. */
+  const page = () => (pageOf[view] ?? canvasPage)()
+
+  /** The toasts, with their bell in the top bar. */
+  const toasts = () => (
+    <Toasts
+      board={everywhere}
+      bellIn={bellIn}
+      budget={budget}
+      near={near}
+      onUsage={() => show('usage')}
+      shownId={view === 'canvas' && !settingsOpen ? (conv?.conversation.id ?? null) : null}
+      onOpen={id => {
+        void useApp.getState().openConversation(id)
+        show('canvas')
+      }}
+    />
+  )
+
+  /** Ready for you's panel, over every page but its own. */
+  const readyPanelOver = () =>
+    panelShown && (
+      <ReadyPanel
+        items={waiting}
+        openChat={openChat}
+        onPage={() => {
+          useApp.getState().showReady(false)
+          show('ready')
+        }}
+        onClose={() => useApp.getState().showReady(false)}
+      />
+    )
+
+  /** Ctrl+K: the pages, Settings, the chats, roles, models, tool servers and settings, and the first steps again. */
+  const palette = () => {
+    const places: Place[] = [
+      ...PAGES.map(([page, name]) => ({ kind: 'Page', name, go: () => show(page) })),
+      { kind: 'Page', name: 'Settings', go: () => setSettingsOpen(true) },
+      ...conversations.map(c => ({
+        kind: 'Conversation',
+        name: c.title,
+        go: () => {
+          void useApp.getState().openConversation(c.id)
+          show('canvas')
+        },
+      })),
+      ...roles.map(role => ({ kind: 'Role', name: role.name, go: () => go('agents', role.id) })),
+      ...providers.map(provider => ({ kind: 'Model', name: provider.name, go: () => go('models', provider.id) })),
+      ...mcpServers.map(server => ({ kind: 'Tool server', name: server.name, go: () => go('tools', server.id) })),
+      ...[...(project ? SECTIONS : []), ...APP_SECTIONS.map(([key, name]) => [key, `${name} (the app)`] as const)].map(([key, name]) => ({
+        kind: 'Setting',
+        name,
+        go: () => useApp.getState().askSettings(key),
+      })),
+      { kind: 'Help', name: 'Show the first steps', go: firstSteps },
+    ]
+    return <Palette places={places} onOpen={() => void useApp.getState().loadMcpServers().catch(() => {})} onSearch={words => go('memory', words)} />
+  }
+
   return (
     <div className="app">
       {/* Under the project's settings no page of the rail is the one shown. */}
-      <Rail
-        view={settingsOpen ? null : view}
-        onView={show}
-        theme={theme}
-        onToggleTheme={() => setTheme(toggleTheme())}
-        waiting={waiting.length}
-        settingsOpen={settingsOpen}
-        // (⚙ opens them on their first section: a section asked for before is not asked again.)
-        onSettings={() => {
-          useApp.setState({ settingsAsked: null })
-          setSettingsOpen(open => !open)
-        }}
-        gear={gear}
-      />
+      {rail()}
       {/* Focusable only from code: it takes the focus back from something that went (a dismissed notice). */}
       <div className="main" tabIndex={-1}>
-        <TopBar
-          folder={
-            <FolderButton
-              project={project}
-              projects={projects}
-              conversations={conversations}
-              // (Not while the folder shown is not yet the chat's own.)
-              conversation={conv && project && conv.conversation.project_id === project.id ? conv.conversation : null}
-              onFolders={useApp.getState().setChatFolders}
-              onDefault={useApp.getState().saveProjectSettings}
-              onMove={useApp.getState().setFolder}
-              onPart={useApp.getState().setChatPart}
-              onNew={useApp.getState().newConversation}
-              onOpenFolder={useApp.getState().openFolder}
-              onBrowse={useApp.getState().browseFolders}
-            />
-          }
-          git={project && <GitStatus projectId={project.id} />}
-          title={conv?.conversation.title ?? 'New conversation'}
-          location={project?.exec_location}
-          turns={view === 'canvas' && !settingsOpen ? setTurnsIn : undefined}
-        >
-          <PlanUse providers={providers} onLimits={lastLimits} every={BOARD_POLL_MS} onOpen={() => show('usage')} onNear={setNear} />
-          <BudgetPill budget={budget} onOpen={() => show('usage')} />
-          <AwayStatus away={away} onOpen={() => show('backlog')} />
-          <HoldStatus
-            every={BOARD_POLL_MS}
-            onHeld={setHeld}
-            onOpen={async id => {
-              await useApp.getState().openConversation(id)
-              show('canvas')
-            }}
-          />
-          <TriggersStatus
-            triggers={triggers}
-            paused={triggersPaused}
-            held={held}
-            onPause={useApp.getState().pauseTriggers}
-            onOpen={() => show('triggers')}
-          />
-          <RunStatus conv={conv} connection={connection} />
-          {/* Ready for you's pill (tek-ev §1): how many wait for your word anywhere; it opens the panel, on every page.
-              (Nothing waits, but the Lead decided for you meanwhile: that is said, and its OK is in the panel too.) */}
-          {/* (Short, so that the bar keeps to one line with the turn's tokens down to 1250 px - B-174; its name says it whole.) */}
-          {(waiting.length > 0 || decided > 0) && (
-            <button
-              type="button"
-              className="ready-pill"
-              aria-label={pillSaid}
-              title={pillSaid}
-              aria-expanded={panelShown}
-              aria-controls={READY_PANEL}
-              onClick={() => (onReadyPage ? undefined : useApp.getState().showReady(!readyPanel.open))}
-            >
-              {waiting.length > 0 ? `${waiting.length} ${waiting.length === 1 ? 'waits' : 'wait'}` : `${decided} decided`}
-            </button>
-          )}
-          <span ref={setBellIn} className="bell-slot" />
-          <Help onFirstSteps={firstSteps} />
-        </TopBar>
+        {topBar()}
         <ModelBanner
           readings={barReadings}
           cannot={barCannot}
@@ -553,466 +1090,21 @@ export function App() {
         />
         {/* The page was built from other code than its server runs: what it reads may not be there. A server
             from before slice 65 does not say, and is other code too. */}
-        {health && health.api_hash !== import.meta.env.VITE_API_HASH ? (
-          <div role="status" className="banner">
-            <span className="banner-text" title={UPDATED}>
-              {UPDATED}
-            </span>
-          </div>
-        ) : (
-          // The same API, but the page built anew (a change of the page alone): a reload brings it.
-          rebuilt && (
-            <div className="banner">
-              <span role="status" className="banner-text" title={REBUILT}>
-                {REBUILT}
-              </span>
-              <button type="button" className="btn btn-small banner-pick" onClick={() => location.reload()}>
-                Reload
-              </button>
-            </div>
-          )
-        )}
-        {view === 'canvas' && !settingsOpen && (
-          <OpenChats
-            tabs={kept(tabs, conversations, projects)}
-            conversations={conversations}
-            projects={projects}
-            board={everywhere}
-            openTab={conv ? tabOf(conv.conversation.project_id) : null}
-            onOpen={tab => void useApp.getState().openTab(tab)}
-            onClose={tab => void useApp.getState().closeTab(tab)}
-            onOpenFolder={useApp.getState().openFolder}
-            onBrowse={useApp.getState().browseFolders}
-          />
-        )}
-        {view === 'canvas' && !settingsOpen && <ConflictStrip board={everywhere} conversationId={conv?.conversation.id ?? null} />}
-        {settingsOpen && (
-          <Settings
-            project={project}
-            picked={section ?? undefined}
-            chat={conv && project && conv.conversation.project_id === project.id ? { id: conv.conversation.id, title: conv.conversation.title } : undefined}
-            dockerAvailable={health?.docker_available ?? false}
-            dockerError={health?.docker_error ?? null}
-            // Not known yet is not "none": the server refuses it where there is none.
-            desktopAvailable={health?.desktop_available ?? true}
-            shell={health?.shell ?? null}
-            shellNote={health?.shell_note ?? null}
-            onSave={useApp.getState().saveProjectSettings}
-            onUseKoloni={useApp.getState().takeKoloniSettings}
-            spend={budget}
-            onClose={() => {
-              setSettingsOpen(false)
-              gear.current?.focus()
-            }}
-          />
-        )}
+        {banner()}
+        {openChats()}
+        {conflicts()}
+        {settingsPage()}
         {/* Hidden, not gone, under the settings: a message being typed and an open window stay. */}
         <div className="workspace" hidden={settingsOpen}>
           <PageGuard key={view}>
-          {view === 'agents' ? (
-            <AgentsPage
-              key={picked('agents')?.n}
-              picked={picked('agents')?.id}
-              roles={roles}
-              teams={teams}
-              providers={providers}
-              skills={skills}
-              onOpenSkills={name => go('tools', name ? `skill:${name}` : 'skills')}
-              onSave={useApp.getState().saveRole}
-              onCreate={useApp.getState().createRole}
-              onDelete={useApp.getState().deleteRole}
-              onReset={useApp.getState().resetRole}
-              onPatch={useApp.getState().patchRole}
-              // (The store's own team and category methods, by their names.)
-              teamActions={useApp.getState()}
-              categories={categories}
-              categoryActions={useApp.getState()}
-              recipeActions={useApp.getState()}
-              knowledgeActions={useApp.getState()}
-              knowledge={knowledge ?? undefined}
-              onOpenKnowledge={() => setView('knowledge')}
-              projectId={projectId}
-              onActivity={useApp.getState().roleActivity}
-              onHistory={useApp.getState().roleHistory}
-              onOpenConversation={async id => {
-                // As the Board's: shown only once it is open.
-                await useApp.getState().openConversation(id)
-                setView('canvas')
-              }}
-              onOpenTools={name => go('tools', mcpServers.find(server => server.name === name)?.id ?? 'servers')}
-              off={builtinTools.filter(tool => !tool.on).map(tool => tool.name)}
-              serversOff={mcpServers.filter(server => !server.enabled).map(server => server.name)}
-              onModels={useApp.getState().providerModels}
-              onFacts={useApp.getState().modelFacts}
-              onRecord={useApp.getState().record}
-              onRoleModels={roleModelsNow}
-              onFillAll={useApp.getState().fillAll}
-              onSaveFillAll={useApp.getState().saveFillAll}
-            />
-          ) : view === 'models' ? (
-            <ModelsPage
-              key={picked('models')?.n}
-              picked={picked('models')?.id}
-              providers={providers}
-              onCreate={useApp.getState().createProvider}
-              onSave={useApp.getState().saveProvider}
-              onDelete={useApp.getState().deleteProvider}
-              onTest={useApp.getState().testProvider}
-              onModels={useApp.getState().providerModels}
-              onMakeDefault={useApp.getState().makeDefaultProvider}
-              onFill={useApp.getState().fillFromCatalogue}
-              onFillNew={useApp.getState().fillNewFromCatalogue}
-              onAvailability={useApp.getState().availability}
-              onFacts={useApp.getState().modelFacts}
-              onSuggest={useApp.getState().suggest}
-              onUpdateCatalogue={useApp.getState().updateCatalogue}
-              onCatalogue={useApp.getState().catalogue}
-              onKeepFresh={useApp.getState().keepCatalogueFresh}
-              onLocalServer={useApp.getState().localServer}
-              onRunLocalServer={useApp.getState().runLocalServer}
-              onFillAll={useApp.getState().fillAll}
-              onSaveFillAll={useApp.getState().saveFillAll}
-              onTiers={useApp.getState().tiers}
-              onSaveTiers={useApp.getState().saveTiers}
-              onLimits={useApp.getState().limits}
-              onClaudeSetup={useApp.getState().claudeSetup}
-              onUsage={usageEverywhere}
-              prices={prices}
-            />
-          ) : view === 'tools' ? (
-            <ToolsPage
-              key={picked('tools')?.n}
-              picked={picked('tools')?.id}
-              servers={mcpServers}
-              roles={roles}
-              onAdd={useApp.getState().addMcpServer}
-              onSave={useApp.getState().saveMcpServer}
-              onDelete={useApp.getState().deleteMcpServer}
-              onRead={useApp.getState().readMcpServer}
-              onRoleServers={useApp.getState().setRoleServers}
-              builtin={builtinTools}
-              onSwitchTool={useApp.getState().switchBuiltinTool}
-              skills={skills}
-              skillActions={{
-                onPreviewSkill: useApp.getState().previewSkill,
-                onAddSkill: useApp.getState().addSkill,
-                onSkillLeave: useApp.getState().setSkillLeave,
-                onSkillOn: useApp.getState().setSkillOn,
-                onDeleteSkill: useApp.getState().deleteSkill,
-                onSkillRecord: useApp.getState().skillRecord,
-                onPatchRole: useApp.getState().patchRole,
-              }}
-            />
-          ) : view === 'ready' ? (
-            <ReadyPage items={waiting} openChat={openChat} />
-          ) : view === 'board' ? (
-            !project ? noFolder('Board') :
-            <BoardPage
-              // (Each folder's own: what one opened, typed or read is not carried to another.)
-              key={project.id}
-              board={board}
-              error={boardError}
-              currentId={conv?.conversation.id ?? null}
-              onLoad={useApp.getState().loadBoard}
-              onRerun={useApp.getState().rerunFailed}
-              waiting={waiting.length}
-              onReady={() => show('ready')}
-              onOpen={async id => {
-                // Only once it is open: one that is gone (deleted since the board was read)
-                // is said on the board, not shown as the conversation that was open before.
-                await useApp.getState().openConversation(id)
-                setView('canvas')
-              }}
-            />
-          ) : view === 'backlog' ? (
-            !project ? noFolder('To-do') :
-            <BacklogPage
-              key={project.id}
-              backlog={backlog}
-              error={backlogError}
-              auto={backlogAuto}
-              away={away}
-              providers={providers}
-              onAuto={useApp.getState().setBacklogAuto}
-              onChoice={useApp.getState().setBacklogChoice}
-              onModels={useApp.getState().providerModels}
-              onAdd={useApp.getState().addTask}
-              onDraft={useApp.getState().draftTasks}
-              onPlan={async message => {
-                await useApp.getState().newConversation(project.id)
-                await useApp.getState().send(message)
-                setView('canvas')
-              }}
-              onChange={useApp.getState().changeTask}
-              onDelete={useApp.getState().deleteTask}
-              onDecide={useApp.getState().decideTask}
-              onRun={useApp.getState().runBacklog}
-              onOpen={id => {
-                void useApp.getState().openConversation(id)
-                setView('canvas')
-              }}
-            />
-          ) : view === 'usage' ? (
-            <UsagePage
-              project={project}
-              projects={projects}
-              onLoad={useApp.getState().usage}
-              budget={budget}
-              providers={providers}
-              onLimits={useApp.getState().limits}
-              prices={prices}
-              cataloguePrices={cataloguePrices}
-              onPrice={useApp.getState().savePrice}
-              onRemovePrice={useApp.getState().removePrice}
-              onModels={id => go('models', id)}
-              onSettings={() => useApp.getState().askSettings('limits')}
-              today={
-                project && (
-                  // (Each folder's own day: read anew for another.)
-                  <TodayView
-                    key={project.id}
-                    currentId={conv?.conversation.id ?? null}
-                    noteAt={project.day_note_at}
-                    onLoad={useApp.getState().day}
-                    onWords={useApp.getState().dayWords}
-                    onOpenTurn={async (id, runId) => {
-                      // Shown only once it is open; one that is gone is said under the list.
-                      await useApp.getState().openTurn(id, runId)
-                      setView('canvas')
-                    }}
-                  />
-                )
-              }
-              onOpen={id => {
-                void useApp.getState().openConversation(id)
-                setView('canvas')
-              }}
-            />
-          ) : view === 'memory' ? (
-            !project ? noFolder('Memory') :
-            <MemoryPage
-              key={project.id}
-              searchFor={pick?.view === 'memory' ? { words: pick.id, n: pick.n } : undefined}
-              memory={memory}
-              error={memoryError}
-              onApprove={useApp.getState().approveMemory}
-              onReject={useApp.getState().rejectMemory}
-              onRestore={useApp.getState().restoreMemory}
-              onConfirm={useApp.getState().confirmMemory}
-              onCorrect={useApp.getState().correctMemory}
-              onWrite={useApp.getState().writeFact}
-              onSaveRules={useApp.getState().saveRules}
-              onSavePreferences={useApp.getState().savePreferences}
-              onAddPreference={useApp.getState().addPreference}
-              onReload={useApp.getState().loadMemory}
-              onSearch={useApp.getState().searchMemory}
-              onMeaning={useApp.getState().saveProjectSettings}
-              onExport={projectId ? () => download('GET', `/projects/${projectId}/memory/export`) : undefined}
-            />
-          ) : view === 'knowledge' ? (
-            !project ? noFolder('Knowledge page') :
-            <KnowledgePage
-              key={project.id}
-              items={knowledge}
-              error={knowledgeError}
-              projectName={project.name}
-              providers={providers}
-              otherProjects={projects.filter(one => one.id !== project.id)}
-              onReload={useApp.getState().loadKnowledge}
-              onAdd={useApp.getState().addKnowledge}
-              onSave={useApp.getState().saveKnowledge}
-              onDelete={useApp.getState().deleteKnowledge}
-              onLearn={useApp.getState().learnKnowledge}
-              onTry={useApp.getState().tryKnowledge}
-              onCopy={useApp.getState().copyKnowledge}
-              onReadFile={useApp.getState().knowledgeFile}
-            />
-          ) : view === 'triggers' ? (
-            !project ? noFolder('Triggers') :
-            <TriggersPage
-              key={project.id}
-              triggers={triggers}
-              error={triggersError}
-              changes={triggerChanges}
-              conversations={conversations}
-              draft={triggerDraft}
-              onDraftTaken={useApp.getState().clearTriggerDraft}
-              origin={window.location.origin}
-              onCreate={useApp.getState().createTrigger}
-              onSave={useApp.getState().saveTrigger}
-              onDelete={useApp.getState().deleteTrigger}
-              onRun={useApp.getState().runTrigger}
-              onNewKey={useApp.getState().newTriggerKey}
-              onShowTurn={(conversationId, runId) => {
-                void useApp.getState().openTurn(conversationId, runId)
-                setView('canvas')
-              }}
-              onRules={useApp.getState().allowedCommandsOf}
-              onAddRule={useApp.getState().addAllowedCommand}
-              onHosts={useApp.getState().allowedHostsOf}
-            />
-          ) : view === 'conversations' ? (
-            <ConversationList
-              conversations={conversations}
-              projects={projects}
-              board={everywhere}
-              triggers={triggers}
-              triggersPaused={triggersPaused}
-              onArchive={useApp.getState().archiveConversation}
-              onDelete={useApp.getState().deleteConversations}
-              currentId={conv?.conversation.id ?? null}
-              onRefresh={useApp.getState().loadConversations}
-              onOpen={id => {
-                void useApp.getState().openConversation(id)
-                setView('canvas')
-              }}
-              onNew={() => {
-                void useApp.getState().newConversation()
-                setView('canvas')
-              }}
-            />
-          ) : (
-            <>
-              {/* The canvas fills the stage; the chat lies over its left edge, open, or its bottom left corner, closed. */}
-              {/* The window over the canvas pressed or used last is the one in front. */}
-              <div className="stage" onPointerDownCapture={event => frontOf(event.target)} onFocusCapture={event => frontOf(event.target)}>
-                <ChatPanel />
-                <FirstSteps
-                  health={health}
-                  project={projects.length > 0}
-                  folder={project?.root_path ?? null}
-                  // (The list may be read before the first send: the open chat's own turn says it at once.)
-                  wrote={conversations.some(c => c.wrote) || (conv?.runs.length ?? 0) > 0}
-                  turn={conv ? conv.runs.length > 0 : conversations.some(c => !c.archived_at) ? undefined : false}
-                  again={stepsAgain}
-                  providers={providers}
-                  pinned={!!providerOpen}
-                  onProvider={() => go('models', 'new')}
-                  onUse={makeDefaultAndRead}
-                  onHidden={() => setStepsAgain(false)}
-                  onSaysProvider={setStepsSayProvider}
-                />
-                <CanvasView
-                  key={conv?.conversation.id ?? 'none'}
-                  state={conv}
-                  selectedId={selectedNodeId}
-                  onSelect={select}
-                  turnId={turnId}
-                  onTurn={useApp.getState().showTurn}
-                  onRenameTopic={useApp.getState().renameTopic}
-                  over={agentWindowId ?? discussionWindowId ?? roomWindowId}
-                  turnsIn={turnsIn}
-                  onOpenNode={(kind, refId) => {
-                    if (kind === 'agent') useApp.getState().openAgentWindow(refId)
-                    if (kind === 'discussion') useApp.getState().openDiscussion(refId)
-                    if (kind === 'room') useApp.getState().showRoom(refId)
-                    if (kind === 'memory') setView('memory')
-                    // (The Assistant PO's node, opened, or its To-do →.)
-                    if (kind === 'po' || kind === 'backlog') setView('backlog')
-                  }}
-                  onOpenList={() => useApp.getState().showReady(true)}
-                  onStopTeam={useApp.getState().stopTeam}
-                  onFinishTeam={useApp.getState().finishTeam}
-                  teams={teams}
-                />
-                {conv && (
-                  <ChatTeams
-                    conversation={conv.conversation}
-                    agents={conv.agents}
-                    runs={conv.runs}
-                    onStop={useApp.getState().stopTeam}
-                    onFinish={useApp.getState().finishTeam}
-                    teams={teams}
-                    onRecipes={() => useApp.getState().recipes(null).then(read => read.recipes)}
-                    onChange={useApp.getState().setChatTeams}
-                    project={project && conv.conversation.project_id === project.id ? project : null}
-                    onDefault={useApp.getState().saveProjectSettings}
-                    roles={roles}
-                    providers={providers}
-                    onRoleModels={() => useApp.getState().roleModels(conv.conversation.id)}
-                    // (The role's own model, as "A model of its own" on its card sets it: no tier left to pick another.)
-                    onRunOn={(roleId, providerId, modelId) => useApp.getState().patchRole(roleId, { provider_id: providerId, model_id: modelId, tier: null, tier_min: null, tier_max: null })}
-                  />
-                )}
-                {conv && agentWindowId && (
-                  <AgentWindow
-                    state={conv}
-                    memory={memory}
-                    providers={providers}
-                    agentId={agentWindowId}
-                    onClose={useApp.getState().closeAgentWindow}
-                    onOpenChange={openChange}
-                    {...agentAsks}
-                    onSelectAgent={agentId => {
-                      select(`agent:${agentId}`)
-                      useApp.getState().openAgentWindow(agentId)
-                    }}
-                  />
-                )}
-                {conv && discussionWindowId && (
-                  <DiscussionWindow
-                    state={conv}
-                    discussionId={discussionWindowId}
-                    onClose={useApp.getState().closeDiscussion}
-                    onSay={useApp.getState().sayInDiscussion}
-                    onEnd={useApp.getState().endDiscussion}
-                  />
-                )}
-              </div>
-              <Inspector
-                state={conv}
-                providers={providers}
-                selectedId={selectedNodeId}
-                onClose={() => select(null)}
-                onOpenChange={openChange}
-                onSelect={select}
-                onOpenAgent={agentId => useApp.getState().openAgentWindow(agentId)}
-                onOpenDiscussion={id => useApp.getState().openDiscussion(id)}
-                onOpenRoom={useApp.getState().showRoom}
-                {...agentAsks}
-                renderChange={change => (
-                  <>
-                    <ChangeActions
-                      key={change.id}
-                      change={change}
-                      onDecide={action => decide(change.id, action)}
-                    />
-                    <div className="insp-diff">
-                      <DiffView diff={change.diff} />
-                    </div>
-                  </>
-                )}
-              />
-            </>
-          )}
+          {page()}
           </PageGuard>
         </div>
       </div>
-      <Toasts
-        board={everywhere}
-        bellIn={bellIn}
-        budget={budget}
-        near={near}
-        onUsage={() => show('usage')}
-        shownId={view === 'canvas' && !settingsOpen ? (conv?.conversation.id ?? null) : null}
-        onOpen={id => {
-          void useApp.getState().openConversation(id)
-          show('canvas')
-        }}
-      />
-      {panelShown && (
-        <ReadyPanel
-          items={waiting}
-          openChat={openChat}
-          onPage={() => {
-            useApp.getState().showReady(false)
-            show('ready')
-          }}
-          onClose={() => useApp.getState().showReady(false)}
-        />
-      )}
+      {toasts()}
+      {readyPanelOver()}
       <AskAboutThis />
-      <Palette places={places} onOpen={() => void useApp.getState().loadMcpServers().catch(() => {})} onSearch={words => go('memory', words)} />
+      {palette()}
     </div>
   )
 }
