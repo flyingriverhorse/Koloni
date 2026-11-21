@@ -1582,3 +1582,32 @@ def test_a_role_inside_claude_code_runs_on_its_own_model_on_its_leads_provider(
                                     "model_id": "claude-haiku-5"}, headers={"Origin": ORIGIN})
     turn(client, project_dir, provider, wait_run)
     assert agents_given(claude_app.record()["argv"])["koloni-checker"]["model"] == "claude-haiku-5"
+
+
+def test_a_task_its_own_sub_agent_adds_is_not_the_orchestrators_go_away_line(
+    claude_app, wait_run, project_dir
+):
+    # ☾ Away (the review): Claude Code's own sub-agent calls KOLONİ's add_task under the
+    # Orchestrator's name; its hook says which sub-agent (`agent_type`). Its task stays on
+    # To-do, proposed, for the user to tick - it does not ride the Orchestrator's offer.
+    inside = {"parent": "toolu_sub", "agent_type": "Explore"}
+    client, provider, _ = claude_app([
+        AGENT, started(),
+        {"koloni": "add_task", "args": {"title": "sneaky"}, **inside},
+        NOTIFIED,
+        {"koloni": "add_task", "args": {"title": "mine"}},
+        {"koloni": "offer_away", "args": {}},
+        {"say": "Two tasks are on your To-do."}])
+    cid, run_id = start(client, project_dir, provider, "full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    pid = snap["conversation"]["project_id"]
+    listed = {t["title"]: t for t in client.get(f"/api/projects/{pid}/backlog").json()}
+    assert {title: t["status"] for title, t in listed.items()} == {"sneaky": "proposed",
+                                                                   "mine": "proposed"}
+    (offered,) = client.get(f"/api/conversations/{cid}/away").json()
+    assert [job["title"] for job in offered["jobs"]] == ["mine"]
+    sub = calls_by_name(snap)["claude__Agent"]
+    (theirs,) = [c for c in snap["tool_calls"] if c["name"] == "add_task"
+                 and json.loads(c["arguments"])["title"] == "sneaky"]
+    assert theirs["parent_call_id"] == sub["id"]

@@ -10,6 +10,7 @@ A leaf: at run time it imports nothing else of `app.agent` (`app.triggers` takes
 
 import asyncio
 import contextlib
+import json
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -255,6 +256,15 @@ class _Transcript:
         runner._touch(ctx)
 
 
+def inside_key(name: str, arguments: object) -> str:
+    """A call of KOLONİ's tool by its name and input, the same however its JSON is spaced."""
+    try:
+        given = json.loads(arguments) if isinstance(arguments, str) else arguments
+    except ValueError:
+        given = arguments
+    return f"{name}\n{json.dumps(given, sort_keys=True)}"
+
+
 class _Watch:
     """What KOLONİ keeps while it watches a native agent: the folder it works in as
     KOLONİ last saw it - the project, or for a sub-agent started in one its working
@@ -310,6 +320,9 @@ class _Watch:
         self.subs: dict[str, str] = {}
         self.at_work: set[str] = set()
         self.inside: dict[str, str] = {}
+        # ...and one of KOLONİ's own tools that one of them is about to call, by its name and
+        # input (`inside_key`): the id of that tool use (`USED_INSIDE`).
+        self.koloni_inside: dict[str, str] = {}
         # 89g: the roles offered to its CLI as sub-agents of its own, by the name each is
         # offered by: the role's name, and the CLI's tools it may use.
         self.roles: dict[str, tuple[str, list[str]]] = {}
@@ -317,6 +330,17 @@ class _Watch:
     def under(self, use_id: str) -> str | None:
         """The call of the sub-agent this tool use was made in, if it was made in one."""
         return self.subs.get(self.inside.get(use_id, ""))
+
+    def koloni_under(self, name: str, arguments: str) -> str | None:
+        """The call of the sub-agent a call of KOLONİ's own tool comes from, where its hook
+        said it does (`USED_INSIDE`); None for the agent's own.
+        shortcut: its tool use may not be read off the stream yet - then the sub-agent at work
+        (any, where two are) stands in; tell two apart if one is seen under the other's call."""
+        use_id = self.koloni_inside.pop(inside_key(name, arguments), None)
+        if use_id is None:
+            return None
+        return self.under(use_id) or next((self.subs[one] for one in self.at_work), None) or (
+            next(iter(self.subs.values()), None))
 
     async def look(self, changes: Callable[[], list]) -> list:
         """A whole look at a folder it watches (`view.changes`, `project.changes`): no other

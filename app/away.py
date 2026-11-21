@@ -289,8 +289,10 @@ ADDED = re.compile(r"proposed task ([0-9a-f]{32})\b")
 
 def _its_own(session: Session, cid: str, run_id: str, lead_id: str) -> list[dict]:
     """`offer`'s tasks: those the Orchestrator `lead_id` added in turn `run_id`, still open."""
+    # (Not one a CLI's own sub-agent made under its name: `ToolCall.parent_call_id`.)
     said = session.scalars(select(ToolCall.result).where(
-        ToolCall.run_id == run_id, ToolCall.agent_id == lead_id, ToolCall.name == "add_task"))
+        ToolCall.run_id == run_id, ToolCall.agent_id == lead_id, ToolCall.name == "add_task",
+        ToolCall.parent_call_id.is_(None)))
     ids = dict.fromkeys(found.group(1) for one in said if one and (found := ADDED.match(one)))
     tasks = [session.get(BacklogTask, one) for one in ids]
     return [{"title": task.title, "line": task.criteria, "team": None, "recipe": None,
