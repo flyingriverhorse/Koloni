@@ -620,6 +620,25 @@ def test_no_hook_of_the_repository_runs_for_an_agents_own_commit_on_its_branch(
     assert lines(repo)[1] == "TWO-agent" and not marker.exists()
 
 
+@pytest.mark.parametrize("docker", [False, True])
+def test_an_agent_on_a_branch_is_told_git_works_in_its_worktree_but_not_in_docker(
+    make_client, wait_run, repo, docker
+):
+    from app.agent import GIT_ON_BRANCH, NO_GIT
+
+    models: list = []
+    # (In Docker the worktree's .git names a folder of this machine's: git fails in the container.)
+    project = {"project": {"exec_location": "docker", "docker_image": "python:3.12"}} if docker \
+        else {}
+    client, cid, run_id = on_branch(keeping(make_client, models), repo, [
+        step(edit("two", "TWO-agent")), text("A done")], **project)
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    said = "\n".join(str(m.get("content")) for m in models[0].calls_of["Coder"][-1])
+    assert (GIT_ON_BRANCH.format(branch="koloni/fix") in said) is not docker
+    assert (NO_GIT in said) is docker
+
+
 def test_a_secret_is_found_in_a_file_that_is_not_utf8(repo, runtime):
     """Finding 6."""
     from app.agent import _secret_in

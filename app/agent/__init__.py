@@ -720,10 +720,20 @@ NEVER_ENDS = (
 # Said once, with the result of the first change an agent makes in a copy.
 IN_A_COPY = (
     "From here on you work in {whose}: your file tools and commands run there, agents "
-    "outside it do not see what you change, and {taken}. git does not work in the copy. "
+    "outside it do not see what you change, and {taken}. {git} "
     "The copy is your working folder, in the project's place: your report names files by "
     "their paths relative to it. {folders}"
 )  # (B-129: the project's path named here too, agents asked which folder was the real one)
+# Its {git}: a copy has no `.git`. A branch's worktree has the user's repository - what an agent
+# runs there unasked is `commands._own_git`'s list, the rest asked (`reaches_shared_git`); not in
+# Docker, where the worktree's `.git` names a folder of this machine's, not the container's.
+NO_GIT = "git does not work in the copy."
+GIT_ON_BRANCH = (
+    "The copy is a git worktree on its own branch {branch}: git status, diff, log, show, add and "
+    "commit work there, and your commits go onto {branch}. What reaches the user's own repository "
+    "- switching branches, stashing, reset, merge, push, config - and an option those commands do "
+    "not usually take are asked about every time."
+)
 # Said with it to an agent that has tools of the user's MCP servers: an agent whose
 # instructions are written once (a CLI session) was told the project's path there.
 MCP_IN_A_COPY = (
@@ -2289,9 +2299,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # it on the copy if an agent is ever seen to change provider with a copy in hand.
         linked = owner not in self._ctxs or _links_in_copy(self._ctxs[owner].model)
         copy = self._copies.get(owner)
+        said_of_git = NO_GIT
+        if copy is not None and copy.branch:
+            with self._factory() as session:
+                project = self._project(session, ctx.cid)
+            if project is None or project.exec_location != "docker":
+                said_of_git = GIT_ON_BRANCH.format(branch=copy.branch)
         return "\n\n" + IN_A_COPY.format(
             whose="a copy of the project of your own" if mine else f"{name}'s copy of the project",
-            taken=taken, folders=LINKED_IN if linked else NOT_LINKED_IN,
+            taken=taken, git=said_of_git, folders=LINKED_IN if linked else NOT_LINKED_IN,
         ) + (MCP_IN_A_COPY.format(root=copy.root) if copy is not None and self._mcp(ctx) else "") \
             + (self._told_left_out(ctx, copy, reads)
                if copy is not None and (copy.git or copy.part) else "") \

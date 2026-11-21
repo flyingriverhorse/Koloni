@@ -40,6 +40,7 @@ How to write an entry (every release looks the same):
 - **Canvas**: an agent at work says on its box what it does, how long it has worked, the tokens it wrote (where its CLI tells them) and its tier or model ([docs](docs/use/chat-and-canvas.md#the-canvas)).
 - **Chat**: an agent's window, a discussion's, Workspace and a room's window no longer open over the open chat on a small window; beside it they may lie over each other, the one opened last in front.
 - **Chat**: in a 340 px chat the "details" of what a turn did no longer drops to a second line.
+- **Agents**: an agent on a branch is told that git works in its copy (status, diff, history, commits on its branch) and that the rest of git is asked about ([docs](docs/use/workspace.md#branches)).
 
 ### Fixed
 

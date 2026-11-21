@@ -72,6 +72,11 @@ project's `origin` must be the GitHub repository gh sees. Until then the card sa
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").
 
+In its copy, git works for the agent on its own branch: status, diff, history and its commits there run
+unasked, and it is told so. Git that reaches your own repository - switching branches, stashing, reset,
+merge, push, config - is asked at every level, Full auto too. In a project that runs in Docker git does
+not work in the copy.
+
 Your repository's git hooks (pre-commit, commit-msg, post-commit, also those of a `core.hooksPath` such
 as husky's) do not run for an agent's own git commands in its copy - a commit on its branch included.
 
