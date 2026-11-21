@@ -19,7 +19,7 @@ from app.db.models import OwnRequest
 from app.main import create_app
 from app.model_client import StepResult
 from tests.fakes import Script, ScriptedExecutor, ScriptedModel
-from tests.keyed import OWN, TestClient
+from tests.keyed import NO_ORIGIN, OWN, TestClient
 from tests.test_agent_commands import cmd
 from tests.test_agent_writes import wait_status
 from tests.test_agy_agent import agy_app  # noqa: F401  (a fixture)
@@ -374,3 +374,25 @@ def test_agys_run_command_runs_a_delete_the_users_rule_names_without_a_card(
     ran_on_the_rule(client, project_dir, cli, wait_run)
     assert len(default.calls) == 1
 
+
+# --- Decided for you: OK ------------------------------------------------------------------------
+
+
+@pytest.mark.no_po
+def test_ok_takes_a_command_the_check_let_run_off_decided_for_you(judging, wait_run, project_dir):
+    client, *_ = judging(
+        [cmd("rm -rf build", id="k1"), cmd("git push origin main", id="k2"), text("done")],
+        [verdict_line("run", RULE), verdict_line("ask", why="No line names a push.")],
+        [Script([])])
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
+    commands = wait_status(client, cid, "waiting_approval")["commands"]
+    (ran,), (asked,) = ([one for one in commands if (one["status"] == "proposed") is waits]
+                        for waits in (False, True))
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+    url = f"/api/commands/{ran['id']}/seen"
+    assert client.post(url, headers=NO_ORIGIN).status_code == 403
+    seen = client.post(url, headers=OWN)
+    assert seen.status_code == 200 and seen.json()["judged"] == {**ran["judged"], "seen": True}
+    assert client.post(url, headers=OWN).status_code == 409
+    assert client.post(f"/api/commands/{asked['id']}/seen", headers=OWN).status_code == 404
