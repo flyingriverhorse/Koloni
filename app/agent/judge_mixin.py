@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import judge, raw
+from app import away, judge, raw
 from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
@@ -56,18 +56,22 @@ class JudgeMixin:
 
     async def _judging(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, reason: str,
                        asked_anyway: bool) -> tuple[str, dict | None]:
-        """`_judged`'s work, which may raise."""
+        """`_judged`'s work, which may raise. ☾ Away: in a job too, its chat at Full auto
+        (`_away_full_auto`) - its check reads the chat the user went away from."""
         if (not reason or asked_anyway or ctx.run_id in self._sides
                 or self._stood_aside(ctx.run_id)
                 or harm_class(with_cwd(command, cwd), False) != "soft"
-                or not self._full_auto(ctx)):
+                or not (self._full_auto(ctx) or self._away_full_auto(ctx))):
             return reason, None
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = project_of(session, conversation)
             if project is None or project.full_auto_check != "judge":
                 return reason, None
-            texts = self._users_words(session, ctx.cid, project.rules)
+            # (A job's: the chat the user went away from - never its task's own words.)
+            night = away.night_of(session, ctx.cid) if ctx.run_id in self._away_jobs else None
+            texts = self._users_words(session, night.conversation_id if night else ctx.cid,
+                                      project.rules)
             key = (command.strip(), cwd, hashlib.sha256(
                 json.dumps(texts, sort_keys=True).encode()).hexdigest())
             if key in (cache := self._judge_cache.setdefault(ctx.run_id, {})):

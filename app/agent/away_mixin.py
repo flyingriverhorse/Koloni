@@ -94,6 +94,15 @@ class AwayMixin:
         for lead in [one for one in self._ctxs.values() if one.cid == cid and not one.depth]:
             self._nudge(lead, AWAY_TOLD)
 
+    def _away_full_auto(self: "AgentRunner", ctx: Ctx) -> bool:
+        """K-yargıç while away (call 9): a job whose Away runs, its chat at Full auto - as the
+        chat the user went away from was."""
+        if ctx.run_id not in self._away_jobs:
+            return False
+        with self._factory() as session:
+            return away.night_of(session, ctx.cid) is not None and session.get_one(
+                Conversation, ctx.cid).permission_mode == "full_auto"
+
     def typing(self: "AgentRunner", question_id: str) -> None:
         """The user types an answer to a question that waits: the Lead holds off it
         (`TYPING_HOLD_SECONDS`). Nothing kept for one nobody waits on."""

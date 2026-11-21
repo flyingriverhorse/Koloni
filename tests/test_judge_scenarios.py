@@ -718,3 +718,51 @@ def test_claude_codes_bash_run_once_the_check_was_turned_off_is_a_card(claude_ap
     asked = carded(client, cid, run_id, lambda *args: wait_run(*args, 30))
     assert asked["status"] == "proposed" and asked["judged"] is None
     assert claude_app.record()["asked"][0]["behavior"] == "deny"
+
+
+# --- ☾ Away: a job's delete, while the user is away from a chat at Full auto -----------------
+
+
+def away_with(client, project_dir, wait_run, mode):
+    """The user's chat (at `mode`, the check on, RULE saved) puts one task on To-do, and they
+    go away; returns (pid, the night)."""
+    from tests.test_away_scenarios import proposed_in
+    pid, cid, run_id = begin(client, project_dir, "tidy up while I sleep", rules=RULE, mode=mode)
+    wait_run(client, cid, run_id)
+    gone = client.post(f"/api/conversations/{cid}/away",
+                       json={"task_ids": proposed_in(client, cid)}, headers=OWN)
+    assert gone.status_code == 200, gone.text
+    return pid, gone.json()
+
+
+TIDY = {"jobs": [{"title": "tidy", "line": "delete every file in sight"}]}
+
+
+@pytest.mark.no_po
+def test_while_away_a_jobs_delete_your_words_allow_runs_in_its_copy_without_a_card(
+        judging, wait_run, project_dir):
+    from tests.test_away_scenarios import ended, to_do
+    client, _lead, judge, executor = judging(
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("tidied")],
+        [verdict_line("run", RULE)], [Script([])])
+    pid, _night = away_with(client, project_dir, wait_run, "full_auto")
+    done = ended(client, pid)
+    (job,) = done["jobs"]
+    assert job["state"] == "done"  # (it did not wait)
+    (ran,) = client.get(f"/api/conversations/{job['conversation_id']}").json()["commands"]
+    assert ran["status"] == "exited" and ran["judged"]["verdict"] == "run"
+    assert executor.started[0][0] == "rm -rf build"
+    assert done["decided"] == ['ran "rm -rf build" (your words)']
+    # the check read the user's words in the chat they went away from - never the task's
+    asked = str(judge.calls[0])
+    assert "tidy up while I sleep" in asked and "delete every file in sight" not in asked
+
+
+@pytest.mark.no_po
+def test_while_away_below_full_auto_a_jobs_delete_still_waits(judging, wait_run, project_dir):
+    from tests.test_away_scenarios import ended, to_do
+    client, _lead, judge, executor = judging(
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("never")], [], [])
+    pid, _night = away_with(client, project_dir, wait_run, "auto_edit")
+    (job,) = ended(client, pid)["jobs"]
+    assert job["state"] == "waits" and judge.calls == [] and executor.started == []
