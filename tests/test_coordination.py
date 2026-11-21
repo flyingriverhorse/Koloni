@@ -392,6 +392,63 @@ def test_only_taskkills_own_switches_are_no_paths(command):
     assert harm_class(command) == "always"
 
 
+# A stop is by id only where its target is a pid written out, or one the line started; every
+# other stop, in every wrapper, is asked at every level (review round 3: a matrix, not examples).
+STOPS_BY_ID = ["taskkill /F /PID {t}", "Stop-Process -Id {t}", "kill -9 {t}", "tskill {t}"]
+TARGETS_UNKNOWN = ["$PPID", "$x", "%a", "$(pgrep node)", "(Get-Process node).Id", "0", "-1"]
+WRAPPERS = ["{c}", 'cmd /c "{c}"', 'bash -c "{c}"', 'pwsh -c "{c}"', 'iex "{c}"',
+            "for /f %a in ('x') do {c}", "env X=1 {c}"]
+STOPS_OF_WHAT_IS_FOUND = [
+    "(Get-Process node).Kill()", "$w.Terminate()", "(gwmi win32_process).Terminate()",
+    "Get-Process node | % Kill", "gwmi win32_process | % terminate",
+    "gwmi win32_process | ForEach-Object Terminate", "foreach ($p in Get-Process node) { $p.Kill() }",
+    "Get-CimInstance Win32_Process | Remove-CimInstance", "gwmi Win32_Process | rwmi",
+    'wmic process where name="x.exe" delete', "wmic process call terminate",
+    "fuser -k 8790/tcp", "npx kill-port 8790", "npm exec kill-port 8790", "pnpm dlx kill-port 8790"]
+
+
+@pytest.mark.parametrize("wrapper", WRAPPERS)
+@pytest.mark.parametrize("target", TARGETS_UNKNOWN)
+@pytest.mark.parametrize("verb", STOPS_BY_ID)
+def test_a_stop_of_a_pid_the_line_does_not_know_is_always_asked(verb, target, wrapper):
+    command = wrapper.replace("{c}", verb.replace("{t}", target))
+    assert harm_class(command) == "always", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME, command
+
+
+@pytest.mark.parametrize("wrapper", WRAPPERS)
+@pytest.mark.parametrize("command", STOPS_OF_WHAT_IS_FOUND)
+def test_a_stop_of_what_a_lookup_found_is_always_asked(command, wrapper):
+    command = wrapper.replace("{c}", command)
+    assert harm_class(command) == "always", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME, command
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", "env X=1 {c}"])
+@pytest.mark.parametrize("command", [
+    "taskkill /F /PID 1234", "Stop-Process -Id 1234", "kill -9 1234", "tskill 1234",
+    "$p = Start-Process x -PassThru; Stop-Process -Id $p.Id",
+    "$p = Start-Process x -PassThru; taskkill /F /PID $p.Id",
+    "python x.py & kill $!", "python x.py & PID=$!; sleep 1; kill $PID", "kill %1",
+])
+def test_a_stop_of_a_pid_written_out_or_the_lines_own_is_no_harm(command, wrapper):
+    command = wrapper.replace("{c}", command)
+    assert harms(command) == "", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == "", command
+
+
+@pytest.mark.parametrize("command, kind", [
+    ("pkill thon", "always"), ("pkill p.thon", "always"), ("pkill laude", "always"),
+    ("killall pytho[n]", "always"), ("pkill [p]ython", "always"),
+    ("Stop-Process -Name nod[e]", "always"), ("pkill vite", "soft"), ("pkill -x vite", "soft"),
+    ("killall vite", "soft"),
+    # (a process the line started, then something else in its name: its id is not that one)
+    ("$p = Start-Process x -PassThru; $p = Get-Process node; Stop-Process -Id $p.Id", "always"),
+])
+def test_a_name_that_may_match_kolonis_own_is_always_asked(command, kind):
+    assert harm_class(command) == kind, command
+
+
 def places(tmp_path):
     """A project, KOLONİ's runtime, this copy's own tree in its copies folder, the folder, and
     one of the project's worktrees."""
