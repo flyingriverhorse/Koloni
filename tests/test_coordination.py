@@ -3,7 +3,9 @@ no harm. One way into the project at a time - a Take in waits while a branch mer
 made meanwhile, or one already made, gets what went in."""
 
 import os
+import re
 import shutil
+import sys
 import threading
 import time
 from pathlib import Path
@@ -15,6 +17,7 @@ from app import copies, git
 from app.agent import ALONGSIDE, AgentRunner, recover_copies
 from app.commands import (
     KILLS_BY_NAME,
+    NAMES_PROJECT,
     OUT_OF_COPY,
     copy_reason,
     harm_class,
@@ -347,6 +350,46 @@ def test_before_its_copy_is_made_every_copy_is_anothers(tmp_path):
     project, runtime, own, held, _worktree = places(tmp_path)  # noqa: F811
     said = copy_reason(f"type {own}/x.txt", False, str(project), runtime)
     assert said == OUT_OF_COPY.format(path=str(held))
+
+
+def spellings(path):
+    """A full path as a command may write it, doubled and dotted separators and all."""
+    forms = [re.sub(r"[\\/]", lambda one: one[0] * 2, path),  # (`C:\\Users\\...`)
+             re.sub(r"(?<=.)[\\/]", lambda one: f"{one[0]}.{one[0]}", path),  # (`C:\.\Users`)
+             path.replace(os.sep, os.sep * 2, 1)]  # (one doubled anywhere)
+    if sys.platform == "win32":
+        head, _sep, tail = path.rpartition("\\")
+        forms += [path.replace("\\", "//"), f"/{path[0]}{path[2:]}".replace("\\", "//"),
+                  f"{head}.\\{tail}"]  # (`proj.\x`: Windows drops a name's last dots)
+    return forms
+
+
+def test_a_full_path_with_doubled_or_dotted_separators_is_still_seen(tmp_path):
+    project, runtime, own, held, worktree = places(tmp_path)  # noqa: F811
+    for path, said in [(str(project / "x"), NAMES_PROJECT.format(root=str(project))),
+                       (str(held / "b" / "tree" / "x"), OUT_OF_COPY.format(path=str(held)))]:
+        for spelt in spellings(path):
+            for command in (f"cp y {spelt}", f"python -c \"open('{spelt}','w')\""):
+                assert asked_in_copy(tmp_path, command) == said, command
+
+
+def test_a_copies_folder_by_the_users_environment_is_still_seen(tmp_path, monkeypatch):
+    # (conftest puts the user's data folder at <tmp>/user-data: here it is under their home)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "user-data"))
+    project, runtime, own, _held, _worktree = places(tmp_path)  # noqa: F811
+    users = copies.folders(runtime)[-1]  # (the user's data folder's: `copies._both`)
+    rest = users.relative_to(tmp_path).as_posix()
+    spelt = [f"$HOME/{rest}", f"${{HOME}}/{rest}", f"~/{rest}"]
+    if sys.platform == "win32":
+        local = users.relative_to(tmp_path / "user-data")
+        spelt += [f"%LOCALAPPDATA%\\{local}", f"$env:LOCALAPPDATA/{local.as_posix()}",
+                  f"%USERPROFILE%\\{users.relative_to(tmp_path)}"]
+    for one in spelt:
+        command = f"cp y {one}/b/tree/x"
+        said = copy_reason(command, False, str(project), runtime, own)
+        assert said == OUT_OF_COPY.format(path=str(users)), command
 
 
 def chat(make_client, folder, scripts, executor):

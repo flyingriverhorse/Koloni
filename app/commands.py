@@ -958,6 +958,35 @@ def _spellings(path: str) -> re.Pattern:
                       + r")(?![\w.-])")
 
 
+# The user's own folders a command may name by a variable (`%LOCALAPPDATA%`, `$env:TEMP`,
+# `${HOME}`, `$HOME`) or `~`: read with KOLONİ's own values (`_as_path_line`).
+_USERS_FOLDERS = frozenset({"LOCALAPPDATA", "APPDATA", "USERPROFILE", "HOME", "TEMP", "TMP",
+                            "TMPDIR", "XDG_DATA_HOME"})
+_VARIABLE = re.compile(r"(?i)%(\w+)%|\$\{?env:(\w+)\}?|\$\{(\w+)\}|\$(\w+)")
+_TILDE = re.compile(r"(?:^|(?<=[\s'\"=:(,]))~(?=[\\/\s'\")]|$)")
+
+
+def _users_folder(found: re.Match) -> str:
+    name = next(filter(None, found.groups()))
+    if name.upper() not in _USERS_FOLDERS:
+        return found[0]
+    home = os.path.expanduser("~") if name.upper() in ("HOME", "USERPROFILE") else None
+    return os.environ.get(name.upper() if os.name == "nt" else name) or home or found[0]
+
+
+def _as_path_line(command: str) -> str:
+    """A command as its full paths are matched (`_spellings`): the user's folders by their
+    variables read (`_USERS_FOLDERS`, `~`), in `os.path.normcase`'s case, and separators doubled
+    or with `.` between them as one (`C:\\\\Users`, `C://x`, `/c//x`, `C:\\.\\x`) - a doubled one
+    that starts a word stays (`\\\\server\\share`); on Windows a name's last dots go
+    (`proj.\\x` is `proj\\x` there)."""
+    line = _TILDE.sub(lambda _found: os.path.expanduser("~"), _VARIABLE.sub(_users_folder, command))
+    line = os.path.normcase(line)
+    if os.name == "nt":
+        line = re.sub(r"(?<![\\/.\s])\.+(?=[\\/])", "", line)
+    return re.sub(r"(?<=[^\s'\"=(])[\\/](?:\.?[\\/])+", lambda _found: os.sep, line)
+
+
 NAMES_PROJECT = (
     "it names the project folder ({root}), outside the working copy it works in: there it "
     "would act on the project itself"
@@ -1039,7 +1068,7 @@ def _names_elsewhere(command: str, project: str, runtime: Path | str, own: str |
     worktree of the project, its own folder aside - the copy's own tree (`own`) taken out of the
     line first; or above the tree by `..` (`_climbs_out`). `own` None: the copy is not made yet,
     and every copy is another's."""
-    written = os.path.normcase(command)
+    written = _as_path_line(command)
     if own is not None:
         written = _spellings(own).sub("", written)
     here = os.path.normcase(os.path.realpath(project))
@@ -1066,7 +1095,7 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
     shortcut: by the path as written, either slash, in any case on Windows; a short name
     (`PROJ~1`), a variable or a script that names it is not seen - nor a delete in a script,
     or by a program `_through_links` does not list."""
-    written = _spellings(str(runtime)).sub("", os.path.normcase(command))
+    written = _spellings(str(runtime)).sub("", _as_path_line(command))
     if _spellings(project).search(written):
         return NAMES_PROJECT.format(root=project)
     own = str(own) if own is not None else None
