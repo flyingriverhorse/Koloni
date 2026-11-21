@@ -41,13 +41,18 @@ their task needs, write nothing outside their copy, stop no program by its name,
 free port, and install nothing into the linked `node_modules`, `.venv` or `venv`. A command an agent
 runs in its copy is asked at every level, Full auto too, when it:
 
-- names another agent's copy, a worktree of your project, or a place above its copy (`../..`);
-- installs into the linked `node_modules`, `.venv` or `venv`, which are your project's own (in a turn
-  you watch; a trigger's turn runs only the commands its trigger allows, as before);
-- stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`). By its id
-  (`taskkill /PID`, `kill 1234`, `Stop-Process -Id`) is fine.
+- names another agent's copy, a worktree of your project, or a place above its copy (`../..`) - also
+  past a `cd` KOLONİ cannot follow, where any `..` counts;
+- writes in the linked `node_modules`, `.venv` or `venv`, which are your project's own, or installs
+  into them (in a turn you watch; a trigger's turn runs only the commands its trigger allows, as
+  before);
+- stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a
+  process up and stops it (`lsof -ti:8000 | xargs kill`, `fuser -k`). By its id (`taskkill /PID`,
+  `kill 1234`, `Stop-Process -Id 1234`) is fine. In your project, at Full auto, **Check what I said
+  first** may let a stop by name run on a line of yours, but never one that may stop KOLONİ itself
+  (python, node, uvicorn, a filter, a wildcard or a process looked up).
 
-KOLONİ reads the command as written: a path built in a script or held in a variable is not seen.
+KOLONİ reads the command as written: a path built in a script is not seen.
 
 [![A working copy's life: the copy is made, the agent works in it, a card in Ready for you, Run the test, then Take in, Merge or Open pull request, or Discard; clashes, commits, and what is removed or kept; and a lane for an agent on a branch: its work committed when it stops, go on on the same branch or in a copy, and a branch holding a secret never kept](../diagrams/working-copy.svg)](../diagrams/working-copy.svg)
 
