@@ -11,7 +11,7 @@ import pytest
 import app.model_native
 from app import raw
 from app.agent.tiers_mixin import REFUSED_LAST
-from app.model_native import _files, _heredoc_patch
+from app.model_native import _edits_patch, _files, _heredoc_patch
 from app.workspace import SECRET_CARD
 from tests.test_agent_writes import wait_status
 from tests.test_agents_teams_scenarios import patch_role, spawn
@@ -372,7 +372,7 @@ def test_a_tool_copilot_ran_without_asking_is_marked_so(
 # --- 9. Its session is made with only the tools KOLONİ can judge (fix round) ---------------
 
 BUILT_IN = ["powershell", "read_powershell", "stop_powershell", "list_powershell", "view",
-            "create", "edit"]
+            "create", "edit", "apply_patch"]
 
 
 def test_its_session_has_only_the_tools_koloni_judges_and_none_of_its_own_set_up(
@@ -1000,3 +1000,94 @@ def test_in_a_working_copy_a_new_shells_work_in_the_scratch_is_still_a_card(
     client.post(f"/api/commands/{asked['id']}/reject")
     wait_run(client, cid, run_id)
     assert answers(copilot_native) == [("shell", REJECT)]
+
+
+# --- 14. Its own apply_patch: non-Claude models' file tool (B-389, B-393) ---------------------
+# (Measured on 1.0.105, 20 Nov 2026: mai-code-2-flash and gpt-6-luna have apply_patch, not create
+# or edit; its arguments are the patch's text, and it asks one write with fileEdits.)
+
+TWO = "*** Begin Patch\n*** Add File: a.txt\n+made a\n*** Add File: b.txt\n+made b\n*** End Patch"
+
+
+def test_a_one_file_apply_patch_is_its_file_card(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    client, provider = copilot_native([
+        {"patch": f"*** Begin Patch\n{UPDATE_HELLO}\n*** End Patch"}, {"say": "Patched."}])
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    card = proposed(client, cid, "hello.py")
+    assert "+print('hello')" in card["diff"]
+    assert hello(project_dir) == "print('hi')\n"  # nothing written before the yes
+    client.post(f"/api/file-changes/{card['id']}/approve")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert answers(copilot_native) == [("write", APPROVE)]
+    assert hello(project_dir) == "print('hello')\n"
+    assert [(f["path"], f["status"]) for f in snap["file_changes"]] == [("hello.py", "applied")]
+    assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
+
+
+def test_a_two_file_apply_patch_is_asked_file_by_file_and_both_are_taken_in(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    client, provider = copilot_native([{"patch": TWO}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    for path in ("a.txt", "b.txt"):
+        card = proposed(client, cid, path)
+        assert f"+made {path[0]}" in card["diff"]
+        assert not (project_dir / "a.txt").exists()  # nothing before every file's yes
+        client.post(f"/api/file-changes/{card['id']}/approve")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert answers(copilot_native) == [("write", APPROVE)]
+    assert sorted((f["path"], f["status"]) for f in snap["file_changes"]) == [
+        ("a.txt", "applied"), ("b.txt", "applied")]
+    assert (project_dir / "b.txt").read_text(encoding="utf-8") == "made b\n"
+    assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
+
+
+def test_one_refused_file_of_an_apply_patch_refuses_it_all(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    client, provider = copilot_native([{"patch": TWO}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    client.post(f"/api/file-changes/{proposed(client, cid, 'a.txt')['id']}/approve")
+    client.post(f"/api/file-changes/{proposed(client, cid, 'b.txt')['id']}/reject")
+    snap = wait_run(client, cid, run_id)
+    assert answers(copilot_native) == [("write", REJECT)]
+    assert not (project_dir / "a.txt").exists() and not (project_dir / "b.txt").exists()
+    # (the one approved is closed as never made: its patch was declined)
+    assert sorted((f["path"], f["status"]) for f in snap["file_changes"]) == [
+        ("a.txt", "failed"), ("b.txt", "rejected")]
+    assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
+
+
+def test_an_apply_patch_that_ran_unasked_names_each_file(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    client, provider = copilot_native([{"patch": TWO, "unasked": True}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)
+    snap = wait_run(client, cid, run_id)
+    assert answers(copilot_native) == []
+    for path in ("a.txt", "b.txt"):
+        assert [t for t in snap["tool_calls"] if t["name"] == "edit_file"
+                and UNASKED in (t["result"] or "") and path in t["result"]], path
+
+
+def test_its_rules_say_its_own_apply_patch_is_its_file_tool():
+    from app.model_native import CopilotNativeClient
+
+    assert "or apply_patch where that is yours" in CopilotNativeClient.rules
+    assert "a patch piped into apply_patch in the shell) is asked about as a command" in (
+        CopilotNativeClient.rules)
+
+
+def test_a_patch_of_several_files_that_moves_one_or_names_one_twice_is_declined_whole():
+    made = {"after": {"path": "C:/p/a.txt", "content": "x"}}
+    gone = {"before": {"path": "C:/p/b.txt", "content": "y"}}
+    assert [tool for tool, _input in _edits_patch([made, gone], {})] == ["Write", "Edit"]
+    for other in ({"before": {"path": "C:/p/b.txt", "content": ""},
+                   "after": {"path": "C:/p/c.txt", "content": ""}},  # a move
+                  {"after": {"path": "C:/p/a.txt", "content": "z"}},  # a file twice
+                  {"after": {"path": "C:/p/b.txt"}}, {}):  # no content, nothing named
+        assert _edits_patch([made, other], {}) == [], other

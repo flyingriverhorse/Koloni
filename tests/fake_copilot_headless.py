@@ -25,6 +25,12 @@ made on auto, "picked" is the model its auto picks, said with "picked_why" befor
     {"write": "a.py", "content": "x"}                 a file written once approved (its
                                                       tool "create", or "edit" if it is there)
     {"read": ".env", "result": "..."}                 its view tool, run once approved
+    {"patch": "*** Begin Patch\n..."}                its apply_patch (1.0.105, non-Claude models):
+                                                      the patch's text as its arguments, call id
+                                                      "custom_call_N", one write request with a
+                                                      fileEdit a file; each file written once
+                                                      approved (what a file will hold: its "+"
+                                                      and " " lines, a whole-file hunk)
     {"ask": {"kind": "url", ...}, "tool": "web_fetch"} any other permission request
     {"koloni": "read_notes", "args": {}}              a call to KOLONİ's MCP server, for real
     {"request": "userInput.request", "params": {}}    a JSON-RPC request of its own
@@ -48,6 +54,7 @@ session.usage_checkpoint it sends, in order, before its turn ends (none: none se
 
 import json
 import os
+import re
 import runpy
 import subprocess
 import sys
@@ -260,7 +267,19 @@ def permitted(call: str, request: dict, action: dict) -> bool:
     return approved
 
 
-def tool(call: str, name: str, arguments: dict, request: dict | None, action: dict,
+def patched(text: str) -> list[list]:
+    """Each file a patch names, and what it will hold (None: it goes)."""
+    files: list[list] = []
+    for line in text.split("\n"):
+        header = re.fullmatch(r"\*\*\* (Add|Update|Delete) File: (.+)", line)
+        if header:
+            files.append([header[2], None if header[1] == "Delete" else ""])
+        elif files and files[-1][1] is not None and line[:1] in ("+", " "):
+            files[-1][1] += line[1:] + "\n"
+    return files
+
+
+def tool(call: str, name: str, arguments: dict | str, request: dict | None, action: dict,
          work=None, result: str = "done", **start) -> None:
     began = {"toolCallId": call, "toolName": name, "arguments": arguments, **start}
     if action.get("start") not in ("after", "none"):
@@ -345,6 +364,25 @@ for number, action in enumerate(plan.get("script", [])):
         if "resolved" in action:
             request["resolvedPath"] = str(cwd / action["resolved"])
         tool(call, "edit" if there else "create", {"path": str(target)}, request, action, write)
+    elif "patch" in action:
+        files = patched(action["patch"])
+        edits = [{k: v for k, v in (
+            ("before", {"path": str(cwd / path), "content": (cwd / path).read_text("utf-8")}
+             if (cwd / path).exists() else None),
+            ("after", None if content is None else {"path": str(cwd / path), "content": content}))
+            if v} for path, content in files]
+
+        def apply(files=files) -> None:
+            for path, content in files:
+                if content is None:
+                    (cwd / path).unlink()
+                else:
+                    (cwd / path).parent.mkdir(parents=True, exist_ok=True)
+                    (cwd / path).write_bytes(content.encode("utf-8"))
+        tool(f"custom_{call}", "apply_patch", action["patch"], {
+            "kind": "write", "fileName": str(cwd / files[0][0]), "intention": "Apply patch",
+            "diff": action["patch"], "canOfferSessionApproval": True, "fileEdits": edits},
+            action, apply, f"Modified {len(files)} file(s)")
     elif "read" in action:
         target = cwd / action["read"]
         tool(call, "view", {"path": str(target)}, {

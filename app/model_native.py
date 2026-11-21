@@ -327,6 +327,26 @@ def _heredoc_patch(command: str, cwd: str, powershell: bool = False) -> list[dic
     return changes or None
 
 
+def _edits_patch(edits: list[dict], given: dict) -> list[tuple[str, dict]]:
+    """Each file of a write that names several (Copilot's apply_patch) asked as its own, as
+    Claude Code's prompts are: what it will hold as its Write, a file that goes as its Edit.
+    [] where any one moves a file, is named twice or says no whole content: none of it is
+    answered yes."""
+    questions: list[tuple[str, dict]] = []
+    seen: set[str] = set()
+    for edit in edits:
+        before, after = _dict(edit.get("before")), _dict(edit.get("after"))
+        path = after.get("path") if after else before.get("path")
+        if not isinstance(path, str) or not path or os.path.normcase(path) in seen or (
+                before and before.get("path") != path) or (
+                after and not isinstance(after.get("content"), str)):
+            return []
+        seen.add(os.path.normcase(path))
+        questions.append(("Write", {"file_path": path, "content": after["content"], **given})
+                         if after else ("Edit", {"file_path": path, "kind": "delete", **given}))
+    return questions
+
+
 def _patch_questions(changes: object, given: dict) -> list[tuple[str, dict]]:
     """Each file of a patch asked as Claude Code's prompts are: a new one as its Write (its
     diff is what it will hold), any other as its Edit."""
@@ -2932,6 +2952,9 @@ class QoderNativeClient(ClaudeNativeClient):
 
 
 COPILOT_WRITES = ("edit", "create")
+# Its file tool on models other than Claude (measured on 1.0.105, 20 Nov 2026: mai-code-2-flash,
+# gpt-6-luna): its arguments are the patch's text, and it asks one write with a fileEdit a file.
+COPILOT_PATCH = "apply_patch"
 COPILOT_RUNS = ("powershell", "bash", "shell")
 # Its tool that only says what it is about to do: not one that ran unasked.
 # shortcut: by its name as remembered, not measured; add any other that never acts.
@@ -3035,14 +3058,16 @@ class _ShellPatches(dict):
 
 HEADLESS = ["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
 # Its own tools a session is given (`availableTools`): its shell and what goes with it, and
-# its file tools, each asked about as a command, a write or a read. Not grep or glob (a
+# its file tools (apply_patch: non-Claude models' only one, B-389/B-393; a name a model does
+# not have is no error, measured on 1.0.105), each asked about as a command, a write or a
+# read. Not grep or glob (a
 # search reads a secret's lines with no card for the file), web_fetch or web_search, sql,
 # skill, its workflow tools, nor task and its agent tools (sub-agents in sessions of their
 # own, whose events are not read here).
 # shortcut: the tools Copilot 1.0.91 reports (measured 24 Oct 2026; no write_powershell
 # then); check the list again after an update of Copilot's (K-cli-surface).
 COPILOT_TOOLS = ["powershell", "read_powershell", "stop_powershell", "list_powershell", "view",
-                 "create", "edit"]
+                 "create", "edit", COPILOT_PATCH]
 COPILOT_READS = ["view"]
 MAX_MESSAGE = 2**26
 
@@ -3076,6 +3101,30 @@ async def _framed(stream: asyncio.StreamReader) -> dict | None:
         return _dict(json.loads(body))
     except ValueError:
         raise ValueError("a message that is not JSON") from None
+
+
+def _written(name: str, call_id: str, given: object, failed: bool, unasked: bool) -> dict:
+    """A file tool of Copilot's as it ended, on record as the change it is ({}: no file tool,
+    or its create or edit failed). Its own apply_patch (B-393): each file its patch's text
+    names, by the ids its files were asked under (`_permit`); declined, those approved are
+    closed."""
+    if name in COPILOT_WRITES and not failed:
+        path = _dict(given).get("path")
+        return {"type": "item.completed", "item": {
+            "type": "file_change", "id": call_id,
+            "changes": [{"path": path, "kind": "add" if name == "create" else "update"}],
+            "unasked": [str(path)] if unasked and path else []}}
+    if name != COPILOT_PATCH:
+        return {}
+    named = [(header[2].strip(), header[1].lower()) for header in (
+        PATCH_FILE.fullmatch(line) for line in (
+            given.splitlines() if isinstance(given, str) else [])) if header]
+    return {"type": "item.completed", "item": {
+        "type": "file_change", "id": call_id, "declined": failed,
+        "status": "failed" if failed else "completed",
+        "changes": [{"path": path, "kind": how} for path, how in named],
+        "parts": [f"{call_id}:{n}" for n in range(len(named))],
+        "unasked": [path for path, _how in named] if unasked else []}}
 
 
 def _diff_paths(diff: object) -> list[str]:
@@ -3123,11 +3172,13 @@ class CopilotNativeClient(CodexNativeClient):
     effort_flag = CopilotSessionClient.effort_flag
     effort_words = CopilotSessionClient.effort_words
     # B-389 (R187, live): it sent its patch as a command (`git apply`), refused, and gave up the
-    # change. Its own edit tool is a file card; KOLONİ's write tools it has only read-only.
+    # change. Its own file tools are file cards - create and edit, or apply_patch on models that
+    # have no others (B-393); KOLONİ's write tools it has only read-only.
     rules = NATIVE_RULES + (
-        "\n\nTo change a file, use your own file edit tool (KOLONİ's write_file / edit_file where "
-        "you have them). A patch command (apply_patch, git apply) is asked about as a command, "
-        "and may be refused.")
+        "\n\nTo change a file, use your own file tool: create and edit, or apply_patch where that "
+        "is yours (KOLONİ's write_file / edit_file where you have them). A patch run as a shell "
+        "command (git apply, a patch piped into apply_patch in the shell) is asked about as a "
+        "command, and may be refused.")
 
     def __init__(self, executable=None, model=None, timeout: float = 900.0, *,
                  base_url=None, api_key=None, options=None, context=None, **more):
@@ -3278,13 +3329,8 @@ class CopilotNativeClient(CodexNativeClient):
                         else "completed",
                         "unasked": unasked, "sandboxed": boxed,
                         **({"blocked": NO_PYTHON_BLOCKED} if NO_PYTHON.search(said) else {})}}]
-                if name in COPILOT_WRITES and not failed:
-                    how = "add" if name == "create" else "update"
-                    path = given.get("path")
-                    return [*done, {"type": "item.completed", "item": {
-                        "type": "file_change", "id": call_id,
-                        "changes": [{"path": path, "kind": how}],
-                        "unasked": [str(path)] if unasked and path else []}}]
+                if wrote := _written(name, call_id, started.get("arguments"), failed, unasked):
+                    return [*done, wrote]
                 return [*done, {"type": "item.completed", "item": {
                     "type": "mcp_tool_call", "id": call_id, "server": "copilot", "tool": name,
                     "arguments": given, "status": "failed" if failed else "completed",
@@ -3754,7 +3800,14 @@ class CopilotNativeClient(CodexNativeClient):
             else:
                 paths = [str(request["resolvedPath"])] if request.get("resolvedPath") else []
                 paths += _diff_paths(diff)
-            if len(edits) > 1 or not _all_named(root, named, paths):
+            if len(edits) > 1:
+                # Its apply_patch asks one write for a patch (B-393): each file its own card.
+                # shortcut: a patch of several files taken to come as one request with a
+                # fileEdit a file - one file's measured (1.0.105); measure a two-file one live.
+                questions = _edits_patch(edits, given)
+                why = (f"KOLONİ declined this request of {self.label}'s: a file of it would "
+                       "move, is named twice, or its content is not said")
+            elif not _all_named(root, named, paths):
                 why = (f"KOLONİ declined this request of {self.label}'s: it would change "
                        "another file than the one it names, or more than one")
             elif isinstance(after.get("content"), str):
@@ -3778,7 +3831,7 @@ class CopilotNativeClient(CodexNativeClient):
         answered.add((use_id, kind))
         for number, (tool, input_) in enumerate(questions):
             # (A patch's files by the ids its record names as its `parts`: `_translator`.)
-            ask_id = f"{use_id}:{number}" if use_id in heredocs else use_id
+            ask_id = f"{use_id}:{number}" if use_id in heredocs or len(questions) > 1 else use_id
             await on_item("announced", {"id": ask_id})
             _ok, verdict = await call_tool("approve", json.dumps(
                 {"tool_name": tool, "input": input_, "tool_use_id": ask_id}))
