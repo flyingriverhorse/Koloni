@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Koloni by Skyulf · AI agents that work together on your project, on your own machine</title>
+<meta name="description" content="Koloni is an open-source, local workspace where AI agents work on your project together: Claude Code, Codex, GitHub Copilot, Qoder, agy and a local llama.cpp in one team, every step on record, and you decide what reaches your project.">
+<meta name="keywords" content="Koloni, Koloni, Skyulf, AI agents, multi-agent, coding agents, Claude Code, Codex, GitHub Copilot CLI, Qoder, llama.cpp, local AI, self-hosted, open source, agent orchestration, code review">
+<meta name="author" content="Skyulf">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="theme-color" content="#f5f4f0">
+<meta name="application-name" content="Koloni">
+<meta name="apple-mobile-web-app-title" content="Koloni">
+<link rel="canonical" href="https://koloni.skyulf.com/">
+<link rel="alternate" hreflang="en" href="https://koloni.skyulf.com/">
+<link rel="alternate" hreflang="x-default" href="https://koloni.skyulf.com/">
+<link rel="icon" href="assets/koloni.svg" type="image/svg+xml">
+<link rel="icon" href="assets/koloni-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="assets/koloni-192.png">
+<link rel="sitemap" type="application/xml" href="sitemap.xml">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Koloni">
+<meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://koloni.skyulf.com/">
+<meta property="og:title" content="Koloni · Agents do the work. You decide.">
+<meta property="og:description" content="AI agents that work together on your project, on your own machine: the CLIs you already use in one team, every step on record, and you decide what lands.">
+<meta property="og:image" content="https://koloni.skyulf.com/assets/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Koloni: a team of agents on the canvas and their change open in the Workspace">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Koloni · Agents do the work. You decide.">
+<meta name="twitter:description" content="AI agents that work together on your project, on your own machine, with every step on record.">
+<meta name="twitter:image" content="https://koloni.skyulf.com/assets/og.jpg">
+<meta name="twitter:image:alt" content="Koloni: a team of agents on the canvas and their change open in the Workspace">
+
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://www.skyulf.com/#org","name":"Skyulf","url":"https://www.skyulf.com/","logo":"https://koloni.skyulf.com/assets/skyulf.png","founder":{"@type":"Person","name":"Murat H. Unsal","sameAs":["https://www.linkedin.com/in/murat-u/"]},"sameAs":["https://kayra.skyulf.com/","https://koloni.skyulf.com/","https://github.com/flyingriverhorse/Koloni"]},{"@type":"WebSite","@id":"https://koloni.skyulf.com/#website","url":"https://koloni.skyulf.com/","name":"Koloni","description":"Koloni by Skyulf: an open-source, local workspace where AI agents work on your project together.","publisher":{"@id":"https://www.skyulf.com/#org"},"inLanguage":"en"},{"@type":"SoftwareApplication","name":"Koloni","operatingSystem":"Windows, Linux","applicationCategory":"DeveloperApplication","softwareVersion":"0.1.0","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"license":"https://www.gnu.org/licenses/agpl-3.0.html","description":"A local workspace where AI agents work on your project together: the CLIs you are signed in to and a local llama.cpp in one team, a canvas drawn from the record, and you decide what reaches your project.","author":{"@id":"https://www.skyulf.com/#org"},"featureList":"Orchestrator and sub-agents, Teams and recipes, Rooms, Discussions, Claude Code, Codex, GitHub Copilot CLI, Qoder, agy, llama.cpp, Anthropic API, Canvas from the record, Working copies and git branches, Take in and Reject cards, Pull requests, Start from a GitHub issue, To-do with suggestions, Triggers, Night work, Memory, Knowledge","softwareRequirements":"Python 3.12 to 3.14, Node.js 24, Git","screenshot":"https://koloni.skyulf.com/assets/workspace.jpg","url":"https://koloni.skyulf.com/","image":"https://koloni.skyulf.com/assets/koloni-192.png"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is Koloni?","acceptedAnswer":{"@type":"Answer","text":"A workspace on your own computer where AI agents work on your project together. You talk to one Orchestrator; it hands parts of the job to agents such as a Coder, a Tester and a Reviewer, and a canvas beside the chat shows what each of them did."}},{"@type":"Question","name":"Is it free?","acceptedAnswer":{"@type":"Answer","text":"Koloni is open source under the AGPL-3.0-or-later and costs nothing to run. The models you use are billed by their vendors, through your subscription or your API key; a local llama.cpp costs nothing. A commercial license is available if the AGPL does not fit your use."}},{"@type":"Question","name":"Does my code leave my machine?","acceptedAnswer":{"@type":"Answer","text":"Koloni listens on 127.0.0.1 only and sends no telemetry. Your code goes only to the models you choose: with a local llama.cpp no model call leaves your computer; with a CLI or an API, what an agent reads goes to that vendor. Web searches, GitHub and notifications go out only when you allow them."}},{"@type":"Question","name":"Can an agent break my project?","acceptedAnswer":{"@type":"Answer","text":"Sub-agents work in copies or branches of their own. Their work reaches your project when you take it in, or by itself at Auto-edit and Full auto once the agent finished, nothing clashes and the project's test passed. Risky commands ask on a card, and Stop keeps half-done work instead of throwing it away."}},{"@type":"Question","name":"Which systems does it run on?","acceptedAnswer":{"@type":"Answer","text":"Koloni is in alpha, for one user. It is used every day on Windows and tested on Linux in CI; macOS is not tested yet."}}]}</script>
+
+<link rel="preload" as="image" href="assets/workspace.jpg">
+<style>
+@font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;font-display:swap;src:url(assets/fonts/instrument-serif-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;font-display:swap;src:url(assets/fonts/instrument-serif-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Instrument Serif';font-style:italic;font-weight:400;font-display:swap;src:url(assets/fonts/instrument-serif-italic-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Instrument Serif';font-style:italic;font-weight:400;font-display:swap;src:url(assets/fonts/instrument-serif-italic-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 700;font-display:swap;src:url(assets/fonts/instrument-sans-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 700;font-display:swap;src:url(assets/fonts/instrument-sans-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 600;font-display:swap;src:url(assets/fonts/jetbrains-mono-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 600;font-display:swap;src:url(assets/fonts/jetbrains-mono-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+
+:root{
+  /* Skyulf family: the same paper, type and rhythm as Kayra; Koloni's own colours come from its bee */
+  --paper:#f5f4f0; --ink:#1a1a19; --soft:#4d5468; --faint:#787d8c; --line:#e2e0d9;
+  --navy:#1a1a19; --navy-deep:#000; --bee:#FFC516; --honey:#fdf0c4; --honey-line:#efd98c;
+  --kayra:oklch(0.80 0.13 65); --koloni:#FFC516;
+  --edge:clamp(20px,4vw,56px);
+  --gap:clamp(52px,6.5vw,96px);
+  --sans:'Instrument Sans',system-ui,sans-serif;
+  --serif:'Instrument Serif',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--navy);outline-offset:3px;border-radius:3px}
+img,video{display:block;max-width:100%;height:auto}
+h1,h2,h3{font-family:var(--serif);font-weight:400;margin:0;letter-spacing:-.015em}
+p{margin:0}
+ul{margin:0;padding:0;list-style:none}
+button{font:inherit;color:inherit}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:12px;top:12px;z-index:100;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:999px}
+.dot{display:inline-block;flex-shrink:0;width:7px;height:7px;border-radius:50%;background:var(--koloni)}
+.dot.kayra{background:var(--kayra)}
+
+/* the Skyulf strip above the page, as on Kayra */
+.sky{background:var(--ink);color:#bdbbb3;font-size:13px;line-height:normal}
+.sky .in{display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px;padding:7px var(--edge)}
+.sky a{text-decoration:none}
+.sky .home{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--paper)}
+.sky .home img{width:18px;height:18px;object-fit:contain}
+.sky .sep{width:1px;height:14px;background:#4a4842}
+.sky .label{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:#8a887f}
+.sky nav{display:flex;gap:4px}
+.sky nav a{display:flex;align-items:center;gap:7px;padding:4px 10px;border-radius:999px}
+.sky nav a:hover{background:#2a2926}
+.sky nav a[aria-current]{background:#34332f;color:var(--paper)}
+
+/* the page header follows you down */
+.top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px 32px;padding:14px var(--edge);border-bottom:1px solid var(--line);font-size:15px;line-height:normal;position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:box-shadow .2s}
+.top.scrolled{box-shadow:0 6px 24px -14px rgba(26,26,25,.35)}
+section[id]{scroll-margin-top:76px}
+.brand{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:600;text-decoration:none;color:var(--navy)}
+.brand img{width:30px;height:30px;object-fit:contain}
+.top nav{display:flex;align-items:center;flex-wrap:wrap;gap:10px 26px}
+.top nav a{text-decoration:none;padding:4px 0;border-bottom:1.5px solid transparent}
+.top nav a:hover{border-bottom-color:currentColor}
+.top nav a.go{background:var(--navy);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;font-weight:500;border:0}
+.top nav a.go:hover{background:var(--navy-deep)}
+@media (max-width:640px){.top nav .wide{display:none}}
+
+/* hero and the closing band: Koloni's colour, as Kayra's hero is its amber; the hive behind them */
+.hero{background:var(--bee);padding:clamp(28px,4.5vw,64px) var(--edge) 0;display:flex;flex-direction:column;gap:32px;position:relative;overflow:hidden;color:var(--navy)}
+.hero::before,.end::before{content:"";position:absolute;inset:0;opacity:.16;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48.4974' height='84' viewBox='0 0 48.4974 84'%3E%3Cpath d='M24.2487 0L48.4974 14V42L24.2487 56L0 42V14ZM24.2487 56V84' fill='none' stroke='%231a1a19' stroke-width='1.2'/%3E%3C/svg%3E");background-size:48.4974px 84px;pointer-events:none}
+.hero > *,.end > *{position:relative}
+/* the colony: bees walking the hive's lines, behind the words, above the pattern */
+.hero > .bees{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.beesbtn{margin-left:auto;width:30px;height:30px;padding:0;border-radius:50%;border:1px solid rgba(26,26,25,.4);background:none;color:var(--navy);display:grid;place-items:center;cursor:pointer}
+.beesbtn[hidden]{display:none}
+.beesbtn svg{width:10px;height:10px;fill:currentColor}
+.beesbtn[aria-pressed="true"] .pz,.beesbtn[aria-pressed="false"] .pl{display:none}
+.pills{display:flex;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:13px}
+.pills span{border:1px solid rgba(26,26,25,.4);border-radius:999px;padding:6px 12px;color:var(--navy)}
+.pills .ver{background:var(--navy);border-color:var(--navy);color:var(--bee);font-weight:600}
+h1{font-size:clamp(56px,8.5vw,136px);line-height:.9;letter-spacing:-.02em;color:var(--navy);text-wrap:balance}
+h1 em{display:block;font-style:italic;color:var(--ink)}
+.hero .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:28px 64px;align-items:center}
+.lede{font-size:clamp(18px,1.5vw,21px);line-height:1.5;color:#2a2926;max-width:640px;text-wrap:pretty}
+.lede strong{color:var(--navy);font-weight:600}
+.hero .act{display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+.ctas{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;font-weight:600;font-size:16px;text-decoration:none;border:1px solid var(--navy);cursor:pointer;background:none}
+.btn.solid{background:var(--navy);color:#fff}
+.btn.solid:hover{background:var(--navy-deep)}
+.btn.line{color:var(--navy)}
+.btn.line:hover{background:var(--navy);color:#fff}
+.play{display:inline-flex;align-items:center;gap:12px;background:rgba(26,26,25,.1);border:0;padding:12px 18px 12px 12px;border-radius:999px;font-family:var(--mono);font-size:14px;color:var(--navy);cursor:pointer}
+.play:hover{background:rgba(26,26,25,.17)}
+.play .tri{display:grid;place-items:center;flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--navy);color:var(--bee);font-size:11px}
+.play.quiet{background:none;box-shadow:inset 0 0 0 1px rgba(26,26,25,.2);text-align:left}
+.play.quiet:hover{background:rgba(26,26,25,.1)}
+.play small{display:block;font-size:12px;opacity:.75}
+/* 1600px is the screenshot's own width: past it the frame stays centred, not scaled up */
+.hero figure{margin:8px auto 0;width:100%;max-width:1600px}
+.hero figure img{border-radius:10px 10px 0 0;box-shadow:0 30px 60px -30px rgba(26,26,25,.55);border:1px solid rgba(26,26,25,.25);border-bottom:0}
+.hero figcaption{padding:12px 2px 16px;font-size:14px;color:var(--navy);margin:0}
+
+/* sections */
+.sec{padding:var(--gap) var(--edge)}
+.head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px 48px;padding-bottom:20px;border-bottom:1px solid var(--ink);margin-bottom:8px}
+h2{font-size:clamp(40px,5vw,72px);line-height:.98;color:var(--navy);max-width:900px;text-wrap:balance}
+.head p{max-width:420px;color:var(--soft);font-size:17px}
+
+/* promise */
+.promise{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:36px}
+.promise div{border-top:2px solid var(--navy);padding-top:16px;display:flex;flex-direction:column;gap:10px}
+.promise h3{font-size:30px;line-height:1.05;color:var(--navy)}
+.promise p{font-size:16px;color:var(--soft);text-wrap:pretty}
+
+/* conversation */
+.talk{width:100%;border-collapse:collapse;margin-top:4px}
+.talk th{text-align:left;font-family:var(--mono);font-size:12px;font-weight:400;color:var(--faint);padding:12px 16px 10px 0;border-bottom:1px solid var(--line)}
+.talk td{vertical-align:top;padding:20px 24px 20px 0;border-bottom:1px solid var(--line);font-size:16px;color:var(--soft)}
+.talk td:first-child{font-family:var(--serif);font-size:clamp(22px,2.2vw,30px);line-height:1.15;color:var(--ink);width:34%}
+.talk td:last-child{color:var(--ink)}
+@media (max-width:760px){
+  .talk thead{display:none}
+  .talk tr{display:block;border-bottom:1px solid var(--line);padding:16px 0}
+  .talk td{display:block;border:0;padding:4px 0;width:auto!important}
+  .talk td:nth-child(2)::before{content:"The Orchestrator: ";font-weight:600;color:var(--ink)}
+  .talk td:nth-child(3)::before{content:"You see: ";font-weight:600}
+}
+
+/* settings */
+.settings{background:var(--honey);border-top:1px solid var(--honey-line);border-bottom:1px solid var(--honey-line)}
+.settings .head{border-color:var(--navy)}
+.axis{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:12px 40px;padding:24px 0;border-bottom:1px solid var(--honey-line)}
+.axis:last-child{border-bottom:0;padding-bottom:0}
+.axis h3{font-size:30px;color:var(--navy)}
+.axis .what{font-size:15px;color:var(--soft);margin-top:6px}
+.choices{display:flex;flex-wrap:wrap;gap:8px}
+.choices button{font-size:15px;cursor:pointer;border:1px solid var(--navy);background:transparent;color:var(--navy);border-radius:999px;padding:8px 16px}
+.choices button[aria-pressed="true"]{background:var(--navy);color:#fff}
+.choices button:hover{background:rgba(26,26,25,.08)}
+.choices button[aria-pressed="true"]:hover{background:var(--navy-deep)}
+.says{margin-top:12px;font-size:17px;color:var(--ink);min-height:3.1em}
+.says p+p{margin-top:6px}
+.js .says p{display:none}
+.js .says p.on{display:block}
+@media (max-width:760px){.axis{grid-template-columns:1fr}}
+
+/* facts */
+.facts{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(28px,5vw,64px);align-items:start}
+.facts .words{display:flex;flex-direction:column;gap:20px}
+.facts .words > p{color:var(--soft);max-width:520px}
+.states{border-top:1px solid var(--line)}
+.states li{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--line);font-size:15px}
+.states code{font-family:var(--mono);font-size:13px;color:var(--navy);background:var(--honey);border-radius:4px;padding:2px 8px;white-space:nowrap}
+.states span{color:var(--soft);text-align:right}
+figure{margin:0}
+.facts img{border-radius:8px;border:1px solid var(--line);box-shadow:0 24px 48px -28px rgba(26,26,25,.5)}
+figcaption{font-size:14px;color:var(--faint);margin-top:10px}
+@media (max-width:900px){.facts{grid-template-columns:1fr}}
+
+/* ways: Kayra's path - steps on the left, the stage with its screenshot on the right */
+.path .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px 56px;align-items:start;margin-top:28px}
+.steps{list-style:none;margin:0;padding:0}
+.steps li{border-bottom:1px solid var(--line)}
+.steps h3{margin:0}
+.steps h3 button{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:baseline;width:100%;text-align:left;background:none;border:0;padding:18px 0;cursor:pointer;opacity:.45;transition:opacity .15s;color:var(--ink)}
+.steps h3 button:hover,.steps li.active h3 button{opacity:1}
+.steps .n{font-family:var(--mono);font-size:13px;color:var(--faint)}
+.steps li.active .n{color:#a07a00}
+.steps .t{font-family:var(--serif);font-size:clamp(24px,2.2vw,28px);line-height:1.1}
+.steps li > p{display:none}
+#stageHome{align-self:stretch}
+.stage{display:flex;flex-direction:column;gap:20px;position:sticky;top:96px;min-width:0}
+.shot{padding:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--ink);cursor:zoom-in;display:block;width:100%}
+.shot img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+.stage > .shot{aspect-ratio:16/10}
+.thumbs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.thumbs[hidden]{display:none}
+.thumbs button{padding:0;border:2px solid transparent;border-radius:4px;overflow:hidden;aspect-ratio:16/10;background:var(--ink);cursor:pointer}
+.thumbs button[aria-pressed=true]{border-color:var(--bee)}
+.thumbs img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+.stage .cap{display:flex;gap:16px;align-items:baseline}
+.stage .cap .n{font-family:var(--mono);font-size:13px;color:#a07a00;white-space:nowrap;flex-shrink:0}
+.stage .cap p{font-size:18px;line-height:1.55;color:#3a3935;text-wrap:pretty}
+.stage .cap a{color:var(--ink)}
+@media (max-width:860px){.path .grid{grid-template-columns:1fr}.steps li .stage{position:static;padding-bottom:20px}}
+
+/* models: the honey band */
+.models{background:var(--bee);border:0;position:relative;overflow:hidden;color:var(--ink);margin:0 var(--edge);border-radius:12px;padding:clamp(36px,5vw,72px) clamp(24px,5vw,72px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px 64px;align-items:center}
+.models p{color:#2a2926;margin-top:18px;max-width:520px}
+.chips{display:flex;flex-direction:column;gap:20px}
+.chips .k{font-family:var(--mono);font-size:12px;color:#5c4a12;margin-bottom:10px}
+.chips ul{display:flex;flex-wrap:wrap;gap:8px}
+.chips li{border:1px solid rgba(26,26,25,.4);border-radius:999px;padding:8px 16px;font-size:15px;background:rgba(255,255,255,.35)}
+.chips li.tested{background:var(--ink);border-color:var(--ink);color:var(--bee);font-weight:600}
+.chips li.untested{border-style:dashed;background:none;color:#2a2926}
+@media (max-width:900px){.models{grid-template-columns:1fr}}
+
+/* road */
+.road{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:36px 64px;margin-top:28px}
+.road h3{font-size:34px;color:var(--navy);display:flex;align-items:baseline;gap:14px}
+.road h3 small{font-family:var(--mono);font-size:13px;color:var(--faint)}
+.road ul{margin-top:16px;border-top:2px solid var(--navy)}
+.road .next ul{border-top:2px dashed var(--faint)}
+.road li{padding:11px 0;border-bottom:1px solid var(--line);font-size:16px;color:var(--soft)}
+.road li strong{color:var(--ink);font-weight:600}
+
+/* faq */
+.faq{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:28px 64px}
+.faq details{border-bottom:1px solid var(--line);padding:16px 0}
+.faq details:first-child{border-top:1px solid var(--ink)}
+.faq summary{cursor:pointer;font-family:var(--serif);font-size:clamp(22px,2vw,28px);color:var(--navy);list-style:none;display:flex;justify-content:space-between;gap:16px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font-family:var(--sans);color:var(--faint)}
+.faq details[open] summary::after{content:"−"}
+.faq details p{margin-top:10px;color:var(--soft);max-width:680px}
+@media (max-width:900px){.faq{grid-template-columns:1fr}}
+
+/* end */
+.end{background:var(--bee);padding:var(--gap) var(--edge);position:relative;overflow:hidden;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:28px}
+.end h2{font-size:clamp(48px,7vw,112px);line-height:.92;max-width:980px}
+.end h2 em{font-style:italic;color:var(--ink)}
+.end p{color:#2a2926;max-width:520px;margin-top:20px}
+
+/* footer, as on Kayra */
+footer{background:var(--ink);color:#d8d6cf;padding:64px var(--edge) 28px;display:flex;flex-direction:column;gap:56px;font-size:15px}
+.cols{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:40px}
+.cols .about{display:flex;flex-direction:column;gap:14px;max-width:320px}
+.cols .about a{display:flex;align-items:center;gap:10px;color:var(--paper);font-weight:600;font-size:18px;text-decoration:none}
+.cols .about img{width:26px;height:26px}
+.cols .motto{font-family:var(--serif);font-size:24px;line-height:1.2;color:var(--paper)}
+.cols nav{display:flex;flex-direction:column;gap:10px}
+.cols nav a{text-decoration:none}
+.cols nav a:hover{color:#fff;text-decoration:underline}
+.cols .k{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:#8a887f;margin-bottom:4px}
+.cols a.prod{display:flex;flex-direction:column;gap:2px}
+.cols a.prod > span{display:flex;align-items:center;gap:8px;color:var(--paper)}
+.cols a.prod small{font-size:13px;color:#8a887f}
+.bottom{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;padding-top:22px;border-top:1px solid #34332f;font-size:13px;color:#8a887f}
+@media (max-width:760px){.cols{grid-template-columns:1fr 1fr}.cols .about{grid-column:1/-1}}
+
+/* the lightbox and the videos, as on Kayra */
+.zoom{cursor:zoom-in}
+.lb{position:fixed;inset:0;z-index:50;background:rgba(15,16,18,.9);display:none;align-items:center;justify-content:center;padding:clamp(16px,4vw,56px);cursor:zoom-out}
+.lb.open{display:flex}
+.lb img{max-width:100%;max-height:100%;border-radius:6px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.lb button{position:absolute;top:14px;right:16px;background:none;border:0;color:var(--paper);font-family:var(--mono);font-size:14px;padding:8px 12px;cursor:pointer}
+#videoLb{cursor:default}
+#videoLb video{max-width:100%;max-height:100%;border-radius:6px;background:#000}
+body.locked{overflow:hidden}
+
+/* sections come in gently, once, as you reach them */
+.motion .reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
+.motion .reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.motion .reveal{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="sky">
+  <div class="in">
+    <a class="home" href="https://www.skyulf.com/"><img src="assets/skyulf.png" alt="" width="18" height="18">Skyulf</a>
+    <span class="sep" aria-hidden="true"></span>
+    <span class="label">PRODUCTS</span>
+    <nav aria-label="Skyulf products">
+      <a href="https://kayra.skyulf.com/"><span class="dot kayra" aria-hidden="true"></span>Kayra</a>
+      <a href="./" aria-current="page"><span class="dot" aria-hidden="true"></span>Koloni</a>
+    </nav>
+  </div>
+</div>
+
+<header class="top">
+  <a class="brand" href="./"><img src="assets/koloni.svg" alt="" width="30" height="30">Koloni</a>
+  <nav aria-label="Koloni">
+    <a class="wide" href="#how">How it works</a>
+    <a class="wide" href="#ways">Ways to work</a>
+    <a href="manual/">Guide</a>
+    <a class="wide" href="https://github.com/flyingriverhorse/Koloni">GitHub</a>
+    <a class="go" href="manual/getting-started/quick-start/">Install</a>
+  </nav>
+</header>
+
+<main id="main">
+<section class="hero" aria-labelledby="hero-title">
+  <canvas class="bees" aria-hidden="true"></canvas>
+  <div class="pills"><span class="ver">alpha · 0.1.0</span><span>Runs on your machine</span><span>Open source, AGPL-3.0-or-later</span><button type="button" class="beesbtn" aria-label="Pause the bees" aria-pressed="false" hidden><svg viewBox="0 0 10 10" aria-hidden="true"><path class="pz" d="M2 1h2v8H2zM6 1h2v8H6z"/><path class="pl" d="M2 1l7 4-7 4z"/></svg></button></div>
+  <div class="grid">
+    <h1 id="hero-title">Your AI workforce. <em>For real work.</em></h1>
+    <div class="act">
+      <p class="lede">Koloni is a workspace where AI agents take on your tasks together. You talk to <strong>one Orchestrator</strong>; it hands parts of the job to a Coder, a Tester or a Reviewer, and shows you what they did — real diffs, real test runs — and how much of it reaches your project without asking you.</p>
+      <div class="ctas">
+        <a class="btn solid" href="manual/getting-started/quick-start/">Install Koloni</a>
+        <a class="btn line" href="manual/">Read the guide</a>
+      </div>
+      <button type="button" class="play" data-video="real-run" data-label="Three teams build a small tool: a real run, sped up"><span class="tri" aria-hidden="true">▶</span><span>Watch three teams build a tool (40 s)<small>A real run with Claude Code, sped up</small></span></button>
+      <button type="button" class="play quiet" data-video="teams" data-label="Two teams work together: a real run, sped up"><span class="tri" aria-hidden="true">▶</span><span>Watch two teams work together (2 min)<small>A real run, sped up</small></span></button>
+    </div>
+  </div>
+  <figure>
+    <img src="assets/workspace.jpg" width="1600" height="900" fetchpriority="high" alt="Koloni in the dark theme: the chat on the left with the Orchestrator's summary, a team of two Coders, a Tester and a Reviewer on the canvas, and the Workspace open on orders.py with its diff">
+    <figcaption>Two Coders, a Tester and a Reviewer added a rate limit; the change is taken in and its diff is open in the Workspace. A screenshot from the app with a scripted test model.</figcaption>
+  </figure>
+</section>
+
+<section class="sec" id="how" aria-label="What Koloni promises">
+  <div class="promise reveal">
+    <div><h3>Your subscriptions, one team.</h3><p>Claude Code, Codex, GitHub Copilot, Qoder and agy — the CLIs you are already signed in to — and a local llama.cpp work side by side. Each model is labelled with what it costs.</p></div>
+    <div><h3>See what happened.</h3><p>The canvas is drawn from the record: every agent, command and changed file, with the real diff. What Koloni doesn’t know shows as unknown, never as zero.</p></div>
+    <div><h3>You set what lands.</h3><p>Sub-agents work in their own copies or branches. At Ask, nothing changes in your project without your card; at Auto-edit and Full auto you let finished work in.</p></div>
+    <div><h3>Stop keeps the work.</h3><p>Stop keeps half-done work: changes wait behind a card, and an agent told to go on picks up on its own branch.</p></div>
+  </div>
+</section>
+
+<section class="sec reveal" aria-labelledby="talk-title" style="padding-top:0">
+  <div class="head">
+    <h2 id="talk-title">One conversation. A whole team behind it.</h2>
+    <p>You keep talking to the same Orchestrator. It decides who does what, and every step it takes is written down.</p>
+  </div>
+  <table class="talk">
+    <thead><tr><th scope="col">You say</th><th scope="col">The Orchestrator</th><th scope="col">What you see</th></tr></thead>
+    <tbody>
+      <tr><td>“Fix the failing test in parser.py.”</td><td>Reads the project, then makes the change itself or opens a Coder in a copy of its own.</td><td>The diff, the test run, and a card to take the change in.</td></tr>
+      <tr><td>“Add a rate limit to POST /orders, with tests.”</td><td>Runs a recipe: two Coders at once, then a Tester and a Reviewer at once.</td><td>“Teams’ work is ready”: take it in, or open a pull request.</td></tr>
+      <tr><td>“I’m away for a few hours: work through the To-do.”</td><td>Lists the jobs on a <em>While you’re away</em> card, with its own budget and rules; nothing starts before your Start.</td><td>A report when you’re back. What it could not decide waits in Ready for you.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec settings" aria-labelledby="set-title">
+  <div class="reveal">
+  <div class="head">
+    <h2 id="set-title">More agents never means more permissions.</h2>
+    <p>Which teams may help, which models they use and what they may change are three separate settings. Try a combination.</p>
+  </div>
+  <div class="axis" data-axis>
+    <div><h3>Teams</h3><p class="what">Which teams the Orchestrator may bring in.</p></div>
+    <div>
+      <div class="choices" role="group" aria-label="Teams">
+        <button type="button" aria-pressed="false">No teams</button>
+        <button type="button" aria-pressed="true">Orchestrator decides</button>
+        <button type="button" aria-pressed="false">Manual</button>
+      </div>
+      <div class="says" aria-live="polite">
+        <p>No team is brought in; the Orchestrator still opens any role itself.</p>
+        <p class="on">It picks the teams and a recipe for each, and says why.</p>
+        <p>You pick the teams it may use; it opens only those a message needs.</p>
+      </div>
+    </div>
+  </div>
+  <div class="axis" data-axis>
+    <div><h3>Models</h3><p class="what">Where the work runs and who pays for it.</p></div>
+    <div>
+      <div class="choices" role="group" aria-label="Models">
+        <button type="button" aria-pressed="true">This machine</button>
+        <button type="button" aria-pressed="false">Subscription</button>
+        <button type="button" aria-pressed="false">API key</button>
+      </div>
+      <div class="says" aria-live="polite">
+        <p class="on">A llama.cpp server on your computer. No model call leaves it.</p>
+        <p>The CLIs you are signed in to. Their use counts against your plan, and Koloni shows what is left where the CLI reports it.</p>
+        <p>Anthropic or an OpenAI-compatible server, paid per token. Moving a sub-agent onto a model paid per token asks first.</p>
+      </div>
+    </div>
+  </div>
+  <div class="axis" data-axis>
+    <div><h3>What they may change</h3><p class="what">Set per chat, from the message box.</p></div>
+    <div>
+      <div class="choices" role="group" aria-label="What they may change">
+        <button type="button" aria-pressed="true">Ask</button>
+        <button type="button" aria-pressed="false">Auto-edit</button>
+        <button type="button" aria-pressed="false">Full auto</button>
+      </div>
+      <div class="says" aria-live="polite">
+        <p class="on">Each file change and each command waits for your card.</p>
+        <p>File changes are written at once and can be reverted. Commands still ask.</p>
+        <p>Changes and commands run without asking. Harmful or risky actions still ask.</p>
+      </div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="facts-title">
+  <div class="facts reveal">
+    <div class="words">
+      <h2 id="facts-title">The canvas shows facts, not theater.</h2>
+      <p>It is built from what was recorded. A planned step is not a running agent, a passing run is not a change you accepted, and usage a provider did not report is shown as unknown.</p>
+      <ul class="states" aria-label="Words you see on the canvas">
+        <li><code>Waits for your OK</code><span>a command is on a card</span></li>
+        <li><code>Done ✓</code><span>the agent finished its part</span></li>
+        <li><code>Stopped at its step limit</code><span>it ran out of steps; you decide on more</span></li>
+        <li><code>– tokens</code><span>not reported, so not guessed</span></li>
+        <li><code>In the project ✓</code><span>you took the work in</span></li>
+      </ul>
+    </div>
+    <figure>
+      <img src="assets/t122-canvas.jpg" width="1600" height="900" loading="lazy" alt="The canvas after a real run: the Orchestrator, then two teams' boxes. Web app: its coordinator, a room, a Coder, a Reviewer, a UI designer and another Coder. Backend / API: its coordinator, a Coder and a Tester. Every agent says Done ✓, and Ready for you lists both teams' work as in the project">
+      <figcaption>After a real run: two teams, 9 agents on Copilot (gpt-6-luna); both teams' work is in the project. A screenshot from the app.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="sec path" id="ways" aria-labelledby="ways-title" style="padding-top:0">
+  <div class="head reveal">
+    <h2 id="ways-title">Same workspace. Different ways to work.</h2>
+    <p>Start with one message. Reach for the rest when the job asks for it.</p>
+  </div>
+  <div class="grid">
+    <ol class="steps" id="steps">
+      <li data-imgs="[[&quot;ask.png&quot;, &quot;A chat where a Reviewer looked at the greeting and found no problems&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">01</span><span class="t">Just ask</span></button></h3><p>The Orchestrator answers, edits and runs commands in your folder, and asks before anything risky. <a href="manual/use/chat-and-canvas/">Chat and canvas</a></p></li>
+      <li data-imgs="[[&quot;recipe.png&quot;, &quot;A team running a recipe on the canvas, its work waiting on Ready for you&quot;], [&quot;take-in.png&quot;, &quot;The list of work ready to take in&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">02</span><span class="t">A team with a recipe</span></button></h3><p>Feature, Bugfix and your own recipes: who builds, who tests, who reviews, and in what order. The work waits on Ready for you until you take it in. <a href="manual/agents/recipes/">Recipes</a></p></li>
+      <li data-imgs="[[&quot;room.png&quot;, &quot;A room: a Coder and a Reviewer look at the greeting together&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">03</span><span class="t">A room</span></button></h3><p>Two to six agents work on one goal at once, in one copy. They share the work out first, and each file has one holder. <a href="manual/agents/rooms/">Rooms</a></p></li>
+      <li data-imgs="[[&quot;discussion.png&quot;, &quot;A discussion in rounds between a Reviewer, a Researcher and the Lead&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">04</span><span class="t">A discussion</span></button></h3><p>Several agents talk one question through in rounds, while nobody changes anything. You can speak in it too. <a href="manual/agents/discussions/">Discussions</a></p></li>
+      <li data-imgs="[[&quot;roles.png&quot;, &quot;The Agents page: roles by kind of work, and teams with their recipes&quot;], [&quot;agent-window.png&quot;, &quot;An agent&#x27;s window: its report, its steps and its changes&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">05</span><span class="t">Roles and teams</span></button></h3><p>Twenty-nine ready roles, from Planner and Coder to Tester and Reviewer, in teams with recipes. Give a role its model, tools and limits, or write your own. <a href="manual/agents/roles/">Roles</a></p></li>
+      <li data-imgs="[[&quot;memory.png&quot;, &quot;The Memory page: a search through what was said before&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">06</span><span class="t">Memory</span></button></h3><p>Facts you approve are given to an agent when its work names the subject, and you can search everything said before. Nothing is handed to an agent unasked but what you wrote or approved; agents' own notes turn up only when an agent looks. <a href="manual/memory/">Memory</a></p></li>
+      <li data-imgs="[[&quot;knowledge.png&quot;, &quot;The Knowledge page: documentation sites agents can look things up in&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">07</span><span class="t">Knowledge</span></button></h3><p>Documentation sites agents can look things up in, a scan of this project&#x27;s code, and Koloni&#x27;s own guide, each learned when you ask for it. <a href="manual/knowledge/">Knowledge</a></p></li>
+      <li data-imgs="[[&quot;todo.png&quot;, &quot;The To-do page with tasks the Product owner drafted&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">08</span><span class="t">To-do</span></button></h3><p>Tasks in your order, each in its own chat. After a turn, the Assistant PO suggests what to do next; nothing runs until you add it. <a href="manual/automation/todo/">To-do</a></p></li>
+      <li data-imgs="[[&quot;triggers.png&quot;, &quot;The Triggers page with a check by the clock&quot;], [&quot;ready.png&quot;, &quot;Ready for you: what waits for your answer&quot;]]"><h3><button type="button" aria-expanded="false"><span class="n">09</span><span class="t">While you&#x27;re away</span></button></h3><p>Tell the Orchestrator you&#x27;re stepping out: it lists the jobs on a card, each runs in its own copy after your Start, and what waits for you is on Ready for you when you&#x27;re back. Triggers start work by the clock, when files change, or on a request from outside. <a href="manual/automation/overnight/">Work while you&#x27;re away</a></p></li>
+    </ol>
+    <div id="stageHome">
+      <div class="stage" id="stage">
+        <button type="button" class="shot" id="stageShot" aria-label="Enlarge screenshot"><img id="stageImg" src="assets/ways/ask.png" alt="A chat where a Reviewer looked at the greeting and found no problems" width="1280" height="800" loading="lazy" decoding="async"></button>
+        <div class="thumbs" id="thumbs" hidden></div>
+        <div class="cap"><span class="n" id="stageN">01 / 09</span><p id="stageBody" aria-live="polite"></p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="models reveal" aria-labelledby="models-title">
+  <div>
+    <h2 id="models-title">Bring the agents you already use.</h2>
+    <p>Roles pick a model by tier — fast, balanced, strongest — or one you name. Koloni never signs in for you: each CLI uses your own sign-in, and its use counts against your plan with that vendor.</p>
+  </div>
+  <div class="chips">
+    <div><div class="k">On this machine</div><ul><li class="tested">llama.cpp</li><li class="untested">Other OpenAI-compatible servers · not tested</li></ul></div>
+    <div><div class="k">Signed in, on your plan</div><ul><li>Claude Code</li><li>Codex</li><li>GitHub Copilot CLI</li><li>Qoder</li><li>agy</li></ul></div>
+    <div><div class="k">With an API key</div><ul><li>Anthropic API</li><li>OpenAI-compatible APIs</li></ul></div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="road-title">
+  <div class="reveal">
+  <div class="head">
+    <h2 id="road-title">Small first, then a colony.</h2>
+    <p>Each version is tried on real work before the next one starts.</p>
+  </div>
+  <div class="road">
+    <div class="now">
+      <h3>0.1.0 <small>now, in alpha</small></h3>
+      <ul>
+        <li><strong>The Orchestrator and its team</strong>: sub-agents, recipes, rooms and discussions, on a canvas drawn from the record</li>
+        <li><strong>Five CLIs, llama.cpp and API models</strong>, picked by tier, with what each costs</li>
+        <li><strong>Copies, branches and cards</strong>: Take in, Reject, and a Stop that keeps the work</li>
+        <li><strong>Git and GitHub</strong>: branches, pull requests, a chat started from an issue</li>
+        <li><strong>Work over time</strong>: To-do with suggestions, triggers, work while you’re away, memory and knowledge</li>
+      </ul>
+    </div>
+    <div class="next">
+      <h3>0.2.0 <small>planned</small></h3>
+      <ul>
+        <li><strong>Go back to any step</strong> of a turn and run it again from there</li>
+        <li><strong>Watch a pull request</strong>: its checks and reviews on the canvas, and an agent that fixes what fails</li>
+        <li><strong>Pull requests outside GitHub</strong>, such as GitLab</li>
+        <li><strong>Who wrote this line</strong>: the agent and turn behind each change</li>
+        <li><strong>Codex and Copilot sessions that carry on</strong> across turns, and Copilot Fusion</li>
+      </ul>
+    </div>
+  </div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="faq-title" style="padding-top:0">
+  <div class="faq reveal">
+    <h2 id="faq-title">Questions</h2>
+    <div>
+      <details><summary>What is Koloni?</summary><p>A workspace on your own computer where AI agents work on your project together. You talk to one Orchestrator; it hands parts of the job to agents such as a Coder, a Tester and a Reviewer, and a canvas beside the chat shows what each of them did.</p></details>
+      <details><summary>Is it free?</summary><p>Koloni is open source under the AGPL-3.0-or-later and costs nothing to run. The models you use are billed by their vendors, through your subscription or your API key; a local llama.cpp costs nothing. A commercial license is available if the AGPL does not fit your use.</p></details>
+      <details><summary>Does my code leave my machine?</summary><p>Koloni listens on 127.0.0.1 only and sends no telemetry. Your code goes only to the models you choose: with a local llama.cpp no model call leaves your computer; with a CLI or an API, what an agent reads goes to that vendor. Web searches, GitHub and notifications go out only when you allow them.</p></details>
+      <details><summary>Can an agent break my project?</summary><p>Sub-agents work in copies or branches of their own. Their work reaches your project when you take it in, or by itself at Auto-edit and Full auto once the agent finished, nothing clashes and the project's test passed. Risky commands ask on a card, and Stop keeps half-done work instead of throwing it away.</p></details>
+      <details><summary>Which systems does it run on?</summary><p>Koloni is in alpha, for one user. It is used every day on Windows and tested on Linux in CI; macOS is not tested yet.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="end reveal" aria-labelledby="end-title">
+  <div>
+    <h2 id="end-title">From idea to execution, <em>with a colony.</em></h2>
+    <p>Install it on your machine, sign in to the CLIs you already use, and give the Orchestrator its first task.</p>
+  </div>
+  <div class="ctas">
+    <a class="btn solid" href="manual/getting-started/quick-start/">Install Koloni</a>
+    <a class="btn line" href="https://github.com/flyingriverhorse/Koloni">View on GitHub</a>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="cols">
+    <div class="about">
+      <a href="https://www.skyulf.com/"><img src="assets/skyulf.png" alt="" width="26" height="26">Skyulf</a>
+      <p class="motto">Open tools that run on your own ground.</p>
+    </div>
+    <nav aria-label="Products"><div class="k">PRODUCTS</div>
+      <a class="prod" href="https://kayra.skyulf.com/"><span><span class="dot kayra" aria-hidden="true"></span>Kayra</span><small>Build, verify and ship ML pipelines</small></a>
+      <a class="prod" href="./"><span><span class="dot" aria-hidden="true"></span>Koloni</span><small>Agents do the work. You decide.</small></a>
+    </nav>
+    <nav aria-label="Resources"><div class="k">RESOURCES</div><a href="manual/">Guide</a><a href="manual/getting-started/quick-start/">Quick start</a><a href="https://github.com/flyingriverhorse/Koloni">GitHub</a><a href="https://github.com/flyingriverhorse/Koloni/discussions">Community</a></nav>
+    <nav aria-label="Project"><div class="k">PROJECT</div><a href="manual/roadmap/">Roadmap</a><a href="https://github.com/flyingriverhorse/Koloni/blob/main/CONTRIBUTING.md">Contributing</a><a href="https://github.com/flyingriverhorse/Koloni/blob/main/SECURITY.md">Security</a><a href="https://github.com/flyingriverhorse/Koloni/blob/main/LICENSE">License</a><a href="https://www.linkedin.com/in/murat-u/">LinkedIn</a></nav>
+  </div>
+  <div class="bottom"><span>Copyright 2026 Murat H. Unsal</span><span>Koloni is AGPL-3.0-or-later · part of Skyulf</span></div>
+</footer>
+
+<div class="lb" id="videoLb" role="dialog" aria-modal="true" aria-label="A tour of Koloni"><video id="video" muted playsinline controls preload="none"></video><button type="button" id="videoClose">esc ✕</button></div>
+
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Screenshot, large"><img id="lbImg" src="" alt=""><button type="button" id="lbClose">esc ✕</button></div>
+
+<script>
+document.documentElement.classList.add('js')
+// The three settings: one choice per row shows its own sentence. Without JS every sentence shows.
+for (const axis of document.querySelectorAll('[data-axis]')) {
+  const buttons = [...axis.querySelectorAll('button')]
+  const lines = [...axis.querySelectorAll('.says p')]
+  buttons.forEach((button, i) => button.addEventListener('click', () => {
+    buttons.forEach((b, j) => b.setAttribute('aria-pressed', String(i === j)))
+    lines.forEach((p, j) => p.classList.toggle('on', i === j))
+  }))
+}
+// The header gets a shadow once the page moves under it.
+const header = document.querySelector('.top')
+addEventListener('scroll', () => header.classList.toggle('scrolled', scrollY > 8), { passive: true })
+// The lightbox, as on Kayra: a click on a screenshot opens it large; Esc, a click or the button closes it.
+const $ = id => document.getElementById(id)
+const lb = $('lb'), lbImg = $('lbImg')
+let opener = null
+function zoom(src, alt) { opener = document.activeElement; lbImg.src = src; lbImg.alt = alt || ''; lb.classList.add('open'); document.body.classList.add('locked'); $('lbClose').focus() }
+function unzoom() { if (!lb.classList.contains('open')) return; lb.classList.remove('open'); document.body.classList.remove('locked'); if (opener) opener.focus() }
+lb.addEventListener('click', unzoom)
+for (const img of document.querySelectorAll('.hero figure img, .facts img')) {
+  img.classList.add('zoom'); img.tabIndex = 0; img.setAttribute('role', 'button'); img.setAttribute('aria-label', 'Enlarge: ' + img.alt)
+  img.addEventListener('click', () => zoom(img.currentSrc || img.src, img.alt))
+  img.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); zoom(img.currentSrc || img.src, img.alt) } })
+}
+// The videos play in the same kind of layer; each button names its video (assets/<name>.webm).
+const vLb = $('videoLb'), vid = $('video')
+function openVideo(btn) {
+  opener = btn; vLb.setAttribute('aria-label', btn.dataset.label)
+  const src = 'assets/' + btn.dataset.video + '.webm'
+  if (vid.getAttribute('src') !== src) { vid.poster = 'assets/' + btn.dataset.video + '.jpg'; vid.src = src }
+  vLb.classList.add('open'); document.body.classList.add('locked'); vid.currentTime = 0; vid.play().catch(() => {}); $('videoClose').focus()
+}
+function closeVideo() { if (!vLb.classList.contains('open')) return; vid.pause(); vLb.classList.remove('open'); document.body.classList.remove('locked'); if (opener) opener.focus() }
+for (const btn of document.querySelectorAll('[data-video]')) btn.addEventListener('click', () => openVideo(btn))
+$('videoClose').addEventListener('click', closeVideo)
+vLb.addEventListener('click', e => { if (e.target === vLb) closeVideo() })
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') { unzoom(); closeVideo() }
+  // An open layer keeps Tab inside it: the video and its close button, or the close button.
+  const layer = document.querySelector('.lb.open')
+  if (e.key !== 'Tab' || !layer) return
+  const stops = [...layer.querySelectorAll('video, button')], i = stops.indexOf(document.activeElement)
+  e.preventDefault(); stops[(i + (e.shiftKey ? -1 : 1) + stops.length) % stops.length].focus()
+})
+// The ways, as Kayra's path: the steps hold the words; this swaps the screenshot on the stage.
+const items = [...$('steps').children], stage = $('stage'), home = $('stageHome')
+const narrow = matchMedia('(max-width: 860px)')
+let step = 0, sub = 0
+function render() {
+  const li = items[step], imgs = JSON.parse(li.dataset.imgs)
+  items.forEach((x, i) => { x.classList.toggle('active', i === step); x.querySelector('button').setAttribute('aria-expanded', String(i === step)) })
+  $('stageImg').src = 'assets/ways/' + imgs[sub][0]
+  $('stageImg').alt = imgs[sub][1]
+  $('stageN').textContent = li.querySelector('.n').textContent + ' / ' + String(items.length).padStart(2, '0')
+  $('stageBody').innerHTML = li.querySelector('p').innerHTML
+  const th = $('thumbs')
+  th.innerHTML = ''
+  th.hidden = imgs.length < 2
+  imgs.forEach((im, j) => {
+    const b = document.createElement('button')
+    b.type = 'button'; b.setAttribute('aria-pressed', String(j === sub)); b.setAttribute('aria-label', im[1])
+    const img = document.createElement('img'); img.src = 'assets/ways/' + im[0]; img.alt = ''; img.loading = 'lazy'
+    b.appendChild(img); b.addEventListener('click', () => { sub = j; render() }); th.appendChild(b)
+  })
+  // On a phone the screenshot follows the open step instead of sitting below all of them.
+  if (narrow.matches) { if (stage.parentNode !== li) li.appendChild(stage) } else if (stage.parentNode !== home) home.appendChild(stage)
+}
+items.forEach((li, i) => li.querySelector('button').addEventListener('click', () => { step = i; sub = 0; render() }))
+$('stageShot').addEventListener('click', () => zoom($('stageImg').src, $('stageImg').alt))
+narrow.addEventListener('change', render)
+render()
+// Sections come in once as you reach them; skipped when motion is reduced or the browser can't observe.
+if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  document.documentElement.classList.add('motion')
+  const seen = new IntersectionObserver(entries => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); seen.unobserve(e.target) }
+  }, { rootMargin: '0px 0px -8% 0px' })
+  document.querySelectorAll('.reveal').forEach(el => seen.observe(el))
+}
+</script>
+<script>
+// The colony: a few bees walk the hero's hexagon lines, vertex to vertex, and now and then two meet and work a stretch together.
+;(() => {
+  const hero = document.querySelector('.hero'), cv = hero?.querySelector('.bees'), btn = hero?.querySelector('.beesbtn')
+  if (!cv || !btn || !window.ResizeObserver || !window.IntersectionObserver) return
+  const g = cv.getContext('2d')
+  const W = 48.4974, H = 84, EDGE = 28, SPEED = 22, TURN = 9   // the .hero::before tile; px/s; rad/s
+  const css = getComputedStyle(document.documentElement)
+  const INK = css.getPropertyValue('--navy').trim() || '#1a1a19', BEE = css.getPropertyValue('--bee').trim() || '#FFC516'
+  let paused = matchMedia('(prefers-reduced-motion: reduce)').matches
+  try { const s = localStorage.getItem('koloni-bees'); if (s) paused = s === 'paused' } catch {}
+  let bees = [], verts = [], size = new Map(), blocked = [], w = 0, h = 0, dpr = 1
+  let clock = 0, nextMeet = 1.2, meetBy = Infinity, last = 0, raf = 0, visible = true
+
+  // A vertex is [i, y] at x = i·W/2. Vertices at y%84 = 0 or 42 have one edge up and two down; at 14 or 56 the reverse.
+  const pos = ([i, y]) => [i * W / 2, y]
+  const nbrs = ([i, y]) => y % H === 0 || y % H === 42 ? [[i - 1, y + 14], [i + 1, y + 14], [i, y - 28]] : [[i - 1, y - 14], [i + 1, y - 14], [i, y + 28]]
+  const key = v => v[0] + ',' + v[1]
+  const same = (a, b) => !!a && !!b && a[0] === b[0] && a[1] === b[1]
+  const ang = (a, b) => { const [x1, y1] = pos(a), [x2, y2] = pos(b); return Math.atan2(y2 - y1, x2 - x1) }
+  const diff = (a, b) => ((a - b) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI
+  const node = b => b.to || b.at
+  const held = (v, b) => bees.some(o => o !== b && (same(o.at, v) || same(o.to, v)))
+  const count = () => w < 600 ? 3 : 9
+
+  // Open hive: inside the hero, clear of the words, buttons, pills and screenshot. A phone has little or none of it.
+  function clear(x, y) {
+    if (x < 12 || y < 12 || x > w - 12 || y > h - 12) return false
+    for (const r of blocked) if (x > r.left && x < r.right && y > r.top && y < r.bottom) return false
+    return true
+  }
+  const okV = v => v[1] >= 0 && clear(...pos(v))
+  const okE = (a, b) => { const [x1, y1] = pos(a), [x2, y2] = pos(b); return okV(a) && okV(b) && clear((x1 + x2) / 2, (y1 + y2) / 2) }
+  const ways = v => nbrs(v).filter(n => okE(v, n))
+
+  function measure() {
+    const o = hero.getBoundingClientRect(), rects = [], range = document.createRange(), pad = w < 600 ? 12 : 18
+    for (const el of hero.querySelectorAll('h1, .lede, figcaption')) { range.selectNodeContents(el); rects.push(...range.getClientRects()) }
+    for (const el of hero.querySelectorAll('.btn, .play, .pills span, .beesbtn, figure img')) rects.push(el.getBoundingClientRect())
+    blocked = rects.map(r => ({ left: r.left - o.left - pad, right: r.right - o.left + pad, top: r.top - o.top - pad, bottom: r.bottom - o.top + pad }))
+  }
+
+  // Shortest walk from a to b on open edges: the vertices after a, up to b; null past max edges.
+  function path(a, b, max) {
+    const prev = new Map([[key(a), null]])
+    let front = [a]
+    for (let d = 0; d < max && front.length; d++) {
+      const nx = []
+      for (const v of front) for (const n of ways(v)) {
+        if (prev.has(key(n))) continue
+        prev.set(key(n), v)
+        if (same(n, b)) { const out = [n]; for (let u = v; !same(u, a); u = prev.get(key(u))) out.unshift(u); return out }
+        nx.push(n)
+      }
+      front = nx
+    }
+    return null
+  }
+
+  function spawn() {
+    let spots = []
+    for (const gap of [90, 50]) {   // spread out; on a crowded comb, closer
+      spots = verts.filter(v => size.get(key(v)) >= 6 && bees.every(b => Math.hypot(pos(v)[0] - pos(b.at)[0], v[1] - b.at[1]) > gap))
+      if (spots.length) break
+    }
+    if (!spots.length) return false
+    const near = bees.length === 1 ? spots.filter(v => Math.hypot(pos(v)[0] - pos(bees[0].at)[0], v[1] - bees[0].at[1]) < 160) : []   // the first two start close, so a meeting comes early
+    const pool = near.length ? near : spots
+    const v = pool[Math.random() * pool.length | 0], n = ways(v), head = ang(v, n[Math.random() * n.length | 0])
+    bees.push({ at: v, to: null, t: 0, prev: null, avoid: null, head, want: head, wait: Math.random() * 1.5, flap: Math.random() * 9, flutter: 0, mode: null, mate: null, route: [], queue: [], stuck: 0 })
+    return true
+  }
+
+  function layout() {
+    w = hero.clientWidth; h = hero.clientHeight; dpr = Math.min(2, devicePixelRatio || 1)
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr)
+    measure()
+    verts = []
+    for (let i = 0; i <= w / W + 1; i++) for (let j = 0; j <= h / H; j++)
+      for (const v of [[2 * i + 1, H * j], [2 * i + 1, H * j + 56], [2 * i, H * j + 14], [2 * i, H * j + 42]]) if (okV(v) && ways(v).length >= 2) verts.push(v)
+    size = new Map()
+    for (const v of verts) if (!size.has(key(v))) {   // flood each island to know its size
+      const isl = [v], seen = new Set([key(v)])
+      for (let k = 0; k < isl.length; k++) for (const n of ways(isl[k])) if (!seen.has(key(n))) { seen.add(key(n)); isl.push(n) }
+      for (const u of isl) size.set(key(u), isl.length)
+    }
+    for (const b of bees) Object.assign(b, { mode: null, mate: null, route: [], queue: [], stuck: 0 })   // the layout moved: meetings start over
+    bees = bees.filter(b => okV(b.at) && size.get(key(b.at)) >= 6 && (!b.to || okE(b.at, b.to))).slice(0, count())
+    while (bees.length < count() && spawn());
+    btn.hidden = !bees.length   // a phone's hero may have no room for any bee, and then nothing to pause
+    nextMeet = clock + 1.2; meetBy = Infinity
+    draw(); go()   // bees that appear after a resize start walking
+  }
+
+  // Wander on: never onto a vertex another bee holds; not back the way it came unless that is the only way.
+  function wander(b, forward) {
+    let opts = ways(b.at).filter(n => !same(n, b.prev) && !same(n, b.avoid) && !held(n, b))
+    b.avoid = null
+    if (!opts.length && !forward) opts = ways(b.at).filter(n => !held(n, b))
+    return opts[Math.random() * opts.length | 0] || null
+  }
+
+  // A meeting ends: both bees wander again with nothing left to walk, and the next meeting comes in 6–10 s.
+  function part(b) {
+    for (const x of [b, b?.mate]) if (x) Object.assign(x, { mode: null, mate: null, route: [], queue: [], stuck: 0 })
+    meetBy = Infinity; nextMeet = clock + 6 + Math.random() * 4
+  }
+
+  // The two idle bees closest on the comb walk toward each other and stop on the two ends of the middle edge.
+  function meet() {
+    const idle = bees.filter(b => !b.mode)
+    let best = null
+    for (const host of idle) for (const seek of idle) if (host !== seek) {
+      const p = path(node(seek), node(host), 9)
+      if (p && (!best || p.length < best.p.length)) best = { host, seek, p: [node(seek), ...p] }
+    }
+    if (!best) return false
+    const { host, seek, p } = best, k = p.length - 1, s = (k - 1) >> 1
+    Object.assign(host, { mode: 'host', mate: seek, route: p.slice(s + 1, k).reverse(), wait: 0 })
+    Object.assign(seek, { mode: 'seek', mate: host, route: p.slice(1, s + 1), wait: 0 })
+    meetBy = clock + 10   // a walk of up to 4 edges each takes ~6 s; past this a bee is boxed in on the path
+    return true
+  }
+
+  function next(b) {
+    const m = b.mate
+    if (b.mode === 'host') return b.route.shift() || null
+    if (b.mode === 'seek') {
+      if (b.route.length) return b.route.shift()
+      if (!m.to && !m.route.length) {   // side by side: face each other, a flutter, then the host leads and the other follows one edge behind
+        b.want = ang(b.at, m.at); m.want = ang(m.at, b.at); b.wait = m.wait = 1.1; b.flutter = m.flutter = 1.1
+        Object.assign(m, { mode: 'lead', left: 3 + (Math.random() * 3 | 0), prev: b.at })
+        Object.assign(b, { mode: 'trail', queue: [m.at] }); meetBy = Infinity
+      }
+      return null
+    }
+    if (b.mode === 'lead') {
+      const n = wander(b, true)
+      if (n && b.left-- > 0) { m.queue.push(n); return n }
+      part(b); m.avoid = n; m.wait = .5   // they part here; the other turns away after a beat
+      return n
+    }
+    if (b.mode === 'trail') return b.queue.shift() || null
+    return wander(b, false)
+  }
+
+  function step(b, dt) {
+    b.flap += dt; b.flutter = Math.max(0, b.flutter - dt)
+    const d = diff(b.want, b.head)
+    b.head += Math.sign(d) * Math.min(Math.abs(d), TURN * dt)
+    if (b.wait > 0) { b.wait -= dt; return }
+    if (!b.to) {
+      const n = next(b)
+      if (!n) return
+      if (held(n, b)) {   // a meeting's walk waits for the vertex to clear, but not for ever
+        if (++b.stuck > 10) return part(b)
+        ;(b.mode === 'trail' ? b.queue : b.route).unshift(n); b.wait = .4; return
+      }
+      b.to = n; b.t = 0; b.want = ang(b.at, n); b.stuck = 0
+    }
+    if (Math.abs(diff(b.want, b.head)) > .02) return   // turn on the vertex before stepping off
+    b.t += SPEED * dt / EDGE
+    if (b.t >= 1) {
+      b.prev = b.at; b.at = b.to; b.to = null; b.t = 0
+      if (!b.mode && Math.random() < .18) b.wait = .6 + Math.random() * 1.4
+    }
+  }
+
+  function drawBee(b) {
+    const [x1, y1] = pos(b.at), [x2, y2] = b.to ? pos(b.to) : [x1, y1]
+    g.save(); g.translate(x1 + (x2 - x1) * b.t, y1 + (y2 - y1) * b.t); g.rotate(b.head); g.scale(.85, .85)
+    g.fillStyle = INK
+    g.beginPath(); g.ellipse(-3, 0, 5.2, 3.6, 0, 0, 7); g.fill()
+    g.save(); g.clip(); g.fillStyle = BEE; g.fillRect(-2.7, -4, 1.2, 8); g.fillRect(-5.5, -4, 1.1, 8); g.restore()
+    g.beginPath(); g.moveTo(-7.6, -1.3); g.lineTo(-10, 0); g.lineTo(-7.6, 1.3); g.fill()
+    g.beginPath(); g.arc(2.4, 0, 2.7, 0, 7); g.fill()
+    g.beginPath(); g.arc(5.8, 0, 2.1, 0, 7); g.fill()
+    g.strokeStyle = INK; g.lineWidth = .9; g.lineCap = 'round'
+    g.beginPath(); g.moveTo(6.8, -1); g.quadraticCurveTo(8.6, -1.4, 9.6, -3.1); g.moveTo(6.8, 1); g.quadraticCurveTo(8.6, 1.4, 9.6, 3.1); g.stroke()
+    const f = Math.sin(b.flap * 38) * (b.flutter > 0 ? .3 : .04)
+    g.fillStyle = 'rgba(255,255,255,.62)'; g.lineWidth = .7
+    for (const s of [-1, 1]) {
+      g.save(); g.translate(1.6, s * 1.4); g.rotate(s * (Math.PI * .78 + f))
+      g.beginPath(); g.ellipse(3.3, 0, 3.7, 1.9, 0, 0, 7); g.fill(); g.stroke(); g.restore()
+    }
+    g.restore()
+  }
+
+  function draw() {
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h)
+    g.globalAlpha = w < 600 ? .5 : .82; for (const b of bees) drawBee(b); g.globalAlpha = 1
+  }
+
+  function frame(ts) {
+    raf = 0
+    if (!visible || document.hidden || paused || !bees.length) return
+    const dt = Math.min(.05, Math.max(0, (ts - last) / 1000)); last = ts
+    clock += dt
+    if (clock >= nextMeet) nextMeet = meet() ? Infinity : clock + 2
+    if (clock > meetBy) part(bees.find(b => b.mode === 'host' || b.mode === 'seek'))   // the meeting is stuck
+    for (const b of bees) step(b, dt)
+    draw()
+    raf = requestAnimationFrame(frame)
+  }
+  // Runs only while the hero is on screen, the tab is shown, there are bees and they are not paused (WCAG 2.2.2).
+  const go = () => { if (!raf && !paused && visible && !document.hidden && bees.length) { last = performance.now(); raf = requestAnimationFrame(frame) } }
+  btn.setAttribute('aria-pressed', paused)
+  btn.addEventListener('click', () => {
+    paused = !paused; btn.setAttribute('aria-pressed', paused)
+    try { localStorage.setItem('koloni-bees', paused ? 'paused' : 'playing') } catch {}
+    if (paused) { cancelAnimationFrame(raf); raf = 0 } else go()
+  })
+  new IntersectionObserver(es => { visible = es[es.length - 1].isIntersecting; go() }).observe(hero)
+  document.addEventListener('visibilitychange', go)
+  new ResizeObserver(layout).observe(hero)
+  document.fonts.ready.then(layout)
+})()
+</script>
+</body>
+</html>
