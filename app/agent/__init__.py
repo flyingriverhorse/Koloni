@@ -3153,35 +3153,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     said_line = f"Merge {branch}: {first}"
                     try:
                         # (Unasked, held to the commit it was made from; the user's click, to
-                        # the branch the card named.)
-                        # shortcut: a Stop meanwhile cancels the wait, not git: the thread
-                        # finishes the merge, and the card is left as it was; hold Stop until
-                        # it is over if a merge is ever seen to land after a Stop.
-                        sha = await asyncio.to_thread(
+                        # the branch the card named. A Stop meanwhile lands once git is over:
+                        # the way in is not left while git still writes.)
+                        sha = await to_its_end(asyncio.to_thread(
                             git.merge_branch, copy.project, look["tip"], said_line,
                             runtime / "no-hooks", look["into"],
-                            copy.start[1] if merge_id is None and copy.start else None)
+                            copy.start[1] if merge_id is None and copy.start else None))
                     except git.Refused as exc:
                         state["note"] = str(exc)
                     else:
                         self._into_copies(copy.project, look["files"], copy)
-                        try:
-                            holds = await asyncio.to_thread(git.summary, copy.project, sha)
-                        except git.Refused:
-                            holds = None  # (the merge stands: only what it holds goes unsaid)
-                        for one in files.values():
-                            if one["state"] == "ready":
-                                one["state"], one["note"] = "applied", None
-                        self._record_merge(ctx, merge_id, "applied", files, check, state, {
-                            "state": "committed", "message": said_line, "sha": sha,
-                            "holds": holds,
-                            "notes": await self._keep_branch(copy, said, look["tip"])})
-                        self._branch_merged(ctx, copy)
-                        # (Written by KOLONİ on a yes: no watch takes them for an agent's own.)
-                        await self._seen_by_watchers(ctx, set(look["files"]))
-                        # A squash leaves the branch unmerged to git: it goes all the same.
-                        self._drop_copy(ctx.agent_id, "merged")
-                        return self._not_applied(ctx, files, None)
+                        act = "merged"
+            if act == "merged":  # (what is left needs no way in: a Stop lands after it)
+                return await to_its_end(self._branch_went_in(
+                    ctx, copy, merge_id, files, check, state, said, look, said_line, sha))
             failed = None
             if act == "pull_request":
                 try:
@@ -3274,6 +3259,30 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             f"{ctx.name}: {first}\n\nKoloni-Agent: {ctx.name}",
             self.settings.runtime_root / "no-hooks")
         return held
+
+    async def _branch_went_in(
+        self, ctx: Ctx, copy: copies.Copy, merge_id: str | None, files: dict, check: dict | None,
+        state: dict, said: dict, look: dict, line: str, sha: str,
+    ) -> str:
+        """`_merge_branch`'s end where git merged the branch (`line`, the commit `sha`): what it
+        holds, the card and its records, and the branch's worktree goes - out of the way in
+        (`_way_in`), which none of it needs. Returns what the opener is told."""
+        # (Written by KOLONİ on a yes: no watch takes them for an agent's own.)
+        await self._seen_by_watchers(ctx, set(look["files"]))
+        try:
+            holds = await asyncio.to_thread(git.summary, copy.project, sha)
+        except git.Refused:
+            holds = None  # (the merge stands: only what it holds goes unsaid)
+        for one in files.values():
+            if one["state"] == "ready":
+                one["state"], one["note"] = "applied", None
+        self._record_merge(ctx, merge_id, "applied", files, check, state, {
+            "state": "committed", "message": line, "sha": sha, "holds": holds,
+            "notes": await self._keep_branch(copy, said, look["tip"])})
+        self._branch_merged(ctx, copy)
+        # A squash leaves the branch unmerged to git: it goes all the same.
+        self._drop_copy(ctx.agent_id, "merged")
+        return self._not_applied(ctx, files, None)
 
     async def _keep_branch(self, copy: copies.Copy, said: dict, tip: str) -> list[str] | None:
         """D2: the user's "Keep this branch after merging" - not where any of its commits since

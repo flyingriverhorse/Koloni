@@ -33,7 +33,7 @@ from tests.test_agent_commands import cmd
 from tests.test_agent_writes import wait_status
 from tests.test_chat_flow import text
 from tests.test_claim_scenarios import ORIGIN, calls, setup, two, write
-from tests.test_dal_takim import repo, run, runtime, worktrees  # noqa: F401  (fixtures)
+from tests.test_dal_takim import on_branch, repo, run, runtime, worktrees  # noqa: F401
 from tests.test_full_auto_harm import why_asked
 from tests.test_full_auto_reads import LIVE
 from tests.test_judge_scenarios import RULE, begin, judging, verdict_line  # noqa: F401
@@ -168,6 +168,31 @@ def test_a_copy_gets_what_a_branchs_merge_brought(make_client, wait_run, repo): 
     # (its own notes go in by themselves: nothing of the merge is the Coder 2's to take in)
     assert sorted(m["status"] for m in snap["merges"]) == ["applied", "applied"]
     assert (repo / "notes.txt").read_text() == "b\n" and lines(repo)[1] == "TWO-branch"
+
+
+@needs_git
+def test_a_stop_while_a_branch_merges_waits_for_git_and_the_merge_is_on_record(
+    make_client, wait_run, repo, monkeypatch  # noqa: F811
+):
+    merging, go = threading.Event(), threading.Event()
+    real = git.merge_branch
+
+    def merge_branch(*args, **kwargs):
+        merging.set()
+        assert go.wait(scaled(LONG))  # (held until the Stop is in)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(git, "merge_branch", merge_branch)
+    client, cid, run_id = on_branch(make_client, repo, [step(edit("two", "TWO-agent")),
+                                                        text("A done")])
+    assert merging.wait(scaled(LONG))
+    assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
+    go.set()
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    # (git merged: the way in was held until it was over, and what it did is on record)
+    assert lines(repo)[1] == "TWO-agent"
+    assert [m["status"] for m in snap["merges"]] == ["applied"]
+    assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
 
 
 # --- KOLONİ's worktrees are locked while their agents work ----------------------------------
