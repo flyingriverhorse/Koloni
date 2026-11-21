@@ -95,6 +95,14 @@ and credit messages.
 - An agy model whose name ends in its level takes no other level. Only a name ending in `-low` was seen
   to refuse one; the other endings are read the same way, not measured.
 
+## Git
+
+- A team's branch starts from your folder as it is only with git 2.40 or later (Apple's git is older),
+  and when your folder has at most as many new files as a copy takes (20,000 files, 500 MB); otherwise
+  it starts from your last commit and its card says so.
+- A file Git LFS keeps comes into a branch, and back, as its pointer text: KOLONİ runs no filter of your
+  repository's. A submodule's own changes are not taken into a branch.
+
 ## GitHub
 
 - Reading a GitHub issue with a real `gh` is not measured yet: the fields KOLONİ asks gh for are taken
