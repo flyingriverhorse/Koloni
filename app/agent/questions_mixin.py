@@ -331,7 +331,7 @@ class QuestionsMixin:
 
     async def _lead_answers(
         self: "AgentRunner", ctx: Ctx, text: str, options: list[str], asked: asyncio.Future,
-        says: Callable[..., None], kept: bool = False,
+        says: Callable[..., None], kept: bool = False, kind: str | None = None,
     ) -> None:
         """The Lead's one answer, with no tools, to a question asked of the user while they are
         away (`_lead_may_answer`): the question and its options are data, quoted; what comes
@@ -412,9 +412,7 @@ class QuestionsMixin:
         slots = self._lead_slots.setdefault(ctx.run_id, asyncio.Semaphore(LEAD_AT_ONCE))
         try:
             async with slots:
-                if asked.done():
-                    return  # (answered while it waited its turn)
-                if mode is not None and not self._lead_cli_takes(ctx):
+                if not self._lead_goes_on(ctx, asked, kind, mode):
                     return
                 model_id = lead.model_name or (await model.info()).model_id
                 asking = replace(lead, model_name=model_id)
@@ -433,6 +431,15 @@ class QuestionsMixin:
                     why="timed out" if isinstance(exc, TimeoutError) else "the call failed"))
             return
         self._lead_said_it(ctx, said, options, asked, says, key)
+
+    def _lead_goes_on(self: "AgentRunner", ctx: Ctx, asked: asyncio.Future, kind: str | None,
+                      mode: str | None) -> bool:
+        """`_lead_answers`, its turn come: whether it still asks - not answered while it waited,
+        nor the user's again (☾ Away: they came back meanwhile, `_when`), and on a CLI one more
+        of the turn's (`_lead_cli_takes`)."""
+        if asked.done() or kind is not None and self._when(ctx, kind)[0] is None:
+            return False
+        return mode is None or self._lead_cli_takes(ctx)
 
     def _lead_cli_takes(self: "AgentRunner", ctx: Ctx) -> bool:
         """`_lead_answers`, a Lead on a CLI: one more of the turn's `LEAD_CLI_MOST` is its to
@@ -589,7 +596,8 @@ class _Decision:
         if not forced and (left := self.runner._typing_left(self.question_id)) > 0:
             return self.arm(left, typed=True)
         task = asyncio.ensure_future(self.runner._lead_answers(
-            self.ctx, self.text, self.options, self.asked, self.says, self.kind == "ask_user"))
+            self.ctx, self.text, self.options, self.asked, self.says, self.kind == "ask_user",
+            self.kind))
         self.going.append(task)
         task.add_done_callback(lambda _task: self.let_go(True))
         return None

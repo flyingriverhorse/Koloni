@@ -238,3 +238,42 @@ def test_a_card_held_while_you_typed_is_not_decided_once_you_are_back(make_clien
     client.post(f"/api/questions/{question['id']}/answer", json={"answer": "by name"}, headers=OWN)
     (answered,) = wait_run(client, cid, run_id)["questions"]
     assert answered["lead_why"] is None
+
+
+def test_an_answer_still_queued_for_the_orchestrator_is_not_given_once_you_are_back(
+        make_client, wait_run, project_dir, gate):
+    # (Round 2: three cards decided while away, two with the model; I'm back - the third, which
+    # waited for its turn, is not sent.)
+    from tests.conftest import Gate
+    second = Gate()
+    client, model = make_client({
+        "Lead": [step(*(call("spawn_agent", {"role": "Coder", "task": f"ask {n}"}, f"s{n}")
+                        for n in (1, 2, 3))),
+                 gate.step(says("by date")), second.step(says("by name")), text("done")],
+        "Coder": [ask("First?", id="q1"), text("ok")],
+        "Coder 2": [ask("Second?", id="q2"), text("ok")],
+        "Coder 3": [ask("Third?", id="q3"), text("ok")],
+    })
+    clock = held(client)
+    pid, cid = away_chat(client, project_dir, permission_mode="auto_edit", spawn_approval="never",
+                         spawn_max_parallel=3, when_away="waits")
+    run_id = post(client, cid)
+    timers = until(lambda: (found := lead_timers(clock, 0.0)) and len(found) == 3 and found)
+    for timer in timers:
+        fire(client, timer)
+    gate.wait_partial()
+    second.wait_partial()  # (two with the model; the third waits for its turn)
+    with client.app.state.session_factory() as session:  # (I'm back - its summary aside)
+        session.scalars(select(AwayRun).where(AwayRun.project_id == pid)).one().status = "ended"
+        session.commit()
+    gate.release()
+    second.release()
+    runner = client.app.state.runner
+    until(lambda: not runner._lead_taking)
+    asked = client.get(f"/api/conversations/{cid}").json()["questions"]
+    assert sorted(q["status"] for q in asked) == ["answered", "answered", "pending"]
+    assert len(model.calls_of["Lead"]) == 3  # (its turn's step and two answers - not a third)
+    (waiting,) = [q for q in asked if q["status"] == "pending"]
+    client.post(f"/api/questions/{waiting['id']}/answer", json={"answer": "by name"},
+                headers=OWN)
+    wait_run(client, cid, run_id)
