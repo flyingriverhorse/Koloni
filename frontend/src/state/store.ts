@@ -512,8 +512,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   decidePlan(runId: string, decision: 'approve' | 'reject', text?: string, overBudget?: boolean): Promise<void>
   /** "False alarm" on a warning of the open chat (93-A4): counted for its rule, once. Throws ApiError. */
   falseAlarm(warningId: number): Promise<void>
-  /** Run once, always run (adds an allow-list rule) or reject a waiting command. */
-  decideCommand(commandId: string, decision: 'once' | 'always' | 'reject'): Promise<void>
+  /** Run once, always run (adds an allow-list rule), run once and allow such deletes in the project (a disposable one) or reject a waiting command. */
+  decideCommand(commandId: string, decision: 'once' | 'always' | 'disposable' | 'reject'): Promise<void>
   removeRule(ruleId: string): Promise<void>
   /** Let a waiting web search or HTTP request go out once, always (keeps a rule), or not. */
   decideWeb(requestId: string, decision: 'once' | 'always' | 'reject'): Promise<void>
@@ -1994,7 +1994,9 @@ export const useApp = create<AppStore>()((set, get) => {
 
     async decideCommand(commandId, decision) {
       if (decision === 'reject') await api.post(`/commands/${commandId}/reject`)
-      else await api.post(`/commands/${commandId}/approve`, { remember: decision === 'always' })
+      else await api.post(`/commands/${commandId}/approve`, { remember: decision === 'always', disposable: decision === 'disposable' })
+      // (Its project allows such deletes now: no later card offers it again.)
+      if (decision === 'disposable') void api.get<Project[]>('/projects').then(projects => set({ projects }), () => {})
     },
 
     async removeRule(ruleId) {

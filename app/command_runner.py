@@ -129,6 +129,20 @@ def _kept(judgement: dict | None, asks: bool, gate: bool) -> dict | None:
     stale = judgement is not None and (not gate or asks and judgement["verdict"] == "run")
     return None if stale else judgement
 
+
+def _free(ask: bool, disposable: dict | None, mode: str, allows: bool) -> bool:
+    """Coordination §4: whether a delete found disposable goes without the level's own card -
+    the caller found it so in a turn the user watches (`allowed`) and, read again as it is
+    decided, the project allows such deletes (`allows`) and the chat is at Auto-edit or Full
+    auto. What asks at every level is asked all the same."""
+    return (ask and disposable is not None and disposable["allowed"] and allows
+            and mode in ("auto_edit", "full_auto"))
+
+
+def _noted(disposable: dict | None, unasked: bool) -> dict | None:
+    """What of a command goes on its record as disposable (`schemas.DisposableOut`)."""
+    return None if disposable is None else {"what": disposable["what"], "unasked": unasked}
+
 HELD_BACK = ("(secret variables held back from this command: {names} - the user can pass one "
              "in Settings › This project › Commands and secrets)")
 # A command that keeps running (a dev server, slice 42b): the tool answers once it printed
@@ -176,7 +190,7 @@ class CommandRunner:
         self.bus = bus
         self._executors = executors
         self._update_run = update_run
-        # command id -> future resolved with "once", "always" or "reject"
+        # command id -> future resolved with "once", "always", "disposable" or "reject"
         self._decisions: dict[str, asyncio.Future[str]] = {}
         # command id -> (conversation id, output so far) while the command runs
         self._live: dict[str, tuple[str, str]] = {}
@@ -215,7 +229,7 @@ class CommandRunner:
         self, run_id: str, cid: str, agent_id: str, ws: Workspace, call_id: str, args: dict,
         ask: bool = True, where: Callable[[], Awaitable[Workspace]] | None = None,
         always: bool = False, web_off: bool = False, once: set[str] | None = None,
-        judgement: dict | None = None,
+        judgement: dict | None = None, disposable: dict | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
         `ask` is False where the command has its leave already and nobody can be asked
@@ -229,7 +243,10 @@ class CommandRunner:
         (K-evrim's measure, for its run) - what asks at every level still does; a yes on this
         one's card is added to it. `judgement`: what the check of the user's words said of it
         (K-yargic, `AgentRunner._judged`) - not kept as a run where it is asked all the same; one
-        it refused (`_refuses`) goes on record ended, "refused", and is neither asked nor run."""
+        it refused (`_refuses`) goes on record ended, "refused", and is neither asked nor run.
+        `disposable`: what of it KOLONİ found disposable, {"what", "allowed"} (coordination §4):
+        `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
+        deletes in this project" where it is asked."""
         planned = plan_command(ws, args)
         searched = await asyncio.to_thread(
             search_reason, planned.command, ws.root, planned.cwd_rel)
@@ -264,12 +281,14 @@ class CommandRunner:
             # (K-fullauto-sorma: at Full auto an instruction file alone is not asked.)
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
+            free = _free(ask, disposable, conversation.permission_mode,
+                         project.disposable_deletes)
             asks = ask and (always or names_secret(judged) or bool(standing_asked(
                 judged, conversation.permission_mode != "full_auto"))
                 or bool(searched) or judgement is not None and not gate or (
                 conversation.permission_mode != "full_auto"
                 and (planned.keep_running or not (is_allowed(planned.command, prefixes)
-                                                  or reads or own
+                                                  or reads or own or free
                                                   or planned.command in (once or ())))))
             # The place is fixed now: changing the project setting while this command
             # waits for a decision must not move it somewhere the user did not see.
@@ -290,6 +309,7 @@ class CommandRunner:
                 # reaches a secret, `searched`) was a request spent; look for that before it if
                 # such checks are seen often.
                 judged=_kept(judgement, asks, gate),
+                disposable=_noted(disposable, free and not asks),
             )
             session.add(command)
             session.commit()
@@ -522,6 +542,7 @@ class CommandRunner:
         self, run_id: str, cid: str, agent_id: str, call_id: str, command: str,
         ask: bool = True, always: bool = False, held: bool = False, reads: bool = False,
         web_off: bool = False, cwd: str | None = None, judgement: dict | None = None,
+        disposable: dict | None = None,
     ) -> tuple[bool, str]:
         """A command a CLI is about to run with a tool of its own: put it on record,
         get it decided the way KOLONİ's own commands are, and say whether it may run.
@@ -533,13 +554,13 @@ class CommandRunner:
         the root), so that the card is judged the same when it is read again. What it
         prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
         screen and the record - the CLI's own model has read it already. `judgement`: as
-        `run`'s (one it refused: (False, its id), as for the user's no)."""
+        `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
-            tests, check = session.execute(select(
-                Project.test_commands, Project.full_auto_check).where(
+            tests, check, allows = session.execute(select(
+                Project.test_commands, Project.full_auto_check, Project.disposable_deletes).where(
                 Project.id == conversation.project_id)).one()
             gate = _gate_open(mode, check)
             forbidden = _refuses(judgement, gate)
@@ -547,11 +568,12 @@ class CommandRunner:
             own = project_map.own_test(tests, command, cwd)
             # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
             judged = with_cwd(command, cwd)
+            free = _free(ask, disposable, mode, allows)
             asks = ask and (always or names_secret(judged)
                             or bool(standing_asked(judged, mode != "full_auto"))
                             or judgement is not None and not gate
                             or (mode != "full_auto"
-                                and not (is_allowed(command, prefixes) or reads or own)))
+                                and not (is_allowed(command, prefixes) or reads or own or free)))
             row = Command(
                 run_id=run_id, agent_id=agent_id, tool_call_id=call_id, command=command,
                 cwd=cwd, location="host", timeout_seconds=0, origin="cli", web_off=web_off,
@@ -559,6 +581,7 @@ class CommandRunner:
                 ended_at=now() if forbidden else None,
                 # (as `run`'s: what the check said holds only while its gate is open)
                 judged=_kept(judgement, asks, gate),
+                disposable=_noted(disposable, free and not asks),
             )
             session.add(row)
             session.commit()
@@ -653,6 +676,8 @@ class CommandRunner:
             # moment it is said, whether or not this command ever gets to run.
             if word == "always":
                 self._add_rule(cid, rule)
+            elif word == "disposable":
+                self._allow_disposable(cid, command_id)
             # A yes is on record the moment it is given - "approved", not the user's to
             # decide a second time - whether or not anything is waited for before the
             # command runs: a place for its agent, or its start (a container, a working
@@ -686,6 +711,17 @@ class CommandRunner:
             except IntegrityError:  # the rule is already there
                 session.rollback()
         self.emit_rules(cid)
+
+    def _allow_disposable(self, cid: str, command_id: str) -> None:
+        """"Allow such deletes in this project" on a disposable delete's card: the project's own
+        switch on (`Project.disposable_deletes`), from now on - only from a row KOLONİ found
+        disposable (the API takes the word on no other)."""
+        with self._factory() as session:
+            if session.get_one(Command, command_id).disposable is None:
+                return
+            project_id = session.get_one(Conversation, cid).project_id
+            session.get_one(Project, project_id).disposable_deletes = True
+            session.commit()
 
     def emit_rules(self, cid: str) -> None:
         with self._factory() as session:

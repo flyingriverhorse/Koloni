@@ -3,11 +3,22 @@ or cache folder, a clean worktree, a merged branch - may go without a card where
 it in the project. First what a line could delete: anything else on the line, any form not read
 here, is no such delete."""
 
+import asyncio
+import time
+from types import SimpleNamespace
+
 import pytest
 
 from app import koloni
+from app.command_runner import CommandRunner
 from app.commands import disposable_targets
+from app.db.models import Agent, Command, Conversation, Message, Project, Run, ToolCall
+from app.db.session import make_engine, make_session_factory, upgrade_db
+from tests.conftest import scaled
+from tests.fakes import Script, ScriptedExecutor
 from tests.keyed import OWN
+from tests.test_agent_commands import approve, cmd
+from tests.test_chat_flow import start_in_mode, text
 
 
 @pytest.mark.parametrize(("line", "targets"), [
@@ -73,3 +84,139 @@ def test_a_project_asks_as_before_until_the_user_allows_disposable_deletes_on_it
                             headers=OWN).json()["disposable_deletes"] is on
     # (the user's own, of this KOLONİ: never from the folder's .koloni/settings.json)
     assert "disposable_deletes" not in koloni.SETTINGS
+
+
+BUILD = {"what": "build folder build", "allowed": True}
+
+
+def runner_at(tmp_path, mode, allows=True, calls=8):
+    """A command runner over a chat at `mode` in a project that allows disposable deletes or not;
+    each card it would show is turned down and counted (`runner.asked`)."""
+    db = tmp_path / "r.db"
+    upgrade_db(db)
+    factory = make_session_factory(make_engine(db))
+    with factory() as s:
+        s.add(Project(id="p", name="p", root_path=str(tmp_path), disposable_deletes=allows))
+        s.flush()
+        s.add(Conversation(id="c", project_id="p", permission_mode=mode))
+        s.flush()
+        s.add(Run(id="r", conversation_id="c", status="running"))
+        s.flush()
+        s.add(Agent(id="a", run_id="r", role_name="Lead", tools=[]))
+        s.flush()
+        s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
+        s.flush()
+        for n in range(calls):
+            s.add(ToolCall(id=f"t{n}", run_id="r", agent_id="a", message_id="m", seq=n,
+                           provider_call_id=f"k{n}", name="run_command", arguments="{}",
+                           status="running"))
+        s.commit()
+    runner = CommandRunner(factory, SimpleNamespace(emit=lambda *_: None), None, lambda **_: None)
+    runner.asked = []
+
+    async def no(run_id, cid, agent_id, command_id, rule):
+        runner.asked.append(command_id)
+        return "reject"
+
+    runner._wait_for_decision = no
+    return runner, factory
+
+
+def test_a_disposable_delete_goes_without_its_levels_card_only_where_the_project_allows_it(
+        tmp_path):
+    runner, factory = runner_at(tmp_path, "auto_edit")
+
+    def asked(call, line="rm -rf build", **given):
+        ran, command_id = asyncio.run(runner.ask_for("r", "c", "a", call, line, cwd=".", **given))
+        with factory() as s:
+            return ran, command_id in runner.asked, s.get_one(Command, command_id).disposable
+
+    unasked = {"what": "build folder build", "unasked": True}
+    assert asked("t0", disposable=BUILD) == (True, False, unasked)
+    # (what asks at every level still asks: a secret, a reason of the caller's)
+    assert asked("t1", "rm -rf build .env", disposable=BUILD)[1]
+    assert asked("t2", always=True, disposable=BUILD)[1:] == (True, {**unasked, "unasked": False})
+    # (one not found allowed asks, and keeps what was disposable of it for its card)
+    assert asked("t3", disposable={**BUILD, "allowed": False}) == (
+        False, True, {**unasked, "unasked": False})
+    assert asked("t4") == (False, True, None)
+    # (a turn nobody watches runs it by its trigger's leave, not as disposable)
+    assert asked("t5", ask=False, disposable=BUILD) == (True, False, {**unasked, "unasked": False})
+    # Read again as it is decided: at Ask, or with the project's switch off, the card stays.
+    with factory() as s:
+        s.get_one(Conversation, "c").permission_mode = "ask"
+        s.commit()
+    assert asked("t6", disposable=BUILD)[1]
+    with factory() as s:
+        s.get_one(Conversation, "c").permission_mode = "full_auto"
+        s.get_one(Project, "p").disposable_deletes = False
+        s.commit()
+    assert asked("t7", always=True, disposable=BUILD)[1]
+
+
+def given(client, disposable):
+    """`rm -rf build` handed to the agent runner's commands with `disposable`, as the agent
+    runner would; any other line as it is. One it found free goes without the harm ask of a
+    watched turn (`always`), which it then does not make."""
+    commands = client.app.state.runner.commands
+    run = commands.run
+
+    async def handed(run_id, cid, agent_id, ws, call_id, args, **kwargs):
+        if args.get("command") == "rm -rf build":
+            kwargs["disposable"] = disposable
+            kwargs["always"] = kwargs["always"] and not disposable["allowed"]
+        return await run(run_id, cid, agent_id, ws, call_id, args, **kwargs)
+
+    commands.run = handed
+
+
+def proposed(client, cid, line):
+    """The card of `line`, once it waits."""
+    deadline = time.monotonic() + scaled(5)
+    while time.monotonic() < deadline:
+        snap = client.get(f"/api/conversations/{cid}").json()
+        if found := [c for c in snap["commands"]
+                     if (c["command"], c["status"]) == (line, "proposed")]:
+            return found[0]
+        time.sleep(0.02)
+    raise AssertionError(f"{line} never waited: {snap['commands']}")
+
+
+def test_allow_such_deletes_on_a_disposable_deletes_card_turns_the_project_switch_on_and_runs_it(
+        make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([Script([""]), Script([""])])
+    client, _ = make_client([cmd("rm -rf build", "k1"), cmd("pytest -q", "k2"), text("done")],
+                            executor=executor)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    given(client, {**BUILD, "allowed": False})
+    cid, run_id = start_in_mode(client, project_dir, "ask")
+    card = proposed(client, cid, "rm -rf build")
+    assert card["disposable"] == {"what": "build folder build", "unasked": False}
+    sent = f"/api/commands/{card['id']}/approve"
+    assert client.post("/api/commands/none/approve", json={"disposable": True}).status_code == 404
+    assert client.post(sent, json={"disposable": True, "remember": True}).status_code == 422
+    assert client.post(sent, json={"disposable": True}, headers={"Origin": None}).status_code == 403
+    assert client.post(sent, json={"disposable": True}).json()["status"] in (
+        "approved", "running", "exited")
+    assert client.get(f"/api/projects/{pid}").json()["disposable_deletes"] is True
+    # A card that is no disposable delete takes no such word.
+    plain = proposed(client, cid, "pytest -q")
+    assert plain["disposable"] is None
+    assert client.post(f"/api/commands/{plain['id']}/approve",
+                       json={"disposable": True}).status_code == 422
+    assert approve(client, plain["id"]).status_code == 200
+    wait_run(client, cid, run_id)
+    assert [line for line, _ in executor.started] == ["rm -rf build", "pytest -q"]
+
+
+def test_at_auto_edit_a_delete_found_disposable_runs_without_a_card_and_says_so(
+        make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([Script([""])])
+    client, _ = make_client([cmd("rm -rf build"), text("done")], executor=executor)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    client.patch(f"/api/projects/{pid}", json={"disposable_deletes": True}, headers=OWN)
+    given(client, BUILD)
+    cid, run_id = start_in_mode(client, project_dir, "auto_edit")
+    (ran,) = wait_run(client, cid, run_id)["commands"]
+    assert (ran["status"], ran["disposable"]) == (
+        "exited", {"what": "build folder build", "unasked": True})

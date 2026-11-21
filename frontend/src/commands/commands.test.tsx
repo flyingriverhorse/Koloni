@@ -1,8 +1,10 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Command } from '../api/types'
-import { command } from '../test-fixtures'
+import { api } from '../api/client'
+import type { Command, Project } from '../api/types'
+import { useApp } from '../state/store'
+import { command, convState } from '../test-fixtures'
 import { AllowList } from './AllowList'
 import { CommandApproval } from './CommandApproval'
 import { CommandRow } from './CommandRow'
@@ -233,4 +235,49 @@ test('a card the check found nothing of yours for says so - and not the check’
   expect(screen.queryByText(/surely meant it/)).not.toBeInTheDocument()
   rerender(<CommandApproval command={{ ...asked, judged: null }} onDecide={vi.fn()} />)
   expect(screen.queryByText(/Nothing you said covers this/)).not.toBeInTheDocument()
+})
+
+test('a delete KOLONİ found disposable offers Allow such deletes in this project, until the project allows them', async () => {
+  const onDecide = vi.fn().mockResolvedValue(undefined)
+  const asked = command('k', 'r', {
+    status: 'proposed', command: 'rm -rf build', suggested_prefix: '', danger: 'Deletes files or disks.',
+    disposable: { what: 'build folder build', unasked: false },
+  })
+  const projectAllows = (allows: boolean) =>
+    useApp.setState({ projects: [{ id: 'p', disposable_deletes: allows } as Project], conv: convState({ conversation: { ...convState().conversation, project_id: 'p' } }) })
+  projectAllows(false)
+  const { unmount } = render(<CommandApproval command={asked} onDecide={onDecide} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Allow such deletes in this project' }))
+  expect(onDecide).toHaveBeenCalledWith('disposable')
+  expect(screen.getByText(/^KOLONİ checked build folder build: disposable\./)).toBeInTheDocument()
+  unmount()
+  projectAllows(true)
+  render(<CommandApproval command={asked} onDecide={onDecide} />)
+  expect(screen.queryByRole('button', { name: /Allow such deletes/ })).not.toBeInTheDocument()
+  cleanup()
+  // (one KOLONİ did not find disposable has no such button, whatever its words)
+  projectAllows(false)
+  render(<CommandApproval command={{ ...asked, disposable: null }} onDecide={onDecide} />)
+  expect(screen.queryByRole('button', { name: /Allow such deletes/ })).not.toBeInTheDocument()
+  expect(screen.getByText('This command is asked every time.')).toBeInTheDocument()
+})
+
+test('Allow such deletes is sent as the approval’s own word, and the projects are read again', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+  const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+  await useApp.getState().decideCommand('k', 'disposable')
+  expect(post).toHaveBeenCalledWith('/commands/k/approve', { remember: false, disposable: true })
+  expect(get).toHaveBeenCalledWith('/projects')
+  await useApp.getState().decideCommand('k', 'once')
+  expect(post).toHaveBeenLastCalledWith('/commands/k/approve', { remember: false, disposable: false })
+  post.mockRestore()
+  get.mockRestore()
+})
+
+test('a delete that ran with no card as disposable says so on its row', () => {
+  const { unmount } = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: { what: 'build folder build', unasked: true } })} />)
+  expect(screen.getByText('Ran without asking · disposable: build folder build')).toBeInTheDocument()
+  unmount()
+  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: { what: 'build folder build', unasked: false } })} />)
+  expect(screen.queryByText(/Ran without asking/)).not.toBeInTheDocument()
 })

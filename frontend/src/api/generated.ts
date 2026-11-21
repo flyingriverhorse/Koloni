@@ -4894,6 +4894,11 @@ export interface components {
         /** ApproveIn */
         ApproveIn: {
             /**
+             * Disposable
+             * @default false
+             */
+            disposable: boolean;
+            /**
              * Remember
              * @default false
              */
