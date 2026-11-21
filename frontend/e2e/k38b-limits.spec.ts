@@ -24,8 +24,8 @@ for (const [width, height] of [
   [1440, 900],
 ] as const) {
   // At 1024 the chat's column (0.1.4) and the inspector leave about 224px of the stage: no room for the window beside
-  // the column (it lies over the chat, in front: move.ts placeWindow's shortcut); with Workspace beside the column as
-  // well, none for the turn - its Lead's card can no longer be double-clicked. So Workspace is opened at 1440 only.
+  // the column (it lies over the chat, in front: move.ts placeWindow's shortcut). Workspace beside the column stands
+  // full height from 1400px only, so at 1024 the turn keeps the canvas above it.
   const roomy = width > 1024
   for (const theme of ['light', 'dark'] as const) {
     test(`K-38b-sinirlar ${width}x${height} (${theme}): an agent's window opens ${roomy ? 'off the chat, not over Workspace' : 'in front, off the message box'}, and counts what came new`, async ({ page }) => {
@@ -39,10 +39,8 @@ for (const [width, height] of [
 
       // Workspace beside the chat, then the Lead picked (the inspector takes the stage's right) and its window opened.
       const files = page.getByRole('region', { name: 'Workspace' })
-      if (roomy) {
-        await chat.getByRole('button', { name: /^Workspace/ }).click()
-        await expect(files).toBeVisible()
-      }
+      await chat.getByRole('button', { name: /^Workspace/ }).click()
+      await expect(files).toBeVisible()
       const lead = page.locator('.react-flow__node-agent', { hasText: 'Orchestrator' })
       await lead.locator('.node-title').click()
       await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeVisible()
@@ -50,12 +48,10 @@ for (const [width, height] of [
       const window = page.getByRole('region', { name: 'Agent window' })
       await expect(window).toBeVisible()
 
-      const [stage, own, under] = [await box(page.locator('.stage')), await box(window), await box(chat)]
-      if (roomy) {
-        const other = await box(files)
-        expect(meets(own, under)).toBe(false)
-        expect(holds(own, other) || holds(other, own)).toBe(false)
-      } else {
+      const [stage, own, under, other] = [await box(page.locator('.stage')), await box(window), await box(chat), await box(files)]
+      expect(holds(own, other) || holds(other, own)).toBe(false)
+      if (roomy) expect(meets(own, under)).toBe(false)
+      else {
         await expect(window).toHaveAttribute('data-front', '')
         expect(meets(own, await box(chat.getByLabel('Message')))).toBe(false)
       }
