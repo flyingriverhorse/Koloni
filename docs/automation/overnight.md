@@ -141,7 +141,8 @@ The time and the money are checked before each model step. A clock also watches 
 each job's hours at most, so a long command is cut at them too. Its minutes with nothing moving
 do not run out while a command or a model step of it is under way, an agent below the Orchestrator
 is at work, or it waits for your word: those have limits of their own. When the jobs stop, the job at work stops, its
-work kept in its copy, and is shown as **Stopped**. A job that waits for your word goes on waiting.
+work kept in its copy, and is shown as **Stopped**. A job that waits for your word goes on waiting -
+but **Stop all** stops it too.
 When KOLONİ is closed, the jobs at work and those that wait count as could not be done: answer what
 waits before you close KOLONİ.
 

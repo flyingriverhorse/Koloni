@@ -612,17 +612,18 @@ def tried(session: Session, away: AwayRun, task_id: str | None, what: str) -> No
     session.commit()
 
 
-def stop(session: Session, away: AwayRun, why: str, runner, ends: bool = True) -> None:
-    """Stop all, or a limit reached: the night ends, and a job at work is cut - its copy kept
-    (`AgentRunner.cut`) and stopped, not failed (B-148). One that waits for the user's word
-    waits on. Not `ends`: Stop everything (`app.api.hold`) - the night stays, and its next
-    job waits for Resume (`go_on`); a job that waits for the user's word is stopped too, as
-    every turn is then."""
+def stop(session: Session, away: AwayRun, why: str, runner, ends: bool = True,
+         waiting: bool = False) -> None:
+    """Stop all (`waiting`), or a limit reached: the night ends, and a job at work is cut - its
+    copy kept (`AgentRunner.cut`) and stopped, not failed (B-148). One that waits for the user's
+    word waits on at a limit; Stop all stops it too. Not `ends`: Stop everything
+    (`app.api.hold`) - the night stays, and its next job waits for Resume (`go_on`); a job that
+    waits for the user's word is stopped too, as every turn is then."""
     # (The chat gone from at its turn too: Stop all stops everything of Away.)
     cut = list(session.scalars(select(Run.id).where(
         Run.conversation_id == away.conversation_id, Run.status.not_in(backlog.ENDED))))
     for task in tasks_of(session, away):
-        if at_work(session, task) or (not ends and task.away_state == "waits"):
+        if at_work(session, task) or (waiting or not ends) and task.away_state == "waits":
             open_runs = list(session.scalars(select(Run.id).where(
                 Run.conversation_id == task.conversation_id, Run.status.not_in(backlog.ENDED))))
             if open_runs:  # (one that waits as done - it needs the project - has none)

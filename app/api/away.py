@@ -83,12 +83,12 @@ async def come_back(away_id: str, request: Request, session: Session = Depends(g
 
 @router.post("/away/{away_id}/stop", response_model=AwayOut, dependencies=OWN)
 async def stop_all(away_id: str, request: Request, session: Session = Depends(get_session)):
-    """Stop all: the job at work stops, its copy kept, and no other starts. One that waits for
-    the user's word waits on."""
+    """Stop all: the job at work stops, its copy kept, and no other starts - one that waits for
+    the user's word too, and the chat gone from's turn."""
     card = _away(session, away_id)
     if card.status != "running":
         raise HTTPException(409, "this card's jobs are not running")
-    away.stop(session, card, "Stopped by you.", request.app.state.runner)
+    away.stop(session, card, "Stopped by you.", request.app.state.runner, waiting=True)
     _told(request, card.project_id)
     session.refresh(card)
     return away.report(session, card)

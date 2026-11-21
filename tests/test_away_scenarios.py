@@ -773,3 +773,19 @@ def test_the_spend_limit_counts_only_what_was_spent_after_go_away_and_cuts_the_c
     assert (done["status"], done["why"]) == ("ended", "Stopped at 10.50 of 5.00 USD, the spend limit.")
     second.release()
     assert wait_run(client, cid, later)["runs"][-1]["status"] == "cancelled"
+
+
+def test_stop_all_stops_a_job_that_waits_for_your_word_too(make_client, wait_run, project_dir):
+    # (The review: Stop all cut only the job at work; one waiting on a card stayed open.)
+    run = step(call("run_command", {"command": "echo hi"}))
+    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
+        run, text("two done")], mode="ask")
+    wait_run(client, cid, run_id)
+    started = go_away(client, cid).json()
+    until(lambda: looked_at(night(client, pid)))
+    stopped = client.post(f"/api/away/{started['id']}/stop").json()
+    assert stopped["status"] == "ended" and stopped["why"] == "Stopped by you."
+    one = until(lambda: (j := night(client, pid)["jobs"][0])["state"] == "stopped" and j)
+    assert one["why"] == "Stopped by you."
+    until(lambda: client.get(f"/api/conversations/{one['conversation_id']}").json()[
+        "runs"][-1]["status"] == "cancelled")
