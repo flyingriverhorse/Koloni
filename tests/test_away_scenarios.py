@@ -320,8 +320,9 @@ def test_the_offer_is_one_line_and_starts_nothing(make_client, wait_run, project
     snap = wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages", json={
         "content": "I'm going to sleep: do one and two"}).json()["run"]["id"])
     (offered,) = client.get(f"/api/conversations/{cid}/away").json()
-    assert (offered["status"], offered["jobs"], offered["kept_out"], offered["money"]) == (
-        "planned", [], ["secret"], 2)
+    assert (offered["status"], offered["kept_out"], offered["money"]) == ("planned", ["secret"], 2)
+    # (the tasks its Orchestrator put on To-do in that turn: what its Go away line takes)
+    assert [job["title"] for job in offered["jobs"]] == ["one", "two"]
     assert [t["name"] for t in snap["tool_calls"]] == ["add_task", "add_task", "offer_away"]
     # nothing started: the tasks proposed from this chat, no other chat, nobody away
     assert {t["status"] for t in tasks(client, pid).values()} == {"proposed"}
@@ -793,3 +794,28 @@ def test_stop_all_stops_a_job_that_waits_for_your_word_too(make_client, wait_run
     assert one["why"] == "Stopped by you."
     until(lambda: client.get(f"/api/conversations/{one['conversation_id']}").json()[
         "runs"][-1]["status"] == "cancelled")
+
+
+def test_the_offer_holds_only_the_tasks_its_orchestrator_added_in_that_turn(
+        make_client, wait_run, project_dir):
+    # (The review: one click on the line approved what any agent proposed in the chat - a
+    # sub-agent that read a hostile page, an earlier turn's.)
+    client, _model = make_client({
+        "Lead": [step(call("add_task", {"title": "earlier"}, "t0")), text("noted"),
+                 spawn("Product owner", "note what you found"),
+                 step(call("add_task", {"title": "mine", "criteria": "it is done"}, "t1"),
+                      call("offer_away", OFFER, "o1")), text("offered")],
+        "Product owner": [step(call("add_task", {"title": "sneaky"}, "c1")), text("added")],
+    })
+    client.headers.update(ORIGIN)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto",
+                                                    "spawn_approval": "never"})
+    for said in ("remember this", "I'm going to sleep"):
+        wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages",
+                                          json={"content": said}).json()["run"]["id"])
+    assert sorted(tasks(client, pid)) == ["earlier", "mine", "sneaky"]
+    (offered,) = client.get(f"/api/conversations/{cid}/away").json()
+    assert [(job["title"], job["line"], job["task_id"]) for job in offered["jobs"]] == [
+        ("mine", "it is done", tasks(client, pid)["mine"]["id"])]

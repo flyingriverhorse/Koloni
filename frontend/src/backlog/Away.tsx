@@ -39,15 +39,17 @@ export function AwayOffer({ conv, offer }: { conv: ConvState; offer: Away }) {
   }, [backlog])
   const cid = conv.conversation.id
   if (changing) return <AwayPanel conv={conv} offer={offer} onClose={() => setChanging(false)} />
-  const mine = (backlog ?? []).filter(t => t.proposed_in === cid && (t.status === 'proposed' || t.status === 'todo') && t.po?.lead !== 'no').slice(0, 10)
-  const limits = [offer.until && `Until ${clock(offer.until)}`, offer.money != null && `at most ${amount(offer.money, offer.currency)}`, offer.kept_out.length > 0 && `kept out ${offer.kept_out.join(', ')}`]
+  // (Only what its Orchestrator put on To-do in that turn, still open - named here: anything else is the panel's to tick.)
+  const mine = offer.jobs.filter(job => backlog?.some(t => t.id === job.task_id && (t.status === 'proposed' || t.status === 'todo')))
+  const named = mine.length > 3 ? `${mine.slice(0, 3).map(job => job.title).join(', ')} and ${mine.length - 3} more` : mine.map(job => job.title).join(', ')
+  const said = [named, offer.until && `Until ${clock(offer.until)}`, offer.money != null && `at most ${amount(offer.money, offer.currency)}`, offer.kept_out.length > 0 && `kept out ${offer.kept_out.join(', ')}`]
   const go = () =>
     void ask(() =>
-      useApp.getState().goAway(cid, { task_ids: mine.map(t => t.id), order: [], until: clock(offer.until) || null, money: offer.money, kept_out: offer.kept_out }),
+      useApp.getState().goAway(cid, { task_ids: mine.map(job => job.task_id!), order: [], until: clock(offer.until) || null, money: offer.money, kept_out: offer.kept_out }),
     )
   return (
     <div className="away-offer" role="group" aria-label="Go away now?">
-      <span aria-hidden>☾</span> <b>Go away now?</b> {limits.filter(Boolean).join(' · ')}
+      <span aria-hidden>☾</span> <b>Go away now?</b> {said.filter(Boolean).join(' · ')}
       <button type="button" className="btn btn-small btn-primary" disabled={busy || !backlog} onClick={go}>
         Go away
       </button>

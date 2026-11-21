@@ -44,7 +44,9 @@ export function AwayPanel({ conv, offer, onClose }: Props) {
   const [limits, setLimits] = useState<Limits>({ until: clock(offer?.until), money: offer?.money == null ? '' : String(offer.money), kept: (offer?.kept_out ?? []).join(', ') })
   const { busy, error, ask } = useAsk()
   const ids = [...(order ?? []).filter(id => tasks.some(t => t.id === id)), ...tasks.map(t => t.id).filter(id => !order?.includes(id))]
-  const on = ticked ?? new Set(tasks.filter(t => t.proposed_in === cid).slice(0, MOST).map(t => t.id))
+  // (From the Orchestrator's line: the tasks it named there; from the chip: the new ones of this chat.)
+  const first = offer ? new Set(offer.jobs.map(job => job.task_id)) : null
+  const on = ticked ?? new Set(tasks.filter(t => (first ? first.has(t.id) : t.proposed_in === cid)).slice(0, MOST).map(t => t.id))
   const tick = (id: string) => setTicked(new Set(on.has(id) ? [...on].filter(one => one !== id) : [...on, id]))
   const move = (at: number, by: number) => setOrder(ids.map((id, i) => (i === at ? ids[at + by] : i === at + by ? ids[at] : id)))
   const go = () =>

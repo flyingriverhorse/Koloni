@@ -260,10 +260,13 @@ def back(session: Session, project_id: str) -> Message | None:
     return message
 
 
-def offer(session: Session, conversation: Conversation, run_id: str, args: dict) -> str:
+def offer(session: Session, conversation: Conversation, run_id: str, args: dict,
+          lead_id: str) -> str:
     """offer_away: the Orchestrator's one line offering the user to go away - with the places
-    kept out and the limits it heard them name - in place of one this chat still shows. Nothing
-    starts: Go away is the user's."""
+    kept out and the limits it heard them name, and the tasks it put on To-do itself in this
+    turn (`lead_id`'s add_task: never a sub-agent's, nor an earlier turn's - those stay in the
+    panel, for the user to tick) - in place of one this chat still shows. Nothing starts: Go
+    away is the user's."""
     if conversation.project_id is None:
         raise Refused("a chat with no folder has nothing to work on while the user is away")
     if running(session, conversation.project_id):
@@ -275,8 +278,25 @@ def offer(session: Session, conversation: Conversation, run_id: str, args: dict)
             AwayRun.conversation_id == conversation.id, AwayRun.status == "planned")):
         old.status = "dismissed"
     session.add(AwayRun(project_id=project.id, conversation_id=conversation.id, run_id=run_id,
-                        jobs=[], kept_out=kept, until=until, money=money))
+                        jobs=_its_own(session, conversation.id, run_id, lead_id), kept_out=kept,
+                        until=until, money=money))
     return OFFERED
+
+
+# What add_task says of the task it proposed (`backlog.add_task`).
+ADDED = re.compile(r"proposed task ([0-9a-f]{32})\b")
+
+
+def _its_own(session: Session, cid: str, run_id: str, lead_id: str) -> list[dict]:
+    """`offer`'s tasks: those the Orchestrator `lead_id` added in turn `run_id`, still open."""
+    said = session.scalars(select(ToolCall.result).where(
+        ToolCall.run_id == run_id, ToolCall.agent_id == lead_id, ToolCall.name == "add_task"))
+    ids = dict.fromkeys(found.group(1) for one in said if one and (found := ADDED.match(one)))
+    tasks = [session.get(BacklogTask, one) for one in ids]
+    return [{"title": task.title, "line": task.criteria, "team": None, "recipe": None,
+             "task_id": task.id} for task in tasks
+            if task is not None and task.proposed_in == cid and task.status in (
+                "proposed", "todo")][:MAX_JOBS]
 
 
 def tasks_of(session: Session, away: AwayRun) -> list[BacklogTask]:

@@ -265,7 +265,7 @@ class AwayMixin:
                 raise ToolError(why)
             try:
                 said = away.offer(session, session.get_one(Conversation, ctx.cid), ctx.run_id,
-                                  args)
+                                  args, ctx.agent_id)
             except away.Refused as exc:
                 raise ToolError(str(exc)) from None
             session.commit()
