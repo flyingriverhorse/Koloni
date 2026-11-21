@@ -47,7 +47,8 @@ as it is.
   own tools off.
 - **Native** uses the CLI's own tools in your folder. Claude Code and agy ask KOLONİ before every tool
   they use; Codex before each command and patch, except the commands its own rules count as safe, which
-  it runs without asking; Copilot before each command, write and read. The Qoder versions measured so
+  it runs without asking; Copilot before every tool it uses (on its newer protocol, 1.0.114 on, through
+  KOLONİ's own hook; on the older one, before each command, write and read). The Qoder versions measured so
   far do not apply KOLONİ's hook, so a native Qoder turn stops before Qoder does anything and says to
   run it as a session; how a Qoder that applies the hook works natively is not measured.
 - **Reads with its own tools** (agy): it reads, and is started without leave to write or run.
@@ -130,7 +131,24 @@ address** on this machine or your network.
   model and Medium thinking, Copilot's default spent 7.12 AI credits for the same short answer that `auto`
   answered for 0.18 (measured once, 7 Nov 2026, Copilot CLI 1.0.105). The agent's node and window show
   the model `auto` picked (`auto → gpt-6-luna`), and its **Details** say why; an agent that goes on from
-  it asks for `auto` again.
+  it asks for `auto` again. `fusion` (Copilot Fusion, only on plans that have it) runs each turn on several
+  models and keeps one; it takes no thinking level either, and has no tier, so agents never pick it by
+  themselves.
+- **Routing** (`auto` and `fusion` on your GitHub account): on the model's row of the **Models** tab, beside
+  its **Context**, and in the chat's model panel under **Thinking**. Auto: **Efficiency**, **Balance** or
+  **Intelligence**; Fusion: **Standard** (as Auto Balance), **High** or **Max** - High and Max cost more
+  than `auto`. **Default** sends none: Copilot's own. It is saved on the model's row, so every chat and agent
+  on that provider and model uses it; for two chats to differ, add a second Copilot provider. Read in
+  Copilot's 1.0.114 package, not yet run live.
+- **Versions**: KOLONİ asks Copilot its version and protocol as it starts it, the way a run starts it.
+  Copilot updates itself when you run it yourself, and KOLONİ then runs that version too. On the newer
+  protocol (1.0.114 on) it runs **Native** through KOLONİ's hook, and each PowerShell command starts in the
+  project folder. On the older protocol only a version measured with KOLONİ (1.0.91, 1.0.103, 1.0.105) runs
+  **Native**; any other version, or a protocol KOLONİ does not know, runs as **One session per agent**, and
+  the provider's card on the Models page says why.
+- **Changes on models other than Claude**: Copilot gives such models (gpt-6-luna, mai-code-2-flash) its
+  `apply_patch` tool instead of `create` and `edit`. Run **Native**, each file of a patch is asked about on
+  its own card, as a write is; refusing one refuses the whole patch.
 - **Usage**: Copilot's tokens and AI credits (or premium requests) are counted from its usage checkpoint,
   run as a session as in **Native**. As a session that was measured with `copilot -p` (CLI 1.0.103), not yet
   seen in a live session. See [Usage and budgets](../money/usage.md#the-usage-page).
