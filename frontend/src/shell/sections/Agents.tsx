@@ -149,8 +149,10 @@ export function useAsking(project: Project) {
   const awayMinutes = within(minutesText, 0, 1440)
   const [approval, setApproval] = useState(savedApproval)
   const check = useFullAutoCheck(project)
+  const disposable = useDisposableDeletes(project)
   const patch = {
     ...check.patch,
+    ...disposable.patch,
     ...(approval !== savedApproval && { spawn_approval: approval }),
     ...(whenAway !== savedAway && { when_away: whenAway }),
     ...(awayMinutes !== undefined && awayMinutes !== savedMinutes && { away_minutes: awayMinutes }),
@@ -199,8 +201,29 @@ export function useAsking(project: Project) {
         </span>
       </Row>
       {check.row}
+      {disposable.row}
     </>,
   )
+}
+
+/** `useAsking`'s switch for what KOLONİ checks is disposable (coordination §4): such a delete goes without a card where it is on. */
+function useDisposableDeletes(project: Project) {
+  const [allowed, setAllowed] = useState(project.disposable_deletes)
+  return {
+    patch: allowed === project.disposable_deletes ? {} : { disposable_deletes: allowed },
+    row: (
+      <label className="choice">
+        <input type="checkbox" checked={allowed} onChange={e => setAllowed(e.target.checked)} />
+        <span>
+          Agents may delete what is disposable without asking
+          <span className="choice-note">
+            (clean worktrees and merged branches you no longer use, build and cache folders) - at Auto-edit and Full auto, in a chat you
+            watch. KOLONİ checks each one first; any other delete asks as before.
+          </span>
+        </span>
+      </label>
+    ),
+  }
 }
 
 /** `useAsking`'s row for a harmful-looking command at Full auto (K-yargıç): what it costs in sight once it checks. */

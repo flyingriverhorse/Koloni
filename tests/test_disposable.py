@@ -5,7 +5,9 @@ here, is no such delete."""
 
 import pytest
 
+from app import koloni
 from app.commands import disposable_targets
+from tests.keyed import OWN
 
 
 @pytest.mark.parametrize(("line", "targets"), [
@@ -59,3 +61,15 @@ def test_a_plain_line_names_what_it_would_delete(line, targets):
 ])
 def test_anything_else_is_no_disposable_delete(line):
     assert disposable_targets(line) is None
+
+
+def test_a_project_asks_as_before_until_the_user_allows_disposable_deletes_on_its_own_page(
+        client, project_dir):
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.get(f"/api/projects/{pid}").json()["disposable_deletes"] is False
+    for on in (True, False):
+        assert client.patch(f"/api/projects/{pid}", json={"disposable_deletes": on}).status_code == 403
+        assert client.patch(f"/api/projects/{pid}", json={"disposable_deletes": on},
+                            headers=OWN).json()["disposable_deletes"] is on
+    # (the user's own, of this KOLONİ: never from the folder's .koloni/settings.json)
+    assert "disposable_deletes" not in koloni.SETTINGS
