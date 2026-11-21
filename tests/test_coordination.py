@@ -2,15 +2,19 @@
 no harm. One way into the project at a time - a Take in waits while a branch merges - and a copy
 made meanwhile, or one already made, gets what went in."""
 
+import os
+import shutil
 import threading
 import time
+from pathlib import Path
 
 from app import copies, git
-from app.agent import AgentRunner
+from app.agent import AgentRunner, recover_copies
+from app.db.models import Agent
 from tests.conftest import Gate, scaled
 from tests.test_chat_flow import text
-from tests.test_claim_scenarios import calls, setup, two, write
-from tests.test_dal_takim import repo, run  # noqa: F401  (`repo`: a fixture)
+from tests.test_claim_scenarios import ORIGIN, calls, setup, two, write
+from tests.test_dal_takim import repo, run, runtime, worktrees  # noqa: F401  (fixtures)
 from tests.test_parallel import until
 from tests.test_spawn import call, step
 from tests.test_take_in_scenarios import LINES, LONG, edit, lines, needs_git
@@ -142,3 +146,74 @@ def test_a_copy_gets_what_a_branchs_merge_brought(make_client, wait_run, repo): 
     # (its own notes go in by themselves: nothing of the merge is the Coder 2's to take in)
     assert sorted(m["status"] for m in snap["merges"]) == ["applied", "applied"]
     assert (repo / "notes.txt").read_text() == "b\n" and lines(repo)[1] == "TWO-branch"
+
+
+# --- KOLONİ's worktrees are locked while their agents work ----------------------------------
+
+
+def key(path):
+    return os.path.normcase(os.path.realpath(path))
+
+
+def listed(repo):  # noqa: F811
+    """git's worktrees of the repository, by their folder's key."""
+    return {key(one["path"]): one for one in git.where(repo)["worktrees"]}
+
+
+@needs_git
+def test_a_branchs_worktree_is_locked_while_its_agent_works(repo, runtime):  # noqa: F811
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+    held = Path(run(copy.root, "rev-parse", "--absolute-git-dir")) / "locked"
+    assert held.read_text(encoding="utf-8").strip() == git.LOCK_REASON
+    assert listed(repo)[key(copy.root)]["locked"] is True
+    copies.remove(runtime, copy.name)
+    run(repo, "worktree", "prune")  # (the user's own git upkeep: a locked record stays)
+    assert key(copy.root) in listed(repo)
+    git.drop_branch(repo, copy.root, copy.branch, runtime / "no-hooks", force=True)
+    assert len(worktrees(repo)) == 1 and run(repo, "branch", "--list", "koloni/*") == ""
+
+
+@needs_git
+def test_at_start_only_kolonis_own_stale_worktree_records_go(repo, runtime, tmp_path):  # noqa: F811
+    stale = copies.make_branch(repo, runtime, "agent1", "x")
+    kept = copies.make_branch(repo, runtime, "agent2", "y")
+    mine = tmp_path / "users-own"
+    run(repo, "worktree", "add", "-q", "-b", "mine", str(mine))
+    shutil.rmtree(mine)  # (the user's own, its folder gone: theirs to prune)
+    copies.remove(runtime, stale.name)
+    gone = git.forget_worktrees(repo, copies.folders(runtime), runtime / "no-hooks")
+    assert [key(one) for one in gone] == [key(stale.root)]
+    left = listed(repo)
+    assert key(stale.root) not in left and key(mine) in left
+    assert left[key(kept.root)]["locked"] is True
+    assert run(repo, "branch", "--list", "koloni/x").strip() == "koloni/x"  # (its work stays)
+
+
+@needs_git
+def test_a_branch_whose_locked_worktree_lost_its_folder_opens_again(repo, runtime):  # noqa: F811
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+    copies.remove(runtime, copy.name)  # (deleted by hand: git's record stays, locked)
+    again = copies.make_branch(repo, runtime, "agent1-2", copy.branch, start=copy.start)
+    assert again.branch == copy.branch and again.root.is_dir()
+    assert key(again.root) in listed(repo) and key(copy.root) not in listed(repo)
+
+
+@needs_git
+def test_at_start_koloni_forgets_its_worktree_that_a_crash_left(make_client, wait_run, repo):  # noqa: F811
+    client, _model = make_client([text("hi")])
+    client.headers["Origin"] = ORIGIN
+    pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"]["id"]
+    (lead,) = wait_run(client, cid, run_id)["agents"]
+    root = client.app.state.settings.runtime_root
+    copy = copies.make_branch(repo, root, lead["id"], "x")  # (its agent at work: a crash)
+    with client.app.state.session_factory() as session:
+        session.get_one(Agent, lead["id"]).copy = {"state": "own", "tree": str(copy.root),
+                                                   "on_branch": copy.branch}
+        session.commit()
+    copies.remove(root, copy.name)  # (its folder gone, git's record of it left)
+    recover_copies(client.app.state.session_factory, root)  # (as at the next start)
+    assert len(worktrees(repo)) == 1
+    assert run(repo, "branch", "--list", "koloni/x").strip() == "koloni/x"
