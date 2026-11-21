@@ -62,11 +62,11 @@ async def checked(client):
     """The client to run instead of `client` (a CLI about to work with tools of its own): itself,
     or its talker where its version was not measured and its first request went unanswered."""
     command = client.command
-    whose = (command, client._executable or "")
     if command == "copilot":
-        return await _copilot(client, whose)
+        return await _copilot(client, (command, client._executable or ""))
     if command not in FIRST and command != "agy":
         return client
+    whose = (command, client._executable or "")
     version = await client._version()
     if command == "agy":  # (no protocol, but KOLONİ's tools only from BRIDGE_FROM on, B-310)
         found = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
