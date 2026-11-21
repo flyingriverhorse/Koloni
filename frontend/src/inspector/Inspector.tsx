@@ -8,6 +8,7 @@ import { linksIn } from '../chat/attachments'
 import { Markdown } from '../chat/Markdown'
 import { plannedBy } from '../chat/planText'
 import { AgentCard } from '../agents/AgentCard'
+import { titleOf } from '../agents/agentStatus'
 import { agentState, agentWhere, when } from '../agents/AgentWindow'
 import { OwnSubAgentWork } from '../agents/OwnSubAgent'
 import { homeOf, isOwnSubAgent, ownSubAgentBrief, ownSubAgentTask, subAgentIds } from '../agents/ownWork'
@@ -124,6 +125,7 @@ export function Inspector({
   // What had the focus when the inspector opened: it has it back when it is closed.
   const opener = useRef<Element | null>(null)
   const windowed = useApp(s => s.agentWindowId)
+  const teams = useApp(s => s.teams)
   const aside = useRef<HTMLElement>(null)
   const open = selectedId !== null
   useEffect(() => {
@@ -161,7 +163,8 @@ export function Inspector({
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
-  const roleOf = (agentId: string) => state?.agents.find(a => a.id === agentId)?.name || 'unknown'
+  // (Each agent called as its node calls it: the Lead the Orchestrator, a team's lead its coordinator.)
+  const roleOf = (agentId: string) => titleOf(state?.agents.find(a => a.id === agentId)?.name || 'unknown', teams)
   // The approved plan over a work turn's Lead (`planned:<plan's turn>`) opens as the plan turn's own node does.
   const [kind, refId] = selectedId ? selectedId.replace(/^planned:/, 'plan:').split(/:(.*)/s) : []
   // Agent and Tools nodes point at an agent; its turn is the run it belongs to.
@@ -213,7 +216,7 @@ export function Inspector({
     const [label, color] = agentState(state, agent)
     content = (
       <>
-        <Header icon={<Robot size={16} />} title={agent.name || agent.role_name}
+        <Header icon={<Robot size={16} />} title={titleOf(agent.name || agent.role_name, teams)}
           sub={
             // (Under its name, which the panel's width leaves whole: its window has them on one line.)
             <>

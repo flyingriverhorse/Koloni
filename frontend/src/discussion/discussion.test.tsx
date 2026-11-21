@@ -89,12 +89,12 @@ test('the canvas has the shared place as a node, joined to everyone in it', () =
   expect(node?.data).toMatchObject({
     topic: 'Ship it?',
     line: 'Round 2 of 3',
-    members: ['Coder', 'Reviewer', 'Lead'],
+    members: ['Coder', 'Reviewer', 'Orchestrator'],
     speaking: 'Reviewer',
     running: true,
   })
   expect((node?.data as { last: { who: string; text: string }[] }).last).toEqual([
-    { who: 'Lead', text: 'Yes, ship it.' },
+    { who: 'Orchestrator', text: 'Yes, ship it.' },
     { who: 'You', text: 'Add a changelog.' },
   ])
   const joined = edges.filter(e => e.target === 'discussion:d')
@@ -143,13 +143,20 @@ test('an agent’s own window leaves out what it said in the shared place', () =
   expect(screen.queryByText('Tests first.')).not.toBeInTheDocument()
 })
 
+test('the Lead speaking in its discussion is called the Orchestrator, on its card and in its window', () => {
+  const speaking = { ...state, agents: state.agents.map(a => (a.id === 'lead' ? { ...a, status: 'running' as const } : a.id === 'rev' ? { ...a, status: 'waiting' as const } : a)) }
+  expect(deriveGraph(speaking).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({ speaking: 'Orchestrator' })
+  render(<DiscussionWindow state={speaking} discussionId="d" onClose={() => {}} onSay={async () => {}} onEnd={async () => {}} />)
+  expect(screen.getByText('Orchestrator is speaking…')).toBeInTheDocument()
+})
+
 test('the discussion window shows everything said, and the user can speak and end it', async () => {
   const onSay = vi.fn(async () => {})
   const onEnd = vi.fn(async () => {})
   render(<DiscussionWindow state={state} discussionId="d" onClose={() => {}} onSay={onSay} onEnd={onEnd} />)
   const region = screen.getByRole('region', { name: 'Discussion' })
   const text = region.textContent ?? ''
-  const order = ['Ship it?', 'Coder · Reviewer · Lead', 'Round 1', 'Tests first.', 'Reviewer has nothing to add', 'Yes, ship it.', 'You', 'Add a changelog.']
+  const order = ['Ship it?', 'Coder · Reviewer · Orchestrator', 'Round 1', 'Tests first.', 'Reviewer has nothing to add', 'Yes, ship it.', 'You', 'Add a changelog.']
   expect(screen.getByText('Round 2')).toBeInTheDocument()  // the divider; the header says "Round 2 of 3"
   expect(order.map(piece => text.indexOf(piece)).every((at, i, all) => at >= 0 && (i === 0 || at >= all[i - 1]))).toBe(true)
   expect(screen.getByText('Reviewer is speaking…')).toBeInTheDocument()

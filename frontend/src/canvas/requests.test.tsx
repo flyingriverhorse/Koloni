@@ -179,7 +179,7 @@ const rows = (g: ReturnType<typeof deriveGraph>, id: string) => (g.nodes.find(n 
 test('each team’s card holds what it wrote to the shared folder and the notebook, and the memory it used; everyone’s beside the Lead', () => {
   const g = deriveGraph(used(), TEAMS)
   expect(g.nodes.filter(n => n.kind === 'shared').map(n => n.id)).toEqual(['shared:r:top', 'shared:r:team:r:web', 'shared:r:team:r:api', 'shared:r:ask:5'])
-  expect(rows(g, 'shared:r:top')).toEqual(['notebook: Lead: “Web app waits on the API.”', 'memory: 2 facts given'])
+  expect(rows(g, 'shared:r:top')).toEqual(['notebook: Orchestrator: “Web app waits on the API.”', 'memory: 2 facts given'])
   expect(rows(g, 'shared:r:team:r:web')).toEqual(['file: web-app/spec.md', 'notebook: Coder: “Pages are 20, by name.”'])
   expect(rows(g, 'shared:r:team:r:api')).toEqual(['file: backend-api/items-endpoint.md', 'memory: 1 lookup'])
   // The request's contract: a block of its own, on an arm from the request's line.

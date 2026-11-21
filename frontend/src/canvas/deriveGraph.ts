@@ -379,8 +379,8 @@ function toolNow(agent: Agent, state: ConvState): { what: string; since: string 
   return { what: doing && summary !== call.name ? doing + summary.slice(call.name.length) : summary, since: call.started_at }
 }
 
-/** What an agent is doing right now, read off its own records. */
-function activityOf(agent: Agent, run: Run, state: ConvState): string {
+/** What an agent is doing right now, read off its own records (`teams`: to name a team's lead as its node does). */
+function activityOf(agent: Agent, run: Run, state: ConvState, teams: Team[]): string {
   const status = statusOf(agent, run, state)
   if (status === 'waiting_approval' && wonders(agent, state)) return 'Waits for your answer'
   if (status === 'waiting_approval' || status === 'proposed') return 'Waits for your approval'
@@ -391,7 +391,7 @@ function activityOf(agent: Agent, run: Run, state: ConvState): string {
   if (agent.status === 'queued') return 'Waiting for a slot'
   // For a file another agent holds, until that one's work is done.
   if (status === 'blocked') return waitLine(agent, state.conversation.id) ?? 'waits for a file'
-  if (status === 'waiting') return waitingFor(agent, run, state)
+  if (status === 'waiting') return waitingFor(agent, run, state, teams)
   if (status === 'running') return workingOn(agent, state)
   return endedAs(agent, run, status)
 }
@@ -412,8 +412,8 @@ function roomWait(agent: Agent, run: Run, state: ConvState): string | null {
   return null
 }
 
-/** What a waiting agent waits for: its turn's room, another team, a reply, a sub-agent. */
-function waitingFor(agent: Agent, run: Run, state: ConvState): string {
+/** What a waiting agent waits for: its turn's room, another team, a reply, a sub-agent - each called as its node is. */
+function waitingFor(agent: Agent, run: Run, state: ConvState, teams: Team[]): string {
   const room = roomWait(agent, run, state)
   if (room !== null) return room
   const child = state.agents.findLast(a => a.parent_agent_id === agent.id && OPEN.has(a.status))
@@ -424,8 +424,8 @@ function waitingFor(agent: Agent, run: Run, state: ConvState): string {
   const asked = state.toolCalls.findLast(
     t => t.agent_id === agent.id && t.name === 'message_agent' && t.status === 'running',
   )
-  if (asked) return `Waiting for ${talkOf(asked).to || 'a reply'}`
-  return child ? `Waiting for ${child.name || child.role_name}` : 'Waiting for a sub-agent'
+  if (asked) return `Waiting for ${titleOf(talkOf(asked).to, teams) || 'a reply'}`
+  return child ? `Waiting for ${titleOf(child.name || child.role_name, teams)}` : 'Waiting for a sub-agent'
 }
 
 /** What an agent at work does now. */
@@ -908,7 +908,7 @@ function agentNodes(
     modelId: agent.model_id ?? (agent.depth === 0 ? run.model_id : null),
     modelFrom: agent.model_from ?? null,
     status,
-    activity: activityOf(agent, run, state),
+    activity: activityOf(agent, run, state, teams),
     since: status === 'running' ? (toolNow(agent, state)?.since ?? null) : null,
     sign: agent.sign,
     signStopped: agent.status === 'failed' && !!agent.sign && !!agent.error?.includes(agent.sign.text),
@@ -1089,7 +1089,7 @@ function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge
         line: discussionLine(discussion),
         members: discussion.members.map(m => nameIn(state, m.agent_id)),
         last: said.slice(-2).map(p => ({ who: nameIn(state, p.agent_id), text: p.content.slice(0, 90) })),
-        speaking: speaker?.name ?? null,
+        speaking: speaker ? nameIn(state, speaker.id) : null,
         running: discussion.status === 'running',
       },
       // Among one team's agents only, it is drawn in their frame, its lines too.

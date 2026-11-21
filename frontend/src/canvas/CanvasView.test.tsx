@@ -573,7 +573,7 @@ test('a line says what it is: a spawn dashed, in the accent at work; findings an
     expect(look('agent:r>agent:c')).toEqual(['react-flow__edge react-flow__edge-default nopan animated selectable', 'stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 5;', false, null])
     // The Orchestrator's talk with its own sub-agent: square, arrowed, its 💬 a button naming the two (not "1 message").
     expect(look('agent:r>agent:v')).toEqual(['react-flow__edge react-flow__edge-lane nopan selectable', 'stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 6 5;', true, null])
-    expect(screen.getByRole('button', { name: 'Lead ↔ Reviewer: 1 message, the last: Look.' })).toHaveTextContent('💬 1')
+    expect(screen.getByRole('button', { name: 'Orchestrator ↔ Reviewer: 1 message, the last: Look.' })).toHaveTextContent('💬 1')
     // (The Coder it was handed to is at work on it.)
     expect(look('findings:f1')).toEqual(['react-flow__edge react-flow__edge-default edge-findings nopan animated selectable', 'stroke: var(--warn); stroke-width: 2; stroke-dasharray: 8 3;', false, '1 finding in fill: var(--warn); font-size: var(--text-kicker);'])
     // (The Tester waits for the Coder two cards up its column: round their right, arrowed into the Coder's side.)
@@ -774,9 +774,11 @@ test('the box of what was said is titled by the talk line’s two, or by the age
   const title = () => document.querySelector('.canvas-said-title')?.textContent
   expect(title()).toBeUndefined()
   act(() => handed.at(-1)?.showTalk?.('agent:a>agent:kid'))
-  expect(title()).toBe('Lead ↔ Reviewer')
+  expect(title()).toBe('Orchestrator ↔ Reviewer')
   rerender(<CanvasView state={talked} onSelect={() => {}} turnId="a" selectedId="agent:kid" />)
   expect(title()).toBe('What Reviewer said and was told')
+  rerender(<CanvasView state={talked} onSelect={() => {}} turnId="a" selectedId="agent:a" />)
+  expect(title()).toBe('What Orchestrator said and was told')
 })
 
 test('the user’s (6 Nov): talk between two agents of a team is drawn on an arc, as findings back are - in words, “💬 2 messages”, a click shows it', async () => {

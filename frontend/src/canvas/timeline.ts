@@ -1,6 +1,6 @@
 import { AGENT_STATUS, AT_WORK, titleOf } from '../agents/agentStatus'
 import { homeOf, isOwnSubAgent, ownSubAgentTask, subAgentIds } from '../agents/ownWork'
-import type { Agent, Run, ToolCall } from '../api/types'
+import type { Agent, Run, Team, ToolCall } from '../api/types'
 import { TOOL_STATUS } from '../chat/ToolRow'
 import { turnTokens } from '../shell/tokens'
 import type { ConvState } from '../state/applyEvent'
@@ -86,9 +86,10 @@ export function took(ms: number | null): string {
 /**
  * One turn as time: its agents as lanes (each sub-agent under the one that opened it), their
  * bars, the calls in them, what they waited for and what happened to them; and the turn's
- * totals. All of it from the records the conversation already has; `now` ends what is at work.
+ * totals. All of it from the records the conversation already has; `now` ends what is at work. `teams`: to call a
+ * team's lead its coordinator, as the canvas does.
  */
-export function timeline(state: ConvState, runId: string, now: number): Timeline | null {
+export function timeline(state: ConvState, runId: string, now: number, teams: Team[] = []): Timeline | null {
   const run = state.runs.find(r => r.id === runId)
   if (!run) return null
   const here = <T extends { run_id: string }>(records: T[]) => records.filter(r => r.run_id === runId)
@@ -103,7 +104,7 @@ export function timeline(state: ConvState, runId: string, now: number): Timeline
   // What is left at work on a turn that is over is not drawn growing.
   const runAtWork = RUN_AT_WORK.has(run.status)
 
-  const turn: Turn = { state, run, now, agents, calls, subs, callOf, runAtWork, here, laneOf, until }
+  const turn: Turn = { state, run, now, agents, calls, subs, callOf, runAtWork, here, laneOf, until, teams }
   const lanes = lanesOf(turn)
 
   const lane = new Map(lanes.map(l => [l.id, l]))
@@ -114,7 +115,7 @@ export function timeline(state: ConvState, runId: string, now: number): Timeline
   const turnMarks = marksOf(turn, lane)
 
   const byId = new Map(agents.map(a => [a.id, a]))
-  for (const l of lanes) settle(l, agents, byId)
+  for (const l of lanes) settle(l, agents, byId, teams)
   turnMarks.sort((a, b) => a.at - b.at)
 
   const started = time(run.started_at)
@@ -150,6 +151,7 @@ interface Turn {
   here: <T extends { run_id: string }>(records: T[]) => T[]
   laneOf: (agentId: string, callId: string | null) => string
   until: (end: string | null, open: boolean) => number | null
+  teams: Team[]
 }
 
 /** The turn's lanes: each agent with no opener in the turn, and under it all it opened. */
@@ -189,7 +191,7 @@ function addLane(turn: Turn, lanes: Lane[], lane: Omit<Lane, 'calls' | 'waits' |
 function addAgent(turn: Turn, lanes: Lane[], a: Agent, parent: Pick<Lane, 'id' | 'depth'> | null) {
   const at = turn.runAtWork && AT_WORK.has(a.status)
   addLane(turn, lanes, {
-    id: a.id, agentId: a.id, name: titleOf(a.name || a.role_name), depth: parent ? parent.depth + 1 : 0, cli: false,
+    id: a.id, agentId: a.id, name: titleOf(a.name || a.role_name, turn.teams), depth: parent ? parent.depth + 1 : 0, cli: false,
     parent: parent?.id ?? null, opened: parent ? time(a.created_at) : null,
     from: time(a.started_at), to: a.started_at ? turn.until(a.ended_at, at) : null, atWork: at,
     status: AGENT_STATUS[a.status],
@@ -251,13 +253,13 @@ function leaveWaits({ state, calls, here, laneOf }: Turn, wait: AddWait) {
 }
 
 /** What each agent waited for before it started, and the file one waits for now. */
-function startWaits({ agents }: Turn, lane: Map<string, Lane>, wait: AddWait) {
+function startWaits({ agents, teams }: Turn, lane: Map<string, Lane>, wait: AddWait) {
   for (const a of agents) {
     // Asked about, it waits for you. shortcut: once started, whether it waited for your word or for a slot is not on record, so the wait is said for nobody - upgrade if an agent gets a decided_at.
     if (a.status === 'proposed' || a.status === 'rejected') wait(a.id, a.created_at, a.started_at ?? a.ended_at, a.status === 'proposed', you, 'to start', false, a.id)
     else if (a.started_at) wait(a.id, a.created_at, a.started_at, false, null, 'to start')
     // shortcut: a file another agent holds is on record only while it is held, with no time it began; its length is not known - upgrade if claims get a time.
-    if (a.status === 'blocked' && a.waiting_for) lane.get(a.id)?.waits.push({ from: null, to: null, who: a.waiting_for.agent_name, what: a.waiting_for.path, open: true })
+    if (a.status === 'blocked' && a.waiting_for) lane.get(a.id)?.waits.push({ from: null, to: null, who: titleOf(a.waiting_for.agent_name, teams), what: a.waiting_for.path, open: true })
   }
 }
 
@@ -285,11 +287,11 @@ function marksOf({ state, run, agents, here }: Turn, lane: Map<string, Lane>): M
 }
 
 /** A lane with all its waits and marks on it: how it stands now, both in order, and where its opener's line meets it. */
-function settle(l: Lane, agents: Agent[], byId: Map<string, Agent>) {
+function settle(l: Lane, agents: Agent[], byId: Map<string, Agent>, teams: Team[]) {
   // What it waits on now, told apart (B-316): your word - a card of its, which its wait leads to - or the agents it opened.
   const kids = l.cli || byId.get(l.id)?.status !== 'waiting' ? [] : agents.filter(a => a.parent_agent_id === l.id && AT_WORK.has(a.status))
   if (l.waits.some(w => w.open && w.who === you)) l.status = AGENT_STATUS.waiting_approval
-  else if (kids.length > 0) l.status = [`waits for ${kids.map(a => a.name || a.role_name).join(', ')}`, l.status[1]]
+  else if (kids.length > 0) l.status = [`waits for ${kids.map(a => titleOf(a.name || a.role_name, teams)).join(', ')}`, l.status[1]]
   l.waits.sort((a, b) => (a.from ?? Infinity) - (b.from ?? Infinity))
   l.marks.sort((a, b) => a.at - b.at)
   // The line from the agent that opened it meets the first of it that is drawn: what it waited for before it started, or its bar.

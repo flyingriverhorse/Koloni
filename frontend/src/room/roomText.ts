@@ -81,9 +81,9 @@ export function nameIn(state: Pick<ConvState, 'agents'>, agentId: string | null)
   return titleOf(state.agents.find(a => a.id === agentId)?.name || 'Agent')
 }
 
-/** A member by its name - or, in the moment before its agent is opened, by its role. */
+/** A member by its name - or, in the moment before its agent is opened, by its role - the Lead the Orchestrator. */
 export function memberName(state: Pick<ConvState, 'agents'>, member: Room['members'][number]): string {
-  return state.agents.find(a => a.id === member.agent_id)?.name || member.role
+  return titleOf(state.agents.find(a => a.id === member.agent_id)?.name || member.role)
 }
 
 /** Who waits for a room - the agent that opened it, else its turn's lead: the room's one working copy is kept in its name. */

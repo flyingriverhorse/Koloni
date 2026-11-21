@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Discussion, Merge, Room, WebRequest } from '../api/types'
+import type { Discussion, Merge, Room, Team, WebRequest } from '../api/types'
 import { agent, assistantMessage, command, convState, fileChange, question, run, toolCall } from '../test-fixtures'
 import { place, timeline, took } from './timeline'
 
@@ -228,4 +228,19 @@ test('B-316: an agent waiting on the agents it opened says whom it waits for; on
   const asked = timeline({ ...state, questions: [question('q', 'r', { agent_id: 'co', created_at: T(10), answered_at: null, status: 'pending' })] }, 'r', ms(90))!
   expect(asked.lanes.map(l => l.status[0])).toEqual(['waits for Coder, Tester', 'waits for you', 'working', 'done'])
   expect(asked.lanes[1].waits).toEqual([{ from: ms(10), to: ms(90), who: 'you', what: 'question', open: true, key: 'q' }])
+})
+
+test('the timeline calls the Lead the Orchestrator and a team’s lead its coordinator, as the canvas does', () => {
+  const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' }, lead_on: true } as unknown as Team
+  const state = convState({
+    runs: [run('r', 'running', { started_at: T(0) })],
+    agents: [
+      agent('r', 'waiting', { id: 'lead', name: 'Lead', started_at: T(0) }),
+      agent('r', 'running', { id: 'dl', name: 'Docs lead', parent_agent_id: 'lead', depth: 1, created_at: T(1), started_at: T(1) }),
+      agent('r', 'blocked', { id: 'co', name: 'Coder', parent_agent_id: 'lead', depth: 1, created_at: T(1), started_at: T(1), waiting_for: { agent_id: 'lead', agent_name: 'Lead', path: 'a.py' } }),
+    ],
+  })
+  const [lead, dl, co] = timeline(state, 'r', ms(90), [docs])!.lanes
+  expect([lead.name, dl.name, lead.status[0]]).toEqual(['Orchestrator', 'Docs coordinator', 'waits for Docs coordinator, Coder'])
+  expect(co.waits.map(w => w.who)).toContain('Orchestrator')
 })

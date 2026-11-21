@@ -1,3 +1,4 @@
+import { titleOf } from '../agents/agentStatus'
 import type { Agent, Discussion } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 
@@ -30,7 +31,8 @@ export function speakerOf(state: ConvState, discussion: Discussion): Agent | und
   return state.agents.find(a => members.has(a.id) && a.status === 'running')
 }
 
-export function nameIn(state: ConvState, agentId: string | null): string {
+/** What a discussion calls one in it, as the canvas calls its agent: the Lead is the Orchestrator; "You" for nobody. */
+export function nameIn(state: Pick<ConvState, 'agents'>, agentId: string | null): string {
   if (agentId === null) return 'You'
-  return state.agents.find(a => a.id === agentId)?.name || 'Agent'
+  return titleOf(state.agents.find(a => a.id === agentId)?.name || 'Agent')
 }

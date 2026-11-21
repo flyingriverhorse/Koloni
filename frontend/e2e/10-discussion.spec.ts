@@ -11,7 +11,7 @@ test('agents discuss in a shared place, and you can speak in it', async ({ page 
   // The shared place opens by itself and fills as each one speaks.
   const place = page.getByRole('region', { name: 'Discussion' })
   await expect(place.getByText('Should the greeting stay hi?')).toBeVisible()
-  await expect(place.getByText('Reviewer · Researcher · Lead')).toBeVisible()
+  await expect(place.getByText('Reviewer · Researcher · Orchestrator')).toBeVisible()
   await expect(place.getByText('I would keep hi.')).toBeVisible()
 
   // You speak in it too; whoever speaks next has read it.

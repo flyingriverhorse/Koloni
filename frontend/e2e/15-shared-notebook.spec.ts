@@ -91,7 +91,7 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   const lead = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Orchestrator$/ }) }).locator('.node-title')
   await lead.click()
-  await expect(inspector).toContainText('Lead')
+  await expect(inspector).toContainText('Orchestrator')
   await lead.dblclick()
   const own = page.getByRole('region', { name: 'Agent window' })
   await openAgentFold(own, 'Every step as recorded')

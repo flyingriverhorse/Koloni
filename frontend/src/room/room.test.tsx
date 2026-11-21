@@ -768,6 +768,11 @@ test('on the canvas the room is a node of its own, by the lead that waits for it
   expect(copyLine(state, state.agents[0])).toBe('holds the room’s copy')
 })
 
+test('the Lead in a room is the Orchestrator on its card, as on its own node', () => {
+  const withLead = convState({ ...state, rooms: [room({ members: [...room().members, { agent_id: 'lead', role: 'Lead', status: 'in' }] })] })
+  expect(deriveGraph(withLead).nodes.find(n => n.kind === 'room')!.data).toMatchObject({ members: ['Coder · at work', 'Reviewer · waiting for a post', 'Orchestrator · at work'] })
+})
+
 test('the room’s node opens a panel that says where it stands, and a way into its window', async () => {
   const onOpenRoom = vi.fn()
   render(<Inspector state={state} selectedId="room:o" onClose={() => {}} onOpenRoom={onOpenRoom} />)

@@ -28,6 +28,7 @@ import { SAID, SAID_LINES, SaidBox } from './Said'
 import { saidSide } from './saidSide'
 import { type Actions, NodeActions, ToggleGroup } from './toggleGroup'
 import { talkColours } from '../agents/teamRun'
+import { titleOf } from '../agents/agentStatus'
 import { MOVED } from '../shell/move'
 import { usePanel } from '../shell/usePanel'
 import { Legend } from './Legend'
@@ -784,9 +785,10 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
   // The agents at a line's end: a frame's are its agents.
   const endsOf = (id: string) => new Set(byId.get(id)?.kind === 'team' ? graph.nodes.flatMap(n => (n.team === id && n.agentId ? [n.agentId] : [])) : [byId.get(id)?.agentId ?? ''])
   const said = saidOn(state, talkEdge, shown, endsOf)
+  // (As its node calls it: the Lead the Orchestrator, a team's lead its coordinator.)
   const nameOf = (agentId: string) => {
     const agent = state?.agents.find(a => a.id === agentId)
-    return agent ? agent.name || agent.role_name : 'an agent'
+    return agent ? titleOf(agent.name || agent.role_name, teams) : 'an agent'
   }
   const frames = graph.nodes.filter(n => n.kind === 'team')
   const framesOpen = frames.some(n => (n.data as GroupData).open)

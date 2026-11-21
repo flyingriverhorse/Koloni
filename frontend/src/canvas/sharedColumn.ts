@@ -1,4 +1,5 @@
 import type { Agent, BoardPost, Run, SharedFile, ToolCall, View } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
 import { requestsOf } from '../agents/teamRequests'
 import { writerOf } from '../notes/notesText'
 import type { ConvState } from '../state/applyEvent'
@@ -36,7 +37,7 @@ export interface SharedData {
 
 const add = <T>(map: Map<string, T[]>, key: string, value: T) => map.set(key, [...(map.get(key) ?? []), value])
 const plural = (count: number, one: string) => `${count} ${one}${count === 1 ? '' : 's'}`
-/** A `remember` call as its row's hover says it: "Lead: the words · notes.md:2-3 · put forward". */
+/** A `remember` call as its row's hover says it: "Orchestrator: the words · notes.md:2-3 · put forward". */
 function noted(state: ConvState, call: ToolCall): string {
   let args: Record<string, unknown> = {}
   try {
@@ -47,7 +48,7 @@ function noted(state: ConvState, call: ToolCall): string {
   }
   const { text, file, start_line: start, end_line: end } = args
   const where = typeof file === 'string' && typeof start === 'number' ? `${file}:${start}-${typeof end === 'number' ? end : start}` : null
-  const who = state.agents.find(a => a.id === call.agent_id)?.name || 'Agent'
+  const who = titleOf(state.agents.find(a => a.id === call.agent_id)?.name || 'Agent')
   return [`${who}: ${typeof text === 'string' ? text : '(not readable)'}`, where, args.propose === true && 'put forward'].filter(Boolean).join(' · ')
 }
 

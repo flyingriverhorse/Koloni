@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Agent, Run } from '../api/types'
+import type { Agent, Run, Team } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import type { SharedData } from './sharedColumn'
 import {
@@ -283,6 +283,22 @@ test('a waiting agent names who it waits for and a proposed one waits for you', 
   const asked = tree('proposed')
   expect(activityOf(asked, 'agent:kid')).toBe('Waits for your approval')
   expect((asked.nodes.find(n => n.id === 'agent:kid')!.data as AgentData).status).toBe('proposed')
+})
+
+test('a waiting agent calls the Lead the Orchestrator, and a team’s lead its coordinator, as their nodes do', () => {
+  const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' }, lead_on: true } as unknown as Team
+  const asked = (to: string) => toolCall(`m-${to}`, 'r', 'message_agent', 'running', JSON.stringify({ to, message: 'Which file?' }), { agent_id: 'kid' })
+  const waits = (to: string) => activityOf(tree('waiting', { toolCalls: [asked(to)] }), 'agent:kid')
+  expect(waits('Lead')).toBe('Waiting for Orchestrator')
+  const g = deriveGraph(
+    convState({
+      runs: [run('r')],
+      messages: [userMessage('r', 'x')],
+      agents: [agent('r', 'waiting', { id: 'lead' }), agent('r', 'running', { id: 'dl', parent_agent_id: 'lead', role_name: 'Docs lead', depth: 1 })],
+    }),
+    [docs],
+  )
+  expect(activityOf(g, 'agent:lead')).toBe('Waiting for Docs coordinator')
 })
 
 test('the agent that asked is the one that shows the approval', () => {
