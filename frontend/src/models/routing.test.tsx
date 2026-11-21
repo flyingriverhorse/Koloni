@@ -5,6 +5,7 @@ import type { Provider } from '../api/types'
 import { namedOf } from './levels'
 import { ModelPicker } from './ModelPicker'
 import { ModelsPage } from './ModelsPage'
+import { withRouting } from './routing'
 
 const github = (over: Partial<Provider> = {}): Provider => ({
   id: 'gh',
@@ -92,4 +93,14 @@ test('fusion picks its own level, as auto does', () => {
   expect(namedOf(true, 'fusion')).toBe('auto')
   expect(namedOf(true, 'auto')).toBe('auto')
   expect(namedOf(true, 'gemini-3-high')).toBe('name')
+})
+
+test('a routing saved from the chat sends each row’s agents as the Models tab does', () => {
+  // (A provider agents may not choose: its rows say no, as the Models tab's own save says it.)
+  const off = github({ for_agents: false })
+  expect(withRouting(off, 'auto', 'balance').map(row => [row.name, row.agents, row.routing])).toEqual([
+    ['auto', false, 'balance'],
+    ['fusion', false, undefined],
+    ['gpt-x', false, undefined],
+  ])
 })

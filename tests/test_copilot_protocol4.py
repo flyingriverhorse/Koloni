@@ -342,3 +342,45 @@ def test_a_shell_asking_to_leave_its_sandbox_at_its_hook_says_so():
             "toolArgs": {"command": command, key: True}}, root, set())
         assert new_shell and mapped["fullCommandText"] == "npm install"
         assert mapped["requestSandboxBypass"] is True
+
+
+MOVE = ("*** Begin Patch\n*** Update File: hello.py\n*** Move to: moved.py\n@@\n-print('hi')\n"
+        "+print('hello')\n*** End Patch")
+
+
+@pytest.mark.parametrize("allow", [True, False])
+def test_a_patch_that_moves_a_file_closes_every_card_it_opened(
+    copilot_native, wait_run, project_dir, allow  # noqa: F811
+):
+    from tests.test_copilot_headless_scenarios import ORIGIN, question
+
+    client, provider = p4(copilot_native, [{"patch": MOVE}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    # each file of it is asked: the one it updates, then the one it moves it to
+    for number in (1, 2) if allow else (1,):
+        asked = question(client, cid, number)
+        assert ("moved.py" if number == 2 else "hello.py") in asked["question"]
+        client.post(f"/api/questions/{asked['id']}/answer",
+                    json={"answer": "Allow" if allow else "Deny"}, headers=ORIGIN)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert answers(copilot_native) == [("hook", APPROVE if allow else REJECT)]
+    assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")], (
+        snap["tool_calls"])
+
+
+def test_at_protocol_4_a_new_shell_is_only_kolonis_prefix_never_its_version(
+    copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+):
+    # (Its own request, with no hook's before it: even a version whose shell was measured on the
+    # older protocol is not known to start in the project here - only KOLONİ's prefix says so.)
+    monkeypatch.setattr(app.model_native, "_hook_answer", lambda params, root: {})
+    scratch(project_dir)
+    client, provider = copilot_native([{"shell": SCRATCH_LINE}, {"say": "ok"}], protocol=4,
+                                      version="1.0.105")
+    cid, run_id = start(client, project_dir, provider)  # full_auto
+    asked = card_for(client, cid, SCRATCH_LINE)
+    assert asked["cwd"] is None and asked["danger"].startswith("Climbs out of .koloni/tmp")
+    client.post(f"/api/commands/{asked['id']}/reject")
+    wait_run(client, cid, run_id)
+    assert answers(copilot_native) == [("shell", REJECT)]

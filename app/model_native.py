@@ -3651,9 +3651,10 @@ class CopilotNativeClient(CodexNativeClient):
                                 f"{self.label}'s, not KOLONİ: the run was stopped")
                             end_now()
                             return
-                        # (By what was read before this request, not after: `_ShellPatches`.)
-                        task = asyncio.ensure_future(answer(data, heredocs.new_shell(str(
-                            _dict(data.get("permissionRequest")).get("toolCallId") or ""))))
+                        # (By what was read before this request, not after: `_ShellPatches`.
+                        # Protocol 4: only KOLONİ's own prefix says it, `_from_hook`.)
+                        task = asyncio.ensure_future(answer(data, not hooked and heredocs.new_shell(
+                            str(_dict(data.get("permissionRequest")).get("toolCallId") or ""))))
                         answering.add(task)
                         task.add_done_callback(answering.discard)
                         continue
