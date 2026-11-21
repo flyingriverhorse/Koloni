@@ -256,6 +256,10 @@ class _Transcript:
         runner._touch(ctx)
 
 
+# A call made inside a sub-agent of a CLI's own that KOLONİ saw no start of (`koloni_under`).
+UNSEEN_SUB = "unseen-sub-agent"
+
+
 def inside_key(name: str, arguments: object) -> str:
     """A call of KOLONİ's tool by its name and input, the same however its JSON is spaced."""
     try:
@@ -333,14 +337,16 @@ class _Watch:
 
     def koloni_under(self, name: str, arguments: str) -> str | None:
         """The call of the sub-agent a call of KOLONİ's own tool comes from, where its hook
-        said it does (`USED_INSIDE`); None for the agent's own.
+        said it does (`USED_INSIDE`); None for the agent's own. Failing closed: one the hook
+        said is a sub-agent's is never the agent's own - with no such sub-agent seen,
+        `UNSEEN_SUB` (the chat shows it as the agent's; ☾ Away's offer leaves it out).
         shortcut: its tool use may not be read off the stream yet - then the sub-agent at work
         (any, where two are) stands in; tell two apart if one is seen under the other's call."""
         use_id = self.koloni_inside.pop(inside_key(name, arguments), None)
         if use_id is None:
             return None
         return self.under(use_id) or next((self.subs[one] for one in self.at_work), None) or (
-            next(iter(self.subs.values()), None))
+            next(iter(self.subs.values()), UNSEEN_SUB))
 
     async def look(self, changes: Callable[[], list]) -> list:
         """A whole look at a folder it watches (`view.changes`, `project.changes`): no other

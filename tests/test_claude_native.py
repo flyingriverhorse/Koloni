@@ -1611,3 +1611,19 @@ def test_a_task_its_own_sub_agent_adds_is_not_the_orchestrators_go_away_line(
     (theirs,) = [c for c in snap["tool_calls"] if c["name"] == "add_task"
                  and json.loads(c["arguments"])["title"] == "sneaky"]
     assert theirs["parent_call_id"] == sub["id"]
+
+
+def test_a_task_its_hook_says_a_sub_agent_adds_is_never_the_orchestrators_even_unseen(
+    claude_app, wait_run, project_dir
+):
+    # (Re-check: with no start of that sub-agent seen, its task rode the line. Failing closed.)
+    client, provider, _ = claude_app([
+        {"koloni": "add_task", "args": {"title": "sneaky"}, "agent_type": "Explore"},
+        {"koloni": "add_task", "args": {"title": "mine"}},
+        {"koloni": "offer_away", "args": {}},
+        {"say": "Two tasks are on your To-do."}])
+    cid, run_id = start(client, project_dir, provider, "full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (offered,) = client.get(f"/api/conversations/{cid}/away").json()
+    assert [job["title"] for job in offered["jobs"]] == ["mine"]
