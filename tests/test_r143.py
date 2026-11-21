@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from app import model_native
 from app.model_client import ModelUnavailable
+from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import approve, cmd
 from tests.test_agent_talk import message
@@ -68,7 +69,7 @@ def test_a_quiet_command_of_codexs_is_not_taken_for_one_that_never_started(
 ):
     # (Code review, 14 Nov: a command that printed nothing for 30 s ended Codex's turn.)
     monkeypatch.setattr(model_native, "NEVER_STARTED_SECONDS", 1.0, raising=False)
-    monkeypatch.setattr(model_native, "CALL_SECONDS", 6.0)
+    monkeypatch.setattr(model_native, "CALL_SECONDS", scaled(6.0))  # (it is at work 2.5 s)
     client, provider, _ = native_app(
         [{"run": "pytest -q", "hold": 2.5, "output": "3 passed\n"}, {"say": "ok"}])
     cid, run_id = start(client, project_dir, provider)
