@@ -268,9 +268,9 @@ class Conversation(Base):
         String(9), default="delegates", server_default="delegates")
     # While the user is away (K-vekil-karar): "waits" - every question waits for them - or
     # "lead": the Lead answers what it safely can, once a question has waited `away_minutes`
-    # (at once while the folder's night runs).
-    when_away: Mapped[str] = mapped_column(String(5), default="lead", server_default="lead")
-    away_minutes: Mapped[int] = mapped_column(Integer, default=5, server_default="5")
+    # (at once while the folder's night runs). A plain chat's stays "waits": it cannot change it.
+    when_away: Mapped[str] = mapped_column(String(5), default="waits", server_default="waits")
+    away_minutes: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     # The Lead's reasoning level in this conversation ("low" ... "max"); None: its role's.
     lead_effort: Mapped[str | None] = mapped_column(String(8), default=None)
     # What a room opened here may spend unless the user says otherwise as they open it:

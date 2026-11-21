@@ -1,6 +1,6 @@
 """Migration 0158 (☾ Away): a To-do task keeps the chat it was proposed in, an away run what was
-spent before its Go away; a new project or chat lets the Orchestrator decide a waiting card after
-5 minutes, one from before keeps what it had. Going back drops both and the old defaults return."""
+spent before its Go away; a new project lets the Orchestrator decide a waiting card after 5
+minutes, one from before keeps what it had, and a chat's own (a plain chat's) stays "waits". Going back drops both and the old defaults return."""
 
 import sqlite3
 
@@ -26,8 +26,9 @@ def test_old_rows_keep_their_away_setting_new_ones_decide_after_5_minutes_and_ba
     with sqlite3.connect(db) as conn:
         conn.execute(PROJECT, ("b", "new", "C:/b", AT))
         conn.execute(CHAT, ("b", AT, AT))
-        for table in ("projects", "conversations"):
-            assert conn.execute(AWAY.format(table)).fetchall() == [("waits", 10), ("lead", 5)]
+        assert conn.execute(AWAY.format("projects")).fetchall() == [("waits", 10), ("lead", 5)]
+        # (a chat with no folder has no way to change it: everything waits there, as before)
+        assert conn.execute(AWAY.format("conversations")).fetchall() == [("waits", 10)] * 2
         assert "proposed_in" in [row[1] for row in conn.execute("PRAGMA table_info(backlog_tasks)")]
         assert "spent_before" in [row[1] for row in conn.execute("PRAGMA table_info(away_runs)")]
 

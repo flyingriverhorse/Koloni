@@ -1,11 +1,12 @@
 """☾ Away: a To-do task keeps the chat it was proposed in, an away run what its chat had spent
-before Go away; a new project or chat lets the Orchestrator decide a waiting card after 5 minutes
+before Go away; a new project lets the Orchestrator decide a waiting card after 5 minutes
 
 The night card goes: the Orchestrator puts the work on To-do (`backlog_tasks.proposed_in`, the
 chat it came from, ticked in that chat's Away panel) and the user's Go away works it through.
 `away_runs.spent_before`: what the away chat had spent at Go away, not counted to its money.
-New projects and chats default to `when_away` "lead" after 5 minutes; rows from before keep
-theirs (as 0147 kept a chat's own). Going back drops both columns and the old defaults return.
+New projects default to `when_away` "lead" after 5 minutes; rows from before keep theirs (as 0147
+kept a chat's own). A chat's own stays "waits": a plain chat reads it and cannot change it.
+Going back drops both columns and the old default returns.
 
 Revision ID: 0158
 Revises: 0156
@@ -21,12 +22,12 @@ depends_on = None
 
 
 def _defaults(when: str, minutes: str) -> None:
-    for table in ("projects", "conversations"):
-        with op.batch_alter_table(table) as batch:
-            batch.alter_column("when_away", existing_type=sa.String(length=5),
-                               server_default=when, existing_nullable=False)
-            batch.alter_column("away_minutes", existing_type=sa.Integer(),
-                               server_default=minutes, existing_nullable=False)
+    # (A project's only: a plain chat has no way to change its own, so everything waits there.)
+    with op.batch_alter_table("projects") as batch:
+        batch.alter_column("when_away", existing_type=sa.String(length=5),
+                           server_default=when, existing_nullable=False)
+        batch.alter_column("away_minutes", existing_type=sa.Integer(),
+                           server_default=minutes, existing_nullable=False)
 
 
 def upgrade() -> None:

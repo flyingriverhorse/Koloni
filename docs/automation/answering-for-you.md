@@ -10,7 +10,7 @@ Settings › This project › Asking and away › **When you're away**:
 - **The Orchestrator answers what it safely can**, after a number of minutes (0 to 1440).
 
 A new project has the second, after 5 minutes; a project from before 0.1.5 keeps what it had - turn it
-on here. With it, once you have not answered a card for that many minutes, "the Orchestrator picks,
+on here. In a chat with no folder everything waits for you. With it, once you have not answered a card for that many minutes, "the Orchestrator picks,
 says why, and you see it under "Decided for you"". While you're away ([☾ Away](overnight.md)) it
 decides at once, whatever this setting says - also the cards that waited when you pressed Go away.
 While you type an answer to a question, it waits (2 minutes after your last key).
