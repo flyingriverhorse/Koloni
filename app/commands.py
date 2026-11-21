@@ -721,7 +721,10 @@ def _runs_kill_package(program: str, said: list[str]) -> bool:
 def _bare(piped: bool) -> str:
     """A kill or a Stop-Process with no target written: of what a pipe hands it (`| xargs kill`,
     `Get-Process x | Stop-Process`) - "koloni" -, or a word of a message or a search the quote-blind
-    split cut out (`git commit -m "fix (kill)"`) - none."""
+    split cut out (`git commit -m "fix (kill)"`) - none.
+    shortcut: what the pipe hands is not read, so the line's own started process handed so
+    (`$p = Start-Process x -PassThru; $p | Stop-Process`) is asked too (OA-d); read the pipe's
+    left side against `_started` in 0.1.6."""
     return "koloni" if piped else ""
 
 
@@ -1251,7 +1254,10 @@ def _verbs(words: list[str]) -> list[tuple[str, str]]:
 def _makes_venv(words: list[str], own: re.Pattern | None = None) -> bool:
     """Whether a part makes a venv at a linked folder (`_in_linked`, by the copy's own full path
     too: `own`): `python -m venv` or `-m virtualenv`, or `virtualenv`, with any options - over one
-    there it rewrites it."""
+    there it rewrites it.
+    shortcut: by any part of the path, so a venv a folder deeper (`python -m venv build/venv`)
+    is asked as a rebuild though only the copy's top `venv` is linked (OA-d); match the linked
+    folder from the copy's own top in 0.1.6."""
     module = _module_run(words)
     made = module[1:] if module[:1] in (["venv"], ["virtualenv"]) else (
         words[1:] if _program(words[0]) == "virtualenv" else [])
@@ -1434,7 +1440,11 @@ def _pattern_option(word: str, program: str) -> tuple[bool, bool, bool] | None:
 def _path_words(words: list[str]) -> list[str]:
     """The words of a part that may be paths: a search's or sed's pattern left out - the first
     word that is no option, where no option gave the pattern (`_pattern_option`); Select-String's
-    `-Path` and `-LiteralPath` values are paths."""
+    `-Path` and `-LiteralPath` values are paths.
+    shortcut: a pattern with `(` in it reaches here cut, as `_BLOCKS` splits inside quotes
+    (`rg "require('../lib')" src`, `grep -rn "import('../x')" src`, `rg -g '*.ts' "'../" src`,
+    `grep -E "from '(\\.\\./)+" src`), and its `..` is asked as a climb (OA-c); read the line's
+    quotes before its blocks in 0.1.6."""
     program = _program(words[0])
     if program not in _POSITIONAL_PATTERN | {"perl"}:
         return words
