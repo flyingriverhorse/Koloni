@@ -900,3 +900,26 @@ test('K-degisenler, sample A: a copy that waits, or was kept, opens on what it h
     unmount()
   }
 })
+
+test('a copy at work is under Working copies in Files, on a tab of its own; a tab clicked is shown; a diff side by side or in one column is remembered', async () => {
+  const coder = agent('r1', 'running', { id: 'c', name: 'Coder', copy: { state: 'own' } })
+  panel({ agents: [lead, coder], changes: [fileChange('f1', 'r1', { status: 'proposed', diff: '@@ -1 +1 @@\n-a\n+b\n' })] }, 'src/a.py')
+  await userEvent.click(await within(treeOf()).findByRole('treeitem', { name: /^Coder's copy/ }))
+  expect(within(treeOf()).getByRole('treeitem', { name: /^Working copies/ })).toBeInTheDocument()
+  expect(await screen.findByRole('region', { name: 'a.txt' })).toBeInTheDocument()
+  expect(tabs()).toEqual(['a.py', "Coder's copy"])
+  await userEvent.click(screen.getByRole('tab', { name: 'a.py' }))
+  expect(screen.getByRole('tab', { name: 'a.py' })).toHaveAttribute('aria-selected', 'true')
+  const split = screen.getByRole('button', { name: 'Side by side' })
+  expect(split).toHaveAttribute('aria-pressed', 'true')
+  await userEvent.click(split)
+  expect(split).toHaveAttribute('aria-pressed', 'false')
+  expect(localStorage.getItem('koloni-diff-split')).toBe('false')
+})
+
+test('K-39-betik: Always run in this chat that could not be saved says so, over the page', async () => {
+  useApp.setState({ conv: convState(), setPageScripts: vi.fn().mockRejectedValue(new Error('down')) })
+  panel({ views: [view('v1', 'a.html')] }, 'a.html')
+  await userEvent.click(screen.getByRole('button', { name: 'Always run in this chat' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/^It could not be saved\. Try again\.$/)
+})

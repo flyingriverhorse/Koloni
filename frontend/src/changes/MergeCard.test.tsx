@@ -539,6 +539,26 @@ test('K-dal-takim D2: an agent may resolve the conflicts, the branch may be kept
   cleanup()
 })
 
+test("K-dal-takim D2: a branch git named no branch to go into goes into yours; a note of git's is in the way, and a way picked can be picked back", async () => {
+  const onDecide = vi.fn().mockResolvedValue(undefined)
+  const branch = { name: 'koloni/fix', into: null, conflicts: ['lines.txt'], dirty: [], note: 'git is busy', resolve: true, ask_way: true }
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch })} name="Coder" onDecide={onDecide} />)
+  expect(screen.getByText("Merge koloni/fix into the project's branch? · 1 file")).toBeInTheDocument()
+  const note = screen.getByRole('note', { name: 'Not merged yet' })
+  expect(note).toHaveTextContent('git is busy')
+  expect(note).toHaveTextContent('Merge looks again first: nothing is merged while any of this stands.')
+  expect(note).toHaveTextContent('KOLONİ merges your branch into koloni/fix')
+  expect(screen.getByRole('group', { name: 'How finished work reaches your branch' })).toHaveTextContent(/^How finished work reaches your branch/)
+  expect(screen.getByText(/Merge brings what the branch holds now into/)).toHaveTextContent('into your branch as one commit')
+  await userEvent.click(screen.getByRole('radio', { name: /Open a pull request/ }))
+  expect(note).not.toHaveTextContent('Merge looks again first')
+  expect(screen.getByText(/opens a pull request into/)).toHaveTextContent('opens a pull request into your branch; nothing is')
+  expect(screen.getByRole('checkbox', { name: /Keep this branch after the pull request/ })).not.toBeChecked()
+  await userEvent.click(screen.getByRole('radio', { name: /Merge here/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Merge' }))
+  expect(onDecide).toHaveBeenCalledWith('approve', {}, {}, { keep_branch: false, way: 'merge' })
+})
+
 test('K-dal-takim D2: a pull request opened says what was pushed and where it is', () => {
   const commit = { state: 'pull_request' as const, message: 'fix two', sha: 'abcdef1234567', url: 'https://github.com/owner/repo/pull/7', pushed: 'origin/koloni/fix' }
   render(<MergeCard merge={merge({ status: 'applied', files: [file('lines.txt')], commit })} name="Coder" onDecide={vi.fn()} />)

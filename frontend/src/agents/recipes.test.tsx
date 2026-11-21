@@ -509,6 +509,39 @@ test('K-evrim-model: the candidates’ models are the Lead’s, the same, or you
   expect(within(panel()).queryByRole('group', { name: 'Each candidate’s model' })).toBeNull()
 })
 
+test('a part’s panel: If it fails, Ask me to approve, a candidate’s model taken off, a step removed, how it ends - saved as drawn', async () => {
+  const providers = [{ id: 'local', name: 'Local', for_agents: true, default_model: 'big-model' }] as Provider[]
+  const given = actions()
+  render(<RecipesTab roles={roles} teams={teams} list={list} projectId={null} actions={given} reload={vi.fn()} providers={providers} />)
+  fireEvent.click(screen.getByRole('button', { name: '+ Draw a new recipe' }))
+  fireEvent.click(part(/^Your message/))
+  expect(within(panel()).queryByRole('button', { name: /^Remove/ })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: '+ Step' }))
+  fireEvent.change(within(panel()).getByLabelText('Name'), { target: { value: 'Build it' } })
+  fireEvent.change(within(panel()).getByLabelText('If it fails'), { target: { value: 'stop' } })
+  fireEvent.click(within(panel()).getByRole('checkbox', { name: 'Ask me to approve its work before it goes on' }))
+  fireEvent.change(within(panel()).getByLabelText('Who'), { target: { value: 'candidates:Coder' } })
+  fireEvent.change(within(panel()).getByRole('combobox', { name: 'Models' }), { target: { value: 'each' } })
+  const each = () => within(panel()).getByRole('group', { name: 'Each candidate’s model' })
+  expect(within(each()).queryByRole('button', { name: 'Remove candidate 1’s model' })).toBeNull()
+  fireEvent.click(within(each()).getByRole('button', { name: '+ Candidate 2' }))
+  fireEvent.click(within(each()).getByRole('button', { name: 'Remove candidate 2’s model' }))
+  expect(within(each()).queryByLabelText('Candidate 2’s model')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: '+ Step' }))
+  fireEvent.click(within(panel()).getByRole('button', { name: 'Remove it' }))
+  expect(screen.getByRole('complementary', { name: 'Recipe part' })).toHaveTextContent(/^Choose a part of the drawing/)
+  fireEvent.click(part(/^Build it/))
+  fireEvent.click(screen.getByRole('button', { name: '+ Ask me' }))
+  fireEvent.change(within(panel()).getByLabelText('How it ends'), { target: { value: 'report' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
+  const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
+  expect(body.graph.steps).toEqual([
+    expect.objectContaining({ name: 'Build it', if_fails: 'stop', ask_me: true, who: { candidates: 'Coder', most: 2, models: [{ provider_id: 'local', model_id: null }] } }),
+  ])
+  expect(body.graph.ends).toEqual([expect.objectContaining({ then: 'report' })])
+})
+
 test('B-388: I pick each offers no provider whose agent of the role works in the project itself, not a copy', () => {
   const providers = [
     { id: 'agy', name: 'agy', for_agents: true, default_model: 'flash' },

@@ -601,3 +601,14 @@ test('the guide tab’s first line: when it was learned and on what, and that it
   expect(line.closest('[role="tabpanel"]')).toHaveClass('knowledge-panel')
   expect(screen.queryByText('Learning again with another model rewrites only the map: its sections are kept.')).toBeNull()
 })
+
+test('Remove asks first - one of every project is taken from all of them - and a refusal is said on its card', async () => {
+  const props = page({ items: [NEW], onDelete: vi.fn().mockRejectedValue(new ApiError(409, 'a role still uses it')) })
+  await userEvent.click(screen.getByRole('button', { name: /tomli/ }))
+  await userEvent.click(within(card('tomli')).getByRole('button', { name: 'Remove' }))
+  const asked = within(card('tomli')).getByRole('alertdialog')
+  expect(asked).toHaveTextContent('tomli is in every project: remove it from all of them? Its guide stays in the folder.')
+  await userEvent.click(within(asked).getByRole('button', { name: 'Remove' }))
+  expect(props.onDelete).toHaveBeenCalledWith('k2')
+  expect(await within(card('tomli')).findByRole('alert')).toHaveTextContent(/^a role still uses it$/)
+})

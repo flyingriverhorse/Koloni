@@ -175,6 +175,44 @@ const day = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numer
 
 type Tab = 'guide' | 'pages' | 'unknown' | 'settings' | 'copy'
 
+/** How fresh its guide is, in a word or two: learning, not learned, old, when it was checked and what changed, or how long ago. */
+function freshOf(state: KnowledgeState, code: boolean) {
+  const learned = state.learned
+  // K-bilgi 5: a learning after the first says what changed since the one before.
+  const changed = learned?.changed
+  const checked = changed == null ? null : changed ? `${changed} ${changed === 1 ? 'page' : 'pages'} changed` : 'up to date'
+  return state.learning ? (code ? 'scanning…' : 'learning…') : !learned ? (code ? 'not scanned' : 'not learned') : state.stale ? 'old' : checked ? `checked ${minutesAgo(learned.learned_at)} · ${checked}` : ago(learned.learned_at)
+}
+
+/** The card's own button: what it does next. */
+const buttonOf = (code: boolean, learned: KnowledgeState['learned'], more: boolean) =>
+  code ? (learned ? 'Rescan' : 'Scan the code') : !learned ? 'Learn' : more ? 'Learn more' : 'Learn again'
+
+/** R168: it read as many pages as its cap and left some (its tries and time leave pages too, but never at the cap). */
+const cappedOf = (known: Knowledge, learned: KnowledgeState['learned'], web: boolean, read: number) =>
+  web && !!learned && read >= known.max_pages && (learned.unread > 0 || learned.pages.some(one => one.why?.startsWith('the page limit')))
+
+/** What a researched guide's entries are, by label: "3 facts, 1 warning". */
+const labelsOf = (learned: KnowledgeState['learned']) =>
+  Object.entries(learned?.labels ?? {})
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => `${count} ${label}`)
+    .join(', ')
+
+/** The open card's tabs: its guide, its pages, what is not known yet (a site's), Settings, and Copy where there is a project to copy to. */
+function tabsOf(state: KnowledgeState, web: boolean, otherProjects: number): [Tab, string][] {
+  const learned = state.learned
+  const pages = (learned?.pages.length ?? 0) + (learned?.added.length ?? 0)
+  const unknown = learned?.unknown
+  return [
+    ...(state.guide ? [['guide', 'Guide'] as [Tab, string]] : []),
+    ...(pages > 0 ? [['pages', `Pages · ${learned?.pages.length ?? 0}`] as [Tab, string]] : []),
+    ...(web ? [['unknown', unknown ? `Not known yet · ${unknown.length}` : 'Not known yet'] as [Tab, string]] : []),
+    ['settings', 'Settings'],
+    ...(state.guide && web && otherProjects > 0 ? [['copy', 'Copy'] as [Tab, string]] : []),
+  ]
+}
+
 function Card({ item, open, page, onOpen, onLearn }: { item: KnowledgeItem; open: boolean; page: Props; onOpen: () => void; onLearn: () => void }) {
   const { knowledge: known, state } = item
   const learned = state.learned
@@ -184,20 +222,13 @@ function Card({ item, open, page, onOpen, onLearn }: { item: KnowledgeItem; open
   const code = isCode(known)
   const notes = isNotes(known)
   const web = !code && !notes
-  // K-bilgi 5: a learning after the first says what changed since the one before.
-  const changed = learned?.changed
-  const checked = changed == null ? null : changed ? `${changed} ${changed === 1 ? 'page' : 'pages'} changed` : 'up to date'
-  const fresh = state.learning ? (code ? 'scanning…' : 'learning…') : !learned ? (code ? 'not scanned' : 'not learned') : state.stale ? 'old' : checked ? `checked ${minutesAgo(learned.learned_at)} · ${checked}` : ago(learned.learned_at)
+  const fresh = freshOf(state, code)
   const more = goesOn(learned)
-  const button = code ? (learned ? 'Rescan' : 'Scan the code') : !learned ? 'Learn' : more ? 'Learn more' : 'Learn again'
-  // R168: it read as many pages as its cap and left some (its tries and time leave pages too, but never at the cap).
-  const capped = web && !!learned && read >= known.max_pages && (learned.unread > 0 || learned.pages.some(one => one.why?.startsWith('the page limit')))
+  const button = buttonOf(code, learned, more)
+  const capped = cappedOf(known, learned, web, read)
   const cost = costOf(known, state)
   const coverage = coverageLine(state)
-  const labels = Object.entries(learned?.labels ?? {})
-    .filter(([, count]) => count > 0)
-    .map(([label, count]) => `${count} ${label}`)
-    .join(', ')
+  const labels = labelsOf(learned)
   const confirm = useConfirm()
   const [deleteSaid, setDeleteSaid] = useState<string | null>(null)
   const remove = () =>
@@ -233,15 +264,8 @@ function Card({ item, open, page, onOpen, onLearn }: { item: KnowledgeItem; open
         Save and learn
       </button>
     )
-  const pages = (learned?.pages.length ?? 0) + (learned?.added.length ?? 0)
   const unknown = learned?.unknown
-  const tabs: [Tab, string][] = [
-    ...(state.guide ? [['guide', 'Guide'] as [Tab, string]] : []),
-    ...(pages > 0 ? [['pages', `Pages · ${learned?.pages.length ?? 0}`] as [Tab, string]] : []),
-    ...(web ? [['unknown', unknown ? `Not known yet · ${unknown.length}` : 'Not known yet'] as [Tab, string]] : []),
-    ['settings', 'Settings'],
-    ...(state.guide && web && page.otherProjects.length > 0 ? [['copy', 'Copy'] as [Tab, string]] : []),
-  ]
+  const tabs = tabsOf(state, web, page.otherProjects.length)
   const [chosen, setTab] = useState<Tab>(state.guide ? 'guide' : 'settings')
   // A first learning done: its guide is what there is to see.
   const [hadGuide, setHadGuide] = useState(!!state.guide)
@@ -287,33 +311,56 @@ function Card({ item, open, page, onOpen, onLearn }: { item: KnowledgeItem; open
       <Guide state={state} onRead={page.onReadFile} />
     </>
   )
-  return (
-    <article className="knowledge-card" aria-label={known.topic}>
-      <div className="knowledge-card-head">
-        <button type="button" className="link-btn knowledge-topic" aria-expanded={open} onClick={onOpen}>
-          {open ? '▾' : '▸'} {known.topic}
-        </button>
-        <span className="muted knowledge-source">
-          {code ? 'scanned from the project' : notes ? 'decisions the project kept' : known.sources[0]}
-          {known.sources.length > 1 && ` +${known.sources.length - 1}`}
-        </span>
-        {item.project_id === null && <span className="tag">every project</span>}
-        <span className="knowledge-spacer" />
-        <button type="button" className="btn btn-small" aria-expanded={trying} onClick={() => setTrying(!trying)}>
-          Try it
-        </button>
-        {notes ? (
-          <span className="muted">written as you accept them</span>
-        ) : (
-          <>
-            {/* What its next learning spends: in sight beside the button that spends it. */}
-            <span className="muted knowledge-cost">{cost}</span>
-            <button type="button" className="btn btn-primary btn-small" disabled={state.learning || dirty} title={dirty ? 'Save first: Save and learn uses what you changed' : undefined} onClick={onLearn}>
-              {button}
-            </button>
-          </>
-        )}
-      </div>
+  /** The Settings tab: its topic and folder, what it learns from (a scan's and the notes' are said), and Remove. */
+  const settingsTab = () => (
+    <>
+      <p className="muted">
+        {known.topic} · it names its folder, {state.folder}
+      </p>
+      {/* (Anew once saved: what is saved is what it shows.) */}
+      {notes ? (
+        <p className="muted">Notes KOLONİ writes from what you tick on a turn’s “Add to Project notes?” card: fixed findings and docs/ changes, one page each.</p>
+      ) : code ? (
+        <p className="muted">The Python and JS/TS files here, as the agents’ file tools see them: no secret, no node_modules or build output.</p>
+      ) : (
+        <Sources key={JSON.stringify(known)} knowledge={known} providers={page.providers} busy={busy} button="Save" onSave={sent => save(sent, newSources(sent) ? 'Saved: Learn again reads the new sources.' : 'Saved.')} learn={learnButton} onDirty={setDirty} />
+      )}
+      <button type="button" className="link-btn" onClick={remove}>
+        Remove
+      </button>
+    </>
+  )
+  /** Its head: the topic that opens it, where it is from, Try it, and what its next learning spends beside the button that spends it. */
+  const head = () => (
+    <div className="knowledge-card-head">
+      <button type="button" className="link-btn knowledge-topic" aria-expanded={open} onClick={onOpen}>
+        {open ? '▾' : '▸'} {known.topic}
+      </button>
+      <span className="muted knowledge-source">
+        {code ? 'scanned from the project' : notes ? 'decisions the project kept' : known.sources[0]}
+        {known.sources.length > 1 && ` +${known.sources.length - 1}`}
+      </span>
+      {item.project_id === null && <span className="tag">every project</span>}
+      <span className="knowledge-spacer" />
+      <button type="button" className="btn btn-small" aria-expanded={trying} onClick={() => setTrying(!trying)}>
+        Try it
+      </button>
+      {notes ? (
+        <span className="muted">written as you accept them</span>
+      ) : (
+        <>
+          {/* What its next learning spends: in sight beside the button that spends it. */}
+          <span className="muted knowledge-cost">{cost}</span>
+          <button type="button" className="btn btn-primary btn-small" disabled={state.learning || dirty} title={dirty ? 'Save first: Save and learn uses what you changed' : undefined} onClick={onLearn}>
+            {button}
+          </button>
+        </>
+      )}
+    </div>
+  )
+  /** How much of what was read is in its guide, a repository's code files, and why it holds fewer. */
+  const cover = () => (
+    <>
       {web && learned && (
         <div className="knowledge-cover">
           {/* R162: all its pages are read; its guide is written from as many as its money limit pays for. */}
@@ -325,49 +372,50 @@ function Card({ item, open, page, onOpen, onLearn }: { item: KnowledgeItem; open
       )}
       {learned?.code && <CodeLines topic={known.topic} code={learned.code} />}
       {web && coverage && <p className="muted knowledge-why">{coverage}</p>}
-      <div className="knowledge-facts">
-        {code ? (
-          <>
-            <span>
-              Scanned: <b>{learned && !state.learning ? minutesAgo(learned.learned_at) : fresh}</b>
-            </span>
-            {learned && (
-              <span>
-                <b>{written}</b> files · <b>{learned.symbols ?? 0}</b> symbols
-              </span>
-            )}
-          </>
-        ) : notes ? (
-          <span>
-            <b>{written}</b> notes
-          </span>
-        ) : (
-          <>
-            <span title={state.stale ?? undefined}>
-              Fresh: <b>{fresh}</b>
-              {known.weekly && ' · weekly'}
-            </span>
-            {learned && (
-              <span>
-                Spent:{' '}
-                {learned.cost ? (
-                  <b>
-                    {learned.cost.amount.toFixed(2)} of {known.max_usd.toFixed(2)} {learned.cost.currency}
-                  </b>
-                ) : (
-                  <>
-                    <b>—</b> <Hint>A CLI’s or a plan’s use is not counted in USD.</Hint>
-                  </>
-                )}
-              </span>
-            )}
-            <span>
-              Learns with: <b>{known.learn_with ? known.learn_with.model_id : 'a role’s model'}</b>
-            </span>
-          </>
-        )}
-        {usedBy}
-      </div>
+    </>
+  )
+  /** A scan's facts: when, and how many files and symbols. */
+  const codeFacts = () => (
+    <>
+      <span>
+        Scanned: <b>{learned && !state.learning ? minutesAgo(learned.learned_at) : fresh}</b>
+      </span>
+      {learned && (
+        <span>
+          <b>{written}</b> files · <b>{learned.symbols ?? 0}</b> symbols
+        </span>
+      )}
+    </>
+  )
+  /** A learned guide's facts: how fresh, what it spent, and what it learns with. */
+  const learnedFacts = () => (
+    <>
+      <span title={state.stale ?? undefined}>
+        Fresh: <b>{fresh}</b>
+        {known.weekly && ' · weekly'}
+      </span>
+      {learned && (
+        <span>
+          Spent:{' '}
+          {learned.cost ? (
+            <b>
+              {learned.cost.amount.toFixed(2)} of {known.max_usd.toFixed(2)} {learned.cost.currency}
+            </b>
+          ) : (
+            <>
+              <b>—</b> <Hint>A CLI’s or a plan’s use is not counted in USD.</Hint>
+            </>
+          )}
+        </span>
+      )}
+      <span>
+        Learns with: <b>{known.learn_with ? known.learn_with.model_id : 'a role’s model'}</b>
+      </span>
+    </>
+  )
+  /** Under its facts: the page cap reached, a version, a learning that failed, what goes on now, and what was refused. */
+  const told = () => (
+    <>
       {capped && <p className="muted">Cap reached: raise the page cap to read more</p>}
       {state.version_warning && <p className="alert">Version: {state.version_warning}.</p>}
       {state.failed && !state.learning && (
@@ -388,48 +436,56 @@ function Card({ item, open, page, onOpen, onLearn }: { item: KnowledgeItem; open
           {deleteSaid}
         </p>
       )}
+    </>
+  )
+  /** Opened: its tabs, each panel kept while another is shown. */
+  const panels = () => (
+    <>
+      <div className="tabs knowledge-tabs" role="tablist" aria-label={known.topic} onKeyDown={onTabKey}>
+        {tabs.map(([key, label]) => (
+          <button key={key} id={tabId(key)} type="button" role="tab" className="tab" aria-selected={tab === key} aria-controls={`${tabId(key)}-panel`} tabIndex={tab === key ? 0 : -1} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {/* Each is kept while another is shown: what is typed in Settings stays, and holds Learn until it is saved (B-365). */}
+      {tabs.map(([key]) => (
+        <div key={key} id={`${tabId(key)}-panel`} role="tabpanel" aria-labelledby={tabId(key)} className="knowledge-panel" hidden={tab !== key}>
+          {key === 'guide' && guideTab()}
+          {/* A page a search found (or what was kept from one while answering), taken off: not read or kept from the next learning. */}
+          {key === 'pages' && <Pages state={state} removed={known.removed ?? []} busy={busy} onRemove={source => save({ ...known, removed: [...(known.removed ?? []), source] }, 'Removed: Learn again to leave it out of the guide.')} />}
+          {/* K-bilgi 7: what a clicked learning's questions of its guide found no page and line for (a scan is not asked). */}
+          {key === 'unknown' && <NotKnown unknown={unknown ?? null} more={more} />}
+          {key === 'settings' && settingsTab()}
+          {key === 'copy' && <CopyGuide topic={known.topic} projects={page.otherProjects} onCopy={(to, replace) => page.onCopy(item.id, to, replace)} />}
+        </div>
+      ))}
+    </>
+  )
+  /** Its facts - a scan's, the notes' or a learned guide's - and who uses it. */
+  const facts = () => (
+    <div className="knowledge-facts">
+      {code ? (
+        codeFacts()
+      ) : notes ? (
+        <span>
+          <b>{written}</b> notes
+        </span>
+      ) : (
+        learnedFacts()
+      )}
+      {usedBy}
+    </div>
+  )
+  return (
+    <article className="knowledge-card" aria-label={known.topic}>
+      {head()}
+      {cover()}
+      {facts()}
+      {told()}
       {confirm.shown()}
       {trying && <TryIt state={state} onTry={question => page.onTry(item.id, question)} />}
-      {open && (
-        <>
-          <div className="tabs knowledge-tabs" role="tablist" aria-label={known.topic} onKeyDown={onTabKey}>
-            {tabs.map(([key, label]) => (
-              <button key={key} id={tabId(key)} type="button" role="tab" className="tab" aria-selected={tab === key} aria-controls={`${tabId(key)}-panel`} tabIndex={tab === key ? 0 : -1} onClick={() => setTab(key)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {/* Each is kept while another is shown: what is typed in Settings stays, and holds Learn until it is saved (B-365). */}
-          {tabs.map(([key]) => (
-            <div key={key} id={`${tabId(key)}-panel`} role="tabpanel" aria-labelledby={tabId(key)} className="knowledge-panel" hidden={tab !== key}>
-              {key === 'guide' && guideTab()}
-              {/* A page a search found (or what was kept from one while answering), taken off: not read or kept from the next learning. */}
-              {key === 'pages' && <Pages state={state} removed={known.removed ?? []} busy={busy} onRemove={source => save({ ...known, removed: [...(known.removed ?? []), source] }, 'Removed: Learn again to leave it out of the guide.')} />}
-              {/* K-bilgi 7: what a clicked learning's questions of its guide found no page and line for (a scan is not asked). */}
-              {key === 'unknown' && <NotKnown unknown={unknown ?? null} more={more} />}
-              {key === 'settings' && (
-                <>
-                  <p className="muted">
-                    {known.topic} · it names its folder, {state.folder}
-                  </p>
-                  {/* (Anew once saved: what is saved is what it shows.) */}
-                  {notes ? (
-                    <p className="muted">Notes KOLONİ writes from what you tick on a turn’s “Add to Project notes?” card: fixed findings and docs/ changes, one page each.</p>
-                  ) : code ? (
-                    <p className="muted">The Python and JS/TS files here, as the agents’ file tools see them: no secret, no node_modules or build output.</p>
-                  ) : (
-                    <Sources key={JSON.stringify(known)} knowledge={known} providers={page.providers} busy={busy} button="Save" onSave={sent => save(sent, newSources(sent) ? 'Saved: Learn again reads the new sources.' : 'Saved.')} learn={learnButton} onDirty={setDirty} />
-                  )}
-                  <button type="button" className="link-btn" onClick={remove}>
-                    Remove
-                  </button>
-                </>
-              )}
-              {key === 'copy' && <CopyGuide topic={known.topic} projects={page.otherProjects} onCopy={(to, replace) => page.onCopy(item.id, to, replace)} />}
-            </div>
-          ))}
-        </>
-      )}
+      {open && panels()}
     </article>
   )
 }

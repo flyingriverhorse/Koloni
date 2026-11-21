@@ -353,6 +353,34 @@ function stepCannot(who: Who, teams: Team[], roles: Role[], models?: Record<stri
   return names.flatMap(name => cannotOf(models?.[name], as).map(line => `${name}: ${line}`))
 }
 
+type OneRole = Extract<Who, { role: string }>
+type Candidates = Extract<Who, { candidates: string }>
+
+/** What a part is, under its name in the panel. */
+const partSaid = (kind: ReturnType<typeof kindOf>, at: number, graph: RecipeGraph, group: RecipeGraph['groups'][number] | undefined) =>
+  kind === 'step'
+    ? `Step ${at + 1} of ${graph.steps.length}`
+    : group?.wait === 'first'
+      ? 'Steps at the same time; it goes on once one branch is done - the others are stopped; what they already changed stays in the work. A branch that fails is out while another can still be done; if all fail, the last one’s “If it fails” holds'
+      : kind === 'group'
+        ? 'Steps at the same time, all done before it goes on'
+        : kind === 'start'
+          ? 'Where the recipe begins: the message you send'
+          : 'Where the recipe ends'
+
+/** Whether a Who (as its select's value) names what is here. */
+const knownWho = (who: string, roles: Role[], teams: Team[]) =>
+  who === 'lead' || who.startsWith('experts:') || roles.some(role => `role:${role.name}` === who || `candidates:${role.name}` === who) || teams.some(team => `team:${team.name}` === who)
+
+/** A step's Who where it is one role's or candidates of a role, and the candidates' models where the user picks each. */
+function whoShapes(step: RecipeStep | undefined) {
+  const one = step && 'role' in step.who ? step.who : null
+  const candidates = step && 'candidates' in step.who ? step.who : null
+  // K-evrim-model: the user's model for each candidate, from the providers agents may use.
+  const picks = candidates && Array.isArray(candidates.models) ? candidates.models : null
+  return { one, candidates, picks }
+}
+
 /** The chosen part: who does it, what it gets, when it is done, what happens when it fails, where it goes on and loops back. */
 function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onChoose, models, providers = [], onModels }: PanelProps) {
   const kind = kindOf(graph, id)
@@ -366,32 +394,347 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
   const at = graph.steps.indexOf(step as RecipeStep)
   // A Who that names what is not here is kept on show: the server says so as it is saved.
   const who = step ? whoValue(step.who) : 'lead'
-  const known =
-    who === 'lead' || who.startsWith('experts:') || roles.some(role => `role:${role.name}` === who || `candidates:${role.name}` === who) || teams.some(team => `team:${team.name}` === who)
+  const known = knownWho(who, roles, teams)
   const room = roomOf(step?.who)
-  const one = step && 'role' in step.who ? step.who : null
-  const candidates = step && 'candidates' in step.who ? step.who : null
-  // K-evrim-model: the user's model for each candidate, from the providers agents may use.
-  const picks = candidates && Array.isArray(candidates.models) ? candidates.models : null
+  const { one, candidates, picks } = whoShapes(step)
   const guided = providers.filter(p => p.for_agents && p.enabled !== false)
   // B-388: one whose agent of this role works in the project itself (`step` false, as the spawn refuses it) cannot be a candidate.
   const runOn = candidates ? models?.[candidates.candidates]?.run_on : undefined
   const inCopy = (id: string) => runOn?.find(r => r.provider_id === id)?.step !== false
   const setPick = (at: number, pick: CandidateModel) => candidates && picks && change({ who: { ...candidates, models: picks.map((one, i) => (i === at ? pick : one)) } })
+
+  /** A Room step (slice 84e): 2 to 6 roles that meet in one room; one named that is not here is kept on show. */
+  const roomRow = (room: string[]) => (
+    <div className="recipe-row" role="group" aria-label="Who meets in the room">
+      <span className="muted">Who</span>
+      <div className="recipe-nexts">
+        {[...new Set([...roles.map(role => role.name), ...room])].map(name => (
+          <label key={name} className="choice">
+            <input type="checkbox" checked={room.includes(name)} onChange={e => change({ who: { room: e.target.checked ? [...room, name] : room.filter(one => one !== name) } })} />
+            <span>{roles.some(role => role.name === name) ? name : `${name} (not here)`}</span>
+          </label>
+        ))}
+        <span className="muted">2 to 6 roles, in one room.</span>
+      </div>
+    </div>
+  )
+
+  /** Any other step's Who: the Orchestrator, the team's experts, a role, candidates of a role, or a team's stages. */
+  const whoRow = () => (
+    <label className="recipe-row">
+      <span className="muted">Who</span>
+      <select className="input" value={who} onChange={e => change({ who: whoOf(e.target.value) })}>
+        <option value="lead">The Orchestrator picks</option>
+        <optgroup label="The team’s experts">
+          <option value="experts:all">All of them, at once</option>
+          <option value="experts:stale">Those whose guide is old (they learn)</option>
+          <option value="experts:learned">Those that have learned (none: skipped)</option>
+        </optgroup>
+        {!known && <option value={who}>{who.slice(who.indexOf(':') + 1)} (not here)</option>}
+        <optgroup label="A role">
+          {roles.map(role => (
+            <option key={role.id} value={`role:${role.name}`}>
+              {role.name}
+            </option>
+          ))}
+        </optgroup>
+        {/* K-evrim: each does the whole step its own way, in a copy of its own; the measure command scores them. */}
+        <optgroup label="Candidates (the best one goes on)">
+          {roles.map(role => (
+            <option key={role.id} value={`candidates:${role.name}`}>
+              Candidates: {role.name}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="A team’s stages">
+          {teams.map(team => (
+            <option key={team.id} value={`team:${team.name}`}>
+              {team.name}: {stagesOf(team)}
+            </option>
+          ))}
+        </optgroup>
+      </select>
+    </label>
+  )
+
+  /**
+   * K-rol-cogul: up to this many of its role, as many as the Lead splits the work into. (Named apart from a
+   * loop's "At most" rounds, which this panel may show too.)
+   */
+  const mostRow = (one: OneRole) => (
+    <label className="recipe-row">
+      <span className="muted">At most</span>
+      <select
+        className="input"
+        aria-label="At most of its role"
+        value={one.most ?? 1}
+        onChange={e => {
+          const most = Number(e.target.value)
+          change({ who: most > 1 ? { role: one.role, most } : { role: one.role } })
+        }}
+      >
+        {[1, 2, 3, 4, 5].map(n => (
+          <option key={n} value={n}>
+            {n} agent{n === 1 ? '' : 's'}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+
+  /** K-evrim-model: each candidate's provider and model, as the user picks them. */
+  const picksRow = (candidates: Candidates, picks: CandidateModel[]) => (
+    <div className="recipe-row" role="group" aria-label="Each candidate’s model">
+      <span className="muted">Each</span>
+      <div className="recipe-nexts">
+        {picks.map((pick, at) => (
+          <span key={at} className="role-tier-range">
+            <select
+              className="input"
+              aria-label={`Candidate ${at + 1}’s provider`}
+              value={pick.provider_id}
+              onChange={e => setPick(at, { provider_id: e.target.value, model_id: null })}
+            >
+              {!guided.some(p => p.id === pick.provider_id) && <option value={pick.provider_id}>not one agents may use</option>}
+              {guided.map(p => (
+                <option key={p.id} value={p.id} disabled={!inCopy(p.id)}>
+                  {inCopy(p.id) ? p.name : `${p.name} (can’t run in a recipe’s copy)`}
+                </option>
+              ))}
+            </select>
+            <ModelNameInput
+              label={`Candidate ${at + 1}’s model`}
+              value={pick.model_id ?? ''}
+              placeholder={guided.find(p => p.id === pick.provider_id)?.default_model ?? 'The provider’s default'}
+              providerId={pick.provider_id}
+              loadModels={onModels}
+              quiet
+              onChange={value => setPick(at, { ...pick, model_id: value.trim() || null })}
+            />
+            {picks.length > 1 && (
+              <button type="button" className="btn btn-small" aria-label={`Remove candidate ${at + 1}’s model`} onClick={() => change({ who: { ...candidates, models: picks.filter((_, i) => i !== at) } })}>
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {picks.length < candidates.most && (
+          <button type="button" className="btn btn-small" onClick={() => change({ who: { ...candidates, models: [...picks, picks[picks.length - 1]] } })}>
+            + Candidate {picks.length + 1}
+          </button>
+        )}
+        <span className="muted">Candidate 1 runs on the first, and so on; any past these on the role’s model.</span>
+      </div>
+    </div>
+  )
+
+  /** K-evrim: how many candidates, the score that ends their rounds, and whose models they run on. */
+  const candidateRows = (candidates: Candidates) => (
+    <>
+      <label className="recipe-row">
+        <span className="muted">At most</span>
+        <select
+          className="input"
+          aria-label="At most candidates"
+          value={candidates.most}
+          onChange={e => {
+            const most = Number(e.target.value)
+            // (Your list holds one model a candidate at most: one past it is cut, or the save is refused.)
+            change({ who: { ...candidates, most, models: Array.isArray(candidates.models) ? candidates.models.slice(0, most) : candidates.models } })
+          }}
+        >
+          {[2, 3, 4, 5].map(n => (
+            <option key={n} value={n}>
+              {n} candidates
+            </option>
+          ))}
+        </select>
+      </label>
+      {/* K-evrim: rounds (its loop to itself) stop once the picked one scores this much; empty: every round runs. */}
+      <label className="recipe-row">
+        <span className="muted">Target</span>
+        <input
+          className="input"
+          type="number"
+          min={0}
+          max={100}
+          aria-label="Target score"
+          placeholder="none: every round runs"
+          value={candidates.target ?? ''}
+          onChange={e => change({ who: { ...candidates, target: e.target.value === '' ? null : Math.min(100, Math.max(0, Math.round(Number(e.target.value)))) } })}
+        />
+      </label>
+      {/* K-evrim-model: whose the candidates' models are - the Lead's to pick (as nothing is said, "auto" is left out of the file), the role's, or yours. */}
+      <label className="recipe-row">
+        <span className="muted">Models</span>
+        <select
+          className="input"
+          aria-label="Models"
+          value={Array.isArray(candidates.models) ? 'each' : (candidates.models ?? 'auto')}
+          onChange={e => {
+            const how = e.target.value
+            change({ who: { ...candidates, models: how === 'each' ? [{ provider_id: (guided.find(p => inCopy(p.id)) ?? guided[0])?.id ?? '', model_id: null }] : (how as 'auto' | 'same') } })
+          }}
+        >
+          <option value="auto">Auto, the Lead picks</option>
+          <option value="same">Same model</option>
+          <option value="each" disabled={guided.length === 0 && !picks}>
+            I pick each
+          </option>
+        </select>
+      </label>
+      {picks && picksRow(candidates, picks)}
+    </>
+  )
+
+  /** A step's rows: who does it and how many, what it gets, when it is done, if it fails, and what it waits for. */
+  const stepRows = (step: RecipeStep) => (
+    <>
+      {room ? roomRow(room) : whoRow()}
+      {one && mostRow(one)}
+      {candidates && candidateRows(candidates)}
+      <Cannot said={stepCannot(step.who, teams, roles, models)} />
+      <div className="recipe-row">
+        <span className="muted">Gets</span>
+        <span>{gets(graph, id)}</span>
+      </div>
+      <label className="recipe-row">
+        <span className="muted">Done when</span>
+        <select className="input" value={step.done_when} onChange={e => change({ done_when: e.target.value as RecipeStep['done_when'] })}>
+          <option value="done">{room ? 'the room ends: all say done, or its time or budget is up' : 'its agents say done'}</option>
+          <option value="no_findings">no finding is left (a review)</option>
+        </select>
+      </label>
+      <label className="recipe-row">
+        <span className="muted">If it fails</span>
+        <select className="input" value={step.if_fails} onChange={e => change({ if_fails: e.target.value as RecipeStep['if_fails'] })}>
+          <option value="ask">ask me</option>
+          <option value="stop">stop</option>
+        </select>
+      </label>
+      <label className="choice recipe-row-wide">
+        <input type="checkbox" checked={step.ask_me} onChange={e => change({ ask_me: e.target.checked })} />
+        <span>Ask me to approve its work before it goes on</span>
+      </label>
+      <label className="choice recipe-row-wide">
+        <input type="checkbox" checked={!!step.when} onChange={e => change({ when: e.target.checked ? 'problem' : null })} />
+        <span>Only if the step before found a problem</span>
+      </label>
+      {/* (A room meets on its own, never at once with other steps.) */}
+      {!room && (
+        <label className="recipe-row">
+          <span className="muted">At once</span>
+          <select className="input" aria-label="At the same time as" value={step.group ?? ''} onChange={e => change({ group: e.target.value || null })}>
+            <option value="">no: on its own</option>
+            {graph.groups.map(one => (
+              <option key={one.id} value={one.id}>
+                in “{one.name}”
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="recipe-row">
+        <span className="muted">Tiers</span>
+        <span className="muted">as each role’s rule (the Orchestrator picks within it)</span>
+      </div>
+    </>
+  )
+
+  /** Where it goes on: its arrows, each to remove, and one to add. */
+  const goesOnRow = () => (
+    <div className="recipe-row">
+      <span className="muted">Goes on to</span>
+      <div className="recipe-nexts">
+        {nexts.map(next => (
+          <span key={next} className="recipe-next">
+            {nameOf(graph, next)}
+            <button type="button" className="link-btn" aria-label={`No arrow to ${nameOf(graph, next)}`} onClick={() => onChange(disconnect(graph, id, next))}>
+              remove
+            </button>
+          </span>
+        ))}
+        <select className="input" aria-label="Add an arrow to" value="" onChange={e => e.target.value && onChange(connect(graph, id, e.target.value))}>
+          <option value="">+ an arrow to…</option>
+          {targets(graph, id).map(next => (
+            <option key={next} value={next}>
+              {nameOf(graph, next)}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
+
+  /** Where it loops back to, and at most how many rounds. */
+  const loopRow = () => (
+    <div className="recipe-row">
+      <span className="muted">Loops back</span>
+      <div className="recipe-nexts">
+        <select className="input" aria-label="Loops back to" value={loop?.to ?? ''} onChange={e => onChange(setLoop(graph, id, e.target.value || null))}>
+          <option value="">no loop</option>
+          {/* Back to a part on the way here; one drawn otherwise (a model's draft) is kept on show, the server says why. */}
+          {[...new Set([...loopTargets(graph, id), ...(loop ? [loop.to] : [])])].map(back => (
+            <option key={back} value={back}>
+              {back === id ? 'round again, from the picked one’s work' : `to ${nameOf(graph, back)}, with the findings`}
+            </option>
+          ))}
+        </select>
+        {loop && (
+          <select className="input" aria-label="At most" value={loop.rounds ?? ''} onChange={e => onChange(setLoop(graph, id, loop.to, e.target.value ? Number(e.target.value) : null))}>
+            {!loop.rounds && <option value="">no round limit</option>}
+            {[1, 2, 3, 4, 5].map(n => (
+              <option key={n} value={n}>
+                at most {n} round{n === 1 ? '' : 's'}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    </div>
+  )
+
+  /** Its rows, off on a ready recipe: its name, what a group waits for, a step's, how an end ends, where it goes on and loops back. */
+  const rows = () => (
+    <fieldset className="recipe-rows" disabled={readOnly}>
+      {(step || group) && (
+        <label className="recipe-row">
+          <span className="muted">Name</span>
+          <input className="input" value={name} maxLength={60} onChange={e => onChange(step ? changeStep(graph, id, { name: e.target.value }) : renameGroup(graph, id, e.target.value))} />
+        </label>
+      )}
+      {group && (
+        // K-tarif-kol: its branches - its steps joined by arrows inside it - all, or the first one done.
+        <label className="recipe-row">
+          <span className="muted">Wait for</span>
+          <select className="input" aria-label="Wait for" value={group.wait ?? 'all'} onChange={e => onChange(waitFor(graph, id, e.target.value as typeof group.wait))}>
+            <option value="all">all branches</option>
+            <option value="first">the first one done</option>
+          </select>
+        </label>
+      )}
+      {step && stepRows(step)}
+      {end && (
+        <label className="recipe-row">
+          <span className="muted">Then</span>
+          <select className="input" aria-label="How it ends" value={end.then} onChange={e => onChange(changeEnd(graph, id, e.target.value as End['then']))}>
+            {Object.entries(END_NAMES).map(([then, words]) => (
+              <option key={then} value={then}>
+                {words}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {goesOn(graph, id) && goesOnRow()}
+      {(step || group) && loopRow()}
+    </fieldset>
+  )
+
   return (
     <aside className="role-panel recipe-panel" aria-label={`Recipe part ${name}`}>
       <h3>{name}</h3>
-      <div className="muted">
-        {kind === 'step'
-          ? `Step ${at + 1} of ${graph.steps.length}`
-          : group?.wait === 'first'
-            ? 'Steps at the same time; it goes on once one branch is done - the others are stopped; what they already changed stays in the work. A branch that fails is out while another can still be done; if all fail, the last one’s “If it fails” holds'
-            : kind === 'group'
-              ? 'Steps at the same time, all done before it goes on'
-              : kind === 'start'
-                ? 'Where the recipe begins: the message you send'
-                : 'Where the recipe ends'}
-      </div>
+      <div className="muted">{partSaid(kind, at, graph, group)}</div>
       {problems.length > 0 && (
         <ul role="alert" className="alert recipe-said">
           {problems.map(said => (
@@ -399,308 +742,7 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
           ))}
         </ul>
       )}
-      <fieldset className="recipe-rows" disabled={readOnly}>
-        {(step || group) && (
-          <label className="recipe-row">
-            <span className="muted">Name</span>
-            <input className="input" value={name} maxLength={60} onChange={e => onChange(step ? changeStep(graph, id, { name: e.target.value }) : renameGroup(graph, id, e.target.value))} />
-          </label>
-        )}
-        {group && (
-          // K-tarif-kol: its branches - its steps joined by arrows inside it - all, or the first one done.
-          <label className="recipe-row">
-            <span className="muted">Wait for</span>
-            <select className="input" aria-label="Wait for" value={group.wait ?? 'all'} onChange={e => onChange(waitFor(graph, id, e.target.value as typeof group.wait))}>
-              <option value="all">all branches</option>
-              <option value="first">the first one done</option>
-            </select>
-          </label>
-        )}
-        {step && (
-          <>
-            {room ? (
-              // A Room step (slice 84e): 2 to 6 roles that meet in one room; one named that is not here is kept on show.
-              <div className="recipe-row" role="group" aria-label="Who meets in the room">
-                <span className="muted">Who</span>
-                <div className="recipe-nexts">
-                  {[...new Set([...roles.map(role => role.name), ...room])].map(name => (
-                    <label key={name} className="choice">
-                      <input type="checkbox" checked={room.includes(name)} onChange={e => change({ who: { room: e.target.checked ? [...room, name] : room.filter(one => one !== name) } })} />
-                      <span>{roles.some(role => role.name === name) ? name : `${name} (not here)`}</span>
-                    </label>
-                  ))}
-                  <span className="muted">2 to 6 roles, in one room.</span>
-                </div>
-              </div>
-            ) : (
-            <label className="recipe-row">
-              <span className="muted">Who</span>
-              <select className="input" value={who} onChange={e => change({ who: whoOf(e.target.value) })}>
-                <option value="lead">The Orchestrator picks</option>
-                <optgroup label="The team’s experts">
-                  <option value="experts:all">All of them, at once</option>
-                  <option value="experts:stale">Those whose guide is old (they learn)</option>
-                  <option value="experts:learned">Those that have learned (none: skipped)</option>
-                </optgroup>
-                {!known && <option value={who}>{who.slice(who.indexOf(':') + 1)} (not here)</option>}
-                <optgroup label="A role">
-                  {roles.map(role => (
-                    <option key={role.id} value={`role:${role.name}`}>
-                      {role.name}
-                    </option>
-                  ))}
-                </optgroup>
-                {/* K-evrim: each does the whole step its own way, in a copy of its own; the measure command scores them. */}
-                <optgroup label="Candidates (the best one goes on)">
-                  {roles.map(role => (
-                    <option key={role.id} value={`candidates:${role.name}`}>
-                      Candidates: {role.name}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="A team’s stages">
-                  {teams.map(team => (
-                    <option key={team.id} value={`team:${team.name}`}>
-                      {team.name}: {stagesOf(team)}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-            </label>
-            )}
-            {one && (
-              // K-rol-cogul: up to this many of its role, as many as the Lead splits the work into. (Named apart from a
-              // loop's "At most" rounds, which this panel may show too.)
-              <label className="recipe-row">
-                <span className="muted">At most</span>
-                <select
-                  className="input"
-                  aria-label="At most of its role"
-                  value={one.most ?? 1}
-                  onChange={e => {
-                    const most = Number(e.target.value)
-                    change({ who: most > 1 ? { role: one.role, most } : { role: one.role } })
-                  }}
-                >
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <option key={n} value={n}>
-                      {n} agent{n === 1 ? '' : 's'}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {candidates && (
-              <label className="recipe-row">
-                <span className="muted">At most</span>
-                <select
-                  className="input"
-                  aria-label="At most candidates"
-                  value={candidates.most}
-                  onChange={e => {
-                    const most = Number(e.target.value)
-                    // (Your list holds one model a candidate at most: one past it is cut, or the save is refused.)
-                    change({ who: { ...candidates, most, models: Array.isArray(candidates.models) ? candidates.models.slice(0, most) : candidates.models } })
-                  }}
-                >
-                  {[2, 3, 4, 5].map(n => (
-                    <option key={n} value={n}>
-                      {n} candidates
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {candidates && (
-              // K-evrim: rounds (its loop to itself) stop once the picked one scores this much; empty: every round runs.
-              <label className="recipe-row">
-                <span className="muted">Target</span>
-                <input
-                  className="input"
-                  type="number"
-                  min={0}
-                  max={100}
-                  aria-label="Target score"
-                  placeholder="none: every round runs"
-                  value={candidates.target ?? ''}
-                  onChange={e => change({ who: { ...candidates, target: e.target.value === '' ? null : Math.min(100, Math.max(0, Math.round(Number(e.target.value)))) } })}
-                />
-              </label>
-            )}
-            {candidates && (
-              // K-evrim-model: whose the candidates' models are - the Lead's to pick (as nothing is said, "auto" is left out of the file), the role's, or yours.
-              <label className="recipe-row">
-                <span className="muted">Models</span>
-                <select
-                  className="input"
-                  aria-label="Models"
-                  value={Array.isArray(candidates.models) ? 'each' : (candidates.models ?? 'auto')}
-                  onChange={e => {
-                    const how = e.target.value
-                    change({ who: { ...candidates, models: how === 'each' ? [{ provider_id: (guided.find(p => inCopy(p.id)) ?? guided[0])?.id ?? '', model_id: null }] : (how as 'auto' | 'same') } })
-                  }}
-                >
-                  <option value="auto">Auto, the Lead picks</option>
-                  <option value="same">Same model</option>
-                  <option value="each" disabled={guided.length === 0 && !picks}>
-                    I pick each
-                  </option>
-                </select>
-              </label>
-            )}
-            {candidates && picks && (
-              <div className="recipe-row" role="group" aria-label="Each candidate’s model">
-                <span className="muted">Each</span>
-                <div className="recipe-nexts">
-                  {picks.map((pick, at) => (
-                    <span key={at} className="role-tier-range">
-                      <select
-                        className="input"
-                        aria-label={`Candidate ${at + 1}’s provider`}
-                        value={pick.provider_id}
-                        onChange={e => setPick(at, { provider_id: e.target.value, model_id: null })}
-                      >
-                        {!guided.some(p => p.id === pick.provider_id) && <option value={pick.provider_id}>not one agents may use</option>}
-                        {guided.map(p => (
-                          <option key={p.id} value={p.id} disabled={!inCopy(p.id)}>
-                            {inCopy(p.id) ? p.name : `${p.name} (can’t run in a recipe’s copy)`}
-                          </option>
-                        ))}
-                      </select>
-                      <ModelNameInput
-                        label={`Candidate ${at + 1}’s model`}
-                        value={pick.model_id ?? ''}
-                        placeholder={guided.find(p => p.id === pick.provider_id)?.default_model ?? 'The provider’s default'}
-                        providerId={pick.provider_id}
-                        loadModels={onModels}
-                        quiet
-                        onChange={value => setPick(at, { ...pick, model_id: value.trim() || null })}
-                      />
-                      {picks.length > 1 && (
-                        <button type="button" className="btn btn-small" aria-label={`Remove candidate ${at + 1}’s model`} onClick={() => change({ who: { ...candidates, models: picks.filter((_, i) => i !== at) } })}>
-                          ×
-                        </button>
-                      )}
-                    </span>
-                  ))}
-                  {picks.length < candidates.most && (
-                    <button type="button" className="btn btn-small" onClick={() => change({ who: { ...candidates, models: [...picks, picks[picks.length - 1]] } })}>
-                      + Candidate {picks.length + 1}
-                    </button>
-                  )}
-                  <span className="muted">Candidate 1 runs on the first, and so on; any past these on the role’s model.</span>
-                </div>
-              </div>
-            )}
-            <Cannot said={stepCannot(step.who, teams, roles, models)} />
-            <div className="recipe-row">
-              <span className="muted">Gets</span>
-              <span>{gets(graph, id)}</span>
-            </div>
-            <label className="recipe-row">
-              <span className="muted">Done when</span>
-              <select className="input" value={step.done_when} onChange={e => change({ done_when: e.target.value as RecipeStep['done_when'] })}>
-                <option value="done">{room ? 'the room ends: all say done, or its time or budget is up' : 'its agents say done'}</option>
-                <option value="no_findings">no finding is left (a review)</option>
-              </select>
-            </label>
-            <label className="recipe-row">
-              <span className="muted">If it fails</span>
-              <select className="input" value={step.if_fails} onChange={e => change({ if_fails: e.target.value as RecipeStep['if_fails'] })}>
-                <option value="ask">ask me</option>
-                <option value="stop">stop</option>
-              </select>
-            </label>
-            <label className="choice recipe-row-wide">
-              <input type="checkbox" checked={step.ask_me} onChange={e => change({ ask_me: e.target.checked })} />
-              <span>Ask me to approve its work before it goes on</span>
-            </label>
-            <label className="choice recipe-row-wide">
-              <input type="checkbox" checked={!!step.when} onChange={e => change({ when: e.target.checked ? 'problem' : null })} />
-              <span>Only if the step before found a problem</span>
-            </label>
-            {/* (A room meets on its own, never at once with other steps.) */}
-            {!room && (
-              <label className="recipe-row">
-                <span className="muted">At once</span>
-                <select className="input" aria-label="At the same time as" value={step.group ?? ''} onChange={e => change({ group: e.target.value || null })}>
-                  <option value="">no: on its own</option>
-                  {graph.groups.map(one => (
-                    <option key={one.id} value={one.id}>
-                      in “{one.name}”
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <div className="recipe-row">
-              <span className="muted">Tiers</span>
-              <span className="muted">as each role’s rule (the Orchestrator picks within it)</span>
-            </div>
-          </>
-        )}
-        {end && (
-          <label className="recipe-row">
-            <span className="muted">Then</span>
-            <select className="input" aria-label="How it ends" value={end.then} onChange={e => onChange(changeEnd(graph, id, e.target.value as End['then']))}>
-              {Object.entries(END_NAMES).map(([then, words]) => (
-                <option key={then} value={then}>
-                  {words}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {goesOn(graph, id) && (
-          <div className="recipe-row">
-            <span className="muted">Goes on to</span>
-            <div className="recipe-nexts">
-              {nexts.map(next => (
-                <span key={next} className="recipe-next">
-                  {nameOf(graph, next)}
-                  <button type="button" className="link-btn" aria-label={`No arrow to ${nameOf(graph, next)}`} onClick={() => onChange(disconnect(graph, id, next))}>
-                    remove
-                  </button>
-                </span>
-              ))}
-              <select className="input" aria-label="Add an arrow to" value="" onChange={e => e.target.value && onChange(connect(graph, id, e.target.value))}>
-                <option value="">+ an arrow to…</option>
-                {targets(graph, id).map(next => (
-                  <option key={next} value={next}>
-                    {nameOf(graph, next)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-        {(step || group) && (
-          <div className="recipe-row">
-            <span className="muted">Loops back</span>
-            <div className="recipe-nexts">
-              <select className="input" aria-label="Loops back to" value={loop?.to ?? ''} onChange={e => onChange(setLoop(graph, id, e.target.value || null))}>
-                <option value="">no loop</option>
-                {/* Back to a part on the way here; one drawn otherwise (a model's draft) is kept on show, the server says why. */}
-                {[...new Set([...loopTargets(graph, id), ...(loop ? [loop.to] : [])])].map(back => (
-                  <option key={back} value={back}>
-                    {back === id ? 'round again, from the picked one’s work' : `to ${nameOf(graph, back)}, with the findings`}
-                  </option>
-                ))}
-              </select>
-              {loop && (
-                <select className="input" aria-label="At most" value={loop.rounds ?? ''} onChange={e => onChange(setLoop(graph, id, loop.to, e.target.value ? Number(e.target.value) : null))}>
-                  {!loop.rounds && <option value="">no round limit</option>}
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <option key={n} value={n}>
-                      at most {n} round{n === 1 ? '' : 's'}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-        )}
-      </fieldset>
+      {rows()}
       {kind !== 'start' && !readOnly && (
         <button
           type="button"
