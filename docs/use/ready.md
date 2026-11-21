@@ -131,5 +131,6 @@ These have a grey edge. Nothing waits on them.
   the project yet: server.py waits in Ready for you - Take in to apply it.", or "Nothing reached the
   project." The line is written when the turn ends: a copy you take in later does not change it.
 - When KOLONİ starts again, work that was open is marked interrupted. Nothing is ever run again by
-  itself.
+  itself: a message that was still queued says "Not sent: KOLONİ restarted", and runs only when you
+  press its **Send**.
 - A question that ended without an answer shows in the chat as "not answered".

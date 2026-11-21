@@ -116,6 +116,27 @@ test('a message removed from the queue stays visible and says so', () => {
   expect(screen.queryByText('Stopped')).not.toBeInTheDocument()
 })
 
+test('a message still queued when KOLONİ restarted says it was not sent, and Send sends it', async () => {
+  // (Code review, 14 Nov: "Interrupted by a server restart - Send a message to continue." under a message never sent.)
+  const sendAgain = vi.fn(async () => {})
+  const real = useApp.getState().sendAgain
+  useApp.setState({ sendAgain })
+  onTestFinished(() => useApp.setState({ sendAgain: real }))
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('a', 'interrupted'), run('q', 'interrupted', { started_at: null })],
+        messages: [userMessage('a', 'first'), userMessage('q', 'then run the tests')],
+      })}
+    />,
+  )
+  expect(screen.getByText(/Not sent/)).toHaveTextContent('Not sent: KOLONİ restarted')
+  expect(screen.getAllByText('Interrupted by a server restart')).toHaveLength(1) // (the first, that ran)
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+  expect(sendAgain).toHaveBeenCalledWith('q', false)
+})
+
 test.each([
   [run('r', 'failed', { error: 'model server unreachable: refused' }), 'Run failed', 'model server unreachable: refused'],
   [run('r', 'failed', { error: 'step_limit' }), 'Stopped at its step limit', null],

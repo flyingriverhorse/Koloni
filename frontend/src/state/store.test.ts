@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { conversation } from '../test-fixtures'
+import { conversation, run, userMessage } from '../test-fixtures'
 import { resetStoreForTests, useApp } from './store'
 
 /** A stand-in for the browser's EventSource that tests can drive by hand. */
@@ -705,6 +705,29 @@ test('a message is sent to the topic it is said to go to, or as a new one; a top
   await useApp.getState().renameTopic('t1', 'The greeting')
   expect(sent.at(-1)).toEqual(['PATCH', '/api/topics/t1', { title: 'The greeting' }])
   expect(useApp.getState().conv?.topics[0].title).toBe('The greeting')
+})
+
+test('a message sent again once KOLONİ restarted is the newest turn: last in the chat, as the chat is read again', async () => {
+  const queued = run('q', 'interrupted', { conversation_id: 'a', started_at: null })
+  const sent = { message: { ...userMessage('q', 'then run the tests'), conversation_id: 'a', created_at: 'later' }, run: { ...queued, status: 'running' } }
+  const posted: [string, unknown][] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        posted.push([url, JSON.parse(String(init.body))])
+        return new Response(JSON.stringify(sent), { status: 200 })
+      }
+      if (url.endsWith('/conversations')) return new Response('[]', { status: 200 })
+      return new Response(JSON.stringify({ ...snapshot('a'), runs: [queued, run('b', 'completed', { conversation_id: 'a' })] }), { status: 200 })
+    }),
+  )
+  await useApp.getState().openConversation('a')
+  await useApp.getState().sendAgain('q')
+  expect(posted).toEqual([['/api/runs/q/send', { over_budget: false }]])
+  const conv = useApp.getState().conv!
+  expect(conv.runs.map(r => [r.id, r.status])).toEqual([['b', 'completed'], ['q', 'running']])
+  expect(conv.messages.find(m => m.id === sent.message.id)?.created_at).toBe('later')
 })
 
 // --- the board (slice 26) ----------------------------------------------------------------------

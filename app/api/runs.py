@@ -4,11 +4,18 @@ from sqlalchemy.orm import Session
 
 from app import away, backlog
 from app.agent import TERMINAL
-from app.api.conversations import new_turn
+from app.api.conversations import new_turn, queue_or_start
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.api.usage import over_budget
-from app.db.models import Conversation, Run, now, project_of
-from app.schemas import BoardPostIn, BoardPostOut, PlanApproveIn, PlanRejectIn
+from app.db.models import Conversation, Message, Run, now, project_of
+from app.schemas import (
+    BoardPostIn,
+    BoardPostOut,
+    PlanApproveIn,
+    PlanRejectIn,
+    PostMessageOut,
+    SendIn,
+)
 from app.serialize import conversation_out, message_out, run_out
 from app.tools import ToolError
 
@@ -42,6 +49,46 @@ def stop(session: Session, request: Request, run: Run) -> None:
     request.app.state.bus.emit(run.conversation_id, run.id, "run.finished", run_out(run))
     if not was_queued:
         runner.start_next(run.conversation_id)
+
+
+def _over(session: Session, conversation: Conversation, go_on: bool) -> None:
+    """Held back as a message's turn is over the budget (`post_message`), unless the user said
+    to go on over it - already their word, from the app's own page."""
+    project = project_of(session, conversation)
+    if (over := over_budget(session, project, conversation)) and not go_on:
+        raise HTTPException(409, f"this {'project' if project else 'chat'} is {over}: say to "
+                                 "go on over it")
+
+
+# Sent on the user's word, from the app's own page: an agent's request starts no turn.
+@router.post("/{run_id}/send", response_model=PostMessageOut,
+             dependencies=[Depends(require_own_origin)])
+async def send_again(run_id: str, request: Request, body: SendIn | None = None,
+                     session: Session = Depends(get_session)):
+    """A message of the user's still queued when KOLONİ restarted, sent now: its turn runs, or
+    waits behind one at work, as the newest - nothing is ever sent again by itself."""
+    run = session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(404, "run not found")
+    message = session.scalar(select(Message).where(Message.run_id == run.id,
+                                                   Message.role == "user").limit(1))
+    if message is None or run.status != "interrupted" or run.started_at is not None or (
+            not run.by_user or run.unattended or run.compare_id is not None):
+        raise HTTPException(409, "only a message of yours that was never sent can be sent")
+    conversation = session.get_one(Conversation, run.conversation_id)
+    _over(session, conversation, bool(body and body.over_budget))
+    queue_or_start(session, run)
+    # The newest turn: last in the chat, in what its Lead is given and in the queue.
+    run.ended_at, run.created_at = None, now()
+    message.created_at = conversation.updated_at = run.created_at
+    session.commit()
+    bus = request.app.state.bus
+    bus.emit(run.conversation_id, run.id, "run.updated", run_out(run))
+    bus.emit(run.conversation_id, run.id, "message.created", message_out(message))
+    bus.emit(run.conversation_id, None, "conversation.updated", conversation_out(conversation))
+    if run.status == "running":
+        request.app.state.runner.start(run.id)
+    return {"message": message_out(message), "run": run_out(run)}
 
 
 @router.post(
@@ -99,11 +146,8 @@ async def approve_plan(
             409, "a later turn has started since this plan; reject it or ask again")
     conversation = session.get_one(Conversation, run.conversation_id)
     # The work spends as a message's turn does: held back the same way, the plan still
-    # proposed. (Approving is already the user's word from the app's own page.)
-    project = project_of(session, conversation)
-    if (over := over_budget(session, project, conversation)) and not body.over_budget:
-        raise HTTPException(409, f"this {'project' if project else 'chat'} is {over}: say to "
-                                 "go on over it")
+    # proposed.
+    _over(session, conversation, body.over_budget)
     proposed = run.plan or {}  # (never empty: `_proposed` saw a plan)
     plan = (body.text or "").strip() or proposed["text"]
     run.plan = {**proposed, "text": plan, "status": "approved"}  # (a new dict: JSON is saved so)

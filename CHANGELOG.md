@@ -25,6 +25,7 @@ How to write an entry (every release looks the same):
 
 - **Agents**: in a recipe such as Quality check or Upkeep, a test run that failed now runs the fix step even when the Tester's report says it found nothing; a command that is no test run (a search with no match) still does not ([docs](docs/agents/recipes.md)).
 - **CLIs**: with Codex run **Native**, a command that prints nothing for more than 30 seconds (a quiet test run, a build) no longer ends Codex's turn as one that never started; only a command still at work after 11 minutes ends it ([docs](docs/reference/known-limits.md)).
+- **Chat**: a message still queued when KOLONİ restarted is no longer marked "Interrupted by a server restart" as if it had run: it says "Not sent: KOLONİ restarted", and its **Send** sends it as your newest message; nothing sends it by itself ([docs](docs/use/chat-and-canvas.md#writing-a-message)).
 
 ## [0.1.4] - 2026-11-21
 

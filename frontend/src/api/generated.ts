@@ -4089,6 +4089,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Again
+         * @description A message of the user's still queued when KOLONİ restarted, sent now: its turn runs, or
+         *     waits behind one at work, as the newest - nothing is ever sent again by itself.
+         */
+        post: operations["send_again_api_runs__run_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/undo": {
         parameters: {
             query?: never;
@@ -10118,6 +10139,14 @@ export interface components {
             unread: string[];
             /** Whole Env */
             whole_env: boolean;
+        };
+        /** SendIn */
+        SendIn: {
+            /**
+             * Over Budget
+             * @default false
+             */
+            over_budget: boolean;
         };
         /**
          * SharedFileOut
@@ -18814,6 +18843,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_again_api_runs__run_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SendIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostMessageOut"];
                 };
             };
             /** @description Validation Error */

@@ -134,6 +134,10 @@ A failed turn shows **"Run failed: {Provider}: {reason}."** with a next step und
 **"Interrupted by a server restart. Send a message to continue."**
 : KOLONİ stopped while the turn ran. Nothing is run again by itself. Send a message to go on.
 
+**"Not sent: KOLONİ restarted"**
+: KOLONİ stopped while your message was queued, so it never reached the Orchestrator. Press **Send**
+  under it to send it now, as your newest message.
+
 **"Stopped at its step limit."**
 : An agent used all its steps for this job. A sub-agent's limit is Settings › The app ›
   Agents › **Steps an agent may take**, with more for a coordinator's recipe. The Orchestrator has none unless

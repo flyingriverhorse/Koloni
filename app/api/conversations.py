@@ -765,21 +765,27 @@ def new_turn(
 ) -> tuple[Run, Message]:
     """A turn the user's words start, with that message: running, or queued behind a turn
     of the conversation that is not over yet. Not committed."""
-    busy = session.scalar(
-        select(Run.id)
-        .where(Run.conversation_id == conversation_id, Run.status.not_in(TERMINAL))
-        .limit(1)
-    )
     run = Run(conversation_id=conversation_id, topic_id=topic_id, **fields)
-    if busy:
-        run.status = "queued"
-    else:
-        run.status, run.started_at = "running", now()
+    queue_or_start(session, run)
     session.add(run)
     session.flush()
     message = Message(conversation_id=conversation_id, run_id=run.id, role="user", content=content)
     session.add(message)
     return run, message
+
+
+def queue_or_start(session: Session, run: Run) -> None:
+    """A turn the user sends: running, or queued behind a turn of its conversation that is
+    not over yet (`new_turn`, `app.api.runs.send_again`)."""
+    busy = session.scalar(
+        select(Run.id)
+        .where(Run.conversation_id == run.conversation_id, Run.status.not_in(TERMINAL))
+        .limit(1)
+    )
+    if busy:
+        run.status = "queued"
+    else:
+        run.status, run.started_at = "running", now()
 
 
 def _users_own_message(request: Request, project: Project | None, conversation: Conversation,

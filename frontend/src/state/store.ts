@@ -500,6 +500,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   renameTopic(topicId: string, title: string): Promise<void>
   stop(): Promise<void>
   cancelRun(runId: string): Promise<void>
+  /** A message still queued when KOLONİ restarted, sent now (`overBudget`: the user's word to go on over the budget). Throws ApiError. */
+  sendAgain(runId: string, overBudget?: boolean): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   /** Each new message starts with a plan to approve first, or not. */
   setPlanFirst(on: boolean): Promise<void>
@@ -1937,6 +1939,18 @@ export const useApp = create<AppStore>()((set, get) => {
 
     async cancelRun(runId) {
       await api.post(`/runs/${runId}/cancel`)
+    },
+
+    async sendAgain(runId, overBudget = false) {
+      const sent = await api.post<{ message: ConvState['messages'][number]; run: Run }>(`/runs/${runId}/send`, { over_budget: overBudget })
+      // Its turn is the newest now: under the others, as the chat is read again (unless its events came first).
+      set(s => {
+        if (s.conv?.conversation.id !== sent.run.conversation_id) return s
+        const conv = applyEvent(s.conv, null, 'message.created', sent.message)
+        const had = conv.runs.find(r => r.id === runId)
+        const run = had && had.status !== 'interrupted' ? had : sent.run
+        return { conv: { ...conv, runs: [...conv.runs.filter(r => r.id !== runId), run] } }
+      })
     },
 
     async setPermissionMode(mode) {

@@ -704,6 +704,11 @@ class PlanApproveIn(BaseModel):
     over_budget: bool = False
 
 
+class SendIn(BaseModel):
+    # The user's word to send it though the project is over this month's budget.
+    over_budget: bool = False
+
+
 class PlanRejectIn(BaseModel):
     why: str | None = Field(default=None, max_length=500)
 
