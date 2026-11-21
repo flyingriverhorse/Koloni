@@ -1309,11 +1309,14 @@ _SHELLS_OWN = frozenset({"PWD", "OLDPWD", "_"})
 _VARIABLE = re.compile(r"(?i)%(\w+)%|\$\{?env:(\w+)\}?|\$\{(\w+)\}|\$(\w+)")
 _TILDE = re.compile(r"(?:^|(?<=[\s'\"=:(,]))~(?=[\\/\s'\")]|$)")
 # This machine's own drives by a share or a device path: `\\localhost\c$\x`, `\\127.0.0.2\c$\x`,
-# `\\[::1]\c$\x`, `\\<its name>\c$\x`, `\\?\UNC\localhost\c$\x`, `\\?\C:\x`, `\\.\C:\x`.
+# `\\[::1]\c$\x`, `\\<its name>\c$\x` (`\\$env:COMPUTERNAME\c$\x` too), `\\?\UNC\localhost\c$\x`,
+# `\\?\C:\x`, `\\.\C:\x`.
+# shortcut: by its LAN address or full DNS name, or a share of a folder (`\\localhost\Users\x`),
+# it is not read so; list the machine's addresses and shares if an agent is seen to write one.
 _THIS_MACHINE = os.environ.get("COMPUTERNAME", "")
 _LOCAL_SHARE = re.compile(r"(?i)[\\/]{2}(?:[?.][\\/]UNC[\\/])?(?:localhost|127(?:\.\d{1,3}){3}|"
-                          r"\[::1\]|\?|\." + (f"|{re.escape(_THIS_MACHINE)}" if _THIS_MACHINE
-                                              else "")
+                          r"\[::1\]|\?|\.|%computername%|\$\{?(?:env:)?computername\}?"
+                          + (f"|{re.escape(_THIS_MACHINE)}" if _THIS_MACHINE else "")
                           + r")[\\/](?:([a-z])\$(?=[\\/])|(?=[a-z]:))")
 # A full path in a line (from a drive or a root), and a `..` part in one.
 _FULL_PATH = re.compile(r"(?:^|(?<=[\s'\"=<>(,;|&:]))(?:[A-Za-z]:|[\\/])[^\s'\"<>|;&,()]*")
