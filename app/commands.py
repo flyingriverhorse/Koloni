@@ -1481,6 +1481,65 @@ _POSITIONAL_PATTERN = frozenset({"rg", "ripgrep", "ag", "ack", "grep", "egrep", 
                                  "select-string", "sls", "findstr", "sed", "awk"})
 _PATTERN_GIVEN = ("-e", "--regexp", "--expression")
 _PATTERN_FILE = ("-f", "--file")
+# Each search's options known to take no path (review round 4): (short letters that take no
+# value - in a cluster too, `-rn` -, short letters that take one, long names written out that
+# take none, long names whose value is no path). A long name cut short (`--reg=` may be
+# `--regexp`), a cluster holding a letter that takes a value (`-iex`, `-A3`), one whose value
+# is a path (`rg --ignore-file`, `--pre`) or any other is not known: past it, the first word is
+# no pattern but a path (`_path_words`).
+_GREP_OPTIONS = (
+    "abcEFGhHiIlLnoPqrRsTUvVwxyzZ0123456789", "ABCDdefm",
+    "--recursive --dereference-recursive --ignore-case --no-ignore-case --line-number --count "
+    "--files-with-matches --files-without-match --invert-match --word-regexp --line-regexp "
+    "--extended-regexp --fixed-strings --basic-regexp --perl-regexp --only-matching --quiet "
+    "--silent --no-messages --with-filename --no-filename --null --null-data --text "
+    "--byte-offset --initial-tab --line-buffered --color --colour",
+    "--include --exclude --exclude-dir --context --after-context --before-context --max-count "
+    "--label --binary-files --devices --directories")
+_RG_OPTIONS = (
+    "abcFHhiIlLnNopPqsSuUvVwxz0.", "ABCdEefgjmMrtT",
+    "--hidden --no-ignore --ignore-case --smart-case --case-sensitive --fixed-strings "
+    "--word-regexp --line-regexp --line-number --no-line-number --count --count-matches "
+    "--files-with-matches --files-without-match --invert-match --only-matching --multiline "
+    "--json --vimgrep --heading --no-heading --follow --text --null --pcre2 --stats --trim "
+    "--column --no-messages --quiet --no-filename --with-filename --unrestricted --search-zip "
+    "--sort-files --no-ignore-vcs --no-ignore-parent --no-config",
+    "--glob --iglob --type --type-not --max-count --max-depth --context --after-context "
+    "--before-context --replace --encoding --threads --type-add --sort --sortr --color --colors "
+    "--max-columns --max-filesize --path-separator --engine")
+_SLS_OPTIONS = ("", "", "-simplematch -casesensitive -quiet -list -notmatch -allmatches -raw "
+                "-noemphasis", "-context -encoding -culture -include -exclude")
+_SEARCH_OPTIONS = {program: (none, value, frozenset(long_none.split()),
+                             frozenset(long_value.split()))
+                   for program, (none, value, long_none, long_value) in {
+    "grep": _GREP_OPTIONS, "egrep": _GREP_OPTIONS, "fgrep": _GREP_OPTIONS, "rg": _RG_OPTIONS,
+    "ripgrep": _RG_OPTIONS, "select-string": _SLS_OPTIONS, "sls": _SLS_OPTIONS,
+    "sed": ("nrEsuz", "efl", "--quiet --silent --regexp-extended --separate --unbuffered "
+            "--null-data --posix --debug --sandbox --follow-symlinks --in-place",
+            "--line-length"),
+    "findstr": ("", "", "/b /e /l /r /s /i /x /v /n /m /o /p /offline", ""),
+}.items()}
+
+
+def _known_option(word: str, program: str) -> int | None:
+    """How many words after it a search's option known to take no path takes (`_SEARCH_OPTIONS`):
+    0 (`-rn`, `--include=*.ts`, sed's `-i.bak`, `--`), 1 (`-A 3`, `--include '*.ts'`), None for one
+    not known."""
+    none, value, long_none, long_value = _SEARCH_OPTIONS.get(
+        program, ("", "", frozenset(), frozenset()))
+    if word == "--":
+        return 0
+    if program in ("select-string", "sls", "findstr") or word.startswith("--"):
+        name, sep, _glued = word.casefold().partition("=" if word.startswith("--") else ":")
+        return 0 if name in long_none or sep and name in long_value else (
+            1 if name in long_value else None)
+    letters = word[1:]
+    if program == "sed" and "i" in letters:  # (sed's `-i` takes its suffix glued: `-i.bak`)
+        letters = letters[:letters.index("i")]
+        return 0 if all(letter in none for letter in letters) else None
+    if len(letters) == 1 and letters in value:
+        return 1
+    return 0 if letters and all(letter in none for letter in letters) else None
 
 
 def _pattern_option(word: str, program: str) -> tuple[bool, bool, bool] | None:
@@ -1505,8 +1564,9 @@ def _pattern_option(word: str, program: str) -> tuple[bool, bool, bool] | None:
 
 def _path_words(words: list[str]) -> list[str]:
     """The words of a part that may be paths: a search's or sed's pattern left out - the first
-    word that is no option, where no option gave the pattern (`_pattern_option`); Select-String's
-    `-Path` and `-LiteralPath` values are paths.
+    word that is no option, where no option gave the pattern (`_pattern_option`) and every option
+    before it is known to take no path (`_known_option`); Select-String's `-Path` and
+    `-LiteralPath` values are paths.
     shortcut: a pattern with `(` in it reaches here cut, as `_BLOCKS` splits inside quotes
     (`rg "require('../lib')" src`, `grep -rn "import('../x')" src`, `rg -g '*.ts' "'../" src`,
     `grep -E "from '(\\.\\./)+" src`), and its `..` is asked as a climb (OA-c); read the line's
@@ -1514,7 +1574,7 @@ def _path_words(words: list[str]) -> list[str]:
     program = _program(words[0])
     if program not in _POSITIONAL_PATTERN | {"perl"}:
         return words
-    kept, given, at = words[:1], program == "perl" or "--files" in words, 1
+    kept, given, known, at = words[:1], program == "perl" or "--files" in words, True, 1
     while at < len(words):
         word, found = words[at], _pattern_option(words[at], program)
         if found is not None:
@@ -1526,10 +1586,19 @@ def _path_words(words: list[str]) -> list[str]:
         elif program in ("select-string", "sls") and word.casefold().partition(":")[0].startswith(
                 ("-pa", "-li", "-lp", "-ps")):  # (-Path, -LiteralPath: their value a path)
             kept.append(word)
+            known = known and word.casefold().partition(":")[0] in (
+                "-path", "-literalpath", "-lp", "-pspath")  # (`-Pa` may be -Pattern)
             if ":" not in word and at + 1 < len(words):
                 kept.append(words[at + 1])
                 at += 1
-        elif word.startswith("-") or given:
+        elif word.startswith("-") or program == "findstr" and word.startswith("/"):
+            kept.append(word)
+            takes = _known_option(word, program)
+            known = known and takes is not None
+            if takes and at + 1 < len(words):
+                kept.append(words[at + 1])
+                at += 1
+        elif given or not known:
             kept.append(word)
         else:
             given = True  # (this word: the pattern)

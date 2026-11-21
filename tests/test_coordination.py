@@ -634,7 +634,14 @@ GIVEN_PATTERN = {"sed -i": ["-es/a/b/", "--expression=s/a/b/", "-e s/a/b/", "--f
                  "grep": ["--regexp=x", "-ex", "-e x", "-f x.txt", "--file=x.txt"],
                  "rg": ["--regexp=x", "-ex", "-e x", "--files"],
                  "perl -pi": ["-es/a/b/", "-e s/a/b/"],
-                 "Select-String -Pattern x": [""], "sls -Pattern:x": [""]}
+                 "Select-String -Pattern x": [""], "sls -Pattern:x": [""],
+                 # (review round 4: an option not known before it - a long one cut short, a
+                 # cluster with a letter that takes a value, one whose value is a path)
+                 "grep ": ["-iex", "-rnex", "-rfpats.txt", "--regex=x", "--reg=x", "--fi=pats",
+                           "--foo x", "-A3 x"],
+                 "sed ": ["-i --expr=s/a/b/", "-i --fil=x.sed", "-i -nes/a/b/", "-nes/a/b/p"],
+                 "rg ": ["-iex", "--ignore-file", "--pre", "--pre-glob '*' x", "--foo x"],
+                 "sls ": ["-Pa x", "-Patt x", "-Foo x"]}
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', "env X=1 {c}"])
