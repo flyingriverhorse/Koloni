@@ -56,6 +56,10 @@ test('while the Orchestrator asks, the message box says to answer above - open, 
   // (Closed, nothing above the box asks: its line says what the Orchestrator asks.)
   rerender(<Composer {...props} running scope="c" compact />)
   expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+  // Nor on the Talk or Notes tab, over which the same box stands: the question is on the Chat tab.
+  act(() => useApp.getState().showChatTab('Notes'))
+  rerender(<Composer {...props} running scope="c" />)
+  expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
 })
 
 test('while running, Stop is a square with no words just before Queue, in Send’s place; More and Plan first keep their names (one line: the user’s report)', () => {
