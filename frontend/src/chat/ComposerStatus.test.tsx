@@ -47,3 +47,15 @@ test('the status line is no live region: its clock is not read out every second'
   expect(container.querySelector('.composer-status')!.closest('[aria-live],[role=status],[role=alert]')).toBeNull()
   expect(container.querySelector('.composer-status [aria-live],.composer-status [role=status]')).toBeNull()
 })
+
+test('the model is on the line in every tone: ready, at work and waiting for your answer', () => {
+  const model = <button type="button">Model: qwen</button>
+  const asks = convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'waiting')], questions: [question('q', 'r')] })
+  const { rerender } = render(<ComposerStatus {...at} conv={convState({ runs: [run('r', 'completed')] })} model={model} />)
+  const picker = screen.getByRole('button', { name: 'Model: qwen' })
+  rerender(<ComposerStatus {...at} conv={atWork()} running model={model} />)
+  // (The same element: a picker open as a turn starts stays open.)
+  expect(screen.getByRole('button', { name: 'Model: qwen' })).toBe(picker)
+  rerender(<ComposerStatus {...at} conv={asks} running model={model} />)
+  expect(screen.getByRole('button', { name: 'Model: qwen' })).toBe(picker)
+})

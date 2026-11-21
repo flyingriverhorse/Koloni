@@ -123,7 +123,7 @@ test('the permission level’s menu reports the new level', async () => {
   const onPermissionMode = vi.fn()
   render(<Composer {...props} onPermissionMode={onPermissionMode} />)
   await userEvent.click(screen.getByRole('button', { name: 'Permission level: Ask before changes' }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('radio', { name: 'Full auto' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('menuitemradio', { name: 'Full auto' }))
   expect(onPermissionMode).toHaveBeenCalledWith('full_auto')
 })
 
@@ -472,7 +472,7 @@ test('/model, /room and /mode open what their buttons open; closed, the chat say
   expect(screen.getByRole('form', { name: 'Work together' })).toBeVisible()
   await userEvent.keyboard('{Escape}')
   await userEvent.type(box, '/mode{Enter}')
-  expect(screen.getByLabelText('Permission level')).toHaveFocus()
+  expect(screen.getByRole('dialog', { name: 'Permission level' })).toHaveFocus()
 
   rerender(<Composer {...props} compact model={model} beside={room} />)
   await userEvent.type(box, '/mo')
@@ -813,4 +813,14 @@ test('"N more wait elsewhere" is a quiet button under the box, only while someth
   expect(screen.getByRole('button', { name: 'Open Ready for you: 1 more waits elsewhere' })).toBeInTheDocument()
   rerender(<Composer {...props} waits={{ count: 0, onOpen }} />)
   expect(screen.queryByRole('button', { name: /^Open Ready for you/ })).toBeNull()
+})
+
+test('/model opens the model’s window while a turn runs too', async () => {
+  const copilot = { id: 'p1', name: 'Copilot', kind: 'copilot_cli', default_model: 'gpt-6-luna', models: [] } as unknown as Provider
+  const model = <ModelPicker providers={[copilot]} providerId={null} modelId={null} leadAuto onSave={vi.fn()} />
+  useApp.setState({ conv: convState({ runs: [run('r')], agents: [agent('r')] }), projectId: 'p' })
+  render(<Composer {...props} scope="c" running model={model} />)
+  expect(document.querySelector('.composer-status-running')).not.toBeNull()
+  await userEvent.type(screen.getByLabelText('Message'), '/model{Enter}')
+  expect(screen.getByRole('form', { name: 'Model for this conversation' })).toBeInTheDocument()
 })

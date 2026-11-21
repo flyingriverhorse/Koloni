@@ -97,8 +97,8 @@ export async function level(page: Page, mode: 'ask' | 'auto_edit' | 'full_auto')
   const chat = page.getByRole('region', { name: 'Chat' })
   const name = { ask: 'Ask before changes', auto_edit: 'Auto-edit files', full_auto: 'Full auto' }[mode]
   await chat.getByRole('button', { name: /^Permission level:/ }).click()
-  // (Clicked, not checked: it is checked once the server has the level, as the button then says.)
-  await chat.getByRole('dialog', { name: 'Permission level' }).getByRole('radio', { name }).click()
+  // (It is checked once the server has the level, as the button then says.)
+  await chat.getByRole('dialog', { name: 'Permission level' }).getByRole('menuitemradio', { name }).click()
   await page.keyboard.press('Escape')
   await expect(chat.getByRole('button', { name: `Permission level: ${name}` })).toBeVisible()
 }

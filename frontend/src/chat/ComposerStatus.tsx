@@ -11,7 +11,7 @@ interface Props {
   compact: boolean
   running: boolean
   onStop: () => void
-  /** The conversation's model, beside "is ready": chosen there. */
+  /** The conversation's model: chosen there, whatever the chat does.  */
   model?: ReactNode
 }
 
@@ -29,8 +29,8 @@ export function ComposerStatus({ conv, compact, running, onStop, model }: Props)
       <span className="composer-status-dot" aria-hidden />
       <Said status={status} />
       {status.queued > 0 && <span className="composer-status-queued"> · {status.queued} queued</span>}
-      {/* shortcut: the model is chosen while the chat is ready (the mockup's line); at work, /model presses no button - show it there too if missed. */}
-      {status.tone === 'ready' && model}
+      {/* (In every tone, in one place: a model's window open as a turn starts stays open, and /model always finds it.) */}
+      {model}
       {running && (
         <button type="button" className="icon-btn composer-stop" aria-label="Stop" title="Stop the work" onClick={onStop}>
           <Stop size={12} weight="fill" />

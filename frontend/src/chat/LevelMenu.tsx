@@ -1,9 +1,20 @@
-import { useId } from 'react'
+import { Check } from '@phosphor-icons/react'
+import { type KeyboardEvent, useId } from 'react'
 import type { PermissionMode } from '../api/types'
 import { usePanel } from '../shell/usePanel'
 import { LEVELS, PLAN_FIRST } from './levels'
 
 const MODES = Object.keys(LEVELS) as PermissionMode[]
+
+/** The arrows move the focus to the level before or after, no further than the first and the last. */
+function moveBetween(event: KeyboardEvent<HTMLDivElement>) {
+  const by = { ArrowDown: 1, ArrowUp: -1 }[event.key]
+  if (!by) return
+  event.preventDefault()
+  const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role=menuitemradio]'))
+  const at = items.indexOf(document.activeElement as HTMLElement)
+  items[Math.max(0, Math.min(items.length - 1, at + by))]?.focus()
+}
 
 /** A hexagon of the comb, its center at `x`. */
 const cell = (x: number) => `${x},1 ${x + 4.5},3.5 ${x + 4.5},10.5 ${x},13 ${x - 4.5},10.5 ${x - 4.5},3.5`
@@ -54,19 +65,34 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst }: Props) {
       {open && (
         <div ref={panel} tabIndex={-1} role="dialog" aria-label="Permission level" className="allow-list-panel level-panel">
           <div className="kicker">Permission level</div>
-          {MODES.map(m => (
-            <label key={m} className="level-row">
-              <input type="radio" name={id} checked={m === mode} aria-labelledby={`${id}-${m}`} aria-describedby={`${id}-${m}-says`} onChange={() => onMode(m)} />
-              <span className="level-words">
-                <span id={`${id}-${m}`} className="level-name">
-                  {LEVELS[m].name}
+          {/* Chosen by a click, Enter or Space only: the arrows move between them (a radio group chose by moving, and
+              wrapped round to Full auto). */}
+          <div role="menu" aria-label="Permission level" className="level-list" onKeyDown={moveBetween}>
+            {MODES.map(m => (
+              <button
+                key={m}
+                type="button"
+                role="menuitemradio"
+                className="level-row"
+                aria-checked={m === mode}
+                aria-labelledby={`${id}-${m}`}
+                aria-describedby={`${id}-${m}-says`}
+                onClick={() => onMode(m)}
+              >
+                <span className="level-mark" aria-hidden>
+                  {m === mode && <Check size={12} />}
                 </span>
-                <span id={`${id}-${m}-says`} className="level-says">
-                  {LEVELS[m].says}
+                <span className="level-words">
+                  <span id={`${id}-${m}`} className="level-name">
+                    {LEVELS[m].name}
+                  </span>
+                  <span id={`${id}-${m}-says`} className="level-says">
+                    {LEVELS[m].says}
+                  </span>
                 </span>
-              </span>
-            </label>
-          ))}
+              </button>
+            ))}
+          </div>
           {onPlanFirst && (
             <>
               <hr className="level-sep" />

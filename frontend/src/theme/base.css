@@ -2866,18 +2866,37 @@ a.view-run {
   padding: 6px;
 }
 
+.level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .level-row {
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  width: 100%;
   padding: 5px 8px;
+  border: 0;
   border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
 .level-row:hover,
-.level-row:has(input:checked) {
+.level-row[aria-checked='true'] {
   background: var(--hover);
+}
+
+.level-mark {
+  flex: none;
+  width: 12px;
+  margin-top: 2px;
+  color: var(--accent);
 }
 
 .level-row input {
