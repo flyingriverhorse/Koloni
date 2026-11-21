@@ -328,6 +328,22 @@ def test_a_command_that_exits_1_and_is_no_test_run_is_no_problem(make_client, wa
     assert [c["exit_code"] for c in snap["commands"]] == [1]
 
 
+def test_a_test_run_whose_exit_code_was_not_reported_and_passed_is_no_problem(
+        make_client, wait_run, project_dir):
+    # (21 Nov: Claude Code reports no exit code of a command that passed; it read as a failure.)
+    executor = ScriptedExecutor([Script(["3 passed\n"], exit_code=None)])
+    client, _model = make_client({
+        "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
+        "Tester": [cmd("python -m pytest -q"), text(NONE)],
+        **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    cid, run_id = quality_run(client, project_dir, mode="full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert [(c["status"], c["exit_code"]) for c in snap["commands"]] == [("exited", None)]
+    assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
+    assert opened(snap) == ["Tester", *REVIEWERS]
+    assert strip(row(snap))[1] == ("fix", "skipped", 0)
+
+
 def test_suggestions_alone_send_no_work_back_and_the_card_says_them(make_client, wait_run, project_dir):
     # B-192 (live): every small note looped the recipe; a suggestion is the user's, on the card.
     client, _model = make_client({

@@ -224,6 +224,17 @@ def test_a_spawn_result_says_what_the_agent_and_those_it_opened_did_by_the_recor
         session.execute(update(Command).values(output="==== 5 passed ===="))
         assert ('last test run passed ("python -m pytest -q", exit 0: checked already - no need '
                 "to run it again)") in ledger.did(session, tester)
+        # Claude Code reports no exit code of a command that passed: not known, so neither a
+        # failure nor a pass - unless its output counts a failure.
+        mine = update(Command).where(Command.agent_id == tester)
+        session.execute(mine.values(exit_code=None))
+        assert ledger.did(session, tester) == (
+            "What it did, from KOLONİ's record: read 0 files, wrote 0, ran 1 command, "
+            "last test run: no exit code reported, 0 web.")
+        session.execute(mine.values(output="== 1 failed, 4 passed =="))
+        assert "ran 1 command (1 failed), last test run failed (no exit code reported)" in (
+            ledger.did(session, tester))
+        session.execute(mine.values(exit_code=0, output="==== 5 passed ===="))
         # (Only of a command that is a test run: one that names a test tool may run nothing.)
         tests = update(Command).where(Command.agent_id == tester)
         session.execute(tests.values(command="echo pytest"))
