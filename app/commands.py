@@ -954,6 +954,7 @@ def _climbs_out(command: str, cwd: str | None, own: str | None) -> str:
             continue
         for word in words:  # (its program too: `..\.venv\Scripts\python.exe`)
             for piece in re.split(r"[=<>,@]", re.sub(r"^-[\w-]*:", "", word.strip("'\""))):
+                piece = piece.strip("'\"")  # (`--dir="../x"`, `>"..\x"`)
                 if ".." in re.split(r"[\\/]", piece) and _above(_in_copy(piece, at, mine)):
                     return piece
     return ""
@@ -2584,9 +2585,10 @@ def _asked_anyway(command: str, instructions: bool) -> bool:
 
 # A glob or a bracket on a name that starts with a dot: it may reach `.git`, `.koloni` or a secret.
 _DOT_GLOB = re.compile(r"(?:^|[\\/=@,:])\.[^\\/]*[*?\[]")
-# taskkill's part of a line, and its switches (`/IM`, `/F`, Git Bash's `//PID`): no path out of
-# the folder (`_asked_anyway`).
-_TASKKILL = re.compile(r"(?i)\btaskkill(?:\.exe)?\b[^;&|(){}\r\n]*")
+# A part of a line taskkill runs, and its switches (`/IM`, `/F`, Git Bash's `//PID`): no path out
+# of the folder (`_asked_anyway`). Only as a part's program: `rm -rf taskkill /etc` keeps `/etc`.
+_TASKKILL = re.compile(
+    r"(?i)(?:^|(?<=[;&|(){}\r\n]))\s*taskkill(?:\.exe)?(?![\w.-])[^;&|(){}\r\n]*")
 _SWITCH = re.compile(r"(?<!\S)/{1,2}[A-Za-z]+(?!\S)")
 
 

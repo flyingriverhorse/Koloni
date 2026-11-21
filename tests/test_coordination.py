@@ -269,6 +269,12 @@ def test_stopping_a_program_by_its_id_is_no_harm(command):
     assert harms(command) == "" and copy_reason(command, True, "/work/proj", "/work/rt") == ""
 
 
+@pytest.mark.parametrize("command", [
+    "rm -rf taskkill /etc", 'rm -rf "my-taskkill" /home', "rm -rf x; echo taskkill /home"])
+def test_only_taskkills_own_switches_are_no_paths(command):
+    assert harm_class(command) == "always"
+
+
 def places(tmp_path):
     """A project, KOLONİ's runtime, this copy's own tree in its copies folder, the folder, and
     one of the project's worktrees."""
@@ -292,6 +298,10 @@ def test_a_copys_command_naming_another_copy_a_worktree_or_above_it_is_asked(tmp
         ("cd ..; ls", ".."), ("ls -la ../..", "../.."),
         # (by its own full path, and up out of it)
         (f"cp x {own}/../../b/tree/y", f"{own}/../../b/tree/y"),
+        # (quoted, glued to an option or a redirect)
+        ('cp x --target-directory="../../b/tree"', "../../b/tree"),
+        ('echo x >"../base.json"', "../base.json"),
+        ('Copy-Item x -Destination:"../../b/tree/y"', "../../b/tree/y"),
     ]:
         assert asked_in_copy(tmp_path, command) == OUT_OF_COPY.format(path=named), command
     # (from where it runs: a folder of the copy)
