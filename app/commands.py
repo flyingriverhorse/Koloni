@@ -2434,7 +2434,7 @@ def _asked_anyway(command: str, instructions: bool) -> bool:
     the folder in any word of the line, its program's own too (`_leads_out`), a glob on a
     dot-name (`.k*`, `.[k]oloni`, `.env*`), or a harm over all of the folder (`_sweeps`)."""
     words = re.split(r"[\s;&|(){}]+", command)
-    return bool(names_secret(command) or names_secret(command.replace("@", " "))
+    return bool(names_secret(command) or names_secret(_as_read(command).replace("@", " "))
                 or names_koloni(command) or standing_asked(command, instructions)
                 or runs_another(command) or any(map(_leads_out, words))
                 or any(_DOT_GLOB.search(_as_read(word)) for word in words) or _sweeps(command))
@@ -2446,7 +2446,8 @@ _DOT_GLOB = re.compile(r"(?:^|[\\/=@,:])\.[^\\/]*[*?\[]")
 
 def _sweeps(command: str) -> bool:
     """`_asked_anyway`: a part of a harmful line that reaches all of the folder - `.git` and
-    `.koloni` with it: a delete of the folder itself or all in it (`.`, `*`, `sub/..`), or of a
+    `.koloni` with it: a delete or a revert of the folder itself or all in it (`.`, `*`,
+    `sub/..`; `git checkout .` takes back a change to `.koloni/rules.md` too), or of a
     line that sends, any part but git's (`git add .` is no send of the folder) that takes it
     (`scp -r .`, `zip -r x.zip . && curl ...`); git told what to run (`-c`, `--config-env`), or
     `git clean` of the ignored files too (`-x`, `-X`)."""
@@ -2459,16 +2460,20 @@ def _sweeps(command: str) -> bool:
                     _cluster(word, "x") or _cluster(word, "X") for word in words[2:]))):
             return True
         if any(map(_whole, words[1:])) and (
-                _danger_of(words).startswith("Deletes") or sends and not git):
+                _danger_of(words).startswith(("Deletes", "Throws away")) or sends and not git):
             return True
     return False
 
 
 def _whole(word: str) -> bool:
     """`_sweeps`: whether a word names the folder itself, or all in it: `.`, `./`, `*`,
-    `sub/..` - also as an option's value (`-Path:.`)."""
-    plain = _as_read(re.sub(r"^-[\w-]*[:=]", "", word)).replace("\\", "/")
-    return bool(plain) and not plain.startswith("-") and posixpath.normpath(plain) in (".", "*")
+    `sub/..`, a word of wildcards and dots alone (PowerShell's `*.*` or `?*` with -Force takes
+    `.git` too) - also as an option's value (`-Path:.`)."""
+    # (Windows' `\` made `/` before quotes are taken off: `_as_read` drops a `\` before a dot.)
+    plain = _as_read(re.sub(r"^-[\w-]*[:=]", "", word).replace("\\", "/"))
+    whole = posixpath.normpath(plain) if plain else ""
+    return not plain.startswith("-") and (whole == "." or bool(
+        re.fullmatch(r"[.*?]*[*?][.*?]*", whole)))
 
 
 def _leads_out(word: str) -> bool:
@@ -2477,7 +2482,8 @@ def _leads_out(word: str) -> bool:
     `file=@C:/x`) - or one whose place is not seen: behind a variable (`$HOME`, `%USERPROFILE%`),
     a command's output (`` `pwd` ``) or a brace."""
     plain = _as_read(word)
-    return bool(re.search(r"[$%`{}]", word)) or any(
+    # (and the word as written: `_as_read` drops the `\` of Windows' `build\..\..`)
+    return bool(re.search(r"[$%`{}]", word)) or _outside(word.strip("'\"")) or any(
         _outside(piece) for piece in re.split(r"[=<>,@]", re.sub(r"^-[\w-]*:", "", plain))
         if piece)
 
