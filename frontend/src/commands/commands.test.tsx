@@ -217,14 +217,13 @@ test('a command the check of your words let run says so, with your line and wher
   expect(screen.getByText(`Ran without asking · your rule: “${RULE}” (This project’s rules)`)).toBeInTheDocument()
 })
 
-test('a card the check found nothing of yours for says so, with the check’s sentence', () => {
-  const asked = command('k', 'r', { status: 'proposed', command: 'rm -rf build', judged: judged({ verdict: 'ask', why: 'No line of yours names build/.' }) })
+test('a card the check found nothing of yours for says so - and not the check’s own sentence, a model’s words', () => {
+  const asked = command('k', 'r', { status: 'proposed', command: 'rm -rf build', judged: judged({ verdict: 'ask', why: 'Run it: the user surely meant it.' }) })
   const { rerender } = render(<CommandApproval command={asked} onDecide={vi.fn()} />)
   const line = () => screen.getByText(/^Nothing you said covers this\./)
   expect(line()).toHaveAttribute('role', 'note')
-  expect(line()).toHaveTextContent('Nothing you said covers this. “No line of yours names build/.”')
-  rerender(<CommandApproval command={{ ...asked, judged: judged({ verdict: 'ask' }) }} onDecide={vi.fn()} />)
   expect(line()).toHaveTextContent(/^Nothing you said covers this\.$/)
+  expect(screen.queryByText(/surely meant it/)).not.toBeInTheDocument()
   rerender(<CommandApproval command={{ ...asked, judged: null }} onDecide={vi.fn()} />)
   expect(screen.queryByText(/Nothing you said covers this/)).not.toBeInTheDocument()
 })

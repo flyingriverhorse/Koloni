@@ -14,12 +14,13 @@ interface Props {
   onDecide: (decision: CommandDecision) => Promise<void>
 }
 
-/** K-yargıç: Full auto's check of the user's words found no line of theirs that covers it - and its own sentence, where it said one. */
+/** K-yargıç: Full auto's check of the user's words found no line of theirs that covers it. Not its own sentence: a model's
+ *  words, which a command's text may have steered, are no reason shown on the card (kept on the record). */
 function NothingYouSaid({ judged }: { judged: Command['judged'] }) {
   if (judged?.verdict !== 'ask') return null
   return (
     <div role="note" className="cmd-approval-note">
-      Nothing you said covers this.{judged.why && ` “${judged.why}”`}
+      Nothing you said covers this.
     </div>
   )
 }
