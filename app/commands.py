@@ -830,7 +830,11 @@ def _part_stop(program: str, rest: list[str], started: set[str], stands: bool = 
 def _stop_kind(command: str) -> str:
     """`_part_stop` of a whole line, in any part a shell is handed too: "koloni" where a part may
     stop KOLONİ itself, "soft" where one stops by another name, "" for none. WMI's stops
-    (`_WMI_STOPS`) are read in the line as written. A continued line is read joined too."""
+    (`_WMI_STOPS`) are read in the line as written. A continued line is read joined too.
+    shortcut: a stop run out of the line's sight is not read - `find -exec kill {} ;`, the
+    command line `Start-Process cmd -ArgumentList '/c taskkill ...'` hands on, a name made an
+    alias first (`Set-Alias k Stop-Process; k -Name x`), a name in smart quotes PowerShell takes
+    for quotes; read them in 0.1.6 (review round 4)."""
     kinds = {_stop_kind_of(line) for line in _readings(command)}
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 
@@ -1200,7 +1204,10 @@ def _writes_links(words: list[str], own: re.Pattern | None = None) -> bool:
     shortcut: by the path as written from where the part runs - one after a `cd` into the
     folder - and what writes by a program's own way (`New-Item -Value`, `[IO.File]::WriteAllText`,
     `touch`, `mkdir`, `robocopy`, `xcopy`, `tar -C`, `unzip -d`, `Expand-Archive`, `perl -pi`,
-    code in `python -c`, `npm config set`, `pip-sync`, `corepack`, a script) is not seen."""
+    code in `python -c`, `npm config set`, `pip-sync`, `corepack`, a script) is not seen -
+    nor `install -D`, `curl -o`, `wget -O`, `Invoke-WebRequest -OutFile`, a linked name in
+    quotes of its own (`"node_modules"/x`), or a target with a comment after it read as the
+    last word (`cp a.js node_modules/x # ok`); 0.1.6 (review round 4)."""
     for at, word in enumerate(words):
         redirect = re.search(r">{1,2}(?!&)", word)
         target = word[redirect.end():] or (words[at + 1] if at + 1 < len(words) else "") if (
@@ -1629,7 +1636,9 @@ def _climbing(words: list[str], at: str | None, own: re.Pattern | None, code: bo
     one not known (None), any that climbs; split at what may stand around a path in a line
     (`--dir="../x"`, `>"..\\x"`) - and, in a line of code handed to an interpreter (`code`), at
     its quotes and brackets (`open(r'..\\x')`); as written and as the shell reads it (`_as_read`:
-    `.''./`, sh's `.\\./`). A search's pattern is none (`_path_words`)."""
+    `.''./`, sh's `.\\./`). A search's pattern is none (`_path_words`).
+    shortcut: a path glued to a short option (`-o../../x`) and findstr's `/F:` `/D:` values are
+    not split off, so not read; 0.1.6 (review round 4)."""
     split = r"[=<>,@'\"(]" if code else r"[=<>,@]"
     for word in _path_words(words) if words else ():  # (a program too: `..\.venv\Scripts\x`)
         for written in dict.fromkeys((word, _as_read(word))):
@@ -2283,6 +2292,8 @@ def applies_patch(command: str) -> bool:
 
 # A line's continuations: PowerShell's backtick right at a line's end, sh's backslash. A backtick
 # with a space after it does not continue (measured, pwsh 7: `Write-Output one ` ⏎ two` runs `two`).
+# shortcut: a lone CR, U+2028 / U+0085 and cmd's `^` at a line's end are not joined (each part is
+# read as written); join them in 0.1.6 if an agent is seen to write one (review round 4).
 _CONTINUED = re.compile(r"`\r?\n|\\\r?\n")
 
 
@@ -3546,7 +3557,9 @@ def installs(command: str) -> str:
     install x`, `npm exec --yes -- npm ci`). A script run by its name (`npm run install`) is
     none; a dry run is one (review round 4: `pip install x # --dry-run` installs).
     shortcut: `npx` and `dlx` run a package without installing it into the project, and are left;
-    `pip-sync` and `corepack` writing into node_modules / .venv are not seen."""
+    `pip-sync` and `corepack` writing into node_modules / .venv are not seen, nor a verb a
+    `$(...)` gives (`npm $(echo ci)`) or an install word `_INSTALLERS` does not list (`pnpm
+    import`, `pnpm fetch`, `poetry sync`, `pdm add`, `conda install`); 0.1.6 (review round 4)."""
     for words in (words for line in _readings(command) for words in _commands_in(line) if words):
         if words == ["yarn"] or any(
                 verb == UNREAD or verb.casefold() in (_INSTALLERS["pip"] if program.startswith(
