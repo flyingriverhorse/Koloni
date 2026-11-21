@@ -2,10 +2,12 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { AgentWindow } from '../agents/AgentWindow'
-import type { Discussion, DiscussionPost } from '../api/types'
+import type { Discussion, DiscussionPost, Team } from '../api/types'
 import { deriveGraph } from '../canvas/deriveGraph'
 import { MessageList } from '../chat/MessageList'
+import { Inspector } from '../inspector/Inspector'
 import { applyEvent } from '../state/applyEvent'
+import { useApp } from '../state/store'
 import { agent, assistantMessage, convState, openAgentFold, run, toolCall, userMessage } from '../test-fixtures'
 import { DiscussionWindow } from './DiscussionWindow'
 
@@ -208,4 +210,19 @@ test('the raw steps of an agent leave out what it said in a discussion', async (
   const steps = await openAgentFold('Every step as recorded')
   expect(within(steps).getByText('My own report.')).toBeInTheDocument()
   expect(screen.queryByText('Tests first.')).not.toBeInTheDocument()
+})
+
+test('a team’s lead in a discussion is its coordinator in the side panel, as on the discussion’s card', () => {
+  const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' } } as unknown as Team
+  const s = { ...state, agents: state.agents.map(a => (a.id === 'coder' ? { ...a, name: 'Docs lead' } : a)) }
+  // (The store is reset for each file, not each test: its teams put back.)
+  const before = useApp.getState().teams
+  useApp.setState({ teams: [docs] })
+  try {
+    render(<Inspector state={s} selectedId="discussion:d" onClose={() => {}} />)
+    expect(screen.getByText('Docs coordinator · Reviewer · Orchestrator')).toBeInTheDocument()
+    expect(screen.getByText('Docs coordinator:')).toBeInTheDocument()
+  } finally {
+    useApp.setState({ teams: before })
+  }
 })

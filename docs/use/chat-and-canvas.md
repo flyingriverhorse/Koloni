@@ -110,7 +110,7 @@ the Orchestrator, on a dashed line down to it.
 In a turn with no team, a discussion or room stands in the column after the agent that opened it, above
 its members; several stand in the order they began. The dotted line of each member under it, in a colour
 of its own, goes round the right side of that column and comes into the discussion or room from the
-right, with an arrow; the opener's own line comes in at its left, from the column before. An agent
+right, with an arrow; an opener that takes part comes in at its left, from the column before. An agent
 waiting for a file another agent in its column holds is joined to it the same way. Click a discussion or
 a room to light the agents in it.
 
