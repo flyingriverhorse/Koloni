@@ -362,7 +362,29 @@ NO_STOP = ['git commit -m "fix: kill stale ps entries"', "cat docs/ps/kill.md",
            'git commit -m "refactor(kill): by id"', 'git commit -m "tidy; kill"',
            'git log --grep "(kill)"', 'rg -n "(kill|terminate)" app',
            "sed -i 's/(kill)/(stop)/' src/a.ts", 'echo "a; kill"', "echo 'x (kill) y'",
-           'Write-Host "Stopping (kill)"']
+           'Write-Host "Stopping (kill)"',
+           # (review round 4: a stop's name past a quoted line's first word is no word of its own)
+           "rg -n 'terminate|kill' app", 'git commit -m "x | kill"', 'git commit -m "a|kill"',
+           'git log --grep="x|kill"', 'rg "a|kill" app', "rg 'foo|kill' app",
+           'grep -E "(foo|kill)" app', 'echo "a | kill"']
+# A stop handed what it stops by a pipe, a file or a block (review round 4): of whatever it is
+# handed - by `xargs` or `parallel` even with words of its own.
+PIPED_STOPS = [
+    "pgrep python | xargs /bin/kill", "pgrep python | xargs -n 1 /bin/kill",
+    "pgrep python | xargs 'kill'", "pgrep python | parallel kill", "pgrep x | xargs -I 99 kill 99",
+    "pgrep x | xargs -I %% kill %%", "Get-Process python | & Stop-Process",
+    "Get-Process python | & 'Stop-Process'", "Get-Process python | . Stop-Process",
+    "Get-Process python | Microsoft.PowerShell.Management\\Stop-Process",
+    "xargs -a pids.txt kill", "xargs --arg-file=pids.txt kill", "xargs kill < pids.txt",
+    "gps python | Invoke-Method Kill", "kill -9 $(pgrep python)", "Stop-Process (gps node).Id"]
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", 'bash -c "{c}"', "env X=1 {c}"])
+@pytest.mark.parametrize("command", PIPED_STOPS)
+def test_a_stop_handed_what_it_stops_is_always_asked(command, wrapper):
+    command = wrapper.replace("{c}", command)
+    assert harm_class(command) == "always", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME, command
 
 
 @pytest.mark.parametrize("command", KILLS)

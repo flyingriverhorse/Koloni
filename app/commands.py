@@ -533,11 +533,15 @@ _CIM_REMOVES = frozenset({"remove-ciminstance", "rcim", "remove-wmiobject", "rwm
 # too - wmic is a wrapper to `_commands_in`.
 _WMI_STOPS = re.compile(r"(?i)(?:^|(?<=[\s\"'(;&|{]))(?:wmic|invoke-cimmethod|icim|"
                         r"invoke-wmimethod)(?:\.exe)?\s[^;&|\r\n]*\b(?:delete|terminate)\b")
-# A kill or a Stop-Process handed its target otherwise than by words: by a pipe (`| xargs kill`,
-# `| Stop-Process`), or by a block the split cut off (`kill -9 $(pgrep x)`,
-# `Stop-Process (...).Id`).
-_PIPED_STOP = re.compile(r"(?i)\|\s*(?:xargs\b[^|;&]*?\s)?(?:kill|stop-process|spps)\b"
-                         r"|\b(?:kill|stop-process|spps)\b(?:\s+-\S+)*\s*[($`{@]")
+# What stops processes by its name as a word of a line (`_stands`), and what hands a stop the words
+# it reads (`xargs`, `parallel`): a stop on such a line is of whatever it is handed, its own words
+# or not (`xargs -I 99 kill 99`).
+_STOP_PROGRAMS = frozenset({"kill", "stop-process", "spps", "taskkill", "tskill", "pkill",
+                            "killall"})
+_HANDS_WORDS = re.compile(r"(?i)(?<![\w-])(?:xargs|parallel)(?![\w-])")
+# A line's words as its shell splits them - by its quotes, glued ones too (`--grep="x|kill"`) -
+# and what joins its commands (`_stands`).
+_SHELL_WORDS = re.compile(r"""(?:[^\s'";&|(){}]|"[^"]*"|'[^']*')+|[;&|(){}]+""")
 # A process object's own way to end (`$p.Kill()`, `% Terminate`, `ForEach-Object Kill`).
 _STOP_METHODS = frozenset({"kill", "terminate", "closemainwindow"})
 _KILL_PACKAGES = frozenset({"kill-port", "fkill", "fkill-cli"})
@@ -604,7 +608,7 @@ def _named(names: list[str], pattern: bool = False) -> str:
     return "soft"
 
 
-def _stop_process(said: list[str], started: set[str], piped: bool) -> str:
+def _stop_process(said: list[str], started: set[str], stands: bool) -> str:
     """`_part_stop` of PowerShell's Stop-Process: by id only by `-Id` (`-i`, `-Id:1`) or numbers
     no option takes as its value - each a pid written out or one the line started; by `-Name`; a
     process object (`-InputObject`, a word in Id's place) only one the line started."""
@@ -627,10 +631,10 @@ def _stop_process(said: list[str], started: set[str], piped: bool) -> str:
         at += 1
     if ids and not all(_own_id(one, started) for one in ids):
         return "koloni"
-    return _named(names) if by_name else "" if ids else _bare(piped)
+    return _named(names) if by_name else "" if ids else _bare(stands)
 
 
-def _kill(said: list[str], started: set[str], piped: bool) -> str:
+def _kill(said: list[str], started: set[str], stands: bool) -> str:
     """`_part_stop` of `kill`: PowerShell's by `-Name` (`-n x`, `-name:x`); sh's by its pids
     after its signal (`-9`, `-s KILL`, `--`) - each a pid written out, a job, or one the line
     started (`$!`); everyone's (`-1`), a group's (`0`, a negative pid), one in another variable
@@ -656,7 +660,7 @@ def _kill(said: list[str], started: set[str], piped: bool) -> str:
             targets.append(word)
         at += 1
     if not targets:
-        return _bare(piped)
+        return _bare(stands)
     return "" if all(_own_id(one, started, jobs=True) for one in targets) else "koloni"
 
 
@@ -718,17 +722,56 @@ def _runs_kill_package(program: str, said: list[str]) -> bool:
     return bool(named) and named[0].split("@")[0] in _KILL_PACKAGES
 
 
-def _bare(piped: bool) -> str:
-    """A kill or a Stop-Process with no target written: of what a pipe hands it (`| xargs kill`,
-    `Get-Process x | Stop-Process`) - "koloni" -, or a word of a message or a search the quote-blind
-    split cut out (`git commit -m "fix (kill)"`) - none.
+def _bare(stands: bool) -> str:
+    """A kill or a Stop-Process with no target written: "koloni" - of what a pipe, a block or a
+    file hands it (`| xargs /bin/kill`, `| & 'Stop-Process'`, `kill -9 $(pgrep x)`) - wherever
+    its name stands as a word of its own in the line (`_stands`); none only where the quote-blind
+    split cut it out of a message or a search (`git commit -m "fix (kill)"`).
     shortcut: what the pipe hands is not read, so the line's own started process handed so
     (`$p = Start-Process x -PassThru; $p | Stop-Process`) is asked too (OA-d); read the pipe's
     left side against `_started` in 0.1.6."""
-    return "koloni" if piped else ""
+    return "koloni" if stands else ""
 
 
-def _part_stop(program: str, rest: list[str], started: set[str], piped: bool = True) -> str:
+def _substituted(line: str) -> list[str]:
+    """What each `$(...)` of a line runs, to its own closing bracket - in quotes too."""
+    found = []
+    for start in (found.end() for found in re.finditer(r"\$\(", line)):
+        depth, at = 1, start
+        while at < len(line) and depth:
+            depth += {"(": 1, ")": -1}.get(line[at], 0)
+            at += 1
+        found.append(line[start:at - (not depth)])
+    return found
+
+
+def _stands(command: str, names: frozenset[str] = _STOP_PROGRAMS, depth: int = 4) -> bool:
+    """Whether one of `names` is a word of its own in a line - split by its quotes, its quotes
+    then taken off (`xargs 'kill'`, `| & "Stop-Process"`, `/bin/kill`, cmd's `@taskkill`) - in
+    what its backticks or a `$(...)` run, in quotes too (`"`kill $x`"`, `"$(pkill x)"`), first
+    in a line in quotes (`$s = 'Stop-Process -Name x'; iex $s`, a here-string) or in a line a
+    shell or a wrapper is handed (`bash -c "x; kill $(y)"`); not past a message's or a pattern's
+    first word (`git commit -m "tidy; kill"`)."""
+    for text in [command, *re.findall(r"`([^`]*)`", command), *_substituted(command)]:
+        if _SHELL_WORDS.sub("", text).strip():  # (unbalanced quotes: every word)
+            text = re.sub(r"['\"]", " ", text)
+        words = _SHELL_WORDS.findall(text)
+        if any(_program(word.lstrip("@")) in names or _program(
+                (word.strip("@'\"").split() or [""])[0]) in names for word in words):
+            return True
+        part: list[str] = []
+        for word in [*words, ";"] if depth else ():
+            if not re.fullmatch(r"[;&|(){}]+", word):
+                part.append(word.strip("'\""))
+                continue
+            if part and any(len(handed) == 1 and " " in handed[0] and _stands(
+                    handed[0], names, depth - 1) for handed in _unwrapped(part)):
+                return True
+            part = []
+    return False
+
+
+def _part_stop(program: str, rest: list[str], started: set[str], stands: bool = True) -> str:
     """Whether a part stops a process otherwise than by an id the line knows: "" (none, or by
     such an id), "soft" (by a name not KOLONİ's) or "koloni" (what may be KOLONİ itself, another
     agent's CLI, or what is not said). `started`: the line's own processes (`_started`)."""
@@ -753,8 +796,8 @@ def _part_stop(program: str, rest: list[str], started: set[str], piped: bool = T
     if program in _SELECTS:
         return _pkill(program, said)
     if program in ("stop-process", "spps"):
-        return _stop_process(said, started, piped)
-    return _kill(said, started, piped) if program == "kill" else ""
+        return _stop_process(said, started, stands)
+    return _kill(said, started, stands) if program == "kill" else ""
 
 
 def _assigned(words: list[str]) -> list[str]:
@@ -780,11 +823,18 @@ def _stop_kind(command: str) -> str:
 
 
 def _stop_kind_of(command: str) -> str:
-    started = _started(command)
-    piped = bool(_PIPED_STOP.search(command))
-    kinds = {_part_stop(_program(words[0]), words[1:], started, piped)
-             for words in map(_assigned, _commands_in(command, at=_BLOCKS)) if words}
-    if _WMI_STOPS.search(command):
+    started, stands = _started(command), _stands(command)
+    # (a stop's name the quote-blind split cut out of a message or a pattern stops nothing:
+    # `rg -n 'terminate|kill' app`)
+    kinds = {_part_stop(_program(words[0]), words[1:], started, stands)
+             for words in map(_assigned, _commands_in(command, at=_BLOCKS))
+             if words and (stands or _program(words[0]) not in _STOP_PROGRAMS)}
+    # (what a pipe hands its objects to, told to end them: `| Invoke-Method Kill`)
+    ends = any({word.casefold() for word in words[1:]} & _STOP_METHODS
+               for stage in re.split(r"(?<!\|)\|(?!\|)", command)[1:]
+               for words in _parts(stage, _BLOCKS) if words)
+    if _WMI_STOPS.search(command) or stands and _HANDS_WORDS.search(command) or ends and (
+            _stands(command, _STOP_METHODS)):
         return "koloni"
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 
