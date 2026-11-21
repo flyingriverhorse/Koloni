@@ -110,6 +110,22 @@ def refused_by_rule(judgement: dict) -> str:
         return REFUSED.format(quote=judgement["quote"])
     return REFUSED_BY_A_MESSAGE
 
+
+def _refuses(judgement: dict | None, mode: str, check: str) -> bool:
+    """Whether the check of the user's words refused a command, and that holds: only while the
+    chat is at Full auto and the project's check is on - one that comes back after either changed
+    is its card, as if never checked (the security review of K-yargic's slice 2)."""
+    return (judgement is not None and judgement["verdict"] == "refuse" and mode == "full_auto"
+            and check == "judge")
+
+
+def _kept(judgement: dict | None, asks: bool, refuses: bool) -> dict | None:
+    """What of the check goes on a command's record: not a run asked all the same (a level
+    lowered while the check was out), nor a refusal that no longer holds (`_refuses`)."""
+    stale = judgement is not None and (asks and judgement["verdict"] == "run"
+                                       or judgement["verdict"] == "refuse" and not refuses)
+    return None if stale else judgement
+
 HELD_BACK = ("(secret variables held back from this command: {names} - the user can pass one "
              "in Settings › This project › Commands and secrets)")
 # A command that keeps running (a dev server, slice 42b): the tool answers once it printed
@@ -210,16 +226,16 @@ class CommandRunner:
         (K-evrim's measure, for its run) - what asks at every level still does; a yes on this
         one's card is added to it. `judgement`: what the check of the user's words said of it
         (K-yargic, `AgentRunner._judged`) - not kept as a run where it is asked all the same; one
-        it refused goes on record ended, "refused", and is neither asked nor run."""
+        it refused (`_refuses`) goes on record ended, "refused", and is neither asked nor run."""
         planned = plan_command(ws, args)
         searched = await asyncio.to_thread(
             search_reason, planned.command, ws.root, planned.cwd_rel)
         reads = await asyncio.to_thread(
             reads_here, planned.command, ws.root, planned.cwd_rel == ".")
-        forbidden = judgement is not None and judgement["verdict"] == "refuse"
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
+            forbidden = _refuses(judgement, conversation.permission_mode, project.full_auto_check)
             if planned.keep_running and not forbidden:
                 self._may_serve(session, cid, project, ws, ask, where,
                                 lead=session.get_one(Agent, agent_id).depth == 0)
@@ -268,8 +284,7 @@ class CommandRunner:
                 # shortcut: a check that said run on one asked for another reason (a search that
                 # reaches a secret, `searched`) was a request spent; look for that before it if
                 # such checks are seen often.
-                judged=None if asks and judgement and judgement["verdict"] == "run"
-                else judgement,
+                judged=_kept(judgement, asks, forbidden),
             )
             session.add(command)
             session.commit()
@@ -277,7 +292,7 @@ class CommandRunner:
             payload = command_out(command, held=bool(searched))
             rule = payload["suggested_prefix"]
         self.bus.emit(cid, run_id, "command.created", payload)
-        if forbidden:  # K-yargic: a sentence of the user's forbids it - on record, not asked or run
+        if forbidden and judgement:  # K-yargic: a sentence of the user's forbids it - not run
             return "denied", refused_by_rule(judgement)
 
         if asks:
@@ -514,13 +529,14 @@ class CommandRunner:
         prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
         screen and the record - the CLI's own model has read it already. `judgement`: as
         `run`'s (one it refused: (False, its id), as for the user's no)."""
-        forbidden = judgement is not None and judgement["verdict"] == "refuse"
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
-            tests = session.scalar(select(Project.test_commands).where(
-                Project.id == conversation.project_id))
+            tests, check = session.execute(select(
+                Project.test_commands, Project.full_auto_check).where(
+                Project.id == conversation.project_id)).one()
+            forbidden = _refuses(judgement, mode, check)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)
             # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
@@ -535,8 +551,7 @@ class CommandRunner:
                 status="refused" if forbidden else "proposed",
                 ended_at=now() if forbidden else None,
                 # (as `run`'s: a level lowered while the check was out asks all the same)
-                judged=None if asks and judgement and judgement["verdict"] == "run"
-                else judgement,
+                judged=_kept(judgement, asks, forbidden),
             )
             session.add(row)
             session.commit()
