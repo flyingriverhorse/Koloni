@@ -370,7 +370,7 @@ const task = (id: string, over: Partial<BacklogTask> = {}): BacklogTask => ({
   proposed_in: 'c', ...over,
 })
 
-test('the Go away line names and sends only the tasks its Orchestrator added - a sub-agent’s or an earlier turn’s stays in the panel', async () => {
+test('the Go away line names every task it sends - only those its Orchestrator added; a sub-agent’s or an earlier turn’s stays in the panel', async () => {
   // (The review: one click approved and ran every task any agent proposed in the chat.)
   const goAway = vi.fn(async () => {})
   const mine = ['t1', 't2', 't3', 't4'].map(id => task(id))
@@ -378,7 +378,7 @@ test('the Go away line names and sends only the tasks its Orchestrator added - a
   const offer = card({ id: 'o1', conversation_id: 'c', jobs: mine.map(t => job({ title: t.title, task_id: t.id })), kept_out: ['secret106'], until: '2026-11-22T05:00:00Z', money: 2 })
   render(<AwayOffer conv={convState()} offer={offer} />)
   const line = screen.getByRole('group', { name: 'Go away now?' })
-  expect(line).toHaveTextContent(/Go away now\? Task t1, Task t2, Task t3 and 1 more · Until \d\d:\d\d · at most 2\.00 USD · kept out secret106/)
+  expect(line).toHaveTextContent(/Go away now\? Task t1, Task t2, Task t3, Task t4 · Until \d\d:\d\d · at most 2\.00 USD · kept out secret106/)
   await userEvent.click(within(line).getByRole('button', { name: 'Go away' }))
   expect(goAway).toHaveBeenCalledWith('c', { task_ids: ['t1', 't2', 't3', 't4'], order: [], until: expect.stringMatching(/^\d\d:\d\d$/), money: 2, kept_out: ['secret106'] })
   await userEvent.click(within(line).getByRole('button', { name: 'Change' }))

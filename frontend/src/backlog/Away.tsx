@@ -39,9 +39,10 @@ export function AwayOffer({ conv, offer }: { conv: ConvState; offer: Away }) {
   }, [backlog])
   const cid = conv.conversation.id
   if (changing) return <AwayPanel conv={conv} offer={offer} onClose={() => setChanging(false)} />
-  // (Only what its Orchestrator put on To-do in that turn, still open - named here: anything else is the panel's to tick.)
+  // (Only what its Orchestrator put on To-do in that turn, still open: anything else is the panel's to tick.)
   const mine = offer.jobs.filter(job => backlog?.some(t => t.id === job.task_id && (t.status === 'proposed' || t.status === 'todo')))
-  const named = mine.length > 3 ? `${mine.slice(0, 3).map(job => job.title).join(', ')} and ${mine.length - 3} more` : mine.map(job => job.title).join(', ')
+  // (Each one it sends, named - at most ten: the line wraps.)
+  const named = mine.map(job => job.title).join(', ')
   const said = [named, offer.until && `Until ${clock(offer.until)}`, offer.money != null && `at most ${amount(offer.money, offer.currency)}`, offer.kept_out.length > 0 && `kept out ${offer.kept_out.join(', ')}`]
   const go = () =>
     void ask(() =>
