@@ -21,6 +21,10 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Changed
+
+- Complexity wave F4 (part 1): 7 frontend functions of complexity 51-91 split to 12 or under; nothing the user sees changes.
+
 ### Fixed
 
 - **Agents**: in a recipe such as Quality check or Upkeep, a test run that failed now runs the fix step even when the Tester's report says it found nothing; a command that is no test run (a search with no match) still does not ([docs](docs/agents/recipes.md)).
