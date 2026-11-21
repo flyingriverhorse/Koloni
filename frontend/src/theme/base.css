@@ -824,15 +824,15 @@ p.hive-empty {
   white-space: nowrap;
 }
 
-/* Its right edge, over its border: dragged, or moved with the arrow keys, it makes the column
-   wider or narrower. */
+/* Its right edge, over its border and just past it: dragged, or moved with the arrow keys, it makes
+   the column wider or narrower. Nothing of it inside the border, where the list's scrollbar is. */
 .chat-edge {
   position: absolute;
   top: 0;
   right: -4px;
   bottom: 0;
   z-index: 1;
-  width: 8px;
+  width: 4px;
   cursor: ew-resize;
   touch-action: none;
 }

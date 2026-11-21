@@ -363,6 +363,23 @@ test('on a narrow stage it is at most 60% of it, and never under 340 px', async 
   expect(widthEdge()).toHaveAttribute('aria-valuenow', '420')
 })
 
+test('a width kept from a wider stage, drawn in full once the stage has grown, is stepped from what is drawn', async () => {
+  localStorage.setItem('koloni-chat-width', '600')
+  let stage = 700
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const width = this.matches('.chat') ? 420 : stage
+    return { x: 0, y: 0, width, height: 800, left: 0, top: 0, right: width, bottom: 800, toJSON: () => ({}) } as DOMRect
+  })
+  useApp.setState({ conv: state, projectId: 'p' })
+  render(<ChatPanel />)
+  expect(widthEdge()).toHaveAttribute('aria-valuenow', '420')
+  // The window made bigger: the stage's CSS draws the kept 600 px, and an arrow widens it from there - not from 420.
+  stage = 1400
+  widthEdge().focus()
+  await userEvent.keyboard('{ArrowRight}')
+  expect(widthEdge()).toHaveAttribute('aria-valuenow', '620')
+})
+
 test('with the browser’s storage closed the chat is open at its default width, and still changes', async () => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
     throw new Error('closed')

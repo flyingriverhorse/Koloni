@@ -120,7 +120,8 @@ function WidthEdge({ open }: { open: boolean }) {
         const by = { ArrowLeft: -STEP, ArrowRight: STEP }[event.key]
         if (!by) return
         event.preventDefault()
-        resize(across + by)
+        // (From what the stage draws now: `most` may be from a smaller stage, the separator's shortcut.)
+        resize(Math.min(width, widest()) + by)
       }}
     />
   )
