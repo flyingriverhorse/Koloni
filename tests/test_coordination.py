@@ -392,6 +392,31 @@ def test_a_copies_folder_by_the_users_environment_is_still_seen(tmp_path, monkey
         assert said == OUT_OF_COPY.format(path=str(users)), command
 
 
+@pytest.mark.parametrize("command", [
+    'cmd /c "npm i x"', 'powershell -c "pip install x"', "npm --prefix web install x",
+    "pnpm --filter web add x", "pnpm -C web i", "yarn --cwd web add x", "yarn", "npm update",
+    "npm up x", "npm rebuild", "npm dedupe", "npm prune", "npm link ../lib", "yarn up x",
+    "yarn upgrade", "pnpm update", "poetry update", "pip3.12 install x", "py -m pip install x",
+    "python -I -m pip install x", "python3 -m pip uninstall x", "pipenv install x",
+])
+def test_an_install_however_it_is_written_is_one(command):
+    assert installs(command), command
+
+
+@pytest.mark.parametrize("command", [
+    "npm run build", "npm test", "yarn test", "yarn --version", "pip list", "pip --version",
+    "npx create-vite x", "pnpm dlx x", "python -m pytest", "py -m venv env", "npm run install-x",
+])
+def test_what_installs_nothing_is_none(command):
+    assert installs(command) == "", command
+
+
+@pytest.mark.parametrize("command", ["python -m venv --clear .venv", "virtualenv .venv",
+                                     "py -m venv --clear venv"])
+def test_in_a_copy_with_links_making_a_venv_anew_is_asked(command):
+    assert "rebuild" in copy_reason(command, True, "/work/proj", "/work/rt")
+
+
 def chat(make_client, folder, scripts, executor):
     """A chat at Full auto whose Lead runs commands and opens sub-agents unasked, its first
     message sent: the client, the chat's and the run's ids."""

@@ -918,8 +918,9 @@ REBUILDS_THROUGH_LINKS = (
 # anew when its interpreter changed. shortcut: `pnpm install --frozen-lockfile`, `yarn
 # install --force` and `uv run x` (it syncs the environment first, so may make the venv anew
 # too) are not measured, so not here; and a script that runs one of these is not seen -
-# measure and list them if met.
-_REBUILDERS = frozenset({("npm", "ci"), ("uv", "venv"), ("uv", "sync")})
+# measure and list them if met. (`python -m venv --clear` empties a venv by its own word, and
+# `virtualenv` makes one anew over it: `_through_links`.)
+_REBUILDERS = frozenset({("npm", "ci"), ("uv", "venv"), ("uv", "sync"), ("virtualenv",)})
 
 
 def _recursive(word: str) -> bool:
@@ -935,7 +936,9 @@ def _through_links(words: list[str]) -> str:
     itself (`find -delete`, `git worktree remove`, `robocopy /MIR` or `/PURGE`), and what
     empties a dependency folder to make it anew (`_REBUILDERS`)."""
     program, rest = _program(words[0]), words[1:]
-    if (program, *rest[:1]) in _REBUILDERS:
+    module = _module_run(words)
+    if (program, *rest[:1]) in _REBUILDERS or (program,) in _REBUILDERS or module[:1] == [
+            "venv"] and "--clear" in module:
         return REBUILDS_THROUGH_LINKS
     if (program == "find" and "-delete" in rest
             or program == "robocopy" and any(w.casefold() in ("/mir", "/purge") for w in rest)
@@ -2530,9 +2533,12 @@ _SENDING_PROGRAMS = frozenset({
 # (node_modules, .venv): through the link it writes the project's own.
 _INSTALLERS = {
     "pip": {"install", "uninstall"}, "pip3": {"install", "uninstall"},
-    "uv": {"sync", "add", "remove", "pip"}, "npm": {"install", "i", "ci", "add", "uninstall"},
-    "pnpm": {"install", "i", "add", "remove"}, "yarn": {"install", "add", "remove"},
-    "poetry": {"install", "add", "remove"}, "bun": {"install", "i", "add", "remove"},
+    "uv": {"sync", "add", "remove", "pip"},
+    "npm": {"install", "i", "ci", "add", "uninstall", "update", "up", "rebuild", "dedupe", "prune",
+            "link"},
+    "pnpm": {"install", "i", "add", "remove", "update", "up"},
+    "yarn": {"install", "add", "remove", "up", "upgrade"},
+    "poetry": {"install", "add", "remove", "update"}, "bun": {"install", "i", "add", "remove"},
 }
 
 
@@ -2814,14 +2820,31 @@ def runs_inline(command: str) -> str:
             if _INLINE.search(command) else "")
 
 
+def _module_run(words: list[str]) -> list[str]:
+    """What an interpreter runs as a module (`python -I -m pip install x`, `py -m pip`): its words
+    from the module's name on, the module as the program; [] for another line."""
+    program = _program(words[0])
+    if not (program == "py" or program.startswith("python")):
+        return []
+    at = next((at for at, word in enumerate(words[1:], 1) if not word.startswith("-")
+               or word == "-m"), len(words))
+    return words[at + 1:] if words[at:at + 1] == ["-m"] else []
+
+
 def installs(command: str) -> str:
-    """Whether a part of a command installs or removes packages (`pip install`, `npm i`,
-    `python -m pip install`), in one sentence; "" for none."""
-    for words in _parts(command):
-        if words[:1] and _program(words[0]).startswith("python") and words[1:3] == ["-m", "pip"]:
-            words = words[2:]
-        rest = [w.lower() for w in words[1:] if not w.startswith("-")]
-        if words and rest[:1] and rest[0] in _INSTALLERS.get(_program(words[0]), ()):
+    """Whether a part of a command installs or removes packages, in one sentence; "" for none:
+    one of `_INSTALLERS`' verbs among the first words that are no options (`npm --prefix web
+    install x`, `pnpm -C web i`), by a program starting with `pip` (pip3.12, pipenv) or run as a
+    module (`python -I -m pip install`, `py -m pip`), a bare `yarn` - and in what a shell or a
+    wrapper is handed (`cmd /c "npm i x"`).
+    shortcut: an option's value that is a verb's name (`npm --prefix install run x`) reads as the
+    verb; `npx` and `dlx` run a package without installing it into the project, and are left."""
+    for words in (words for words in _commands_in(command) if words):
+        words = _module_run(words) or words
+        program = _program(words[0])
+        verbs = _INSTALLERS["pip"] if program.startswith("pip") else _INSTALLERS.get(program, set())
+        named = [word.lower() for word in words[1:] if not word.startswith("-")][:3]
+        if words == ["yarn"] or set(named) & verbs:
             return ("It installs or removes packages: in a working copy its dependency folders "
                     "are the project's own, linked in.")
     return ""
