@@ -113,6 +113,11 @@
   font-size: var(--text-note);
 }
 
+/* A folder's path in it (a kept copy's): it has no spaces to break at, so it breaks anywhere rather than run past the card. */
+.cmd-approval-path {
+  overflow-wrap: anywhere;
+}
+
 /* What a command does that cannot be taken back (slice 90). */
 .cmd-approval-danger {
   display: flex;

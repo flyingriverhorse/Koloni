@@ -254,6 +254,35 @@ test('at 340 px what a turn did is one line, its details on it', async ({ page }
   expect((await line.boundingBox())!.height).toBeLessThan(26)
 })
 
+test('at 340 px a kept copy’s long folder wraps on its card: nothing in the chat scrolls sideways', async ({ page }) => {
+  const { id, snap, lead, answer } = await realTurn(page)
+  const keptIn = 'C:\\Users\\someone\\AppData\\Local\\koloni\\runtime\\copies\\conversation-3f2a9c1e\\agent-orchestrator-7b1d\\tree'
+  const file = { path: 'hello.py', kind: 'changed', state: 'ready', diff: "--- a/hello.py\n+++ b/hello.py\n@@ -1 +1 @@\n-print('hi')\n+print('hey')", additions: 1, deletions: 1, note: null }
+  const at = String(answer.created_at)
+  // A Coder the Orchestrator called, whose working copy was kept.
+  const coder = { ...lead, id: 'k2-coder', name: 'Coder', role_name: 'Coder', parent_agent_id: lead.id, depth: 1, status: 'completed', task: 'Fix the greeting', tool_call_id: 'k2-c1' }
+  const spawn = {
+    id: 'k2-c1', run_id: answer.run_id, agent_id: lead.id, message_id: 'k2-m1', origin: 'koloni', parent_call_id: null, outside_folder: null, why_asked: null,
+    seq: 101, provider_call_id: 'k2-c1', name: 'spawn_agent', arguments: JSON.stringify({ role: 'Coder', task: 'Fix the greeting' }), status: 'succeeded', result: 'ok', started_at: at, ended_at: at,
+  }
+  const kept = { id: 'k2-kept', run_id: answer.run_id, agent_id: coder.id, status: 'kept', files: [file], kept_in: keptIn, check: null, commit: null, created_at: at, decided_at: null }
+  await shown(page, id, {
+    ...snap,
+    agents: [lead, coder],
+    messages: [snap.messages.find(m => m.role === 'user'), { ...answer, id: 'k2-m1', content: 'I’ll ask the Coder.' }, answer],
+    tool_calls: [spawn],
+    merges: [kept],
+  })
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await page.addStyleTag({ content: '.stage { --chat-w: 340px !important; }' })
+  await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(340)
+  await expect(chat.getByText(keptIn)).toBeVisible()
+  const sideways = await chat.evaluate(root =>
+    [root, ...root.querySelectorAll('*')].filter(el => ['auto', 'scroll'].includes(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 1).map(el => el.className),
+  )
+  expect(sideways).toEqual([])
+})
+
 test('at 1024 px a room’s window opens beside the open chat, never over it', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 700 })
   await openFreshConversation(page)
