@@ -110,6 +110,15 @@ test('records are upserted by id and the cursor advances', () => {
   expect(s.lastEventId).toBe(2)
 })
 
+test('a turn sent again after a restart moves under the others in every open tab: by when it was sent', () => {
+  let s = applyEvent(base(), 1, 'run.started', { ...run, id: 'a', status: 'interrupted', started_at: null, created_at: '2026-11-21T10:00:00Z' })
+  s = applyEvent(s, 2, 'run.started', { ...run, id: 'b', status: 'completed', created_at: '2026-11-21T10:01:00Z' })
+  s = applyEvent(s, 3, 'run.updated', { ...run, id: 'a', created_at: '2026-11-21T10:02:00Z' })
+  expect(s.runs.map(r => [r.id, r.status])).toEqual([['b', 'completed'], ['a', 'running']])
+  s = applyEvent(s, 4, 'run.updated', { ...run, id: 'b', model_id: 'q', created_at: '2026-11-21T10:01:00Z' })
+  expect(s.runs.map(r => r.id)).toEqual(['b', 'a']) // (an update that moves nothing keeps its place)
+})
+
 test('an event at or below the cursor is ignored', () => {
   let s = applyEvent(base(), 5, 'run.started', run)
   s = applyEvent(s, 5, 'run.finished', { ...run, status: 'failed' })
