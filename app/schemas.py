@@ -1048,16 +1048,18 @@ CommandStatus = Literal[
     "proposed", "approved", "running", "exited", "timed_out", "killed", "rejected",
     "failed_to_start", "interrupted",
     "blocked",  # K-48: a CLI's own, its write refused by its sandbox (`model_native.WRITE_BLOCKED`)
+    "refused",  # K-yargic: at Full auto a sentence of the user's forbids it - not asked, not run
 ]
 
 
 class Judged(BaseModel):
     """K-yargic: what the check of the user's words said of a command at Full auto: it ran with
-    no card ("run": on `quote`, a line of the user's found in `source`), or it was asked ("ask";
-    `why`, the check's own sentence where it said so). `model`: who was asked; `seen`: the
-    user's OK on one that ran (Decided for you)."""
+    no card ("run": on `quote`, a line of the user's found in `source`), it was not run and its
+    agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
+    it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
+    (Decided for you)."""
 
-    verdict: Literal["run", "ask"]
+    verdict: Literal["run", "ask", "refuse"]
     quote: str = ""
     source: Literal["preferences", "rules", "message", ""] = ""
     why: str = ""

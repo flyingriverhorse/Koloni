@@ -734,7 +734,7 @@ test('the Told tab says what Full auto’s check reads there', async () => {
   render(<MemoryPage memory={projectMemory()} {...handlers()} />)
   const told = await tab('Told')
   expect(within(told).getByText(/Check what I said first/)).toHaveTextContent(
-    'At Full auto, with Check what I said first on (Settings › This project › Asking and away), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.”',
+    'At Full auto, with Check what I said first on (Settings › This project › Asking and away), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”',
   )
   expect(within(told).queryByText(/differs from what you saved here/)).not.toBeInTheDocument()
 })

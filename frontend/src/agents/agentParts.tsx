@@ -376,7 +376,7 @@ function NoReport({ state, agent }: { state: ConvState; agent: Agent }) {
 export function KeyNumbers({ state, agent }: { state: ConvState; agent: Agent }) {
   const stepped = stepsOf(state, agent.id, agent.report)
   const own = (callId: string | null) => homeOf(state.toolCalls.find(t => t.id === callId), stepped.subAgents) === null
-  const commands = state.commands.filter(c => c.agent_id === agent.id && c.status !== 'proposed' && c.status !== 'rejected' && own(c.tool_call_id))
+  const commands = state.commands.filter(c => c.agent_id === agent.id && !['proposed', 'rejected', 'refused'].includes(c.status) && own(c.tool_call_id))
   const tools = state.toolCalls.filter(
     t => t.agent_id === agent.id && t.name !== 'run_command' && homeOf(t, stepped.subAgents) === null && !state.commands.some(c => c.tool_call_id === t.id),
   )

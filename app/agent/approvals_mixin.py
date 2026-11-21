@@ -25,7 +25,7 @@ from app.agent.words import (
     NOT_IN_THE_PART,
     SHARED_WITH_PROJECT,
 )
-from app.command_runner import CARRY_ON, rejected
+from app.command_runner import CARRY_ON, refused_by_rule, rejected
 from app.commands import copy_reason, reads_here, search_reason, sends_canary, web_off_reason
 from app.db.models import Conversation, FileChange, now
 from app.model_native import (
@@ -428,9 +428,10 @@ class ApprovalsMixin:
             if isinstance(cwd, str) and cwd else unnamed, judgement=judged,
         )
         if not allowed:
-            self._set_call(ctx.cid, call_id, status="denied", result=rejected(command),
-                           ended_at=now())
-            return deny(rejected(command), fixed=True)
+            said = (refused_by_rule(judged)
+                    if judged and judged["verdict"] == "refuse" else rejected(command))
+            self._set_call(ctx.cid, call_id, status="denied", result=said, ended_at=now())
+            return deny(said, fixed=True)
         watch.commands[use_id] = (call_id, command_id)
         # What it names was on its card (asked at every level): what it writes under that
         # name stands at the look after it, that one (`_command_names`).
