@@ -8,8 +8,7 @@ The Settings page holds everything you set for one chat, for one project and for
   **The app** for a chat with no folder. Press it again, or the close button, to close the page.
 - Or press Ctrl+K and choose **Settings**. Ctrl+K also lists each section by name (the app's with
   "(the app)" after it), and opens Settings right at it.
-- Under the message box, **Chat** (the gear at the end of the model's line; under **More** in a narrow
-  chat) opens this chat's short sheet; its
+- Under the message box, **Chat settings** (**Settings** in a narrow chat) opens this chat's short sheet; its
   **All settings** opens Settings at **This chat**.
 
 Choosing another page on the rail closes Settings. The chat under it stays as it was, so a

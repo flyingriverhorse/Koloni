@@ -2,8 +2,8 @@
 
 ## The Workspace
 
-The **Workspace** button opens "the project's files, what agents changed, wrote or showed, and what
-waits for you". Its number is what waits for you in this chat, a copy kept for **Take in** too (in
+The **Workspace** button, the first under the message box, opens "the project's files, what agents changed,
+wrote or showed, and what waits for you". Its number is what waits for you in this chat, a copy kept for **Take in** too (in
 **Changes** that copy is under **Kept**).
 
 - **Files**: the project's files. Open files show as tabs.

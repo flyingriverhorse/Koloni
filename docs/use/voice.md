@@ -2,7 +2,8 @@
 
 ## Reading answers aloud
 
-- **Read aloud**, at the foot of a turn's card in the chat, reads the turn's answer; **Stop reading** stops.
+- **Read aloud**, under a turn's answer in the chat, reads the turn's answer; **Stop reading** stops.
+- **Auto-read** is the 🔈 beside 🎙 (Dictate) in the message box's row; lit while it is on.
 - **Auto-read** reads each answer when the work ends: the **Whole answer**, or a **Short summary** ("A
   sentence or two the Orchestrator adds to be said").
 - **How the Orchestrator speaks** (up to 300 characters) is sent with your message when Auto-read reads a
