@@ -247,6 +247,20 @@ def test_a_branch_whose_locked_worktree_lost_its_folder_opens_again(repo, runtim
 
 
 @needs_git
+def test_a_record_of_a_worktree_not_kolonis_is_never_removed_to_open_a_branch_again(
+    repo, runtime, tmp_path  # noqa: F811
+):
+    run(repo, "branch", "koloni/x")
+    mine = tmp_path / "users-own"
+    run(repo, "worktree", "add", "-q", str(mine), "koloni/x")
+    shutil.rmtree(mine)  # (the user's own worktree of it, its folder gone: theirs)
+    with pytest.raises(git.Refused):
+        copies.make_branch(repo, runtime, "agent1", "koloni/x",
+                           start=("main", run(repo, "rev-parse", "HEAD")))
+    assert key(mine) in listed(repo)
+
+
+@needs_git
 def test_at_start_koloni_forgets_its_worktree_that_a_crash_left(make_client, wait_run, repo):  # noqa: F811
     client, _model = make_client([text("hi")])
     client.headers["Origin"] = ORIGIN

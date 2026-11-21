@@ -730,7 +730,8 @@ IN_A_COPY = (
 ALONGSIDE = (
     "Other agents may work at the same time, each in a copy of its own. Change only the files "
     "your task needs. Write, move or delete nothing outside your copy: another agent's copy, the "
-    "project folder, a worktree or a branch is not yours - say in your report what should go. "
+    "project folder, another agent's worktree or branch is not yours - say in your report what "
+    "should go. "
     "Stop only processes you started; never kill programs by name (taskkill /IM, pkill, "
     "Stop-Process -Name): KOLONİ, the user's programs and other agents' runs share this machine. "
     "A server or test you start listens on a free port, never a fixed one."

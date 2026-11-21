@@ -1209,7 +1209,7 @@ def add_worktree(
 
 def reopen_worktree(
     project: Path, tree: Path, branch: str, no_hooks: Path, start: Sequence[str] | None,
-    tip: str | None = None,
+    tip: str | None = None, *, under: Iterable[Path],
 ) -> tuple[str, str, str]:
     """Open a worktree at `tree` on KOLONİ's branch `branch` as it is - an agent that stopped on it
     goes on there (`add_worktree` without -b): its commits stay, new work goes on top. Returns as
@@ -1217,7 +1217,8 @@ def reopen_worktree(
     what `branch_look` holds a merge to, so a project moved off it since makes the merge the
     user's word. Refused, with why: no start on record; no such branch any more (merged,
     deleted); `tip` - the commit it stopped on (else its start) - not in it: another branch of
-    that name since; git will not - it is checked out in another worktree."""
+    that name since; git will not - it is checked out in another worktree (a record of one whose
+    folder is gone goes first only where it is KOLONİ's: under `under`, its copies folders)."""
     if not branch.startswith(BRANCH_PREFIX):
         raise Refused(f"{branch} is not a branch KOLONİ made")
     if not start:
@@ -1237,8 +1238,8 @@ def reopen_worktree(
     # branch while it does: that record alone goes, by its own path, no hook run (`drop_branch`).
     listed = _in(project, git, *UNASKED, "worktree", "list", "--porcelain",
                  seconds=SHORT_SECONDS, **UNASKED_ENV)[1]
-    for one in _worktrees(listed.decode("utf-8", "replace")):
-        if one["branch"] == branch and not os.path.lexists(one["path"]):
+    for one in _gone_under(listed, under):
+        if one["branch"] == branch:
             no_hooks.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
                 hooks = ("-c", f"core.hooksPath={empty}")
@@ -1256,6 +1257,16 @@ def _unlocked(project: Path, git: str, hooks: Sequence[str], path: str | Path) -
     _in(project, git, *hooks, "worktree", "unlock", "--", str(path))
 
 
+def _gone_under(listed: bytes, under: Iterable[Path]) -> list[dict]:
+    """The worktrees `worktree list --porcelain` names (`_worktrees`) whose folder is gone, under
+    one of `under` - KOLONİ's copies folders: its own."""
+    # (git keeps a worktree's real path: /private/var on macOS, where the folder said /var)
+    tops = tuple(os.path.join(os.path.normcase(os.path.realpath(one)), "") for one in under)
+    return [one for one in _worktrees(listed.decode("utf-8", "replace"))
+            if not os.path.lexists(one["path"])
+            and os.path.normcase(os.path.realpath(one["path"])).startswith(tops)]
+
+
 def forget_worktrees(project: Path, under: Iterable[Path], no_hooks: Path) -> list[str]:
     """At start: git's records of KOLONİ's own worktrees whose folder is gone - under one of
     `under`, KOLONİ's copies folders (`copies.folders`) - go, each by its own path, unlocked
@@ -1266,11 +1277,7 @@ def forget_worktrees(project: Path, under: Iterable[Path], no_hooks: Path) -> li
                           seconds=SHORT_SECONDS, **UNASKED_ENV)
     if code != 0:
         raise Refused(f"git worktree list failed: {_text(out, said)[-TAIL:]}")
-    # (git keeps a worktree's real path: /private/var on macOS, where the folder said /var)
-    tops = [os.path.join(os.path.normcase(os.path.realpath(one)), "") for one in under]
-    gone = [one["path"] for one in _worktrees(out.decode("utf-8", "replace"))
-            if not os.path.lexists(one["path"]) and os.path.normcase(
-                os.path.realpath(one["path"])).startswith(tuple(tops))]
+    gone = [one["path"] for one in _gone_under(out, under)]
     if gone:
         no_hooks.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:

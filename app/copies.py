@@ -937,7 +937,8 @@ def make_branch(
     branch, again = None, short.startswith(git.BRANCH_PREFIX)
     try:
         branch, into, sha = git.reopen_worktree(
-            project, root, short, root.parent / NO_HOOKS, start, tip) if again else (
+            project, root, short, root.parent / NO_HOOKS, start, tip,
+            under=folders(runtime_root)) if again else (
             git.add_worktree(project, root, short, root.parent / NO_HOOKS))
         files, _links, _size = _scan(root, stop=True)
         listed = _git_listed(project)
