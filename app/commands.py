@@ -8,8 +8,9 @@ import re
 import shlex
 import sys
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path, PureWindowsPath
+from typing import Literal
 from urllib.parse import quote
 
 from sqlalchemy import or_, select
@@ -2381,15 +2382,110 @@ def harms(command: str, instructions: bool = True) -> str:
     shortcut: at Full auto this check is a courtesy for honest commands, not a wall against
     obfuscation - a name spliced or escaped (`r`i`, `& (gcm ri)`, `&('r'+'i')`, `$c='ri'; & $c`)
     or a program started with its words in a list (`Start-Process ... -ArgumentList`) is not
-    seen; Ask and Auto-edit are the wall (and `runs_another` at night)."""
+    seen; Ask and Auto-edit are the wall (and `runs_another` at night).
+    shortcut (security review of K-yargic): no harm is seen in `powershell -enc <base64>`,
+    `ssh host 'rm -rf /'`, `find . -exec rm {} ;` or `python -c "shutil.rmtree('..')"` - they run
+    at Full auto as before, and are never put to the check of the user's words (no harm, no
+    check); add them to `danger` / `sends_off` when the user meets one."""
+    return next(filter(None, _reasons(command, instructions)), "")
+
+
+def _reasons(command: str, instructions: bool) -> Iterator[str]:
+    """`harms`'s sentences in its order: `danger` of the whole line, then of each part."""
     # (Its parts apart, but for a leading `cd` into the scratch - `_ENTERS`, judged above with
     # the whole line: alone it would name `.koloni`.)
     entered = _ENTERS.match(command)
-    return danger(command, instructions) or next((
-        said for words in _commands_in(command[entered.end() if entered else 0:], at=_BLOCKS)
-        if words and (
-            said := danger(" ".join(words), instructions) or (
-                "" if _only_fetches(words) else _sends(words)))), "")
+    yield danger(command, instructions)
+    for words in _commands_in(command[entered.end() if entered else 0:], at=_BLOCKS):
+        if words:
+            yield danger(" ".join(words), instructions) or (
+                "" if _only_fetches(words) else _sends(words))
+
+
+HarmClass = Literal["", "soft", "always"]
+# K-yargic: what a check of the user's own words may let run - any other sentence (one added
+# later too) is asked as before.
+_SOFT = re.compile(r"(?:Deletes|Empties|Overwrites or deletes|Throws away|"
+                   r"It reaches beyond this machine|It sends work off this machine)\b")
+
+
+def harm_class(command: str, instructions: bool = True) -> HarmClass:
+    """K-yargic: whether a harm (`harms`) is one a check of the user's own words may let run
+    ("soft": each part only deletes, throws away or sends off, `_SOFT`) or one asked at every
+    level ("always": any other sentence, a secret, `.koloni`, a file that steers later turns, a
+    path out of the folder, a line handed to another program); "" for no harm. Every part is
+    looked at, not the first sentence `harms` gives: `rm -rf build && cat .env` deletes first,
+    and opens a secret too."""
+    command = re.sub(r"`\r?\n", " ", command)  # (PowerShell's line goes on after a backtick)
+    harmful = False
+    for said in _reasons(command, instructions):
+        if said and not _SOFT.match(said):
+            return "always"  # (at once: a line padded with options says so first)
+        harmful = harmful or bool(said)
+    if not harmful:
+        return ""
+    return "always" if _asked_anyway(command, instructions) else "soft"
+
+
+def _asked_anyway(command: str, instructions: bool) -> bool:
+    """`harm_class`: what makes a harm one asked at every level - a secret (named after an `@`
+    too: `-F f=@id_rsa`), `.koloni`, a file that steers later turns, a line handed to another
+    program (`runs_another`: a variable set before it, `xargs`, `sudo`, a shell), a path out of
+    the folder in any word of the line, its program's own too (`_leads_out`), a glob on a
+    dot-name (`.k*`, `.[k]oloni`, `.env*`), or a harm over all of the folder (`_sweeps`)."""
+    words = re.split(r"[\s;&|(){}]+", command)
+    return bool(names_secret(command) or names_secret(_as_read(command).replace("@", " "))
+                or names_koloni(command) or standing_asked(command, instructions)
+                or runs_another(command) or any(map(_leads_out, words))
+                or any(_DOT_GLOB.search(_as_read(word)) for word in words) or _sweeps(command))
+
+
+# A glob or a bracket on a name that starts with a dot: it may reach `.git`, `.koloni` or a secret.
+_DOT_GLOB = re.compile(r"(?:^|[\\/=@,:])\.[^\\/]*[*?\[]")
+
+
+def _sweeps(command: str) -> bool:
+    """`_asked_anyway`: a part of a harmful line that reaches all of the folder - `.git` and
+    `.koloni` with it: a delete or a revert of the folder itself or all in it (`.`, `*`,
+    `sub/..`; `git checkout .` takes back a change to `.koloni/rules.md` too), or of a
+    line that sends, any part but git's (`git add .` is no send of the folder) that takes it
+    (`scp -r .`, `zip -r x.zip . && curl ...`); git told what to run (`-c`, `--config-env`), or
+    `git clean` of the ignored files too (`-x`, `-X`)."""
+    parts = [words for words in _commands_in(command, at=_BLOCKS) if words]
+    sends = any(_sends(words) for words in parts)
+    for words in parts:
+        git = _program(words[0]) == "git"
+        if git and (any(word == "-c" or word.startswith("--config-env") for word in words) or (
+                _git_sub(words)[0] == "clean" and any(
+                    _cluster(word, "x") or _cluster(word, "X") for word in words[2:]))):
+            return True
+        if any(map(_whole, words[1:])) and (
+                _danger_of(words).startswith(("Deletes", "Throws away")) or sends and not git):
+            return True
+    return False
+
+
+def _whole(word: str) -> bool:
+    """`_sweeps`: whether a word names the folder itself, or all in it: `.`, `./`, `*`,
+    `sub/..`, a word of wildcards and dots alone (PowerShell's `*.*` or `?*` with -Force takes
+    `.git` too) - also as an option's value (`-Path:.`)."""
+    # (Windows' `\` made `/` before quotes are taken off: `_as_read` drops a `\` before a dot.)
+    plain = _as_read(re.sub(r"^-[\w-]*[:=]", "", word).replace("\\", "/"))
+    whole = posixpath.normpath(plain) if plain else ""
+    return not plain.startswith("-") and (whole == "." or bool(
+        re.fullmatch(r"[.*?]*[*?][.*?]*", whole)))
+
+
+def _leads_out(word: str) -> bool:
+    """`_asked_anyway`: whether a word names a path out of the folder (`_outside`) - also glued
+    to an option (`-Path:C:/x`, `--dir=../x`), a redirection or an `@` (`-d@/etc/passwd`,
+    `file=@C:/x`) - or one whose place is not seen: behind a variable (`$HOME`, `%USERPROFILE%`),
+    a command's output (`` `pwd` ``) or a brace."""
+    plain = _as_read(word)
+    # (and the word as written: `_as_read` drops the `\` of Windows' `build\..\..`)
+    return bool(re.search(r"[$%`{}]", word)) or _outside(word.strip("'\"")) or any(
+        _outside(piece) for piece in re.split(r"[=<>,@]", re.sub(r"^-[\w-]*:", "", plain))
+        if piece)
 
 
 # K-r147 (live): what a pipe may hand a command's output to, at night too - it only picks,

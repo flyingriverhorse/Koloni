@@ -11,6 +11,9 @@ export const TONE_COLOR: Record<Tone, string> = {
   muted: 'var(--muted)',
 }
 
+/** K-yargıç: where the line of the user's that a command ran on with no card stands. */
+export const JUDGED_FROM = { preferences: 'Your preferences', rules: 'This project’s rules', message: 'your message' } as const
+
 /** How a command's state reads to a person, and the colour it takes; a server's (slice 42b) as a page's would. */
 export function commandStatus(command: Pick<Command, 'status' | 'exit_code' | 'started_at'> & Partial<Pick<Command, 'keep_running' | 'preview_url'>>): {
   label: string

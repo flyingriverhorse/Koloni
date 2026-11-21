@@ -568,7 +568,8 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
         raise HTTPException(422, web.NO_DESKTOP)  # as the tool would say each time
     for name in ("search_order", "search_agy", "notify_format", "notify_desktop", "auto_notes",
                  "observe_reports", "suggest_tasks", "suggest_tier", "hide_secrets", "canary",
-                 "lead_work", "continue_steps", "when_away", "away_minutes", *SPAWN):
+                 "lead_work", "continue_steps", "when_away", "away_minutes", "full_auto_check",
+                 *SPAWN):
         if getattr(body, name) is not None:
             setattr(project, name, getattr(body, name))
     for name in spends:
@@ -638,7 +639,7 @@ async def patch_project(
                     "finish_way", "auto_notes", "observe_reports", "suggest_tasks", "suggest_tier",
                     "hide_secrets", "pass_env",
                     "canary", "lead_work", "continue_steps", "memory_links", "embedding_model",
-                    "when_away", "away_minutes", *SPAWN)
+                    "when_away", "away_minutes", "full_auto_check", *SPAWN)
     limited = "turn_token_limit" in body.model_fields_set  # null takes the limit away
     # tek-ev: what a discussion and a room may spend; null: no limit (and, B-414, no least).
     spends = {"discussion_budget", "room_posts", "room_tokens", "room_minutes",

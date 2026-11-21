@@ -77,6 +77,9 @@ LeadWork = Literal["delegates", "decides", "itself"]
 # While the user is away (K-vekil-karar): every question waits, or the Lead answers what it
 # safely can after a chat's minutes (0: at once; a day at most).
 WhenAway = Literal["waits", "lead"]
+# K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
+# against what they wrote.
+FullAutoCheck = Literal["ask", "judge"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -270,6 +273,9 @@ class ProjectOut(Out):
     # None: as `finish_tests_auto` says.
     finish_tests: bool | None
     finish_tests_auto: FinishTestsAuto
+    # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
+    # checked against what they wrote ("judge").
+    full_auto_check: FullAutoCheck
 
     @computed_field
     @property
@@ -357,6 +363,7 @@ class ProjectPatch(BaseModel):
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     # Sent as null: automatic again (`ProjectOut.finish_tests_auto`). Left out: kept.
     finish_tests: bool | None = None
+    full_auto_check: FullAutoCheck | None = None
 
 
 class NeverOut(BaseModel):
@@ -1044,6 +1051,20 @@ CommandStatus = Literal[
 ]
 
 
+class Judged(BaseModel):
+    """K-yargic: what the check of the user's words said of a command at Full auto: it ran with
+    no card ("run": on `quote`, a line of the user's found in `source`), or it was asked ("ask";
+    `why`, the check's own sentence where it said so). `model`: who was asked; `seen`: the
+    user's OK on one that ran (Decided for you)."""
+
+    verdict: Literal["run", "ask"]
+    quote: str = ""
+    source: Literal["preferences", "rules", "message", ""] = ""
+    why: str = ""
+    model: str = ""
+    seen: bool = False
+
+
 class CommandOut(BaseModel):
     id: str
     run_id: str
@@ -1074,6 +1095,8 @@ class CommandOut(BaseModel):
     # only, never KOLONİ's own port nor a model server's (slice 42b).
     keep_running: bool
     preview_url: str | None
+    # K-yargic: what the check of the user's words said of it; None: not checked.
+    judged: Judged | None = None
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
@@ -3749,6 +3772,11 @@ class ProjectMemoryOut(BaseModel):
     rules: str | None
     # Whether they are the folder's .koloni/rules.md (slice 86c), kept in git with it.
     rules_kept: bool = False
+    # K-yargic: whether that file says other than the rules saved here, which Full auto's check
+    # of a harmful-looking command goes by.
+    rules_differ: bool = False
+    # The rules as saved here (`Project.rules`): `rules` are the folder's where it is read.
+    rules_saved: str | None = None
     # Why the folder's .koloni/rules.md is not read, as the page says it; null: it is, or is
     # not there.
     rules_not_read: str | None = None

@@ -1726,6 +1726,7 @@ def overview(session: Session, project: Project) -> dict:
     past = [r for r in reversed(records) if r.status in ("superseded", "rejected")
             and r.tier != "preference"][:MAX_PAST]
     seen: dict[str, dict] = {}
+    folder = rules_file(project.root_path)[0]
 
     def shown_(wanted: list[Memory]) -> list[dict]:
         for record in wanted:
@@ -1742,7 +1743,10 @@ def overview(session: Session, project: Project) -> dict:
             [r for r in records if r.tier == "preference" and r.status == "proposed"]),
         "preferences": preferences(session),
         "rules": rules_in_effect(project),
-        "rules_kept": rules_file(project.root_path)[0] is not None,
+        "rules_kept": folder is not None,
+        # K-yargic: Full auto's check reads the saved ones, never the folder's file.
+        "rules_differ": folder is not None and (folder or None) != project.rules,
+        "rules_saved": project.rules,
         "rules_not_read": rules_unread(project.root_path),
         "rules_changed_at": project.rules_changed_at,
         "decisions": decisions(session, project),
