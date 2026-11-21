@@ -521,23 +521,95 @@ KILLS_BY_NAME = ("Stops programs by their name (taskkill /IM, pkill, killall, St
                  "machine.")
 
 
+# A line that looks processes up and stops what it found stops them by what they are, not by an
+# id the agent was given (`Stop-Process -Id (Get-Process python).Id`, `lsof -ti:8790 | xargs
+# kill`): read as by name (`_stops_by_name`).
+_LOOKS_UP = re.compile(
+    r"(?i)(?<![\w-])(?:get-process|gps|ps|pgrep|pidof|lsof|fuser|get-nettcpconnection|netstat"
+    r"|get-ciminstance|gcim|get-wmiobject|gwmi|wmic|tasklist)(?![\w-])")
+_STOPS = re.compile(r"(?i)(?<![\w-])(?:stop-process|spps|kill|taskkill)(?![\w-])|\.kill\s*\("
+                    r"|\bterminate\b")
+# WMI's own stop of whatever its query finds (`wmic process where ... delete`, `... call terminate`,
+# `Invoke-CimMethod -MethodName Terminate`): by the line - wmic is read as a wrapper.
+_WMI_STOPS = re.compile(r"(?i)(?<![\w-])(?:wmic|invoke-cimmethod|icim|invoke-wmimethod)(?![\w-])"
+                        r"[^;&|\r\n]*\b(?:delete|terminate)\b")
+# Stop-Process's switches: a number after one is its id (`Stop-Process -Force 1234`).
+_STOP_SWITCHES = ("-force", "-passthru", "-whatif", "-confirm")
+# What KOLONİ itself runs as, or may (`harm_class`: a stop of one is never soft); and the
+# programs that stop others by a name written out.
+_KOLONIS_NAMES = re.compile(r"(?i)(?:python|uvicorn|node)[\w.-]*|py(?:\.exe)?|.*[*?$(@`].*")
+_BY_NAMES = frozenset({"taskkill", "pkill", "killall", "stop-process", "spps", "kill"})
+
+
+def _by_id(said: list[str]) -> bool:
+    """Whether Stop-Process (`said`: its words, in lower case) is given ids: its `-Id` (`-i`,
+    `-id:1`), or numbers where no option takes them as its value."""
+    for at, word in enumerate(said):
+        if word.split(":")[0] in ("-i", "-id"):
+            return True
+        before = said[at - 1] if at else ""
+        if re.fullmatch(r"\d+(?:,\d+)*", word) and not (before.startswith("-") and not any(
+                switch.startswith(before) and len(before) > 1 for switch in _STOP_SWITCHES)):
+            return True
+    return False
+
+
 def _kills_by_name(program: str, rest: list[str]) -> bool:
-    """Whether a part stops programs by their name (`KILLS_BY_NAME`): `pkill`, `killall`;
-    `taskkill` by an image name or a filter (`/IM`, `/FI`; Git Bash's `//IM` too); PowerShell's
-    `Stop-Process` (`spps`) with neither an id nor its own process object - so what a pipe hands
-    it (`Get-Process x | Stop-Process`) - and its `kill` by `-Name`. By id (`taskkill /PID`, `kill
-    <pid>`, `Stop-Process -Id`) is not.
-    shortcut: `kill -n 9 <pid>` (sh's signal by number) reads as by name; `wmic process ... delete`,
-    `Get-Process x | % Kill()` and `Stop-Process $p` given ids in a variable are not told apart -
-    ask or let them through by what the user meets."""
-    said = [word.casefold() for word in rest]
-    if program in ("pkill", "killall"):
+    """Whether a part stops programs by their name or what they are (`KILLS_BY_NAME`): `pkill`,
+    `killall`; `taskkill` by an image name or a filter (`/IM`, `/FI`; Git Bash's `//IM` too);
+    PowerShell's `Stop-Process` (`spps`) not given ids (`_by_id`) - so by `-Name`, its process
+    object, or what a pipe hands it (`Get-Process x | Stop-Process`) - and its `kill` by `-Name`;
+    `fuser -k` (by a port or a file), `kill-port` and `fkill` (npx's too). By id (`taskkill
+    /PID`, `kill <pid>`, `Stop-Process -Id`) is not.
+    shortcut: `kill -n 9 <pid>` (sh's signal by number) reads as by name; an id looked up on the
+    line is `_stops_by_name`'s, one held from an earlier line is not seen."""
+    said = [word.casefold().strip("'\"") for word in rest]
+    if program in ("pkill", "killall", "fkill", "kill-port"):
         return True
     if program == "taskkill":
         return any(word.lstrip("/-") in ("im", "fi") for word in said)
     if program in ("stop-process", "spps"):
-        return not any(word.startswith("-i") or word.isdigit() for word in said)
+        return not _by_id(said)
+    if program in ("npx", "pnpx", "bunx"):
+        return [word for word in said if not word.startswith("-")][:1] in (
+            ["kill-port"], ["fkill"], ["fkill-cli"])
+    if program == "fuser":
+        return any(_cluster(word, "k") or word == "--kill" for word in said)
     return program == "kill" and any(word.startswith(("-n", "-processn")) for word in said)
+
+
+def _looked_up(command: str) -> bool:
+    return bool(_LOOKS_UP.search(command) and _STOPS.search(command) or _WMI_STOPS.search(command))
+
+
+def _stops_by_name(command: str) -> bool:
+    """Whether a line stops programs by their name (`_kills_by_name`, in any part a shell is
+    handed too), or looks processes up and stops what it found (`_LOOKS_UP`, `_STOPS`; WMI's own,
+    `_WMI_STOPS`)."""
+    return _looked_up(command) or any(
+        _kills_by_name(_program(words[0]), words[1:])
+        for words in _commands_in(command, at=_BLOCKS) if words)
+
+
+def _stops_koloni(command: str) -> bool:
+    """`harm_class`: whether a stop by name may stop KOLONİ itself - and so is never let run by a
+    check of the user's words: one that looks processes up (by a port: 8790 is KOLONİ's), one by
+    a filter (`taskkill /FI`, `pkill -f`), by a name KOLONİ runs as (python, py, uvicorn, node) or
+    one not written out (a wildcard, a variable), and any but by `taskkill`, `pkill`, `killall`
+    or `Stop-Process`'s name (`fuser -k`, `kill-port`, WMI's)."""
+    if _looked_up(command):
+        return True
+    for words in (words for words in _commands_in(command, at=_BLOCKS) if words):
+        program, said = _program(words[0]), [word.strip("'\"") for word in words[1:]]
+        if not _kills_by_name(program, said):
+            continue
+        filtered = program == "taskkill" and any(
+            word.casefold().lstrip("/-") == "fi" for word in said) or program == "pkill" and any(
+            _cluster(word, "f") or word == "--full" for word in said)
+        named = [word for word in said if not word.startswith(("-", "/"))]
+        if program not in _BY_NAMES or filtered or any(map(_KOLONIS_NAMES.fullmatch, named)):
+            return True
+    return False
 
 
 def _after_options(rest: list[str], takes_value: frozenset[str]) -> list[str]:
@@ -1000,8 +1072,7 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
     own = str(own) if own is not None else None
     if elsewhere := _names_elsewhere(command, project, runtime, own, cwd, worktrees):
         return OUT_OF_COPY.format(path=elsewhere)
-    if any(_kills_by_name(_program(words[0]), words[1:])
-           for words in _commands_in(command, at=_BLOCKS) if words):
+    if _stops_by_name(command):
         return KILLS_BY_NAME
     for part in _PARTS.split(command) if linked else ():
         words = [word.strip("'\"") for word in _words(part.strip())]
@@ -1555,6 +1626,8 @@ def _harm(command: str) -> str:
     for words in _commands_in(command, at=_BLOCKS):
         if words and (said := _danger_of(words)):
             return said
+    if _stops_by_name(command):  # (a process looked up on the line, then stopped)
+        return KILLS_BY_NAME
     if _DOTNET_DELETE.search(command):
         return "Deletes files through .NET ([IO.File]::Delete)."
     if names_secret(command):
@@ -2574,12 +2647,13 @@ def _asked_anyway(command: str, instructions: bool) -> bool:
     too: `-F f=@id_rsa`), `.koloni`, a file that steers later turns, a line handed to another
     program (`runs_another`: a variable set before it, `xargs`, `sudo`, a shell), a path out of
     the folder in any word of the line, its program's own too (`_leads_out`), a glob on a
-    dot-name (`.k*`, `.[k]oloni`, `.env*`), or a harm over all of the folder (`_sweeps`)."""
+    dot-name (`.k*`, `.[k]oloni`, `.env*`), a harm over all of the folder (`_sweeps`), or a stop
+    of what may be KOLONİ itself (`_stops_koloni`)."""
     words = re.split(r"[\s;&|(){}]+", _TASKKILL.sub(
         lambda part: _SWITCH.sub(" ", part[0]), command))
     return bool(names_secret(command) or names_secret(_as_read(command).replace("@", " "))
                 or names_koloni(command) or standing_asked(command, instructions)
-                or runs_another(command) or any(map(_leads_out, words))
+                or runs_another(command) or _stops_koloni(command) or any(map(_leads_out, words))
                 or any(_DOT_GLOB.search(_as_read(word)) for word in words) or _sweeps(command))
 
 

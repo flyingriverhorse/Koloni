@@ -23,7 +23,7 @@ from app.commands import (
     runs_another,
 )
 from app.db.models import Agent
-from app.tools import OPENED_TOGETHER
+from app.tools import ON_BRANCH_PROPERTY, OPENED_TOGETHER
 from tests.conftest import Gate, scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import cmd
@@ -114,7 +114,7 @@ def test_a_take_in_waits_while_a_branch_merges(make_client, wait_run, repo, monk
 
     def merge_branch(*args, **kwargs):
         merging.set()
-        assert looked.wait(scaled(10))  # (the Coder 2's Take in has looked at its copy)
+        assert looked.wait(scaled(LONG))  # (the Coder 2's Take in has looked at its copy)
         sha = real_merge(*args, **kwargs)
         order.append("merged")
         return sha
@@ -240,17 +240,43 @@ def test_at_start_koloni_forgets_its_worktree_that_a_crash_left(make_client, wai
 
 # --- what a copy's command is asked ----------------------------------------------------------
 
-KILLS = ["taskkill /IM python.exe /F", "taskkill /f /im node.exe", "taskkill //F //IM x.exe",
-         "pkill -f uvicorn", "killall node", "Stop-Process -Name python", "spps -n node",
-         "kill -Name python"]
+# By a name that is not KOLONİ's own (python, node, uvicorn): the user's words may let it run.
+KILLS = ["taskkill /IM notepad.exe /F", "taskkill /f /im chrome.exe", "taskkill //F //IM x.exe",
+         "pkill vite", "killall ruby", "Stop-Process -Name java", "spps -n code",
+         "kill -Name java"]
+# By a name KOLONİ itself may run under, a filter, a wildcard, or a process looked up (by its
+# port, say: 8790 is KOLONİ's) - always asked.
+KILLS_KOLONI = [
+    "taskkill /IM python.exe /F", "taskkill /f /im node.exe", "taskkill /FI \"PID gt 0\" /F",
+    "pkill -f uvicorn", "pkill -f server", "killall node", "Stop-Process -Name python",
+    "spps -n node", "kill -Name pythonw", "taskkill /IM py.exe", "Stop-Process -Name *",
+    "Stop-Process -Name node -ErrorAction 0", "Stop-Process -Name node -InformationAction Ignore",
+    "Stop-Process -Name node -ia 0", "Stop-Process -Name $n",
+    "Stop-Process -Id (Get-Process python).Id -Force",
+    "Stop-Process -InputObject (Get-Process python)", "(Get-Process python).Kill()",
+    "$p = Get-Process python; $p.Kill()", "Get-Process node | % { $_.Kill() }",
+    "kill $(pgrep node)", "pgrep node | xargs kill", "lsof -ti:3000 | xargs kill -9",
+    "kill -9 $(lsof -t -i:8000)",
+    "Get-NetTCPConnection -LocalPort 8000 | % { Stop-Process -Id $_.OwningProcess -Force }",
+    "Stop-Process -Id (Get-NetTCPConnection -LocalPort 8790).OwningProcess -Force",
+    'wmic process where name="node.exe" delete', "wmic process where processid=1 call terminate",
+    "Invoke-CimMethod -Query \"select * from Win32_Process\" -MethodName Terminate",
+    "fuser -k 8000/tcp", "npx kill-port 3000", "npx -y kill-port 8790", "fkill node",
+]
 KILLS_HANDED = ["Get-Process python | Stop-Process", 'cmd /c "taskkill /IM x.exe"']
 BY_ID = ["taskkill /PID 1234 /F", "kill 1234", "kill -9 1234", "Stop-Process -Id 1234",
-         "Stop-Process 1234"]
+         "Stop-Process 1234", "Stop-Process -Force 1234", "Stop-Process -Id:1234",
+         "$p = Start-Process python -PassThru; Stop-Process -Id $p.Id"]
 
 
 @pytest.mark.parametrize("command", KILLS)
 def test_stopping_programs_by_name_in_the_project_is_harm_the_users_words_may_let_run(command):
     assert harms(command) == KILLS_BY_NAME and harm_class(command) == "soft"
+
+
+@pytest.mark.parametrize("command", KILLS_KOLONI)
+def test_stopping_what_may_be_koloni_itself_is_always_asked(command):
+    assert harms(command) == KILLS_BY_NAME and harm_class(command) == "always", command
 
 
 @pytest.mark.parametrize("command", KILLS_HANDED)
@@ -259,7 +285,7 @@ def test_stopping_programs_by_name_handed_on_is_asked_at_every_level(command):
     assert runs_another(command)
 
 
-@pytest.mark.parametrize("command", KILLS + KILLS_HANDED)
+@pytest.mark.parametrize("command", KILLS + KILLS_KOLONI + KILLS_HANDED)
 def test_from_a_copy_stopping_programs_by_name_is_always_asked(command):
     assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME
 
@@ -400,16 +426,16 @@ def test_an_agent_in_a_copy_is_told_others_work_beside_it(
     assert told.index(ALONGSIDE) < told.index("node_modules, .venv and venv")
 
 
-@needs_git
 def test_the_orchestrator_is_told_to_give_each_its_own_files_and_leave_koloni_branches(
-    make_client, wait_run, repo  # noqa: F811
+    make_client, wait_run, project_dir
 ):
-    client, model, cid, run_id = setup(make_client, repo, {"Lead": [text("done")]})
+    client, model, cid, run_id = setup(make_client, project_dir, {"Lead": [text("done")]})
     wait_run(client, cid, run_id)
     (spawn_agent,) = [one["function"] for one in model.tool_args[0]
                       if one["function"]["name"] == "spawn_agent"]
     assert OPENED_TOGETHER in spawn_agent["description"]
     assert spawn_agent["description"].index(OPENED_TOGETHER) < spawn_agent["description"].index(
         "Available roles")
-    assert spawn_agent["parameters"]["properties"]["on_branch"]["description"].endswith(
+    # (offered where the project is on a git branch: `_no_branch_here`)
+    assert ON_BRANCH_PROPERTY["description"].endswith(
         "never delete, rename or switch to them; KOLONİ removes them.")
