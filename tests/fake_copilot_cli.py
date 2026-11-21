@@ -13,7 +13,7 @@ and prints one JSON event per line:
     {"exit": 3, "stderr": "..."}        crash
 
 The plan's "usage": the data of each session.usage_checkpoint it prints, in order, before its
-result (none: none printed). "picked": started with `--model auto`, its auto picks that model
+result (none: none printed). "picked": started with `--model auto` (or fusion), it picks that model
 and says so first, with "picked_why" (session.auto_mode_resolved, as measured on 1.0.105).
 """
 
@@ -77,7 +77,7 @@ rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}})
 record["tools"] = [tool["name"] for tool in rpc("tools/list", {})["result"]["tools"]]
 save()
 emit("session.info", {"infoType": "configuration", "message": "Disabled tools: create, edit"})
-if plan.get("picked") and "--model" in argv and argv[argv.index("--model") + 1] == "auto":
+if plan.get("picked") and "--model" in argv and argv[argv.index("--model") + 1] in ("auto", "fusion"):
     model = plan["picked"]
     emit("session.auto_mode_resolved", {"chosenModel": model, "selectionReason": plan.get(
         "picked_why"), "routingMethod": "auto_v2", "fallback": False})

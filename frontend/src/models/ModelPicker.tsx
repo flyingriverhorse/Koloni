@@ -2,11 +2,12 @@ import { Cpu } from '@phosphor-icons/react'
 import { type FormEvent, useState } from 'react'
 import { errorText } from '../api/client'
 import { type Effort, type Provider, type Tier, TIERS } from '../api/types'
-import { modelName } from '../shell/modelName'
+import { autoPicked, modelName, pickedWhy } from '../shell/modelName'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { useConfirm } from '../shell/Confirm'
 import { usePanel } from '../shell/usePanel'
+import { useApp } from '../state/store'
 import { type LoadFacts, LevelOptions, levelsDisabled, levelsKnown, namedLevel, takesOf, useModelFacts } from './levels'
 import { type LoadModels, ModelNameInput, ProviderOptions } from './ModelNameInput'
 import type { ListedModel } from './ModelsPage'
@@ -78,12 +79,13 @@ export function runsOn(p: Provider | undefined): string | null {
  * The button's words, the model first: a narrow chat's "…" cuts the least of it, and the provider and the lead give way
  * (sample C, base.css). `rest`: the name without the lead, where there is no model to put first.
  */
-function ButtonLabel({ provider, model, rest, leadAuto }: { provider?: string; model: string | null; rest: string; leadAuto: boolean }) {
+function ButtonLabel({ provider, model, rest, leadAuto, picked }: { provider?: string; model: string | null; rest: string; leadAuto: boolean; picked: Picked | null }) {
   return (
     <span className="model-picker-label">
       {provider && model ? (
         <>
           {modelName(model)}
+          {picked && ` → ${picked.model}`}
           <span className="model-picker-provider"> · {provider}</span>
         </>
       ) : (
@@ -92,6 +94,30 @@ function ButtonLabel({ provider, model, rest, leadAuto }: { provider?: string; m
       {leadAuto && <span className="model-picker-lead"> · Orchestrator: automatic</span>}
     </span>
   )
+}
+
+type Picked = { model: string; why: string | null }
+
+/**
+ * The model Copilot's auto or fusion picked for this chat's latest turn (its run's Lead, as statusLine.ts reads it: not a
+ * comparison's other side), and Copilot's reason (`pickedWhy`): only where that Lead ran on the routing the chat uses now, of
+ * that provider. (A turn that starts says nothing until Copilot says its pick.)
+ */
+function usePicked(provider: string | undefined, routing: string | null): Picked | null {
+  const lead = useApp(s => s.conv?.agents.find(a => a.depth === 0 && a.run_id === s.conv?.runs.at(-1)?.id))
+  const ours = lead?.model_id && lead.provider_name === provider && lead.model_from === routing && autoPicked(routing)
+  return ours ? { model: modelName(lead.model_id), why: pickedWhy(lead.effort_note, lead.model_from, lead.model_id) } : null
+}
+
+/**
+ * The button's name and tooltip: what the chat uses (`nowOf`) - and, apart, what Copilot's routing picked for its last turn
+ * and why (`usePicked`): that model is not what its agents use.
+ */
+function buttonWords(label: string, leadAuto: boolean, picked: Picked | null) {
+  const use = `${label}: the model this conversation's agents use${leadAuto ? '; the Orchestrator’s is chosen for each message by how hard it is' : ''}`
+  if (!picked) return { name: `Model: ${label}`, title: use }
+  const ran = `Its last turn ran on ${picked.model}${picked.why ? `: ${picked.why}` : '.'}`
+  return { name: `Model: ${label}, last picked ${picked.model}`, title: `${use}. ${ran}` }
 }
 
 /** What a turn would use right now - the choice, or the first provider - and the button's words for it. */
@@ -188,6 +214,8 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
   const [error, setError] = useState<string | null>(null)
 
   const { used, usedModel, rest, label } = nowOf(providers, providerId, modelId, leadAuto)
+  const lastPick = usePicked(used?.name, usedModel)
+  const words = buttonWords(label, leadAuto, lastPick)
   const picked = providers.find(p => p.id === provider) ?? providers[0]
   const { own, providerId: lookedUpId, model: lookedUpModel } = levelsOf(providers, lead, picked, model)
   const facts = useModelFacts(open ? onFacts : undefined, lookedUpId, lookedUpModel)
@@ -317,12 +345,12 @@ export function ModelPicker({ providers, providerId, modelId, leadAuto = false, 
         type="button"
         className="btn btn-small model-picker-button"
         aria-expanded={open}
-        aria-label={`Model: ${label}`}
-        title={`${label}: the model this conversation's agents use${leadAuto ? '; the Orchestrator’s is chosen for each message by how hard it is' : ''}`}
+        aria-label={words.name}
+        title={words.title}
         onClick={toggle}
       >
         <Cpu size={13} />
-        <ButtonLabel provider={used?.name} model={usedModel} rest={rest} leadAuto={leadAuto} />
+        <ButtonLabel provider={used?.name} model={usedModel} rest={rest} leadAuto={leadAuto} picked={lastPick} />
       </button>
       {open && pickForm()}
     </div>

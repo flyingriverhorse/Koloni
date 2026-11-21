@@ -129,11 +129,13 @@ address** on this machine or your network.
 - **Model `auto`**: Copilot picks the model for each request. It is in Copilot's model list (tier fast)
   and takes no thinking level, so KOLONİ sends none. Pick a model for Copilot, `auto` or another: with no
   model and Medium thinking, Copilot's default spent 7.12 AI credits for the same short answer that `auto`
-  answered for 0.18 (measured once, 7 Nov 2026, Copilot CLI 1.0.105). The agent's node and window show
-  the model `auto` picked (`auto → gpt-6-luna`), and its **Details** say why; an agent that goes on from
-  it asks for `auto` again. `fusion` (Copilot Fusion, only on plans that have it) runs each turn on several
-  models and keeps one; it takes no thinking level either, and has no tier, so agents never pick it by
-  themselves.
+  answered for 0.18 (measured once, 7 Nov 2026, Copilot CLI 1.0.105). The agent's node and window, and in
+  the chat the Orchestrator's turn head and the model button, show the model `auto` picked
+  (`auto → gpt-6-luna`); Copilot's reason is on a quiet line under the turn head, in the button's tooltip
+  and in the agent's **Details**. An agent that goes on from it asks for `auto` again. `fusion` (Copilot
+  Fusion, only on plans that have it) runs each turn on several models and keeps one; its pick shows the
+  same way (`fusion → gpt-6-luna`) and an agent goes on with `fusion`. It takes no thinking level either,
+  and has no tier, so agents never pick it by themselves.
 - **Routing** (`auto` and `fusion` on your GitHub account): on the model's row of the **Models** tab, beside
   its **Context**, and in the chat's model panel under **Thinking**. Auto: **Efficiency**, **Balance** or
   **Intelligence**; Fusion: **Standard** (as Auto Balance), **High** or **Max** - High and Max cost more

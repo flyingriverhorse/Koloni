@@ -1,4 +1,4 @@
-import { CaretDown, CaretRight, ChatsCircle, Clock, FileText, Lightbulb, ListChecks, Moon, Robot, User, UsersThree } from '@phosphor-icons/react'
+import { AppWindow, CaretDown, CaretRight, ChatsCircle, Clock, FileText, Lightbulb, ListChecks, Moon, Robot, User, UsersThree } from '@phosphor-icons/react'
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
@@ -240,8 +240,32 @@ export function AgentNode(props: AgentProps) {
   return props.data.chip ? <AgentChip {...props} /> : <AgentCard {...props} />
 }
 
+/**
+ * Its window, from its node (the user's, 21 Nov): what the Inspector's Open window opens, at the right of its head. Only that:
+ * the node is not picked, dragged or opened a second time by the same click or key.
+ */
+function OpenWindow({ id, name }: { id: string; name: string }) {
+  const said = `Open ${name}'s window`
+  return (
+    <button
+      type="button"
+      className="node-open nodrag"
+      aria-label={said}
+      title={said}
+      onClick={event => {
+        event.stopPropagation()
+        useApp.getState().openAgentWindow(id.replace(/^agent:/, ''))
+      }}
+      onDoubleClick={event => event.stopPropagation()}
+      onKeyDown={event => event.stopPropagation()}
+    >
+      <AppWindow size={12} />
+    </button>
+  )
+}
+
 /** Its name and how it ended; a click picks it, two open its window - as on its card (the node's own clicks). */
-function AgentChip({ data, selected }: AgentProps) {
+function AgentChip({ id, data, selected }: AgentProps) {
   const name = data.name || data.role
   const chip = data.chip!
   return (
@@ -251,6 +275,7 @@ function AgentChip({ data, selected }: AgentProps) {
         <span className="node-chip-name">{name}</span>
         <span style={{ color: chip.colour }}>{chip.said}</span>
       </button>
+      <OpenWindow id={id} name={name} />
       <Handle type="source" position={Position.Right} isConnectable={false} />
       <Ends />
     </div>
@@ -348,6 +373,7 @@ function AgentCard({ id, data, selected }: AgentProps) {
           <span className="node-title">{name}</span>
           <span className="node-where"> · {where}</span>
         </span>
+        <OpenWindow id={id} name={name} />
       </div>
       <div className="node-body">
         {/* Its state's colour, as everywhere; its dot blinks while it is at work. Waiting for your answer, what it asks is

@@ -193,9 +193,9 @@ class TalkMixin:
         earlier = [
             earlier_line(
                 before.name, before.role, before.provider,
-                # (One Copilot's auto picked goes on on auto: `_ran_on_before`.)
-                "auto" if before.model_from == "auto" else None if before.model_from == "settings"
-                else before.model, before.status,
+                # (One Copilot's auto or fusion picked goes on with that: `_ran_on_before`.)
+                before.model_from if before.model_from in ("auto", "fusion")
+                else None if before.model_from == "settings" else before.model, before.status,
                 before.task, before.turn,
             )
             for before in self._earlier(ctx)

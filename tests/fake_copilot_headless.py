@@ -16,7 +16,7 @@ KOLONİ runs), else its "version". Its ping and `status.get` say the plan's "pro
 shell step's "{cwd}" in its output is the folder it works in. Asked `account.getQuota`, at any point, it answers
 the plan's "quota" ("quota_hang": never); asked `auth.getStatus`, signed in by gh unless "signed_in" is false; asked
 `sandbox.getHostSupport`, the plan's "sandbox" (a shell step's "sandboxed": it ran in it). Its session
-made on auto, "picked" is the model its auto picks, said with "picked_why" before its first step. Steps:
+made on auto (or fusion), "picked" is the model it picks, said with "picked_why" before its first step. Steps:
 
     {"say": "text"}                                   an assistant message
     {"shell": "pytest -q", "output": "ok", "exit": 0} a command, run only once approved
@@ -258,7 +258,7 @@ def invoke(hook_type: str, more: dict) -> dict:
 
 if hooks_on:
     invoke("sessionStart", {"source": "new", "initialPrompt": record["prompt"]})
-if plan.get("picked") and create["params"].get("model") == "auto":
+if plan.get("picked") and create["params"].get("model") in ("auto", "fusion"):
     plan["model"] = plan["picked"]
     event("session.auto_mode_resolved", {"chosenModel": plan["picked"],
                                          "selectionReason": plan.get("picked_why")})
