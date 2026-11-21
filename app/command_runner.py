@@ -178,6 +178,7 @@ class CommandRunner:
         self, run_id: str, cid: str, agent_id: str, ws: Workspace, call_id: str, args: dict,
         ask: bool = True, where: Callable[[], Awaitable[Workspace]] | None = None,
         always: bool = False, web_off: bool = False, once: set[str] | None = None,
+        judgement: dict | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
         `ask` is False where the command has its leave already and nobody can be asked
@@ -189,7 +190,8 @@ class CommandRunner:
         is because web is off (`web_off_reason`): no rule is offered. `once`: commands the
         user said yes to on a card, exactly as written, that the level alone does not ask again
         (K-evrim's measure, for its run) - what asks at every level still does; a yes on this
-        one's card is added to it."""
+        one's card is added to it. `judgement`: what the check of the user's words said of it
+        (K-yargic, `AgentRunner._judged`) - not kept as a run where it is asked all the same."""
         planned = plan_command(ws, args)
         searched = await asyncio.to_thread(
             search_reason, planned.command, ws.root, planned.cwd_rel)
@@ -242,6 +244,11 @@ class CommandRunner:
                 status="proposed" if asks else "approved",
                 keep_running=planned.keep_running,
                 web_off=web_off,
+                # shortcut: a check that said run on one asked for another reason (a search that
+                # reaches a secret, `searched`) was a request spent; look for that before it if
+                # such checks are seen often.
+                judged=None if asks and judgement and judgement["verdict"] == "run"
+                else judgement,
             )
             session.add(command)
             session.commit()

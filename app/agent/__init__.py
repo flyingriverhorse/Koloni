@@ -149,6 +149,7 @@ from app.agent.ctx import (
 from app.agent.ctx import TERMINAL as TERMINAL
 from app.agent.ctx import announce as announce
 from app.agent.discussions_mixin import DiscussionsMixin
+from app.agent.judge_mixin import JudgeMixin
 from app.agent.limits_mixin import BUDGET_NEAR as BUDGET_NEAR
 from app.agent.limits_mixin import OVER_LIMIT as OVER_LIMIT
 from app.agent.limits_mixin import LimitsMixin
@@ -926,7 +927,7 @@ def _summary_after(t: _LeadTurn, status: str, refused: bool) -> bool | None:
 class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
-                  SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin):
+                  SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1259,6 +1260,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # B-394: run -> (agent, question, options) -> how often it was asked, and its answer.
         self._asked_again: dict[
             str, dict[tuple[str, str, tuple[str, ...]], tuple[int, str]]] = {}
+        # K-yargic: run -> (command, its folder) -> what the check of the user's words said of
+        # it (None: it failed), asked once a turn (`_judged`).
+        self._judge_cache: dict[str, dict[tuple[str, str | None], dict | None]] = {}
         # K-fullauto-sorma: run -> how often a failing check went back to the Lead (`_merge`).
         self._check_rounds: dict[str, int] = {}
         self._away_cut: dict[str, str] = {}
@@ -1906,6 +1910,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._lead_spent.pop(run_id, None)
         self._lead_said.pop(run_id, None)
         self._asked_again.pop(run_id, None)
+        self._judge_cache.pop(run_id, None)
         self._check_rounds.pop(run_id, None)
         self._away_cut.pop(run_id, None)
         if (timer := self._away_timers.pop(run_id, None)) is not None:
@@ -4538,9 +4543,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         web_off = web_off_reason(planned.command, self._off())
         in_a_copy = web_off or (copy_reason(
             planned.command, linked, ctx.folder, self.settings.runtime_root) if owner
-            else "") or self._branch_asks(ctx, planned.command, bool(owner)) \
-            or self._night_asks(ctx, planned.command, planned.cwd_rel,
-                                None if owner else ctx.root)
+            else "") or self._branch_asks(ctx, planned.command, bool(owner))
+        night = "" if in_a_copy else self._night_asks(
+            ctx, planned.command, planned.cwd_rel, None if owner else ctx.root)
+        # K-yargic: (not a skill's script the user lets run unasked: nobody is asked of it)
+        night, judged = (night, None) if unasked else await self._judged(
+            ctx, planned.command, planned.cwd_rel, night)
+        in_a_copy = in_a_copy or night
         if not self._watched(run_id) and not unasked:
             # Before anything is put on record as a command: it is not one that
             # waits for a decision, it is one that is not run.
@@ -4588,7 +4597,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 status, output = await self.commands.run(
                     run_id, cid, ctx.agent_id, ws, call_id, args,
                     ask=refused is None and not unasked, where=in_copy if owner else None,
-                    always=bool(in_a_copy), web_off=bool(web_off), once=once,
+                    always=bool(in_a_copy), web_off=bool(web_off), once=once, judgement=judged,
                 )
             ran = True
         finally:
