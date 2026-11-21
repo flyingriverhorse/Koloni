@@ -1323,27 +1323,61 @@ def _cd_to(words: list[str], at: str | None, own: re.Pattern | None) -> str | No
 
 
 # What reads its first word that is no option as a pattern or a script, not a path (`rg
-# "from '../x'" src`, `sed "s#../a#../b#"`), and the options that give one (`-e`, `-Pattern`).
-_PATTERNED = frozenset({"rg", "ripgrep", "ag", "ack", "grep", "egrep", "fgrep", "select-string",
-                        "sls", "findstr", "sed", "awk", "perl"})
-_PATTERN_OPTIONS = frozenset({"-e", "--regexp", "-pattern", "--expression", "-f", "--file"})
+# "from '../x'" src`, `sed "s#../a#../b#"`) - but where an option gave it (`-e x`, `-ex`,
+# `--regexp=x`, `-f file`, `-Pattern x`) the words after are paths, a pattern file's too; perl's
+# code comes only by `-e`, and `rg --files` takes none.
+_POSITIONAL_PATTERN = frozenset({"rg", "ripgrep", "ag", "ack", "grep", "egrep", "fgrep",
+                                 "select-string", "sls", "findstr", "sed", "awk"})
+_PATTERN_GIVEN = ("-e", "--regexp", "--expression")
+_PATTERN_FILE = ("-f", "--file")
+
+
+def _pattern_option(word: str, program: str) -> tuple[bool, bool, bool] | None:
+    """`_path_words`: what a word is where it gives the pattern - (its value is the next word,
+    that value is a path - a pattern file -, the word itself holds a path), or None for another
+    word. `-e x`, `-ex`, `--regexp=x`, `-f file`, `-ffile`, `--file=file`; Select-String's
+    `-Pattern`; findstr's `/c:x`, `/g:file`."""
+    low = word.casefold()
+    name, sep, _value = low.partition("=")
+    if program in ("select-string", "sls"):
+        option = low.partition(":")[0]
+        return (":" not in low, False, False) if len(option) > 4 and "-pattern".startswith(
+            option) else None
+    if program == "findstr":
+        return (False, False, low.startswith("/g:")) if low.startswith(("/c:", "/g:")) else None
+    if name in _PATTERN_GIVEN or name in _PATTERN_FILE:
+        return not sep, name in _PATTERN_FILE, bool(sep) and name in _PATTERN_FILE
+    if re.fullmatch(r"-[ef]\S+", word):  # (glued: `-ex`, `-es/a/b/`, `-fx.sed`)
+        return False, False, word[1] == "f"
+    return None
 
 
 def _path_words(words: list[str]) -> list[str]:
-    """The words of a part that may be paths: a search's or sed's pattern left out
-    (`_PATTERNED`)."""
-    if _program(words[0]) not in _PATTERNED:
+    """The words of a part that may be paths: a search's or sed's pattern left out - the first
+    word that is no option, where no option gave the pattern (`_pattern_option`); Select-String's
+    `-Path` and `-LiteralPath` values are paths."""
+    program = _program(words[0])
+    if program not in _POSITIONAL_PATTERN | {"perl"}:
         return words
-    kept, patterned, at = words[:1], False, 1
+    kept, given, at = words[:1], program == "perl" or "--files" in words, 1
     while at < len(words):
-        word = words[at]
-        if word.casefold() in _PATTERN_OPTIONS:
-            patterned, at = True, at + 2
-            continue
-        if word.startswith("-") or patterned:
+        word, found = words[at], _pattern_option(words[at], program)
+        if found is not None:
+            value_next, value_path, holds_path = found
+            given, kept = True, [*kept, word] if holds_path else kept
+            if value_next and at + 1 < len(words):
+                kept += [words[at + 1]] if value_path else []
+                at += 1
+        elif program in ("select-string", "sls") and word.casefold().partition(":")[0].startswith(
+                ("-pa", "-li", "-lp", "-ps")):  # (-Path, -LiteralPath: their value a path)
+            kept.append(word)
+            if ":" not in word and at + 1 < len(words):
+                kept.append(words[at + 1])
+                at += 1
+        elif word.startswith("-") or given:
             kept.append(word)
         else:
-            patterned = True  # (this word: the pattern)
+            given = True  # (this word: the pattern)
         at += 1
     return kept
 

@@ -513,6 +513,28 @@ def test_a_climb_out_of_the_copy_is_seen_where_the_line_is_not_followed(tmp_path
     assert asked_in_copy(tmp_path, command) == OUT_OF_COPY.format(path=named), command
 
 
+# A search's pattern is skipped only where it is the tool's own positional one: where an option
+# gave the pattern, the words after it are paths (review round 3: a matrix, not examples).
+GIVEN_PATTERN = {"sed -i": ["-es/a/b/", "--expression=s/a/b/", "-e s/a/b/", "--file=x.sed",
+                            "-fx.sed", "-f x.sed"],
+                 "grep": ["--regexp=x", "-ex", "-e x", "-f x.txt", "--file=x.txt"],
+                 "rg": ["--regexp=x", "-ex", "-e x", "--files"],
+                 "perl -pi": ["-es/a/b/", "-e s/a/b/"],
+                 "Select-String -Pattern x": [""], "sls -Pattern:x": [""]}
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', "env X=1 {c}"])
+@pytest.mark.parametrize("command", [
+    f"{tool} {given} ../../b/tree/x".replace("  ", " ")
+    for tool, givens in GIVEN_PATTERN.items() for given in givens] + [
+    "Select-String -Path ../../b/tree/secret.txt -Pattern .", "sls -LiteralPath ../../b/tree/s",
+    "sls -Path ../../y x", "Select-String -Path:../../b/y -Pattern x",
+    "grep -f ../../b/patterns.txt src"])
+def test_a_path_after_a_pattern_an_option_gave_is_a_path(tmp_path, command, wrapper):
+    command = wrapper.replace("{c}", command)
+    assert asked_in_copy(tmp_path, command).startswith("it names .."), command
+
+
 def test_before_its_copy_is_made_every_copy_is_anothers(tmp_path):
     project, runtime, own, held, _worktree = places(tmp_path)  # noqa: F811
     said = copy_reason(f"type {own}/x.txt", False, str(project), runtime)
