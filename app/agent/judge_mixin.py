@@ -29,15 +29,22 @@ CHECK_STOOD_ASIDE = ("Full auto's check of your words refused {count} this turn:
                      "ends, each harmful-looking command waits for you on a card.")
 
 
-# ☾ Away (spec §6): what a check of the user's words may let run in a job - a delete in its copy
-# alone. A line that also sends work off, reaches beyond this machine or touches a git remote's
-# branches keeps its card, whatever the user's words allow (`harms`' sentences, `_reasons`).
-_JOB_SOFT = re.compile(r"(?:Deletes|Empties|Throws away)\b(?!.*\bremote\b)")
+# ☾ Away (spec §6): what a check of the user's words may let run in a job, or in the chat the user
+# went away from - a delete in the folder alone. A line that also sends work off, reaches beyond
+# this machine, touches a git remote's branches or Docker's (its containers, images and volumes
+# are no file of the folder, and `-H` / `--context` are another machine's) keeps its card,
+# whatever the user's words allow (`harms`' sentences, `_reasons`).
+_JOB_SOFT = re.compile(r"(?:Deletes|Empties|Throws away)\b(?!.*\b(?:remote|Docker)\b)")
+# PowerShell's line goes on after a backtick at its end, as `harm_class` reads it.
+_GOES_ON = re.compile(r"`\r?\n")
 
 
 def only_deletes(line: str) -> bool:
-    """Whether each harm of `line` is a delete of the folder's own (`_JOB_SOFT`)."""
-    said = [one for one in _reasons(line, True) if one]
+    """Whether each harm of `line`, read as it runs (a backtick's line joined), is a delete of
+    the folder's own (`_JOB_SOFT`).
+    shortcut: joined here as `harm_class` joins it; use `commands.joined` once k-koordinasyon
+    is merged."""
+    said = [one for one in _reasons(_GOES_ON.sub(" ", line), True) if one]
     return bool(said) and all(_JOB_SOFT.match(one) for one in said)
 
 
@@ -76,13 +83,13 @@ class JudgeMixin:
                 or self._stood_aside(ctx.run_id)
                 # (In a job an instruction file is no file the check may let go: `standing_asked`.)
                 or harm_class(line, job) != "soft"
-                or not (self._full_auto(ctx) or self._away_full_auto(ctx))
-                or job and not only_deletes(line)):
+                or not (self._full_auto(ctx) or self._away_full_auto(ctx))):
             return reason, None
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = project_of(session, conversation)
-            if project is None or project.full_auto_check != "judge":
+            if (project is None or project.full_auto_check != "judge"
+                    or self._away_holds(session, ctx, line)):
                 return reason, None
             # (A job's: the chat the user went away from - never its task's own words.)
             night = away.night_of(session, ctx.cid) if ctx.run_id in self._away_jobs else None
@@ -106,6 +113,13 @@ class JudgeMixin:
             "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}")})
         cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts)
         return self._judgement(ctx, reason, cache[key])
+
+    def _away_holds(self: "AgentRunner", session, ctx: Ctx, line: str) -> bool:
+        """☾ Away: whether `line` keeps its card, whatever the user's words say - in a job, or
+        the chat they went away from (`away.gone_from`), all but a delete in the folder."""
+        if ctx.run_id not in self._away_jobs and away.gone_from(session, ctx.cid) is None:
+            return False
+        return harm_class(line, True) != "soft" or not only_deletes(line)
 
     @staticmethod
     def _users_words(session, cid: str, rules: str | None) -> dict[str, list[str]]:

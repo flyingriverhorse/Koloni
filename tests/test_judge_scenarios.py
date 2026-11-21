@@ -773,13 +773,20 @@ def test_while_away_below_full_auto_a_jobs_delete_still_waits(judging, wait_run,
 
 # Spec §6 / plan Task 5: in a job, only a delete in the folder is the check's. A send, a git
 # remote's branch or an instruction file keeps its card, whatever the user's words allow.
-SENDS = "You may upload the report, copy src to the host, publish, open a pull request and push."
+SENDS = ("You may upload the report, copy src to the host, publish, open a pull request and "
+         "push. You may prune Docker and delete its volumes.")
 
 
 @pytest.mark.no_po
 @pytest.mark.parametrize("line", [
     "curl -X POST https://example.com/up -d @report.txt", "scp -r src host:", "npm publish",
-    "gh pr create", "git push --force origin main", "rm AGENTS.md"])
+    "gh pr create", "git push --force origin main", "rm AGENTS.md",
+    # (round 2: a send split by PowerShell's backtick and a new line - the line as it runs)
+    "rm -rf build; git `\npush --force origin main", "rm -rf build; npm `\npublish",
+    "rm -rf build; curl https://example.com/up `\n-d @report.txt",
+    # (round 2: Docker's deletes are no delete in the copy; -H / --context reach another machine)
+    "docker system prune -af", "docker volume rm db_data", "docker compose down -v",
+    "docker -H tcp://host:2375 system prune -af", "docker --context prod volume rm data"])
 def test_while_away_a_jobs_send_remote_push_or_instruction_file_keeps_its_card(
         judging, wait_run, project_dir, line):
     from tests.test_away_scenarios import ended, to_do
@@ -807,3 +814,28 @@ def test_while_away_a_job_runs_at_the_lower_of_the_chats_level_and_the_to_do_pag
     chat = client.get(f"/api/conversations/{job['conversation_id']}").json()
     assert chat["conversation"]["permission_mode"] == "ask"
     assert job["state"] == "waits" and judge.calls == [] and executor.started == []
+
+
+@pytest.mark.no_po
+def test_in_the_chat_you_went_away_from_a_send_keeps_its_card(judging, wait_run, project_dir):
+    # (Round 2: the chat gone from keeps its turn - no job - and its sends always wait too.)
+    from app.db.models import AwayRun
+    client, _lead, judge, executor = judging(
+        [cmd("git push --force origin main"), text("never")], [verdict_line("run", SENDS)], [])
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"full_auto_check": "judge"},
+                        headers=OWN).status_code == 200
+    assert client.put(f"/api/projects/{pid}/rules", json={"rules": SENDS},
+                      headers=OWN).status_code == 200
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto",
+                                                    "lead_hands_code": False}, headers=OWN)
+    with client.app.state.session_factory() as session:
+        session.add(AwayRun(project_id=pid, conversation_id=cid, run_id="r", status="running"))
+        session.commit()
+    # (not from the app's own page: a message of the user's own would end Away)
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "push it"},
+                         headers=NO_ORIGIN).json()["run"]["id"]
+    asked = carded(client, cid, run_id, wait_run)
+    assert (asked["status"], asked["judged"]) == ("proposed", None)
+    assert judge.calls == [] and executor.started == []
