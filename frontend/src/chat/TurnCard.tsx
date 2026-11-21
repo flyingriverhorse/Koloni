@@ -47,7 +47,7 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits }:
   const at = lastAt(state, run, lead)
   const over = summary !== null
   return (
-    <article className="turn" aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
+    <article className="turn" data-run={run.id} aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
       <div className="turn-head">
         <span className="turn-avatar" aria-hidden>
           {name.charAt(0)}

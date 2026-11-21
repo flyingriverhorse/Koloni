@@ -1,10 +1,12 @@
 import { CaretRight } from '@phosphor-icons/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useLayoutEffect, useRef } from 'react'
 import type { Command, FileChange, Run, ToolCall } from '../api/types'
 import { TOOL_STATUS } from './ToolRow'
 import { runHead } from './toolRuns'
 
 interface Props {
+  /** The focus was on one of its steps as the turn ended: those are drawn anew in it, so its line takes the focus. */
+  refocus: boolean
   /** How the turn ended: completed, or failed, stopped or interrupted. */
   ended: Run['status']
   /** How many steps are in it: the Lead's words, a line of calls, a row each. */
@@ -21,12 +23,17 @@ interface Props {
 /** What a turn that did not complete says on its fold's line. */
 const ENDED: Partial<Record<Run['status'], string>> = { failed: 'Failed', cancelled: 'Stopped', interrupted: 'Interrupted' }
 
-export function TurnSteps({ ended, count, took, calls, state, children }: Props) {
+export function TurnSteps({ refocus, ended, count, took, calls, state, children }: Props) {
+  const line = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const at = document.activeElement
+    if (refocus && (!at || at === document.body)) line.current?.focus()
+  }, [refocus])
   // (A command that exited with an error is counted failed by runHead, as on the line inside.)
   const { marks } = runHead(calls, state)
   return (
     <details className="turn-steps">
-      <summary>
+      <summary ref={line}>
         <span>{ENDED[ended] ? `${ENDED[ended]} after ${count} steps` : `Completed ${count} steps${took ? ` in ${took}` : ''}`}</span>
         {marks.map(([end, n]) => (
           <span key={end} className={`tag ${end === 'failed' ? 'tag-del' : 'tag-warn'}`}>

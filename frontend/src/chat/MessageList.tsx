@@ -213,6 +213,13 @@ function outsideWord(decide: Handlers['onDecideRole'], callId: string) {
 }
 
 /**
+ * Whether a command folds at its turn's end: not while it waits for your word or a place, not a server that runs (its Stop
+ * is in it), and not one that ran on your words without asking (K-yargıç): what ran on them stays in sight.
+ */
+const commandFolds = (command: Command) =>
+  !['proposed', 'approved'].includes(command.status) && !(command.keep_running && command.status === 'running') && command.judged?.verdict !== 'run'
+
+/**
  * A call that is a line of its own, never folded into a run: the Lead's pick of the chat's teams (slice 84b), the chat's
  * one line of it; a question it was not let ask, refused or failed, read without opening anything (0.1.4).
  */
@@ -825,6 +832,8 @@ export function MessageList({
     onAnswer,
   }
   const scroller = useRef<HTMLDivElement>(null)
+  // The turn the focus is in as this draws (the page as it was): a step it was on that folds now gives it to the fold's line.
+  const focusedRun = document.activeElement?.closest('article.turn')?.getAttribute('data-run') ?? null
   const pinned = useRef(true)
   // Scrolled up: a button back to the latest, as a terminal has.
   const [away, setAway] = useState(false)
@@ -1005,10 +1014,10 @@ export function MessageList({
     </div>
   )
 
-  /** A command's call: its row, and while it waits for your word or a place, that. A server that runs never folds: its Stop is in it. */
+  /** A command's call: its row, and while it waits for your word or a place, that. */
   const commandCall = (call: ToolCall, command: Command): View => ({
     stands: command.status === 'proposed' || command.status === 'approved',
-    folds: !['proposed', 'approved'].includes(command.status) && !(command.keep_running && command.status === 'running'),
+    folds: commandFolds(command),
     node: (
       <Fragment key={call.id}>
         <CommandRow command={command} failed={call.status === 'failed'} live />
@@ -1137,8 +1146,10 @@ export function MessageList({
     const split = answer && TERMINAL.has(run.status) ? splitTurn(inside, answer.id) : null
     if (!split?.fold) return inside.map(drawGroup)
     const spent = run.started_at && run.ended_at ? took(Date.parse(run.ended_at) - Date.parse(run.started_at)) : null
+    // shortcut: a row opened by hand comes back closed inside the fold (its open is its own); keep it if that is missed.
     return [
-      <TurnSteps key="steps" ended={run.status} count={split.count} took={spent} calls={split.calls} state={state}>
+      ...split.leads.map(piece => <Fragment key={`leads:${piece.key}`}>{piece.node}</Fragment>),
+      <TurnSteps key="steps" refocus={focusedRun === run.id} ended={run.status} count={split.count} took={spent} calls={split.calls} state={state}>
         {split.fold.map(drawGroup)}
       </TurnSteps>,
       ...split.kept.map(drawGroup),
@@ -1254,7 +1265,7 @@ export function MessageList({
         <span>{divider}</span>
       </div>
     )
-    return [...(divider ? [{ key: 'divider', folds: false, node: line }] : []), ...(body ? [{ key: 'body', ...body }] : [])]
+    return [...(divider ? [{ key: 'divider', folds: false, leads: true, node: line }] : []), ...(body ? [{ key: 'body', ...body }] : [])]
   }
 
   /** The message's calls; a comparison's side not used, every call of it at its first message in one closed row. */

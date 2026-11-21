@@ -1695,3 +1695,43 @@ test('the fold’s line says how the turn ended: completed in its time, or faile
   rerender(<MessageList {...handlers} state={ended('interrupted')} />)
   expect(summary()).toHaveTextContent(/^Interrupted after 2 steps$/)
 })
+
+test('a command that ran on your words (K-yargıç) never folds: what ran on them stays in sight', () => {
+  const state = twoSteps('completed')
+  const judged = { verdict: 'run' as const, quote: 'rm build/ is fine', source: 'rules' as const, why: 'It names build/.', model: 'Fast', seen: false }
+  const { container } = render(
+    <MessageList
+      {...handlers}
+      state={{
+        ...state,
+        toolCalls: [...state.toolCalls, toolCall('71', 'r', 'run_command', 'succeeded', '{"command":"rm -rf build"}', { message_id: 'm', seq: 2 })],
+        commands: [command('k71', 'r', { tool_call_id: '71', command: 'rm -rf build', judged } as Partial<ReturnType<typeof command>>)],
+      }}
+    />,
+  )
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(fold).not.toBeNull()
+  expect(fold).not.toContainElement(screen.getByText('rm -rf build'))
+})
+
+test('a turn KOLONİ started has its topic’s line before the fold, not after it', () => {
+  const state = convState({
+    topics: [topic('t1', 'Greeting'), topic('t2', 'Nightly look')],
+    runs: [run('a', 'completed', { topic_id: 't1' }), run('b', 'completed', { topic_id: 't2', ended_at: ENDED, by_user: false })],
+    agents: [agent('a', 'completed'), agent('b', 'completed')],
+    messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.'), assistantMessage('b1', 'b', 'I’ll look at the night.'), assistantMessage('b2', 'b', 'All well.')],
+    toolCalls: [toolCall('81', 'b', 'read_file', 'succeeded', '{"path":"log.txt"}', { message_id: 'b1' })],
+  })
+  const { container } = render(<MessageList {...handlers} state={state} />)
+  const divider = screen.getByText(/New topic: Nightly look/).closest('[role=separator]') as HTMLElement
+  const fold = container.querySelector('details.turn-steps')!
+  expect(fold).not.toContainElement(divider)
+  expect(divider.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+test('the focus on a step that folds as its turn ends goes to the fold’s line, not the page', () => {
+  const { container, rerender } = render(<MessageList {...handlers} state={twoSteps('running')} />)
+  container.querySelector<HTMLElement>('.tool-row-head')!.focus()
+  rerender(<MessageList {...handlers} state={twoSteps('completed')} />)
+  expect(container.querySelector('details.turn-steps > summary')).toHaveFocus()
+})
