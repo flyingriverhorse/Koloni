@@ -110,8 +110,11 @@ a chat you started, and the command's row says "Ran without asking · disposable
 Worktrees and branches go this way only from the project itself (the Orchestrator), never from a
 copy. Only such a delete alone on its line counts: `rm -r build`, `Remove-Item -Recurse dist`,
 `git worktree remove ../wt/x`, `git branch -d old`. Anything else on the line, a forced worktree
-remove, a path above the folder or with a link in it, a line the shell continues or a command of a CLI
-whose folder KOLONİ does not know asks as before. At **Ask before changes**, in a turn nobody watches,
+remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI
+whose folder KOLONİ does not know or that its model names, and one GitHub Copilot CLI runs in a new
+shell of its own (it has no sandbox) asks as before. A delete whose folder changed
+between KOLONİ's look and its run - a card of the turn was answered meanwhile - asks too. At
+**Ask before changes**, in a turn nobody watches,
 a side of a comparison, a To-do task's turn and a job while you are away, every delete asks or waits
 as before. No **Always run** rule covers a delete either way.
 

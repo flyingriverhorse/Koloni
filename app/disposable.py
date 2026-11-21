@@ -4,9 +4,10 @@ branch nobody stands on - checked against the folder it runs in and the project'
 (git that does not answer, a link, a folder not read) is no: its card, as before. Blocking: call
 it off the event loop.
 
-shortcut: the folder is looked at as it is now; one changed between this look and the delete (a
-folder swapped for a junction, a link put in it - Windows PowerShell 5.1's `Remove-Item
--Recurse` follows one) is not seen. Look again as it runs if that is ever met."""
+shortcut: the folder is looked at as it is then - KOLONİ's own command a second time just before
+it runs (`AgentRunner._command_call`); one changed between that look and the delete (a folder
+swapped for a junction, a link put in it - Windows PowerShell 5.1's `Remove-Item -Recurse`
+follows one) is not seen. Look as it runs, in the shell, if that is ever met."""
 
 import os
 import stat
@@ -16,6 +17,10 @@ from app import commands, git
 from app.commands import DISPOSABLE_NAMES, _holds_link, disposable_targets, secret_files
 
 NAMES = {"folder": "build folder", "worktree": "worktree", "branch": "branch"}
+# Why a delete found disposable is asked all the same: its second look, just before it runs (a
+# card of the turn waited for meanwhile), did not find what the first did.
+CHANGED = ("what it deletes changed between KOLONİ's first look and its run: asked as any delete "
+           "is")
 # Never disposable, whatever git says the default branch is.
 NEVER = ("main", "master")
 

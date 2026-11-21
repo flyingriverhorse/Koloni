@@ -13,6 +13,7 @@ import pytest
 
 from app import disposable, koloni
 from app import git as git_
+from app.agent.ctx import Ctx
 from app.command_runner import CommandRunner
 from app.commands import disposable_targets
 from app.db.models import Agent, Command, Conversation, Message, Project, Run, ToolCall
@@ -26,6 +27,8 @@ from tests.test_agy_agent import start as start_agy
 from tests.test_chat_flow import start_in_mode, text
 from tests.test_claim_scenarios import write
 from tests.test_codex_app_server_scenarios import ACCEPT, DECLINE, RUN, answers
+from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
+from tests.test_copilot_agent import start as start_copilot
 from tests.test_copy_scenarios import run
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_native_agent import start as start_native
@@ -453,8 +456,12 @@ def test_allow_such_deletes_on_its_card_turns_the_switch_on_and_runs_it_and_kolo
 
 
 @needs_git
+@pytest.mark.parametrize("dependencies", [False, True])
 def test_in_a_copy_a_build_folder_goes_without_a_card_but_not_one_holding_a_link(
-        make_client, wait_run, at_git, tmp_path):
+        make_client, wait_run, at_git, tmp_path, dependencies):
+    if dependencies:  # (linked into the copy: there any other recursive delete is asked)
+        (at_git / "node_modules" / "pkg").mkdir(parents=True)
+        (at_git / "node_modules" / "pkg" / "index.js").write_text("dep")
     made, linked = Gate(), Gate()
     client, _ = make_client({
         "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
@@ -535,3 +542,92 @@ def test_a_clis_delete_where_its_folder_is_its_models_word_or_not_known_is_never
     assert card["disposable"] is None
     assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
     wait_run(client, cid, run_id, 30)
+
+
+@needs_git
+def test_only_a_watched_turn_of_its_own_at_auto_edit_or_full_auto_gets_it_unasked(
+        make_client, at_git):
+    client, _ = make_client([])
+    runner = client.app.state.runner
+    pid = allowing(client, at_git, True)
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+
+    def allowed(mode="full_auto"):
+        assert client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode},
+                            headers=OWN).status_code == 200
+        ctx = Ctx(run_id="r", cid=cid, root=str(at_git), agent_id="a", role="Lead", tools=(),
+                  depth=0)
+        found = asyncio.run(runner._disposable(ctx, "git branch -D old", at_git, ".", False))
+        assert found["what"] == "branch old"
+        return found["allowed"]
+
+    assert allowed() is True and allowed("auto_edit") is True
+    assert allowed("ask") is False
+    # Not a turn nobody watches, a side of a comparison, a job while the user is away, a To-do
+    # task's turn.
+    for place in (runner._unwatched, runner._sides, runner._away_jobs):
+        place["r"] = "a"
+        assert allowed() is False
+        del place["r"]
+    runner._backlog_turns.add("r")
+    assert allowed() is False
+    runner._backlog_turns.discard("r")
+    assert client.patch(f"/api/projects/{pid}", json={"disposable_deletes": False},
+                        headers=OWN).status_code == 200
+    assert allowed() is False
+
+
+@needs_git
+def test_a_look_that_fails_is_no_disposable_delete_and_its_card_as_before(
+        make_client, wait_run, at_git, monkeypatch):
+    def broken(*_args, **_kwargs):
+        raise ValueError("a path on another drive")
+
+    monkeypatch.setattr(disposable, "what", broken)
+    client, _ = make_client([cmd("git branch -D old"), text("done")],
+                            executor=ScriptedExecutor([]))
+    allowing(client, at_git, True)
+    cid, run_id = start_in_mode(client, at_git, "full_auto")
+    card = proposed(client, cid, "git branch -D old")
+    assert card["disposable"] is None
+    assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
+
+
+@needs_git
+def test_a_delete_whose_folder_changed_while_the_turn_waited_is_asked(
+        make_client, wait_run, at_git, tmp_path):
+    client, _ = make_client([cmd("rm -rf build"), text("done")], executor=ScriptedExecutor([]))
+    runner = client.app.state.runner
+    looked = runner._keeps_answered
+    (tmp_path / "elsewhere").mkdir()
+
+    async def meanwhile(ctx, own=False):
+        # (a card of the turn waited for: another agent's link in the folder meanwhile)
+        junction(at_git / "build" / "in", tmp_path / "elsewhere")
+        await looked(ctx, own)
+
+    runner._keeps_answered = meanwhile
+    allowing(client, at_git, True)
+    cid, run_id = start_in_mode(client, at_git, "full_auto")
+    card = proposed(client, cid, "rm -rf build")
+    assert card["disposable"] is None and card["danger"]
+    snap = client.get(f"/api/conversations/{cid}").json()
+    assert snap["tool_calls"][0]["why_asked"] == disposable.CHANGED
+    assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+
+
+@needs_git
+def test_copilots_delete_from_a_new_shell_is_never_disposable(
+        copilot_native, wait_run, at_git):  # noqa: F811
+    # (as a delete in the scratch: 1.0.67 has no sandbox, and a link a script makes after the
+    # look is followed by the delete - `commands.scratch_delete_only`)
+    client, provider = copilot_native([{"shell": "git branch -D old"}, {"say": "ok"}],
+                                      version="1.0.105")
+    allowing(client, at_git, True)
+    cid, run_id = start_copilot(client, at_git, provider)
+    card = proposed(client, cid, "git branch -D old")
+    assert (card["cwd"], card["disposable"]) == (".", None)
+    assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
