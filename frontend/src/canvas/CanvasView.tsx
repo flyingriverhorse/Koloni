@@ -798,6 +798,8 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
     const node = byId.get(id)
     return node?.kind === 'team' ? (node.data as TeamData).team : nameOf(node?.agentId ?? '')
   }
+  // Who talked on a line, its 💬 says - where both ends are someone: a folded round (talk counted on a work line into it) is nobody.
+  const whoOn = (e: GraphEdge) => ([e.source, e.target].every(id => byId.get(id)?.agentId || byId.get(id)?.kind === 'team') ? `${whoOf(e.source)} ↔ ${whoOf(e.target)}` : undefined)
   const edges: Edge[] = graph.edges.filter(e => !e.plan).map(e => {
     const drawn = lineOf(e)
     const { talking, talkHue } = talkOf(e, drawn, talkHues)
@@ -813,7 +815,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       // (Its label, drawn apart from the line, fades with it.)
       ...(drawn.type && {
         // (Who the two are, wherever there is talk on it: its 💬 names them.)
-        data: { ...drawn.data, faded: !!lit && !lit.includes(e), ...(talkHue && { colour: talkHue }), ...(e.messages && { who: `${whoOf(e.source)} ↔ ${whoOf(e.target)}` }) },
+        data: { ...drawn.data, faded: !!lit && !lit.includes(e), ...(talkHue && { colour: talkHue }), ...(e.messages && { who: whoOn(e) }) },
       }),
       animated: e.active,
       // (Drawn by its own line where it is one of edges.tsx's.)

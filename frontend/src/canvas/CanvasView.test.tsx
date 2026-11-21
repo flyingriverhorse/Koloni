@@ -550,6 +550,36 @@ test('the user’s (4 Nov): a step’s earlier round is one line that opens in p
   expect(onSelect).toHaveBeenCalledTimes(1) // (opening a round picks nothing)
 })
 
+test('talk on a work line into a folded round names nobody on its 💬, not "an agent"', async () => {
+  const { measure, stage } = laidOut()
+  const step = (id: string, name: string, now: boolean, group = false) => ({ id, name, state: now ? ('now' as const) : ('next' as const), round: 0, room: false, own_check: false, left_out: [], group })
+  const ids = ['coder', 'rev', 'coder2', 'rev2']
+  const passes = ids.map((id, at) => ({ part: at % 2 ? 'reviews' : 'build', agents: [id] }))
+  const conv = convState({
+    conversation: {
+      ...conversation,
+      teams_mode: 'manual',
+      teams: [{ team_id: 'web', recipe_id: null, no_recipe: false, picked_by: 'user', why: null, state: { run_id: 't', team: 'Web app', recipe: 'Feature', status: 'running', why: null, steps: [step('build', 'Build', true), step('reviews', 'Reviews', false, true)], agents: ids, ended_ready: false, passes } }],
+    },
+    runs: [run('t')],
+    messages: [userMessage('t', 'Build it')],
+    agents: [
+      agent('t'),
+      ...ids.map(id =>
+        agent('t', 'completed', { id, name: { coder: 'Coder', rev: 'Reviewer', coder2: 'Coder 2', rev2: 'Reviewer 2' }[id], role_name: id.startsWith('rev') ? 'Reviewer' : 'Coder', parent_agent_id: 't', depth: 1, findings: id.startsWith('rev') ? [] : null }),
+      ),
+    ],
+    // (Counted on the work line from round 1's Reviewer to Coder 2: folded, its line starts at the round.)
+    channelMessages: [{ id: 'm1', run_id: 't', from_agent_id: 'coder2', to_agent_id: 'rev', kind: 'message', content: 'Why?', created_at: '2026-10-05T10:00:00Z' }],
+  })
+  render(<Slotted state={conv} selectedId={null} onSelect={() => {}} />)
+  await waitFor(() => expect(node('agent:coder2')).not.toBeNull())
+  measure()
+  stage(1200)
+  const talk = await screen.findByRole('button', { name: /1 message, the last: Why\?$/ })
+  expect(talk).toHaveAttribute('aria-label', '1 message, the last: Why?')
+})
+
 /** A line as drawn: its classes, its path's style, whether it has an arrow, and its label - null for none. */
 const look = (id: string) => {
   const line = document.querySelector(`.react-flow__edge[data-id="${id}"]`)
