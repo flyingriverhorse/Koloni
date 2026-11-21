@@ -3764,6 +3764,9 @@ class ProjectMemoryOut(BaseModel):
     rules: str | None
     # Whether they are the folder's .koloni/rules.md (slice 86c), kept in git with it.
     rules_kept: bool = False
+    # K-yargic: whether that file says other than the rules saved here, which Full auto's check
+    # of a harmful-looking command goes by.
+    rules_differ: bool = False
     # Why the folder's .koloni/rules.md is not read, as the page says it; null: it is, or is
     # not there.
     rules_not_read: str | None = None
