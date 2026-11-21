@@ -99,20 +99,25 @@ function ButtonLabel({ provider, model, rest, leadAuto, picked }: { provider?: s
 type Picked = { model: string; why: string | null }
 
 /**
- * The model Copilot's auto or fusion picked for this chat's latest turn, and Copilot's reason (`pickedWhy`): only where its Lead
- * ran on the routing the chat uses now, of that provider. (A turn that starts says nothing until Copilot says its pick.)
+ * The model Copilot's auto or fusion picked for this chat's latest turn (its run's Lead, as statusLine.ts reads it: not a
+ * comparison's other side), and Copilot's reason (`pickedWhy`): only where that Lead ran on the routing the chat uses now, of
+ * that provider. (A turn that starts says nothing until Copilot says its pick.)
  */
 function usePicked(provider: string | undefined, routing: string | null): Picked | null {
-  const lead = useApp(s => s.conv?.agents.findLast(a => a.depth === 0))
+  const lead = useApp(s => s.conv?.agents.find(a => a.depth === 0 && a.run_id === s.conv?.runs.at(-1)?.id))
   const ours = lead?.model_id && lead.provider_name === provider && lead.model_from === routing && autoPicked(routing)
-  return ours ? { model: modelName(lead.model_id), why: pickedWhy(lead.effort_note) } : null
+  return ours ? { model: modelName(lead.model_id), why: pickedWhy(lead.effort_note, lead.model_from, lead.model_id) } : null
 }
 
-/** The button's name and tooltip: what the chat uses (`nowOf`), with what Copilot's routing picked and why (`usePicked`). */
+/**
+ * The button's name and tooltip: what the chat uses (`nowOf`) - and, apart, what Copilot's routing picked for its last turn
+ * and why (`usePicked`): that model is not what its agents use.
+ */
 function buttonWords(label: string, leadAuto: boolean, picked: Picked | null) {
-  const now = picked ? `${label} → ${picked.model}` : label
-  const title = `${now}: the model this conversation's agents use${leadAuto ? '; the Orchestrator’s is chosen for each message by how hard it is' : ''}`
-  return { name: `Model: ${now}`, title: picked?.why ? `${title}\n${picked.why}` : title }
+  const use = `${label}: the model this conversation's agents use${leadAuto ? '; the Orchestrator’s is chosen for each message by how hard it is' : ''}`
+  if (!picked) return { name: `Model: ${label}`, title: use }
+  const ran = `Its last turn ran on ${picked.model}${picked.why ? `: ${picked.why}` : '.'}`
+  return { name: `Model: ${label}, last picked ${picked.model}`, title: `${use}. ${ran}` }
 }
 
 /** What a turn would use right now - the choice, or the first provider - and the button's words for it. */

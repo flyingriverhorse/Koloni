@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { expect, test, vi } from 'vitest'
 import { type AgentData, type DiscussionData, type PoData, type RequestData, type RoomData, type RoundData, statusWords } from './deriveGraph'
 import { AgentNode, AttachmentNode, DiscussionNode, PlanNode, PoNode, RequestNode, RoomNode, RoundNode } from './nodes'
+import { useApp } from '../state/store'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
 /** A node as the canvas draws it, outside any canvas: only what the node itself shows. */
@@ -46,7 +47,8 @@ test('the user’s (5 Nov): an agent’s node is three lines - name and model, i
   cleanup()
   draw(<AgentNode {...props('agent:kid', { ...coder, summary: '', provider: null, modelId: null })} />)
   expect(lines()).toEqual(['Coder 3 · model unknown', 'Done ✓'])
-  expect(screen.queryByRole('button')).toBeNull()
+  // (Its one button: its window's.)
+  expect(screen.getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual(["Open Coder 3's window"])
   expect(document.body).not.toHaveTextContent(/tokens|balanced|Raw/)
   // what it spent, where its provider counts so, ends the counts
   cleanup()
@@ -56,6 +58,40 @@ test('the user’s (5 Nov): an agent’s node is three lines - name and model, i
   cleanup()
   draw(<AgentNode {...props('agent:kid', { ...coder, provider: 'Copilot', modelId: 'gpt-6-luna', modelFrom: 'auto' })} />)
   expect(lines()[0]).toBe('Coder 3 · Copilot · auto → gpt-6-luna')
+})
+
+test('the user’s (21 Nov): an agent’s node opens its window from an icon at its head’s right - one action, by pointer or keyboard', async () => {
+  useApp.setState({ agentWindowId: null })
+  const picked = vi.fn()
+  render(
+    <ReactFlowProvider>
+      {/* (As the canvas's own handlers would: picking the node, or its double click, is not done too.) */}
+      <div onClick={picked} onDoubleClick={picked} onKeyDown={picked}>
+        <AgentNode {...props('agent:kid', coder)} />
+      </div>
+    </ReactFlowProvider>,
+  )
+  const open = screen.getByRole('button', { name: "Open Coder 3's window" })
+  expect(open).toHaveAttribute('title', "Open Coder 3's window")
+  expect(open.closest('.node-head')?.lastElementChild).toBe(open)
+  expect(open).toHaveClass('nodrag')
+  await userEvent.click(open)
+  expect(useApp.getState().agentWindowId).toBe('kid')
+  useApp.setState({ agentWindowId: null })
+  open.focus()
+  await userEvent.keyboard('{Enter}')
+  expect(useApp.getState().agentWindowId).toBe('kid')
+  expect(picked).not.toHaveBeenCalled()
+  cleanup()
+  // A finished agent's chip has it too, beside its button.
+  draw(<AgentNode {...props('agent:rev2', { ...coder, name: 'Reviewer 2', chip: { said: '1 blocking', colour: 'var(--warn)' } })} />)
+  await userEvent.click(screen.getByRole('button', { name: "Open Reviewer 2's window" }))
+  expect(useApp.getState().agentWindowId).toBe('rev2')
+  cleanup()
+  // Nothing but an agent has one.
+  draw(<RequestNode {...props('request:a', { text: 'Look', time: '2026-10-05T10:00:00Z', queued: false, trigger: null })} />)
+  expect(screen.queryByRole('button', { name: /window/ })).toBeNull()
+  useApp.setState({ agentWindowId: null })
 })
 
 test('its state in plain words: working at what, waiting for your OK (lit), done with what it found, failed with why, stopped', () => {

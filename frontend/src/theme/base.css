@@ -1776,6 +1776,22 @@ a.view-run {
   font-weight: var(--weight-title);
 }
 
+/* (Its name opens the Lead's window: a button that reads as the name.) */
+button.turn-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+button.turn-name:hover {
+  text-decoration: underline;
+}
+
 /* (Too narrow for both, the model gives way first: who answered is cut last.) */
 .turn-model {
   flex-shrink: 100;
@@ -1793,14 +1809,16 @@ a.view-run {
   font-size: var(--text-meta);
 }
 
-/* Copilot's own reason for the model its auto or fusion picked: one quiet line under the head, by its name, cut with an
-   ellipsis - whole in its tooltip. */
+/* Copilot's own reason for the model its auto or fusion picked: quiet, under the head by its name, two lines at most -
+   whole in its tooltip. */
 .turn-why {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   min-width: 0;
   margin: -6px 0 0 24px;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   color: var(--muted);
   font-size: var(--text-meta);
 }

@@ -3,6 +3,7 @@
 and an agent going on from it asks for the same routing again, with no level."""
 
 import json
+from dataclasses import replace
 
 import pytest
 from sqlalchemy import select
@@ -132,16 +133,47 @@ def test_a_fusion_pick_replaces_an_auto_one_on_record(
             lead.model_from, lead.effort_note = "auto", f"{before} {NOTE}"
             session.commit()
             ctx = runner._ctx_after(session, lead, session.get_one(Run, lead.run_id))
-        # (An old row's "auto" goes on with auto; what the client was asked for, fusion here, is
-        # what its next pick is marked with.)
+        # (An old row's "auto" goes on with auto...)
         assert ctx.model_name == "auto"
-        runner._ran_on(ctx, "gpt-7", "Harder this time.")
+        # ...and a Lead on fusion now runs as production builds it: its client and its name fusion's.
+        runner._ran_on(replace(ctx, model_name="fusion"), "gpt-7", "Harder this time.")
         with runner._factory() as session:
             lead = session.get_one(Agent, lead_id)
             assert (lead.model_id, lead.model_from) == ("gpt-7", "fusion")
             assert lead.effort_note == f"{before} Copilot's fusion picked gpt-7: “Harder this time.”"
             assert runner._ctx_after(session, lead, session.get_one(Run, lead.run_id)
                                      ).model_name == "fusion"
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_a_model_said_with_no_reason_of_its_own_is_not_given_the_one_before(
+    settings_env, tmp_path, project_dir, wait_run
+):
+    # (Review, 21 Nov: "fusion → gpt-7" stood over the reason fusion gave for gpt-6-luna.)
+    client, snap, _seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run,
+                                      routed="fusion")
+    runner, lead_id = client.app.state.runner, snap["agents"][0]["id"]
+    picked = f" Copilot's fusion picked gpt-6-luna: “{WHY}”"
+    try:
+        with runner._factory() as session:
+            lead = session.get_one(Agent, lead_id)
+            before = lead.effort_note.removesuffix(picked)
+            assert before != lead.effort_note
+            ctx = replace(runner._ctx_after(session, lead, session.get_one(Run, lead.run_id)),
+                          model_name="fusion")
+
+        def record():
+            with runner._factory() as session:
+                lead = session.get_one(Agent, lead_id)
+                return lead.model_id, lead.model_from, lead.effort_note
+
+        runner._ran_on(ctx, "gpt-7", None)  # (`why_picked`'s None; the failed turn's too, B-410)
+        assert record() == ("gpt-7", "fusion", before)
+        # ...while the model a reason was given for, said again with none, keeps it.
+        runner._ran_on(ctx, "gpt-8", "Hard.")
+        runner._ran_on(ctx, "gpt-8", None)
+        assert record() == ("gpt-8", "fusion", f"{before} Copilot's fusion picked gpt-8: “Hard.”")
     finally:
         client.__exit__(None, None, None)
 

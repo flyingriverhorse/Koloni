@@ -72,7 +72,8 @@ unread and how many things wait for you.
 - The chat reads at VS Code's sizes: answers and your messages at 13 px, headings at 16, 14 and 13 px, code at
   11.5 px. Each turn of the Orchestrator's has no card around it: a small head (who answered, with which
   model, when), its steps, its answer. Where GitHub Copilot's `auto` or `fusion` picked the model, the head
-  says so ("fusion → gpt-6-luna"), and a quiet line under it gives Copilot's own reason.
+  says so ("fusion → gpt-6-luna"), and a quiet line under it gives Copilot's own reason (two lines at most,
+  the whole of it in its tooltip). The Orchestrator's name in the head opens its window.
 - A step is a quiet row with an icon for its kind (a book reads, a pencil edits, a terminal runs), its file
   as a small pill. Two or more tool calls in a row by the same agent are one line, such as "Read 4 files,
   listed 4 folders"; the newest is open while it runs and closes once words come after it. A command opens
@@ -125,7 +126,7 @@ as this folder's default** keep the list.
 ## The canvas
 
 Every agent is a small box of at most three lines: its name and model, its state, and what it did,
-counted. An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
+counted. The window icon at the right of its name opens its window. An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
 (where its CLI tells them) and its tier or model: "pytest -q · 12s · ↓ 1.2k tokens · Fast". Where the box is
 narrow, the tier goes first, then the tokens, then the time; what it does is cut last. Its tools, commands and files are in the Inspector and its window (below). Lines show work
 handed to a sub-agent, agents that talked, findings handed on, and an agent waiting for a file another
@@ -183,8 +184,8 @@ Click an agent to open the **Inspector**, a short report card. From the top:
 
 Its model, how full its context is, and **Compact now** are in its window's **Details**.
 
-**Open window** opens the agent's whole story; so does a double click on its box. No agent's window opens by
-itself. Read from the top:
+**Open window** opens the agent's whole story; so do the window icon on its box, a double click on its box
+and, in the chat, the Orchestrator's name over its turn. No agent's window opens by itself. Read from the top:
 
 - its report;
 - **What it did**, told in a few plain steps. Reads in a row are one step ("Looked around — read 6 files,

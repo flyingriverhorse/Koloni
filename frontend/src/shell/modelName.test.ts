@@ -36,8 +36,13 @@ test('why Copilot’s auto or fusion picked a model is read from its note, as KO
   expect(autoPicked('fusion')).toBe('fusion → ')
   expect(autoPicked('settings')).toBe('')
   // (After the rest of its note: its level's.)
-  expect(pickedWhy(`high → none: auto takes no level. Copilot's fusion picked gpt-6-luna: “${why}”`)).toBe(why)
-  expect(pickedWhy(`Copilot's auto picked gpt-6-luna: “Easy "one".”`)).toBe('Easy "one".')
-  expect(pickedWhy('high → none: auto takes no level.')).toBeNull()
-  expect(pickedWhy(null)).toBeNull()
+  const note = `high → none: auto takes no level. Copilot's fusion picked gpt-6-luna: “${why}”`
+  expect(pickedWhy(note, 'fusion', 'gpt-6-luna')).toBe(why)
+  expect(pickedWhy(`Copilot's auto picked gpt-6-luna: “Easy "one".”`, 'auto', 'gpt-6-luna')).toBe('Easy "one".')
+  // Only for the model it was given for, by the routing that gave it (review, 21 Nov): never under another.
+  expect(pickedWhy(note, 'fusion', 'gpt-7')).toBeNull()
+  expect(pickedWhy(note, 'auto', 'gpt-6-luna')).toBeNull()
+  expect(pickedWhy(note, null, 'gpt-6-luna')).toBeNull()
+  expect(pickedWhy('high → none: auto takes no level.', 'fusion', 'gpt-6-luna')).toBeNull()
+  expect(pickedWhy(null, 'fusion', 'gpt-6-luna')).toBeNull()
 })

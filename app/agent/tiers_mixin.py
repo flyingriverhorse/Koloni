@@ -80,6 +80,12 @@ HOW_HARD = (
 MAP_FOR_FACTS = 5.0
 
 
+def _unpicked(note: str | None) -> str | None:
+    """An agent's note without the reason Copilot gave for its model (`AUTO_PICKED_SAID`): for a
+    model it was not given for."""
+    return AUTO_PICKED_SAID.sub("", note or "").strip() or None
+
+
 class TiersMixin:
     async def _by_how_hard(self: "AgentRunner", ctx: Ctx) -> Ctx:
         """Where the conversation has its lead's model follow the message: the first fast
@@ -159,6 +165,7 @@ class TiersMixin:
             if target is None:
                 return ctx
             ctx, mode = self._on(session, ctx, *target)
+            note = session.get_one(Agent, ctx.agent_id).effort_note
         self._ctxs[ctx.agent_id] = ctx
         said = kept.one_line(f"{read[1].lower()}: {read[2]}").rstrip(": ")
         self._set_agent(
@@ -167,6 +174,7 @@ class TiersMixin:
             model_id=ctx.model_name, model_from=None, tier=dict(target[0].tiers)[target[1]],
             # The model's words, cut to what a reason may be: nobody can be asked again.
             chosen_why=_then(said, moved)[:MAX_WHY],
+            effort_note=_unpicked(note),  # (Copilot's reason for a model it no longer runs on)
         )
         return ctx
 
@@ -337,9 +345,12 @@ class TiersMixin:
         if picked and why:  # (the CLI's words: one line each, cut, and no closing quote of ours)
             said = AUTO_PICKED.format(asked=picked, model=kept.one_line(model)[:200],
                                       why=kept.one_line(str(why)).replace("”", '"')[:MAX_WHY])
-            others = AUTO_PICKED_SAID.sub("", note or "").strip()
+            others = _unpicked(note) or ""
             if f"{others} {said}".strip() != note:
                 self._set_agent(ctx.cid, ctx.agent_id, effort_note=f"{others} {said}".strip())
+        elif not known and note and AUTO_PICKED_SAID.search(note):
+            # Another model, said with no reason of its own: the reason for the one before goes.
+            self._set_agent(ctx.cid, ctx.agent_id, effort_note=_unpicked(note))
         if known:
             return  # said again at every step: nothing new to tell anyone
         self._set_agent(ctx.cid, ctx.agent_id, model_id=model, model_from=picked)

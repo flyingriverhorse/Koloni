@@ -38,7 +38,17 @@ function lastAt(state: ConvState, run: Run, lead: Agent | undefined) {
 function modelOf(lead: Agent | undefined) {
   if (!lead?.model_id) return { model: null, why: null }
   const routed = autoPicked(lead.model_from)
-  return { model: routed + modelName(lead.model_id), why: routed ? pickedWhy(lead.effort_note) : null }
+  return { model: routed + modelName(lead.model_id), why: pickedWhy(lead.effort_note, lead.model_from, lead.model_id) }
+}
+
+/** Who answered: the Lead's name opens its window - where Tell reaches it at work, since none opens by itself (21 Nov). */
+function TurnName({ lead, name }: { lead: Agent | undefined; name: string }) {
+  if (!lead) return <span className="turn-name">{name}</span>
+  return (
+    <button type="button" className="turn-name" title="Open its window" onClick={() => useApp.getState().openAgentWindow(lead.id)}>
+      {name}
+    </button>
+  )
 }
 
 /** The turn's message read aloud now, if one is. */
@@ -63,7 +73,7 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits, l
         <span className="turn-avatar" aria-hidden>
           {name.charAt(0)}
         </span>
-        <span className="turn-name">{name}</span>
+        <TurnName lead={lead} name={name} />
         {model && <span className="turn-model">{model}</span>}
         {waits ? <span className="tag tag-warn">{WAITS}</span> : <time dateTime={at}>{when(at)}</time>}
       </div>

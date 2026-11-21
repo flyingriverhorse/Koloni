@@ -37,11 +37,19 @@ export const autoNothing = (asked: NonNullable<Asked>) =>
 /** Before a model Copilot's auto or fusion picked for an agent asked for it (`model_from` "auto", "fusion"); nothing before any other. */
 export const autoPicked = (modelFrom?: string | null) => (modelFrom === 'auto' || modelFrom === 'fusion' ? `${modelFrom} → ` : '')
 
-/** KOLONİ's own sentence on an agent's record (app/agent/tiers_mixin.py `AUTO_PICKED`), with Copilot's reason in it. */
-const PICKED_WHY = /Copilot's (?:auto|fusion) picked [^“]*: “([^”]*)”/
-
-/** Why Copilot's auto or fusion picked an agent's model, in Copilot's own words, as its note keeps it; null where it does not. */
-export const pickedWhy = (note?: string | null) => (note && PICKED_WHY.exec(note)?.[1]) || null
+/**
+ * Why Copilot's auto or fusion (`from`) picked `modelId`, in Copilot's own words, as KOLONİ's own sentence on the agent's note
+ * keeps it (app/agent/tiers_mixin.py `AUTO_PICKED`). Null where the note holds none for that model and routing: a reason is
+ * never shown under a model it was not given for.
+ */
+export function pickedWhy(note: string | null | undefined, from: string | null | undefined, modelId: string | null): string | null {
+  if (!note || !autoPicked(from)) return null
+  // shortcut: matched by the id as given; one the server wrote cut or joined (over 200 characters, a newline) shows no reason.
+  const head = `Copilot's ${from} picked ${modelId}: “`
+  const at = note.indexOf(head)
+  const end = at < 0 ? -1 : note.indexOf('”', at + head.length)
+  return end < 0 ? null : note.slice(at + head.length, end)
+}
 
 /**
  * Where an agent runs: its provider, its model, the tier of that model and the reasoning level its steps were

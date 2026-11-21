@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
-import { OWN, openFreshConversation, windowFromPanel } from './helpers'
+import { OWN, openFreshConversation } from './helpers'
 import { E2E_ROOT, FAKE_CLAUDE } from './paths.mjs'
 
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'sd-shots')
@@ -63,9 +63,9 @@ test.describe('telling Claude Code something while it works', () => {
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chat.getByText('Working on it.')).toBeVisible()
 
-    // Its window, opened from its node while it works (none opens by itself).
-    await page.locator('.react-flow__node-agent .node-title').click()
-    const window = await windowFromPanel(page)
+    // Its window, opened while it works from the icon at its node's right (none opens by itself).
+    await page.locator('.react-flow__node-agent').getByRole('button', { name: /^Open .+'s window$/ }).click()
+    const window = page.getByRole('region', { name: 'Agent window' })
     const tell = window.getByRole('textbox', { name: /^Tell / })
     await expect(tell).toBeVisible()
     await tell.fill('use blue')

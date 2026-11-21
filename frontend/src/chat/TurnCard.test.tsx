@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { when } from '../canvas/turns'
 import { agent, assistantMessage, convState, run, userMessage } from '../test-fixtures'
+import { useApp } from '../state/store'
 import { DEFAULTS, useVoice } from '../voice/voice'
 import { MessageList } from './MessageList'
 import { AnswerActions, TurnCard } from './TurnCard'
@@ -61,6 +62,30 @@ test('a Lead whose model Copilot’s fusion picked says so in its head, with Cop
   rerender(card(agent('r')))
   expect(container.querySelector('.turn-model')).toHaveTextContent(/^qwen$/)
   expect(container.querySelector('.turn-why')).toBeNull()
+  // A later model said with no reason of its own is not given the one before (review, 21 Nov).
+  rerender(card({ ...picked, model_id: 'gpt-7' }))
+  expect(container.querySelector('.turn-model')).toHaveTextContent(/^fusion → gpt-7$/)
+  expect(container.querySelector('.turn-why')).toBeNull()
+})
+
+test('the turn’s name opens its Lead’s window, by pointer or keyboard: where Tell reaches an agent at work', async () => {
+  useApp.setState({ agentWindowId: null })
+  const lead = agent('lead-1', 'running', { run_id: 'r' })
+  render(
+    <TurnCard state={convState({ runs: [run('r')], agents: [lead] })} run={run('r')} lead={lead} answer={undefined} summary={null} waits={false}>
+      the work
+    </TurnCard>,
+  )
+  const name = screen.getByRole('button', { name: 'Orchestrator' })
+  expect(name).toHaveAttribute('title', 'Open its window')
+  await userEvent.tab()
+  expect(name).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
+  expect(useApp.getState().agentWindowId).toBe('lead-1')
+  useApp.setState({ agentWindowId: null })
+  await userEvent.click(name)
+  expect(useApp.getState().agentWindowId).toBe('lead-1')
+  useApp.setState({ agentWindowId: null })
 })
 
 test('the foot holds Copy and Read aloud first, what it did at its right', () => {
