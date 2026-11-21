@@ -2999,33 +2999,32 @@ a.view-run {
   display: none;
 }
 
-/* Narrower: "Chat settings" is "Settings", and what waits "2 wait". */
+/* While the row under the box has no room for all its words (measured: `useTight`), "Chat settings" is "Settings", and
+   what waits "2 wait". */
+.composer-below[data-tight] :is(.sheet-long, .composer-waits-long) {
+  display: none;
+}
+
+.composer-below[data-tight] :is(.sheet-short, .composer-waits-short) {
+  display: inline;
+}
+
+/* Narrower: the model's lead words go (its tooltip and its window still say them). */
 @container composer (max-width: 450px) {
-  .sheet-long,
-  .composer-waits-long {
-    display: none;
-  }
-
-  .sheet-short,
-  .composer-waits-short {
-    display: inline;
-  }
-
-  /* (Its tooltip and its window still say it.) */
   .model-picker-lead {
     display: none;
   }
 }
 
-/* Narrowest (a 340-380px chat): New topic, Settings and More are their icons, with their names and tooltips; Send and
-   Queue too; the model on the line over the box is its arrow alone (its name in its tooltip); the other place a message
-   could go takes less. The level's name always stays. */
+/* Narrowest (a 340-380px chat): New topic and More are their icons, with their names and tooltips - Settings keeps its
+   word -; Send and Queue too; the model on the line over the box is its arrow alone (its name in its tooltip); the other
+   place a message could go takes less. The level's name always stays. */
 @container composer (max-width: 360px) {
   .composer-status .model-picker-label {
     display: none;
   }
 
-  .composer-below .composer-words,
+  .composer-below .composer-words:not(.chat-sheet-button *),
   .composer-say {
     position: absolute;
     width: 1px;
@@ -3034,7 +3033,7 @@ a.view-run {
     clip-path: inset(50%);
   }
 
-  .composer-below .composer-icon {
+  .composer-below .composer-icon:not(.chat-sheet-button *) {
     display: inline;
   }
 

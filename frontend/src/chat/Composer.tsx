@@ -639,8 +639,9 @@ function ComposerBelow(p: {
   children: ReactNode
 }) {
   const named = p.topic !== null && p.topic !== 'new' ? p.topic : null
+  const row = useTight()
   return (
-    <div className="composer-below" hidden={p.hidden}>
+    <div ref={row} className="composer-below" hidden={p.hidden}>
       {p.workspace}
       {/* The next message goes on with the topic it is in; pressed, it starts a new one (pressed again: it goes on). */}
       {named && (
@@ -670,6 +671,30 @@ function ComposerBelow(p: {
       <Waits waits={p.waits} />
     </div>
   )
+}
+
+/**
+ * While the row under the box has no room for all its words, it is `data-tight`: "Chat settings" is "Settings" and what
+ * waits "2 wait". Measured, not guessed from its width: after each render (what is in it may have changed) and as it is
+ * resized. (Only the row is watched: its fewer words do not change its own size.)
+ */
+function useTight() {
+  const row = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => fit(row.current))
+  useLayoutEffect(() => {
+    const at = row.current
+    if (!at || typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(() => fit(at))
+    watch.observe(at)
+    return () => watch.disconnect()
+  }, [])
+  return row
+}
+
+function fit(row: HTMLElement | null) {
+  if (!row) return
+  delete row.dataset.tight
+  if (row.scrollWidth > row.clientWidth) row.dataset.tight = ''
 }
 
 /** What waits for you outside this chat (tek-ev §1): its number and a few words, which open Ready for you. */

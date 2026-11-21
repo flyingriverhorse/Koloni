@@ -58,9 +58,9 @@ unread and how many things wait for you.
 - **Chat settings** opens this chat's own settings: its teams and folders (each opens its own panel),
   its page scripts, what runs without asking in it, and, read only, what it takes from its project. Its
   **All settings** opens [Settings](../settings.md#this-chat) at This chat.
-- In a narrow chat the model shows as its arrow alone (its tooltip and its window say the whole name), **Chat
-  settings** reads **Settings** and what waits reads "2 wait"; at
-  the narrowest **New topic**, **Settings** and **More** keep only their icon. The level always shows its name
+- In a narrow chat the model shows as its arrow alone (its tooltip and its window say the whole name); while the
+  row under the box has no room for all its words, **Chat settings** reads **Settings** and what waits reads
+  "2 wait"; at the narrowest **New topic** and **More** keep only their icon, **Settings** its word. The level always shows its name
   ("Ask", "Auto-edit", "Full auto").
 - Type `/` for slash commands: `/new`, `/room`, `/stop`, `/model`, `/mode`, `/plan`, `/compare`, a role's
   name to hand it a task, and your own commands (Settings › This project › Slash commands).

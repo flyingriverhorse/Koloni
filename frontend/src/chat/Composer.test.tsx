@@ -812,6 +812,43 @@ test('"N more wait elsewhere" is a quiet button under the box, only while someth
   expect(screen.queryByRole('button', { name: /^Open Ready for you/ })).toBeNull()
 })
 
+test('the row under the box is in fewer words ("Settings", "2 wait") while, measured, it has no room for all of them; with room, in all', () => {
+  let width = 400
+  let resized = () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe = vi.fn()
+      disconnect = vi.fn()
+      constructor(fit: () => void) {
+        resized = fit
+      }
+    },
+  )
+  // (jsdom lays nothing out: the row's words are 480 px long, 380 in fewer words.)
+  const row = (el: HTMLElement) => el.classList.contains('composer-below')
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    return row(this) ? width : 0
+  })
+  vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    return row(this) ? ('tight' in this.dataset ? 380 : 480) : 0
+  })
+  try {
+    const { container } = render(<Composer {...props} sheet={<p>its rows</p>} waits={{ count: 2, onOpen: vi.fn() }} />)
+    const below = container.querySelector<HTMLElement>('.composer-below')!
+    expect(below).toHaveAttribute('data-tight')
+    width = 500
+    act(() => resized())
+    expect(below).not.toHaveAttribute('data-tight')
+    width = 420
+    act(() => resized())
+    expect(below).toHaveAttribute('data-tight')
+  } finally {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  }
+})
+
 test('/model opens the model’s window while a turn runs too', async () => {
   const copilot = { id: 'p1', name: 'Copilot', kind: 'copilot_cli', default_model: 'gpt-6-luna', models: [] } as unknown as Provider
   const model = <ModelPicker providers={[copilot]} providerId={null} modelId={null} leadAuto onSave={vi.fn()} />

@@ -50,6 +50,7 @@ How to write an entry (every release looks the same):
 - **Chat**: a message still queued when KOLONİ restarted is no longer marked "Interrupted by a server restart" as if it had run: it says "Not sent: KOLONİ restarted", and its **Send** sends it as your newest message; nothing sends it by itself ([docs](docs/use/chat-and-canvas.md#writing-a-message)).
 - **Workspace**: a file you pick right after the page loads stays open; it fell back to "Pick a file in the tree." once KOLONİ had read the project's git branch. Only a switch to another branch opens the Workspace anew.
 - **Canvas**: an agent's line at work keeps what it does in sight: where its box (or the line over the message box) is narrow, its tier goes first, then its tokens, then its time, each whole - what it does is cut only after them; in the chat, a discussion's row keeps its name and topic and cuts what it says of itself first.
+- **Chat**: the row under the message box no longer runs past the chat's edge (it did in a 480 px chat while something waited elsewhere): **Chat settings** reads **Settings** and "2 more wait elsewhere" reads "2 wait" whenever the row has no room for all its words; in the narrowest chat **Settings** keeps its word beside the icons of **New topic** and **More**.
 
 ### Security
 
