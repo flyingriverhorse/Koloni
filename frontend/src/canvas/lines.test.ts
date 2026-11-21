@@ -1,9 +1,10 @@
 import { expect, test } from 'vitest'
-import type { Attachment, ChannelMessage, ChatTeam, ChatTeamState, Discussion, Room, Team } from '../api/types'
+import type { Attachment, ChannelMessage, ChatTeam, ChatTeamState, Discussion, DiscussionPost, Room, Team } from '../api/types'
 import { agent, command, conversation, convState, note, run, toolCall, userMessage } from '../test-fixtures'
 import { type AgentData, type RoundData, type TeamData, deriveGraph } from './deriveGraph'
-import { foldGraph, unfold } from './foldGraph'
-import { ARC_ROOM, ARC_STEP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, TEAM_HEAD, TEAM_PAD, arcPath, arcWay, arced, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberLine } from './layout'
+import { foldAll, foldGraph, unfold } from './foldGraph'
+import { ARC_ROOM, ARC_STEP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, TEAM_HEAD, TEAM_OUT, TEAM_PAD, arcPath, arcWay, arced, bendOf, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberFrame, memberLine } from './layout'
+import { oneTurn } from './turns'
 
 // K-canvas-dili (mockup W): a team's work line left to right in its recipe's order, one fork into a step and one join
 // out of it, findings back, talk with its last words, a door for the Lead and doors between frames - no line out of a frame.
@@ -209,19 +210,41 @@ test('discussions between teams stand in one lane left of Ready for you, in the 
   expect(first.y).toBeGreaterThan(ready.y + 24)
   const rest = g.nodes.filter(n => !n.parent && n.kind !== 'discussion' && n.kind !== 'ready')
   for (const n of rest) expect(box(n.id).x + box(n.id).width).toBeLessThan(first.x - DOOR_PAD)
-  // The lines: from a frame's right edge (the Lead's, over the turn), down the gap, in at the discussion's head - over no box.
-  const above = Math.min(...g.nodes.filter(n => !n.parent).map(n => box(n.id).y)) - DOOR_PAD / 2
-  const boxes = g.nodes.filter(n => !n.parent).map(n => box(n.id))
-  for (const e of g.edges.filter(e => e.member)) {
-    const frame = g.nodes.find(n => n.id === e.source)?.team
-    const points = memberLine(box(frame ?? e.source), !!frame, box(e.target), above)
-    expect(points.at(-1)).toEqual({ x: box(e.target).x, y: box(e.target).y + 20 })
-    for (const [a, b] of points.slice(1).map((p, i) => [points[i], p])) expect(crosses({ x1: a.x, y1: a.y, x2: b.x, y2: b.y }, boxes), e.id).toBe(false)
-  }
-  // A folded frame stands for its member.
+  // The lines: from a frame's right edge (the Lead's, out of its right and over the turn), down the gap, in at the
+  // discussion's left dot - over no box (`memberLines`).
+  memberLines(g)
+  // A folded frame stands for its member - and its line leaves out of its side, not up through the frames over it (21 Nov).
   const folded = foldGraph(deriveGraph(twoTeams({ discussions: [talk('d', at, ['wc', 'bc'])] })), { 'team:r:web': false })
   expect(ways(folded, e => e.target === 'discussion:d')).toEqual(['team:r:web>discussion:d', 'agent:bc>discussion:d'])
+  const all = deriveGraph(twoTeams({ discussions: [talk('d', at, ['wc', 'bc', 'r'])] }))
+  memberLines(foldGraph(all, foldAll(all, false)))
+  // The work turn of an approved plan: the Lead's line leaves by its right side, not up through the plan over it (21 Nov).
+  const plan = { text: 'x', status: 'approved' as const, model_id: 'big-model', strongest: false }
+  const planned = twoTeams({ runs: [run('p', 'completed', { plan_turn: true, plan }), run('r')], discussions: [talk('d', at, ['r', 'bc'])] })
+  const turn = foldGraph(oneTurn(deriveGraph(planned), 'r'), {})
+  expect(turn.nodes.some(n => n.id === 'planned:p')).toBe(true)
+  memberLines(turn)
 })
+
+/** Every member's line to the lane as the canvas draws it (CanvasView `lineOf`): into the discussion's left dot, over no box. */
+function memberLines(g: ReturnType<typeof deriveGraph>) {
+  const { positions, sizes } = layoutGraph(g.nodes, g.edges)
+  const box = (id: string) => ({ ...positions[id], ...(sizes[id] ?? { width: NODE_W, height: NODE_H }) })
+  const byId = new Map(g.nodes.map(n => [n.id, n]))
+  const above = Math.min(...g.nodes.filter(n => !n.parent).map(n => box(n.id).y)) - DOOR_PAD / 2
+  const boxes = g.nodes.filter(n => !n.parent).map(n => box(n.id))
+  const members = g.edges.filter(e => e.member)
+  expect(members.length).toBeGreaterThan(0)
+  for (const e of members) {
+    const frame = memberFrame(e.source, id => byId.get(id)?.team, id => byId.get(id)?.kind)
+    const points = memberLine(box(frame ?? e.source), !!frame, box(e.target), above)
+    expect(points.at(-1)).toEqual({ x: box(e.target).x, y: box(e.target).y + NODE_H / 2 })
+    // (A folded frame's: low out of its side, where its line to Ready leaves.)
+    const from = box(e.source)
+    if (byId.get(e.source)?.kind === 'team') expect(points[0], e.id).toEqual({ x: from.x + from.width, y: from.y + from.height - TEAM_OUT })
+    for (const [a, b] of points.slice(1).map((p, i) => [points[i], p])) expect(crosses({ x1: a.x, y1: a.y, x2: b.x, y2: b.y }, boxes), e.id).toBe(false)
+  }
+}
 
 test('a room the Lead opened with two teams’ leads stands in the lane, out of both frames; a room of one team’s stays in its frame', () => {
   // (Live, 5 Nov: the Orchestrator's room with the Web app and Docs leads was drawn in Web app's frame, by its first
@@ -240,6 +263,32 @@ test('a room the Lead opened with two teams’ leads stands in the lane, out of 
   const ready = positions[g.nodes.find(n => n.kind === 'ready')!.id]
   expect(positions['room:o'].x).toBeLessThan(ready.x)
   for (const frame of ['team:r:web', 'team:r:api']) expect(positions['room:o'].x).toBeGreaterThan(positions[frame].x + sizes[frame].width)
+})
+
+test('in the lane a room and a discussion between teams stand in the order they began, the room first when it opened first', () => {
+  // (deriveGraph puts every discussion before every room: a room opened first stood under a discussion held after it.)
+  const room = { id: 'o', run_id: 'r', agent_id: 'r', goal: 'One API?', status: 'working', outcome: null, why: null, created_at: at, members: ['wl', 'bl'].map(agent_id => ({ agent_id, role: 'Lead', status: 'in' })) } as unknown as Room
+  const later = '2026-10-05T11:00:00Z'
+  const talk = { id: 'd', run_id: 'r', agent_id: 'r', tool_call_id: 'x', topic: 'Ship it?', status: 'ended', outcome: 'agreed', round: 1, max_rounds: 3, created_at: later, ended_at: later, members: ['wc', 'bc'].map(agent_id => ({ agent_id, status: 'in', opened_here: false })) } as unknown as Discussion
+  const g = foldGraph(deriveGraph(twoTeams({ rooms: [room], discussions: [talk] })), {})
+  // Both in the lane: joined to their members by lines `member`.
+  expect(['room:o', 'discussion:d'].map(id => g.edges.some(e => e.member && e.target === id))).toEqual([true, true])
+  const { positions } = layoutGraph(g.nodes, g.edges)
+  const [o, d] = [positions['room:o'], positions['discussion:d']]
+  expect(d.x).toBe(o.x)
+  expect(o.y).toBeLessThan(d.y)
+})
+
+test('a discussion or room between teams names a team’s lead its coordinator, as the lead’s own box does', () => {
+  const teams = [['web', 'Web app'], ['api', 'Backend']].map(([id, name]) => ({ id, name, roles: [], lead: { name: `${name} lead` } }) as unknown as Team)
+  const leads = ['wl', 'bl']
+  const room = { id: 'o', run_id: 'r', agent_id: 'wl', lead_follows: 'on', goal: 'One API?', status: 'working', outcome: null, why: null, created_at: at, members: leads.map(agent_id => ({ agent_id, role: 'Lead', status: 'in' })) } as unknown as Room
+  const talk = { id: 'd', run_id: 'r', agent_id: 'r', tool_call_id: 'x', topic: 'Ship it?', status: 'running', outcome: null, round: 1, max_rounds: 3, created_at: at, ended_at: null, members: ['r', ...leads].map(agent_id => ({ agent_id, status: 'in', opened_here: false })) } as unknown as Discussion
+  const post = { id: 'p', discussion_id: 'd', agent_id: 'bl', kind: 'said', passed: false, content: 'Yes.', created_at: at } as unknown as DiscussionPost
+  const g = deriveGraph(twoTeams({ rooms: [room], discussions: [talk], discussionPosts: [post] }), teams)
+  const data = (id: string) => g.nodes.find(n => n.id === id)?.data
+  expect(data('discussion:d')).toMatchObject({ members: ['Orchestrator', 'Web app coordinator', 'Backend coordinator'], last: [{ who: 'Backend coordinator', text: 'Yes.' }] })
+  expect(data('room:o')).toMatchObject({ members: ['Web app coordinator · at work', 'Backend coordinator · at work'], watched: 'Watched by Web app coordinator · can post, invite, end' })
 })
 
 test('findings from outside a frame, or from another frame, come in at its door; talk with an agent outside, too', () => {
@@ -657,6 +706,16 @@ function crossing(turn: ReturnType<typeof drawn>) {
     expect(line.at.x, e.id).toBeGreaterThan(right)
   }
 }
+
+test('21 Nov: the Orchestrator’s line into a frame goes straight to its door, bent half way - the lines of two teams share that trunk', () => {
+  // (The Orchestrator's dot is about 21 px from an open frame's door: React Flow's 20 px stubs crossed and stepped back.)
+  expect(bendOf(514, 535)).toEqual({ centerX: 524.5, offset: 0 })
+  // Farther - a door's line into its first column, a work line, a line to Ready for you - on the bus or just left of the
+  // column it goes to, as before; and so a line drawn leftward (talk with no team, a dragged card), never under the cards.
+  expect(bendOf(500, 545)).toEqual({ centerX: 525 })
+  expect(bendOf(800, 1000, 900)).toEqual({ centerX: 900 })
+  expect(bendOf(600, 300)).toEqual({ centerX: 280 })
+})
 
 test('5 Nov: Evolve with its earlier rounds opened: no line of it runs under a card or over its header', () => {
   const [one, two] = ['round:team:r:web:build:0', 'round:team:r:web:build:1']

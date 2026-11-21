@@ -480,6 +480,9 @@ def test_a_long_speech_is_cut_to_fit_the_shared_place(make_client, wait_run, pro
     snap = wait_run(client, cid, run_id)
     post = snap["discussion_posts"][0]
     assert len(post["content"]) < 1600 and post["content"].endswith("[the rest was cut]")
+    # the speaker was told the limit before it spoke, and that more is cut
+    told = prompt_of(model.calls_of["Coder"][1])
+    assert "at most 1500 characters" in told and "cut" in told
     talk = snap["discussions"][0]
     assert client.post(f"/api/discussions/{talk['id']}/posts",
                        json={"content": "y" * 1501}).status_code == 422

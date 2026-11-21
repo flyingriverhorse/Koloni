@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from 'vitest'
 import { AgentSteps } from '../agents/AgentSteps'
 import { ApiError } from '../api/client'
 import { EVENT_TYPES } from '../api/sse'
-import type { Merge, Provider, Role, Room, RoomItem, RoomPost } from '../api/types'
+import type { Merge, Provider, Role, Room, RoomItem, RoomPost, Team } from '../api/types'
 import { deriveGraph } from '../canvas/deriveGraph'
 import { copyLine } from '../changes/copies'
 import { ChatPanel } from '../chat/ChatPanel'
@@ -268,6 +268,25 @@ test('B-167: paused, a member held once its step is over is "paused" in the tags
   // Resumed, it is at work again.
   panel(convState({ ...held, rooms: [room({ members: held.rooms[0].members })] }))
   expect(screen.getByRole('region', { name: 'The room' })).toHaveTextContent('Coder · at work')
+})
+
+test('paused, the room stops looking busy on the canvas: its card, and the lines of the members it holds; one still finishing its step keeps its moving line', () => {
+  const held = convState({
+    ...state,
+    agents: [...state.agents.filter(a => a.id !== 'coder'), member('coder', 'Coder', 'waiting'), member('tester', 'Tester', 'running')],
+    rooms: [room({ paused: true, members: [...room().members, { agent_id: 'tester', role: 'Tester', status: 'in' }] })],
+    toolCalls: [toolCall('9', 'r', 'wait_for_post', 'running', '{}', { agent_id: 'rev' })],
+  })
+  const { nodes, edges } = deriveGraph(held)
+  expect(nodes.find(n => n.kind === 'room')!.data).toMatchObject({ running: false })
+  expect(edges.filter(e => e.target === 'room:o').map(e => [e.source, e.active])).toEqual([['agent:coder', false], ['agent:rev', false], ['agent:tester', true]])
+  const doing = (id: string) => (nodes.find(n => n.id === id)!.data as { activity: string }).activity
+  // Its box says what the room's tags say: the Reviewer, "waiting for a post" there, is not one the Pause holds.
+  expect([doing('agent:coder'), doing('agent:rev'), doing('agent:lead')]).toEqual(['Paused with the room', 'Waiting for a post in the room', 'Waiting for the room'])
+  // Resumed, it is at work again.
+  const resumed = deriveGraph(convState({ ...held, rooms: [room({ members: held.rooms[0].members })] }))
+  expect(resumed.nodes.find(n => n.kind === 'room')!.data).toMatchObject({ running: true })
+  expect(resumed.edges.filter(e => e.target === 'room:o').map(e => e.active)).toEqual([true, false, true])
 })
 
 test('tokens no model reported are said to be none reported, not a zero', () => {
@@ -789,6 +808,19 @@ test('on the canvas the room is a node of its own, by the lead that waits for it
   expect(copyLine(state, state.agents[0])).toBe('holds the room’s copy')
 })
 
+test('the Lead in a room is the Orchestrator on its card, as on its own node', () => {
+  const withLead = convState({ ...state, rooms: [room({ members: [...room().members, { agent_id: 'lead', role: 'Lead', status: 'in' }] })] })
+  expect(deriveGraph(withLead).nodes.find(n => n.kind === 'room')!.data).toMatchObject({ members: ['Coder · at work', 'Reviewer · waiting for a post', 'Orchestrator · at work'] })
+})
+
+test('a team’s lead in a room is its coordinator in the side panel, as on the room’s card', () => {
+  const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' } } as unknown as Team
+  useApp.setState({ teams: [docs] })
+  const s = convState({ ...state, agents: state.agents.map(a => (a.id === 'coder' ? { ...a, name: 'Docs lead' } : a)) })
+  render(<Inspector state={s} selectedId="room:o" onClose={() => {}} />)
+  expect(screen.getByText('Docs coordinator · at work · Reviewer · waiting for a post')).toBeInTheDocument()
+})
+
 test('the room’s node opens a panel that says where it stands, and a way into its window', async () => {
   const onOpenRoom = vi.fn()
   render(<Inspector state={state} selectedId="room:o" onClose={() => {}} onOpenRoom={onOpenRoom} />)
@@ -891,7 +923,8 @@ test('R178: the Orchestrator watching a room is said on its window and its card,
   expect(screen.getByRole('region', { name: 'The room' })).toHaveTextContent(said)
   expect(screen.getAllByText('watching')).toHaveLength(1) // (its post, not a member's)
   const node = deriveGraph(watched).nodes.find(n => n.kind === 'room')!
-  expect(node.data).toMatchObject({ watched: said, last: [expect.anything(), { who: 'Orchestrator (watching)', text: 'Keep it short.' }] })
+  // (Its card shows its goal, whole as far as it fits; who opened it is on the line under it and in its window.)
+  expect(node.data).toMatchObject({ goal: 'Fix the greeting together', watched: said, last: [expect.anything(), { who: 'Orchestrator (watching)', text: 'Keep it short.' }] })
   cleanup()
   panel() // (nobody follows it: nothing is said)
   expect(screen.queryByText(/Watched by/)).toBeNull()

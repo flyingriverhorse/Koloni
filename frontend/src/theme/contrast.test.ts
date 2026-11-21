@@ -2,6 +2,7 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
+import { teamColours } from '../agents/teamRun'
 
 const css = readFileSync(new URL('./tokens.css', import.meta.url), 'utf8')
 const base = readFileSync(new URL('./base.css', import.meta.url), 'utf8')
@@ -103,6 +104,18 @@ const lab = (hex: string) => {
   return [116 * y - 16, 500 * (x - y), 200 * (y - z)]
 }
 const distance = (a: string, b: string) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]))
+// A colour given as `hsl(h s% l%)` - a team's frame - as hex.
+const fromHsl = (colour: string) => {
+  const [h, s, l] = (colour.match(/[\d.]+/g) ?? []).map(Number)
+  const a = (s / 100) * Math.min(l / 100, 1 - l / 100)
+  const at = (n: number) => {
+    const k = (n + h / 30) % 12
+    return (l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))) * 255
+  }
+  return hex([at(0), at(8), at(4)])
+}
+// Every team's colour: six teams take all six.
+const teamFrames = [...teamColours(['a', 'b', 'c', 'd', 'e', 'f']).values()].map(fromHsl)
 
 test('muted text is a visible step from faint text in the dark theme (K-38f1)', () => {
   // (The light theme's two are as close; only the dark one was asked for.)
@@ -122,6 +135,14 @@ for (const [name, theme] of [
   test(`the strong border is seen against the grounds, in the ${name} theme`, () => {
     for (const bg of ['--bg', '--surface'])
       expect(ratio(theme['--border-strong'], theme[bg]), `--border-strong on ${bg}`).toBeGreaterThanOrEqual(3)
+  })
+
+  test(`a member's line to its discussion is seen, and told apart from a sub-agent's grey, the honey of work and a team's frame it leaves, in the ${name} theme`, () => {
+    for (const bg of ['--bg', '--surface'])
+      expect(ratio(theme['--member-line'], theme[bg]), `--member-line on ${bg}`).toBeGreaterThanOrEqual(3)
+    for (const other of ['--border-strong', '--accent'])
+      expect(distance(theme['--member-line'], theme[other]), `--member-line from ${other}`).toBeGreaterThanOrEqual(15)
+    for (const team of teamFrames) expect(distance(theme['--member-line'], team), `--member-line from a team's ${team}`).toBeGreaterThanOrEqual(15)
   })
 }
 

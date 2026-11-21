@@ -34,7 +34,7 @@ test('an agent notes a fact from a file, you approve it, later agents are given 
   // Nobody was given anything, one note was written: the Lead's, on the card beside it - on hover, who wrote what.
   await expect(memoryNodes).toHaveCount(1)
   await expect(memoryNodes).toHaveText('memory1 written')
-  await expect(memoryNodes).toHaveAttribute('title', `Lead: ${FACT} · settings.txt:2-2 · put forward`)
+  await expect(memoryNodes).toHaveAttribute('title', `Orchestrator: ${FACT} · settings.txt:2-2 · put forward`)
 
   // The Memory page has it on the line of what waits for your word, with its source and how that stands.
   await rail(page, 'Memory').click()

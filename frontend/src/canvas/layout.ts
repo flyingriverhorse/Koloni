@@ -51,14 +51,15 @@ export const BLOCK_ROW = 20
 export const BLOCK_PAD = 6
 const CARD_EDGE = 1
 export const CARD_GAP = 24
-/** Where a frame's line to Ready for you leaves it, over its foot (canvas.css .team-out), and room over that for its handle. */
+/** Where a frame's line to Ready for you leaves it - its dot's middle - over its foot (canvas.css .team-out), and room over that for its handle. */
 export const TEAM_OUT = 18
 const OUT_ROOM = 12
 /** Where the lines come into Ready for you, under its top (canvas.css .ready-door); the discussions' lane starts under that. */
 const READY_DOOR = 24
 const LANE_UNDER = 2 * ROW_GAP
-/** Where a member's line comes into a discussion in the lane: by its header. */
-const MEMBER_IN = 20
+/** Where a member's line comes into a discussion in the lane: at its left dot, half way down (21 Nov: it came in by its
+ * header, 20 px over an empty dot). */
+const MEMBER_IN = NODE_H / 2
 
 /** A card's height; and how far down it its line comes in: by whose it is, or by its first row. */
 export const blockSize = (data: SharedData) => ({
@@ -92,6 +93,9 @@ export interface Layout {
 }
 
 type Line = { x1: number; y1: number; x2: number; y2: number }
+
+/** Discussions and rooms in the order they began; one with no time on record keeps its place (a stable sort's tie). */
+const began = (a: GraphNode, b: GraphNode) => (a.at && b.at ? a.at.localeCompare(b.at) : 0)
 
 /**
  * Left-to-right, one block per run: the request, then the agent tree. Every agent is a
@@ -147,8 +151,9 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     const roots = agents.filter(a => !agents.some(p => key(p) === parentOf(a)))
     // The shared places: rooms, and discussions by their opener. One between teams (its lines `member`) is in the lane
     // (below): by its opener, its lines to members in other frames ran through the frames between (the user, 4 Nov).
-    const lane = own.filter(n => TALL.has(n.kind) && edges.some(e => e.member && e.target === n.id))
-    const talks = ['room', 'discussion'].flatMap(kind => own.filter(n => n.kind === kind && !lane.includes(n)))
+    // Both in the order they began: a discussion held before a room opened stands over it.
+    const lane = own.filter(n => TALL.has(n.kind) && edges.some(e => e.member && e.target === n.id)).sort(began)
+    const talks = ['room', 'discussion'].flatMap(kind => own.filter(n => n.kind === kind && !lane.includes(n))).sort(began)
     // A room whose opener is not drawn stands by the turn's first agent.
     const opener = (talk: GraphNode) => (agents.some(a => key(a) === talk.agentId) ? talk.agentId : roots[0] && key(roots[0]))
     const byId = new Map(own.map(n => [n.id, n]))
@@ -162,9 +167,9 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
       const arcs = edges.filter(e => team && arced(e) && byId.get(e.source)?.team === team && byId.get(e.target)?.team === team).length
       return arcs ? ARC_ROOM + (arcs - 1) * ARC_STEP : 0
     }
-    // Everyone's card - the Lead's, contracts/, decisions/, or only the way to all the shared files: beside the Lead,
-    // level with it, on a short line from it; what hangs off the Lead starts under it.
-    const everyone = own.find(n => n.kind === 'shared' && n.id === `shared:${runId}:top`)
+    // Everyone's card: beside the Lead - each side's, in a compare turn -, level with it, on a short line from it; what
+    // hangs off the Lead starts under it.
+    const everyone = everyoneCards(own, edges, roots, runId)
     const head = (team: string) => TEAM_HEAD + Math.max(arcOf(team), columnsOf(team).some(column => column.atOnce) ? AT_ONCE_HEAD : 0)
     const foot = (team: string) => TEAM_PAD + TEAM_FOOT + arcOf(team)
 
@@ -199,7 +204,10 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     }
 
     /** The room everyone's card takes under the Lead's box, beside which it stands; none under any other. */
-    const underEveryone = (agent: GraphNode) => (everyone && agent === roots[0] ? blockSize(everyone.data as SharedData).height + ROW_GAP : 0)
+    const underEveryone = (agent: GraphNode) => {
+      const card = everyone.find(([lead]) => lead === agent)?.[1]
+      return card ? blockSize(card.data as SharedData).height + ROW_GAP : 0
+    }
     /** The room between `before` and a child not of its team: the foot of the frame that ends, the header of the one that starts. */
     const frameRoom = (before: GraphNode | null, child: GraphNode) => (before?.team ? foot(before.team) + (child.team ? FRAME_GAP : 0) : 0) + (child.team ? head(child.team) : 0)
     /** A child laid out - with its frame, where that is laid out by its work line; returns the height used. */
@@ -273,7 +281,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // the first height in its box that crosses no box. A contract's on an arm from its request's line, low in the gap.
     // Each card, where it would lie on a box or another card, moves right past it.
     // shortcut: a line that would still cross a box is not drawn (the card stays); route it round if that is met.
-    used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, roots[0], everyone, used)
+    used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, everyone, used)
     used = besideTurn(own, talks, lane, top, used, positions, sizes)
     used += poUnder(own, top + used, positions)
     const under = filesUnder(own, runId, top, positions, box)
@@ -312,8 +320,25 @@ interface Cards extends Placing {
   draw: (id: string, line: Line, ...but: string[]) => void
 }
 
-/** The turn's cards placed (`lead`: its first agent; `everyone`: everyone's card); returns the height the turn uses, from `used`. */
-function sharedCards(placing: Placing, lead: GraphNode | undefined, everyone: GraphNode | undefined, used: number): number {
+/**
+ * Everyone's card - the Lead's, contracts/, decisions/, or only the way to all the shared files - with the Lead it stands
+ * beside (of `roots`; none: no agent is drawn). A compare turn has one for each side's Lead (21 Nov): found by its line,
+ * as it keeps its own run's id.
+ */
+function everyoneCards(own: GraphNode[], edges: GraphEdge[], roots: GraphNode[], runId: string): [GraphNode | undefined, GraphNode][] {
+  const first = own.find(n => n.kind === 'shared' && n.id === `shared:${runId}:top`)
+  if (!roots.length) return first ? [[undefined, first]] : []
+  const lineTo = (root: GraphNode) => own.find(n => n.kind === 'shared' && n.id.endsWith(':top') && edges.some(e => e.shared && e.source === root.id && e.target === n.id))
+  const pairs: [GraphNode, GraphNode][] = []
+  for (const root of roots) {
+    const card = lineTo(root) ?? (root === roots[0] ? first : undefined)
+    if (card) pairs.push([root, card])
+  }
+  return pairs
+}
+
+/** The turn's cards placed (`everyone`: everyone's cards, each with its Lead); returns the height the turn uses, from `used`. */
+function sharedCards(placing: Placing, everyone: [GraphNode | undefined, GraphNode][], used: number): number {
   const { own, edges, positions, sizes, lines, byId, top } = placing
   const cards = own.filter(n => n.kind === 'shared')
   if (!cards.length) return used
@@ -336,9 +361,9 @@ function sharedCards(placing: Placing, lead: GraphNode | undefined, everyone: Gr
     if (!crosses(line, [...boxesBut(...but), ...taken.slice(0, -1)])) lines[id] = line
   }
   const laying: Cards = { ...placing, taken, rectOf, boxesBut, put, lineOf, draw }
-  if (everyone) everyoneCard(laying, everyone, lead)
+  for (const [lead, card] of everyone) everyoneCard(laying, card, lead)
   const fromOf = (card: GraphNode) => byId.get(lineOf(card)?.source ?? '')
-  const others = cards.filter(card => card !== everyone).sort((a, b) => (positions[fromOf(a)?.id ?? '']?.y ?? Infinity) - (positions[fromOf(b)?.id ?? '']?.y ?? Infinity))
+  const others = cards.filter(card => !everyone.some(([, one]) => one === card)).sort((a, b) => (positions[fromOf(a)?.id ?? '']?.y ?? Infinity) - (positions[fromOf(b)?.id ?? '']?.y ?? Infinity))
   const arm = (card: GraphNode) => Boolean(lineOf(card)?.shared?.arm)
   for (const card of others.filter(card => !arm(card) && fromOf(card)?.kind === 'team')) {
     const line = lineOf(card)!
@@ -496,15 +521,25 @@ export const requestFrom = (e: GraphEdge, edges: GraphEdge[]) =>
 
 /**
  * A member's line to a discussion in the lane (the user, 4 Nov: joined by lines, none through a frame): out of its frame's
- * right edge low, under its card, where its line to Ready leaves - or, an agent with no frame, up over the turn at
- * `over` - across to a bus in the gap left of the lane, down (or up) it and in at the discussion's head.
- * shortcut: an agent with no frame under another in its column (not the Lead) goes up through it; route it round if met.
+ * right edge low, under its card, where its line to Ready leaves - or, an agent with no frame, out of its right side
+ * near its top and up beside it over the turn at `over` (21 Nov: up from its top it ran through an approved plan over the
+ * Orchestrator; near the top, clear of the Everyone card's line) - across to a bus in the gap left of the lane, down (or
+ * up) it and in at the discussion's left dot.
+ * shortcut: an agent with no frame under another in its column, or under a frame, goes up through it; route it round if met.
  */
 export function memberLine(from: Point & Size, framed: boolean, to: Point, over: number): Point[] {
-  const start = framed ? [{ x: from.x + from.width, y: from.y + from.height - TEAM_OUT }] : [{ x: from.x + from.width / 2, y: from.y }, { x: from.x + from.width / 2, y: over }]
+  const [side, high] = [from.x + from.width, from.y + 8]
+  const start = framed ? [{ x: side, y: from.y + from.height - TEAM_OUT }] : [{ x: side, y: high }, { x: side + DOOR_PAD / 2, y: high }, { x: side + DOOR_PAD / 2, y: over }]
   const [bus, y] = [to.x - DOOR_PAD, to.y + MEMBER_IN]
   return [...start, { x: bus, y: start[start.length - 1].y }, { x: bus, y }, { x: to.x, y }]
 }
+
+/**
+ * The frame a member's line to the lane leaves (`memberLine`): its agent's (`frameOf`), or - folded - the frame that
+ * stands for it (`kindOf` says so): out of its side, not up through the frames over it (21 Nov). None: an agent of no frame.
+ */
+export const memberFrame = (id: string, frameOf: (id: string) => string | undefined, kindOf: (id: string) => string | undefined) =>
+  frameOf(id) ?? (kindOf(id) === 'team' ? id : undefined)
 
 /** Where a request's line keeps from a frame's corner, so it never runs along an edge of either frame; and its step. */
 export const REQUEST_INSET = 24
@@ -588,6 +623,18 @@ export function arcWay(e: GraphEdge, nodes: GraphNode[], edges: GraphEdge[], rec
   const [room, foot] = [ARC_ROOM + (arcs.length - 1) * ARC_STEP, (nodes.find(n => n.id === frame)?.data as GroupData | undefined)?.finished ? TEAM_FOOT : 0]
   const band = over ? box.y + TEAM_HEAD + room - (ARC_ROOM * 3) / 4 - ring * ARC_STEP : box.y + box.height - TEAM_PAD - foot - room + ARC_ROOM / 2 + ring * ARC_STEP
   return { source: me.source, target: me.target, turned: me !== e, band, ring, into: over ? ('top' as const) : under ? ('foot' as const) : ('side' as const) }
+}
+
+/**
+ * Where a line across bends (edges.tsx `LaneEdge`): on its bus (a line to Ready for you), else just left of the column it
+ * goes to. The Orchestrator's dot stands about 21 px from an open frame's door, so React Flow's 20 px stubs crossed there
+ * and stepped back (21 Nov): a line that close goes straight to the door, bent half way - and two or three teams' lines
+ * share that trunk. (Only rightward: a line drawn leftward keeps its bend, never under the cards.)
+ */
+export function bendOf(sourceX: number, targetX: number, bus?: number): { centerX: number; offset?: number } {
+  const gap = targetX - sourceX
+  if (bus === undefined && gap > 0 && gap < DOOR_PAD) return { centerX: sourceX + gap / 2, offset: 0 }
+  return { centerX: bus ?? targetX - DOOR_PAD / 2 }
 }
 
 /**
@@ -821,13 +868,14 @@ function straight(points: Point[]): Point[] {
 }
 
 /**
- * A frame's own line - from its door, or between two of its nodes, not on an arc - as the canvas draws it: its ends (talk
- * with an agent of an earlier column is drawn from that one), and its points where it goes round a card (`laneLine`);
- * none: React Flow draws it from its handles (`laneLegs`). `boxes`: the frame's nodes and its walls (`wallsOf`).
+ * A frame's own line - from its door, or between two of its nodes, not on an arc - as the canvas draws it: its ends (a
+ * line to a node of an earlier column - a member's to its room, a helper's spawn line - is drawn from that one, `turned`:
+ * its arrow at its start), and its points where it goes round a card (`laneLine`); none: React Flow draws it from its
+ * handles (`laneLegs`). `boxes`: the frame's nodes and its walls (`wallsOf`).
  */
-export function frameLine(e: GraphEdge, rect: (id: string) => Point & Size, door: boolean, boxes: (Point & Size)[]): { source: string; target: string; points: Point[] | null } {
+export function frameLine(e: GraphEdge, rect: (id: string) => Point & Size, door: boolean, boxes: (Point & Size)[]): { source: string; target: string; points: Point[] | null; turned: boolean } {
   const [s, t] = [rect(e.source), rect(e.target)]
   const turned = !door && !stacked(s, t) && t.x < s.x
   const [source, target] = turned ? [e.target, e.source] : [e.source, e.target]
-  return { source, target, points: laneLine(rect(source), rect(target), door, boxes) }
+  return { source, target, points: laneLine(rect(source), rect(target), door, boxes), turned }
 }

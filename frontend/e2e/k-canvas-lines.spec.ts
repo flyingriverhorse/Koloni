@@ -155,8 +155,17 @@ for (const theme of ['light', 'dark'] as const) {
         }),
       )
     await expect.poll(down).toEqual([false, false, true, false])
-    // The Lead goes in at each team's door.
+    // The Lead goes in at each team's door - straight on, its path never stepping back (21 Nov: React Flow's stubs crossed
+    // there, an S-bend into each door).
     await expect(page.locator(`.react-flow__edge[data-id="door:${(record.agents as Json[])[0].id}>team:${runId}:web"]`)).toHaveCount(1)
+    const back = () =>
+      page.locator('.react-flow__edge[data-id^="door:"] path.react-flow__edge-path').evaluateAll(all =>
+        all.map(path => {
+          const xs = [...(path.getAttribute('d') ?? '').matchAll(/(-?[\d.]+)[ ,](-?[\d.]+)/g)].map(m => Number(m[1]))
+          return xs.some((x, i) => i > 0 && x < xs[i - 1] - 0.5)
+        }),
+      )
+    await expect.poll(back).toEqual([false, false])
     // Findings back, said on their arc; talk with its last words; the line across with its doors.
     // (In the order they were drawn: two once their rounds were opened.)
     await expect(page.locator('.edge-arc')).toHaveCount(3)

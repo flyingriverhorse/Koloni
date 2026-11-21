@@ -1,13 +1,14 @@
+import { titleOf } from '../agents/agentStatus'
 import { turnTeams } from '../agents/teamRun'
 import type { Agent, BoardPost, Run } from '../api/types'
 import { TERMINAL, activeRun, type ConvState } from '../state/applyEvent'
 import { messageTime } from '../topics/topics'
 
-/** Who wrote a note; a note with no agent is yours, or KOLONİ's own (the note it writes as a turn ends, G7). */
+/** Who wrote a note - the Lead is the Orchestrator; a note with no agent is yours, or KOLONİ's own (the note it writes as a turn ends, G7). */
 export function writerOf(state: ConvState, post: BoardPost): string {
   if (post.koloni) return 'KOLONİ'
   if (post.agent_id === null) return 'You'
-  return state.agents.find(a => a.id === post.agent_id)?.name || 'Agent'
+  return titleOf(state.agents.find(a => a.id === post.agent_id)?.name || 'Agent')
 }
 
 /** A note's element, by its id: where the canvas's notebook row opens the Notes tab (K-shared-bagli). */
@@ -82,5 +83,5 @@ export function readLine(state: ConvState, post: BoardPost): string {
   const { read, unread } = readersOf(state, post)
   if (read.length + unread.length === 0) return post.team && !post.everyone ? `for ${post.team} only · handed to nobody yet` : 'no other agent at this work'
   const line = `handed to ${read.length} of ${read.length + unread.length}`
-  return unread.length > 0 ? `${line} · not yet to ${unread.map(a => a.name || 'Agent').join(', ')}` : line
+  return unread.length > 0 ? `${line} · not yet to ${unread.map(a => titleOf(a.name || 'Agent')).join(', ')}` : line
 }

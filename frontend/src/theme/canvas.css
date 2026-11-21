@@ -294,10 +294,12 @@
 }
 
 /* batch-26: where a frame's line to Ready for you leaves it - low on its right edge (layout.ts TEAM_OUT), under the
-   card at its top-right; the layout makes a frame tall enough for that. */
+   card at its top-right; the layout makes a frame tall enough for that. Its middle right at TEAM_OUT (21 Nov): where a
+   member's dotted line to a discussion between teams leaves too (memberLine), so the two leave from one point. */
 .react-flow__handle.team-out {
   top: auto;
   bottom: 18px;
+  transform: translate(50%, 50%);
 }
 
 /* A recipe's steps at once, round their agents in the frame: a dashed box, its name at its top. */

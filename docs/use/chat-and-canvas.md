@@ -111,13 +111,22 @@ box shows what they said to each other, titled "*A* ↔ *B*". Drag it by its tit
 arrow keys on its grip. This browser keeps one place for it, the same in every chat. A double click on
 its title, or Enter on its grip, puts it back.
 
-A plan turn (see [Plan first](plan-first.md#on-the-canvas)) shows a small **Plan** node. In the work
-turn of an approved plan, the plan stands over the Orchestrator, on a dashed line down to it.
+A plan turn (see [Plan first](plan-first.md#on-the-canvas)) shows a small **Plan** node under your
+message, on a short dashed line down from it. In the work turn of an approved plan, the plan stands over
+the Orchestrator, on a dashed line down to it.
+
+In a turn with no team, a discussion or room stands in the column after the agent that opened it, above
+its members; several stand in the order they began. The dotted line of each member under it, in a colour
+of its own, goes round the right side of that column and comes into the discussion or room from the
+right, with an arrow; an opener that takes part comes in at its left, from the column before. An agent
+waiting for a file another agent in its column holds is joined to it the same way. Click a discussion or
+a room to light the agents in it.
 
 In a turn with teams, each team has a frame. Discussions and rooms between teams stand in a lane of their
 own, outside every frame; a room opened with two teams' leads stands there too. A member's dotted line
-runs from its team's frame to the lane; the legend calls it "A member's line to its discussion or room
-(between teams, from its frame to the lane)".
+runs from its team's frame to the lane; the legend calls it "A member's line to its discussion or room:
+with no team, from the members under it round the right of their column and in at its side, with an
+arrow; between teams, from its frame to the lane".
 
 Where the **Assistant PO** was asked after the turn, a small **Assistant PO** box stands under the turn,
 on a dashed line down from the Orchestrator. It shows the model asked, how many tasks it proposed and

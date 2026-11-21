@@ -2,10 +2,12 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { AgentWindow } from '../agents/AgentWindow'
-import type { Discussion, DiscussionPost } from '../api/types'
+import type { Discussion, DiscussionPost, Team } from '../api/types'
 import { deriveGraph } from '../canvas/deriveGraph'
 import { MessageList } from '../chat/MessageList'
+import { Inspector } from '../inspector/Inspector'
 import { applyEvent } from '../state/applyEvent'
+import { useApp } from '../state/store'
 import { agent, assistantMessage, convState, openAgentFold, run, toolCall, userMessage } from '../test-fixtures'
 import { DiscussionWindow } from './DiscussionWindow'
 
@@ -89,12 +91,12 @@ test('the canvas has the shared place as a node, joined to everyone in it', () =
   expect(node?.data).toMatchObject({
     topic: 'Ship it?',
     line: 'Round 2 of 3',
-    members: ['Coder', 'Reviewer', 'Lead'],
+    members: ['Coder', 'Reviewer', 'Orchestrator'],
     speaking: 'Reviewer',
     running: true,
   })
   expect((node?.data as { last: { who: string; text: string }[] }).last).toEqual([
-    { who: 'Lead', text: 'Yes, ship it.' },
+    { who: 'Orchestrator', text: 'Yes, ship it.' },
     { who: 'You', text: 'Add a changelog.' },
   ])
   const joined = edges.filter(e => e.target === 'discussion:d')
@@ -103,6 +105,23 @@ test('the canvas has the shared place as a node, joined to everyone in it', () =
   expect(joined.find(e => e.source === 'agent:coder')?.active).toBe(false)
   // the call that opened it is drawn as the discussion, not counted as a tool
   expect(nodes.flatMap(n => (n.data as { summary?: string }).summary || [])).toEqual([])
+})
+
+test('while it runs, its opener and the members opened for it say what they wait for; an invited agent keeps its own wait', () => {
+  const talking = {
+    ...state,
+    agents: [agent('r', 'waiting', { id: 'lead' }), sub('coder', 'Coder', 'waiting'), sub('rev', 'Reviewer', 'waiting'), sub('doc', 'Docs', 'waiting')],
+    discussions: [talk({ members: [
+      { agent_id: 'coder', status: 'in', opened_here: false },
+      { agent_id: 'rev', status: 'in', opened_here: true },
+      { agent_id: 'doc', status: 'left', opened_here: true },
+      { agent_id: 'lead', status: 'in', opened_here: false },
+    ] })],
+  }
+  const doing = (state: typeof talking, id: string) => (deriveGraph(state).nodes.find(n => n.id === `agent:${id}`)!.data as { activity: string }).activity
+  expect(['lead', 'rev', 'doc', 'coder'].map(id => doing(talking, id))).toEqual(['Waiting for the discussion', 'Waiting for its turn to speak', 'Left the discussion', 'Waiting for a sub-agent'])
+  // (Over, it is no longer what they wait for.)
+  expect(doing({ ...talking, discussions: [talk({ status: 'ended', outcome: 'agreed' })] }, 'rev')).toBe('Waiting for a sub-agent')
 })
 
 test('an ended discussion says how it ended', () => {
@@ -143,13 +162,20 @@ test('an agent’s own window leaves out what it said in the shared place', () =
   expect(screen.queryByText('Tests first.')).not.toBeInTheDocument()
 })
 
+test('the Lead speaking in its discussion is called the Orchestrator, on its card and in its window', () => {
+  const speaking = { ...state, agents: state.agents.map(a => (a.id === 'lead' ? { ...a, status: 'running' as const } : a.id === 'rev' ? { ...a, status: 'waiting' as const } : a)) }
+  expect(deriveGraph(speaking).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({ speaking: 'Orchestrator' })
+  render(<DiscussionWindow state={speaking} discussionId="d" onClose={() => {}} onSay={async () => {}} onEnd={async () => {}} />)
+  expect(screen.getByText('Orchestrator is speaking…')).toBeInTheDocument()
+})
+
 test('the discussion window shows everything said, and the user can speak and end it', async () => {
   const onSay = vi.fn(async () => {})
   const onEnd = vi.fn(async () => {})
   render(<DiscussionWindow state={state} discussionId="d" onClose={() => {}} onSay={onSay} onEnd={onEnd} />)
   const region = screen.getByRole('region', { name: 'Discussion' })
   const text = region.textContent ?? ''
-  const order = ['Ship it?', 'Coder · Reviewer · Lead', 'Round 1', 'Tests first.', 'Reviewer has nothing to add', 'Yes, ship it.', 'You', 'Add a changelog.']
+  const order = ['Ship it?', 'Coder · Reviewer · Orchestrator', 'Round 1', 'Tests first.', 'Reviewer has nothing to add', 'Yes, ship it.', 'You', 'Add a changelog.']
   expect(screen.getByText('Round 2')).toBeInTheDocument()  // the divider; the header says "Round 2 of 3"
   expect(order.map(piece => text.indexOf(piece)).every((at, i, all) => at >= 0 && (i === 0 || at >= all[i - 1]))).toBe(true)
   expect(screen.getByText('Reviewer is speaking…')).toBeInTheDocument()
@@ -184,4 +210,19 @@ test('the raw steps of an agent leave out what it said in a discussion', async (
   const steps = await openAgentFold('Every step as recorded')
   expect(within(steps).getByText('My own report.')).toBeInTheDocument()
   expect(screen.queryByText('Tests first.')).not.toBeInTheDocument()
+})
+
+test('a team’s lead in a discussion is its coordinator in the side panel, as on the discussion’s card', () => {
+  const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' } } as unknown as Team
+  const s = { ...state, agents: state.agents.map(a => (a.id === 'coder' ? { ...a, name: 'Docs lead' } : a)) }
+  // (The store is reset for each file, not each test: its teams put back.)
+  const before = useApp.getState().teams
+  useApp.setState({ teams: [docs] })
+  try {
+    render(<Inspector state={s} selectedId="discussion:d" onClose={() => {}} />)
+    expect(screen.getByText('Docs coordinator · Reviewer · Orchestrator')).toBeInTheDocument()
+    expect(screen.getByText('Docs coordinator:')).toBeInTheDocument()
+  } finally {
+    useApp.setState({ teams: before })
+  }
 })

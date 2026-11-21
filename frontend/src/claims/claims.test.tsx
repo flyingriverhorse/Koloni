@@ -3,7 +3,7 @@ import { type Node, type NodeProps, ReactFlowProvider } from '@xyflow/react'
 import type { ReactNode } from 'react'
 import { expect, test, vi } from 'vitest'
 import { AgentWindow } from '../agents/AgentWindow'
-import type { Snapshot } from '../api/types'
+import type { Snapshot, Team } from '../api/types'
 import { type AgentData, deriveGraph } from '../canvas/deriveGraph'
 import { AgentNode } from '../canvas/nodes'
 import { turnRows } from '../canvas/turns'
@@ -11,6 +11,7 @@ import { MessageList } from '../chat/MessageList'
 import { Inspector } from '../inspector/Inspector'
 import { RunStatus } from '../shell/RunStatus'
 import { applyEvent, fromSnapshot } from '../state/applyEvent'
+import { useApp } from '../state/store'
 import { agent, assistantMessage, convState, fileChange, run, toolCall, userMessage } from '../test-fixtures'
 import { callWaits, heldBy, holderOf, waitLine } from './claims'
 
@@ -71,8 +72,29 @@ test('only the write call of the agent that waits reads as waiting', () => {
 test('B-140: a file another chat holds names that chat, and says when your answer there frees it', () => {
   const elsewhere = { ...waitingFor, agent_name: 'Lead', path: 'calc.py', conversation_id: 'other', conversation_title: 'median', asks_you: true }
   const there = { ...state, agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: elsewhere } : a)) }
-  expect(callWaits(there, there.toolCalls[1])).toBe('waiting for Lead in «median» to finish with calc.py: that chat waits for your answer there')
-  expect(waitLine(there.agents[2], there.conversation.id)).toBe('waits for Lead in «median» · calc.py')
+  expect(callWaits(there, there.toolCalls[1])).toBe('waiting for Orchestrator in «median» to finish with calc.py: that chat waits for your answer there')
+  expect(waitLine(there.agents[2], there.conversation.id)).toBe('waits for Orchestrator in «median» · calc.py')
+})
+
+test('a wait for the Lead names the Orchestrator - and one for a team’s lead its coordinator - on the box and in the side panel', () => {
+  const forLead = { agent_id: 'lead', agent_name: 'Lead', path: 'a.py' }
+  const s = { ...state, agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: forLead } : a)), claims: [{ path: 'a.py', agent_id: 'lead' }] }
+  expect(agentData(deriveGraph(s), 'agent:coder2').activity).toBe('waits for Orchestrator · a.py')
+  const { rerender } = render(<Inspector state={s} selectedId="agent:coder2" onClose={() => {}} />)
+  expect(screen.getByRole('note')).toHaveTextContent('Waits for Orchestrator to finish with a.py. It goes on when Orchestrator is done with the file.')
+  // (As its timeline lane and its own card say.)
+  const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' }, lead_on: true } as unknown as Team
+  const forDocs = { ...s, agents: s.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: { ...forLead, agent_name: 'Docs lead' } } : a)) }
+  expect(agentData(deriveGraph(forDocs, [docs]), 'agent:coder2').activity).toBe('waits for Docs coordinator · a.py')
+  // (The store is reset for each file, not each test: its teams put back.)
+  const before = useApp.getState().teams
+  useApp.setState({ teams: [docs] })
+  try {
+    rerender(<Inspector state={forDocs} selectedId="agent:coder2" onClose={() => {}} />)
+    expect(screen.getByRole('note')).toHaveTextContent('Waits for Docs coordinator to finish with a.py.')
+  } finally {
+    useApp.setState({ teams: before })
+  }
 })
 
 test('who holds what comes with the snapshot, and again whenever it changes - with an id or without', () => {

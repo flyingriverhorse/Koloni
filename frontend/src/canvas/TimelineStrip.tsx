@@ -51,7 +51,8 @@ const SIGN: Record<string, [sign: string, kind: string]> = { failed: ['✕', 'ba
  */
 export function TimelineStrip({ state, runId, onOpen, onClose }: Props) {
   const [now, setNow] = useState(Date.now)
-  const line = useMemo(() => timeline(state, runId, now), [state, runId, now])
+  const teams = useApp(s => s.teams)
+  const line = useMemo(() => timeline(state, runId, now, teams), [state, runId, now, teams])
   const atWork = line?.atWork ?? false
   useEffect(() => {
     if (!atWork) return

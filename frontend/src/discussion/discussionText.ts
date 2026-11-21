@@ -1,4 +1,5 @@
-import type { Agent, Discussion } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
+import type { Agent, Discussion, Team } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 
 const OUTCOME: Record<NonNullable<Discussion['outcome']>, string> = {
@@ -30,7 +31,8 @@ export function speakerOf(state: ConvState, discussion: Discussion): Agent | und
   return state.agents.find(a => members.has(a.id) && a.status === 'running')
 }
 
-export function nameIn(state: ConvState, agentId: string | null): string {
+/** What a discussion calls one in it, as the canvas calls its agent: the Lead is the Orchestrator, a team's lead (given `teams`) its coordinator; "You" for nobody. */
+export function nameIn(state: Pick<ConvState, 'agents'>, agentId: string | null, teams: Team[] = []): string {
   if (agentId === null) return 'You'
-  return state.agents.find(a => a.id === agentId)?.name || 'Agent'
+  return titleOf(state.agents.find(a => a.id === agentId)?.name || 'Agent', teams)
 }
