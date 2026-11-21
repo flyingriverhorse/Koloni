@@ -257,7 +257,8 @@
   border-bottom-color: transparent;
 }
 
-.group-fold {
+.group-fold,
+.node-open {
   flex: none;
   display: grid;
   place-items: center;
@@ -272,7 +273,8 @@
   cursor: pointer;
 }
 
-.group-fold:hover {
+.group-fold:hover,
+.node-open:hover {
   background: var(--hover);
   color: var(--text);
 }
@@ -1717,6 +1719,16 @@ button.shared-row:hover,
 .node-chip,
 .node-round {
   height: 32px;
+}
+
+/* (A chip's window icon at its right, beside its button.) */
+.node-chip {
+  display: flex;
+  align-items: center;
+}
+
+.node-chip .node-open {
+  margin: 0 8px 0 -4px;
 }
 
 .node-round {

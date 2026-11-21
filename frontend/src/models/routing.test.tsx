@@ -1,7 +1,9 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Provider } from '../api/types'
+import { useApp } from '../state/store'
+import { agent, convState, run } from '../test-fixtures'
 import { namedOf } from './levels'
 import { ModelPicker } from './ModelPicker'
 import { ModelsPage } from './ModelsPage'
@@ -103,4 +105,38 @@ test('a routing saved from the chat sends each row’s agents as the Models tab 
     ['fusion', false, undefined],
     ['gpt-x', false, undefined],
   ])
+})
+
+test('the chat’s model button says the model fusion picked for the chat’s latest turn, and Copilot’s reason in its tooltip', () => {
+  const why = 'Copilot Fusion selected GPT-6 Luna since the task has low complexity.'
+  const picker = (modelId: string) => <ModelPicker providers={[github()]} providerId="gh" modelId={modelId} onSave={async () => {}} />
+  const { rerender } = render(picker('fusion'))
+  const button = screen.getByRole('button', { name: /^Model:/ })
+  // Before a turn ran on it: what was chosen.
+  expect(button).toHaveTextContent(/^fusion · Copilot$/)
+  const lead = (id: string, model_id: string, model_from: string, note: string) =>
+    agent(id, 'completed', { provider_name: 'Copilot', model_id, model_from, effort_note: `Copilot's ${model_from} picked ${model_id}: “${note}”` })
+  const turns = (agents: ReturnType<typeof agent>[]) =>
+    act(() => useApp.setState({ conv: convState({ runs: [run('r1', 'completed'), run('r2', 'completed')], agents }) }))
+  // (The latest turn's Lead: of its run - a comparison's other side, whose Lead started after it, is not it.)
+  turns([lead('r2', 'gpt-6-luna', 'fusion', why), lead('r1', 'gpt-7', 'fusion', 'Hard.')])
+  expect(button).toHaveTextContent(/^fusion → gpt-6-luna · Copilot$/)
+  // Its name and tooltip say what the chat uses, and what its last turn ran on - not that agents use that.
+  expect(button).toHaveAccessibleName('Model: Copilot · fusion, last picked gpt-6-luna')
+  expect(button).toHaveAttribute('title', `Copilot · fusion: the model this conversation's agents use. Its last turn ran on gpt-6-luna: ${why}`)
+  // (The latest turn's Lead ran elsewhere - its role's own model, say: no pick of an older turn's is shown for it.)
+  turns([lead('r1', 'gpt-6-luna', 'fusion', why), agent('r2', 'completed', { provider_name: 'Local' })])
+  expect(button).toHaveTextContent(/^fusion · Copilot$/)
+  expect(button).toHaveAccessibleName('Model: Copilot · fusion')
+  expect(button.title).not.toContain(why)
+  // (A later model said with no reason: no reason of the model before under it.)
+  turns([{ ...lead('r2', 'gpt-6-luna', 'fusion', why), model_id: 'gpt-7' }])
+  expect(button).toHaveTextContent(/^fusion → gpt-7 · Copilot$/)
+  expect(button).toHaveAttribute('title', "Copilot · fusion: the model this conversation's agents use. Its last turn ran on gpt-7.")
+  // (A pick of auto's is not fusion's: the chat moved on from it.)
+  turns([lead('r2', 'gpt-6-luna', 'fusion', why)])
+  rerender(picker('auto'))
+  expect(button).toHaveTextContent(/^auto · Copilot$/)
+  expect(button.title).not.toContain(why)
+  act(() => useApp.setState({ conv: null }))
 })

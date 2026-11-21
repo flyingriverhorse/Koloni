@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type APIRequestContext, type Locator, type Page } from './fixtures'
-import { OWN, editRole, openAgentFold, openFreshConversation } from './helpers'
+import { OWN, editRole, openAgentFold, openFreshConversation, windowFromPanel } from './helpers'
 import { FAKE_CLAUDE } from './paths.mjs'
 
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'ga-shots')
@@ -83,7 +83,8 @@ test.describe('a role run inside Claude Code', () => {
     // Not an agent of KOLONİ's: counted on its Lead's node; its block in the Lead's window says which role it runs as.
     await expect(page.locator('.react-flow__node-agent')).toHaveCount(1)
     await expect(page.locator('.react-flow__node-agent')).toContainText('1 own sub-agent')
-    const steps = await openAgentFold(page.getByRole('region', { name: 'Agent window' }), 'Every step as recorded')
+    await page.locator('.react-flow__node-agent .node-title').click()
+    const steps = await openAgentFold(await windowFromPanel(page), 'Every step as recorded')
     const sub = steps.getByRole('group', { name: /^Own sub-agent/ })
     await sub.getByRole('button').first().click()
     await expect(sub).toContainText('Checker (inside Claude Code)')

@@ -782,14 +782,10 @@ export const useApp = create<AppStore>()((set, get) => {
     if (moved || ['claims.changed', 'agent.created', 'run.updated', 'run.finished'].includes(type)) void get().loadBoard()
   }
 
-  /** The window an event of the open conversation opens: an agent's own, a room's, a discussion's. */
+  /** The window an event of the open conversation opens: a room's, a discussion's. */
   function openWindowOn(type: string, payload: unknown) {
-    // An agent that works with its own tools shows its work in its own window.
-    if (type === 'agent.created') {
-      const started = payload as { id: string; provider_name: string | null }
-      const provider = get().providers.find(p => p.name === started.provider_name)
-      if (provider?.mode === 'native' || provider?.mode === 'reads') set({ agentWindowId: started.id })
-    }
+    // Never an agent's (the user's, 21 Nov): the chat shows a turn's work, and on a native provider its Lead's window
+    // opened on every message. It opens from its node, the Inspector or a link.
     // A room is something to watch too: its window opens over the canvas as it opens - the focus left where it is.
     // (Another's window open - the user may be writing in it: the new one comes as a tab beside it.)
     if (type === 'room.created') {

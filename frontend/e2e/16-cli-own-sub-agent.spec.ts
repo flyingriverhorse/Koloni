@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from './fixtures'
-import { OWN, openFreshConversation, openAgentFold } from './helpers'
+import { OWN, openFreshConversation, openAgentFold, windowFromPanel } from './helpers'
 import { FAKE_CLAUDE } from './paths.mjs'
 
 /** The stand-in provider is taken off the list, however many of it there are. */
@@ -54,9 +54,10 @@ test.describe('with Claude Code working natively as a provider', () => {
     await expect(lead).toContainText('1 own sub-agent')
     await expect(page.locator('.react-flow__node-subagent')).toHaveCount(0)
 
-    // An agent that works with its own tools has its window open. There the sub-agent is
-    // one block among its steps, with its task, its work and its report.
-    const steps = await openAgentFold(page.getByRole('region', { name: 'Agent window' }), 'Every step as recorded')
+    // Its window, opened from its node as the user opens it (none opens by itself): there the sub-agent is one block
+    // among its steps, with its task, its work and its report.
+    await lead.locator('.node-title').click()
+    const steps = await openAgentFold(await windowFromPanel(page), 'Every step as recorded')
     const block = steps.getByRole('group', { name: 'Own sub-agent: Look around' })
     await expect(block).toContainText('done')
     await block.getByRole('button', { name: /Look around/ }).click()

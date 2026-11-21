@@ -262,6 +262,23 @@ def test_one_stopped_with_its_work_kept_on_its_branch_is_gone_on_with_only_in_a_
             one.name, one.role, one.provider, one.model, one.status, one.task, one.turn)
 
 
+@pytest.mark.parametrize("routed", ["auto", "fusion"])
+def test_an_earlier_agent_copilot_s_routing_picked_for_is_offered_on_that_routing(
+    make_client, wait_run, project_dir, routed
+):
+    """What the Lead of a later turn is told of an earlier agent Copilot's auto or fusion picked a
+    model for: that routing, which it goes on with (`_ran_on_before`), not the model it picked."""
+    client, model, pid, cid, first, old = two_turns_then(make_client, wait_run, project_dir)
+    with db(client) as session:
+        row = session.get_one(Agent, old["id"])
+        row.model_id, row.model_from = "gpt-6-luna", routed
+        session.commit()
+    turn(client, wait_run, cid, SECOND)
+    told = offered(model, SECOND)[0]
+    (line,) = [line for line in told.splitlines() if line.startswith("- Coder")]
+    assert f"Local · {routed};" in line and "gpt-6-luna" not in line, line
+
+
 def test_only_an_agent_opened_by_the_lead_itself_is_gone_on_with(
     make_client, wait_run, project_dir
 ):

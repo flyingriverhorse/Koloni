@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, type APIRequestContext, type Page, test } from './fixtures'
-import { OWN, contrasts, openAgentFold, openFreshConversation, settled, shot } from './helpers'
+import { OWN, contrasts, openAgentFold, openFreshConversation, settled, shot, windowFromPanel } from './helpers'
 import { E2E_ROOT, PYTHON, REPO_ROOT } from './paths.mjs'
 
 // 89j: while Claude Code works natively, its node says how full its context is by its own count (`get_context_usage`,
@@ -50,11 +50,13 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Send' }).click()
 
     const node = page.locator('.react-flow__node-agent')
-    // (How full its context is, its window says under Details: its node is three lines - the user's, 5 Nov.)
-    await openAgentFold(page.getByRole('region', { name: 'Agent window' }), 'Details')
+    // (How full its context is, its window says under Details: its node is three lines - the user's, 5 Nov. Opened from
+    // its node while it works: none opens by itself.)
+    await node.locator('.node-title').click()
+    await openAgentFold(await windowFromPanel(page), 'Details')
     await expect(page.getByRole('region', { name: 'Agent window' }).getByText('17% full')).toBeVisible({ timeout: 15_000 })
     await node.click()
-    // (Its window opened as it started: the inspector does not show it a second time, R160.)
+    // (Its window is open: the inspector does not show it a second time, R160.)
     await expect(page.getByRole('complementary', { name: 'Inspector' }).getByText('Shown in its window.')).toBeVisible()
     await expect(page.getByRole('region', { name: 'Agent window' }).getByText('17% full')).toBeVisible()
     await settled(page)

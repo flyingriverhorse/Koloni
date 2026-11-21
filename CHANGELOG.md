@@ -49,6 +49,7 @@ How to write an entry (every release looks the same):
 - **Chat**: the "While you're away" card is gone, with its **Start**, **Change the list**, **Not now** and its row in Ready for you: ☾ Away and the Orchestrator's Go away line take its place; Run the backlog and Try again wait until you are back ([docs](docs/automation/overnight.md)).
 - **Chat**: Plan first is set in the permission level's menu only (or with `/plan`): the button beside the level under the message box is gone, and while Plan first is on the level says so ("Auto-edit · plan").
 - **CLIs**: GitHub Copilot CLI 1.0.114, which speaks a newer protocol, runs **Native** again: KOLONİ asks before every tool of Copilot's own through a hook of its own, never letting one through by itself, and each of Copilot's PowerShell commands starts in the project folder. KOLONİ asks Copilot its version and protocol as it starts it - an update Copilot made of itself reaches KOLONİ too; a version of the older protocol not measured with KOLONİ, a Copilot that does not say its version, or a protocol KOLONİ does not know, runs as **One session per agent**, and the provider's card on the Models page says why in one line ([docs](docs/models/setup-cli.md#github-copilot-cli)).
+- **Chat**, **CLIs**: on GitHub Copilot CLI's `auto` or `fusion`, the Orchestrator's turn head names the model Copilot picked ("fusion → gpt-6-luna") with Copilot's own reason on a quiet line under it (two lines at most), and the model button over the message box says it too ("fusion → gpt-6-luna · Copilot"; what its last turn ran on, and why, in its tooltip). A reason shows only under the model it was given for ([docs](docs/models/setup-cli.md#github-copilot-cli)).
 
 ### Fixed
 
@@ -61,6 +62,8 @@ How to write an entry (every release looks the same):
 - **Chat**: a kept working copy's long folder path now wraps on its card in a narrow chat; it made the whole chat scroll sideways.
 - **CLIs**: GitHub Copilot CLI run **Native** on models other than Claude (such as gpt-6-luna or mai-code-2-flash) can change files again: it is given Copilot's own `apply_patch`, the only file tool those models have, and each file of a patch is its own card, as a write is; refusing one refuses the whole patch ([docs](docs/models/setup-cli.md#github-copilot-cli)).
 - **Models**, **CLIs**: GitHub Copilot CLI's card on the Models page names the version KOLONİ runs, which KOLONİ asks Copilot as it starts it, no longer the number a plain `copilot --version` says; an error that Copilot could not be asked before it acts names that version too.
+- **Chat**, **Canvas**: an agent's window no longer opens by itself when it starts (on any provider, Lead or sub-agent): on a **Native** provider the Orchestrator's window opened on every message. Open it from its node - the new window icon at the right of its name, or a double click -, from **Open window** in the Inspector, or from the Orchestrator's name over its turn in the chat ([docs](docs/use/chat-and-canvas.md#the-canvas)).
+- **CLIs**: a model GitHub Copilot CLI's `fusion` picked now says fusion and goes on with fusion: before, fusion's picks were recorded as `auto`, and an agent that went on from one asked for `auto` ([docs](docs/models/setup-cli.md#github-copilot-cli)).
 
 ### Security
 

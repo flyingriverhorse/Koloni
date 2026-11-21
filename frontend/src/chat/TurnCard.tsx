@@ -3,7 +3,7 @@ import { type ReactNode, useState } from 'react'
 import { WAITS, titleOf } from '../agents/agentStatus'
 import type { Agent, Message, Run } from '../api/types'
 import { when } from '../canvas/turns'
-import { modelName } from '../shell/modelName'
+import { autoPicked, modelName, pickedWhy } from '../shell/modelName'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { ReadAloud } from '../voice/VoiceControls'
@@ -34,6 +34,23 @@ function lastAt(state: ConvState, run: Run, lead: Agent | undefined) {
   return state.messages.filter(m => m.run_id === run.id && m.role !== 'away' && (!m.agent_id || m.agent_id === lead?.id)).at(-1)?.created_at ?? run.created_at
 }
 
+/** Its Lead's model as the head says it ("fusion → gpt-6-luna" where Copilot's routing picked it), and Copilot's reason for that pick. */
+function modelOf(lead: Agent | undefined) {
+  if (!lead?.model_id) return { model: null, why: null }
+  const routed = autoPicked(lead.model_from)
+  return { model: routed + modelName(lead.model_id), why: pickedWhy(lead.effort_note, lead.model_from, lead.model_id) }
+}
+
+/** Who answered: the Lead's name opens its window - where Tell reaches it at work, since none opens by itself (21 Nov). */
+function TurnName({ lead, name }: { lead: Agent | undefined; name: string }) {
+  if (!lead) return <span className="turn-name">{name}</span>
+  return (
+    <button type="button" className="turn-name" title="Open its window" onClick={() => useApp.getState().openAgentWindow(lead.id)}>
+      {name}
+    </button>
+  )
+}
+
 /** The turn's message read aloud now, if one is. */
 const saidOf = (state: ConvState, run: Run, speaking: string | null) => state.messages.find(m => m.id === speaking && m.run_id === run.id)
 
@@ -47,7 +64,7 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits, l
   // (Whole answer reads a step's words while the next step is written: the ■ stays with the step still heard.)
   const said = useVoice(s => saidOf(state, run, s.speaking))
   const name = titleOf(lead?.name || 'Agent', teams)
-  const model = lead?.model_id && modelName(lead.model_id)
+  const { model, why } = modelOf(lead)
   const at = lastAt(state, run, lead)
   const over = summary !== null
   return (
@@ -56,10 +73,15 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits, l
         <span className="turn-avatar" aria-hidden>
           {name.charAt(0)}
         </span>
-        <span className="turn-name">{name}</span>
+        <TurnName lead={lead} name={name} />
         {model && <span className="turn-model">{model}</span>}
         {waits ? <span className="tag tag-warn">{WAITS}</span> : <time dateTime={at}>{when(at)}</time>}
       </div>
+      {why && (
+        <div className="turn-why" title={why}>
+          {why}
+        </div>
+      )}
       {children}
       {(over || said) && (
         // Its parts in fixed places: at the turn's end the ■ the keyboard is on stays the same button.
