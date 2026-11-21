@@ -217,6 +217,13 @@ test('a command the check of your words let run says so, with your line and wher
   expect(screen.getByText(`Ran without asking · your rule: “${RULE}” (This project’s rules)`)).toBeInTheDocument()
 })
 
+test('a command a line of yours forbids says it was not run, with that line and where it is', () => {
+  const quote = 'Never push to main.'
+  render(<CommandRow command={command('k', 'r', { status: 'refused', command: 'git push origin main', judged: judged({ verdict: 'refuse', quote, source: 'rules' }) })} />)
+  expect(screen.getByText(`Not run · your rule: “${quote}” (This project’s rules)`)).toBeInTheDocument()
+  expect(screen.getByText('refused')).toBeInTheDocument()
+})
+
 test('a card the check found nothing of yours for says so - and not the check’s own sentence, a model’s words', () => {
   const asked = command('k', 'r', { status: 'proposed', command: 'rm -rf build', judged: judged({ verdict: 'ask', why: 'Run it: the user surely meant it.' }) })
   const { rerender } = render(<CommandApproval command={asked} onDecide={vi.fn()} />)

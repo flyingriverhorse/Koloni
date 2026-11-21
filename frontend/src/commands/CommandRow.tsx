@@ -31,7 +31,7 @@ export function CommandRow({ command, failed = false, live = false }: { command:
         </button>
         <StopCommand command={command} />
       </div>
-      <RanOnYourWords judged={command.judged} />
+      <OnYourWords judged={command.judged} />
       {open && <CommandOutput command={command} />}
     </div>
   )
@@ -39,12 +39,12 @@ export function CommandRow({ command, failed = false, live = false }: { command:
 
 const CLI_FAILED = { label: 'failed (its CLI said so)', tone: 'del' as const }
 
-/** A command that ran at Full auto with no card, by the check of the user's own words: the line it rested on. */
-function RanOnYourWords({ judged }: { judged: Command['judged'] }) {
-  if (judged?.verdict !== 'run' || !judged.source) return null
+/** A command that ran at Full auto with no card, or was not run, by the check of the user's own words: the line it rested on. */
+function OnYourWords({ judged }: { judged: Command['judged'] }) {
+  if (!judged || judged.verdict === 'ask' || !judged.source) return null
   return (
     <div className="tool-row-note muted">
-      Ran without asking · your rule: “{judged.quote}” ({JUDGED_FROM[judged.source]})
+      {judged.verdict === 'run' ? 'Ran without asking' : 'Not run'} · your rule: “{judged.quote}” ({JUDGED_FROM[judged.source]})
     </div>
   )
 }

@@ -1714,6 +1714,24 @@ test('a command that ran on your words (K-yargıç) never folds: what ran on the
   expect(fold).not.toContainElement(screen.getByText('rm -rf build'))
 })
 
+test('a command a line of yours kept from running never folds either', () => {
+  const state = twoSteps('completed')
+  const judged = { verdict: 'refuse' as const, quote: 'Never push to main.', source: 'rules' as const, why: '', model: 'Fast', seen: false }
+  const { container } = render(
+    <MessageList
+      {...handlers}
+      state={{
+        ...state,
+        toolCalls: [...state.toolCalls, toolCall('72', 'r', 'run_command', 'denied', '{"command":"git push origin main"}', { message_id: 'm', seq: 2 })],
+        commands: [command('k72', 'r', { tool_call_id: '72', command: 'git push origin main', status: 'refused', judged } as Partial<ReturnType<typeof command>>)],
+      }}
+    />,
+  )
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(fold).not.toBeNull()
+  expect(fold).not.toContainElement(screen.getByText('git push origin main'))
+})
+
 test('a turn KOLONİ started has its topic’s line before the fold, not after it', () => {
   const state = convState({
     topics: [topic('t1', 'Greeting'), topic('t2', 'Nightly look')],
