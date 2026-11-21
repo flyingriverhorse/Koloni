@@ -409,7 +409,8 @@ def models_for(key: str | None, copy: dict | None = None,
     extra = _cli(key).get("extra", {})
     rows = [row for row in rows if row["name"] not in extra] + [
         {"name": name, "tier": row["tier"], "note": row["note"],
-         "source": _cli(key)["extra_source"], "family": None, "ruled": True}
+         "source": row.get("source") or _cli(key)["extra_source"], "family": None,
+         "ruled": True}
         for name, row in extra.items()]
     told = local()[0]
     # (One list, the provider's name's else its catalogue's; `_mine` merges both for facts.)
@@ -552,7 +553,8 @@ def fill(kind: str | None, saved: list[dict], listed: list[str],
                      "tier": row.get("tier") or entry.get("tier"),
                      **({"agents": row["agents"]} if "agents" in row else {}),
                      **({"inputs": row["inputs"]} if row.get("inputs") is not None else {}),
-                     **({"context": row["context"]} if row.get("context") else {})})
+                     **({"context": row["context"]} if row.get("context") else {}),
+                     **({"routing": row["routing"]} if row.get("routing") else {})})
     mine = {row["name"] for row in kept}
     # A model added follows the provider's way: agents may use it if they may use one of its own.
     way = any(row.get("agents", True) for row in saved) if saved else True

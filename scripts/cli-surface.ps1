@@ -6,15 +6,25 @@
 #   powershell -NoProfile -File scripts/cli-surface.ps1
 #
 # -CodexSchema: a folder of Codex's JSON schema instead of generating it; -Claude, -Copilot,
-# -Agy: a file or folder to search instead of the installed CLI (then nothing is run).
+# -Agy: a file or folder to search instead of the installed CLI (then nothing is run);
+# -CopilotExe: the copilot to ask its version of instead of the one on PATH.
+#
+# Copilot: its version is the one KOLONI runs - asked as KOLONI starts it, with an empty
+# COPILOT_HOME and --no-auto-update (the program's own package, not the one it updated itself to
+# in your home) - and the names are searched in that package's files under
+# %LOCALAPPDATA%\copilot\pkg\win32-x64\<version> (its program, prebuilds\...\runtime.node,
+# and its SDK), where they are. (A parameter it does not know is an error: never the real CLI instead.)
+[CmdletBinding()]
 param(
   [string]$CodexSchema = '',
   [string]$Claude = '',
   [string]$Copilot = '',
+  [string]$CopilotExe = '',
   [string]$Agy = '',
-  [string]$Surface = (Join-Path $PSScriptRoot '..\app\cli_surface.json')
+  [string]$Surface = ''
 )
 $ErrorActionPreference = 'Stop'
+if (-not $Surface) { $Surface = Join-Path $PSScriptRoot '..\app\cli_surface.json' }
 $table = Get-Content -Raw -Encoding UTF8 $Surface | ConvertFrom-Json
 $latin1 = [Text.Encoding]::GetEncoding(28591)
 $homes = '.codex', '.claude', '.copilot', '.gemini' | ForEach-Object { Join-Path $HOME $_ }
@@ -22,6 +32,7 @@ $homes = '.codex', '.claude', '.copilot', '.gemini' | ForEach-Object { Join-Path
 $packages = @{ claude = '@anthropic-ai\claude-code'; copilot = '@github\copilot' }
 $searched = '.js', '.mjs', '.cjs', '.exe', '.node', '.json'
 $gone = $false
+$versions = @{}
 
 function Kept-Out($path) {
   foreach ($one in $homes) {
@@ -32,8 +43,23 @@ function Kept-Out($path) {
 
 function Say-Version($cli, $command) {
   $ErrorActionPreference = 'Continue'
-  $said = "$(& $command --version 2>$null | Select-Object -First 1)".Trim()
+  $flags = @('--version')
+  $before = $env:COPILOT_HOME
+  if ($cli -eq 'copilot') {
+    $empty = Join-Path ([IO.Path]::GetTempPath()) ('koloni-copilot-home-' + [guid]::NewGuid())
+    New-Item -ItemType Directory $empty | Out-Null
+    $env:COPILOT_HOME = $empty
+    $flags = @('--no-auto-update', '--version')
+  }
+  try { $said = "$(& $command @flags 2>$null | Select-Object -First 1)".Trim() }
+  finally {
+    if ($cli -eq 'copilot') {
+      $env:COPILOT_HOME = $before
+      Remove-Item -Recurse -Force $empty -ErrorAction SilentlyContinue
+    }
+  }
   $number = [regex]::Match($said, '\d+(\.\d+)+').Value
+  $script:versions[$cli] = $number
   $how = if ($table.$cli.measured -contains $number) { 'measured' } else { 'NOT measured' }
   '{0}: version {1} ({2}; measured: {3})' -f $cli, $said, $how, ($table.$cli.measured -join ', ')
 }
@@ -93,11 +119,16 @@ if ($schema) {
 foreach ($cli in 'claude', 'copilot', 'agy') {
   $where = @{ claude = $Claude; copilot = $Copilot; agy = $Agy }[$cli]
   if (-not $where) {
-    $found = Get-Command $cli -ErrorAction SilentlyContinue | Select-Object -First 1
+    $found = if ($cli -eq 'copilot' -and $CopilotExe) { $CopilotExe }
+      else { (Get-Command $cli -ErrorAction SilentlyContinue | Select-Object -First 1).Source }
     if (-not $found) { '{0}: not installed' -f $cli; continue }
-    Say-Version $cli $found.Source
-    $where = $found.Source
-    if ($packages.ContainsKey($cli) -and ($where -match '\.(cmd|ps1|bat)$' -or (Get-Item $where).Length -eq 0)) {
+    Say-Version $cli $found
+    $where = $found
+    $cache = if ($versions[$cli]) { Join-Path $env:LOCALAPPDATA ('copilot\pkg\win32-x64\' + $versions[$cli]) }
+    if ($cli -eq 'copilot' -and $cache -and (Test-Path $cache)) {
+      $where = $cache
+      '{0}: searching {1} (the package it runs)' -f $cli, $where
+    } elseif ($packages.ContainsKey($cli) -and ($where -match '\.(cmd|ps1|bat)$' -or (Get-Item $where).Length -eq 0)) {
       $where = Join-Path $env:APPDATA ('npm\node_modules\' + $packages[$cli])
       $manifest = Join-Path $where 'package.json'
       if (Test-Path $manifest) {

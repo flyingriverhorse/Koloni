@@ -802,6 +802,15 @@ def _finds(said: dict, key: str) -> bool:
     return said.get(key) in COPILOT_FINDS and said.get("mcpServerName") is None
 
 
+# Copilot's routings of its own models, as its 1.0.114 package types them: Auto's tier
+# (`AutoTier`; its integrator-only `fast` left out) and Fusion's (`FusionTier`: several models
+# try each turn and one is kept; High and Max cost more). Each by its model's name, sent as its
+# flag to a session and as session.create's `capi` field natively - never both of them.
+ROUTINGS = {"auto": ("efficiency", "balance", "intelligence"),
+            "fusion": ("standard", "high", "max")}
+ROUTE_FLAGS = {"auto": ("--auto-tier", "autoTier"), "fusion": ("--fusion-tier", "fusionTier")}
+
+
 class CopilotSessionClient(CliSessionClient):
     """GitHub Copilot CLI as a session: KOLONİ's tools over MCP, none of its own.
 
@@ -844,11 +853,15 @@ class CopilotSessionClient(CliSessionClient):
         api_key: str | None = None,
         options: dict | None = None,
         context: str | None = None,
+        routing: str | None = None,
         **more,
     ):
         super().__init__(executable, model, timeout, **more)
         self._base_url, self._api_key, self._options = base_url, api_key, dict(options or {})
         self._context = context  # the model row's tier (K-copilot-baglam)
+        # The model row's routing: only its auto's or fusion's own, only on GitHub's account.
+        self._routing = routing if not base_url and routing in ROUTINGS.get(
+            str(model), ()) else None
         # Its `auto` on GitHub takes no level (`level_in_name`): none is sent.
         self.level_named = not base_url and level_in_name("copilot_cli", model)
         if self.level_named:
@@ -945,7 +958,20 @@ class CopilotSessionClient(CliSessionClient):
         arguments = ["--secret-env-vars=COPILOT_GITHUB_TOKEN"] if self._api_key else []
         if self._model:
             arguments += ["--model", self._model]
+        if self._routing:
+            # shortcut: --fusion-tier is in 1.0.114's arguments ("only for local sessions"), not
+            # run; --auto-tier is in 1.0.105's --help. Measure each with one cheap turn.
+            arguments += [ROUTE_FLAGS[str(self._model)][0], self._routing]
         return [*arguments, *self.context_arguments()]
+
+    def capi(self) -> dict:
+        """Its routing as session.create takes it (`CapiSessionOptions`, 1.0.114's package: one
+        of autoTier or fusionTier, never both); {} with none. Measured live (1.0.114, 21 Nov
+        2026): `session.model.getCurrent` keeps it (Fusion Standard as Auto Balance), both at once
+        is refused, and a tier the plan lacks is refused at session.create (`CopilotNativeClient`).
+        shortcut: protocol 3's flat `capi` is not measured (no 1.0.105 left to run it on)."""
+        return {"capi": {ROUTE_FLAGS[str(self._model)][1]: self._routing}} if (
+            self._routing) else {}
 
     def context_arguments(self) -> list[str]:
         """Copilot's long context window, where the model's row asks for it; nothing for the

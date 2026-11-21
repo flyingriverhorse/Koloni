@@ -374,9 +374,10 @@ def test_claude_codes_own_bash_runs_a_delete_the_users_rule_names_without_a_card
 @pytest.mark.no_po
 def test_copilots_shell_runs_a_delete_the_users_rule_names_without_a_card(
         copilot_native, wait_run, project_dir):  # noqa: F811
-    # (a version whose new shell was read: it starts at the project, a folder known)
+    # (a version whose new shell was measured, and that runs natively: it starts at the project,
+    # a folder known)
     client, cli = copilot_native([{"shell": "rm -rf build", "output": ""}, {"say": "cleaned"}],
-                                 default_steps=[verdict_line("run", RULE)], version="1.0.67")
+                                 default_steps=[verdict_line("run", RULE)], version="1.0.105")
     ran_on_the_rule(client, project_dir, cli, wait_run)
 
 

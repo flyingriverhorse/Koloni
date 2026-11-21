@@ -9045,6 +9045,8 @@ export interface components {
             note?: string | null;
             /** Off Why */
             off_why?: string | null;
+            /** Routing */
+            routing?: ("efficiency" | "balance" | "intelligence" | "standard" | "high" | "max") | null;
             /** Tier */
             tier?: ("fast" | "balanced" | "strongest") | null;
         };

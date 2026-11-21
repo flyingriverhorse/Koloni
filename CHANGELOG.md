@@ -29,6 +29,7 @@ How to write an entry (every release looks the same):
 - **Chat**: told you are going away, the Orchestrator puts the work on To-do and offers one line under its answer, "☾ Go away now? Until 08:00 · at most 2.00 USD", with **Go away** and **Change**; nothing starts before your Go away ([docs](docs/automation/overnight.md#from-the-chat)).
 - **Chat**: **Check what I said first** in the permission level's menu - the project's check of your own words before a harmful-looking command waits for you - also holds while you're away, in a To-do task's chat at Full auto, reading the chat you went away from ([docs](docs/use/permissions.md#check-what-i-said-first)).
 - **Memory**: when the folder's `.koloni/rules.md` differs from the rules saved here, the page says so and shows both: the box keeps the saved rules, which Full auto's check reads, and **Use the folder's rules here** takes the folder's text into it.
+- **Models**: a GitHub Copilot CLI provider on your GitHub account has a **Routing** on its `auto` and `fusion` rows, beside **Context** - Auto: Efficiency, Balance or Intelligence; Fusion: Standard, High or Max (several models try each turn and one is kept; High and Max cost more than `auto`) - and the chat's model panel shows the same choice under **Thinking**. It is saved on the model's row, so every chat and agent on that provider and model uses it. The catalogue offers `fusion`, with no tier. High and Max are only on some Copilot plans: on one without them the turn stops saying so and to pick another routing ([docs](docs/models/setup-cli.md#github-copilot-cli)).
 
 ### Changed
 
@@ -47,6 +48,7 @@ How to write an entry (every release looks the same):
 - **Settings**: a new project lets the Orchestrator decide a waiting card after 5 minutes (Settings › This project › Asking and away › **When you're away**); a project from before keeps what it had - turn it on there. The rule is the same everywhere: at once while you're away, after those minutes otherwise, in To-do task chats too; it also decides going on or stopping at a sub-agent's step limit, and while you type an answer it waits ([docs](docs/automation/answering-for-you.md)).
 - **Chat**: the "While you're away" card is gone, with its **Start**, **Change the list**, **Not now** and its row in Ready for you: ☾ Away and the Orchestrator's Go away line take its place; Run the backlog and Try again wait until you are back ([docs](docs/automation/overnight.md)).
 - **Chat**: Plan first is set in the permission level's menu only (or with `/plan`): the button beside the level under the message box is gone, and while Plan first is on the level says so ("Auto-edit · plan").
+- **CLIs**: GitHub Copilot CLI 1.0.114, which speaks a newer protocol, runs **Native** again: KOLONİ asks before every tool of Copilot's own through a hook of its own, never letting one through by itself, and each of Copilot's PowerShell commands starts in the project folder. KOLONİ asks Copilot its version and protocol as it starts it - an update Copilot made of itself reaches KOLONİ too; a version of the older protocol not measured with KOLONİ, a Copilot that does not say its version, or a protocol KOLONİ does not know, runs as **One session per agent**, and the provider's card on the Models page says why in one line ([docs](docs/models/setup-cli.md#github-copilot-cli)).
 
 ### Fixed
 
@@ -57,11 +59,14 @@ How to write an entry (every release looks the same):
 - **Canvas**: an agent's line at work keeps what it does in sight: where its box (or the line over the message box) is narrow, its tier goes first, then its tokens, then its time, each whole - then, over the message box, the model's name, down to its icon - and what it does is cut only after them; in the chat, a discussion's row keeps its name and topic and cuts what it says of itself first.
 - **Chat**: the row under the message box no longer runs past the chat's edge (it did in a 480 px chat while something waited elsewhere): **Chat settings** reads **Settings** and "2 more wait elsewhere" reads "2 wait" whenever the row has no room for all its words; in the narrowest chat **Settings** keeps its word beside the icons of **New topic** and **More**.
 - **Chat**: a kept working copy's long folder path now wraps on its card in a narrow chat; it made the whole chat scroll sideways.
+- **CLIs**: GitHub Copilot CLI run **Native** on models other than Claude (such as gpt-6-luna or mai-code-2-flash) can change files again: it is given Copilot's own `apply_patch`, the only file tool those models have, and each file of a patch is its own card, as a write is; refusing one refuses the whole patch ([docs](docs/models/setup-cli.md#github-copilot-cli)).
+- **Models**, **CLIs**: GitHub Copilot CLI's card on the Models page names the version KOLONİ runs, which KOLONİ asks Copilot as it starts it, no longer the number a plain `copilot --version` says; an error that Copilot could not be asked before it acts names that version too.
 
 ### Security
 
 - **Workspace**: your repository's git hooks (pre-commit, commit-msg, post-commit, also from a core.hooksPath such as husky's) no longer run for an agent's own git commands in its copy, nor for an MCP server's it starts there, and git's fsmonitor and commit signing are off for them ([docs](docs/use/workspace.md#branches)).
 - **Agents**: on a branch, an agent's command that clears or sets git's own environment (`unset GIT_…`, `env -i`, `$env:GIT_… =`, `Remove-Item Env:\GIT_…`), or runs one of git's own programs by its name (`git-push`), is asked at every level, Full auto too: it would bring your repository's hooks back ([docs](docs/use/workspace.md#branches)).
+- **CLIs**: with GitHub Copilot CLI on its newer protocol, a tool of Copilot's own that ran without KOLONİ being asked stops the turn, and the run says so ([docs](docs/security/model.md)).
 
 ## [0.1.4] - 2026-11-21
 
