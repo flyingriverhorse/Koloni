@@ -32,6 +32,8 @@ made on auto, "picked" is the model its auto picks, said with "picked_why" befor
                                                       approved (what a file will hold: its "+"
                                                       and " " lines, a whole-file hunk)
     {"ask": {"kind": "url", ...}, "tool": "web_fetch"} any other permission request
+    {"tool_call": "view", "args": {...}}              any tool of its own by name (no request but
+                                                      its hook's; "native": a request it also sends)
     {"koloni": "read_notes", "args": {}}              a call to KOLONİ's MCP server, for real
     {"request": "userInput.request", "params": {}}    a JSON-RPC request of its own
     {"pause": s} / {"error": "message"} / {"exit": 3, "stderr": ".."}
@@ -50,6 +52,20 @@ it, as Copilot 1.0.67's agent loop sends it). A write ("delete": the file goes) 
 "resolved" its resolvedPath, "diff" its diff.
 The plan's "aborted": its turn ends aborted. The plan's "usage": the data of each
 session.usage_checkpoint it sends, in order, before its turn ends (none: none sent).
+
+Protocol 4 (1.0.114, measured 20 Nov 2026): session.create may come grouped (KOLONİ's bridge
+under mcp.servers). Given hooks (grouped `hooks.hasHandlers`, flat `hooks: true`) it asks the
+client `hooks.invoke`: sessionStart after session.send, and preToolUse for each tool after its
+tool.execution_start ({cwd, sessionId, timestamp in ms, toolName, toolArgs, toolCallId}; the
+plan's "hook_session" names another session), each kept in "hooks". The hook's answer, under
+`output`: "ask" sends a permission request of kind "hook" (its toolArgs the modified ones, or
+the original with a step's "hook_shows": "original"; "then_native": its normal request follows
+for the same toolCallId, a shell's naming "native_command" if given); "allow" runs it unasked;
+"deny" denies it; an error, or an output that is no object, denies it as a hook that errored;
+nothing said (`{}`, an answer not under `output`) fails OPEN, as Copilot does: today's flow,
+where a "quiet" shell step runs unasked (1.0.114 asks no read-only command). What runs is the
+modified arguments: each command run is kept in "ran". A shell's completion says its exit code
+in shellExecution ("no_code": none); "trailer": false leaves out its `<shellId...>` line.
 """
 
 import json
@@ -78,7 +94,8 @@ argv = sys.argv[1:]
 cwd = Path.cwd()
 home = os.environ.get("COPILOT_HOME")
 record = {
-    "argv": argv, "cwd": str(cwd), "results": [], "answers": [], "replies": [],
+    "argv": argv, "cwd": str(cwd), "results": [], "answers": [], "replies": [], "hooks": [],
+    "ran": [],
     "env": {k: v for k, v in os.environ.items() if k.startswith("COPILOT_")},
     "home_was_empty": bool(home) and Path(home).is_dir() and not any(Path(home).iterdir()),
     "github_tokens": sorted(k for k in os.environ if k in ("GH_TOKEN", "GITHUB_TOKEN")),
@@ -212,11 +229,32 @@ record["prompt"] = asked["params"].get("prompt")
 save()
 send({"id": asked["id"], "result": {"messageId": "m1"}})
 event("session.start", {"sessionId": "s1", "context": {"cwd": str(cwd)}})
+made = create["params"]
+hooks_on = made.get("hooks") is True or (
+    isinstance(made.get("hooks"), dict) and made["hooks"].get("hasHandlers") is True)
+
+
+def invoke(hook_type: str, more: dict) -> dict:
+    """Ask the client's hook, as Copilot does (a request of its own); its answer, kept."""
+    number, session_id = next(numbers), plan.get("hook_session", "s1")
+    given = {"cwd": str(cwd), "sessionId": session_id, "timestamp": int(time.time() * 1000),
+             **more}
+    send({"id": number, "method": "hooks.invoke",
+          "params": {"sessionId": session_id, "hookType": hook_type, "input": given}})
+    while (told := heard()).get("id") != number or "method" in told:
+        pass
+    record["hooks"].append({"hookType": hook_type, "input": given, "answer": told})
+    save()
+    return told
+
+
+if hooks_on:
+    invoke("sessionStart", {"source": "new", "initialPrompt": record["prompt"]})
 if plan.get("picked") and create["params"].get("model") == "auto":
     plan["model"] = plan["picked"]
     event("session.auto_mode_resolved", {"chosenModel": plan["picked"],
                                          "selectionReason": plan.get("picked_why")})
-spec = create["params"].get("mcpServers", {}).get("koloni")
+spec = (made.get("mcpServers") or made.get("mcp", {}).get("servers") or {}).get("koloni")
 bridge = subprocess.Popen([spec["command"], *spec["args"]], stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE) if spec else None
 
@@ -267,6 +305,25 @@ def permitted(call: str, request: dict, action: dict) -> bool:
     return approved
 
 
+def pre_tool(call: str, name: str, arguments: object) -> tuple[str | None, object, str]:
+    """Its preToolUse hook, where the client has hooks: (its decision, the arguments the tool
+    runs with, why). None: it said nothing, and today's flow goes on (failing open)."""
+    if not hooks_on:
+        return None, arguments, ""
+    told = invoke("preToolUse", {"toolName": name, "toolArgs": arguments, "toolCallId": call})
+    result = told.get("result")
+    if "error" in told or not isinstance(result, dict):
+        return "errored", arguments, ""
+    if "output" not in result or result["output"] is None:
+        return None, arguments, ""  # (a flat answer was ignored, measured)
+    output = result["output"]
+    if not isinstance(output, dict):
+        return "errored", arguments, ""
+    decision = output.get("permissionDecision")
+    return (decision if decision in ("allow", "deny", "ask") else None,
+            output.get("modifiedArgs", arguments), str(output.get("permissionDecisionReason") or ""))
+
+
 def patched(text: str) -> list[list]:
     """Each file a patch names, and what it will hold (None: it goes)."""
     files: list[list] = []
@@ -280,28 +337,52 @@ def patched(text: str) -> list[list]:
 
 
 def tool(call: str, name: str, arguments: dict | str, request: dict | None, action: dict,
-         work=None, result: str = "done", **start) -> None:
+         work=None, result: str = "done", shell: int | None = None, **start) -> None:
     began = {"toolCallId": call, "toolName": name, "arguments": arguments, **start}
     if action.get("start") not in ("after", "none"):
         event("tool.execution_start", began)
     if request is not None and "bypass" in action:  # (its reason, as the SDK types it)
         request = {**request, "requestSandboxBypass": True,
                    "requestSandboxBypassReason": action["bypass"]}
-    approved = request is None or permitted(call, request, action)
+    decision, ran, why = pre_tool(call, name, arguments)
+    refused = "The user rejected this tool call."
+    if decision == "ask":
+        approved = permitted(call, {
+            "kind": "hook", "toolName": name,
+            "toolArgs": arguments if action.get("hook_shows") == "original" else ran,
+            "hookMessage": why or f"Allow {name}?", "workingDirectory": str(cwd)}, action)
+        if approved and action.get("then_native") and request is not None:
+            if request["kind"] == "shell":
+                request = {**request, "fullCommandText": action.get(
+                    "native_command", ran.get("command") if isinstance(ran, dict) else None)}
+            approved = permitted(call, request, {})
+        refused = "Denied by user via preToolUse hook prompt: rejected"
+    elif decision in ("deny", "errored"):
+        approved = False
+        refused = ("Denied by preToolUse hook (hook errored)" if decision == "errored"
+                   else f"Denied by preToolUse hook: {why}")
+    else:
+        approved = decision == "allow" or request is None or bool(action.get("quiet")) or (
+            permitted(call, request, action))
     if action.get("start") == "after":
         event("tool.execution_start", began)
     if not approved:
         if not action.get("no_complete"):  # (with it: never a word that it is done)
             event("tool.execution_complete", {"toolCallId": call, "success": False, "error": {
-                "message": "The user rejected this tool call."}})
+                "message": refused}})
         return
+    if isinstance(ran, dict) and "command" in ran:
+        record["ran"].append(ran["command"])
+        save()
     if work:
         work()
     # ("sandboxed": it ran in its sandbox, as REA saw 1.0.103 say it)
     event("tool.execution_complete", {"toolCallId": call, "success": True,
                                       "result": {"content": result}, **(
                                           {"toolTelemetry": {"sandboxApplied": True}}
-                                          if action.get("sandboxed") else {})})
+                                          if action.get("sandboxed") else {}), **(
+                                          {"shellExecution": {"exitCode": shell}}
+                                          if shell is not None else {})})
 
 
 for number, action in enumerate(plan.get("script", [])):
@@ -317,7 +398,7 @@ for number, action in enumerate(plan.get("script", [])):
                 (cwd / touched).write_bytes(content.encode("utf-8"))
         # ("no_code": its trailer left out, as B-377's command that could not start Python.)
         output = action.get("output", "").replace("{cwd}", str(cwd)) + (
-            "" if action.get("no_code") else
+            "" if action.get("no_code") or action.get("trailer") is False else
             f"\n<shellId: 0 completed with exit code {action.get('exit', 0)}>")
         # (The keys 1.0.91 sends, measured 24 Oct 2026; a later one may send where it runs.)
         tool(call, action.get("tool", "powershell"),
@@ -333,7 +414,7 @@ for number, action in enumerate(plan.get("script", [])):
             "hasWriteFileRedirection": bool(action.get("redirect")),
             "canOfferSessionApproval": True,
             **({"resolvedWorkingDirectory": action["cwd"]} if "cwd" in action else {})},
-            action, run, output,
+            action, run, output, None if action.get("no_code") else action.get("exit", 0),
             **({"parentToolCallId": action["parent"]} if "parent" in action else {}))
     elif "write" in action or "delete" in action:
         target = cwd / (action.get("write") or action["delete"])
@@ -390,6 +471,9 @@ for number, action in enumerate(plan.get("script", [])):
             action, None, action.get("result", "contents"))
     elif "ask" in action:
         tool(call, action.get("tool", "other"), action.get("args", {}), action["ask"], action)
+    elif "tool_call" in action:
+        tool(call, action["tool_call"], action.get("args", {}), action.get("native"), action,
+             None, action.get("result", "done"))
     elif "koloni" in action:
         name, arguments = action["koloni"], action.get("args", {})
 
