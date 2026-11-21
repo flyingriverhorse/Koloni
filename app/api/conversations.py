@@ -934,7 +934,8 @@ async def rerun_failed(
     last = session.scalars(
         select(Run).where(Run.conversation_id == conversation_id, or_(
             Run.status != "cancelled", Run.started_at.is_not(None)))
-        .order_by(literal_column("runs.rowid").desc()).limit(1)).first()
+        # (By when it was sent: a message sent again after a restart is the newest.)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc()).limit(1)).first()
     if last is None or last.status not in TERMINAL:
         raise HTTPException(409, "its last turn is not over")
     failed = [(agent, how) for agent, how, again in outcomes(session, [last.id]).get(
