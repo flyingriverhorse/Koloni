@@ -795,7 +795,8 @@ class TalkMixin:
         with self._factory() as session:
             try:
                 project_id = backlog.project_of(session, ctx.cid)
-                said = getattr(backlog, name)(session, project_id, args)
+                said = backlog.add_task(session, project_id, args, ctx.cid) if (
+                    name == "add_task") else getattr(backlog, name)(session, project_id, args)
             except backlog.Refused as exc:
                 raise ToolError(str(exc)) from None
             session.commit()

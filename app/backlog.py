@@ -947,14 +947,15 @@ def read_backlog(session: Session, project_id: str, args: dict) -> str:
     return "\n".join(lines)
 
 
-def add_task(session: Session, project_id: str, args: dict) -> str:
+def add_task(session: Session, project_id: str, args: dict, chat: str | None = None) -> str:
+    """`chat`: the one it is proposed in (☾ Away ticks it there)."""
     fields = _fields(args, title_required=True)
     # The first task not done yet that looks like this one (as a room's item is,
     # `room.looks_like`): said, never refused - a likeness wrongly seen must not hold the
     # work up.
     like = next((one for one in ordered(session, project_id)
                  if one.status != "done" and alike(fields["title"], one.title)), None)
-    task = add(session, project_id, fields, "agent")
+    task = add(session, project_id, {**fields, "proposed_in": chat}, "agent")
     session.flush()
     said = (f"proposed task {task.id} ({task.title!r}): it waits for the user's approval "
             "before it is on the To-do list")

@@ -39,7 +39,7 @@ def test_a_chat_with_no_project_has_the_defaults(client, project_dir):
         "room_tokens", "room_minutes", "room_min_tokens")} == {
         "spawn_approval": "auto", "spawn_max_depth": 2, "spawn_max_agents": 6,
         "spawn_max_parallel": 2, "discussion_budget": None, "lead_work": "delegates",
-        "when_away": "waits", "away_minutes": 10, "room_posts": 40, "room_tokens": None,
+        "when_away": "lead", "away_minutes": 5, "room_posts": 40, "room_tokens": None,
         "room_minutes": 30, "room_min_tokens": 60_000}
     # (B-414: and a new project's, which its chats follow)
     project = client.post("/api/projects", json={"root_path": str(project_dir)}).json()

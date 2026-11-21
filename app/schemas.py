@@ -4475,6 +4475,9 @@ class BacklogTaskOut(Out):
     waiting: bool = False
     # Proposed by the Assistant PO at a turn's end (`BacklogTask.po`); None: not its.
     po: "BacklogPoOut | None" = None
+    # ☾ Away: the chat an agent proposed it in (None: the user's), and when it was made.
+    proposed_in: str | None = None
+    created_at: datetime
 
 
 class BacklogPoOut(BaseModel):

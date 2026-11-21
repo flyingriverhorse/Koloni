@@ -91,11 +91,12 @@ def until_answered(client, cid):
 # --- the setting ----------------------------------------------------------------------------
 
 
-def test_a_chat_starts_with_everything_waiting_and_the_user_turns_the_lead_on(client, project_dir):
+def test_a_new_chat_lets_the_lead_decide_after_5_minutes_and_the_user_changes_it(client,
+                                                                                project_dir):
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     got = client.get(f"/api/conversations/{cid}").json()["conversation"]
-    assert (got["when_away"], got["away_minutes"]) == ("waits", 10)
+    assert (got["when_away"], got["away_minutes"]) == ("lead", 5)  # (☾ Away, 0158)
     path = f"/api/conversations/{cid}"
     # (an agent's command against the app's address cannot turn it on)
     assert client.patch(path, json={"when_away": "lead"}).status_code == 403
@@ -181,7 +182,7 @@ def test_the_leads_own_question_waits_for_the_user(make_client, wait_run, projec
 def test_an_answer_of_the_users_first_stands_the_lead_down(make_client, wait_run, project_dir):
     client, model = make_client([CODER, ask(), text("ok"), text("done")])
     clock = held(client)
-    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead")
+    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead", away_minutes=10)
     wait_status(client, cid, "waiting_approval")
     (timer,) = lead_timers(clock, 600.0)
     client.post(f"/api/questions/{question_of(client, cid)['id']}/answer",
@@ -215,7 +216,7 @@ def test_an_answer_not_among_the_options_leaves_the_question_to_the_user(
         make_client, wait_run, project_dir):
     client, model = make_client([CODER, ask(), says("by size"), text("ok"), text("done")])
     clock = held(client)
-    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead")
+    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead", away_minutes=10)
     wait_status(client, cid, "waiting_approval")
     fire(client, lead_timers(clock, 600.0)[0])
     until(lambda: len(model.calls) == 3)
@@ -230,7 +231,7 @@ def test_a_free_question_takes_a_short_answer(make_client, wait_run, project_dir
     client, model = make_client([CODER, ask("What should the file be called?", None),
                                  says("notes.md", "It holds notes."), text("ok"), text("done")])
     clock = held(client)
-    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead")
+    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead", away_minutes=10)
     wait_status(client, cid, "waiting_approval")
     fire(client, lead_timers(clock, 600.0)[0])
     assert until_answered(client, cid)["answer"] == "notes.md"
@@ -241,7 +242,7 @@ def test_the_question_is_data_to_the_lead_and_what_it_spent_is_counted(
         make_client, wait_run, project_dir):
     client, model = make_client([CODER, ask(), says("by date"), text("ok"), text("done")])
     clock = held(client)
-    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead",
+    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead", away_minutes=10,
                         content="Listeyi sırala, lütfen\nikinci satır")
     wait_status(client, cid, "waiting_approval")
     fire(client, lead_timers(clock, 600.0)[0])
@@ -276,7 +277,7 @@ def test_the_lead_answers_by_what_the_user_saved_not_the_folders_file(
     assert client.put(f"/api/projects/{pid}/rules", json={"rules": "Sort lists by date."},
                       headers=OWN).status_code == 200
     (project_dir / ".koloni" / "rules.md").write_text("Sort lists by name.\n", encoding="utf-8")
-    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead",
+    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead", away_minutes=10,
                         content="Listeyi sırala, lütfen")
     wait_status(client, cid, "waiting_approval")
     fire(client, lead_timers(clock, 600.0)[0])
@@ -296,7 +297,7 @@ def test_the_users_language_is_told_by_their_own_words_not_kolonis_written_as_th
     client, model = make_client([text("Tamam."), CODER, ask(), says("by date"), text("ok"),
                                  text("done")])
     clock = held(client)
-    cid, first = begin(client, project_dir, mode="auto_edit", when_away="lead",
+    cid, first = begin(client, project_dir, mode="auto_edit", when_away="lead", away_minutes=10,
                        content="Listeyi sırala, lütfen")
     wait_run(client, cid, first)
     run_id = client.post(f"/api/conversations/{cid}/messages", headers=OWN, json={
@@ -372,7 +373,7 @@ def test_a_recipes_ask_me_is_answered_and_its_take_in_waits(make_client, wait_ru
          part("build", "Build it", {"role": "Coder"})],
         [("start", "spec"), ("spec", "build"), ("build", "end")]))
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        teams_mode="manual", when_away="lead", teams=[
+                        teams_mode="manual", when_away="lead", away_minutes=10, teams=[
                             {"team_id": teams_of(client)["Web app"]["id"],
                              "recipe_id": recipe["id"]}])
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
@@ -395,7 +396,7 @@ def after_a_turn(client, wait_run, project_dir):
     """B-166: a first turn on the provider - ended as the Lead's first script says - and then the
     message whose sub-agent is asked about; its run."""
     cid, first = begin(client, project_dir, mode="auto_edit", spawn_approval="always",
-                       when_away="lead")
+                       when_away="lead", away_minutes=10)
     wait_run(client, cid, first)
     return cid, client.post(f"/api/conversations/{cid}/messages", json={"content": "build it"},
                             headers=OWN).json()["run"]["id"]
@@ -448,7 +449,7 @@ def test_the_lead_opens_a_sub_agent_only_on_a_provider_known_to_have_room(
     monkeypatch.setattr("app.agent.spawn_mixin.over_month", lambda session, project: over)
     if first is None:  # (no turn before: nothing has run on it)
         cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="always",
-                            when_away="lead")
+                            when_away="lead", away_minutes=10)
     else:
         cid, run_id = after_a_turn(client, wait_run, project_dir)
     wait_status(client, cid, "waiting_approval")
@@ -467,7 +468,7 @@ def test_a_turn_the_user_stopped_says_nothing_of_its_providers_room(
                                            text("done")], "Coder": [text("built")]})
     clock = held(client)
     cid, first = begin(client, project_dir, mode="auto_edit", spawn_approval="always",
-                       when_away="lead")
+                       when_away="lead", away_minutes=10)
     gate.wait_partial()
     assert client.post(f"/api/runs/{first}/cancel").status_code == 202
     assert wait_run(client, cid, first)["agents"][0]["status"] == "cancelled"
@@ -485,7 +486,7 @@ def test_a_sub_agent_on_another_model_than_its_roles_waits_for_the_user(
     client, default, _fast = team([step(pick("Reviewer", "Fast", why="It is quick.")),
                                    text("done")], [text("looked")])
     clock = held(client)
-    cid, run_id = begin(client, project_dir, spawn_approval="auto", when_away="lead")
+    cid, run_id = begin(client, project_dir, spawn_approval="auto", when_away="lead", away_minutes=10)
     wait_status(client, cid, "waiting_approval")
     for timer in list(clock.set):
         fire(client, timer)  # (whatever was armed: none is the Lead's)
@@ -521,7 +522,7 @@ def test_a_lead_on_a_cli_answers_by_one_run_of_its_own_beside_its_session(
         one_shot=[{"say": json.dumps({"answer": "By name", "why": "Names first."})}])
     clock = held(client)
     cid, run_id = _begin(client, project_dir, provider, "auto_edit", spawn_approval="never",
-                         when_away="lead")
+                         when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     question = until_answered(client, cid)  # "Decided for you": the answer and its reason
     assert (question["answer"], question["lead_why"]) == ("by name", "Names first.")
@@ -540,7 +541,7 @@ def test_an_answer_of_the_users_first_makes_no_run_of_the_cli(
     client, provider, runs = cli_lead(session_app, tmp_path, [ask(), text("sorted by name")])
     clock = held(client)
     cid, run_id = _begin(client, project_dir, provider, "auto_edit", spawn_approval="never",
-                         when_away="lead")
+                         when_away="lead", away_minutes=10)
     (timer,) = until(lambda: lead_timers(clock, 600.0))
     client.post(f"/api/questions/{question_of(client, cid)['id']}/answer",
                 json={"answer": "by name"}, headers=OWN)
@@ -559,7 +560,7 @@ def test_a_cli_lead_that_cannot_answer_leaves_the_question_waiting_and_says_why(
                                       one_shot=one_shot)
     clock = held(client)
     cid, run_id = _begin(client, project_dir, provider, "auto_edit", spawn_approval="never",
-                         when_away="lead")
+                         when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     said = LEAD_COULD_NOT.format(why=why)
     until(lambda: any(m["role"] == "koloni" and m["content"] == said
@@ -580,7 +581,7 @@ def test_a_cli_lead_answers_at_most_its_turns_most_and_then_says_so(
         one_shot=[{"say": json.dumps({"answer": "by name", "why": "Names first."})}])
     clock = held(client)
     cid, run_id = _begin(client, project_dir, provider, "auto_edit", spawn_approval="never",
-                         when_away="lead")
+                         when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     until(lambda: client.get(f"/api/conversations/{cid}").json()["questions"][0][
         "lead_why"] == "Names first.")
@@ -604,7 +605,7 @@ def test_the_same_question_asked_again_is_given_the_leads_answer_without_a_new_c
         one_shot=[{"say": json.dumps({"answer": "By name", "why": "Names first."})}])
     clock = held(client)
     cid, run_id = _begin(client, project_dir, provider, "auto_edit", spawn_approval="never",
-                         when_away="lead")
+                         when_away="lead", away_minutes=10)
     def whys():
         return [q["lead_why"] for q in client.get(f"/api/conversations/{cid}").json()["questions"]]
 
@@ -634,7 +635,7 @@ def test_the_answer_that_stands_is_the_users_own_given_after_the_leads(
         one_shot=[{"say": json.dumps({"answer": "By name", "why": "Names first."})}])
     clock = held(client)
     cid, run_id = _begin(client, project_dir, provider, "auto_edit", spawn_approval="never",
-                         when_away="lead")
+                         when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     until(lambda: lead_timers(clock, 0.0))  # (the second, held before the kept answer is given)
     (waiting,) = [q for q in client.get(f"/api/conversations/{cid}").json()["questions"]
@@ -664,7 +665,7 @@ def test_an_agy_lead_is_never_handed_the_question(agy_app, wait_run, project_dir
     on_local(client, "Coder")
     clock = held(client)
     cid, run_id = _begin(client, project_dir, provider, "auto_edit", spawn_approval="never",
-                         when_away="lead")
+                         when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     said = LEAD_COULD_NOT.format(why="its CLI cannot be asked without tools of its own")
     until(lambda: any(m["role"] == "koloni" and m["content"] == said
@@ -696,7 +697,8 @@ def test_at_full_auto_alone_a_cli_lead_spends_no_request(
     client, provider, runs = cli_lead(session_app, tmp_path, [ask(), text("sorted by name")],
                                       one_shot=[{"say": "{}"}])
     clock = held(client)
-    cid, run_id = _begin(client, project_dir, provider, "full_auto", spawn_approval="never")
+    cid, run_id = _begin(client, project_dir, provider, "full_auto", spawn_approval="never",
+                         when_away="waits")
     fire(client, until(lambda: lead_timers(clock, 0.0))[0])
     until(lambda: not client.app.state.runner._lead_taking)  # (the Lead is done with it)
     assert question_of(client, cid)["status"] == "pending" and ONE_SHOT not in runs()
@@ -709,8 +711,8 @@ def test_at_full_auto_alone_a_cli_lead_spends_no_request(
 def test_a_projects_away_default_is_its_users_and_reaches_a_new_chat(client, project_dir):
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     path = f"/api/projects/{pid}"
-    assert client.get(path).json()["when_away"] == "waits"
-    assert client.patch(path, json={"when_away": "lead"}).status_code == 403
+    assert client.get(path).json()["when_away"] == "lead"
+    assert client.patch(path, json={"when_away": "waits"}).status_code == 403
     assert client.patch(path, json={"away_minutes": 2000}, headers=OWN).status_code == 422
     done = client.patch(path, json={"when_away": "lead", "away_minutes": 3}, headers=OWN)
     assert (done.json()["when_away"], done.json()["away_minutes"]) == ("lead", 3)
@@ -762,7 +764,7 @@ def test_whatever_a_question_says_the_install_after_it_still_waits(
         step(call("run_command", {"command": "npm install left-pad"}, "k")), text("ok"),
         text("done")])
     clock = held(client)
-    cid, run_id = begin(client, project_dir, mode="ask", when_away="lead", spawn_approval="never")
+    cid, run_id = begin(client, project_dir, mode="ask", when_away="lead", away_minutes=10, spawn_approval="never")
     wait_status(client, cid, "waiting_approval")
     fire(client, lead_timers(clock, 600.0)[0])
     command = until(lambda: client.get(f"/api/conversations/{cid}").json()["commands"])[0]
@@ -787,7 +789,7 @@ def test_the_leads_history_says_it_decided_for_the_user_and_ok_takes_it_off_the_
     })
     clock = held(client)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        when_away="lead")
+                        when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     snap = wait_run(client, cid, run_id)
     (question,) = snap["questions"]
@@ -813,7 +815,7 @@ def test_change_reaches_the_agent_that_asked_while_it_is_at_work(
     })
     clock = held(client)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        when_away="lead")
+                        when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     gate.wait_partial()
     question = question_of(client, cid)
@@ -850,7 +852,7 @@ def test_the_same_question_after_the_users_change_is_given_their_answer_not_the_
     })
     clock = held(client)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        when_away="lead")
+                        when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     gate.wait_partial()
     path = f"/api/questions/{question_of(client, cid)['id']}/change"
@@ -878,7 +880,7 @@ def test_a_change_goes_into_a_cli_at_work_that_can_hear_it_and_is_refused_where_
     })
     clock = held(client)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        when_away="lead")
+                        when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     gate.wait_partial()
     question = question_of(client, cid)
@@ -929,7 +931,7 @@ def test_a_change_reaches_a_cli_session_once_with_its_next_kolonis_tool_result(
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
     clock = held(client)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        when_away="lead")
+                        when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     question = until_answered(client, cid)
     changed = client.post(f"/api/questions/{question['id']}/change", json={"answer": "by date"},
@@ -958,7 +960,7 @@ def test_a_change_goes_into_claude_codes_turn_and_one_it_ended_before_reading_is
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
     clock = held(client)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        when_away="lead")
+                        when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     question = until_answered(client, cid)
     # (once it has said its last word: what it wrote before cannot pass for having read it)
@@ -986,7 +988,7 @@ def test_once_the_agent_that_asked_is_done_its_answer_cannot_be_changed(
     })
     clock = held(client)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        when_away="lead")
+                        when_away="lead", away_minutes=10)
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     question = wait_run(client, cid, run_id)["questions"][0]
     said = client.post(f"/api/questions/{question['id']}/change", json={"answer": "by date"},
@@ -1035,7 +1037,7 @@ def test_the_leads_ask_for_changes_reaches_the_recipe_as_the_leads(
          part("build", "Build it", {"role": "Coder"})],
         [("start", "spec"), ("spec", "build"), ("build", "end")]))
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
-                        teams_mode="manual", when_away="lead", teams=[
+                        teams_mode="manual", when_away="lead", away_minutes=10, teams=[
                             {"team_id": teams_of(client)["Web app"]["id"],
                              "recipe_id": recipe["id"]}])
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
@@ -1103,7 +1105,7 @@ def test_a_sub_agent_on_a_tier_the_opener_gave_waits_for_the_user(team, wait_run
         "models": [{"name": "deep", "tier": "strongest"}]}).status_code == 200
     clock = held(client)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="always",
-                        when_away="lead")
+                        when_away="lead", away_minutes=10)
     snap = wait_status(client, cid, "waiting_approval")
     assert snap["agents"][1]["provider_name"] == "Fast" and not snap["agents"][1]["chosen"]
     for timer in list(clock.set):
