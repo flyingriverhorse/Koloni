@@ -40,6 +40,7 @@ How to write an entry (every release looks the same):
 - **Canvas**: an agent at work says on its box what it does, how long it has worked, the tokens it wrote (where its CLI tells them) and its tier or model ([docs](docs/use/chat-and-canvas.md#the-canvas)).
 - **Chat**: an agent's window, a discussion's, Workspace and a room's window no longer open over the open chat on a small window; beside it they may lie over each other, the one opened last in front.
 - **Chat**: in a 340 px chat the "details" of what a turn did no longer drops to a second line.
+- **Agents**: an agent on a branch is told that git works in its copy (status, diff, history, commits on its branch) and that the rest of git is asked about ([docs](docs/use/workspace.md#branches)).
 
 ### Fixed
 
@@ -47,6 +48,11 @@ How to write an entry (every release looks the same):
 - **CLIs**: with Codex run **Native**, a command that prints nothing for more than 30 seconds (a quiet test run, a build) no longer ends Codex's turn as one that never started; only a command still at work after 11 minutes ends it ([docs](docs/reference/known-limits.md)).
 - **Chat**: a message still queued when KOLONİ restarted is no longer marked "Interrupted by a server restart" as if it had run: it says "Not sent: KOLONİ restarted", and its **Send** sends it as your newest message; nothing sends it by itself ([docs](docs/use/chat-and-canvas.md#writing-a-message)).
 - **Workspace**: a file you pick right after the page loads stays open; it fell back to "Pick a file in the tree." once KOLONİ had read the project's git branch. Only a switch to another branch opens the Workspace anew.
+
+### Security
+
+- **Workspace**: your repository's git hooks (pre-commit, commit-msg, post-commit, also from a core.hooksPath such as husky's) no longer run for an agent's own git commands in its copy, nor for an MCP server's it starts there, and git's fsmonitor and commit signing are off for them ([docs](docs/use/workspace.md#branches)).
+- **Agents**: on a branch, an agent's command that clears or sets git's own environment (`unset GIT_…`, `env -i`, `$env:GIT_… =`, `Remove-Item Env:\GIT_…`), or runs one of git's own programs by its name (`git-push`), is asked at every level, Full auto too: it would bring your repository's hooks back ([docs](docs/use/workspace.md#branches)).
 
 ## [0.1.4] - 2026-11-21
 

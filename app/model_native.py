@@ -696,7 +696,7 @@ class CodexNativeClient(CliStepClient):
         on_item: OnItem,
         withheld: tuple[str, ...] = (),
         linked: tuple[str, ...] = (),
-        ceiling: str | None = None,
+        git_env: Callable[[dict[str, str]], dict[str, str]] | None = None,
         also: tuple[str, ...] = (),
         effort: str | None = None,
         pass_env: str | None = None,
@@ -734,8 +734,9 @@ class CodexNativeClient(CliStepClient):
         would have to be asked about, in a turn nobody is watching), for a CLI
         that can be told to leave such tools of its own alone. `linked`: where `root`
         is a working copy, the project's folders that are linked into it, by where
-        they really are - for a CLI that has to be told it may read there. `ceiling`:
-        there too, how far up git may look for a repository (`copies.ceiling`). `also`:
+        they really are - for a CLI that has to be told it may read there. `git_env`:
+        there too, what git is given, from the CLI's environment: how far up it may look for a
+        repository, and no hook of the one it finds (`copies.git_env`). `also`:
         outside a copy, the folders outside the project it also works in. `pass_env`: the
         secret variables its commands are given all the same (`Project.pass_env`).
         `denied`: what its commands may not open, for a CLI with a sandbox that can be told
@@ -829,8 +830,8 @@ class CodexNativeClient(CliStepClient):
             # (With the secret variables the user passes: `_start` gives it the rest.)
             # (and what KOLONİ plants for the turn: 101's test key, judged at its hook)
             env = {**self._inherited(pass_env), **(planted or {}), **self._native_env(workdir)}
-            if ceiling:
-                env = {**env, "GIT_CEILING_DIRECTORIES": ceiling}
+            if git_env:
+                env = {**env, **git_env(env)}
             temp = Path(root) / SCRATCH
             if codex and temp.is_dir():
                 # B-358: its sandbox writes only in the folder it works in, not in %TEMP% - where

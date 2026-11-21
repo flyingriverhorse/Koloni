@@ -705,12 +705,29 @@ _GLOBAL_OWN = frozenset({"--no-pager", "--literal-pathspecs", "--no-optional-loc
 # of commit's, `a` and `q`, each once, `m` last where it is - its value the next word. A letter
 # twice is refused where it is read (`_own_git`).
 _COMMIT_BUNDLE = re.compile(r"-[aq]{1,2}m?|-[aq]?m")
-# A variable of git's own set on the line: in POSIX `GIT_X=`, cmd `set GIT_X=`, PowerShell
-# `$env:GIT_X=` or `Set-Item env:GIT_X`, .NET's SetEnvironmentVariable.
-_GIT_ENV = re.compile(r"(?i)(?:^|[\s;&|(`{])(?:\$env:)?GIT_\w*\s*=|env:GIT_|"
-                      r"SetEnvironmentVariable\(\s*['\"]GIT_")
-# git as a word of the line, wherever it stands: one not read as a command's program is asked.
-_GIT_WORD = re.compile(r"(?i)(?:^|[\s;&|(`{'\"\\/])git(?:\.exe)?(?=$|[\s;&|)`}'\"])")
+# A variable of git's own set, emptied or unset on the line, or the whole environment dropped: what
+# KOLONİ gives git in a copy (`copies.git_env`: no hook, no repository above) would go. Set: POSIX
+# `GIT_X=`, cmd `set GIT_X=`, PowerShell `$env:GIT_X=`, .NET's SetEnvironmentVariable (a name not
+# written out too); PowerShell's env: drive (`Remove-Item Env:\GIT_X`, a wildcard, a name not
+# written out); unset: `unset`, `export -n`, `declare +x` (a name not written out: `${!GI@}`), `env
+# -u`; dropped: `env -i`, `env -` (env by its path too). Each part is bounded: a line of a thousand
+# `unset `s took half a minute to read, on the event loop.
+# shortcut: a wrapper that starts what it runs with an environment of its own (`sudo`, `su -`,
+# `doas`, `runas`, `Start-Process -UseNewEnvironment`, `wsl`), or `Get-ChildItem env: |
+# Remove-Item`, is not seen; ask those too if an agent is seen to reach git's hooks so.
+_GIT_ENV = re.compile(r"""(?ix)
+    (?:^|[\s;&|(`{'"]) (?:\$env:)? GIT_\w*\s*=
+  | env:[\\/]? (?:GIT_|\w*[*?\[]|[$(])
+  | SetEnvironmentVariable\(\s*(?:['"]GIT_|[^'"\s])
+  | \b(?:unset|export\s+-\w*n|(?:declare|typeset)\s+\+\w*x)\b [^;&|\n]{0,256} (?:\bGIT_|[$`])
+  | (?:\s-\w*u\s*|--u[\w-]*[=\s]\s*) ['"]? GIT_
+  | (?:^|[\s;&|(`{'"\\/]) env(?:\.exe)?['"]? (?:\s+(?:-[^\s=]+|[A-Za-z_]\w*=\S*)){0,16}? \s+
+      (?:-\w*i\w*|-|--i[\w-]*) (?=\s|$)
+""")
+# git as a word of the line, wherever it stands - and one of its own programs by its name
+# (`/usr/lib/git-core/git-push`, `git-reset`): one not read as a command's program is asked.
+_GIT_WORD = re.compile(
+    r"(?i)(?:^|[\s;&|(`{'\"\\/])git(?:-[\w-]+)?(?:\.exe)?(?=$|[\s;&|)`}'\"])")
 
 
 def _outside(path: str) -> bool:

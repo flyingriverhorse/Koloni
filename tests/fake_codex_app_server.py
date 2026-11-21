@@ -86,6 +86,7 @@ def native() -> None:  # noqa: C901
     cwd = Path.cwd()
     record = {"argv": argv, "cwd": str(cwd), "stdin": "", "pid": os.getpid(), "results": [],
               "answers": [], "git_ceiling": os.environ.get("GIT_CEILING_DIRECTORIES"),
+              "git_config": os.environ.get("GIT_CONFIG_PARAMETERS"),
               "temp": [os.environ.get(name) for name in ("TMP", "TEMP", "TMPDIR")]}
     bridge = None
     numbers = iter(range(1000, 10**6))

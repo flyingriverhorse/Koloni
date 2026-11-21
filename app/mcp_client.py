@@ -421,6 +421,8 @@ class Client:
 
     # The command and variables it was started with, as the server's record had them.
     started_as: tuple[list[str], dict[str, str]] | None = None
+    # ... and what git was given besides, for an agent in a working copy (`copies.git_env`).
+    git: dict[str, str] = {}  # (replaced, never changed in place)
 
     def __init__(self, process: asyncio.subprocess.Process, job, secrets: list[str],
                  folder: Path):
@@ -435,14 +437,16 @@ class Client:
             self._errors = asyncio.ensure_future(complaints(process.stderr))
 
     @classmethod
-    async def start(cls, command: list[str], env: dict[str, str], home: Path) -> "Client":
+    async def start(cls, command: list[str], env: dict[str, str], home: Path,
+                    git: dict[str, str] | None = None) -> "Client":
         """Start the program and say hello: in an empty folder made for it in `home`
         (`Settings.mcp_home`: no folder above it can be a project), which is gone when it
         is ended - never in the project, a working copy or the system's temp folder, whose
         files could then decide what is run (a launcher looks a bare name up in the folder
         it stands in; npx and `python -m` take what they find there, npm and uv in the
-        folders above it too - 97). With its own variables and SYSTEM_VARIABLES only.
-        McpError says why it could not be.
+        folders above it too - 97). With its own variables and SYSTEM_VARIABLES only - and
+        `git`, what git is given for an agent in a working copy (`copies.git_env`: no secret,
+        not hidden in what it says). McpError says why it could not be.
         shortcut: a server that reads ./config.json or keeps its state in its own folder
         finds an empty one at each start, as before 97; give it a folder that is kept if a
         server is seen to need one."""
@@ -457,6 +461,7 @@ class Client:
         why = not_startable(argv)
         if why:
             raise McpError(f"could not be started: {why}")
+        env = {**env, **(git or {})}
         if sys.platform == "win32":
             # One name there, however it is written: its own value takes this machine's
             # place.
@@ -481,7 +486,7 @@ class Client:
                 raise McpError(f"could not be started: {raw.hide(str(exc), hidden)}") from None
             raise
         client = cls(process, job, hidden, folder)
-        client.started_as = started_as
+        client.started_as, client.git = started_as, dict(git or {})
         await client._within(START_SECONDS, "initialize", {
             "protocolVersion": PROTOCOLS[0],
             "capabilities": {},  # none: nothing is to be asked of KOLONİ

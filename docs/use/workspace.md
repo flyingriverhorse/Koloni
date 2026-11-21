@@ -72,6 +72,21 @@ project's `origin` must be the GitHub repository gh sees. Until then the card sa
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").
 
+In its copy, git works for the agent on its own branch, and it is told so: status, diff, history and
+its commits there, with a few plain options, run as its other commands do. Any other option, and git
+that reaches your own repository - switching branches, stashing, reset, merge, push, config - is asked
+at every level, Full auto too. In a project that runs in Docker the agent is told that git does not
+work in its copy: the worktree points to a folder on this machine, not in the container.
+
+Your repository's git hooks (pre-commit, commit-msg, post-commit, also those of a `core.hooksPath` such
+as husky's) do not run for an agent's own git commands in its copy - a commit on its branch included -
+nor for an MCP server's it starts there; nor does your `core.fsmonitor`, and its commits are not
+signed. On a branch, a command that clears or sets git's own environment (`unset GIT_…`, `env -i`,
+`$env:GIT_… =`) would bring them back: it is asked at every level, Full auto too.
+
+Those settings reach whatever the agent runs in its copy, your project's tests too: a test that needs
+your git hooks or signed commits does not get them there.
+
 A secret you gave in this turn (see [Security model](../security/model.md#secrets)) never leaves on a
 branch:
 

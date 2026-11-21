@@ -349,7 +349,7 @@ class NativeMixin:
                 # Nor one that holds a folder to read in only: it would be open there too.
                 also=() if copy or ro or not (asks or level == "full_auto" and self._watched(
                     ctx.run_id)) else self._add_dirs(ctx),
-                ceiling=copies.ceiling(copy.root) if copy else None,
+                git_env=partial(copies.git_env, copy.root) if copy else None,
                 pass_env=pass_env, denied=denied, planted=self._planted(ctx.run_id),
                 skills={skill.name: skill.folder for skill in self._skills(ctx)},
                 skills_told=self._skills_told(told, False) if claude else "",
