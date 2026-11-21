@@ -7,7 +7,7 @@ from datetime import timedelta
 import pytest
 
 from app.api.board import outcome, outcomes
-from app.db.models import Agent, Conversation, Run, now
+from app.db.models import Agent, Conversation, Message, Run, now
 from app.model_client import ModelUnavailable
 from tests.test_board_scenarios import ORIGIN, board, go, on_board, talk
 from tests.test_chat_flow import text
@@ -100,6 +100,36 @@ def test_only_a_failure_not_retried_nor_closed_with_its_turn_is_re_run(make_clie
         ("Tester", "error", True),
         ("Writer", "error", False),  # finished: whatever its report says, not re-run
     ]
+
+
+def test_a_message_sent_again_after_a_restart_is_its_chats_last_turn(
+    make_client, wait_run, project_dir, gate,
+):
+    # (Review, 21 Nov: the last turn was the one put on record last - not the one sent again.)
+    client, _model = make_client([gate.step(text("Done."))])
+    client.headers["Origin"] = ORIGIN
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = talk(client, pid)
+    with client.app.state.session_factory() as session:
+        at = now()
+        # A: queued when KOLONİ restarted; B: began after it, and its Tester failed.
+        session.add(Run(id="ra", conversation_id=cid, status="interrupted", by_user=True,
+                        created_at=at - timedelta(seconds=10)))
+        session.add(Run(id="rb", conversation_id=cid, status="completed", started_at=at,
+                        ended_at=at, created_at=at - timedelta(seconds=5)))
+        session.flush()
+        session.add(Message(conversation_id=cid, run_id="ra", role="user", content="and then"))
+        session.add(Agent(run_id="rb", name="Tester", role_name="Tester", task="Test it.",
+                          tools=[], depth=1, status="failed", error="boom",
+                          ended_at=at - timedelta(seconds=1)))
+        session.commit()
+    assert client.post("/api/runs/ra/send").status_code == 200
+    gate.wait_partial()
+    refused = client.post(f"/api/conversations/{cid}/rerun-failed")
+    assert (refused.status_code, refused.json()["detail"]) == (409, "its last turn is not over")
+    gate.release()
+    wait_run(client, cid, "ra")
+    assert on_board(board(client, pid), cid)["turn"]["id"] == "ra"
 
 
 def test_the_card_tags_them_and_rerun_asks_the_lead_for_the_failed_alone(

@@ -162,11 +162,13 @@ def _skipped(graph: RecipeGraph, slots: dict[str, list[list]], part: str, why: s
 def _if_found(graph: RecipeGraph, part: str) -> bool:
     """Whether a part runs only if the part before it found a problem (`RecipeStep.when`; such a
     step is in no group: `conditions`).
-    shortcut: a problem is what the review's report says - its findings, `Already failing
-    before:` lines, no Findings section, or "none" with nothing checked (`AgentRunner._found`) -
-    not a command's exit code (which command is "the tests" is not known; a grep with no match
-    exits 1), nor a `Checked:` line that says a test failed under `Findings: none`; read the
-    step's commands too if a Tester is seen to pass failing tests so."""
+    A problem is what the review's report says - its findings, `Already failing before:` lines,
+    no Findings section, or "none" with nothing checked - or a test command whose last run
+    failed (`ledger.failed_tests`: its first real word a test tool, so a grep with no match is
+    none), whatever its report says (`AgentRunner._found`).
+    shortcut: a test run not on record (a CLI's command KOLONİ does not see) counts by the report
+    alone, and a `Checked:` line saying it failed under `Findings: none` is no problem; read that
+    line too if a Tester is seen to pass failing tests so."""
     return any(s.when == "problem" for s in steps_of(graph, part))
 
 

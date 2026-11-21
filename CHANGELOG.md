@@ -25,6 +25,13 @@ How to write an entry (every release looks the same):
 
 - Complexity wave F4 (part 1): 7 frontend functions of complexity 51-91 split to 12 or under; nothing the user sees changes.
 
+### Fixed
+
+- **Agents**: in a recipe such as Quality check or Upkeep, a test run that failed now runs the fix step even when the Tester's report says it found nothing; a command that is no test run (a search with no match) still does not ([docs](docs/agents/recipes.md)).
+- **CLIs**: with Codex run **Native**, a command that prints nothing for more than 30 seconds (a quiet test run, a build) no longer ends Codex's turn as one that never started; only a command still at work after 11 minutes ends it ([docs](docs/reference/known-limits.md)).
+- **Chat**: a message still queued when KOLONİ restarted is no longer marked "Interrupted by a server restart" as if it had run: it says "Not sent: KOLONİ restarted", and its **Send** sends it as your newest message; nothing sends it by itself ([docs](docs/use/chat-and-canvas.md#writing-a-message)).
+- **Workspace**: a file you pick right after the page loads stays open; it fell back to "Pick a file in the tree." once KOLONİ had read the project's git branch. Only a switch to another branch opens the Workspace anew.
+
 ## [0.1.4] - 2026-11-21
 
 ### Added

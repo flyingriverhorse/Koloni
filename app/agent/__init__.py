@@ -67,6 +67,7 @@ from app import (
     knowledge,
     knows,
     koloni,
+    ledger,
     mcp_client,
     project_map,
     project_view,
@@ -5706,6 +5707,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 failing = [{"what": f"already failing before: {what}", "kind": "test",
                             "role": None, "blocking": True} for what in before
                            ] if child.agent_id in self._before_fix else []
+                # ...and a test run that failed, whatever its report says (a pass deletes none).
+                if child.agent_id in self._before_fix and (
+                        ran := ledger.failed_tests(session, child.agent_id)):
+                    failing.append({"what": ledger.failed_line(ran), "kind": "test",
+                                    "role": None, "blocking": True})
                 return [*(found or []), *failing] if failing else found
         return None
 

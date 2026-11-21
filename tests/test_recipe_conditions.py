@@ -8,6 +8,8 @@ import pytest
 
 from app import recipe_run
 from app.schemas import RecipeStep
+from tests.fakes import Script, ScriptedExecutor
+from tests.test_agent_commands import cmd
 from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import OWN, teams_of
 from tests.test_claim_scenarios import write
@@ -189,10 +191,10 @@ def test_a_conditional_step_saves_and_one_that_could_never_tell_is_refused(make_
 # --- the ready Quality check, with the fake model -------------------------------------------------
 
 
-def quality_run(client, project_dir):
+def quality_run(client, project_dir, mode="auto_edit"):
     quality = teams_of(client)["Quality"]
     assert quality["default_recipe_id"] == recipe_named(client, "Quality check")["id"]
-    return begin(client, project_dir, mode="auto_edit", spawn_approval="never", teams_mode="manual",
+    return begin(client, project_dir, mode=mode, spawn_approval="never", teams_mode="manual",
                  teams=[{"team_id": quality["id"], "recipe_id": None}])
 
 
@@ -271,6 +273,59 @@ def test_a_tester_report_that_is_no_pass_runs_the_debugger(make_client, wait_run
     if report == FAILING:  # (handed on as a finding: the Debugger's to fix)
         debugger = next(a for a in snap["agents"] if a["role_name"] == "Debugger")
         assert "already failing before: test_x" in debugger["task"]
+
+
+def test_a_failing_test_run_runs_the_debugger_whatever_the_tester_reports(make_client, wait_run, project_dir):
+    # (Code review, 14 Nov: pytest exited 1 under "Findings: none" and the fix was skipped.)
+    executor = ScriptedExecutor([Script(["2 failed, 3 passed\n"], exit_code=1)])
+    client, _model = make_client({
+        "Lead": [spawn("Tester", "run the tests", "t1"),
+                 step(call("spawn_agent", {"role": "Debugger", "task": "fix it", "findings_from": "Tester"}, "d1")),
+                 spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
+        "Tester": [cmd("python -m pytest -q"), text(NONE)],
+        "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
+        "Tester 2": [text(NONE)], **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    cid, run_id = quality_run(client, project_dir, mode="full_auto")  # (its command not asked)
+    snap = wait_run(client, cid, run_id)
+    assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
+    assert opened(snap) == ["Tester", "Debugger", "Tester", *REVIEWERS]
+    tester = next(a for a in snap["agents"] if a["role_name"] == "Tester")
+    assert [f["blocking"] for f in tester["findings"] if "exit 1" in f["what"]] == [True], tester["findings"]
+
+
+def test_a_key_in_a_failing_test_runs_command_is_hidden_in_its_finding(
+        make_client, wait_run, project_dir, monkeypatch):
+    # (Review, 21 Nov: the finding is handed on to the Debugger and shown on the card.)
+    key = "kg-0123456789abcdefghijklmnop"
+    monkeypatch.setenv("KG_TEST_TOKEN", key)
+    executor = ScriptedExecutor([Script(["1 failed\n"], exit_code=1)])
+    client, _model = make_client({
+        "Lead": [spawn("Tester", "run the tests", "t1"),
+                 step(call("spawn_agent", {"role": "Debugger", "task": "fix it", "findings_from": "Tester"}, "d1")),
+                 spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
+        "Tester": [cmd(f"pytest --token {key}"), text(NONE)],
+        "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
+        "Tester 2": [text(NONE)], **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    cid, run_id = quality_run(client, project_dir, mode="full_auto")
+    snap = wait_run(client, cid, run_id)
+    tester = next(a for a in snap["agents"] if a["role_name"] == "Tester")
+    (said,) = [f["what"] for f in tester["findings"] if "exit 1" in f["what"]]
+    assert key not in said and "pytest --token" in said, said
+
+
+def test_a_command_that_exits_1_and_is_no_test_run_is_no_problem(make_client, wait_run, project_dir):
+    # (A grep with no match exits 1: only a test run's failure is one.)
+    executor = ScriptedExecutor([Script([], exit_code=1)])
+    client, _model = make_client({
+        "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
+        "Tester": [cmd("grep -rn TODO ."), text(NONE)],
+        **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    cid, run_id = quality_run(client, project_dir, mode="full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
+    assert opened(snap) == ["Tester", *REVIEWERS]
+    assert strip(row(snap))[1] == ("fix", "skipped", 0)
+    assert [c["exit_code"] for c in snap["commands"]] == [1]
 
 
 def test_suggestions_alone_send_no_work_back_and_the_card_says_them(make_client, wait_run, project_dir):

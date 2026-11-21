@@ -36,10 +36,16 @@ export function GitStatus({ projectId }: { projectId: string }) {
   const [switching, setSwitching] = useState(false)
   const [refused, setRefused] = useState<string | null>(null)
   const shownFor = useRef<string | null>(null) // (the project whose git is shown: `take`)
+  // The branch last read, of which project: only another one after it, in the same project, is a switch - not the first
+  // read, nor the same after a failed one.
+  const known = useRef<{ projectId: string; branch: string } | null>(null)
   const read = (seen: Git | null) => {
     shownFor.current = seen ? projectId : null
     setGit(seen)
-    useApp.setState({ gitBranch: seen?.branch ?? null })
+    const branch = seen?.branch ?? null
+    const switched = branch !== null && known.current?.projectId === projectId && branch !== known.current.branch
+    if (branch !== null) known.current = { projectId, branch }
+    useApp.setState(s => ({ gitBranch: branch, gitSwitches: s.gitSwitches + Number(switched) }))
   }
   // How many times it was opened: read again as it opens, not as it closes - and while it is open, a few seconds after
   // each answer: a turn's agents move on, and an answer read just before they did would stay (the 70 e2e under load).
@@ -101,7 +107,7 @@ export function GitStatus({ projectId }: { projectId: string }) {
       .post<Git | null>(`/projects/${projectId}/git/switch`, { name, new: isNew })
       .then(
         seen => {
-          // (the Workspace is made anew on the branch read here: `gitBranch`, its key)
+          // (the Workspace is made anew on the branch read here: `gitSwitches`, its key)
           read(seen)
           // (a read asked for before the switch, still on its way, would put the old branch back: it is dropped, and
           // git read again)

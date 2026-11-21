@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from app import model_native
 from app.model_client import ModelUnavailable
+from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import approve, cmd
 from tests.test_agent_talk import message
@@ -53,14 +54,43 @@ def test_a_command_approved_in_a_continued_turn_runs(make_client, wait_run, proj
 def test_a_command_codex_was_let_run_and_never_heard_of_again_ends_its_turn(
     native_app, wait_run, project_dir, monkeypatch  # noqa: F811
 ):
-    monkeypatch.setattr(model_native, "NEVER_STARTED_SECONDS", 1.0)
-    client, provider, _ = native_app([{"run": "pytest -q", "hold": 30}, {"say": "ok"}])
+    monkeypatch.setattr(model_native, "CALL_SECONDS", 1.0)
+    client, provider, _ = native_app(
+        [{"run": "pytest -q", "no_start": True, "hold": 30}, {"say": "ok"}])
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert "never started" in snap["runs"][0]["error"]
     call = next(t for t in snap["tool_calls"] if t["name"] == "run_command")
     assert call["status"] == "failed" and "never started" in call["result"]
     assert snap["commands"][0]["status"] == "failed_to_start"
+
+
+def test_a_command_codex_said_it_started_and_then_nothing_ran_too_long(
+    native_app, wait_run, project_dir, monkeypatch  # noqa: F811
+):
+    # (Review, 21 Nov: seen at work before it was allowed, it started - not "never started".)
+    monkeypatch.setattr(model_native, "CALL_SECONDS", 1.0)
+    client, provider, _ = native_app([{"run": "pytest -q", "hold": 30}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)
+    snap = wait_run(client, cid, run_id)
+    assert "still at work after 1 seconds" in snap["runs"][0]["error"]
+    call = next(t for t in snap["tool_calls"] if t["name"] == "run_command")
+    assert call["status"] == "failed" and "never started" not in call["result"]
+    assert snap["commands"][0]["status"] != "failed_to_start"
+
+
+def test_a_quiet_command_of_codexs_is_not_taken_for_one_that_never_started(
+    native_app, wait_run, project_dir, monkeypatch  # noqa: F811
+):
+    # (Code review, 14 Nov: a command that printed nothing for 30 s ended Codex's turn.)
+    monkeypatch.setattr(model_native, "NEVER_STARTED_SECONDS", 1.0, raising=False)
+    monkeypatch.setattr(model_native, "CALL_SECONDS", scaled(6.0))  # (it is at work 2.5 s)
+    client, provider, _ = native_app(
+        [{"run": "pytest -q", "hold": 2.5, "output": "3 passed\n"}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert snap["commands"][0]["status"] == "exited"
 
 
 def test_a_command_of_codexs_at_work_past_the_bound_ends_its_turn(

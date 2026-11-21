@@ -233,20 +233,22 @@ def board_of(
             func.json_array_length(Merge.files) > 0)))
         .group_by(Run.conversation_id)
     ).tuples().all())
-    # Each conversation's last turn: the one put on record last. A message taken back
-    # before its turn started was never a turn (as `topics.latest_of_user` says).
-    last = (
-        select(func.max(literal_column("runs.rowid")))
-        .select_from(Run)
+    # Each conversation's last turn: the one sent last (a message sent again after a restart
+    # is the newest), else put on record last. A message taken back before its turn started
+    # was never a turn (as `topics.latest_of_user` says).
+    ranked = (
+        select(Run.id, func.row_number().over(
+            partition_by=Run.conversation_id,
+            order_by=(Run.created_at.desc(), literal_column("runs.rowid").desc())).label("at"))
         .join(Conversation, Conversation.id == Run.conversation_id)
         .where(mine)
         .where(or_(Run.status != "cancelled", Run.started_at.is_not(None)))
-        .group_by(Run.conversation_id)
+        .subquery()
     )
     runs = session.execute(
         select(Run.conversation_id, Run.id, Run.status, Run.started_at, Run.ended_at,
                Run.input_tokens, Run.output_tokens, Run.plan)
-        .where(literal_column("runs.rowid").in_(last))
+        .where(Run.id.in_(select(ranked.c.id).where(ranked.c.at == 1)))
     ).all()
     ran = [run.id for run in runs]
     # Its agents that started, and their tokens as the chat's turn summary adds them up

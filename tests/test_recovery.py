@@ -1,10 +1,14 @@
+import pytest
+
 from app.agent import recover_interrupted
 from app.config import load_settings
-from app.db.models import Agent, Conversation, FileChange, Message, Project, Run, ToolCall
+from app.db.models import Agent, Conversation, FileChange, Message, Project, Run, ToolCall, now
 from app.db.session import make_engine, make_session_factory, upgrade_db
 from app.main import create_app
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
+from tests.test_chat_flow import text
+from tests.test_chat_teams_scenarios import OWN
 
 
 def seed(factory, root):
@@ -76,6 +80,90 @@ def test_app_startup_recovers_and_the_conversation_is_usable_again(tmp_path):
         approve = client.post("/api/file-changes/f/approve")
         assert approve.status_code == 409
     assert not (tmp_path / "f.txt").exists()
+
+
+def queued_then_restarted(tmp_path):
+    """`seed`'s turns as they are: r1 at work, r2 the user's message queued behind it."""
+    settings = load_settings({"KOLONI_RUNTIME_ROOT": str(tmp_path / "rt")})
+    upgrade_db(settings.db_path)
+    factory = make_session_factory(make_engine(settings.db_path))
+    seed(factory, tmp_path)
+    with factory() as s:
+        s.get_one(Run, "r1").started_at = now()
+        s.get_one(Run, "r2").by_user = True
+        s.add(Message(id="q", conversation_id="c", run_id="r2", role="user",
+                      content="then run the tests"))
+        s.commit()
+    return settings, factory
+
+
+def test_a_message_queued_before_a_restart_is_not_sent_until_the_user_sends_it(tmp_path, wait_run):
+    # (Code review, 14 Nov: it was "interrupted" and never given to the Lead, whatever was said.)
+    settings, _factory = queued_then_restarted(tmp_path)
+    model = ScriptedModel([text("They pass.")])
+    with TestClient(create_app(settings, model=model), base_url="http://127.0.0.1:8790") as client:
+        runs = {r["id"]: r for r in client.get("/api/conversations/c").json()["runs"]}
+        assert (runs["r2"]["status"], runs["r2"]["started_at"]) == ("interrupted", None)
+        assert (runs["r1"]["by_user"], runs["r2"]["by_user"]) == (False, True)  # (Send: r2's)
+        assert model.calls == []  # (nothing runs by itself)
+        assert client.post("/api/runs/r2/send").status_code == 403  # (the user's, from the page)
+        assert client.post("/api/runs/r1/send", headers=OWN).status_code == 409  # (it ran)
+        sent = client.post("/api/runs/r2/send", headers=OWN)
+        assert sent.status_code == 200, sent.text
+        assert (sent.json()["run"]["status"], sent.json()["message"]["id"]) == ("running", "q")
+        snap = wait_run(client, "c", "r2")
+        assert next(r for r in snap["runs"] if r["id"] == "r2")["status"] == "completed"
+        assert "then run the tests" in str(model.calls[0])
+        # Its turn is the newest now: last in the chat and in what the Lead is given.
+        assert [r["id"] for r in snap["runs"]][-1] == "r2"
+        assert client.post("/api/runs/r2/send", headers=OWN).status_code == 409  # (sent once)
+
+
+@pytest.mark.parametrize("over", [
+    {"by_user": False},  # (KOLONİ's own turn, or one asked from no page of the app)
+    {"unattended": True},  # (a trigger's)
+    {"compare_id": "k"},  # (one side of a comparison)
+    {"started_at": now()},  # (it ran)
+    {"status": "queued"},  # (sent again already, and waiting)
+])
+def test_only_a_message_of_the_users_never_begun_is_sent_again(tmp_path, over):
+    settings, factory = queued_then_restarted(tmp_path)
+    model = ScriptedModel([])
+    with TestClient(create_app(settings, model=model), base_url="http://127.0.0.1:8790") as client:
+        with factory() as s:
+            for name, value in over.items():
+                setattr(s.get_one(Run, "r2"), name, value)
+            s.commit()
+        refused = client.post("/api/runs/r2/send", headers=OWN)
+        assert refused.status_code == 409, refused.text
+        assert model.calls == []
+
+
+def test_a_message_sent_again_brings_its_archived_chat_back(tmp_path):
+    settings, factory = queued_then_restarted(tmp_path)
+    with factory() as s:
+        s.get_one(Conversation, "c").archived_at = now()
+        s.commit()
+    with TestClient(create_app(settings, model=ScriptedModel([])),
+                    base_url="http://127.0.0.1:8790") as client:
+        with factory() as s:  # (a turn at work: it waits, and runs nothing here)
+            s.add(Run(id="r4", conversation_id="c", status="running", started_at=now()))
+            s.commit()
+        assert client.post("/api/runs/r2/send", headers=OWN).status_code == 200
+        assert client.get("/api/conversations/c").json()["conversation"]["archived_at"] is None
+
+
+def test_a_message_sent_again_while_a_turn_is_at_work_waits_behind_it(tmp_path):
+    settings, factory = queued_then_restarted(tmp_path)
+    model = ScriptedModel([])
+    with TestClient(create_app(settings, model=model), base_url="http://127.0.0.1:8790") as client:
+        with factory() as s:  # (a turn the user started since)
+            s.add(Run(id="r4", conversation_id="c", status="running", started_at=now()))
+            s.commit()
+        sent = client.post("/api/runs/r2/send", headers=OWN)
+        assert sent.status_code == 200, sent.text
+        assert (sent.json()["run"]["status"], sent.json()["run"]["started_at"]) == ("queued", None)
+        assert model.calls == []
 
 
 def test_an_agent_that_had_finished_and_was_only_answering_stays_finished(tmp_path):

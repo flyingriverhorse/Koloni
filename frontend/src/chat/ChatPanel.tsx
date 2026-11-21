@@ -214,7 +214,7 @@ export function ChatPanel() {
   const filesOpen = useApp(s => s.filesOpen)
   const filesAt = useApp(s => s.filesAt)
   const filesRef = useApp(s => s.filesRef)
-  const gitBranch = useApp(s => s.gitBranch)
+  const gitSwitches = useApp(s => s.gitSwitches)
   const openFiles = useApp(s => s.openFiles)
   const project = useApp(s => s.projects.find(p => p.id === s.projectId))
   // What waits for you here, as the Board counts it (38f-2): no number till it is read.
@@ -553,7 +553,7 @@ export function ChatPanel() {
         <FilesWindow
           // (anew in another conversation: its tabs were that one's; and on another branch, looked at or switched to -
           // its folders were read on the one before)
-          key={`${project.id} ${conv?.conversation.id} ${filesRef} ${gitBranch}`}
+          key={`${project.id} ${conv?.conversation.id} ${filesRef} ${gitSwitches}`}
           project={project}
           branch={filesRef}
           changes={inProject(conv?.fileChanges ?? [])}

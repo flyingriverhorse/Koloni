@@ -41,6 +41,7 @@ import { AwayCard, AwayFrom } from '../backlog/Away'
 import { NightRow } from '../ready/NightRow'
 import { type BranchSaid, useApp } from '../state/store'
 import { InjectionWarning } from './InjectionWarning'
+import { NotSent } from './NotSent'
 import { PlanCard } from './PlanCard'
 import { RequestRow } from './RequestRow'
 import { TalkRow, talkOf } from './TalkRow'
@@ -189,7 +190,8 @@ function runNotice(run: Run, lead?: Agent, providers: Provider[] = []): Notice |
     case 'cancelled':
       return run.started_at ? { title: 'Stopped', alert: false } : null
     case 'interrupted':
-      return { title: 'Interrupted by a server restart', text: 'Send a message to continue.', alert: false }
+      // (A message of yours that never began is said under it: `NotSent`. A trigger's or KOLONİ's own, here as before.)
+      return run.started_at || !run.by_user || run.unattended ? { title: 'Interrupted by a server restart', text: 'Send a message to continue.', alert: false } : null
     default:
       return null
   }
@@ -691,6 +693,7 @@ function UserMessage({ message, run, files = [], saved = [], changed, onRemove, 
           <span className="tag">Removed from queue</span>
         </div>
       )}
+      <NotSent run={run} />
     </div>
   )
 }

@@ -79,6 +79,9 @@ and credit messages.
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
   script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it
   as made in the project by an unknown maker.
+- With Codex run **Native**, a command of Codex's own still at work after 11 minutes is ended as
+  failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
+  started" at the same 11 minutes.
 - Triggers do not start a turn on a CLI that works with its own tools (Native, or agy).
 - GitHub Copilot CLI's tokens and AI credits run as a session are counted from its usage checkpoint, as
   in **Native**; measured with `copilot -p` (CLI 1.0.103), not yet seen in a live session.

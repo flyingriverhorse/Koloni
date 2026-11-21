@@ -666,6 +666,9 @@ class RunOut(Out):
     plan: PlanOut | None
     # One side of a comparison (slice 54); None for every other turn.
     compare_id: str | None
+    # Started by the user's own message, from the app's own page: one never begun can be sent
+    # again (`app.api.runs.send_again`).
+    by_user: bool
     # B-107: the chat's teams as this turn left them; None for a turn without, or from before.
     teams: list[ChatTeamOut] | None = None
     # The Assistant PO's request after the turn; None where it was not asked.
@@ -701,6 +704,11 @@ class PlanApproveIn(BaseModel):
     # The plan as the user edited it; left out or empty: as it was proposed.
     text: str | None = Field(default=None, max_length=20_000)
     # The user's word to start the work though the project is over this month's budget.
+    over_budget: bool = False
+
+
+class SendIn(BaseModel):
+    # The user's word to send it though the project is over this month's budget.
     over_budget: bool = False
 
 
