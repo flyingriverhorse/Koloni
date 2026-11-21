@@ -4,7 +4,8 @@ Round 2 cured over-asks by narrowing what recognised a harm, and each narrow rec
 open where it missed: commands 650e22a asked about ran with no card. `command_gate.json` holds
 each line's verdict as 650e22a gave it - the reviewers' probe lines, the briefs' lines and the
 command tests' strings - and HEAD must give at least that: `harm_class` (none < soft < always),
-a card from `copy_reason` in a copy with links, `installs()`. A line meant to go down (an
+a card from `copy_reason` in a copy with links, `installs()`, `web_off_reason` with
+http_request off (review round 4). A line meant to go down (an
 over-ask cured) is in its `allow`, with why; a known regression still open, in its `xfail`; a
 line meant to go up (a hole 650e22a had too: a continued line) in its `up` - harm at least."""
 
@@ -44,12 +45,13 @@ def tokens(tmp_path: Path) -> dict[str, str]:
     return {**found, "<la_rel>": rel, "<la_rel|fwd>": rel.replace("\\", "/"), "<la>": local}
 
 
-def verdict(line: str, tmp_path: Path) -> tuple[int, bool, bool]:
+def verdict(line: str, tmp_path: Path) -> tuple[int, bool, bool, bool]:
     project, runtime = tmp_path / "proj", tmp_path / "runtime"
     own = copies.folders(runtime)[0] / "a" / "tree"
     card = commands.copy_reason(line, True, str(project), runtime, own, ".",
                                 [str(project), str(tmp_path / "wt" / "x")])
-    return RANK[commands.harm_class(line)], bool(card), bool(commands.installs(line))
+    return (RANK[commands.harm_class(line)], bool(card), bool(commands.installs(line)),
+            bool(commands.web_off_reason(line, ["http_request"])))
 
 
 def test_no_command_is_asked_less_than_650e22a_asked_it(tmp_path, monkeypatch):
@@ -57,13 +59,13 @@ def test_no_command_is_asked_less_than_650e22a_asked_it(tmp_path, monkeypatch):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "user-data"))
     values = tokens(tmp_path)
     below = []
-    for template, harm, card, install, win32 in GATE["lines"]:
+    for template, harm, card, install, win32, web in GATE["lines"]:
         if win32 and sys.platform != "win32" or template in GATE["allow"]:
             continue
         line = re.sub(r"<[a-z_]+(?:\|[a-z]+)?>", lambda m: values.get(m[0], m[0]), template)
         harm = max(harm, 1) if template in GATE["up"] else harm  # (meant to go up: harm at least)
         now = verdict(line, tmp_path)
-        if now[0] < harm or card and not now[1] or install and not now[2]:
+        if now[0] < harm or card and not now[1] or install and not now[2] or web and not now[3]:
             below.append(template)
     xfail = set(GATE["xfail"])
     regressed = [line for line in below if line not in xfail]
