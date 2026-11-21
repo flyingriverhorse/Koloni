@@ -686,3 +686,35 @@ def test_claude_codes_bash_refused_once_full_auto_was_left_is_a_card(claude_app,
     asked = carded(client, cid, run_id, lambda *args: wait_run(*args, 30))
     assert asked["status"] == "proposed" and asked["judged"] is None
     assert claude_app.record()["asked"][0]["behavior"] == "deny"
+
+
+@pytest.mark.no_po
+def test_a_run_that_comes_back_once_the_check_was_turned_off_is_a_card(judging, wait_run,
+                                                                      project_dir):
+    # (as a refusal is: a run holds only while the chat is at Full auto and the check is on)
+    gate = Gate()
+    client, _lead, _judge, executor = judging(
+        [cmd("rm -rf build"), text("left it")], [gate.step(verdict_line("run", RULE))], [])
+    pid, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
+    gate.wait_partial()
+    left(client, pid, cid, "setting")
+    gate.release()
+    asked = carded(client, cid, run_id, wait_run)
+    assert asked["status"] == "proposed" and asked["judged"] is None and executor.started == []
+
+
+@pytest.mark.no_po
+def test_claude_codes_bash_run_once_the_check_was_turned_off_is_a_card(claude_app, wait_run,  # noqa: F811
+                                                                        project_dir):
+    gate = Gate()
+    client, cli, _default = claude_app(
+        [{"tool": "Bash", "input": {"command": "rm -rf build"}, "result": ""},
+         {"say": "left it"}], default_steps=[gate.step(verdict_line("run", RULE))])
+    judged_by_local(client, cli)
+    pid, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE, provider=cli)
+    gate.wait_partial()
+    left(client, pid, cid, "setting")
+    gate.release()
+    asked = carded(client, cid, run_id, lambda *args: wait_run(*args, 30))
+    assert asked["status"] == "proposed" and asked["judged"] is None
+    assert claude_app.record()["asked"][0]["behavior"] == "deny"

@@ -111,19 +111,22 @@ def refused_by_rule(judgement: dict) -> str:
     return REFUSED_BY_A_MESSAGE
 
 
-def _refuses(judgement: dict | None, mode: str, check: str) -> bool:
-    """Whether the check of the user's words refused a command, and that holds: only while the
-    chat is at Full auto and the project's check is on - one that comes back after either changed
-    is its card, as if never checked (the security review of K-yargic's slice 2)."""
-    return (judgement is not None and judgement["verdict"] == "refuse" and mode == "full_auto"
-            and check == "judge")
+def _gate_open(mode: str, check: str) -> bool:
+    """Whether what the check of the user's words said of a command still holds: only while the
+    chat is at Full auto and the project's check is on - a run or a refusal that comes back after
+    either changed is its card, as if never checked (the security review of K-yargic's slice 2)."""
+    return mode == "full_auto" and check == "judge"
 
 
-def _kept(judgement: dict | None, asks: bool, refuses: bool) -> dict | None:
-    """What of the check goes on a command's record: not a run asked all the same (a level
-    lowered while the check was out), nor a refusal that no longer holds (`_refuses`)."""
-    stale = judgement is not None and (asks and judgement["verdict"] == "run"
-                                       or judgement["verdict"] == "refuse" and not refuses)
+def _refuses(judgement: dict | None, gate: bool) -> bool:
+    """Whether the check refused a command, and that holds (`_gate_open`)."""
+    return gate and judgement is not None and judgement["verdict"] == "refuse"
+
+
+def _kept(judgement: dict | None, asks: bool, gate: bool) -> dict | None:
+    """What of the check goes on a command's record: nothing once its gate closed (`_gate_open`),
+    nor a run asked all the same."""
+    stale = judgement is not None and (not gate or asks and judgement["verdict"] == "run")
     return None if stale else judgement
 
 HELD_BACK = ("(secret variables held back from this command: {names} - the user can pass one "
@@ -235,7 +238,8 @@ class CommandRunner:
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            forbidden = _refuses(judgement, conversation.permission_mode, project.full_auto_check)
+            gate = _gate_open(conversation.permission_mode, project.full_auto_check)
+            forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
                 self._may_serve(session, cid, project, ws, ask, where,
                                 lead=session.get_one(Agent, agent_id).depth == 0)
@@ -254,14 +258,15 @@ class CommandRunner:
             # steers later turns (`names_standing`, B-79), or has a reason in a working copy
             # (`copy_reason`, which its card shows from its call's record). One that only reads
             # is not (K-ask-okuma), nor the user's own test command run in its part's folder
-            # (`project_map.own_test`).
+            # (`project_map.own_test`). Nor is one the check of the user's words let run - while
+            # that holds (`_gate_open`).
             own = project_map.own_test(project.test_commands, planned.command, planned.cwd_rel)
             # (K-fullauto-sorma: at Full auto an instruction file alone is not asked.)
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
             asks = ask and (always or names_secret(judged) or bool(standing_asked(
                 judged, conversation.permission_mode != "full_auto"))
-                or bool(searched) or (
+                or bool(searched) or judgement is not None and not gate or (
                 conversation.permission_mode != "full_auto"
                 and (planned.keep_running or not (is_allowed(planned.command, prefixes)
                                                   or reads or own
@@ -284,7 +289,7 @@ class CommandRunner:
                 # shortcut: a check that said run on one asked for another reason (a search that
                 # reaches a secret, `searched`) was a request spent; look for that before it if
                 # such checks are seen often.
-                judged=_kept(judgement, asks, forbidden),
+                judged=_kept(judgement, asks, gate),
             )
             session.add(command)
             session.commit()
@@ -536,13 +541,15 @@ class CommandRunner:
             tests, check = session.execute(select(
                 Project.test_commands, Project.full_auto_check).where(
                 Project.id == conversation.project_id)).one()
-            forbidden = _refuses(judgement, mode, check)
+            gate = _gate_open(mode, check)
+            forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
             own = project_map.own_test(tests, command, cwd)
             # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
             judged = with_cwd(command, cwd)
             asks = ask and (always or names_secret(judged)
                             or bool(standing_asked(judged, mode != "full_auto"))
+                            or judgement is not None and not gate
                             or (mode != "full_auto"
                                 and not (is_allowed(command, prefixes) or reads or own)))
             row = Command(
@@ -550,8 +557,8 @@ class CommandRunner:
                 cwd=cwd, location="host", timeout_seconds=0, origin="cli", web_off=web_off,
                 status="refused" if forbidden else "proposed",
                 ended_at=now() if forbidden else None,
-                # (as `run`'s: a level lowered while the check was out asks all the same)
-                judged=_kept(judgement, asks, forbidden),
+                # (as `run`'s: what the check said holds only while its gate is open)
+                judged=_kept(judgement, asks, gate),
             )
             session.add(row)
             session.commit()
