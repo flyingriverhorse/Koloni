@@ -2428,13 +2428,47 @@ def harm_class(command: str, instructions: bool = True) -> HarmClass:
 
 
 def _asked_anyway(command: str, instructions: bool) -> bool:
-    """`harm_class`: what makes a harm one asked at every level - a secret, `.koloni`, a file
-    that steers later turns, a line handed to another program (`runs_another`: a variable set
-    before it, `xargs`, `sudo`, a shell), or a path out of the folder in any word of the line,
-    its program's own too (`_leads_out`)."""
-    return bool(names_secret(command) or names_koloni(command)
-                or standing_asked(command, instructions) or runs_another(command)
-                or any(map(_leads_out, re.split(r"[\s;&|(){}]+", command))))
+    """`harm_class`: what makes a harm one asked at every level - a secret (named after an `@`
+    too: `-F f=@id_rsa`), `.koloni`, a file that steers later turns, a line handed to another
+    program (`runs_another`: a variable set before it, `xargs`, `sudo`, a shell), a path out of
+    the folder in any word of the line, its program's own too (`_leads_out`), a glob on a
+    dot-name (`.k*`, `.[k]oloni`, `.env*`), or a harm over all of the folder (`_sweeps`)."""
+    words = re.split(r"[\s;&|(){}]+", command)
+    return bool(names_secret(command) or names_secret(command.replace("@", " "))
+                or names_koloni(command) or standing_asked(command, instructions)
+                or runs_another(command) or any(map(_leads_out, words))
+                or any(_DOT_GLOB.search(_as_read(word)) for word in words) or _sweeps(command))
+
+
+# A glob or a bracket on a name that starts with a dot: it may reach `.git`, `.koloni` or a secret.
+_DOT_GLOB = re.compile(r"(?:^|[\\/=@,:])\.[^\\/]*[*?\[]")
+
+
+def _sweeps(command: str) -> bool:
+    """`_asked_anyway`: a part of a harmful line that reaches all of the folder - `.git` and
+    `.koloni` with it: a delete of the folder itself or all in it (`.`, `*`, `sub/..`), or of a
+    line that sends, any part but git's (`git add .` is no send of the folder) that takes it
+    (`scp -r .`, `zip -r x.zip . && curl ...`); git told what to run (`-c`, `--config-env`), or
+    `git clean` of the ignored files too (`-x`, `-X`)."""
+    parts = [words for words in _commands_in(command, at=_BLOCKS) if words]
+    sends = any(_sends(words) for words in parts)
+    for words in parts:
+        git = _program(words[0]) == "git"
+        if git and (any(word == "-c" or word.startswith("--config-env") for word in words) or (
+                _git_sub(words)[0] == "clean" and any(
+                    _cluster(word, "x") or _cluster(word, "X") for word in words[2:]))):
+            return True
+        if any(map(_whole, words[1:])) and (
+                _danger_of(words).startswith("Deletes") or sends and not git):
+            return True
+    return False
+
+
+def _whole(word: str) -> bool:
+    """`_sweeps`: whether a word names the folder itself, or all in it: `.`, `./`, `*`,
+    `sub/..` - also as an option's value (`-Path:.`)."""
+    plain = _as_read(re.sub(r"^-[\w-]*[:=]", "", word)).replace("\\", "/")
+    return bool(plain) and not plain.startswith("-") and posixpath.normpath(plain) in (".", "*")
 
 
 def _leads_out(word: str) -> bool:
