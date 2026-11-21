@@ -393,7 +393,7 @@ function activityOf(agent: Agent, run: Run, state: ConvState, teams: Team[]): st
   // Only so many agents work at once; this one is next - the lead too, where the room it waits for is kept for it.
   if (agent.status === 'queued') return 'Waiting for a slot'
   // For a file another agent holds, until that one's work is done.
-  if (status === 'blocked') return waitLine(agent, state.conversation.id) ?? 'waits for a file'
+  if (status === 'blocked') return waitLine(agent, state.conversation.id, teams) ?? 'waits for a file'
   if (status === 'waiting') return waitingFor(agent, run, state, teams)
   if (status === 'running') return workingOn(agent, state)
   return endedAs(agent, run, status)

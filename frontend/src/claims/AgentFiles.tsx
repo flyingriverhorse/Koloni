@@ -1,3 +1,4 @@
+import { titleOf } from '../agents/agentStatus'
 import type { Agent } from '../api/types'
 import { pendingMerge } from '../changes/copies'
 import type { ConvState } from '../state/applyEvent'
@@ -16,15 +17,17 @@ export function AgentFiles({ state, agent }: { state: Pick<ConvState, 'claims' |
   // decision: known for an agent of this conversation, and said then. Of an agent of another
   // conversation it is not known, so nothing is said of what the wait asks of them.
   const asked = wait ? pendingMerge(state, wait.agent_id) !== null : false
+  // The Lead by what the screen calls it, as on the agent's box.
+  const who = wait ? titleOf(wait.agent_name) : ''
   return (
     <div className="agent-files">
       {wait && (
         <p role="note" className="agent-files-wait">
-          Waits for {wait.agent_name || 'an agent of another conversation'} to finish with{' '}
+          Waits for {who || 'an agent of another conversation'} to finish with{' '}
           <span className="mono">{wait.path}</span>.{' '}
           {asked
-            ? `${wait.agent_name}'s changes wait for you: it goes on when you have decided.`
-            : `It goes on when ${wait.agent_name || 'that agent'} is done with the file.`}
+            ? `${who}'s changes wait for you: it goes on when you have decided.`
+            : `It goes on when ${who || 'that agent'} is done with the file.`}
         </p>
       )}
       {held.length > 0 && (

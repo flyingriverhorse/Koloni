@@ -1,4 +1,5 @@
-import type { Agent, ToolCall } from '../api/types'
+import { titleOf } from '../agents/agentStatus'
+import type { Agent, Team, ToolCall } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 
 /**
@@ -10,15 +11,15 @@ import type { ConvState } from '../state/applyEvent'
 /** The agent that holds a file may be one of another conversation of the project. */
 const ELSEWHERE = 'an agent of another conversation'
 
-/** What an agent that waits for a file says on its box: "waits for Coder · cart.py". */
-export function waitLine(agent: Pick<Agent, 'status' | 'waiting_for'>, cid?: string): string | null {
+/** What an agent that waits for a file says on its box: "waits for Coder · cart.py" (`teams`: a team's lead is its coordinator). */
+export function waitLine(agent: Pick<Agent, 'status' | 'waiting_for'>, cid?: string, teams: Team[] = []): string | null {
   const wait = agent.status === 'blocked' ? agent.waiting_for : null
-  return wait ? `waits for ${holder(wait, cid)} · ${wait.path}` : null
+  return wait ? `waits for ${holder(wait, cid, teams)} · ${wait.path}` : null
 }
 
-/** B-140: who holds it - in another chat, named by it (a Coder waited 9 minutes, its chat said nothing of where). */
-const holder = (wait: NonNullable<Agent['waiting_for']>, cid?: string) =>
-  `${wait.agent_name || ELSEWHERE}${wait.conversation_id && cid && wait.conversation_id !== cid ? ` in «${wait.conversation_title ?? 'another chat'}»` : ''}`
+/** B-140: who holds it, as the screen calls it - in another chat, named by it (a Coder waited 9 minutes, its chat said nothing of where). */
+const holder = (wait: NonNullable<Agent['waiting_for']>, cid?: string, teams: Team[] = []) =>
+  `${titleOf(wait.agent_name, teams) || ELSEWHERE}${wait.conversation_id && cid && wait.conversation_id !== cid ? ` in «${wait.conversation_title ?? 'another chat'}»` : ''}`
 
 const sameFile = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
