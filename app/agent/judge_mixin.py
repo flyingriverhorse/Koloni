@@ -116,8 +116,6 @@ class JudgeMixin:
         got = judge.verdict(_answer(said), texts)
         if got is None:
             return None
-        if got["verdict"] == "refuse":  # (slice 2 refuses it; until then it is a card)
-            got = {"verdict": "ask", "quote": "", "source": "", "why": ""}
         return {**got, "model": f"{asking.provider} · {asking.model_name}"}
 
     @staticmethod

@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app import project_map
+from app import judge, project_map
 from app.commands import (
     MAX_STORED_OUTPUT,
     OutputMask,
@@ -191,16 +191,18 @@ class CommandRunner:
         user said yes to on a card, exactly as written, that the level alone does not ask again
         (K-evrim's measure, for its run) - what asks at every level still does; a yes on this
         one's card is added to it. `judgement`: what the check of the user's words said of it
-        (K-yargic, `AgentRunner._judged`) - not kept as a run where it is asked all the same."""
+        (K-yargic, `AgentRunner._judged`) - not kept as a run where it is asked all the same; one
+        it refused goes on record ended, "refused", and is neither asked nor run."""
         planned = plan_command(ws, args)
         searched = await asyncio.to_thread(
             search_reason, planned.command, ws.root, planned.cwd_rel)
         reads = await asyncio.to_thread(
             reads_here, planned.command, ws.root, planned.cwd_rel == ".")
+        refused = judgement is not None and judgement["verdict"] == "refuse"
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            if planned.keep_running:
+            if planned.keep_running and not refused:
                 self._may_serve(session, cid, project, ws, ask, where,
                                 lead=session.get_one(Agent, agent_id).depth == 0)
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
@@ -241,7 +243,8 @@ class CommandRunner:
                 location=project.exec_location,
                 image=project.docker_image if project.exec_location == "docker" else None,
                 timeout_seconds=planned.timeout,
-                status="proposed" if asks else "approved",
+                status="refused" if refused else "proposed" if asks else "approved",
+                ended_at=now() if refused else None,
                 keep_running=planned.keep_running,
                 web_off=web_off,
                 # shortcut: a check that said run on one asked for another reason (a search that
@@ -256,6 +259,8 @@ class CommandRunner:
             payload = command_out(command, held=bool(searched))
             rule = payload["suggested_prefix"]
         self.bus.emit(cid, run_id, "command.created", payload)
+        if refused:  # K-yargic: a sentence of the user's forbids it - on record, never asked or run
+            return "denied", judge.REFUSED.format(quote=judgement["quote"])
 
         if asks:
             # (`rule` is empty when this command cannot be remembered.)
@@ -490,7 +495,8 @@ class CommandRunner:
         the root), so that the card is judged the same when it is read again. What it
         prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
         screen and the record - the CLI's own model has read it already. `judgement`: as
-        `run`'s."""
+        `run`'s (one it refused: (False, its id), as for the user's no)."""
+        refused = judgement is not None and judgement["verdict"] == "refuse"
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
@@ -508,6 +514,7 @@ class CommandRunner:
             row = Command(
                 run_id=run_id, agent_id=agent_id, tool_call_id=call_id, command=command,
                 cwd=cwd, location="host", timeout_seconds=0, origin="cli", web_off=web_off,
+                status="refused" if refused else "proposed", ended_at=now() if refused else None,
                 # (as `run`'s: a level lowered while the check was out asks all the same)
                 judged=None if asks and judgement and judgement["verdict"] == "run"
                 else judgement,
@@ -516,6 +523,8 @@ class CommandRunner:
             session.commit()
             command_id, payload = row.id, command_out(row, held=held)
         self.bus.emit(cid, run_id, "command.created", payload)
+        if refused:
+            return False, command_id
         if asks:
             decision = await self._wait_for_decision(
                 run_id, cid, agent_id, command_id, payload["suggested_prefix"])

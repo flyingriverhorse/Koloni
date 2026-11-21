@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app import copies, mcp_client
+from app import copies, judge, mcp_client
 from app.agent.cards import _glob_could_take, _shared
 from app.agent.ctx import Ctx, _NobodyToAsk, _Transcript, _Watch
 from app.agent.merge import _planned_edit
@@ -428,9 +428,10 @@ class ApprovalsMixin:
             if isinstance(cwd, str) and cwd else unnamed, judgement=judged,
         )
         if not allowed:
-            self._set_call(ctx.cid, call_id, status="denied", result=rejected(command),
-                           ended_at=now())
-            return deny(rejected(command), fixed=True)
+            said = (judge.REFUSED.format(quote=judged["quote"])
+                    if judged and judged["verdict"] == "refuse" else rejected(command))
+            self._set_call(ctx.cid, call_id, status="denied", result=said, ended_at=now())
+            return deny(said, fixed=True)
         watch.commands[use_id] = (call_id, command_id)
         # What it names was on its card (asked at every level): what it writes under that
         # name stands at the look after it, that one (`_command_names`).

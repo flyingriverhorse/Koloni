@@ -17,8 +17,10 @@ from app.agent.ctx import Ctx, _Unwatched
 from app.commands import harms
 from app.config import load_settings
 from app.db.models import OwnRequest
+from app.judge import REFUSED
 from app.main import create_app
 from app.model_client import StepResult
+from app.model_native import DECLINED_WHY
 from tests.conftest import Gate
 from tests.fakes import Script, ScriptedExecutor, ScriptedModel
 from tests.keyed import NO_ORIGIN, OWN, TestClient
@@ -27,8 +29,9 @@ from tests.test_agent_writes import wait_status
 from tests.test_agy_agent import agy_app  # noqa: F401  (a fixture)
 from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
-from tests.test_codex_app_server_scenarios import ACCEPT, RUN, answers
+from tests.test_codex_app_server_scenarios import ACCEPT, DECLINE, RUN, answers
 from tests.test_copilot_agent import copilot_native  # noqa: F401  (a fixture)
+from tests.test_judge import NO_MAIN
 from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
 from tests.test_spawn import call, step
 from tests.test_team import ADDRESS, SECRET
@@ -470,3 +473,86 @@ def test_the_reason_the_judge_is_given_is_masked_too(judging, wait_run, project_
     carded(client, cid, run_id, wait_run)
     prompt = judge.calls[0][0]["content"]
     assert SECRET not in prompt and f'"flagged_because": "Deletes files or disks. {raw.HIDDEN}"' in prompt
+
+
+# --- slice 2: a command a sentence of the user's forbids is not run ------------------------------
+
+
+def command_statuses(client):
+    """Every status a command is given on the bus from now on."""
+    statuses, emit = [], client.app.state.bus.emit
+
+    def watch(conversation_id, run_id, kind, payload):
+        if kind in ("command.created", "command.updated"):
+            statuses.append(payload["status"])
+        return emit(conversation_id, run_id, kind, payload)
+
+    client.app.state.bus.emit = watch
+    return statuses
+
+
+@pytest.mark.no_po
+def test_a_push_the_users_rule_forbids_is_not_run_and_the_agent_hears_the_rule(
+        judging, wait_run, project_dir):
+    client, lead, _judge, executor = judging(
+        [cmd("git push origin main"), text("pushed a branch instead")],
+        [verdict_line("refuse", NO_MAIN, why="The rule forbids it.")], [])
+    statuses = command_statuses(client)
+    _, cid, run_id = begin(client, project_dir, "ship it", rules=NO_MAIN)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (refused,) = snap["commands"]
+    assert refused["status"] == "refused" and refused["ended_at"] and refused["judged"] == {
+        "verdict": "refuse", "quote": NO_MAIN, "source": "rules", "why": "The rule forbids it.",
+        "model": "Fast · quick", "seen": False}
+    assert statuses == ["refused"] and executor.started == []
+    assert [one["status"] for one in snap["tool_calls"]] == ["denied"]
+    assert REFUSED.format(quote=NO_MAIN) in lead.calls[1][-1]["content"]
+    assert [one for one in snap["messages"] if one["role"] == "koloni"] == []
+    seen = client.post(f"/api/commands/{refused['id']}/seen", headers=OWN)
+    assert seen.status_code == 200 and seen.json()["judged"]["seen"] is True
+
+
+@pytest.mark.no_po
+def test_a_refuse_on_a_line_that_forbids_nothing_is_a_card(judging, wait_run, project_dir):
+    client, _lead, _judge, executor = judging(
+        [cmd("rm -rf build"), text("left it")], [verdict_line("refuse", RULE)], [])
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=RULE)
+    asked = carded(client, cid, run_id, wait_run)
+    assert asked["status"] == "proposed" and asked["judged"] == {
+        "verdict": "ask", "quote": "", "source": "", "why": "", "model": "Fast · quick",
+        "seen": False}
+    assert executor.started == []
+
+
+def refused_on_the_rule(client, project_dir, cli, wait_run):
+    judged_by_local(client, cli)
+    _, cid, run_id = begin(client, project_dir, "ship it", rules=NO_MAIN, provider=cli)
+    snap = wait_run(client, cid, run_id, 30)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (refused,) = snap["commands"]
+    assert (refused["status"], refused["origin"]) == ("refused", "cli")
+    assert (refused["judged"]["verdict"], refused["judged"]["quote"]) == ("refuse", NO_MAIN)
+
+
+@pytest.mark.no_po
+def test_codex_is_told_in_its_turn_why_a_push_the_users_rule_forbids_is_declined(
+        native_app, wait_run, project_dir):  # noqa: F811
+    client, cli, _default = native_app(
+        [{"run": "git push origin main", "output": ""}, {"say": "pushed a branch"}],
+        default_steps=[verdict_line("refuse", NO_MAIN)])
+    refused_on_the_rule(client, project_dir, cli, wait_run)
+    assert answers(native_app) == [(RUN, DECLINE)]
+    assert [one["input"][0]["text"] for one in native_app.record().get("steers", [])] == [
+        DECLINED_WHY.format(why=REFUSED.format(quote=NO_MAIN))]
+
+
+@pytest.mark.no_po
+def test_claude_codes_bash_push_the_users_rule_forbids_is_denied_with_the_rule(
+        claude_app, wait_run, project_dir):  # noqa: F811
+    client, cli, _default = claude_app(
+        [{"tool": "Bash", "input": {"command": "git push origin main"}, "result": ""},
+         {"say": "pushed a branch"}], default_steps=[verdict_line("refuse", NO_MAIN)])
+    refused_on_the_rule(client, project_dir, cli, wait_run)
+    (asked,) = claude_app.record()["asked"]
+    assert (asked["behavior"], asked["message"]) == ("deny", REFUSED.format(quote=NO_MAIN))
