@@ -522,30 +522,41 @@ KILLS_BY_NAME = ("Stops programs by their name (taskkill /IM, pkill, killall, St
                  "machine.")
 
 
-# What looks processes up, as a part's program (never a word of its arguments: `grep ps`), .NET's
-# `[Diagnostics.Process]::GetProcesses…` too: a stop on its line may be of what it found - by what
-# processes are, not by an id the agent holds (`_stop_kind`).
-_LOOKUPS = frozenset({"get-process", "gps", "ps", "pgrep", "pidof", "lsof", "fuser",
-                      "get-nettcpconnection", "netstat", "get-ciminstance", "gcim",
-                      "get-wmiobject", "gwmi", "tasklist"})
-_CIM_LOOKUPS = frozenset({"get-ciminstance", "gcim", "get-wmiobject", "gwmi"})
+# What stops a process (`_part_stop`) is asked at every level - recognised by its safe shape, not
+# by a dangerous one: a stop is "by id" only where every target is a pid written out, or one the
+# line itself started (`_started`). By a name it is "soft" unless the name may be KOLONİ itself or
+# an agent's CLI (`_named`). WMI's and CIM's own removals, a process object's own Kill / Terminate,
+# `fuser -k` and the kill-port packages say nothing of what they reach.
 _CIM_REMOVES = frozenset({"remove-ciminstance", "rcim", "remove-wmiobject", "rwmi"})
 # WMI's own stop of whatever its query finds (`wmic process where ... delete`, `... call terminate`,
-# `Invoke-CimMethod -MethodName Terminate`): read in the part as written - wmic is a wrapper to
-# `_commands_in`.
-_WMI_METHODS = frozenset({"wmic", "invoke-cimmethod", "icim", "invoke-wmimethod"})
+# `Invoke-CimMethod -MethodName Terminate`): read in the line as written, in what a shell is handed
+# too - wmic is a wrapper to `_commands_in`.
+_WMI_STOPS = re.compile(r"(?i)(?:^|(?<=[\s\"'(;&|{]))(?:wmic|invoke-cimmethod|icim|"
+                        r"invoke-wmimethod)(?:\.exe)?\s[^;&|\r\n]*\b(?:delete|terminate)\b")
+# A kill or a Stop-Process handed its target otherwise than by words: by a pipe (`| xargs kill`,
+# `| Stop-Process`), or by a block the split cut off (`kill -9 $(pgrep x)`,
+# `Stop-Process (...).Id`).
+_PIPED_STOP = re.compile(r"(?i)\|\s*(?:xargs\b[^|;&]*?\s)?(?:kill|stop-process|spps)\b"
+                         r"|\b(?:kill|stop-process|spps)\b(?:\s+-\S+)*\s*[($`{@]")
+# A process object's own way to end (`$p.Kill()`, `% Terminate`, `ForEach-Object Kill`).
+_STOP_METHODS = frozenset({"kill", "terminate", "closemainwindow"})
 _KILL_PACKAGES = frozenset({"kill-port", "fkill", "fkill-cli"})
 # A package runner and its word before the package: `npx x`, `npm exec x`, `pnpm dlx x`.
 _RUNS_PACKAGE = {"npx": (), "pnpx": (), "bunx": (), "npm": ("exec", "x"),
                  "pnpm": ("dlx", "exec"), "yarn": ("dlx", "exec"), "bun": ("x",)}
 # Stop-Process's switches: a number after one is its id (`Stop-Process -Force 1234`).
 _STOP_SWITCHES = ("-force", "-passthru", "-whatif", "-confirm", "-verbose", "-debug")
-# What KOLONİ itself runs as, or the CLIs its agents run on (`harm_class`: a stop of one is never
-# soft), and a name not written out (a wildcard, a variable).
+# What KOLONİ itself runs as, and the CLIs its agents run on: a stop by a name that may be one is
+# never soft (`_named`) - nor one not written out (a wildcard, a bracket, a variable).
+_KOLONIS_PROGRAMS = ("python", "pythonw", "py", "uvicorn", "node", "claude", "codex", "copilot",
+                     "qodercli", "agy")
 _KOLONIS_NAMES = re.compile(r"(?i)(?:python|uvicorn|node|claude|codex|copilot|qodercli|agy)"
-                            r"[\w.-]*|py(?:\.exe)?|.*[*?$(@`%].*")
-# A process the line itself started (`$p = Start-Process x -PassThru`): stopping it is by id.
-_STARTED = re.compile(r"(?i)\$(\w+)\s*=\s*(?:start-process|saps|start)\b[^;\r\n]*-passthru")
+                            r"[\w.-]*|py(?:\.exe)?|.*[*?$(@`%\[\]].*")
+# What a line sets a variable to: PowerShell's `$p = x`, `foreach ($p in x)`, and sh's `P=x`.
+_PS_SETS = re.compile(r"(?i)\$(\w+)\s*=(?!=)\s*([^;\r\n]*)")
+_PS_LOOPS = re.compile(r"(?i)\bforeach\s*\(\s*\$(\w+)\s+in\b")
+_SH_SETS = re.compile(r"(?<![\w$.-])([A-Za-z_]\w*)=([^\s;&|]*)")
+_STARTS = re.compile(r"(?i)\s*(?:start-process|saps|start)\b.*-passthru")
 # pkill's and killall's selections by an owner, a parent, a session, a terminal, a group, the
 # whole command line or a pattern: whose processes they reach is not said.
 _SELECTS = {"pkill": set("uUPstGgf"), "killall": set("ugr")}
@@ -553,56 +564,77 @@ _SELECTS_LONG = ("--full", "--euid", "--uid", "--parent", "--session", "--termin
                  "--pgroup", "--user", "--regexp", "--process-group")
 
 
-def _named(names: list[str]) -> str:
+def _started(command: str) -> set[str]:
+    """How a line names the processes it starts: `$p.id` of `$p = Start-Process x -PassThru`,
+    `$pid` of sh's `PID=$!` - a variable set to nothing else on the line (`$p = Get-Process x`
+    after it, `foreach ($p in ...)`)."""
+    sets: dict[str, list[str]] = {}
+    for name, value in _PS_SETS.findall(command):
+        sets.setdefault(f"${name.casefold()}.id", []).append(value)
+    for name, value in _SH_SETS.findall(command):
+        sets.setdefault(f"${name.casefold()}", []).append(value)
+    for name in _PS_LOOPS.findall(command):
+        sets.setdefault(f"${name.casefold()}.id", []).append("")
+    return {name for name, values in sets.items()
+            if all(_STARTS.match(value) or value.strip() == "$!" for value in values)}
+
+
+def _own_id(word: str, started: set[str], jobs: bool = False) -> bool:
+    """Whether a stop's target is a pid written out, `$!`, a job (`%1`, sh's `kill` alone:
+    `jobs`), or how the line names a process it started (`_started`: `$p.Id`, `$PID` of
+    `PID=$!`)."""
+    word = re.sub(r"^\$\{(\w+)\}", r"$\1", word.strip("'\"").casefold())
+    return bool(re.fullmatch(r"[1-9]\d*(?:,[1-9]\d*)*|\$!", word) or jobs and re.fullmatch(
+        r"%(?:\d+|[%+-])", word) or word in started)
+
+
+def _named(names: list[str], pattern: bool = False) -> str:
     """A stop by these names (a word may list them: `a,b`): "koloni" where one may be KOLONİ
-    itself or another agent's CLI (`_KOLONIS_NAMES`), or none is written; else "soft"."""
+    itself or another agent's CLI (`_KOLONIS_NAMES`), or none is written; else "soft".
+    `pattern`: pkill's - a regular expression found anywhere in a process's name (`pkill thon`)."""
     names = [name for word in names for one in word.split(",") if (name := one.strip("'\" "))]
-    return "koloni" if not names or any(map(_KOLONIS_NAMES.fullmatch, names)) else "soft"
+    if not names or any(map(_KOLONIS_NAMES.fullmatch, names)):
+        return "koloni"
+    for name in names if pattern else ():
+        try:
+            if any(re.search(name, program, re.I) for program in _KOLONIS_PROGRAMS):
+                return "koloni"
+        except re.error:
+            return "koloni"
+    return "soft"
 
 
-def _own_id(word: str, started: set[str]) -> bool:
-    """Whether a stop's target is an id, of a process the line knows: a number, sh's `$!` or a
-    job (`%1`), or the id of one the line started (`$p.Id`)."""
-    found = re.fullmatch(r"\$(\w+)\.id", word.casefold())
-    return bool(re.fullmatch(r"[1-9]\d*(?:,[1-9]\d*)*|\$!|%(?:\d+|[%+-])", word)) or bool(
-        found and found[1] in started)
-
-
-def _stop_process(said: list[str], looked: bool, started: set[str]) -> str:
-    """`_part_stop` of PowerShell's Stop-Process: by id only by `-Id` (`-i`, `-Id:1`) - a value
-    the line looked up is not one (`looked`) - or numbers no option takes as its value."""
+def _stop_process(said: list[str], started: set[str], piped: bool) -> str:
+    """`_part_stop` of PowerShell's Stop-Process: by id only by `-Id` (`-i`, `-Id:1`) or numbers
+    no option takes as its value - each a pid written out or one the line started; by `-Name`; a
+    process object (`-InputObject`, a word in Id's place) only one the line started."""
     names, ids, by_name, at = [], [], False, 0
     while at < len(said):
         word = said[at].casefold()
         option, _sep, glued = word.partition(":")
         if not word.startswith("-"):
             (names if by_name else ids).append(said[at])
-        elif option in ("-i", "-id"):
-            value = glued or (said[at + 1] if at + 1 < len(said) else "")
-            if looked and not _own_id(value, started):
-                return "koloni"
+        elif option in ("-i", "-id") or option.startswith("-in"):
+            ids.append(glued or (said[at + 1] if at + 1 < len(said) else ""))
             at += 1 if glued else 2
-            ids.append("1")  # (an id given)
             continue
         elif option.startswith(("-n", "-processn")):
             by_name = True
             names += [glued] if glued else []
-        elif option.startswith("-in"):
-            return "koloni"  # (a process object: whatever it holds)
         elif not glued and not any(switch.startswith(option) and len(option) > 1
                                    for switch in _STOP_SWITCHES):
             at += 1  # (an option's value: `-ErrorAction 0`)
         at += 1
-    if by_name:
-        return _named(names)
-    return "" if ids and all(_own_id(one, started) or one == "1" for one in ids) else "koloni"
+    if ids and not all(_own_id(one, started) for one in ids):
+        return "koloni"
+    return _named(names) if by_name else "" if ids else _bare(piped)
 
 
-def _kill(said: list[str], looked: bool, started: set[str]) -> str:
-    """`_part_stop` of `kill`: PowerShell's by `-Name` (`-n x`, `-name:x`); sh's by its pids - a
-    number, `$!`, a job - after its signal (`-9`, `-s KILL`, `--`); one of everyone's (`-1`),
-    a group's (`0`, a negative pid), one in a variable (`$PPID`), or none written (what `xargs`
-    hands it) may be KOLONİ itself."""
+def _kill(said: list[str], started: set[str], piped: bool) -> str:
+    """`_part_stop` of `kill`: PowerShell's by `-Name` (`-n x`, `-name:x`); sh's by its pids
+    after its signal (`-9`, `-s KILL`, `--`) - each a pid written out, a job, or one the line
+    started (`$!`); everyone's (`-1`), a group's (`0`, a negative pid), one in another variable
+    (`$PPID`) or none written (what `xargs` hands it) may be KOLONİ itself."""
     low = [word.casefold() for word in said]
     if low[:1] in (["-l"], ["--list"]):
         return ""  # (it lists the signals)
@@ -623,13 +655,16 @@ def _kill(said: list[str], looked: bool, started: set[str]) -> str:
         else:
             targets.append(word)
         at += 1
-    return "" if targets and all(_own_id(one, started) for one in targets) else "koloni"
+    if not targets:
+        return _bare(piped)
+    return "" if all(_own_id(one, started, jobs=True) for one in targets) else "koloni"
 
 
-def _taskkill(said: list[str]) -> str:
+def _taskkill(said: list[str], started: set[str]) -> str:
     """`_part_stop` of taskkill: by `/IM` (`/IM:x`, Git Bash's `//IM`) a name; `/FI` a filter -
-    what it reaches is not said; by `/PID` alone none."""
-    names, by_name, at = [], False, 0
+    what it reaches is not said; by `/PID` each a pid written out or one the line started
+    (`for /f ... do taskkill /PID %a` is of what the loop found)."""
+    names, ids, at = [], [], 0
     while at < len(said):
         key, _sep, glued = said[at].casefold().lstrip("/-").partition(":")
         if not said[at].startswith(("/", "-")):
@@ -639,33 +674,38 @@ def _taskkill(said: list[str]) -> str:
             return "koloni"
         if key in ("im", "pid", "s", "u", "p"):
             value = glued or (said[at + 1] if at + 1 < len(said) else "")
-            if key == "im":
-                by_name, names = True, [*names, value]
+            names += [value] if key == "im" else []
+            ids += [value] if key == "pid" else []
             at += 1 if glued else 2
             continue
         at += 1
-    return _named(names) if by_name else ""
+    if ids and not all(_own_id(one, started) for one in ids):
+        return "koloni"
+    return _named(names) if names else "" if ids else "koloni"  # (none said: not read)
 
 
 def _pkill(program: str, said: list[str]) -> str:
-    """`_part_stop` of pkill and killall: by their names, but a selection by owner, parent,
-    session, terminal, group, command line or pattern (`_SELECTS`) is of whatever it finds."""
-    names, at = [], 0
+    """`_part_stop` of pkill and killall: by their names - pkill's a pattern found anywhere in a
+    name but with `-x` - but a selection by owner, parent, session, terminal, group, command line
+    or pattern (`_SELECTS`) is of whatever it finds."""
+    names, exact, at = [], program == "killall", 0
     while at < len(said):
         word = said[at]
         if word.startswith("--"):
             if word.split("=")[0] in _SELECTS_LONG:
                 return "koloni"
+            exact = exact or word == "--exact"
         elif re.fullmatch(r"-(?:\d+|SIG[A-Z0-9]+|[A-Z]{2,}[A-Z0-9]*)", word):
             pass  # (a signal: -9, -KILL, -SIGTERM)
         elif word.startswith("-"):
             if set(word[1:]) & _SELECTS[program]:
                 return "koloni"
+            exact = exact or "x" in word[1:]
             at += 1 if word == "-s" and program == "killall" else 0  # (its signal's value)
         else:
             names.append(word)
         at += 1
-    return _named(names)
+    return _named(names, pattern=not exact)
 
 
 def _runs_kill_package(program: str, said: list[str]) -> bool:
@@ -678,37 +718,53 @@ def _runs_kill_package(program: str, said: list[str]) -> bool:
     return bool(named) and named[0].split("@")[0] in _KILL_PACKAGES
 
 
-def _part_stop(program: str, rest: list[str], looked: bool, started: set[str],
-               programs: Iterable[str]) -> str:
-    """Whether a part stops programs by their name or what they are, not by an id the agent
-    holds: "" (none, or by id), "soft" (by a name not KOLONİ's) or "koloni" (what may be KOLONİ
-    itself, another agent's CLI, or what is not said). `looked`: its line looks processes up
-    (`_LOOKUPS`); `started`: the processes it started (`_STARTED`); `programs`: its parts'."""
+def _bare(piped: bool) -> str:
+    """A kill or a Stop-Process with no target written: of what a pipe hands it (`| xargs kill`,
+    `Get-Process x | Stop-Process`) - "koloni" -, or a word of a message or a search the quote-blind
+    split cut out (`git commit -m "fix (kill)"`) - none.
+    shortcut: what the pipe hands is not read, so the line's own started process handed so
+    (`$p = Start-Process x -PassThru; $p | Stop-Process`) is asked too (OA-d); read the pipe's
+    left side against `_started` in 0.1.6."""
+    return "koloni" if piped else ""
+
+
+def _part_stop(program: str, rest: list[str], started: set[str], piped: bool = True) -> str:
+    """Whether a part stops a process otherwise than by an id the line knows: "" (none, or by
+    such an id), "soft" (by a name not KOLONİ's) or "koloni" (what may be KOLONİ itself, another
+    agent's CLI, or what is not said). `started`: the line's own processes (`_started`)."""
     said = [word.strip("'\"") for word in rest]
-    if program.endswith(".kill") or program in ("%", "foreach-object", "foreach") and "kill" in {
-            word.casefold() for word in said}:
-        return "koloni" if looked else ""  # (a process object's own Kill: of what was found)
-    if program in _KILL_PACKAGES or _runs_kill_package(program, said):
+    method = program.rpartition(".")[2] if "." in program else ""
+    if method in _STOP_METHODS:  # (`$p.Kill()`, `(...).Terminate()`)
+        owner = program.rpartition(".")[0]
+        return "" if owner and _own_id(owner, started) else "koloni"
+    if program in ("%", "foreach-object", "foreach") and {
+            word.casefold() for word in said} & _STOP_METHODS:
+        return "koloni"
+    if program in _KILL_PACKAGES or program in _CIM_REMOVES or _runs_kill_package(program, said):
         return "koloni"
     if program == "fuser":
         return "koloni" if any(_cluster(word, "k") or word == "--kill" for word in said) else ""
-    if program in _CIM_REMOVES:
-        return "koloni" if _CIM_LOOKUPS & set(programs) else ""
     if program == "tskill":
         target = next((word for word in said if not word.startswith("/")), "")
-        return "" if target.isdigit() else _named([target])
+        return "" if _own_id(target, started) else "koloni" if re.fullmatch(
+            r"-?\d+", target) else _named([target])
     if program == "taskkill":
-        return _taskkill(said)
+        return _taskkill(said, started)
     if program in _SELECTS:
         return _pkill(program, said)
     if program in ("stop-process", "spps"):
-        return _stop_process(said, looked, started)
-    return _kill(said, looked, started) if program == "kill" else ""
+        return _stop_process(said, started, piped)
+    return _kill(said, started, piped) if program == "kill" else ""
 
 
 def _assigned(words: list[str]) -> list[str]:
-    """A PowerShell part that sets a variable to what a command gives (`$p = Get-Process x`): the
-    command's words."""
+    """A part's command past what leads into it: PowerShell's setting a variable to what it gives
+    (`$p = Get-Process x`), a loop's or a condition's word (`for /f ... do taskkill`, sh's `do`,
+    `then`), cmd's `@` (`@taskkill`)."""
+    while words and words[0].casefold() in ("do", "then", "else"):
+        words = words[1:]
+    if words and words[0].startswith("@") and len(words[0]) > 1:
+        words = [words[0][1:], *words[1:]]
     if len(words) > 2 and re.fullmatch(r"\$[\w:]+", words[0]) and words[1] == "=":
         return words[2:]
     glued = re.fullmatch(r"\$[\w:]+=(.+)", words[0]) if words else None
@@ -718,20 +774,17 @@ def _assigned(words: list[str]) -> list[str]:
 def _stop_kind(command: str) -> str:
     """`_part_stop` of a whole line, in any part a shell is handed too: "koloni" where a part may
     stop KOLONİ itself, "soft" where one stops by another name, "" for none. WMI's stops
-    (`_WMI_METHODS`) are read in the parts as written.
-    shortcut: a pid held from an earlier line in a PowerShell variable (`Stop-Process -Id $x`) is
-    taken as an id, as `Get-Process` and the stop on two lines are not seen together; card it if
-    an agent is seen to stop KOLONİ so."""
-    parts = [words for words in map(_assigned, _commands_in(command, at=_BLOCKS)) if words]
-    programs = [_program(words[0]) for words in parts]
-    looked = any(program in _LOOKUPS or "::getprocess" in words[0].casefold()
-                 for program, words in zip(programs, parts, strict=True))
-    started = {name.casefold() for name in _STARTED.findall(command)}
-    kinds = {_part_stop(program, words[1:], looked, started, programs)
-             for program, words in zip(programs, parts, strict=True)}
-    if any(_program(words[0]) in _WMI_METHODS and any(
-            word.casefold().strip("'\"") in ("delete", "terminate") for word in words)
-           for words in _parts(command, _BLOCKS) if words):
+    (`_WMI_STOPS`) are read in the line as written. A continued line is read joined too."""
+    kinds = {_stop_kind_of(line) for line in _readings(command)}
+    return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
+
+
+def _stop_kind_of(command: str) -> str:
+    started = _started(command)
+    piped = bool(_PIPED_STOP.search(command))
+    kinds = {_part_stop(_program(words[0]), words[1:], started, piped)
+             for words in map(_assigned, _commands_in(command, at=_BLOCKS)) if words}
+    if _WMI_STOPS.search(command):
         return "koloni"
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 
@@ -761,8 +814,6 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
                 "runs is not seen.")
     if program in _DELETERS or program.startswith("mkfs"):
         return "Deletes files or disks."
-    if _part_stop(program, words[1:], False, set(), [program]):
-        return KILLS_BY_NAME
     if program in ("clear-content", "clc"):
         return "Empties files (Clear-Content)."
     rest = words[1:]
@@ -1058,6 +1109,8 @@ _WRITES_ANY = frozenset({"set-content", "sc", "add-content", "ac", "out-file", "
                          "tee-object"})
 # A copy's or move's target by its option (`Copy-Item -Destination x`, `cp -t x`).
 _TARGET_OPTIONS = ("-destination", "-t", "--target-directory")
+# GNU cp's and mv's short options in one word, the target's `t` among them (`-S` takes a value).
+_CLUSTER_TARGET = re.compile(r"-[^-St]*t(.*)")
 
 
 def _in_linked(word: str, own: re.Pattern | None = None) -> bool:
@@ -1070,7 +1123,9 @@ def _in_linked(word: str, own: re.Pattern | None = None) -> bool:
         path = os.path.normcase(path)[found.end():]
     elif _full(path):
         return False
-    parts = posixpath.normpath(path.replace("\\", "/").lstrip("/") or ".").split("/")
+    # (as written, or where it leads: `node_modules/../src` passes through the link)
+    parts = [*re.split(r"[\\/]", path),
+             *posixpath.normpath(path.replace("\\", "/").lstrip("/") or ".").split("/")]
     return any(part.casefold() in LINKED for part in parts)
 
 
@@ -1094,7 +1149,12 @@ def _writes_links(words: list[str], own: re.Pattern | None = None) -> bool:
         targets = [value for at, word in enumerate(rest)
                    if (value := _option_value(rest, at, _TARGET_OPTIONS)) is not None]
         named = [word for word in rest if not word.startswith("-")]
-        return any(_in_linked(one, own) for one in targets or named[-1:])
+        # (GNU's `-t` in a cluster, `cp -rt x a.js`, `cp -tx a.js`: as well, never instead - in
+        # PowerShell `cp` is Copy-Item, whose `-Container` is no target)
+        clustered = [found[1] or (rest[at + 1] if at + 1 < len(rest) else "")
+                     for at, word in enumerate(rest)
+                     if program in ("cp", "mv") and (found := _CLUSTER_TARGET.fullmatch(word))]
+        return any(_in_linked(one, own) for one in (targets or named[-1:]) + clustered)
     in_place = program == "sed" and any(word.startswith(("-i", "--in-place")) for word in words)
     return (program in _WRITES_ANY or in_place) and any(_in_linked(one, own) for one in rest)
 
@@ -1121,6 +1181,31 @@ _NPM_INSTALLS = _NPM_CI | {
 _PM_VALUES = frozenset({"--prefix", "-C", "--cwd", "--dir", "--filter", "-F", "--workspace", "-w",
                         "--registry", "--cache", "--userconfig", "--globalconfig", "--loglevel",
                         "--directory", "--project", "--python", "-p", "--config-file"})
+# Each package manager's own options before its verb, as it reads them: (those that take a value,
+# flags) - `-p` takes a value in uv's, in npm's it is `--parseable`. One not here is read both
+# ways (`_verbs`).
+_PM_OPTIONS = {
+    "npm": (frozenset({"--prefix", "-C", "--workspace", "-w", "--registry", "--cache",
+                       "--userconfig", "--globalconfig", "--loglevel", "--include", "--omit",
+                       "--install-strategy"}),
+            frozenset({"-p", "--parseable", "-s", "--silent", "-q", "--quiet", "-g", "--global",
+                       "-y", "--yes", "-d", "--verbose", "--json", "-D", "-S", "-O", "-E"})),
+    "pnpm": (frozenset({"-C", "--dir", "--filter", "-F", "--reporter"}),
+             frozenset({"-w", "--workspace-root", "-r", "--recursive", "-s", "--silent", "-g"})),
+    "yarn": (frozenset({"--cwd"}), frozenset({"-s", "--silent", "-W"})),
+    "uv": (frozenset({"--directory", "--project", "--python", "-p", "--config-file", "--cache-dir",
+                      "--color"}),
+           frozenset({"-q", "--quiet", "-v", "--verbose", "--offline", "--no-cache", "-n",
+                      "--frozen", "--locked"})),
+    "pip": (frozenset({"--proxy", "--cache-dir", "--log", "--timeout", "--exists-action",
+                       "--python", "--index-url", "-i", "--retries", "--cert", "--client-cert"}),
+            frozenset({"-q", "--quiet", "-v", "--verbose", "--isolated", "--no-cache-dir",
+                       "--disable-pip-version-check", "--user"})),
+    "poetry": (frozenset({"-C", "--directory", "-P", "--project"}),
+               frozenset({"-q", "--quiet", "-n", "--no-interaction", "-v"})),
+}
+# The runners whose first word is the package they run (`npx x`): what they hand on.
+_RUNNERS_OF = frozenset(name for name, words in _RUNS_PACKAGE.items() if not words)
 # What empties a dependency folder and makes it anew - measured 29 Oct through a junction:
 # `npm ci` emptied the project's node_modules, `uv venv` its .venv; `uv sync` makes the venv
 # anew when its interpreter changed. shortcut: `pnpm install --frozen-lockfile`, `yarn
@@ -1131,24 +1216,52 @@ _PM_VALUES = frozenset({"--prefix", "-C", "--cwd", "--dir", "--filter", "-F", "-
 _REBUILDERS = frozenset({*(("npm", verb) for verb in _NPM_CI), ("uv", "venv"), ("uv", "sync")})
 
 
-def _verb(words: list[str]) -> tuple[str, list[str]]:
-    """A package manager's program and its words from the verb on, the options before it read
-    past (`_PM_VALUES`) - `uv pip x` as pip's own, a module an interpreter runs as the program
-    (`_module_run`)."""
+def _verbs(words: list[str]) -> list[tuple[str, str]]:
+    """Every (program, verb) a package manager's part may run: its words past the options before
+    the verb - an option of `_PM_OPTIONS` read as it is; one not known, without `=`, both as a
+    flag and as taking a value, so either word after it may be the verb (fail closed) - `uv pip
+    x` as pip's own, a module an interpreter runs as the program (`_module_run`), and what
+    `npm exec` / `npx` hands a package manager (`npm exec -- npm i x`)."""
     words = _module_run(words) or words
-    program, rest = _program(words[0]), _after_options(words[1:], _PM_VALUES)
-    if program == "uv" and rest[:1] == ["pip"]:
-        return "pip", _after_options(rest[1:], _PM_VALUES)
-    return program, rest
+    program = _program(words[0])
+    values, flags = _PM_OPTIONS.get("pip" if program.startswith("pip") else program,
+                                    (_PM_VALUES, frozenset()))
+    rest, found, at, maybe = words[1:], [], 0, False
+    while at < len(rest):
+        word = rest[at]
+        if word.startswith("-"):
+            known = "=" in word or word in flags or word in values
+            at += 2 if "=" not in word and word in values else 1
+            maybe = not known  # (its value, or the verb)
+            continue
+        found.append(at)
+        if not maybe:
+            break
+        at, maybe = at + 1, False
+    verbs = [(program, rest[at]) for at in found]
+    for at in found:
+        inner = [word for word in (rest[at:] if program in _RUNNERS_OF else rest[at + 1:])
+                 if word != "--"]
+        handed = program in _RUNNERS_OF or rest[at].casefold() in _RUNS_PACKAGE.get(program, ())
+        if program == "uv" and rest[at] == "pip":
+            verbs += _verbs(["pip", *rest[at + 1:]])
+        elif handed and inner and (_program(inner[0]) in _INSTALLERS or _program(
+                inner[0]).startswith("pip")):
+            verbs += _verbs(inner)
+    return verbs
 
 
-def _makes_venv(words: list[str]) -> bool:
-    """Whether a part makes a venv at a linked folder (`_in_linked`): `python -m venv` or
-    `-m virtualenv`, or `virtualenv`, with any options - over one there it rewrites it."""
+def _makes_venv(words: list[str], own: re.Pattern | None = None) -> bool:
+    """Whether a part makes a venv at a linked folder (`_in_linked`, by the copy's own full path
+    too: `own`): `python -m venv` or `-m virtualenv`, or `virtualenv`, with any options - over one
+    there it rewrites it.
+    shortcut: by any part of the path, so a venv a folder deeper (`python -m venv build/venv`)
+    is asked as a rebuild though only the copy's top `venv` is linked (OA-d); match the linked
+    folder from the copy's own top in 0.1.6."""
     module = _module_run(words)
     made = module[1:] if module[:1] in (["venv"], ["virtualenv"]) else (
         words[1:] if _program(words[0]) == "virtualenv" else [])
-    return any(_in_linked(word) for word in made if not word.startswith("-"))
+    return any(_in_linked(word, own) for word in made if not word.startswith("-"))
 
 
 def _recursive(word: str) -> bool:
@@ -1158,14 +1271,15 @@ def _recursive(word: str) -> bool:
             or bool(re.fullmatch(r"-[a-z]{1,4}", word)) and "r" in word)
 
 
-def _through_links(words: list[str]) -> str:
+def _through_links(words: list[str], own: re.Pattern | None = None) -> str:
     """Why a command may reach through a linked folder into the project's own, "" for none:
     a delete that goes down into folders or names a linked one, what deletes folders by
     itself (`find -delete`, `git worktree remove`, `robocopy /MIR` or `/PURGE`), and what
-    empties a dependency folder to make it anew (`_REBUILDERS`)."""
+    empties a dependency folder to make it anew (`_REBUILDERS`, `_makes_venv`; `own`: the copy's
+    tree's spellings)."""
     program, rest = _program(words[0]), words[1:]
-    manager, verb = _verb(words)
-    if (manager, *[word.casefold() for word in verb[:1]]) in _REBUILDERS or _makes_venv(words):
+    if any((manager, verb.casefold()) in _REBUILDERS for manager, verb in _verbs(words)) or (
+            _makes_venv(words, own)):
         return REBUILDS_THROUGH_LINKS
     if (program == "find" and "-delete" in rest
             or program == "robocopy" and any(w.casefold() in ("/mir", "/purge") for w in rest)
@@ -1188,46 +1302,60 @@ def _spellings(path: str) -> re.Pattern:
                       + r")(?![\w.-])")
 
 
-# The user's own folders a command may name by a variable (`%LOCALAPPDATA%`, `$env:TEMP`,
-# `${HOME}`, `$HOME`) or `~`: read with KOLONİ's own values (`_as_path_line`).
-_USERS_FOLDERS = frozenset({"LOCALAPPDATA", "APPDATA", "USERPROFILE", "HOME", "TEMP", "TMP",
-                            "TMPDIR", "XDG_DATA_HOME", "HOMEDRIVE", "HOMEPATH", "SYSTEMDRIVE"})
+# A folder a command may name by a variable (`%LOCALAPPDATA%`, `$env:SystemRoot`, `${HOME}`,
+# `$HOME`) or `~`: read with KOLONİ's own value where that is one full path (`_as_path_line`) -
+# never by the shell's own place (`$PWD`, `$OLDPWD`, `$_`), which KOLONİ's is not.
+_SHELLS_OWN = frozenset({"PWD", "OLDPWD", "_"})
 _VARIABLE = re.compile(r"(?i)%(\w+)%|\$\{?env:(\w+)\}?|\$\{(\w+)\}|\$(\w+)")
 _TILDE = re.compile(r"(?:^|(?<=[\s'\"=:(,]))~(?=[\\/\s'\")]|$)")
-# This machine's own drives by a share or a device path: `\\localhost\c$\x`, `\\127.0.0.1\c$\x`,
+# This machine's own drives by a share or a device path: `\\localhost\c$\x`, `\\127.0.0.2\c$\x`,
+# `\\[::1]\c$\x`, `\\<its name>\c$\x` (`\\$env:COMPUTERNAME\c$\x` too), `\\?\UNC\localhost\c$\x`,
 # `\\?\C:\x`, `\\.\C:\x`.
-_LOCAL_SHARE = re.compile(r"(?i)[\\/]{2}(?:localhost|127\.0\.0\.1|\?|\.)[\\/]"
-                          r"(?:([a-z])\$(?=[\\/])|(?=[a-z]:))")
+# shortcut: by its LAN address or full DNS name, or a share of a folder (`\\localhost\Users\x`),
+# it is not read so; list the machine's addresses and shares if an agent is seen to write one.
+_THIS_MACHINE = os.environ.get("COMPUTERNAME", "")
+_LOCAL_SHARE = re.compile(r"(?i)[\\/]{2}(?:[?.][\\/]UNC[\\/])?(?:localhost|127(?:\.\d{1,3}){3}|"
+                          r"\[::1\]|\?|\.|%computername%|\$\{?(?:env:)?computername\}?"
+                          + (f"|{re.escape(_THIS_MACHINE)}" if _THIS_MACHINE else "")
+                          + r")[\\/](?:([a-z])\$(?=[\\/])|(?=[a-z]:))")
 # A full path in a line (from a drive or a root), and a `..` part in one.
-_FULL_PATH = re.compile(r"(?:^|(?<=[\s'\"=<>(,;|&]))(?:[A-Za-z]:|[\\/])[^\s'\"<>|;&,()]*")
+_FULL_PATH = re.compile(r"(?:^|(?<=[\s'\"=<>(,;|&:]))(?:[A-Za-z]:|[\\/])[^\s'\"<>|;&,()]*")
 _UP = re.compile(r"(?:^|[\\/])\.\.(?:[\\/]|$)")
 
 
-def _users_folder(found: re.Match) -> str:
+def _variable_folder(found: re.Match) -> str:
     name = next(filter(None, found.groups()))
-    if name.upper() not in _USERS_FOLDERS:
-        return found[0]
     home = os.path.expanduser("~") if name.upper() in ("HOME", "USERPROFILE") else None
-    return os.environ.get(name.upper() if os.name == "nt" else name) or home or found[0]
+    value = None if name.upper() in _SHELLS_OWN else (
+        os.environ.get(name.upper() if os.name == "nt" else name) or home)
+    # (one full path: `PATH`'s list, a word or a number is no folder)
+    return value if value and _full(value) and os.pathsep not in value else found[0]
 
 
 def _expanded(command: str) -> str:
-    """A command with its paths as the machine reads them: the user's folders by their variables
-    (`_USERS_FOLDERS`, `%HOMEDRIVE%%HOMEPATH%`, `~`) with KOLONİ's own values, this machine's
+    """A command with its paths as the machine reads them: a folder by its variable
+    (`_variable_folder`, `%HOMEDRIVE%%HOMEPATH%`, `~`) with KOLONİ's own value, this machine's
     drives by a share (`_LOCAL_SHARE`), separators doubled or with `.` between them as one
     (`C:\\\\Users`, `C://x`, `/c//x`, `C:\\.\\x`) - a doubled one that starts a word stays
     (`\\\\server\\share`) - and a full path's `..` gone where it leads (`C:\\a\\..\\proj`); on
     Windows a name's last dots go (`proj.\\x`, `proj.` are `proj` there).
     shortcut: a short name (`PROJ~1`) and a name's last spaces are not read so; resolve them if
     an agent is seen to write one."""
-    line = _TILDE.sub(lambda _found: os.path.expanduser("~"), _VARIABLE.sub(_users_folder, command))
+    line = _TILDE.sub(lambda _found: os.path.expanduser("~"),
+                      _VARIABLE.sub(_variable_folder, command))
     line = _LOCAL_SHARE.sub(lambda found: f"{found[1]}:" if found[1] else "", line)
     if os.name == "nt":
-        line = re.sub(r"(?<=\w)\.+(?=[\\/\s'\")]|$)", "", line)
+        line = re.sub(r"(?<=\w)\.+(?=[\\/\s'\");,]|$)", "", line)
     line = re.sub(r"(?<=[^\s'\"=(])[\\/](?:\.?[\\/])+", lambda _found: os.sep, line)
     climbs = ntpath.normpath if os.name == "nt" else posixpath.normpath
     return _FULL_PATH.sub(lambda found: climbs(found[0]) if _UP.search(found[0]) else found[0],
                           line)
+
+
+def _path_lines(command: str) -> list[str]:
+    """A command as its full paths are matched (`_spellings`): as written and as the machine
+    reads it (`_as_path_line`) - reading it so may only add what is asked."""
+    return list(dict.fromkeys((os.path.normcase(command), _as_path_line(command))))
 
 
 def _as_path_line(command: str) -> str:
@@ -1283,27 +1411,65 @@ def _cd_to(words: list[str], at: str | None, own: re.Pattern | None) -> str | No
 
 
 # What reads its first word that is no option as a pattern or a script, not a path (`rg
-# "from '../x'" src`, `sed "s#../a#../b#"`), and the options that give one (`-e`, `-Pattern`).
-_PATTERNED = frozenset({"rg", "ripgrep", "ag", "ack", "grep", "egrep", "fgrep", "select-string",
-                        "sls", "findstr", "sed", "awk", "perl"})
-_PATTERN_OPTIONS = frozenset({"-e", "--regexp", "-pattern", "--expression", "-f", "--file"})
+# "from '../x'" src`, `sed "s#../a#../b#"`) - but where an option gave it (`-e x`, `-ex`,
+# `--regexp=x`, `-f file`, `-Pattern x`) the words after are paths, a pattern file's too; perl's
+# code comes only by `-e`, and `rg --files` takes none.
+_POSITIONAL_PATTERN = frozenset({"rg", "ripgrep", "ag", "ack", "grep", "egrep", "fgrep",
+                                 "select-string", "sls", "findstr", "sed", "awk"})
+_PATTERN_GIVEN = ("-e", "--regexp", "--expression")
+_PATTERN_FILE = ("-f", "--file")
+
+
+def _pattern_option(word: str, program: str) -> tuple[bool, bool, bool] | None:
+    """`_path_words`: what a word is where it gives the pattern - (its value is the next word,
+    that value is a path - a pattern file -, the word itself holds a path), or None for another
+    word. `-e x`, `-ex`, `--regexp=x`, `-f file`, `-ffile`, `--file=file`; Select-String's
+    `-Pattern`; findstr's `/c:x`, `/g:file`."""
+    low = word.casefold()
+    name, sep, _value = low.partition("=")
+    if program in ("select-string", "sls"):
+        option = low.partition(":")[0]
+        return (":" not in low, False, False) if len(option) > 4 and "-pattern".startswith(
+            option) else None
+    if program == "findstr":
+        return (False, False, low.startswith("/g:")) if low.startswith(("/c:", "/g:")) else None
+    if name in _PATTERN_GIVEN or name in _PATTERN_FILE:
+        return not sep, name in _PATTERN_FILE, bool(sep) and name in _PATTERN_FILE
+    if re.fullmatch(r"-[ef]\S+", word):  # (glued: `-ex`, `-es/a/b/`, `-fx.sed`)
+        return False, False, word[1] == "f"
+    return None
 
 
 def _path_words(words: list[str]) -> list[str]:
-    """The words of a part that may be paths: a search's or sed's pattern left out
-    (`_PATTERNED`)."""
-    if _program(words[0]) not in _PATTERNED:
+    """The words of a part that may be paths: a search's or sed's pattern left out - the first
+    word that is no option, where no option gave the pattern (`_pattern_option`); Select-String's
+    `-Path` and `-LiteralPath` values are paths.
+    shortcut: a pattern with `(` in it reaches here cut, as `_BLOCKS` splits inside quotes
+    (`rg "require('../lib')" src`, `grep -rn "import('../x')" src`, `rg -g '*.ts' "'../" src`,
+    `grep -E "from '(\\.\\./)+" src`), and its `..` is asked as a climb (OA-c); read the line's
+    quotes before its blocks in 0.1.6."""
+    program = _program(words[0])
+    if program not in _POSITIONAL_PATTERN | {"perl"}:
         return words
-    kept, patterned, at = words[:1], False, 1
+    kept, given, at = words[:1], program == "perl" or "--files" in words, 1
     while at < len(words):
-        word = words[at]
-        if word.casefold() in _PATTERN_OPTIONS:
-            patterned, at = True, at + 2
-            continue
-        if word.startswith("-") or patterned:
+        word, found = words[at], _pattern_option(words[at], program)
+        if found is not None:
+            value_next, value_path, holds_path = found
+            given, kept = True, [*kept, word] if holds_path else kept
+            if value_next and at + 1 < len(words):
+                kept += [words[at + 1]] if value_path else []
+                at += 1
+        elif program in ("select-string", "sls") and word.casefold().partition(":")[0].startswith(
+                ("-pa", "-li", "-lp", "-ps")):  # (-Path, -LiteralPath: their value a path)
+            kept.append(word)
+            if ":" not in word and at + 1 < len(words):
+                kept.append(words[at + 1])
+                at += 1
+        elif word.startswith("-") or given:
             kept.append(word)
         else:
-            patterned = True  # (this word: the pattern)
+            given = True  # (this word: the pattern)
         at += 1
     return kept
 
@@ -1368,13 +1534,13 @@ def _names_elsewhere(command: str, project: str, runtime: Path | str, own: str |
     worktree of the project, its own folder aside - the copy's own tree (`own`) taken out of the
     line first; or above the tree by `..` (`_climbs_out`). `own` None: the copy is not made yet,
     and every copy is another's."""
-    written = _as_path_line(command)
+    lines = _path_lines(command)
     if own is not None:
-        written = _spellings(own).sub("", written)
+        lines = [_spellings(own).sub("", line) for line in lines]
     here = os.path.normcase(os.path.realpath(project))
     for place in [*map(str, folders(Path(runtime))), *(
             one for one in worktrees if os.path.normcase(os.path.realpath(one)) != here)]:
-        if _spellings(place).search(written):
+        if any(map(_spellings(place).search, lines)):
             return place
     return _climbs_out(command, cwd, own)
 
@@ -1382,6 +1548,15 @@ def _names_elsewhere(command: str, project: str, runtime: Path | str, own: str |
 def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
                 own: Path | str | None = None, cwd: str | None = ".",
                 worktrees: Iterable[str] = ()) -> str:
+    """`_copy_reason` of a line as the shell reads it (`joined`) and as written: the first reason
+    either gives."""
+    worktrees = list(worktrees)
+    return next(filter(None, (_copy_reason(line, linked, project, runtime, own, cwd, worktrees)
+                              for line in _readings(command))), "")
+
+
+def _copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
+                 own: Path | str | None, cwd: str | None, worktrees: Iterable[str]) -> str:
     """Why a command an agent runs in its working copy is asked at every level, Full auto
     too, and refused in a turn nobody watches; "" where there is none. It names `project`,
     the project's folder (K-kopya-istem) - KOLONİ's own `runtime` in it is not the project's
@@ -1393,13 +1568,13 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
     folder to make it anew, `_REBUILDERS`, or writes there, `_writes_links` - may go through a
     link into the project's own (K-70-junction), in a shell too (`cmd /c rd /s x`).
     shortcut: by the path as written, either slash, in any case on Windows; a short name
-    (`PROJ~1`), a variable but the user's folders' (`_USERS_FOLDERS`) or a script that names it
-    is not seen - nor a delete in a script, or by a program `_through_links` does not list.
+    (`PROJ~1`), a variable KOLONİ has no folder in (`_variable_folder`) or a script that names
+    it is not seen - nor a delete in a script, or by a program `_through_links` does not list.
     shortcut: a line PowerShell is handed encoded (`-EncodedCommand`), a name spliced by
     backticks (`ki`ll`), and what code handed to `python -c` / `node -e` does are not read;
     `runs_another` and `runs_inline` ask of those where a night's rules hold."""
-    written = _spellings(str(runtime)).sub("", _as_path_line(command))
-    if _spellings(project).search(written):
+    if any(_spellings(project).search(_spellings(str(runtime)).sub("", line))
+           for line in _path_lines(command)):
         return NAMES_PROJECT.format(root=project)
     own = str(own) if own is not None else None
     if elsewhere := _names_elsewhere(command, project, runtime, own, cwd, worktrees):
@@ -1418,9 +1593,9 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
             return why
     # (and as `_commands_in` reads a part: past a wrapper, `env X=1 uv sync`)
     parts = [words for words in _commands_in(_expanded(command)) if words] if linked else []
-    if why := next((why for words in parts if (why := _through_links(words))), ""):
-        return why
     mine = _spellings(own) if own is not None else None
+    if why := next((why for words in parts if (why := _through_links(words, mine))), ""):
+        return why
     return WRITES_THROUGH_LINKS if any(_writes_links(words, mine) for words in parts) else ""
 
 
@@ -1918,6 +2093,24 @@ def applies_patch(command: str) -> bool:
     return False
 
 
+# A line's continuations: PowerShell's backtick right at a line's end, sh's backslash. A backtick
+# with a space after it does not continue (measured, pwsh 7: `Write-Output one ` ⏎ two` runs `two`).
+_CONTINUED = re.compile(r"`\r?\n|\\\r?\n")
+
+
+def joined(line: str) -> str:
+    """A command line with its continued lines joined as the shell reads it: PowerShell's backtick
+    at a line's very end as a space between words, sh's backslash as nothing (`gi\\⏎t` is `git`).
+    KOLONİ judges a line both so and as written (`_readings`): reading it joined may only add."""
+    return _CONTINUED.sub(lambda found: " " if found[0][0] == "`" else "", line)
+
+
+def _readings(line: str) -> list[str]:
+    """A line as the shell reads it (`joined`) - and, where a backslash ends a line, as written
+    too: a Windows path's `C:\\` at a line's end continues nothing in PowerShell."""
+    return list(dict.fromkeys((joined(line), *([line] if re.search(r"\\\r?\n", line) else []))))
+
+
 def danger(command: str, instructions: bool = True) -> str:
     """What a command does that cannot be taken back - it deletes, overwrites a git
     remote, opens a secret file or names `.koloni` or another file that steers later turns
@@ -1926,7 +2119,12 @@ def danger(command: str, instructions: bool = True) -> str:
     Each part of a chained command is looked at. No rule covers such a command, and none is
     offered; Full auto asks about one too (`harms`). shortcut: a list of programs and
     flags, not a sandbox; a deleting script, a program renamed or one inside a shell (`cmd /c
-    del`) is not seen - add what the user meets."""
+    del`) is not seen - add what the user meets. A continued line is read joined too
+    (`_readings`)."""
+    return next(filter(None, (_danger(line, instructions) for line in _readings(command))), "")
+
+
+def _danger(command: str, instructions: bool) -> str:
     standing = standing_asked(command, instructions)
     return _harm(command) or (
         PATCHES if standing == PATCH else GIT_IDENTITY if standing == ".git" and _sets_identity(
@@ -1963,7 +2161,7 @@ def _harm(command: str) -> str:
     for words in _commands_in(command, at=_BLOCKS):
         if words and (said := _danger_of(words)):
             return said
-    if _stops_by_name(command):  # (a process looked up on the line, then stopped)
+    if _stops_by_name(command):  # (by a name, or an id the line does not know: `_stop_kind`)
         return KILLS_BY_NAME
     if _DOTNET_DELETE.search(command):
         return "Deletes files through .NET ([IO.File]::Delete)."
@@ -2938,8 +3136,10 @@ def harms(command: str, instructions: bool = True) -> str:
     shortcut (security review of K-yargic): no harm is seen in `powershell -enc <base64>`,
     `ssh host 'rm -rf /'`, `find . -exec rm {} ;` or `python -c "shutil.rmtree('..')"` - they run
     at Full auto as before, and are never put to the check of the user's words (no harm, no
-    check); add them to `danger` / `sends_off` when the user meets one."""
-    return next(filter(None, _reasons(command, instructions)), "")
+    check); add them to `danger` / `sends_off` when the user meets one. A continued line is read
+    joined too (`_readings`)."""
+    return next(filter(None, (said for line in _readings(command)
+                              for said in _reasons(line, instructions))), "")
 
 
 def _reasons(command: str, instructions: bool) -> Iterator[str]:
@@ -2948,10 +3148,13 @@ def _reasons(command: str, instructions: bool) -> Iterator[str]:
     # the whole line: alone it would name `.koloni`.)
     entered = _ENTERS.match(command)
     yield danger(command, instructions)
+    # (A part's stop is judged with its line: the line may have started what it stops.)
+    stops = _stops_by_name(command)
     for words in _commands_in(command[entered.end() if entered else 0:], at=_BLOCKS):
-        if words:
-            yield danger(" ".join(words), instructions) or (
-                "" if _only_fetches(words) else _sends(words))
+        if words and (said := danger(" ".join(words), instructions)) == KILLS_BY_NAME:
+            yield said if stops else ""
+        elif words:
+            yield said or ("" if _only_fetches(words) else _sends(words))
 
 
 HarmClass = Literal["", "soft", "always"]
@@ -2968,8 +3171,12 @@ def harm_class(command: str, instructions: bool = True) -> HarmClass:
     level ("always": any other sentence, a secret, `.koloni`, a file that steers later turns, a
     path out of the folder, a line handed to another program); "" for no harm. Every part is
     looked at, not the first sentence `harms` gives: `rm -rf build && cat .env` deletes first,
-    and opens a secret too."""
-    command = re.sub(r"`\r?\n", " ", command)  # (PowerShell's line goes on after a backtick)
+    and opens a secret too. A continued line is read joined too (`_readings`): the higher."""
+    classes = [_harm_class(line, instructions) for line in _readings(command)]
+    return "always" if "always" in classes else "soft" if "soft" in classes else ""
+
+
+def _harm_class(command: str, instructions: bool) -> HarmClass:
     harmful = False
     for said in _reasons(command, instructions):
         if said and not _SOFT.match(said):
@@ -3136,18 +3343,17 @@ def _module_run(words: list[str]) -> list[str]:
 
 def installs(command: str) -> str:
     """Whether a part of a command installs or removes packages, in one sentence; "" for none:
-    one of `_INSTALLERS`' verbs as its verb, past the options before it (`_verb`: `npm --prefix
+    one of `_INSTALLERS`' verbs as its verb, past the options before it (`_verbs`: `npm --prefix
     web install x`, `pnpm -C web i`, `uv pip install`), by a program starting with `pip` (pip3.12,
     pipenv) or run as a module (`python -X utf8 -m pip install`, `py -m pip`), a bare `yarn` -
     and in what a shell or a wrapper is handed (`cmd /c "npm i x"`). A script run by its name
     (`npm run install`), and `pip install --dry-run`, are none.
     shortcut: `npx` and `dlx` run a package without installing it into the project, and are left;
     `pip-sync` and `corepack` writing into node_modules / .venv are not seen."""
-    for words in (words for words in _commands_in(command) if words):
-        program, rest = _verb(words)
-        verbs = _INSTALLERS["pip"] if program.startswith("pip") else _INSTALLERS.get(program, set())
-        if words == ["yarn"] or rest[:1] and rest[0].casefold() in verbs and (
-                "--dry-run" not in rest):
+    for words in (words for line in _readings(command) for words in _commands_in(line) if words):
+        if words == ["yarn"] or "--dry-run" not in words and any(
+                verb.casefold() in (_INSTALLERS["pip"] if program.startswith("pip") else (
+                    _INSTALLERS.get(program, set()))) for program, verb in _verbs(words)):
             return ("It installs or removes packages: in a working copy its dependency folders "
                     "are the project's own, linked in.")
     return ""

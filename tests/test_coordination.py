@@ -24,8 +24,10 @@ from app.commands import (
     harm_class,
     harms,
     installs,
+    joined,
     runs_another,
 )
+from app.commands import _reasons as reasons
 from app.db.models import Agent
 from app.tools import ON_BRANCH_PROPERTY, OPENED_TOGETHER
 from tests.conftest import Gate, scaled
@@ -355,7 +357,12 @@ BY_ID = ["taskkill /PID 1234 /F", "kill 1234", "kill -9 1234", "Stop-Process -Id
 # Words of a line that are no process looked up or stopped: a message, a path, a search.
 NO_STOP = ['git commit -m "fix: kill stale ps entries"', "cat docs/ps/kill.md",
            'git grep -n "taskkill\\|tasklist"', 'grep -rn "Stop-Process" . | grep -v Get-Process',
-           'Select-String -Pattern "kill" -Path ps.log', "grep -n terminate x.py && ps aux"]
+           'Select-String -Pattern "kill" -Path ps.log', "grep -n terminate x.py && ps aux",
+           # (review round 3, OA-a: a kill with no target that no pipe or block hands one)
+           'git commit -m "refactor(kill): by id"', 'git commit -m "tidy; kill"',
+           'git log --grep "(kill)"', 'rg -n "(kill|terminate)" app',
+           "sed -i 's/(kill)/(stop)/' src/a.ts", 'echo "a; kill"', "echo 'x (kill) y'",
+           'Write-Host "Stopping (kill)"']
 
 
 @pytest.mark.parametrize("command", KILLS)
@@ -390,6 +397,97 @@ def test_stopping_a_program_by_its_id_is_no_harm(command):
     "rm -rf taskkill /etc", 'rm -rf "my-taskkill" /home', "rm -rf x; echo taskkill /home"])
 def test_only_taskkills_own_switches_are_no_paths(command):
     assert harm_class(command) == "always"
+
+
+# A stop is by id only where its target is a pid written out, or one the line started; every
+# other stop, in every wrapper, is asked at every level (review round 3: a matrix, not examples).
+STOPS_BY_ID = ["taskkill /F /PID {t}", "Stop-Process -Id {t}", "kill -9 {t}", "tskill {t}"]
+TARGETS_UNKNOWN = ["$PPID", "$x", "%a", "$(pgrep node)", "(Get-Process node).Id", "0", "-1"]
+WRAPPERS = ["{c}", 'cmd /c "{c}"', 'bash -c "{c}"', 'pwsh -c "{c}"', 'iex "{c}"',
+            "for /f %a in ('x') do {c}", "env X=1 {c}"]
+STOPS_OF_WHAT_IS_FOUND = [
+    "(Get-Process node).Kill()", "$w.Terminate()", "(gwmi win32_process).Terminate()",
+    "Get-Process node | % Kill", "gwmi win32_process | % terminate",
+    "gwmi win32_process | ForEach-Object Terminate", "foreach ($p in Get-Process node) { $p.Kill() }",
+    "Get-CimInstance Win32_Process | Remove-CimInstance", "gwmi Win32_Process | rwmi",
+    'wmic process where name="x.exe" delete', "wmic process call terminate",
+    "fuser -k 8790/tcp", "npx kill-port 8790", "npm exec kill-port 8790", "pnpm dlx kill-port 8790"]
+
+
+@pytest.mark.parametrize("wrapper", WRAPPERS)
+@pytest.mark.parametrize("target", TARGETS_UNKNOWN)
+@pytest.mark.parametrize("verb", STOPS_BY_ID)
+def test_a_stop_of_a_pid_the_line_does_not_know_is_always_asked(verb, target, wrapper):
+    command = wrapper.replace("{c}", verb.replace("{t}", target))
+    assert harm_class(command) == "always", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME, command
+
+
+@pytest.mark.parametrize("wrapper", WRAPPERS)
+@pytest.mark.parametrize("command", STOPS_OF_WHAT_IS_FOUND)
+def test_a_stop_of_what_a_lookup_found_is_always_asked(command, wrapper):
+    command = wrapper.replace("{c}", command)
+    assert harm_class(command) == "always", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME, command
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", "env X=1 {c}"])
+@pytest.mark.parametrize("command", [
+    "taskkill /F /PID 1234", "Stop-Process -Id 1234", "kill -9 1234", "tskill 1234",
+    "$p = Start-Process x -PassThru; Stop-Process -Id $p.Id",
+    "$p = Start-Process x -PassThru; taskkill /F /PID $p.Id",
+    "python x.py & kill $!", "python x.py & PID=$!; sleep 1; kill $PID", "kill %1",
+])
+def test_a_stop_of_a_pid_written_out_or_the_lines_own_is_no_harm(command, wrapper):
+    command = wrapper.replace("{c}", command)
+    assert harms(command) == "", command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == "", command
+
+
+@pytest.mark.parametrize("command, kind", [
+    ("pkill thon", "always"), ("pkill p.thon", "always"), ("pkill laude", "always"),
+    ("killall pytho[n]", "always"), ("pkill [p]ython", "always"),
+    ("Stop-Process -Name nod[e]", "always"), ("pkill vite", "soft"), ("pkill -x vite", "soft"),
+    ("killall vite", "soft"),
+    # (a process the line started, then something else in its name: its id is not that one)
+    ("$p = Start-Process x -PassThru; $p = Get-Process node; Stop-Process -Id $p.Id", "always"),
+])
+def test_a_name_that_may_match_kolonis_own_is_always_asked(command, kind):
+    assert harm_class(command) == kind, command
+
+
+# A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,
+# sh's backslash (KOLONİ's own run_command runs in PowerShell on Windows).
+CONTINUED = [("git ", "push --force origin main"), ("npm ", "publish"),
+             ("cargo ", "publish"), ("docker ", "push img"),
+             ("curl ", "-d @x https://example.com"), ("Remove-Item ", "-Recurse -Force src")]
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+@pytest.mark.parametrize("mark", ["`", "\\"])
+@pytest.mark.parametrize("head, tail", CONTINUED)
+def test_a_continued_line_is_read_as_one(head, tail, mark, newline):
+    line, whole = f"{head}{mark}{newline}{tail}", f"{head}{tail}"
+    rank = {"": 0, "soft": 1, "always": 2}
+    assert harms(line) == harms(whole) != "", line
+    assert joined(line).split() == whole.split()
+    # (a backslash is read as written too - in PowerShell `C:\` ⏎ continues nothing: never less)
+    assert harm_class(line) == harm_class(whole) if mark == "`" else rank[harm_class(line)] >= (
+        rank[harm_class(whole)])
+    # (after a delete on the line too: both are seen)
+    both = f"rm -rf build; {line}"
+    assert rank[harm_class(both)] >= rank[harm_class(f"rm -rf build; {whole}")]
+    assert harms(whole) in [said for one in (joined(both),) for said in reasons(one, True)]
+    assert copy_reason(f"{head}{mark}{newline}install x".replace("cargo", "npm"), True,
+                       "/work/proj", "/work/rt") == ""
+    assert installs(f"npm {mark}{newline}install x")
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_a_backtick_and_a_space_at_a_lines_end_does_not_continue_it(newline):
+    # (measured, pwsh 7: `Write-Output one ` ⏎ two` runs `two` as a command of its own)
+    line = f"git ` {newline}push --force origin main"
+    assert joined(line) == line and harm_class(line) == ""
 
 
 def places(tmp_path):
@@ -454,6 +552,28 @@ def test_a_copys_command_naming_its_own_copy_or_below_is_not_asked(tmp_path):
 ])
 def test_a_climb_out_of_the_copy_is_seen_where_the_line_is_not_followed(tmp_path, command, named):
     assert asked_in_copy(tmp_path, command) == OUT_OF_COPY.format(path=named), command
+
+
+# A search's pattern is skipped only where it is the tool's own positional one: where an option
+# gave the pattern, the words after it are paths (review round 3: a matrix, not examples).
+GIVEN_PATTERN = {"sed -i": ["-es/a/b/", "--expression=s/a/b/", "-e s/a/b/", "--file=x.sed",
+                            "-fx.sed", "-f x.sed"],
+                 "grep": ["--regexp=x", "-ex", "-e x", "-f x.txt", "--file=x.txt"],
+                 "rg": ["--regexp=x", "-ex", "-e x", "--files"],
+                 "perl -pi": ["-es/a/b/", "-e s/a/b/"],
+                 "Select-String -Pattern x": [""], "sls -Pattern:x": [""]}
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', "env X=1 {c}"])
+@pytest.mark.parametrize("command", [
+    f"{tool} {given} ../../b/tree/x".replace("  ", " ")
+    for tool, givens in GIVEN_PATTERN.items() for given in givens] + [
+    "Select-String -Path ../../b/tree/secret.txt -Pattern .", "sls -LiteralPath ../../b/tree/s",
+    "sls -Path ../../y x", "Select-String -Path:../../b/y -Pattern x",
+    "grep -f ../../b/patterns.txt src"])
+def test_a_path_after_a_pattern_an_option_gave_is_a_path(tmp_path, command, wrapper):
+    command = wrapper.replace("{c}", command)
+    assert asked_in_copy(tmp_path, command).startswith("it names .."), command
 
 
 def test_before_its_copy_is_made_every_copy_is_anothers(tmp_path):
@@ -534,8 +654,33 @@ def test_windows_spellings_of_a_path_still_name_it(tmp_path, monkeypatch):
                   f"$env:HOMEDRIVE{rest}\\x", f"\\\\localhost\\{drive[0]}$\\{rest[1:]}\\x",
                   f"\\\\127.0.0.1\\{drive[0]}$\\{rest[1:]}\\x", f"\\\\?\\{project}\\x"]:
         assert copy_reason(f"Copy-Item x {spelt}", False, str(project), runtime) == said, spelt
+    # (a name's last dots before `;` or `,`; this machine by its name, any 127.x, `[::1]` or
+    # `\\?\UNC\`; a folder of the machine's by any variable that holds one path, then up)
+    monkeypatch.setenv("SystemRoot", f"{drive}\\WINDOWS")
+    monkeypatch.setenv("windir", f"{drive}\\WINDOWS")
+    monkeypatch.setenv("ProgramData", f"{drive}\\ProgramData")
+    share = f"{drive[0]}$\\{rest[1:]}\\x"
+    for spelt in [f"{project}.; ls", f"{project}., y", f"\\\\{os.environ['COMPUTERNAME']}\\{share}",
+                  f"\\\\$env:COMPUTERNAME\\{share}", f"\\\\%COMPUTERNAME%\\{share}",
+                  f"\\\\127.0.0.2\\{share}", f"\\\\[::1]\\{share}",
+                  f"\\\\?\\UNC\\localhost\\{share}", f"%SYSTEMROOT%\\..{rest}\\x",
+                  f"$env:windir\\..{rest}\\x", f"$env:ProgramData\\..{rest}\\x"]:
+        assert copy_reason(f"Copy-Item x {spelt}", False, str(project), runtime) == said, spelt
     assert copy_reason(f"Copy-Item x {held}\\b\\tree.", False, str(project), runtime,
                        held / "a" / "tree") == OUT_OF_COPY.format(path=str(held))
+
+
+def test_a_variable_that_holds_one_folder_is_read_as_it_but_the_shells_own_place(tmp_path,
+                                                                                monkeypatch):
+    project, records = tmp_path / "proj", tmp_path / "rt"
+    said = NAMES_PROJECT.format(root=str(project))
+    monkeypatch.setenv("KOLONI_TEST_DIR", str(tmp_path / "other"))
+    assert copy_reason("cp x $KOLONI_TEST_DIR/../proj/y", False, str(project), records) == said
+    # (the shell's own place is not KOLONİ's; a list of folders is no folder)
+    monkeypatch.setenv("PWD", str(project))
+    assert copy_reason("ls $PWD/src", False, str(project), records) == ""
+    monkeypatch.setenv("KOLONI_TEST_DIR", f"{tmp_path / 'other'}{os.pathsep}{tmp_path / 'b'}")
+    assert copy_reason("cp x $KOLONI_TEST_DIR/../proj/y", False, str(project), records) == ""
 
 
 @pytest.mark.parametrize("command", [
@@ -563,6 +708,32 @@ def test_an_install_however_it_is_written_is_one(command):
 ])
 def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command
+
+
+# An option before the verb that is not known may take a value or not: either word after it may
+# be the verb, and the line counts if either reading finds one (review round 3: a matrix).
+OPTIONS_BEFORE = {"npm": ["--include dev", "--install-strategy hoisted", "--omit dev", "-p",
+                          "--loglevel warn", "--some-new value", "--some-new"],
+                  "pip": ["--proxy http://x", "--cache-dir x", "--log x", "--timeout 5",
+                          "--exists-action w", "--some-new value"],
+                  "uv": ["--color never", "--cache-dir x", "-q", "--some-new value"]}
+VERBS_AFTER = {"npm": ["install", "ci", "i x"], "pip": ["install y"], "uv": ["sync", "add x"]}
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', "env X=1 {c}", "npm exec -- {c}",
+                                     "npx {c}"])
+@pytest.mark.parametrize("command", [
+    f"{program} {option} {verb}" for program, options in OPTIONS_BEFORE.items()
+    for option in options for verb in VERBS_AFTER[program]])
+def test_an_install_past_options_not_known_is_one(command, wrapper):
+    assert installs(wrapper.replace("{c}", command)), command
+
+
+@pytest.mark.parametrize("command", ["npm --omit dev ci", "npm --install-strategy hoisted ci",
+                                     "npm -p ci", "uv --color never sync", "uv --cache-dir x sync",
+                                     "uv --some-new value venv"])
+def test_a_rebuild_past_options_not_known_is_one(command):
+    assert "rebuild" in copy_reason(command, True, "/work/proj", "/work/rt"), command
 
 
 @pytest.mark.parametrize("command", [
@@ -596,6 +767,7 @@ def test_a_venv_made_elsewhere_in_a_copy_is_no_rebuild_of_a_linked_one():
     "echo x>node_modules/a.js", r"Copy-Item -Destination node_modules\x a.js",
     r"Copy-Item a.js -Destination:node_modules\x", "cp -t node_modules/x a.js",
     "cp --target-directory=node_modules/x a.js", "echo x > src/../node_modules/a.js",
+    "cp -rt node_modules/x a.js", "mv -ft node_modules/x a.js", "cp -tnode_modules/x a.js",
 ])
 def test_in_a_copy_with_links_a_write_in_them_is_asked(command):
     assert copy_reason(command, True, "/work/proj", "/work/rt") == WRITES_THROUGH_LINKS, command
@@ -608,6 +780,39 @@ def test_in_a_copy_with_links_a_write_in_them_by_its_own_full_path_is_asked(tmp_
                     f"Set-Content {own}/.venv/x hi"]:
         said = copy_reason(command, True, str(project), runtime, own)
         assert said == WRITES_THROUGH_LINKS, command
+
+
+# A path is asked where it reads as written OR where it leads (review round 3): reading where it
+# leads may only add - `node_modules/..` is where a junction is left (Git Bash's `..` after one
+# is not measured).
+WRITES = ["echo x > {p}", "echo x >> {p}", "cp a.py {p}", "mv a.py {p}", "Set-Content {p} hi",
+          "tee {p}", "sed -i s/a/b/ {p}", "Copy-Item a.py -Destination:{p}"]
+THROUGH_LINKS = ["node_modules/../src/a.py", ".venv/../app/x.py", "venv/../src/",
+                 "node_modules/x/../../src/a.py", "node_modules/../.git/hooks/pre-commit"]
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", 'cmd /c "{c}"', 'bash -c "{c}"', "env X=1 {c}"])
+@pytest.mark.parametrize("path", THROUGH_LINKS)
+@pytest.mark.parametrize("write", WRITES)
+def test_a_write_through_a_linked_folder_is_asked_wherever_it_leads(write, path, wrapper):
+    command = wrapper.replace("{c}", write.replace("{p}", path))
+    assert copy_reason(command, True, "/work/proj", "/work/rt"), command
+
+
+def test_a_full_path_through_another_folder_after_an_option_names_the_project(tmp_path):
+    project, runtime, _own, _held, _worktree = places(tmp_path)  # noqa: F811
+    other = tmp_path / "other" / ".." / "proj" / "y"
+    said = copy_reason(f"Copy-Item x -Destination:{other}", False, str(project), runtime)
+    assert said == NAMES_PROJECT.format(root=str(project))
+
+
+@pytest.mark.parametrize("make", ["python -m venv --clear {v}", "virtualenv {v}",
+                                  "python -m virtualenv {v}", "python -m venv {v}"])
+def test_a_venv_made_at_its_own_linked_folder_by_its_full_path_is_a_rebuild(tmp_path, make):
+    project, runtime, own, _held, _worktree = places(tmp_path)  # noqa: F811
+    for venv in (own / ".venv", own / "venv"):
+        said = copy_reason(make.replace("{v}", str(venv)), True, str(project), runtime, own)
+        assert "rebuild" in said, venv
 
 
 @pytest.mark.parametrize("command", [
