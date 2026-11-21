@@ -102,6 +102,8 @@ and credit messages.
   it starts from your last commit and its card says so.
 - A file Git LFS keeps comes into a branch, and back, as its pointer text: KOLONİ runs no filter of your
   repository's. A submodule's own changes are not taken into a branch.
+- A junction deep inside a new folder is not taken, but git reads through it while the branch is made;
+  one that leads to a large folder can make the branch start from your last commit instead.
 
 ## GitHub
 
