@@ -17,7 +17,7 @@ export const WHEN_AWAY: [value: Project['when_away'], label: string][] = [
   ['lead', 'The Orchestrator answers what it safely can'],
 ]
 const AWAY_WHY =
-  'Questions and decisions wait until you’re back - or, once you haven’t answered for so many minutes or the away card is on, the Orchestrator picks, says why, and you see it under “Decided for you”. It opens a sub-agent on its role’s own model unless that model is at its limit, out of credit, or over this month’s budget; a move onto another model that may cost money, commands it may not run, deleting, reaching outside and Take in still wait.'
+  'Once a card has waited this many minutes - at once while you’re away (☾ Away on a chat’s line) - the Orchestrator picks, says why, and you see it under “Decided for you”: its agents’ questions, going on or stopping at a step limit. It opens a sub-agent on its role’s own model unless that model is at its limit, out of credit, or over this month’s budget; a move onto another model that may cost money, commands it may not run, deleting, reaching outside and Take in still wait.'
 
 export const OPENING: [value: Project['spawn_approval'], label: string][] = [
   ['auto', 'Ask when it matters'],
@@ -142,7 +142,7 @@ export function useAgents(project: Project) {
 /** This project › Asking and away: when a sub-agent is asked for, and who answers while you are away. */
 export function useAsking(project: Project) {
   const savedAway = project.when_away ?? 'waits'
-  const savedMinutes = project.away_minutes ?? 10
+  const savedMinutes = project.away_minutes ?? 5
   const savedApproval = project.spawn_approval ?? 'auto'
   const [whenAway, setWhenAway] = useState(savedAway)
   const [minutesText, setMinutesText] = useState(String(savedMinutes))

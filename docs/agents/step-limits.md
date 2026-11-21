@@ -258,7 +258,8 @@ Continue. Its answer and why show under **Decided for you**. The Reviewer ends a
 needed more than 50, it would stop at 50 with no new card, and the Orchestrator would say what is left;
 more steps are then yours to give in your next message.
 
-**While you're away.** No card. The Reviewer stops at 25, and the job's Orchestrator is told its part is not
-done. It may tell the Reviewer once to go on: the Reviewer gets 25 new steps and ends at about 35.
+**While you're away.** In a To-do task's job no card comes: the Reviewer stops at 25, and the job's
+Orchestrator is told its part is not done. (In the chat you went away from, the card comes and the
+Orchestrator decides it at once, as at Full auto.) It may tell the Reviewer once to go on: the Reviewer gets 25 new steps and ends at about 35.
 Had it needed more than 50, it would stop again, and the job's report would say what is left undone.
 The job can still count as done when you're back: open its chat to read what was left.

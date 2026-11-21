@@ -235,24 +235,28 @@ def test_a_candidates_step_is_refused_in_a_job_while_the_user_is_away(
         make_client, wait_run, project_dir):
     # Review 1: a night's job has one copy for all its agents - candidates would share it.
     from tests.test_away_scenarios import ORIGIN as AWAY_ORIGIN
-    from tests.test_away_scenarios import card, ended
+    from tests.test_away_scenarios import ended, go_away, to_do
+    from tests.test_chat_teams_scenarios import teams_of
     from tests.test_recipe_run_scenarios import recipe_named
 
-    plan = {"jobs": [{"title": "try it", "team": "Web app", "recipe": "Tries"}]}
     client, _model = make_client({
-        "Lead": [step(call("plan_away", plan)), text("card is up"), TWO, text("one done")],
+        "Lead": [to_do({"jobs": [{"title": "try it"}]}), text("on your To-do"), TWO,
+                 text("one done")],
         "Coder": [step(write("a.py", "a\n")), text("built")],
     })
     client.headers.update(AWAY_ORIGIN)
     made(client, "Tries", ONE)
-    assert recipe_named(client, "Tries")
+    tries = recipe_named(client, "Tries")
+    assert tries
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
+    client.patch(f"/api/conversations/{cid}", json={
+        "permission_mode": "full_auto", "teams_mode": "manual", "teams": [
+            {"team_id": teams_of(client)["Web app"]["id"], "recipe_id": tries["id"]}]})
     run_id = client.post(f"/api/conversations/{cid}/messages",
                          json={"content": "sleep"}).json()["run"]["id"]
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     one = ended(client, pid)["jobs"][0]
     snap = client.get(f"/api/conversations/{one['conversation_id']}").json()
     said = [t["result"] for t in snap["tool_calls"] if t["name"] == "spawn_agent"]

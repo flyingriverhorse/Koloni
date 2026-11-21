@@ -1,9 +1,11 @@
-"""Slice 106's acceptance set: "work while I'm away". The Lead puts the night's jobs on a card;
-only the user's Start starts them; each job works in a new chat and a copy of its own, so
-nothing reaches the project before the user's Take in; a job that waits for the user's word,
-or fails twice, never holds up the next; the night stops at its time, its money or Stop all;
-and the morning is told once - a line in the chat, one notification."""
+"""Slice 106's acceptance set, as ☾ Away: "work while I'm away". The Orchestrator puts the work on
+To-do; only the user's Go away starts it, once the chat they went away from has finished its
+turn; each task works in a new chat and a copy of its own, so nothing reaches the project before
+the user's Take in; a task that waits for the user's word, or fails twice, never holds up the
+next; Away lasts until they are back, or stops at its time, its money or Stop all; and they come
+back to one summary in the chat."""
 
+import re
 from datetime import timedelta
 
 import pytest
@@ -12,7 +14,7 @@ from sqlalchemy import select
 import app.web
 from app import away
 from app.agent import recover_interrupted
-from app.db.models import AwayRun, BacklogTask, Run, now
+from app.db.models import AwayRun, Run, now
 from app.model_client import ModelUnavailable
 from tests.test_agent_writes import edit
 from tests.test_backlog_auto import tasks, until
@@ -23,52 +25,99 @@ from tests.test_team import team  # noqa: F401  (a fixture)
 ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 PLAN = {"jobs": [{"title": "one", "line": "hello says hello"}, {"title": "two"}],
         "kept_out": ["secret/"]}
+OFFER = {"kept_out": ["secret/"]}
+
+
+def to_do(plan=PLAN):
+    """The Orchestrator's step that puts `plan`'s jobs on To-do (add_task), in order."""
+    return step(*(call("add_task", {"title": job["title"], **(
+        {"criteria": job["line"]} if job.get("line") else {})}, f"t{i}")
+        for i, job in enumerate(plan["jobs"])))
 
 
 def evening(make_client, project_dir, steps, mode="full_auto", plan=None, **project):
-    """The user's chat where the Lead puts its card; returns (client, model, pid, cid, card)."""
-    client, model = make_client([step(call("plan_away", plan or PLAN)), text("card is up"),
-                                 *steps])
+    """The user's chat whose Orchestrator puts the work on To-do; its Go away (`go_away`) takes
+    `plan`'s places kept out and limits. Returns (client, model, pid, cid, run_id)."""
+    plan = plan or PLAN
+    client, model = make_client([to_do(plan), text("on your To-do"), *steps])
     client.headers.update(ORIGIN)
+    client.away_given = {key: plan[key] for key in ("kept_out", "until", "money") if key in plan}
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     if project:
         assert client.patch(f"/api/projects/{pid}", json=project).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     assert client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode}).status_code == 200
+    # (A job runs at the lower of the chat's level and the To-do page's: here both are `mode`.)
+    assert client.put(f"/api/projects/{pid}/backlog/choice",
+                      json={"permission_mode": mode}).status_code == 200
     run_id = client.post(f"/api/conversations/{cid}/messages",
                          json={"content": "I'm going to sleep: do one and two"}).json()["run"]["id"]
     return client, model, pid, cid, run_id
 
 
-def card(client, cid):
-    (found,) = client.get(f"/api/conversations/{cid}/away").json()
-    return found
+def proposed_in(client, cid):
+    """The ids of the tasks proposed in chat `cid` and not decided yet, in To-do's order."""
+    pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
+    return [t["id"] for t in client.get(f"/api/projects/{pid}/backlog").json()
+            if t["proposed_in"] == cid and t["status"] == "proposed"]
+
+
+def go_away(client, cid, **given):
+    """The user's Go away from chat `cid`: the tasks proposed there ticked, with the evening's
+    places kept out and limits."""
+    return client.post(f"/api/conversations/{cid}/away", json={
+        "task_ids": proposed_in(client, cid), **getattr(client, "away_given", {}), **given})
 
 
 def night(client, pid):
     return client.get(f"/api/projects/{pid}/away").json()
 
 
+def looked_at(found):
+    return found["status"] == "ended" or all(
+        job["state"] not in ("working", "next") for job in found["jobs"])
+
+
 def ended(client, pid):
-    return until(lambda: (n := night(client, pid)) and n["status"] == "ended" and n)
+    """Away once each of its tasks was looked at - then the user is back - or once it stopped."""
+    found = until(lambda: (n := night(client, pid)) and looked_at(n) and n)
+    if found["status"] == "running":
+        assert client.post(f"/api/away/{found['id']}/back", headers=ORIGIN).status_code == 200
+    return until(lambda: (n := night(client, pid))["status"] == "ended" and n)
 
 
-def test_the_card_starts_nothing_and_only_the_users_start_starts_the_jobs_in_copies(
+SPAN = re.compile(r"^While you were away \(\d\d:\d\d – \d\d:\d\d\): ")
+
+
+def summary(said):
+    """The summary's words after its time span."""
+    assert SPAN.match(said), said
+    return SPAN.sub("", said)
+
+
+def lines(client, cid):
+    return [summary(m["content"]) for m in client.get(f"/api/conversations/{cid}").json()[
+        "messages"] if m["role"] == "away"]
+
+
+def test_nothing_starts_before_go_away_and_go_away_works_the_to_do_in_copies(
         make_client, wait_run, project_dir):
     client, model, pid, cid, run_id = evening(make_client, project_dir, [
         spawn("Coder", "make hello say hello"), edit(), text("edited"), text("one done"),
         text("two done"), text("good morning")])
     wait_run(client, cid, run_id)
-    planned = card(client, cid)
-    assert planned["status"] == "planned" and planned["kept_out"] == ["secret"]
-    assert [job["title"] for job in planned["jobs"]] == ["one", "two"]
-    assert planned["money"] is None and planned["until"] is None  # (no limits of their own)
-    # nothing started: no task, no other chat, no step of the model taken for it
-    assert tasks(client, pid) == {} and len(model.calls) == 2
+    # nothing started: the work proposed on To-do from this chat, no other chat, no step of the
+    # model taken for it
+    assert {title: (t["status"], t["proposed_in"]) for title, t in tasks(client, pid).items()} \
+        == {"one": ("proposed", cid), "two": ("proposed", cid)} and len(model.calls) == 2
     # not from a page that says nothing of where it is from (an agent's command)
-    started = client.post(f"/api/away/{planned['id']}/start", headers={"Origin": ""})
+    started = client.post(f"/api/conversations/{cid}/away", json={"task_ids": proposed_in(
+        client, cid)}, headers={"Origin": ""})
     assert started.status_code == 403 and night(client, pid) is None
-    assert client.post(f"/api/away/{planned['id']}/start").json()["status"] == "running"
+    started = go_away(client, cid).json()
+    assert started["status"] == "running" and started["kept_out"] == ["secret"]
+    assert [job["title"] for job in started["jobs"]] == ["one", "two"]
+    assert started["money"] is None and started["until"] is None  # (no limits of their own)
     # no task of the To-do list starts beside the night
     assert client.post(f"/api/projects/{pid}/backlog/next").status_code == 409
     done = ended(client, pid)
@@ -80,9 +129,9 @@ def test_the_card_starts_nothing_and_only_the_users_start_starts_the_jobs_in_cop
     # each in a chat of its own, and nothing in the project: a full-auto Coder's change too
     assert len({one["conversation_id"], two["conversation_id"], cid}) == 3
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"
-    # the morning's one line, in the chat the card was in
+    # the one summary, in the chat they went away from
     said = [m["content"] for m in client.get(f"/api/conversations/{cid}").json()["messages"]]
-    assert said[-1] == "While you were away: 2 done - on the canvas"
+    assert summary(said[-1]) == "2 of 2 To-do done"
     # ...which is the user's to read: the Lead's next turn there is not given it
     later = client.post(f"/api/conversations/{cid}/messages", json={"content": "morning"}).json()
     wait_run(client, cid, later["run"]["id"])
@@ -105,7 +154,7 @@ def test_a_job_that_waits_for_the_users_word_holds_up_no_other(make_client, wait
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         edit(), run, edit(id="w2"), text("two done"), text("one done")], mode="ask")
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     done = ended(client, pid)
     one, two = done["jobs"]
     assert (one["state"], two["state"]) == ("waits", "done")
@@ -113,7 +162,7 @@ def test_a_job_that_waits_for_the_users_word_holds_up_no_other(make_client, wait
     ((ask),) = one["asks"]
     assert ask["kind"] == "commands"
     said = client.get(f"/api/conversations/{cid}").json()["messages"][-1]["content"]
-    assert said == "While you were away: 1 done, 1 waits - on the canvas"
+    assert summary(said) == "1 of 2 To-do done · 1 waits"
     # Allow and go on: the job's turn goes on where it stopped, and is done
     assert client.post(f"/api/commands/{ask['id']}/approve", json={"remember": False}
                        ).status_code == 200
@@ -121,7 +170,7 @@ def test_a_job_that_waits_for_the_users_word_holds_up_no_other(make_client, wait
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"
     # (Live: the morning's line stayed "0 done, 2 wait", and the night's end its old time.)
     said = client.get(f"/api/conversations/{cid}").json()["messages"][-1]["content"]
-    assert said == "While you were away: 2 done - on the canvas"
+    assert summary(said) == "2 of 2 To-do done"
     assert night(client, pid)["ended_at"] > done["ended_at"]
 
 
@@ -131,7 +180,7 @@ def test_a_job_that_fails_is_tried_once_more_then_could_not_be_done_and_the_next
         ModelUnavailable("model server unreachable: refused"),
         ModelUnavailable("model server unreachable: refused again"), text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     done = ended(client, pid)
     one, two = done["jobs"]
     assert (one["state"], two["state"]) == ("failed", "done")
@@ -146,7 +195,7 @@ def test_a_job_stopped_at_its_step_limit_says_so_in_words_not_by_koloni_s_code(
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         ModelUnavailable("refused"), ModelUnavailable("refused again"), text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     chat = ended(client, pid)["jobs"][0]["conversation_id"]
     with client.app.state.session_factory() as session:
         assert away.turn_ended(session, Run(conversation_id=chat, error="step_limit"), "failed")
@@ -162,7 +211,7 @@ def test_a_place_kept_out_is_refused_at_night_and_said_in_the_morning(make_clien
                                                    "c2")),
         text("one done"), text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     done = ended(client, pid)
     assert [job["state"] for job in done["jobs"]] == ["done", "done"]
     assert [t["what"] for t in done["tried"]] == ["Lead: edit_file secret/pay.py",
@@ -178,7 +227,7 @@ def test_stop_all_cuts_the_job_at_work_keeps_its_copy_and_starts_no_other(
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         edit(), gate.step(text("never"))])
     wait_run(client, cid, run_id)
-    started = client.post(f"/api/away/{card(client, cid)['id']}/start").json()
+    started = go_away(client, cid).json()
     gate.wait_partial()
     assert night(client, pid)["jobs"][0]["state"] == "working"
     stopped = client.post(f"/api/away/{started['id']}/stop").json()
@@ -191,7 +240,7 @@ def test_stop_all_cuts_the_job_at_work_keeps_its_copy_and_starts_no_other(
     assert (one["state"], one["why"], one["files"]) == ("stopped", "Stopped by you.", ["hello.py"])
     assert n["counts"] == {"done": 0, "waits": 0, "failed": 0, "stopped": 1, "not_started": 1}
     said = client.get(f"/api/conversations/{cid}").json()["messages"][-1]["content"]
-    assert said == "While you were away: 0 done, 1 stopped, 1 not started - on the canvas"
+    assert summary(said) == "0 of 2 To-do done · 1 stopped · 1 not started"
     assert two["state"] == "next" and two["conversation_id"] is None
     gate.release()
 
@@ -200,7 +249,7 @@ def test_the_night_stops_at_its_time(make_client, wait_run, project_dir, gate):
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         gate.step(text("never")), text("again done")], plan={**PLAN, "until": "07:00"})
     wait_run(client, cid, run_id)
-    started = client.post(f"/api/away/{card(client, cid)['id']}/start").json()
+    started = go_away(client, cid).json()
     gate.wait_partial()
     # (the clock's look: a job at work takes no step meanwhile)
     client.app.state.triggers.tick(now() + timedelta(days=1))
@@ -219,7 +268,7 @@ def test_the_night_stops_at_its_money_at_the_next_step(make_client, wait_run, pr
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         gate.step(edit()), text("never")], plan={**PLAN, "money": 5})
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     gate.wait_partial()
     monkeypatch.setattr(away, "spent", lambda session, night: {
         "spent": 6.0, "currency": "USD", "at_least": False})
@@ -231,18 +280,24 @@ def test_the_night_stops_at_its_money_at_the_next_step(make_client, wait_run, pr
     assert two["state"] == "next"
 
 
-def test_one_notification_at_the_end_where_the_project_has_one(make_client, wait_run,
-                                                              project_dir, monkeypatch):
+def test_one_notification_once_every_task_was_looked_at_and_none_at_im_back(
+        make_client, wait_run, project_dir, monkeypatch):
     shown = []
     monkeypatch.setattr(app.web, "has_desktop", lambda: True)
     monkeypatch.setattr(app.web, "desktop", lambda title, said: shown.append(said))
     client, _model, pid, cid, run_id = evening(
         make_client, project_dir, [text("one done"), text("two done")], notify_desktop=True)
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
-    ended(client, pid)
+    go_away(client, cid)
     until(lambda: shown)
-    assert shown == ["Every job was looked at. While you were away: 2 done - on the canvas."]
+    (said,) = shown
+    assert said.startswith("Every To-do task was looked at. ") and summary(
+        said.removeprefix("Every To-do task was looked at. ")) == "2 of 2 To-do done."
+    # Away lasts until the user is back: none again at the clock's look, none at I'm back
+    client.app.state.triggers.tick(now())
+    assert night(client, pid)["status"] == "running"
+    ended(client, pid)
+    assert len(shown) == 1
 
 
 def test_what_agents_propose_at_night_waits_for_the_morning(make_client, wait_run, project_dir):
@@ -250,38 +305,50 @@ def test_what_agents_propose_at_night_waits_for_the_morning(make_client, wait_ru
         step(call("add_task", {"title": "rate-limit the form"})), text("one done"),
         text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     done = ended(client, pid)
     (proposed,) = done["proposed"]
     assert proposed["title"] == "rate-limit the form" and proposed["conversation_id"] is None
 
 
-def test_the_card_is_changed_before_start_and_put_away_by_not_now(make_client, wait_run,
-                                                                 project_dir):
-    client, _model, pid, cid, run_id = evening(make_client, project_dir, [])
-    wait_run(client, cid, run_id)
-    planned = card(client, cid)
-    changed = client.patch(f"/api/away/{planned['id']}", json={
-        "jobs": [{"title": "only this"}], "kept_out": ["a\\b/"], "until": "06:30",
-        "money": None}).json()
-    assert [j["title"] for j in changed["jobs"]] == ["only this"]
-    assert changed["kept_out"] == ["a/b"] and changed["money"] is None
-    assert client.patch(f"/api/away/{planned['id']}", json={"until": "25:00"}).status_code == 409
-    assert client.post(f"/api/away/{planned['id']}/dismiss").json()["status"] == "dismissed"
-    assert client.post(f"/api/away/{planned['id']}/start").status_code == 409
+def test_the_offer_is_one_line_and_starts_nothing(make_client, wait_run, project_dir):
+    client, model = make_client([to_do(), step(call("offer_away", {**OFFER, "money": 2})),
+                                 text("Two tasks are on your To-do.")])
+    client.headers.update(ORIGIN)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    snap = wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages", json={
+        "content": "I'm going to sleep: do one and two"}).json()["run"]["id"])
+    (offered,) = client.get(f"/api/conversations/{cid}/away").json()
+    assert (offered["status"], offered["kept_out"], offered["money"]) == ("planned", ["secret"], 2)
+    # (the tasks its Orchestrator put on To-do in that turn: what its Go away line takes)
+    assert [job["title"] for job in offered["jobs"]] == ["one", "two"]
+    assert [t["name"] for t in snap["tool_calls"]] == ["add_task", "add_task", "offer_away"]
+    # nothing started: the tasks proposed from this chat, no other chat, nobody away
+    assert {t["status"] for t in tasks(client, pid).values()} == {"proposed"}
+    assert night(client, pid) is None and len(model.calls) == 3
+    assert len(client.get(f"/api/projects/{pid}/conversations").json()) == 1
+    # a newer offer takes its place; Go away puts every offer away
+    assert go_away(client, cid).status_code == 200
+    assert [c["status"] for c in client.get(f"/api/conversations/{cid}/away").json()] == [
+        "dismissed", "running"]
 
 
-def test_no_card_from_a_turn_nobody_watches(make_client, wait_run, project_dir):
+def test_no_offer_from_a_turn_nobody_watches(make_client, wait_run, project_dir):
     from tests.test_trigger_scenarios import run_now, trigger
 
-    client, model, pid, cid, run_id = evening(make_client, project_dir, [
-        step(call("plan_away", PLAN, "p2")), text("tried")])
-    wait_run(client, cid, run_id)
-    planned = card(client, cid)
+    client, model = make_client([step(call("offer_away", OFFER)), text("offered"),
+                                 step(call("offer_away", OFFER, "p2")), text("tried")])
+    client.headers.update(ORIGIN)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages",
+                                      json={"content": "sleep"}).json()["run"]["id"])
+    (planned,) = client.get(f"/api/conversations/{cid}/away").json()
     started = run_now(client, trigger(client, pid, cid)["id"])
     snap = wait_run(client, cid, started)
     (result,) = [t["result"] for t in snap["tool_calls"] if t["run_id"] == started]
-    assert "plan_away is the Orchestrator's, at a turn of the user's own" in result
+    assert "offer_away is the Orchestrator's, at a turn of the user's own" in result
     # nor is that turn's Lead told to call it
     assert told_when_offered(model) == [True, True, False, False]
     assert [c["status"] for c in client.get(f"/api/conversations/{cid}/away").json()] == [
@@ -292,13 +359,16 @@ def test_a_night_left_running_by_a_restart_is_over_and_nothing_starts_again(
         make_client, wait_run, project_dir, gate):
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [gate.step(text("x"))])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     gate.wait_partial()
     factory = client.app.state.session_factory
     recover_interrupted(factory)
     with factory() as session:
         (found,) = session.scalars(select(AwayRun)).all()
         assert (found.status, found.why) == ("ended", away.CLOSED)
+    # its summary written; the rule back to the project's minutes (nothing is away)
+    assert lines(client, cid) == ["0 of 2 To-do done · 1 could not be done · 1 not started"]
+    assert night(client, pid)["jobs"][1]["conversation_id"] is None
     gate.release()
 
 
@@ -308,7 +378,7 @@ def test_the_report_says_what_each_jobs_reviews_last_said(make_client, wait_run,
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [text("one done"),
                                                                            text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     one = ended(client, pid)["jobs"][0]
     with client.app.state.session_factory() as session:
         job_run = session.scalar(select(Run.id).where(Run.conversation_id == one["conversation_id"]))
@@ -329,7 +399,7 @@ def test_the_job_at_work_says_what_it_does_now(make_client, wait_run, project_di
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         spawn("Coder", "edit hello"), gate.step(text("edited")), text("one done"), text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     gate.wait_partial()
     one = night(client, pid)["jobs"][0]
     assert (one["state"], one["now"]) == ("working", "Lead · spawn_agent")
@@ -344,7 +414,7 @@ def test_a_change_in_a_place_kept_out_that_no_refusal_caught_is_said_in_the_morn
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [text("one done"),
                                                                            text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     one = ended(client, pid)["jobs"][0]
     assert night(client, pid)["tried"] == []
     # (a command that wrote there without naming it: its copy holds the file all the same)
@@ -368,10 +438,9 @@ def test_a_job_with_a_team_and_its_recipe_works_by_it_and_is_done_at_ready_for_y
     from tests.test_claim_scenarios import write
     from tests.test_recipe_run_scenarios import asked, one_step
 
-    plan = {"jobs": [{"title": "build a", "team": "Web app", "recipe": "Just build"},
-                     {"title": "two"}]}
+    plan = {"jobs": [{"title": "build a"}, {"title": "two"}]}
     client, model = make_client({
-        "Lead": [step(call("plan_away", plan)), text("card is up"), spawn("Coder", "build a"),
+        "Lead": [to_do(plan), text("on your To-do"), spawn("Coder", "build a"),
                  text("one done"), text("two done")],
         "Coder": [step(write("a.py", "a\n")), text("built")],
     })
@@ -379,14 +448,17 @@ def test_a_job_with_a_team_and_its_recipe_works_by_it_and_is_done_at_ready_for_y
     recipe = one_step(client, "Just build", "Coder")
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
+    client.patch(f"/api/conversations/{cid}", json={
+        "permission_mode": "full_auto", "teams_mode": "manual", "teams": [
+            {"team_id": teams_of(client)["Web app"]["id"], "recipe_id": recipe["id"]}]})
+    client.put(f"/api/projects/{pid}/backlog/choice", json={"permission_mode": "full_auto"})
     run_id = client.post(f"/api/conversations/{cid}/messages",
                          json={"content": "sleep"}).json()["run"]["id"]
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     one = ended(client, pid)["jobs"][0]
     snap = client.get(f"/api/conversations/{one['conversation_id']}").json()
-    # its chat works with the card's team and recipe
+    # its chat works with the team and recipe the user picked in the chat they went away from
     assert snap["conversation"]["teams_mode"] == "manual"
     assert [(t["team_id"], t["recipe_id"]) for t in snap["conversation"]["teams"]] == [
         (teams_of(client)["Web app"]["id"], recipe["id"])]
@@ -394,8 +466,6 @@ def test_a_job_with_a_team_and_its_recipe_works_by_it_and_is_done_at_ready_for_y
     assert one["state"] == "done" and asked(snap) is None
     assert one["files"] == ["a.py"] and len(one["kept"]) == 1
     assert not (project_dir / "a.py").exists()
-    # only the evening's Lead is told to plan: not a job's own Lead, nor its sub-agent
-    assert told_when_offered(model)[:2] == [True, True] and not any(told_when_offered(model)[2:])
 
 
 NIGHT_TR = ("Uyumaya gidiyorum. Bu gece şunları bitir: (1) calc.average'a docstring ekle, (2) build/ "
@@ -423,12 +493,12 @@ def test_work_that_names_sleep_or_tonight_is_no_cue(said):
 @pytest.mark.parametrize("said, noted", [
     (NIGHT_TR, True), ("I'm off to bed - overnight, finish the docs.", True),
     ("Make the colours uyumlu with the logo, and in harmony (uyum).", False)])
-def test_a_message_that_may_say_the_user_goes_away_reminds_the_lead_of_its_card(
+def test_a_message_that_may_say_the_user_goes_away_reminds_the_lead_to_offer_it(
         make_client, wait_run, project_dir, said, noted):
     # B-121 (live, haiku): a natural Turkish night message - the Lead did the work at once, no card.
     # (A scripted model shows only what the Lead is told, not that it heeds it.)
     from app.agent import AWAY_NOTE
-    client, model = make_client([step(call("plan_away", PLAN)), text("card is up")])
+    client, model = make_client([step(call("offer_away", OFFER)), text("offered")])
     client.headers.update(ORIGIN)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -437,35 +507,38 @@ def test_a_message_that_may_say_the_user_goes_away_reminds_the_lead_of_its_card(
     # (under the user's own words, which stay the last message: a CLI does what the last one asks)
     last = model.calls[0][-1]
     assert last["role"] == "user" and last["content"] == (f"{said}\n\n{AWAY_NOTE}" if noted else said)
-    offered = next(t["function"] for t in model.tool_args[0] if t["function"]["name"] == "plan_away")
-    assert "call this first and do none of that work yourself" in offered["description"]
+    offered = next(t["function"] for t in model.tool_args[0] if t["function"]["name"] == "offer_away")
+    assert "with add_task first, do none of it, then call this" in offered["description"]
 
 
 def told_when_offered(model) -> list[bool]:
-    """K-gece-dil: each step's system prompt holds the going-away rule exactly when plan_away
+    """K-gece-dil: each step's system prompt holds the going-away rule exactly when offer_away
     goes out with it; returns, step by step, whether it did."""
     from app.agent import AWAY_PROMPT
     told = [AWAY_PROMPT in str(sent[0]["content"]) for sent in model.calls]
-    assert told == ["plan_away" in {t["function"]["name"] for t in tools or ()}
+    assert told == ["offer_away" in {t["function"]["name"] for t in tools or ()}
                     for tools in model.tool_args]
     return told
 
 
-def test_going_away_in_another_language_puts_the_card_and_does_nothing_else(
+def test_going_away_in_another_language_puts_the_work_on_to_do_and_offers_it(
         make_client, wait_run, project_dir):
     # The user (27 Oct): a message in German, in words no cue lists - the Lead's own rule carries it.
     from app.agent import AWAY_CUES
     said = "Ich gehe schlafen, mach heute Nacht bitte: (1) Docstrings in hello.py, (2) lösch build/."
     assert not AWAY_CUES.search(said)
-    client, model = make_client([step(call("plan_away", PLAN)), text("card is up")])
+    client, model = make_client([step(*to_do().tool_calls, call("offer_away", {}, "o")),
+                                 text("on your To-do")])
     client.headers.update(ORIGIN)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": said}).json()["run"]["id"]
     snap = wait_run(client, cid, run_id)
-    assert card(client, cid)["status"] == "planned"
-    assert [t["name"] for t in snap["tool_calls"]] == ["plan_away"]
-    assert tasks(client, pid) == {} and night(client, pid) is None
+    assert [one["status"] for one in client.get(f"/api/conversations/{cid}/away").json()] == [
+        "planned"]
+    assert [t["name"] for t in snap["tool_calls"]] == ["add_task", "add_task", "offer_away"]
+    assert {t["status"] for t in tasks(client, pid).values()} == {"proposed"}
+    assert night(client, pid) is None
     assert model.calls[0][-1]["content"] == said and told_when_offered(model) == [True, True]
 
 
@@ -475,7 +548,7 @@ def test_each_job_is_assessed_on_its_copys_changes_and_the_report_follows_take_i
     # on record"; the job allowed in the morning had no view; after Take in its row said "nothing changed".
     from tests.test_tier_scenarios import tiered
     run = step(call("run_command", {"command": "echo hi"}))
-    client, _default, fast = team([step(call("plan_away", PLAN)), text("card is up"),
+    client, _default, fast = team([to_do(), text("on your To-do"),
                                    edit(), run, edit(id="w2"), text("two done"), text("one done")],
                                   [text("Two looks met."), text("One looks met.")])
     tiered(team, client)
@@ -485,7 +558,7 @@ def test_each_job_is_assessed_on_its_copys_changes_and_the_report_follows_take_i
     client.patch(f"/api/conversations/{cid}", json={"permission_mode": "ask"})
     wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages",
                                       json={"content": "sleep: do one and two"}).json()["run"]["id"])
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid, kept_out=PLAN["kept_out"])
     done = ended(client, pid)
     one, two = done["jobs"]
     given = fast.calls[0][1]["content"]
@@ -509,7 +582,7 @@ def test_a_job_its_copy_cannot_do_waits_for_the_user_and_the_job_is_told_what_th
         text("build/ is not in my copy.\n\n**Needs the project itself: build/ is not in the copy**"),
         text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     one, two = ended(client, pid)["jobs"]
     assert (one["state"], one["why"]) == ("waits", "Needs the project itself: build/ is not in the copy")
     assert two["state"] == "done"
@@ -534,7 +607,7 @@ def test_what_a_job_took_in_is_its_nights_not_later_work_in_its_chat(make_client
         text("one done"), text("two done"),
         spawn("Coder", "write later.py"), step(write("later.py", "later\n")), text("written"), text("later")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     one = ended(client, pid)["jobs"][0]
     later = client.post(f"/api/conversations/{one['conversation_id']}/messages",
                         json={"content": "write later.py"}).json()["run"]["id"]
@@ -554,19 +627,16 @@ def test_a_job_that_waits_for_a_question_after_a_refused_command_says_so_and_hol
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         edit(), run, edit(id="w2"), text("two done"), question, text("one done")], mode="ask")
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     ((ask),) = ended(client, pid)["jobs"][0]["asks"]
     assert client.post(f"/api/commands/{ask['id']}/reject", json={}).status_code == 200
     one = until(lambda: (j := night(client, pid)["jobs"][0])["asks"] and j["asks"][0]["kind"] is None and j)
     assert (one["state"], one["why"]) == ("waits", "Lead asks you something (ask_user)")
-    # Waiting for the user's word, it is not at work: a new night starts (its jobs, the next ones).
+    # Waiting for the user's word, it is not at work: a new Away starts (its tasks, the next ones).
     with client.app.state.runner._factory() as session:
         assert backlog.busy(session, pid) is not None  # (the To-do list's own start: as before)
-        later = AwayRun(project_id=pid, conversation_id=cid, run_id=run_id, jobs=[{"title": "three"}])
-        session.add(later)
-        session.commit()
-        later_id = later.id
-    started = client.post(f"/api/away/{later_id}/start")
+    three = client.post(f"/api/projects/{pid}/backlog", json={"title": "three"}).json()["id"]
+    started = client.post(f"/api/conversations/{cid}/away", json={"task_ids": [three]})
     assert started.status_code == 200, started.text
 
 
@@ -576,79 +646,176 @@ def test_a_night_job_done_later_changes_its_own_nights_line_not_a_later_nights(m
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         edit(), run, edit(id="w2"), text("two done"), text("three done"), text("one done")], mode="ask")
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     ((ask),) = ended(client, pid)["jobs"][0]["asks"]
-    with client.app.state.runner._factory() as session:
-        second = AwayRun(project_id=pid, conversation_id=cid, run_id=run_id, jobs=[{"title": "three"}])
-        session.add(second)
-        session.commit()
-        second_id = second.id
-    assert client.post(f"/api/away/{second_id}/start").status_code == 200
-    until(lambda: client.get(f"/api/conversations/{cid}/away").json() and all(
-        c["status"] != "running" for c in client.get(f"/api/conversations/{cid}/away").json()))
-    lines = lambda: [m["content"] for m in client.get(f"/api/conversations/{cid}").json()["messages"] if m["role"] == "away"]  # noqa: E731
-    assert lines() == ["While you were away: 1 done, 1 waits - on the canvas", "While you were away: 1 done - on the canvas"]
+    three = client.post(f"/api/projects/{pid}/backlog", json={"title": "three"}).json()["id"]
+    assert client.post(f"/api/conversations/{cid}/away", json={"task_ids": [three]}
+                       ).status_code == 200
+    ended(client, pid)
+    assert lines(client, cid) == ["1 of 2 To-do done · 1 waits", "1 of 1 To-do done"]
     assert client.post(f"/api/commands/{ask['id']}/approve", json={"remember": False}).status_code == 200
-    until(lambda: lines()[0] == "While you were away: 2 done - on the canvas")
-    assert lines()[1] == "While you were away: 1 done - on the canvas"
+    until(lambda: lines(client, cid)[0] == "2 of 2 To-do done")
+    assert lines(client, cid)[1] == "1 of 1 To-do done"
 
 
-def to_do_evening(make_client, wait_run, project_dir, steps, jobs):
-    """The Lead's card over the To-do list's tasks one and two (`jobs(one, two)` its jobs);
-    returns (client, pid, cid, card, one, two)."""
-    client, model = make_client([text("(the plan, below)"), text("card is up"), *steps])
-    client.headers.update(ORIGIN)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    one, two = (client.post(f"/api/projects/{pid}/backlog", json={
-        "title": title, "criteria": f"{title} is done"}).json()["id"] for title in ("one", "two"))
-    model.steps[0] = step(call("plan_away", {"jobs": jobs(one, two)}))
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "I'm going to sleep: work through the To-do"}).json()["run"]["id"]
-    wait_run(client, cid, run_id)
-    return client, pid, cid, card(client, cid), one, two
-
-
-def test_a_job_that_is_a_task_of_the_to_do_list_is_that_task_not_a_copy(make_client, wait_run, project_dir):
-    # B-409 (live, R206): "work through the To-do" put each task on the list again, the real ones left to do.
-    client, pid, _cid, planned, one, two = to_do_evening(
-        make_client, wait_run, project_dir, [text("one done"), text("new done"), text("two done")],
-        lambda one, two: [{"title": "do the first", "line": "said otherwise", "task_id": one},
-                          {"title": "new"}, {"title": "two", "task_id": two}])
-    # the card says what runs: the task's own words, not the Lead's
-    assert [(job["title"], job["line"], job["task_id"]) for job in planned["jobs"]] == [
-        ("one", "one is done", one), ("new", None, None), ("two", "two is done", two)]
-    # the user's change keeps which task a job is; one not to do here, twice, or not OK'd yet
-    # by the user (the Lead's at Full auto) is refused
-    unseen = client.post(f"/api/projects/{pid}/backlog", json={"title": "unseen"}).json()["id"]
-    with client.app.state.runner._factory() as session:
-        session.get_one(BacklogTask, unseen).po = {"lead": "add"}
-        session.commit()
-    jobs = [{"title": job["title"], "task_id": job["task_id"]} for job in planned["jobs"]]
-    for wrong in ([{"title": "x", "task_id": "nope"}], [jobs[0], jobs[0]],
-                  [{"title": "x", "task_id": unseen}]):
-        assert client.patch(f"/api/away/{planned['id']}", json={"jobs": wrong}).status_code == 409
-    client.delete(f"/api/backlog/{unseen}")
-    assert client.patch(f"/api/away/{planned['id']}", json={"jobs": jobs}).status_code == 200
-    assert client.post(f"/api/away/{planned['id']}/start").status_code == 200
-    done = ended(client, pid)
-    assert [(job["task_id"], job["state"]) for job in done["jobs"]][::2] == [(one, "done"), (two, "done")]
-    listed = client.get(f"/api/projects/{pid}/backlog").json()
-    assert sorted(task["title"] for task in listed) == ["new", "one", "two"]  # (not five)
-    assert all(task["status"] != "todo" for task in listed)
-
-
-def test_a_task_the_night_never_started_is_the_to_do_lists_again(make_client, wait_run, project_dir):
+def test_a_task_away_never_started_is_the_to_do_lists_again(make_client, wait_run,
+                                                           project_dir):
     # (The review: a night stopped before it held the user's task for good - Run the backlog said
     # "no task of the backlog is todo".)
-    client, pid, _cid, planned, one, _two = to_do_evening(
-        make_client, wait_run, project_dir, [text("one done")],
-        lambda one, two: [{"title": "one", "task_id": one}])
-    assert client.patch(f"/api/away/{planned['id']}", json={"money": 0}).status_code == 200
-    assert client.post(f"/api/away/{planned['id']}/start").status_code == 200
+    client, _model = make_client([text("hello"), text("one done")])
+    client.headers.update(ORIGIN)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    one = client.post(f"/api/projects/{pid}/backlog", json={"title": "one"}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages",
+                                      json={"content": "hi"}).json()["run"]["id"])
+    assert client.post(f"/api/conversations/{cid}/away", json={
+        "task_ids": [one], "money": 0}).status_code == 200
     done = ended(client, pid)
     assert done["why"] and done["counts"]["not_started"] == 1
     assert [(job["task_id"], job["state"]) for job in done["jobs"]] == [(one, "next")]
     started = client.post(f"/api/projects/{pid}/backlog/next")
     assert started.status_code == 200, started.text
+
+
+# --- ☾ Away: Go away from the chat ------------------------------------------------------------
+
+
+def test_go_away_takes_the_ticked_tasks_in_the_panels_order_and_leaves_the_rest(
+        make_client, wait_run, project_dir):
+    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
+        text("two done"), text("one done")])
+    wait_run(client, cid, run_id)
+    mine = client.post(f"/api/projects/{pid}/backlog", json={"title": "mine"}).json()["id"]
+    one, two = proposed_in(client, cid)
+    # a chat with no turn: nothing for Away to finish first
+    empty = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    refused = client.post(f"/api/conversations/{empty}/away", json={"task_ids": [one]})
+    assert refused.status_code == 409 and refused.json()["detail"].startswith(
+        "write to the Orchestrator first")
+    for wrong in ([one, one], ["nope"]):
+        assert client.post(f"/api/conversations/{cid}/away",
+                           json={"task_ids": wrong}).status_code == 409
+    started = client.post(f"/api/conversations/{cid}/away", json={
+        "task_ids": [two, one], "order": [two, one, mine]}).json()
+    assert [job["title"] for job in started["jobs"]] == ["two", "one"]
+    # the panel's order is To-do's now; nothing else starts meanwhile
+    assert [t["title"] for t in client.get(f"/api/projects/{pid}/backlog").json()] == [
+        "two", "one", "mine"]
+    for doing in (client.post(f"/api/projects/{pid}/backlog/next"),
+                  client.post(f"/api/away/{started['id']}/jobs/{one}/again")):
+        assert (doing.status_code, doing.json()["detail"]) == (409, away.AWAY_NOW)
+    done = ended(client, pid)
+    assert [(job["title"], job["state"]) for job in done["jobs"]] == [("two", "done"),
+                                                                      ("one", "done")]
+    left = tasks(client, pid)["mine"]
+    assert (left["status"], left["conversation_id"], left["proposed_in"]) == ("todo", None, None)
+
+
+def test_the_chat_finishes_its_turn_first_and_a_task_added_meanwhile_does_not_join(
+        make_client, wait_run, project_dir, gate):
+    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
+        gate.step(step(call("add_task", {"title": "three"}, "t9"))), text("chat done"),
+        text("one done"), text("two done")])
+    wait_run(client, cid, run_id)
+    later = client.post(f"/api/conversations/{cid}/messages",
+                        json={"content": "add three too"}).json()["run"]["id"]
+    gate.wait_partial()
+    assert go_away(client, cid).status_code == 200
+    # the chat's turn is at work: To-do waits for it
+    client.app.state.triggers.tick(now())
+    assert [job["conversation_id"] for job in night(client, pid)["jobs"]] == [None, None]
+    gate.release()
+    wait_run(client, cid, later)
+    done = ended(client, pid)
+    assert [(job["title"], job["state"]) for job in done["jobs"]] == [("one", "done"),
+                                                                      ("two", "done")]
+    assert tasks(client, pid)["three"]["status"] == "proposed"
+
+
+def test_a_chat_turn_that_waits_for_your_word_does_not_hold_to_do_back(
+        make_client, wait_run, project_dir):
+    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
+        step(call("run_command", {"command": "echo hi"}, "k")), text("one done"),
+        text("two done"), text("chat done")], mode="ask")
+    wait_run(client, cid, run_id)
+    later = client.post(f"/api/conversations/{cid}/messages",
+                        json={"content": "say hi"}).json()["run"]["id"]
+    (command,) = until(lambda: client.get(f"/api/conversations/{cid}").json()["commands"])
+    assert go_away(client, cid).status_code == 200
+    until(lambda: all(job["state"] == "done" for job in night(client, pid)["jobs"]))
+    assert client.post(f"/api/commands/{command['id']}/approve",
+                       json={"remember": False}).status_code == 200
+    wait_run(client, cid, later)
+
+
+def test_the_spend_limit_counts_only_what_was_spent_after_go_away_and_cuts_the_chats_turn(
+        make_client, wait_run, project_dir, gate):
+    import json
+
+    from app.model_client import StepResult, ToolCallRequest
+    from tests.conftest import Gate
+
+    def big(id):
+        return StepResult("", [ToolCallRequest(id, "read_file", json.dumps({"path": "hello.py"}))],
+                          1_000_000, 500_000)
+
+    second = Gate()
+    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
+        big("r1"), gate.step(big("r2")), second.step(text("never"))])
+    client.put("/api/prices", json={"model_id": "fake-model", "input": 3, "output": 15,
+                                    "currency": "USD"})
+    wait_run(client, cid, run_id)
+    later = client.post(f"/api/conversations/{cid}/messages",
+                        json={"content": "read it"}).json()["run"]["id"]
+    gate.wait_partial()  # (its first step spent 10.50 before Go away)
+    started = go_away(client, cid, money=5).json()
+    assert started["spent"] == 0
+    gate.release()
+    second.wait_partial()  # (and 10.50 more after it)
+    client.app.state.triggers.tick(now())
+    done = night(client, pid)
+    assert (done["status"], done["why"]) == ("ended", "Stopped at 10.50 of 5.00 USD, the spend limit.")
+    second.release()
+    assert wait_run(client, cid, later)["runs"][-1]["status"] == "cancelled"
+
+
+def test_stop_all_stops_a_job_that_waits_for_your_word_too(make_client, wait_run, project_dir):
+    # (The review: Stop all cut only the job at work; one waiting on a card stayed open.)
+    run = step(call("run_command", {"command": "echo hi"}))
+    client, _model, pid, cid, run_id = evening(make_client, project_dir, [
+        run, text("two done")], mode="ask")
+    wait_run(client, cid, run_id)
+    started = go_away(client, cid).json()
+    until(lambda: looked_at(night(client, pid)))
+    stopped = client.post(f"/api/away/{started['id']}/stop").json()
+    assert stopped["status"] == "ended" and stopped["why"] == "Stopped by you."
+    one = until(lambda: (j := night(client, pid)["jobs"][0])["state"] == "stopped" and j)
+    assert one["why"] == "Stopped by you."
+    until(lambda: client.get(f"/api/conversations/{one['conversation_id']}").json()[
+        "runs"][-1]["status"] == "cancelled")
+
+
+def test_the_offer_holds_only_the_tasks_its_orchestrator_added_in_that_turn(
+        make_client, wait_run, project_dir):
+    # (The review: one click on the line approved what any agent proposed in the chat - a
+    # sub-agent that read a hostile page, an earlier turn's.)
+    client, _model = make_client({
+        "Lead": [step(call("add_task", {"title": "earlier"}, "t0")), text("noted"),
+                 spawn("Product owner", "note what you found"),
+                 step(call("add_task", {"title": "mine", "criteria": "it is done"}, "t1"),
+                      call("offer_away", OFFER, "o1")), text("offered")],
+        "Product owner": [step(call("add_task", {"title": "sneaky"}, "c1")), text("added")],
+    })
+    client.headers.update(ORIGIN)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto",
+                                                    "spawn_approval": "never"})
+    for said in ("remember this", "I'm going to sleep"):
+        wait_run(client, cid, client.post(f"/api/conversations/{cid}/messages",
+                                          json={"content": said}).json()["run"]["id"])
+    assert sorted(tasks(client, pid)) == ["earlier", "mine", "sneaky"]
+    (offered,) = client.get(f"/api/conversations/{cid}/away").json()
+    assert [(job["title"], job["line"], job["task_id"]) for job in offered["jobs"]] == [
+        ("mine", "it is done", tasks(client, pid)["mine"]["id"])]

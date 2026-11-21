@@ -60,7 +60,7 @@ export function readyItems({ conv, chats, projectId, backlog, memory, away }: So
         // (A plain chat is in no folder: not "another folder's".)
         // shortcut: a night job drawn from its chat's card opens its job's chat without leaving the page it is on (the
         // chat's JobRow); map it to a 'night' row here, kept in its chat's part of the panel, if that is missed.
-        source: row.what === 'away' || row.what === 'night' ? 'night' : state.conversation.project_id && state.conversation.project_id !== projectId ? 'other' : 'chat',
+        source: row.what === 'night' ? 'night' : state.conversation.project_id && state.conversation.project_id !== projectId ? 'other' : 'chat',
         at: atOf(state, row),
         state,
         row,

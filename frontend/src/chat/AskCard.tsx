@@ -227,7 +227,11 @@ function AskForm(p: {
                 placeholder={question.options.length > 0 ? 'Or answer in your own words…' : 'Your answer…'}
                 value={own}
                 disabled={busy}
-                onChange={e => p.onDraft({ choice: OWN, own: e.target.value })}
+                onChange={e => {
+                  p.onDraft({ choice: OWN, own: e.target.value })
+                  // (☾ Away: the Orchestrator does not decide it for you while you write it.)
+                  useApp.getState().typing(question.id)
+                }}
               />
             </div>
           </div>

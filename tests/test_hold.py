@@ -13,7 +13,7 @@ from app.model_client import ModelUnavailable
 from tests.conftest import Gate
 from tests.keyed import TestClient
 from tests.test_agent_writes import edit
-from tests.test_away_scenarios import card, evening, night
+from tests.test_away_scenarios import ended, evening, go_away, night
 from tests.test_chat_flow import text
 from tests.test_spawn import call, step
 from tests.test_triggers import (
@@ -138,7 +138,7 @@ def test_stop_everything_cuts_the_nights_job_and_holds_its_next_until_resume(
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         edit(), gate.step(text("never")), text("two done")])
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     gate.wait_partial()
     try:
         held = client.post("/api/hold").json()
@@ -155,15 +155,14 @@ def test_stop_everything_cuts_the_nights_job_and_holds_its_next_until_resume(
     client.post("/api/hold/resume")
     two = until(lambda: night(client, pid)["jobs"][1]["conversation_id"])
     wait_run(client, two, client.get(f"/api/conversations/{two}").json()["runs"][0]["id"])
-    assert until(lambda: (n := night(client, pid))["status"] == "ended" and n)["jobs"][1][
-        "state"] == "done"
+    assert ended(client, pid)["jobs"][1]["state"] == "done"
 
 
 def test_no_night_starts_while_held(make_client, wait_run, project_dir):
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [])
     wait_run(client, cid, run_id)
     client.post("/api/hold")
-    answer = client.post(f"/api/away/{card(client, cid)['id']}/start")
+    answer = go_away(client, cid)
     assert answer.status_code == 409 and "Resume first" in answer.json()["detail"]
 
 
@@ -202,7 +201,7 @@ def test_a_nights_job_that_waits_for_the_users_word_is_stopped_too_not_failed(
     client, _model, pid, cid, run_id = evening(make_client, project_dir, [
         edit(), run, edit(id="w2"), gate.step(text("two done"))], mode="ask")
     wait_run(client, cid, run_id)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    go_away(client, cid)
     until(lambda: night(client, pid)["jobs"][0]["state"] == "waits")
     gate.wait_partial()
     try:

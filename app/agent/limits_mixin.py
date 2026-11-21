@@ -796,7 +796,7 @@ class LimitsMixin:
         try:
             _status, word = await self._ask_user(ctx, call_id, {
                 "question": STEPS_ASKED.format(name=ctx.name, taken=taken, steps=steps),
-                "options": [go_on, STEPS_STOP]}, leave=True, ids=ids, kind="card")
+                "options": [go_on, STEPS_STOP]}, leave=True, ids=ids, kind="steps")
         except _NobodyToAsk:
             return False
         by_user = self._who_answered(ctx, ids) == "The user"

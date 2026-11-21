@@ -264,6 +264,9 @@ PATCH_FILE = re.compile(r"\*\*\* (Add|Update|Delete) File: (.+)")
 CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 # What `_decide` asks its runner (`call_tool`) of such a command: true where it may be a patch.
 PATCH_MAY_RUN = "patch_may_run"
+# ☾ Away: not a tool either - its hook saying one of KOLONİ's tools is used by a sub-agent of the
+# CLI's own (`agent_type`), before that call comes: the call is put under that sub-agent.
+USED_INSIDE = "used_inside"
 
 
 def _odd_path(text: str) -> bool:
@@ -2567,9 +2570,13 @@ class ClaudeNativeClient(CodexNativeClient):
             # 89g: a role run inside it is held to its own tools by `_approve`, which
             # is asked about every one - KOLONİ's too, which would be its Lead's.
             kind = str(given.get("agent_type") or "")
+            use_id = str(given.get("tool_use_id") or request.get("tool_use_id") or "")
             if kind.startswith(INSIDE):
-                roles_of[str(given.get("tool_use_id") or request.get("tool_use_id")
-                             or "")] = kind
+                roles_of[use_id] = kind
+            elif kind and tool in ours:
+                await call_tool(USED_INSIDE, json.dumps({
+                    "tool": tool.removeprefix(PREFIX), "input": given.get("tool_input"),
+                    "id": use_id}))
             # Its StructuredOutput only hands back the report (89p): no card.
             # shortcut: let through by its name, not measured under KOLONİ's hook.
             handing = bool(report_schema) and tool == ClaudeCliClient.OWN_TOOL

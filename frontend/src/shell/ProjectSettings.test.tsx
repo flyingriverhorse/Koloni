@@ -708,6 +708,8 @@ test('who answers while you are away is every chat’s, said in sight to use you
   await choose(/^Asking and away/)
   const away = screen.getByLabelText('When you’re away')
   expect(away).toHaveValue('waits')
+  // (its why: the minutes, and at once while you're away - ☾ Away on a chat's line)
+  expect(document.body).toHaveTextContent(/Once a card has waited this many minutes - at once while you’re away \(☾ Away on a chat’s line\)/)
   expect(screen.queryByText('An Orchestrator on a CLI uses one request of your plan for each answer.')).toBeNull()
   await userEvent.selectOptions(away, 'The Orchestrator answers what it safely can')
   const plan = screen.getByText('An Orchestrator on a CLI uses one request of your plan for each answer.')

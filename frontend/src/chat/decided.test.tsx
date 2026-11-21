@@ -138,7 +138,7 @@ test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word,
   const po = (lead: 'add' | 'no') => ({ chat: state.conversation.id, why: 'the parser tests', lead, lead_why: `It said ${lead}.`, seen: false, injection: [] })
   const task = (id: string, status: 'todo' | 'proposed' | 'doing', lead: 'add' | 'no'): BacklogTask => ({
     id, title: id, detail: null, criteria: null, priority: 'normal', status, position: 0, conversation_id: null, created_by: 'agent',
-    pending: null, assessment: null, not_in: false, after: [], queued: false, stuck: null, waiting: false, po: po(lead),
+    pending: null, assessment: null, not_in: false, after: [], queued: false, stuck: null, waiting: false, created_at: '2026-10-05T10:00:00Z', po: po(lead),
   })
   useApp.setState({ backlog: [task('tests', 'todo', 'add'), task('help', 'proposed', 'no'), task('docs', 'doing', 'add'), { ...task('other', 'todo', 'add'), po: { ...po('add'), chat: 'elsewhere' } }] })
   const seen = vi.spyOn(useApp.getState(), 'seenTask').mockResolvedValue()

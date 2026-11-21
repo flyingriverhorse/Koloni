@@ -6,15 +6,15 @@ Projects get `disposable_deletes`, off for every one (as before: each such delet
 the user allows it); commands get `disposable`, what of one was disposable and whether it ran
 unasked for that (null: nothing). Going back drops both.
 
-Revision ID: 0157
-Revises: 0156
+Revision ID: 0159
+Revises: 0158
 """
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0157"
+revision = "0159"
 # (Written on the k-atilabilir branch: re-chained after main's newest at its merge.)
-down_revision = "0156"
+down_revision = "0158"
 branch_labels = None
 depends_on = None
 

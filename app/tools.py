@@ -425,55 +425,27 @@ def pick_schema(teams, recipes) -> dict:
     )
 
 
-def away_schema(teams, recipes) -> dict:
-    """plan_away (slice 106): the Lead's "While you're away" card, the teams and recipes a
-    job may name listed."""
+def offer_schema() -> dict:
+    """offer_away (☾ Away): the Orchestrator's one line under its answer offering the user to go
+    away - the work already on To-do (add_task). Nothing starts before their Go away."""
     return _fn(
-        "plan_away",
+        "offer_away",
         "When the user says they are going away - to sleep, out, for the night, in any "
-        "language - and lists work for meanwhile, call this first and do none of that work "
-        "yourself: no edit, no command, no agent for it. Put it before them as a short list of "
-        "jobs on a card. Each job "
-        "is worked on later in a chat and a copy of the project of its own, one after another, "
-        "and kept for the user to take in. This starts nothing: only the user's Start on the "
-        "card does, once they have changed the list if they want. Put what the user said not "
-        "to touch in kept_out. A newer card takes the place of one not started yet.",
+        "language - and gives work for meanwhile: put each piece of the work on the To-do list "
+        "with add_task first, do none of it, then call this: one line under your answer offers "
+        "to go away. Nothing starts before their Go away. Put what the user said not to touch "
+        "in kept_out.",
         {
-            "jobs": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "title": {"type": "string", "description": "The job in one plain line; "
-                                  "at most 200 characters."},
-                        "line": {"type": "string", "description": "Optional: in one short "
-                                 "plain line, what makes it done."},
-                        "team": {"type": "string", **({"enum": list(teams)} if teams else {}),
-                                 "description": "Optional: the team that does it."},
-                        "recipe": {"type": "string", **({"enum": list(recipes)} if recipes
-                                                        else {}),
-                                   "description": "Optional: the recipe it works by; left out, "
-                                   "the team's own."},
-                        "task_id": {"type": "string", "description": "Optional: where the job "
-                                    "is a task to do on the project's To-do list already, its id "
-                                    "as read_backlog gives it - that task is worked on, not a "
-                                    "copy; left out, the job is added to the list as a new task."},
-                    },
-                    "required": ["title"],
-                },
-                "description": "1 to 10 jobs, in the order they are to be done.",
-            },
             "kept_out": {"type": "array", "items": {"type": "string"},
                          "description": "Optional: files or folders of the project the user said "
                          "not to touch, relative to the project folder."},
             "until": {"type": "string", "description": "Optional: the time of day to stop by, "
-                      "HH:MM, if the user said one; left out, no time limit: the jobs run "
-                      "until done, or until a spend limit (money), if the user gave one."},
-            "money": {"type": "number", "description": "Optional: the most the jobs may spend, "
+                      "HH:MM, if the user said one; left out, no time limit."},
+            "money": {"type": "number", "description": "Optional: the most the work may spend, "
                       "if the user said; left out, no spend limit (what is left of the month's "
                       "budget, if one is set, still holds)."},
         },
-        ["jobs"],
+        [],
     )
 
 

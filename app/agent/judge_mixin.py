@@ -5,15 +5,16 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import judge, raw
+from app import away, judge, raw
 from app import memory as kept
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
-from app.commands import harm_class, with_cwd
+from app.commands import _reasons, harm_class, with_cwd
 from app.db.models import Conversation, Message, Provider, Run, project_of
 from app.providers import ask_once
 from app.roles import LEAD, find_role
@@ -26,6 +27,27 @@ log = logging.getLogger("app.agent")
 # Said once in the chat when the check stands aside for the rest of a turn (`_judgement`).
 CHECK_STOOD_ASIDE = ("Full auto's check of your words refused {count} this turn: until the turn "
                      "ends, each harmful-looking command waits for you on a card.")
+
+
+# ☾ Away (spec §6): what a check of the user's words may let run in a job, or in the chat the user
+# went away from - a delete in the folder alone. A line that also sends work off, reaches beyond
+# this machine, touches a git remote's branches or Docker's (its containers, images and volumes
+# are no file of the folder, and `-H` / `--context` are another machine's) keeps its card,
+# whatever the user's words allow (`harms`' sentences, `_reasons`).
+_JOB_SOFT = re.compile(r"(?:Deletes|Empties|Throws away)\b(?!.*\b(?:remote|Docker)\b)")
+# ...and, failing closed, never a command of more than one line, or one continued: a line break of
+# any kind, or a backtick or a backslash at a line's end (PowerShell's and a shell's going on - in
+# a comment, inside a word, between bash's backticks, each shell reads them its own way).
+_MORE_LINES = re.compile(r"[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]|[`\\][ \t]*$")
+
+
+def only_deletes(line: str) -> bool:
+    """Whether `line` is one line, not continued (`_MORE_LINES`), each harm of which is a delete
+    of the folder's own (`_JOB_SOFT`)."""
+    if _MORE_LINES.search(line):
+        return False
+    said = [one for one in _reasons(line, True) if one]
+    return bool(said) and all(_JOB_SOFT.match(one) for one in said)
 
 
 class JudgeMixin:
@@ -56,18 +78,25 @@ class JudgeMixin:
 
     async def _judging(self: "AgentRunner", ctx: Ctx, command: str, cwd: str | None, reason: str,
                        asked_anyway: bool) -> tuple[str, dict | None]:
-        """`_judged`'s work, which may raise."""
+        """`_judged`'s work, which may raise. ☾ Away: in a job too, its chat at Full auto
+        (`_away_full_auto`) - its check reads the chat the user went away from."""
+        line, job = with_cwd(command, cwd), ctx.run_id in self._away_jobs
         if (not reason or asked_anyway or ctx.run_id in self._sides
                 or self._stood_aside(ctx.run_id)
-                or harm_class(with_cwd(command, cwd), False) != "soft"
-                or not self._full_auto(ctx)):
+                # (In a job an instruction file is no file the check may let go: `standing_asked`.)
+                or harm_class(line, job) != "soft"
+                or not (self._full_auto(ctx) or self._away_full_auto(ctx))):
             return reason, None
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = project_of(session, conversation)
-            if project is None or project.full_auto_check != "judge":
+            if (project is None or project.full_auto_check != "judge"
+                    or self._away_holds(session, ctx, line)):
                 return reason, None
-            texts = self._users_words(session, ctx.cid, project.rules)
+            # (A job's: the chat the user went away from - never its task's own words.)
+            night = away.night_of(session, ctx.cid) if ctx.run_id in self._away_jobs else None
+            texts = self._users_words(session, night.conversation_id if night else ctx.cid,
+                                      project.rules)
             key = (command.strip(), cwd, hashlib.sha256(
                 json.dumps(texts, sort_keys=True).encode()).hexdigest())
             if key in (cache := self._judge_cache.setdefault(ctx.run_id, {})):
@@ -86,6 +115,13 @@ class JudgeMixin:
             "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}")})
         cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts)
         return self._judgement(ctx, reason, cache[key])
+
+    def _away_holds(self: "AgentRunner", session, ctx: Ctx, line: str) -> bool:
+        """☾ Away: whether `line` keeps its card, whatever the user's words say - in a job, or
+        the chat they went away from (`away.gone_from`), all but a delete in the folder."""
+        if ctx.run_id not in self._away_jobs and away.gone_from(session, ctx.cid) is None:
+            return False
+        return harm_class(line, True) != "soft" or not only_deletes(line)
 
     @staticmethod
     def _users_words(session, cid: str, rules: str | None) -> dict[str, list[str]]:

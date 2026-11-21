@@ -24,11 +24,18 @@ from app.commands import (
     with_cwd,
 )
 from app.db.models import Agent, AwayRun, Conversation, Merge, Run, now
+from app.model_cli import CliStepClient
+from app.model_native import ClaudeNativeClient
 from app.roles import LEAD
 from app.tools import ToolError
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
+
+# Go away, to the away chat's Lead at work (`away_now`).
+AWAY_TOLD = ("KOLONİ: the user has gone away (Away): finish this turn deciding what you can "
+             "yourself; a question of yours to them waits for their return, so ask none you can "
+             "do without. Their To-do list is worked through after this turn.")
 
 
 def branch_held(session: Session, project_id: str, but_run: str | None = None,
@@ -63,6 +70,19 @@ def branch_held(session: Session, project_id: str, but_run: str | None = None,
     return None
 
 
+def _tells_own_sub_agents(ctx: Ctx) -> bool:
+    """☾ Away: whether KOLONİ tells the Orchestrator's own calls of its tools from those of a
+    sub-agent of its CLI's own - always on a model KOLONİ steps (none such), and on Claude Code,
+    whose hook names them (`USED_INSIDE`).
+    shortcut: Qoder keeps Agent/Task on Claude's hook path, but whether its hook names the
+    sub-agent (`agent_type`) is not measured - nor the other CLIs' own sub-agents: their Go away
+    line takes no task; measure Qoder's hook (and Copilot's, Codex's) and add each here."""
+    model = ctx.model
+    if not isinstance(model, CliStepClient):
+        return True
+    return isinstance(model, ClaudeNativeClient) and model.command == "claude"
+
+
 class AwayMixin:
     # --- a job while the user is away (slice 106, `app.away`) ------------------------------
 
@@ -77,6 +97,33 @@ class AwayMixin:
             if waiting and not self._closing:
                 away.go_on(session, project_id, self)
             announce(self._factory, self.bus, project_id, "backlog.changed")
+
+    def away_now(self: "AgentRunner", cid: str) -> None:
+        """Go away from chat `cid`: every card of it the Lead may decide (`_decidable`) is decided
+        now, whatever its time - not another chat's, whose own minutes hold; its Lead at work is
+        told the user went (call 8).
+        shortcut: told at its next step (`_nudge`), not into a CLI's turn at once (`steer`);
+        steer it if a CLI's Lead is seen to ask after Go away."""
+        for chat, now_go in list(self._decidable.values()):
+            if chat == cid:
+                now_go()
+        for lead in [one for one in self._ctxs.values() if one.cid == cid and not one.depth]:
+            self._nudge(lead, AWAY_TOLD)
+
+    def _away_full_auto(self: "AgentRunner", ctx: Ctx) -> bool:
+        """K-yargıç while away (call 9): a job whose Away runs, its chat at Full auto - as the
+        chat the user went away from was."""
+        if ctx.run_id not in self._away_jobs:
+            return False
+        with self._factory() as session:
+            return away.night_of(session, ctx.cid) is not None and session.get_one(
+                Conversation, ctx.cid).permission_mode == "full_auto"
+
+    def typing(self: "AgentRunner", question_id: str) -> None:
+        """The user types an answer to a question that waits: the Lead holds off it
+        (`TYPING_HOLD_SECONDS`). Nothing kept for one nobody waits on."""
+        if question_id in self._answers:
+            self._typing_at[question_id] = asyncio.get_running_loop().time()
 
     def cut(self: "AgentRunner", run_id: str, why: str) -> None:
         """Stop a job's turn as Stop does, its copy kept (`execute`), with why on record: its
@@ -216,25 +263,24 @@ class AwayMixin:
         return away.KEPT_OUT.format(path=kept)
 
     def _no_away(self: "AgentRunner", session, ctx: Ctx) -> str | None:
-        """Why this agent may not put a "While you're away" card before the user; None: it
-        may. Only the Lead whose role keeps the To-do list, at the user's own turn of a chat
-        with a folder: never a trigger's turn, a plan, a side of a comparison or a job of the
-        night itself."""
+        """Why this agent may not offer the user to go away (☾ Away); None: it may. Only the
+        Lead whose role keeps the To-do list, at the user's own turn of a chat with a folder:
+        never a trigger's turn, a plan, a side of a comparison or a job while they are away."""
         if (ctx.role != LEAD or ctx.depth or ctx.answering or ctx.discussion or ctx.root is None
                 or "add_task" not in ctx.tools
                 or not self._watched(ctx.run_id) or ctx.run_id in self._sides
                 or ctx.run_id in self._away_jobs):
-            return "plan_away is the Orchestrator's, at a turn of the user's own"
+            return "offer_away is the Orchestrator's, at a turn of the user's own"
         run = session.get_one(Run, ctx.run_id)
-        return "plan_away is not for a plan turn" if run.plan_turn or run.unattended else None
+        return "offer_away is not for a plan turn" if run.plan_turn or run.unattended else None
 
-    def _plan_away(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
+    def _offer_away(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
         with self._factory() as session:
             if why := self._no_away(session, ctx):
                 raise ToolError(why)
             try:
-                said = away.plan(session, session.get_one(Conversation, ctx.cid), ctx.run_id,
-                                 args)
+                said = away.offer(session, session.get_one(Conversation, ctx.cid), ctx.run_id,
+                                  args, ctx.agent_id if _tells_own_sub_agents(ctx) else None)
             except away.Refused as exc:
                 raise ToolError(str(exc)) from None
             session.commit()

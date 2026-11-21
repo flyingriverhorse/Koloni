@@ -23,6 +23,7 @@ const task = (over: Partial<BacklogTask>): BacklogTask => ({
   queued: false,
   stuck: null,
   waiting: false,
+  created_at: '2026-10-05T10:00:00Z',
   ...over,
 })
 
@@ -357,7 +358,7 @@ test('the night is one line when nothing of it waits for you; a job that does ke
   const night = (jobs: AwayJob[]): Away => ({
     id: 'a1', project_id: 'p1', conversation_id: 'c1', run_id: 'r', status: 'running', jobs, kept_out: [], until: null, money: null,
     started_at: '2026-10-26T21:42:00Z', ended_at: null, why: null, seen_at: null, tried: [], slipped: [], job_minutes: 60, on_plan: null,
-    spent: null, currency: 'USD', at_least: false, counts: {}, proposed: [],
+    spent: null, currency: 'USD', at_least: false, counts: {}, proposed: [], decided: [],
   })
   const jobs = [job({ title: 'one' }), job({ title: 'two', state: 'working' })]
   const { rerender } = render(<BacklogPage {...page()} backlog={[]} away={night(jobs)} />)

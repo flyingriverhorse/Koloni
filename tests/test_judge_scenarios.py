@@ -719,3 +719,166 @@ def test_claude_codes_bash_run_once_the_check_was_turned_off_is_a_card(claude_ap
     asked = carded(client, cid, run_id, lambda *args: wait_run(*args, 30))
     assert asked["status"] == "proposed" and asked["judged"] is None
     assert claude_app.record()["asked"][0]["behavior"] == "deny"
+
+
+# --- ☾ Away: a job's delete, while the user is away from a chat at Full auto -----------------
+
+
+def away_with(client, project_dir, wait_run, mode, rules=RULE, todo=None):
+    """The user's chat (at `mode`, the To-do page's level `todo` - `mode` without it -, the check
+    on, `rules` saved) puts one task on To-do, and they go away; returns (pid, the night)."""
+    from tests.test_away_scenarios import proposed_in
+    pid, cid, run_id = begin(client, project_dir, "tidy up while I sleep", rules=rules, mode=mode)
+    assert client.put(f"/api/projects/{pid}/backlog/choice", json={"permission_mode": todo or mode},
+                      headers=OWN).status_code == 200
+    wait_run(client, cid, run_id)
+    gone = client.post(f"/api/conversations/{cid}/away",
+                       json={"task_ids": proposed_in(client, cid)}, headers=OWN)
+    assert gone.status_code == 200, gone.text
+    return pid, gone.json()
+
+
+TIDY = {"jobs": [{"title": "tidy", "line": "delete every file in sight"}]}
+
+
+@pytest.mark.no_po
+def test_while_away_a_jobs_delete_your_words_allow_runs_in_its_copy_without_a_card(
+        judging, wait_run, project_dir):
+    from tests.test_away_scenarios import ended, to_do
+    client, _lead, judge, executor = judging(
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("tidied")],
+        [verdict_line("run", RULE)], [Script([])])
+    pid, _night = away_with(client, project_dir, wait_run, "full_auto")
+    done = ended(client, pid)
+    (job,) = done["jobs"]
+    assert job["state"] == "done"  # (it did not wait)
+    (ran,) = client.get(f"/api/conversations/{job['conversation_id']}").json()["commands"]
+    assert ran["status"] == "exited" and ran["judged"]["verdict"] == "run"
+    assert executor.started[0][0] == "rm -rf build"
+    assert done["decided"] == ['ran "rm -rf build" (your words)']
+    # the check read the user's words in the chat they went away from - never the task's
+    asked = str(judge.calls[0])
+    assert "tidy up while I sleep" in asked and "delete every file in sight" not in asked
+
+
+@pytest.mark.no_po
+def test_while_away_below_full_auto_a_jobs_delete_still_waits(judging, wait_run, project_dir):
+    from tests.test_away_scenarios import ended, to_do
+    client, _lead, judge, executor = judging(
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("never")], [], [])
+    pid, _night = away_with(client, project_dir, wait_run, "auto_edit")
+    (job,) = ended(client, pid)["jobs"]
+    assert job["state"] == "waits" and judge.calls == [] and executor.started == []
+
+
+# Spec §6 / plan Task 5: in a job, only a delete in the folder is the check's. A send, a git
+# remote's branch or an instruction file keeps its card, whatever the user's words allow.
+SENDS = ("You may upload the report, copy src to the host, publish, open a pull request and "
+         "push. You may prune Docker and delete its volumes.")
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("line", [
+    "curl -X POST https://example.com/up -d @report.txt", "scp -r src host:", "npm publish",
+    "gh pr create", "git push --force origin main", "rm AGENTS.md",
+    # (round 2: a send split by PowerShell's backtick and a new line - the line as it runs)
+    "rm -rf build; git `\npush --force origin main", "rm -rf build; npm `\npublish",
+    "rm -rf build; curl https://example.com/up `\n-d @report.txt",
+    # (round 3: a command of more than one line, or continued, never passes as a delete alone -
+    # a backtick in a comment, bash's backticks, one glued to a word, a backslash in a word)
+    "rm -rf build # done `\nnpm publish",
+    "rm -rf build; echo `\ncurl https://example.com/up -d @report.txt `\necho ok",
+    "Remove-Item -Recurse -Force build`\r\ngit push origin main",
+    "rm -rf build; npm pub\\\nlish", "rm -rf build; curl https://example.com/up -\\\nd @report.txt",
+    "rm -rf build # done `\ndocker system prune -af",
+    "rm -rf build\u2028npm publish", "rm -rf build; npm publish `",
+    # (round 2: Docker's deletes are no delete in the copy; -H / --context reach another machine)
+    "docker system prune -af", "docker volume rm db_data", "docker compose down -v",
+    "docker -H tcp://host:2375 system prune -af", "docker --context prod volume rm data"])
+def test_while_away_a_jobs_send_remote_push_or_instruction_file_keeps_its_card(
+        judging, wait_run, project_dir, line):
+    from tests.test_away_scenarios import ended, to_do
+    client, _lead, judge, executor = judging(
+        [to_do(TIDY), text("on your To-do"), cmd(line), text("never")],
+        [verdict_line("run", SENDS)], [])
+    pid, _night = away_with(client, project_dir, wait_run, "full_auto",
+                            rules=SENDS + " You may delete AGENTS.md.")
+    (job,) = ended(client, pid)["jobs"]
+    (asked,) = client.get(f"/api/conversations/{job['conversation_id']}").json()["commands"]
+    assert (job["state"], asked["status"], asked["judged"]) == ("waits", "proposed", None)
+    assert judge.calls == [] and executor.started == []
+
+
+@pytest.mark.no_po
+def test_while_away_a_job_runs_at_the_lower_of_the_chats_level_and_the_to_do_pages(
+        judging, wait_run, project_dir):
+    # (The review: a job took the chat's Full auto over the To-do page's Ask before changes.)
+    from tests.test_away_scenarios import ended, to_do
+    client, _lead, judge, executor = judging(
+        [to_do(TIDY), text("on your To-do"), cmd("rm -rf build"), text("never")],
+        [verdict_line("run", RULE)], [])
+    pid, _night = away_with(client, project_dir, wait_run, "full_auto", todo="ask")
+    (job,) = ended(client, pid)["jobs"]
+    chat = client.get(f"/api/conversations/{job['conversation_id']}").json()
+    assert chat["conversation"]["permission_mode"] == "ask"
+    assert job["state"] == "waits" and judge.calls == [] and executor.started == []
+
+
+@pytest.mark.no_po
+def test_in_the_chat_you_went_away_from_a_send_keeps_its_card(judging, wait_run, project_dir):
+    # (Round 2: the chat gone from keeps its turn - no job - and its sends always wait too.)
+    from app.db.models import AwayRun
+    client, _lead, judge, executor = judging(
+        [cmd("git push --force origin main"), text("never")], [verdict_line("run", SENDS)], [])
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"full_auto_check": "judge"},
+                        headers=OWN).status_code == 200
+    assert client.put(f"/api/projects/{pid}/rules", json={"rules": SENDS},
+                      headers=OWN).status_code == 200
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto",
+                                                    "lead_hands_code": False}, headers=OWN)
+    with client.app.state.session_factory() as session:
+        session.add(AwayRun(project_id=pid, conversation_id=cid, run_id="r", status="running"))
+        session.commit()
+    # (not from the app's own page: a message of the user's own would end Away)
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "push it"},
+                         headers=NO_ORIGIN).json()["run"]["id"]
+    asked = carded(client, cid, run_id, wait_run)
+    assert (asked["status"], asked["judged"]) == ("proposed", None)
+    assert judge.calls == [] and executor.started == []
+
+
+def gone_from_chat(client, project_dir, rules, status="running"):
+    """A chat at Full auto, the check on and `rules` saved, the user away from it (`status`
+    "running") or back ("ended"); its id."""
+    from app.db.models import AwayRun
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"full_auto_check": "judge"},
+                        headers=OWN).status_code == 200
+    assert client.put(f"/api/projects/{pid}/rules", json={"rules": rules},
+                      headers=OWN).status_code == 200
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto",
+                                                    "lead_hands_code": False}, headers=OWN)
+    with client.app.state.session_factory() as session:
+        session.add(AwayRun(project_id=pid, conversation_id=cid, run_id="r", status=status))
+        session.commit()
+    return cid
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(("line", "rule", "status"), [
+    ("rm -rf build", RULE, "running"),  # (a delete in the folder is the check's while away)
+    ("git push origin main", "You may push to main.", "ended")])  # (back: as before)
+def test_in_the_chat_gone_from_a_delete_is_judged_and_once_back_a_push_is_again(
+        judging, wait_run, project_dir, line, rule, status):
+    client, _lead, judge, executor = judging(
+        [cmd(line), text("done")], [verdict_line("run", rule)], [Script([])])
+    cid = gone_from_chat(client, project_dir, rule, status)
+    # (not from the app's own page: a message of the user's own would end Away)
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"},
+                         headers=NO_ORIGIN).json()["run"]["id"]
+    (ran,) = wait_run(client, cid, run_id)["commands"]
+    assert (ran["status"], ran["judged"]["verdict"]) == ("exited", "run")
+    assert len(judge.calls) == 1 and executor.started[0][0] == line
