@@ -34,6 +34,7 @@ from app.main import create_app
 from app.model_native import CodexNativeClient
 from app.model_session import ClaudeSessionClient
 from app.roles import BUILTIN_ROLES, RAN, WHO_SPLITS
+from app.tools import OPENED_TOGETHER
 from app.workspace import Workspace, WorkspaceError
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -173,6 +174,10 @@ def without_memory(tools):
             tool["function"]["parameters"]["properties"].pop("effort", None)
             # And whose findings it carries (slice 84c): one more input, no other word.
             tool["function"]["parameters"]["properties"].pop("findings_from", None)
+            # And that sub-agents opened together work beside each other (K-koordinasyon): one
+            # more sentence, no other word.
+            tool["function"]["description"] = tool["function"]["description"].replace(
+                f" {OPENED_TOGETHER}", "")
             for name in LATER_ROLES:
                 tool["function"]["description"] = tool["function"]["description"].replace(
                     f"\n- {name} — {BUILTIN_ROLES[name].description}", "")

@@ -723,8 +723,18 @@ IN_A_COPY = (
     "From here on you work in {whose}: your file tools and commands run there, agents "
     "outside it do not see what you change, and {taken}. {git} "
     "The copy is your working folder, in the project's place: your report names files by "
-    "their paths relative to it. {folders}"
+    "their paths relative to it. {alongside} {folders}"
 )  # (B-129: the project's path named here too, agents asked which folder was the real one)
+# K-koordinasyon: what agents at work beside each other leave alone (`commands.copy_reason`
+# asks about the rest).
+ALONGSIDE = (
+    "Other agents may work at the same time, each in a copy of its own. Change only the files "
+    "your task needs. Write, move or delete nothing outside your copy: another agent's copy, the "
+    "project folder, a worktree or a branch is not yours - say in your report what should go. "
+    "Stop only processes you started; never kill programs by name (taskkill /IM, pkill, "
+    "Stop-Process -Name): KOLONİ, the user's programs and other agents' runs share this machine. "
+    "A server or test you start listens on a free port, never a fixed one."
+)
 # Its {git}: a copy has no `.git`. A branch's worktree has the user's repository - what an agent
 # runs there unasked is `commands._own_git`'s list, the rest asked (`reaches_shared_git`); not in
 # Docker, where the worktree's `.git` names a folder of this machine's, not the container's.
@@ -742,9 +752,10 @@ MCP_IN_A_COPY = (
     "not under the project folder."
 )
 LINKED_IN = (
-    "node_modules, .venv and venv are the project's own, shared with it: your file tools "
-    "read there and do not write there. A command that deletes there deletes the project's: "
-    "such a command is asked about every time."
+    "node_modules, .venv and venv are the project's own, shared with it and with every other "
+    "agent: your file tools read there and do not write there; do not install into them or "
+    "rebuild them - say in your report what to install. A command that deletes there deletes "
+    "the project's: such a command is asked about every time."
 )
 # A copy made without links (`_links_in_copy`).
 NOT_LINKED_IN = (
@@ -2331,7 +2342,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 said_of_git = GIT_ON_BRANCH.format(branch=copy.branch)
         return "\n\n" + IN_A_COPY.format(
             whose="a copy of the project of your own" if mine else f"{name}'s copy of the project",
-            taken=taken, git=said_of_git, folders=LINKED_IN if linked else NOT_LINKED_IN,
+            taken=taken, git=said_of_git, alongside=ALONGSIDE,
+            folders=LINKED_IN if linked else NOT_LINKED_IN,
         ) + (MCP_IN_A_COPY.format(root=copy.root) if copy is not None and self._mcp(ctx) else "") \
             + (self._told_left_out(ctx, copy, reads)
                if copy is not None and (copy.git or copy.part) else "") \

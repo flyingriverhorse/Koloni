@@ -297,10 +297,15 @@ def before():
     import json
     from pathlib import Path
 
-    from app.tools import spawn_schema
+    from app.tools import OPENED_TOGETHER, spawn_schema
 
     was = json.loads(
         Path(__file__).with_name("tool_schemas_before_team.json").read_text(encoding="utf-8"))
+    # That sub-agents opened together work beside each other came later (K-koordinasyon): one
+    # more sentence, guide or not.
+    told = was["spawn_agent"]["function"]
+    told["description"] = told["description"].replace(
+        "You wait while it works.\n", f"You wait while it works. {OPENED_TOGETHER}\n")
     # How hard the sub-agent thinks came later (slice 59a): one more input, guide or not.
     later = spawn_schema([])["function"]["parameters"]["properties"]
     # (K-rol-model: with no guide, why came later too - the reason for a level picked.)

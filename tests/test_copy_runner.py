@@ -864,9 +864,16 @@ def test_an_agent_is_told_once_and_in_full_that_it_works_in_a_copy(
         "own: your file tools and commands run there, agents outside it do not see what you "
         "change, and the changes are taken into the project when your work is over. git does "
         "not work in the copy. The copy is your working folder, in the project's place: your "
-        "report names files by their paths relative to it. "
-        "node_modules, .venv and venv are the project's own, shared "
-        "with it: your file tools read there and do not write there. A command that deletes "
+        "report names files by their paths relative to it. Other agents may work at the same "
+        "time, each in a copy of its own. Change only the files your task needs. Write, move or "
+        "delete nothing outside your copy: another agent's copy, the project folder, a worktree "
+        "or a branch is not yours - say in your report what should go. Stop only processes you "
+        "started; never kill programs by name (taskkill /IM, pkill, Stop-Process -Name): KOLONİ, "
+        "the user's programs and other agents' runs share this machine. A server or test you "
+        "start listens on a free port, never a fixed one. "
+        "node_modules, .venv and venv are the project's own, shared with it and with every "
+        "other agent: your file tools read there and do not write there; do not install into "
+        "them or rebuild them - say in your report what to install. A command that deletes "
         "there deletes the project's: such a command is asked about every time."))
     assert second == ("succeeded", "applied: b.txt (+1 -0)")
     ((_, below),) = calls(snap, "Coder 2", "write_file")

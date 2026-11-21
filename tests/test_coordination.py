@@ -10,8 +10,9 @@ from pathlib import Path
 
 import pytest
 
+import app.agent as agent_module
 from app import copies, git
-from app.agent import AgentRunner, recover_copies
+from app.agent import ALONGSIDE, AgentRunner, recover_copies
 from app.commands import (
     KILLS_BY_NAME,
     OUT_OF_COPY,
@@ -22,6 +23,7 @@ from app.commands import (
     runs_another,
 )
 from app.db.models import Agent
+from app.tools import OPENED_TOGETHER
 from tests.conftest import Gate, scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import cmd
@@ -367,3 +369,37 @@ def test_at_full_auto_a_sub_agents_command_out_of_its_copy_or_into_shared_folder
     wait_run(client, cid, run_id)
     assert executor.started == []
 
+
+# --- what agents are told ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("linked", [True, False])
+def test_an_agent_in_a_copy_is_told_others_work_beside_it(
+    make_client, wait_run, project_dir, monkeypatch, linked
+):
+    (project_dir / ".venv").mkdir()
+    if not linked:  # (as a CLI's copy without the project's dependency folders)
+        monkeypatch.setattr(agent_module, "_links_in_copy", lambda model: False)
+    client, _model, cid, run_id = setup(make_client, project_dir, {
+        "Lead": [spawn("Coder", "write a"), text("done")],
+        "Coder": [step(write("a.txt", "A")), text("A done")]})
+    snap = wait_run(client, cid, run_id)
+    ((_status, told),) = calls(snap, "Coder", "write_file")
+    assert ALONGSIDE in told and "never kill programs by name" in told
+    assert ("do not install into them or rebuild them" in told) is linked
+    assert told.index(ALONGSIDE) < told.index("node_modules, .venv and venv")
+
+
+@needs_git
+def test_the_orchestrator_is_told_to_give_each_its_own_files_and_leave_koloni_branches(
+    make_client, wait_run, repo  # noqa: F811
+):
+    client, model, cid, run_id = setup(make_client, repo, {"Lead": [text("done")]})
+    wait_run(client, cid, run_id)
+    (spawn_agent,) = [one["function"] for one in model.tool_args[0]
+                      if one["function"]["name"] == "spawn_agent"]
+    assert OPENED_TOGETHER in spawn_agent["description"]
+    assert spawn_agent["description"].index(OPENED_TOGETHER) < spawn_agent["description"].index(
+        "Available roles")
+    assert spawn_agent["parameters"]["properties"]["on_branch"]["description"].endswith(
+        "never delete, rename or switch to them; KOLONİ removes them.")
