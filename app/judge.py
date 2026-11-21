@@ -117,18 +117,23 @@ def _prose(text: str) -> list[str | None]:
 
 def _units(text: str) -> list[tuple[str, str, str]]:
     """A source's sentences (`SENTENCE`), each as written (its list's mark off) and `_plain` -
-    with what it is read with: its whole line, and the nearest line above it in its block (no
-    blank line between) that ends in `:`, a heading ("Never delete these:")."""
+    with what it is read with: its whole line, and the nearest line above it that ends in `:`,
+    a heading ("Never delete these:") - in its block (no blank line between), or for a list's
+    item across blank lines and other items too (`listed`: a line of prose ends that)."""
     found: list[tuple[str, str, str]] = []
-    head = ""
+    head = listed = ""
     for line in _prose(text):
-        if line is not None and not line.strip():
-            head = ""
-        elif line is not None:
-            found += [(one.strip().rstrip(";"), plain, f"{line}\n{head}")
-                      for one in SENTENCE.split(LIST_MARK.sub("", line.strip()))
-                      if "`" not in one and (plain := _plain(one))]
-            head = line if line.rstrip().endswith(":") else head
+        if line is None or not line.strip():
+            head = "" if line is not None else head
+            continue
+        item = bool(LIST_MARK.match(line.strip()))
+        found += [(one.strip().rstrip(";"), plain, f"{line}\n{head or (listed if item else '')}")
+                  for one in SENTENCE.split(LIST_MARK.sub("", line.strip()))
+                  if "`" not in one and (plain := _plain(one))]
+        if line.rstrip().endswith(":"):
+            head = listed = line
+        elif not item:
+            listed = ""
     return found
 
 
@@ -155,9 +160,9 @@ def _forbids(plain: str) -> bool:
 def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
     """The judge's word, from its JSON line (the first "{" to the last "}"); None for no JSON
     object. "run" and "refuse" hold only with a whole sentence of the user's (`source_of`) - a
-    run never on a question, nor on one whose line or heading forbids or sets a condition
-    (`_forbids`) - kept as they wrote it; anything
-    else is "ask", with the judge's one line only where it said ask itself."""
+    run never on a line with a question, nor on one whose line or heading forbids or sets a
+    condition (`_forbids`) - kept as they wrote it; anything else is "ask", with the judge's one
+    line only where it said ask itself."""
     try:
         got = json.loads(answer[answer.find("{"):answer.rfind("}") + 1])
     except ValueError:
@@ -169,7 +174,7 @@ def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
     why = " ".join(why.split())[:WHY_CHARS] if isinstance(why, str) else ""
     source, shown, context = source_of(quote, said)
     holds = word == "refuse" or word == "run" and not (
-        shown.endswith("?") or _forbids(_plain(context)))
+        "?" in context.partition("\n")[0] or _forbids(_plain(context)))
     if source and holds:
         return {"verdict": word, "quote": shown, "source": source, "why": why}
     return {"verdict": "ask", "quote": "", "source": "", "why": why if word == "ask" else ""}

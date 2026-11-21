@@ -131,6 +131,13 @@ def test_a_run_stands_only_on_a_line_the_user_wrote():
      "You may delete build/ and dist/."),
     ("Rules:\n- You may delete build/ and dist/.", "You may delete build/ and dist/.",
      "You may delete build/ and dist/."),
+    ("Rules:\n\n- You may delete build/ and dist/.", "You may delete build/ and dist/.",
+     "You may delete build/ and dist/."),
+    # (a heading holds a line of prose in its block only; a question is its own line's)
+    ("Never delete these:\n\nYou may delete build/ and dist/.", "You may delete build/ and dist/.",
+     "You may delete build/ and dist/."),
+    ("Can you tidy up?\nYou may delete build/ and dist/.", "You may delete build/ and dist/.",
+     "You may delete build/ and dist/."),
 ])
 def test_a_run_stands_on_a_whole_line_or_sentence_of_the_users_and_shows_it_whole(words, quote, shown):
     got = verdict(line(verdict="run", quote=quote), said(None, words, []))
@@ -177,6 +184,11 @@ def test_a_run_never_stands_on_a_piece_a_condition_a_forbidding_line_or_code(wor
     ("Don't touch src/ (e.g. delete src/ or rewrite it).", "delete src/ or rewrite it)."),
     ("Never delete generated folders, i.e. build/ and dist/ stay.", "build/ and dist/ stay"),
     ("Keep the data dir vs. delete it: keep it.", "delete it: keep it"),
+    # (a list's items hold their heading across blank lines and other items)
+    ("Do NOT run any of:\n\n1. git push --force origin main", "git push --force origin main"),
+    ("Never delete these:\n\n- the dist/ folder\n\n- the build/ output folder", "the build/ output folder"),
+    # (a question anywhere on the line)
+    ("The agent said: rm -rf src and push --force. Is that ok?", "The agent said: rm -rf src and push --force"),
     # (questions)
     ("Should we force-push to main?", "Should we force-push to main?"),
     ("Can you delete the build folder?", "Can you delete the build folder?"),
