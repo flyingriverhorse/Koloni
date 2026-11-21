@@ -148,13 +148,11 @@ def _pointed_to_card() -> dict:
 # words are not known - add them once measured.
 WRITE_REFUSED = re.compile(r"Access to the path .{1,500}? is denied")
 WRITE_BLOCKED = "blocked: its read-only sandbox refused a write"
-# B-357: a command of Codex's own that it was let run and then says nothing of (no output, no
-# end) for this long never started; its turn ends.
-# shortcut: its output is told by `item/commandExecution/outputDelta`, as its schema names it,
-# not measured live - a command quiet for half a minute ends the turn too; measure it.
-NEVER_STARTED_SECONDS = 30.0
 # B-357: no command or patch of its own is at work longer: KOLONİ's own commands' longest
-# (MAX_TIMEOUT) and a minute. One that is ends its turn, failed - none keeps it open for good.
+# (MAX_TIMEOUT) and a minute. One that is ends its turn, failed - none keeps it open for good;
+# one let run that said nothing of itself (no output, no end) by then never started.
+# (Not sooner: a command may print nothing for minutes, and whether Codex sends its output as it
+# comes - `item/commandExecution/outputDelta` - is not measured.)
 CALL_SECONDS = 660.0
 NEVER_STARTED = "never started: nothing came of it {seconds:g} seconds after it was allowed"
 RAN_TOO_LONG = "ended by KOLONİ: still at work after {seconds:g} seconds"
@@ -383,8 +381,7 @@ def _overdue(busy: set[str], asking: set[str], since: dict[str, float],
     at_work = [key for key in busy - asking if not key.startswith("asked ")]
     for key in at_work:
         since.setdefault(key, at)
-    late = next((key for key, yes in allowed.items()
-                 if at - yes > NEVER_STARTED_SECONDS), None)
+    late = next((key for key, yes in allowed.items() if at - yes > CALL_SECONDS), None)
     over = late or next((key for key in at_work if at - since[key] > CALL_SECONDS),
                         None)
     return late, over
@@ -1361,8 +1358,7 @@ class CodexNativeClient(CliStepClient):
                 # bound that wait too if one is seen to last again.
                 late, over = _overdue(busy, asking, since, allowed, at)
                 if not talking.done() and over:
-                    why = (NEVER_STARTED.format(seconds=NEVER_STARTED_SECONDS) if late
-                           else RAN_TOO_LONG.format(seconds=CALL_SECONDS))
+                    why = (NEVER_STARTED if late else RAN_TOO_LONG).format(seconds=CALL_SECONDS)
                     command = bool(late) or over in commands
                     if command:  # (on record as failed, with why; a patch is closed below)
                         await on_item("completed", {
