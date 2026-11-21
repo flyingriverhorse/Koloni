@@ -194,7 +194,7 @@ class TalkMixin:
             earlier_line(
                 before.name, before.role, before.provider,
                 # (One Copilot's auto picked goes on on auto: `_ran_on_before`.)
-                "auto" if before.model_from == "auto" else None if before.model_from == "settings"
+                None if before.model_from == "settings" else before.model_from if before.model_from
                 else before.model, before.status,
                 before.task, before.turn,
             )

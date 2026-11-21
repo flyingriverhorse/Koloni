@@ -1073,7 +1073,7 @@ class ContextMixin:
         if provider is None:
             raise OwnStop("the provider it ran on is no longer set up")
         # (Asked for auto, it asks for auto again: not the model Copilot's auto picked, `_ran_on`.)
-        model_name = "auto" if agent.model_from == "auto" else agent.model_id
+        model_name = agent.model_from if agent.model_from in ("auto", "fusion") else agent.model_id
         return Ctx(
             run.id, run.conversation_id, project.root_path if project else None, agent.id,
             agent.role_name,

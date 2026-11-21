@@ -29,6 +29,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Agents**: an agent on a branch is told that git works in its copy (status, diff, history, commits on its branch) and that the rest of git is asked about ([docs](use/workspace.md#branches)).
 - **Chat**: Plan first is set in the permission level's menu only (or with `/plan`): the button beside the level under the message box is gone, and while Plan first is on the level says so ("Auto-edit · plan").
 - **CLIs**: GitHub Copilot CLI 1.0.114, which speaks a newer protocol, runs **Native** again: KOLONİ asks before every tool of Copilot's own through a hook of its own, never letting one through by itself, and each of Copilot's PowerShell commands starts in the project folder. KOLONİ asks Copilot its version and protocol as it starts it - an update Copilot made of itself reaches KOLONİ too; a version of the older protocol not measured with KOLONİ, a Copilot that does not say its version, or a protocol KOLONİ does not know, runs as **One session per agent**, and the provider's card on the Models page says why in one line ([docs](models/setup-cli.md#github-copilot-cli)).
+- **Chat**, **CLIs**: on GitHub Copilot CLI's `auto` or `fusion`, the Orchestrator's turn head names the model Copilot picked ("fusion → gpt-6-luna") with Copilot's own reason on a quiet line under it, and the model button over the message box says it too ("fusion → gpt-6-luna · Copilot", the reason in its tooltip). A pick of `fusion`'s now says fusion, not auto, and an agent that goes on from it asks for `fusion` again ([docs](models/setup-cli.md#github-copilot-cli)).
 
 ### Fixed
 
@@ -41,6 +42,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Chat**: a kept working copy's long folder path now wraps on its card in a narrow chat; it made the whole chat scroll sideways.
 - **CLIs**: GitHub Copilot CLI run **Native** on models other than Claude (such as gpt-6-luna or mai-code-2-flash) can change files again: it is given Copilot's own `apply_patch`, the only file tool those models have, and each file of a patch is its own card, as a write is; refusing one refuses the whole patch ([docs](models/setup-cli.md#github-copilot-cli)).
 - **Models**, **CLIs**: GitHub Copilot CLI's card on the Models page names the version KOLONİ runs, which KOLONİ asks Copilot as it starts it, no longer the number a plain `copilot --version` says; an error that Copilot could not be asked before it acts names that version too.
+- **Chat**, **Canvas**: an agent's window no longer opens by itself when the agent starts: on a **Native** provider the Orchestrator's window opened on every message. The chat shows a turn's work; open an agent's window from its box on the canvas (a double click, or **Open window** in the Inspector) ([docs](use/chat-and-canvas.md#the-canvas)).
 
 ### Security
 

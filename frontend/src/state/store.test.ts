@@ -472,7 +472,7 @@ test('Take in all that is refused part way still reads the night again: what was
   expect(asked).toEqual(['/api/merges/m1/approve', '/api/merges/m2/approve', '/api/projects/p/away'])
 })
 
-test('an agent that starts on a native provider opens its own window', async () => {
+test('no agent’s window opens by itself, on any provider - a Lead or a sub-agent; the user opens it', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(
@@ -491,15 +491,18 @@ test('an agent that starts on a native provider opens its own window', async () 
     ],
   })
   const source = FakeEventSource.open()[0]
-  const started = (id: string, provider_name: string) => ({ id, run_id: 'r', parent_agent_id: null, tool_call_id: null, provider_name, model_id: null, role_name: 'Lead', tools: [], task: null, depth: 0, status: 'running', report: null, error: null, input_tokens: null, output_tokens: null, created_at: 't', started_at: 't', ended_at: null })
+  const started = (id: string, provider_name: string, depth = 0) => ({ id, run_id: 'r', parent_agent_id: depth ? 'a2' : null, tool_call_id: null, provider_name, model_id: null, role_name: depth ? 'Coder' : 'Lead', tools: [], task: null, depth, status: 'running', report: null, error: null, input_tokens: null, output_tokens: null, created_at: 't', started_at: 't', ended_at: null })
   source.emit('agent.created', started('a1', 'Local'), '4')
   expect(useApp.getState().agentWindowId).toBeNull()
+  // (The chat shows a turn's work: on a native provider its Lead's window popped up on every message.)
   source.emit('agent.created', started('a2', 'Codex'), '5')
+  expect(useApp.getState().agentWindowId).toBeNull()
+  source.emit('agent.created', started('a3', 'Codex', 1), '6')
+  expect(useApp.getState().agentWindowId).toBeNull()
+  useApp.getState().openAgentWindow('a2')
   expect(useApp.getState().agentWindowId).toBe('a2')
   useApp.getState().closeAgentWindow()
   expect(useApp.getState().agentWindowId).toBeNull()
-  useApp.getState().openAgentWindow('a1')
-  expect(useApp.getState().agentWindowId).toBe('a1')
 })
 
 test('a note written on the shared notebook reaches the open conversation', async () => {

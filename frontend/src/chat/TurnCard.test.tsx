@@ -39,6 +39,30 @@ test('the card names who answered, its model and the time of its last message; a
   expect(container.querySelector('time')).toBeNull()
 })
 
+test('a Lead whose model Copilot’s fusion picked says so in its head, with Copilot’s own reason under it; another says nothing', () => {
+  const why = 'Copilot Fusion selected GPT-6 Luna since the task has low complexity.'
+  const picked = agent('r', 'running', {
+    provider_name: 'Copilot',
+    model_id: 'gpt-6-luna',
+    model_from: 'fusion',
+    effort_note: `high → none: fusion takes no level. Copilot's fusion picked gpt-6-luna: “${why}”`,
+  })
+  const card = (lead: typeof picked) => (
+    <TurnCard state={convState({ runs: [run('r')], agents: [lead] })} run={run('r')} lead={lead} answer={undefined} summary={null} waits={false}>
+      the work
+    </TurnCard>
+  )
+  const { container, rerender } = render(card(picked))
+  expect(container.querySelector('.turn-model')).toHaveTextContent(/^fusion → gpt-6-luna$/)
+  // (Its own words, whole in its tooltip: a long one is cut on its line.)
+  const said = container.querySelector('.turn-why')
+  expect(said).toHaveTextContent(new RegExp(`^${why}$`))
+  expect(said).toHaveAttribute('title', why)
+  rerender(card(agent('r')))
+  expect(container.querySelector('.turn-model')).toHaveTextContent(/^qwen$/)
+  expect(container.querySelector('.turn-why')).toBeNull()
+})
+
 test('the foot holds Copy and Read aloud first, what it did at its right', () => {
   const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [userMessage('r', 'go'), answer] })
   const { container } = render(

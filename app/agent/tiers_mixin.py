@@ -48,10 +48,11 @@ OUTSIDE_A_JOB = (
 
 # B-396: why a model was switched off, on its row on the Models page.
 REFUSED_OFF = "{provider} refused it: not available on your account"
-# On its record, beside its level (`Agent.effort_note`): why Copilot's auto picked its model.
-AUTO_PICKED = "Copilot's auto picked {model}: “{why}”"
+# On its record, beside its level (`Agent.effort_note`): why Copilot's auto - or its fusion, the
+# model it was `asked` for - picked its model. The chat reads it back (modelName.ts `pickedWhy`).
+AUTO_PICKED = "Copilot's {asked} picked {model}: “{why}”"
 # ...which the next pick's replaces, the rest of the note kept: one, the latest, on record.
-AUTO_PICKED_SAID = re.compile(r" ?Copilot's auto picked [^“]*: “[^”]*”")
+AUTO_PICKED_SAID = re.compile(r" ?Copilot's (?:auto|fusion) picked [^“]*: “[^”]*”")
 # ...where it was the one model of the list still on: the provider is in no tier from then on.
 REFUSED_LAST = " - it was this provider's only model, so no tier uses it now"
 
@@ -318,20 +319,24 @@ class TiersMixin:
                 why: str | None = None) -> None:
         """Put the model a CLI says it used on record: that, not the name it was asked
         for or the one in its settings, is what ran - in a turn taken on a message too.
-        One Copilot's auto picked is marked so (`model_from` "auto": an agent going on from
-        it asks for auto again, `_ran_on_before`, `_ctx_after`), with `why` it picked it."""
+        One Copilot's auto or fusion picked is marked so (`model_from` "auto" or "fusion", the
+        model its client was asked for: an agent going on from it asks for that again,
+        `_ran_on_before`, `_ctx_after`), with `why` it picked it."""
         if not model:
             return
-        picked = "auto" if model != "auto" and getattr(ctx.model, "level_named", False) and (
-            getattr(ctx.model, "command", "") == "copilot") else None
+        # (Copilot's level_named: its client was built for auto or fusion, `level_in_name`.)
+        copilot = getattr(ctx.model, "level_named", False) and (
+            getattr(ctx.model, "command", "") == "copilot")
+        asked = getattr(ctx.model, "_model", None) if copilot else None
+        picked = asked if asked in ("auto", "fusion") and model != asked else None
         with self._factory() as session:
             agent = session.get_one(Agent, ctx.agent_id)
             known = agent.model_id == model and agent.model_from == picked
             note = agent.effort_note
         self._reported.add(ctx.agent_id)
         if picked and why:  # (the CLI's words: one line each, cut, and no closing quote of ours)
-            said = AUTO_PICKED.format(model=kept.one_line(model)[:200], why=kept.one_line(
-                str(why)).replace("”", '"')[:MAX_WHY])
+            said = AUTO_PICKED.format(asked=picked, model=kept.one_line(model)[:200],
+                                      why=kept.one_line(str(why)).replace("”", '"')[:MAX_WHY])
             others = AUTO_PICKED_SAID.sub("", note or "").strip()
             if f"{others} {said}".strip() != note:
                 self._set_agent(ctx.cid, ctx.agent_id, effort_note=f"{others} {said}".strip())

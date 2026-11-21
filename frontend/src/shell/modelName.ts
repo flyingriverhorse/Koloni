@@ -34,14 +34,20 @@ export const autoModel = (asked: Asked) => `automatic, by ${asked ? who(asked) :
 export const autoNothing = (asked: NonNullable<Asked>) =>
   `automatic: ${who(asked)} was asked, and nothing came of it (no answer to go by, or no model of the tier it said) - the Orchestrator’s model is what it would be without the question`
 
-/** Before a model Copilot's auto picked for an agent asked for auto (`model_from` "auto"); nothing before any other. */
-export const autoPicked = (modelFrom?: string | null) => (modelFrom === 'auto' ? 'auto → ' : '')
+/** Before a model Copilot's auto or fusion picked for an agent asked for it (`model_from` "auto", "fusion"); nothing before any other. */
+export const autoPicked = (modelFrom?: string | null) => (modelFrom === 'auto' || modelFrom === 'fusion' ? `${modelFrom} → ` : '')
+
+/** KOLONİ's own sentence on an agent's record (app/agent/tiers_mixin.py `AUTO_PICKED`), with Copilot's reason in it. */
+const PICKED_WHY = /Copilot's (?:auto|fusion) picked [^“]*: “([^”]*)”/
+
+/** Why Copilot's auto or fusion picked an agent's model, in Copilot's own words, as its note keeps it; null where it does not. */
+export const pickedWhy = (note?: string | null) => (note && PICKED_WHY.exec(note)?.[1]) || null
 
 /**
  * Where an agent runs: its provider, its model, the tier of that model and the reasoning level its steps were
  * sent ("Claude Code · Opus 4.8 · strongest · high"). A model nobody knows is left out, and so is a tier it has
  * not and a level none was sent; a name read from the CLI's own settings, rather than reported by it, says so, and
- * one Copilot's auto picked says that ("auto → gpt-6-luna").
+ * one Copilot's auto or fusion picked says that ("auto → gpt-6-luna").
  */
 export function ranOn(provider: string | null, modelId: string | null, modelFrom?: string | null, effort?: Effort | null, tier?: Tier | null): string {
   const model = modelId ? autoPicked(modelFrom) + modelName(modelId) + (modelFrom === 'settings' ? " (from Codex's settings)" : '') : null

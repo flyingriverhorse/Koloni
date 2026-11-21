@@ -1,6 +1,6 @@
-"""Copilot's auto: the model it picked, and why, on the agent's record (`session.auto_mode_resolved`,
-measured on CLI 1.0.105, 7 Nov 2026) - and an agent going on from it asks for auto again, with
-no level."""
+"""Copilot's auto (and fusion): the model it picked, and why, on the agent's record
+(`session.auto_mode_resolved`, measured on CLI 1.0.105, 7 Nov 2026; fusion's on 1.0.114, 21 Nov) -
+and an agent going on from it asks for the same routing again, with no level."""
 
 import json
 
@@ -24,20 +24,21 @@ NOTE = f"Copilot's auto picked gpt-6-luna: “{WHY}”"
 
 
 def ran_on_auto(settings_env, tmp_path, project_dir, wait_run, native=False, script=None,
-                status="completed"):
-    """One turn of a Lead on Copilot's auto (a GitHub account), whose auto picks gpt-6-luna."""
+                status="completed", routed="auto"):
+    """One turn of a Lead on Copilot's auto - or its fusion (`routed`) - on a GitHub account,
+    which picks gpt-6-luna."""
     record, plan = tmp_path / "record.json", tmp_path / "plan.json"
     plan.write_text(json.dumps({"record": str(record), "script": script or [{"say": "OK"}],
                                 "picked": "gpt-6-luna", "picked_why": WHY}), encoding="utf-8")
     kind = CopilotNativeClient if native else CopilotSessionClient
-    cli = kind(None, "auto", timeout=30, launcher=HEADLESS if native else FAKE,
+    cli = kind(None, routed, timeout=30, launcher=HEADLESS if native else FAKE,
                env={"FAKE_CLI_PLAN": str(plan)}, options={})
     app = create_app(load_settings(settings_env), model=ScriptedModel([]),
                      clients={"Copilot": cli})
     client = TestClient(app, base_url="http://127.0.0.1:8790", headers=PAGE)
     client.__enter__()
     made = client.post("/api/providers", json={
-        "name": "Copilot", "kind": "copilot_cli", "default_model": "auto",
+        "name": "Copilot", "kind": "copilot_cli", "default_model": routed,
         "mode": "native" if native else "session"})
     assert made.status_code == 201, made.text
     lead_role = client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"effort": "high"})
@@ -48,18 +49,22 @@ def ran_on_auto(settings_env, tmp_path, project_dir, wait_run, native=False, scr
     return client, snap, json.loads(record.read_text(encoding="utf-8"))
 
 
+@pytest.mark.parametrize("routed", ["auto", "fusion"])
 @pytest.mark.parametrize("native", [False, True])
 def test_the_model_auto_picked_and_why_are_on_record_and_no_level_went(
-    settings_env, tmp_path, project_dir, wait_run, native
+    settings_env, tmp_path, project_dir, wait_run, native, routed
 ):
-    client, snap, seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run, native)
+    client, snap, seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run, native,
+                                     routed=routed)
     try:
         lead = snap["agents"][0]
-        assert (lead["model_id"], lead["model_from"]) == ("gpt-6-luna", "auto")
-        assert lead["effort"] is None and lead["effort_note"].endswith(NOTE)
+        # (Fusion's pick says fusion, not auto: what the chat shows, and what it goes on with.)
+        assert (lead["model_id"], lead["model_from"]) == ("gpt-6-luna", routed)
+        said = f"Copilot's {routed} picked gpt-6-luna: “{WHY}”"
+        assert lead["effort"] is None and lead["effort_note"].endswith(said), lead["effort_note"]
         if not native:  # (natively the model and its level go in session.create)
             assert "--reasoning-effort" not in seen["argv"]
-            assert seen["argv"][seen["argv"].index("--model") + 1] == "auto"
+            assert seen["argv"][seen["argv"].index("--model") + 1] == routed
     finally:
         client.__exit__(None, None, None)
 
@@ -113,6 +118,34 @@ def test_a_later_pick_replaces_the_one_before_on_record_and_keeps_the_rest_of_th
         client.__exit__(None, None, None)
 
 
+def test_a_fusion_pick_replaces_an_auto_one_on_record(
+    settings_env, tmp_path, project_dir, wait_run
+):
+    # (A row of before fusion was told apart says auto: the next pick, fusion's, replaces it.)
+    client, snap, _seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run,
+                                      routed="fusion")
+    runner, lead_id = client.app.state.runner, snap["agents"][0]["id"]
+    try:
+        with runner._factory() as session:
+            lead = session.get_one(Agent, lead_id)
+            before = lead.effort_note.removesuffix(f" Copilot's fusion picked gpt-6-luna: “{WHY}”")
+            lead.model_from, lead.effort_note = "auto", f"{before} {NOTE}"
+            session.commit()
+            ctx = runner._ctx_after(session, lead, session.get_one(Run, lead.run_id))
+        # (An old row's "auto" goes on with auto; what the client was asked for, fusion here, is
+        # what its next pick is marked with.)
+        assert ctx.model_name == "auto"
+        runner._ran_on(ctx, "gpt-7", "Harder this time.")
+        with runner._factory() as session:
+            lead = session.get_one(Agent, lead_id)
+            assert (lead.model_id, lead.model_from) == ("gpt-7", "fusion")
+            assert lead.effort_note == f"{before} Copilot's fusion picked gpt-7: “Harder this time.”"
+            assert runner._ctx_after(session, lead, session.get_one(Run, lead.run_id)
+                                     ).model_name == "fusion"
+    finally:
+        client.__exit__(None, None, None)
+
+
 def test_a_reason_goes_only_with_the_model_it_was_given_for():
     said = {"type": "model", "model": "gpt-6-luna", "why": "easy"}
     assert why_picked(said, None, None) == "easy"
@@ -148,5 +181,12 @@ def test_an_agent_going_on_from_one_auto_picked_for_asks_for_auto_again(
                                    True, "completed", "t", 1)
             assert runner._ran_on_before(session, ctx, named, coder, "full_auto", copilot,
                                          listed) == (copilot.id, "gpt-6-luna")
+            # ...and one fusion picked for: fusion again, though it has no tier.
+            fused = topics.Earlier("a3", "Coder", "Coder", "Copilot", "gpt-6-luna", "fusion",
+                                   True, "completed", "t", 1)
+            listed = [Entry(copilot.id, "Copilot", "copilot_cli", "session", None,
+                            (("fusion", None), ("gpt-6-luna", None)), "gpt-x")]
+            assert runner._ran_on_before(session, ctx, fused, coder, "full_auto", copilot,
+                                         listed) == (copilot.id, "fusion")
     finally:
         client.__exit__(None, None, None)

@@ -1,7 +1,9 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Provider } from '../api/types'
+import { useApp } from '../state/store'
+import { agent, convState, run } from '../test-fixtures'
 import { namedOf } from './levels'
 import { ModelPicker } from './ModelPicker'
 import { ModelsPage } from './ModelsPage'
@@ -103,4 +105,28 @@ test('a routing saved from the chat sends each row’s agents as the Models tab 
     ['fusion', false, undefined],
     ['gpt-x', false, undefined],
   ])
+})
+
+test('the chat’s model button says the model fusion picked for the chat’s latest turn, and Copilot’s reason in its tooltip', () => {
+  const why = 'Copilot Fusion selected GPT-6 Luna since the task has low complexity.'
+  const picker = (modelId: string) => <ModelPicker providers={[github()]} providerId="gh" modelId={modelId} onSave={async () => {}} />
+  const { rerender } = render(picker('fusion'))
+  const button = screen.getByRole('button', { name: /^Model:/ })
+  // Before a turn ran on it: what was chosen.
+  expect(button).toHaveTextContent(/^fusion · Copilot$/)
+  const lead = (id: string, model_id: string, model_from: string, note: string) =>
+    agent(id, 'completed', { provider_name: 'Copilot', model_id, model_from, effort_note: `Copilot's ${model_from} picked ${model_id}: “${note}”` })
+  act(() =>
+    useApp.setState({
+      conv: convState({ runs: [run('r1', 'completed'), run('r2', 'completed')], agents: [lead('r1', 'gpt-7', 'fusion', 'Hard.'), lead('r2', 'gpt-6-luna', 'fusion', why)] }),
+    }),
+  )
+  expect(button).toHaveTextContent(/^fusion → gpt-6-luna · Copilot$/)
+  expect(button).toHaveAccessibleName(/^Model: Copilot · fusion/)
+  expect(button.title).toContain(why)
+  // (A pick of auto's is not fusion's: the chat moved on from it.)
+  rerender(picker('auto'))
+  expect(button).toHaveTextContent(/^auto · Copilot$/)
+  expect(button.title).not.toContain(why)
+  act(() => useApp.setState({ conv: null }))
 })

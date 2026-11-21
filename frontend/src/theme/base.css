@@ -1793,6 +1793,18 @@ a.view-run {
   font-size: var(--text-meta);
 }
 
+/* Copilot's own reason for the model its auto or fusion picked: one quiet line under the head, by its name, cut with an
+   ellipsis - whole in its tooltip. */
+.turn-why {
+  min-width: 0;
+  margin: -6px 0 0 24px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
 /* Copy and Read aloud at its left, what the turn did at its right, on one line of facts. */
 .turn-foot {
   display: flex;
