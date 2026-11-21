@@ -555,3 +555,31 @@ def test_a_branch_from_your_last_commit_says_so_on_its_card(
     assert merge["status"] == "applied" and merge["branch"]["note"] is None
     assert porcelain(repo) == [" M a.txt", "?? notes.txt"]
 
+
+# --- a branch copy's file merges line by line from what it was made of (W-1 Task 4) -------------
+
+
+def crlf(text):
+    return text.replace("\n", "\r\n").encode()
+
+
+@needs_merge_base
+def test_a_branch_copys_file_merges_line_by_line_from_what_it_was_made_of(repo, runtime):
+    from app.agent.merge import _kept_files
+
+    run(repo, "config", "core.autocrlf", "true")  # (checked out with CRLF line ends, kept LF)
+    (repo / "nine.txt").write_bytes(crlf(NINE))
+    run(repo, "add", "nine.txt")
+    run(repo, "commit", "-qm", "nine")
+    mine = NINE.replace("1\n", "1-mine\n", 1)
+    (repo / "nine.txt").write_bytes(crlf(mine))  # (not committed: the snapshot holds it)
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+    assert copy.started_from("nine.txt") == crlf(mine) == (copy.root / "nine.txt").read_bytes()
+    (copy.root / "nine.txt").write_bytes(crlf(mine.replace("9\n", "9-agent\n")))
+    (repo / "nine.txt").write_bytes(crlf(mine.replace("5\n", "5-user\n")))
+    files = _kept_files(copy, False)
+    assert files["nine.txt"]["state"] == "merged", files["nine.txt"].get("note")
+    # Believed no further than its digest: a file the copy did not start from is not.
+    copy.base[copies._key("nine.txt")] = "0" * 64
+    assert copy.started_from("nine.txt") is None
+

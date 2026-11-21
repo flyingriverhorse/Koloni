@@ -1780,6 +1780,23 @@ def branch_diffs(
     return found
 
 
+def blob_at(project: Path, commit: str, path: str, most: int) -> bytes | None:
+    """W-1: a file as `commit` holds it, as git would check it out - its line ends as the
+    repository's settings and attributes turn them (`cat-file --filters`), no filter driver of
+    the repository's run (`_no_filters`): what a branch copy's file was made of, for a merge line
+    by line (`copies.Copy.started_from`). None where it is not there, is over `most` bytes
+    (asked before it is read), or git does not say. Refused as `repository`."""
+    git, _folder = repository(project)
+    code, out, _said = _in(project, git, *UNASKED, "cat-file", "-s", f"{commit}:{path}",
+                           seconds=SHORT_SECONDS, **UNASKED_ENV)
+    if code != 0 or not out.strip().isdigit() or int(out) > most:
+        return None
+    code, out, _said = _in(project, git, *UNASKED, "cat-file", "--filters", f"{commit}:{path}",
+                           seconds=SHORT_SECONDS, **UNASKED_ENV,
+                           **_no_filters(project, git, SHORT_SECONDS))
+    return out if code == 0 and len(out) <= most else None
+
+
 def merge_branch(
     project: Path, tip: str, message: str, no_hooks: Path, into: str,
     start: str | None = None,

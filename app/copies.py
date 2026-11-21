@@ -539,16 +539,36 @@ class Copy:
         - a file over `MAX_BASE_TEXT`, a copy from before this was kept, a file the
         project did not have - or is not what the copy's record says the file was
         (`base`: instead of the copy's own): what stands beside the tree, where a
-        command could reach it, is believed no further than its digest."""
+        command could reach it, is believed no further than its digest. W-1: of a branch
+        copy, which keeps none beside its tree, from git (`_from_git`) - believed as far."""
         was = (self.base if base is None else base).get(_key(path))
-        place = None if self.two_way or was is None else _inside(self._kept, path)
-        try:
-            if place is None or _is_link(place) or not place.is_file():
-                return None
-            data = place.read_bytes()
-        except OSError:
+        if self.two_way or was is None:
             return None
-        return data if hashlib.sha256(data).hexdigest() == was else None
+        place = _inside(self._kept, path)
+        try:
+            data = place.read_bytes() if place and not _is_link(place) and place.is_file() else (
+                self._from_git(path))
+        except OSError:
+            data = None
+        return data if data is not None and hashlib.sha256(data).hexdigest() == was else None
+
+    def _from_git(self, path: str) -> bytes | None:
+        """W-1: a branch copy's file as the commit it was made from holds it - the snapshot, or
+        the start - as git checked it out (`git.blob_at`), by the path as git spells it (`names`).
+        None for a copy, or where git does not say.
+        shortcut: a branch opened again was checked out at its tip, which is not on its record:
+        its files are not merged line by line (no digest matches); record the tip it was opened
+        at if that is missed."""
+        commit = self.snapshot_sha or (self.start[1] if self.start else None)
+        if not self.branch or commit is None:
+            return None
+        from app import git  # (here: git's executors import commands, which imports this)
+
+        try:
+            return git.blob_at(self.project, commit, self.names.get(_key(path), path),
+                               MAX_BASE_TEXT)
+        except git.Refused:
+            return None
 
     def _based(self, path: str, data: bytes | None) -> None:
         """What the copy was made from, for one file, is `data` from here on (None: no
