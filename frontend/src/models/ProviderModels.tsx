@@ -144,6 +144,7 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
                   onContext={context =>
                     void persist(setRow(index, { context }), `${row.name}: ${context === 'long_context' ? 'long' : 'default'} context.`)
                   }
+                  onRouting={routing => void persist(setRow(index, { routing }), `${row.name}: ${routing ?? 'default'} routing.`)}
                   onNote={text => setRows(setRow(index, { note: text }))}
                   onNoteDone={() =>
                     row.note.trim() !== (provider?.models.find(m => m.name === row.name)?.note ?? '') &&
@@ -208,7 +209,7 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
                 setNoCatalogue(none ? draft : null)
                 // A model already listed keeps whether agents may use it; one more joins the provider's way.
                 const had = new Map(rows.map(row => [row.name, row.agents]))
-                setRows(offer.models.map(m => ({ name: m.name, note: m.note ?? '', tier: m.tier ?? null, agents: had.get(m.name) ?? usual, ...(m.context && { context: m.context }) })))
+                setRows(offer.models.map(m => ({ name: m.name, note: m.note ?? '', tier: m.tier ?? null, agents: had.get(m.name) ?? usual, ...(m.context && { context: m.context }), ...(m.routing && { routing: m.routing }) })))
                 setLeftOut(none ? null : offer.left_out)
               })
             }
