@@ -17,12 +17,21 @@ from app.command_runner import CommandRunner
 from app.commands import disposable_targets
 from app.db.models import Agent, Command, Conversation, Message, Project, Run, ToolCall
 from app.db.session import make_engine, make_session_factory, upgrade_db
-from tests.conftest import scaled
+from tests.conftest import Gate, scaled
 from tests.fakes import Script, ScriptedExecutor
 from tests.keyed import OWN
 from tests.test_agent_commands import approve, cmd
+from tests.test_agy_agent import agy_app  # noqa: F401  (a fixture)
+from tests.test_agy_agent import start as start_agy
 from tests.test_chat_flow import start_in_mode, text
+from tests.test_claim_scenarios import write
+from tests.test_codex_app_server_scenarios import ACCEPT, DECLINE, RUN, answers
+from tests.test_copy_scenarios import run
+from tests.test_native_agent import native_app  # noqa: F401  (a fixture)
+from tests.test_native_agent import start as start_native
+from tests.test_spawn import call, step
 from tests.test_take_in_scenarios import git, needs_git, repository
+from tests.test_trigger_scenarios import run_now, trigger
 
 
 @pytest.mark.parametrize(("line", "targets"), [
@@ -75,6 +84,16 @@ def test_a_plain_line_names_what_it_would_delete(line, targets):
     "git branch -d @{-1}", "git branch -d x:y", "git branch -d -- x",
 ])
 def test_anything_else_is_no_disposable_delete(line):
+    assert disposable_targets(line) is None
+
+
+@pytest.mark.parametrize("line", [
+    "rm -rf build `\n src", "rm -rf bu\\\nild", "git branch -d old `\n -f",
+    "git worktree remove ../wt/x \\\n--force", "rm -rf build`\r\n", "rm -rf build \\\n",
+])
+def test_a_continued_line_is_no_disposable_delete_however_a_shell_joins_it(line):
+    # (sh joins `bu\⏎ild` into `build`, PowerShell runs `ild` as a command of its own: a line
+    # that two shells read two ways is never freed by either reading - `commands.joined`)
     assert disposable_targets(line) is None
 
 
@@ -163,22 +182,6 @@ def test_a_disposable_delete_goes_without_its_levels_card_only_where_the_project
     assert asked("t8", disposable=BUILD) == (False, True, {**unasked, "unasked": False})
 
 
-def given(client, disposable):
-    """`rm -rf build` handed to the agent runner's commands with `disposable`, as the agent
-    runner would; any other line as it is. One it found free goes without the harm ask of a
-    watched turn (`always`), which it then does not make."""
-    commands = client.app.state.runner.commands
-    run = commands.run
-
-    async def handed(run_id, cid, agent_id, ws, call_id, args, **kwargs):
-        if args.get("command") == "rm -rf build":
-            kwargs["disposable"] = disposable
-            kwargs["always"] = kwargs["always"] and not disposable["allowed"]
-        return await run(run_id, cid, agent_id, ws, call_id, args, **kwargs)
-
-    commands.run = handed
-
-
 def proposed(client, cid, line):
     """The card of `line`, once it waits."""
     deadline = time.monotonic() + scaled(5)
@@ -189,46 +192,6 @@ def proposed(client, cid, line):
             return found[0]
         time.sleep(0.02)
     raise AssertionError(f"{line} never waited: {snap['commands']}")
-
-
-def test_allow_such_deletes_on_a_disposable_deletes_card_turns_the_project_switch_on_and_runs_it(
-        make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([Script([""]), Script([""])])
-    client, _ = make_client([cmd("rm -rf build", "k1"), cmd("pytest -q", "k2"), text("done")],
-                            executor=executor)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    given(client, {**BUILD, "allowed": False})
-    cid, run_id = start_in_mode(client, project_dir, "ask")
-    card = proposed(client, cid, "rm -rf build")
-    assert card["disposable"] == {"what": "build folder build", "unasked": False}
-    sent = f"/api/commands/{card['id']}/approve"
-    assert client.post("/api/commands/none/approve", json={"disposable": True}).status_code == 404
-    assert client.post(sent, json={"disposable": True, "remember": True}).status_code == 422
-    assert client.post(sent, json={"disposable": True}, headers={"Origin": None}).status_code == 403
-    assert client.post(sent, json={"disposable": True}).json()["status"] in (
-        "approved", "running", "exited")
-    assert client.get(f"/api/projects/{pid}").json()["disposable_deletes"] is True
-    # A card that is no disposable delete takes no such word.
-    plain = proposed(client, cid, "pytest -q")
-    assert plain["disposable"] is None
-    assert client.post(f"/api/commands/{plain['id']}/approve",
-                       json={"disposable": True}).status_code == 422
-    assert approve(client, plain["id"]).status_code == 200
-    wait_run(client, cid, run_id)
-    assert [line for line, _ in executor.started] == ["rm -rf build", "pytest -q"]
-
-
-def test_at_auto_edit_a_delete_found_disposable_runs_without_a_card_and_says_so(
-        make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([Script([""])])
-    client, _ = make_client([cmd("rm -rf build"), text("done")], executor=executor)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    client.patch(f"/api/projects/{pid}", json={"disposable_deletes": True}, headers=OWN)
-    given(client, BUILD)
-    cid, run_id = start_in_mode(client, project_dir, "auto_edit")
-    (ran,) = wait_run(client, cid, run_id)["commands"]
-    assert (ran["status"], ran["disposable"]) == (
-        "exited", {"what": "build folder build", "unasked": True})
 
 
 # --- what of it is disposable: checked against its folder and the project's git (3.4) --------
@@ -400,3 +363,168 @@ def test_what_git_tracks_under_a_folder(repo):
     git(repo, "add", "src/x.py")
     assert git_.tracked_under(repo, "src") is True
     assert git_.tracked_under(repo, "sr") is False
+
+
+# --- the agent runner hands it in: where the user allowed it, at Auto-edit and Full auto (3.5) -
+
+@pytest.fixture
+def at_git(project_dir, monkeypatch):
+    """The project as a git repository: build/ ignored (and there), a branch `old` merged, and
+    KOLONİ's koloni/x."""
+    empty = project_dir.parent / "gitconfig"
+    empty.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    (project_dir / ".gitignore").write_text("build/\n")
+    repository(project_dir)
+    git(project_dir, "branch", "old")
+    git(project_dir, "branch", "koloni/x")
+    (project_dir / "build").mkdir()
+    return project_dir
+
+
+def allowing(client, project_dir, allows):
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"disposable_deletes": allows},
+                        headers=OWN).status_code == 200
+    return pid
+
+
+@needs_git
+@pytest.mark.parametrize("mode", ["full_auto", "auto_edit"])
+def test_where_the_user_allowed_it_a_merged_branch_and_a_build_folder_go_without_a_card(
+        make_client, wait_run, at_git, mode):
+    executor = ScriptedExecutor([Script([""]), Script([""])])
+    client, _ = make_client([cmd("git branch -D old", "k1"), cmd("rm -rf build", "k2"),
+                             text("done")], executor=executor)
+    allowing(client, at_git, True)
+    cid, run_id = start_in_mode(client, at_git, mode)
+    snap = wait_run(client, cid, run_id)
+    assert [(c["command"], c["status"], c["disposable"]) for c in snap["commands"]] == [
+        ("git branch -D old", "exited", {"what": "branch old", "unasked": True}),
+        ("rm -rf build", "exited", {"what": "build folder build", "unasked": True})]
+
+
+@needs_git
+def test_at_ask_a_disposable_delete_still_asks(make_client, wait_run, at_git):
+    client, _ = make_client([cmd("git branch -D old"), text("done")],
+                            executor=ScriptedExecutor([]))
+    allowing(client, at_git, True)
+    cid, run_id = start_in_mode(client, at_git, "ask")
+    card = proposed(client, cid, "git branch -D old")
+    assert card["disposable"] == {"what": "branch old", "unasked": False}
+    assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+
+
+@needs_git
+def test_allow_such_deletes_on_its_card_turns_the_switch_on_and_runs_it_and_koloni_s_branch_asks(
+        make_client, wait_run, at_git):
+    executor = ScriptedExecutor([Script([""]), Script([""])])
+    client, _ = make_client([cmd("git branch -D old", "k1"), cmd("git branch -D koloni/x", "k2"),
+                             text("done")], executor=executor)
+    pid = allowing(client, at_git, False)
+    cid, run_id = start_in_mode(client, at_git, "full_auto")
+    card = proposed(client, cid, "git branch -D old")
+    assert card["disposable"] == {"what": "branch old", "unasked": False}
+    sent = f"/api/commands/{card['id']}/approve"
+    assert client.post("/api/commands/none/approve", json={"disposable": True}).status_code == 404
+    assert client.post(sent, json={"disposable": True, "remember": True}).status_code == 422
+    assert client.post(sent, json={"disposable": True}, headers={"Origin": None}).status_code == 403
+    assert client.post(sent, json={"disposable": True}).json()["status"] in (
+        "approved", "running", "exited")
+    assert client.get(f"/api/projects/{pid}").json()["disposable_deletes"] is True
+    # KOLONİ's own branch is never disposable: asked though the switch is on, and its card
+    # takes no such word.
+    plain = proposed(client, cid, "git branch -D koloni/x")
+    assert plain["disposable"] is None and plain["danger"]
+    assert client.post(f"/api/commands/{plain['id']}/approve",
+                       json={"disposable": True}).status_code == 422
+    assert approve(client, plain["id"]).status_code == 200
+    wait_run(client, cid, run_id)
+    assert [line for line, _ in executor.started] == ["git branch -D old", "git branch -D koloni/x"]
+
+
+@needs_git
+def test_in_a_copy_a_build_folder_goes_without_a_card_but_not_one_holding_a_link(
+        make_client, wait_run, at_git, tmp_path):
+    made, linked = Gate(), Gate()
+    client, _ = make_client({
+        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
+                 text("done")],
+        "Coder": [step(write("a.txt", "A")), made.step(step(run("rm -rf build", "c1"))),
+                  linked.step(step(run("rm -rf build", "c2"))), text("A done")],
+    }, executor=ScriptedExecutor([Script([""])]))
+    pid = allowing(client, at_git, True)
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json={
+        "permission_mode": "full_auto", "spawn_approval": "never"}, headers=OWN).status_code == 200
+    run_id = client.post(f"/api/conversations/{cid}/messages",
+                         json={"content": "go"}).json()["run"]["id"]
+    try:
+        made.wait_partial()
+        (copy,) = client.app.state.runner._copies.values()
+        (copy.root / "build").mkdir()
+        made.release()
+        linked.wait_partial()
+        (tmp_path / "elsewhere").mkdir()
+        junction(copy.root / "build" / "in", tmp_path / "elsewhere")
+    finally:
+        made.release()
+        linked.release()
+    card = proposed(client, cid, "rm -rf build")
+    assert card["disposable"] is None and card["danger"]
+    assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
+    first = wait_run(client, cid, run_id)["commands"][0]
+    assert (first["status"], first["disposable"]) == (
+        "exited", {"what": "build folder build", "unasked": True})
+
+
+@needs_git
+def test_a_turn_nobody_watches_gets_no_disposable_delete_unasked(make_client, wait_run, at_git):
+    executor = ScriptedExecutor([])
+    client, _ = make_client([cmd("git branch -D old"), text("done")], executor=executor)
+    pid = allowing(client, at_git, True)
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"},
+                        headers=OWN).status_code == 200
+    client.headers["Origin"] = OWN["Origin"]  # (a trigger is the user's, from their page)
+    run_id = run_now(client, trigger(client, pid, cid)["id"])
+    snap = wait_run(client, cid, run_id)
+    assert snap["commands"] == [] and executor.started == []
+    (refused,) = [t for t in snap["tool_calls"] if t["name"] == "run_command"]
+    assert refused["status"] == "denied", refused
+
+
+@needs_git
+@pytest.mark.parametrize("allows", [True, False])
+def test_a_clis_own_disposable_delete_where_its_folder_is_known(
+        native_app, wait_run, at_git, allows):  # noqa: F811
+    client, provider, _ = native_app([{"run": "git branch -D old", "output": ""}, {"say": "ok"}])
+    allowing(client, at_git, allows)
+    cid, run_id = start_native(client, at_git, provider, "full_auto")
+    if not allows:
+        assert proposed(client, cid, "git branch -D old")["disposable"] == {
+            "what": "branch old", "unasked": False}
+        assert client.post(f"/api/commands/{proposed(client, cid, 'git branch -D old')['id']}"
+                           "/reject").status_code == 200
+    (ran,) = wait_run(client, cid, run_id)["commands"]
+    assert (ran["origin"], ran["disposable"]) == ("cli", {"what": "branch old", "unasked": allows})
+    assert answers(native_app) == [(RUN, ACCEPT if allows else DECLINE)]
+
+
+@needs_git
+@pytest.mark.parametrize("parameters", [
+    {"CommandLine": "rm -rf build", "Cwd": "."},  # (agy's Cwd: its model's word)
+    {"CommandLine": "rm -rf build"},  # (no folder: where its shell stands is not known)
+])
+def test_a_clis_delete_where_its_folder_is_its_models_word_or_not_known_is_never_disposable(
+        agy_app, wait_run, at_git, parameters):  # noqa: F811
+    client, cli, _ = agy_app([{"tool": "run_command", "asks": True, "parameters": parameters,
+                               "output": ""}, {"say": "left it"}], mode="native")
+    allowing(client, at_git, True)
+    cid, run_id = start_agy(client, at_git, cli, "full_auto")
+    card = proposed(client, cid, "rm -rf build")
+    assert card["disposable"] is None
+    assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id, 30)
