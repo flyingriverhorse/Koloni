@@ -32,7 +32,7 @@ export const waitingCards = (conv: ConvState): number => waitingOf(conv).filter(
 export const unreadOf = (inChat: Message[], seen: ReadonlySet<string>): number =>
   inChat.filter(m => (m.role === 'assistant' || m.role === 'agent') && !seen.has(m.id)).length
 
-const firstLine = (text: string) => text.split('\n').map(part => part.trim()).find(Boolean) ?? ''
+export const firstLine = (text: string) => text.split('\n').map(part => part.trim()).find(Boolean) ?? ''
 
 /** The Orchestrator's question that waits for your answer (KOLONİ's own card about one of its calls is not its question). */
 export const leadQuestion = (conv: ConvState): Question | undefined =>

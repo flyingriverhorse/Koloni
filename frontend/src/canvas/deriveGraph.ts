@@ -16,6 +16,7 @@ import { turnNumbers } from '../topics/topics'
 import { turnOf } from './turns'
 import { shown } from '../chat/attachments'
 import { decidedOf, waitingOf, waitingSummary } from '../chat/waiting'
+import { firstLine } from '../chat/chatLine'
 import { outputCards } from './outputs'
 import { type SharedData, sharedColumn } from './sharedColumn'
 
@@ -109,6 +110,8 @@ export interface AgentData extends GroupData {
   chip?: { said: string; colour: string }
   /** What it spent, where its provider counts so: "0.45 AI credits", "2 premium requests"; none: not counted. */
   spent?: string | null
+  /** The first line of its question that waits for your answer, under the pointer on its state (0.1.4); none: it asks nothing. */
+  asks?: string
 }
 
 export interface DiscussionData {
@@ -329,6 +332,12 @@ const OPEN: ReadonlySet<Agent['status']> = new Set(['proposed', 'queued', 'runni
 /** Whether the agent asked the user a question that is still open. */
 function wonders(agent: Agent, state: ConvState): boolean {
   return state.questions.some(q => q.agent_id === agent.id && q.status === 'pending')
+}
+
+/** That question's first line: its box says it waits for your answer, and what it asks is under the pointer. */
+function askedLine(agent: Agent, state: ConvState): string | undefined {
+  const asked = state.questions.find(q => q.agent_id === agent.id && q.status === 'pending')
+  return asked && firstLine(asked.question)
 }
 
 /** Whether something this agent asked for is waiting for the user's decision. */
@@ -904,6 +913,7 @@ function agentNodes(
     modelFrom: agent.model_from ?? null,
     status,
     activity: activityOf(agent, run, state),
+    asks: askedLine(agent, state),
     since: status === 'running' ? (toolNow(agent, state)?.since ?? null) : null,
     sign: agent.sign,
     signStopped: agent.status === 'failed' && !!agent.sign && !!agent.error?.includes(agent.sign.text),
