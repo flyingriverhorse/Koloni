@@ -13,7 +13,7 @@ import stat
 from pathlib import Path
 
 from app import commands, git
-from app.commands import _holds_link, disposable_targets, secret_files
+from app.commands import DISPOSABLE_NAMES, _holds_link, disposable_targets, secret_files
 
 NAMES = {"folder": "build folder", "worktree": "worktree", "branch": "branch"}
 # Never disposable, whatever git says the default branch is.
@@ -82,7 +82,8 @@ def _folder(project: Path, root: Path, here: str, rel: str) -> bool:
 def _worktree(project: Path, here: str, path: str, seen: dict, copies_at: list[Path]) -> bool:
     """A worktree git lists of the project - not its main one, nor the project's own or one the
     project is in, not locked (KOLONİ's are while their agents work), not in KOLONİ's copies
-    folders - that holds no link and no secret file (git deletes what it ignores with it)."""
+    folders - that holds no link, no secret file and nothing git ignores but build and cache
+    folders: git deletes what it ignores with the worktree."""
     real = _a_folder(os.path.normpath(os.path.join(here, path)))
     own = _real(project)
     listed = [one for one in seen["worktrees"][1:] if _real(one["path"]) == real]
@@ -90,7 +91,10 @@ def _worktree(project: Path, here: str, path: str, seen: dict, copies_at: list[P
             _under(real, _real(held)) for held in copies_at):
         return False
     commands._held.pop(Path(real), None)  # (walked anew: a walk kept for 10 s misses a new one)
-    return not _holds_link([real]) and not secret_files(Path(real))
+    left = git.left_out(Path(real))
+    return left is not None and all(
+        DISPOSABLE_NAMES & set(one.rstrip("/").split("/")) for one in left) and not (
+        _holds_link([real]) or secret_files(Path(real)))
 
 
 def _branch(project: Path, name: str, force: bool, seen: dict, keep: str | None,

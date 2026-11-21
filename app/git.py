@@ -2054,3 +2054,14 @@ def tracked_under(project: Path, rel: str) -> bool | None:
     except Refused:
         return None
     return None if said is None else bool(said)
+
+
+def left_out(tree: Path) -> list[str] | None:
+    """What git leaves out by its ignore rules in a worktree's folder - a file, or a folder as one
+    (`build/`) -, which `worktree remove` deletes with it; None where git does not say."""
+    try:
+        said = _said(tree, *_looking(tree), "ls-files", "-z", "--others", "--ignored",
+                     "--exclude-standard", "--directory")
+    except Refused:
+        return None
+    return None if said is None else [one for one in said.split("\0") if one]

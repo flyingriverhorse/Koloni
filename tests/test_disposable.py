@@ -222,7 +222,7 @@ def repo(tmp_path, monkeypatch):
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     project = tmp_path / "proj"
     project.mkdir()
-    (project / ".gitignore").write_text("build/\ndist/\n.next/\n")
+    (project / ".gitignore").write_text("build/\ndist/\n.next/\n*.db\n")
     (project / "a.txt").write_text("a\n")
     repository(project)
     git(project, "branch", "old")
@@ -310,6 +310,13 @@ def test_a_clean_worktree_of_the_users_is_disposable_and_none_of_koloni_s_locked
     assert judged(repo, "git worktree remove ../wt/x") is None
     unlinked(tmp_path / "wt" / "x" / "in")
     assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+    # (git deletes what it ignores with the worktree: a build folder may go, nothing else)
+    (tmp_path / "wt" / "x" / "build").mkdir()
+    (tmp_path / "wt" / "x" / "build" / "out.txt").write_text("made\n")
+    assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+    (tmp_path / "wt" / "x" / "local.db").write_text("the user's own\n")
+    assert judged(repo, "git worktree remove ../wt/x") is None
+    (tmp_path / "wt" / "x" / "local.db").unlink()
     # (the main one - from a project that is a worktree itself too -, a folder git does not
     # list, one under KOLONİ's copies)
     assert judged(repo, "git worktree remove ../proj") is None
