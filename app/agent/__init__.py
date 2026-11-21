@@ -980,6 +980,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._users_awaited: dict[str, list[tuple[str, bool, asyncio.Future]]] = {}
         # ...and the questions the Lead answers at once for them (night, Full auto): not told
         self._lead_taking: set[asyncio.Future] = set()
+        # ☾ Away: the cards the Lead may decide, by what waits on each -> (their chat, decide
+        # now) for Go away (`away_now`); and question id -> the loop's time the user last typed
+        # its answer (`typing`). Both let go as each card stands down.
+        self._decidable: dict[asyncio.Future, tuple[str | None, Callable[[], None]]] = {}
+        self._typing_at: dict[str, float] = {}
         # proposed agent id -> future resolved with "approve" or "reject"
         self._spawn_decisions: dict[str, asyncio.Future[str]] = {}
         # PAID_SWITCH: (turn, provider id) -> the user's word on a move onto it; and a proposed
@@ -4662,8 +4667,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             status, output = await self._ask_secret(ctx, call_id, args)
         elif request.name == "pick_teams":
             status, output = "succeeded", self._pick_teams(ctx, args)
-        elif request.name == "plan_away":
-            status, output = "succeeded", self._plan_away(ctx, args)
+        elif request.name == "offer_away":
+            status, output = "succeeded", self._offer_away(ctx, args)
         else:
             status, output = await self._tool_call_2(ctx, call_id, ws, request, args)
         return status, output

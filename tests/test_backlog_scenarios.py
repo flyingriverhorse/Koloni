@@ -229,3 +229,15 @@ def test_the_backlog_works_itself_from_the_switch_on_its_page(make_client, proje
         snap = client.get(f"/api/conversations/{task['conversation_id']}").json()
         wait_run(client, task["conversation_id"], snap["runs"][0]["id"])
     assert [t["status"] for t in backlog(client, pid)] == ["review", "review"]
+
+
+def test_an_agents_task_says_the_chat_it_was_proposed_in_and_the_users_none(
+        make_client, project_dir, wait_run):
+    # ☾ Away: the chat's Away panel ticks the tasks proposed in it.
+    client, pid = owner_works(make_client, project_dir, wait_run,
+                              call("add_task", {"title": "login form"}, "a1"))
+    mine = add(client, pid, "logout")
+    form, logout = backlog(client, pid)
+    (cid,) = [c["id"] for c in client.get(f"/api/projects/{pid}/conversations").json()]
+    assert (form["proposed_in"], logout["proposed_in"], mine["proposed_in"]) == (cid, None, None)
+    assert form["created_at"] and logout["created_at"]

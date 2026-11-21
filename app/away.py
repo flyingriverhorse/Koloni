@@ -1,9 +1,9 @@
-"""While the user is away (slice 106): the jobs the Lead puts on its "While you're away" card,
-which only the user's Start starts; then the night - one job after another, each in a new chat
-of its own and its own copy (`backlog.start`), a job that waits for the user's word or fails
-twice never holding up the next - until every job is looked at, a limit is reached or the
-user says Stop all; and what the morning is told. Nothing of it goes into the project: that
-is the user's Take in, on the kept copies."""
+"""☾ Away (slice 106): the To-do tasks the user ticks and their Go away - the only start; then,
+once the chat they went away from has finished its turn, one task after another, each in a new
+chat of its own and its own copy (`backlog.start`), a task that waits for the user's word or
+fails twice never holding up the next - until the user is back (I'm back, a message of theirs),
+a limit is reached or they say Stop all; and the one summary they come back to. Nothing of it
+goes into the project: that is the user's Take in, on the kept copies."""
 
 import asyncio
 import contextlib
@@ -15,7 +15,7 @@ import posixpath
 import re
 from datetime import UTC, datetime, timedelta, tzinfo
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app import backlog, web
@@ -33,6 +33,7 @@ from app.db.models import (
     Merge,
     Message,
     Project,
+    Question,
     Recipe,
     Run,
     Team,
@@ -58,12 +59,13 @@ log = logging.getLogger(__name__)
 STUCK_FLAG, STUCK_RANGE, STUCK_MINUTES = "stuck_minutes", (5, 1440), 30
 CEILING_FLAG, CEILING_RANGE, CEILING_HOURS = "turn_hours", (1, 72), 8
 MAX_JOBS, MAX_KEPT_OUT = 10, 20
+LEVELS = ("ask", "auto_edit", "full_auto")  # (lowest first)
 TRIES = 2  # a job that fails is tried once more
 CLOCK = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
-CARD = (
-    "Your card of {jobs} is shown to the user under your answer. Nothing starts before the "
-    "user's Start on it: they may change the list, the places kept out and the limits first. "
-    "End your turn now with one short line.")
+OFFERED = (
+    "A line under your answer offers the user to go away; nothing starts before their Go "
+    "away, which works through the tasks they tick on To-do. End your turn now with one short "
+    "line.")
 RETRY = "KOLONİ: the last try of this job failed ({why}). Try it once more."
 AGAIN = ("KOLONİ: the user asks to try this job again. The work while they were away is over: "
          "this turn works as any turn of this chat - not in a copy kept for them; what it changes "
@@ -71,6 +73,8 @@ AGAIN = ("KOLONİ: the user asks to try this job again. The work while they were
 JOB_TOO_LONG = ("Stopped after {hours} hour{s}, the most one job works: what it did is kept in "
                 "its copy.")
 CLOSED = "Stopped: KOLONİ was closed while you were away."
+# What starts no other work while the user is away (Run the backlog, Try again).
+AWAY_NOW = "You're away from this project: press I'm back first"
 KEPT_OUT = ("{path} is kept out: the user asked that nothing touches it while they are away. "
             "Leave it as it is and say so in your report")
 def needs_project(said: str) -> str | None:
@@ -85,6 +89,13 @@ class Refused(ValueError):
 def running(session: Session, project_id: str) -> AwayRun | None:
     return session.scalar(select(AwayRun).where(
         AwayRun.project_id == project_id, AwayRun.status == "running").limit(1))
+
+
+def gone_from(session: Session, cid: str) -> AwayRun | None:
+    """The Away that runs for chat `cid`: the user went away from it, or it is a job's of it."""
+    return session.scalar(select(AwayRun).where(
+        AwayRun.conversation_id == cid, AwayRun.status == "running").limit(1)) or night_of(
+        session, cid)
 
 
 def until_at(clock: str, at: datetime | None = None, zone: tzinfo | None = None) -> datetime:
@@ -133,52 +144,6 @@ def outside(path: str) -> bool:
             or posixpath.normpath(path.replace("\\", "/")).startswith(".."))
 
 
-def _jobs(session: Session, project_id: str, given: object) -> list[dict]:
-    if not isinstance(given, list) or not 1 <= len(given) <= MAX_JOBS:
-        raise Refused(f"jobs is a list of 1 to {MAX_JOBS} jobs, each {{title, line, team, recipe}}")
-    teams = {team.name.casefold(): team.name for team in session.scalars(select(Team))}
-    recipes = {one.name.casefold(): one.name for one in session.scalars(select(Recipe))}
-    jobs = []
-    for one in given:
-        if not isinstance(one, dict):
-            raise Refused("each job is {title, line, team, recipe}")
-        title = one.get("title")
-        if not isinstance(title, str) or not title.strip() or len(title.strip()) > 200:
-            raise Refused("each job has a title of 1 to 200 characters")
-        line = one.get("line")
-        if line is not None and (not isinstance(line, str) or len(line) > 4000):
-            raise Refused("a job's line is a string of at most 4000 characters")
-        job = {"title": title.strip(), "line": (line or "").strip() or None,
-               "team": None, "recipe": None}
-        for key, known in (("team", teams), ("recipe", recipes)):
-            name = one.get(key)
-            if name is None or name == "":
-                continue
-            if not isinstance(name, str) or name.strip().casefold() not in known:
-                raise Refused(f"no {key} {name!r}: {', '.join(known.values()) or 'there is none'}")
-            job[key] = known[name.strip().casefold()]
-        # B-409: a job that is a task of the To-do list already is that task, not a copy of it -
-        # in the task's own words, which are what its job is given (`backlog.first_message`).
-        if (task_id := one.get("task_id")) is not None:
-            task = _todo(session, project_id, task_id, job["title"])
-            if any(other.get("task_id") == task_id for other in jobs):
-                raise Refused(f"{quoted(task.title)} is on the card twice")
-            job |= {"title": task.title, "line": task.criteria, "task_id": task_id}
-        jobs.append(job)
-    return jobs
-
-
-def _todo(session: Session, project_id: str, task_id: object, title: str) -> BacklogTask:
-    """The To-do list's task a job is: one to do, of this project, that the user has OK'd."""
-    task = session.get(BacklogTask, task_id) if isinstance(task_id, str) else None
-    if task is None or task.project_id != project_id or task.status != "todo":
-        raise Refused(f"the job {quoted(title)} names no task to do on this project's To-do "
-                      "list (gone, started or done)")
-    if backlog.unseen(task):  # (as the To-do list's own runs: `backlog.chain`)
-        raise Refused(f"the job {quoted(title)} is a task that waits for the user's OK")
-    return task
-
-
 def _kept_out(given: object, root: str) -> list[str]:
     if given is None:
         return []
@@ -206,78 +171,136 @@ def _limits(given: dict) -> tuple[datetime | None, float | None]:
     return (until_at(until) if until else None), money
 
 
-def plan(session: Session, conversation: Conversation, run_id: str, args: dict) -> str:
-    """plan_away: the Lead's card, in place of one this chat still shows. Nothing starts."""
+def _picked(session: Session, project_id: str, given: object) -> list[BacklogTask]:
+    """The To-do tasks the user ticked, in the panel's order: open (proposed, or to do and not
+    started), of this project, each once."""
+    if not isinstance(given, list) or len(given) > MAX_JOBS:
+        raise Refused(f"task_ids is a list of at most {MAX_JOBS} To-do tasks")
+    if len(set(given)) != len(given):
+        raise Refused("a task is ticked twice")
+    tasks = [session.get(BacklogTask, one) if isinstance(one, str) else None for one in given]
+    if any(task is None or task.project_id != project_id or task.status not in (
+            "proposed", "todo") for task in tasks):
+        raise Refused("a task ticked is not an open task of this project's To-do list (gone, "
+                      "started or done)")
+    return [task for task in tasks if task is not None]
+
+
+def _keep_order(tasks: list[BacklogTask], order: object) -> list[BacklogTask]:
+    """The panel's order (task ids), saved to To-do: each ticked task takes the (priority,
+    place) of the task that was at that place among them. The tasks in that order."""
+    if not isinstance(order, list) or len(order) > 200:
+        return tasks
+    ranked = sorted(tasks, key=lambda task: (backlog.PRIORITIES.index(task.priority),
+                                             task.position))
+    places = [(task.priority, task.position) for task in ranked]
+    wanted = sorted(tasks, key=lambda task: order.index(task.id) if task.id in order
+                    else len(order))
+    for task, (priority, position) in zip(wanted, places, strict=True):
+        task.priority, task.position = priority, position
+    return wanted
+
+
+def go(session: Session, conversation: Conversation, given: dict, runner) -> AwayRun:
+    """The user's Go away from chat `conversation` - the only start: the tasks ticked (`given`
+    task_ids, in its order; a proposed one is approved and held for Away), the places kept out
+    and the limits. The chat's turn finishes first (`go_on`); the cards waiting are decided now
+    (`AgentRunner.away_now`)."""
+    project_id = conversation.project_id
+    if project_id is None:
+        raise Refused("a chat with no folder has nothing to work on while you're away")
+    if running(session, project_id):
+        raise Refused("you're away from this project already")
+    if backlog.held(session):
+        raise Refused("everything is held (Stop everything): Resume first")
+    if why := backlog.busy(session, project_id, waiting=True):
+        raise Refused(f"{why}: go away once nothing of the To-do list is at work")
+    run_id = session.scalar(select(Run.id).where(Run.conversation_id == conversation.id)
+                            .order_by(Run.created_at.desc()).limit(1))
+    if run_id is None:
+        raise Refused("write to the Orchestrator first: Away finishes this chat's turn")
+    project = session.get_one(Project, project_id)
+    tasks = _picked(session, project_id, given.get("task_ids") or [])
+    kept, (until, money) = _kept_out(given.get("kept_out"), project.root_path), _limits(given)
+    tasks = _keep_order(tasks, given.get("order"))
+    for planned in session.scalars(select(AwayRun).where(
+            AwayRun.project_id == project_id, AwayRun.status == "planned")):
+        planned.status = "dismissed"  # (the offer: Go away is the user's answer to it)
+    alive = [Conversation.id == conversation.id, Run.ended_at.is_(None)]
+    night = AwayRun(project_id=project_id, conversation_id=conversation.id, run_id=run_id,
+                    status="running", kept_out=kept, until=until, started_at=now(),
+                    money=most_money(session, project, money),
+                    spent_before=spend(session, alive)["spent"])
+    session.add(night)
+    session.flush()
+    jobs = []
+    for task in tasks:
+        was_todo = task.status == "todo"
+        task.status = "todo"  # (a proposed one ticked: the user's OK - held by Away)
+        task.away_state = task.away_why = task.conversation_id = None
+        task.away_run_id = night.id
+        jobs.append({"title": task.title, "line": task.criteria, "team": None, "recipe": None,
+                     "task_id": task.id, "was_todo": was_todo})
+    night.jobs = jobs
+    session.commit()
+    runner.away_now(conversation.id)
+    go_on(session, project_id, runner)
+    return night
+
+
+def back(session: Session, project_id: str) -> Message | None:
+    """I'm back, or a message of the user's: the project's Away ends - the job at work finishes,
+    its cards then wait for the user - with its summary in the chat, no notification. The
+    summary, or None where the project was not away. Committed."""
+    night = running(session, project_id)
+    if night is None:
+        return None
+    message, _note = _close(session, night, None, notify=False)
+    session.commit()
+    return message
+
+
+def offer(session: Session, conversation: Conversation, run_id: str, args: dict,
+          lead_id: str | None) -> str:
+    """offer_away: the Orchestrator's one line offering the user to go away - with the places
+    kept out and the limits it heard them name, and the tasks it put on To-do itself in this
+    turn (`lead_id`'s add_task: never a sub-agent's, nor an earlier turn's - those stay in the
+    panel, for the user to tick; None: none, its own cannot be told apart) - in place of one this
+    chat still shows. Nothing starts: Go
+    away is the user's."""
     if conversation.project_id is None:
         raise Refused("a chat with no folder has nothing to work on while the user is away")
     if running(session, conversation.project_id):
-        raise Refused("this project's jobs are being worked on while the user is away already")
+        raise Refused("the user is away from this project already")
     project = session.get_one(Project, conversation.project_id)
-    jobs = _jobs(session, project.id, args.get("jobs"))
     kept = _kept_out(args.get("kept_out"), project.root_path)
     until, money = _limits(args)
     for old in session.scalars(select(AwayRun).where(
             AwayRun.conversation_id == conversation.id, AwayRun.status == "planned")):
         old.status = "dismissed"
     session.add(AwayRun(project_id=project.id, conversation_id=conversation.id, run_id=run_id,
-                        jobs=jobs, kept_out=kept, until=until,
-                        money=most_money(session, project, money)))
-    return CARD.format(jobs=f"{len(jobs)} job{'' if len(jobs) == 1 else 's'}")
+                        jobs=_its_own(session, conversation.id, run_id, lead_id) if lead_id
+                        else [], kept_out=kept,
+                        until=until, money=money))
+    return OFFERED
 
 
-def change(session: Session, away: AwayRun, fields: dict) -> None:
-    """The user's changes to a card not started yet: its jobs, places kept out and limits."""
-    if away.status != "planned":
-        raise Refused("only a card not started yet is changed")
-    if "jobs" in fields:
-        away.jobs = _jobs(session, away.project_id, fields["jobs"])
-    if "kept_out" in fields:
-        away.kept_out = _kept_out(fields["kept_out"],
-                                  session.get_one(Project, away.project_id).root_path)
-    if "until" in fields or "money" in fields:
-        until, money = _limits({"until": away.until and f"{away.until.astimezone():%H:%M}",
-                                "money": away.money, **fields})
-        away.until = until
-        away.money = most_money(session, session.get_one(Project, away.project_id), money)
+# What add_task says of the task it proposed (`backlog.add_task`).
+ADDED = re.compile(r"proposed task ([0-9a-f]{32})\b")
 
 
-def start(session: Session, away: AwayRun, runner) -> None:
-    """The user's Start: the jobs go on the To-do list in their order, the project is away,
-    and the first job starts. The time is the next one its clock says from now."""
-    if away.status != "planned":
-        raise Refused("this card was started or put away already")
-    if backlog.held(session):
-        raise Refused("everything is held (Stop everything): Resume first")
-    if why := backlog.busy(session, away.project_id, waiting=True):
-        raise Refused(f"{why}: the jobs start once nothing else of the To-do list is at work")
-    if away.until is not None:
-        away.until = until_at(f"{away.until.astimezone():%H:%M}")
-    # (A budget set or spent since the card was planned holds the jobs as it stands now.)
-    away.money = most_money(session, session.get_one(Project, away.project_id), away.money)
-    jobs = []
-    for job in away.jobs:
-        # (A task still to do - it may have been started or done since the card - in its words
-        # as they are now; tried anew in a chat of the night's, as the card has it, also one
-        # that had a chat or an earlier night: the To-do list's own start makes a new chat too.)
-        # shortcut: a task of an earlier night's leaves that night's report; keep it there by
-        # the card's ids if that is missed.
-        if job.get("task_id"):
-            task = _todo(session, away.project_id, job["task_id"], job["title"])
-            task.away_state = task.away_why = task.conversation_id = None
-            job = {**job, "title": task.title, "line": task.criteria, "was_todo": True}
-        else:
-            task = backlog.add(session, away.project_id,
-                               {"title": job["title"], "criteria": job.get("line")}, "user")
-        task.away_run_id = away.id
-        session.flush()
-        jobs.append({**job, "task_id": task.id})
-    away.jobs, away.status, away.started_at = jobs, "running", now()
-    # (A card put before in another chat was for the list as it stood then.)
-    for other in session.scalars(select(AwayRun).where(
-            AwayRun.project_id == away.project_id, AwayRun.status == "planned")):
-        other.status = "dismissed"
-    session.commit()
-    go_on(session, away.project_id, runner)
+def _its_own(session: Session, cid: str, run_id: str, lead_id: str) -> list[dict]:
+    """`offer`'s tasks: those the Orchestrator `lead_id` added in turn `run_id`, still open."""
+    # (Not one a CLI's own sub-agent made under its name: `ToolCall.parent_call_id`.)
+    said = session.scalars(select(ToolCall.result).where(
+        ToolCall.run_id == run_id, ToolCall.agent_id == lead_id, ToolCall.name == "add_task",
+        ToolCall.parent_call_id.is_(None)))
+    ids = dict.fromkeys(found.group(1) for one in said if one and (found := ADDED.match(one)))
+    tasks = [session.get(BacklogTask, one) for one in ids]
+    return [{"title": task.title, "line": task.criteria, "team": None, "recipe": None,
+             "task_id": task.id} for task in tasks
+            if task is not None and task.proposed_in == cid and task.status in (
+                "proposed", "todo")][:MAX_JOBS]
 
 
 def tasks_of(session: Session, away: AwayRun) -> list[BacklogTask]:
@@ -300,10 +323,18 @@ def at_work(session: Session, task: BacklogTask) -> bool:
 
 
 def spent(session: Session, away: AwayRun) -> dict:
-    """What its jobs' chats spent since it started, at the user's prices (`spend`)."""
+    """What it spent since Go away, at the user's prices (`spend`): its jobs' chats, and the
+    chat it was gone from - its turns at work then or started since, less what those had spent
+    before (`spent_before`)."""
+    began = (away.started_at or now()).replace(tzinfo=None)
     chats = [task.conversation_id for task in tasks_of(session, away) if task.conversation_id]
-    return spend(session, [Conversation.id.in_(chats),
-                           Run.created_at >= (away.started_at or now()).replace(tzinfo=None)])
+    found = spend(session, [or_(
+        and_(Conversation.id.in_(chats), Run.created_at >= began),
+        and_(Conversation.id == away.conversation_id,
+             or_(Run.ended_at.is_(None), Run.ended_at >= began)))])
+    if found["spent"] is not None and away.spent_before:
+        found["spent"] = round(max(0.0, found["spent"] - away.spent_before), 6)
+    return found
 
 
 def over(session: Session, away: AwayRun, at: datetime | None = None) -> str | None:
@@ -376,12 +407,12 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
         tasks = tasks_of(session, away)
         working = [task for task in tasks if at_work(session, task)]
         _cut_over(session, working, runner, at)
-        if working:
+        if working or _chat_at_work(session, away):
             return False
         task = next((t for t in tasks if t.away_state is None and t.status == "todo"), None)
         if task is None:
-            end(session, away, None, runner)
-            return True
+            _looked_at(session, away)
+            return False
         chat = session.get(Conversation, task.conversation_id or away.conversation_id)
         if why := over_budget(session, session.get_one(Project, project_id), chat):
             stop(session, away, f"Stopped: the project is {why}.", runner)
@@ -405,10 +436,34 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
         return True
 
 
+def _chat_at_work(session: Session, away: AwayRun) -> bool:
+    """The chat the user went away from still at its turn: To-do waits for it - not for one
+    that waits for the user's word."""
+    return session.scalar(select(Run.id).where(
+        Run.conversation_id == away.conversation_id,
+        Run.status.in_(("running", "queued"))).limit(1)) is not None
+
+
+def _looked_at(session: Session, away: AwayRun) -> None:
+    """Every task was looked at: Away goes on until the user is back - the project's address
+    is told so, once."""
+    if away.id in _told_looked_at or not away.jobs:  # (none ticked: nothing to tell)
+        return
+    _told_looked_at.add(away.id)
+    project = session.get_one(Project, away.project_id)
+    if project.notify_url or project.notify_desktop:
+        send((project.name, project.notify_url, project.notify_format, project.notify_desktop,
+              f"Every To-do task was looked at. {line(session, away)}."))
+
+
+# The Aways whose "looked at" was told (`_looked_at`): this process's, as its loop's tasks.
+_told_looked_at: set[str] = set()
+
+
 def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
-    """A job in a new chat: as the chat the card was in - its level, its model (the chat's
-    rules hold tonight too; what nobody watching may do unasked is held to,
-    `AgentRunner._night_asks`) - with the team and recipe the card gave it. Who changes the
+    """A job in a new chat: as the chat gone from - its model, its level where the To-do page's
+    is not lower (the chat's rules hold tonight too; what nobody watching may do unasked is held
+    to, `AgentRunner._night_asks`) - with the teams the user picked there. Who changes the
     files and the rest of its sub-agent settings are the project's, as any chat's
     (`settings_of`, `lead_work_of`)."""
     job = next(job for job in away.jobs if job.get("task_id") == task.id)
@@ -418,12 +473,19 @@ def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
         "recipe") else None
 
     def shape(chat: Conversation) -> None:
-        chat.permission_mode = evening.permission_mode
+        # (The lower of the chat gone from's level and the To-do page's, `backlog.start`'s.)
+        chat.permission_mode = min(chat.permission_mode, evening.permission_mode,
+                                   key=LEVELS.index)
         chat.provider_id, chat.model_id = evening.provider_id, evening.model_id
         if team is not None:
             chat.teams_mode = "manual"
             chat.teams = [ConversationTeam(team_id=team.id, recipe_id=recipe and recipe.id,
                                            picked_by="user", position=0)]
+        elif evening.teams_mode == "manual":  # (the teams the user picked there)
+            chat.teams_mode = "manual"
+            chat.teams = [ConversationTeam(team_id=one.team_id, recipe_id=one.recipe_id,
+                                           picked_by=one.picked_by, position=one.position)
+                          for one in evening.teams]
 
     backlog.start(session, task, runner.bus, runner.start, shape, night=True)
 
@@ -492,7 +554,7 @@ def after_the_night(session: Session, run: Run) -> Message | None:
         *([Message.created_at < later] if later is not None else [])).order_by(
         Message.created_at.desc()).limit(1))
     if said is not None:
-        said.content = line(counts(session, away))
+        said.content = line(session, away)
     return said
 
 
@@ -577,15 +639,18 @@ def tried(session: Session, away: AwayRun, task_id: str | None, what: str) -> No
     session.commit()
 
 
-def stop(session: Session, away: AwayRun, why: str, runner, ends: bool = True) -> None:
-    """Stop all, or a limit reached: the night ends, and a job at work is cut - its copy kept
-    (`AgentRunner.cut`) and stopped, not failed (B-148). One that waits for the user's word
-    waits on. Not `ends`: Stop everything (`app.api.hold`) - the night stays, and its next
-    job waits for Resume (`go_on`); a job that waits for the user's word is stopped too, as
-    every turn is then."""
-    cut = []
+def stop(session: Session, away: AwayRun, why: str, runner, ends: bool = True,
+         waiting: bool = False) -> None:
+    """Stop all (`waiting`), or a limit reached: the night ends, and a job at work is cut - its
+    copy kept (`AgentRunner.cut`) and stopped, not failed (B-148). One that waits for the user's
+    word waits on at a limit; Stop all stops it too. Not `ends`: Stop everything
+    (`app.api.hold`) - the night stays, and its next job waits for Resume (`go_on`); a job that
+    waits for the user's word is stopped too, as every turn is then."""
+    # (The chat gone from at its turn too: Stop all stops everything of Away.)
+    cut = list(session.scalars(select(Run.id).where(
+        Run.conversation_id == away.conversation_id, Run.status.not_in(backlog.ENDED))))
     for task in tasks_of(session, away):
-        if at_work(session, task) or (not ends and task.away_state == "waits"):
+        if at_work(session, task) or (waiting or not ends) and task.away_state == "waits":
             open_runs = list(session.scalars(select(Run.id).where(
                 Run.conversation_id == task.conversation_id, Run.status.not_in(backlog.ENDED))))
             if open_runs:  # (one that waits as done - it needs the project - has none)
@@ -606,27 +671,55 @@ def counts(session: Session, away: AwayRun) -> dict[str, int]:
         "not_started": sum(1 for task in tasks if task.conversation_id is None)}
 
 
-def line(found: dict[str, int]) -> str:
-    """The morning's one line in the chat the card was in."""
-    said = [f"{found['done']} done"]
-    said += [f"{found['waits']} wait{'s' if found['waits'] == 1 else ''}"] if found["waits"] else []
-    said += [f"{found['failed']} could not be done"] if found["failed"] else []
-    said += [f"{found['stopped']} stopped"] if found["stopped"] else []
-    said += [f"{found['not_started']} not started"] if found["not_started"] else []
-    return f"While you were away: {', '.join(said)} - on the canvas"
+def decided(session: Session, away: AwayRun) -> list[str]:
+    """What the Orchestrator decided for the user while they were away, in its chats - the
+    cards it answered, and the commands their own words let run (K-yargıç) - oldest first."""
+    chats = [away.conversation_id, *(task.conversation_id for task in tasks_of(session, away)
+                                     if task.conversation_id)]
+    began = (away.started_at or now()).replace(tzinfo=None)
+    window = [Run.conversation_id.in_(chats), *(
+        [] if away.ended_at is None else [Run.created_at <= away.ended_at.replace(tzinfo=None)])]
+    answered = session.execute(select(Question.question, Question.answer, Question.created_at)
+                               .join(Run, Run.id == Question.run_id).where(
+        *window, Question.lead_why.is_not(None), Question.created_at >= began)).all()
+    ran = session.execute(select(Command.command, Command.judged, Command.created_at)
+                          .join(Run, Run.id == Command.run_id).where(
+        *window, Command.judged.is_not(None), Command.created_at >= began)).all()
+    said = [(at, f"{quoted(asked[:120])}: {answer}") for asked, answer, at in answered] + [
+        (at, f"ran {quoted(command[:120])} (your words)") for command, judged, at in ran
+        if (judged or {}).get("verdict") == "run"]
+    return [text for _at, text in sorted(said, key=lambda one: one[0])]
 
 
-def _close(session: Session, away: AwayRun, why: str | None) -> tuple[Message, tuple | None]:
-    """The night on record as over, with why, and its one line at the bottom of the chat the
-    card was in; and the notification for it, where the project has an address. Not
-    committed."""
+def line(session: Session, away: AwayRun) -> str:
+    """The one summary in the chat the user went away from: "While you were away (23:10 -
+    07:42): 2 of 2 To-do done · 3 decided for you · 1 waits · 0.84 USD"."""
+    found, ended = counts(session, away), away.ended_at or now()
+    began = away.started_at or ended
+    said = [f"{found['done']} of {len(away.jobs)} To-do done"] + [
+        f"{n} {words}" for n, words in (
+            (len(decided(session, away)), "decided for you"), (found["waits"], "waits"),
+            (found["failed"], "could not be done"), (found["stopped"], "stopped"),
+            (found["not_started"], "not started")) if n]
+    cost = spent(session, away)
+    if cost["spent"]:
+        said.append(f"{money(cost['spent'])} {cost['currency'] or 'USD'}")
+    return (f"While you were away ({began.astimezone():%H:%M} – {ended.astimezone():%H:%M}): "
+            + " · ".join(said))
+
+
+def _close(session: Session, away: AwayRun, why: str | None,
+           notify: bool = True) -> tuple[Message, tuple | None]:
+    """Away on record as over, with why, and its one summary at the bottom of the chat it was
+    gone from; and the notification for it, where the project has an address (not for the
+    user's own coming back: `notify` False). Not committed."""
     away.status, away.ended_at, away.why = "ended", now(), why
     # (A task of the To-do list's it never started is the list's again: the night held it.)
     made = {job["task_id"] for job in away.jobs if not job.get("was_todo")}  # (by the night)
     for task in tasks_of(session, away):
         if task.id not in made and task.conversation_id is None:
             task.away_run_id = None
-    said = line(counts(session, away))
+    said = line(session, away)
     last = session.scalar(select(Run.id).where(Run.conversation_id == away.conversation_id)
                           .order_by(Run.created_at.desc()).limit(1)) or away.run_id
     message = Message(conversation_id=away.conversation_id, run_id=last, role="away",
@@ -634,13 +727,14 @@ def _close(session: Session, away: AwayRun, why: str | None) -> tuple[Message, t
     session.add(message)
     project = session.get_one(Project, away.project_id)
     note = (project.name, project.notify_url, project.notify_format, project.notify_desktop,
-            f"{why or 'Every job was looked at.'} {said}.")
-    return message, note if project.notify_url or project.notify_desktop else None
+            f"{why or 'You are back.'} {said}.")
+    return message, note if notify and (project.notify_url or project.notify_desktop) else None
 
 
 def end(session: Session, away: AwayRun, why: str | None, runner) -> None:
-    """The night is over: on record with why (None: every job was looked at), its one line
-    in the chat the card was in, and one notification where the project has an address."""
+    """Away is over (why: a limit, Stop all, a failure to start): on record with why, its one
+    summary in the chat it was gone from, and one notification where the project has an
+    address."""
     message, note = _close(session, away, why)
     session.commit()
     runner.bus.emit(away.conversation_id, None, "message.created", message_out(message))
@@ -788,7 +882,8 @@ def report(session: Session, away: AwayRun) -> dict:
         "tried": away.tried, "slipped": slipped,
         "spent": found["spent"] if away.started_at else None,
         "currency": found["currency"] or "USD", "at_least": bool(found["at_least"]),
-        "counts": counts(session, away), "proposed": proposed, "job_minutes": (
+        "counts": counts(session, away), "proposed": proposed,
+        "decided": decided(session, away), "job_minutes": (
             None if (hours := unattended(session)[1]) is None else hours * 60),
         "on_plan": on_plan(session, away),
     }

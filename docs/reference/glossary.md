@@ -10,6 +10,11 @@ KOLONİ's own words, as they appear on screen.
 : A switch for each model on the Models page. When it is on, agents may pick that model by
   themselves, not only you.
 
+**Away (☾)**
+: On a chat's status line: that chat finishes its turn, then the To-do tasks you tick are worked
+  through, each in its own copy, until you press **I'm back** or write again. The Orchestrator decides
+  for you what it safely can meanwhile. See [Work while you're away](../automation/overnight.md).
+
 **Always run**
 : A button on a command's card. It keeps a rule for that chat, so the same kind of command runs
   without a card next time. See [Permission levels](../use/permissions.md).
@@ -49,8 +54,9 @@ KOLONİ's own words, as they appear on screen.
 : The facts in a project's memory: what you approved or wrote yourself. See [Memory](../memory.md).
 
 **Decided for you**
-: Where you see the questions the Orchestrator answered while you were away, if you let it (Settings
-  › This project › Asking and away › **When you're away**).
+: Where you see the cards the Orchestrator decided for you: while you were away (☾ Away), or once a
+  card waited the project's minutes (Settings › This project › Asking and away › **When you're
+  away**).
 
 **Discussion**
 : Several agents talking one question through in rounds, with nobody changing anything meanwhile.

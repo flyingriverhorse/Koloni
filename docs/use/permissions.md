@@ -103,6 +103,18 @@ Whether opening a sub-agent asks first is set under Settings › This project �
 **Opening a sub-agent**: **Ask when it matters** (the default: a card at Ask before changes when
 the sub-agent can change things), **Always ask** or **Never ask**.
 
+## Check what I said first
+
+In the level menu, under the levels, **Check what I said first** is the project's switch (Settings
+› This project › Asking and away › **A harmful-looking command at Full auto**): "Before a
+harmful-looking command waits for you at Full auto or while you're away, your own words are read
+first; it runs without a card only where a line of yours names it." While you're away it holds in a
+To-do task's chat at Full auto too, reading the chat you went away from - never the task's words -
+for a one-line delete in the task's copy only: a command of more than one line or continued, a send,
+a git remote's branch, Docker's prune or volumes, a file that steers agents and a command that runs
+another through a shell or a wrapper keep their card. The
+same holds in the chat you went away from, while you're away. A plain chat has no such switch.
+
 ## Plan first
 
 With **Plan first** on, each new message first gets a plan to approve. While it plans, an agent

@@ -37,7 +37,7 @@ import type { Allow } from '../triggers/triggerText'
 import { WouldHaveAsked } from '../triggers/WouldHaveAsked'
 import { TriggerProposalCard } from '../triggers/TriggerProposalCard'
 import { SaidAloud } from '../voice/VoiceControls'
-import { AwayCard, AwayFrom } from '../backlog/Away'
+import { AwayFrom, AwayOffer, AwaySummary } from '../backlog/Away'
 import { NightRow } from '../ready/NightRow'
 import { type BranchSaid, useApp } from '../state/store'
 import { InjectionWarning } from './InjectionWarning'
@@ -543,7 +543,7 @@ export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProp
   }
 }
 
-type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'away' | 'trigger' | 'notes' | 'night' }>
+type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'trigger' | 'notes' | 'night' }>
 
 /** What waits for you that no agent asked leave for: the turn's plan and its work to take in, a night's card and jobs, what was proposed. */
 function turnCard(state: ConvState, row: TurnWaiting, on: Handlers, onDecidePlan: WaitingProps['onDecidePlan'], continueSteps: number | null | undefined): ReactNode {
@@ -561,8 +561,6 @@ function turnCard(state: ConvState, row: TurnWaiting, on: Handlers, onDecidePlan
           onContinue={continueSteps != null && canContinue(state, row.item) ? { steps: continueSteps, run: () => useApp.getState().continueMerge(row.item.id) } : undefined}
         />
       )
-    case 'away':
-      return <AwayCard card={row.item} />
     case 'trigger':
       return <ProposalCard proposal={row.item} />
     case 'notes':
@@ -882,6 +880,7 @@ export function MessageList({
     [...shown].sort((a, b) => (turn.get(a.run_id) ?? Infinity) - (turn.get(b.run_id) ?? Infinity)),
   )
   const lastOfRun = new Map(ordered.map(m => [m.run_id, m.id]))
+  const newestAway = ordered.findLast(m => m.role === 'away')?.id
   // What KOLONİ told the lead the same, several times in a row in one turn, is one line (×N): never the
   // user's or an agent's words, nor a turn's last message (what is said under it goes with it).
   const repeated = new Map(
@@ -1241,15 +1240,19 @@ export function MessageList({
       case 'memory':
         return { folds: true, node: <MemoryTold content={message.content} className="msg msg-from" count={count} /> }
       case 'away':
-        // KOLONİ's one line at the end of a night while you were away (slice 106): the report is on the canvas.
+        // ☾ Away's one summary: the newest in full (its Away's report), an older one as its line.
+        // shortcut: only the newest is rich - the project's last Away is the one the store reads; read each one's if missed.
         return {
           folds: false,
-          node: (
-            <p className="msg msg-from away-said" role="note">
-              <Moon size={13} />
-              {message.content}
-            </p>
-          ),
+          node:
+            message.id === newestAway ? (
+              <AwaySummary line={message.content} conv={state} />
+            ) : (
+              <p className="msg msg-from away-said" role="note">
+                <Moon size={13} />
+                {message.content}
+              </p>
+            ),
         }
       case 'trigger':
         return { folds: false, node: <TriggerMessage message={message} run={run} onShow={onShowTurn} /> }
@@ -1344,8 +1347,8 @@ export function MessageList({
       // KOLONİ's own card of a turn that hangs off no call (its Orchestrator's model is slow to answer) - while it asks:
       // answered or closed, it says nothing more (its model spoke; a Stop has KOLONİ's line).
       ...of(state.questions.filter(q => q.tool_call_id === null && q.status === 'pending'), q => <ChatQuestion state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />),
-      // The Lead's "While you're away" card (slice 106), under the turn that put it.
-      ...of(state.away, card => <AwayCard card={card} />),
+      // ☾ Away: the Orchestrator's one line offering you to go away, under the turn that put it - while it stands.
+      ...of(state.away.filter(card => card.status === 'planned'), card => <AwayOffer conv={state} offer={card} />),
       // A trigger an agent proposed in the turn (slice 69), under it.
       ...of(state.triggerProposals, proposal => <ProposalCard proposal={proposal} />),
       // K-bilgi 6: what the turn (and turns nobody watched) found for the Project notes, under it.

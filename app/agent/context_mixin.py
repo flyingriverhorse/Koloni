@@ -389,7 +389,7 @@ ANSWERING_PROMPT = (
 
 # B-121 (live): "Uyumaya gidiyorum. Bu gece şunları bitir: …" - the Lead did the work at once. A
 # message with a phrase that may say the user goes away is followed, for a Lead that has
-# plan_away, by a note of KOLONİ's (a cue, not a reading: whether they go is the Lead's to see).
+# offer_away, by a note of KOLONİ's (a cue, not a reading: whether they go is the Lead's to see).
 # Phrases, not words: "config dosyası yokken", "time.sleep", "deploy tonight's build" are work.
 # (`re.IGNORECASE` folds i, ı, I and İ together.)
 AWAY_CUES = re.compile(
@@ -400,11 +400,12 @@ AWAY_CUES = re.compile(
     re.IGNORECASE)
 AWAY_NOTE = ("KOLONİ: this message may say the user is going away (to sleep, out) and lists work "
              "for meanwhile. If it does, start none of that work and open no agent for it: put "
-             "it on the While you're away card with plan_away - only their Start runs it.")
+             "each piece on the To-do list with add_task, then call offer_away - only their Go "
+             "away starts it.")
 # K-gece-dil: the Lead's standing rule, for words in any language that AWAY_CUES cannot list.
 AWAY_PROMPT = ("If the user says, in any language or words, that they are going away (to sleep, "
-               "out) and gives work for meanwhile, call plan_away first and do none of that "
-               "work yourself.")
+               "out) and gives work for meanwhile, put each piece on the To-do list with add_task, "
+               "do none of it yourself, and call offer_away.")
 
 # What a fast model is asked after a turn that completed, where the project has notes
 # made by themselves (`AgentRunner._note_what_it_found`): as the system's word and again
@@ -1384,7 +1385,7 @@ class ContextMixin:
                     system += " " + SAY_STYLE.format(style=quoted(turn.spoken["style"]))
         if "ask_user" in ctx.tools and self._watched(ctx.run_id):
             system += "\n\n" + ASK_PROMPT + (" " + ASKED_IN_WORDS if ctx.depth == 0 else "")
-        if "plan_away" in has:
+        if "offer_away" in has:
             system += "\n\n" + AWAY_PROMPT
         if "message_agent" in ctx.tools:
             system += "\n\n" + MESSAGE_PROMPT
@@ -1735,7 +1736,7 @@ class ContextMixin:
         elif row.content:
             messages.append({"role": row.role, "content": row.content, **(
                 {"blocks": row.blocks} if h.replays and row.blocks else {})})
-        if (row.role == "user" and row.run_id == ctx.run_id and "plan_away" in h.has
+        if (row.role == "user" and row.run_id == ctx.run_id and "offer_away" in h.has
                 and AWAY_CUES.search(row.content)):
             # (Under its words, as what KOLONİ says of its files is: it stays the last.)
             messages[-1] = {**messages[-1],

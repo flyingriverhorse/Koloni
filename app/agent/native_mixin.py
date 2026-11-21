@@ -25,7 +25,7 @@ from app.agent.cards import (
     needs_full_auto,
     sandbox_denied,
 )
-from app.agent.ctx import Ctx, _Hold, _NobodyToAsk, _Transcript, _Watch
+from app.agent.ctx import Ctx, _Hold, _NobodyToAsk, _Transcript, _Watch, inside_key
 from app.agent.merge import _git_parts, _put_back
 from app.agent.words import (
     FINDING_KINDS,
@@ -40,6 +40,7 @@ from app.limits import CLI_HOMES
 from app.model_client import ModelInfo, ModelUnavailable, OwnStop, ToolCallRequest
 from app.model_native import (
     PATCH_MAY_RUN,
+    USED_INSIDE,
     ClaudeNativeClient,
     CodexNativeClient,
     Steer,
@@ -488,6 +489,10 @@ class NativeMixin:
         """`_native_work`'s `call_tool`, but for its Stop hook: what the CLI asks KOLONİ for."""
         if name == PATCH_MAY_RUN:  # (nor this: Codex's patch run as a command, R175)
             return True, json.dumps(await self._runs_as_patch(ctx, watch, arguments))
+        if name == USED_INSIDE:  # (nor this: which sub-agent of its own calls KOLONİ next)
+            said = json.loads(arguments)
+            watch.koloni_inside[inside_key(said["tool"], said["input"])] = said["id"]
+            return True, "{}"
         if name == "approve":
             # Not a tool the agent uses: the CLI asking leave for one of its own.
             with self._factory() as session:
@@ -509,7 +514,8 @@ class NativeMixin:
         # sub-agent, say) changes is that tool's doing and is already on record.
         await self._look(ctx, transcript, watch, "changed by the CLI")
         request = ToolCallRequest(f"cli_{uuid.uuid4().hex[:16]}", name, arguments)
-        ((call_id, _payload),) = self._record_calls(ctx, transcript.take(), [request])
+        ((call_id, _payload),) = self._record_calls(
+            ctx, transcript.take(), [request], parent=watch.koloni_under(name, arguments))
         try:
             # While KOLONİ works for it the CLI does nothing of its own: another
             # agent with tools of its own - a sub-agent it opens, say - may work.

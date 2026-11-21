@@ -110,7 +110,8 @@ how they hang together.
 **Trigger**
 : Starts a turn by itself: by the clock, when files change, or on a request from outside. Nobody watches
   that turn, so it may do only what the trigger allows; everything else is refused. For work while you are
-  away, the Orchestrator can also plan a list of jobs. See [Triggers](../automation/triggers.md) and
+  away, press **☾ Away** on a chat's status line: your To-do tasks are worked through until you are
+  back. See [Triggers](../automation/triggers.md) and
   [Work while you're away](../automation/overnight.md).
 
 ## Next

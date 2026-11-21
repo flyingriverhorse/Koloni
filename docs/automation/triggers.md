@@ -6,7 +6,7 @@ calls it. "Only you make or change a trigger; no agent can." Open **Triggers** o
 A trigger's run is a turn nobody watches. There is nobody to ask, so it may do only what the trigger
 allows. Everything else is refused, not asked.
 
-[![Work while you're away and triggers: what starts a turn nobody watches, its own permissions and budget, and the jobs while you're away in copies with a report](../diagrams/night.svg)](../diagrams/night.svg)
+[![Work while you're away and triggers: what starts a turn nobody watches, its own permissions and budget, and the To-do tasks of ☾ Away in copies with a report](../diagrams/night.svg)](../diagrams/night.svg)
 
 *Triggers and work while you're away: work that runs while nobody watches.*
 

@@ -143,7 +143,10 @@ export function QuestionCard({ question, onAnswer, line }: Props) {
             placeholder={question.options.length > 0 ? 'Or answer in your own words…' : 'Your answer…'}
             value={draft}
             disabled={busy}
-            onChange={e => setDraft(e.target.value)}
+            onChange={e => {
+              setDraft(e.target.value)
+              useApp.getState().typing(question.id)
+            }}
           />
           <button
             type="submit"

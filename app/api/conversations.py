@@ -8,7 +8,7 @@ from sqlalchemy import bindparam, delete, literal_column, or_, select, text, upd
 from sqlalchemy.orm import Session
 
 from app import attachments, away, backlog, injection, project_map, project_notes, topics, triggers
-from app.agent import NEW_CONVERSATION, TERMINAL, folders_of, prune_commit_sides
+from app.agent import NEW_CONVERSATION, TERMINAL, announce, folders_of, prune_commit_sides
 from app.api.board import outcomes
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.api.projects import checked_folders
@@ -788,6 +788,19 @@ def queue_or_start(session: Session, run: Run) -> None:
         run.status, run.started_at = "running", now()
 
 
+def _back(request: Request, session: Session, project: Project | None) -> None:
+    """☾ Away: a message of the user's own (from the app's own page, not an agent's command)
+    ends the project's Away, its summary in the chat they went away from."""
+    if project is None or request.headers.get("origin") not in (
+            request.app.state.settings.allowed_origins):
+        return
+    if (said := away.back(session, project.id)) is not None:
+        request.app.state.bus.emit(said.conversation_id, None, "message.created",
+                                   message_out(said))
+        announce(request.app.state.session_factory, request.app.state.bus, project.id,
+                 "backlog.changed")
+
+
 def _users_own_message(request: Request, project: Project | None, conversation: Conversation,
                        run: Run, content: str) -> None:
     # (A request that says nothing of where it is from is not taken for the user - see
@@ -858,6 +871,7 @@ async def post_message(
         )
     except topics.Refused as exc:
         raise HTTPException(422, str(exc)) from None
+    _back(request, session, project)  # (a message refused above ends nothing)
     run, message = new_turn(
         session, conversation_id, topic.id, content,
         spoken=body.spoken.model_dump(exclude_none=True) if body.spoken else None,

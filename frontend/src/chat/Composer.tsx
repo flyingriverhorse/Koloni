@@ -53,6 +53,9 @@ interface Props {
   planFirst?: boolean
   /** Turn Plan first on or off; without it there is nothing to set it on. */
   onPlanFirst?: (on: boolean) => void
+  /** Check what I said first (K-yargıç), the project's; without its setter (a plain chat) the level menu has no switch. */
+  checkFirst?: boolean
+  onCheckFirst?: (on: boolean) => void
   /** Where this project's commands run; decides whether full auto needs a warning. */
   location?: 'host' | 'docker'
   /** The conversation's model: its button, first under the message box. */
@@ -81,8 +84,10 @@ interface Props {
  * answered on its card and a message sent now is queued (0.1.4); closed, the chat's line says what it asks, and the
  * Talk and Notes tabs, over which the same box stands, do not show it.
  */
-function placeholderOf(conv: ConvState | null, projectId: string | null, compact: boolean, tab: ChatTab, running: boolean): string {
+function placeholderOf(conv: ConvState | null, projectId: string | null, compact: boolean, tab: ChatTab, running: boolean, away: boolean): string {
   if (!compact && tab === 'Chat' && conv && leadQuestion(conv)) return 'Answer the question above, or queue a message…'
+  // (☾ Away: a message of yours ends it.)
+  if (away) return 'Write to come back…'
   if (running) return 'Queue a message for after this turn…'
   return projectId ? 'Ask about this project or request a change…' : 'Ask anything - pick a folder with the folder button to work on files'
 }
@@ -95,6 +100,8 @@ export function Composer({
   onPermissionMode,
   planFirst = false,
   onPlanFirst,
+  checkFirst = false,
+  onCheckFirst,
   location = 'host',
   model,
   unseen = null,
@@ -119,6 +126,7 @@ export function Composer({
   const { fresh, setFreshIn } = useFresh(topic, scope)
   const conv = useApp(s => (scope && s.conv?.conversation.id === scope ? s.conv : null))
   const tab = useApp(s => s.chatTab)
+  const away = useApp(s => !!projectId && s.away?.status === 'running' && s.away.project_id === projectId)
   // Where the `/` menu's commands press their buttons; the level's chooser.
   const row = useRef<HTMLDivElement>(null)
   const slash = useSlash({
@@ -297,7 +305,7 @@ export function Composer({
             }}
             onPaste={onPaste}
             onKeyDown={onKeyDown}
-            placeholder={placeholderOf(conv, projectId, compact, tab, running)}
+            placeholder={placeholderOf(conv, projectId, compact, tab, running, away)}
           />
           <PastedNote
             noted={noted}
@@ -325,6 +333,8 @@ export function Composer({
             onMode={onPermissionMode}
             planFirst={planFirst}
             onPlanFirst={onPlanFirst}
+            checkFirst={checkFirst}
+            onCheckFirst={onCheckFirst}
             dictate={voice}
             running={running}
             canSend={canSend}
@@ -601,6 +611,8 @@ function ComposerBar(p: {
   onMode: (mode: PermissionMode) => void
   planFirst: boolean
   onPlanFirst?: (on: boolean) => void
+  checkFirst: boolean
+  onCheckFirst?: (on: boolean) => void
   dictate: ReactNode
   running: boolean
   canSend: boolean
@@ -610,7 +622,7 @@ function ComposerBar(p: {
   return (
     <div className="composer-bar" hidden={p.hidden}>
       {p.attach}
-      <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} />
+      <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} checkFirst={p.checkFirst} onCheckFirst={p.onCheckFirst} />
       <span className="composer-actions">
         <AutoRead />
         {p.dictate}
