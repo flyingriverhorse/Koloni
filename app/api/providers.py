@@ -242,6 +242,7 @@ def _guide(provider: Provider, note: str | None, models: list | None) -> None:
     unsaid = {str(row.get("name", "")).strip() for row in told if "agents" not in row}
     unmarked = {str(row.get("name", "")).strip() for row in told if row.get("inputs") is None}
     untiered = {str(row.get("name", "")).strip() for row in told if "context" not in row}
+    unrouted = {str(row.get("name", "")).strip() for row in told if "routing" not in row}
     unswitched = {str(row.get("name", "")).strip() for row in told if "enabled" not in row}
     for m in listed:
         old = was.get(m["name"], {})
@@ -255,6 +256,8 @@ def _guide(provider: Provider, note: str | None, models: list | None) -> None:
         # (Nor of its context tier: a catalogue's fill does not know it.)
         if m["name"] in untiered and "context" in old:
             m["context"] = old["context"]
+        if m["name"] in unrouted and "routing" in old:  # (nor of its routing)
+            m["routing"] = old["routing"]
         # (Nor of being switched off: a fill, or a page from before, does not turn it on.)
         if m["name"] in unswitched and "enabled" in old:
             m["enabled"] = old["enabled"]
@@ -482,9 +485,9 @@ def _change_server(provider: Provider, body: ProviderPatch) -> None:
     if "base_url" in sent:
         provider.base_url = _address(provider.kind, body.base_url)
         if provider.base_url and provider.models:
-            # A context tier is GitHub's (K-copilot-baglam): on a model server of the user's
-            # own it means nothing, and a stale one would refuse every later save of the list.
-            provider.models = [{k: v for k, v in m.items() if k != "context"}
+            # A context tier is GitHub's (K-copilot-baglam), as a routing is: on a model server
+            # of the user's own they mean nothing, and a stale one would refuse every later save.
+            provider.models = [{k: v for k, v in m.items() if k not in ("context", "routing")}
                                for m in provider.models]
     if "api_key" in sent and provider.kind in SERVED:
         provider.api_key = _key(body.api_key)  # an empty key removes it
@@ -712,7 +715,7 @@ def save_fill_all(body: FillAllIn, session: Session = Depends(get_session)):
         # (Without a model's place in its tier's order, which is not set here.)
         kept = [{**{key: m.get(key) for key in ("name", "note", "tier")},
                  "agents": m.get("agents", True), "inputs": m.get("inputs"),
-                 "context": m.get("context")}
+                 "context": m.get("context"), "routing": m.get("routing")}
                 for m in provider.models or []]
         if told.for_agents == provider.for_agents and models == kept:
             continue

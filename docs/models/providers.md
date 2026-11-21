@@ -80,7 +80,7 @@ The **Models** tab lists the models that agents and you can pick, at most 30. Ea
 | Column | What it does |
 |---|---|
 | **Tier** | How strong the model is: fast, balanced or strongest. See [Tiers](tiers.md). |
-| **Context**, **Max output**, **Thinking** | What the model can take in, write out, and its thinking levels. |
+| **Context**, **Max output**, **Thinking** | What the model can take in, write out, and its thinking levels. On GitHub Copilot CLI on your GitHub account, **Context** sets its context tier, and on `auto` and `fusion` their **Routing** ([GitHub Copilot CLI](setup-cli.md#github-copilot-cli)). |
 | **Price in / out (1M)** | The price per million tokens; "plan" for a CLI. |
 | **Agents may use** | On: agents may pick this model by themselves. Off: only you pick it. |
 | **On** | Off: the model is not used. |

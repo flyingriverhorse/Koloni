@@ -38,13 +38,13 @@ def test_a_models_tier_stays_when_something_else_of_its_provider_is_saved(team):
     _local, fast = tiered(team, client)
     kept = client.patch(f"/api/providers/{fast}", json={"note": "Another note."}).json()
     assert kept["models"] == [{"name": "quick", "note": None, "tier": "fast", "agents": True, "enabled": None, "off_why": None,
-                               "inputs": None, "context": None},
+                               "inputs": None, "context": None, "routing": None},
                               {"name": "deep", "note": None, "tier": "balanced",
-                               "agents": True, "enabled": None, "off_why": None, "inputs": None, "context": None}]
+                               "agents": True, "enabled": None, "off_why": None, "inputs": None, "context": None, "routing": None}]
     # and a list sent without one takes it away again
     cleared = client.patch(f"/api/providers/{fast}", json={"models": [{"name": "quick"}]}).json()
     assert cleared["models"] == [{"name": "quick", "note": None, "tier": None, "agents": True, "enabled": None, "off_why": None,
-                                  "inputs": None, "context": None}]
+                                  "inputs": None, "context": None, "routing": None}]
 
 
 # --- a role's tier --------------------------------------------------------------------------

@@ -286,8 +286,8 @@ async def copilot_quota(
 ) -> dict:
     """What Copilot headless answers to `account.getQuota` (measured on 1.0.91): only its
     `quotaSnapshots` are handed on."""
-    told = await _copilot_asked(executable, token, "account.getQuota",
-                                "what is left of its plan", timeout, launcher)
+    told = await _copilot_asked(CopilotNativeClient(executable, api_key=token, launcher=launcher),
+                                "account.getQuota", "what is left of its plan", timeout)
     # Whose account it is is nobody's business here: only what is left of it is kept.
     return {"quotaSnapshots": _dict(told).get("quotaSnapshots")}
 
@@ -325,22 +325,22 @@ async def copilot_signed_in(
 ) -> dict:
     """What Copilot headless answers to `auth.getStatus` (measured on 1.0.103): whether it
     is signed in and how. Its statusMessage names the account: it is never kept."""
-    told = _dict(await _copilot_asked(executable, token, "auth.getStatus",
-                                      "whether it is signed in", timeout, launcher))
+    told = _dict(await _copilot_asked(
+        CopilotNativeClient(executable, api_key=token, launcher=launcher), "auth.getStatus",
+        "whether it is signed in", timeout))
     signed_in, how = told.get("isAuthenticated"), told.get("authType")
     return {"isAuthenticated": signed_in if isinstance(signed_in, bool) else None,
             "authType": how if isinstance(how, str) else None}
 
 
 async def _copilot_asked(
-    executable: str | None, token: str | None, method: str, saying: str, timeout: float,
-    launcher: list[str] | None,
+    client: CopilotNativeClient, method: str, saying: str, timeout: float,
 ) -> object:
     """What Copilot headless answers to `method` after its `ping`: no session, no turn.
-    Started as native Copilot is: KOLONİ's empty COPILOT_HOME, the provider's GitHub token
-    or else the user's own gh login, nothing of the user's own Copilot set-up. TimeoutError
-    past `timeout`; ModelUnavailable when it cannot be started, says no or ends first."""
-    client = CopilotNativeClient(executable, api_key=token, launcher=launcher)
+    Started as `client`'s native Copilot is: KOLONİ's empty COPILOT_HOME, the provider's GitHub
+    token or else the user's own gh login, nothing of the user's own Copilot set-up. Its ping
+    refused, `method` is asked all the same. TimeoutError past `timeout`; ModelUnavailable when
+    it cannot be started, says no or ends first."""
     workdir = Path(tempfile.mkdtemp(prefix="koloni-limits-"))
     starting: asyncio.Future | None = None
     complaints: asyncio.Future | None = None
@@ -384,7 +384,9 @@ async def _copilot_asked(
                         return told["result"]
                 raise ModelUnavailable(f"Copilot ended without saying {saying}")
 
-            await ask(1, "ping")
+            # (Refused, `method` may still be answered; ended, its own ask says so.)
+            with contextlib.suppress(ModelUnavailable):
+                await ask(1, "ping")
             told = await ask(2, method)
     except (BrokenPipeError, ConnectionResetError, ValueError):
         raise ModelUnavailable(f"Copilot ended without saying {saying}") from None

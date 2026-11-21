@@ -330,10 +330,9 @@ def test_a_native_copilot_says_its_quota_and_no_other_copilot_is_started(
         kept = session.get(LimitReading, json.dumps(account(ON_GITHUB))).reading
     # Whose account it is is kept nowhere: not in the reading, nor in the run's record.
     assert "someone" not in json.dumps(kept) + json.dumps(shown, default=str) + json.dumps(snap)
-    # Only the run's own Copilot was started, and its background read is not due now. (Its
-    # `--version`, asked before the run since K-cli-surface, is no Copilot of its own.)
-    assert len([line for line in starts.read_text("utf-8").splitlines()
-                if line != '["--version"]']) == 1
+    # Only the run's own Copilot was started, and its background read is not due now. (Before
+    # it, the one its version is asked of: K-cli-surface's `status.get`, started as the run is.)
+    assert len(starts.read_text("utf-8").splitlines()) == 2
     limits.refresh(ON_GITHUB)
     assert not limits._reading
 

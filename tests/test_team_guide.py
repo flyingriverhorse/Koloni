@@ -145,10 +145,10 @@ def test_the_guide_is_saved_tidied_and_read_back(client):
         "note": "Strongest; for hard debugging. Spends the plan.",
         # (a model has no tier until the user gives it one: slice 28a)
         "models": [{"name": "opus", "note": "slow, best", "tier": None, "agents": True, "enabled": None, "off_why": None,
-                    "inputs": None, "context": None},
-                   {"name": "haiku", "note": None, "tier": None, "agents": True, "enabled": None, "off_why": None, "inputs": None, "context": None},
+                    "inputs": None, "context": None, "routing": None},
+                   {"name": "haiku", "note": None, "tier": None, "agents": True, "enabled": None, "off_why": None, "inputs": None, "context": None, "routing": None},
                    {"name": "sonnet", "note": None, "tier": None, "agents": True, "enabled": None, "off_why": None,
-                    "inputs": None, "context": None}],
+                    "inputs": None, "context": None, "routing": None}],
         "only_listed": False,
     }
     assert {key: made.json()[key] for key in expected} == expected
@@ -164,7 +164,7 @@ def test_the_guide_is_saved_tidied_and_read_back(client):
     }).json()
     assert (changed["for_agents"], changed["note"], changed["models"], changed["only_listed"]) == (
         False, None, [{"name": "haiku", "note": None, "tier": None, "agents": True, "enabled": None, "off_why": None,
-                       "inputs": None, "context": None}], True)
+                       "inputs": None, "context": None, "routing": None}], True)
     assert changed["updated_at"] != kept["updated_at"] or changed != kept
 
 
@@ -209,7 +209,7 @@ def test_only_these_models_cannot_outlive_its_list(client):
         assert refused.status_code == 422 and "at least one model" in refused.json()["detail"]
     # (Not for agents: its row, which did not say, says what the provider does - 81a-2.)
     assert client.get("/api/providers").json()[-1]["models"] == [
-        {"name": "haiku", "note": None, "tier": None, "agents": False, "enabled": None, "off_why": None, "inputs": None, "context": None}]
+        {"name": "haiku", "note": None, "tier": None, "agents": False, "enabled": None, "off_why": None, "inputs": None, "context": None, "routing": None}]
     # both at once is fine
     both = client.patch(url, headers=OWN, json={"models": [], "only_listed": False})
     assert both.status_code == 200 and both.json()["models"] == []
