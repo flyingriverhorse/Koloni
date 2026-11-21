@@ -10,6 +10,11 @@ import re
 
 JUDGE_SECONDS = 30.0
 MOST_MESSAGES, MOST_CHARS, LEAST_QUOTE, WHY_CHARS = 6, 4000, 12, 300
+# Refusals in a turn, in a row and in all, after which the check stands aside until it ends.
+MOST_REFUSED_IN_A_ROW, MOST_REFUSED_IN_A_TURN = 3, 10
+# What an agent is told of a command a sentence of the user's forbids (`verdict` "refuse").
+REFUSED = ('KOLONİ did not run this: your user\'s rule says "{quote}". '
+           "Do it another way, or ask them.")
 # Where a quote may stand, in this order: the user's preferences, the project's rules as saved
 # on the Memory page, and the user's own messages in the chat.
 SOURCES = ("preferences", "rules", "message")
@@ -27,16 +32,19 @@ UNIT = re.compile(rf"{SENTENCE.pattern}|\n+", re.IGNORECASE)
 FENCES = ("```", "~~~")
 # A list's mark before an item ("- ", "* ", "1. "): no part of what the item says.
 LIST_MARK = re.compile(r"^(?:[-*+•]|\d+[.)])\s+")
-# A line no run stands on: it forbids, or sets a condition (security review of K-yargıç, HIGH-1;
-# its re-review, HIGH-A).
-NEGATION = re.compile(
-    r"\b(?:not|no|never|don'?t|doesn'?t|mustn'?t|shouldn'?t|can'?t|cannot|won'?t|\w+n't|without"
-    r"|unless|except|avoid|forbid\w*|prohibit\w*|only if|before|ask|if|when|once|after|until"
-    r"|nobody|nothing|none|neither|nor|refrain|off-limits|asla|sakın|hiç|hiçbir|yasak\w*|değil"
-    r"|olmaz|istemiyorum|etme|yapma|eğer|ise|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n))\b")
+# A line no run stands on: it says no (`NO`), or sets a condition (`CONDITION`) - "without", and
+# Turkish "-madan" too (security review of K-yargıç, HIGH-1; its re-review, HIGH-A). A refuse
+# stands only on a sentence that says no and sets none.
+NO = re.compile(
+    r"\b(?:not|no|never|don'?t|doesn'?t|mustn'?t|shouldn'?t|can'?t|cannot|won'?t|\w+n't"
+    r"|avoid|forbid\w*|prohibit\w*|nobody|nothing|none|neither|nor|refrain|off-limits"
+    r"|asla|sakın|hiç|hiçbir|yasak\w*|değil|olmaz|istemiyorum|etme|yapma)\b")
+CONDITION = re.compile(
+    r"\b(?:without|unless|except|only if|before|ask|if|when|once|after|until"
+    r"|eğer|ise|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n))\b")
 # shortcut: Turkish says no by a verb's ending, and its endings after it ("itme", "silmeyiniz",
 # "silmiyoruz", "silemezsin", "silinmesin") - any word ending so counts, a noun such as
-# "derleme" too: a wrong card is safe, a wrong run is not.
+# "derleme" too: a wrong card or a wrong refuse (a detour) is safe, a wrong run is not.
 NEGATED_VERB = re.compile(
     r"\b\w{2,}?(?:m[ae](?:z\w*|y[ıi]n\w*|s[ıi]n\w*|m[ae]l[ıi]\w*|y[ae]c[ae]\w*|d[ıi]\w*)?"
     r"|m[ıiuü]yor\w*|[ae]m[ae]z\w*)\b")
@@ -149,20 +157,26 @@ def source_of(quote: str, said: dict[str, list[str]]) -> tuple[str, str, str]:
                  for shown, unit, context in _units(one) if unit == plain), ("", "", ""))
 
 
-def _forbids(plain: str) -> bool:
-    """Whether a `_plain` text says no or sets a condition (`NEGATION`, `NEGATED_VERB`).
+def _says_no(plain: str) -> bool:
+    """Whether a `_plain` text says no (`NO`, `NEGATED_VERB`).
     shortcut: a prohibition said with no word of these ("Pushing to main is wrong.") is left to
     the model, whose prompt says to ask, and to the measurement of K-yargıç's slice 4."""
-    return bool(NEGATION.search(plain)) or any(
+    return bool(NO.search(plain)) or any(
         found[0] not in NOT_NEGATED for found in NEGATED_VERB.finditer(plain))
+
+
+def _forbids(plain: str) -> bool:
+    """Whether a `_plain` text says no or sets a condition (`_says_no`, `CONDITION`)."""
+    return _says_no(plain) or bool(CONDITION.search(plain))
 
 
 def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
     """The judge's word, from its JSON line (the first "{" to the last "}"); None for no JSON
     object. "run" and "refuse" hold only with a whole sentence of the user's (`source_of`) - a
     run never on a line with a question, nor on one whose line or heading forbids or sets a
-    condition (`_forbids`) - kept as they wrote it; anything else is "ask", with the judge's one
-    line only where it said ask itself."""
+    condition (`_forbids`); a refuse only on a sentence, no question, that says no and sets no
+    condition (its line's other sentences and its heading aside) - kept as they wrote it;
+    anything else is "ask", with the judge's one line only where it said ask itself."""
     try:
         got = json.loads(answer[answer.find("{"):answer.rfind("}") + 1])
     except ValueError:
@@ -173,8 +187,10 @@ def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
     quote = quote if isinstance(quote, str) else ""
     why = " ".join(why.split())[:WHY_CHARS] if isinstance(why, str) else ""
     source, shown, context = source_of(quote, said)
-    holds = word == "refuse" or word == "run" and not (
-        "?" in context.partition("\n")[0] or _forbids(_plain(context)))
+    unit = _plain(shown)
+    holds = word == "run" and not (
+        "?" in context.partition("\n")[0] or _forbids(_plain(context))) or (
+        word == "refuse" and "?" not in shown and _says_no(unit) and not CONDITION.search(unit))
     if source and holds:
         return {"verdict": word, "quote": shown, "source": source, "why": why}
     return {"verdict": "ask", "quote": "", "source": "", "why": why if word == "ask" else ""}
