@@ -397,8 +397,8 @@ export interface paths {
         put?: never;
         /**
          * Stop All
-         * @description Stop all: the job at work stops, its copy kept, and no other starts. One that waits for
-         *     the user's word waits on.
+         * @description Stop all: the job at work stops, its copy kept, and no other starts - one that waits for
+         *     the user's word too, and the chat gone from's turn.
          */
         post: operations["stop_all_api_away__away_id__stop_post"];
         delete?: never;
