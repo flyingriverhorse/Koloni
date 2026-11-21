@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from 'vitest'
 import { AgentSteps } from '../agents/AgentSteps'
 import { ApiError } from '../api/client'
 import { EVENT_TYPES } from '../api/sse'
-import type { Merge, Provider, Role, Room, RoomItem, RoomPost } from '../api/types'
+import type { Merge, Provider, Role, Room, RoomItem, RoomPost, Team } from '../api/types'
 import { deriveGraph } from '../canvas/deriveGraph'
 import { copyLine } from '../changes/copies'
 import { ChatPanel } from '../chat/ChatPanel'
@@ -790,6 +790,14 @@ test('on the canvas the room is a node of its own, by the lead that waits for it
 test('the Lead in a room is the Orchestrator on its card, as on its own node', () => {
   const withLead = convState({ ...state, rooms: [room({ members: [...room().members, { agent_id: 'lead', role: 'Lead', status: 'in' }] })] })
   expect(deriveGraph(withLead).nodes.find(n => n.kind === 'room')!.data).toMatchObject({ members: ['Coder · at work', 'Reviewer · waiting for a post', 'Orchestrator · at work'] })
+})
+
+test('a team’s lead in a room is its coordinator in the side panel, as on the room’s card', () => {
+  const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' } } as unknown as Team
+  useApp.setState({ teams: [docs] })
+  const s = convState({ ...state, agents: state.agents.map(a => (a.id === 'coder' ? { ...a, name: 'Docs lead' } : a)) })
+  render(<Inspector state={s} selectedId="room:o" onClose={() => {}} />)
+  expect(screen.getByText('Docs coordinator · at work · Reviewer · waiting for a post')).toBeInTheDocument()
 })
 
 test('the room’s node opens a panel that says where it stands, and a way into its window', async () => {

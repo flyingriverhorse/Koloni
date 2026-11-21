@@ -759,7 +759,7 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
     nodes.push(...made.nodes)
     edges.push(...made.edges)
   }
-  sharedPlaces(state, nodes, edges)
+  sharedPlaces(state, nodes, edges, teams)
   agentLines(state, nodes, edges, unspawned)
   // (Drawn, laid out and picked as the turn they are: a comparison's sides as its first side's.)
   for (const node of nodes) node.runId = laterSides.get(node.runId) ?? node.runId
@@ -1066,10 +1066,10 @@ function awayNodes(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphE
   }
 }
 
-/** The shared places: discussions and rooms, each joined to its members. */
-function sharedPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[]) {
-  discussionPlaces(state, nodes, edges)
-  roomPlaces(state, nodes, edges)
+/** The shared places: discussions and rooms, each joined to its members (`teams`: a team's lead named as its box is). */
+function sharedPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[], teams: Team[]) {
+  discussionPlaces(state, nodes, edges, teams)
+  roomPlaces(state, nodes, edges, teams)
 }
 
 // The frame all these agents are drawn in, as a node's `team`; none where they are not all in one.
@@ -1082,7 +1082,7 @@ const frameOfAll = (nodes: GraphNode[], agentIds: string[]): { team?: string } =
 const headOfColumn = (nodes: GraphNode[], place: string, team: string | undefined, agentIds: string[]) =>
   (nodes.find(n => n.id === team)?.data as TeamData | undefined)?.columns.find(column => agentIds.some(id => column.ids.includes(`agent:${id}`)))?.ids.unshift(place)
 
-function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[]) {
+function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[], teams: Team[]) {
   // A discussion is a shared place: one node, joined to everyone who takes part.
   // (In the order they began: the lane of them, layout's, reads top down.)
   for (const discussion of [...state.discussions].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
@@ -1106,9 +1106,9 @@ function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge
       data: {
         topic: discussion.topic.slice(0, 140),
         line: discussionLine(discussion),
-        members: discussion.members.map(m => nameIn(state, m.agent_id)),
-        last: said.slice(-2).map(p => ({ who: nameIn(state, p.agent_id), text: p.content.slice(0, 90) })),
-        speaking: speaker ? nameIn(state, speaker.id) : null,
+        members: discussion.members.map(m => nameIn(state, m.agent_id, teams)),
+        last: said.slice(-2).map(p => ({ who: nameIn(state, p.agent_id, teams), text: p.content.slice(0, 90) })),
+        speaking: speaker ? nameIn(state, speaker.id, teams) : null,
         running: discussion.status === 'running',
       },
       // Among one team's agents only, it is drawn in their frame, its lines too.
@@ -1123,7 +1123,7 @@ function discussionPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge
   }
 }
 
-function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[]) {
+function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[], teams: Team[]) {
   // A room is a shared place too: one node, by the lead that waits for it, joined to its members.
   for (const room of state.rooms) {
     const id = `room:${room.id}`
@@ -1135,10 +1135,10 @@ function roomPlaces(state: ConvState, nodes: GraphNode[], edges: GraphEdge[]) {
       // (Its goal, not who opened it - that left the goal a few letters on the card; its window says who did.)
       goal: room.goal.slice(0, 140),
       line: roomLine(room),
-      members: room.members.map(m => memberTag(state, room, m)),
-      watched: watchedBy(state, room),
+      members: room.members.map(m => memberTag(state, room, m, teams)),
+      watched: watchedBy(state, room, teams),
       items: items.length ? `${items.filter(i => i.status === 'done').length} of ${items.length} items done` : '',
-      last: said.slice(-2).map(p => ({ who: `${nameInRoom(state, p.agent_id)}${byWatcher(state, room, p.agent_id) ? ' (watching)' : ''}`, text: p.text.slice(0, 90) })),
+      last: said.slice(-2).map(p => ({ who: `${nameInRoom(state, p.agent_id, teams)}${byWatcher(state, room, p.agent_id) ? ' (watching)' : ''}`, text: p.text.slice(0, 90) })),
       running: atWork(room),
       attention: waitsForYou(state, room),
     }

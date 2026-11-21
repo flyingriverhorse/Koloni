@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Attachment, ChannelMessage, ChatTeam, ChatTeamState, Discussion, Room, Team } from '../api/types'
+import type { Attachment, ChannelMessage, ChatTeam, ChatTeamState, Discussion, DiscussionPost, Room, Team } from '../api/types'
 import { agent, command, conversation, convState, note, run, toolCall, userMessage } from '../test-fixtures'
 import { type AgentData, type RoundData, type TeamData, deriveGraph } from './deriveGraph'
 import { foldAll, foldGraph, unfold } from './foldGraph'
@@ -277,6 +277,18 @@ test('in the lane a room and a discussion between teams stand in the order they 
   const [o, d] = [positions['room:o'], positions['discussion:d']]
   expect(d.x).toBe(o.x)
   expect(o.y).toBeLessThan(d.y)
+})
+
+test('a discussion or room between teams names a team’s lead its coordinator, as the lead’s own box does', () => {
+  const teams = [['web', 'Web app'], ['api', 'Backend']].map(([id, name]) => ({ id, name, roles: [], lead: { name: `${name} lead` } }) as unknown as Team)
+  const leads = ['wl', 'bl']
+  const room = { id: 'o', run_id: 'r', agent_id: 'wl', lead_follows: 'on', goal: 'One API?', status: 'working', outcome: null, why: null, created_at: at, members: leads.map(agent_id => ({ agent_id, role: 'Lead', status: 'in' })) } as unknown as Room
+  const talk = { id: 'd', run_id: 'r', agent_id: 'r', tool_call_id: 'x', topic: 'Ship it?', status: 'running', outcome: null, round: 1, max_rounds: 3, created_at: at, ended_at: null, members: ['r', ...leads].map(agent_id => ({ agent_id, status: 'in', opened_here: false })) } as unknown as Discussion
+  const post = { id: 'p', discussion_id: 'd', agent_id: 'bl', kind: 'said', passed: false, content: 'Yes.', created_at: at } as unknown as DiscussionPost
+  const g = deriveGraph(twoTeams({ rooms: [room], discussions: [talk], discussionPosts: [post] }), teams)
+  const data = (id: string) => g.nodes.find(n => n.id === id)?.data
+  expect(data('discussion:d')).toMatchObject({ members: ['Orchestrator', 'Web app coordinator', 'Backend coordinator'], last: [{ who: 'Backend coordinator', text: 'Yes.' }] })
+  expect(data('room:o')).toMatchObject({ members: ['Web app coordinator · at work', 'Backend coordinator · at work'], watched: 'Watched by Web app coordinator · can post, invite, end' })
 })
 
 test('findings from outside a frame, or from another frame, come in at its door; talk with an agent outside, too', () => {

@@ -275,12 +275,12 @@ export function Inspector({
         <div className="insp-body">
           <p className="insp-request">{discussion.topic}</p>
           <div className="kicker">In it</div>
-          <p className="mono">{discussion.members.map(m => nameIn(state, m.agent_id)).join(' · ')}</p>
+          <p className="mono">{discussion.members.map(m => nameIn(state, m.agent_id, teams)).join(' · ')}</p>
           <div className="kicker">Said last</div>
           {said.length === 0 && <p className="muted">Nothing yet.</p>}
           {said.slice(-3).map(p => (
             <p key={p.id}>
-              <span className="mono">{nameIn(state, p.agent_id)}:</span> {p.content}
+              <span className="mono">{nameIn(state, p.agent_id, teams)}:</span> {p.content}
             </p>
           ))}
         </div>
@@ -307,14 +307,14 @@ export function Inspector({
         <div className="insp-body">
           <p className="insp-request">{room.goal}</p>
           <div className="kicker">In it</div>
-          <p className="mono">{room.members.map(m => memberTag(state, room, m)).join(' · ')}</p>
+          <p className="mono">{room.members.map(m => memberTag(state, room, m, teams)).join(' · ')}</p>
           <div className="kicker">Spent of its budget</div>
           <p className="mono">{spentLines(room).join(' · ')}</p>
           <div className="kicker">Said last</div>
           {said.length === 0 && <p className="muted">Nothing yet.</p>}
           {said.slice(-3).map(p => (
             <p key={p.id}>
-              <span className="mono">{nameInRoom(state, p.agent_id)}:</span> {p.text}
+              <span className="mono">{nameInRoom(state, p.agent_id, teams)}:</span> {p.text}
             </p>
           ))}
         </div>
