@@ -64,6 +64,8 @@ export interface ProjectSettingsValues {
   when_away?: Project['when_away']
   away_minutes?: number
   spawn_approval?: Project['spawn_approval']
+  /** K-yargıç: a harmful-looking command at Full auto asks, or first checks what you said. Sent only when changed. */
+  full_auto_check?: Project['full_auto_check']
   spawn_max_depth?: number
   spawn_max_agents?: number
   spawn_max_parallel?: number

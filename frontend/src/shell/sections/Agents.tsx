@@ -26,6 +26,14 @@ export const OPENING: [value: Project['spawn_approval'], label: string][] = [
 ]
 const OPENING_WHY = 'Ask when it matters: only when you approve everything and the sub-agent could write files or run commands. Always: before every sub-agent. Never: sub-agents open on their own.'
 
+/** K-yargıç: at Full auto a command that deletes, overwrites or sends something off this machine asks you, or is first checked against what you said. */
+export const FULL_AUTO_CHECK: [value: Project['full_auto_check'], label: string][] = [
+  ['ask', 'Ask me'],
+  ['judge', 'Check what I said first'],
+]
+const CHECK_WHY =
+  'Check what I said first: your preferences, this project’s rules as saved on the Memory page (not the folder’s .koloni/rules.md) and your own messages in this chat are read first, and the command runs without a card only when a line of yours names it. Secret files, .koloni, files that steer later turns and paths outside the folder are always asked; anything that goes wrong opens the card as before.'
+
 /** What a look over each report costs, and what is sent to which model, in sight under its box; the rest behind ⓘ. */
 const OBSERVE_SHOWN =
   'One more model request after every sub-agent’s report, on your plan or your bill; Usage shows it under that model. The Observer role’s model (set on the Agents page) is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked.'
@@ -140,7 +148,9 @@ export function useAsking(project: Project) {
   const [minutesText, setMinutesText] = useState(String(savedMinutes))
   const awayMinutes = within(minutesText, 0, 1440)
   const [approval, setApproval] = useState(savedApproval)
+  const check = useFullAutoCheck(project)
   const patch = {
+    ...check.patch,
     ...(approval !== savedApproval && { spawn_approval: approval }),
     ...(whenAway !== savedAway && { when_away: whenAway }),
     ...(awayMinutes !== undefined && awayMinutes !== savedMinutes && { away_minutes: awayMinutes }),
@@ -188,6 +198,32 @@ export function useAsking(project: Project) {
           min
         </span>
       </Row>
+      {check.row}
     </>,
   )
+}
+
+/** `useAsking`'s row for a harmful-looking command at Full auto (K-yargıç): what it costs in sight once it checks. */
+function useFullAutoCheck(project: Project) {
+  const saved = project.full_auto_check ?? 'ask'
+  const [check, setCheck] = useState(saved)
+  return {
+    patch: check === saved ? {} : { full_auto_check: check },
+    row: (
+      <Row
+        label="A harmful-looking command at Full auto"
+        htmlFor="full-auto-check"
+        doc={GUIDE.settingsAsking} why={CHECK_WHY}
+        warn={check === 'judge' && <span className="choice-note">Each such command is one request of your Fast tier’s first model (on a CLI, of your plan).</span>}
+      >
+        <select id="full-auto-check" className="input" value={check} onChange={e => setCheck(e.target.value as Project['full_auto_check'])}>
+          {FULL_AUTO_CHECK.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </Row>
+    ),
+  }
 }
