@@ -60,7 +60,7 @@ What waits:
   (**Add** / **Reject**). See [Memory](../memory.md).
 - **While away**: jobs while you're away that wait. You answer it in its chat (**Open its chat to answer**).
 
-A proposed trigger, a Project notes offer or a While you're away card waits only in its own chat unless that
+A proposed trigger, a Project notes offer or the Orchestrator's Go away line waits only in its own chat unless that
 chat has something else waiting.
 
 ## The "Teams' work is ready" card
@@ -104,7 +104,7 @@ On the canvas the same card is a box titled **Ready for you**. **Open the list �
 | An agent's question itself, saying who asks (**Orchestrator asks**, **Coder asks**), or a title of KOLONİ's own such as **Allow this?** or **Go on with the recipe?** (**KOLONİ asks**), with its words whole under it | its own options, or **Or answer in your own words…** | An agent, or KOLONİ, asks you a question. KOLONİ's **Deny** is shown as **Reject**. A question KOLONİ did not put to you (your message was waiting, or it offered **Take in**) is a row in the chat, "Wanted to ask: … · not asked"; open it for why. |
 | **Make this trigger?** | **Approve**, **Edit**, **Reject** | An agent proposes a trigger. |
 | **Add to Project notes?** | ticks, **Add**, **Not now** | After a turn found things worth noting. It never holds the turn. |
-| **While you're away** | **Start**, **Change the list**, **Not now** | The Orchestrator proposes work for while you are away. |
+| **☾ Go away now?** | **Go away**, **Change** | The Orchestrator put work on To-do and offers to go away; nothing starts before Go away. |
 | **Decided for you while you were away** | **OK**, or **Change →** another answer | The Orchestrator answered for you. See Settings › This project › Asking and away › **When you're away**. |
 | **Go on past its step limit?** | **Continue (+*N* steps)**, **Stop here** | An agent came to its step limit before its work was done. See [Step limits](../agents/step-limits.md). |
 

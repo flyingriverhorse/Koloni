@@ -101,8 +101,8 @@ as a last resort, after **An unattended turn runs at most (hours)** (8 unless yo
 no limit). Its Orchestrator also stops if it goes round in circles: see
 [Step limits](../agents/step-limits.md#when-the-orchestrator-goes-round-in-circles).
 
-Nothing starts while one of your own turns is at work, while everything is paused, during work while you're away, or
-over the project's monthly budget.
+Nothing starts while one of your own turns is at work, while everything is paused, while you're away (the
+tasks you ticked for ☾ Away are worked through then, until you are back), or over the project's monthly budget.
 
 ### Run settings
 
