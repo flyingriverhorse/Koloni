@@ -29,7 +29,11 @@
       "session.event", "session.permissions.handlePendingPermissionRequest",
       "permission.requested", "assistant.message", "tool.execution_start",
       "tool.execution_complete", "session.idle", "session.error", "model.call_start",
-      "account.getQuota", "auth.getStatus", "--headless", "--stdio"
+      "account.getQuota", "auth.getStatus", "--headless", "--stdio", "status.get",
+      "session.usage_checkpoint", "session.auto_mode_resolved", "session.tools_updated",
+      "resolvedByHook", "requestPermission", "availableTools", "hooks.invoke", "preToolUse",
+      "permissionDecision", "modifiedArgs", "hasHandlers", "apply_patch", "autoTier", "fusionTier",
+      "shellExecution"
     ]
   },
   "agy": {

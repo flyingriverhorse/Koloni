@@ -3,6 +3,7 @@ protocol's first request once; one that does not answer runs the older way, and 
 page says so. Only the stand-ins run here."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -165,3 +166,46 @@ def test_the_script_names_what_an_installed_cli_no_longer_has(tmp_path):
     assert f"codex: missing {surface['codex']['names'][0]}" in said
     assert f"copilot: missing {surface['copilot']['names'][-1]}" in said
     assert "claude: all" in said and "agy: all" in said
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell and a .cmd stand-in")
+def test_the_script_asks_the_copilot_koloni_runs_and_searches_the_package_it_runs(tmp_path):
+    # (No real CLI is run: each one is a stand-in, Copilot a .cmd that says 1.0.114.)
+    surface = json.loads((ROOT / "app" / "cli_surface.json").read_text("utf-8"))
+    names = surface["copilot"]["names"]
+    seen = tmp_path / "seen.txt"
+    copilot = tmp_path / "copilot.cmd"
+    copilot.write_text(f'@echo off\r\necho %*^|%COPILOT_HOME%> "{seen}"\r\n'
+                       f'dir /b "%COPILOT_HOME%" >> "{seen}" 2>nul\r\n'
+                       "echo GitHub Copilot CLI 1.0.114.\r\n", encoding="ascii")
+    package = tmp_path / "local" / "copilot" / "pkg" / "win32-x64" / "1.0.114"
+    (package / "prebuilds" / "win32-x64").mkdir(parents=True)
+    (package / "prebuilds" / "win32-x64" / "runtime.node").write_bytes(
+        b"\x00".join(n.encode() for n in names[:-1]))
+    (package / "copilot-sdk").mkdir()
+    (package / "copilot-sdk" / "index.js").write_text("// the SDK", encoding="utf-8")
+    schema = tmp_path / "schema"
+    schema.mkdir()
+    (schema / "a.json").write_text(json.dumps(surface["codex"]["names"]), encoding="utf-8")
+    claude = tmp_path / "claude-pkg"
+    claude.mkdir()
+    (claude / "cli.js").write_bytes(" ".join(surface["claude"]["names"]).encode())
+    agy = tmp_path / "agy.exe"
+    agy.write_bytes(" ".join(surface["agy"]["names"]).encode())
+    told = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+         str(ROOT / "scripts" / "cli-surface.ps1"), "-CodexSchema", str(schema),
+         "-Claude", str(claude), "-CopilotExe", str(copilot), "-Agy", str(agy)],
+        capture_output=True, text=True, timeout=120,
+        env={**os.environ, "LOCALAPPDATA": str(tmp_path / "local")})
+    said = told.stdout
+    assert told.returncode == 1, said + told.stderr
+    assert "copilot: version GitHub Copilot CLI 1.0.114. (NOT measured" in said
+    assert f"copilot: searching {package} (the package it runs)" in said
+    assert f"copilot: missing {names[-1]}" in said and "codex: all" in said
+    # asked as KOLONİ starts it: no update of its own, in an empty home of KOLONİ's, gone after
+    asked, home = seen.read_text("ascii").splitlines()[0].split("|")
+    assert asked.split() == ["--no-auto-update", "--version"]
+    assert home.strip() and "koloni-copilot-home-" in home
+    assert len(seen.read_text("ascii").splitlines()) == 1  # (nothing in it)
+    assert not Path(home.strip()).exists()
