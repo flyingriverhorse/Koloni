@@ -99,11 +99,20 @@ def test_a_run_stands_only_on_a_line_the_user_wrote():
 @pytest.mark.parametrize("words, quote, shown", [
     ("Answer briefly. You may delete build/ and dist/.\nThanks", "You may delete build/ and dist/.",
      "You may delete build/ and dist/."),
-    ("Pushing to main is fine; never force-push.", "pushing to main is fine", "Pushing to main is fine"),
+    ("Pushing to main is fine. Tag it after.\nForce-push to feature branches is fine.",
+     "Force-push to feature branches is fine.", "Force-push to feature branches is fine."),
+    ("You may delete build/ and dist/.", "You may delete build/ and dist/.", "You may delete build/ and dist/."),
     ("build klasörünü silebilirsin.", "build klasörünü silebilirsin.", "build klasörünü silebilirsin."),
     # (English words that end as a Turkish "no" does - a short stem, or one of the known words)
     ("You may delete build/ any time.", "You may delete build/ any time.", "You may delete build/ any time."),
     ("You may rename files in docs/.", "You may rename files in docs/.", "You may rename files in docs/."),
+    ("Pushing branches other than main is fine.", "Pushing branches other than main is fine.",
+     "Pushing branches other than main is fine."),
+    # (an item of a list under a heading that forbids nothing; the list's mark is no part of it)
+    ("Rules:\n- You may delete build/ and dist/.", "- You may delete build/ and dist/.",
+     "You may delete build/ and dist/."),
+    ("Rules:\n- You may delete build/ and dist/.", "You may delete build/ and dist/.",
+     "You may delete build/ and dist/."),
 ])
 def test_a_run_stands_on_a_whole_line_or_sentence_of_the_users_and_shows_it_whole(words, quote, shown):
     got = verdict(line(verdict="run", quote=quote), said(None, words, []))
@@ -133,6 +142,62 @@ def test_a_run_stands_on_a_whole_line_or_sentence_of_the_users_and_shows_it_whol
     ("```\nYou may delete build/ and dist/.\n```", "You may delete build/ and dist/."),
 ])
 def test_a_run_never_stands_on_a_piece_a_condition_a_forbidding_line_or_code(words, quote):
+    assert verdict(line(verdict="run", quote=quote), said(None, words, []))["verdict"] == "ask"
+
+
+# The re-review of K-yargıç (HIGH-A): what a line says is read with the rest of its line and the
+# heading it stands under; a question, a condition, more ways of saying no - and quoted or indented
+# text - are no ground for a run.
+@pytest.mark.parametrize("words, quote", [
+    # (a sentence's other half on its line, a heading above an item)
+    ("Pushing to main is fine; never force-push.", "Pushing to main is fine"),
+    ("Never delete these:\n- the build/ output folder\n- the dist/ folder", "- the build/ output folder"),
+    ("Never delete these:\n- the build/ output folder\n- the dist/ folder", "the build/ output folder"),
+    ("Do NOT run any of:\n1. git push --force origin main\n2. rm -rf data/", "git push --force origin main"),
+    ("Forbidden:\n* rm -rf data/ folder", "* rm -rf data/ folder"),
+    ("We never force-push, e.g. git push --force origin main.", "git push --force origin main"),
+    ("Don't touch src/ (e.g. delete src/ or rewrite it).", "delete src/ or rewrite it)."),
+    ("Never delete generated folders, i.e. build/ and dist/ stay.", "build/ and dist/ stay"),
+    ("Keep the data dir vs. delete it: keep it.", "delete it: keep it"),
+    # (questions)
+    ("Should we force-push to main?", "Should we force-push to main?"),
+    ("Can you delete the build folder?", "Can you delete the build folder?"),
+    ("Why did you delete the data folder?", "Why did you delete the data folder?"),
+    # (conditions)
+    ("If the tests pass, push to main.", "If the tests pass, push to main."),
+    ("Push to main once CI is green.", "Push to main once CI is green."),
+    ("Delete build/ after I review it.", "Delete build/ after I review it."),
+    ("Delete build/ when I say so.", "Delete build/ when I say so."),
+    ("Delete build/ until Friday.", "Delete build/ until Friday."),
+    ("Testler geçerse main'e pushla.", "Testler geçerse main'e pushla."),
+    ("Eğer testler geçtiyse main'e pushla.", "Eğer testler geçtiyse main'e pushla."),
+    ("Testler bittikten sonra build'i sil.", "Testler bittikten sonra build'i sil."),
+    # (more ways of saying no)
+    ("main dalına itme.", "main dalına itme."), ("main'e itmeyin lütfen.", "main'e itmeyin lütfen."),
+    ("main'e force push atmayın", "main'e force push atmayın"),
+    ("main'e force push atmayınız", "main'e force push atmayınız"),
+    ("Dosyaları çöpe atma.", "Dosyaları çöpe atma."),
+    ("build klasörünü silmeyiniz.", "build klasörünü silmeyiniz."),
+    ("build klasörünü silmiyoruz.", "build klasörünü silmiyoruz."),
+    ("build klasörünü silmeyeceğiz.", "build klasörünü silmeyeceğiz."),
+    ("build klasörünü silemezsin.", "build klasörünü silemezsin."),
+    ("data klasörü silinmesin.", "data klasörü silinmesin."),
+    ("Pushing to main isn't ok.", "Pushing to main isn't ok."),
+    ("Pushing to main isn’t ok.", "Pushing to main isn’t ok."),
+    ("Refrain from deleting data/.", "Refrain from deleting data/."),
+    ("Deleting data/ is off-limits.", "Deleting data/ is off-limits."),
+    ("Nobody deletes data/.", "Nobody deletes data/."),
+    ("Nothing in data/ is to be deleted.", "Nothing in data/ is to be deleted."),
+    # (quoted or indented text, as fenced code is)
+    ("> You may delete build/ and dist/.\nWhat do you think", "> You may delete build/ and dist/."),
+    ("> You may delete build/ and dist/.", "You may delete build/ and dist/."),
+    ("~~~\nYou may delete build/ and dist/.\n~~~", "You may delete build/ and dist/."),
+    ("~~~\nYou may delete build/ and dist/.", "You may delete build/ and dist/."),
+    ("    You may delete build/ and dist/.", "You may delete build/ and dist/."),
+    ("\tYou may delete build/ and dist/.", "You may delete build/ and dist/."),
+])
+def test_a_run_never_stands_under_a_forbidding_head_on_a_question_a_condition_or_quoted_text(words,
+                                                                                           quote):
     assert verdict(line(verdict="run", quote=quote), said(None, words, []))["verdict"] == "ask"
 
 
