@@ -140,6 +140,14 @@
     "auto": {
      "tier": "fast",
      "note": "Copilot picks the model for each request; no thinking level"
+    },
+    "fusion": {
+     "tier": null,
+     "note": "Copilot Fusion: several models try each turn and one is kept; costs more than auto; only on plans that have it",
+     "source": {
+      "url": "copilot --model fusion",
+      "read_on": "2026-11-20"
+     }
     }
    },
    "extra_measured": "CLI 1.0.105 (-p): auto picked GPT-6 Luna for a short task, 0.18 AI credits; with a level it is refused",

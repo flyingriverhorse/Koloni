@@ -51,7 +51,7 @@ def test_a_flag_said_with_the_models_is_kept_and_fill_all_keeps_its_own(team):  
         "for_agents": False, "models": [{"name": "quick", "tier": "fast"}]})
     assert told.json()["for_agents"] is False  # said in the same request: as said
     assert told.json()["models"] == [{"name": "quick", "note": None, "tier": "fast", "agents": True, "enabled": None, "off_why": None, "inputs": None,
-                                      "context": None}]
+                                      "context": None, "routing": None}]
     def fill_all(*agents):
         rows = [{"name": name, "tier": "fast", "agents": on} for name, on in zip(("quick", "deep"), agents, strict=True)]
         saved = client.post("/api/providers/fill-all/save", json={"providers": [{

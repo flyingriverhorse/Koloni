@@ -3317,6 +3317,10 @@ class ProviderModel(BaseModel):
     # K-copilot-baglam: Copilot's context window tier (`--context`), only on the user's GitHub
     # account (`providers.check_guide`). None or "default": none is passed.
     context: Literal["default", "long_context"] | None = None
+    # Copilot's auto's or fusion's routing (`model_session.ROUTINGS`), only on the user's GitHub
+    # account (`providers.check_guide`). None: Copilot's own default.
+    routing: Literal["efficiency", "balance", "intelligence", "standard", "high", "max"] | None = (
+        None)
 
 
 class TierModel(BaseModel):

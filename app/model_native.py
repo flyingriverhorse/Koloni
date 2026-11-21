@@ -3320,13 +3320,14 @@ class CopilotNativeClient(CodexNativeClient):
         "command, and may be refused.")
 
     def __init__(self, executable=None, model=None, timeout: float = 900.0, *,
-                 base_url=None, api_key=None, options=None, context=None, **more):
+                 base_url=None, api_key=None, options=None, context=None, routing=None,
+                 **more):
         super().__init__(executable, model, timeout, **more)
         # The session client knows how Copilot is started and what it is told about
         # the model server; natively only its tools differ.
         self._session = CopilotSessionClient(
             executable, model, timeout, base_url=base_url, api_key=api_key, options=options,
-            context=context, **more,
+            context=context, routing=routing, **more,
         )
         # Its `auto` takes no level, as the session's (`level_in_name`).
         self.efforts, self.level_named = self._session.efforts, self._session.level_named
@@ -3758,7 +3759,7 @@ class CopilotNativeClient(CodexNativeClient):
                         # skills. No additionalDirectories: it would give it those folders,
                         # with their hooks; a path outside is asked about (`_approve`).
                         "enableFileHooks": False, "enableConfigDiscovery": False,
-                        "enableSkills": False,
+                        "enableSkills": False, **self._session.capi(),
                         # Protocol 4: KOLONİ's preToolUse hook asks of every tool of its own.
                         **({"hooks": True} if hooked else {})}
                     made, no = await ask("session.create", _grouped(flat) if hooked else flat)
