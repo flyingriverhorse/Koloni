@@ -1822,29 +1822,33 @@ a.view-run {
   transition: opacity 0.15s;
 }
 
-.chat .msg-list > .turn:last-of-type .turn-actions,
+.chat .msg-list > .turn.turn-latest .turn-actions,
 .turn:is(:hover, :focus-within) .turn-actions,
 .turn-actions:has([aria-label='Stop reading']) {
   opacity: 1;
 }
 
-/* An older turn's foot of only Copy and Read aloud takes no room while they are hidden: it stands over the end of the
-   turn's last line, on the chat's ground, and is seen on the turn's hover or focus as before (32a: in the tab order). */
-.chat .msg-list > .turn:not(:last-of-type) {
+/* An older turn that ends with its answer's words: its foot of only Copy and Read aloud takes no room while they are
+   hidden - it stands over the end of the last line, takes no click, and is seen and pressed on the turn's hover or
+   focus as before (32a: in the tab order). A turn that ends with a card keeps its foot under it: over the card's
+   buttons it would take their clicks. */
+.chat .msg-list > .turn:not(.turn-latest).turn-words-end {
   position: relative;
 }
 
-.chat .msg-list > .turn:not(:last-of-type) > .turn-foot:not(:has(.turn-summary)) {
+.chat .msg-list > .turn:not(.turn-latest).turn-words-end > .turn-foot:not(:has(.turn-summary)) {
   position: absolute;
   right: 0;
   bottom: 0;
   border-radius: var(--radius);
+  pointer-events: none;
 }
 
-/* (Shown, on a ground of their own over the line's end; hidden, the words under them are not covered.) */
-.chat .msg-list > .turn:not(:last-of-type):is(:hover, :focus-within) > .turn-foot,
-.chat .msg-list > .turn:not(:last-of-type) > .turn-foot:has([aria-label='Stop reading']) {
+/* (Shown, on a ground of their own over the line's end, pressed; hidden, the words under them are not covered.) */
+.chat .msg-list > .turn.turn-words-end:is(:hover, :focus-within) > .turn-foot,
+.chat .msg-list > .turn.turn-words-end > .turn-foot:has([aria-label='Stop reading']) {
   background: var(--panel);
+  pointer-events: auto;
 }
 
 @media (hover: none) {
@@ -1853,7 +1857,7 @@ a.view-run {
   }
 
   /* (Always seen on a touch screen: in their own row, over no words.) */
-  .chat .msg-list > .turn:not(:last-of-type) > .turn-foot:not(:has(.turn-summary)) {
+  .chat .msg-list > .turn:not(.turn-latest).turn-words-end > .turn-foot:not(:has(.turn-summary)) {
     position: static;
   }
 }

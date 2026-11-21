@@ -1735,3 +1735,38 @@ test('the focus on a step that folds as its turn ends goes to the fold’s line,
   rerender(<MessageList {...handlers} state={twoSteps('completed')} />)
   expect(container.querySelector('details.turn-steps > summary')).toHaveFocus()
 })
+
+test('only the newest turn is "latest": a newer comparison leaves an older turn’s Copy and Read aloud to the pointer', () => {
+  const older = convState({ runs: [run('a', 'completed')], agents: [agent('a', 'completed')], messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.')] })
+  const { container, rerender } = render(<MessageList {...handlers} state={older} />)
+  expect(container.querySelector('article.turn')).toHaveClass('turn-latest')
+  rerender(
+    <MessageList
+      {...handlers}
+      state={{
+        ...older,
+        runs: [...older.runs, run('b', 'completed', { compare_id: 'k' }), run('c', 'completed', { compare_id: 'k' })],
+        agents: [...older.agents, agent('b', 'completed'), agent('c', 'completed')],
+        messages: [...older.messages, userMessage('b', 'go'), assistantMessage('mb', 'b', 'B side.'), userMessage('c', 'go'), assistantMessage('mc', 'c', 'C side.')],
+      }}
+    />,
+  )
+  expect(container.querySelector('article.turn')).not.toHaveClass('turn-latest')
+})
+
+test('an older turn that ends with its answer’s words lets its hidden foot stand over them; one that ends with a card keeps the foot under it', () => {
+  const offer = { id: 'o9', run_id: 'a', lines: ['docs/api.md was changed'], status: 'waiting', answer: null }
+  const state = (offers: unknown[]) =>
+    convState({
+      runs: [run('a', 'completed'), run('b', 'completed')],
+      agents: [agent('a', 'completed'), agent('b', 'completed')],
+      messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.'), userMessage('b', 'and'), assistantMessage('b1', 'b', 'Done.')],
+      notesOffers: offers as ConvState['notesOffers'],
+    })
+  const { container, rerender } = render(<MessageList {...handlers} state={state([])} />)
+  const older = () => container.querySelectorAll('article.turn')[0]
+  expect(older()).toHaveClass('turn-words-end')
+  rerender(<MessageList {...handlers} state={state([offer])} />)
+  expect(older()).not.toHaveClass('turn-words-end')
+  expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+})

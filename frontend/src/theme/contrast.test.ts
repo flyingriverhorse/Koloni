@@ -199,17 +199,20 @@ test('the chat reads at VS Code’s sizes: words 13/1.5, headings 16/14/13, code
 
 test('a turn has no frame; the latest turn’s Copy and Read aloud are always shown, older ones on hover or focus, by opacity only', () => {
   expect(base.match(/\n\.turn \{([^}]*)\}/)?.[1]).not.toMatch(/border|background|padding/)
-  expect(base).toMatch(/\.turn:last-of-type \.turn-actions[^{]*\{\s*opacity: 1;/)
+  expect(base).toMatch(/\.turn\.turn-latest \.turn-actions[^{]*\{\s*opacity: 1;/)
   // (Hidden any other way they would leave the tab order and a screen reader: 32a.)
   expect(base.match(/\n\.turn-actions \{([^}]*)\}/)?.[1]).toContain('opacity: 0;')
   expect(base).not.toMatch(/\.turn-actions[^{]*\{[^}]*(visibility|display: none)/)
   expect(base + canvas).not.toMatch(/\.turn-card/)
 })
 
-test('an older turn’s hidden Copy and Read aloud take no room: a foot of only those stands over the end of its last line', () => {
-  // (Hidden by opacity, they left a blank band under every older answer; the latest keeps its row.)
-  expect(base).toMatch(/\.chat \.msg-list > \.turn:not\(:last-of-type\) \{\s*position: relative;/)
-  const foot = base.match(/\.chat \.msg-list > \.turn:not\(:last-of-type\) > \.turn-foot:not\(:has\(\.turn-summary\)\) \{([^}]*)\}/)?.[1] ?? ''
+test('an older turn’s hidden Copy and Read aloud take no room: a foot of only those stands over the end of its words, taking no click while hidden', () => {
+  // (Hidden by opacity, they left a blank band under every older answer; the latest keeps its row, and so does a turn
+  // that ends with a card: the foot would lie over its buttons.)
+  expect(base).toMatch(/\.chat \.msg-list > \.turn:not\(\.turn-latest\)\.turn-words-end \{\s*position: relative;/)
+  const foot = base.match(/\.chat \.msg-list > \.turn:not\(\.turn-latest\)\.turn-words-end > \.turn-foot:not\(:has\(\.turn-summary\)\) \{([^}]*)\}/)?.[1] ?? ''
   expect(foot).toContain('position: absolute;')
+  expect(foot).toContain('pointer-events: none;')
   expect(foot).not.toMatch(/visibility|display: none/)
+  expect(base).toMatch(/\.turn-words-end:is\(:hover, :focus-within\) > \.turn-foot[^{]*\{[^}]*pointer-events: auto;/)
 })

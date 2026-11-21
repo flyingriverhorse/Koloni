@@ -763,6 +763,12 @@ const OPENERS = new Set<Message['role']>(['user', 'trigger'])
 const answerLook = (message: Message, answer: Message | undefined, run: Run | undefined) =>
   message === answer && run && TERMINAL.has(run.status) ? ' msg-answer' : ''
 
+/** A turn's groups end with its answer's words: nothing - no call, no card - after them. */
+const endsInWords = (inside: Group[], answer: Message | undefined) => {
+  const last = inside.at(-1)
+  return !!answer && last?.message.id === answer.id && last.pieces.at(-1)?.key === 'body'
+}
+
 /** A message's group as the chat draws it: its pieces in their order. */
 const drawGroup = (group: Group) => (
   <div key={group.message.id} className="msg-group">
@@ -1138,6 +1144,8 @@ export function MessageList({
   // shortcut: one the Orchestrator invited into a room asks in the chat too, with the note only in the room's window;
   // go by the questions the chat draws if that is ever missed.
   const inRooms = new Set(state.rooms.flatMap(room => [...inRoom(state, room).keys()]))
+  // The chat's newest turn: a comparison or a turn with no Lead as the newest leaves no older card "latest".
+  const latestRun = ordered.findLast(m => !OPENERS.has(m.role))?.run_id
   /**
    * A finished turn's groups (0.1.5): its steps before its answer folded into one line once there are two, what of them
    * stays in sight after it in its order (a group split in two keeps its key: kept, it stays mounted), the answer on.
@@ -1174,7 +1182,17 @@ export function MessageList({
     if (inside.length === 0 || run.compare_id || !lead) return [...inside.map(drawGroup), queued, summary]
     return [
       // (It waits while the server says the turn does - for a question, a card, a role: as the canvas has it.)
-      <TurnCard key={`turn:${runId}`} state={state} run={run} lead={lead} answer={answer} summary={summary} waits={run.status === 'waiting_approval'}>
+      <TurnCard
+        key={`turn:${runId}`}
+        state={state}
+        run={run}
+        lead={lead}
+        answer={answer}
+        summary={summary}
+        waits={run.status === 'waiting_approval'}
+        latest={runId === latestRun}
+        wordsEnd={endsInWords(inside, answer)}
+      >
         {turnBody(run, answer, inside)}
         {queued}
       </TurnCard>,

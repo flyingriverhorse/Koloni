@@ -199,3 +199,27 @@ test('at 1024 px a room’s window opens beside the open chat, never over it', a
   await waiting.getByRole('button', { name: 'Send answer' }).click()
   await expect(room.getByText('done · 1 of 1')).toBeVisible({ timeout: 20_000 })
 })
+
+test('an older turn that ends with a card keeps its Copy and Read aloud under it: nothing lies over the card’s buttons', async ({ page }) => {
+  const { id, snap, answer } = await realTurn(page)
+  const later = { ...answer, id: 'k15-m', run_id: 'k15-r', content: 'Done again.', created_at: new Date(Date.parse(String(answer.created_at)) + 60_000).toISOString() }
+  const user = snap.messages.find(m => m.role === 'user')!
+  const record = {
+    ...snap,
+    runs: [...snap.runs, { ...snap.runs[0], id: 'k15-r', created_at: later.created_at }],
+    agents: [...snap.agents, { ...snap.agents[0], id: 'k15-a', run_id: 'k15-r' }],
+    messages: [...snap.messages, { ...user, id: 'k15-u', run_id: 'k15-r', content: 'and again', created_at: later.created_at }, { ...later, agent_id: 'k15-a' }],
+    notes_offers: [{ id: 'k15-o', run_id: answer.run_id, lines: ['docs/api.md was changed'], status: 'waiting', answer: null }],
+  }
+  await shown(page, id, record)
+  const chat = page.getByRole('region', { name: 'Chat' })
+  const older = chat.getByRole('article').first()
+  const button = older.getByRole('button', { name: 'Not now' })
+  await button.scrollIntoViewIfNeeded()
+  await older.hover()
+  await expect(button).toBeVisible()
+  const at = (await button.boundingBox())!
+  // (Its middle and near its right end - inside its round corners -, where the foot of the turn would lie.)
+  for (const [x, y] of [[at.x + at.width - 6, at.y + at.height / 2], [at.x + at.width / 2, at.y + at.height / 2]])
+    expect(await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest('button')?.textContent, [x, y])).toBe('Not now')
+})
