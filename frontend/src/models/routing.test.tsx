@@ -124,6 +124,13 @@ test('the chat’s model button says the model fusion picked for the chat’s la
   expect(button).toHaveTextContent(/^fusion → gpt-6-luna · Copilot$/)
   expect(button).toHaveAccessibleName(/^Model: Copilot · fusion/)
   expect(button.title).toContain(why)
+  // (The latest turn's Lead ran elsewhere - its role's own model, say: no pick of an older turn's is shown for it.)
+  act(() =>
+    useApp.setState(s => ({ conv: { ...s.conv!, runs: [...s.conv!.runs, run('r3', 'completed')], agents: [...s.conv!.agents, agent('r3', 'completed', { provider_name: 'Local' })] } })),
+  )
+  expect(button).toHaveTextContent(/^fusion · Copilot$/)
+  expect(button.title).not.toContain(why)
+  act(() => useApp.setState(s => ({ conv: { ...s.conv!, agents: s.conv!.agents.slice(0, 2) } })))
   // (A pick of auto's is not fusion's: the chat moved on from it.)
   rerender(picker('auto'))
   expect(button).toHaveTextContent(/^auto · Copilot$/)

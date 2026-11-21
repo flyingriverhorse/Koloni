@@ -99,12 +99,13 @@ function ButtonLabel({ provider, model, rest, leadAuto, picked }: { provider?: s
 type Picked = { model: string; why: string | null }
 
 /**
- * The model Copilot's auto or fusion picked for this chat's latest Lead that ran on it, and Copilot's reason (`pickedWhy`): only
- * where the chat runs on that routing now, of that provider. Until the next pick is said, the one before stands.
+ * The model Copilot's auto or fusion picked for this chat's latest turn, and Copilot's reason (`pickedWhy`): only where its Lead
+ * ran on the routing the chat uses now, of that provider. (A turn that starts says nothing until Copilot says its pick.)
  */
 function usePicked(provider: string | undefined, routing: string | null): Picked | null {
-  const lead = useApp(s => s.conv?.agents.findLast(a => a.depth === 0 && !!a.model_id && a.provider_name === provider && a.model_from === routing))
-  return lead?.model_id && autoPicked(lead.model_from) ? { model: modelName(lead.model_id), why: pickedWhy(lead.effort_note) } : null
+  const lead = useApp(s => s.conv?.agents.findLast(a => a.depth === 0))
+  const ours = lead?.model_id && lead.provider_name === provider && lead.model_from === routing && autoPicked(routing)
+  return ours ? { model: modelName(lead.model_id), why: pickedWhy(lead.effort_note) } : null
 }
 
 /** The button's name and tooltip: what the chat uses (`nowOf`), with what Copilot's routing picked and why (`usePicked`). */
