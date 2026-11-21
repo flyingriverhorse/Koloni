@@ -60,6 +60,11 @@ describe('K-38b-sinirlar: a window opening in the top right', () => {
     expect(placeWindow({ ...want, left: 400, width: 186 }, stage, { ...chat(0, 0, 300, 670), column: true }, [])).toEqual({ ...want, left: 400, width: 186 })
     expect(placeWindow(want, stage, chat(14, 16, 300, 640), [])).toEqual({ left: 328, top: 14, width: 258, height: 360 })
     expect(placeWindow(want, stage, chat(14, 16, 480, 640), [])).toBe(want)
+    // B-157: with the inspector over the stage's right side, its CSS holds its right edge off it, and that edge holds here
+    // too - 220 left beside a 420 column at 1048 px is less than LEAST: where it was before, never 6 px under the inspector.
+    const left = { left: 334, top: 14, width: 320, height: 360 }
+    expect(placeWindow(left, { width: 984, height: 670 }, { ...chat(0, 0, 420, 670), column: true }, [])).toBe(left)
+    expect(placeWindow(left, { width: 984, height: 670 }, { ...chat(0, 0, 340, 670), column: true }, [])).toEqual({ ...left, left: 354, width: 300 })
   })
 
   test('a chat moved to the top right: left of it, or below it, wherever is more room - never past the stage', () => {
