@@ -1791,7 +1791,9 @@ a.view-run {
   font-weight: var(--weight-strong);
 }
 
+/* (Too narrow for both, the model gives way first: who answered is cut last.) */
 .turn-model {
+  flex-shrink: 100;
   color: var(--muted);
   font-size: var(--text-note);
 }
@@ -1833,7 +1835,9 @@ a.view-run {
 }
 
 /* Copy and Read aloud (slice 32a) at the foot's right: seen on the card's hover or focus, on a touch screen, and while
-   it reads. Hidden by opacity only: a keyboard and a screen reader reach them all the same. */
+   it reads. Hidden by opacity only: a keyboard and a screen reader reach them all the same. Under a turn with nothing
+   to tell of what it did they are the foot's only line, so they stay in sight: hidden, they left a blank band there.
+   shortcut: chosen without a look in the browser; a duration line in that foot is the other way, if this one is too loud. */
 .turn-actions {
   display: flex;
   gap: 4px;
@@ -1842,6 +1846,7 @@ a.view-run {
   transition: opacity 0.15s;
 }
 
+.turn-foot:not(:has(.turn-summary)) .turn-actions,
 .turn-card:is(:hover, :focus-within) .turn-actions,
 .turn-actions:has([aria-label='Stop reading']) {
   opacity: 1;

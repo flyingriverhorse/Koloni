@@ -173,4 +173,6 @@ test('a turn’s card is drawn by its border on its own ground, and its foot’s
   // (Hidden any other way they would leave the tab order and a screen reader: 32a.)
   expect(base.match(/\n\.turn-actions \{([^}]*)\}/)?.[1]).toContain('opacity: 0;')
   expect(base).not.toMatch(/\.turn-actions[^{]*\{[^}]*(visibility|display: none)/)
+  // (A foot with no line of what the turn did is only its buttons: shown, not a blank band under the answer.)
+  expect(base).toMatch(/\.turn-foot:not\(:has\(\.turn-summary\)\) \.turn-actions[^{]*\{\s*opacity: 1;/)
 })
