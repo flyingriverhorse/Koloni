@@ -207,6 +207,18 @@ test('a switch is a branch read after another one: not the first read, nor the s
   read.mockRestore()
 })
 
+test('another project’s first branch read is no switch: its Workspace is new already', async () => {
+  const read = vi.spyOn(api, 'get').mockResolvedValueOnce(git()).mockResolvedValue(git({ branch: 'dev' }))
+  useApp.setState({ conv: null })
+  const from = useApp.getState().gitSwitches
+  const { rerender } = render(<GitStatus projectId="a" />)
+  await waitFor(() => expect(useApp.getState().gitBranch).toBe('main'))
+  rerender(<GitStatus projectId="b" />)
+  await waitFor(() => expect(useApp.getState().gitBranch).toBe('dev'))
+  expect(useApp.getState().gitSwitches).toBe(from)
+  read.mockRestore()
+})
+
 const branch = (name: string, over: Partial<Git['branches'][number]> = {}): Git['branches'][number] => ({
   name,
   ref: `refs/heads/${name}`,
