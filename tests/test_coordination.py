@@ -368,8 +368,24 @@ def test_a_copys_command_naming_its_own_copy_or_below_is_not_asked(tmp_path):
     _project, _runtime, own, _held, _worktree = places(tmp_path)
     for command in [f"python {own}/x.py > {own}/out.txt", *LIVE, "git log HEAD..main",
                     "git diff main...HEAD", f"cd {own}/src && pytest", "cd src; cp x ../y",
-                    "cd src && cd .. && pytest"]:
+                    "cd src && cd .. && pytest", "cd $X; pytest", "D=src/x; cp y $D/z",
+                    "python -c \"print('a..b')\""]:
         assert asked_in_copy(tmp_path, command) == "", command
+
+
+@pytest.mark.parametrize("command, named", [
+    # (past a `cd` that is not followed, a `..` is taken as out of the copy: fail closed)
+    ("cd $PWD; cp x ../../b", "../../b"), ("cd -; cat ../x", "../x"), ("popd; cat ../x", "../x"),
+    ("cd $X; ls ..", ".."), (r"Set-Location $PSScriptRoot; cp x ..\y", r"..\y"),
+    ("cd; ls ../..", "../.."), ("cd /elsewhere; cat ../x", "../x"), ("cd $X; cd ..", ".."),
+    # (in quotes or a bracket of code)
+    (r"""python -c "open(r'..\..\b\x','w')" """, r"..\..\b\x"),
+    ("python -c \"import os; os.path.join('..','x')\"", ".."),
+    # (a variable set to a path up out of it)
+    ("D=../../b/tree; cp x $D/y", "../../b/tree"), ("export D=../../b; cp x $D", "../../b"),
+])
+def test_a_climb_out_of_the_copy_is_seen_where_the_line_is_not_followed(tmp_path, command, named):
+    assert asked_in_copy(tmp_path, command) == OUT_OF_COPY.format(path=named), command
 
 
 def test_before_its_copy_is_made_every_copy_is_anothers(tmp_path):

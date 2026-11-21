@@ -1058,44 +1058,57 @@ def _above(went: str | None) -> bool:
     return went is not None and went.split("/")[0] == ".."
 
 
-def _cd_to(words: list[str], at: str, own: re.Pattern | None) -> str | None:
-    """Where a part that changes folder (`_CD`) leaves a command in a copy (`_in_copy`); None
-    where that is not followed: `popd`, no folder named or more than one, a variable, a
-    wildcard or `~`, a full path not of the copy's own tree."""
+def _cd_to(words: list[str], at: str | None, own: re.Pattern | None) -> str | None:
+    """Where a part that changes folder (`_CD`) leaves a command in a copy (`_in_copy`; `at`
+    None: not known); None where that is not followed: `popd`, no folder named or more than
+    one, a variable, a wildcard or `~`, a full path not of the copy's own tree, a folder from
+    where it is not known."""
     named = [word for word in words[1:] if not word.startswith("-")
              and word.casefold() != "/d"]  # (cmd's `cd /d x`)
     if _program(words[0]) in ("popd", "pop-location") or len(named) != 1 or re.search(
-            r"[$%`~*?]", named[0]):
+            r"[$%`~*?]", named[0]) or at is None and not _full(named[0]):
         return None
-    return _in_copy(named[0], at, own)
+    return _in_copy(named[0], at or ".", own)
+
+
+def _climbing(words: list[str], at: str | None, own: re.Pattern | None) -> str:
+    """A path among `words` that leads above a copy's tree by `..` from its folder `at` - from
+    one not known (None), any that climbs; split at what may stand around a path in a line
+    or in code handed to an interpreter (`--dir="../x"`, `>"..\\x"`, `open(r'..\\x')`)."""
+    for word in words:  # (a program too: `..\.venv\Scripts\python.exe`)
+        for piece in re.split(r"[=<>,@'\"(]", re.sub(r"^-[\w-]*:", "", word.strip("'\""))):
+            if ".." in re.split(r"[\\/]", piece) and (at is None and not _full(piece) or _above(
+                    _in_copy(piece, at or ".", own))):
+                return piece
+    return ""
 
 
 def _climbs_out(command: str, cwd: str | None, own: str | None) -> str:
     """What a command run in a copy names above the copy's tree by `..` - from where it runs
     (`cwd`, in the copy), followed through each plain `cd` (`sl`, `pushd`, `Set-Location`) to a
-    folder of the copy, or from the tree's own full path (`own`); "" for none, and where it runs
-    is not known (`cwd` None). `HEAD..main` is no `..`.
-    shortcut: honest lines, not a wall - a `cd` not followed (a variable, another full path,
-    `popd`) ends the look, and a path built, held in a variable or a script is not seen; the
+    folder of the copy, or from the tree's own full path (`own`); past a `cd` not followed (a
+    variable, another full path, `popd`), any `..`: fail closed. A variable set to a path that
+    climbs counts too (`D=../../b; cp x $D/y`). "" for none, and where it runs is not known
+    (`cwd` None). `HEAD..main` is no `..`.
+    shortcut: honest lines, not a wall - a path built, or held in a script, is not seen; the
     folder a command runs in, and its copy's folder, are the wall."""
     if cwd is None:
         return ""
     mine = _spellings(own) if own is not None else None
-    at = posixpath.normpath(cwd.replace("\\", "/"))
+    start = posixpath.normpath(cwd.replace("\\", "/"))
+    at: str | None = start
     for words in (words for words in _commands_in(command, at=_BLOCKS) if words):
         if _program(words[0]) in _CD:
             went = _cd_to(words, at, mine)
-            if went is None:
-                return ""
-            if _above(went):
+            if _above(went) or went is None and _climbing(words[1:], None, mine):
                 return words[-1]
             at = went
-            continue
-        for word in words:  # (its program too: `..\.venv\Scripts\python.exe`)
-            for piece in re.split(r"[=<>,@]", re.sub(r"^-[\w-]*:", "", word.strip("'\""))):
-                piece = piece.strip("'\"")  # (`--dir="../x"`, `>"..\x"`)
-                if ".." in re.split(r"[\\/]", piece) and _above(_in_copy(piece, at, mine)):
-                    return piece
+        elif piece := _climbing(words, at, mine):
+            return piece
+    for words in _parts(command, _BLOCKS):  # (what a shell's variable is set to)
+        if piece := _climbing([word.split("=", 1)[1] for word in words
+                               if _ASSIGNMENT.match(word)], start, mine):
+            return piece
     return ""
 
 
