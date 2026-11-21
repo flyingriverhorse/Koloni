@@ -6,6 +6,16 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Added
+
+- **Settings**: Settings › This project › Asking and away has **A harmful-looking command at Full auto**: **Ask me** (as before, and the default; existing projects keep it) or **Check what I said first** - before a command that deletes, overwrites or sends something off this machine waits for you at Full auto, the first model of your Fast tier reads your preferences, this project's rules as saved on the Memory page and your own messages in the chat, and the command runs without a card only when one of your lines names it; secret files, `.koloni`, files that steer later turns and paths outside the folder are always asked, and anything that goes wrong opens the card as before ([docs](settings.md#asking-and-away)).
+- **Chat**: a command that ran without a card that way says so under it, with the line of yours it rested on and where that line is (Your preferences, This project's rules or your message), and waits under **Decided for you** until you press OK; when the check found nothing of yours that covers a command, its card says "Nothing you said covers this."
+- **Memory**: when the folder's `.koloni/rules.md` differs from the rules saved here, the page says so, and **Save rules** keeps the folder's text here.
+
+### Changed
+
+- **Chat**: when the Orchestrator answers a question for you, it also reads your preferences and this project's rules as saved on the Memory page.
+
 ## [0.1.4] - 2026-11-21
 
 ### Added
