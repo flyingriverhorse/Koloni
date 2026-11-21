@@ -16,7 +16,7 @@ import {
 } from '../test-fixtures'
 import { sentAt, topicOf } from '../canvas/thread.fixtures'
 import { ALIBABA_CONSOLE } from '../agents/failure'
-import type { Provider } from '../api/types'
+import type { Attachment, Discussion, Provider } from '../api/types'
 import { useApp } from '../state/store'
 import { AgentWindow } from '../agents/AgentWindow'
 import { Inspector } from './Inspector'
@@ -436,4 +436,129 @@ test('the Assistant PO’s node opens what came of its request and why each one 
   // a turn it was not asked about: nothing to open
   const { container } = render(<Inspector state={convState({ runs: [run('r')] })} selectedId="po:r" onClose={() => {}} />)
   expect(container).toBeEmptyDOMElement()
+})
+
+/** The inspector's head: its title and the line under it. */
+const head = () => [document.querySelector('.insp-title')?.textContent, document.querySelector('.insp-sub')?.textContent]
+
+test('a file you attached opens on its own, handed to whom; the box of a message’s files opens on them all, not a frame of a video', () => {
+  const file = (id: string, over: Partial<Attachment> = {}): Attachment => ({
+    id, conversation_id: 'c', message_id: 'u-r', frame_of: null, given_to: [], keep_in_project: false, kind: 'image', mime: 'image/png',
+    name: `${id}.png`, shown_to: {}, size: 10, summary: '', created_at: '2026-10-05T10:00:00Z', ...over,
+  })
+  const files = convState({
+    runs: [run('r')],
+    agents: [agent('r', 'running', { name: 'Coder' })],
+    messages: [userMessage('r', 'look at these')],
+    attachments: [file('a', { given_to: ['r'] }), file('b'), file('frame', { frame_of: 'b' })],
+  })
+  const { rerender } = render(<Inspector state={files} selectedId="attachment:a" onClose={() => {}} />)
+  expect(head()).toEqual(['a.png', 'handed to Coder'])
+  expect(screen.getByRole('img', { name: 'a.png' })).toBeInTheDocument()
+  rerender(<Inspector state={files} selectedId="attachment:b" onClose={() => {}} />)
+  expect(head()).toEqual(['b.png', 'attached by you'])
+  rerender(<Inspector state={files} selectedId="files:r" onClose={() => {}} />)
+  expect(head()).toEqual(['2 files', 'attached by you'])
+  expect(Array.from(document.querySelectorAll('.att-mini'), mini => mini.textContent)).toEqual(['PNGa.png', 'PNGb.png'])
+  // (one not there, or a turn with no request: nothing)
+  rerender(<Inspector state={files} selectedId="attachment:gone" onClose={() => {}} />)
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
+  rerender(<Inspector state={files} selectedId="files:other" onClose={() => {}} />)
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
+})
+
+test('a discussion opens its shared place from its button, when there is a way to; one not there opens nothing', async () => {
+  const talk: Discussion = {
+    id: 'd', run_id: 'r', agent_id: 'r', tool_call_id: '9', topic: 'Which way?', max_rounds: 3, round: 1, status: 'running', outcome: null,
+    created_at: '2026-10-05T10:00:00Z', ended_at: null, members: [{ agent_id: 'r', status: 'in', opened_here: false }],
+  }
+  const talking = convState({ runs: [run('r')], agents: [agent('r', 'running', { name: 'Coder' })], discussions: [talk] })
+  const onOpenDiscussion = vi.fn()
+  const { rerender } = render(<Inspector state={talking} selectedId="discussion:d" onClose={() => {}} onOpenDiscussion={onOpenDiscussion} />)
+  expect(screen.getByText('Nothing yet.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Open discussion' }))
+  expect(onOpenDiscussion).toHaveBeenCalledWith('d')
+  rerender(<Inspector state={talking} selectedId="discussion:d" onClose={() => {}} />)
+  expect(screen.queryByRole('button', { name: 'Open discussion' })).toBeNull()
+  rerender(<Inspector state={talking} selectedId="discussion:gone" onClose={() => {}} />)
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
+})
+
+test('a plan opens as it stands, from its own node and from over the Lead it was approved for; a turn with no plan opens nothing', () => {
+  const plan = { text: '1. **read**\n2. write', status: 'approved' as const, model_id: 'big-model', strongest: true }
+  const planned = convState({ runs: [run('p', 'completed', { plan_turn: true, plan }), run('w')] })
+  const { rerender } = render(<Inspector state={planned} selectedId="plan:p" onClose={() => {}} />)
+  expect(head()).toEqual(['Plan · approved', 'Planned by big-model · the team’s strongest model'])
+  expect(screen.getByText('read').tagName).toBe('STRONG')
+  rerender(<Inspector state={planned} selectedId="planned:p" onClose={() => {}} />)
+  expect(head()).toEqual(['Plan · approved', 'Planned by big-model · the team’s strongest model'])
+  rerender(<Inspector state={planned} selectedId="plan:w" onClose={() => {}} />)
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
+})
+
+/** A CLI's own sub-agent (call 2), with a command and a file of its, beside the agent's own; a question of each. */
+const withSub = convState({
+  runs: [run('r')],
+  agents: [agent('r', 'running', { name: 'Coder' })],
+  toolCalls: [
+    toolCall('2', 'r', 'claude__Agent', 'running', '{"description":"Look around","prompt":"x","subagent_type":"Explore"}', { origin: 'cli' }),
+    toolCall('4', 'r', 'run_command', 'succeeded', '{}', { origin: 'cli', parent_call_id: '2' }),
+    toolCall('5', 'r', 'edit_file', 'succeeded', '{"path":"hello.py"}', { origin: 'cli', parent_call_id: '2' }),
+    toolCall('6', 'r', 'run_command', 'failed', '{}'),
+  ],
+  commands: [command('k1', 'r', { origin: 'cli', tool_call_id: '4', command: 'python hello.py' }), command('k2', 'r', { tool_call_id: '6', command: 'git status' })],
+  fileChanges: [fileChange('f1', 'r', { origin: 'cli', tool_call_id: '5', path: 'hello.py' }), fileChange('f2', 'r', { path: 'b.py' })],
+  questions: [
+    question('q1', 'r', { tool_call_id: '4' }),
+    question('q2', 'r', { tool_call_id: '2' }),
+    question('q3', 'r', { tool_call_id: '6' }),
+    question('q4', 'r', { tool_call_id: '2', status: 'answered' }),
+  ],
+})
+
+test('a sub-agent of the CLI’s own asks what waits on it and on its tools, opens its agent’s window; its commands and files are its own', async () => {
+  const onOpenAgent = vi.fn()
+  const { rerender } = render(
+    <Inspector state={withSub} selectedId="subagent:2" onClose={() => {}} onOpenAgent={onOpenAgent} renderQuestion={q => <p key={q.id}>asks {q.id}</p>} />,
+  )
+  expect(head()).toEqual(['Look around', 'own sub-agent of Coder'])
+  expect(screen.getAllByText(/^asks /).map(p => p.textContent)).toEqual(['asks q1', 'asks q2'])
+  await userEvent.click(screen.getByRole('button', { name: 'Open window' }))
+  expect(onOpenAgent).toHaveBeenCalledWith('r')
+  rerender(<Inspector state={withSub} selectedId="commands:2" onClose={() => {}} />)
+  expect(head()).toEqual(['Commands', '1 commands'])
+  expect(screen.getByText('python hello.py')).toBeInTheDocument()
+  rerender(<Inspector state={withSub} selectedId="commands:r" onClose={() => {}} />)
+  expect(head()).toEqual(['Commands', '1 commands'])
+  expect(screen.getByText('git status')).toBeInTheDocument()
+  rerender(<Inspector state={withSub} selectedId="changes:2" onClose={() => {}} />)
+  expect(head()).toEqual(['Files', '1 files'])
+  expect(screen.getByText('hello.py')).toBeInTheDocument()
+  rerender(<Inspector state={withSub} selectedId="changes:r" onClose={() => {}} />)
+  expect(screen.getByText('b.py')).toBeInTheDocument()
+  rerender(<Inspector state={withSub} selectedId="owntools:2" onClose={() => {}} />)
+  expect(head()).toEqual(['Own tools', '1 calls'])
+  // (without a way to open a window: no button)
+  rerender(<Inspector state={withSub} selectedId="subagent:2" onClose={() => {}} />)
+  expect(screen.queryByRole('button', { name: 'Open window' })).toBeNull()
+})
+
+test('one command opens with what it is, its card while it waits and no "No output" then; one file says what kind of change by whom', () => {
+  const waits = command('k', 'r', { origin: 'cli', status: 'proposed', started_at: null, ended_at: null, cwd: null })
+  const state = convState({
+    runs: [run('r')],
+    agents: [agent('r', 'running', { name: 'Coder' })],
+    commands: [waits],
+    fileChanges: [fileChange('new', 'r', { origin: 'cli', kind: 'create', path: 'src/new.py' }), fileChange('gone', 'r', { kind: 'delete', path: 'old.py' })],
+  })
+  const facts = () => Array.from(document.querySelectorAll('.facts dd'), dd => dd.textContent)
+  const { rerender } = render(<Inspector state={state} selectedId="command:k" onClose={() => {}} renderCommandApproval={c => <p>decide {c.id}</p>} />)
+  expect(facts()).toEqual(['waits for you', 'Coder', 'the CLI itself, with a tool of its own', 'not known', 'This machine', '—', '120s'])
+  expect(screen.getByText('decide k')).toBeInTheDocument()
+  expect(screen.queryByText('No output.')).toBeNull()
+  rerender(<Inspector state={state} selectedId="file:new" onClose={() => {}} />)
+  expect(head()).toEqual(['new.py', 'src/new.py'])
+  expect(facts()).toEqual(['Coder', 'the CLI itself, with a tool of its own', 'new file', 'Applied'])
+  rerender(<Inspector state={state} selectedId="file:gone" onClose={() => {}} />)
+  expect(facts()).toEqual(['Coder', 'KOLONİ', 'deleted file', 'Applied'])
 })
