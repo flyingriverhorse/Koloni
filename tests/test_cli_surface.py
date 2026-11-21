@@ -126,21 +126,38 @@ def test_copilots_version_and_protocol_are_read_in_one_start_with_no_auto_update
     assert all("--headless" in argv and "--no-auto-update" in argv for argv in began)
 
 
-@pytest.mark.parametrize("told, status", [
-    ({"status_error": True}, "completed"), ({"status_hang": True, "protocol": 5}, "failed")])
-def test_a_copilot_that_does_not_say_its_status_runs_natively_and_its_own_ping_decides(
-    copilot_native, wait_run, project_dir, monkeypatch, told, status  # noqa: F811
+@pytest.mark.parametrize("told", [{"status_error": True}, {"status_hang": True}])
+def test_a_copilot_that_does_not_say_its_status_runs_the_old_way_and_its_card_says(
+    copilot_native, wait_run, project_dir, monkeypatch, told  # noqa: F811
 ):
     monkeypatch.setattr(app.model_native, "VERSION_SECONDS", 1.0)  # (one that never says)
     client, provider = copilot_native([{"say": "done"}], **told)
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
-    assert run["status"] == status, run["error"]
-    assert "--headless" in copilot_native.record()["argv"]  # natively: no old way chosen
-    if status == "failed":
-        assert "protocol 5" in run["error"] and "could not be asked before it acts" in run["error"]
+    assert run["status"] == "completed", run["error"]
+    assert "--headless" not in copilot_native.record()["argv"]  # its session, KOLONİ's tools
     (shown,) = [one for one in client.get("/api/providers").json() if one["id"] == provider["id"]]
-    assert shown["version_note"] is None
+    assert shown["version_note"] == f"{COPILOT} did not say its version; running the old way"
+
+
+@pytest.mark.parametrize("version, status", [("1.0.200", "failed"), ("1.0.105", "completed")])
+def test_its_run_itself_asks_a_protocol_3_copilot_its_version_before_it_works_natively(
+    copilot_native, wait_run, project_dir, monkeypatch, version, status  # noqa: F811
+):
+    # (Its program replaced between the check and the run: the run asks again, and works
+    # natively only on a measured version.)
+    async def unchecked(client):
+        return client
+
+    monkeypatch.setattr(cli_surface, "checked", unchecked)
+    client, provider = copilot_native([{"say": "done"}], version=version)
+    cid, run_id = start(client, project_dir, provider)
+    run = wait_run(client, cid, run_id)["runs"][0]
+    assert run["status"] == status, run["error"]
+    if status == "failed":
+        assert "could not be asked before it acts" in run["error"]
+        assert "1.0.200 is not measured with KOLONİ" in run["error"]
+        assert "create" not in copilot_native.record()  # no session made
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell")

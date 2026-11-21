@@ -106,13 +106,12 @@ async def checked(client):
 async def _copilot(client, whose: tuple[str, str]):
     """Copilot by what its own `status.get` says, as KOLONİ starts it: a protocol KOLONİ speaks
     on a version measured with it (protocol 3), or with KOLONİ's hook (4), runs natively; any
-    other runs the old way, and the Models page says why. One that does not say runs natively:
-    its run's own ping decides."""
+    other - one that does not say too - runs the old way, and the Models page says why."""
     told = await client._status()
     version, protocol = told.get("version"), told.get("protocolVersion")
     if not isinstance(version, str) or not version.strip() or type(protocol) is not int:
-        _said.pop(whose, None)
-        return client
+        _said[whose] = f"{SURFACE['copilot']['label']} did not say its version; running the old way"
+        return client.talker()
     label, version = SURFACE["copilot"]["label"], version.strip()
     known = measured("copilot", version)
     if protocol in PROTOCOLS and (protocol == 4 or known):

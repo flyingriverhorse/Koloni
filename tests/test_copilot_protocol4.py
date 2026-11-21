@@ -3,13 +3,17 @@ through KOLONİ's preToolUse hook - which never answers "allow" - and judged as 
 would have made; a PowerShell command is put in the project first; a tool that ran past the
 hook stops the turn. Only the stand-in (`fake_copilot_headless.py`) runs here."""
 
+import asyncio
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
 import app.model_native
 from app.model_native import CopilotNativeClient, _hook_answer
+from tests.conftest import scaled
 from tests.test_agent_writes import wait_status
 from tests.test_claude_native import nothing_was_asked
 from tests.test_codex_app_server_scenarios import card_for, proposed, watched
@@ -31,9 +35,15 @@ def p4(copilot_native, script, **more):  # noqa: F811
     return copilot_native(script, protocol=4, version="1.0.114", **more)
 
 
+def prefixed(root, command):
+    """KOLONİ's command at the project: where it cannot go there, nothing after it runs - a
+    `trap` in the command cannot pass `exit 1` (the review's probe)."""
+    return (f"if (-not (Microsoft.PowerShell.Management\\Set-Location -LiteralPath '{root}' "
+            f"-PassThru -ErrorAction Ignore)) {{ exit 1 }}; {command}")
+
+
 def at_root(copilot_native, command):  # noqa: F811
-    root = copilot_native.record()["create"]["workingDirectory"]
-    return f"Set-Location -LiteralPath '{root}' -ErrorAction Stop; {command}"
+    return prefixed(copilot_native.record()["create"]["workingDirectory"], command)
 
 
 def test_at_protocol_4_its_session_is_grouped_with_kolonis_hook(
@@ -48,6 +58,8 @@ def test_at_protocol_4_its_session_is_grouped_with_kolonis_hook(
     assert made["hooks"] == {"hasHandlers": True, "enableRepositoryHooks": False}
     assert made["tools"]["availableTools"][:len(BUILT_IN)] == BUILT_IN
     assert made["skills"] == {"enabled": False} and made["enableConfigDiscovery"] is False
+    # (no git context of the project's put in its prompt by Copilot itself)
+    assert made["git"] == {"enableHostGitOperations": False}
     assert "koloni" in made["mcp"]["servers"]
     assert made["workingDirectory"] == str(project_dir)
     assert not {"requestPermission", "sandboxConfig", "mcpServers", "availableTools",
@@ -94,8 +106,7 @@ def test_kolonis_hook_never_answers_allow(root):
                     "\u2019" not in root):
                 # (a ' in its path doubled, as PowerShell reads a single-quoted string)
                 quoted = str(Path(root)).replace("'", "''")
-                assert modified == {
-                    "command": f"Set-Location -LiteralPath '{quoted}' -ErrorAction Stop; rm -rf x"}
+                assert modified == {"command": prefixed(quoted, "rm -rf x")}
             else:
                 # (none for a path PowerShell may read another quote in: judged without it)
                 assert modified is None, (root, name, output)
@@ -311,7 +322,7 @@ ROOT = Path("C:/p") if app.model_native.sys.platform == "win32" else Path("/p")
 def test_a_file_tool_naming_no_plain_path_stays_a_hook_request_and_is_declined(tool, path):
     args = {"path": path, "file_text": "x", "old_str": "a", "new_str": "b"}
     request = {"kind": "hook", "toolName": tool, "toolArgs": args, "toolCallId": "c"}
-    assert CopilotNativeClient()._from_hook(request, ROOT, set()) == (request, False)
+    assert CopilotNativeClient()._from_hook(request, ROOT, {}) == (request, False)
 
 
 def test_a_file_tool_is_asked_as_the_request_it_would_have_made():
@@ -320,7 +331,7 @@ def test_a_file_tool_is_asked_as_the_request_it_would_have_made():
     for path in ("sub/a.txt", whole):
         def hooked(tool, path=path, **args):
             return client._from_hook({"kind": "hook", "toolName": tool, "toolCallId": "c",
-                                      "toolArgs": {"path": path, **args}}, ROOT, set())[0]
+                                      "toolArgs": {"path": path, **args}}, ROOT, {})[0]
         assert hooked("view") == {"kind": "read", "toolCallId": "c", "path": whole}
         assert hooked("create", file_text="x\n") == {
             "kind": "write", "toolCallId": "c", "fileName": whole,
@@ -339,7 +350,7 @@ def test_a_shell_asking_to_leave_its_sandbox_at_its_hook_says_so():
     for key in ("requestSandboxBypass", "request_sandbox_bypass"):
         mapped, new_shell = CopilotNativeClient()._from_hook({
             "kind": "hook", "toolName": "powershell", "toolCallId": "c",
-            "toolArgs": {"command": command, key: True}}, root, set())
+            "toolArgs": {"command": command, key: True}}, root, {})
         assert new_shell and mapped["fullCommandText"] == "npm install"
         assert mapped["requestSandboxBypass"] is True
 
@@ -384,3 +395,108 @@ def test_at_protocol_4_a_new_shell_is_only_kolonis_prefix_never_its_version(
     client.post(f"/api/commands/{asked['id']}/reject")
     wait_run(client, cid, run_id)
     assert answers(copilot_native) == [("shell", REJECT)]
+
+
+# --- The review's round (k-copilot-015) -----------------------------------------------------
+
+
+def recorded_hooks(copilot_native):  # noqa: F811
+    try:
+        return copilot_native.record()["hooks"]
+    except (OSError, ValueError, KeyError):  # (being written)
+        return []
+
+
+def test_its_hook_is_answered_at_once_while_a_record_is_still_being_kept(
+    copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+):
+    # 1.0.114: a preToolUse hook that does not answer in time lets the tool run. A slow record
+    # (a look over a large project) must never hold the next tool's hook unread.
+    held = threading.Event()
+    kept = CopilotNativeClient._heard
+
+    async def slow(self, kind, item, *more):
+        if kind == "item.completed" and item.get("type") == "command_execution":
+            await asyncio.to_thread(held.wait, scaled(30))
+        return await kept(self, kind, item, *more)
+
+    monkeypatch.setattr(CopilotNativeClient, "_heard", slow)
+    client, provider = p4(copilot_native, [{"shell": "pytest -q"}, {"shell": "Get-ChildItem"},
+                                           {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider)  # full_auto
+    try:
+        deadline = time.monotonic() + scaled(10)
+        while len(recorded_hooks(copilot_native)) < 3 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        # sessionStart, and both tools' hooks - the first tool's record still held
+        assert len(recorded_hooks(copilot_native)) == 3 and not held.is_set()
+    finally:
+        held.set()
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert [c["command"] for c in snap["commands"]] == ["pytest -q", "Get-ChildItem"]
+
+
+def test_a_follow_up_copilot_says_more_of_is_judged_again(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    # One card a call - but where its own request adds what the hook's did not show (an address
+    # it may reach), that is judged: an "always run" rule does not cover it.
+    origin = {"Origin": "http://127.0.0.1:8790"}
+    client, provider = p4(copilot_native, [
+        {"shell": "pytest -q", "then_native": True, "urls": ["https://example.com"]},
+        {"say": "ok"}])
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={
+        "permission_mode": "auto_edit", "provider_id": provider["id"]}, headers=origin)
+    assert client.post(f"/api/conversations/{cid}/allowed-commands", headers=origin,
+                       json={"prefix": "pytest -q"}).status_code in (200, 201)
+    run_id = client.post(f"/api/conversations/{cid}/messages",
+                         json={"content": "go"}).json()["run"]["id"]
+    snap = wait_status(client, cid, "waiting_approval")
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert "it may reach https://example.com" in json.dumps(asked)
+    client.post(f"/api/commands/{asked['id']}/reject")
+    wait_run(client, cid, run_id)
+    assert answers(copilot_native) == [("hook", APPROVE), ("shell", REJECT)]
+
+
+def test_a_shell_hook_under_the_id_of_one_of_kolonis_calls_is_judged_as_a_shell():
+    request = {"kind": "hook", "toolName": "powershell", "toolCallId": "c",
+               "toolArgs": {"command": "Remove-Item -Recurse src"}}
+    mapped, _shell = CopilotNativeClient()._from_hook(request, ROOT, {"c": "koloni-read_notes"})
+    assert mapped is not None and mapped["kind"] == "shell"
+    ours = {"kind": "hook", "toolName": "koloni-read_notes", "toolCallId": "c", "toolArgs": {}}
+    assert CopilotNativeClient()._from_hook(ours, ROOT, {"c": "koloni-read_notes"}) == (None, False)
+    # (nor under a name of Copilot's own, whatever its start said)
+    shell = {**request, "toolName": "powershell"}
+    assert CopilotNativeClient()._from_hook(shell, ROOT, {"c": "powershell"})[0] is not None
+
+
+MOVE_AND_ADD = ("*** Begin Patch\n*** Update File: hello.py\n*** Move to: moved.py\n@@\n"
+                "-print('hi')\n+print('hello')\n*** Add File: c.txt\n+made c\n*** End Patch")
+
+
+def test_a_patch_that_moves_a_file_before_another_closes_each_card_by_the_id_it_was_asked(
+    copilot_native, wait_run, project_dir  # noqa: F811
+):
+    from tests.test_copilot_headless_scenarios import ORIGIN, question
+
+    client, provider = p4(copilot_native, [{"patch": MOVE_AND_ADD}, {"say": "ok"}])
+    cid, run_id = start(client, project_dir, provider, mode="ask")
+    for number in (1, 2):  # hello.py, then the file it moves to: asked in words
+        asked = question(client, cid, number)
+        client.post(f"/api/questions/{asked['id']}/answer", json={"answer": "Allow"},
+                    headers=ORIGIN)
+    card = proposed(client, cid, "c.txt")
+    client.post(f"/api/file-changes/{card['id']}/approve")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert (project_dir / "moved.py").read_text(encoding="utf-8") == "print('hello')\n"
+    # c.txt is its card's change, closed by the id it was asked under - not found again
+    assert [(f["path"], f["status"]) for f in snap["file_changes"] if f["path"] == "c.txt"] == [
+        ("c.txt", "applied")]
+    assert not [t for t in snap["tool_calls"] if "c.txt" in (t["result"] or "")
+                and "changed by the CLI" in t["result"]]
+    assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]

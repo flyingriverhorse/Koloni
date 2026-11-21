@@ -144,8 +144,9 @@ address** on this machine or your network.
   Copilot updates itself when you run it yourself, and KOLONİ then runs that version too. On the newer
   protocol (1.0.114 on) it runs **Native** through KOLONİ's hook, and each PowerShell command starts in the
   project folder. On the older protocol only a version measured with KOLONİ (1.0.91, 1.0.103, 1.0.105) runs
-  **Native**; any other version, or a protocol KOLONİ does not know, runs as **One session per agent**, and
-  the provider's card on the Models page says why.
+  **Native** - its run asks again, in case Copilot changed since; any other version, a Copilot that does not
+  say its version, or a protocol KOLONİ does not know runs as **One session per agent**, and the provider's
+  card on the Models page says why.
 - **Changes on models other than Claude**: Copilot gives such models (gpt-6-luna, mai-code-2-flash) its
   `apply_patch` tool instead of `create` and `edit`. Run **Native**, each file of a patch is asked about on
   its own card, as a write is; refusing one refuses the whole patch.

@@ -243,7 +243,8 @@ def invoke(hook_type: str, more: dict) -> dict:
           "params": {"sessionId": session_id, "hookType": hook_type, "input": given}})
     while (told := heard()).get("id") != number or "method" in told:
         pass
-    record["hooks"].append({"hookType": hook_type, "input": given, "answer": told})
+    record["hooks"].append({"hookType": hook_type, "input": given, "answer": told,
+                            "answered_at": time.time()})
     save()
     return told
 
@@ -325,12 +326,15 @@ def pre_tool(call: str, name: str, arguments: object) -> tuple[str | None, objec
 
 
 def patched(text: str) -> list[list]:
-    """Each file a patch names, and what it will hold (None: it goes)."""
+    """Each file a patch names, what it will hold (None: it goes) and where it moves to (None:
+    nowhere)."""
     files: list[list] = []
     for line in text.split("\n"):
         header = re.fullmatch(r"\*\*\* (Add|Update|Delete) File: (.+)", line)
         if header:
-            files.append([header[2], None if header[1] == "Delete" else ""])
+            files.append([header[2], None if header[1] == "Delete" else "", None])
+        elif files and line.startswith("*** Move to: "):
+            files[-1][2] = line[len("*** Move to: "):]
         elif files and files[-1][1] is not None and line[:1] in ("+", " "):
             files[-1][1] += line[1:] + "\n"
     return files
@@ -451,15 +455,15 @@ for number, action in enumerate(plan.get("script", [])):
             ("before", {"path": str(cwd / path), "content": (cwd / path).read_text("utf-8")}
              if (cwd / path).exists() else None),
             ("after", None if content is None else {"path": str(cwd / path), "content": content}))
-            if v} for path, content in files]
+            if v} for path, content, _to in files]
 
         def apply(files=files) -> None:
-            for path, content in files:
-                if content is None:
+            for path, content, to in files:
+                if content is None or to:
                     (cwd / path).unlink()
-                else:
-                    (cwd / path).parent.mkdir(parents=True, exist_ok=True)
-                    (cwd / path).write_bytes(content.encode("utf-8"))
+                if content is not None:
+                    (cwd / (to or path)).parent.mkdir(parents=True, exist_ok=True)
+                    (cwd / (to or path)).write_bytes(content.encode("utf-8"))
         tool(f"custom_{call}", "apply_patch", action["patch"], {
             "kind": "write", "fileName": str(cwd / files[0][0]), "intention": "Apply patch",
             "diff": action["patch"], "canOfferSessionApproval": True, "fileEdits": edits},

@@ -338,7 +338,14 @@ def test_a_sub_agent_on_a_model_not_on_the_account_switches_it_off_and_moves_on(
 def test_a_copilot_that_never_answers_is_stopped(
     copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
 ):
-    # (Its version is waited for before the run and for its error: not 10 s each here.)
+    # (Its version is waited for for its error: not 10 s here. Before its run, one that says
+    # nothing runs the old way - `test_cli_surface`: here its run is reached all the same.)
+    from app import cli_surface
+
+    async def unchecked(client):
+        return client
+
+    monkeypatch.setattr(cli_surface, "checked", unchecked)
     monkeypatch.setattr(app.model_native, "VERSION_SECONDS", 1.0)
     client, provider = copilot_native([], timeout=2, handshake="silent")
     cid, run_id = start(client, project_dir, provider)
@@ -391,8 +398,8 @@ def test_its_session_has_only_the_tools_koloni_judges_and_none_of_its_own_set_up
     for left_out in ("grep", "glob", "task", "web_fetch", "web_search", "sql", "skill"):
         assert left_out not in given
     # none of a repository's own hooks, config or skills, and no folder beyond its own
-    assert (made["enableFileHooks"], made["enableConfigDiscovery"], made["enableSkills"]) == (
-        False, False, False)
+    assert (made["enableFileHooks"], made["enableConfigDiscovery"], made["enableSkills"],
+            made["enableHostGitOperations"]) == (False, False, False, False)
     assert "additionalDirectories" not in made
 
 
@@ -963,13 +970,11 @@ def test_from_a_new_shell_a_cd_out_of_the_project_or_into_a_protected_folder_is_
 
 
 @pytest.mark.parametrize("told", [
-    {"version": "1.0.103"}, {}, {"version": READ, "status_hang": True},
-    {"version": READ, "status_error": True}],
-    ids=["an-earlier-one", "another", "says-nothing", "refuses-to-say"])
+    {"version": "1.0.103"}, {}], ids=["an-earlier-one", "another"])
 def test_on_a_copilot_whose_shell_was_not_read_work_in_the_scratch_is_still_a_card(
     told, copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
 ):
-    # (By its own `status.get`, never waited for: one that does not answer still runs, asked.
+    # (By its own `status.get`; one that does not say runs the old way, `test_cli_surface`.
     # Before the run its version is waited for, VERSION_SECONDS: not 10 s here.)
     monkeypatch.setattr(app.model_native, "VERSION_SECONDS", 1.0)
     scratch(project_dir)
@@ -1091,3 +1096,13 @@ def test_a_patch_of_several_files_that_moves_one_or_names_one_twice_is_declined_
                   {"after": {"path": "C:/p/a.txt", "content": "z"}},  # a file twice
                   {"after": {"path": "C:/p/b.txt"}}, {}):  # no content, nothing named
         assert _edits_patch([made, other], {}) == [], other
+
+
+def test_an_unasked_patch_names_only_the_files_its_lines_say():
+    # (A break only Python's splitlines knows is no line of the patch: b.txt is a.txt's text.)
+    from app.model_native import _written
+
+    for sep in ("\u2028", "\x85"):
+        text = f"*** Begin Patch\n*** Add File: a.txt\n+x{sep}*** Add File: b.txt\n*** End Patch"
+        item = _written("apply_patch", "c", text, False, True)["item"]
+        assert item["unasked"] == ["a.txt"] and item["parts"] == ["c:0"], sep
