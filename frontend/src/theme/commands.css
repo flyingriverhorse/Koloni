@@ -4324,6 +4324,12 @@ fieldset.choice > label .choice-note,
   border: 1.5px solid var(--tool-team);
 }
 
+/* CL-264: beside the open chat's column, never over it - as wide as is left, at least 240px over the stage's right side. */
+.chat:not(.chat-closed) ~ .changes.room-window:not(.moved) {
+  left: calc(var(--chat-w) + 14px);
+  width: max(240px, min(700px, calc(var(--room) - var(--chat-w) - 28px)));
+}
+
 .room-window .changes-bar {
   cursor: default;
 }
@@ -4439,6 +4445,10 @@ fieldset.choice > label .choice-note,
   flex-wrap: wrap;
   gap: 8px;
   max-width: calc(100% - 28px - 62px);
+}
+
+.chat:not(.chat-closed) ~ .room-tabs {
+  left: calc(var(--chat-w) + 14px);
 }
 
 .room-tab {

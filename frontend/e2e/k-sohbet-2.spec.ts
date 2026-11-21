@@ -142,3 +142,37 @@ for (const theme of ['light', 'dark'] as const)
     await level(page, 'auto_edit')
     expect((await page.locator('.composer').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
   })
+
+test('at 1024 px no window opens over the open chat: the Reviewer’s window and Workspace stand beside it', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 700 })
+  await openFreshConversation(page)
+  await say(page, 'review the greeting', 'The reviewer found no problems.')
+  const chat = page.getByRole('region', { name: 'Chat' })
+  const edge = async () => {
+    const at = (await chat.boundingBox())!
+    return at.x + at.width
+  }
+  await chat.getByRole('button', { name: /Reviewer.*Review hello\.py/ }).click()
+  await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
+  const window = page.getByRole('region', { name: 'Agent window' })
+  await expect(window).toBeVisible()
+  expect((await window.boundingBox())!.x).toBeGreaterThanOrEqual((await edge()) - 1)
+  await chat.locator('.composer-below').getByRole('button', { name: /^Workspace/ }).click()
+  const workspace = page.getByRole('region', { name: 'Workspace' })
+  await expect(workspace).toBeVisible()
+  expect((await workspace.boundingBox())!.x).toBeGreaterThanOrEqual((await edge()) - 1)
+})
+
+test('at 340 px what a turn did is one line, its details on it', async ({ page }) => {
+  await openFreshConversation(page)
+  await say(page, 'review the greeting', 'The reviewer found no problems.')
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await page.addStyleTag({ content: '.stage { --chat-w: 340px !important; }' })
+  await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(340)
+  const line = chat.locator('.turn-foot .turn-summary-line').last()
+  const details = line.getByRole('button', { name: /^details/ })
+  await expect(details).toBeVisible()
+  const [words, button] = [(await line.locator('span').first().boundingBox())!, (await details.boundingBox())!]
+  expect(Math.abs(words.y + words.height / 2 - (button.y + button.height / 2))).toBeLessThanOrEqual(2)
+  expect((await line.boundingBox())!.height).toBeLessThan(26)
+})

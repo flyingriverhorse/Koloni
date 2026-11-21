@@ -988,6 +988,13 @@ p.hive-empty {
   }
 }
 
+/* CL-264: the open chat's column is a hard left edge - Workspace opens beside it, as wide as is left (at least 240px, over
+   the stage's right side), never over it. Dragged or expanded, its own rules hold: that is the user's own act. */
+.chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
+  left: calc(var(--chat-w) + 14px);
+  width: max(240px, min(var(--w), calc(var(--room) - var(--chat-w) - 28px)));
+}
+
 .view-panel[hidden] {
   display: none;
 }

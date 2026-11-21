@@ -1664,3 +1664,23 @@ test('a command that exited with an error is counted as failed on the fold’s l
   expect(summary).toHaveTextContent(/^Completed 2 steps in 32s/)
   expect(within(summary).getByText('1 failed')).toHaveClass('tag-del')
 })
+
+test('a night’s closing line and the room you opened stay plain lines in the new flow: outside the fold, the room’s line its focus target', () => {
+  const night = { ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'), role: 'away' as const, agent_id: null }
+  const room = { id: 'o6', run_id: 'r', agent_id: null, goal: 'Meet on the greeting', status: 'done', outcome: null, why: null, members: [] }
+  const state = convState({
+    runs: [run('r', 'completed', { ended_at: ENDED })],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'Meet on the greeting'), assistantMessage('m', 'r', 'I read it first.'), night, assistantMessage('m2', 'r', 'It greets twice.')],
+    toolCalls: [toolCall('61', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
+    rooms: [room] as unknown as ConvState['rooms'],
+  })
+  const { container } = render(<MessageList {...handlers} state={state} />)
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(fold).not.toBeNull()
+  expect(fold).not.toContainElement(screen.getByText('While you were away: 2 done - on the canvas'))
+  expect(screen.getByText('While you were away: 2 done - on the canvas').closest('.away-said')).toBeVisible()
+  const line = container.querySelector('[data-room-line]') as HTMLElement
+  expect(line).toHaveTextContent('Meet on the greeting')
+  expect(line.closest('details')).toBeNull()
+})

@@ -141,12 +141,15 @@ test('a picture an agent shows opens Workspace by itself, the focus left in the 
   // (the chat stays open)
   await expect(chat.getByLabel('Message')).toBeVisible()
 
-  // On a canvas too narrow for both side by side, it is still a panel to read: over the chat, inside the canvas.
+  // On a canvas too narrow for both side by side, it is still a panel to read (CL-264, 0.1.5): beside the open chat, never
+  // over it, at least 240px wide, inside the canvas.
   await page.setViewportSize({ width: 700, height: 900 })
   await button.click()
-  const [narrow, inStage] = [(await panel.boundingBox())!, (await page.locator('.stage').boundingBox())!]
-  expect(narrow.width).toBeGreaterThanOrEqual(279)
-  expect(narrow.x + narrow.width).toBeLessThanOrEqual(inStage.x + inStage.width - 13)
+  const [narrow, inStage, column] = [(await panel.boundingBox())!, (await page.locator('.stage').boundingBox())!, (await chat.boundingBox())!]
+  expect(narrow.width).toBeGreaterThanOrEqual(239)
+  expect(narrow.x).toBeGreaterThanOrEqual(column.x + column.width - 1)
+  // (Its 240px may take the stage's right margin: never past the stage.)
+  expect(narrow.x + narrow.width).toBeLessThanOrEqual(inStage.x + inStage.width + 1)
 })
 
 /** Whether `a` and `b` do not overlap; and whether `inner` lies wholly inside `outer`. */
