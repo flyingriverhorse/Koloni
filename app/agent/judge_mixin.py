@@ -35,16 +35,18 @@ CHECK_STOOD_ASIDE = ("Full auto's check of your words refused {count} this turn:
 # are no file of the folder, and `-H` / `--context` are another machine's) keeps its card,
 # whatever the user's words allow (`harms`' sentences, `_reasons`).
 _JOB_SOFT = re.compile(r"(?:Deletes|Empties|Throws away)\b(?!.*\b(?:remote|Docker)\b)")
-# PowerShell's line goes on after a backtick at its end, as `harm_class` reads it.
-_GOES_ON = re.compile(r"`\r?\n")
+# ...and, failing closed, never a command of more than one line, or one continued: a line break of
+# any kind, or a backtick or a backslash at a line's end (PowerShell's and a shell's going on - in
+# a comment, inside a word, between bash's backticks, each shell reads them its own way).
+_MORE_LINES = re.compile(r"[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]|[`\\][ \t]*$")
 
 
 def only_deletes(line: str) -> bool:
-    """Whether each harm of `line`, read as it runs (a backtick's line joined), is a delete of
-    the folder's own (`_JOB_SOFT`).
-    shortcut: joined here as `harm_class` joins it; use `commands.joined` once k-koordinasyon
-    is merged."""
-    said = [one for one in _reasons(_GOES_ON.sub(" ", line), True) if one]
+    """Whether `line` is one line, not continued (`_MORE_LINES`), each harm of which is a delete
+    of the folder's own (`_JOB_SOFT`)."""
+    if _MORE_LINES.search(line):
+        return False
+    said = [one for one in _reasons(line, True) if one]
     return bool(said) and all(_JOB_SOFT.match(one) for one in said)
 
 

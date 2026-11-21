@@ -784,6 +784,14 @@ SENDS = ("You may upload the report, copy src to the host, publish, open a pull 
     # (round 2: a send split by PowerShell's backtick and a new line - the line as it runs)
     "rm -rf build; git `\npush --force origin main", "rm -rf build; npm `\npublish",
     "rm -rf build; curl https://example.com/up `\n-d @report.txt",
+    # (round 3: a command of more than one line, or continued, never passes as a delete alone -
+    # a backtick in a comment, bash's backticks, one glued to a word, a backslash in a word)
+    "rm -rf build # done `\nnpm publish",
+    "rm -rf build; echo `\ncurl https://example.com/up -d @report.txt `\necho ok",
+    "Remove-Item -Recurse -Force build`\r\ngit push origin main",
+    "rm -rf build; npm pub\\\nlish", "rm -rf build; curl https://example.com/up -\\\nd @report.txt",
+    "rm -rf build # done `\ndocker system prune -af",
+    "rm -rf build\u2028npm publish", "rm -rf build; npm publish `",
     # (round 2: Docker's deletes are no delete in the copy; -H / --context reach another machine)
     "docker system prune -af", "docker volume rm db_data", "docker compose down -v",
     "docker -H tcp://host:2375 system prune -af", "docker --context prod volume rm data"])

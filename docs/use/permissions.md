@@ -110,8 +110,9 @@ In the level menu, under the levels, **Check what I said first** is the project'
 harmful-looking command waits for you at Full auto or while you're away, your own words are read
 first; it runs without a card only where a line of yours names it." While you're away it holds in a
 To-do task's chat at Full auto too, reading the chat you went away from - never the task's words -
-for a delete in the task's copy only: a send, a git remote's branch, Docker's prune or volumes, a file
-that steers agents and a command that runs another through a shell or a wrapper keep their card. The
+for a one-line delete in the task's copy only: a command of more than one line or continued, a send,
+a git remote's branch, Docker's prune or volumes, a file that steers agents and a command that runs
+another through a shell or a wrapper keep their card. The
 same holds in the chat you went away from, while you're away. A plain chat has no such switch.
 
 ## Plan first

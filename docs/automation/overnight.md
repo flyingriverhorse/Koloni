@@ -91,10 +91,10 @@ its jobs started, with a link back to their report.
 - At **Full auto**, with **Check what I said first** on, a command that deletes is first checked
   against your own words - your preferences, the project's saved rules and your messages in the chat
   you went away from, never the task's words - and runs in the job's copy without a card where a line
-  of yours names it. Only a delete in the folder: a line that also sends work off the machine (one
-  split over lines with PowerShell's backtick too) or touches a git remote, Docker's prune or volumes,
-  and a delete of a file that steers agents (`AGENTS.md`, `CLAUDE.md`) keep their card - in the chat
-  you went away from as in a task's. See [Permissions](../use/permissions.md).
+  of yours names it. Only a delete in the folder, on one line: a command of more than one line or
+  continued (a backtick or a backslash at a line's end), a line that also sends work off the machine
+  or touches a git remote, Docker's prune or volumes, and a delete of a file that steers agents
+  (`AGENTS.md`, `CLAUDE.md`) keep their card - in the chat you went away from as in a task's. See [Permissions](../use/permissions.md).
 
 ## Questions and approvals
 
