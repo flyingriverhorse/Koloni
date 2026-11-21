@@ -42,7 +42,7 @@ and commands run; only harmful or risky actions ask" - and **Plan first**. Each 
 | A tool of a trusted MCP server | Card, unless the tool is set to run without asking | Card, unless the tool is set to run without asking | Card, unless the tool is set to run without asking |
 | A file outside the project | Card | Card | Card |
 | A change in a folder added to the chat for reading only | Card | Card | Card |
-| A command that stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a process up and stops it | Card | Card | Card (in the project, **Check what I said first** may let it run, but never for python, node, uvicorn, a filter, a wildcard or a process looked up) |
+| A command that stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a process up and stops it | Card | Card | Card (in the project, **Check what I said first** may let it run, but never for python, node, uvicorn, an agent's CLI, a filter, a wildcard, `kill -1` or a process looked up) |
 | A sub-agent's command in its copy that names another agent's copy, a worktree of the project or a place above its copy (`../..`), or writes in or installs into the linked `node_modules`, `.venv` or `venv` | Card | Card | Card |
 
 A plain `git` command counts as read-only only when it runs at the top of the project and the

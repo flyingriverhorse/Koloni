@@ -48,9 +48,11 @@ runs in its copy is asked at every level, Full auto too, when it:
   before);
 - stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a
   process up and stops it (`lsof -ti:8000 | xargs kill`, `fuser -k`). By its id (`taskkill /PID`,
-  `kill 1234`, `Stop-Process -Id 1234`) is fine. In your project, at Full auto, **Check what I said
+  `kill 1234`, `Stop-Process -Id 1234`), or one the line itself started (`kill $!`), is fine. In
+  your project, at Full auto, **Check what I said
   first** may let a stop by name run on a line of yours, but never one that may stop KOLONİ itself
-  (python, node, uvicorn, a filter, a wildcard or a process looked up).
+  or another agent's CLI (python, node, uvicorn, claude, codex, copilot, qodercli, agy, a
+  filter, a wildcard, `kill -1` or `kill 0`, or a process looked up).
 
 KOLONİ reads the command as written: a path built in a script is not seen.
 
