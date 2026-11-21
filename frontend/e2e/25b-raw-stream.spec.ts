@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from './fixtures'
-import { OWN, agentFold, openAgentFold, openFreshConversation, shot } from './helpers'
+import { OWN, agentFold, openAgentFold, openFreshConversation, shot, windowFromPanel } from './helpers'
 import { FAKE_AGY } from './paths.mjs'
 
 /** The stand-in provider is taken off the list, however many of it there are. */
@@ -42,8 +42,10 @@ test.describe('with a CLI as a provider (the agy stand-in)', () => {
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chat.getByText('It prints hi. I could not run it here.')).toBeVisible()
 
-    // Its window is open on its record, Details folded; its raw steps say what it did, each tool with its result's size.
-    const window = page.getByRole('region', { name: 'Agent window' })
+    // Its window, opened from its node, is on its record, Details folded; its raw steps say what it did, each tool with its
+    // result's size.
+    await page.locator('.react-flow__node-agent .node-title').click()
+    const window = await windowFromPanel(page)
     await expect(agentFold(window, 'Details')).not.toHaveAttribute('open')
     const steps = await openAgentFold(window, 'Every step as recorded')
     await expect(steps.getByRole('button', { name: /agy__view_file.*own tool.*done/ })).toBeVisible()

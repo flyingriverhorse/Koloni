@@ -36,6 +36,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Workspace**: a branch's merge waits for your commit where the agent changed what you had not committed, at Full auto too - no agent puts your lines together - the card names another agent's Take in that is in your folder and not committed yet, and work that changes a file you had not committed when the branch began waits for your **Merge** ([docs](use/workspace.md#branches)).
 - **Workspace**: where your folder had more new or changed files than a copy takes, your git is older than 2.40, or git could not take your folder as it is (a file another program holds open, a path too long), a branch starts from your last commit and its card says so in one line ([docs](use/workspace.md#branches)).
 - **Agents**: the Orchestrator is told that sub-agents it opens together work at the same time, to give each its own files or folders, and that `koloni/…` branches and the worktrees in KOLONİ's copies folder are not its to delete, rename or switch to ([docs](use/workspace.md#branches)).
+- **Chat**, **CLIs**: on GitHub Copilot CLI's `auto` or `fusion`, the Orchestrator's turn head names the model Copilot picked ("fusion → gpt-6-luna") with Copilot's own reason on a quiet line under it (two lines at most), and the model button over the message box says it too ("fusion → gpt-6-luna · Copilot"; what its last turn ran on, and why, in its tooltip). A reason shows only under the model it was given for ([docs](models/setup-cli.md#github-copilot-cli)).
 
 ### Fixed
 
@@ -51,6 +52,9 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Workspace**: a copy made while another agent's work was being taken in now gets all of that work, not part of it; a Take in waits while a branch is merged; and the other agents' copies now get what a branch's merge brought, as they get what a Take in brought ([docs](use/workspace.md#working-copies)).
 - **Workspace**: a branch's working copy kept over a restart merges a file you changed too line by line, from what the branch was made of, where it showed both files whole; and its **Discard** deletes its branch and git's record of its worktree, which stayed behind ([docs](use/workspace.md#when-an-agent-stops)).
 - **Workspace**: a **Stop** while a branch is being merged by itself at Full auto waits for git to finish: the merge is on its card and the branch's worktree goes, where before the merge landed with nothing on record.
+- **Chat**, **Canvas**: an agent's window no longer opens by itself when it starts (on any provider, Lead or sub-agent): on a **Native** provider the Orchestrator's window opened on every message. Open it from its node - the new window icon at the right of its name, or a double click -, from **Open window** in the Inspector, or from the Orchestrator's name over its turn in the chat ([docs](use/chat-and-canvas.md#the-canvas)).
+- **CLIs**: a model GitHub Copilot CLI's `fusion` picked now says fusion and goes on with fusion: before, fusion's picks were recorded as `auto`, and an agent that went on from one asked for `auto` ([docs](models/setup-cli.md#github-copilot-cli)).
+- **Chat**: in a window under 1200 px wide, an agent's window opened while the Inspector lies over the canvas no longer reaches 6 px under the Inspector where the open chat leaves too little room beside it: it opens where it would without the chat, over the chat's right edge, in front.
 
 ### Security
 

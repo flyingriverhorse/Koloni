@@ -611,6 +611,26 @@ def test_stop_ends_a_turn_while_it_is_being_asked_how_hard_it_is(team, wait_run,
     assert (row["input_tokens"], row["output_tokens"], row["unknown_agents"]) == (None, None, 1)
 
 
+def test_a_lead_moved_to_another_tier_keeps_no_reason_copilot_gave_for_its_model_before(
+    team, wait_run, project_dir, gate  # noqa: F811
+):
+    # (Review, 21 Nov: a Lead moved off a fusion pick kept fusion's reason for the model before.)
+    client, default, fast = team([text("the lead answers")], [gate.step(text("hard: many files"))])
+    tiered(team, client)
+    cid, run_id = begin(client, project_dir, lead_auto=True)
+    gate.wait_partial()
+    with client.app.state.session_factory() as session:
+        lead = session.scalar(select(Agent).where(Agent.run_id == run_id))
+        lead.model_from = "fusion"
+        lead.effort_note = "Its level. Copilot's fusion picked gpt-6-luna: “Easy.”"
+        session.commit()
+    gate.release()
+    snap = wait_run(client, cid, run_id)
+    lead = snap["agents"][0]
+    assert lead["chosen_why"] == "hard: many files" and lead["model_from"] is None
+    assert lead["effort_note"] == "Its level.", lead["effort_note"]
+
+
 def test_a_turn_stopped_while_it_stands_in_line_for_the_question_leaves_no_record_of_one(
     team, wait_run, project_dir, gate  # noqa: F811
 ):

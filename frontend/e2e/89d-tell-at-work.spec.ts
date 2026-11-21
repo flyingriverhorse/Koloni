@@ -63,7 +63,8 @@ test.describe('telling Claude Code something while it works', () => {
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(chat.getByText('Working on it.')).toBeVisible()
 
-    // An agent that works with its own tools has its window open.
+    // Its window, opened while it works from the icon at its node's right (none opens by itself).
+    await page.locator('.react-flow__node-agent').getByRole('button', { name: /^Open .+'s window$/ }).click()
     const window = page.getByRole('region', { name: 'Agent window' })
     const tell = window.getByRole('textbox', { name: /^Tell / })
     await expect(tell).toBeVisible()
