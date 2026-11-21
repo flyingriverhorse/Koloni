@@ -101,6 +101,9 @@ def test_a_run_stands_only_on_a_line_the_user_wrote():
      "You may delete build/ and dist/."),
     ("Pushing to main is fine; never force-push.", "pushing to main is fine", "Pushing to main is fine"),
     ("build klasörünü silebilirsin.", "build klasörünü silebilirsin.", "build klasörünü silebilirsin."),
+    # (English words that end as a Turkish "no" does - a short stem, or one of the known words)
+    ("You may delete build/ any time.", "You may delete build/ any time.", "You may delete build/ any time."),
+    ("You may rename files in docs/.", "You may rename files in docs/.", "You may rename files in docs/."),
 ])
 def test_a_run_stands_on_a_whole_line_or_sentence_of_the_users_and_shows_it_whole(words, quote, shown):
     got = verdict(line(verdict="run", quote=quote), said(None, words, []))
@@ -122,6 +125,8 @@ def test_a_run_stands_on_a_whole_line_or_sentence_of_the_users_and_shows_it_whol
     ("build klasörünü silme.", "build klasörünü sil"),
     ("build klasörünü silme.", "build klasörünü silme."),
     ("build klasörünü asla silme", "build klasörünü asla silme"),
+    ("dist'i silmeyin.", "dist'i silmeyin."), ("bunu yapma.", "bunu yapma."),
+    ("config dosyasını değiştirme.", "config dosyasını değiştirme."),
     ("You may delete build/.\nYou may delete dist/.", "You may delete build/. You may delete dist/."),
     ("You may delete build/. Thanks!", "You may delete build/. Thanks!"),
     ("`rm -rf build` is fine by me.", "`rm -rf build` is fine by me."),
