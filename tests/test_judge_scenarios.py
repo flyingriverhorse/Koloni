@@ -15,10 +15,10 @@ from sqlalchemy.exc import OperationalError
 from app import koloni, raw
 from app.agent.ctx import Ctx, _Unwatched
 from app.agent.judge_mixin import CHECK_STOOD_ASIDE
+from app.command_runner import CARRY_ON
 from app.commands import harms
 from app.config import load_settings
 from app.db.models import OwnRequest
-from app.judge import REFUSED
 from app.main import create_app
 from app.model_client import StepResult
 from app.model_native import DECLINED_WHY
@@ -38,6 +38,10 @@ from tests.test_spawn import call, step
 from tests.test_team import ADDRESS, SECRET
 
 RULE = "You may delete build/ and dist/."
+# What an agent is told of a push the user's rule forbids (B-321: as of a command the user
+# declined - not to run it again, nor anything that does the same).
+TOLD = ("KOLONİ did not run this: your user's rule says \"Never push to main.\". Do not run it "
+        "again, or anything that does the same; do what the rule allows, or ask them. " + CARRY_ON)
 APP = Path(__file__).resolve().parents[1] / "app"
 
 
@@ -508,7 +512,7 @@ def test_a_push_the_users_rule_forbids_is_not_run_and_the_agent_hears_the_rule(
         "model": "Fast · quick", "seen": False}
     assert statuses == ["refused"] and executor.started == []
     assert [one["status"] for one in snap["tool_calls"]] == ["denied"]
-    assert REFUSED.format(quote=NO_MAIN) in lead.calls[1][-1]["content"]
+    assert TOLD in lead.calls[1][-1]["content"]
     assert [one for one in snap["messages"] if one["role"] == "koloni"] == []
     seen = client.post(f"/api/commands/{refused['id']}/seen", headers=OWN)
     assert seen.status_code == 200 and seen.json()["judged"]["seen"] is True
@@ -545,7 +549,7 @@ def test_codex_is_told_in_its_turn_why_a_push_the_users_rule_forbids_is_declined
     refused_on_the_rule(client, project_dir, cli, wait_run)
     assert answers(native_app) == [(RUN, DECLINE)]
     assert [one["input"][0]["text"] for one in native_app.record().get("steers", [])] == [
-        DECLINED_WHY.format(why=REFUSED.format(quote=NO_MAIN))]
+        DECLINED_WHY.format(why=TOLD)]
 
 
 @pytest.mark.no_po
@@ -556,7 +560,7 @@ def test_claude_codes_bash_push_the_users_rule_forbids_is_denied_with_the_rule(
          {"say": "pushed a branch"}], default_steps=[verdict_line("refuse", NO_MAIN)])
     refused_on_the_rule(client, project_dir, cli, wait_run)
     (asked,) = claude_app.record()["asked"]
-    assert (asked["behavior"], asked["message"]) == ("deny", REFUSED.format(quote=NO_MAIN))
+    assert (asked["behavior"], asked["message"]) == ("deny", TOLD)
 
 
 def koloni_lines(snap):

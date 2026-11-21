@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app import judge, project_map
+from app import project_map
 from app.commands import (
     MAX_STORED_OUTPUT,
     OutputMask,
@@ -50,6 +50,11 @@ REJECTED = (
     "rejected: the user declined to run this command. This is their decision, not a tool "
     "error: do not run it again, or anything that does the same. " + CARRY_ON
 )
+# K-yargic: a command a sentence of the user's forbids at Full auto (`judge.verdict` "refuse"),
+# told as a declined one is: not "another way" - one no pattern of KOLONİ's sees (`python -c`,
+# `find -exec rm`) would go around the rule (the security review of slice 2).
+REFUSED = ("KOLONİ did not run this: your user's rule says \"{quote}\". Do not run it again, or "
+           "anything that does the same; do what the rule allows, or ask them. " + CARRY_ON)
 # B-389 (R187, live): a patch sent as a command, refused, and the agent gave up its change. Not
 # the change was refused - the command: it is made with the file tools, as a card of its own.
 FILE_TOOLS = ("If the change is still needed, make it with edit_file / write_file (or your own "
@@ -91,6 +96,11 @@ def rejected(command: str) -> str:
         return PATCH_REJECTED
     # (One that also deletes or the like was refused for that, not for its write.)
     return WRITE_REJECTED if _writes_file(command) and not danger(command) else REJECTED
+
+
+def refused_by_rule(judgement: dict) -> str:
+    """What an agent is told of a command the check of the user's words refused (`REFUSED`)."""
+    return REFUSED.format(quote=judgement["quote"])
 
 HELD_BACK = ("(secret variables held back from this command: {names} - the user can pass one "
              "in Settings › This project › Commands and secrets)")
@@ -198,11 +208,11 @@ class CommandRunner:
             search_reason, planned.command, ws.root, planned.cwd_rel)
         reads = await asyncio.to_thread(
             reads_here, planned.command, ws.root, planned.cwd_rel == ".")
-        refused = judgement is not None and judgement["verdict"] == "refuse"
+        forbidden = judgement is not None and judgement["verdict"] == "refuse"
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
-            if planned.keep_running and not refused:
+            if planned.keep_running and not forbidden:
                 self._may_serve(session, cid, project, ws, ask, where,
                                 lead=session.get_one(Agent, agent_id).depth == 0)
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
@@ -243,8 +253,8 @@ class CommandRunner:
                 location=project.exec_location,
                 image=project.docker_image if project.exec_location == "docker" else None,
                 timeout_seconds=planned.timeout,
-                status="refused" if refused else "proposed" if asks else "approved",
-                ended_at=now() if refused else None,
+                status="refused" if forbidden else "proposed" if asks else "approved",
+                ended_at=now() if forbidden else None,
                 keep_running=planned.keep_running,
                 web_off=web_off,
                 # shortcut: a check that said run on one asked for another reason (a search that
@@ -259,8 +269,8 @@ class CommandRunner:
             payload = command_out(command, held=bool(searched))
             rule = payload["suggested_prefix"]
         self.bus.emit(cid, run_id, "command.created", payload)
-        if refused:  # K-yargic: a sentence of the user's forbids it - on record, never asked or run
-            return "denied", judge.REFUSED.format(quote=judgement["quote"])
+        if forbidden:  # K-yargic: a sentence of the user's forbids it - on record, not asked or run
+            return "denied", refused_by_rule(judgement)
 
         if asks:
             # (`rule` is empty when this command cannot be remembered.)
@@ -496,7 +506,7 @@ class CommandRunner:
         prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
         screen and the record - the CLI's own model has read it already. `judgement`: as
         `run`'s (one it refused: (False, its id), as for the user's no)."""
-        refused = judgement is not None and judgement["verdict"] == "refuse"
+        forbidden = judgement is not None and judgement["verdict"] == "refuse"
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
@@ -514,7 +524,8 @@ class CommandRunner:
             row = Command(
                 run_id=run_id, agent_id=agent_id, tool_call_id=call_id, command=command,
                 cwd=cwd, location="host", timeout_seconds=0, origin="cli", web_off=web_off,
-                status="refused" if refused else "proposed", ended_at=now() if refused else None,
+                status="refused" if forbidden else "proposed",
+                ended_at=now() if forbidden else None,
                 # (as `run`'s: a level lowered while the check was out asks all the same)
                 judged=None if asks and judgement and judgement["verdict"] == "run"
                 else judgement,
@@ -523,7 +534,7 @@ class CommandRunner:
             session.commit()
             command_id, payload = row.id, command_out(row, held=held)
         self.bus.emit(cid, run_id, "command.created", payload)
-        if refused:
+        if forbidden:
             return False, command_id
         if asks:
             decision = await self._wait_for_decision(

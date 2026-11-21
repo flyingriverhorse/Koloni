@@ -12,9 +12,6 @@ JUDGE_SECONDS = 30.0
 MOST_MESSAGES, MOST_CHARS, LEAST_QUOTE, WHY_CHARS = 6, 4000, 12, 300
 # Refusals in a turn, in a row and in all, after which the check stands aside until it ends.
 MOST_REFUSED_IN_A_ROW, MOST_REFUSED_IN_A_TURN = 3, 10
-# What an agent is told of a command a sentence of the user's forbids (`verdict` "refuse").
-REFUSED = ('KOLONİ did not run this: your user\'s rule says "{quote}". '
-           "Do it another way, or ask them.")
 # Where a quote may stand, in this order: the user's preferences, the project's rules as saved
 # on the Memory page, and the user's own messages in the chat.
 SOURCES = ("preferences", "rules", "message")
