@@ -34,8 +34,9 @@ function lastAt(state: ConvState, run: Run, lead: Agent | undefined) {
 const saidOf = (state: ConvState, run: Run, speaking: string | null) => state.messages.find(m => m.id === speaking && m.run_id === run.id)
 
 /**
- * One Lead turn in the chat (0.1.4): who answered, with what model and when; the turn's groups as the chat draws them;
- * and once it is over a quiet foot. A turn at work has none - only the ■ of what of it Auto-read reads.
+ * One Lead turn in the chat (0.1.5: no frame): who answered, with what model and when; the turn's groups as the chat draws
+ * them; and once it is over a quiet foot - Copy and Read aloud, what it did at their right. A turn at work has none - only
+ * the ■ of what of it Auto-read reads.
  */
 export function TurnCard({ state, run, lead, answer, children, summary, waits }: Props) {
   const teams = useApp(s => s.teams)
@@ -46,7 +47,7 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits }:
   const at = lastAt(state, run, lead)
   const over = summary !== null
   return (
-    <article className="turn-card" aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
+    <article className="turn" aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
       <div className="turn-head">
         <span className="turn-avatar" aria-hidden>
           {name.charAt(0)}
@@ -59,8 +60,8 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits }:
       {(over || said) && (
         // Its parts in fixed places: at the turn's end the ■ the keyboard is on stays the same button.
         <footer className="turn-foot">
-          {summary}
           {answer && <AnswerActions message={answer} said={said} over={over} />}
+          {summary}
         </footer>
       )}
     </article>

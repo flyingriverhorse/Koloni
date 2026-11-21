@@ -1393,7 +1393,7 @@ test('a Lead turn is one card named after the Lead (the Orchestrator, as the scr
   expect(card).toHaveTextContent('qwen')
   for (const part of ['I read it first.', 'read_file a.py', 'It greets twice.']) expect(within(card).getByText(part)).toBeInTheDocument()
   // The user's message stands above it, not in it.
-  expect(screen.getByText('look at a.py').closest('.turn-card')).toBeNull()
+  expect(screen.getByText('look at a.py').closest('.turn')).toBeNull()
   // The answer opens with its point; the words before it do not.
   expect(card.querySelector('.msg-answer > p:first-child')).toHaveTextContent('It greets twice.')
   expect(screen.getByText('I read it first.').closest('.msg-assistant')).not.toHaveClass('msg-answer')

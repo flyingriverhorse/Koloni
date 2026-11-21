@@ -750,8 +750,8 @@ function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, R
 const OPENERS = new Set<Message['role']>(['user', 'trigger'])
 
 /**
- * A Lead's words as the turn's answer, opening with its point (base.css .msg-answer): once the turn is over - while it
- * runs, each step's words would read large at first and shrink as the next step writes.
+ * A Lead's words as the turn's answer (`msg-answer`): once the turn is over - while it runs, each step's words could be
+ * its answer until the next step writes.
  */
 const answerLook = (message: Message, answer: Message | undefined, run: Run | undefined) =>
   message === answer && run && TERMINAL.has(run.status) ? ' msg-answer' : ''

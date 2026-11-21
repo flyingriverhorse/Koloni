@@ -130,7 +130,7 @@ test('at its narrowest the chat has nothing that scrolls sideways, a long approv
   await page.addStyleTag({ content: '.stage { --chat-w: 340px !important; }' })
   await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(340)
   // (All of the card: what of it runs past the list's end is named.)
-  const { wide, past, sideways } = await overflowOf(chat, '.turn-card, .turn-card *')
+  const { wide, past, sideways } = await overflowOf(chat, '.turn, .turn *')
   expect(past, "what of the card runs past the list's end").toEqual([])
   expect(wide, 'the list scrolls sideways by').toBeLessThanOrEqual(1)
   expect(sideways).toEqual([])

@@ -1685,7 +1685,7 @@ a.view-run {
   padding: 8px 12px;
   border-radius: 14px 14px 4px 14px;
   background: var(--accent-soft);
-  font-size: var(--text-read);
+  font-size: var(--text-body);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1748,36 +1748,33 @@ a.view-run {
   gap: 6px;
 }
 
-/* One Lead turn (0.1.4, MessageList's TurnCard): who answered, the turn's steps and answer, and a quiet foot. In the
-   light theme the card and the list under it are nearly one colour: its border draws it. */
-.turn-card {
+/* One Lead turn (0.1.5, MessageList's TurnCard): a small head - who answered, with which model, when -, the turn's steps
+   and answer, and a quiet foot. No frame, as VS Code's chat has it: a frame and its padding took ~30 px of a 340 px column. */
+.turn {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
 }
 
 .turn-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  font-size: var(--text-note);
 }
 
 .turn-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: var(--text-meta);
+  font-size: var(--text-kicker);
   font-weight: var(--weight-title);
 }
 
@@ -1791,20 +1788,19 @@ a.view-run {
 }
 
 .turn-name {
-  font-weight: var(--weight-strong);
+  font-weight: var(--weight-title);
 }
 
 /* (Too narrow for both, the model gives way first: who answered is cut last.) */
 .turn-model {
   flex-shrink: 100;
   color: var(--muted);
-  font-size: var(--text-note);
+  font-size: var(--text-meta);
 }
 
-/* Its time, or what waits for you, at the right. */
+/* Its time, or what waits for you, after the model. */
 .turn-head > :last-child {
   flex: none;
-  margin-left: auto;
 }
 
 .turn-head time {
@@ -1812,10 +1808,12 @@ a.view-run {
   font-size: var(--text-meta);
 }
 
+/* Copy and Read aloud at its left, what the turn did at its right, on one line of facts. */
 .turn-foot {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  min-width: 0;
 }
 
 /* (An ended turn with no words and nothing done to tell: no foot, and no gap for one.) */
@@ -1823,34 +1821,40 @@ a.view-run {
   display: none;
 }
 
-/* What the turn did draws the foot's rule, not its own (board.css). */
-.turn-foot:has(.turn-summary) {
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-
 .turn-foot .turn-summary {
   flex: 1;
   min-width: 0;
   margin: 0;
-  padding-top: 0;
+  padding-top: 3px;
   border-top: 0;
+  font-size: var(--text-meta);
 }
 
-/* Copy and Read aloud (slice 32a) at the foot's right: seen on the card's hover or focus, on a touch screen, and while
-   it reads. Hidden by opacity only: a keyboard and a screen reader reach them all the same. Under a turn with nothing
-   to tell of what it did they are the foot's only line, so they stay in sight: hidden, they left a blank band there.
-   shortcut: chosen without a look in the browser; a duration line in that foot is the other way, if this one is too loud. */
+/* (Its facts and "details" together at the right, in the foot's quiet colour.) */
+.turn-foot .turn-summary-line {
+  justify-content: flex-end;
+}
+
+.turn-foot .turn-summary-line span {
+  color: inherit;
+}
+
+.turn-foot .turn-summary-line .link-btn {
+  margin-left: 0;
+}
+
+/* Copy and Read aloud (slice 32a) under the answer: always under the latest turn's, as VS Code has them; under an older
+   one on its hover or focus, on a touch screen, and while it reads. Hidden by opacity only: a keyboard and a screen
+   reader reach them all the same. */
 .turn-actions {
   display: flex;
-  gap: 4px;
-  margin-left: auto;
+  gap: 2px;
   opacity: 0;
   transition: opacity 0.15s;
 }
 
-.turn-foot:not(:has(.turn-summary)) .turn-actions,
-.turn-card:is(:hover, :focus-within) .turn-actions,
+.chat .msg-list > .turn:last-of-type .turn-actions,
+.turn:is(:hover, :focus-within) .turn-actions,
 .turn-actions:has([aria-label='Stop reading']) {
   opacity: 1;
 }
@@ -1862,8 +1866,8 @@ a.view-run {
 }
 
 .turn-actions .icon-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
 }
 
 /* Under an answer: what was said aloud of it. */
@@ -2004,38 +2008,25 @@ a.view-run {
   color: var(--accent);
 }
 
-/* A chat answer (0.1.4): larger, airier and softer words, its bold and code without loud colour or a box.
+/* A chat answer (0.1.5: at VS Code's sizes, 13 px on 1.5): softer words, its bold and code without loud colour or a box.
    Only MessageList draws .msg-assistant, so the Inspector, Workspace and Knowledge keep the look above. */
 .msg.msg-assistant {
-  font-size: var(--text-read);
+  font-size: var(--text-body);
   color: var(--text-soft);
 }
 
 /* (On the lines, not the answer: a code block and a table would inherit it.) */
 .msg.msg-assistant :is(p, li) {
-  line-height: 1.7;
+  line-height: 1.5;
 }
 
 .msg.msg-assistant :is(p, li, blockquote, h1, h2, h3, h4) {
   max-width: 72ch;
 }
 
-/* The turn's answer opens with its point. */
-.msg.msg-assistant.msg-answer > p:first-child {
-  font-size: var(--text-lead);
-  line-height: 1.55;
-  color: var(--text);
-  font-weight: var(--weight-strong);
-}
-
 .msg.msg-assistant strong {
   color: var(--text);
   font-weight: var(--weight-title);
-}
-
-/* (On the code itself: .markdown code sets its own size, which a size on pre would not reach.) */
-.msg.msg-assistant code {
-  font-size: var(--text-code);
 }
 
 .msg.msg-assistant :not(pre) > code {
@@ -2048,9 +2039,9 @@ a.view-run {
   color: var(--text);
 }
 
-/* (Without its own line height a code block's lines stand as far apart as the answer's.) */
+/* (At its code's size and with its own line height, or a code block's lines stand as far apart as the answer's.) */
 .msg.msg-assistant pre {
-  font-size: var(--text-code);
+  font-size: var(--text-mono);
   line-height: 1.5;
 }
 
@@ -2067,16 +2058,20 @@ a.view-run {
   font-weight: var(--weight-title);
 }
 
-.msg.msg-assistant :is(h1, h2) {
+.msg.msg-assistant h1 {
   font-size: var(--text-section);
 }
 
+.msg.msg-assistant h2 {
+  font-size: var(--text-subsection);
+}
+
 .msg.msg-assistant h3 {
-  font-size: var(--text-lead);
+  font-size: var(--text-body);
 }
 
 .msg.msg-assistant :is(h4, h5, h6) {
-  font-size: var(--text-read);
+  font-size: var(--text-body);
   color: var(--muted);
 }
 

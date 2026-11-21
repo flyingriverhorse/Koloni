@@ -968,26 +968,26 @@ button.shared-row:hover,
   padding: 0 10px 8px 30px;
 }
 
-/* A turn's steps in its card (0.1.4): quiet pills - a closed line of calls, an agent's folded report, a row on its own
+/* A turn's steps (0.1.4): quiet pills - a closed line of calls, an agent's folded report, a row on its own
    with nothing under its head - each with its click, its marks and its state; a line's count is in its name only.
    Opened, a line or a row is flat. */
-.turn-card .tool-run,
-.turn-card .tool-row {
+.turn .tool-run,
+.turn .tool-row {
   border: 0;
   background: none;
   box-shadow: none;
 }
 
 /* (align-self in a turn's group, justify-self in an agent's report; its focus ring is drawn outside it.) */
-.turn-card .tool-run:not(:has(> .tool-run-body)),
-.turn-card .msg-group > .tool-row:not(:has(> .tool-row-detail, > .tool-row-note, > .tool-row-shot)) {
+.turn .tool-run:not(:has(> .tool-run-body)),
+.turn .msg-group > .tool-row:not(:has(> .tool-row-detail, > .tool-row-note, > .tool-row-shot)) {
   align-self: flex-start;
   justify-self: start;
   max-width: 100%;
   overflow: visible;
 }
 
-.turn-card :is(.tool-run-head, .tool-row-head) {
+.turn :is(.tool-run-head, .tool-row-head) {
   padding: 3px 10px 3px 8px;
   border-radius: 999px;
   background: none;
@@ -996,27 +996,27 @@ button.shared-row:hover,
 }
 
 /* (A row's words at its pill's size, as a line's are: the row's own is the smaller mono one.) */
-.turn-card .tool-row-summary {
+.turn .tool-row-summary {
   font-size: inherit;
 }
 
 /* A pill's ground is its head's, so a hover paints the same ground again, never a second one over it: on two a failed
    state's word reads at 4.4 in the dark theme. (A command's Stop stands beside the ground, not cut by its round end.) */
-.turn-card .tool-run:not(:has(> .tool-run-body)) > .tool-run-head,
-.turn-card .msg-group > .tool-row:not(:has(> .tool-row-detail, > .tool-row-note, > .tool-row-shot)) .tool-row-head,
-.turn-card :is(.tool-run-head, .tool-row-head):hover {
+.turn .tool-run:not(:has(> .tool-run-body)) > .tool-run-head,
+.turn .msg-group > .tool-row:not(:has(> .tool-row-detail, > .tool-row-note, > .tool-row-shot)) .tool-row-head,
+.turn :is(.tool-run-head, .tool-row-head):hover {
   background: var(--hover);
 }
 
-.turn-card :is(.tool-run-head, .tool-row-head):hover {
+.turn :is(.tool-run-head, .tool-row-head):hover {
   color: var(--text);
 }
 
-.turn-card .tool-run-count {
+.turn .tool-run-count {
   display: none;
 }
 
-.turn-card .tool-run-body {
+.turn .tool-run-body {
   padding: 0 0 0 14px;
 }
 

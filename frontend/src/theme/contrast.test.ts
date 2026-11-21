@@ -186,14 +186,22 @@ test('the bold of a chat answer is the text colour, not the accent', () => {
   expect(rule('.msg.msg-assistant strong')).toBe('--text')
 })
 
-test('a turn’s card is drawn by its border on its own ground, and its foot’s buttons hide by opacity only', () => {
-  // (In the light theme the card and the list under it are nearly one colour: the border draws the card.)
-  const card = base.match(/\n\.turn-card \{([^}]*)\}/)?.[1] ?? ''
-  expect(card).toContain('border: 1px solid var(--border);')
-  expect(card).toContain('background: var(--surface);')
+const canvas = readFileSync(new URL('./canvas.css', import.meta.url), 'utf8')
+
+test('the chat reads at VS Code’s sizes: words 13/1.5, headings 16/14/13, code 11.5', () => {
+  expect(css).toMatch(/--text-section: 16px;/)
+  expect(css).toMatch(/--text-subsection: 14px;/)
+  // (Its words at the body's size, its code at the mono one: no sizes of the chat's own.)
+  expect(css).not.toMatch(/--text-(read|code|lead):/)
+  expect(base).toMatch(/\.msg\.msg-assistant :is\(p, li\) \{\s*line-height: 1\.5;/)
+  expect(base).not.toMatch(/\.msg-answer > p:first-child/)
+})
+
+test('a turn has no frame; the latest turn’s Copy and Read aloud are always shown, older ones on hover or focus, by opacity only', () => {
+  expect(base.match(/\n\.turn \{([^}]*)\}/)?.[1]).not.toMatch(/border|background|padding/)
+  expect(base).toMatch(/\.turn:last-of-type \.turn-actions[^{]*\{\s*opacity: 1;/)
   // (Hidden any other way they would leave the tab order and a screen reader: 32a.)
   expect(base.match(/\n\.turn-actions \{([^}]*)\}/)?.[1]).toContain('opacity: 0;')
   expect(base).not.toMatch(/\.turn-actions[^{]*\{[^}]*(visibility|display: none)/)
-  // (A foot with no line of what the turn did is only its buttons: shown, not a blank band under the answer.)
-  expect(base).toMatch(/\.turn-foot:not\(:has\(\.turn-summary\)\) \.turn-actions[^{]*\{\s*opacity: 1;/)
+  expect(base + canvas).not.toMatch(/\.turn-card/)
 })
