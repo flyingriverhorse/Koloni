@@ -1550,65 +1550,21 @@ a.view-run {
   background: var(--accent-soft);
 }
 
-/* The model's line under the message box: what it runs on and where it goes - the model, New topic, then the
-   Workspace button at its end (slice 42d). */
-.composer-line {
-  flex: 1 0 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-/* As wide as its name, not the line: a wide column leaves no long empty button (0.1.4). */
-.composer-line .model-picker {
-  flex: 0 1 auto;
-  min-width: 64px;
-}
-
-/* "New topic" beside the model: pressed, the next message starts a new topic. (It, and a trigger's topic
-   beside it, may shrink: the model keeps its 64px in the narrowest chat.) */
-.composer-line .composer-new-topic {
-  flex: 0 1 auto;
-  min-width: 30px;
-  height: 30px;
-  max-width: 40%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.composer-line .composer-new-topic[aria-pressed='true'] {
+/* Under the message box, quiet words (0.1.5): Workspace first, New topic, the other place a message could go, Chat
+   settings, More, and at the right what waits elsewhere. Pressed, New topic is lit. */
+.composer-below .composer-new-topic[aria-pressed='true'] {
   background: var(--accent-soft);
-  border-color: var(--accent);
   color: var(--accent);
 }
 
-/* ⚙ Chat, last on the model's line: its words give way to its icon as the others' do. */
-.composer-line > .chat-sheet-button {
-  flex: none;
-}
-
-/* Under More (a narrow row) it says its name, as the rest there does. */
-.composer-more-panel .chat-sheet-button .composer-words {
-  position: static;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  clip-path: none;
-}
-
-/* The open chat's Workspace button: a file, and what waits beside it. */
-.composer-line .icon-btn.composer-files {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  width: auto;
-  height: 30px;
-  min-width: 30px;
-  padding: 0 7px;
+/* (The other place a message could go gives way first: its words end in "…", its whole name in its tooltip.) */
+.composer-other {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .composer-files[aria-expanded='true'] {
@@ -2182,6 +2138,8 @@ a.view-run {
   color: var(--muted);
   font-size: var(--text-note);
   white-space: nowrap;
+  /* (The light's sweep starts and ends outside it.) */
+  overflow: hidden;
 }
 
 .composer-status b {
@@ -2725,91 +2683,263 @@ a.view-run {
   border-top: 0;
 }
 
-.composer-row[hidden] {
-  display: none;
-}
-
-/* Under the message box, two lines, two jobs (the user's pick of 7 Nov, sample C): what it runs on
-   (the model, New topic, Workspace); then 📎, how far the conversation may go, More (what runs
-   without asking, voice, Work together) and Send. Every control is one height. Narrower, they give
-   way in sample A's order (the container queries below). */
+/* One framed box (0.1.5, "Kovan konsolu"): the line on what the chat does now, the message, one row; under it, quiet
+   words. Panels open over all of it (usePanel); the container its narrow rules are measured by. */
 .composer-row {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
   container: composer / inline-size;
 }
 
-/* The level, Plan first, More and the buttons: one line, whatever the chat's width (the user's
-   report: it was two while a turn ran). The level gives way first; where words do not fit, Plan
-   first and More keep their icon, their name and tooltip. */
-.composer-controls {
+.composer-box {
   display: flex;
-  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.composer-box:focus-within {
+  border-color: var(--border-strong);
+}
+
+.composer-box > .composer-status {
+  border-radius: 9px 9px 0 0;
+}
+
+.composer-box > :not(.composer-status, .composer-bar) {
+  margin-inline: 6px;
+}
+
+/* (In the box the message has no frame of its own; focused, its own ring is drawn. Its placeholder is one line: in a
+   340px chat "Answer the question above, …" wrapped and was cut.) */
+.composer-box .composer-input {
+  padding-inline: 4px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.composer-box .composer-input::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-box > .composer-pasted:empty {
+  display: none;
+}
+
+.composer-bar,
+.composer-below {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   min-width: 0;
 }
 
-.composer-controls > * {
+.composer-bar {
+  padding: 0 6px 6px;
+}
+
+.composer-below {
+  padding: 0 2px;
+}
+
+.composer-bar[hidden],
+.composer-below[hidden] {
+  display: none;
+}
+
+.composer-bar > *,
+.composer-below > * {
   flex-shrink: 0;
+}
+
+/* Their buttons are quiet words and icons, one height; a hover gives them a ground. */
+.composer-bar .btn:not(.btn-primary),
+.composer-below .btn {
+  min-height: 26px;
+  padding: 0 7px;
+  border-color: transparent;
+  background: none;
+  color: var(--text-soft);
+  font-size: var(--text-note);
+  white-space: nowrap;
+}
+
+.composer-bar .btn:not(.btn-primary):hover,
+.composer-below .btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.composer-bar .btn-primary {
+  min-height: 28px;
+  padding-block: 0;
+}
+
+.composer-bar .att-clip {
+  padding-inline: 6px;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* The level: three comb cells and its name. Ask is the calm blue, Auto-edit the honey, Full auto the warning; an empty
+   cell is a faint outline. */
+.composer-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comb {
+  flex: none;
+}
+
+.comb polygon {
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 1.2;
+}
+
+.composer-level[data-level='ask'] .comb [data-cell='on'] {
+  fill: var(--cat-blue);
+  stroke: var(--cat-blue);
+}
+
+.composer-level[data-level='auto_edit'] .comb [data-cell='on'] {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.composer-level[data-level='full_auto'] .comb [data-cell='on'] {
+  fill: var(--warn);
+  stroke: var(--warn);
+}
+
+/* Its menu: each level a row with a line on what it does, then Plan first. */
+.level-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 300px;
+  padding: 6px;
+}
+
+.level-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.level-row:hover,
+.level-row:has(input:checked) {
+  background: var(--hover);
+}
+
+.level-row input {
+  flex: none;
+  margin-top: 3px;
+}
+
+.level-words {
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+}
+
+.level-name {
+  color: var(--text);
+  font-size: var(--text-note);
+}
+
+.level-says {
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.level-sep {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+/* Plan first beside the level, its state in a word; on, it is lit. Auto-read lit while it is on. */
+.composer-plan-first span {
+  color: var(--faint);
+}
+
+.composer-plan-first[aria-pressed='true'],
+.composer-plan-first[aria-pressed='true'] span,
+.composer-auto-read[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+/* What waits elsewhere: its number in the accent, at the row's right. */
+.composer-waits {
+  margin-left: auto;
+  padding: 0 6px;
+  color: var(--text-soft);
+  font-size: var(--text-note);
+  white-space: nowrap;
+}
+
+.composer-waits b {
+  color: var(--accent);
+  font-weight: var(--weight-title);
+}
+
+.composer-waits-short,
+.sheet-short {
+  display: none;
+}
+
+/* The model, chosen on the line over the box while the chat is ready. */
+.composer-status .model-picker {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.composer-status .model-picker-button {
+  min-height: 20px;
+  padding: 0 4px;
+  border-color: transparent;
+  background: none;
+  color: var(--text-soft);
+  font-size: var(--text-note);
+}
+
+.composer-status .model-picker-button:hover {
+  background: var(--hover);
 }
 
 .composer-icon {
   display: none;
 }
 
+/* Narrower: "Chat settings" is "Settings", and what waits "2 wait". */
 @container composer (max-width: 450px) {
-  .composer-words {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
+  .sheet-long,
+  .composer-waits-long {
+    display: none;
   }
 
-  .composer-icon {
+  .sheet-short,
+  .composer-waits-short {
     display: inline;
-  }
-
-  .composer-controls {
-    gap: 6px;
-  }
-
-  /* Plan first is its icon, with a dot when on (sample A); its switch is still there for the keys and a screen reader. */
-  .composer-plan {
-    position: relative;
-    padding-inline: 4px;
-  }
-
-  .composer-plan .switch {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  .composer-plan:has(:checked) {
-    color: var(--accent);
-  }
-
-  .composer-plan:has(:checked)::after {
-    content: '';
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent-fill);
-  }
-
-  .composer-plan:has(:focus-visible) {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: var(--radius);
   }
 
   /* (Its tooltip and its window still say it.) */
@@ -2818,9 +2948,16 @@ a.view-run {
   }
 }
 
-/* Narrower: Send and Queue are their icon too, the level its short name (Composer), and the model's button
-   the model alone. */
+/* Narrowest (a 340-380px chat): New topic, Settings and More are their icons, with their names and tooltips; Send and
+   Queue too; Plan first is in the level's menu only; the model on the line over the box is its arrow alone (its name in
+   its tooltip); the other place a message could go takes less. The level's name always stays. */
 @container composer (max-width: 360px) {
+  .composer-plan-first,
+  .composer-status .model-picker-label {
+    display: none;
+  }
+
+  .composer-below .composer-words,
   .composer-say {
     position: absolute;
     width: 1px;
@@ -2829,110 +2966,27 @@ a.view-run {
     clip-path: inset(50%);
   }
 
-  .model-picker-provider {
-    display: none;
+  .composer-below .composer-icon {
+    display: inline;
   }
 
-  .composer-controls,
-  .composer-controls .composer-actions {
-    gap: 4px;
+  .composer-other {
+    max-width: 30%;
   }
-}
-
-/* Under ~360px the mic and Auto-read are under More (Composer, B-106), and the row is one line down to the
-   narrowest chat, 220px (R56: it was two at 240px, the level not yet given way). */
-@container composer (max-width: 219px) {
-  .composer-line {
-    gap: 4px;
-  }
-}
-
-/* 📎 at the row's start, as square as the buttons beside it. */
-.composer-controls .att-clip {
-  padding-inline: 7px;
-}
-
-/* Full auto stands out, and is never cut to its first letters: as wide as its own name (a select is as wide as its
-   longest option); where the row has no room for it, Send goes on a second line (the narrowest chat).
-   shortcut: a browser without field-sizing (Firefox) gives it the longest option's width; set a width if one is used. */
-.composer-controls:has(> .composer-mode [value='full_auto']:checked) {
-  flex-wrap: wrap;
-}
-
-.composer-controls > .composer-mode:has([value='full_auto']:checked) {
-  flex-shrink: 0;
-  field-sizing: content;
-  border-color: var(--warn);
-  color: var(--warn);
-}
-
-/* (Its open list in the text's colour: an option takes its select's.) */
-.composer-mode option {
-  color: var(--text);
 }
 
 .composer-stop {
   color: var(--del);
 }
 
-/* (With no provider and no conversation yet the first row has nothing in it.) */
-.composer-row:empty {
-  display: none;
-}
-
-.composer-row .btn,
-.composer-row .input {
-  min-height: 30px;
-  padding-block: 0;
-}
-
 /* Auto-read and the mic beside Send (slice 32a): the row's one height. */
 .composer-actions .icon-btn {
-  width: 30px;
-  height: 30px;
-}
-
-/* (Down to its first letters and its arrow.) */
-.composer-controls > .composer-mode {
-  flex-shrink: 1;
-  min-width: 48px;
-}
-
-.composer-mode {
-  width: auto;
-  padding-inline: 8px;
-  font-size: var(--text-note);
-}
-
-/* Plan first (slice 49): a checkbox beside the level, in the row's type. */
-.composer-plan {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-note);
-  white-space: nowrap;
-}
-
-.composer-actions {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
+  width: 28px;
+  height: 28px;
 }
 
 .composer-more {
   position: relative;
-}
-
-/* A dot on More where Auto-read and Dictate are in it (sample A). */
-.composer-more:has(.composer-more-voice) > button::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-fill);
 }
 
 /* Opens upward from its button, over the messages. */

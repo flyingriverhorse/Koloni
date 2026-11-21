@@ -16,8 +16,6 @@ export interface SlashCommand {
   run?: () => void
   /** Or the buttons under the box it presses, in turn. */
   press?: string[]
-  /** Or the permission level's list it opens. */
-  level?: true
   /** Or the text it puts in the box (the user's own, slice 53). */
   fill?: string
   /** Named in full with what follows it ("/test-yaz login form"): it alone is meant. */
@@ -45,7 +43,6 @@ export interface SlashOn {
   onPlanFirst?: (on: boolean) => void
   /** Where the buttons it presses are. */
   row: RefObject<HTMLElement | null>
-  openLevel: () => void
 }
 
 /** The built-in commands, each off with why where it cannot be chosen now (`closed`: the chat is closed). */
@@ -61,7 +58,7 @@ function builtIn(on: SlashOn, closed: string | null): SlashCommand[] {
     { name: 'stop', what: 'Stop the work in progress', off: on.running ? null : 'nothing is at work', run: on.onStop },
     { name: 'model', what: 'Choose this conversation’s model', off: closed ?? (on.model ? null : 'no model to choose yet'), press: ['.model-picker-button'] },
     // Only the chooser: a higher level is still the user's own pick, sent from this page.
-    { name: 'mode', what: 'Choose the permission level', off: closed, level: true },
+    { name: 'mode', what: 'Choose the permission level', off: closed, press: ['.composer-level'] },
     {
       name: 'plan',
       what: `Switch Plan first ${on.planFirst ? 'off' : 'on'}`,
@@ -139,10 +136,9 @@ export function useSlash(on: SlashOn) {
     setAt(0)
     setKept(null)
     if (command.fill !== undefined) return setDraft(command.fill)
-    if (!command.run && !command.press && !command.level) return setDraft(`/${command.name} `)
+    if (!command.run && !command.press) return setDraft(`/${command.name} `)
     setDraft('')
     command.run?.()
-    if (command.level) on.openLevel()
     // What the button does, unless what it opens is open already.
     for (const selector of command.press ?? []) {
       const button = on.row.current?.querySelector<HTMLElement>(selector)

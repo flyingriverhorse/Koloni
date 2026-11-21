@@ -1,7 +1,7 @@
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { OWN, openFreshConversation, shot } from './helpers'
+import { level, openFreshConversation, OWN, shot } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -40,8 +40,7 @@ test('the same line changed on both sides is asked about, the check runs from th
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   await expect(settings).toHaveCount(0)
 
-  await page.getByLabel('Permission level').selectOption('ask')
-  await expect(page.getByLabel('Permission level')).toHaveValue('ask')
+  await level(page, 'ask')
   await page.getByLabel('Message').fill('a clash in lines.txt')
   await page.getByRole('button', { name: 'Send' }).click()
   await chat.getByRole('button', { name: 'Open agent' }).click()

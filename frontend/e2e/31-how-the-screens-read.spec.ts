@@ -204,22 +204,22 @@ test('the row under the message box reads whole, ⚙ Chat and the model open the
     const sheet = chat.getByRole('button', { name: 'This chat’s settings' })
     const moreButton = chat.getByRole('button', { name: 'More', exact: true })
 
-    // The model's button, on a line of the row with New topic and Workspace, says the model first: where the chat is
-    // narrow its end is cut with "…" (the user's pick, 7 Nov), and its tooltip says all of it.
+    // The model's button, on the line over the message box (0.1.5), says the model first: where the chat is narrow it is
+    // its arrow alone, and its tooltip says all of it.
     await expect(model.locator('.model-picker-label')).toHaveText('fake-strong · Local · Orchestrator: automatic')
     await expect(model).toHaveAttribute('title', /^Orchestrator: automatic · Local · fake-strong: /)
     // The buttons that were an icon alone say what they open, and are named as they were.
-    await expect(sheet).toHaveText('Chat')
-    // Every control is one height; the model stands over how far the conversation may go, More and Send,
-    // which share a line.
-    const [m, r, level, opener, send] = await Promise.all(
-      [model, sheet, chat.getByLabel('Permission level'), moreButton, chat.getByRole('button', { name: 'Send' })].map(
+    await expect(sheet).toContainText('Settings')
+    // The model stands over how far the conversation may go and Send, which share the box's row; More is under the box.
+    const [m, level, opener, send] = await Promise.all(
+      [model, chat.getByRole('button', { name: /^Permission level:/ }), moreButton, chat.getByRole('button', { name: 'Send' })].map(
         async control => (await control.boundingBox())!,
       ),
     )
-    expect([m, r, level, opener, send].map(box => Math.round(box.height))).toEqual([30, 30, 30, 30, 30])
+    const middle = (box: { y: number; height: number }) => Math.round(box.y + box.height / 2)
     expect(m.y + m.height).toBeLessThanOrEqual(level.y)
-    expect([opener.y, send.y]).toEqual([level.y, level.y])
+    expect(middle(send)).toBe(middle(level))
+    expect(opener.y).toBeGreaterThanOrEqual(level.y + level.height)
 
     // (The model's last: More, open from above, lies over its button.)
     const panels: [button: Locator, panel: Locator][] = [

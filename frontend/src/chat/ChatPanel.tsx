@@ -1,4 +1,4 @@
-import { CaretDown, CaretUp, ChatsCircle, FileText, FolderSimple } from '@phosphor-icons/react'
+import { CaretDown, CaretUp, ChatsCircle, FolderSimple } from '@phosphor-icons/react'
 import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { waitingIn } from '../board/waiting'
 import { inProject } from '../changes/copies'
@@ -223,11 +223,11 @@ function useWorkspace(open: boolean, conv: ConvState | null) {
   const fresher = fresh.length > 0 && !filesOpen
   const glows = !filesOpen && (fresh.length > 0 || (waitingHere ?? 0) > 0)
   // (A plain chat has no folder, so no Workspace either.)
-  const files = (className: string, own: typeof filesButton, label: boolean) => project && (
+  const files = (className: string, own: typeof filesButton, glow: boolean) => project && (
     <button
       ref={own}
       type="button"
-      className={`${className}${!label && glows ? ' glow' : ''}`}
+      className={`${className}${glow ? ' glow' : ''}`}
       aria-expanded={filesOpen}
       aria-controls="files-window"
       // (named in words, as it reads: "Workspace 2 waiting new")
@@ -240,14 +240,14 @@ function useWorkspace(open: boolean, conv: ConvState | null) {
         openFiles()
       }}
     >
-      {label ? <FolderSimple size={14} /> : <FileText size={16} />}
-      {label && <span className="dock-label">Workspace</span>}
-      {/* (the small one shows a number only when something waits) */}
-      {waitingHere !== null && (label || waitingHere > 0) && <span className="mono dock-count">{waitingHere}</span>}
-      {label && fresher && <span className="view-dot" aria-hidden />}
+      <FolderSimple size={14} />
+      <span className="dock-label">Workspace</span>
+      {waitingHere !== null && <span className="mono dock-count">{waitingHere}</span>}
+      {fresher && <span className="view-dot" aria-hidden />}
     </button>
   )
-  const button = (where: 'dock' | 'chat') => (where === 'dock' ? files('dock-btn', filesButton, true) : files('icon-btn composer-files', footButton, false))
+  // (0.1.5: the open chat's is the first under its message box, by its name, glowing while something is new or waits.)
+  const button = (where: 'dock' | 'chat') => (where === 'dock' ? files('dock-btn', filesButton, false) : files('btn btn-small composer-files', footButton, glows))
   const window = project && (
         <FilesWindow
           // (anew in another conversation: its tabs were that one's; and on another branch, looked at or switched to -
@@ -538,22 +538,6 @@ function modelPicker(conv: ConvState | null, providers: Provider[], roles: Role[
   )
 }
 
-/** "What waits outside this chat" (tek-ev §1): one line, which opens Ready for you's panel. */
-function ReadyLine({ elsewhere }: { elsewhere: number }) {
-  if (elsewhere <= 0) return null
-  return (
-    <div className="ready-line">
-      <span className="dot" aria-hidden />
-      <span>
-        {elsewhere} more {elsewhere === 1 ? 'waits' : 'wait'} elsewhere
-      </span>
-      <button type="button" className="btn btn-small" aria-label={`Open Ready for you: ${elsewhere} more wait elsewhere`} onClick={() => useApp.getState().showReady(true)}>
-        Open →
-      </button>
-    </div>
-  )
-}
-
 export function ChatPanel() {
   const conv = useApp(s => s.conv)
   const providers = useApp(s => s.providers)
@@ -588,7 +572,6 @@ export function ChatPanel() {
         <div className="chat-pane" role="tabpanel" id="chat-tabpanel" aria-labelledby={tabId(tab)}>
           <ChatPane conv={conv} tab={tab} />
         </div>
-        <ReadyLine elsewhere={elsewhere} />
       </div>
       {/* The Orchestrator's question, just over the message box (0.1.5). */}
       <AskCard conv={conv} open={open} tab={tab} onAnswer={app.answerQuestion} />
@@ -616,6 +599,8 @@ export function ChatPanel() {
         sheet={conv && <ChatSheet sheet />}
         compare={compareOf(providers, first, topicOf, () => setInto(null))}
         workspace={workspace.button('chat')}
+        // What waits for you outside this chat (tek-ev §1): quiet words under the box, which open Ready for you.
+        waits={{ count: elsewhere, onOpen: () => useApp.getState().showReady(true) }}
         beside={roomStarter(conv, roles, providers, project)}
         model={modelPicker(conv, providers, roles)}
       />

@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures'
-import { contrasts, openFreshConversation, say, settled, shot } from './helpers'
+import { contrasts, level, openFreshConversation, say, settled, shot } from './helpers'
 
 // Slice 84c: findings go to the right role. The fake Reviewer ends its report with two findings, one for the
 // Coder and one for the UI designer; the Lead hands the Coder its one (findings_from). The Reviewer's node says
@@ -22,8 +22,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     // The Coder is opened without asking, so that nothing in this turn waits for the user.
-    await page.getByLabel('Permission level').selectOption('auto_edit')
-    await expect(page.getByLabel('Permission level')).toHaveValue('auto_edit')
+    await level(page, 'auto_edit')
 
     await say(page, 'review and hand on the greeting', 'The Coder fixed what the review found.')
     const agents = page.locator('.react-flow__node-agent')

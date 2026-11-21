@@ -1,5 +1,5 @@
 import { expect, type Page, test } from './fixtures'
-import { openFreshConversation, say } from './helpers'
+import { contrasts, level, openFreshConversation, say } from './helpers'
 
 // The chat, round 2 (0.1.5): VS Code's sizes, a turn without a frame, its steps folded at its end. No model plays a turn
 // of many steps with a sub-agent: one real turn gives a real record, and the page is handed it with those steps in it.
@@ -58,7 +58,7 @@ test('a finished turn folds its steps into one line that counts what failed; a s
 test('while a command runs the status line over the box and the Orchestrator’s box say what it does and for how long; Stop there ends the turn', async ({ page }) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Permission level').selectOption('full_auto')
+  await level(page, 'full_auto')
   await page.getByLabel('Message').fill('run slow.py')
   await page.getByRole('button', { name: 'Send' }).click()
   const status = chat.locator('.composer-status')
@@ -96,3 +96,49 @@ test('1 and Enter answer the card over the box; the turn keeps one line, then Qu
   await asked.locator('summary').click()
   await expect(asked.getByRole('listitem', { name: 'hey, your answer' })).toBeVisible()
 })
+
+for (const theme of ['light', 'dark'] as const)
+  test(`at 340, 420 and 760 px each row of the box is one line and nothing in the chat scrolls sideways; at 340 the model's name and Plan first give way, the level's name stays (${theme})`, async ({ page }) => {
+    await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await openFreshConversation(page)
+    const chat = page.getByRole('region', { name: 'Chat' })
+    for (const width of [340, 420, 760]) {
+      const style = await page.addStyleTag({ content: `.stage { --chat-w: ${width}px !important; }` })
+      await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(width)
+      const rows = await chat.evaluate(root => {
+        const sideways = [root, ...root.querySelectorAll('*')].filter(el => ['auto', 'scroll'].includes(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 1)
+        const end = root.getBoundingClientRect().right
+        return {
+          sideways: sideways.map(el => el.className),
+          rows: ['.composer-status', '.composer-bar', '.composer-below'].map(at => {
+            const row = root.querySelector(at)!
+            const box = row.getBoundingClientRect()
+            const kids = [...row.children].filter(c => (c as HTMLElement).offsetParent !== null && getComputedStyle(c).position !== 'absolute')
+            return { at, height: Math.round(box.height), past: box.right > end + 1, lines: new Set(kids.map(c => Math.round(c.getBoundingClientRect().top / 12))).size }
+          }),
+        }
+      })
+      expect(rows.sideways, `what scrolls sideways at ${width}px`).toEqual([])
+      for (const row of rows.rows) {
+        expect(row.past, `${row.at} past the chat at ${width}px`).toBe(false)
+        expect(row.height, `${row.at} one line at ${width}px`).toBeLessThanOrEqual(40)
+      }
+      const plan = chat.getByRole('button', { name: 'Plan first' })
+      if (width === 340) {
+        await expect(plan).toBeHidden()
+        await expect(chat.locator('.composer-status .model-picker-label')).toBeHidden()
+      }
+      if (width === 760) await expect(plan).toBeVisible()
+      await expect(chat.locator('.composer-level-name')).toBeVisible()
+      await style.evaluate(el => el.remove())
+    }
+  })
+
+for (const theme of ['light', 'dark'] as const)
+  test(`the message box reads at 4.5 or more, in the ${theme} theme`, async ({ page }) => {
+    await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
+    await openFreshConversation(page)
+    await level(page, 'auto_edit')
+    expect((await page.locator('.composer').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
+  })

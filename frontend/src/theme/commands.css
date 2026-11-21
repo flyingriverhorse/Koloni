@@ -3573,7 +3573,7 @@ fieldset.choice > label .choice-note,
   min-width: 0;
 }
 
-.composer-row .model-picker-button {
+.composer-status .model-picker-button {
   width: auto;
   max-width: 100%;
   justify-content: flex-start;

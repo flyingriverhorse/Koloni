@@ -2,7 +2,7 @@
 // bottom left corner closed; open, a column at its left edge as tall as it, as wide as it was dragged
 // (0.1.4) - and the canvas keeps the nodes at work clear of it, and of the inspector that slides in beside it.
 import { expect, test, type Locator, type Page } from './fixtures'
-import { OWN, contrasts, freeOfChat, openFreshConversation, settled, shot } from './helpers'
+import { contrasts, freeOfChat, level, openFreshConversation, OWN, settled, shot } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -164,7 +164,7 @@ test('as the inspector slides in and out over work in progress, every node at wo
   const running = page.locator('.react-flow__node').filter({ has: page.locator('.node-running') })
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   // A command that runs half a minute, without asking: the lead and its command are at work.
-  await page.getByLabel('Permission level').selectOption('full_auto')
+  await level(page, 'full_auto')
   await page.getByLabel('Message').fill('run slow.py')
   await page.getByRole('button', { name: 'Send' }).click()
   try {
@@ -205,7 +205,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const chat = chatOf(page)
-    await page.getByLabel('Permission level').selectOption('full_auto')
+    await level(page, 'full_auto')
     await page.getByLabel('Message').fill('run slow.py')
     await page.getByRole('button', { name: 'Send' }).click()
     const lead = page.locator('.react-flow__node-agent')

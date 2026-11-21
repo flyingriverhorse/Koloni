@@ -461,18 +461,20 @@ function opened(more: Parameters<typeof convState>[0] = {}) {
   return conv
 }
 
-test('one Workspace button: open, a small file at the chat’s foot, at the end of the model’s line - not in its header nor the top bar - that glows while something waits; closed, beside the small box: its number is what waits for you as the Board counts it', async () => {
+test('one Workspace button: open, the first under the message box (0.1.5) - not in its header nor the top bar - with its number, glowing while something waits; closed, beside the small box: its number is what waits for you as the Board counts it', async () => {
   opened()
   render(<ChatPanel />)
   const chat = screen.getByRole('region', { name: 'Chat' })
   // (the Board not read yet: no number, nothing to glow for)
   const foot = within(chat).getByRole('button', { name: 'Workspace' })
   expect(foot).toHaveAttribute('title', expect.stringMatching(/^Workspace/))
-  expect(foot.closest('.composer-line')).not.toBeNull()
+  expect(foot.closest('.composer-below')!.firstElementChild).toBe(foot)
+  expect(foot).toHaveTextContent(/^Workspace$/)
   expect(chat.querySelector('.chat-top')).not.toContainElement(foot)
   expect(foot).not.toHaveClass('glow')
   act(() => useApp.setState({ everywhere: board(2) }))
   expect(within(chat).getByRole('button', { name: 'Workspace 2 waiting' })).toHaveClass('glow')
+  expect(foot).toHaveTextContent(/^Workspace2$/)
   expect(screen.getAllByRole('button', { name: /^Workspace/ })).toHaveLength(1)
   // opened, it stops
   await userEvent.click(foot)

@@ -166,7 +166,7 @@ test('closed, the chat is a small box: a line of the latest, and a one-line mess
   // the rest of the chat is not there to be reached: its tabs, the model, Send
   expect(screen.queryByRole('tab', { name: 'Chat' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('combobox', { name: 'Permission level' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^Permission level:/ })).not.toBeInTheDocument()
 })
 
 test('closed, what is typed in the small box and sent with Enter goes as from the open chat - to the same topic - and the chat stays closed', async () => {
@@ -406,7 +406,7 @@ test('under the message box: the model, the level, ⚙ Chat and Send; More holds
   useApp.setState({ conv: state, projectId: 'p', providers: [local], roles: [lead] })
   render(<ChatPanel />)
   expect(screen.getByRole('button', { name: 'Model: Local · m' })).toBeVisible()
-  expect(screen.getByRole('combobox', { name: 'Permission level' })).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Permission level: Ask before changes' })).toBeVisible()
   expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument()
   const more = screen.getByRole('button', { name: 'More' })
   // a plain disclosure: what it opens is no menu
@@ -519,8 +519,11 @@ test('tek-ev decision 2: "N more wait elsewhere" only while something waits outs
   const proposed = { id: 't1', title: 'Rate-limit login', status: 'proposed', not_in: false, pending: null, conversation_id: null }
   act(() => useApp.setState({ backlog: [proposed, { ...proposed, id: 't2' }] as never }))
   rerender(<ChatPanel />)
-  expect(screen.getByText('2 more wait elsewhere')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Open Ready for you: 2 more wait elsewhere' }))
+  // (0.1.5: quiet words under the box, not a line of its own over it.)
+  const waits = screen.getByRole('button', { name: 'Open Ready for you: 2 more wait elsewhere' })
+  expect(waits.closest('.composer-below')).not.toBeNull()
+  expect(document.querySelector('.chat .ready-line')).toBeNull()
+  await userEvent.click(waits)
   expect(useApp.getState().readyPanel.open).toBe(true)
 })
 

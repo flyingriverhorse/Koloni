@@ -29,6 +29,7 @@ export function ComposerStatus({ conv, compact, running, onStop, model }: Props)
       <span className="composer-status-dot" aria-hidden />
       <Said status={status} />
       {status.queued > 0 && <span className="composer-status-queued"> · {status.queued} queued</span>}
+      {/* shortcut: the model is chosen while the chat is ready (the mockup's line); at work, /model presses no button - show it there too if missed. */}
       {status.tone === 'ready' && model}
       {running && (
         <button type="button" className="icon-btn composer-stop" aria-label="Stop" title="Stop the work" onClick={onStop}>

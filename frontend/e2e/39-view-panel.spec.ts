@@ -6,7 +6,7 @@
 import { rmSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test, type Locator, type Page } from './fixtures'
-import { OWN, contrasts, openFreshConversation, settled, shot } from './helpers'
+import { contrasts, level, openFreshConversation, OWN, settled, shot } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -166,7 +166,7 @@ test('with the panel open, the nodes at work stay on the canvas, clear of it and
   const panel = panelOf(page)
   await expect(panel).toBeVisible({ timeout: 10_000 })
   // A command that runs half a minute, without asking: the lead and its command are at work.
-  await page.getByLabel('Permission level').selectOption('full_auto')
+  await level(page, 'full_auto')
   await page.getByLabel('Message').fill('run slow.py')
   await page.getByRole('button', { name: 'Send' }).click()
   try {

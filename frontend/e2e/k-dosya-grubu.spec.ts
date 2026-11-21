@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { contrasts, openFreshConversation, settled, shot } from './helpers'
+import { contrasts, level, openFreshConversation, settled, shot } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -17,7 +17,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     // Files are written without asking: none waits for the user.
-    await page.getByLabel('Permission level').selectOption('auto_edit')
+    await level(page, 'auto_edit')
     await page.getByLabel('Message').fill('write three files, k-dosya-grubu')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(page.getByRole('region', { name: 'Chat' }).getByText('Wrote three files.')).toBeVisible({ timeout: 15_000 })

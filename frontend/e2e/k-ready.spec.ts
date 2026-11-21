@@ -36,7 +36,7 @@ for (const theme of ['light', 'dark'] as const) {
     // The pill: how many wait anywhere (other specs' chats may wait too); the chat's line says the rest are elsewhere.
     const pill = page.locator('.ready-pill')
     await expect(pill).toHaveText(/^\d+ wait$/)
-    await expect(chat.locator('.ready-line')).toContainText(/\d+ more waits? elsewhere/, { timeout: 15_000 })
+    await expect(chat.locator('.composer-waits')).toHaveAccessibleName(/^Open Ready for you: \d+ more waits? elsewhere$/, { timeout: 15_000 })
     await pill.click()
     const panel = page.getByRole('complementary', { name: /^Ready for you · \d+$/ })
     await expect(panel).toBeFocused()

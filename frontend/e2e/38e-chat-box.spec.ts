@@ -3,7 +3,7 @@
 // the open chat's column (0.1.4), the nodes at work kept clear of both wherever it is. And (from
 // the user's report, 16 October) the message box and Send always inside the open chat, whatever the tab.
 import { expect, test, type Locator, type Page } from './fixtures'
-import { OWN, more, openFreshConversation, say, settled, shot } from './helpers'
+import { level, more, openFreshConversation, OWN, say, settled, shot } from './helpers'
 
 const chatOf = (page: Page) => page.getByRole('region', { name: 'Chat' })
 const viewOf = (page: Page) => page.getByRole('region', { name: 'Workspace' })
@@ -67,8 +67,9 @@ test.describe('at the size of the user’s window', () => {
           await chat.getByRole('combobox', { name: 'Whose notes', exact: true }).selectOption({ index: 0 })
           await expect(chat.getByText(/its notebook is closed/)).toBeVisible()
         }
-        const [around, send, model, message] = await Promise.all([box(chat), box(chat.getByRole('button', { name: /^(Send|Queue)$/ })), box(chat.getByRole('button', { name: /^Model: / })), box(chat.getByLabel('Message'))])
-        for (const [what, part] of [['Send', send], ['the model', model], ['the message box', message]] as const)
+        // (0.1.5: the model is on the line over the box while the chat is ready; the room keeps this turn at work.)
+        const [around, send, line, message] = await Promise.all([box(chat), box(chat.getByRole('button', { name: /^(Send|Queue)$/ })), box(chat.locator('.composer-status')), box(chat.getByLabel('Message'))])
+        for (const [what, part] of [['Send', send], ['the line over the box', line], ['the message box', message]] as const)
           expect(inside(part, around), `${what} inside the chat on its ${tab} tab at ${width} width`).toBe(true)
       }
     }
@@ -123,7 +124,7 @@ test.describe('on a large window', () => {
     const view = viewOf(page)
     await expect(view.getByRole('tab', { name: 'chart39.png' })).toBeVisible()
     // A command that runs half a minute, without asking: the lead and its command are at work.
-    await page.getByLabel('Permission level').selectOption('full_auto')
+    await level(page, 'full_auto')
     await page.getByLabel('Message').fill('run slow.py')
     await page.getByRole('button', { name: 'Send' }).click()
     try {
@@ -236,11 +237,29 @@ for (const theme of ['light', 'dark'] as const)
     await snap('notes-small')
   })
 
-// The user's report (batch-14): after Send, Stop and Queue came and part of the row under the message box went on a
-// second line. Its controls stand on one line while a turn runs too, in both themes, on a wide window and a narrow one.
+// 0.1.5, "Kovan konsolu": the box's line over the message, its own row under it, and the quiet row under the box - each
+// one line, inside the chat, whatever its width (the user's reports, batch-14, R56, batch-18: rows went on two lines).
+async function oneLine(chat: Locator) {
+  for (const row of ['.composer-status', '.composer-bar', '.composer-below']) {
+    const { around, parts, end } = await chat.locator(row).evaluate(el => ({
+      around: el.getBoundingClientRect().toJSON() as DOMRect,
+      end: el.closest('.chat')!.getBoundingClientRect().right,
+      parts: [...el.children]
+        .filter(c => (c as HTMLElement).offsetParent !== null && getComputedStyle(c).position !== 'absolute')
+        .map(c => ({ name: c.getAttribute('aria-label') ?? c.className, top: c.getBoundingClientRect().top, bottom: c.getBoundingClientRect().bottom, right: c.getBoundingClientRect().right })),
+    }))
+    for (const part of parts) {
+      expect(part.top - around.top, `${row} ${part.name} on its one line`).toBeLessThan(12)
+      expect(part.right, `${row} ${part.name} inside the row`).toBeLessThanOrEqual(around.right + 1)
+    }
+    expect(around.right, `${row} inside the chat`).toBeLessThanOrEqual(end + 1)
+    expect(around.height, `${row} one line`).toBeLessThanOrEqual(40)
+  }
+}
+
 for (const theme of ['light', 'dark'] as const)
   for (const width of [1440, 700, 600, 574])
-    test(`while a turn runs the row under the message box is one line, ${width}px wide, ${theme} theme`, async ({ page }) => {
+    test(`while a turn runs each row of the message box is one line, ${width}px wide, ${theme} theme`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
       await openFreshConversation(page)
@@ -248,26 +267,13 @@ for (const theme of ['light', 'dark'] as const)
       await page.getByLabel('Message').fill('change the greeting again')
       await page.getByRole('button', { name: 'Send' }).click()
       await expect(page.locator('[data-run="waiting_approval"]')).toBeVisible()
-      // (Stop is on the line over the box, 0.1.5.)
+      // (Stop is on the line over the message box; Queue in Send's place.)
       await expect(chat.locator('.composer-status').getByRole('button', { name: 'Stop' })).toBeVisible()
-      const row = chat.locator('.composer-controls')
-      const { around, parts } = await row.evaluate(el => ({
-        around: el.getBoundingClientRect().toJSON() as DOMRect,
-        parts: [...el.querySelectorAll('select, label, button')]
-          .filter(c => (c as HTMLElement).offsetParent && !c.closest('[hidden]'))
-          .map(c => ({ name: c.getAttribute('aria-label') ?? c.textContent, top: c.getBoundingClientRect().top, right: c.getBoundingClientRect().right })),
-      }))
-      expect(parts.map(part => part.name)).toEqual(expect.arrayContaining(['Permission level', 'More', 'Queue']))
-      for (const part of parts) {
-        // (each in the row's one line, and none past its end)
-        expect(part.top - around.top, `${part.name} on the first line`).toBeLessThan(12)
-        expect(part.right, `${part.name} inside the row`).toBeLessThanOrEqual(around.right + 1)
-      }
-      expect(around.height).toBeLessThanOrEqual(36)
+      await expect(chat.locator('.composer-bar').getByRole('button', { name: 'Queue' })).toBeVisible()
+      await oneLine(chat)
       await reject(chat)
     })
 
-/** The open chat as wide as `width` (the user's, kept in this browser), on a large window. */
 async function chatWide(page: Page, width: number) {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.addInitScript(px => localStorage.setItem('koloni-chat-width', String(px)), width)
@@ -275,31 +281,20 @@ async function chatWide(page: Page, width: number) {
   expect(Math.round((await box(chatOf(page))).width)).toBe(width)
 }
 
-// R56: with "Ask before changes" chosen the row went on two lines in a chat 240px wide. One line down to the narrowest
-// chat (220px then; 340px since the chat is a column, 0.1.4 - on a window too narrow for it, as here, it is 340px too).
 for (const width of [574])
-  test('the row under the message box is one line in the narrowest chat, "Ask before changes" chosen', async ({ page }) => {
+  test('each row of the message box is one line in the narrowest chat, "Ask before changes" chosen', async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await openFreshConversation(page)
     const chat = chatOf(page)
-    await expect(page.getByLabel('Permission level')).toHaveValue('ask')
+    await expect(chat.getByRole('button', { name: 'Permission level: Ask before changes' })).toBeVisible()
     expect(Math.round((await box(chat)).width)).toBe(340)
-    const row = chat.locator('.composer-controls')
-    const { around, parts } = await row.evaluate(el => ({
-      around: el.getBoundingClientRect().toJSON() as DOMRect,
-      parts: [...el.children].map(c => ({ name: c.className, top: c.getBoundingClientRect().top, right: c.getBoundingClientRect().right })),
-    }))
-    for (const part of parts) {
-      expect(part.top - around.top, `${part.name} on the first line`).toBeLessThan(12)
-      expect(part.right, `${part.name} inside the row`).toBeLessThanOrEqual(around.right + 1)
-    }
-    expect(around.height).toBeLessThanOrEqual(36)
+    await oneLine(chat)
   })
 
-// The user's pick (7 Nov, sample C, given way in sample A's order): the model's line, then 📎, the level and Send. The
-// model's button is one line, cut with "…" (B-400: in a 220px chat its name broke letter by letter); Full auto is read whole.
+// The model on the line over the box, one line, cut with "…" (B-400: in a 220px chat its name broke letter by letter) - and
+// at its narrowest its arrow alone, its name in its tooltip; the level's name read whole, Full auto too.
 for (const width of [480, 340])
-  test(`two lines, two jobs, in a chat ${width}px wide: the model's button one line, cut with "…"; Full auto read whole`, async ({ page }) => {
+  test(`in a chat ${width}px wide the model is one line over the box, the level's name read whole`, async ({ page }) => {
     await chatWide(page, width)
     const chat = chatOf(page)
     await chat.getByRole('button', { name: /^Model: / }).click()
@@ -309,79 +304,33 @@ for (const width of [480, 340])
     await chat.getByRole('button', { name: 'Use this model' }).click()
     const model = chat.getByRole('button', { name: 'Model: Orchestrator: automatic · Local · fake-strong-with-a-long-name', exact: true })
     await expect(model).toHaveAttribute('title', /^Orchestrator: automatic · Local · fake-strong-with-a-long-name: /)
-    expect(Math.round((await box(model)).height)).toBe(30)
+    expect(await model.evaluate(el => el.closest('.composer-status') !== null)).toBe(true)
     const label = model.locator('.model-picker-label')
-    expect(await label.evaluate(el => [getComputedStyle(el).whiteSpace, getComputedStyle(el).textOverflow])).toEqual(['nowrap', 'ellipsis'])
-    expect(Math.round((await box(label)).height)).toBeLessThan(20)
-    await expect(chat.locator('.composer-controls').getByRole('button', { name: 'Attach' })).toBeVisible()
-    await chat.getByLabel('Permission level').selectOption('full_auto')
-    const level = chat.getByLabel('Permission level')
-    await expect(level).toHaveCSS('flex-shrink', '0')
-    // (as wide as it is with room for all of its name)
-    expect(
-      await level.evaluate(el => {
-        const now = el.getBoundingClientRect().width
-        el.style.width = 'max-content'
-        const whole = el.getBoundingClientRect().width
-        el.style.width = ''
-        return now >= whole - 1
-      }),
-    ).toBe(true)
-    for (const row of ['.composer-line', '.composer-controls']) {
-      const { around, parts } = await chat.locator(row).evaluate(el => ({
-        around: el.getBoundingClientRect().toJSON() as DOMRect,
-        parts: [...el.children].map(c => ({ name: c.className, right: c.getBoundingClientRect().right })),
-      }))
-      for (const part of parts) expect(part.right, `${part.name} inside the row`).toBeLessThanOrEqual(around.right + 1)
-    }
+    if (width > 450) {
+      expect(await label.evaluate(el => [getComputedStyle(el).whiteSpace, getComputedStyle(el).textOverflow])).toEqual(['nowrap', 'ellipsis'])
+      expect(Math.round((await box(label)).height)).toBeLessThan(20)
+    } else await expect(label).toBeHidden()
+    await expect(chat.locator('.composer-bar').getByRole('button', { name: 'Attach' })).toBeVisible()
+    await level(page, 'full_auto')
+    const name = chat.locator('.composer-level-name')
+    await expect(name).toHaveText('Full auto')
+    expect(await name.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+    await oneLine(chat)
     if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-${width}`)
   })
 
-// Narrower (sample A): Auto-read and Dictate are under More, a dot on it and its description say so; Plan first is its
-// icon, its switch still there for the keys.
-for (const width of [340])
-  test(`in a chat ${width}px wide the voice is under More, and Plan first's switch is reached from the keyboard`, async ({ page }) => {
-    await chatWide(page, width)
-    const chat = chatOf(page)
-    const moreButton = chat.getByRole('button', { name: 'More', exact: true })
-    await expect(moreButton).toHaveAccessibleDescription('Auto-read and Dictate are in here')
-    expect(await moreButton.evaluate(el => getComputedStyle(el, '::after').backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
-    const panel = chat.locator('.composer-more-panel')
-    await more(page)
-    await expect(panel.getByRole('button', { name: 'Auto-read', exact: true })).toBeVisible()
-    await expect(panel.getByRole('button', { name: 'Dictate', exact: true })).toBeVisible()
-    await page.keyboard.press('Escape')
-    // (from the level, Tab: the switch, clipped out of sight, takes the focus, and Space turns it on)
-    const plan = chat.getByRole('switch', { name: 'Plan first' })
-    expect(Math.round((await box(plan)).width)).toBeLessThanOrEqual(1)
-    await chat.getByLabel('Permission level').focus()
-    await page.keyboard.press('Tab')
-    await expect(plan).toBeFocused()
-    await page.keyboard.press('Space')
-    await expect(plan).toBeChecked()
-    await page.keyboard.press('Space')
-    await expect(plan).not.toBeChecked()
-  })
-
-// Full auto while a turn runs: Stop and Queue are there, and nothing of the row is past its end (in the narrowest chat they
-// go on a second line).
+// Full auto while a turn runs: Stop over the box, Queue in its row, and each row one line inside the chat.
 for (const width of [480, 340])
-  test(`Full auto while a turn runs in a chat ${width}px wide: Stop and Queue, and nothing past the row's end`, async ({ page }) => {
+  test(`Full auto while a turn runs in a chat ${width}px wide: Stop and Queue, and each row one line`, async ({ page }) => {
     await chatWide(page, width)
     const chat = chatOf(page)
-    await chat.getByLabel('Permission level').selectOption('full_auto')
+    await level(page, 'full_auto')
     await page.getByLabel('Message').fill('run slow.py')
     await page.getByRole('button', { name: 'Send' }).click()
     try {
       await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible()
       await expect(chat.getByRole('button', { name: 'Queue' })).toBeVisible()
-      const { around, parts } = await chat.locator('.composer-controls').evaluate(el => ({
-        around: el.getBoundingClientRect().toJSON() as DOMRect,
-        parts: [...el.querySelectorAll('select, label, button')]
-          .filter(c => (c as HTMLElement).offsetParent && !c.closest('[hidden]'))
-          .map(c => ({ name: c.getAttribute('aria-label') ?? c.textContent, right: c.getBoundingClientRect().right })),
-      }))
-      for (const part of parts) expect(part.right, `${part.name} inside the row`).toBeLessThanOrEqual(around.right + 1)
+      await oneLine(chat)
       if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-full-auto-running-${width}`)
     } finally {
       // (Stopped, so that nothing runs on into the next test.)
@@ -432,15 +381,12 @@ for (const width of [574])
       await page.getByLabel('Message').fill('change the greeting again')
       await page.getByRole('button', { name: 'Send' }).click()
       await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible()
-      const { around, parts } = await chat.locator('.composer-controls').evaluate(el => ({
-        around: el.getBoundingClientRect().toJSON() as DOMRect,
-        parts: [...el.children].map(c => ({ name: c.className, right: c.getBoundingClientRect().right })),
-      }))
-      for (const part of parts) expect(part.right, `${part.name} inside the row`).toBeLessThanOrEqual(around.right + 1)
+      await oneLine(chat)
+      // (0.1.5: what waits elsewhere is quiet words under the box, in its row's one line.)
       const elsewhere = chat.getByRole('button', { name: /^Open Ready for you: \d+ more waits? elsewhere$/ })
       await expect(elsewhere).toBeVisible()
       await expect(chat.getByRole('button', { name: 'Reject' })).toBeVisible({ timeout: 15_000 })
-      expect((await box(chat.locator('.ready-line'))).height).toBeLessThan(40)
+      expect((await box(elsewhere)).height).toBeLessThan(30)
       expect((await box(chat.locator('.chat-pane'))).height).toBeGreaterThanOrEqual(100)
       await reject(chat)
     } finally {
