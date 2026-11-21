@@ -27,6 +27,7 @@ from app.agent.questions_mixin import (
     LEAD_AGAIN,
     LEAD_BEFORE,
     LEAD_COULD_NOT,
+    LEAD_LANGUAGE,
     USER_AGAIN,
 )
 from app.db.models import AwayRun, Command, OwnRequest, ToolCall
@@ -261,6 +262,30 @@ def test_the_question_is_data_to_the_lead_and_what_it_spent_is_counted(
     (row,) = client.get("/api/usage", params={"run_id": run_id}).json()["by_conversation"]
     assert (row["input_tokens"], row["output_tokens"], row["agents"]) == (
         5 + 5 + 5 + 5 + 40, 2 + 2 + 3 + 3 + 12, 3)
+
+
+def test_the_lead_answers_by_what_the_user_saved_not_the_folders_file(
+        make_client, wait_run, project_dir):
+    # (K-yargıç 1b: their preferences and this project's rules as saved on the Memory page -
+    # never the folder's .koloni/rules.md, which a pull or a script may change)
+    client, model = make_client([CODER, ask(), says("by date"), text("ok"), text("done")])
+    clock = held(client)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.put("/api/preferences", json={"text": "Answer in short words."},
+                      headers=OWN).status_code == 200
+    assert client.put(f"/api/projects/{pid}/rules", json={"rules": "Sort lists by date."},
+                      headers=OWN).status_code == 200
+    (project_dir / ".koloni" / "rules.md").write_text("Sort lists by name.\n", encoding="utf-8")
+    cid, run_id = begin(client, project_dir, mode="auto_edit", when_away="lead",
+                        content="Listeyi sırala, lütfen")
+    wait_status(client, cid, "waiting_approval")
+    fire(client, lead_timers(clock, 600.0)[0])
+    wait_run(client, cid, run_id)
+    (asked,) = model.calls[2]
+    assert "This project's rules: \"Sort lists by date.\"" in asked["content"]
+    assert "Their preferences: \"Answer in short words.\"" in asked["content"]
+    assert "Sort lists by name." not in asked["content"]
+    assert asked["content"].endswith(LEAD_LANGUAGE.format(said='"Listeyi sırala, lütfen"'))
 
 
 def test_the_users_language_is_told_by_their_own_words_not_kolonis_written_as_theirs(
