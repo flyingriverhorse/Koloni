@@ -873,8 +873,9 @@ def test_an_agent_is_told_once_and_in_full_that_it_works_in_a_copy(
         "start listens on a free port, never a fixed one. "
         "node_modules, .venv and venv are the project's own, shared with it and with every "
         "other agent: your file tools read there and do not write there; do not install into "
-        "them or rebuild them - say in your report what to install. A command that deletes "
-        "there deletes the project's: such a command is asked about every time."))
+        "them, rebuild them or write in them - say in your report what to install. A command "
+        "that deletes or writes there reaches the project's: such a command is asked about "
+        "every time."))
     assert second == ("succeeded", "applied: b.txt (+1 -0)")
     ((_, below),) = calls(snap, "Coder 2", "write_file")
     assert below.startswith(

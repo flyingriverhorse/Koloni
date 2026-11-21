@@ -753,9 +753,9 @@ MCP_IN_A_COPY = (
 )
 LINKED_IN = (
     "node_modules, .venv and venv are the project's own, shared with it and with every other "
-    "agent: your file tools read there and do not write there; do not install into them or "
-    "rebuild them - say in your report what to install. A command that deletes there deletes "
-    "the project's: such a command is asked about every time."
+    "agent: your file tools read there and do not write there; do not install into them, "
+    "rebuild them or write in them - say in your report what to install. A command that "
+    "deletes or writes there reaches the project's: such a command is asked about every time."
 )
 # A copy made without links (`_links_in_copy`).
 NOT_LINKED_IN = (

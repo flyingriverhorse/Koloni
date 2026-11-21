@@ -19,6 +19,7 @@ from app.commands import (
     KILLS_BY_NAME,
     NAMES_PROJECT,
     OUT_OF_COPY,
+    WRITES_THROUGH_LINKS,
     copy_reason,
     harm_class,
     harms,
@@ -442,6 +443,29 @@ def test_in_a_copy_with_links_making_a_venv_anew_is_asked(command):
     assert "rebuild" in copy_reason(command, True, "/work/proj", "/work/rt")
 
 
+@pytest.mark.parametrize("command", [
+    "echo x > node_modules/a.js", "echo x >> .venv/pyvenv.cfg", "echo x >node_modules/a.js",
+    "pytest 2> .venv/log.txt", r"echo x > .\node_modules\a.js", "echo x > ./venv/x",
+    "sed -i s/a/b/ node_modules/x/index.js", "sed -i.bak s/a/b/ .venv/x.py",
+    "cp a.js node_modules/x/", "mv a .venv/lib/x", "Copy-Item a.js node_modules/x",
+    "Move-Item a VENV/x", "Set-Content node_modules/x.js hi", "Add-Content .venv/x hi",
+    '"hi" | Out-File node_modules/x', "echo x | tee node_modules/x",
+    'cmd /c "echo x > node_modules/a.js"', "Set-Content -Path:node_modules/x.js hi",
+])
+def test_in_a_copy_with_links_a_write_in_them_is_asked(command):
+    assert copy_reason(command, True, "/work/proj", "/work/rt") == WRITES_THROUGH_LINKS, command
+    assert copy_reason(command, False, "/work/proj", "/work/rt") == "", command
+
+
+@pytest.mark.parametrize("command", [
+    "cp node_modules/x/a.js src/", "cat node_modules/x/package.json", "echo x > build/out.txt",
+    "python .venv/Scripts/x.py", "Set-Content src/x.txt hi", "pytest 2>&1 | tee out.txt",
+    "echo node_modules > x.txt",
+])
+def test_in_a_copy_with_links_reading_them_or_writing_elsewhere_is_not(command):
+    assert copy_reason(command, True, "/work/proj", "/work/rt") == "", command
+
+
 def chat(make_client, folder, scripts, executor):
     """A chat at Full auto whose Lead runs commands and opens sub-agents unasked, its first
     message sent: the client, the chat's and the run's ids."""
@@ -515,7 +539,7 @@ def test_an_agent_in_a_copy_is_told_others_work_beside_it(
     snap = wait_run(client, cid, run_id)
     ((_status, told),) = calls(snap, "Coder", "write_file")
     assert ALONGSIDE in told and "never kill programs by name" in told
-    assert ("do not install into them or rebuild them" in told) is linked
+    assert ("do not install into them, rebuild them or write in them" in told) is linked
     assert told.index(ALONGSIDE) < told.index("node_modules, .venv and venv")
 
 

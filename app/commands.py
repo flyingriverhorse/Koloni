@@ -913,6 +913,41 @@ REBUILDS_THROUGH_LINKS = (
     "it rebuilds a dependency folder in a working copy, where node_modules, .venv and venv "
     "are links to the project's own: through one it would empty and rebuild the project's"
 )
+WRITES_THROUGH_LINKS = (
+    "it writes in node_modules, .venv or venv, in a working copy links to the project's own: "
+    "through one it would write the project's"
+)
+# What writes the file it is given last (a copy's or a move's target), and what writes any it
+# is given (`_writes_links`).
+_WRITES_LAST = frozenset({"cp", "mv", "copy", "move", "copy-item", "cpi", "move-item", "mi"})
+_WRITES_ANY = frozenset({"set-content", "sc", "add-content", "ac", "out-file", "tee",
+                         "tee-object"})
+
+
+def _in_linked(word: str) -> bool:
+    """Whether a path a command names leads into a linked folder of a copy by its first part
+    (`node_modules/x`, `.\\.venv\\x`, `-Path:venv/x`)."""
+    parts = [part for part in re.split(r"[\\/]", re.sub(r"^-[\w-]*:", "", word.strip("'\"")))
+             if part not in ("", ".")]
+    return bool(parts) and parts[0].casefold() in LINKED
+
+
+def _writes_links(words: list[str]) -> bool:
+    """Whether a part writes in a linked folder (`_in_linked`): by a redirect (`>`, `>>`, `2>`,
+    glued to the path or not), a copy's or move's target, `Set-Content` / `Add-Content` /
+    `Out-File` / `tee`, or `sed -i`.
+    shortcut: by the path as written from where the part runs - one after a `cd` into the
+    folder, or a program's own way of writing (`npm config set`, a script), is not seen."""
+    for at, word in enumerate(words):
+        glued = re.match(r"[\d*]?>{1,2}(?!&)", word)
+        if glued and (_in_linked(word[glued.end():]) if word[glued.end():] else (
+                at + 1 < len(words) and _in_linked(words[at + 1]))):
+            return True
+    program, named = _program(words[0]), [word for word in words[1:] if not word.startswith("-")]
+    if program in _WRITES_LAST:
+        return bool(named) and _in_linked(named[-1])
+    in_place = program == "sed" and any(word.startswith(("-i", "--in-place")) for word in words)
+    return (program in _WRITES_ANY or in_place) and any(map(_in_linked, words[1:]))
 # What empties a dependency folder and makes it anew - measured 29 Oct through a junction:
 # `npm ci` emptied the project's node_modules, `uv venv` its .venv; `uv sync` makes the venv
 # anew when its interpreter changed. shortcut: `pnpm install --frozen-lockfile`, `yarn
@@ -1093,8 +1128,8 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
     `cwd`, where in it the command runs, None not known; `worktrees`, the project's). It stops
     programs by their name (`KILLS_BY_NAME`), in any part. Or `linked`: the copy has
     the project's dependency folders linked in, and a delete there - or what empties such a
-    folder to make it anew, `_REBUILDERS` - may go through a link into the project's own
-    (K-70-junction), in a shell too (`cmd /c rd /s x`).
+    folder to make it anew, `_REBUILDERS`, or writes there, `_writes_links` - may go through a
+    link into the project's own (K-70-junction), in a shell too (`cmd /c rd /s x`).
     shortcut: by the path as written, either slash, in any case on Windows; a short name
     (`PROJ~1`), a variable or a script that names it is not seen - nor a delete in a script,
     or by a program `_through_links` does not list."""
@@ -1116,7 +1151,8 @@ def copy_reason(command: str, linked: bool, project: str, runtime: Path | str,
                 return why
         elif words and (why := _through_links(words)):
             return why
-    return ""
+    return WRITES_THROUGH_LINKS if linked and any(
+        _writes_links(words) for words in _commands_in(command) if words) else ""
 
 
 SECRET_FILE = "Opens a secret file (keys, passwords): asked at every level."
