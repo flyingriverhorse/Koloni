@@ -747,6 +747,13 @@ function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, R
 const OPENERS = new Set<Message['role']>(['user', 'trigger'])
 
 /**
+ * A Lead's words as the turn's answer, opening with its point (base.css .msg-answer): once the turn is over - while it
+ * runs, each step's words would read large at first and shrink as the next step writes.
+ */
+const answerLook = (message: Message, answer: Message | undefined, run: Run | undefined) =>
+  message === answer && run && TERMINAL.has(run.status) ? ' msg-answer' : ''
+
+/**
  * The chat's groups (one per message of `ordered`, null where nothing is drawn) with each turn's after its opener as
  * `card` puts them: in one card, or as they are with what the turn did under them.
  */
@@ -1211,7 +1218,7 @@ export function MessageList({
               message.content &&
               !compare && (
                 <>
-                  <div className={`msg msg-assistant markdown${answerOf.get(message.run_id) === message ? ' msg-answer' : ''}`}>
+                  <div className={`msg msg-assistant markdown${answerLook(message, answerOf.get(message.run_id), run)}`}>
                     <Markdown written={message.status === 'complete'}>{message.content}</Markdown>
                   </div>
                   <SaidAloud message={message} />

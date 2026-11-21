@@ -1356,6 +1356,22 @@ test('a Lead turn is one card named after the Lead (the Orchestrator, as the scr
   expect(screen.getByText('I read it first.').closest('.msg-assistant')).not.toHaveClass('msg-answer')
 })
 
+test('while a turn runs no line of it takes the answer’s look: its words keep their place, and at its end only the answer opens with its point', () => {
+  const state = (status: 'running' | 'completed', answer: 'streaming' | 'complete') =>
+    convState({
+      runs: [run('r', status)],
+      agents: [agent('r', status)],
+      messages: [userMessage('r', 'look at a.py'), assistantMessage('m', 'r', 'I’ll read a.py first.'), assistantMessage('m2', 'r', 'It greets', answer)],
+      toolCalls: [toolCall('1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
+    })
+  const { container, rerender } = render(<MessageList {...handlers} state={state('running', 'streaming')} />)
+  // (Else each step's words would read large at first and shrink as the next step writes.)
+  expect(container.querySelector('.msg-answer')).toBeNull()
+  rerender(<MessageList {...handlers} state={state('completed', 'complete')} />)
+  expect(screen.getByText('It greets').closest('.msg-assistant')).toHaveClass('msg-answer')
+  expect(screen.getByText('I’ll read a.py first.').closest('.msg-assistant')).not.toHaveClass('msg-answer')
+})
+
 test('a compare run and a turn with only the user’s message get no card', () => {
   const { unmount } = render(<MessageList {...handlers} state={convState({ runs: [run('r')], agents: [agent('r')], messages: [userMessage('r', 'hm')], thinkingRunId: 'r' })} />)
   // (Thinking… stays under the message, as before.)
