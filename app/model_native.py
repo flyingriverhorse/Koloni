@@ -2979,8 +2979,10 @@ COPILOT_PATCH = "apply_patch"
 COPILOT_FOLLOWS = ("read_powershell", "stop_powershell", "list_powershell")
 # What KOLONİ puts before each PowerShell command at protocol 4 (`_hook_answer`): it starts in the
 # project whatever Copilot's own shell does (its modifiedArgs measured on 1.0.105 and 1.0.114:
-# the command run and the permission request shown are the modified ones).
-ROOT_PREFIX = "Set-Location -LiteralPath '{}'; "
+# the command run and the permission request shown are the modified ones). Where it cannot go
+# there, nothing after it runs: 1.0.114 tells its model that its sandboxed PowerShell may fail
+# Set-Location on some Windows versions, and the command was judged as run in the project.
+ROOT_PREFIX = "Set-Location -LiteralPath '{}' -ErrorAction Stop; "
 COPILOT_RUNS = ("powershell", "bash", "shell")
 # Its tool that only says what it is about to do: not one that ran unasked.
 # shortcut: by its name as remembered, not measured; add any other that never acts.

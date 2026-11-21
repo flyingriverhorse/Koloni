@@ -70,7 +70,8 @@ and credit messages.
   itself names a folder to run in is asked at every level: KOLONİ cannot check it.
 - GitHub Copilot CLI run **Native** does not say where its commands run either. On its newer protocol
   (Copilot 1.0.114 on) KOLONİ puts each PowerShell command in the project folder itself
-  (`Set-Location -LiteralPath '<project>'; ` before it, through its hook) and judges it there, so a
+  (`Set-Location -LiteralPath '<project>' -ErrorAction Stop; ` before it, through its hook: where it
+  cannot go there, the command does not run) and judges it there, so a
   `cd` into `.koloni/tmp/` runs without a card at Full auto; a delete inside `.koloni/tmp/` is still a
   card. Bash (Linux, macOS) gets no such prefix: there the `cd` is asked as before. On the older
   protocol, a Copilot version measured with KOLONİ - 1.0.105 so far, by the version Copilot itself

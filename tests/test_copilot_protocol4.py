@@ -32,7 +32,8 @@ def p4(copilot_native, script, **more):  # noqa: F811
 
 
 def at_root(copilot_native, command):  # noqa: F811
-    return f"Set-Location -LiteralPath '{copilot_native.record()['create']['workingDirectory']}'; {command}"
+    root = copilot_native.record()["create"]["workingDirectory"]
+    return f"Set-Location -LiteralPath '{root}' -ErrorAction Stop; {command}"
 
 
 def test_at_protocol_4_its_session_is_grouped_with_kolonis_hook(
@@ -93,7 +94,8 @@ def test_kolonis_hook_never_answers_allow(root):
                     "\u2019" not in root):
                 # (a ' in its path doubled, as PowerShell reads a single-quoted string)
                 quoted = str(Path(root)).replace("'", "''")
-                assert modified == {"command": f"Set-Location -LiteralPath '{quoted}'; rm -rf x"}
+                assert modified == {
+                    "command": f"Set-Location -LiteralPath '{quoted}' -ErrorAction Stop; rm -rf x"}
             else:
                 # (none for a path PowerShell may read another quote in: judged without it)
                 assert modified is None, (root, name, output)
