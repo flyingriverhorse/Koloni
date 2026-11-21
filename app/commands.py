@@ -603,7 +603,7 @@ def _named_elsewhere(command: str, name: str) -> bool:
     for part in _BLOCKS.split(command):
         if not named.search(part) or start.fullmatch(part):
             continue
-        words = _assigned(_parts(part, _BLOCKS)[0]) if part.strip() else []
+        words = _parts(part, _BLOCKS)[0] if part.strip() else []
         program = _program(words[0]) if words else ""
         if program not in _STOP_PROGRAMS and program.rpartition(".")[2] not in _STOP_METHODS:
             return True
@@ -792,7 +792,7 @@ def _stands(command: str, names: frozenset[str] = _STOP_PROGRAMS, depth: int = 4
                 part.append(word.strip("'\""))
                 continue
             if part and any(len(handed) == 1 and " " in handed[0] and _stands(
-                    handed[0], names, depth - 1) for handed in _unwrapped(part)):
+                    handed[0], names, depth - 1) for handed in _unwrapped(_led(part))):
                 return True
             part = []
     return False
@@ -827,20 +827,6 @@ def _part_stop(program: str, rest: list[str], started: set[str], stands: bool = 
     return _kill(said, started, stands) if program == "kill" else ""
 
 
-def _assigned(words: list[str]) -> list[str]:
-    """A part's command past what leads into it: PowerShell's setting a variable to what it gives
-    (`$p = Get-Process x`), a loop's or a condition's word (`for /f ... do taskkill`, sh's `do`,
-    `then`), cmd's `@` (`@taskkill`)."""
-    while words and words[0].casefold() in ("do", "then", "else"):
-        words = words[1:]
-    if words and words[0].startswith("@") and len(words[0]) > 1:
-        words = [words[0][1:], *words[1:]]
-    if len(words) > 2 and re.fullmatch(r"\$[\w:]+", words[0]) and words[1] == "=":
-        return words[2:]
-    glued = re.fullmatch(r"\$[\w:]+=(.+)", words[0]) if words else None
-    return [glued[1], *words[1:]] if glued else words
-
-
 def _stop_kind(command: str) -> str:
     """`_part_stop` of a whole line, in any part a shell is handed too: "koloni" where a part may
     stop KOLONİ itself, "soft" where one stops by another name, "" for none. WMI's stops
@@ -854,7 +840,7 @@ def _stop_kind_of(command: str) -> str:
     # (a stop's name the quote-blind split cut out of a message or a pattern stops nothing:
     # `rg -n 'terminate|kill' app`)
     kinds = {_part_stop(_program(words[0]), words[1:], started, stands)
-             for words in map(_assigned, _commands_in(command, at=_BLOCKS))
+             for words in _commands_in(command, at=_BLOCKS)
              if words and (stands or _program(words[0]) not in _STOP_PROGRAMS)}
     # (what a pipe hands its objects to, told to end them: `| Invoke-Method Kill`)
     ends = any({word.casefold() for word in words[1:]} & _STOP_METHODS
@@ -2108,7 +2094,45 @@ def _git_sub(words: list[str]) -> tuple[str | None, list[str]]:
 
 
 def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
-    return [[word.strip("'\"") for word in _words(part.strip())] for part in at.split(command)]
+    return [_led([word.strip("'\"") for word in _words(part.strip())])
+            for part in at.split(command)]
+
+
+# What leads into a part's command without being it (review round 4), for every rule: sh's `!`,
+# `if`, `elif`, `while`, `until`, `then`, `else`, `do`, `coproc` (`time` is a wrapper's, with its
+# options: `_unwrapped`); cmd's `@`, `for ... do` and its `if [/i] [not] exist x | defined x |
+# errorlevel n | a op b`; PowerShell's `$x =`; trap's line, which it runs as eval runs one.
+_LEADS = frozenset({"!", "if", "elif", "while", "until", "then", "else", "do", "coproc"})
+_CMD_TESTS = frozenset({"exist", "defined", "errorlevel", "cmdextversion"})
+_CMD_COMPARES = frozenset({"==", "equ", "neq", "lss", "leq", "gtr", "geq"})
+
+
+def _led(words: list[str]) -> list[str]:
+    """A part's command past what leads into it (`_LEADS`): `if pkill -f x` is pkill's, `if not
+    exist x.pid taskkill /IM python.exe` taskkill's, `$p = Get-Process x` Get-Process's."""
+    while words:
+        first = words[0].casefold()
+        if first in _LEADS:
+            words = words[1:]
+            while first == "if" and words and words[0].casefold() in ("/i", "not"):
+                words = words[1:]
+            if first == "if" and words:  # (cmd's test or comparison before its command)
+                words = words[2:] if words[0].casefold() in _CMD_TESTS else words[3:] if len(
+                    words) > 2 and words[1].casefold() in _CMD_COMPARES else words[
+                    1:] if "==" in words[0] else words
+        elif first == "for" and "do" in (low := [word.casefold() for word in words]):
+            words = words[low.index("do") + 1:]
+        elif first == "trap" and len(words) > 1:
+            return ["eval", words[1]]
+        elif first.startswith("@") and len(first) > 1:
+            words = [words[0][1:], *words[1:]]
+        elif len(words) > 2 and re.fullmatch(r"\$[\w:]+", words[0]) and words[1] == "=":
+            words = words[2:]
+        elif glued := re.fullmatch(r"\$[\w:]+=(.+)", words[0]):
+            words = [glued[1], *words[1:]]
+        else:
+            break
+    return words
 
 
 def _sets_git_config(command: str) -> bool:
@@ -3476,6 +3500,9 @@ def _commands_in(command: str, left: list[int] | None = None,
                 left[0] -= 1
             if len(handed) == 1 and " " in handed[0] and len(handed) < len(words):
                 found += _commands_in(handed[0], left, at)  # (handed as one quoted line)
+            elif (led := _led(handed)) != handed:  # (`cmd /c if exist x taskkill ...`)
+                found += _commands_in(" ".join(f'"{word}"' if re.search(r"\s", word) else word
+                                               for word in led), left, at)
             else:
                 found.append(handed)
     return found

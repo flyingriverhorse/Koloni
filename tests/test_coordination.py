@@ -507,6 +507,28 @@ def test_a_name_that_may_match_kolonis_own_is_always_asked(command, kind):
     assert harm_class(command) == kind, command
 
 
+# What leads into a command is no command of its own (review round 4): every rule reads past
+# sh's and cmd's keywords, a loop's `do`, trap's line, to what runs.
+LEADS = ["! {c}", "if {c}; then :; fi", "if ! {c}; then :; fi", "while {c}; do :; done",
+         "until {c}; do :; done", "if true; then :; elif {c}; then :; fi", "coproc {c}",
+         "if exist x {c}", "if not exist x {c}", "if /i not defined X {c}", "if errorlevel 1 {c}",
+         "if %ERRORLEVEL% NEQ 0 {c}", "for i in 1; do {c}; done",
+         "for /f %a in ('dir /b') do {c}", "trap '{c}' EXIT", "time -p {c}", "@{c}"]
+LED = ["pkill -f uvicorn", "kill -9 $(pgrep python)", "taskkill /F /IM python.exe",
+       "rm -rf build", "npm ci", "cp a.js node_modules/x", "git push --force origin main"]
+RANKED = {"": 0, "soft": 1, "always": 2}
+
+
+@pytest.mark.parametrize("lead", LEADS)
+@pytest.mark.parametrize("command", LED)
+def test_what_leads_into_a_command_is_read_past(command, lead):
+    led = lead.replace("{c}", command)
+    assert RANKED[harm_class(led)] >= RANKED[harm_class(command)], led
+    assert bool(installs(led)) >= bool(installs(command)), led
+    in_copy = copy_reason(command, True, "/work/proj", "/work/rt")
+    assert bool(copy_reason(led, True, "/work/proj", "/work/rt")) >= bool(in_copy), led
+
+
 # A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,
 # sh's backslash (KOLONİ's own run_command runs in PowerShell on Windows).
 CONTINUED = [("git ", "push --force origin main"), ("npm ", "publish"),

@@ -53859,7 +53859,6 @@ false
 "git commit -m \"tidy; kill $(pgrep python)\"": "round 4: only what `$(...)` holds runs (pgrep); the kill is the message's"
 },
 "xfail": [
-"! kill -9 $(pgrep python)",
 "Write-Output `\nrm -rf build",
 "bash -c \"fgrep -ix ../../b/tree/secret\"",
 "bash -c \"grep --fi=pats ../../b/tree/secret\"",
@@ -53891,7 +53890,6 @@ false
 "cmd /c \"sed -i -nes/a/b/ ../../b/tree/secret\"",
 "cmd /c \"sed -nes/a/b/p ../../b/tree/secret\"",
 "cmd /c \"sls -Pa x ../../b/tree/secret\"",
-"coproc kill -9 $(pgrep python)",
 "echo `\nnpm ci\n`",
 "echo `\npkill python\n`",
 "echo `\nrm -rf build\n`",
@@ -53930,12 +53928,6 @@ false
 "grep -rn '../' src",
 "grep -rnex ../../b/tree/secret",
 "grep -rnex ../../b/tree/secret && echo ok",
-"if ! kill -9 $(pgrep python); then :; fi",
-"if errorlevel 1 kill -9 $(pgrep python)",
-"if exist x kill -9 $(pgrep python)",
-"if kill -9 $(pgrep python); then :; fi",
-"if not exist x kill -9 $(pgrep python)",
-"if true; then :; elif kill -9 $(pgrep python); then :; fi",
 "npm ci --dry-run",
 "npm exec --call \"npm ci\"",
 "npm exec --yes -- npm ci",
@@ -54004,15 +53996,12 @@ false
 "sudo sed -i -nes/a/b/ ../../b/tree/secret",
 "sudo sed -nes/a/b/p ../../b/tree/secret",
 "sudo sls -Pa x ../../b/tree/secret",
-"trap 'kill -9 $(pgrep python)' EXIT",
-"until kill -9 $(pgrep python); do :; done",
 "uv pip compile r.in",
 "uv run pip install x",
 "uv run python -m pip install x",
 "uv run uv sync",
 "uv sync --dry-run",
-"uv ––project x sync",
-"while kill -9 $(pgrep python); do :; done"
+"uv ––project x sync"
 ],
 "up": {
 "git `\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
