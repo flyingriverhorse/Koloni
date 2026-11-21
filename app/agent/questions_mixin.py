@@ -564,17 +564,22 @@ class _Decision:
         self.asked, self.says, self.question_id, self.held = asked, says, question_id, held
         self.timer: asyncio.TimerHandle | None = None
         self.going: list[asyncio.Task] = []
+        self.delay = 0.0  # (its time as armed: at once while away, else the project's minutes)
 
     def arm(self, delay: float) -> None:
         later = self.runner.call_later or asyncio.get_running_loop().call_later
-        self.timer = later(delay, self.go)
+        self.delay, self.timer = max(self.delay, delay), later(delay, self.go)
 
     def go(self, forced: bool = False) -> None:
-        """The Lead is asked - not while the user types an answer, unless Go away says now."""
+        """The Lead is asked - not while the user types an answer, unless Go away says now; and,
+        the user back since it was armed, only once the rule says so as it stands now."""
         if self.asked.done():
             return self.let_go(False)
         if self.going:
             return None
+        now = None if forced else self.runner._when(self.ctx, self.kind)[0]
+        if not forced and (now is None or now > self.delay):
+            return None if now is None else self.arm(now)  # (from now on: theirs to answer)
         if not forced and (left := self.runner._typing_left(self.question_id)) > 0:
             return self.arm(left)
         task = asyncio.ensure_future(self.runner._lead_answers(

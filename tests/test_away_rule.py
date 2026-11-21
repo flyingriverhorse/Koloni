@@ -6,6 +6,8 @@ never reached by it."""
 
 from types import SimpleNamespace
 
+from sqlalchemy import select
+
 from app.agent.questions_mixin import TYPING_HOLD_SECONDS
 from app.db.models import AwayRun, Conversation
 from tests.test_agent_writes import wait_status
@@ -177,3 +179,28 @@ def test_going_away_from_one_chat_leaves_another_chats_card_to_its_own_minutes(
     fire(client, timer)
     assert until_answered(client, other)["answer"] == "by name"
     wait_run(client, other, run_id)
+
+
+def test_a_card_held_while_you_typed_is_not_decided_once_you_are_back(make_client, wait_run,
+                                                                    project_dir):
+    client, model = make_client([CODER, ask(), text("ok"), text("done")])
+    clock = held(client)
+    pid, cid = away_chat(client, project_dir, permission_mode="auto_edit",
+                         spawn_approval="never", when_away="lead", away_minutes=10)
+    run_id = post(client, cid)
+    wait_status(client, cid, "waiting_approval")
+    (timer,) = lead_timers(clock, 0.0)
+    question = question_of(client, cid)
+    assert client.post(f"/api/questions/{question['id']}/typing", headers=OWN).status_code == 204
+    fire(client, timer)  # (held while you type: armed again for the rest)
+    (again,) = [t for t in clock.set if 0 < t.delay <= TYPING_HOLD_SECONDS and not t.cancelled]
+    with client.app.state.session_factory() as session:  # (I'm back - its summary aside)
+        session.scalars(select(AwayRun).where(AwayRun.project_id == pid)).one().status = "ended"
+        session.commit()
+    fire(client, again)
+    # back: the project's own minutes count from here; nobody decided it meanwhile
+    assert len(model.calls) == 2 and question_of(client, cid)["status"] == "pending"
+    assert lead_timers(clock, 600.0)
+    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "by name"}, headers=OWN)
+    (answered,) = wait_run(client, cid, run_id)["questions"]
+    assert answered["lead_why"] is None

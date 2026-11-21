@@ -96,8 +96,8 @@ its jobs started, with a link back to their report.
 
 What needs your word waits for you, and the job waits with it. The next job goes on meanwhile.
 
-While you're away the Orchestrator decides at once, in every chat of the project, what it may
-decide for you: an agent's question, a recipe's "Ask me", opening a sub-agent on its role's own model,
+While you're away the Orchestrator decides at once, in the chat you went away from and in the
+tasks' chats, what it may decide for you (another chat of the project keeps its own minutes): an agent's question, a recipe's "Ask me", opening a sub-agent on its role's own model,
 and going on or stopping at a step limit. The cards already waiting when you press Go away are decided
 then. Its own questions to you wait for your return. It does not answer once the project is over its
 monthly budget or a provider is over its limit. Everything else always waits: commands and changes

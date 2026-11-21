@@ -11,9 +11,10 @@ Settings › This project › Asking and away › **When you're away**:
 
 A new project has the second, after 5 minutes; a project from before 0.1.5 keeps what it had - turn it
 on here. In a chat with no folder everything waits for you. With it, once you have not answered a card for that many minutes, "the Orchestrator picks,
-says why, and you see it under "Decided for you"". While you're away ([☾ Away](overnight.md)) it
-decides at once, whatever this setting says - also the cards that waited when you pressed Go away.
-While you type an answer to a question, it waits (2 minutes after your last key).
+says why, and you see it under "Decided for you"". In the chat you went away from ([☾ Away](overnight.md))
+and its tasks' chats it decides at once, whatever this setting says - also the cards that waited when
+you pressed Go away. While you type an answer to a question, it waits (2 minutes after your last key);
+once you are back, a card held so waits this setting's minutes again.
 
 "An Orchestrator on a CLI uses one request of your plan for each answer."
 
