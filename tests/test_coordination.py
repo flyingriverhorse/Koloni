@@ -481,6 +481,11 @@ def test_a_copies_folder_by_the_users_environment_is_still_seen(tmp_path, monkey
     "npm up x", "npm rebuild", "npm dedupe", "npm prune", "npm link ../lib", "yarn up x",
     "yarn upgrade", "pnpm update", "poetry update", "pip3.12 install x", "py -m pip install x",
     "python -I -m pip install x", "python3 -m pip uninstall x", "pipenv install x",
+    # (npm 11's own aliases, `lib/utils/cmd-list.js`; options before the verb, as `_after_options`)
+    "npm rm x", "npm r x", "npm un x", "npm unlink x", "npm in x", "npm ins x", "npm inst x",
+    "npm insta x", "npm instal x", "npm isnt x", "npm it", "npm upgrade", "npm udpate", "npm rb",
+    "npm ddp", "npm ln ../x", "npm sit", "npm -g i x", "python -X utf8 -m pip install x",
+    "uv pip install x", "uv --quiet add x",
 ])
 def test_an_install_however_it_is_written_is_one(command):
     assert installs(command), command
@@ -489,15 +494,31 @@ def test_an_install_however_it_is_written_is_one(command):
 @pytest.mark.parametrize("command", [
     "npm run build", "npm test", "yarn test", "yarn --version", "pip list", "pip --version",
     "npx create-vite x", "pnpm dlx x", "python -m pytest", "py -m venv env", "npm run install-x",
+    # (only the verb counts: a script's name, a word after it, is none)
+    "uv run pytest -k sync", "npm run install", "pnpm run add", "pip show install",
+    "uv pip list", "uv pip show x", "uv pip freeze", "pip install --dry-run x",
 ])
 def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command
 
 
-@pytest.mark.parametrize("command", ["python -m venv --clear .venv", "virtualenv .venv",
-                                     "py -m venv --clear venv"])
+@pytest.mark.parametrize("command", [
+    "python -m venv --clear .venv", "virtualenv .venv", "py -m venv --clear venv",
+    # (argparse takes a prefix of --clear; any venv made at a linked folder rewrites it)
+    "python -m venv --clea .venv", "python -m venv --cl .venv", "python -m venv .venv",
+    "python -m venv --upgrade .venv", "python -m venv --upgrade-deps venv",
+    "python -m virtualenv .venv", "python -X utf8 -m venv --clear .venv",
+    # (npm's own names for ci, and options before a verb)
+    "npm clean-install", "npm ic", "npm install-clean", "npm cit", "npm install-ci-test",
+    "npm sit", "uv -q venv", "uv --quiet venv", "npm -s ci", "npm --prefix . ci",
+    "uv --quiet sync", "env X=1 uv sync",
+])
 def test_in_a_copy_with_links_making_a_venv_anew_is_asked(command):
-    assert "rebuild" in copy_reason(command, True, "/work/proj", "/work/rt")
+    assert "rebuild" in copy_reason(command, True, "/work/proj", "/work/rt"), command
+
+
+def test_a_venv_made_elsewhere_in_a_copy_is_no_rebuild_of_a_linked_one():
+    assert copy_reason("python -m venv build/env", True, "/work/proj", "/work/rt") == ""
 
 
 @pytest.mark.parametrize("command", [
