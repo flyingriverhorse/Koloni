@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, onTestFinished, test, vi } from 'vitest'
+import { ApiError } from '../api/client'
 import type { Attachment, Message, Provider, Role } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
@@ -137,11 +138,29 @@ test('a message still queued when KOLONİ restarted says it was not sent, and Se
   expect(sendAgain).toHaveBeenCalledWith('q', false)
 })
 
+test('a message not sent, held back over the budget, is sent on the user’s word; any other refusal is said under it', async () => {
+  const sendAgain = vi
+    .fn()
+    .mockRejectedValueOnce(new ApiError(409, "this project is over this month's budget (10.50 of 10.00 USD): say to go on over it"))
+    .mockResolvedValueOnce(undefined)
+    .mockRejectedValueOnce(new ApiError(409, 'only a message of yours that was never sent can be sent'))
+  const real = useApp.getState().sendAgain
+  useApp.setState({ sendAgain })
+  onTestFinished(() => useApp.setState({ sendAgain: real }))
+  render(<MessageList {...handlers} state={convState({ runs: [run('q', 'interrupted', { started_at: null })], messages: [userMessage('q', 'later')] })} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Go on anyway' }))
+  expect(sendAgain).toHaveBeenLastCalledWith('q', true)
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('only a message of yours that was never sent can be sent')
+})
+
 test.each([
   [run('r', 'failed', { error: 'model server unreachable: refused' }), 'Run failed', 'model server unreachable: refused'],
   [run('r', 'failed', { error: 'step_limit' }), 'Stopped at its step limit', null],
   [run('r', 'cancelled'), 'Stopped', null],
   [run('r', 'interrupted'), 'Interrupted by a server restart', 'Send a message to continue.'],
+  [run('r', 'interrupted', { started_at: null, unattended: true }), 'Interrupted by a server restart', 'Send a message to continue.'],
 ])('a turn that did not complete says why, as a card that only tells', (endedRun, title, said) => {
   render(
     <MessageList

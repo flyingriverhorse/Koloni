@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 import app.web
 from app.api.usage import month_start
-from app.db.models import Agent, OwnRequest, Run
+from app.db.models import Agent, Message, OwnRequest, Run
 from tests.keyed import TestClient
 from tests.test_budget_scenarios import PRICE, budget
 from tests.test_chat_flow import text
@@ -155,6 +155,22 @@ def test_an_approved_plan_starts_its_work_over_the_budget_only_on_the_users_word
     going = client.post(f"/api/runs/{run_id}/plan/approve", json={"over_budget": True})
     assert going.status_code == 200, going.text
     wait_run(client, cid, going.json()["run_id"])
+
+
+def test_a_message_not_sent_before_a_restart_is_sent_over_the_budget_only_on_the_users_word(
+        make_client, wait_run, project_dir):
+    client, _pid, cid, _run = over(make_client, wait_run, project_dir, [text("done", 1, 1)])
+    with client.app.state.session_factory() as session:  # (queued when KOLONİ restarted)
+        session.add(Run(id="q", conversation_id=cid, status="interrupted", by_user=True))
+        session.flush()
+        session.add(Message(conversation_id=cid, run_id="q", role="user", content="and then"))
+        session.commit()
+    own = {"Origin": ORIGIN}
+    refused = client.post("/api/runs/q/send", json={}, headers=own)
+    assert refused.status_code == 409 and "month's budget" in refused.text
+    going = client.post("/api/runs/q/send", json={"over_budget": True}, headers=own)
+    assert going.status_code == 200, going.text
+    wait_run(client, cid, "q")
 
 
 def test_a_webhook_starts_nothing_over_the_budget(make_client, wait_run, project_dir):

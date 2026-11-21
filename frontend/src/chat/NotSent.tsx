@@ -11,7 +11,7 @@ export function NotSent({ run }: { run?: Run }) {
   // The server held it back over the month's budget: the user is asked to go on, as for a plan.
   const [over, setOver] = useState<string | null>(null)
 
-  if (run?.status !== 'interrupted' || run.started_at) return null
+  if (run?.status !== 'interrupted' || run.started_at || run.unattended) return null
   const runId = run.id
 
   async function send(overBudget: boolean) {
