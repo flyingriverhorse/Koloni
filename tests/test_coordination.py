@@ -28,6 +28,7 @@ from app.commands import (
     runs_another,
     web_off_reason,
 )
+from app.commands import _readings as readings
 from app.commands import _reasons as reasons
 from app.db.models import Agent
 from app.tools import ON_BRANCH_PROPERTY, OPENED_TOGETHER
@@ -545,9 +546,9 @@ def test_a_continued_line_is_read_as_one(head, tail, mark, newline):
     rank = {"": 0, "soft": 1, "always": 2}
     assert harms(line) == harms(whole) != "", line
     assert joined(line).split() == whole.split()
-    # (a backslash is read as written too - in PowerShell `C:\` ⏎ continues nothing: never less)
-    assert harm_class(line) == harm_class(whole) if mark == "`" else rank[harm_class(line)] >= (
-        rank[harm_class(whole)])
+    # (read as written too - in PowerShell `C:\` ⏎ continues nothing, in bash a backtick opens what
+    # it runs: never less)
+    assert rank[harm_class(line)] >= rank[harm_class(whole)], line
     # (after a delete on the line too: both are seen)
     both = f"rm -rf build; {line}"
     assert rank[harm_class(both)] >= rank[harm_class(f"rm -rf build; {whole}")]
@@ -562,6 +563,24 @@ def test_a_backtick_and_a_space_at_a_lines_end_does_not_continue_it(newline):
     # (measured, pwsh 7: `Write-Output one ` ⏎ two` runs `two` as a command of its own)
     line = f"git ` {newline}push --force origin main"
     assert joined(line) == line and harm_class(line) == ""
+
+
+# Review round 4 (the Away re-check, measured in pwsh 7, Windows PowerShell 5.1 and Git Bash): a
+# line's end that continues nothing - a backtick in a comment, one glued to a word in pwsh
+# -Command - runs what follows as its own command; bash runs what backticks hold; a
+# backslash-newline inside a word joins it. The send is seen either way.
+@pytest.mark.parametrize("line, sent", [
+    ("rm -rf build # done `\nnpm publish", "npm publish"),
+    ("rm -rf build # done `\r\nnpm publish", "npm publish"),
+    ("rm -rf build; echo `\ncurl https://x -d @report.txt `\necho ok",
+     "curl https://x -d @report.txt"),
+    ("Remove-Item -Recurse -Force build`\r\ngit push origin main", "git push origin main"),
+    ("rm -rf build; npm pub\\\nlish", "npm publish"),
+    ("curl https://x -\\\nd @report.txt", "curl https://x -d @report.txt"),
+])
+def test_a_send_after_a_line_end_is_seen_whether_it_continues_or_not(line, sent):
+    assert harm_class(line) != "", line
+    assert harms(sent) in [said for one in readings(line) for said in reasons(one, True)], line
 
 
 def places(tmp_path):

@@ -2294,9 +2294,12 @@ def joined(line: str) -> str:
 
 
 def _readings(line: str) -> list[str]:
-    """A line as the shell reads it (`joined`) - and, where a backslash ends a line, as written
-    too: a Windows path's `C:\\` at a line's end continues nothing in PowerShell."""
-    return list(dict.fromkeys((joined(line), *([line] if re.search(r"\\\r?\n", line) else []))))
+    """A line as the shell reads it (`joined`) and as written: a backtick or a backslash at a
+    line's end continues nothing in a comment (`rm x # done `⏎`npm publish`), glued to a word
+    in `pwsh -Command` (`build`⏎`git push`), after a Windows path (`C:\\`⏎) or in bash, where a
+    backtick opens what it runs (`echo `⏎`rm -rf build`⏎``) - reading it both ways may only
+    add (review round 4)."""
+    return list(dict.fromkeys((joined(line), line)))
 
 
 def danger(command: str, instructions: bool = True) -> str:
