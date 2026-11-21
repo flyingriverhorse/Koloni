@@ -26,6 +26,7 @@ from app.commands import (
     installs,
     joined,
     runs_another,
+    web_off_reason,
 )
 from app.commands import _reasons as reasons
 from app.db.models import Agent
@@ -784,10 +785,38 @@ def test_an_install_however_it_is_written_is_one(command):
     "npx create-vite x", "pnpm dlx x", "python -m pytest", "py -m venv env", "npm run install-x",
     # (only the verb counts: a script's name, a word after it, is none)
     "uv run pytest -k sync", "npm run install", "pnpm run add", "pip show install",
-    "uv pip list", "uv pip show x", "uv pip freeze", "pip install --dry-run x",
+    "uv pip list", "uv pip show x", "uv pip freeze", "uv pip compile r.in",
 ])
 def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command
+
+
+# Review round 4: what a runner hands on installs, past any option of its own; a dry run is one
+# (it may not be: `pip install x # --dry-run`); with web off every such line is asked - a
+# package manager's install word anywhere in it too, carve-out or not.
+RUNS_AN_INSTALL = [
+    "uv run pip install x", "uv run -- npm ci", "uv run python -m pip install x", "uv run uv sync",
+    "uv run --with x pip install y", "poetry run pip install x", "pipenv run pip install x",
+    "pdm run pip install x", "hatch run pip install x", "conda run -n e pip install x",
+    "npm exec --yes -- npm ci", "npm exec -c \"npm ci\"", "npm exec --call \"npm ci\"",
+    "npx -c \"npm ci\"", "npm x -- npm ci", "pip install --dry-run x", "pip install x --dry-run",
+    "pip install x # --dry-run", "pip install \"--dry-run\" x", "npm i x --dry-run",
+    "npm –g ci", "pip –q install x", "uv ––project x sync"]
+
+
+@pytest.mark.parametrize("wrapper", ["{c}", "cmd /c {c}", "env X=1 {c}"])
+@pytest.mark.parametrize("command", RUNS_AN_INSTALL)
+def test_what_a_runner_hands_on_installs_and_reaches_the_web(command, wrapper):
+    command = wrapper.replace("{c}", command)
+    assert installs(command), command
+    assert web_off_reason(command, ["http_request"]), command
+
+
+@pytest.mark.parametrize("command", [
+    "uv pip compile r.in", "npm run install", "pip show install", "uv pip list",
+    "uv run pytest -k sync"])
+def test_with_web_off_a_package_managers_install_word_anywhere_is_asked(command):
+    assert web_off_reason(command, ["http_request"]), command
 
 
 # An option before the verb that is not known may take a value or not: either word after it may

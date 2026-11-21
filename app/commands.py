@@ -1269,6 +1269,12 @@ _PM_OPTIONS = {
 }
 # The runners whose first word is the package they run (`npx x`): what they hand on.
 _RUNNERS_OF = frozenset(name for name, words in _RUNS_PACKAGE.items() if not words)
+# ...and those whose `run` runs a program in the project's own environment (`uv run pip install
+# x`, `poetry run npm ci`) - review round 4.
+_ENV_RUNNERS = frozenset({"uv", "poetry", "pipenv", "pdm", "hatch", "conda"})
+# An option's first mark, and the dashes a phone or an editor types for it (`npm –g ci`): an
+# option not known, read both ways.
+_DASHES = ("-", "\u2013", "\u2014", "\u2212")
 # What empties a dependency folder and makes it anew - measured 29 Oct through a junction:
 # `npm ci` emptied the project's node_modules, `uv venv` its .venv; `uv sync` makes the venv
 # anew when its interpreter changed. shortcut: `pnpm install --frozen-lockfile`, `yarn
@@ -1279,12 +1285,15 @@ _RUNNERS_OF = frozenset(name for name, words in _RUNS_PACKAGE.items() if not wor
 _REBUILDERS = frozenset({*(("npm", verb) for verb in _NPM_CI), ("uv", "venv"), ("uv", "sync")})
 
 
-def _verbs(words: list[str]) -> list[tuple[str, str]]:
+def _verbs(words: list[str], left: list[int] | None = None) -> list[tuple[str, str]]:
     """Every (program, verb) a package manager's part may run: its words past the options before
     the verb - an option of `_PM_OPTIONS` read as it is; one not known, without `=`, both as a
     flag and as taking a value, so either word after it may be the verb (fail closed) - `uv pip
-    x` as pip's own, a module an interpreter runs as the program (`_module_run`), and what
-    `npm exec` / `npx` hands a package manager (`npm exec -- npm i x`)."""
+    x` as pip's own, a module an interpreter runs as the program (`_module_run`), and what a
+    runner hands a package manager past any options of its own (`npm exec --yes -- npm i x`,
+    `npm exec -c "npm ci"`, `uv run --with x pip install y`). Past MAX_OTHER_READINGS of those
+    (`left`), (program, UNREAD): an install, as what is not read may be one."""
+    left = [MAX_OTHER_READINGS] if left is None else left
     words = _module_run(words) or words
     program = _program(words[0])
     values, flags = _PM_OPTIONS.get("pip" if program.startswith("pip") else program,
@@ -1292,7 +1301,7 @@ def _verbs(words: list[str]) -> list[tuple[str, str]]:
     rest, found, at, maybe = words[1:], [], 0, False
     while at < len(rest):
         word = rest[at]
-        if word.startswith("-"):
+        if word.startswith(_DASHES):
             known = "=" in word or word in flags or word in values
             at += 2 if "=" not in word and word in values else 1
             maybe = not known  # (its value, or the verb)
@@ -1303,14 +1312,23 @@ def _verbs(words: list[str]) -> list[tuple[str, str]]:
         at, maybe = at + 1, False
     verbs = [(program, rest[at]) for at in found]
     for at in found:
-        inner = [word for word in (rest[at:] if program in _RUNNERS_OF else rest[at + 1:])
-                 if word != "--"]
-        handed = program in _RUNNERS_OF or rest[at].casefold() in _RUNS_PACKAGE.get(program, ())
-        if program == "uv" and rest[at] == "pip":
-            verbs += _verbs(["pip", *rest[at + 1:]])
-        elif handed and inner and (_program(inner[0]) in _INSTALLERS or _program(
-                inner[0]).startswith("pip")):
-            verbs += _verbs(inner)
+        verb = rest[at].casefold()
+        if program == "uv" and verb == "pip":
+            verbs += _verbs(["pip", *rest[at + 1:]], left)
+        elif program in _RUNNERS_OF or verb in _RUNS_PACKAGE.get(program, ()) or (
+                verb == "run" and program in _ENV_RUNNERS):
+            inner = rest[at:] if program in _RUNNERS_OF else rest[at + 1:]
+            for start, word in enumerate(inner):
+                runs = _program(word)
+                line = bool(re.search(r"\s", word))
+                if not (line or runs in _INSTALLERS or runs.startswith(("pip", "python"))
+                        or runs == "py"):
+                    continue
+                if left[0] <= 0:
+                    return [*verbs, (program, UNREAD)]
+                left[0] -= 1
+                verbs += [one for part in _parts(word) if part for one in _verbs(part, left)] if (
+                    line) else _verbs(inner[start:], left)
     return verbs
 
 
@@ -3516,14 +3534,16 @@ def installs(command: str) -> str:
     one of `_INSTALLERS`' verbs as its verb, past the options before it (`_verbs`: `npm --prefix
     web install x`, `pnpm -C web i`, `uv pip install`), by a program starting with `pip` (pip3.12,
     pipenv) or run as a module (`python -X utf8 -m pip install`, `py -m pip`), a bare `yarn` -
-    and in what a shell or a wrapper is handed (`cmd /c "npm i x"`). A script run by its name
-    (`npm run install`), and `pip install --dry-run`, are none.
+    and in what a shell or a wrapper is handed (`cmd /c "npm i x"`) or a runner (`uv run pip
+    install x`, `npm exec --yes -- npm ci`). A script run by its name (`npm run install`) is
+    none; a dry run is one (review round 4: `pip install x # --dry-run` installs).
     shortcut: `npx` and `dlx` run a package without installing it into the project, and are left;
     `pip-sync` and `corepack` writing into node_modules / .venv are not seen."""
     for words in (words for line in _readings(command) for words in _commands_in(line) if words):
-        if words == ["yarn"] or "--dry-run" not in words and any(
-                verb.casefold() in (_INSTALLERS["pip"] if program.startswith("pip") else (
-                    _INSTALLERS.get(program, set()))) for program, verb in _verbs(words)):
+        if words == ["yarn"] or any(
+                verb == UNREAD or verb.casefold() in (_INSTALLERS["pip"] if program.startswith(
+                    "pip") else _INSTALLERS.get(program, set()))
+                for program, verb in _verbs(words)):
             return ("It installs or removes packages: in a working copy its dependency folders "
                     "are the project's own, linked in.")
     return ""
@@ -3579,7 +3599,23 @@ def _commands_in(command: str, left: list[int] | None = None,
 
 def reaches_network(command: str) -> str:
     """What in a command reaches the internet - a program, an address, a git fetch, a package
-    install or download, or a word that publishes (`npm publish`, `docker push`); "" for none."""
+    install or download, or a word that publishes (`npm publish`, `docker push`); "" for none.
+    A package manager's part reaches it where any of its words is an install verb of its own
+    (`_reaches_by_word`: no carve-out - `pip install --dry-run x` resolves from the index too).
+    A continued line is read as `_readings` reads it."""
+    return next((found for line in _readings(command) if (found := _reaches_of(line))), "")
+
+
+def _reaches_by_word(words: list[str]) -> bool:
+    """`reaches_network`: whether a package manager's part holds one of its install verbs
+    anywhere (`uv pip compile`, `npm run install`, `pip show install`: over-asks, never fewer)."""
+    words = _module_run(words) or words
+    program = _program(words[0])
+    verbs = _INSTALLERS["pip"] if program.startswith("pip") else _INSTALLERS.get(program, set())
+    return any(word.casefold() in verbs or program == "uv" and word == "pip" for word in words[1:])
+
+
+def _reaches_of(command: str) -> str:
     if found := _NETWORK.search(command):
         return found[0]
     for words in (words for words in _commands_in(command) if words):
@@ -3590,7 +3626,8 @@ def reaches_network(command: str) -> str:
             return program
         if sub in _GIT_REACHES:
             return f"git {sub}"
-        if installs(" ".join(words)) or program in ("pip", "pip3") and "download" in said:
+        if installs(" ".join(words)) or _reaches_by_word(words) or program in (
+                "pip", "pip3") and "download" in said:
             return "a package install"
         if (sending := _SENDING_WORDS & said) and sub != "stash":  # (`git stash push` stays)
             return f"{program} {sorted(sending)[0]}"
