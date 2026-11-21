@@ -580,6 +580,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   lookAt(ref: string): void
   /** The project's branch as the git map last read it (K-dallar: a Take in card says its copy was made on another). */
   gitBranch: string | null
+  /** How many times the git map read the project on another branch than it last read (the Workspace is made anew on it). */
+  gitSwitches: number
   /** How many times the git map was asked for from outside the top bar ("Show git" in the chat, slice 70). */
   gitAsked: number
   showGit(): void
@@ -2146,6 +2148,7 @@ export const useApp = create<AppStore>()((set, get) => {
     filesAt: { key: null, n: 0 },
     filesRef: null,
     gitBranch: null,
+    gitSwitches: 0,
     gitAsked: 0,
 
     showGit() {

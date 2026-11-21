@@ -844,10 +844,24 @@ test('K-dallar: on a branch it reads that branch from git, read only - its tree,
 test('K-dallar: the project switched to another branch, the Workspace reads its folders again - not what it read on the one before', async () => {
   opened()
   render(<ChatPanel />)
+  act(() => useApp.setState({ gitBranch: 'main' }))
   act(() => useApp.getState().openFiles())
   await waitFor(() => expect(asked.filter(one => one === 'GET /api/projects/p/files?path=')).toHaveLength(1))
-  act(() => useApp.setState({ gitBranch: 'feature' }))
+  // (as the git map says it: a branch read after another one)
+  act(() => useApp.setState(s => ({ gitBranch: 'feature', gitSwitches: s.gitSwitches + 1 })))
   await waitFor(() => expect(asked.filter(one => one === 'GET /api/projects/p/files?path=')).toHaveLength(2))
+})
+
+test('the project’s branch first read as the page loads keeps the file picked before it in the Workspace', async () => {
+  // (Seen 20 Nov: a file picked right after the page loaded fell back to "Pick a file in the tree.")
+  opened()
+  render(<ChatPanel />)
+  act(() => useApp.getState().openFiles())
+  await userEvent.click(await within(treeOf()).findByRole('treeitem', { name: 'hello.py' }))
+  expect(screen.queryByText('Pick a file in the tree.')).toBeNull()
+  act(() => useApp.setState({ gitBranch: 'main' })) // (git answered: no switch)
+  expect(screen.queryByText('Pick a file in the tree.')).toBeNull()
+  expect(within(treeOf()).getByRole('treeitem', { name: 'hello.py' })).toHaveAttribute('aria-selected', 'true')
 })
 
 test('B-342: a change done with that changes nothing is no diff to open on: the page opens as it is', () => {
