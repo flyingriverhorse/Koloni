@@ -62,8 +62,8 @@ test('while the Orchestrator asks, the message box says to answer above - open, 
   expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
 })
 
-test('while running, Stop is a square with no words on the status line over the box, Queue in Send’s place; More and Plan first keep their names', () => {
-  const { container } = render(<Composer {...props} running onPlanFirst={vi.fn()} />)
+test('while running, Stop is a square with no words on the status line over the box, Queue in Send’s place; More keeps its name', () => {
+  const { container } = render(<Composer {...props} running />)
   const stop = screen.getByRole('button', { name: 'Stop' })
   const queue = screen.getByRole('button', { name: 'Queue' })
   expect(stop).toHaveTextContent(/^$/)
@@ -72,7 +72,6 @@ test('while running, Stop is a square with no words on the status line over the 
   expect(queue).toHaveAttribute('title', 'Queue')
   // Where their words are not shown, the names stay (and a tooltip says them).
   expect(screen.getByRole('button', { name: 'More' })).toHaveAttribute('title', 'More')
-  expect(screen.getByRole('button', { name: 'Plan first' })).toHaveAttribute('title', expect.stringMatching(/^Plan first/))
 })
 
 test('a failed send keeps the draft and shows the reason', async () => {
@@ -524,19 +523,18 @@ test('a role of the user named as a command is not a second command of that name
 
 // --- plan first (slice 49) ---------------------------------------------------------------------
 
-test('Plan first stands beside the permission level, says on or off, and is the same setting as the level’s menu has', async () => {
+test('Plan first is set in the level’s menu only: the row has no button for it, the menu’s switch turns it on', async () => {
   const onPlanFirst = vi.fn()
   const { rerender } = render(<Composer {...props} planFirst={false} onPlanFirst={onPlanFirst} />)
-  const toggle = screen.getByRole('button', { name: 'Plan first' })
-  expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  expect(toggle).toHaveTextContent(/^Plan first off$/)
-  expect(toggle.previousElementSibling).toHaveClass('composer-level-menu')
-  await userEvent.click(toggle)
+  expect(screen.queryByRole('button', { name: /Plan first/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
+  const menu = () => within(screen.getByRole('dialog', { name: 'Permission level' }))
+  expect(menu().getByRole('switch', { name: 'Plan first' })).not.toBeChecked()
+  await userEvent.click(menu().getByRole('switch', { name: 'Plan first' }))
   expect(onPlanFirst).toHaveBeenLastCalledWith(true)
   rerender(<Composer {...props} planFirst onPlanFirst={onPlanFirst} />)
-  expect(screen.getByRole('button', { name: 'Plan first' })).toHaveAttribute('aria-pressed', 'true')
-  await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
-  expect(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('switch', { name: 'Plan first' })).toBeChecked()
+  expect(menu().getByRole('switch', { name: 'Plan first' })).toBeChecked()
+  expect(screen.queryByRole('button', { name: /Plan first/ })).toBeNull()
 })
 
 test('/plan turns Plan first over, before a Planner role of the same start; without a conversation it is off', async () => {
@@ -749,7 +747,7 @@ test('the note stays past its seconds while its link has the focus, and goes whe
 
 // --- 0.1.5: the "Kovan konsolu" ---------------------------------------------------------------------------------------
 
-test('one box: status line, message, one row - Attach, level, Plan first, Auto-read, Dictate, Send; under it Workspace first, New topic, Chat settings, More, what waits elsewhere', () => {
+test('one box: status line, message, one row - Attach, level, Auto-read, Dictate, Send; under it Workspace first, New topic, Chat settings, More, what waits elsewhere', () => {
   const { container } = render(
     <Composer
       {...props}
@@ -766,7 +764,6 @@ test('one box: status line, message, one row - Attach, level, Plan first, Auto-r
   expect(within(bar).getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
     'Attach',
     'Permission level: Ask before changes',
-    'Plan first off',
     // (Auto-read and Dictate stand before Send where this browser can speak and listen: jsdom can neither.)
     'Send',
   ])

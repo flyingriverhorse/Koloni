@@ -26,6 +26,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Chat**: an agent's window, a discussion's, Workspace and a room's window no longer open over the open chat on a small window; beside it they may lie over each other, the one opened last in front.
 - **Chat**: in a 340 px chat the "details" of what a turn did no longer drops to a second line.
 - **Agents**: an agent on a branch is told that git works in its copy (status, diff, history, commits on its branch) and that the rest of git is asked about ([docs](use/workspace.md#branches)).
+- **Chat**: Plan first is set in the level menu only; the button beside it under the message box is gone.
 
 ### Fixed
 

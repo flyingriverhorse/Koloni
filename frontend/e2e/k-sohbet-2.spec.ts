@@ -98,7 +98,7 @@ test('1 and Enter answer the card over the box; the turn keeps one line, then Qu
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`at 340, 420 and 760 px each row of the box is one line and nothing in the chat scrolls sideways; at 340 the model's name and Plan first give way, the level's name stays (${theme})`, async ({ page }) => {
+  test(`at 340, 420 and 760 px each row of the box is one line and nothing in the chat scrolls sideways; at 340 the model's name gives way, the level's name stays (${theme})`, async ({ page }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
     await openFreshConversation(page)
@@ -124,12 +124,7 @@ for (const theme of ['light', 'dark'] as const)
         expect(row.past, `${row.at} past the chat at ${width}px`).toBe(false)
         expect(row.height, `${row.at} one line at ${width}px`).toBeLessThanOrEqual(40)
       }
-      const plan = chat.getByRole('button', { name: 'Plan first' })
-      if (width === 340) {
-        await expect(plan).toBeHidden()
-        await expect(chat.locator('.composer-status .model-picker-label')).toBeHidden()
-      }
-      if (width === 760) await expect(plan).toBeVisible()
+      if (width === 340) await expect(chat.locator('.composer-status .model-picker-label')).toBeHidden()
       await expect(chat.locator('.composer-level-name')).toBeVisible()
       await style.evaluate(el => el.remove())
     }

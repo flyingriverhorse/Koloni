@@ -48,9 +48,9 @@ unread and how many things wait for you.
   the tier or model, with **Stop** and how many messages are queued; "waits for your answer" while it asks.
   What is not known is left out: a CLI that does not tell its tokens shows none.
 - Under the message, one row: **Attach**, the permission level as three comb cells and its name (a click
-  lists the levels, each with a line on what it does, and **Plan first** - see
-  [Permission levels](permissions.md)), **Plan first** (see [Plan first](plan-first.md)), **Auto-read**,
-  **Dictate** and **Send**.
+  lists the levels, each with a line on what it does, and the **Plan first** switch - see
+  [Permission levels](permissions.md) and [Plan first](plan-first.md)), **Auto-read**, **Dictate** and
+  **Send**.
 - Under the box, quiet words: **Workspace** with its number, **New topic**, **Chat settings**, **More**
   (Compare and Work together) and, at the right, how many things wait elsewhere ("2 more wait elsewhere"),
   which opens Ready for you.
@@ -58,7 +58,7 @@ unread and how many things wait for you.
   its page scripts, what runs without asking in it, and, read only, what it takes from its project. Its
   **All settings** opens [Settings](../settings.md#this-chat) at This chat.
 - In a narrow chat the model shows as its arrow alone (its tooltip and its window say the whole name), **Chat
-  settings** reads **Settings**, what waits reads "2 wait", and **Plan first** is in the level's menu only; at
+  settings** reads **Settings** and what waits reads "2 wait"; at
   the narrowest **New topic**, **Settings** and **More** keep only their icon. The level always shows its name
   ("Ask", "Auto-edit", "Full auto").
 - Type `/` for slash commands: `/new`, `/room`, `/stop`, `/model`, `/mode`, `/plan`, `/compare`, a role's

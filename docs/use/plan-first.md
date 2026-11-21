@@ -1,7 +1,7 @@
 # Plan first
 
-With **Plan first** on (**Plan first** in the message box's row, the switch in the permission level's menu,
-or `/plan`), each new message first gets a plan to approve, before anything changes.
+With **Plan first** on (the switch in the permission level's menu under the message box, or `/plan`), each
+new message first gets a plan to approve, before anything changes.
 
 ## While it plans
 

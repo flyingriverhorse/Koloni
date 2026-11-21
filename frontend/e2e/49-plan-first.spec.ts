@@ -1,4 +1,4 @@
-// Slice 49 in the browser: /plan turns Plan first on beside the permission level; a message
+// Slice 49 in the browser: /plan turns Plan first on in the permission level's menu; a message
 // then gets a plan card - who planned it, Edit, Approve, Reject with why - and a Plan node at
 // the turn's start on the canvas. Approved as edited, the work turn carries the plan; turned
 // down, nothing more runs. The card reads at 4.5 in both themes.
@@ -19,13 +19,21 @@ for (const theme of ['light', 'dark'] as const)
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
     const box = chat.getByRole('textbox', { name: 'Message' })
-    // (0.1.5: a toggle beside the level, its state in a word; the level's menu has the same switch.)
-    const planFirst = chat.getByRole('button', { name: 'Plan first' })
-    await expect(planFirst).toHaveAttribute('aria-pressed', 'false')
+    // (Plan first is a switch in the level's menu only: open it to see the switch.)
+    const levelMenu = chat.getByRole('button', { name: /^Permission level:/ })
+    const menu = chat.getByRole('dialog', { name: 'Permission level' })
+    const planFirst = menu.getByRole('switch', { name: 'Plan first' })
+    await expect(chat.getByRole('button', { name: /Plan first/ })).toHaveCount(0)
+    await levelMenu.click()
+    await expect(planFirst).not.toBeChecked()
+    await page.keyboard.press('Escape')
     await box.fill('/plan')
     await page.keyboard.press('Enter')
-    await expect(planFirst).toHaveAttribute('aria-pressed', 'true')
-    await reads(planFirst, 1)
+    await levelMenu.click()
+    await expect(planFirst).toBeChecked()
+    await reads(menu.locator('label.level-row'), 1)
+    await page.keyboard.press('Escape')
+    await expect(menu).toBeHidden()
 
     await box.fill('what does hello.py print?')
     await chat.getByRole('button', { name: 'Send' }).click()

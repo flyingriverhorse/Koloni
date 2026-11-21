@@ -17,7 +17,6 @@ import { Compare, type Second } from './Compare'
 import { ComposerStatus } from './ComposerStatus'
 import { asCode } from './pastedCode'
 import { LevelMenu } from './LevelMenu'
-import { PLAN_FIRST } from './levels'
 import { type SlashCommand, useSlash } from './slashCommands'
 import { useAttach } from './useAttach'
 
@@ -594,7 +593,7 @@ function SlashMenu({ id, shown, active, onChoose }: { id: string; shown: SlashCo
   )
 }
 
-/** The box's one row (0.1.5): 📎, the level's comb, Plan first, then Auto-read, Dictate and Send (Queue while a turn runs). */
+/** The box's one row (0.1.5): 📎, the level's comb (Plan first is in its menu), then Auto-read, Dictate and Send (Queue while a turn runs). */
 function ComposerBar(p: {
   hidden: boolean
   attach: ReactNode
@@ -612,12 +611,6 @@ function ComposerBar(p: {
     <div className="composer-bar" hidden={p.hidden}>
       {p.attach}
       <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} />
-      {/* The same setting as the level's menu has: one click here. */}
-      {p.onPlanFirst && (
-        <button type="button" className="btn btn-small composer-plan-first" aria-pressed={p.planFirst} title={`Plan first: ${PLAN_FIRST}`} onClick={() => p.onPlanFirst?.(!p.planFirst)}>
-          Plan first <span aria-hidden>{p.planFirst ? 'on' : 'off'}</span>
-        </button>
-      )}
       <span className="composer-actions">
         <AutoRead />
         {p.dictate}
