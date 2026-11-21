@@ -3,7 +3,8 @@ import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import { AGENT_STATUS, WAITS } from '../agents/agentStatus'
-import { liveFacts } from '../agents/liveLine'
+import { Facts } from '../agents/LiveFacts'
+import { liveFactList } from '../agents/liveLine'
 import { useNow } from '../agents/useNow'
 import { SignChip } from '../agents/signs'
 import { ranOn } from '../shell/modelName'
@@ -312,17 +313,18 @@ function StateLine({ id, data, said }: { id: string; data: AgentData; said: stri
 }
 
 /**
- * An agent at work's line (0.1.5): what it does - cut first where the box is too narrow -, for how long, its tokens and
- * tier; the same facts under the pointer. Its dot blinks.
+ * An agent at work's line (0.1.5): what it does, for how long, its tokens and tier - where the box is too narrow its
+ * tier goes first, then its tokens, then its time, and only then is what it does cut; all of it under the pointer. Its
+ * dot blinks.
  */
 function WorkingLine({ data, said, sign }: { data: AgentData; said: string; sign: ReactNode }) {
-  const facts = liveFacts(useNow(1000), data.since, data.wrote, data.kind)
+  const facts = liveFactList(useNow(1000), data.since, data.wrote, data.kind)
   return (
-    <div className="node-line mono node-now" title={data.asks || [said, facts].filter(Boolean).join(' · ')}>
+    <div className="node-line mono node-now" title={data.asks || [said, ...facts].filter(Boolean).join(' · ')}>
       {sign}
       <StatusLabel color={AGENT_STATUS[data.status][1]}>
         <span className="node-live-what">{data.activity}</span>
-        {facts && <span className="live-facts"> · {facts}</span>}
+        <Facts pieces={facts} />
       </StatusLabel>
     </div>
   )

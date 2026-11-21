@@ -49,6 +49,7 @@ How to write an entry (every release looks the same):
 - **CLIs**: with Codex run **Native**, a command that prints nothing for more than 30 seconds (a quiet test run, a build) no longer ends Codex's turn as one that never started; only a command still at work after 11 minutes ends it ([docs](docs/reference/known-limits.md)).
 - **Chat**: a message still queued when KOLONİ restarted is no longer marked "Interrupted by a server restart" as if it had run: it says "Not sent: KOLONİ restarted", and its **Send** sends it as your newest message; nothing sends it by itself ([docs](docs/use/chat-and-canvas.md#writing-a-message)).
 - **Workspace**: a file you pick right after the page loads stays open; it fell back to "Pick a file in the tree." once KOLONİ had read the project's git branch. Only a switch to another branch opens the Workspace anew.
+- **Canvas**: an agent's line at work keeps what it does in sight: where its box (or the line over the message box) is narrow, its tier goes first, then its tokens, then its time, each whole - what it does is cut only after them; in the chat, a discussion's row keeps its name and topic and cuts what it says of itself first.
 
 ### Security
 

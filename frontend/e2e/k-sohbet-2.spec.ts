@@ -1,5 +1,5 @@
 import { expect, type Page, test } from './fixtures'
-import { contrasts, level, openFreshConversation, say } from './helpers'
+import { contrasts, level, openFreshConversation, say, shot } from './helpers'
 
 // The chat, round 2 (0.1.5): VS Code's sizes, a turn without a frame, its steps folded at its end. No model plays a turn
 // of many steps with a sub-agent: one real turn gives a real record, and the page is handed it with those steps in it.
@@ -69,6 +69,88 @@ test('while a command runs the status line over the box and the Orchestrator’s
   await status.getByRole('button', { name: 'Stop' }).click()
   await expect(page.getByText('STOPPED', { exact: true })).toBeVisible({ timeout: 15_000 })
   await expect(status).toHaveText(/^Orchestrator is ready/)
+})
+
+/**
+ * A line of work narrowed from 800 px, where all of it fits, down to 60, a step at a time (in one go: its clock does not tick
+ * meanwhile): at each, which of its facts are in sight, whether each is whole or out of sight, how wide what it does is,
+ * and the line's height. `whole`: what it does with room for all; `floor`: 12 characters of its font.
+ */
+function squeeze(line: Element) {
+  const el = line as HTMLElement
+  const what = el.querySelector<HTMLElement>('.composer-status-what, .node-live-what')!
+  const facts = el.querySelector<HTMLElement>('.live-facts')!
+  const pieces = [...facts.children] as HTMLElement[]
+  const probe = what.appendChild(Object.assign(document.createElement('span'), { style: 'display:inline-block;width:12ch' }))
+  const floor = probe.getBoundingClientRect().width
+  probe.remove()
+  const state = () => {
+    const box = facts.getBoundingClientRect()
+    return {
+      width: Math.round(el.getBoundingClientRect().width),
+      what: what.getBoundingClientRect().width,
+      height: Math.round(el.getBoundingClientRect().height),
+      shown: pieces.filter(p => p.getBoundingClientRect().top < box.bottom - 0.5).map(p => p.textContent!.trim()),
+      cut: pieces.filter(p => p.getBoundingClientRect().top < box.bottom - 0.5 && p.getBoundingClientRect().right > box.right + 0.5).map(p => p.textContent!.trim()),
+    }
+  }
+  const natural = state()
+  el.style.width = '2000px'
+  const whole = what.getBoundingClientRect().width
+  const all = pieces.map(p => p.textContent!.trim())
+  const steps = []
+  for (let width = 800; width >= 60; width -= 4) {
+    el.style.width = `${width}px`
+    steps.push(state())
+  }
+  el.style.width = ''
+  return { natural, whole, floor, all, steps }
+}
+
+test('a line of work gives up its tier, then its tokens, then its time - each whole - before what it does is cut: on the canvas and over the box', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openFreshConversation(page)
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await level(page, 'full_auto')
+  await page.getByLabel('Message').fill('run slow.py')
+  await page.getByRole('button', { name: 'Send' }).click()
+  const status = chat.locator('.composer-status')
+  const node = page.locator('.react-flow__node-agent .node-now')
+  await expect(status).toContainText(/python -u slow\.py · \d+s/, { timeout: 15_000 })
+  await expect(node).toContainText(/python -u slow\.py · \d+s/)
+  for (const line of [status, node]) {
+    const { natural, whole, floor, all, steps } = await line.evaluate(squeeze)
+    const said = JSON.stringify({ natural, whole, floor, all, steps })
+    // Time first, then what else is known: two at least here.
+    expect(all.length, said).toBeGreaterThanOrEqual(2)
+    expect(all[0], said).toMatch(/^· \d+s$/)
+    // As it is, what it does is whole or 12 characters at least, and no fact is cut.
+    expect(natural.what, said).toBeGreaterThanOrEqual(Math.min(whole, floor) - 0.5)
+    expect(natural.cut, said).toEqual([])
+    for (const at of steps) {
+      // The facts go from the end, each whole; while any is in sight, what it does is whole; the line stays one line.
+      const there = JSON.stringify({ at, whole, all })
+      expect(at.shown, there).toEqual(all.slice(0, at.shown.length))
+      expect(at.cut, there).toEqual([])
+      if (at.shown.length > 0) expect(at.what, there).toBeGreaterThanOrEqual(whole - 0.05)
+      expect(at.height, there).toBe(natural.height)
+    }
+    // Narrowed, every fact went, one after another, before what it does was cut.
+    expect(steps[0].shown, said).toEqual(all)
+    expect(new Set(steps.map(at => at.shown.length)).size, said).toBe(all.length + 1)
+    expect(steps.at(-1)!.what, said).toBeLessThan(whole)
+  }
+  if (process.env.KOLONI_SHOTS) {
+    await shot(page.locator('.react-flow__node-agent:has(.node-now)'), 'k-sohbet-2-live-node')
+    for (const width of [420, 340]) {
+      const style = await page.addStyleTag({ content: `.stage { --chat-w: ${width}px !important; }` })
+      await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(width)
+      await shot(status, `k-sohbet-2-live-status-${width}`)
+      await style.evaluate(el => el.remove())
+    }
+  }
+  await status.getByRole('button', { name: 'Stop' }).click()
+  await expect(status).toHaveText(/^Orchestrator is ready/, { timeout: 15_000 })
 })
 
 test('1 and Enter answer the card over the box; the turn keeps one line, then Question / Answered', async ({ page }) => {

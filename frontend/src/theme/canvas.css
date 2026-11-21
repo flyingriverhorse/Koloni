@@ -664,7 +664,7 @@ button.shared-row:hover,
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-/* Its line at work (0.1.5): what it does is cut first; for how long, its tokens and tier stay in sight. */
+/* Its line at work (0.1.5): its tier, tokens and time give way first (`.live-facts`), then what it does is cut. */
 .node-now .status {
   display: inline-flex;
   align-items: baseline;
@@ -894,6 +894,21 @@ button.shared-row:hover,
 
 .tool-row-status {
   font-size: var(--text-meta);
+}
+
+/* A discussion's row (0.1.5): what it says of itself takes only the room its name and topic leave, so it is cut first. */
+.tool-row-discussion .tool-row-summary {
+  flex: 0 1 auto;
+}
+
+.tool-row-discussion .tool-row-status {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: max-content;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tool-row-note {

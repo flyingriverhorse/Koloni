@@ -46,7 +46,8 @@ unread and how many things wait for you.
 - The message box is one box. Its top line says what the chat does now: "Orchestrator is ready" with the
   model (choose the model there); while a turn runs, what it does now, for how long, the tokens written and
   the tier or model, with **Stop** and how many messages are queued; "waits for your answer" while it asks.
-  What is not known is left out: a CLI that does not tell its tokens shows none.
+  What is not known is left out: a CLI that does not tell its tokens shows none. Where the line is narrow, the
+  tier goes first, then the tokens, then the time; what it does is cut last.
 - Under the message, one row: **Attach**, the permission level as three comb cells and its name (a click
   lists the levels, each with a line on what it does, and the **Plan first** switch - see
   [Permission levels](permissions.md) and [Plan first](plan-first.md)), **Auto-read**, **Dictate** and
@@ -121,7 +122,8 @@ as this folder's default** keep the list.
 
 Every agent is a small box of at most three lines: its name and model, its state, and what it did,
 counted. An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
-(where its CLI tells them) and its tier or model: "pytest -q · 12s · ↓ 1.2k tokens · Fast". Its tools, commands and files are in the Inspector and its window (below). Lines show work
+(where its CLI tells them) and its tier or model: "pytest -q · 12s · ↓ 1.2k tokens · Fast". Where the box is
+narrow, the tier goes first, then the tokens, then the time; what it does is cut last. Its tools, commands and files are in the Inspector and its window (below). Lines show work
 handed to a sub-agent, agents that talked, findings handed on, and an agent waiting for a file another
 holds. **Canvas legend** explains every line and sign.
 

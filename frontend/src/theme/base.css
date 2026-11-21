@@ -200,10 +200,26 @@ textarea {
   vertical-align: 1px;
 }
 
-/* What is known of work under way, after what it does (0.1.5): kept whole while the words before it are cut. */
+/* What is known of work under way, after what it does (0.1.5): it takes only the room what it does leaves, so it gives
+   way first - its pieces from the last (the tier, then the tokens, then the time), each whole: a piece with no room
+   wraps under the line, out of sight. What it does is cut only once all of them are gone. */
 .live-facts {
-  flex: none;
+  display: inline-flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: max-content;
+  height: 1lh;
+  overflow: hidden;
   white-space: pre;
+  /* (Not on a baseline: once every piece is gone, the empty first one would lower it.) */
+  align-self: center;
+}
+
+/* (An empty first piece a line tall: the time too goes under the line whole, not cut.) */
+.live-facts::before {
+  content: '';
+  height: 1lh;
 }
 
 .alert {
@@ -2195,7 +2211,7 @@ a.view-run {
   background: var(--accent);
 }
 
-/* What it does is cut first; how long, its tokens and tier, and how many wait stay in sight. */
+/* What it does is cut last, after its facts (`.live-facts`); how many wait stays in sight. */
 .composer-status-what {
   min-width: 0;
   overflow: hidden;
