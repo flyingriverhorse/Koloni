@@ -400,6 +400,8 @@ export function projectMemory(over: Partial<ProjectMemory> = {}): ProjectMemory 
     rules: null,
     rules_changed_at: null,
     rules_kept: false,
+    rules_differ: false,
+    rules_saved: null,
     decisions: [],
     core_chars: core.reduce((sum, record) => sum + record.text.length, 0),
     core_limit: 4000,

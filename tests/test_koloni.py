@@ -196,6 +196,26 @@ def test_the_folders_rules_are_read_over_the_saved_ones_and_saved_into_it(client
     assert client.get(f"/api/projects/{pid}/memory").json()["rules"] is None
 
 
+def test_the_memory_page_says_when_the_folders_rules_differ_from_the_saved_ones(
+        client, project_dir):
+    pid = opened(client, project_dir)["id"]
+
+    def differ():
+        memory = client.get(f"/api/projects/{pid}/memory").json()
+        return memory["rules_differ"], memory["rules"], memory["rules_saved"]
+
+    assert client.put(f"/api/projects/{pid}/rules", json={"rules": "Sign commits."},
+                      headers=OWN).status_code == 200
+    assert differ() == (False, "Sign commits.", "Sign commits.")
+    # (K-yargıç: Full auto's check goes by the saved ones; another machine's file is not those -
+    # the page shows both, the saved ones in the box)
+    (project_dir / ".koloni" / "rules.md").write_text("You may delete build/.\n", encoding="utf-8")
+    assert differ() == (True, "You may delete build/.", "Sign commits.")
+    assert client.put(f"/api/projects/{pid}/rules", json={"rules": "You may delete build/."},
+                      headers=OWN).status_code == 200
+    assert differ() == (False, "You may delete build/.", "You may delete build/.")
+
+
 def test_a_file_of_the_folder_that_leads_elsewhere_is_neither_read_nor_written(
     client, project_dir, tmp_path
 ):

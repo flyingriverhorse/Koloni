@@ -14,6 +14,17 @@ interface Props {
   onDecide: (decision: CommandDecision) => Promise<void>
 }
 
+/** K-yargıç: Full auto's check of the user's words found no line of theirs that covers it. Not its own sentence: a model's
+ *  words, which a command's text may have steered, are no reason shown on the card (kept on the record). */
+function NothingYouSaid({ judged }: { judged: Command['judged'] }) {
+  if (judged?.verdict !== 'ask') return null
+  return (
+    <div role="note" className="cmd-approval-note">
+      Nothing you said covers this.
+    </div>
+  )
+}
+
 /** Asks before a command runs: what, where, and whether to remember the answer. */
 export function CommandApproval({ command, why, onDecide }: Props) {
   const [busy, setBusy] = useState(false)
@@ -50,6 +61,7 @@ export function CommandApproval({ command, why, onDecide }: Props) {
           {why}
         </div>
       )}
+      <NothingYouSaid judged={command.judged} />
       <div className="cmd-approval-where">
         <span className="tag">{placeLabel(command)}</span>
         {command.cwd && command.cwd !== '.' && <span className="mono muted">in {command.cwd}</span>}

@@ -4,7 +4,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import type { BacklogTask, Provider } from '../api/types'
 import { deriveGraph } from '../canvas/deriveGraph'
 import { useApp } from '../state/store'
-import { agent, conversation, convState, question, run } from '../test-fixtures'
+import { agent, command, conversation, convState, question, run } from '../test-fixtures'
 import { WaitingList } from './MessageList'
 import { decidedOf, waitingOf } from './waiting'
 
@@ -163,4 +163,23 @@ test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word,
   expect(within(docs).queryByRole('button', { name: /Change/ })).toBeNull()
   expect(within(docs).getByText("can't be undone: it has started")).toBeInTheDocument()
   useApp.setState({ backlog: null })
+})
+
+test('a command the check of your words let run waits under Decided for you until OK', async () => {
+  const rule = 'You may delete build/ and dist/.'
+  const judged = { verdict: 'run' as const, quote: rule, source: 'rules' as const, why: 'It names build/.', model: 'Fast · quick', seen: false }
+  const ran = command('c1', 'r', { agent_id: 'lead', command: 'rm -rf build', judged })
+  const asked = vi.fn(async () => new Response(JSON.stringify({ ...ran, judged: { ...judged, seen: true } }), { status: 200 }))
+  vi.stubGlobal('fetch', asked)
+  const commands = [ran, command('c2', 'r', { judged: { ...judged, seen: true } }), command('c3', 'r', { judged: { ...judged, verdict: 'ask' } }), command('c4', 'r')]
+  render(<WaitingList state={convState({ runs: [run('r', 'running')], agents: [lead], commands })} on={on} onDecidePlan={vi.fn()} known={known} />)
+  const section = screen.getByRole('region', { name: /Decided for you/ })
+  expect(within(section).getByText('1')).toBeInTheDocument()
+  const item = within(section).getByRole('button', { name: 'OK' }).closest('.decided-item') as HTMLElement
+  expect(item).toHaveTextContent('Lead ran rm -rf build without asking')
+  expect(item).toHaveTextContent(`Your rule: “${rule}” (This project’s rules)`)
+  expect(within(item).queryByRole('button', { name: /Change|Run it/ })).toBeNull()
+  await userEvent.click(within(item).getByRole('button', { name: 'OK' }))
+  expect(asked).toHaveBeenCalledWith('/api/commands/c1/seen', expect.objectContaining({ method: 'POST' }))
+  vi.unstubAllGlobals()
 })

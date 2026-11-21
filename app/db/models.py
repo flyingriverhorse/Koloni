@@ -212,6 +212,9 @@ class Project(Base):
     # 89m: whether a Claude Code agent that changed files finishes only once the tests pass.
     # None: automatic (`app.finish_tests.automatic`).
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
+    # checked against what they wrote ("judge", `JudgeMixin._judged`). The user's own setting.
+    full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
 
     @property
     def has_notify_url(self) -> bool:
@@ -580,6 +583,9 @@ class Command(Base):
     web_off: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # The first address on this machine it printed, KOLONİ's and model servers' ports aside.
     preview_url: Mapped[str | None] = mapped_column(Text, default=None)
+    # K-yargic: what the check of the user's words said of it (`schemas.Judged`); None: not
+    # checked. Set by KOLONİ, never from a CLI's own words.
+    judged: Mapped[dict | None] = mapped_column(JSON, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     ended_at: Mapped[datetime | None] = mapped_column(default=None)

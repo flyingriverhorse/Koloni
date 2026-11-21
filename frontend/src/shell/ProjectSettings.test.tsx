@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, finish_tests: null, finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, finish_tests: null, full_auto_check: 'ask', finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -422,7 +422,7 @@ test('a chosen section alone is shown, each field under its label as before', as
   const fields: [RegExp, (string | RegExp)[]][] = [
     [/^Commands/, [/This machine/, /Docker container/]],
     [/^Agents/, ['Who changes the files', /^Finish only when the tests pass/]],
-    [/^Asking and away/, ['Opening a sub-agent', 'When you’re away']],
+    [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', 'A harmful-looking command at Full auto']],
     [/^New chats start with/, ['New chats’ teams', 'Posts, at most', 'Minutes, at most', 'Tokens, at most']],
     [/^Checks/, ['Test before adding', /^Save each sub-agent’s work as a git commit/]],
     [/^Memory and web/, [/^Note what the work found, by itself/, 'Search by meaning with', 'Search address (SearXNG)', 'Otherwise search with', /^Let agy search too/]],
@@ -720,6 +720,20 @@ test('who answers while you are away is every chat’s, said in sight to use you
   await userEvent.type(screen.getByLabelText('Minutes before the Orchestrator answers'), '30')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ when_away: 'lead', away_minutes: 30 })
+})
+
+test('a harmful-looking command at Full auto asks you, or first checks what you said; sent only when changed', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Asking and away/)
+  const check = screen.getByLabelText('A harmful-looking command at Full auto')
+  expect(check).toHaveValue('ask')
+  const costs = 'Each such command is one request of your Fast tier’s first model (on a CLI, of your plan).'
+  expect(screen.queryByText(costs)).toBeNull()
+  await userEvent.selectOptions(check, 'Check what I said first')
+  expect(screen.getByText(costs)).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenCalledWith({ full_auto_check: 'judge' })
 })
 
 test('another project’s agent instructions below this folder are said, with how many more, whatever section is open (K-yabanci-talimat)', async () => {

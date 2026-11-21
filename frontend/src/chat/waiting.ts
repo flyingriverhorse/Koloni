@@ -103,6 +103,11 @@ export const decidedOf = (conv: ConvState): Question[] =>
 export const decidedTasks = (backlog: BacklogTask[] | null, chat: string): BacklogTask[] =>
   (backlog ?? []).filter(task => task.po?.chat === chat && !task.po.seen && (task.po.lead === 'add' ? task.status !== 'proposed' : task.po.lead === 'no' && task.status === 'proposed'))
 
+/** K-yargıç: the commands of this chat Full auto's check of the user's words let run with no card, not yet OK'd.
+ *  shortcut: as `decidedTasks`, shown in the chat's Decided for you only - not in `decidedOf`'s pill or Ready's counts;
+ *  count these there too if one is missed. */
+export const judgedRuns = (conv: ConvState): Command[] => conv.commands.filter(c => c.judged?.verdict === 'run' && !c.judged.seen)
+
 // What a row of the list is, in the canvas's one line: one, and more than one.
 const WORDS: Record<Exclude<Waiting['what'], 'question'>, [string, string]> = {
   command: ['command', 'commands'],

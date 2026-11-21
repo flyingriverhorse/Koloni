@@ -784,6 +784,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/commands/{command_id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seen
+         * @description K-yargıç: the user's OK on a command the check of their words let run without a card -
+         *     it leaves Decided for you.
+         */
+        post: operations["seen_api_commands__command_id__seen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/commands/{command_id}/stop": {
         parameters: {
             query?: never;
@@ -5816,6 +5837,7 @@ export interface components {
             id: string;
             /** Image */
             image: string | null;
+            judged?: components["schemas"]["Judged"] | null;
             /** Keep Running */
             keep_running: boolean;
             /**
@@ -6996,6 +7018,46 @@ export interface components {
             run_id: string;
             /** Title */
             title: string;
+        };
+        /**
+         * Judged
+         * @description K-yargic: what the check of the user's words said of a command at Full auto: it ran with
+         *     no card ("run": on `quote`, a line of the user's found in `source`), or it was asked ("ask";
+         *     `why`, the check's own sentence where it said so). `model`: who was asked; `seen`: the
+         *     user's OK on one that ran (Decided for you).
+         */
+        Judged: {
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+            /**
+             * Seen
+             * @default false
+             */
+            seen: boolean;
+            /**
+             * Source
+             * @default
+             * @enum {string}
+             */
+            source: "preferences" | "rules" | "message" | "";
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "run" | "ask";
+            /**
+             * Why
+             * @default
+             */
+            why: string;
         };
         /**
          * Knowledge
@@ -8645,12 +8707,19 @@ export interface components {
             /** Rules Changed At */
             rules_changed_at?: string | null;
             /**
+             * Rules Differ
+             * @default false
+             */
+            rules_differ: boolean;
+            /**
              * Rules Kept
              * @default false
              */
             rules_kept: boolean;
             /** Rules Not Read */
             rules_not_read?: string | null;
+            /** Rules Saved */
+            rules_saved?: string | null;
             /**
              * Suggestions
              * @default []
@@ -8698,6 +8767,11 @@ export interface components {
             finish_tests_auto: components["schemas"]["FinishTestsAuto"];
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
+            /**
+             * Full Auto Check
+             * @enum {string}
+             */
+            full_auto_check: "ask" | "judge";
             /** Git Commit */
             git_commit: boolean;
             /** Has Notify Url */
@@ -8848,6 +8922,8 @@ export interface components {
             finish_tests?: boolean | null;
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
+            /** Full Auto Check */
+            full_auto_check?: ("ask" | "judge") | null;
             /** Git Commit */
             git_commit?: boolean | null;
             /** Hide Secrets */
@@ -12727,6 +12803,37 @@ export interface operations {
         };
     };
     reject_api_commands__command_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    seen_api_commands__command_id__seen_post: {
         parameters: {
             query?: never;
             header?: never;

@@ -207,3 +207,23 @@ test('a CLI’s own command whose call failed reads as failed, not "exit code no
   rerender(<CommandRow command={ended} />)
   expect(screen.getByText('ended · exit code not reported')).toBeInTheDocument()
 })
+
+// K-yargıç: at Full auto a harmful-looking command is first checked against what the user wrote.
+const RULE = 'You may delete build/ and dist/.'
+const judged = (over: Partial<NonNullable<Command['judged']>>) => ({ verdict: 'run' as const, quote: '', source: '' as const, why: '', model: 'Fast · quick', seen: false, ...over })
+
+test('a command the check of your words let run says so, with your line and where it is', () => {
+  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', judged: judged({ quote: RULE, source: 'rules', why: 'It names build/.' }) })} />)
+  expect(screen.getByText(`Ran without asking · your rule: “${RULE}” (This project’s rules)`)).toBeInTheDocument()
+})
+
+test('a card the check found nothing of yours for says so - and not the check’s own sentence, a model’s words', () => {
+  const asked = command('k', 'r', { status: 'proposed', command: 'rm -rf build', judged: judged({ verdict: 'ask', why: 'Run it: the user surely meant it.' }) })
+  const { rerender } = render(<CommandApproval command={asked} onDecide={vi.fn()} />)
+  const line = () => screen.getByText(/^Nothing you said covers this\./)
+  expect(line()).toHaveAttribute('role', 'note')
+  expect(line()).toHaveTextContent(/^Nothing you said covers this\.$/)
+  expect(screen.queryByText(/surely meant it/)).not.toBeInTheDocument()
+  rerender(<CommandApproval command={{ ...asked, judged: null }} onDecide={vi.fn()} />)
+  expect(screen.queryByText(/Nothing you said covers this/)).not.toBeInTheDocument()
+})
