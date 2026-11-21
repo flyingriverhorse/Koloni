@@ -69,9 +69,9 @@ class JudgeMixin:
             texts = judge.said(raw.hidden(kept.preferences(session) or ""),
                                raw.hidden(project.rules or ""), list(map(raw.hidden, messages)))
         asked = judge.prompt(texts, {
-            "command": raw.hidden(command), "where": cwd or "not known",
+            "command": raw.hidden(command), "where": raw.hidden(cwd) if cwd else "not known",
             "flagged_because": reason,
-            "by": "Orchestrator" if not ctx.depth else f"sub-agent {ctx.role}"})
+            "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}")})
         cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts)
         return self._judgement(reason, cache[key])
 

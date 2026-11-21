@@ -377,10 +377,12 @@ class ApprovalsMixin:
         before = web_off or reason or searched or (
             copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
             if copy is not None else "") or self._branch_asks(ctx, command, copy is not None)
-        # K-yargic: harm alone may first be checked against the user's own words (`_judged`).
+        # K-yargic: harm alone may first be checked against the user's own words (`_judged`) -
+        # not for a role that runs no command: it is refused below whatever the check says.
         night, judged = await self._judged(ctx, command, at, "" if before else self._night_asks(
             ctx, command, at, scratch_of) or (
-            self._night_asks(ctx, command, None) if claimed else ""), asked_anyway=always)
+            self._night_asks(ctx, command, None) if claimed else ""),
+            asked_anyway=always or "run_command" not in ctx.tools)
         reason = before or night
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
