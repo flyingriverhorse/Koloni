@@ -92,6 +92,7 @@ record = {"argv": argv, "cwd": str(cwd), "stdin": "", "asked": [], "hooks": [], 
           "init": None, "interrupted": False,
           "env_tool_wait": os.environ.get("MCP_TOOL_TIMEOUT"),
           "git_ceiling": os.environ.get("GIT_CEILING_DIRECTORIES"),
+          "git_config": os.environ.get("GIT_CONFIG_PARAMETERS"),
           "canary": os.environ.get("KOLONI_CANARY_KEY"),  # (101's planted test key)
           # Where it was pointed, whether with KOLONİ's stand-in token, and which keys it got.
           "sign_in": {"base_url": os.environ.get("ANTHROPIC_BASE_URL"),

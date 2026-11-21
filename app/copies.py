@@ -20,7 +20,7 @@ import hashlib
 import json
 import os
 import stat
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cached_property
@@ -61,6 +61,8 @@ NO_PLACE = (
 # or rewrites its working folder reaches it.
 TREE = "tree"
 BASE_FILE = "base.json"
+# Beside it too: an empty folder that git is told holds the hooks (`git_env`).
+NO_HOOKS = "no-hooks"
 # More than a copy of `MAX_FILES` files ever writes there (a path and a digest each).
 MAX_BASE_BYTES = MAX_FILES * 2048
 # Beside the tree too: the bytes of each file as it was copied, at the same path, for a
@@ -144,6 +146,22 @@ def ceiling(tree: Path) -> str:
     return os.pathsep.join(
         [str(tree.parent.parent), *filter(None, [os.environ.get("GIT_CEILING_DIRECTORIES")])]
     )
+
+
+def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
+    """What git is given for whatever is started in a copy's tree, `env` being the environment it
+    is started with: it looks no higher than the copies folder (`ceiling`), and runs no hook of the
+    repository it finds - its hooks folder is an empty one beside the tree (`NO_HOOKS`), after the
+    config `env` gives git already. A branch's worktree is the user's own repository: its hooks,
+    and a `core.hooksPath` in the tree (husky's), which the agent can write.
+    GIT_CONFIG_PARAMETERS, not GIT_CONFIG_COUNT/KEY/VALUE: GIT_CONFIG_KEY_0 is a secret by its
+    name (`commands.secret_name`), held back where its count is not - and git stops at a count
+    with no key."""
+    empty = tree.parent / NO_HOOKS
+    empty.mkdir(exist_ok=True)
+    ours = "'" + f"core.hooksPath={empty}".replace("'", "'\\''") + "'"  # (git's own quoting)
+    return {"GIT_CEILING_DIRECTORIES": ceiling(tree), "GIT_CONFIG_PARAMETERS": " ".join(
+        filter(None, [env.get("GIT_CONFIG_PARAMETERS"), ours]))}
 
 
 def _key(path: str) -> str:
@@ -912,8 +930,8 @@ def make_branch(
     branch, again = None, short.startswith(git.BRANCH_PREFIX)
     try:
         branch, into, sha = git.reopen_worktree(
-            project, root, short, root.parent / "no-hooks", start, tip) if again else (
-            git.add_worktree(project, root, short, root.parent / "no-hooks"))
+            project, root, short, root.parent / NO_HOOKS, start, tip) if again else (
+            git.add_worktree(project, root, short, root.parent / NO_HOOKS))
         files, _links, _size = _scan(root, stop=True)
         listed = _git_listed(project)
         links = _scan(project, avoid=held.resolve(), held=listed)[1] if listed is not None else []

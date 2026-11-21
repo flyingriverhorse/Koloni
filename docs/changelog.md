@@ -33,6 +33,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Chat**: a message still queued when KOLONİ restarted is no longer marked "Interrupted by a server restart" as if it had run: it says "Not sent: KOLONİ restarted", and its **Send** sends it as your newest message; nothing sends it by itself ([docs](use/chat-and-canvas.md#writing-a-message)).
 - **Workspace**: a file you pick right after the page loads stays open; it fell back to "Pick a file in the tree." once KOLONİ had read the project's git branch. Only a switch to another branch opens the Workspace anew.
 
+### Security
+
+- **Workspace**: your repository's git hooks (pre-commit, commit-msg, post-commit, also from a core.hooksPath such as husky's) no longer run for an agent's own git commands in its copy ([docs](use/workspace.md#branches)).
+
 ## [0.1.4] - 2026-11-21
 
 ### Added

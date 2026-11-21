@@ -555,6 +555,71 @@ def test_no_hook_runs_when_the_branch_goes(repo, runtime):
     assert not marker.exists() and run(repo, "branch", "--list", "koloni/*") == ""
 
 
+def test_git_in_a_copy_is_given_an_empty_hooks_folder_after_the_config_it_had(tmp_path):
+    tree = tmp_path / "it's" / "agent1" / copies.TREE  # (a quote in the path)
+    tree.mkdir(parents=True)
+    empty = tree.parent / copies.NO_HOOKS
+    ours = "'core.hooksPath=" + str(empty).replace("'", "'\\''") + "'"
+    told = copies.git_env(tree, {"GIT_CONFIG_PARAMETERS": "'user.name=x'"})
+    assert told == {"GIT_CEILING_DIRECTORIES": copies.ceiling(tree),
+                    "GIT_CONFIG_PARAMETERS": f"'user.name=x' {ours}"}
+    assert copies.git_env(tree, {})["GIT_CONFIG_PARAMETERS"] == ours and empty.is_dir()
+    # git reads both back as written: the quote, and a Windows path's backslashes
+    for key, value in (("core.hooksPath", str(empty)), ("user.name", "x")):
+        done = subprocess.run(["git", "config", "--get", key], cwd=tree, capture_output=True,
+                              text=True, env={**os.environ, **told})
+        assert (done.returncode, done.stdout.strip()) == (0, value), done.stderr
+
+
+def hooked(folder, marker):
+    """A pre-commit hook in `folder` that marks a commit on a branch of KOLONİ's - a commit of the
+    user's own runs it too."""
+    folder.mkdir(parents=True, exist_ok=True)
+    hook = folder / "pre-commit"
+    hook.write_text('#!/bin/sh\ncase "$(git rev-parse --abbrev-ref HEAD)" in koloni/*) '
+                    f"echo ran >> '{marker.as_posix()}' ;; esac\n", newline="\n")
+    os.chmod(hook, 0o755)
+
+
+@pytest.mark.parametrize("where", [".git/hooks", ".husky"])
+def test_no_hook_of_the_repository_runs_for_a_commit_in_a_branch_copy(repo, runtime, where):
+    marker = runtime.parent / "hook-ran"
+    hooked(repo / where, marker)
+    if where == ".husky":  # (committed, and named by the repository's config: husky's way)
+        run(repo, "add", "--chmod=+x", ".husky/pre-commit")
+        run(repo, "commit", "-qm", "husky")
+        run(repo, "config", "core.hooksPath", ".husky")
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+
+    def commit(message, env=None):
+        (copy.root / "a.txt").write_text(message)
+        done = subprocess.run(["git", "commit", "-qam", message], cwd=copy.root, env=env,
+                              capture_output=True, text=True)
+        assert done.returncode == 0, done.stderr  # (made: not a git that stopped at its config)
+        assert run(copy.root, "log", "-1", "--format=%s") == message
+
+    commit("by git itself")
+    assert marker.exists()  # (the control: git by itself runs it)
+    marker.unlink()
+    commit("an agent's", {**os.environ, **copies.git_env(copy.root, os.environ)})
+    assert not marker.exists()
+
+
+def test_no_hook_of_the_repository_runs_for_an_agents_own_commit_on_its_branch(
+    make_client, wait_run, repo
+):
+    marker = repo.parent / "hook-ran"
+    hooked(repo / ".git" / "hooks", marker)
+    client, cid, run_id = on_branch(make_client, repo, [
+        step(edit("two", "TWO-agent")),
+        step(call("run_command", {"command": "git commit -qam mine"}, "c")), text("A done")])
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (ran,) = [one for one in snap["commands"] if one["command"] == "git commit -qam mine"]
+    assert (ran["status"], ran["exit_code"]) == ("exited", 0), ran["output"]
+    assert lines(repo)[1] == "TWO-agent" and not marker.exists()
+
+
 def test_a_secret_is_found_in_a_file_that_is_not_utf8(repo, runtime):
     """Finding 6."""
     from app.agent import _secret_in

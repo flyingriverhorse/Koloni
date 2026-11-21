@@ -72,6 +72,9 @@ project's `origin` must be the GitHub repository gh sees. Until then the card sa
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").
 
+Your repository's git hooks (pre-commit, commit-msg, post-commit, also those of a `core.hooksPath` such
+as husky's) do not run for an agent's own git commands in its copy - a commit on its branch included.
+
 A secret you gave in this turn (see [Security model](../security/model.md#secrets)) never leaves on a
 branch:
 
