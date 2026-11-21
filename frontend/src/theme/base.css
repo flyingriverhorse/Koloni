@@ -968,15 +968,18 @@ p.hive-empty {
 /* The chat open, there is no row under the window (Workspace's button is at the chat's foot): beside the
    column it stands the stage's height, from under the Teams button (as a room's window) - its own buttons at
    its right end are not under that one (moved or expanded, its own rules hold).
-   shortcut: the column and this window leave the turn little of the canvas - a strip about 240px wide at 1440,
-   no room at all at 1024 (its cards end up past the stage's edge or under the inspector); upgrade (a shorter
+   Below 1400px it keeps its own half height at the bottom: full height there left the turn no canvas at all
+   (at 1024 its cards ended up past the stage's edge or under the inspector).
+   shortcut: at 1440 the column and this window still leave the turn a strip about 240px wide; upgrade (a shorter
    window, or the turn beside it) if it is met. */
-.chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
-  top: 56px;
-  bottom: calc(14px + var(--timeline-h, 0px));
-  height: auto;
-  min-height: 0;
-  max-height: none;
+@media (min-width: 1400px) {
+  .chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
+    top: 56px;
+    bottom: calc(14px + var(--timeline-h, 0px));
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
 .view-panel[hidden] {
