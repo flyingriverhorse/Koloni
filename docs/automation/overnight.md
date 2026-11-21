@@ -53,8 +53,8 @@ turn (a turn that waits for your word does not hold them back). A task added mea
 Each starts in a new chat named after it, its first message the task and what makes it done, and
 works in a copy of the project of its own.
 
-- **Level and model:** the job's chat has the permission level and the model of the chat you went
-  away from, not the To-do page's run settings. Its other settings are the project's, as in any chat:
+- **Level and model:** the job's chat has the model of the chat you went away from, and the lower of
+  that chat's permission level and the To-do page's (the Away panel says which). Its other settings are the project's, as in any chat:
   who changes the files, opening sub-agents, and the rest.
 - **Team and recipe:** where you picked the teams in that chat (**Manual**), the job's chat has
   them, with their recipes.

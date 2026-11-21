@@ -566,22 +566,28 @@ class _Decision:
         self.going: list[asyncio.Task] = []
         self.delay = 0.0  # (its time as armed: at once while away, else the project's minutes)
 
-    def arm(self, delay: float) -> None:
+    def arm(self, delay: float, typed: bool = False) -> None:
+        """`typed`: armed again for the rest of the user's typing - its own time stays."""
         later = self.runner.call_later or asyncio.get_running_loop().call_later
-        self.delay, self.timer = max(self.delay, delay), later(delay, self.go)
+        if not typed:
+            self.delay = delay
+        self.timer = later(delay, self.go, False, typed)
 
-    def go(self, forced: bool = False) -> None:
+    def go(self, forced: bool = False, typed: bool = False) -> None:
         """The Lead is asked - not while the user types an answer, unless Go away says now; and,
-        the user back since it was armed, only once the rule says so as it stands now."""
+        the user back since it was armed, only as the rule says now: none - it waits for them;
+        held while they typed, and the rule's time now longer - armed again for that."""
         if self.asked.done():
             return self.let_go(False)
         if self.going:
             return None
         now = None if forced else self.runner._when(self.ctx, self.kind)[0]
-        if not forced and (now is None or now > self.delay):
-            return None if now is None else self.arm(now)  # (from now on: theirs to answer)
+        if not forced and now is None:
+            return None
+        if typed and now is not None and now > self.delay:
+            return self.arm(now)
         if not forced and (left := self.runner._typing_left(self.question_id)) > 0:
-            return self.arm(left)
+            return self.arm(left, typed=True)
         task = asyncio.ensure_future(self.runner._lead_answers(
             self.ctx, self.text, self.options, self.asked, self.says, self.kind == "ask_user"))
         self.going.append(task)

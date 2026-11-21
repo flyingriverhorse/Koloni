@@ -85,3 +85,11 @@ test('no chip in a plain chat; in a chat with no turn yet it waits, saying why',
   expect(chip).toBeDisabled()
   expect(chip).toHaveAttribute('title', 'Write to the Orchestrator first: Away finishes this chat’s turn')
 })
+
+test('the panel says the level the tasks run at: the lower of this chat’s and the To-do page’s', async () => {
+  useApp.setState({ backlog: [], backlogAuto: { permission_mode: 'ask' } as never })
+  render(<ComposerStatus {...at} conv={{ ...chat, conversation: { ...conversation, permission_mode: 'full_auto' } }} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Away' }))
+  expect(screen.getByRole('dialog', { name: 'Away' })).toHaveTextContent('The tasks run at Ask before changes - the lower of this chat’s level and the To-do page’s.')
+  useApp.setState({ backlogAuto: null })
+})

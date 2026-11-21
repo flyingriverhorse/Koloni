@@ -47,6 +47,9 @@ def evening(make_client, project_dir, steps, mode="full_auto", plan=None, **proj
         assert client.patch(f"/api/projects/{pid}", json=project).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     assert client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode}).status_code == 200
+    # (A job runs at the lower of the chat's level and the To-do page's: here both are `mode`.)
+    assert client.put(f"/api/projects/{pid}/backlog/choice",
+                      json={"permission_mode": mode}).status_code == 200
     run_id = client.post(f"/api/conversations/{cid}/messages",
                          json={"content": "I'm going to sleep: do one and two"}).json()["run"]["id"]
     return client, model, pid, cid, run_id
@@ -447,6 +450,7 @@ def test_a_job_with_a_team_and_its_recipe_works_by_it_and_is_done_at_ready_for_y
     client.patch(f"/api/conversations/{cid}", json={
         "permission_mode": "full_auto", "teams_mode": "manual", "teams": [
             {"team_id": teams_of(client)["Web app"]["id"], "recipe_id": recipe["id"]}]})
+    client.put(f"/api/projects/{pid}/backlog/choice", json={"permission_mode": "full_auto"})
     run_id = client.post(f"/api/conversations/{cid}/messages",
                          json={"content": "sleep"}).json()["run"]["id"]
     wait_run(client, cid, run_id)

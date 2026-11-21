@@ -59,6 +59,7 @@ log = logging.getLogger(__name__)
 STUCK_FLAG, STUCK_RANGE, STUCK_MINUTES = "stuck_minutes", (5, 1440), 30
 CEILING_FLAG, CEILING_RANGE, CEILING_HOURS = "turn_hours", (1, 72), 8
 MAX_JOBS, MAX_KEPT_OUT = 10, 20
+LEVELS = ("ask", "auto_edit", "full_auto")  # (lowest first)
 TRIES = 2  # a job that fails is tried once more
 CLOCK = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 OFFERED = (
@@ -436,9 +437,9 @@ _told_looked_at: set[str] = set()
 
 
 def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
-    """A job in a new chat: as the chat the card was in - its level, its model (the chat's
-    rules hold tonight too; what nobody watching may do unasked is held to,
-    `AgentRunner._night_asks`) - with the team and recipe the card gave it. Who changes the
+    """A job in a new chat: as the chat gone from - its model, its level where the To-do page's
+    is not lower (the chat's rules hold tonight too; what nobody watching may do unasked is held
+    to, `AgentRunner._night_asks`) - with the teams the user picked there. Who changes the
     files and the rest of its sub-agent settings are the project's, as any chat's
     (`settings_of`, `lead_work_of`)."""
     job = next(job for job in away.jobs if job.get("task_id") == task.id)
@@ -448,7 +449,9 @@ def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
         "recipe") else None
 
     def shape(chat: Conversation) -> None:
-        chat.permission_mode = evening.permission_mode
+        # (The lower of the chat gone from's level and the To-do page's, `backlog.start`'s.)
+        chat.permission_mode = min(chat.permission_mode, evening.permission_mode,
+                                   key=LEVELS.index)
         chat.provider_id, chat.model_id = evening.provider_id, evening.model_id
         if team is not None:
             chat.teams_mode = "manual"

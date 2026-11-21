@@ -1,18 +1,22 @@
 import { ArrowDown, ArrowUp, DotsSixVertical } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
-import type { Away, BacklogTask } from '../api/types'
+import type { Away, BacklogTask, PermissionMode } from '../api/types'
 import { clock } from '../backlog/awayText'
 import { useAsk } from '../memory/useAsk'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
+import { LEVELS } from './levels'
 
 /** The most To-do tasks one Go away takes. */
 const MOST = 10
 const DECIDES = ['its agents’ questions', 'a sub-agent to open on its own model', 'go on or stop at a step limit', 'a delete a line of yours allows (Check what I said first)']
-const WAITS = ['outside the folder, your home, Windows', '.git, .koloni, secrets, the main branch', 'another model that costs money', 'Take in, Discard, Commit']
+const WAITS = ['outside the folder, your home, Windows', 'sending work off this machine, a git remote', '.git, .koloni, secrets, the main branch', 'another model that costs money', 'Take in, Discard, Commit']
 
 /** A task Away may take: proposed or to do, and not one the Orchestrator turned down for you. */
 const takes = (task: BacklogTask) => (task.status === 'proposed' || task.status === 'todo') && task.po?.lead !== 'no'
+/** The lower of two levels: a task runs at no more than the chat's and the To-do page's. */
+const lower = (one: PermissionMode, other: PermissionMode) => (MODES.indexOf(one) <= MODES.indexOf(other) ? one : other)
+const MODES = Object.keys(LEVELS) as PermissionMode[]
 const weekday = (iso: string) => new Date(iso).toLocaleDateString([], { weekday: 'short' })
 
 interface Props {
@@ -30,6 +34,7 @@ interface Props {
 export function AwayPanel({ conv, offer, onClose }: Props) {
   const cid = conv.conversation.id
   const backlog = useApp(s => s.backlog)
+  const todoLevel = useApp(s => s.backlogAuto?.permission_mode)
   useEffect(() => {
     if (!backlog) void useApp.getState().loadBacklog()
   }, [backlog])
@@ -58,6 +63,10 @@ export function AwayPanel({ conv, offer, onClose }: Props) {
         <span aria-hidden>☾</span> You’re away
       </h3>
       <p className="muted">The Orchestrator finishes this chat, then works through To-do in order. It decides for you where it safely can.</p>
+      <p className="muted">
+        The tasks run at <b>{LEVELS[lower(conv.conversation.permission_mode, todoLevel ?? conv.conversation.permission_mode)].name}</b> - the lower of this chat’s level and the To-do
+        page’s.
+      </p>
       {ids.length > 0 && <AwayTasks tasks={ids.map(id => tasks.find(t => t.id === id)!)} cid={cid} on={on} onTick={tick} onMove={move} />}
       <AwayColumns />
       <AwayLimits limits={limits} currency={offer?.currency ?? 'USD'} onChange={setLimits} />
