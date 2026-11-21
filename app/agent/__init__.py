@@ -47,7 +47,7 @@ import threading
 import time
 import uuid
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -323,6 +323,7 @@ from app.commands import (
     OutputMask,
     copy_reason,
     hide_keys,
+    installs,
     search_reason,
     sends_canary,
     spellings_of,
@@ -722,8 +723,19 @@ IN_A_COPY = (
     "From here on you work in {whose}: your file tools and commands run there, agents "
     "outside it do not see what you change, and {taken}. {git} "
     "The copy is your working folder, in the project's place: your report names files by "
-    "their paths relative to it. {folders}"
+    "their paths relative to it. {alongside} {folders}"
 )  # (B-129: the project's path named here too, agents asked which folder was the real one)
+# K-koordinasyon: what agents at work beside each other leave alone (`commands.copy_reason`
+# asks about the rest).
+ALONGSIDE = (
+    "Other agents may work at the same time, each in a copy of its own. Change only the files "
+    "your task needs. Write, move or delete nothing outside your copy: another agent's copy, the "
+    "project folder, another agent's worktree or branch is not yours - say in your report what "
+    "should go. "
+    "Stop only processes you started; never kill programs by name (taskkill /IM, pkill, "
+    "Stop-Process -Name): KOLONİ, the user's programs and other agents' runs share this machine. "
+    "A server or test you start listens on a free port, never a fixed one."
+)
 # Its {git}: a copy has no `.git`. A branch's worktree has the user's repository - what an agent
 # runs there unasked is `commands._own_git`'s list, the rest asked (`reaches_shared_git`); not in
 # Docker, where the worktree's `.git` names a folder of this machine's, not the container's.
@@ -741,9 +753,10 @@ MCP_IN_A_COPY = (
     "not under the project folder."
 )
 LINKED_IN = (
-    "node_modules, .venv and venv are the project's own, shared with it: your file tools "
-    "read there and do not write there. A command that deletes there deletes the project's: "
-    "such a command is asked about every time."
+    "node_modules, .venv and venv are the project's own, shared with it and with every other "
+    "agent: your file tools read there and do not write there; do not install into them, "
+    "rebuild them or write in them - say in your report what to install. A command that "
+    "deletes or writes there reaches the project's: such a command is asked about every time."
 )
 # A copy made without links (`_links_in_copy`).
 NOT_LINKED_IN = (
@@ -933,6 +946,12 @@ def _summary_after(t: _LeadTurn, status: str, refused: bool) -> bool | None:
     if status == "completed":
         return False
     return True if status == "failed" and refused and _sends_again(t) else None
+
+
+def _project_key(project: Path | str) -> str:
+    """A project's folder as one key, however it was spelt: a copy's `project` is resolved, a
+    turn's folder may not be (macOS's /var is /private/var)."""
+    return os.path.normcase(str(Path(project).resolve()))
 
 
 class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
@@ -1204,6 +1223,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # backlog task started while another works: `backlog.chain`).
         self._branch_runs: dict[str, str] = {}
         self._merging_in: dict[str, asyncio.Lock] = {}
+        # owner -> its project's key and what went into the project while its copy is being made
+        # (`_into_copies`): brought into the copy once it is (`_working_copy`).
+        self._made_now: dict[str, tuple[str, set[str]]] = {}
         # D2: the branches the user kept after their merge (`_drop_branch`); merge id -> what
         # else they said with their word on a branch's card (`keep_branch`, `way`).
         self._keep_branches: set[str] = set()
@@ -2195,33 +2217,44 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # (A branch opened again keeps its earlier work, whatever happens here.)
                 left = self._left_on.pop(owner, None)
                 again = left is not None
-                making = asyncio.ensure_future(asyncio.to_thread(self._make_copy(
-                    ctx, owner, name, _links_in_copy(self._ctxs[owner].model),
-                    self._copy_part(owner), left)))
+                # A file another's Take in writes while the copy is made may be copied as it
+                # was: what goes in meanwhile is noted (`_into_copies`), and brought into it.
+                noted: set[str] = set()
+                self._made_now[owner] = (_project_key(ctx.folder), noted)
                 try:
-                    made = await asyncio.shield(making)
-                except asyncio.CancelledError:
-                    # Stopped while the copy was being made: it is not left behind.
-                    late = None
-                    with contextlib.suppress(Exception):
-                        late = await making
-                    with contextlib.suppress(Exception):
-                        copies.remove(self.settings.runtime_root, name)
-                    if late is not None:
-                        self._drop_branch(late, force=not again)
-                    raise
-                except copies.TooBig:
-                    made, state = None, "too_big"
-                except Exception:
-                    # Whatever kept the copy from being made (a file of the project's
-                    # that cannot be read): the agent works in the project, as it does
-                    # where that is too big - and is not sent to try again at each change.
-                    made, state = None, "failed"
-                else:
-                    state = "own"
-                    made.secrets = lambda run_id=ctx.run_id: self.given_spellings(run_id)
-                    made.made_at = started
-                self._copies[owner] = made
+                    making = asyncio.ensure_future(asyncio.to_thread(self._make_copy(
+                        ctx, owner, name, _links_in_copy(self._ctxs[owner].model),
+                        self._copy_part(owner), left)))
+                    try:
+                        made = await asyncio.shield(making)
+                    except asyncio.CancelledError:
+                        # Stopped while the copy was being made: it is not left behind.
+                        late = None
+                        with contextlib.suppress(Exception):
+                            late = await making
+                        with contextlib.suppress(Exception):
+                            copies.remove(self.settings.runtime_root, name)
+                        if late is not None:
+                            self._drop_branch(late, force=not again)
+                        raise
+                    except copies.TooBig:
+                        made, state = None, "too_big"
+                    except Exception:
+                        # Whatever kept the copy from being made (a file of the project's
+                        # that cannot be read): the agent works in the project, as it does
+                        # where that is too big - and is not sent to try again at each change.
+                        made, state = None, "failed"
+                    else:
+                        state = "own"
+                        made.secrets = lambda run_id=ctx.run_id: self.given_spellings(run_id)
+                        made.made_at = started
+                    # (No await from the copy made to here: what goes in later finds it.)
+                    self._copies[owner] = made
+                    if made is not None and [path for path in noted if made.refresh(path)]:
+                        with contextlib.suppress(OSError):
+                            made.save()
+                finally:
+                    del self._made_now[owner]
                 where = await self._copy_record(ctx, owner, made, left)
                 self._set_agent(self._ctxs[owner].cid, owner, copy={"state": state, **where})
         copy = self._copies[owner]
@@ -2310,7 +2343,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 said_of_git = GIT_ON_BRANCH.format(branch=copy.branch)
         return "\n\n" + IN_A_COPY.format(
             whose="a copy of the project of your own" if mine else f"{name}'s copy of the project",
-            taken=taken, git=said_of_git, folders=LINKED_IN if linked else NOT_LINKED_IN,
+            taken=taken, git=said_of_git, alongside=ALONGSIDE,
+            folders=LINKED_IN if linked else NOT_LINKED_IN,
         ) + (MCP_IN_A_COPY.format(root=copy.root) if copy is not None and self._mcp(ctx) else "") \
             + (self._told_left_out(ctx, copy, reads)
                if copy is not None and (copy.git or copy.part) else "") \
@@ -2523,15 +2557,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     async def _kept_taken(self, ctx: Ctx, copy: copies.Copy, files: dict, times: dict,
                           choices: dict[str, str], unattended: bool) -> None:
         """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none."""
-        # What a merge comes to is kept in memory alone, and this may be another
-        # process than the one that showed the card: made again, off the event loop.
-        await asyncio.to_thread(_look_again, copy, files, times, choices)
-        # All of the card or none of it: one file shown again, and nothing is taken.
-        if not [one for one in files.values() if one.pop("again", False)]:
-            self._join(copy, files, choices)
-            await self._seen_by_watchers(ctx, self._apply(
-                ctx, copy, files, True, unattended=unattended, choices=choices
-            ))
+        taken = None
+        async with self._way_in(copy.project):
+            # What a merge comes to is kept in memory alone, and this may be another
+            # process than the one that showed the card: made again, off the event loop.
+            await asyncio.to_thread(_look_again, copy, files, times, choices)
+            # All of the card or none of it: one file shown again, and nothing is taken.
+            if not [one for one in files.values() if one.pop("again", False)]:
+                self._join(copy, files, choices)
+                taken = self._apply(ctx, copy, files, True, unattended=unattended,
+                                    choices=choices)
+        if taken is not None:
+            await self._seen_by_watchers(ctx, taken)
         for one in files.values():  # shown again: labelled as a kept copy's files are
             if one.get("shown"):
                 _no_diff_no_trust(one)
@@ -2973,6 +3010,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if said := await self._secret_branch_gone(ctx, copy):
                 self._koloni_line(ctx.cid, ctx.run_id, said)
 
+    def _way_in(self, project: Path | str) -> asyncio.Lock:
+        """The one way into a project's folder: a Take in (`_merge`, `_kept_taken`) and a branch's
+        merge (`_merge_branch`) write there in turn, never while another is under way. Held only
+        around the last look and the writes - never while a card waits."""
+        return self._merging_in.setdefault(_project_key(project), asyncio.Lock())
+
     async def _merge_branch(  # noqa: C901
         self, ctx: Ctx, copy: copies.Copy, status: str, ended: Callable[[], None]
     ) -> str:
@@ -3041,10 +3084,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # git's config as the card last showed it.)
         sent: dict[str, str] = {}
         config_shown = None
-        # shortcut: one lock for merges, no file claim - a Take in of another line (`_apply`)
-        # may write a file between git's look and its merge; git then refuses, said on the card.
-        # Hold the claims of the branch's files if a merge is ever seen to meet one.
-        lock = self._merging_in.setdefault(os.path.normcase(str(copy.project)), asyncio.Lock())
+        # (One way in, `_way_in`: no Take in writes between git's look and its merge.)
+        lock = self._way_in(copy.project)
         while True:
             act = None
             # D2: which way it goes - the project's setting, or what the user chose here. (Read
@@ -3113,34 +3154,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     said_line = f"Merge {branch}: {first}"
                     try:
                         # (Unasked, held to the commit it was made from; the user's click, to
-                        # the branch the card named.)
-                        # shortcut: a Stop meanwhile cancels the wait, not git: the thread
-                        # finishes the merge, and the card is left as it was; hold Stop until
-                        # it is over if a merge is ever seen to land after a Stop.
-                        sha = await asyncio.to_thread(
+                        # the branch the card named. A Stop meanwhile lands once git is over:
+                        # the way in is not left while git still writes.)
+                        sha = await to_its_end(asyncio.to_thread(
                             git.merge_branch, copy.project, look["tip"], said_line,
                             runtime / "no-hooks", look["into"],
-                            copy.start[1] if merge_id is None and copy.start else None)
+                            copy.start[1] if merge_id is None and copy.start else None))
                     except git.Refused as exc:
                         state["note"] = str(exc)
                     else:
-                        try:
-                            holds = await asyncio.to_thread(git.summary, copy.project, sha)
-                        except git.Refused:
-                            holds = None  # (the merge stands: only what it holds goes unsaid)
-                        for one in files.values():
-                            if one["state"] == "ready":
-                                one["state"], one["note"] = "applied", None
-                        self._record_merge(ctx, merge_id, "applied", files, check, state, {
-                            "state": "committed", "message": said_line, "sha": sha,
-                            "holds": holds,
-                            "notes": await self._keep_branch(copy, said, look["tip"])})
-                        self._branch_merged(ctx, copy)
-                        # (Written by KOLONİ on a yes: no watch takes them for an agent's own.)
-                        await self._seen_by_watchers(ctx, set(look["files"]))
-                        # A squash leaves the branch unmerged to git: it goes all the same.
-                        self._drop_copy(ctx.agent_id, "merged")
-                        return self._not_applied(ctx, files, None)
+                        self._into_copies(copy.project, look["files"], copy)
+                        act = "merged"
+            if act == "merged":  # (what is left needs no way in: a Stop lands after it)
+                return await to_its_end(self._branch_went_in(
+                    ctx, copy, merge_id, files, check, state, said, look, said_line, sha))
             failed = None
             if act == "pull_request":
                 try:
@@ -3233,6 +3260,32 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             f"{ctx.name}: {first}\n\nKoloni-Agent: {ctx.name}",
             self.settings.runtime_root / "no-hooks")
         return held
+
+    async def _branch_went_in(
+        self, ctx: Ctx, copy: copies.Copy, merge_id: str | None, files: dict, check: dict | None,
+        state: dict, said: dict, look: dict, line: str, sha: str,
+    ) -> str:
+        """`_merge_branch`'s end where git merged the branch (`line`, the commit `sha`): what it
+        holds, the card and its records, and the branch's worktree goes - out of the way in
+        (`_way_in`), which none of it needs. Returns what the opener is told."""
+        # (Written by KOLONİ on a yes: no watch takes them for an agent's own.)
+        await self._seen_by_watchers(ctx, set(look["files"]))
+        try:
+            holds = await asyncio.to_thread(git.summary, copy.project, sha)
+        except git.Refused:
+            holds = None  # (the merge stands: only what it holds goes unsaid)
+        for one in files.values():
+            if one["state"] == "ready":
+                one["state"], one["note"] = "applied", None
+        self._record_merge(ctx, merge_id, "applied", files, check, state, {
+            "state": "committed", "message": line, "sha": sha, "holds": holds,
+            "notes": await self._keep_branch(copy, said, look["tip"])})
+        self._branch_merged(ctx, copy)
+        # A squash leaves the branch unmerged to git: it goes all the same - by the way in, as
+        # git's lock on the repository would fail it beside another team's merge.
+        async with self._way_in(copy.project):
+            self._drop_copy(ctx.agent_id, "merged")
+        return self._not_applied(ctx, files, None)
 
     async def _keep_branch(self, copy: copies.Copy, said: dict, tip: str) -> list[str] | None:
         """D2: the user's "Keep this branch after merging" - not where any of its commits since
@@ -3432,8 +3485,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     return said
                 unasked = unasked and passed
             if merge_id is None and unasked and not fault:
-                self._join(copy, files, {})
-                taken = self._apply(ctx, copy, files, False, unattended=not watched)
+                async with self._way_in(copy.project):
+                    self._join(copy, files, {})
+                    taken = self._apply(ctx, copy, files, False, unattended=not watched)
                 await self._seen_by_watchers(ctx, taken)
             left = [one for one in files.values() if one["state"] in OPEN]
             if fault and not left:
@@ -3461,16 +3515,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 if check and not unchosen(list(files.values()), choices):
                     await self._check(ctx, copy, files, check, choices, merge_id, leave=True)
                 continue
-            if await asyncio.to_thread(_moved, copy, files, choices):
-                # All of the card or none of it: a file is not as it was shown, and the
-                # card is shown again as it is now (the API says why).
-                # shortcut: one that moves between here and its write is still not written
-                # over (`_apply`), but the rest is taken (and the API says so); hold the
-                # files if that is seen.
-                continue
-            # No await from here to the last file written.
-            self._join(copy, files, choices)
-            taken = self._apply(ctx, copy, files, True, choices=choices)
+            async with self._way_in(copy.project):
+                if await asyncio.to_thread(_moved, copy, files, choices):
+                    # All of the card or none of it: a file is not as it was shown, and the
+                    # card is shown again as it is now (the API says why).
+                    # shortcut: one the user moves between here and its write is still not
+                    # written over (`_apply`), but the rest is taken (and the API says so);
+                    # hold the files if that is seen.
+                    continue
+                # No await from here to the last file written.
+                self._join(copy, files, choices)
+                taken = self._apply(ctx, copy, files, True, choices=choices)
             await self._seen_by_watchers(ctx, taken)
         return await self._merge_over(ctx, copy, files, check, merge_id, watched, refused)
 
@@ -3786,7 +3841,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if kept := self._keeps_out(ctx, command=command, what=f"run {command}"):
             raise _GateRefused(kept)
         in_copy = ws.root != Path(ctx.folder).resolve()
-        why = (copy_reason(command, bool(ws.links), ctx.folder, self.settings.runtime_root)
+        why = (self._in_copy_asks(ctx, command, bool(ws.links), ws.root, ".")
                if in_copy else "") or self._branch_asks(ctx, command, in_copy) or (
             self._night_asks(ctx, command, None, str(ws.root)))
         asks = bool(why) and (ask or gated == "ask")
@@ -4126,19 +4181,30 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 copy.taken(path)
                 one["state"], one["note"] = "applied", None
                 taken.add(path)
-        changed = [copy] if taken else []
-        for other in self._copies.values():
-            if (
-                other is not None and other is not copy and other.project == copy.project
-                and [path for path in taken if other.refresh(path)]
-            ):
-                changed.append(other)
-        for one_copy in changed:
-            # What each was made from is different now: written down for a restart. (One
-            # that is not is only behind - a file it says changed, the project has.)
+        if taken:
+            # What it was made from is different now: written down for a restart.
             with contextlib.suppress(OSError):
-                one_copy.save()
+                copy.save()
+        self._into_copies(copy.project, taken, copy)
         return taken
+
+    def _into_copies(self, project: Path, paths: Iterable[str], but: copies.Copy | None = None
+                     ) -> None:
+        """What just went into the project (`paths`) goes into its other working copies where
+        they have not changed it (`Copy.refresh`: not a branch's), and is noted for one being
+        made right now, to go into it once it is (`_working_copy`). What each was made from is
+        different then: written down for a restart. (One that is not is only behind - a file it
+        says changed, the project has.) Nothing here waits."""
+        paths = list(paths)
+        key = _project_key(project)
+        for where, noted in self._made_now.values():
+            if where == key:
+                noted.update(paths)
+        for other in self._copies.values():
+            if (other is not None and other is not but and other.project == project
+                    and [path for path in paths if other.refresh(path)]):
+                with contextlib.suppress(OSError):
+                    other.save()
 
     def _apply_text(
         self, session: Session, ctx: Ctx, ws: Workspace, path: str, rows: list[FileChange],
@@ -4535,6 +4601,32 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._set_call(cid, call_id, status=status, result=output, ended_at=now())
         return status, output
 
+    def _copy_linked(self, ctx: Ctx, owner: str | None) -> bool:
+        """Whether the working copy of `owner`'s line has the project's dependency folders linked
+        in (`copies.LINKED`) - or will: its first change or command makes it.
+        shortcut: such a folder deeper in the project (web/.venv) is not foreseen for the first
+        command; look for it there too if that is ever needed."""
+        made = self._copies.get(owner) if owner else None
+        return bool(made.links) if made else _links_in_copy(ctx.model) and any(
+            (Path(ctx.folder) / name).is_dir() for name in copies.LINKED)
+
+    def _in_copy_asks(self, ctx: Ctx, command: str, linked: bool, own: Path | None,
+                      cwd: str | None) -> str:
+        """Why a command in a working copy is asked at every level (`copy_reason`): `own` its
+        tree (None: not made yet), `cwd` where in it the command runs (None: not known) - beside
+        the project's worktrees as git listed them as the turn began (`_git_start`)."""
+        seen = self._git_at.get(ctx.run_id) or {}
+        return copy_reason(command, linked, ctx.folder, self.settings.runtime_root, own, cwd,
+                           [one["path"] for one in seen.get("worktrees") or []])
+
+    def _shared_install(self, ctx: Ctx, command: str, linked: bool) -> str:
+        """K-koordinasyon: why an agent's command in a copy with the project's dependency folders
+        linked in (`linked`) is asked at every level in a turn the user watches - it installs
+        into them (`installs`): they are the project's own, and every agent's. "" otherwise: a
+        trigger's turn keeps its own leave, a night's job its own rule (`_night_asks`), and the
+        project's check the user set runs as theirs (`_run_in_copy`)."""
+        return installs(command) if linked and self._watched(ctx.run_id) else ""
+
     async def _command_call(self, ctx: Ctx, call_id: str, ws: Workspace,
                             request: ToolCallRequest, args: dict) -> tuple[str, str]:
         """run_command and run_skill_script, for `_run_call`."""
@@ -4545,13 +4637,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             args, unasked = self._skill_script(ctx, args)
         refused = None
         # Where it runs in a working copy, why it is asked at every level there
-        # (`copy_reason`) - for one this command makes, with the links it will have.
-        # shortcut: such a folder deeper in the project (web/.venv) is not foreseen
-        # for the first command; look for it there too if that is ever needed.
+        # (`_in_copy_asks`) - for one this command makes, with the links it will have.
         owner = self._works_in(ctx)
         made = self._copies.get(owner) if owner else None
-        linked = bool(made.links) if made else _links_in_copy(ctx.model) and any(
-            (Path(ctx.folder) / name).is_dir() for name in copies.LINKED)
+        linked = self._copy_linked(ctx, owner)
         planned = plan_command(ws, args)
         at = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"
         if kept := self._keeps_out(ctx, command=planned.command, cwd=planned.cwd_rel,
@@ -4561,9 +4650,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise ToolError(kept)
         # (Web off first: its card offers no rule, which would not cover it.)
         web_off = web_off_reason(planned.command, self._off())
-        in_a_copy = web_off or (copy_reason(
-            planned.command, linked, ctx.folder, self.settings.runtime_root) if owner
-            else "") or self._branch_asks(ctx, planned.command, bool(owner))
+        in_a_copy = web_off or (self._in_copy_asks(
+            ctx, planned.command, linked, made.root if made else None, planned.cwd_rel) if owner
+            else "") or self._branch_asks(ctx, planned.command, bool(owner)) or (
+            self._shared_install(ctx, planned.command, bool(owner) and linked))
         night = "" if in_a_copy else self._night_asks(
             ctx, planned.command, planned.cwd_rel, None if owner else ctx.root)
         # K-yargic: (not a skill's script the user lets run unasked: nobody is asked of it)

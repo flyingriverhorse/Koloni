@@ -577,14 +577,16 @@ def _said(project: Path, git: str, until: float, *args: str, **more: str) -> str
 
 
 def _worktrees(listed: str) -> list[dict]:
-    """`worktree list --porcelain` as {path, branch}: branch None where its HEAD is on none."""
+    """`worktree list --porcelain` as {path, branch, locked}: branch None where its HEAD is on
+    none; locked whoever locked it (KOLONİ's: `LOCK_REASON`)."""
     found: list[dict] = []
     for block in listed.replace("\r\n", "\n").split("\n\n"):
         lines = dict(line.partition(" ")[::2] for line in block.splitlines() if line)
         if "worktree" in lines and "bare" not in lines:
             branch = lines.get("branch", "")
             found.append({"path": lines["worktree"],
-                          "branch": branch.removeprefix("refs/heads/") or None})
+                          "branch": branch.removeprefix("refs/heads/") or None,
+                          "locked": "locked" in lines})
     return found
 
 
@@ -1136,6 +1138,10 @@ BRANCH_PREFIX = "koloni/"
 BRANCH_CHARS = 40
 KOLONI_ID = {"GIT_AUTHOR_NAME": "KOLONİ", "GIT_AUTHOR_EMAIL": "koloni@localhost",
              "GIT_COMMITTER_NAME": "KOLONİ", "GIT_COMMITTER_EMAIL": "koloni@localhost"}
+# What locks KOLONİ's worktrees while their agents work (`_worktree_add`): `git worktree prune`,
+# `remove` or `move` of the user's (or another agent's) leaves them alone - `git worktree list
+# -v` says why. KOLONİ unlocks one before it removes it (`_unlocked`).
+LOCK_REASON = "KOLONİ: an agent works here; KOLONİ removes it"
 
 
 def branch_name(said: str) -> str:
@@ -1203,7 +1209,7 @@ def add_worktree(
 
 def reopen_worktree(
     project: Path, tree: Path, branch: str, no_hooks: Path, start: Sequence[str] | None,
-    tip: str | None = None,
+    tip: str | None = None, *, under: Iterable[Path],
 ) -> tuple[str, str, str]:
     """Open a worktree at `tree` on KOLONİ's branch `branch` as it is - an agent that stopped on it
     goes on there (`add_worktree` without -b): its commits stay, new work goes on top. Returns as
@@ -1211,7 +1217,8 @@ def reopen_worktree(
     what `branch_look` holds a merge to, so a project moved off it since makes the merge the
     user's word. Refused, with why: no start on record; no such branch any more (merged,
     deleted); `tip` - the commit it stopped on (else its start) - not in it: another branch of
-    that name since; git will not - it is checked out in another worktree."""
+    that name since; git will not - it is checked out in another worktree (a record of one whose
+    folder is gone goes first only where it is KOLONİ's: under `under`, its copies folders)."""
     if not branch.startswith(BRANCH_PREFIX):
         raise Refused(f"{branch} is not a branch KOLONİ made")
     if not start:
@@ -1231,23 +1238,62 @@ def reopen_worktree(
     # branch while it does: that record alone goes, by its own path, no hook run (`drop_branch`).
     listed = _in(project, git, *UNASKED, "worktree", "list", "--porcelain",
                  seconds=SHORT_SECONDS, **UNASKED_ENV)[1]
-    for one in _worktrees(listed.decode("utf-8", "replace")):
-        if one["branch"] == branch and not os.path.lexists(one["path"]):
+    for one in _gone_under(listed, under):
+        if one["branch"] == branch:
             no_hooks.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
-                _in(project, git, "-c", f"core.hooksPath={empty}", "worktree", "remove",
-                    "--", one["path"])
+                hooks = ("-c", f"core.hooksPath={empty}")
+                _unlocked(project, git, hooks, one["path"])
+                _in(project, git, *hooks, "worktree", "remove", "--", one["path"])
     code, out, said = _worktree_add(project, git, no_hooks, str(tree), branch)
     if code != 0:
         raise Refused(f"its branch {branch} could not be opened again: {_text(out, said)[-TAIL:]}")
     return branch, start[0], start[1]
 
 
+def _unlocked(project: Path, git: str, hooks: Sequence[str], path: str | Path) -> None:
+    """A worktree's lock comes off before git's record of it goes - git keeps a locked one. One
+    not locked is left as it is (git says so; what it says is not read)."""
+    _in(project, git, *hooks, "worktree", "unlock", "--", str(path))
+
+
+def _gone_under(listed: bytes, under: Iterable[Path]) -> list[dict]:
+    """The worktrees `worktree list --porcelain` names (`_worktrees`) whose folder is gone, under
+    one of `under` - KOLONİ's copies folders: its own."""
+    # (git keeps a worktree's real path: /private/var on macOS, where the folder said /var)
+    tops = tuple(os.path.join(os.path.normcase(os.path.realpath(one)), "") for one in under)
+    return [one for one in _worktrees(listed.decode("utf-8", "replace"))
+            if not os.path.lexists(one["path"])
+            and os.path.normcase(os.path.realpath(one["path"])).startswith(tops)]
+
+
+def forget_worktrees(project: Path, under: Iterable[Path], no_hooks: Path) -> list[str]:
+    """At start: git's records of KOLONİ's own worktrees whose folder is gone - under one of
+    `under`, KOLONİ's copies folders (`copies.folders`) - go, each by its own path, unlocked
+    first, no hook run. Nothing else: no other record (never `git worktree prune`), no branch, no
+    folder. Returns the paths forgotten; Refused where git does not answer."""
+    git, _folder = repository(project)
+    code, out, said = _in(project, git, *UNASKED, "worktree", "list", "--porcelain",
+                          seconds=SHORT_SECONDS, **UNASKED_ENV)
+    if code != 0:
+        raise Refused(f"git worktree list failed: {_text(out, said)[-TAIL:]}")
+    gone = [one["path"] for one in _gone_under(out, under)]
+    if gone:
+        no_hooks.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
+            hooks = ("-c", f"core.hooksPath={empty}")
+            for path in gone:
+                _unlocked(project, git, hooks, path)
+                _in(project, git, *hooks, "worktree", "remove", "--", path)
+    return gone
+
+
 def _worktree_add(project: Path, git: str, no_hooks: Path, *args: str):
-    """`git worktree add` with no hook or filter of the repository's."""
+    """`git worktree add`, locked (`LOCK_REASON`), with no hook or filter of the repository's."""
     no_hooks.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
         return _in(project, git, *UNASKED, "-c", f"core.hooksPath={empty}", "worktree", "add",
+                   "--lock", "--reason", LOCK_REASON,
                    *args, seconds=COMMIT_SECONDS, **UNASKED_ENV,
                    **_no_filters(project, git, SHORT_SECONDS))
 
@@ -1559,6 +1605,7 @@ def drop_branch(
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
         hooks = ("-c", f"core.hooksPath={empty}")
         if not os.path.lexists(tree):
+            _unlocked(project, git, hooks, tree)
             _in(project, git, *hooks, "worktree", "remove", str(tree))  # (git's record only)
         if keep:
             return

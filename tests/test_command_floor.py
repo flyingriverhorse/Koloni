@@ -262,8 +262,8 @@ def test_a_secret_file_is_seen_however_its_path_is_written(line):
 
 @pytest.mark.parametrize("command", [
     "rm -rf node_modules", "Remove-Item -Recurse -Force .venv", "rd /s /q venv",
-    r"del node_modules\pkg\index.js", "find . -delete", "git worktree remove ../x",
-    "git -C .. worktree remove --force x", "pytest -q && rm -rf build", "rm venv",
+    r"del node_modules\pkg\index.js", "find . -delete", "git worktree remove x",
+    "git -C sub worktree remove --force x", "pytest -q && rm -rf build", "rm venv",
     "Remove-Item -rec build", "rm -R build", "rmdir /S build",
     # in a shell, and what empties node_modules or mirrors a folder over another
     'powershell -Command "Remove-Item -Recurse -Force build"', "cmd /c rd /s /q build",
@@ -322,7 +322,8 @@ def test_in_a_copy_a_command_naming_the_projects_folder_from_the_root_is_asked_t
     r"python C:\Work\Proj\runtime\skills\s\run.py", "cat /c/Work/Proj/runtime/copies/a/tree/x",
 ])
 def test_a_folder_beside_the_project_or_kolonis_runtime_in_it_is_not_the_project(command):
-    assert copy_reason(command, False, ELSEWHERE, RUNTIME) == ""
+    # (from its own copy: another's is asked - `OUT_OF_COPY`)
+    assert copy_reason(command, False, ELSEWHERE, RUNTIME, own=RUNTIME + r"\copies\a\tree") == ""
 
 
 def test_git_worktree_remove_deletes():

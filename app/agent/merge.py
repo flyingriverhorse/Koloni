@@ -766,6 +766,18 @@ def recover_copies(session_factory, runtime_root: Path) -> None:
             return True
 
         copies.clear(runtime_root, keep)
+        # git's records of KOLONİ's own worktrees whose folder is gone go, in each project an
+        # agent worked on a branch of: git keeps them, locked (`git.LOCK_REASON`).
+        # shortcut: a crash between `git worktree add` and its agent's record leaves that one
+        # record; look in every project in git if one is ever seen to stay.
+        for root in set(session.scalars(
+                select(Project.root_path).join(Conversation, Conversation.project_id == Project.id)
+                .join(Run, Run.conversation_id == Conversation.id)
+                .join(Agent, Agent.run_id == Run.id)
+                .where(Agent.copy["on_branch"].as_string().is_not(None)))):
+            with contextlib.suppress(git.Refused, OSError):
+                git.forget_worktrees(Path(root), copies.folders(runtime_root),
+                                     runtime_root / "no-hooks")
         for change in session.scalars(
             select(FileChange).where(
                 FileChange.status == "in_copy", FileChange.agent_id.not_in(kept)

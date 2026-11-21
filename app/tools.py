@@ -519,6 +519,15 @@ def tier_rule(role) -> str:
     return "" if len(allowed) == len(TIERS) else f" ({allowed[0]} to {allowed[-1]})"
 
 
+# K-koordinasyon: sub-agents opened together work beside each other, each in a copy of its own.
+OPENED_TOGETHER = (
+    "Sub-agents you open together work at the same time, each in its own copy. Give each its own "
+    "files or folders and name them in its task (\"works in app/api/, leaves web/ alone\"). A "
+    "file two must change - a lockfile, a shared config - goes to one of them, or you change it "
+    "after both are back."
+)
+
+
 def spawn_schema(roles, team=()) -> dict:
     """The spawn_agent tool, listing the roles that exist right now - and, when the user
     lets agents choose any, the providers of the team guide (app.team.guide)."""
@@ -528,7 +537,7 @@ def spawn_schema(roles, team=()) -> dict:
     description = (
         "Hand a separate part of the work to a sub-agent in one of the roles below and get "
         "its report back. The sub-agent starts with a clean context: it sees only the task "
-        "you write, not this conversation. You wait while it works.\n"
+        f"you write, not this conversation. You wait while it works. {OPENED_TOGETHER}\n"
         f"Available roles:\n{listed}"
     )
     properties = {
@@ -1173,7 +1182,9 @@ ON_BRANCH_PROPERTY = {
     "as it is now. Its work is committed there and merged into the project's branch when done "
     "(by itself at Full auto where the tests pass, else on the user's card). Give it for a big "
     "job, or one of several teams working at once, and always when the user asks for a branch; "
-    "leave it out for a small job. Left out: it works in a copy, as usual.",
+    "leave it out for a small job. Left out: it works in a copy, as usual. Branches named "
+    "koloni/… and the worktrees in KOLONİ's copies folder belong to agents at work or to work "
+    "waiting for the user: never delete, rename or switch to them; KOLONİ removes them.",
 }
 
 
