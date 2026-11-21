@@ -10,10 +10,12 @@ interface RulesProps {
   onSave: (rules: string) => Promise<void>
   /** The same box for your preferences (22b): one text for every project. */
   what?: 'rules' | 'preferences'
+  /** K-yargıç: the folder's rules.md, shown here, is not what is saved - Save keeps it as it is. */
+  differs?: boolean
 }
 
 /** What agents working in this project are always told, in your words. Only you write it. */
-export function RulesBox({ rules, onSave, what = 'rules' }: RulesProps) {
+export function RulesBox({ rules, onSave, what = 'rules', differs = false }: RulesProps) {
   const { busy, error, ask } = useAsk()
   const [draft, setDraft] = useState(rules ?? '')
   return (
@@ -37,7 +39,7 @@ export function RulesBox({ rules, onSave, what = 'rules' }: RulesProps) {
         />
       </div>
       <div className="memory-actions">
-        <button type="submit" className="btn btn-small btn-primary" disabled={busy || draft === (rules ?? '')}>
+        <button type="submit" className="btn btn-small btn-primary" disabled={busy || (!differs && draft === (rules ?? ''))}>
           Save {what}
         </button>
         <span className="mono muted memory-count">
