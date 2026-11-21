@@ -8,8 +8,9 @@ import re
 import shlex
 import sys
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path, PureWindowsPath
+from typing import Literal
 from urllib.parse import quote
 
 from sqlalchemy import or_, select
@@ -2382,14 +2383,54 @@ def harms(command: str, instructions: bool = True) -> str:
     obfuscation - a name spliced or escaped (`r`i`, `& (gcm ri)`, `&('r'+'i')`, `$c='ri'; & $c`)
     or a program started with its words in a list (`Start-Process ... -ArgumentList`) is not
     seen; Ask and Auto-edit are the wall (and `runs_another` at night)."""
+    return next(filter(None, _reasons(command, instructions)), "")
+
+
+def _reasons(command: str, instructions: bool) -> Iterator[str]:
+    """`harms`'s sentences in its order: `danger` of the whole line, then of each part."""
     # (Its parts apart, but for a leading `cd` into the scratch - `_ENTERS`, judged above with
     # the whole line: alone it would name `.koloni`.)
     entered = _ENTERS.match(command)
-    return danger(command, instructions) or next((
-        said for words in _commands_in(command[entered.end() if entered else 0:], at=_BLOCKS)
-        if words and (
-            said := danger(" ".join(words), instructions) or (
-                "" if _only_fetches(words) else _sends(words)))), "")
+    yield danger(command, instructions)
+    for words in _commands_in(command[entered.end() if entered else 0:], at=_BLOCKS):
+        if words:
+            yield danger(" ".join(words), instructions) or (
+                "" if _only_fetches(words) else _sends(words))
+
+
+HarmClass = Literal["", "soft", "always"]
+# K-yargic: what a check of the user's own words may let run - any other sentence (one added
+# later too) is asked as before.
+_SOFT = re.compile(r"(?:Deletes|Empties|Overwrites or deletes|Throws away|"
+                   r"It reaches beyond this machine|It sends work off this machine)\b")
+
+
+def harm_class(command: str, instructions: bool = True) -> HarmClass:
+    """K-yargic: whether a harm (`harms`) is one a check of the user's own words may let run
+    ("soft": each part only deletes, throws away or sends off, `_SOFT`) or one asked at every
+    level ("always": any other sentence, a secret, `.koloni`, a file that steers later turns, a
+    path out of the folder); "" for no harm. Every part is looked at, not the first sentence
+    `harms` gives: `rm -rf build && cat .env` deletes first, and opens a secret too."""
+    harmful = False
+    for said in _reasons(command, instructions):
+        if said and not _SOFT.match(said):
+            return "always"  # (at once: a line padded with options says so first)
+        harmful = harmful or bool(said)
+    if not harmful:
+        return ""
+    return "always" if names_secret(command) or names_koloni(command) or standing_asked(
+        command, instructions) or any(_leads_out(word) for words in _commands_in(
+            command, at=_BLOCKS) for word in words[1:]) else "soft"
+
+
+def _leads_out(word: str) -> bool:
+    """`harm_class`: whether a word names a path out of the folder (`_outside`) - also glued to
+    an option (`-Path:C:/x`, `--dir=../x`) or a redirection - or one behind a variable (`$HOME`,
+    `%USERPROFILE%`), whose place is not seen."""
+    plain = _as_read(word)
+    return bool(re.search(r"[$%]", plain)) or any(
+        _outside(piece) for piece in re.split(r"[=<>,]", re.sub(r"^-[\w-]*:", "", plain))
+        if piece)
 
 
 # K-r147 (live): what a pipe may hand a command's output to, at night too - it only picks,
