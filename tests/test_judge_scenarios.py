@@ -14,6 +14,7 @@ from sqlalchemy.exc import OperationalError
 
 from app import koloni, raw
 from app.agent.ctx import Ctx, _Unwatched
+from app.agent.judge_mixin import CHECK_STOOD_ASIDE
 from app.commands import harms
 from app.config import load_settings
 from app.db.models import OwnRequest
@@ -556,3 +557,58 @@ def test_claude_codes_bash_push_the_users_rule_forbids_is_denied_with_the_rule(
     refused_on_the_rule(client, project_dir, cli, wait_run)
     (asked,) = claude_app.record()["asked"]
     assert (asked["behavior"], asked["message"]) == ("deny", REFUSED.format(quote=NO_MAIN))
+
+
+def koloni_lines(snap):
+    return [one["content"] for one in snap["messages"] if one["role"] == "koloni"]
+
+
+@pytest.mark.no_po
+def test_after_three_refusals_in_a_row_the_rest_of_the_turn_asks_on_a_card(judging, wait_run,
+                                                                           project_dir):
+    # (a refusal the turn keeps is said again from its cache - the fourth try is not)
+    client, _lead, judge, executor = judging(
+        [*(cmd("git push origin main", id=f"k{n}") for n in range(1, 5)), text("left it")],
+        [verdict_line("refuse", NO_MAIN)], [])
+    _, cid, run_id = begin(client, project_dir, "ship it", rules=NO_MAIN)
+    commands = wait_status(client, cid, "waiting_approval")["commands"]
+    assert [one["status"] for one in commands] == ["refused"] * 3 + ["proposed"]
+    assert commands[3]["judged"] is None and len(judge.calls) == 1
+    assert client.post(f"/api/commands/{commands[3]['id']}/reject").status_code == 200
+    snap = wait_run(client, cid, run_id)
+    assert koloni_lines(snap) == [CHECK_STOOD_ASIDE.format(count="3 commands in a row")]
+    assert executor.started == []
+
+
+@pytest.mark.no_po
+def test_a_turns_refusals_stop_the_check_too_and_a_run_ends_a_row(judging, wait_run, project_dir,
+                                                                  monkeypatch):
+    monkeypatch.setattr("app.judge.MOST_REFUSED_IN_A_ROW", 2)
+    monkeypatch.setattr("app.judge.MOST_REFUSED_IN_A_TURN", 2)
+    client, _lead, judge, _executor = judging(
+        [cmd("git push origin main", id="k1"), cmd("rm -rf build", id="k2"),
+         cmd("git push origin main", id="k3"), cmd("rm -rf build", id="k4"), text("left it")],
+        [verdict_line("refuse", NO_MAIN), verdict_line("run", RULE)], [Script([])])
+    _, cid, run_id = begin(client, project_dir, "tidy up", rules=f"{RULE}\n{NO_MAIN}")
+    commands = wait_status(client, cid, "waiting_approval")["commands"]
+    assert [one["status"] for one in commands] == ["refused", "exited", "refused", "proposed"]
+    assert commands[3]["judged"] is None and len(judge.calls) == 2
+    assert client.post(f"/api/commands/{commands[3]['id']}/reject").status_code == 200
+    snap = wait_run(client, cid, run_id)
+    assert koloni_lines(snap) == [CHECK_STOOD_ASIDE.format(count="2 commands")]
+
+
+def test_a_verdict_that_comes_back_once_the_check_stood_aside_is_a_card(judging):
+    # (one asked while the third refusal was out: it neither runs nor refuses)
+    client, *_ = judging([], [], [])
+    runner = client.app.state.runner
+    ctx = Ctx(run_id="r", cid="c", root=None, agent_id="a", role="Lead", tools=(), depth=0)
+    runner._judge_refused["r"] = (3, 3)
+    try:
+        for word in ("run", "refuse"):
+            assert runner._judgement(ctx, "Deletes files or disks.", {
+                "verdict": word, "quote": NO_MAIN, "source": "rules", "why": ""}) == (
+                "Deletes files or disks.", None)
+        assert runner._judge_refused["r"] == (3, 3)
+    finally:
+        runner._judge_refused.pop("r", None)

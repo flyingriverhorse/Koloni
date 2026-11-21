@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from app.agent import AgentRunner
 
 log = logging.getLogger("app.agent")
+# Said once in the chat when the check stands aside for the rest of a turn (`_judgement`).
+CHECK_STOOD_ASIDE = ("Full auto's check of your words refused {count} this turn: until the turn "
+                     "ends, each harmful-looking command waits for you on a card.")
 
 
 class JudgeMixin:
@@ -32,10 +35,12 @@ class JudgeMixin:
         the user, checked first against the user's own words where the project says so
         (`Project.full_auto_check` "judge"): ("", record) - a line of theirs names it, and it
         runs with no card, that line on its record; (reason, record) - the check found none,
-        and its card says so; (reason, None) - not checked: no reason, one asked at every level
+        and its card says so, or (record "refuse") a sentence of theirs forbids it, and it is
+        neither asked nor run; (reason, None) - not checked: no reason, one asked at every level
         (`asked_anyway`, `harm_class` other than "soft"), a side of a comparison, not a watched
-        Full auto turn, the check off, no project, the turn over its token limit, no Fast
-        model that answers with no tools, no room on its provider, or any failure.
+        Full auto turn, the check off or stood aside for the turn (`_stood_aside`), no project,
+        the turn over its token limit, no Fast model that answers with no tools, no room on its
+        provider, or any failure.
         What it reads: the user's preferences, this project's rules as saved (the column - never
         the folder's `.koloni/rules.md`, which a pull or a script may change), and their own
         messages in this chat (`Run.by_user`), each masked (`raw.hidden`) - never an agent's
@@ -53,6 +58,7 @@ class JudgeMixin:
                        asked_anyway: bool) -> tuple[str, dict | None]:
         """`_judged`'s work, which may raise."""
         if (not reason or asked_anyway or ctx.run_id in self._sides
+                or self._stood_aside(ctx.run_id)
                 or harm_class(with_cwd(command, cwd), False) != "soft"
                 or not self._full_auto(ctx)):
             return reason, None
@@ -65,7 +71,7 @@ class JudgeMixin:
             key = (command.strip(), cwd, hashlib.sha256(
                 json.dumps(texts, sort_keys=True).encode()).hexdigest())
             if key in (cache := self._judge_cache.setdefault(ctx.run_id, {})):
-                return self._judgement(reason, cache[key])
+                return self._judgement(ctx, reason, cache[key])
             limit = project.turn_token_limit
             fast = asked_how_hard(session, would_run(
                 session, find_role(session, LEAD), conversation), self.providers, "fast")
@@ -79,7 +85,7 @@ class JudgeMixin:
             "flagged_because": raw.hidden(reason),
             "by": "Orchestrator" if not ctx.depth else raw.hidden(f"sub-agent {ctx.role}")})
         cache[key] = await self._judge_asks(ctx, asking, mode, asked, texts)
-        return self._judgement(reason, cache[key])
+        return self._judgement(ctx, reason, cache[key])
 
     @staticmethod
     def _users_words(session, cid: str, rules: str | None) -> dict[str, list[str]]:
@@ -118,9 +124,26 @@ class JudgeMixin:
             return None
         return {**got, "model": f"{asking.provider} · {asking.model_name}"}
 
-    @staticmethod
-    def _judgement(reason: str, record: dict | None) -> tuple[str, dict | None]:
-        """`_judged`'s answer from a record: no reason where it says run."""
-        if record is None:
+    def _stood_aside(self: "AgentRunner", run_id: str) -> bool:
+        """Whether the check stands aside for the rest of turn `run_id`: it refused
+        MOST_REFUSED_IN_A_ROW commands in a row, or MOST_REFUSED_IN_A_TURN in all."""
+        row, turn = self._judge_refused.get(run_id, (0, 0))
+        return row >= judge.MOST_REFUSED_IN_A_ROW or turn >= judge.MOST_REFUSED_IN_A_TURN
+
+    def _judgement(self: "AgentRunner", ctx: Ctx, reason: str,
+                   record: dict | None) -> tuple[str, dict | None]:
+        """`_judged`'s answer from a record: no reason where it says run; not checked where it
+        failed, or the check stood aside since it was asked. Counted for the turn, by all its
+        agents: a refusal (one kept for it too) in a row and in all, a run or an ask ends a row;
+        the refusal that reaches a limit is one still, and the chat is told."""
+        if record is None or self._stood_aside(ctx.run_id):
             return reason, None
+        row, turn = self._judge_refused.get(ctx.run_id, (0, 0))
+        refused = record["verdict"] == "refuse"
+        row, turn = (row + 1, turn + 1) if refused else (0, turn)
+        self._judge_refused[ctx.run_id] = (row, turn)
+        if self._stood_aside(ctx.run_id):
+            self._koloni_line(ctx.cid, ctx.run_id, CHECK_STOOD_ASIDE.format(
+                count=f"{row} commands in a row" if row >= judge.MOST_REFUSED_IN_A_ROW
+                else f"{turn} commands"))
         return ("" if record["verdict"] == "run" else reason), dict(record)
