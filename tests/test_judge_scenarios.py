@@ -847,3 +847,38 @@ def test_in_the_chat_you_went_away_from_a_send_keeps_its_card(judging, wait_run,
     asked = carded(client, cid, run_id, wait_run)
     assert (asked["status"], asked["judged"]) == ("proposed", None)
     assert judge.calls == [] and executor.started == []
+
+
+def gone_from_chat(client, project_dir, rules, status="running"):
+    """A chat at Full auto, the check on and `rules` saved, the user away from it (`status`
+    "running") or back ("ended"); its id."""
+    from app.db.models import AwayRun
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"full_auto_check": "judge"},
+                        headers=OWN).status_code == 200
+    assert client.put(f"/api/projects/{pid}/rules", json={"rules": rules},
+                      headers=OWN).status_code == 200
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto",
+                                                    "lead_hands_code": False}, headers=OWN)
+    with client.app.state.session_factory() as session:
+        session.add(AwayRun(project_id=pid, conversation_id=cid, run_id="r", status=status))
+        session.commit()
+    return cid
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(("line", "rule", "status"), [
+    ("rm -rf build", RULE, "running"),  # (a delete in the folder is the check's while away)
+    ("git push origin main", "You may push to main.", "ended")])  # (back: as before)
+def test_in_the_chat_gone_from_a_delete_is_judged_and_once_back_a_push_is_again(
+        judging, wait_run, project_dir, line, rule, status):
+    client, _lead, judge, executor = judging(
+        [cmd(line), text("done")], [verdict_line("run", rule)], [Script([])])
+    cid = gone_from_chat(client, project_dir, rule, status)
+    # (not from the app's own page: a message of the user's own would end Away)
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"},
+                         headers=NO_ORIGIN).json()["run"]["id"]
+    (ran,) = wait_run(client, cid, run_id)["commands"]
+    assert (ran["status"], ran["judged"]["verdict"]) == ("exited", "run")
+    assert len(judge.calls) == 1 and executor.started[0][0] == line
