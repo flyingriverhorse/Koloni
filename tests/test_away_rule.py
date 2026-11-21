@@ -27,6 +27,7 @@ from tests.test_lead_decides import (
     until_answered,
 )
 from tests.test_spawn import begin, call, spawn, step
+from tests.test_team import team  # noqa: F401  (a fixture)
 
 
 def away_chat(client, project_dir, **settings):
@@ -114,28 +115,61 @@ def test_a_step_limit_card_is_decided_while_away_below_full_auto(make_client, wa
 
 
 def test_the_rule_never_reaches_a_card_that_always_waits(make_client, wait_run, project_dir):
-    # Review focus 5: while away, at once - and yet a command (a delete), a web request or a
-    # sub-agent on another model (no kind: None) and KOLONİ's own kept-work card ("card") or
-    # "Who checks?" ("checker") below Full auto are never the Orchestrator's to decide.
-    client, _model = make_client([step(call("run_command", {"command": "rm -rf x"})),
-                                  text("done")])
+    # Review focus 5: while away, at once - and yet a command (a delete) and a web request (a
+    # send) are never the Orchestrator's to decide: each waits, and nothing is kept for Go away.
+    client, _model = make_client([
+        step(call("run_command", {"command": "rm -rf x"})),
+        step(call("http_request", {"method": "POST", "url": "https://example.com/up",
+                                   "body": "the report"}, "h")),
+        text("done")])
     _pid, cid = away_chat(client, project_dir, permission_mode="auto_edit", when_away="lead",
                           away_minutes=0)
-    run_id = post(client, cid, "clean up")
-    wait_status(client, cid, "waiting_approval")
+    run_id = post(client, cid, "clean up and send the report")
     runner = client.app.state.runner
-    assert runner._decidable == {}
-    (command,) = client.get(f"/api/conversations/{cid}").json()["commands"]
-    assert command["status"] == "proposed"
+    for kind in ("commands", "web_requests"):
+        (asked,) = until(lambda kind=kind: client.get(f"/api/conversations/{cid}").json()[kind])
+        assert asked["status"] == "proposed" and runner._decidable == {}, kind
+        path = "commands" if kind == "commands" else "web-requests"
+        assert client.post(f"/api/{path}/{asked['id']}/reject", json={},
+                           headers=OWN).status_code == 200
+    wait_run(client, cid, run_id)
+
+
+def test_the_rule_never_reaches_kolonis_own_cards_below_full_auto(make_client, wait_run,
+                                                                 project_dir):
+    # ...nor KOLONİ's own kept-work card ("card"), "Who checks?" ("checker") or a card of no kind
+    # (None: a sub-agent on another model, below) - while away, below Full auto.
+    client, _model = make_client([text("hi")])
+    _pid, cid = away_chat(client, project_dir, permission_mode="auto_edit")
+    run_id = post(client, cid)
+    wait_run(client, cid, run_id)
+    runner = client.app.state.runner
     ctx = SimpleNamespace(run_id=run_id, cid=cid, agent_id="a")
     with client.app.state.session_factory() as session:
         conversation = session.get_one(Conversation, cid)
         assert [runner._decide_after(ctx, kind, conversation, True)
                 for kind in (None, "card", "checker", "steps", "spawn")] == [
             None, None, None, 0.0, 0.0]
-    assert client.post(f"/api/commands/{command['id']}/reject", json={},
-                       headers=OWN).status_code == 200
-    wait_run(client, cid, run_id)
+
+
+def test_while_away_a_sub_agent_on_another_model_waits_for_you(team, wait_run,  # noqa: F811
+                                                               project_dir):
+    # ...and a sub-agent to open on a model other than its role's own (money): it waits.
+    from tests.test_tier_scenarios import spawn as tiered_spawn
+    client, default, _fast = team([step(tiered_spawn("Coder", "strongest", "It needs care.")),
+                                   text("done")], [text("fixed")])
+    assert client.patch(f"/api/providers/{team.providers['Fast']['id']}", json={
+        "models": [{"name": "deep", "tier": "strongest"}]}, headers=OWN).status_code == 200
+    clock = held(client)
+    _pid, cid = away_chat(client, project_dir, permission_mode="auto_edit",
+                          spawn_approval="always", when_away="lead", away_minutes=0)
+    post(client, cid)
+    snap = wait_status(client, cid, "waiting_approval")
+    assert snap["agents"][1]["provider_name"] == "Fast"
+    runner = client.app.state.runner
+    assert lead_timers(clock, 0.0) == [] and runner._decidable == {}
+    assert len(default.calls) == 1
+    assert client.get(f"/api/conversations/{cid}").json()["agents"][1]["status"] == "proposed"
 
 
 def test_a_kept_work_card_at_full_auto_is_the_leads_at_once_and_never_go_aways(
