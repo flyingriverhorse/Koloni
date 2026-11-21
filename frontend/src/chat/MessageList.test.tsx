@@ -1633,3 +1633,18 @@ test('while the turn runs nothing folds; its newest group of steps is open, and 
   rerender(<MessageList {...handlers} state={state([assistantMessage('m3', 'r', 'Both read.')])} />)
   expect(screen.getByRole('button', { name: /^Read 1 file · now: read_file b\.py/ })).toHaveAttribute('aria-expanded', 'false')
 })
+
+test('a command that exited with an error is counted as failed on the fold’s line, though its call ended well', () => {
+  // (KOLONİ records the call of a command that exits 1 as succeeded: the command's own record says it failed.)
+  const state = convState({
+    runs: [run('r', 'completed', { ended_at: ENDED })],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'test it'), assistantMessage('m', 'r', 'I’ll run the tests.'), assistantMessage('m2', 'r', 'One test fails.')],
+    toolCalls: [toolCall('41', 'r', 'run_command', 'succeeded', '{"command":"pytest -q"}', { message_id: 'm' })],
+    commands: [command('k41', 'r', { tool_call_id: '41', exit_code: 1, output: '1 failed' })],
+  })
+  const { container } = render(<MessageList {...handlers} state={state} />)
+  const summary = container.querySelector('details.turn-steps > summary') as HTMLElement
+  expect(summary).toHaveTextContent(/^Completed 2 steps in 32s/)
+  expect(within(summary).getByText('1 failed')).toHaveClass('tag-del')
+})
