@@ -3,7 +3,7 @@
 // the code file to a Coder by its name, and the canvas puts both files beside the request, the
 // code file dashed to the Coder - a click opens what was attached. In both themes.
 import { expect, test, type Page } from './fixtures'
-import { contrasts, OWN, openFreshConversation, settled, shot, setProject } from './helpers'
+import { clickCanvas, contrasts, OWN, openFreshConversation, settled, shot, setProject } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 1400 } })
 
@@ -96,7 +96,7 @@ test('ten files keep Send in sight; "not added" goes; the project list closes an
   await expect(list).toHaveCount(0)
   await expect(chat).toBeVisible() // (the chat stays open)
   await open()
-  await page.locator('.canvas-flow').click({ position: { x: 40, y: 40 } })
+  await clickCanvas(page)
   await expect(list).toHaveCount(0)
   await page.getByLabel('Message').fill('')
   await open()

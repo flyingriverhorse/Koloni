@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from 'vitest'
 import type { ConvState } from '../state/applyEvent'
 import { agent, assistantMessage, command, convState, fileChange, question, run, userMessage } from '../test-fixtures'
-import { latestOf, storedHeight, waitingCards } from './chatLine'
+import { latestOf, storedWidth, waitingCards } from './chatLine'
 
 test('the closed chat’s line is the Lead’s answer, not KOLONİ’s line said after it', () => {
   // R178: "Tester was not opened this turn." took the summary's place.
@@ -13,6 +13,21 @@ test('the closed chat’s line is the Lead’s answer, not KOLONİ’s line said
   // (B-205: nor KOLONİ's line under it on where the work is.)
   const landed = { ...assistantMessage('l', 'r', 'In the project: a.py (+1 −0).'), role: 'landed' as const, agent_id: null }
   expect(latestOf(convState({ runs: [run('r', 'completed')] }), [...said, landed])).toBe('All done.')
+})
+
+test('the closed chat’s line says what the Orchestrator asks while it asks, before who else is at work', () => {
+  const asked = 'Should mean() of an empty list raise ZeroDivisionError, or return 0?'
+  const conv = convState({
+    runs: [run('r', 'waiting_approval')],
+    agents: [agent('r', 'waiting'), agent('r', 'running', { id: 'k', parent_agent_id: 'r', role_name: 'Coder', depth: 1 })],
+    questions: [question('q', 'r', { question: `${asked}\nstats.py calls it.` })],
+  })
+  const said = [userMessage('r', 'fix mean'), assistantMessage('m', 'r', 'One thing first.')]
+  expect(latestOf(conv, said)).toBe(`Orchestrator asks: ${asked}`)
+  // KOLONİ's own card about one of its calls is not its question; answered, it asks nothing.
+  for (const over of [{ leave: true }, { status: 'answered' as const }]) {
+    expect(latestOf({ ...conv, questions: [{ ...conv.questions[0], ...over }] }, said)).toBe('Coder is working')
+  }
 })
 
 beforeEach(() => localStorage.clear())
@@ -55,13 +70,13 @@ test('every card that waits for the user is counted, of every kind, and nothing 
   expect(waitingCards(Object.assign({ ...none }, ...each.map(([over]) => over)))).toBe(8)
 })
 
-test('a height kept that is no height the chat can have is the default', () => {
-  for (const kept of ['NaN', '5', '-1', '', '0.1', 'tall']) {
-    localStorage.setItem('koloni-chat-height', kept)
-    expect(storedHeight(), kept).toBe(0.45)
+test('a width kept out of range starts at 420', () => {
+  for (const kept of ['NaN', '200', '339', '761', '', '-1', 'wide']) {
+    localStorage.setItem('koloni-chat-width', kept)
+    expect(storedWidth(), kept).toBe(420)
   }
-  localStorage.setItem('koloni-chat-height', '0.3')
-  expect(storedHeight()).toBe(0.3)
-  localStorage.removeItem('koloni-chat-height')
-  expect(storedHeight()).toBe(0.45)
+  localStorage.setItem('koloni-chat-width', '500')
+  expect(storedWidth()).toBe(500)
+  localStorage.removeItem('koloni-chat-width')
+  expect(storedWidth()).toBe(420)
 })

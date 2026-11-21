@@ -320,11 +320,18 @@ test('a spawn call that opened an agent is that agent, not a tool', () => {
 test('an agent with an open question waits for your answer', () => {
   const g = tree('running', {
     runs: [run('r', 'waiting_approval')],
-    questions: [question('q', 'r', { agent_id: 'kid' }), question('old', 'r', { agent_id: 'lead', status: 'answered', answer: 'x' })],
+    questions: [
+      question('q', 'r', { agent_id: 'kid', question: '\nShould mean() of an empty list raise ZeroDivisionError, or return 0?\nIt is called from report().' }),
+      question('old', 'r', { agent_id: 'lead', status: 'answered', answer: 'x' }),
+    ],
   })
   expect(activityOf(g, 'agent:kid')).toBe('Waits for your answer')
   expect((g.nodes.find(n => n.id === 'agent:kid')!.data as AgentData).status).toBe('waiting_approval')
   expect(activityOf(g, 'agent:lead')).toBe('Waiting for Reviewer')
+  // What it asks, under the pointer on its box (0.1.4): the question's first line; one answered asks nothing.
+  const asks = (id: string) => (g.nodes.find(n => n.id === id)!.data as AgentData).asks
+  expect(asks('agent:kid')).toBe('Should mean() of an empty list raise ZeroDivisionError, or return 0?')
+  expect(asks('agent:lead')).toBeUndefined()
 })
 
 test('an agent node names the model that agent ran on, not its turn’s', () => {

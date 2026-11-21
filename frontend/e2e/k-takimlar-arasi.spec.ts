@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, type Page, test } from './fixtures'
-import { contrasts, openFreshConversation, say, settled } from './helpers'
+import { clickCanvas, contrasts, openFreshConversation, say, settled } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 // K-takimlar-arasi + K-ortak-klasor (mockup Z): the Web app's Coder asked Backend / API for GET /api/items. One real turn
@@ -231,13 +231,13 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(frame('Backend / API')).toHaveClass(/canvas-dim/)
     await expect(frame('Web app')).not.toHaveClass(/canvas-dim/)
     await expect(page.locator('.react-flow__node-shared').filter({ has: block('Backend / API') })).toHaveClass(/canvas-faded/)
-    await page.locator('.react-flow__pane').click({ position: { x: 5, y: 5 } })
+    await clickCanvas(page)
     await frame('Backend / API').locator('.team-name').click()
     await expect(page.locator('.react-flow__node-shared').filter({ has: block('Backend / API') })).not.toHaveClass(/canvas-faded/)
     await expect(page.locator('.react-flow__node-shared').filter({ has: block('Web app') })).toHaveClass(/canvas-faded/)
     // (Its own agents and block - not the team it asked through the request: N4.)
     await expect(frame('Web app')).toHaveClass(/canvas-dim/)
-    await page.locator('.react-flow__pane').click({ position: { x: 5, y: 5 } })
+    await clickCanvas(page)
     // All the shared folder's files, of every turn: the Workspace window, open at it.
     await block('Everyone').getByRole('button', { name: /^All shared files \(\d+\) →$/ }).click()
     const workspace = page.getByRole('region', { name: 'Workspace' })

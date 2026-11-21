@@ -49,14 +49,14 @@ test('the night is on a card until Start; its jobs run in chats of their own; th
   if (process.env.KOLONI_SHOTS) await shot(page, '106-report')
 
   // B-149: at 1219 px the inspector opened on the Lead narrows the canvas - the report stays in view.
-  // (And with the chat made taller, as live: the report is kept clear of it too, in the strip above it.)
+  // (And with the chat made wider: the report is kept clear of it too, beside it.)
   await page.setViewportSize({ width: 1219, height: 700 })
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
-  const height = page.getByRole('separator', { name: 'Chat height' })
-  for (const taller of [0, 4]) {
-    for (let step = 0; step < taller; step++) await height.press('ArrowUp')
+  const width = page.getByRole('separator', { name: 'Chat width' })
+  for (const wider of [0, 4]) {
+    for (let step = 0; step < wider; step++) await width.press('ArrowRight')
     await page.getByRole('button', { name: 'Fit View' }).click()
-    if (taller && process.env.KOLONI_SHOTS) await shot(page, 'b149-before')
+    if (wider && process.env.KOLONI_SHOTS) await shot(page, 'b149-before')
     await page.locator('.react-flow__node-agent .node-title').first().click()
     await expect(inspector).toBeVisible()
     await expect
@@ -67,10 +67,10 @@ test('the night is on a card until Start; its jobs run in chats of their own; th
         return clear && !!stage && node.x >= stage.x - 1 && node.x + node.width <= stage.x + stage.width + 1 && node.y >= stage.y - 1 && node.y + node.height <= stage.y + stage.height + 1
       })
       .toBe(true)
-    if (taller && process.env.KOLONI_SHOTS) await shot(page, 'b149-after')
+    if (wider && process.env.KOLONI_SHOTS) await shot(page, 'b149-after')
     await inspector.getByRole('button', { name: 'Close inspector' }).click()
   }
-  for (let step = 0; step < 4; step++) await height.press('ArrowDown')
+  for (let step = 0; step < 4; step++) await width.press('ArrowLeft')
 
   // B-150: a job's chat, opened from the report, leads back to it - and so does the browser's Back.
   const chat = page.getByRole('region', { name: 'Chat' })

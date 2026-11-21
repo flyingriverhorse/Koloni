@@ -46,8 +46,7 @@ for (const theme of ['light', 'dark'] as const) {
   test(`a turn with two teams has a notebook per team, and KOLONİ's note stands apart (${theme})`, async ({ page }, testInfo) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
-    // (A tall chat: every team's notes in the shot.)
-    await page.addInitScript(() => localStorage.setItem('koloni-chat-height', '0.96'))
+    // (The chat is as tall as the canvas: every team's notes in the shot.)
     await page.setViewportSize({ width: 1440, height: 1000 })
     const id = await openFreshConversation(page)
     await say(page, 'hello, the notes of two teams', 'Hello! Ask me to read or change a file.')

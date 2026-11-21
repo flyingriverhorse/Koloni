@@ -296,8 +296,9 @@ function AgentCard({ id, data, selected }: AgentProps) {
         </span>
       </div>
       <div className="node-body">
-        {/* Its state's colour, as everywhere; its dot blinks while it is at work. */}
-        <div className={`node-line mono${data.status === 'running' ? ' node-now' : ''}`} title={said}>
+        {/* Its state's colour, as everywhere; its dot blinks while it is at work. Waiting for your answer, what it asks is
+            under the pointer. */}
+        <div className={`node-line mono${data.status === 'running' ? ' node-now' : ''}`} title={data.asks || said}>
           {/* What was counted of its calls first, so that its state is what gets cut off. */}
           {data.sign && <SignChip agentId={id.replace(/^agent:/, '')} sign={data.sign} stopped={data.signStopped} />}
           <StatusLabel color={AGENT_STATUS[data.status][1]}>

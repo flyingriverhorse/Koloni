@@ -578,15 +578,21 @@ ul.banner-why {
 }
 
 .stage {
-  /* The chat's width, open or closed, leaving room beside it for Artifacts and Images; and the
-     row they stand in (slice 38e). shortcut: on a stage under 490px the buttons lie over the
-     chat; upgrade if a canvas that narrow is to be used. */
+  /* The closed chat's width, leaving room beside it for the Workspace button; and the row it
+     stands in (slice 38e). shortcut: on a stage under 490px the button lies over the chat;
+     upgrade if a canvas that narrow is to be used. */
   --chat-w: max(220px, min(480px, calc(100% - 270px)));
   --dock-row: 42px;
   flex: 1;
   min-width: 0;
   position: relative;
   overflow: hidden;
+}
+
+/* Open, the chat is a column as wide as the user left it (ChatPanel writes --chat-open-w): 340px
+   at least, at most 60% of the stage and 760px (0.1.4). The windows beside it follow --chat-w. */
+.stage:has(> .chat:not(.chat-closed)) {
+  --chat-w: clamp(340px, var(--chat-open-w, 420px), min(60%, 760px));
 }
 
 .empty {
@@ -662,10 +668,9 @@ p.hive-empty {
 
 /* --- chat ---------------------------------------------------------------- */
 
-/* It floats over the canvas's bottom left corner (slice 38b): a small box while closed - its
-   line and a message box (slice 38e) - and open as tall as the share of the canvas the user
-   left it at, where they moved it (ChatPanel.tsx). Nothing here transforms or filters it: the
-   panels its buttons open are placed against the window. */
+/* Over the canvas (slice 38b): closed, a small box in its bottom left corner - its line and a
+   message box (slice 38e); open, a column the stage's height at its left edge (0.1.4). Nothing
+   here transforms or filters it: the panels its buttons open are placed against the window. */
 .chat {
   --w: var(--chat-w);
   position: absolute;
@@ -676,28 +681,30 @@ p.hive-empty {
   display: flex;
   flex-direction: column;
   width: var(--w);
-  /* Open: --h, a share of the canvas (closed: none, as tall as it is). At most 16px left above
-     it, standing 14px off the foot (chatLine.ts TOP); half the canvas wins over the least it
-     needs, on a short one. Never so short that the messages have no room: as tall as its tabs,
-     the messages' least (.chat-pane), the line of what waits elsewhere and the message box need
-     where that is more - narrow, the box's controls take more lines. */
-  height: auto;
-  min-height: max(var(--h, 0px), min(260px, 50%, calc(100% - 30px - var(--timeline-h, 0px))));
+  /* Closed, as tall as its line and message box, never past the stage's top. */
   max-height: calc(100% - 30px - var(--timeline-h, 0px));
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-lg);
 }
 
-.chat-closed {
-  min-height: 0;
+/* Open, a column from the stage's top down to the timeline (open or not), with no gap at its
+   left; its turns are cards on the panel's ground (0.1.4). */
+.chat:not(.chat-closed) {
+  top: 0;
+  left: 0;
+  bottom: var(--timeline-h, 0px);
+  max-height: none;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--panel);
+  box-shadow: none;
 }
 
 /* Moved by the user (shell/move.ts): where it was put - and on a stage grown smaller since,
    never past its edge. Taller than there is room for above where it was put, it is drawn lower.
    shortcut: move.ts keeps it clear of the zoom buttons (bottom right) where it is put, not here; a
    stage grown narrower since can bring a window low at the right over them - upgrade if seen. */
-.chat.moved,
 .view-panel.moved {
   left: clamp(14px, var(--x), 100% - var(--w));
   bottom: clamp(var(--timeline-h, 0px), var(--y), 100% - max(min(260px, 50%), var(--h)));
@@ -817,15 +824,16 @@ p.hive-empty {
   white-space: nowrap;
 }
 
-/* Its top edge: dragged, or moved with the arrow keys, it makes the box taller or shorter. */
+/* Its right edge, over its border and just past it: dragged, or moved with the arrow keys, it makes
+   the column wider or narrower. Nothing of it inside the border, where the list's scrollbar is. */
 .chat-edge {
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
   z-index: 1;
-  flex: none;
-  height: 8px;
-  margin-bottom: -4px;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  cursor: ns-resize;
+  width: 4px;
+  cursor: ew-resize;
   touch-action: none;
 }
 
@@ -850,9 +858,6 @@ p.hive-empty {
 
 .chat:not(.chat-closed) .chat-top {
   padding-left: 4px;
-  cursor: move;
-  user-select: none;
-  touch-action: none;
 }
 
 .chat-top button {
@@ -934,7 +939,7 @@ p.hive-empty {
   background: var(--accent-fill);
 }
 
-/* To the right of the chat, over the canvas: as tall as the chat, half the canvas wide - never
+/* To the right of the chat, over the canvas: --h of it tall (chatLine.ts HEIGHT), half the canvas wide - never
    past the canvas's buttons at its right edge (15px + 26px, and a gap). Expanded, it lies over all of the canvas.
    shortcut: on a stage too narrow for the chat and 280px beside it, it lies over the chat and the buttons. */
 .view-panel {
@@ -944,7 +949,7 @@ p.hive-empty {
   position: absolute;
   /* Beside the chat; on a canvas too narrow for both at least 280px wide, over the chat. */
   left: max(14px, min(calc(var(--chat-w) + 28px), calc(var(--room) - 294px)));
-  /* Standing on the row of the Workspace button beside the small box: as tall as the chat less that row, its top level with the chat's. */
+  /* Standing on the row of the Workspace button beside the small box: --h less that row. */
   bottom: calc(14px + var(--dock-row) + var(--timeline-h, 0px));
   height: calc(var(--h) - var(--dock-row));
   z-index: 6;
@@ -960,11 +965,21 @@ p.hive-empty {
   overflow: hidden;
 }
 
-/* The chat open, there is no row under it (Files is in the top bar): in its corner the window is as tall as
-   the chat (moved or expanded, its own rules hold). */
-.chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
-  bottom: calc(14px + var(--timeline-h, 0px));
-  height: var(--h);
+/* The chat open, there is no row under the window (Workspace's button is at the chat's foot): beside the
+   column it stands the stage's height, from under the Teams button (as a room's window) - its own buttons at
+   its right end are not under that one (moved or expanded, its own rules hold).
+   Below 1400px it keeps its own half height at the bottom: full height there left the turn no canvas at all
+   (at 1024 its cards ended up past the stage's edge or under the inspector).
+   shortcut: at 1440 the column and this window still leave the turn a strip about 240px wide; upgrade (a shorter
+   window, or the turn beside it) if it is met. */
+@media (min-width: 1400px) {
+  .chat:not(.chat-closed) ~ .view-panel:not(.moved, .view-panel-wide) {
+    top: 56px;
+    bottom: calc(14px + var(--timeline-h, 0px));
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
 .view-panel[hidden] {
@@ -1539,8 +1554,9 @@ a.view-run {
   min-width: 0;
 }
 
+/* As wide as its name, not the line: a wide column leaves no long empty button (0.1.4). */
 .composer-line .model-picker {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 64px;
 }
 
@@ -1665,10 +1681,12 @@ a.view-run {
 }
 
 .msg-bubble {
-  max-width: 85%;
-  padding: 7px 11px;
-  border-radius: 12px 12px 3px 12px;
+  max-width: min(85%, 60ch);
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px 14px;
   background: var(--accent-soft);
+  font-size: var(--text-read);
+  line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1730,13 +1748,122 @@ a.view-run {
   gap: 6px;
 }
 
-/* 🔊 at the top right of an answer (slice 32a): the words flow round it. */
-.read-aloud {
-  float: right;
+/* One Lead turn (0.1.4, MessageList's TurnCard): who answered, the turn's steps and answer, and a quiet foot. In the
+   light theme the card and the list under it are nearly one colour: its border draws it. */
+.turn-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.turn-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.turn-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-title);
+}
+
+/* (A long team title or model id ends in an ellipsis: the time stays in sight.) */
+.turn-name,
+.turn-model {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.turn-name {
+  font-weight: var(--weight-strong);
+}
+
+/* (Too narrow for both, the model gives way first: who answered is cut last.) */
+.turn-model {
+  flex-shrink: 100;
+  color: var(--muted);
+  font-size: var(--text-note);
+}
+
+/* Its time, or what waits for you, at the right. */
+.turn-head > :last-child {
+  flex: none;
+  margin-left: auto;
+}
+
+.turn-head time {
+  color: var(--faint);
+  font-size: var(--text-meta);
+}
+
+.turn-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* (An ended turn with no words and nothing done to tell: no foot, and no gap for one.) */
+.turn-foot:empty {
+  display: none;
+}
+
+/* What the turn did draws the foot's rule, not its own (board.css). */
+.turn-foot:has(.turn-summary) {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.turn-foot .turn-summary {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Copy and Read aloud (slice 32a) at the foot's right: seen on the card's hover or focus, on a touch screen, and while
+   it reads. Hidden by opacity only: a keyboard and a screen reader reach them all the same. Under a turn with nothing
+   to tell of what it did they are the foot's only line, so they stay in sight: hidden, they left a blank band there.
+   shortcut: chosen without a look in the browser; a duration line in that foot is the other way, if this one is too loud. */
+.turn-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.turn-foot:not(:has(.turn-summary)) .turn-actions,
+.turn-card:is(:hover, :focus-within) .turn-actions,
+.turn-actions:has([aria-label='Stop reading']) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .turn-actions {
+    opacity: 1;
+  }
+}
+
+.turn-actions .icon-btn {
   width: 26px;
   height: 26px;
-  margin: -2px -4px 0 6px;
-  color: var(--muted);
 }
 
 /* Under an answer: what was said aloud of it. */
@@ -1875,6 +2002,123 @@ a.view-run {
 
 .markdown strong {
   color: var(--accent);
+}
+
+/* A chat answer (0.1.4): larger, airier and softer words, its bold and code without loud colour or a box.
+   Only MessageList draws .msg-assistant, so the Inspector, Workspace and Knowledge keep the look above. */
+.msg.msg-assistant {
+  font-size: var(--text-read);
+  color: var(--text-soft);
+}
+
+/* (On the lines, not the answer: a code block and a table would inherit it.) */
+.msg.msg-assistant :is(p, li) {
+  line-height: 1.7;
+}
+
+.msg.msg-assistant :is(p, li, blockquote, h1, h2, h3, h4) {
+  max-width: 72ch;
+}
+
+/* The turn's answer opens with its point. */
+.msg.msg-assistant.msg-answer > p:first-child {
+  font-size: var(--text-lead);
+  line-height: 1.55;
+  color: var(--text);
+  font-weight: var(--weight-strong);
+}
+
+.msg.msg-assistant strong {
+  color: var(--text);
+  font-weight: var(--weight-title);
+}
+
+/* (On the code itself: .markdown code sets its own size, which a size on pre would not reach.) */
+.msg.msg-assistant code {
+  font-size: var(--text-code);
+}
+
+.msg.msg-assistant :not(pre) > code {
+  padding: 0;
+  background: none;
+}
+
+/* A path and a command keep their colours (K-sohbet-renk), and code in a link its link's. */
+.msg.msg-assistant :not(pre, a) > code:not(.md-path, .md-command) {
+  color: var(--text);
+}
+
+/* (Without its own line height a code block's lines stand as far apart as the answer's.) */
+.msg.msg-assistant pre {
+  font-size: var(--text-code);
+  line-height: 1.5;
+}
+
+.msg.msg-assistant blockquote {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--accent-fill) 55%, transparent);
+  border-radius: 0 8px 8px 0;
+  background: var(--hover);
+}
+
+.msg.msg-assistant :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.2em 0 0.4em;
+  font-weight: var(--weight-title);
+}
+
+.msg.msg-assistant :is(h1, h2) {
+  font-size: var(--text-section);
+}
+
+.msg.msg-assistant h3 {
+  font-size: var(--text-lead);
+}
+
+.msg.msg-assistant :is(h4, h5, h6) {
+  font-size: var(--text-read);
+  color: var(--muted);
+}
+
+/* (The rules above outrank .markdown's own first and last child: kept here, and inside a quote.) */
+.msg.msg-assistant > :first-child {
+  margin-top: 0;
+}
+
+.msg.msg-assistant > :last-child,
+.msg.msg-assistant blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.msg.msg-assistant hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.msg.msg-assistant li + li {
+  margin-top: 0.3em;
+}
+
+.msg.msg-assistant li::marker {
+  color: var(--muted);
+}
+
+.msg.msg-assistant .contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.msg.msg-assistant table {
+  font-size: var(--text-body);
+}
+
+.msg.msg-assistant th {
+  text-align: left;
+  background: var(--hover);
+}
+
+.msg.msg-assistant :is(th, td) {
+  vertical-align: top;
 }
 
 /* A drawn ```mermaid block (slice 68); a wide one scrolls rather than widen the message. */
@@ -2637,7 +2881,7 @@ a.view-run {
   font-size: var(--text-meta);
 }
 
-/* The first steps, in the middle of what the chat leaves of the canvas (--chat-w, 14px from the edge),
+/* The first steps, in the middle of what the chat leaves of the canvas (closed, --chat-w 14px from the edge; open, canvas.css),
    under the canvas's own line that says how a turn starts (.canvas-empty, at 34%). */
 .first-steps {
   position: absolute;

@@ -2,7 +2,7 @@
 
 ## Reading answers aloud
 
-- **Read aloud** reads an answer; **Stop reading** stops.
+- **Read aloud**, at the foot of a turn's card in the chat, reads the turn's answer; **Stop reading** stops.
 - **Auto-read** reads each answer when the work ends: the **Whole answer**, or a **Short summary** ("A
   sentence or two the Orchestrator adds to be said").
 - **How the Orchestrator speaks** (up to 300 characters) is sent with your message when Auto-read reads a

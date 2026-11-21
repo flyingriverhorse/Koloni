@@ -40,7 +40,7 @@ const tags = [
   ),
 ].map(m => ({ name: m[1], tint: m[2], pct: Number(m[3]) / 100, ground: m[4], fg: m[5] }))
 
-const texts = ['--text', '--muted', '--faint', '--accent', '--ok', '--warn', '--del', '--request']
+const texts = ['--text', '--text-soft', '--muted', '--faint', '--accent', '--ok', '--warn', '--del', '--request']
 const flats = ['--bg', '--surface', '--panel']
 const light = colours(block(':root'))
 const darkOwn = colours(block('.dark'))
@@ -151,9 +151,28 @@ for (const [name, theme, own] of [
   })
 }
 
+// The colour a base.css rule gives first, by its selector as written.
+const rule = (selector: string) => base.match(new RegExp(`${selector.replace(/\./g, '\\.')} \\{\\s*color: var\\((--[\\w-]+)\\);`))?.[1]
+
 test('an answer colours its paths, commands and bold words with the tokens checked above (K-sohbet-renk)', () => {
-  const rule = (selector: string) => base.match(new RegExp(`${selector.replace(/\./g, '\\.')} \\{\\s*color: var\\((--[\\w-]+)\\);`))?.[1]
   expect(rule('.markdown .md-path')).toBe('--code-title')
   expect(rule('.markdown .md-command')).toBe('--code-keyword')
   expect(rule('.markdown strong')).toBe('--accent')
+})
+
+test('the bold of a chat answer is the text colour, not the accent', () => {
+  // (Outside the chat, in the Inspector and Workspace, the bold stays orange: the rule above.)
+  expect(rule('.msg.msg-assistant strong')).toBe('--text')
+})
+
+test('a turn’s card is drawn by its border on its own ground, and its foot’s buttons hide by opacity only', () => {
+  // (In the light theme the card and the list under it are nearly one colour: the border draws the card.)
+  const card = base.match(/\n\.turn-card \{([^}]*)\}/)?.[1] ?? ''
+  expect(card).toContain('border: 1px solid var(--border);')
+  expect(card).toContain('background: var(--surface);')
+  // (Hidden any other way they would leave the tab order and a screen reader: 32a.)
+  expect(base.match(/\n\.turn-actions \{([^}]*)\}/)?.[1]).toContain('opacity: 0;')
+  expect(base).not.toMatch(/\.turn-actions[^{]*\{[^}]*(visibility|display: none)/)
+  // (A foot with no line of what the turn did is only its buttons: shown, not a blank band under the answer.)
+  expect(base).toMatch(/\.turn-foot:not\(:has\(\.turn-summary\)\) \.turn-actions[^{]*\{\s*opacity: 1;/)
 })

@@ -81,6 +81,18 @@ test('it opens on the canvas’s right, under the Teams button and above the but
   expect(saidSide()).toEqual({ position: 'bottom-left' })
 })
 
+test('beside the open chat’s column (0.1.4) it opens at the canvas’s top just past the column - where no window lies there', () => {
+  for (const name of ['react-flow', 'chat-teams', 'chat', 'agent-window']) document.body.append(Object.assign(document.createElement('div'), { className: name }))
+  const at: Record<string, [number, number, number, number]> = { '.react-flow': [0, 0, 1376, 800], '.chat-teams': [1262, 14, 100, 30], '.chat': [0, 0, 420, 800] }
+  // An agent's window at the top right: not on the right, nor under the column - past it.
+  laidOut({ ...at, '.agent-window': [842, 14, 520, 360] })
+  expect(saidSide()).toEqual({ position: 'top-left', style: { marginLeft: 428 } })
+  // Workspace beside the column as well: nowhere is clear, its top middle as before.
+  document.body.append(Object.assign(document.createElement('div'), { className: 'view-panel' }))
+  laidOut({ ...at, '.agent-window': [842, 14, 520, 360], '.view-panel': [448, 56, 688, 730] })
+  expect(saidSide()).toEqual({ position: 'top-center' })
+})
+
 test('dragged by its head it goes where it is put, inside the canvas, and is there again next time; its grip moves it with the arrow keys; Close still closes', async () => {
   laidOut({ '.canvas-said': [600, 58, 360, 200] })
   const onClose = vi.fn()

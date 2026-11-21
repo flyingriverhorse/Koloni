@@ -7,12 +7,12 @@ import { MergeCard } from '../changes/MergeCard'
 import { NotApplied } from '../changes/NotApplied'
 import { SpawnApproval } from '../agents/SpawnApproval'
 import { staysOn } from '../agents/staysOn'
-import { type RequestHandlers, SubtreeRequests } from '../chat/MessageList'
+import { QueuedNote, type RequestHandlers, SubtreeRequests } from '../chat/MessageList'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { inFront } from '../shell/move'
 import type { ConvState } from '../state/applyEvent'
-import { ITEM, allDone, byWatcher, invitedTo, isRunning, memberName, memberTag, nameIn, once, postHead, roomLine, roomTag, spentLines, waitsForYou, watchedBy } from './roomText'
+import { ITEM, allDone, byWatcher, inRoom, invitedTo, isRunning, memberName, memberTag, nameIn, once, postHead, roomLine, roomTag, spentLines, waitsForYou, watchedBy } from './roomText'
 
 interface Props {
   state: ConvState
@@ -70,6 +70,7 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
   const reports = once(posts.filter(p => p.type === 'done'))
   const open = posts.filter(p => p.open)
   const members = room.members.flatMap(m => state.agents.filter(a => a.id === m.agent_id))
+  const inside = inRoom(state, room)
   // The room's one copy on its way into the project: asked about once, in the lead's name - and only
   // this room's, not another copy of the lead's (a recipe's, an earlier room's: their files and commit).
   const merges = state.merges.filter(m => m.room_id === room.id)
@@ -219,6 +220,7 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
       {members.map(member => (
         <SubtreeRequests key={member.id} root={member} state={state} on={on} known={{ roles, providers }} />
       ))}
+      <QueuedNote state={state} asks={q => inside.has(q.agent_id)} />
       {invitedTo(state, room).map(agent => (
         <SpawnApproval
           key={agent.id}

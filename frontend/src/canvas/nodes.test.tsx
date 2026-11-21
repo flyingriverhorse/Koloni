@@ -74,6 +74,11 @@ test('its state in plain words: working at what, waiting for your OK (lit), done
   draw(<AgentNode {...props('agent:kid', { ...coder, status: 'waiting_approval', activity: 'Waits for your approval', attention: true, finished: false })} />)
   expect(document.querySelector('.node')).toHaveClass('node-approval')
   expect(screen.getByText('Waits for your OK')).toBeInTheDocument()
+  // Waiting for your answer it says so; what it asks is under the pointer (0.1.4).
+  cleanup()
+  const asks = 'Should mean() of an empty list raise ZeroDivisionError, or return 0?'
+  draw(<AgentNode {...props('agent:kid', { ...coder, status: 'waiting_approval', activity: 'Waits for your answer', asks, attention: true, finished: false })} />)
+  expect(screen.getByTitle(asks)).toHaveTextContent(/^Waits for your answer$/)
 })
 
 test('an agent at work says on one line what it does now, with a blinking dot and for how long; done, neither (slice 84d)', () => {

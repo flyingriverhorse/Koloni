@@ -155,6 +155,8 @@ test("at 1024x720 the Workspace window and a toast leave the canvas's buttons fr
   // (Polled: the window takes its width from its stage as that is measured - a frame or more after it shows.)
   const free = async (over: typeof files) => apart((await over.boundingBox())!, (await buttons.boundingBox())!) && (await pressable())
   await expect.poll(() => free(files)).toBe(true)
+  // Beside the open chat's column it starts under the Teams button: its Close is not under that button (0.1.4).
+  expect(apart((await files.boundingBox())!, (await page.locator('.chat-teams').boundingBox())!)).toBe(true)
   // Another conversation begins to wait (its turn asks to run a command): its toast stands above the buttons.
   const project = (await (await page.request.get('/api/projects')).json())[0].id
   const other: string = (await (await page.request.post('/api/conversations', { data: { project_id: project }, headers: OWN })).json()).id
