@@ -75,7 +75,8 @@ unread and how many things wait for you.
   listed 4 folders"; the newest is open while it runs and closes once words come after it. A command opens
   by itself while its output comes or when it failed, its output 6 lines tall, then scrolling.
 - Once the turn is over, everything before its answer folds into one line, "Completed 5 steps in 32s",
-  which counts what failed or was rejected ("1 failed"); a click opens it. Sub-agents, rooms, discussions,
+  which counts what failed or was rejected ("1 failed"); a click opens it. With a step that failed, the first
+  one's reason is a line under it ("↳ …"), so why something did not happen is in sight. Sub-agents, rooms, discussions,
   a server that still runs and every card that waits for you stay outside it, in sight.
 - The Orchestrator's question waits just above the message box: numbered options, your own answer and
   **Submit**; keys 1-9 pick an option and Enter sends it; "‹ 1/2 ›" when it asks two. In its turn one line

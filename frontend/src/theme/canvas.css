@@ -1114,6 +1114,15 @@ button.shared-row:hover,
   transform: rotate(90deg);
 }
 
+/* Under a folded turn's line, the first failed step's reason (0.1.5): one muted line, read without opening the fold. */
+.turn-steps-why {
+  padding-left: 2px;
+  font-size: var(--text-note);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .turn-steps-body {
   display: flex;
   flex-direction: column;

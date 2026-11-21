@@ -1,5 +1,5 @@
 import { expect, type Page, test } from './fixtures'
-import { contrasts, openFreshConversation, say, shot } from './helpers'
+import { contrasts, openFreshConversation, shot } from './helpers'
 
 // Slice 84b-1: "Teams for this chat", over the canvas's top right. In Manual the user picks a team and its recipe; the
 // pick stays over a reload, and the Lead may then open only that team's roles - a Coder, which Docs has not, is
@@ -36,8 +36,15 @@ for (const theme of ['light', 'dark'] as const) {
     await page.keyboard.press('Escape')
 
     // The Lead asks for a Coder: Docs runs Feature (84b-2), whose first step is the Spec writer's, so it is refused
-    // and the chat says why.
-    await say(page, 'make farewell', /Feature recipe of Docs is at its Write the spec step/)
+    // and the chat says why: at the turn's end its steps fold, and the first refusal's reason stays in sight under the
+    // fold's line (waited for once the turn is over, not while it runs).
+    await page.getByLabel('Message').fill('make farewell')
+    await page.getByRole('button', { name: 'Send' }).click()
+    const chat = page.getByRole('region', { name: 'Chat' })
+    await expect(chat.locator('details.turn-steps > summary')).toHaveText(/^Completed \d+ steps.*\d+ failed/, { timeout: 20_000 })
+    const why = chat.locator('.turn-steps-why')
+    await expect(why).toBeVisible()
+    await expect(why).toContainText(/Feature recipe of Docs is at its Write the spec step/)
     await expect(page.locator('.react-flow__node-agent').filter({ hasText: 'Coder' })).toHaveCount(0)
     await shot(page, `84b-teams-refused-${theme}`)
 
