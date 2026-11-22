@@ -115,8 +115,21 @@ a chat you started, and the command's row says "Ran without asking · disposable
 
 Worktrees and branches go this way only from the project itself (the Orchestrator), never from a
 copy, and only run in the project's top folder or a plain folder in it - not in another repository,
-a submodule or a worktree inside the project, nor through a link. Only such a delete alone on its line counts: `rm -r build`, `Remove-Item -Recurse dist`,
-`git worktree remove ../wt/x`, `git branch -d old`. Anything else on the line, a forced worktree
+a submodule or a worktree inside the project, nor through a link.
+
+Only such a delete alone on its line counts, written the way the shell it runs in reads it:
+
+- **PowerShell** - KOLONİ's own commands on Windows, and Claude Code's PowerShell tool: `Remove-Item`
+  or its aliases (`rm`, `ri`, `del`, `erase`) with `-Recurse` (or `-r`), `-Force` (`-fo`) if you like,
+  and one path: `Remove-Item -Recurse dist`, `rm -r build`, `ri -r -Force build`. `rm -rf build` is
+  not disposable there: PowerShell refuses `-rf` and deletes nothing, so it keeps its card.
+- **sh** - KOLONİ's own commands on Linux and macOS and in Docker, and Claude Code's Bash tool (Git
+  Bash on Windows): `rm` with `-r`, `-R` or `-rf`, `-f` / `--force` if you like: `rm -rf build dist`.
+- **git**, in every shell: `git worktree remove ../wt/x`, `git branch -d old`.
+
+Codex, agy and Qoder do not say which shell their command runs in, so their delete of a folder keeps
+its card. A disposable delete that ran and then failed says so on its row: "Ran without asking as
+disposable (…) and failed: exit 1". Anything else on the line, a forced worktree
 remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI
 whose folder KOLONİ does not know or that its model names, and any of GitHub Copilot CLI's own
 commands (it has no sandbox) asks as before. A delete whose folder changed

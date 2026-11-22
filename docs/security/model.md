@@ -61,6 +61,8 @@ assume-unchanged, a secret file, anything else git ignores but whole build and c
 repository inside one of those; a branch or worktree delete run in another repository, a submodule
 or a worktree in the project, or in a folder reached through a link; `.git`, `.koloni`, a path above the
 folder the command runs in (a registered worktree aside); any command of GitHub Copilot CLI's own;
+a folder's delete in a form its shell does not read as one (`rm -rf` in PowerShell, which deletes
+nothing), or by a CLI that does not say its shell (Codex, agy, Qoder);
 or any line that is not one plain delete. What is checked is the folder
 as it is then - KOLONİ's own command a second time just before it runs: one swapped for a link
 after that look is not seen. Windows PowerShell 5.1.26100, PowerShell 7 and Git Bash delete through
