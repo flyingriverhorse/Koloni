@@ -705,6 +705,72 @@ def test_the_worktrees_own_git_is_not_asked(command):
     assert reaches_shared_git(command) == ""
 
 
+@pytest.mark.parametrize("command", [
+    'echo "$(pwd -W)/x" > "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+    "Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
+    'git rev-parse feat > "$(dirname "$(dirname "$(git rev-parse --git-dir)")")/refs/remotes/'
+    'origin/x"',
+    'cd "$(dirname "$(git rev-parse --git-dir)")" && echo x > users-wt/gitdir',
+    # (its review: a variable set before, `>|`, a link made to it, cmd's loop over the .git file,
+    # what the .git file says - CL-311: another worktree's HEAD and its history)
+    "echo x > $D/../users-wt/gitdir", 'echo x >| "$D/x"', 'ln -s "$D" g',
+    "New-Item -ItemType Junction -Path g -Target $d", "mklink /J g %D%",
+    'for /f "tokens=2" %%i in (.git) do copy x %%i\\..\\users-wt\\gitdir',
+    "echo x > \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"",
+    'git rev-parse HEAD > "$(git rev-parse --git-dir)/../users-wt/HEAD"',
+    ': > "$(git rev-parse --git-dir)/../users-wt/logs/HEAD"',
+])
+def test_in_a_worktree_a_write_to_a_place_built_at_run_time_is_asked(command):
+    """K-okuyucu-3 (the k-pr-wt review): in a branch's worktree the place may be the user's shared
+    git - another worktree's gitdir, a ref under refs/remotes/origin (the gate's `shared` has more)."""
+    from app.commands import BUILT_TARGET, reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == BUILT_TARGET
+
+
+@pytest.mark.parametrize("command", [
+    "git rev-parse --git-dir", "git rev-parse --absolute-git-dir", "git rev-parse --git-common-dir",
+    "git rev-parse --git-path hooks", 'ls "$(git rev-parse --git-dir)/.."',
+    'ls "$(dirname "$(git rev-parse --git-dir)")"', "export D=$(git rev-parse --git-dir)",
+    'sed -i "s#.*#$PWD/x#" "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+    'tar -C "$(dirname "$(git rev-parse --git-dir)")" -xf evil.tar',
+    'robocopy . "$(git rev-parse --git-dir)" x',
+])
+def test_in_a_worktree_computing_the_shared_gits_path_is_asked(command):
+    """K-okuyucu-3 review (B1): whatever then writes there - `sed -i`, `tar -C`, `robocopy`, code -
+    finds the shared git by `git rev-parse --git-dir` and the like: a read asked in a worktree."""
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
+
+
+@pytest.mark.parametrize("command", [
+    'echo "$(date)" > log.txt',
+    "echo $(git rev-parse HEAD) > head.txt", 'Add-Content log.txt "$x"', "Set-Content out.txt $c",
+    "Set-Content -Path out.txt -Value (Get-Date) -Encoding utf8 -NoNewline",
+    "New-Item -ItemType File -Path notes.txt -Value $text -Force", 'cp "$src" dst/',
+    "Copy-Item $src -Destination dst/", "python -m pytest 2>$null", "npm test > $null 2>&1",
+    "npm test *> $null", "npm test 2>/dev/null", "npm test > NUL",
+    "npm test 2>&1 | Select-Object -Last 5", "git log --oneline > log.txt",
+    "[IO.File]::WriteAllText('out.txt', $x)", "echo x | tee out.txt", 'git commit -m "a > $b"',
+    'cd "$(git rev-parse --show-toplevel)" && npm test',
+    "cat > notes.md <<'EOF'\necho x > $HOME/y\nEOF", "echo done > out.txt # then > $x",
+    # (N6: the temp folder by its variable, a date in a file's name, a loop over names written out)
+    'echo x > "$TMPDIR/f"', "echo x > $TMP/f", 'Copy-Item a "$env:TEMP\\a"',
+    'for f in *.py; do black -q "$f" > "$f.new"; done', 'npm test > "build-$(date +%s).log"',
+    "echo x > logs/run-$(date +%F).txt", 'for f in a.txt b.txt; do cp "$f" "$f.bak"; done',
+    # (round 3: the folder the line runs in, at the target's start, its name given no value)
+    'echo x > "$PWD/out.txt"', 'echo x > "${PWD}/out.txt"', 'echo x > "$(pwd)/out.txt"',
+    'echo x > "$(pwd -W)/out.txt"', 'Set-Content -Path "$PWD/x" -Value y',
+    'Set-Content "$PWD\\x" y', "Set-Content (Join-Path $PWD out.txt) y",
+    'cd src && echo x > "$PWD/out.txt"',
+])
+def test_in_a_worktree_a_read_or_a_write_to_a_place_written_out_is_not_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == ""
+
+
 def test_at_full_auto_a_stash_pop_in_a_branchs_worktree_waits_for_the_user(
     make_client, repo
 ):
