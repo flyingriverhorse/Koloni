@@ -3998,7 +3998,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     async def _run_in_copy(
         self, ctx: Ctx, ws: Workspace, command: str, call_id: str, ask: bool = False,
         gated: str = "refuse", once: set[str] | None = None, cwd: str = ".",
-        seconds: int = CHECK_SECONDS,
+        seconds: int | None = None,
     ) -> tuple[int | None, str, str, str | None]:
         """KOLONİ's own run of a project command where the agent's commands run (`ws`: its
         working copy, or the project), on record under `call_id`, with the check's time limit
@@ -4012,7 +4012,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         watches), "refuse" (not run). Not run, or declined on that card: `_GateRefused`. And what
         it writes of the project's standing files unnamed is put back (`_own_command_looked`).
         `once`: as `commands.run`'s (the measure's yes, for its run). `cwd`: the folder it runs
-        in, from the root (a part's tests, `ProofMixin`); `seconds`: its time limit. Its exit
+        in, from the root (a part's tests, `ProofMixin`); `seconds`: its time limit (None: the
+        check's, CHECK_SECONDS). Its exit
         code (None but where it ran to its end), what it wrote, what the run said of it, and how
         its record ended (None: no record - it never started). A ToolError, or Stop, reaches the
         caller."""
@@ -4041,8 +4042,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         try:
             status, said = await self.commands.run(
                 ctx.run_id, ctx.cid, ctx.agent_id, ws, own,
-                {"command": command, "timeout_seconds": seconds, "cwd": cwd}, ask=ask or asks,
-                always=asks, once=once,
+                {"command": command, "timeout_seconds": seconds or CHECK_SECONDS, "cwd": cwd},
+                ask=ask or asks, always=asks, once=once,
             )
             ran = True
         finally:

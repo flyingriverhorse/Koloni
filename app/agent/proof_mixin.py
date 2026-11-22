@@ -135,7 +135,7 @@ class ProofMixin:
     async def _tests_of(self: "AgentRunner", ctx: Ctx, run: TestRun,
                         held: Proof) -> tuple[Row, str]:
         """One test command's row, and its output: from a fresh run on record, or run now."""
-        seconds = END_WAIT_SECONDS if self._answer_waits(ctx) else MAX_TIMEOUT
+        seconds = END_WAIT_SECONDS if self._answer_waits(ctx) else None  # (None: the check's)
         with self._factory() as session:
             ran = proof.fresh(session, ctx.run_id, ctx.agent_id, run,
                               proof.last_change(session, ctx.run_id))
@@ -147,8 +147,8 @@ class ProofMixin:
                 return made, ran.output
             project = self._project(session, ctx.cid)
             slow = proof.too_slow(session, project.id, run, seconds) if (
-                project is not None and seconds < MAX_TIMEOUT) else None
-        if slow:
+                project is not None and seconds is not None) else None
+        if slow and seconds:
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
                 why=f"{run.command} - {slow}; a turn you watch waits at most "
                     f"{proof.clock(seconds)} for them"), run.command, not run.yours), ""
@@ -184,7 +184,7 @@ class ProofMixin:
         return "run" if refused == "" else refused or "nobody is there to ask"
 
     async def _run_tests(self: "AgentRunner", ctx: Ctx, run: TestRun, how: str, held: Proof,
-                         seconds: int) -> tuple[Row, str]:
+                         seconds: int | None) -> tuple[Row, str]:
         """Run one test command where the Lead's work is (`_ws`: the project, or its own copy),
         one of KOLONİ's at a time app-wide (`_test_slot`), on record as KOLONİ's call on the
         Lead's last answer - the user sees it run, and its card where one is asked."""
@@ -207,7 +207,7 @@ class ProofMixin:
             raise
 
     async def _run_tests_now(self: "AgentRunner", ctx: Ctx, run: TestRun, how: str, held: Proof,
-                             seconds: int, message_id: str) -> tuple[Row, str]:
+                             seconds: int | None, message_id: str) -> tuple[Row, str]:
         args = {"command": run.command, **({"cwd": run.cwd} if run.cwd != "." else {})}
         request = ToolCallRequest(f"{PROOF_CALL}{uuid.uuid4().hex[:16]}", "run_command",
                                   json.dumps(args))
@@ -228,7 +228,7 @@ class ProofMixin:
         if ended == "rejected":
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
                 why="declined on its card"), run.command, not run.yours), ""
-        return proof.tests_row(run, code, output, ended, said, seconds), output
+        return proof.tests_row(run, code, output, ended, said, seconds or MAX_TIMEOUT), output
 
     def _say_checked(self: "AgentRunner", cid: str, run_id: str, due: bool,
                      status: str = "completed") -> None:

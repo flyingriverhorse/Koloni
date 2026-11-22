@@ -180,6 +180,28 @@ def no_po_where_calls_are_counted(request):
     event.remove(Project, "init", off)
 
 
+# Kanıtlı bitiş (S1): after a turn that changed code the app runs the project's tests and writes a
+# "checked" message under the answer - on by default. The tests written before it count the
+# commands, calls, model steps and messages of such turns: there it is off, as before it. The
+# modules that test it take it as the app has it.
+# shortcut: the older flows are not run with it on (16 of their files run so on 22 Nov failed only
+# on such counts and on a card or run it added); add a module to END_CHECK to run it with it.
+END_CHECK = {"test_proof", "test_proof_end_scenarios"}
+
+
+@pytest.fixture(autouse=True)
+def end_check_off_before_kanit(request, monkeypatch):
+    if request.module.__name__.rpartition(".")[2] in END_CHECK:
+        return
+    from app.agent.proof_mixin import ProofMixin
+
+    async def no_gate(_self, _ctx):
+        return None
+
+    monkeypatch.setattr(ProofMixin, "_proof_left", no_gate)
+    monkeypatch.setattr(ProofMixin, "_say_checked", lambda *_args, **_more: None)
+
+
 @pytest.fixture(autouse=True)
 def no_catalogue_of_the_users(monkeypatch, tmp_path):
     """A catalog.local.json the user keeps in the checkout is not a test's."""
