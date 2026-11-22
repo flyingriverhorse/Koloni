@@ -238,6 +238,35 @@ not even load (a syntax error, collecting) shows no bug. One that did not is hel
 you: "Reproduce did not show a failing test: none of the tests it wrote failed (…)", or "… no test
 run of its own on record failed".
 
+## Documents, diagrams, data and slides
+
+Under **Test and review**, a turn that wrote documents, diagrams, data or slides gets KOLONİ's
+checks of them, with no model and nothing installed: each file its own line under the answer.
+They come after the tests and before the review. A turn that wrote only such files runs no tests
+("No tests: only documents, slides, diagrams or data changed") and gets these checks. Under
+**Tests only**, **Nothing**, or where checks are off for the chat, they do not run.
+
+| Kind | Checked | Said, not failed |
+|---|---|---|
+| Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
+| Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
+| Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
+| Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
+
+A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
+when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
+round, with the lines that failed (at most 20 named): one
+count with failing tests and the Reviewer's findings (**Fix rounds**), "(1 problem in what it
+wrote)" beside the round. A problem the file had before the turn is said, not sent back: the turn
+did not make it. A file KOLONİ cannot read (over 8 MB - or over 8 MB once its zip members or
+draw.io pages are inflated, all together, whatever size the file says they are; a deck of over
+1,000 slides - outside the project, an XML file that declares a DTD or entities in any encoding, a
+CSV field over the reader's limit) is said as not checked; one file gives at most 12 lines. Each kind can be switched off in **Settings › This project
+› Checks and git › Check by kind of work**; then its line says "Not checked: slides switched off
+for this project". Where the turn ended before the check, or changed such a file after it, the
+section says so instead of an old result. On the canvas, the Checks node shows each kind as one
+line: "documents · 2 ✓ · 1 ✗".
+
 ## A test for the change
 
 A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
@@ -257,6 +286,38 @@ size: one removed to make the tests pass is a blocking finding.
 
 While they work, agents that write and run code are told to run only the tests near their change;
 KOLONİ runs the project's whole test command once, at the end. The Orchestrator is told so too.
+
+## Coverage
+
+Where the project already measures coverage, KOLONİ says what share of the turn's changed lines
+the tests ran: "Coverage: 72% of the changed lines are run by tests (pytest-cov)". It installs
+nothing; it uses what the project has:
+
+- **pytest-cov**, named in `pyproject.toml`, `setup.cfg` or a `requirements*.txt`, for a pytest
+  run;
+- **Vitest's coverage** (`@vitest/coverage-v8` or `@vitest/coverage-istanbul` in `package.json`)
+  for a vitest run, or an `npm test`, `pnpm test` or `yarn test` whose script runs vitest;
+- **c8**, in `package.json` and in the project's own `node_modules/.bin`, run as
+  `npx --no c8 …` around a node test run, which never downloads it.
+
+A part with a test command of its own (see Which tests) is measured from its own folder.
+
+Only the whole suite is measured, never the related tests run first, whether it ends before the
+answer or goes on after it (then the line comes when it ends). KOLONİ adds only report flags, and
+the report is written under the project's scratch folder (`.koloni/tmp/`), read there (up to
+20 MB) and deleted. The run keeps its own command everywhere: its line under the answer, its leave
+on your card (an approved command is approved with the flags too) and whether an earlier run of it
+still stands. Where the flags fail (the runner does not know them, a coverage threshold of the
+project's fails once coverage is on, or the run did not go for another reason than your no or your
+Stop), KOLONİ runs it again without them and says "Coverage: not measured (the flags failed)".
+Then it does not try them on that command again - "not measured (the flags failed before …)" -
+until the folder's coverage settings change (`pyproject.toml`, `setup.cfg`, `.coveragerc`,
+`package.json`, the Vitest config, ...) or KOLONİ starts again. A
+run that stood from earlier is not measured again; where it was KOLONİ's own measured run on the
+same work, its share is said again.
+
+Lines a test could run but none did go to the Reviewer, as data: "New lines no test runs: `a.py`
+3, 12-14". A turn with no Reviewer just shows the share.
 
 ## The review
 
@@ -400,7 +461,7 @@ shows the tool and how long it has run; once the turn is over, each line of the 
 with the runner's counts ("pytest · 214 ✓ · 2 ✗"), the related step's ("related tests · 12
 passed"), and a whole suite running after the answer with its clock from its own start ("full
 tests · 2:14 …"), or "full tests · waiting for another test run to end", then its result or
-"full tests · stopped by you at 1:02 - not checked". Each fix round is a line back to the
+"full tests · stopped by you at 1:02 - not checked", and the coverage line where it was measured. Each fix round is a line back to the
 Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2: 1 blocking
 finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
 Orchestrator's own box gets one line: "● checking…"
@@ -444,6 +505,13 @@ the Orchestrator's window, whose record holds the runs.
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
+| ✓ `file`: 3 links, all found · `file`: 120 rows × 4 columns · `file`: 12 slides, 3 with notes | A document, diagram, data file or deck KOLONİ checked and found right. |
+| ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
+| – `file`: … - so before this turn | A problem the file already had: said, not sent back. |
+| – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
+| – Not checked: `kinds` - the turn ended before KOLONİ's check / Not checked on the last change: `kinds` | The turn ended before these checks, or changed such a file after them. |
+| – Coverage: 72% of the changed lines are run by tests (`tool`) | Of the turn's changed lines a test could run, the share the whole suite ran, by the project's own coverage tool. |
+| – Coverage: not measured (`why`) | The flags failed (the run went again without them; not tried again till the coverage settings change), or no report was written or it could not be read. |
 | – New tests: `files` | The test files the turn added or changed. |
 | – No new test: the Orchestrator said “`line`” | It was asked for a test and gave this reason instead (its first line). |
 | ✗ Test removed: `path` | The turn deleted a test file that was there before it. |

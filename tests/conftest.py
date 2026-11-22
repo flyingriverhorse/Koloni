@@ -200,6 +200,10 @@ BEFORE_ON = {"test_proof_before_scenarios"}
 # S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
 # the scripted Lead more in every such turn; its rows too. On only where tested.
 ASK_ON = {"test_proof_test_ask_scenarios"}
+# S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
+# their rows in every such turn, and a step of the scripted Lead more where one fails. On only
+# where tested.
+KINDS_ON = {"test_proof_kinds_scenarios"}
 
 
 async def _none(*_args, **_more):
@@ -236,6 +240,12 @@ def _no_ask(monkeypatch):
     monkeypatch.setattr(TestAskMixin, "_test_rows", lambda *_args, **_more: [])
 
 
+def _no_kinds(monkeypatch):
+    from app.agent.kinds_mixin import KindsMixin
+    monkeypatch.setattr(KindsMixin, "_proof_kinds", _none)
+    monkeypatch.setattr(KindsMixin, "_kinds_left", lambda *_args, **_more: [])
+
+
 def _no_gate(monkeypatch):
     from app.agent.proof_mixin import ProofMixin
     monkeypatch.setattr(ProofMixin, "_proof_left", _none)
@@ -244,7 +254,7 @@ def _no_gate(monkeypatch):
 
 # Each switch of the end check: the modules it is on in, and what turns it off elsewhere.
 SWITCHES = ((LOOK_ON, _no_look), (BEFORE_ON, _no_before), (REVIEW_ON, _no_review),
-            (ASK_ON, _no_ask))
+            (ASK_ON, _no_ask), (KINDS_ON, _no_kinds))
 
 
 @pytest.fixture(autouse=True)

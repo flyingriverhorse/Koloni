@@ -138,6 +138,7 @@ from app.agent.context_mixin import ContextMixin
 from app.agent.context_mixin import _taken_from as _taken_from
 from app.agent.context_mixin import git_prompt as git_prompt
 from app.agent.context_mixin import shell_note as shell_note
+from app.agent.coverage_mixin import CoverageMixin
 from app.agent.ctx import (
     NO_FOLDER,
     Ctx,
@@ -157,6 +158,7 @@ from app.agent.ctx import announce as announce
 from app.agent.discussions_mixin import DiscussionsMixin
 from app.agent.found_mixin import FoundMixin
 from app.agent.judge_mixin import JudgeMixin
+from app.agent.kinds_mixin import KindsMixin
 from app.agent.limits_mixin import BUDGET_NEAR as BUDGET_NEAR
 from app.agent.limits_mixin import OVER_LIMIT as OVER_LIMIT
 from app.agent.limits_mixin import LimitsMixin
@@ -1027,7 +1029,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
                   ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
-                  BeforeMixin):
+                  KindsMixin, BeforeMixin, CoverageMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1423,6 +1425,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._test_slot = Slots()  # (S6: as many at once as Settings say)
         # S6: each of KOLONİ's test runs while it runs - in its turn, or gone on after it.
         self._checks: dict[asyncio.Future, Check] = {}
+        # S9: where the coverage flags failed a whole suite - (project, folder, command) -> its
+        # coverage settings then (`coverage.config_mark`): not tried again till they change, or
+        # KOLONİ starts again (it was run twice each turn).
+        self._coverage_off: dict[tuple[str, str, str], str] = {}
         # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic
         # and wall clock), what it held then (None: no file) and whether that was read: a test
         # run that started before does not take it back while it holds that, and puts it back
