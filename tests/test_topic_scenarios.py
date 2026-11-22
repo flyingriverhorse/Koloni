@@ -233,21 +233,24 @@ def test_going_on_with_an_agent_counts_against_the_turns_agents(
 
 
 def test_a_continued_agent_has_what_its_role_may_do_today(make_client, wait_run, project_dir):
+    # (Karar 5: the Coder keeps its file tools - a Refactorer, whose are the user's.)
+    spawn_one = step(call("spawn_agent", {"role": "Refactorer", "task": OLD_TASK}, "s1"))
+    go_on = step(call("message_agent", {"to": "Refactorer", "message": MORE}, "m1"))
     scripts = {
-        "Lead": [SPAWN_CODER, text("made"), GO_ON, text("done")],
-        "Coder": [WRITE, text(OLD_WORDS),
+        "Lead": [spawn_one, text("made"), go_on, text("done")],
+        "Refactorer": [WRITE, text(OLD_WORDS),
                   step(call("write_file", {"path": "more.py", "content": "x"}, "w2")),
                   text("could not write")],
     }
     client, model, pid, cid = setup(make_client, project_dir, scripts)
     turn(client, wait_run, cid, FIRST)
-    coder_role = next(r for r in client.get("/api/roles").json() if r["name"] == "Coder")
-    narrowed = client.patch(f"/api/roles/{coder_role['id']}", json={
+    refactorer = next(r for r in client.get("/api/roles").json() if r["name"] == "Refactorer")
+    narrowed = client.patch(f"/api/roles/{refactorer['id']}", json={
         "tools": ["list_dir", "read_file", "search"]})
     assert narrowed.status_code == 200, narrowed.text
     snap, second = turn(client, wait_run, cid, SECOND)
-    coder = next(a for a in agents_of(snap, second["id"]) if a["name"] == "Coder")
-    assert "write_file" not in coder["tools"]
+    refactoring = next(a for a in agents_of(snap, second["id"]) if a["name"] == "Refactorer")
+    assert "write_file" not in refactoring["tools"]
     assert not (project_dir / "more.py").exists()
     ((status, _said),) = calls_of(snap, second["id"], "write_file")
     assert status != "succeeded"
