@@ -319,8 +319,11 @@ def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, cover
 @pytest.mark.parametrize("command, rule, covered", [
     ("python -m pytest --basetemp=C:/x", "python -m pytest", False),
     ("python -m pytest --basetemp=.koloni/tmp/x", "python -m pytest", False),
-    ("python -m pytest -p no:cacheprovider", "python -m pytest", False),
-    ("python -m pytest -pno:cacheprovider", "python -m pytest", False),
+    ("python -m pytest -p evilmod", "python -m pytest", False),
+    ("python -m pytest -pevilmod", "python -m pytest", False),
+    # (N1: a bundle of short options - plugin loads, measured with pytest 9.1.1)
+    ("pytest -qo addopts=-pevilmod", "pytest", False), ("pytest -qc sub/evil.ini", "pytest", False),
+    ("pytest -o addopts=-x", "pytest", False),
     ("pytest --rootdir=.. tests", "pytest", False), ("pytest --confcut=x", "pytest", False),
     ("pytest -o addopts=-pevil", "pytest", False), ("pytest -c other.ini", "pytest", False),
     ("pytest --override-ini=x", "pytest", False),
@@ -330,9 +333,19 @@ def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, cover
     ("gradle build -I x.gradle", "gradle build", False),
     ("gradle build -Ix.gradle", "gradle build", False),
     ("npm test --script-shell=x", "npm test", False), ("npm test --prefix ../x", "npm test", False),
-    ("npx eslint -p x src", "npx eslint", False),
-    ("uv run pytest --with x", "uv run pytest", False),
+    ("uv run pytest --with x", "uv run pytest", False), ("uv run -w x pytest", "uv run", False),
     ("npm run x -- bash -c y", "npm run x", False),
+    # (N5: another config, makefile, module, crate, project or shell; code loaded into node or
+    # maven; a report written outside)
+    ("npm test --userconfig x", "npm test", False),
+    ("npm test --node-options=--require=x", "npm test", False),
+    ("make build SHELL=/bin/evil", "make build", False), ("make build -f x.mk", "make build", False),
+    ("go test ./... -C ../x", "go test", False),
+    ("cargo build --manifest-path ../x/Cargo.toml", "cargo build", False),
+    ("gradle build -p ../x", "gradle build", False),
+    ("gradle build -b x.gradle", "gradle build", False),
+    ("tox -c ../x", "tox", False), ("mvn test -Dmaven.ext.class.path=x.jar", "mvn test", False),
+    ("pytest --junitxml=C:/x.xml", "pytest", False),
     # (as before: what changes nothing of what runs)
     ("python -m pytest -q tests/x.py", "python -m pytest", True),
     ("python -m pytest --co -q", "python -m pytest", True),
@@ -341,7 +354,16 @@ def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, cover
     ("npx eslint src", "npx eslint", True), ("uv run pytest -q", "uv run pytest", True),
     ("uv run pytest -W error", "uv run pytest", True), ("npx eslint -c cfg src", "npx eslint", True),
     ("git log -p", "git log", True), ("git switch -c x", "git switch", True),
-    ("python -m pytest -p no:cacheprovider", "python -m pytest -p no:cacheprovider", True),
+    ("python -m pytest -p evilmod", "python -m pytest -p evilmod", True),
+    # (N3: past a rule that names the package, a runner's words are the tool's)
+    ("npx eslint -p x src", "npx eslint", True), ("npx tsc -p tsconfig.json", "npx tsc", True),
+    # (N5: a plugin turned off, how it logs, a script's own words after `--`, a report inside)
+    ("python -m pytest -p no:cacheprovider", "python -m pytest", True),
+    ("python -m pytest -pno:cacheprovider", "python -m pytest", True),
+    ("pytest -o log_cli=true", "pytest", True), ("npm test -- --prefix x", "npm test", True),
+    ("pytest --junitxml=out/r.xml", "pytest", True), ("pytest -qk test_o", "pytest", True),
+    ("make build -j4", "make build", True), ("gradle build -Dprop=x", "gradle build", True),
+    ("go test -count=1 ./...", "go test", True), ("mvn test -DskipTests", "mvn test", True),
 ])
 def test_a_rule_never_covers_an_option_past_it_that_runs_fetches_or_writes_outside(
     command, rule, covered
@@ -361,9 +383,12 @@ def test_no_rule_is_offered_that_would_not_cover_its_own_line(command, offered):
 
 @pytest.mark.parametrize("command", [
     "python -m pytest --basetemp=C:/x", "python -m pytest --basetemp ../x",
-    "pytest --basetemp=/tmp/x", "uv run pytest --basetemp=$TMP/x",
+    "pytest --basetemp=/tmp/x", "uv run pytest --basetemp=$TMP/x", "pytest --basetemp=src",
+    "PYTEST_ADDOPTS=--basetemp=/x pytest", "$env:PYTEST_ADDOPTS='--basetemp=C:/x'; pytest",
+    "pytest -o addopts=--basetemp=/x", 'pytest -o "addopts=--basetemp C:/x"',
 ])
-def test_a_basetemp_outside_the_folder_is_a_delete(command):
-    """pytest empties --basetemp's folder first: one outside is deleted."""
+def test_a_basetemp_is_a_delete(command):
+    """pytest empties --basetemp's folder first - on its line, in addopts or PYTEST_ADDOPTS; but
+    the agents' scratch."""
     assert harms(command).startswith("Deletes the folder given to pytest's --basetemp")
     assert harms("python -m pytest --basetemp=.koloni/tmp/x") == ""

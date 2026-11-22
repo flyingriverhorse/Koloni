@@ -1,5 +1,5 @@
 {
-"about": "K-koordinasyon's command gate (review rounds 3-4): each line's verdict as 650e22a gave it - harm_class (0 none, 1 soft, 2 always), copy_reason in a copy with links (the sentence's family, '' no card), installs(), web_off_reason with http_request off - which HEAD must give at least. <x> is a path the test makes; win32: Windows' own spellings, checked there alone. `allow`: the lines meant to go down, each with why. `xfail`: known regressions still open. `up`: lines meant to go up (harm at least soft). `shared` (k-okuyucu-3): lines that in a branch's worktree reaches_shared_git must ask - a write to a place built at run time.",
+"about": "K-koordinasyon's command gate (review rounds 3-4): each line's verdict as 650e22a gave it - harm_class (0 none, 1 soft, 2 always), copy_reason in a copy with links (the sentence's family, '' no card), installs(), web_off_reason with http_request off - which HEAD must give at least. <x> is a path the test makes; win32: Windows' own spellings, checked there alone. `allow`: the lines meant to go down, each with why. `xfail`: known regressions still open. `up`: lines meant to go up (harm at least soft). `shared` (k-okuyucu-3): lines that in a branch's worktree reaches_shared_git must ask, each with why.",
 "lines": [
 [
 "",
@@ -1138,6 +1138,14 @@ false,
 false
 ],
 [
+"$d = (Get-Content .git) -replace 'gitdir: ',''; Set-Content \"$d/../users-wt/gitdir\" x",
+2,
+"",
+false,
+false,
+false
+],
+[
 "$d='con + fig",
 0,
 "",
@@ -1188,6 +1196,22 @@ false
 [
 "$d='tests'; $d='config'; rg KEY $d",
 0,
+"",
+false,
+false,
+false
+],
+[
+"$env:PYTEST_ADDOPTS = \"--basetemp=../x\"; python -m pytest -q",
+1,
+"out",
+false,
+false,
+false
+],
+[
+"$env:PYTEST_ADDOPTS='--basetemp=C:/x'; pytest",
+1,
 "",
 false,
 false,
@@ -1307,6 +1331,30 @@ false
 ],
 [
 "$g = gci -r; Select-String x -Path $g",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$g = git rev-parse --git-dir; 'x' | Set-Content $g/x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$g = git rev-parse --git-dir; Set-Content -Va x -Pa $g/x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$g = git rev-parse --git-dir; sc $g/x x",
 0,
 "",
 false,
@@ -3429,6 +3477,22 @@ false
 "'rm' -rf .koloni/tmp/a",
 1,
 "delete",
+false,
+false,
+false
+],
+[
+"'x' | Export-Clixml \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"'x' | Out-File -fi ((git rev-parse --git-dir) + '/x')",
+0,
+"",
 false,
 false,
 false
@@ -7450,6 +7514,14 @@ false,
 false
 ],
 [
+": > \"$(git rev-parse --git-dir)/../users-wt/logs/HEAD\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 ": by id",
 0,
 "",
@@ -8162,8 +8234,24 @@ true,
 false
 ],
 [
+"Copy-Item -Path x -Destination \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Copy-Item -Recurse .koloni/tmp/src/* -Destination (Split-Path .koloni/tmp)",
 2,
+"",
+false,
+false,
+false
+],
+[
+"Copy-Item a \"$env:TEMP\\a\"",
+0,
 "",
 false,
 false,
@@ -8291,6 +8379,22 @@ false
 ],
 [
 "Copy-Item x (<project>.)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Copy-Item x -D \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Copy-Item x -Dest \"$(git rev-parse --git-dir)/x\"",
 0,
 "",
 false,
@@ -8498,6 +8602,14 @@ false,
 false
 ],
 [
+"D=$(sed 's/gitdir: //' .git); cp x \"$D/../users-wt/gitdir\"",
+2,
+"",
+false,
+false,
+false
+],
+[
 "D=../../b/tree; cp x $D/y",
 0,
 "out",
@@ -8643,6 +8755,22 @@ false
 ],
 [
 "Every status a command is given on the bus from now on.",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Expand-Archive x.zip -DestinationPath (Split-Path (git rev-parse --git-dir))",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Export-Csv -Path \"$(git rev-parse --git-dir)/x\" -InputObject 1",
 0,
 "",
 false,
@@ -10314,6 +10442,14 @@ false,
 true
 ],
 [
+"Invoke-WebRequest file:///c:/x -OutFile \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+true
+],
+[
 "Invoke-WebRequest http://e -outf x.bat",
 0,
 "",
@@ -10786,6 +10922,14 @@ true,
 false
 ],
 [
+"Move-Item -Destination \"$(git rev-parse --git-dir)/x\" -Path x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Move-Item .koloni/tmp/x (Split-Path .koloni/tmp)",
 2,
 "",
@@ -11002,6 +11146,38 @@ true,
 false
 ],
 [
+"New-Item -ItemType Junction -Path g -Target $d",
+2,
+"",
+false,
+false,
+false
+],
+[
+"New-Item -ItemType Junction -Path g -Target (Split-Path $d)",
+2,
+"",
+false,
+false,
+false
+],
+[
+"New-Item -ItemType Junction -Path g -Target (Split-Path (git rev-parse --git-dir))",
+2,
+"",
+false,
+false,
+false
+],
+[
+"New-Item -ItemType SymbolicLink -Path g -Value $d",
+2,
+"",
+false,
+false,
+false
+],
+[
 "New-Item -ItemType:Junction -Path .koloni/tmp/l -Target C:\\Users",
 2,
 "",
@@ -11035,6 +11211,14 @@ false
 ],
 [
 "New-Item node_modules/x -ItemType File -Force && echo ok",
+0,
+"",
+false,
+false,
+false
+],
+[
+"New-Object IO.StreamWriter \"$(git rev-parse --git-dir)/x\"",
 0,
 "",
 false,
@@ -11131,6 +11315,14 @@ false
 ],
 [
 "Opens a git worktree outside the project (git worktree add).",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Out-File -FilePath (git rev-parse --git-dir)/x -InputObject y",
 0,
 "",
 false,
@@ -11252,6 +11444,22 @@ false
 [
 "PRAGMA table_info(commands)",
 0,
+"",
+false,
+false,
+false
+],
+[
+"PYTEST_ADDOPTS=\"--basetemp C:/x\" python -m pytest",
+1,
+"",
+false,
+false,
+false
+],
+[
+"PYTEST_ADDOPTS=--basetemp=/x pytest",
+1,
 "",
 false,
 false,
@@ -11907,6 +12115,14 @@ false
 ],
 [
 "Remove-WmiObject",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Rename-Item x -NewName ((git rev-parse --git-dir) + '/x')",
 0,
 "",
 false,
@@ -12634,6 +12850,14 @@ false,
 false
 ],
 [
+"Set-Content (Resolve-Path ((git rev-parse --git-dir) + '/../users-wt/gitdir')) x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Set-Content (Resolve-Path .koloni/tmp/..)/x 1",
 2,
 "",
@@ -12655,6 +12879,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"Set-Content -Path \"$PWD/x\" -Value y",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -15058,6 +15290,14 @@ false,
 false
 ],
 [
+"TMPDIR=$(git rev-parse --git-dir); echo x > \"$TMPDIR/f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "TSKILL Python",
 0,
 "",
@@ -16242,6 +16482,46 @@ false,
 false
 ],
 [
+"[IO.File]::Copy(\"$PWD/g.txt\", (Join-Path (Split-Path (git rev-parse --git-dir)) 'users-wt/gitdir'), $true)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"[IO.File]::Copy('x', \"$(git rev-parse --git-dir)/x\", $true)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"[IO.File]::Create(\"$(git rev-parse --git-dir)/x\")",
+0,
+"",
+false,
+false,
+false
+],
+[
+"[IO.File]::Move('x', \"$(git rev-parse --git-dir)/x\")",
+0,
+"",
+false,
+false,
+false
+],
+[
+"[IO.File]::OpenWrite(\"$(git rev-parse --git-dir)/x\")",
+0,
+"",
+false,
+false,
+false
+],
+[
 "[IO.File]::WriteAllText",
 0,
 "",
@@ -16259,6 +16539,22 @@ false
 ],
 [
 "[IO.File]::WriteAllText((Join-Path (git rev-parse --git-dir) 'x'), 'y')",
+0,
+"",
+false,
+false,
+false
+],
+[
+"[IO.File]::WriteAllText([IO.Path]::Combine((git rev-parse --git-dir), 'x'), 'x')",
+0,
+"",
+false,
+false,
+false
+],
+[
+"[IO.StreamWriter]::new(\"$(git rev-parse --git-dir)/x\").Write('y')",
 0,
 "",
 false,
@@ -16315,6 +16611,14 @@ false
 ],
 [
 "[System.IO.File]::AppendAllText(\"$(git rev-parse --git-dir)/x\", 'y')",
+0,
+"",
+false,
+false,
+false
+],
+[
+"[System.IO.File]::WriteAllLines(\"$(git rev-parse --git-dir)/x\", @('y'))",
 0,
 "",
 false,
@@ -19794,6 +20098,14 @@ false,
 true
 ],
 [
+"bun create vite",
+0,
+"",
+true,
+false,
+true
+],
+[
 "bun i",
 0,
 "",
@@ -21722,6 +22034,14 @@ false,
 false
 ],
 [
+"cat x | tee -- \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "cat x.pid",
 0,
 "",
@@ -21778,9 +22098,41 @@ false,
 false
 ],
 [
+"cd \"$(cut -d' ' -f2 .git)\" && echo x > ../users-wt/gitdir",
+2,
+"out",
+false,
+false,
+false
+],
+[
 "cd \"$(dirname \"$(git rev-parse --git-dir)\")\" && echo x > users-wt/gitdir",
 0,
 "",
+false,
+false,
+false
+],
+[
+"cd \"$(git rev-parse --git-dir)\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"cd \"$(git rev-parse --git-dir)\" && cd .. && echo x > users-wt/gitdir",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"cd \"$(git rev-parse --git-dir)\" ; cat > ../users-wt/gitdir <<< x",
+0,
+"out",
 false,
 false,
 false
@@ -24466,6 +24818,14 @@ false,
 false
 ],
 [
+"cmd /c \"for /f %i in ('git rev-parse --git-dir') do echo x > %i\\..\\users-wt\\gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "cmd /c \"gc ../../b/tree/secret | sls x\"",
 0,
 "out",
@@ -26042,6 +26402,22 @@ true,
 false
 ],
 [
+"cmd /c mklink /J g \"$(dirname \"$(git rev-parse --git-dir)\")\"",
+2,
+"",
+false,
+false,
+false
+],
+[
+"cmd /c mklink /J g \"%D%\"",
+2,
+"",
+false,
+false,
+false
+],
+[
 "cmd /c mklink /J k C:/Users",
 2,
 "",
@@ -26752,6 +27128,22 @@ false
 false,
 false,
 false
+],
+[
+"corepack pnpm dlx cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
+"corepack yarn dlx cowsay",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "cp \"a (1).txt\" b.txt",
@@ -29434,6 +29826,30 @@ false,
 false
 ],
 [
+"deno run -A jsr:@std/http/file-server",
+0,
+"",
+true,
+false,
+true
+],
+[
+"deno run main.ts",
+0,
+"",
+false,
+false,
+false
+],
+[
+"deno run npm:cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
 "deploy.py -c \".cla*\"",
 2,
 "",
@@ -29515,6 +29931,14 @@ false
 ],
 [
 "dir env:",
+0,
+"",
+false,
+false,
+false
+],
+[
+"dirname \"$PWD\" > \"$(git rev-parse --git-dir)/../users-wt/gitdir\"",
 0,
 "",
 false,
@@ -30323,6 +30747,14 @@ true
 ],
 [
 "echo \"$(date) (now)\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo \"$(dirname \"$PWD\")/zz/x\" > \"$(git rev-parse --git-dir)/../users-wt/gitdir\"",
 0,
 "",
 false,
@@ -33162,6 +33594,30 @@ false,
 false
 ],
 [
+"echo x &> \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x &>\"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x 1>\"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo x 2> \"$(git rev-parse --git-dir)/x\"",
 0,
 "",
@@ -33194,8 +33650,56 @@ false,
 false
 ],
 [
+"echo x > \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"",
+2,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"$(date +%s)/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"$D/users-wt/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"$TMPDIR/f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo x > \".cl\"\"aude/settings.json\"",
 2,
+"",
+false,
+false,
+false
+],
+[
+"echo x > $D/../users-wt/gitdir",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > $TMP/f",
+0,
 "",
 false,
 false,
@@ -33466,6 +33970,14 @@ false,
 false
 ],
 [
+"echo x > logs/run-$(date +%F).txt",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo x > node_modules/../.git/hooks/pre-commit",
 2,
 "write",
@@ -33538,6 +34050,14 @@ false,
 false
 ],
 [
+"echo x >\"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo x >\"../base.json",
 0,
 "out",
@@ -33549,6 +34069,14 @@ false
 "echo x >\"../base.json\"",
 0,
 "out",
+false,
+false,
+false
+],
+[
+"echo x >$D/x",
+0,
+"",
 false,
 false,
 false
@@ -33618,6 +34146,22 @@ false,
 false
 ],
 [
+"echo x >| \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x >|\"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo x ^\ntaskkill /F /IM python.exe",
 2,
 "kill",
@@ -33639,6 +34183,22 @@ false
 "write",
 false,
 true,
+false
+],
+[
+"echo x | awk '{print > \"'\"$(dirname \"$(git rev-parse --git-dir)\")\"'/users-wt/gitdir\"}'",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x | tee >(cat > \"$(git rev-parse --git-dir)/x\")",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -33872,6 +34432,14 @@ false
 true,
 true,
 true
+],
+[
+"echo x>\"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
 ],
 [
 "echo x><uown>\\..\\..\\b\\tree\\y",
@@ -36602,6 +37170,14 @@ false,
 false
 ],
 [
+"exec 3>\"$(git rev-parse --git-dir)/x\"; echo x >&3",
+0,
+"",
+false,
+false,
+false
+],
+[
 "exec kill -9 -1",
 0,
 "",
@@ -36666,6 +37242,14 @@ false,
 false
 ],
 [
+"export D=$(git rev-parse --git-dir)",
+0,
+"",
+false,
+false,
+false
+],
+[
 "export D=../../b",
 0,
 "out",
@@ -36676,6 +37260,14 @@ false
 [
 "export D=../../b; cp x $D",
 0,
+"out",
+false,
+false,
+false
+],
+[
+"export TMP=../../proj/.git; echo x > $TMP/f",
+2,
 "out",
 false,
 false,
@@ -37858,11 +38450,27 @@ true,
 false
 ],
 [
+"for /f \"delims=\" %%i in ('git rev-parse --git-dir') do copy x %%i\\x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "for /f \"delims=\" %a in ('npm ci') do echo %a",
 0,
 "",
 false,
 true,
+false
+],
+[
+"for /f \"tokens=2\" %%i in (.git) do copy x %%i\\..\\users-wt\\gitdir",
+2,
+"",
+false,
+false,
 false
 ],
 [
@@ -38154,6 +38762,22 @@ true,
 false
 ],
 [
+"for /f %i in ('git rev-parse --git-dir') do echo x > %i\\..\\users-wt\\gitdir",
+0,
+"",
+false,
+false,
+false
+],
+[
+"for /f %i in ('type .git') do echo x > %i\\..\\users-wt\\gitdir",
+2,
+"",
+false,
+false,
+false
+],
+[
 "for /f tokens=5 %a in",
 0,
 "",
@@ -38410,7 +39034,39 @@ false,
 false
 ],
 [
+"for f in $(ls ..); do echo x > \"$f/gitdir\"; done",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"for f in *.py; do black -q \"$f\" > \"$f.new\"; done",
+0,
+"",
+false,
+false,
+false
+],
+[
 "for f in *.tmp; do rm -rf \"$f\"; done",
+0,
+"",
+false,
+false,
+false
+],
+[
+"for f in ../*; do echo x > \"$f\"; done",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"for f in a.txt b.txt; do cp \"$f\" \"$f.bak\"; done",
 0,
 "",
 false,
@@ -42042,6 +42698,14 @@ false,
 false
 ],
 [
+"git config --file \"$(git rev-parse --git-dir)/../users-wt/config.worktree\" core.worktree x",
+2,
+"",
+false,
+false,
+false
+],
+[
 "git config --get user.name",
 0,
 "",
@@ -43450,6 +44114,46 @@ false,
 false
 ],
 [
+"git rev-parse --absolute-git-dir",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse --git-dir",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse --git-path hooks",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse HEAD > \"$(git rev-parse --git-dir)/../users-wt/HEAD\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse HEAD > \"$(git rev-parse --git-dir)/../users-wt/HEAD\" && : > \"$(git rev-parse --git-dir)/../users-wt/logs/HEAD\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "git rev-parse HEAD | Out-File $p",
 0,
 "",
@@ -43515,6 +44219,14 @@ false
 ],
 [
 "git rev-parse feat >> \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse feat >| \"$(dirname \"$(dirname \"$(git rev-parse --git-dir)\")\")/refs/remotes/origin/x\"",
 0,
 "",
 false,
@@ -43962,6 +44674,14 @@ false,
 false
 ],
 [
+"git update-ref refs/remotes/origin/x HEAD",
+1,
+"",
+false,
+false,
+false
+],
+[
 "git worktree",
 0,
 "",
@@ -44133,6 +44853,30 @@ false
 "go run - <<'EOF'\npackage main\nimport \"os/exec\"\nfunc main() { exec.Command(\"pkill\", \"uvicorn\").Run() }\nEOF",
 2,
 "kill",
+false,
+false,
+false
+],
+[
+"go run ./cmd/x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"go run golang.org/x/tools/cmd/stringer@latest",
+0,
+"",
+true,
+false,
+true
+],
+[
+"go run main.go",
+0,
+"",
 false,
 false,
 false
@@ -52938,6 +53682,14 @@ false,
 false
 ],
 [
+"ln -s \"$D\" g",
+2,
+"",
+false,
+false,
+false
+],
+[
 "ln -s .. x",
 2,
 "out",
@@ -52949,6 +53701,14 @@ false
 "ln -s ../x .koloni/tmp/k",
 2,
 "out",
+false,
+false,
+false
+],
+[
+"ln -sf \"$(dirname \"$(git rev-parse --git-dir)\")\" g",
+2,
+"",
 false,
 false,
 false
@@ -52971,6 +53731,14 @@ false
 ],
 [
 "ln -sf a.js node_modules/x && echo ok",
+2,
+"",
+false,
+false,
+false
+],
+[
+"ln -sfn $D/.. g",
 2,
 "",
 false,
@@ -53003,6 +53771,22 @@ false
 ],
 [
 "ls   -la",
+0,
+"",
+false,
+false,
+false
+],
+[
+"ls \"$(dirname \"$(git rev-parse --git-dir)\")\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"ls \"$(git rev-parse --git-dir)/..\"",
 0,
 "",
 false,
@@ -53543,6 +54327,14 @@ false
 "out",
 false,
 true,
+false
+],
+[
+"mklink /J g %D%",
+2,
+"",
+false,
+false,
 false
 ],
 [
@@ -55762,6 +56554,22 @@ false,
 false
 ],
 [
+"npm create vite",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm create vite@latest app",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm ddp",
 0,
 "",
@@ -55779,6 +56587,14 @@ true
 ],
 [
 "npm exec",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npm exec -- cowsay --package=x",
 0,
 "",
 false,
@@ -55970,6 +56786,14 @@ false,
 false
 ],
 [
+"npm exec cowsay --package=evil",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm exec cowsay hi",
 0,
 "",
@@ -56032,6 +56856,38 @@ false
 false,
 false,
 false
+],
+[
+"npm init",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npm init -y",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npm init @scope/x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm init vite",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "npm ins x",
@@ -56586,6 +57442,14 @@ false,
 false
 ],
 [
+"npm test > \"build-$(date +%s).log\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npm test > out.log",
 0,
 "",
@@ -56722,6 +57586,14 @@ false,
 false
 ],
 [
+"npm x tsc --package=evil",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm –g ci",
 0,
 "",
@@ -56795,6 +57667,14 @@ false
 ],
 [
 "npx --call='npm install x'",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npx --no-install tsc -p x",
 0,
 "",
 false,
@@ -56891,6 +57771,14 @@ false
 ],
 [
 "npx -y npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npx -y tsc -p tsconfig.json",
 0,
 "",
 false,
@@ -57026,6 +57914,14 @@ false,
 false
 ],
 [
+"npx tsc -p tsconfig.json",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npx vercel deploy",
 1,
 "",
@@ -57035,6 +57931,14 @@ true
 ],
 [
 "npx vitest run",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npx vitest run -p 2",
 0,
 "",
 false,
@@ -57437,6 +58341,22 @@ false
 "perl -ne print ../../b/tree/secret && echo ok",
 0,
 "out",
+false,
+false,
+false
+],
+[
+"perl -pi -e \"s#.*#$(pwd -W)/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"perl -pi -e 's#.*#/x#' \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+0,
+"",
 false,
 false,
 false
@@ -58659,6 +59579,14 @@ true
 ],
 [
 "pnpm add x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"pnpm create vite",
 0,
 "",
 true,
@@ -60439,6 +61367,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"printf 'x\\n' | dd of=\"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+2,
+"",
+false,
+false,
 false
 ],
 [
@@ -63082,6 +64018,14 @@ false,
 false
 ],
 [
+"pytest --basetemp=src",
+1,
+"",
+false,
+false,
+false
+],
+[
 "pytest -k \"$(pkill python)\"",
 2,
 "kill",
@@ -63180,6 +64124,22 @@ false
 [
 "pytest -n 2 tests/test_x.py -k kill",
 0,
+"",
+false,
+false,
+false
+],
+[
+"pytest -o \"addopts=--basetemp=C:/x\"",
+1,
+"",
+false,
+false,
+false
+],
+[
+"pytest -o addopts=--basetemp=/x",
+1,
 "",
 false,
 false,
@@ -63986,6 +64946,14 @@ false,
 false
 ],
 [
+"python -c \"import subprocess,os;d=subprocess.check_output(['git','rev-parse','--git-dir'],text=True).strip();open(os.path.join(os.path.dirname(d),'users-wt','gitdir'),'w').write('x')\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "python -c \"import subprocess; subprocess.Popen(['killall', 'node'])\"",
 0,
 "",
@@ -64115,6 +65083,14 @@ false
 ],
 [
 "python -c \"open('blob.bin','wb').write(bytes([0,2,65,0]))\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"python -c \"open(__import__('os').path.dirname(r'$(git rev-parse --git-dir)')+'/users-wt/gitdir','w').write('x')\"",
 0,
 "",
 false,
@@ -64396,6 +65372,14 @@ false
 [
 "python -m pytest --basetemp C:/x",
 2,
+"",
+false,
+false,
+false
+],
+[
+"python -m pytest --basetemp src -q",
+1,
 "",
 false,
 false,
@@ -65035,6 +66019,14 @@ false
 ],
 [
 "python x.py 2>&1 | gc *",
+0,
+"",
+false,
+false,
+false
+],
+[
+"python x.py > \"$env:TMP/out.txt\"",
 0,
 "",
 false,
@@ -68114,6 +69106,14 @@ false,
 false
 ],
 [
+"robocopy . \"$(git rev-parse --git-dir)\" x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "robocopy . ../../b/tree /E",
 0,
 "out",
@@ -68188,6 +69188,14 @@ true
 [
 "rsync -a a.js node_modules/x/ && echo ok",
 1,
+"",
+false,
+false,
+true
+],
+[
+"rsync gitdir \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+2,
 "",
 false,
 false,
@@ -68722,6 +69730,22 @@ false,
 false
 ],
 [
+"sed -i \"s#.*#$(pwd -W)/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sed -i \"s#.*#$PWD/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "sed -i \"s#a#b#\" ../../x",
 0,
 "out",
@@ -68773,6 +69797,14 @@ false
 "sed -i '' s/a/b/ ../../b/tree/x",
 0,
 "out",
+false,
+false,
+false
+],
+[
+"sed -i 's#.*#C:/x/.git#' \"$(git rev-parse --git-dir)/../users-wt/gitdir\"",
+0,
+"",
 false,
 false,
 false
@@ -73906,6 +74938,14 @@ false,
 false
 ],
 [
+"tar -C \"$(dirname \"$(git rev-parse --git-dir)\")\" -xf evil.tar",
+0,
+"",
+false,
+false,
+false
+],
+[
 "tar -cf /dev/null x --checkpoint=1 --checkpoint-action=exec='pkill uvicorn'",
 0,
 "",
@@ -78162,6 +79202,14 @@ false,
 false
 ],
 [
+"type x > \"%G%\\x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "unlink .koloni/tmp/a.png",
 1,
 "",
@@ -78475,6 +79523,14 @@ false
 ],
 [
 "until yarn; do sleep 1; done",
+0,
+"",
+false,
+false,
+false
+],
+[
+"unzip -o evil.zip -d \"$(dirname \"$(git rev-parse --git-dir)\")\"",
 0,
 "",
 false,
@@ -81226,6 +82282,14 @@ false,
 false
 ],
 [
+"xcopy x \"$(git rev-parse --git-dir)\\x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "xcopy x ..\\..\\b\\tree\\ /Y",
 0,
 "out",
@@ -81283,6 +82347,14 @@ false
 ],
 [
 "yarn add x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"yarn create vite",
 0,
 "",
 true,
@@ -82683,37 +83755,130 @@ false
 "rm -rf build; npm pub\\\nlish": "round 4 (Away re-check): a backslash-newline inside a word joins it in bash - at least its harm",
 "curl https://x -\\\nd @report.txt": "round 4 (Away re-check): a backslash-newline inside a word joins it in bash - at least its harm"
 },
-"shared": [
-"Add-Content -Path (Join-Path (git rev-parse --git-common-dir) 'worktrees/users-wt/gitdir') -Value x",
-"Copy-Item x -Destination (Join-Path (git rev-parse --git-dir) 'x')",
-"D=$(git rev-parse --git-common-dir); git rev-parse HEAD > $D/refs/remotes/origin/x",
-"Move-Item x ((git rev-parse --git-dir) + '/x')",
-"New-Item -Path (Split-Path (git rev-parse --git-dir)) -Name users-wt/gitdir -Value x -Force",
-"Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
-"Set-Content -LiteralPath $p -Value x",
-"Set-Location (Split-Path (git rev-parse --git-dir)); Set-Content users-wt/gitdir x",
-"[IO.File]::WriteAllText((Join-Path (git rev-parse --git-dir) 'x'), 'y')",
-"[System.IO.File]::AppendAllText(\"$(git rev-parse --git-dir)/x\", 'y')",
-"bash -c 'echo x > \"$(git rev-parse --git-dir)/x\"'",
-"cd \"$(dirname \"$(git rev-parse --git-dir)\")\" && echo x > users-wt/gitdir",
-"cmd /c \"echo x > %G%/x\"",
-"cp -t \"$(git rev-parse --git-dir)\" x",
-"cp x \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
-"echo \"$(pwd -W)/x\" > \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
-"echo x 2> \"$(git rev-parse --git-dir)/x\"",
-"echo x > ${D}/refs/remotes/origin/x",
-"echo x > %G%/x",
-"echo x > `git rev-parse --git-dir`/x",
-"git rev-parse HEAD | Out-File $p",
-"git rev-parse HEAD | Out-File -FilePath \"$(git rev-parse --git-dir)/x\"",
-"git rev-parse HEAD | Tee-Object -FilePath $p",
-"git rev-parse HEAD | tee \"$(git rev-parse --git-dir)/refs/remotes/origin/x\"",
-"git rev-parse HEAD | tee -a $G/x",
-"git rev-parse feat > \"$(dirname \"$(dirname \"$(git rev-parse --git-dir)\")\")/refs/remotes/origin/x\"",
-"git rev-parse feat >> \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\"",
-"install -D x \"$(git rev-parse --git-dir)/hooks/pre-commit\"",
-"ln x \"$(git rev-parse --git-dir)/x\"",
-"ls | xargs -I{} cp x {}/gitdir",
-"mv x \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\""
-]
+"shared": {
+"$d = (Get-Content .git) -replace 'gitdir: ',''; Set-Content \"$d/../users-wt/gitdir\" x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"$g = git rev-parse --git-dir; 'x' | Set-Content $g/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"$g = git rev-parse --git-dir; Set-Content -Va x -Pa $g/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"$g = git rev-parse --git-dir; sc $g/x x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"'x' | Export-Clixml \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"'x' | Out-File -fi ((git rev-parse --git-dir) + '/x')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+": > \"$(git rev-parse --git-dir)/../users-wt/logs/HEAD\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Add-Content -Path (Join-Path (git rev-parse --git-common-dir) 'worktrees/users-wt/gitdir') -Value x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Copy-Item -Path x -Destination \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Copy-Item x -D \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Copy-Item x -Dest \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Copy-Item x -Destination (Join-Path (git rev-parse --git-dir) 'x')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"D=$(git rev-parse --git-common-dir); git rev-parse HEAD > $D/refs/remotes/origin/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"D=$(sed 's/gitdir: //' .git); cp x \"$D/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Expand-Archive x.zip -DestinationPath (Split-Path (git rev-parse --git-dir))": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Export-Csv -Path \"$(git rev-parse --git-dir)/x\" -InputObject 1": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Invoke-WebRequest file:///c:/x -OutFile \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Move-Item -Destination \"$(git rev-parse --git-dir)/x\" -Path x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Move-Item x ((git rev-parse --git-dir) + '/x')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"New-Item -ItemType Junction -Path g -Target $d": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"New-Item -ItemType Junction -Path g -Target (Split-Path $d)": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"New-Item -ItemType Junction -Path g -Target (Split-Path (git rev-parse --git-dir))": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"New-Item -ItemType SymbolicLink -Path g -Value $d": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"New-Item -Path (Split-Path (git rev-parse --git-dir)) -Name users-wt/gitdir -Value x -Force": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"New-Object IO.StreamWriter \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Out-File -FilePath (git rev-parse --git-dir)/x -InputObject y": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Rename-Item x -NewName ((git rev-parse --git-dir) + '/x')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Set-Content (Resolve-Path ((git rev-parse --git-dir) + '/../users-wt/gitdir')) x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Set-Content -LiteralPath $p -Value x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Set-Location (Split-Path (git rev-parse --git-dir)); Set-Content users-wt/gitdir x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"TMPDIR=$(git rev-parse --git-dir); echo x > \"$TMPDIR/f\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[IO.File]::Copy(\"$PWD/g.txt\", (Join-Path (Split-Path (git rev-parse --git-dir)) 'users-wt/gitdir'), $true)": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[IO.File]::Copy('x', \"$(git rev-parse --git-dir)/x\", $true)": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[IO.File]::Create(\"$(git rev-parse --git-dir)/x\")": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[IO.File]::Move('x', \"$(git rev-parse --git-dir)/x\")": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[IO.File]::OpenWrite(\"$(git rev-parse --git-dir)/x\")": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[IO.File]::WriteAllText((Join-Path (git rev-parse --git-dir) 'x'), 'y')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[IO.File]::WriteAllText([IO.Path]::Combine((git rev-parse --git-dir), 'x'), 'x')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[IO.StreamWriter]::new(\"$(git rev-parse --git-dir)/x\").Write('y')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[System.IO.File]::AppendAllText(\"$(git rev-parse --git-dir)/x\", 'y')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[System.IO.File]::WriteAllLines(\"$(git rev-parse --git-dir)/x\", @('y'))": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"bash -c 'echo x > \"$(git rev-parse --git-dir)/x\"'": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cat x | tee -- \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cd \"$(cut -d' ' -f2 .git)\" && echo x > ../users-wt/gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cd \"$(dirname \"$(git rev-parse --git-dir)\")\" && echo x > users-wt/gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cd \"$(git rev-parse --git-dir)\"": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
+"cd \"$(git rev-parse --git-dir)\" && cd .. && echo x > users-wt/gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cd \"$(git rev-parse --git-dir)\" ; cat > ../users-wt/gitdir <<< x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cmd /c \"echo x > %G%/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cmd /c \"for /f %i in ('git rev-parse --git-dir') do echo x > %i\\..\\users-wt\\gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cmd /c mklink /J g \"$(dirname \"$(git rev-parse --git-dir)\")\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cmd /c mklink /J g \"%D%\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cp -t \"$(git rev-parse --git-dir)\" x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"cp x \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"dirname \"$PWD\" > \"$(git rev-parse --git-dir)/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo \"$(dirname \"$PWD\")/zz/x\" > \"$(git rev-parse --git-dir)/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo \"$(pwd -W)/x\" > \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x &> \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x &>\"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x 1>\"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x 2> \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > \"$(date +%s)/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > \"$D/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > $D/../users-wt/gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > ${D}/refs/remotes/origin/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > %G%/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > `git rev-parse --git-dir`/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x >\"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x >$D/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x >| \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x >|\"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x | awk '{print > \"'\"$(dirname \"$(git rev-parse --git-dir)\")\"'/users-wt/gitdir\"}'": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x | tee >(cat > \"$(git rev-parse --git-dir)/x\")": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x>\"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"exec 3>\"$(git rev-parse --git-dir)/x\"; echo x >&3": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"export D=$(git rev-parse --git-dir)": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
+"export TMP=../../proj/.git; echo x > $TMP/f": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for /f \"delims=\" %%i in ('git rev-parse --git-dir') do copy x %%i\\x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for /f \"tokens=2\" %%i in (.git) do copy x %%i\\..\\users-wt\\gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for /f %i in ('git rev-parse --git-dir') do echo x > %i\\..\\users-wt\\gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for /f %i in ('type .git') do echo x > %i\\..\\users-wt\\gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for f in $(ls ..); do echo x > \"$f/gitdir\"; done": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for f in ../*; do echo x > \"$f\"; done": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git config --file \"$(git rev-parse --git-dir)/../users-wt/config.worktree\" core.worktree x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse --absolute-git-dir": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
+"git rev-parse --git-dir": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
+"git rev-parse --git-path hooks": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
+"git rev-parse HEAD > \"$(git rev-parse --git-dir)/../users-wt/HEAD\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse HEAD > \"$(git rev-parse --git-dir)/../users-wt/HEAD\" && : > \"$(git rev-parse --git-dir)/../users-wt/logs/HEAD\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse HEAD | Out-File $p": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse HEAD | Out-File -FilePath \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse HEAD | Tee-Object -FilePath $p": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse HEAD | tee \"$(git rev-parse --git-dir)/refs/remotes/origin/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse HEAD | tee -a $G/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse feat > \"$(dirname \"$(dirname \"$(git rev-parse --git-dir)\")\")/refs/remotes/origin/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse feat >> \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git rev-parse feat >| \"$(dirname \"$(dirname \"$(git rev-parse --git-dir)\")\")/refs/remotes/origin/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"git update-ref refs/remotes/origin/x HEAD": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"install -D x \"$(git rev-parse --git-dir)/hooks/pre-commit\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"ln -s \"$D\" g": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"ln -sf \"$(dirname \"$(git rev-parse --git-dir)\")\" g": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"ln -sfn $D/.. g": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"ln x \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"ls \"$(dirname \"$(git rev-parse --git-dir)\")\"": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
+"ls \"$(git rev-parse --git-dir)/..\"": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
+"ls | xargs -I{} cp x {}/gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"mklink /J g %D%": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"mv x \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"perl -pi -e \"s#.*#$(pwd -W)/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"perl -pi -e 's#.*#/x#' \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"printf 'x\\n' | dd of=\"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"python -c \"import subprocess,os;d=subprocess.check_output(['git','rev-parse','--git-dir'],text=True).strip();open(os.path.join(os.path.dirname(d),'users-wt','gitdir'),'w').write('x')\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"python -c \"open(__import__('os').path.dirname(r'$(git rev-parse --git-dir)')+'/users-wt/gitdir','w').write('x')\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"robocopy . \"$(git rev-parse --git-dir)\" x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"rsync gitdir \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"sed -i \"s#.*#$(pwd -W)/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"sed -i \"s#.*#$PWD/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"sed -i 's#.*#C:/x/.git#' \"$(git rev-parse --git-dir)/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"tar -C \"$(dirname \"$(git rev-parse --git-dir)\")\" -xf evil.tar": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"type x > \"%G%\\x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"unzip -o evil.zip -d \"$(dirname \"$(git rev-parse --git-dir)\")\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"xcopy x \"$(git rev-parse --git-dir)\\x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review"
+}
 }

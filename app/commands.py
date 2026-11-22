@@ -400,45 +400,92 @@ def matches(command: str, prefix: str) -> bool:
 # K-okuyucu-3: options that make a program run another one, fetch code or write outside the
 # folder - a rule ("Always run") for the program does not cover a line that adds one past it
 # (`_past_the_rule`): asked as if no rule matched. The rule names the program; these change what
-# it runs.
+# it runs. Past a rule that names a runner's package (`npx tsc`, `pnpm dlx x`, `bunx x`) the words
+# are the tool's own - those runners read their options before it - so theirs are not here; npm
+# exec reads `--package` anywhere (npm's row), and a hand-written `uv run` rule covers uv's own.
 _PAST_A_RULE = {
-    # emptied first (one outside is deleted: `_danger_of`); a plugin loaded by its name; which
+    # emptied first (a delete: `_deletes_basetemp`); a plugin loaded by its name; which
     # conftest.py and ini file run; settings of another's (its addopts: any of these again)
     "pytest": ("--basetemp", "-p", "--rootdir", "--confcutdir", "-o", "--override-ini", "-c",
                "--config-file"),
-    "go": ("-exec", "-toolexec"),  # (a program of the line's run on what it builds)
-    "cargo": ("--config",),  # (any setting: a runner, a linker)
-    **dict.fromkeys(("gradle", "gradlew"), ("-I", "--init-script")),  # (code run before the build)
-    # scripts run by another program; another folder's package.json; a package fetched
-    "npm": ("--script-shell", "--prefix", "-C", "--package"),
-    # runners: a package fetched to run (`_fetches_to_run`)
-    # shortcut: past a rule (`npx tsc`, `uv run pytest`) these words are the tool's own - npx and
-    # uv read their options before it - so `npx tsc -p x` asks though tsc's `-p` fetches nothing;
-    # leave these out if that card is met often.
-    "npx": ("-p", "--package"), "pnpm": ("--package",), "yarn": ("-p", "--package"),
-    "bunx": ("-p", "--package"), "uv": ("--with", "--from"), "uvx": ("--with", "--from"),
-    "pipx": ("--spec",),
+    "go": ("-exec", "-toolexec", "-C"),  # (a program run on what it builds; another module)
+    "cargo": ("--config", "--manifest-path"),  # (any setting: a runner, a linker; another crate)
+    # code run before the build; another project's build
+    **dict.fromkeys(("gradle", "gradlew"), ("-I", "--init-script", "-p", "--project-dir", "-b",
+                                            "--build-file")),
+    # scripts run by another program; another folder's package.json or config; a package
+    # fetched; node given code to load
+    "npm": ("--script-shell", "--prefix", "-C", "--package", "--userconfig", "--node-options"),
+    "make": ("SHELL=", "-f", "--file"),  # (recipes run by another program; another makefile)
+    "tox": ("-c",),  # (another tox.ini: its commands)
+    "mvn": ("-Dmaven.ext",),  # (an extension's classes loaded into the build)
+    # a package fetched to run (`_fetches_to_run`): `uv run --with x`, `pipx run --spec x`
+    "uv": ("-w", "--with", "--from"), "uvx": ("-w", "--with", "--from"), "pipx": ("--spec",),
 }
-# ...and a shell handed a line (`... bash -c "x"`, `cmd /c x`).
-_SHELL_LINE = re.compile(r"(?i)(?:^|\s)['\"]?(?:\S*[\\/])?(?:sh|bash|zsh|dash|cmd|powershell|pwsh)"
+# ...these only where their value leads out of the folder (a report written there)...
+_PAST_A_RULE_OUT = {"pytest": ("--junitxml", "--junit-xml")}
+# ...the short options that take a value where a program bundles its short ones (`pytest -qo x`:
+# the bundle ends at one of these; elsewhere only the first letter counts, `-pfoo`)...
+_SHORT_VALUES = {"pytest": "kmnrW", "make": "CIjloW", "tox": "e", "uv": "p", "uvx": "p",
+                 "gradle": "DPx", "gradlew": "DPx"}
+# ...and what of pytest's `-p` / `-o` changes nothing of what runs: a plugin turned off
+# (`-p no:x`), how it logs.
+_HARMLESS_INI = frozenset({"log_cli", "log_cli_level", "log_level", "console_output_style"})
+# ...and a shell handed a line (`... bash -c "x"`, `cmd /c x`), anywhere past the rule.
+_SHELL_LINE = re.compile(r"(?i)(?:^|\s)['\"]?(?:\S*[\/])?(?:sh|bash|zsh|dash|cmd|powershell|pwsh)"
                          r"(?:\.exe)?\s+[-/](?:c|command)\b")
 
 
 def _past_the_rule(words: list[str], extra: list[str]) -> bool:
-    """Whether a line's words past a rule (`extra`) hold an option `_PAST_A_RULE` lists for a
-    program the line names (`python -m pytest`, `uv run pytest`: pytest's too) - a long one by any
-    start of three letters or more (argparse and getopt take one cut short), `-x` glued to its value
-    too (`-pfoo`); a go one with one dash or two - or hand a shell a line (`_SHELL_LINE`)."""
-    options = [option for word in words for option in _PAST_A_RULE.get(_program(word), ())]
-    for word in (word for word in extra if word.startswith("-")):
-        name = word.split("=", 1)[0].lstrip("-")
-        for option in options:
-            full = option.lstrip("-")
-            if (len(full) == 1 and not word.startswith("--") and word[1:2] == full
-                    or name == full or word.startswith("--") and len(name) >= 3
-                    and full.startswith(name)):
+    """Whether a line's words past a rule (`extra`, up to a `--`: past it they are a script's)
+    give an option `_PAST_A_RULE` lists for a program the line names (`python -m pytest`, `uv run
+    pytest`: pytest's too) - by `_option_given`; `_PAST_A_RULE_OUT`'s one leading out - or hand a
+    shell a line (`_SHELL_LINE`)."""
+    named = {_program(word) for word in words}
+    given = [(option, _SHORT_VALUES.get(program)) for program in named
+             for option in _PAST_A_RULE.get(program, ())]
+    out = [(option, _SHORT_VALUES.get(program)) for program in named
+           for option in _PAST_A_RULE_OUT.get(program, ())]
+    own = extra[:extra.index("--")] if "--" in extra else extra
+    for at, word in enumerate(own):
+        after = own[at + 1] if at + 1 < len(own) else ""
+        for option, takes in given:
+            value = _option_given(word, after, option, takes)
+            if value is not None and not (option == "-p" and value.startswith("no:") or option in (
+                    "-o", "--override-ini") and value.split("=", 1)[0] in _HARMLESS_INI):
                 return True
+        if any((value := _option_given(word, after, option, takes)) is not None and (
+                _outside(value.strip("'\"")) or re.search(r"[$%~]", value))
+               for option, takes in out):
+            return True
     return bool(_SHELL_LINE.search(" ".join(extra)))
+
+
+def _option_given(word: str, after: str, option: str, takes: str | None) -> str | None:
+    """The value `word` (and the word `after` it) gives `option`, "" for none; None where it is
+    not that option. A short one alone, glued to its value (`-pfoo`) or - `takes` its program's
+    value letters, None for one that bundles none - after flags in a bundle (`-qo x`); a long one
+    by any start of three letters or more (argparse and getopt take one cut short), `--x=v` too;
+    one dash and a long name (go's `-exec`, `--exec` too; maven's `-Dmaven.ext...`) as it starts;
+    a word of its own (`SHELL=`) as it starts."""
+    if not option.startswith("-"):
+        return word[len(option):] if word.startswith(option) else None
+    full = option.lstrip("-")
+    if len(full) == 1:
+        if not word.startswith("-") or word.startswith("--"):
+            return None
+        for at, letter in enumerate(word[1:], 1):
+            if letter == full:
+                return word[at + 1:] or after
+            if takes is None or not letter.isalpha() or letter in takes:
+                return None
+        return None
+    name, sep, glued = word.lstrip("-").partition("=")
+    if word.startswith("--") and option.startswith("--"):
+        hit = name == full or len(name) >= 3 and full.startswith(name)
+    else:
+        hit = word.startswith("-") and (name == full or word.startswith(option))
+    return (glued if sep else after) if hit else None
 
 
 MAX_RULE = 200
@@ -985,14 +1032,6 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
         return "Makes a link, which can point anywhere."
     if program == "find" and "-delete" in rest:
         return "Deletes files (find -delete)."
-    # shortcut: "outside" by how the path is spelt (`_outside`): the folder's own full path counts
-    # as outside too, an over-ask; read it from where the command runs if agents write one so.
-    if "pytest" in map(_program, words) and any(  # (`python -m pytest`, `uv run pytest`)
-            (temp := _option_value(rest, at, ("--basetemp",))) is not None and (
-                _outside(temp.strip("'\"")) or re.search(r"[$%~]", temp))
-            for at in range(len(rest))):
-        return ("Deletes the folder given to pytest's --basetemp, outside the project: pytest "
-                "empties it first.")
     if program in ("docker", "docker-compose"):
         # `docker volume rm x`, `docker --context x rm web`: the task is in the first two words
         named = [w for w in _after_options(rest, _DOCKER_VALUE_OPTIONS) if not w.startswith("-")]
@@ -1143,8 +1182,10 @@ _OWN_FLAGS: dict[str, tuple[frozenset[str], frozenset[str], tuple[str, ...]]] = 
                         "--line-number", "--ignore-case", "--files-with-matches", "--count",
                         "--word-regexp", "--fixed-strings", "--extended-regexp"}),
              frozenset({"-e"}), ()),
-    "rev-parse": (frozenset({"--show-toplevel", "--abbrev-ref", "--short", "--verify",
-                             "--git-dir"}), frozenset(), ()),
+    # (not --git-dir, --git-common-dir, --absolute-git-dir, --git-path: the shared git's own path,
+    # from where a line writes another worktree's link, HEAD or a ref - k-okuyucu-3 review)
+    "rev-parse": (frozenset({"--show-toplevel", "--abbrev-ref", "--short", "--verify"}),
+                  frozenset(), ()),
     "ls-files": (frozenset({"--others", "--exclude-standard", "--cached", "--modified",
                             "--deleted", "-z"}), frozenset(), ()),
     "merge-base": (frozenset({"--is-ancestor", "--all"}), frozenset(), ()),
@@ -1270,12 +1311,13 @@ def reaches_shared_git(command: str, own: str | None = None) -> str:
 # --git-dir)")/<id>/gitdir"` took the user's other worktree for KOLONİ's, a ref written under
 # refs/remotes/origin hid their commit, and their unpushed work went out in a pull request.
 BUILT_TARGET = ("it writes to a place built at run time ($(...), a variable, Join-Path, git "
-                "rev-parse), which may be the project's shared git - the user's worktrees, "
-                "branches and remotes: asked at every level")
+                "rev-parse), which may be the project's shared git - another worktree's link, HEAD "
+                "or history, the user's branches and remotes: asked at every level")
 # What builds a path at run time: a substitution or a variable (`$(`, `${`, `$x` - not `$null`), a
-# backtick, a bracket (PowerShell's `( ... )`), cmd's `%x%`, xargs' and find's `{}`, Join-Path,
-# Split-Path, git rev-parse.
-_BUILT = re.compile(r"(?i)\$(?!null\b)[\w({]|[`(]|%\w+%|\{\}|join-path|split-path|rev-parse")
+# backtick, a bracket (PowerShell's `( ... )`), cmd's `%x%` and a `for` loop's `%i` / `%%i`, xargs'
+# and find's `{}`, Join-Path, Split-Path, git rev-parse.
+_BUILT = re.compile(r"(?i)\$(?!null\b)[\w({]|[`(]|%\w+%|(?<![%\w])%%?[a-z](?![\w%])|\{\}"
+                    r"|join-path|split-path|rev-parse")
 _NULL = re.compile(r"(?i)\$null|/dev/null|nul")  # (what is written there is thrown away)
 _IO_WRITE = re.compile(r"(?i)\[(?:system\.)?io\.file\]::(?:write|append)\w*\(")
 # What writes the place it is given last, or by `-t` / `--target-directory` / `-Destination`.
@@ -1296,6 +1338,29 @@ _PS_NOT_PATHS = ("value", "inputobject", "encoding", "itemtype", "type", "stream
 _PS_SWITCHES = frozenset({"force", "nonewline", "append", "noclobber", "passthru", "whatif",
                           "confirm", "asbytestream", "verbose", "debug"})
 _DEEPEST = 4  # (shells handed shells: deeper, asked)
+# Built, yet no place a line could aim at the shared git: cured narrowly (`_cured`) - the temp
+# folder by its variable where the line sets none of them (`$TMPDIR/f`, `$env:TEMP\a`), a `$(date
+# ...)` in the file's own name (`build-$(date +%s).log`), a `for` loop's variable over a glob or
+# names written out (`for f in *.py`: no `$`, bracket, backtick or `..` in its list, no path from a
+# root). Any other built place stays asked.
+_TEMP_VAR = re.compile(r"(?i)^(['\"]?)\$(?:\{(?:tmpdir|tmp|temp)\}|(?:tmpdir|tmp|temp)\b|"
+                       r"env:(?:temp|tmp)\b)")
+_SETS_TEMP = re.compile(r"(?i)(?:^|[\s;&|(])(?:\$env:)?['\"]?(?:tmpdir|tmp|temp)\s*=")
+_DATE_NAME = re.compile(r"\$\(date(?:\s[^()`$]*)?\)(?=[^\\/]*$)")
+_FOR_LIST = re.compile(r"(?:^|[\s;&|(])for\s+(\w+)\s+in\s+([^;\n]*)")
+
+
+def _cured(target: str, line: str) -> str:
+    """A write's target as `_BUILT` judges it on `line`: `_TEMP_VAR`, `_DATE_NAME` and a literal
+    `for` list's variable read as a plain name."""
+    if not _SETS_TEMP.search(line):
+        target = _TEMP_VAR.sub(r"\1x", target)
+    target = _DATE_NAME.sub("x", target)
+    for found in _FOR_LIST.finditer(line):
+        if not re.search(r"[$`(]|\.\.", found[2]) and not any(
+                _full(item.strip("'\"")) for item in found[2].split()):
+            target = re.sub(rf"\$(?:\{{{found[1]}\}}|{found[1]}\b)", "x", target)
+    return target
 
 
 def _shell_words(line: str) -> list[str]:
@@ -1314,8 +1379,8 @@ def _shell_words(line: str) -> list[str]:
         if word:
             words.append("".join(word))
             word = []
-        if char == "&" and words and words[-1] == ">":  # (`2>&1`: a stream joined)
-            words[-1] = ">&"
+        if char in "&|" and words and words[-1] == ">":  # (`2>&1`, `>& f`; `>|`: a write)
+            words[-1] = ">" + char
         elif not char.isspace() or char == "\n":
             words.append(char)
     return [*words, "".join(word)] if word else words
@@ -1366,7 +1431,8 @@ def _writes_built(line: str, depth: int = 0) -> bool:
             part.append(word)
             continue
         targets, went = _part_targets(part, depth) if part else ([], False)
-        if UNREAD in targets or any(_BUILT.search(one) for one in targets) or moved and targets:
+        if UNREAD in targets or any(_BUILT.search(_cured(one, line)) for one in targets) or (
+                moved and targets):
             return True
         moved, part = moved or went, []
     return False
@@ -1382,17 +1448,20 @@ def _part_targets(words: list[str], depth: int) -> tuple[list[str], bool]:
     while at < len(words):
         word = words[at]
         at += 1
-        if word in (">", ">&", "<"):
+        if word in (">", ">&", ">|", "<"):
             if rest and re.fullmatch(r"[\d*]", rest[-1]):  # (`2>`, `*>`: the stream's number)
                 rest.pop()
-            while word == ">" and at < len(words) and words[at] == ">":  # (`>>`)
+            while word == ">" and at < len(words) and words[at] in (">", ">|"):  # (`>>`)
                 at += 1
-            if word == ">" and at < len(words) and not _NULL.fullmatch(words[at].strip("'\"")):
+            # (`>&1`, `>&-`: a stream joined or closed; `>& f`, bash's, writes f)
+            if word != "<" and at < len(words) and not _NULL.fullmatch(words[at].strip(
+                    "'\"")) and not (word == ">&" and re.fullmatch(r"\d+-?|-", words[at])):
                 targets.append(words[at])
             at += 1  # (the place written, read or joined to)
             continue
         rest.append(word)
     went = False
+    rest = _led(rest)  # (`if x then`, cmd's `for ... do copy x %%i`)
     for one in _unwrapped(rest) if rest else []:
         word = one[0] if len(one) == 1 else ""
         handed = len(word) > 1 and word[0] in "'\"" and word[-1] == word[0] and any(
@@ -1414,6 +1483,13 @@ def _command_targets(words: list[str]) -> tuple[list[str], bool]:
         return [], any(_BUILT.search(word) for word in rest)
     if program == "tee":  # (any file it is given; PowerShell's is Tee-Object)
         return rest, False
+    # A link made, or what it leads to: a write there goes through it (`ln -s "$D" g`, `mklink /J
+    # g %D%`, `New-Item -ItemType Junction -Target $d`).
+    if program in ("ln", "mklink") or program in ("new-item", "ni") and any(
+            word.casefold().rsplit(":", 1)[-1] in ("junction", "symboliclink", "hardlink")
+            for word in rest):
+        return [word for word in rest if not word.startswith(
+            "/" if program == "mklink" else "-")], False
     if program in _PS_TARGETS:
         return _ps_targets(program, rest), False
     if program not in _WRITES_TO_LAST:
@@ -2909,12 +2985,27 @@ def _harm(command: str) -> str:
         return KILLS_BY_NAME
     if _DOTNET_DELETE.search(command):
         return "Deletes files through .NET ([IO.File]::Delete)."
+    if _deletes_basetemp(command):
+        return BASETEMP
     if names_secret(command):
         return SECRET_FILE
     if not names_koloni(command):
         return ""
     climbs = _SCRATCH.search(command) and _climbs(command)
     return CLIMBS_OUT if climbs else KOLONI_FILES
+
+
+# K-okuyucu-3: pytest empties the folder it is given as --basetemp before it runs - on its line,
+# in `-o addopts=...` or PYTEST_ADDOPTS (sh's prefix, `$env:`) - but the agents' scratch
+# (`.koloni/tmp/...`, `_IN_SCRATCH`). shortcut: one a config file names (`-c x.ini`, an ini's
+# addopts) is not read; the rule check asks of `-c` (`_PAST_A_RULE`).
+BASETEMP = "Deletes the folder given to pytest's --basetemp: pytest empties it first."
+_BASETEMP = re.compile(r"--basetemp(?:=|\s+)['\"]?([^\s'\";&|()]+)")
+
+
+def _deletes_basetemp(command: str) -> bool:
+    return bool(re.search(r"(?i)pytest", command)) and any(
+        not _IN_SCRATCH.fullmatch(found[1]) for found in _BASETEMP.finditer(command))
 
 
 # B-336: the one card-free delete - a deleter alone on its line, by its bare name; plain forcing
@@ -4116,39 +4207,60 @@ def _installs_part(words: list[str]) -> bool:
 
 
 # K-okuyucu-3: what downloads a package to run it - an install by another name, from the internet:
-# `uvx x`, `bunx x`, `pnpx x`; `pnpm dlx`, `yarn dlx`, `pipx run`, `bun x`, `uv tool run`; `npx` and
-# `npm exec` given `-p` / `--package`, `uv run` given `--with`.
-# shortcut: a bare `npx <bin>` / `npm exec <bin>` runs the project's own bin where it has one, and
-# is left as before - one not installed it downloads all the same; card it if agents fetch so.
+# `uvx x`, `bunx x`, `pnpx x`; `pnpm dlx`, `yarn dlx`, `pipx run`, `bun x`, `uv tool run`; `npm`
+# / `yarn` / `pnpm` / `bun create x`, `npm init x` (create-x), `corepack pnpm dlx x`; `npx` given
+# `-p` / `--package` before what it runs, `npm exec` given `--package` anywhere before `--`, `uv
+# run` given `--with` / `-w`; `deno run npm:x` / `jsr:x`; `go run <module>@<version>`.
+# shortcut: a bare `npx <bin>` / `npx -y <bin>` / `npm exec <bin>` runs the project's own bin
+# where it has one, and is left as before - one not installed it downloads all the same; card it
+# if agents fetch so.
 _FETCH_RUNNERS = frozenset({"uvx", "bunx", "pnpx"})
-_FETCH_VERBS = frozenset({("pnpm", "dlx"), ("yarn", "dlx"), ("pipx", "run"), ("bun", "x")})
+_FETCH_VERBS = frozenset({("pnpm", "dlx"), ("yarn", "dlx"), ("pipx", "run"), ("bun", "x"),
+                          ("npm", "create"), ("yarn", "create"), ("pnpm", "create"),
+                          ("bun", "create")})
+# npx's options that take a value (npm 11's): any other is a flag. It reads its own only before
+# what it runs - `npx tsc -p x` is tsc's `-p`.
+_NPX_VALUES = frozenset({"-p", "--package", "-c", "--call", "-w", "--workspace", "--cache",
+                         "--registry", "--prefix", "--userconfig", "--node-options", "--loglevel"})
+_MODULE_AT = re.compile(r"[\w.-]+(?:/[\w.~-]+)+@\S+")  # (`golang.org/x/tools/cmd/x@latest`)
 
 
 def _fetches_to_run(words: list[str]) -> bool:
     """Whether one part's words download a package to run it (`_FETCH_RUNNERS`, `_FETCH_VERBS`)."""
     words = _module_run(words) or words
     program, said = _program(words[0]), [word.casefold() for word in words[1:]]
+    if program == "corepack" and said:  # (the package manager it runs, fetched first)
+        return _fetches_to_run(words[1:])
     verbs = {(name, verb.casefold()) for name, verb in _verbs(words)}
-    if program in _FETCH_RUNNERS and said or verbs & _FETCH_VERBS or ("uv", "tool") in verbs and (
-            "run" in said):
+    after = {verb: said[said.index(verb) + 1:] for _name, verb in verbs if verb in said}
+    if (program in _FETCH_RUNNERS and said or verbs & _FETCH_VERBS
+            or ("uv", "tool") in verbs and "run" in said
+            or ("npm", "init") in verbs and any(not w.startswith("-") for w in after["init"])
+            or program == "deno" and any(w.startswith(("npm:", "jsr:")) for w in said)
+            or ("go", "run") in verbs and any(map(_MODULE_AT.fullmatch, after["run"]))):
         return True
-    # (`-p` / `--with` among the runner's own options: past what it runs they are the tool's -
-    # `npx tsc -p tsconfig.json`, `uv run pytest -W error`; after any word that may be its verb)
-    def options(*names: str) -> list[str]:
-        return [option for at, word in enumerate(said) if word in names
-                for option in _runner_options(words[at + 2:])]
-
-    package = (_runner_options(words[1:]) if program == "npx" else options("exec", "x") if (
-        verbs & {("npm", "exec"), ("npm", "x")}) else [])
-    with_ = options("run") if ("uv", "run") in verbs else []
+    if program == "npx":
+        package = _npx_options(words[1:])
+    else:  # (npm exec reads `--package` anywhere before `--`: `npm exec x --package=y`)
+        package = [w for verb in ("exec", "x") if ("npm", verb) in verbs
+                   for w in after[verb][:(after[verb] + ["--"]).index("--")]]
+    with_ = _runner_options(words[said.index("run") + 2:]) if ("uv", "run") in verbs else []
     return any(word in ("-p", "--package") or word.startswith("--package=")
                for word in package) or any(word.startswith(("--with", "-w")) for word in with_)
 
 
+def _npx_options(rest: list[str]) -> list[str]:
+    """npx's own options: its words before what it runs, a value after one of `_NPX_VALUES`."""
+    found, at = [], 0
+    while at < len(rest) and rest[at].startswith("-") and rest[at] != "--":
+        found.append(rest[at])
+        at += 2 if rest[at] in _NPX_VALUES else 1
+    return found
+
+
 def _runner_options(rest: list[str]) -> list[str]:
-    """A runner's own options - its words before what it runs, where npx, npm exec and uv run read
-    theirs: a word after an option with no `=` may be its value, so it reads on past it (fails
-    closed); `--` ends them."""
+    """uv run's own options - its words before what it runs: a word after an option with no `=`
+    may be its value, so it reads on past it (fails closed); `--` ends them."""
     found = []
     for at, word in enumerate(rest):
         if word == "--":

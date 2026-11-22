@@ -1049,7 +1049,9 @@ def test_an_install_however_it_is_written_is_one(command):
     # (k-okuyucu-3: a bare runner runs the project's own bin, as before)
     "npx eslint src", "npx tsc --noEmit", "npm exec eslint", "pnpm exec vitest", "yarn exec x",
     "uv run pytest", "npx tsc -p tsconfig.json", "npx -- cowsay -p x", "uv run pytest -W error",
-    "uv run ruff check -w", "npm exec eslint -- -p x",
+    "uv run ruff check -w", "npm exec eslint -- -p x", "npx vitest run -p 2",
+    "npx --no-install tsc -p x", "npx -y tsc -p tsconfig.json", "npm exec -- cowsay --package=x",
+    "npm init", "npm init -y", "go run ./cmd/x", "go run main.go -email a@b.com", "deno run main.ts",
 ])
 def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command
@@ -1063,6 +1065,12 @@ def test_what_installs_nothing_is_none(command):
     "python -m uv run --with x pytest", "uv run -w requests python x.py", "uv run -wx pytest",
     "npx --yes -p cowsay cowsay", "npm --prefix web exec --package x y",
     "uv --directory x run --python 3.12 --with y pytest",
+    # (N3: npm exec reads --package anywhere before `--`; N4: create-x, npm: / jsr:, a module's
+    # version, corepack's manager)
+    "npm exec cowsay --package=evil", "npm x tsc --package=evil", "npm create vite",
+    "npm init vite", "npm init @scope/x", "yarn create vite", "pnpm create vite", "bun create vite",
+    "deno run npm:cowsay", "deno run -A jsr:@std/http/file-server",
+    "go run golang.org/x/tools/cmd/stringer@latest", "corepack pnpm dlx cowsay",
 ])
 def test_a_runner_that_downloads_a_package_to_run_it_is_an_install(command):
     """K-okuyucu-3: a card in a copy with links, asked with web off - what runs is the internet's."""
