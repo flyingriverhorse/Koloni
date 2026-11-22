@@ -377,9 +377,11 @@ class ApprovalsMixin:
         # KOLONİ's own commands are.
         always = self._read_named(ctx, command) is not None or where is None
         # Coordination §4: as KOLONİ's own command's - only where its folder is known, and not
-        # by its model's word; nor from Copilot's new shell, as a delete in the scratch is not
-        # (`scratch_of`: a link a script makes after this look is followed).
-        found = await self._disposable(ctx, command, root, None if claimed or new_shell else (
+        # by its model's word; never GitHub Copilot CLI's, which may report a folder for a shell
+        # it keeps, with no sandbox: a link a script makes after this look is followed (as a
+        # delete in the scratch from its new shell is not let go: `scratch_of`).
+        found = await self._disposable(ctx, command, root, None if claimed or getattr(
+            ctx.model, "command", "") == "copilot" else (
             where if isinstance(cwd, str) and cwd else unnamed), copy is not None)
         free = bool(found and found["allowed"])
         before = web_off or reason or searched or (

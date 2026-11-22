@@ -50,10 +50,17 @@ run** covers only a plain command. A rule never covers:
 KOLONİ checks each one as it is asked, and fails closed - git that does not answer, a link, a folder
 it cannot read is a card. Never disposable: a forced `git worktree remove`, KOLONİ's `koloni/…`
 branches and its copies' worktrees, a locked worktree, the default branch, `main` and `master`, a
-branch any worktree stands on, a build folder holding a file git tracks, a worktree holding a secret
-file or anything else git ignores but build and cache folders, `.git`, `.koloni`, `node_modules`, `.venv`, `venv`, a path above the folder the command runs in
-(a registered worktree aside) or any line that is not one plain delete. What is checked is the folder
-as it is then: one swapped for a link after the look and before the delete is not seen.
+branch any worktree stands on; a build folder spelt in another case than it is on disk, holding a
+file git tracks or does not ignore (in any case of its letters), a link or a repository of its own,
+or inside `node_modules`, `.venv`, `venv`, a dot-folder or KOLONİ's own folders; a worktree named
+through a link, with a `..` after a name or by an end of its path another worktree shares, holding a new or changed file (git's
+`status.showUntrackedFiles` aside), a file marked skip-worktree or assume-unchanged, a secret file or
+anything else git ignores but whole build and cache folders; `.git`, `.koloni`, a path above the
+folder the command runs in (a registered worktree aside); any command of GitHub Copilot CLI's own;
+or any line that is not one plain delete. What is checked is the folder
+as it is then - KOLONİ's own command a second time just before it runs: one swapped for a link
+after that look is not seen. Windows PowerShell 5.1.26100, PowerShell 7 and Git Bash delete through
+no junction; older Windows 10 builds of PowerShell 5.1 do.
 
 ## Places agents never open
 

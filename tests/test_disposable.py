@@ -367,12 +367,13 @@ def test_a_merged_local_branch_no_one_stands_on_is_disposable(repo, tmp_path):
 
 @needs_git
 def test_what_git_tracks_under_a_folder(repo):
-    assert git_.tracked_under(repo, "build") is False
+    assert git_.kept_under(repo, "build") is False
     (repo / "src").mkdir()
     (repo / "src" / "x.py").write_text("x\n")
     git(repo, "add", "src/x.py")
-    assert git_.tracked_under(repo, "src") is True
-    assert git_.tracked_under(repo, "sr") is False
+    assert git_.kept_under(repo, "src") is True
+    assert git_.kept_under(repo, "sr") is False
+    assert git_.kept_under(repo, "SRC") is True  # (any case: NTFS and APFS open it so)
 
 
 # --- the agent runner hands it in: where the user allowed it, at Auto-edit and Full auto (3.5) -
@@ -629,5 +630,140 @@ def test_copilots_delete_from_a_new_shell_is_never_disposable(
     cid, run_id = start_copilot(client, at_git, provider)
     card = proposed(client, cid, "git branch -D old")
     assert (card["cwd"], card["disposable"]) == (".", None)
+    assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
+    wait_run(client, cid, run_id)
+
+
+# --- the adversarial review's round: what git and the file system read past the checks ----------
+
+def ignoring(repo, *lines):
+    with (repo / ".gitignore").open("a", encoding="utf-8") as kept:
+        kept.write("".join(f"{line}\n" for line in lines))
+
+
+@needs_git
+def test_a_build_folder_spelt_in_another_case_than_it_is_or_than_git_tracks_it_is_no_disposable(
+        repo):
+    # (NTFS and APFS open `build` as `Build`: a tracked Build/make.ps1 would go with it)
+    (repo / "Build").mkdir(exist_ok=True)
+    (repo / "Build" / "make.ps1").write_text("make\n")
+    git(repo, "add", "-f", "Build/make.ps1")
+    assert git_.kept_under(repo, "build") is True
+    assert judged(repo, "rm -rf build") is None
+    # (nothing tracked there, but the folder on disk is not spelt as the line spells it)
+    (repo / "Dist").mkdir()
+    assert judged(repo, "rm -rf dist") is None
+
+
+@needs_git
+def test_a_build_folder_holding_a_file_git_does_not_ignore_is_no_disposable(repo):
+    ignoring(repo, "coverage/*", "!coverage/keep.txt")
+    (repo / "coverage").mkdir()
+    (repo / "coverage" / "report.html").write_text("made\n")
+    (repo / "coverage" / "keep.txt").write_text("the user's own\n")
+    assert git_.kept_under(repo, "coverage") is True
+    assert judged(repo, "rm -rf coverage") is None
+
+
+@needs_git
+@pytest.mark.parametrize("cwd", ["node_modules/pkg", ".venv/Lib", ".koloni/tmp", "venv/x"])
+def test_a_build_folder_below_a_linked_dot_or_koloni_folder_is_no_disposable(repo, cwd):
+    ignoring(repo, "node_modules/", ".venv/", "venv/", ".koloni/")
+    (repo / cwd / "build").mkdir(parents=True)
+    (repo / cwd / "dist").mkdir(parents=True)
+    assert judged(repo, "rm -rf build", cwd=cwd) is None
+    assert judged(repo, "rm -rf dist", cwd=cwd) is None
+
+
+@needs_git
+def test_a_build_folder_holding_a_repository_of_its_own_is_no_disposable(repo):
+    (repo / "build" / "vendor").mkdir()
+    git(repo / "build" / "vendor", "init", "-q", "-b", "main")
+    assert judged(repo, "rm -rf build") is None
+
+
+@needs_git
+def test_a_worktree_with_new_files_git_is_told_not_to_show_or_edits_it_hides_is_no_disposable(
+        repo, tmp_path):
+    tree = tmp_path / "wt" / "x"
+    git(repo, "worktree", "add", "-q", "-b", "feat", str(tree))
+    assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+    git(repo, "config", "status.showUntrackedFiles", "no")
+    (tree / "notes.txt").write_text("the user's notes\n")
+    assert judged(repo, "git worktree remove ../wt/x") is None
+    (tree / "notes.txt").unlink()
+    assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+    was = (tree / "a.txt").read_bytes()
+    for flag in ("--skip-worktree", "--assume-unchanged"):
+        git(tree, "update-index", flag, "a.txt")
+        (tree / "a.txt").write_bytes(b"edits never committed\n")
+        assert judged(repo, "git worktree remove ../wt/x") is None, flag
+        git(tree, "update-index", flag.replace("--", "--no-"), "a.txt")
+        (tree / "a.txt").write_bytes(was)
+    assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+
+
+@needs_git
+def test_a_worktree_whose_ignored_file_lies_in_a_tracked_folder_of_a_build_name_is_no_disposable(
+        repo, tmp_path):
+    tree = tmp_path / "wt" / "x"
+    git(repo, "worktree", "add", "-q", "-b", "feat", str(tree))
+    (tree / "target").mkdir()
+    (tree / "target" / "keep.txt").write_text("tracked\n")
+    git(tree, "add", "target/keep.txt")
+    git(tree, "commit", "-q", "-m", "target")
+    (tree / "target" / "prod.db").write_text("the user's data\n")
+    assert judged(repo, "git worktree remove ../wt/x") is None
+    (tree / "target" / "prod.db").unlink()
+    (tree / "build").mkdir()
+    (tree / "build" / "out.o").write_text("made\n")
+    assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+    # (a new folder holding only what git ignores is listed whole: what is in it is not known)
+    (tree / "src" / "build").mkdir(parents=True)
+    (tree / "src" / "build" / "out.o").write_text("made\n")
+    assert judged(repo, "git worktree remove ../wt/x") is None
+
+
+@needs_git
+def test_a_worktree_named_through_a_link_or_by_a_suffix_another_shares_is_no_disposable(
+        repo, tmp_path):
+    # (git finds a worktree by the end of its path first: `J/x` is any listed one ending so)
+    (tmp_path / "elsewhere").mkdir()
+    git(repo, "worktree", "add", "-q", "-b", "a", str(tmp_path / "elsewhere" / "x"))
+    git(repo, "worktree", "add", "-q", "-b", "b", str(tmp_path / "foo" / "J" / "x"))
+    junction(repo / "J", tmp_path / "elsewhere")
+    assert judged(repo, "git worktree remove J/x") is None
+    git(repo, "worktree", "add", "-q", "-b", "c", str(repo / "sub" / "w"))
+    assert judged(repo, "git worktree remove sub/w") == "worktree sub/w"
+    git(repo, "worktree", "add", "-q", "-b", "d", str(tmp_path / "other" / "sub" / "w"))
+    assert judged(repo, "git worktree remove sub/w") is None
+
+
+@needs_git
+def test_a_worktree_named_through_a_link_alone_or_climbing_out_of_one_is_no_disposable(
+        repo, tmp_path):
+    # (named through a link, no other worktree's path ending as it is spelt)
+    git(repo, "worktree", "add", "-q", "-b", "a", str(tmp_path / "elsewhere" / "x"))
+    junction(repo / "K", tmp_path / "elsewhere")
+    assert judged(repo, "git worktree remove K/x") is None
+    # (`..` after a link: KOLONİ's lexical `J/../..` is the project's parent, the shell's is
+    # where J leads, two up - another worktree)
+    git(repo, "worktree", "add", "-q", "-b", "b", str(tmp_path / "w"))
+    git(repo, "worktree", "add", "-q", "-b", "c", str(tmp_path / "deep" / "w"))
+    (tmp_path / "deep" / "x" / "y").mkdir(parents=True)
+    junction(repo / "J", tmp_path / "deep" / "x" / "y")
+    assert judged(repo, "git worktree remove J/../../w") is None
+    assert judged(repo, "git worktree remove ../w") == "worktree ../w"
+
+
+@needs_git
+def test_a_copilot_command_is_never_disposable_even_where_it_says_its_folder(
+        copilot_native, wait_run, at_git):  # noqa: F811
+    client, provider = copilot_native(
+        [{"shell": "git branch -D old", "cwd": str(at_git)}, {"say": "ok"}])
+    allowing(client, at_git, True)
+    cid, run_id = start_copilot(client, at_git, provider)
+    card = proposed(client, cid, "git branch -D old")
+    assert card["disposable"] is None
     assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
     wait_run(client, cid, run_id)

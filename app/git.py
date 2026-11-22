@@ -2046,14 +2046,38 @@ def ahead(project: Path, base: str, branch: str) -> int | None:
     return int(said) if said and said.strip().isdigit() else None
 
 
-def tracked_under(project: Path, rel: str) -> bool | None:
-    """Whether git tracks a file at `rel` (the project's, `/` between its parts) or below it;
-    None where git does not say."""
+def kept_under(project: Path, rel: str) -> bool | None:
+    """Whether git keeps a file at `rel` (the project's, `/` between its parts) or below it, in
+    any case of its letters (NTFS and APFS open `build` as `Build`): one it tracks, or a new one
+    it does not ignore (`!build/keep.txt` under `build/*`); None where git does not say.
+    (Not `_in`: its `--literal-pathspecs` turns off the pathspec's `icase`.)"""
     try:
-        said = _said(project, *_looking(project), "ls-files", "-z", "--", rel)
+        git, until = _looking(project)
+        code, out, _said = run(
+            [git, "-c", "core.fsmonitor=false", "-c", "safe.bareRepository=explicit", *UNASKED,
+             "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--",
+             f":(literal,icase){rel}"], project, _left(until), **UNASKED_ENV)
     except Refused:
         return None
-    return None if said is None else bool(said)
+    return bool(out) if code == 0 else None
+
+
+def not_committed(tree: Path) -> list[str] | None:
+    """What a worktree's folder holds that none of its commits does, as git's own look before
+    `worktree remove` may not see it: a changed file, a new one it does not ignore (whatever
+    `status.showUntrackedFiles` says), and a tracked one marked skip-worktree or
+    assume-unchanged, whose changes git hides; None where git does not say."""
+    try:
+        git, until = _looking(tree)
+        changed = _said(tree, git, until, "ls-files", "-z", "--modified", "--others",
+                        "--exclude-standard")
+        tagged = _said(tree, git, until, "ls-files", "-z", "-v")
+    except Refused:
+        return None
+    if changed is None or tagged is None:
+        return None
+    return [one for one in changed.split("\0") if one] + [
+        one[2:] for one in tagged.split("\0") if one and not one.startswith("H ")]
 
 
 def left_out(tree: Path) -> list[str] | None:
