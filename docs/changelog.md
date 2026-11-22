@@ -27,6 +27,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Fixed
 
+- **Settings**: the line under **After a change** names the test command you set for a part on the project map, before what KOLONİ saved for another folder, and changes as you save one there ([docs](use/checked.md)).
 - **To-do**: **Write it with the Product owner** asks the next model when one does not answer - your next fast model, then the Orchestrator's - as **Or write it** does, instead of stopping at the first ([docs](automation/todo.md)).
 - **Chat**: the Reviewer that looks over a big change can now run a command that only reads and the project's approved test command exactly as it is set (your check or part test command, a saved one an Always rule covers, a CI line you approved) - anything else is refused and it is told why, and a Reviewer's command never opens a card ([docs](use/checked.md)).
 - **Install**: closing KOLONİ with the page open no longer waits five seconds nor prints "Cancel N running task(s)": the page's stream ends on Ctrl+C ([docs](getting-started/install.md)).

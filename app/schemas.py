@@ -280,6 +280,9 @@ class ProjectOut(Out):
     # one look for one (None: not yet).
     tests_found: dict[str, dict]
     tests_look: dict | None
+    # K-buyuk-proje: the user's own test command by part of the project map ("./" the root part,
+    # "sub/" another; "" their "no test" there) - run before what KOLONİ saved for that folder.
+    test_commands: dict[str, str]
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge").
     full_auto_check: FullAutoCheck

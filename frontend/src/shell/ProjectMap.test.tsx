@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
 import type { Project, ProjectMap as MapOf } from '../api/types'
+import { useApp } from '../state/store'
 import { ProjectMap } from './ProjectMap'
 
 const project = { id: 'p', name: 'Skyulf' } as Project
@@ -61,7 +62,8 @@ test('a test command is saved with Enter, taken back with Escape, and Refresh sc
 
 test('a guess saved empty is no test; Use guess brings the guess back', async () => {
   const noTest = { ...map, parts: [{ ...map.parts[0], test: null, edited: true }, map.parts[1]] }
-  const get = vi.spyOn(api, 'get').mockResolvedValueOnce(map as never).mockResolvedValueOnce(map as never)
+  // (and the project, read again after each: `reread`)
+  const get = vi.spyOn(api, 'get').mockImplementation(async path => (path === '/projects/p' ? project : map) as never)
   const put = vi.spyOn(api, 'put').mockResolvedValue(noTest as never)
   const del = vi.spyOn(api, 'delete').mockResolvedValue(undefined)
   render(<ProjectMap project={project} />)
@@ -73,8 +75,19 @@ test('a guess saved empty is no test; Use guess brings the guess back', async ()
   expect(box).toHaveAttribute('placeholder', 'no test')
   await userEvent.click(await screen.findByRole('button', { name: 'Use guess for skyulf-core/' }))
   expect(del).toHaveBeenCalledWith('/projects/p/map/test?path=skyulf-core%2F')
-  expect(get).toHaveBeenCalledTimes(2)
+  expect(get.mock.calls.filter(([path]) => path === '/projects/p/map')).toHaveLength(2)
   expect(await screen.findByLabelText('Test command for skyulf-core/')).toHaveValue('..\\.venv\\Scripts\\python.exe -m pytest')
+})
+
+test('a saved test command reads the project again: Settings › After a change names it', async () => {
+  const read = { ...project, test_commands: { 'frontend/': 'npm test' } }
+  useApp.setState({ projects: [project] })
+  const get = vi.spyOn(api, 'get').mockImplementation(async path => (path === '/projects/p' ? read : map) as never)
+  vi.spyOn(api, 'put').mockResolvedValue(map as never)
+  render(<ProjectMap project={project} />)
+  await userEvent.type(await screen.findByLabelText('Test command for frontend/'), 'npm test{Enter}')
+  await vi.waitFor(() => expect(useApp.getState().projects).toEqual([read]))
+  expect(get).toHaveBeenCalledWith('/projects/p')
 })
 
 test('a refused save is said and the typed command stays', async () => {

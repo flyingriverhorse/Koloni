@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -884,6 +884,16 @@ test('the test command KOLONİ found is shown with where it came from, and can b
   await userEvent.click(screen.getByRole('checkbox', { name: /^Forget it/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ forget_tests_found: true })
+})
+
+test('After a change names the test command you set for a part, then what KOLONİ saved for another folder', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  const saved = (command: string) => ({ command, from: 'guess', at: '2026-11-22T16:00:00' })
+  // (the root part set to no test; web's save is not run - yours is; a dot folder keeps its dot)
+  const parts = { ...project, test_commands: { './': '', 'web/': 'npm test', '.tools/': 'make check' }, tests_found: { '.': saved('python -m pytest -q'), WEB: saved('npm run all') } }
+  render(<ProjectSettings {...base} project={parts} onSave={vi.fn()} />)
+  await choose(/^Checks/)
+  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(/^Runs npm test in web\/, make check in \.tools\/, python -m pytest -q in \.\/ \(found by KOLONİ\), related tests first/)
 })
 
 test('with nothing found, nothing of it is shown', async () => {

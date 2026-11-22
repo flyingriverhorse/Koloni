@@ -34,7 +34,9 @@ project:
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
 the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
-is read by a Reviewer (one more model request). Failing work goes back up to 2 times." Before a
+is read by a Reviewer (one more model request). Failing work goes back up to 2 times." It names
+your check command; else each test command you set for a part on the project map ("npm test in
+web/"), then what KOLONİ saved for any other folder - and changes as you save one there. Before a
 test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
 
 ### For one chat

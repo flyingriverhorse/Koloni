@@ -9011,6 +9011,10 @@ export interface components {
              * @enum {string}
              */
             teams_mode: "lead" | "manual" | "none";
+            /** Test Commands */
+            test_commands: {
+                [key: string]: string;
+            };
             /** Tests Found */
             tests_found: {
                 [key: string]: {
