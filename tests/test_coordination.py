@@ -905,7 +905,9 @@ RUNS_AN_INSTALL = [
     "npm –g ci", "pip –q install x", "uv ––project x sync",
     # (review round 5: a line glued to its option; a tool's runner)
     'npm exec --call="npm ci"', 'npm exec -c="npm ci"', "npm exec --call='npm install x'",
-    "pipx run pip install x", "uv tool run pip install x"]
+    "pipx run pip install x", "uv tool run pip install x",
+    # (k-okuyucu: npx's own option handing it a line, as npm exec's)
+    'npx --call="npm ci"', "npx --call='npm install x'", 'npx -c="npm ci"']
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", "cmd /c {c}", "env X=1 {c}"])

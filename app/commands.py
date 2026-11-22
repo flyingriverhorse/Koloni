@@ -1349,7 +1349,8 @@ def _verbs(words: list[str], left: list[int] | None = None) -> list[tuple[str, s
             verbs += _verbs(["pip", *rest[at + 1:]], left)
         elif program in _RUNNERS_OF or verb in _RUNS_PACKAGE.get(program, ()) or (
                 verb in ("run", "tool") and program in _ENV_RUNNERS):
-            inner = rest[at:] if program in _RUNNERS_OF else rest[at + 1:]
+            # (a runner's own options too: `npx --call="npm ci"`, `npx -c "npm ci"`)
+            inner = rest if program in _RUNNERS_OF else rest[at + 1:]
             for start, word in enumerate(inner):
                 # (a command glued to its option, its quotes split by the line's words:
                 # `npm exec --call="npm ci"`, `-c='npm i x'`)
