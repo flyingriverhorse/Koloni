@@ -66,7 +66,7 @@ OWN_TOOLS = ("{role}'s provider, {provider}, works with tools of its own, which 
              "hold to reading: it was not opened")
 STOPPED_LOOK = "Review stopped by you - not checked"
 NOTHING_CHANGED = "Still on hold after round {n}: nothing changed - you decide (Fix it)"
-NOT_AGAIN = "Still on hold after round {n}: not looked at again - you decide (Fix it)"
+NOT_SETTLED = "Still on hold after round {n}: not settled by the last look - you decide (Fix it)"
 # What KOLONİ's Reviewer may call (B2): its read tools and what only reads - never a team's
 # shared folder's writing, a request for another team's work, or `show`.
 REVIEW_ALLOWED = frozenset({*READ, "use_skill", "lookup", "recall_output", "read_shared"})
@@ -81,11 +81,8 @@ RECIPE_DID = "No review: the recipe's own Review step looked it over"
 OVER_LIMIT = "the turn's token limit is reached"
 CAPPED = "Still on hold after {most} fix rounds: you decide (Fix it)"
 FINDING = "{mark}: {what}"
-VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?\**\s*Verdict\s*\**\s*:\s*\**\s*(MERGE|HOLD)\b",
-                     re.IGNORECASE)
-# A MERGE counts only in a look's closing part: after its last fenced block, in its last lines -
-# not one it quotes from the diff higher up.
-CLOSING = 8
+# ("Verdict: HOLD", "### Verdict - HOLD", "- Verdict — MERGE", "Verdict: **HOLD**")
+VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?\**\s*Verdict\W*(MERGE|HOLD)\b", re.IGNORECASE)
 NO_VERDICT = "Review gave no verdict: not counted ({role}, {sign})"
 # A change a user sees: a screen's file, or a command's option added.
 USER_FACING = re.compile(r"add_argument\(|click\.option\(|\.option\(|process\.argv|argparse")
@@ -97,21 +94,17 @@ DOCS = ("docs", "README.md", "README", "README.rst", "CHANGELOG.md", "CHANGELOG"
 def verdict_of(report: str) -> str | None:
     """A look's verdict: a line `Verdict: MERGE` or `Verdict: HOLD` of its own (a heading's or a
     list item's too) - not one in a fenced block, a quote (`>`) or a diff line (`+`, `-` with no
-    space after). Any HOLD wins; a MERGE counts only in its closing part (CLOSING). None: none."""
-    lines, fenced, after, said = report.splitlines(), False, 0, []
-    for at, line in enumerate(lines):
+    space after). Any HOLD wins. None: none said."""
+    found, fenced = set(), False
+    for line in report.splitlines():
         bare = line.lstrip()
         if bare.startswith("```"):
-            fenced, after = not fenced, at + 1
+            fenced = not fenced
         elif not fenced and not bare.startswith((">", "+")) and not (
                 bare.startswith("-") and not bare.startswith("- ")) and (
-                found := VERDICT.match(line)):
-            said.append((at, found.group(1).upper()))
-    if any(verdict == "HOLD" for _at, verdict in said):
-        return "HOLD"
-    closing = [at for at, line in enumerate(lines) if line.strip()][-CLOSING:]
-    first = max(after, closing[0] if closing else 0)
-    return "MERGE" if any(at >= first for at, _verdict in said) else None
+                said := VERDICT.match(line)):
+            found.add(said.group(1).upper())
+    return "HOLD" if "HOLD" in found else "MERGE" if found else None
 
 
 def _held_in_words(report: str, findings: list[dict] | None) -> list[dict] | None:
@@ -344,16 +337,14 @@ class ReviewMixin:
             raise ToolError(OWN_TOOLS.format(role=role, provider=shown_name(provider.name)))
 
     @staticmethod
-    def _hold_left(held: "Proof", later) -> list[Row]:
+    def _hold_left(held: "Proof") -> list[Row]:
         """B4: at the turn's end, a HOLD sent back that no later look settled - the Orchestrator
         answered with no change (its answer ends the turn, `_loop_steps`): it still stands, said,
         and the user decides (Fix it)."""
         if held.verdict != "HOLD" or any(one["text"].startswith("Still on hold ")
                                          for one in held.rows):
             return []
-        # (Changed after it, with no look again - the tests failed first, say: said so.)
-        said = NOTHING_CHANGED if later == held.looked_at else NOT_AGAIN
-        return [proof.row("review", "failed", said.format(n=held.review_rounds))]
+        return [proof.row("review", "failed", NOT_SETTLED.format(n=held.review_rounds))]
 
     def _unheld_for(self: "AgentRunner", call_id: str | None, provider) -> bool:
         """B5: whether KOLONİ's Reviewer spawn `call_id` would land, moved on, on a provider

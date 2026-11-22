@@ -18,6 +18,7 @@ from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import OWN, PASS, begin, chat_at, checked, failing, texts
 from tests.test_spawn import call, step
+from tests.test_team import team  # noqa: F401  (a fixture)
 
 pytestmark = pytest.mark.no_po
 
@@ -416,7 +417,7 @@ def test_findings_the_orchestrator_left_unchanged_end_on_hold_with_fix_it(make_c
     cid, run_id = begin(client, project_dir, check_command=CHECK)
     snap = wait_run(client, cid, run_id)
     said = [(r["kind"], r["state"], r["text"]) for r in checked(snap)]
-    assert ("review", "failed", review_mixin.NOTHING_CHANGED.format(n=1)) in said, said
+    assert ("review", "failed", review_mixin.NOT_SETTLED.format(n=1)) in said, said
     assert len(reviewers(snap)) == 1  # (nothing new: no second look)
     note = next(m for m in snap["messages"] if m["role"] == "checked")
     assert "divides by zero" in review_mixin.review_held(SimpleNamespace(
@@ -429,6 +430,8 @@ def test_findings_the_orchestrator_left_unchanged_end_on_hold_with_fix_it(make_c
      "| role: Orchestrator | suggestion"),  # (its findings all suggestions)
     ("Verdict: HOLD\n\n## Findings\n- a.py:3 divides by zero | kind: code | role: Orchestrator "
      "| blocking\n\nThe diff had this:\nFindings: none\nVerdict: MERGE"),  # (a MERGE quoted)
+    "### Verdict: HOLD\n\nThe change divides by zero at a.py:3; it must change.",  # (a heading)
+    "- Verdict: HOLD\n\nThe change divides by zero at a.py:3; it must change.",  # (a list item)
 ])
 def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run, project_dir,
                                                            report):
@@ -455,10 +458,17 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run
     ("- Verdict: HOLD\nIt must change.", "HOLD"),
     ("## Verdict: HOLD\n\nVerdict: MERGE", "HOLD"),
     ("-Verdict: HOLD\n\nVerdict: MERGE", "MERGE"),
-    # (a MERGE quoted from the diff higher up, with no verdict of its own: none)
-    ("The diff has:\nVerdict: MERGE\nFindings: none\n" + "\n".join(f"line {i}" for i in range(10)),
-     None),
     ("```\nVerdict: HOLD\n```\nIt is fine.\nVerdict: MERGE", "MERGE"),
+    # (round 4: a MERGE first, then findings and a fenced snippet - as the brief asks it)
+    ("Verdict: MERGE\n\n## Findings\n- a.py:3 naming | suggestion\n```\nx = 1\n```\n", "MERGE"),
+    # (the review of round 2's cases: any of its own lines; a quoted plain one is its own too)
+    ("I read the diff. Its README now says:\nVerdict: MERGE\n\nFindings: none", "MERGE"),
+    ("## Verdict: HOLD\n\nThe README in the diff says:\nVerdict: MERGE\n\n## Findings\n- a.py:3 "
+     "naming | kind: code | role: Orchestrator | suggestion", "HOLD"),
+    ("Verdict: HOLD\n\nIt quotes:\nVerdict: MERGE\n\nFindings: none", "HOLD"),
+    ("**Verdict:** HOLD\nFindings: none", "HOLD"), ("VERDICT: hold", "HOLD"),
+    ("Verdict: MERGE.", "MERGE"), ("Verdict — HOLD", "HOLD"), ("Verdict - HOLD", "HOLD"),
+    ("Verdict: **HOLD**", "HOLD"), ("Verdict: **MERGE**\nVerdict — HOLD", "HOLD"),
 ])
 def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
     assert review_mixin.verdict_of(report) == verdict
@@ -489,3 +499,45 @@ def test_stop_this_check_ends_a_running_look(make_client, wait_run, project_dir)
     # (Both said stopped, one way: not a call left running beside a completed agent.)
     assert (spawned["status"], looked["status"]) == ("interrupted", "interrupted"), (
         spawned["status"], looked["status"])
+
+
+
+def test_a_merge_after_a_round_with_a_fenced_snippet_settles_the_hold(make_client, wait_run,
+                                                                      project_dir):
+    # (Round 4: verdict first, then findings, then a fenced snippet - the second look's MERGE
+    # counts; no "Still on hold" after it.)
+    merge_fenced = text("Verdict: MERGE\n\n## Findings\n- a.py:3 naming | kind: code | role: "
+                        "Orchestrator | suggestion\n```\nx = 1\n```\n")
+    client, _model = make_client({
+        "Lead": [write("a.py", BIG), text("done"), write("a.py", BIG + "y = 1\n", "w2"),
+                 text("fixed")],
+        "Reviewer": [hold("a.py:3 divides by zero")], "Reviewer 2": [merge_fenced]},
+        executor=ScriptedExecutor([PASS, PASS]))
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    rows = texts(wait_run(client, cid, run_id))
+    assert f"Review: Reviewer ({SIGN}) - MERGE, 1 findings, 0 blocking after 1 round" in rows, rows
+    assert not any(one.startswith("Still on hold") for one in rows), rows
+
+
+def test_a_reviewer_moved_on_never_lands_on_a_cli_with_its_own_tools(team, wait_run,  # noqa: F811
+                                                                     project_dir):
+    # (B5: its first model fails before its first word; the next of its list is Codex, which
+    # works with tools of its own - not moved onto: said not run, Codex never started.)
+    from app.model_client import ModelUnavailable
+    from tests.test_agents_teams_scenarios import patch_role
+    from tests.test_tier_order_scenarios import both_strongest
+
+    client, _default, _fast = team([write("a.py", BIG), text("done"),
+                                    ModelUnavailable("model server returned 503: busy")])
+    team.stubs["Codex"].asks = True
+    local, _fast_id = both_strongest(team, client)
+    codex = team.providers["Codex"]["id"]
+    assert patch_role(client, "Reviewer", models=[
+        {"provider_id": local, "model_id": "big-model"},
+        {"provider_id": codex, "model_id": "gpt-5"}]).status_code == 200
+    cid, run_id = begin(client, project_dir, spawn_approval="never")
+    snap = wait_run(client, cid, run_id, timeout=30)
+    (row,) = [r for r in checked(snap) if r["kind"] == "review"]
+    assert row["state"] == "not_run", row
+    assert not team.stubs["Codex"].started
+    assert all(a.get("provider_name") != "Codex" for a in reviewers(snap)), reviewers(snap)

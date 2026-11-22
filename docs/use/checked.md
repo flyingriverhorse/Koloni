@@ -174,8 +174,8 @@ also what does not fit in the diff the Reviewer is shown.
 - In a chat with teams the look is KOLONİ's, not a team's: no team's lead or door holds it, and
   it gets no team's tools (their shared folder, a request for another team's work).
 - The Orchestrator may answer the findings without changing anything: the turn ends there, and
-  the section says "Still on hold after round 1: nothing changed - you decide (Fix it)" (or "not
-  looked at again", where it changed something but no look followed).
+  the section says "Still on hold after round 1: not settled by the last look - you decide (Fix
+  it)" ("nothing changed" where KOLONİ checked again and found no change).
 - A HOLD is a hold: one that marks no finding blocking, or writes its findings as prose, goes
   back with its own words as the finding. The verdict is a line `Verdict: MERGE` or `Verdict:
   HOLD` of its own (not one quoted or in a code block); any HOLD wins.
