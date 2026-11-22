@@ -31,9 +31,10 @@ from tests.test_proof_end_scenarios import (
 PYTEST = "python -m pytest -q"
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def soon(monkeypatch):
-    """The answer waits a moment, not a minute, for a whole suite with no related tests."""
+    """The answer waits a moment, not a minute, for a whole suite with no related tests: only
+    where a held run is to go on after it (on a slow runner a quick one may go on too)."""
     monkeypatch.setattr(proof_later_mixin, "DETACH_SECONDS", 0.2)
 
 
@@ -62,6 +63,7 @@ def held(gate, *chunks, code=0):
     return Script(list(chunks) or ["....\n"], exit_code=code, hold=gate)
 
 
+@pytest.mark.usefixtures("soon")
 def test_a_long_run_goes_on_after_the_answer_and_updates_checked(
         make_client, wait_run, project_dir, gate):
     executor = ScriptedExecutor([held(gate, "....\n", "===== 4 passed in 9s =====\n")])
@@ -151,6 +153,7 @@ def test_a_quick_whole_suite_with_no_related_tests_still_sends_a_failure_back(
     assert told(model) == 1 and texts(snap)[0].startswith("Tests passed")
 
 
+@pytest.mark.usefixtures("soon")
 def test_a_background_failure_offers_fix_it_and_starts_nothing(
         make_client, wait_run, project_dir, gate):
     executor = ScriptedExecutor([held(gate, "F\n", "1 failed, 3 passed\n", code=1)])
@@ -167,6 +170,7 @@ def test_a_background_failure_offers_fix_it_and_starts_nothing(
     assert len(snap["runs"]) == 1 and len(model.calls) == 2
 
 
+@pytest.mark.usefixtures("soon")
 def test_a_background_result_after_a_later_change_says_so(make_client, wait_run, project_dir, gate):
     executor = ScriptedExecutor([held(gate, "4 passed\n")])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
@@ -186,6 +190,7 @@ def test_a_background_result_after_a_later_change_says_so(make_client, wait_run,
         "note", "Tests passed: python check.py - 4 passed - the project changed while they ran")
 
 
+@pytest.mark.usefixtures("soon")
 def test_a_newer_turn_takes_the_place_of_an_older_background_run(
         make_client, wait_run, project_dir, gate):
     executor = ScriptedExecutor([held(gate), PASS])
@@ -199,11 +204,65 @@ def test_a_newer_turn_takes_the_place_of_an_older_background_run(
     (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
                             if one["state"] != "running"])
     assert (row["state"], row["text"]) == ("not_run", proof.SUPERSEDED)
-    assert rows_of(client, cid, later["run"]["id"])[0]["state"] == "passed"
+    # (its own run may have gone on after its answer too, on a slow machine: its end is waited for)
+    until(lambda: rows_of(client, cid, later["run"]["id"])[0]["state"] == "passed")
     snap = client.get(f"/api/conversations/{cid}").json()
     assert snap["commands"][0]["status"] == "killed"
 
 
+def test_only_a_watched_turn_whose_work_is_in_the_project_may_go_on():
+    # (A recipe's or a branch's copy is taken in or set aside under the run: its tests cannot go
+    # on after the answer. How such a turn waits: S1's scenarios, `cannot_go_on`.)
+    from types import SimpleNamespace
+
+    def may(waits, place):
+        return proof_later_mixin.ProofLaterMixin._may_go_on(SimpleNamespace(
+            _answer_waits=lambda _ctx: waits, _works_in=lambda _ctx: place), None)
+    assert may(True, None)
+    assert not may(True, "the Lead's copy") and not may(False, None)
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_background_run_past_its_limit_is_timed_out(make_client, wait_run, project_dir, gate,
+                                                      monkeypatch):
+    import app.agent
+
+    monkeypatch.setattr(app.agent, "CHECK_SECONDS", 1)  # (10 min: one second here)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
+                                 executor=ScriptedExecutor([held(gate)]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["state"] != "running"])
+    assert row["state"] == "timed_out" and row["text"].startswith("Tests timed out after"), row
+    assert client.get(f"/api/conversations/{cid}").json()["commands"][0]["status"] == "timed_out"
+
+
+def test_koloni_s_variables_reach_the_command_on_the_host_and_in_docker(tmp_path):
+    import asyncio
+    import sys
+
+    from app.executors.docker import docker_argv
+    from app.executors.host import HostExecutor
+
+    argv = docker_argv("c", "img", tmp_path, tmp_path, False, "pytest",
+                       env={"PYTEST_XDIST_AUTO_NUM_WORKERS": "2"})
+    assert argv[argv.index("PYTEST_XDIST_AUTO_NUM_WORKERS=2") - 1] == "-e"
+
+    async def printed() -> str:
+        command = (f'"{sys.executable}" -c "import os; '
+                   f'print(os.environ[\'PYTEST_XDIST_AUTO_NUM_WORKERS\'])"')
+        running = await HostExecutor().start("k", command if sys.platform != "win32" else
+                                             f"& {command}", tmp_path,
+                                             env={"PYTEST_XDIST_AUTO_NUM_WORKERS": "3"})
+        said = "".join([chunk async for chunk in running])
+        await running.wait()
+        await running.close()
+        return said
+    assert asyncio.run(printed()).strip() == "3"
+
+
+@pytest.mark.usefixtures("soon")
 def test_stop_this_check_stops_a_background_run(make_client, wait_run, project_dir, gate):
     executor = ScriptedExecutor([held(gate)])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
@@ -221,6 +280,7 @@ def test_stop_this_check_stops_a_background_run(make_client, wait_run, project_d
     assert client.post(f"/api/runs/{run_id}/check/stop", headers=OWN).status_code == 409
 
 
+@pytest.mark.usefixtures("soon")
 def test_stop_everything_stops_a_background_run_too(make_client, wait_run, project_dir, gate):
     executor = ScriptedExecutor([held(gate)])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
@@ -281,6 +341,7 @@ def test_a_restart_settles_a_running_checked_row(make_client, wait_run, project_
             "– Tests not finished: KOLONİ restarted")
 
 
+@pytest.mark.usefixtures("soon")
 def test_a_to_do_turn_never_goes_on_in_the_background(make_client, wait_run, project_dir, gate):
     # (Nobody waits on its answer, and its fix rounds need the result: it waits for the run.)
     client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
@@ -323,6 +384,7 @@ def test_workers_reach_koloni_runs_only(make_client, wait_run, project_dir):
     assert executor.extra_envs[-1] == {"PYTEST_XDIST_AUTO_NUM_WORKERS": "5"}
 
 
+@pytest.mark.usefixtures("soon")
 def test_runs_at_once_lets_two_runs_go_together(make_client, wait_run, tmp_path, gate):
     executor = ScriptedExecutor([held(gate, "4 passed\n"), held(gate, "4 passed\n")])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done"),

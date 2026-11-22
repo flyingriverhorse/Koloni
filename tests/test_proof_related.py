@@ -107,10 +107,21 @@ def test_vitest_and_jest_name_the_changed_sources(tmp_path):
     ("node t.js", None),
 ])
 def test_npm_test_reads_its_script(tmp_path, script, said):
-    made(tmp_path, "src/a.ts")
+    made(tmp_path, "src/a.ts", "node_modules/.bin/vitest")
     (tmp_path / "package.json").write_text(json.dumps({"scripts": {"test": script}}),
                                            encoding="utf-8")
     assert narrowed(tmp_path, "npm test", ["src/a.ts"]) == said
+
+
+def test_npm_test_runs_vitest_through_npx_only_where_the_projects_own_is_installed(tmp_path):
+    # (npx would fetch one that is not: never the project's own command then)
+    made(tmp_path, "web/src/a.ts")
+    (tmp_path / "web" / "package.json").write_text(json.dumps({"scripts": {"test": "vitest"}}),
+                                                   encoding="utf-8")
+    assert narrowed(tmp_path, "npm test", ["web/src/a.ts"], cwd="web") is None
+    made(tmp_path, "node_modules/.bin/vitest.cmd")  # (a workspace's root holds it: found above)
+    assert narrowed(tmp_path, "npm test", ["web/src/a.ts"], cwd="web") == (
+        "npx --no vitest related --run --passWithNoTests src/a.ts")
 
 
 def test_go_tests_the_changed_packages(tmp_path):

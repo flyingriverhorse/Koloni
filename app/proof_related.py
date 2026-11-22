@@ -105,8 +105,9 @@ def _pytest(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
 
 def _js(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     """vitest's `related`, jest's `--findRelatedTests`, of the changed sources - named in the
-    command, or `npm test`'s script. shortcut: jest is not measured on this machine (vitest is,
-    11.25: `related --run` ends, no watch); pnpm / yarn test give none - add theirs when met."""
+    command, or `npm test`'s script. shortcut: jest is not measured on this machine (vitest
+    5.0.3 is, 22 Nov: `related --run` ends, no watch); pnpm / yarn test give none - add theirs
+    when met."""
     if any(PurePosixPath(path).suffix not in JS for path in paths):
         return None
     files = _files(paths, cwd)
@@ -136,15 +137,19 @@ def _jest(words: list[str], files: list[str]) -> list[str] | None:
 
 
 def _npm_test(words: list[str], files: list[str], cwd: Path) -> list[str] | None:
-    """`npm test` whose script is vitest or jest alone. vitest through `npx --no` (never an
-    install: the project's own, which its script runs); jest through the script itself."""
+    """`npm test` whose script is vitest or jest alone. vitest through `npx --no` - only where
+    the project's own vitest is installed (the one its script runs; `--no`: never an install);
+    jest through the script itself."""
     try:
         script = json.loads((cwd / "package.json").read_text(encoding="utf-8"))["scripts"]["test"]
     except (OSError, ValueError, KeyError, TypeError):
         return None
     said = script.split() if isinstance(script, str) and not COMPOUND.search(script) else []
     if said and said[0] == "vitest":
-        return _vitest(["npx", "--no", "vitest"], said[1:], files)
+        # (as npx finds it: in a node_modules/.bin here or above - a workspace's root)
+        own = any(next((at / "node_modules" / ".bin").glob("vitest*"), None)
+                  for at in (cwd, *cwd.parents))
+        return _vitest(["npx", "--no", "vitest"], said[1:], files) if own else None
     if said and said[0] == "jest" and _jest(said, files) is not None:
         return [*words, "--", "--passWithNoTests", "--findRelatedTests", *files]
     return None

@@ -14,10 +14,13 @@ It works the same for every model and CLI.
 - Where the work now is: in the project, or in the Orchestrator's own working copy (a team's
   branch, or a job while you're away). Work that waits in **Ready for you** is not part of it.
 - Once, after the turn's work is in: the agents run only the tests near their change while
-  they work, and KOLONİ runs the whole test command at the end, like a pull request's CI.
-- KOLONİ runs one such test run at a time, across the app. A second turn that ends meanwhile
-  waits for the first. A run whose card waits for your yes holds up no other: it takes its turn
-  once you answer.
+  they work, and KOLONİ runs the whole test command at the end, like a pull request's CI - in a
+  turn you watch, the tests related to the change first and the whole suite after, in the
+  background (see [How long it waits](#how-long-it-waits)).
+- KOLONİ runs one such test run at a time across the app, unless Settings say more (see
+  [How many run at once](#how-many-run-at-once)). A second turn that ends meanwhile waits for
+  the first. A run whose card waits for your yes holds up no other: it takes its turn once you
+  answer.
 
 **Settings › This project › Checks and git › After a change** turns it on or off for the
 project:
