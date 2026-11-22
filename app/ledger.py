@@ -7,13 +7,15 @@ turn is over: a prompt cache keeps what stands before it."""
 import json
 import os
 import re
+import shlex
 from collections.abc import Collection
 
 from sqlalchemy import literal_column, select, true
 from sqlalchemy.orm import Session
 
-from app.commands import RECALL_HINT, OutputMask, recallable, secret_values
+from app.commands import RECALL_HINT, OutputMask, only_reads, recallable, secret_values
 from app.db.models import Agent, Command, FileChange, ToolCall
+from app.finish_tests import did_not_start
 from app.workspace import in_scratch, unified_diff
 
 HEAD = ("KOLONİ's record of the turn above: names, commands and output quoted as they were "
@@ -154,15 +156,129 @@ FAILED = re.compile(r"\b[1-9]\d* failed\b", re.IGNORECASE)  # (its sum: "1 faile
 WEB = ("web_search", "http_request", "claude__WebSearch", "claude__WebFetch")
 # B-382: a passing run said plainly, so that its opener spends no steps running it again.
 PASSED = "last test run passed ({command}, exit 0: checked already - no need to run it again)"
-# ...said only of a command that is a test run - its first real word the tool, after `cd <dir> &&`,
-# `VAR=val`, `time` or a runner (uv, poetry, npx, a Python's -m) - not one that names one (`echo
+# ...said only of a command that is a test run (`read_test`) - not one that names one (`echo
 # pytest`), nor a lint script (`npm run test:lint`, `tox -e lint`).
-_WORD = r"""(?:"[^"]*"|'[^']*'|\S+)"""
-RUNS_TESTS = re.compile(
-    rf"\s*(?:cd\s+{_WORD}\s*&&\s*)?(?:\w+={_WORD}?\s+)*(?:time\s+)?(?:(?:uv|poetry)\s+run\s+|npx\s+)?"
-    r"(?:\S*[\\/])?(?:(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\d[\d.]*)?\s+-m\s+)?(?:\S*[\\/])?"
-    r"(?:" + TESTS.pattern + r")(?!\S*lint|(?<=tox|nox)\s+-[es]\s*\S*lint)", re.IGNORECASE)
+# Review of S4 (item 8): a line is read as its shell splits it, each part past what leads into it;
+# a small reader of its own - `app.commands`' is private to its checks.
+_OPERATORS = frozenset({"&&", "||", ";", "|", "&", "|&"})
+# What leads into the program a part runs, each with how many words it takes past its options
+# (timeout's duration); and the options of those that take a value.
+_LEADS = {"time": 0, "nohup": 0, "command": 0, "exec": 0, "env": 0, "nice": 0, "timeout": 1,
+          "npx": 0, "pnpx": 0, "bunx": 0}
+_TAKES = frozenset({"-k", "-s", "-n", "-u", "--signal", "--kill-after", "--with", "-p",
+                    "--package"})
+_RUNNERS = frozenset({"uv", "poetry", "pipenv", "pdm", "hatch", "rye"})  # (`<runner> run`)
+# A shell that hands on a line, by the switch that hands it.
+_HANDS_ON = {"cmd": ("/c", "/k"), "bash": ("-c", "-lc"), "sh": ("-c",), "zsh": ("-c",),
+             "dash": ("-c",), "pwsh": ("-command", "-c"), "powershell": ("-command", "-c")}
+_PYTHON = re.compile(r"python[\d.]*|py")
+# The test tools, each by one name however it is run (`python -m pytest` is pytest's).
+_TOOLS = {"pytest": "pytest", "py.test": "pytest", "unittest": "unittest", "vitest": "vitest",
+          "jest": "jest", "mocha": "mocha", "rspec": "rspec", "phpunit": "phpunit", "tox": "tox",
+          "nox": "nox"}
+_PACKAGERS = frozenset({"npm", "pnpm", "yarn", "bun"})  # (their `test` script)
+_SUBCOMMANDS = frozenset({"cargo", "go", "dotnet", "mvn", "gradle", "gradlew", "make",
+                          "playwright"})
 
+
+def _name(word: str) -> str:
+    """A program's name: its folder and .exe / .cmd / .bat off, in lower case."""
+    return re.sub(r"\.(?:exe|cmd|bat)$", "", re.split(r"[\\/]", word.strip("'\""))[-1].lower())
+
+
+def _split(line: str) -> list[tuple[list[str], str]]:
+    """A line's parts as its shell splits them, each with the operator after it ("" at its end)."""
+    lexer = shlex.shlex(line.replace("\n", " ; "), posix=False, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        words = list(lexer)
+    except ValueError:  # (quotes that do not pair)
+        words = line.split()
+    parts: list[tuple[list[str], str]] = []
+    part: list[str] = []
+    for word in words:
+        if word in _OPERATORS:
+            parts.append((part, word))
+            part = []
+        elif word not in ("(", ")"):
+            part.append(word)
+    return [*parts, (part, "")]
+
+
+def _past_leads(words: list[str]) -> list[str]:
+    """A part's words from the program it runs: past `VAR=val`, `time`, `timeout -k 5 600`,
+    `env A=1`, `nice -n 5`, `uv run --frozen`, `npx --yes`.
+    shortcut: a lead's option that takes a value is known by `_TAKES` alone; add one when met."""
+    at = 0
+    while at < len(words):
+        name = _name(words[at])
+        if re.fullmatch(r"\w+=.*", words[at]):
+            at += 1
+            continue
+        runner = name in _RUNNERS and words[at + 1:at + 2] == ["run"]
+        if name not in _LEADS and not runner:
+            break
+        at += 2 if runner else 1
+        while at < len(words) and (words[at].startswith("-") or re.fullmatch(r"\w+=.*", words[at])):
+            at += 2 if words[at] in _TAKES else 1
+        at += _LEADS.get(name, 0)
+    return words[at:]
+
+
+def _handed_on(words: list[str]) -> str | None:
+    """The line a shell part hands on (`bash -c "<line>"`, `cmd /c <line>`, `pwsh -Command
+    <line>`); None: it hands on none."""
+    switches = _HANDS_ON.get(_name(words[0]) if words else "", ())
+    at = next((i for i, word in enumerate(words) if word.lower() in switches), None)
+    if at is None or at + 1 >= len(words):
+        return None
+    rest = words[at + 1:]
+    one = rest[0] if len(rest) == 1 else ""
+    quoted = len(one) > 1 and one[0] == one[-1] and one[0] in "'\""
+    return rest[0][1:-1] if quoted else " ".join(rest)
+
+
+def _module(words: list[str]) -> list[str] | None:
+    """A Python's words from the module it runs (`python -X utf8 -m pytest -q`: `pytest -q`);
+    None: it runs a script or code."""
+    at = 1
+    while at < len(words) and words[at].startswith("-") and words[at] not in ("-m", "-c"):
+        at += 2 if words[at] in ("-X", "-W") else 1
+    return words[at + 1:] if words[at:at + 1] == ["-m"] else None
+
+
+def _tool(words: list[str]) -> str | None:
+    """The test tool a part runs (its words from its program), by one name for each; None: none."""
+    name, rest = (_name(words[0]), words[1:]) if words else ("", [])
+    if _PYTHON.fullmatch(name):
+        module = _module(words)
+        return _tool(module) if module else None
+    if name in _TOOLS:
+        lint = name in ("tox", "nox") and any("lint" in word for word in rest)  # (`tox -e lint`)
+        return None if lint else _TOOLS[name]
+    first = next((word for word in rest if word != "run" and not word.startswith("-")), "")
+    if name in _PACKAGERS:
+        return f"{name} test" if first.startswith("test") and "lint" not in first else None
+    return f"{name.removesuffix('w')} test" if name in _SUBCOMMANDS and first in (
+        "test", "tests") else None
+
+
+def read_test(command: str) -> tuple[str, bool] | None:
+    """What a command line runs as a test: its tool, by one name however it is spelled (`pytest`
+    for `python -m pytest` too, `vitest` for `npx vitest run`, `npm test`), and whether the line's
+    exit is masked - an operator other than `&&` after it (`; true`, `|| true`, `| tail -1`): its
+    exit is then not the test's. None: it runs no test (`echo pytest`, `npm run test:lint`).
+    shortcut: a line's first test part counts; read each if lines that run two tools are met."""
+    parts = _split(command)
+    for at, (words, _after) in enumerate(parts):
+        masked = any(after not in ("", "&&") for _words, after in parts[at:])
+        words = _past_leads(words)
+        line = _handed_on(words)
+        found = read_test(line) if line is not None else (
+            (tool, False) if (tool := _tool(words)) else None)
+        if found:
+            return found[0], found[1] or masked
+    return None
 
 def _many(count: int, what: str) -> str:
     return f"{count} {what}" + ("" if count == 1 else "s")
@@ -178,19 +294,26 @@ def _family(session: Session, agent_id: str) -> tuple[str, set[str]]:
     return run_id, ids
 
 
-def _failed(one: Command, call: str | None) -> bool:
-    """A test run that failed: timed out, exited non-zero - not pytest's 5, no tests collected -
-    or counted a failure. With no exit code reported (Claude Code's pass), only where its output
-    counts a failure or its CLI said its call failed (`call`: its own timeout, say)."""
-    nothing = one.exit_code == 5 and "pytest" in one.command.casefold()
-    return one.status == "timed_out" or (one.exit_code is None and call == "failed") or (
-        one.exit_code not in (0, None) and not nothing) or bool(FAILED.search(one.output[-4000:]))
+def _verdict(one: Command, call: str | None, read: tuple[str, bool]) -> bool | None:
+    """A test run's verdict (`read`: its tool and whether its exit is masked, `read_test`): True,
+    failed - timed out, a failure counted, exited non-zero, or no exit code reported where its CLI
+    said its call failed (its own timeout, say); False, passed (no exit code reported is Claude
+    Code's pass); None, none - it never started tests (its program not found,
+    `finish_tests.did_not_start`; pytest's 4, no such file or option), ran none (pytest's 5), or
+    its exit is masked and it counted no failure."""
+    if one.status == "timed_out" or FAILED.search(one.output[-4000:]):
+        return True
+    if read[1] or did_not_start(one.exit_code, one.output) or (
+            read[0] == "pytest" and one.exit_code in (4, 5)):
+        return None
+    return one.exit_code not in (0, None) or (one.exit_code is None and call == "failed")
 
 
 def failed_tests(session: Session, agent_id: str) -> Command | None:
-    """Of the test runs of an agent and the agents it opened, the last run of each test command
-    (a passing `npm test` hides no failing `pytest`): the latest that failed; None where none did
-    or none ran (killed: no result)."""
+    """Of the test runs of an agent and the agents it opened, the last with a verdict of each test
+    tool, however it is spelled (`pytest -q` failing, then `python -m pytest -q` passing: none) -
+    a passing `npm test` hides no failing `pytest`: the latest that failed; None where none did or
+    none gave a verdict (killed: no result)."""
     run_id, ids = _family(session, agent_id)
     seen: set[str] = set()
     for one, call in session.execute(
@@ -199,13 +322,119 @@ def failed_tests(session: Session, agent_id: str) -> Command | None:
             .where(Command.run_id == run_id, Command.agent_id.in_(ids),
                    Command.status.in_(("exited", "timed_out")))
             .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())):
-        same = " ".join(one.command.split()).casefold()
-        if same in seen or not RUNS_TESTS.match(one.command):
+        read = read_test(one.command)
+        if read is None or read[0] in seen or (verdict := _verdict(one, call, read)) is None:
             continue
-        seen.add(same)
-        if _failed(one, call):
+        seen.add(read[0])
+        if verdict:
             return one
     return None
+
+
+# Review of S4 (item 1): the tests a run's output names as failing - pytest's `FAILED x::t` and
+# `x::t FAILED`, vitest's `FAIL  file > name`, jest's `● suite › name`, go's `--- FAIL: TestX`.
+# shortcut: other tools' forms are not read - such a run names no test, so no "Already failing
+# before" line covers it (R2 holds); add a form when one is met.
+_NAMED_FAILING = re.compile(
+    r"^[ \t]*(?:(?:FAILED|ERROR)[ \t]+(\S+::\S+)|(\S+::\S+)[ \t]+(?:FAILED|ERROR)\b"
+    r"|FAIL[ \t]+(\S+[ \t]+>[ \t].*?)[ \t]*$|●[ \t]+(.*?›.*?)[ \t]*$|--- FAIL:[ \t]+(\S+))",
+    re.MULTILINE)
+
+
+def failing_named(output: str) -> list[str]:
+    """The tests a run's output names as failing, once each, in their order."""
+    return list(dict.fromkeys(next(name for name in found if name)
+                              for found in _NAMED_FAILING.findall(output)))
+
+
+# A test file a report's line names (`tests/x.py`, `src/a.test.ts`); a vitest / jest suite's step.
+_TEST_FILE = re.compile(r"[\w./-]+\.(?:py|[cm]?[jt]sx?|go|rb|php|rs|java|cs)\b")
+_SUITE = re.compile(r" > | › ")
+
+
+def _bare(test: str) -> str:
+    """A test's own name, past its file, class or suite and its parameters (`test_x` for
+    `tests/a.py::TestK::test_x[1]`)."""
+    return re.sub(r"\[.*\]$", "", re.split(r"::| > | › ", test)[-1]).strip()
+
+
+def _whole(name: str, line: str) -> bool:
+    """Whether a line holds a name as a whole: not part of a longer id, word or suite."""
+    return re.search(rf"(?<![\w.:/>›])(?<!> )(?<!› ){re.escape(name)}(?![\w\[])(?! >)(?! ›)",
+                     line) is not None
+
+
+def _names(line: str, test: str, unique: bool) -> bool:
+    """Whether a report's line names a failing test (review of S4): its whole id; else - where the
+    line names no test file, or this one's - its name past its file as a whole: a vitest / jest
+    test by its suite and name (`App > renders`, never a word inside a sentence), a pytest test by
+    its class and name (`TestK::test_x`), and by its bare name (`test_x`, go's `TestAdd`) only
+    where no other failing test has that name (`unique`)."""
+    line = line.replace("\\", "/")
+    if test in line:
+        return True
+    # (Its file where the run gave one: pytest's `file::name`, vitest's `file > name`.)
+    file, name = next(((part[0], part[2]) for at in ("::", " > ")
+                       if (part := test.partition(at))[1]), (None, test))
+    files = _TEST_FILE.findall(line)
+    if file is not None and files and file not in files:
+        return False
+    if _SUITE.search(test):
+        return bool(_SUITE.search(name)) and _whole(name, line)
+    return "::" in name and _whole(name, line) or unique and _whole(_bare(test), line)
+
+
+def covered(one: Command, before: list[str], never: Collection[str] = ()) -> bool:
+    """R2: whether every test a failed run names as failing (`failing_named`, of its output's
+    tail) is one a report's "Already failing before" lines name (`_names`); False where it names
+    none, or one of `never` - what a step that reproduced the bug showed failing (`failing_of`)."""
+    named = failing_named(one.output[-4000:])
+    bare = [_bare(test) for test in named]
+    return bool(named) and all(test not in never and any(
+        _names(line, test, bare.count(_bare(test)) == 1) for line in before) for test in named)
+
+
+def failing_of(session: Session, agent_ids: Collection[str]) -> set[str]:
+    """The tests the test runs of these agents, and of the agents they opened, named failing."""
+    named: set[str] = set()
+    for agent_id in agent_ids:
+        run_id, ids = _family(session, agent_id)
+        for command, output in session.execute(select(Command.command, Command.output).where(
+                Command.run_id == run_id, Command.agent_id.in_(ids),
+                Command.status.in_(("exited", "timed_out")))):
+            if read_test(command) is not None:
+                named.update(failing_named(output[-4000:]))
+    return named
+
+
+def failing_shown(one: Command) -> str:
+    """A failed run said by the tests it names as failing; else by its command, keys hidden."""
+    named = failing_named(one.output[-4000:])
+    return ", ".join(named)[:200] if named else OutputMask(secret_values(os.environ)).hide(
+        one.command)[:60]
+
+
+# R3 (review of S4): what counts as a check that ran - a command that started (asked and not run,
+# blocked, failed to start: not) and is no mere read (`commands.only_reads`: `ls`, `cat`).
+STARTED = ("exited", "running", "timed_out", "killed")
+
+
+def ran_check(session: Session, agent_id: str) -> bool:
+    """Whether an agent, or an agent it opened, ran a command that started and is no mere read."""
+    run_id, ids = _family(session, agent_id)
+    return any(not only_reads(command) for command in session.scalars(select(Command.command).where(
+        Command.run_id == run_id, Command.agent_id.in_(ids), Command.status.in_(STARTED))))
+
+
+def declined(session: Session, agent_id: str) -> str | None:
+    """The last command of an agent, or one it opened, that the user declined or a rule of theirs
+    refused - its keys hidden, cut; None: none was."""
+    run_id, ids = _family(session, agent_id)
+    command = session.scalar(select(Command.command).where(
+        Command.run_id == run_id, Command.agent_id.in_(ids),
+        Command.status.in_(("rejected", "refused")))
+        .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc()).limit(1))
+    return None if command is None else OutputMask(secret_values(os.environ)).hide(command)[:60]
 
 
 def failed_line(one: Command) -> str:
@@ -261,14 +490,27 @@ def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
         since = session.scalar(select(FileChange.id).where(
             FileChange.run_id == run_id, FileChange.agent_id.in_(ids),
             FileChange.created_at > last.created_at).limit(1))
-        parts.append(f"last test run failed ({_exit(last)})" if last.exit_code not in (0, None) or (
-            FAILED.search(last.output[-4000:])) else f"last test run: {_exit(last)}"
-            if last.exit_code is None else "last test run passed" if since or not (
-            RUNS_TESTS.match(last.command)) else PASSED.format(command=_quoted(last.command)))
+        parts.append(_last_test(last, since is not None))
     if seen or web:
         parts.append(f"{web} web")
     under = "" if len(ids) == 1 else f" (with the {_many(len(ids) - 1, 'agent')} it opened)"
     return DID.format(under=under) + ", ".join(parts) + "." if parts else None
+
+
+def _last_test(last: Command, since: bool) -> str:
+    """`did`'s word on the last test run: failed; passed; or no verdict, where its exit is masked
+    (`read_test`) or none was reported. `since`: a file changed after it - its pass is no "no need
+    to run it again"."""
+    read = read_test(last.command)
+    masked = read is not None and read[1]
+    if FAILED.search(last.output[-4000:]) or (last.exit_code not in (0, None) and not masked):
+        return f"last test run failed ({_exit(last)})"
+    if masked:
+        return "last test run: no verdict (its exit was masked)"
+    if last.exit_code is None:
+        return f"last test run: {_exit(last)}"
+    return "last test run passed" if since or read is None else PASSED.format(
+        command=_quoted(last.command))
 
 
 def argument(arguments: str, key: str) -> str | None:

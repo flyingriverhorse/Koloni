@@ -22,14 +22,15 @@ def test_the_lead_is_told_only_the_roles_it_may_open_and_a_range_that_is_not_the
     web = no_recipe(client, "Web app")["Web app"]
     assert patch_role(client, "Coder", tier_max="balanced").status_code == 200
     assert patch_role(client, "Tester", tier="fast").status_code == 200
-    assert patch_role(client, "Reviewer", enabled=False).status_code == 200
+    # (Karar 5: a core role - the Reviewer - is never off; the Refactorer may be.)
+    assert patch_role(client, "Refactorer", enabled=False).status_code == 200
     cid, run_id = begin(client, project_dir, teams_mode="manual", teams=[{"team_id": web["id"]}])
     wait_run(client, cid, run_id)
     listed = spawn_tool(default)["description"]
     assert "- Coder — Writes and changes code. (fast to balanced)" in listed
     assert "- Tester — Runs the tests and reports what passes and what fails. (always fast)" in listed
     assert "- Planner —" in listed and "- Debugger —" in listed       # always there; in the team
-    assert "Reviewer —" not in listed and "Translator —" not in listed  # off; not in the team
+    assert "Refactorer —" not in listed and "Translator —" not in listed  # off; not in the team
     tier = spawn_tool(default)["parameters"]["properties"]["tier"]["description"]
     assert "Pick the tier for the job" in tier
     # (Live, R59: the Lead opened team leads with a tier first, was refused, and tried again.)
@@ -78,7 +79,7 @@ def test_the_lead_the_planner_and_the_observer_are_never_off(team):  # noqa: F81
     client, _default, _fast = team([])
     for name in ("Lead", "Planner", "Observer"):
         assert patch_role(client, name, enabled=False).status_code == 422, name
-    assert client.patch(f"/api/roles/{next(r['id'] for r in client.get('/api/roles').json() if r['name'] == 'Coder')}",
+    assert client.patch(f"/api/roles/{next(r['id'] for r in client.get('/api/roles').json() if r['name'] == 'Translator')}",
                         json={"enabled": False}).status_code == 403  # the user's, from the own page
 
 
@@ -161,27 +162,31 @@ def test_a_message_not_sent_from_the_own_page_names_no_role(make_client, wait_ru
 
 
 def test_an_earlier_agent_in_a_role_now_off_is_not_gone_on_with(make_client, wait_run, project_dir):
+    from tests.test_spawn import call
     from tests.test_topic_scenarios import (
         FIRST,
-        GO_ON,
+        MORE,
+        OLD_TASK,
         OLD_WORDS,
         SECOND,
-        SPAWN_CODER,
         agents_of,
         calls_of,
         setup,
         turn,
     )
 
-    scripts = {"Lead": [SPAWN_CODER, text("made"), GO_ON, text("done")],
-               "Coder": [text(OLD_WORDS), text("must not be asked")]}
+    # (Karar 5: the Coder is never off - a Refactorer in its place.)
+    spawn_one = step(call("spawn_agent", {"role": "Refactorer", "task": OLD_TASK}, "s1"))
+    go_on = step(call("message_agent", {"to": "Refactorer", "message": MORE}, "m1"))
+    scripts = {"Lead": [spawn_one, text("made"), go_on, text("done")],
+               "Refactorer": [text(OLD_WORDS), text("must not be asked")]}
     client, _model, _pid, cid = setup(make_client, project_dir, scripts)
     turn(client, wait_run, cid, FIRST)
-    coder = next(r for r in client.get("/api/roles").json() if r["name"] == "Coder")
-    assert client.patch(f"/api/roles/{coder['id']}", json={"enabled": False}).status_code == 200
+    refactorer = next(r for r in client.get("/api/roles").json() if r["name"] == "Refactorer")
+    assert client.patch(f"/api/roles/{refactorer['id']}", json={"enabled": False}).status_code == 200
     snap, second = turn(client, wait_run, cid, SECOND)
     ((status, said),) = calls_of(snap, second["id"], "message_agent")
-    assert status == "failed" and "Coder role is off" in said
+    assert status == "failed" and "Refactorer role is off" in said
     assert [a["name"] for a in agents_of(snap, second["id"])] == ["Lead"]
 
 

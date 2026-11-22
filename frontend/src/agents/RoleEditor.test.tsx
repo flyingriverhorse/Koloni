@@ -14,7 +14,7 @@ const role = (over: Partial<Role>): Role => ({
   instructions: 'Be strict.',
   tools: ['list_dir', 'read_file', 'search'],
   builtin: true,
-  created_by_agent: false, models: null,
+  created_by_agent: false, locked_tools: [], models: null,
   provider_id: null,
   model_id: null,
   tier: null,

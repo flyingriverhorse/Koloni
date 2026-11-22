@@ -17,7 +17,9 @@ SEO specialist, Copywriter, Accessibility reviewer.
 
 The **Roles** list on the **Teams & roles** tab shows them all. **Filter roles…** searches it, and the
 buttons **All**, **In no team** and **Off** narrow it. Each role has an on / off switch. The
-Orchestrator, the Planner and the Observer are always on.
+Orchestrator, the Planner and the Observer are always on. So are the Coder, Tester, Reviewer, Debugger and
+Security reviewer: KOLONİ's checks and recipes use them, so they have no switch (a chat's teams still decide
+whether they are opened there).
 
 ## A role's panel
 
@@ -28,7 +30,12 @@ Click a role to open its panel. It has four tabs:
   where a role can run inside the CLI). Click an answer, or **Edit**, to change it.
 - **Instructions**: what the role is told.
 - **Tools**: the tools it may use, grouped (Files, Commands, Web, Browser, Team, To-do, Memory). A
-  click switches a tool on or off and saves at once. A role needs at least one tool. Tools marked
+  click switches a tool on or off and saves at once. A role needs at least one tool. The Coder, Tester,
+  Reviewer, Debugger and Security reviewer keep the tools their job needs: reading files for all five,
+  writing files for the Coder and the Debugger, **Run commands** for the Coder, the Tester and the
+  Debugger. Those tiles stay on, greyed: "Kept: KOLONİ's checks and recipes need it". Their other tools
+  are yours to change, and **Reset to default** still works. A sub-agent never has a tool its opener
+  may not hand on: an Orchestrator without **Run commands** gives no Tester one. Tools marked
   "asks" wait for your yes, as the chat's permission level says. Below, the MCP servers and skills the
   role has; you change those on the Tools page.
 - **Knowledge**: a switch for each Knowledge topic. On, choose **Full** ("its whole guide at each

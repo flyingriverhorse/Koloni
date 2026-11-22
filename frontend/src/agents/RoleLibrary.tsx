@@ -2,7 +2,7 @@ import { X } from '@phosphor-icons/react'
 import { type CSSProperties, type DragEvent, useEffect, useRef, useState } from 'react'
 import type { Category, Colour, Role } from '../api/types'
 import { fold } from '../shell/fold'
-import { BUILT_IN_CATEGORIES, canSwitch, COLOURS, colourVar, draggedRole, FROM_LIBRARY, groupsOf } from './chart'
+import { BUILT_IN_CATEGORIES, COLOURS, colourVar, draggedRole, FROM_LIBRARY, groupsOf, hasSwitch } from './chart'
 
 /** What changes the roles' categories (the store's methods, by their names). Each throws ApiError. */
 export interface CategoryActions {
@@ -253,7 +253,7 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
                     <span className={`lib-uses${role.teams.length ? '' : ' lib-uses-none'}`}>{teamsText(role.teams.length)}</span>
                   </button>
                   {/* The Lead, the Planner and the Observer are always there: no switch. */}
-                  {canSwitch(role) && <input type="checkbox" role="switch" className="model-agents lib-switch" aria-label={`${role.name} on`} checked={role.enabled} onChange={e => onSwitch(role, e.target.checked)} />}
+                  {hasSwitch(role) && <input type="checkbox" role="switch" className="model-agents lib-switch" aria-label={`${role.name} on`} checked={role.enabled} onChange={e => onSwitch(role, e.target.checked)} />}
                 </div>
               ))}
           </section>
