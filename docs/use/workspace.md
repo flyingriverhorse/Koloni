@@ -104,7 +104,12 @@ the branch began). And while you have any commit or
 stash not on GitHub - on a branch, in a stash, on a detached HEAD, in any worktree of yours - or the
 branch began from your uncommitted work, a pull request waits for your click at every level, Full auto
 too: the card says why ("you have 2 commits not on GitHub yet", "you have a stash not on GitHub yet"), so
-you can check its files are the agent's work.
+you can check its files are the agent's work. Where such a commit is in another worktree of yours, the
+card names that worktree's folder; if you deleted that folder by hand, git still keeps the worktree and
+its commit, and `git worktree prune` lets git drop it. A worktree of yours where you look at the agent's
+branch (`git worktree add --detach <folder> koloni/…`) does not make its commits yours, nor does a
+worktree of another KOLONİ on its own `koloni/…` branch; a worktree of yours whose branch you deleted
+still holds your commits.
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").

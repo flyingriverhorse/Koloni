@@ -45,6 +45,7 @@ and commands run; only harmful or risky actions ask" - and **Plan first**. Each 
 | A change in a folder added to the chat for reading only | Card | Card | Card |
 | A command that stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a process up and stops it | Card | Card | Card (in the project, **Check what I said first** may let it run, but never for python, node, uvicorn, an agent's CLI, a filter, a wildcard, `kill -1` or a process looked up) |
 | A sub-agent's command in its copy that names another agent's copy, a worktree of the project or a place above its copy (`../..`), or writes in or installs into the linked `node_modules`, `.venv` or `venv` | Card | Card | Card |
+| A sub-agent's command in a branch's worktree that writes to a place built when it runs (`> "$(git rev-parse --git-dir)/…"`, `cp x "$D/…"`, `Set-Content (Join-Path …)`) - it may be your repository's own `.git` | Card | Card | Card |
 
 A plain `git` command counts as read-only only when it runs at the top of the project and the
 project holds no secret file.
@@ -86,9 +87,44 @@ You can see and remove the rules you made under Settings › This project › **
 
 - a command that is chained, piped or redirected, or handed to a shell or another program;
 - a command that deletes or cannot be undone;
-- a command that names a secret file, `.koloni/`, or a file that steers agents.
+- a command that names a secret file, `.koloni/`, or a file that steers agents;
+- an option after the rule's words that makes the program run another program, fetch code or
+  write outside the folder: pytest's `--basetemp`, `-p`, `--rootdir`, `--confcutdir`, `-o` and `-c`;
+  go's `-exec` and `-toolexec`; cargo's `--config`; gradle's `-I`; npm's `--script-shell` and
+  `--prefix`; a runner's `--with` or `--package` (`-p` for npx); a shell handed a line (`bash -c`).
+  A rule for `python -m pytest` still covers `python -m pytest -q tests`, but not
+  `python -m pytest -p plugin`. A `--basetemp` outside the folder is a delete: pytest empties that
+  folder first.
 
 Below Full auto, a command that keeps running (a server) asks every time, even with a rule.
+
+## How a command is read
+
+KOLONİ reads an agent's command line the way its shell will run it, and judges every command it
+finds, not only the first word. A harm, an install or a write it finds anywhere is asked as it would
+be on a line of its own:
+
+- **Groups**: `(cd web && npm ci)`, `{ npm ci; }`, `if exist x (npm ci)`, `for %a in (*) do (…)` and
+  PowerShell's script blocks (`ForEach-Object { … }`, `& { … }`). A group whose brackets do not pair
+  is always asked.
+- **Heredocs and comments**: what a heredoc writes to a file and a comment run nothing; a stop in
+  code a heredoc or a pipe hands an interpreter (`python - <<'EOF'`, `echo "…" | python`) is asked.
+- **Launchers**: what `Start-Process … -ArgumentList`, `npx -c` / `--call`, `schtasks /tr`,
+  `[scriptblock]::Create(…)`, `cmd /c` and `bash -c` hand on is read as the command it is; a command
+  PowerShell is handed encoded (`-EncodedCommand`) is asked at every level.
+- **Substitutions**: an install inside `$( … )` (`out=$(npm ci)`) counts.
+- **Continued lines**: a line continued with a backtick, `\` or `^` is read joined as well.
+- **Writes to a place built at run time**: in a branch's worktree, a redirect, `cp`, `mv`,
+  `install`, `ln`, `tee`, `Set-Content`, `Out-File`, `New-Item`, `Copy-Item` or `[IO.File]::Write…`
+  whose target is made when the command runs - `$( … )`, a variable, `Join-Path` / `Split-Path`,
+  `git rev-parse` - or any write after a `cd` to such a place, is asked at every level: it may be
+  your repository's `.git` (another worktree's link, a ref of origin's). A path written out, and a
+  read, run as before.
+- **Package runners**: `npx -p`, `npm exec --package`, `uv run --with`, `uvx`, `pipx run`, `bunx`,
+  `pnpm dlx` and `yarn dlx` download a package and run it, so they count as installs: asked with web
+  off, and in a working copy whose dependency folders are linked to yours. A plain `npx <tool>` runs
+  the project's own tool and is read as before.
+- **Always rules** never cover the options listed in [What a rule never covers](#what-a-rule-never-covers).
 
 ## Disposable deletes
 
