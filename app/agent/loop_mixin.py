@@ -292,8 +292,10 @@ class LoopMixin:
             effort = effort or (limits.effort if limits else None)
             # The MCP servers it may use: its role's, and like its tools never one the
             # agent that opens it has not (the lead, which nobody opens, has its role's).
+            # (None at all for S3's Reviewer: an MCP server's tools may change things.)
             mcp = [name for name in (limits.mcp if limits else [])
-                   if parent_id is None or (above is not None and name in above.mcp)]
+                   if parent_id is None or (above is not None and name in above.mcp)
+                   ] if call_id not in self._read_only_calls else []
             # A role from before names were checked: its agents are named, and told what
             # they are, without what does not print.
             role = shown_name(role)

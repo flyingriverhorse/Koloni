@@ -1671,6 +1671,11 @@ class ContextMixin:
             if row.role == "agent":
                 self._history_agent_row(h, row)
                 continue
+            if row.role == "checked" and not ctx.depth and (held := _review_held(row)):
+                # S3: a Reviewer still held that turn's change - its blocking findings, as
+                # data (Fix it sends no model's words as the user's).
+                messages.append({"role": "user", "content": held})
+                continue
             if row.role in ("away", "git", "koloni", "landed", "checked"):
                 continue  # (KOLONİ's line in the chat - a night's end, git: the user's to read)
             if row.role == "trigger":
@@ -1865,3 +1870,10 @@ class ContextMixin:
             # returned since. A request that ends on its own words would be taken as a
             # reply to go on writing (or refused), so it is told where things stand.
             messages.append(Transient(role="user", content=CALL_RETURNED))
+
+
+def _review_held(row: Message) -> str | None:
+    """`review_mixin.review_held` (imported here: it imports from this module)."""
+    from app.agent.review_mixin import review_held
+
+    return review_held(row)

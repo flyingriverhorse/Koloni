@@ -8875,6 +8875,8 @@ export interface components {
             exec_location: "host" | "docker";
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
+            /** Fix Rounds */
+            fix_rounds: number;
             /**
              * Full Auto Check
              * @enum {string}
@@ -9042,6 +9044,8 @@ export interface components {
             exec_location?: ("host" | "docker") | null;
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
+            /** Fix Rounds */
+            fix_rounds?: number | null;
             /** Forget Tests Found */
             forget_tests_found?: boolean | null;
             /** Full Auto Check */

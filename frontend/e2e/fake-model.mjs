@@ -226,6 +226,8 @@ function nextStep(all, tools = [], model = '') {
   // Asked to say a project's day in words (slice 56): its numbers, in a few sentences. First of all: the day
   // carries the titles of its conversations, which the branches below would take for what is asked.
   if (String(messages[0].content).startsWith("You are given a software project's day")) return say('A day of one change. Nothing failed.')
+  // S3: KOLONİ's Reviewer at a turn's end (a change that touches security, say): it lets it stand.
+  if (messages.some(m => m.role === 'user' && String(m.content).startsWith('KOLONİ opened you at the end of a turn to look over'))) return say('Read it.\nVerdict: MERGE\n\nFindings: none')
   if (String(messages[0].content).includes('Coder sub-agent') && /Fix the cart handler, 85b/.test(String(messages[1]?.content))) {
     return say(messages.some(m => String(m.content).includes('"cart85b.ts" (text')) ? 'Read cart85b.ts: fixed.' : 'Was given no file.')
   }

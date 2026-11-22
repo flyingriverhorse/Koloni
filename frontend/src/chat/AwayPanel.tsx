@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, DotsSixVertical } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
-import type { Away, BacklogTask, PermissionMode } from '../api/types'
+import { api } from '../api/client'
+import type { Away, BacklogTask, PermissionMode, Project } from '../api/types'
 import { clock } from '../backlog/awayText'
 import { useAsk } from '../memory/useAsk'
 import type { ConvState } from '../state/applyEvent'
@@ -69,6 +70,7 @@ export function AwayPanel({ conv, offer, onClose }: Props) {
         The tasks run at <b>{LEVELS[lower(conv.conversation.permission_mode, todoLevel ?? conv.conversation.permission_mode)].name}</b> - the lower of this chat’s level and the To-do
         page’s.
       </p>
+      <CheckItSuggested projectId={conv.conversation.project_id} />
       {ids.length > 0 && <AwayTasks tasks={ids.map(id => tasks.find(t => t.id === id)!)} cid={cid} on={on} onTick={tick} onMove={move} />}
       <AwayColumns />
       <AwayLimits limits={limits} currency={offer?.currency ?? 'USD'} onChange={setLimits} />
@@ -93,6 +95,30 @@ export function AwayPanel({ conv, offer, onClose }: Props) {
         </div>
       )}
     </div>
+  )
+}
+
+/** S3: while you're away nobody looks at the work but KOLONİ's checks - Check it is suggested where the project is not on it. */
+export const CHECK_IT_SUGGESTED = 'While you’re away, Check it is suggested: tests, and a review of big or security-touching changes.'
+
+/** This chat's project on Check it - not the project open in the app, which may be another. */
+async function checkItFor(projectId: string) {
+  const saved = await api.patch<Project>(`/projects/${projectId}`, { after_change: 'check' })
+  useApp.setState(s => ({ projects: s.projects.map(one => (one.id === saved.id ? saved : one)) }))
+}
+
+function CheckItSuggested({ projectId }: { projectId: string | null }) {
+  const after = useApp(s => s.projects.find(p => p.id === projectId)?.after_change)
+  const { busy, error, ask } = useAsk()
+  if (!after || after === 'check') return null
+  return (
+    <p className="muted">
+      {CHECK_IT_SUGGESTED}{' '}
+      <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => checkItFor(projectId!))}>
+        Use Check it
+      </button>
+      {error && <span role="alert"> {error}</span>}
+    </p>
   )
 }
 

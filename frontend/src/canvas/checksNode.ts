@@ -4,7 +4,7 @@ import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 
 /** KOLONİ's own end-of-turn test run: its call on the Lead's answer (`ProofMixin.PROOF_CALL`). */
 export const PROOF_CALL = 'koloni_proof_'
-/** How often the end check sends failing tests back, at most (`MAX_SENT_BACK`). */
+/** How often the end check sends work back, at most, where its Checked section does not say yet (the project's Fix rounds' default). */
 export const MOST_ROUNDS = 2
 /** S10: a turn of a chat whose Check after a change was off - no node, only the Orchestrator's strip says so. */
 export const OFF_FOR_CHAT = 'not checked · off for this chat'
@@ -88,16 +88,20 @@ export function stripOf(data: ChecksData): string | null {
 
 /**
  * A turn's Checks node, after its Orchestrator: from KOLONİ's own test calls (live) and its Checked section (at its end).
- * Each fix round is a line back to the Orchestrator, "round 1 of 2: tests fail". None where nothing was checked.
+ * Each fix round is a line back to the Orchestrator, "round 1 of 2: tests fail" - "2 blocking findings" for a Reviewer's
+ * (S3), whose agents KOLONİ opened come after the node. None where nothing was checked.
  */
 export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[]): ChecksData | null {
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
-  const calls = state.toolCalls.filter(c => c.run_id === run.id && c.provider_call_id.startsWith(PROOF_CALL))
+  const own = state.toolCalls.filter(c => c.run_id === run.id && c.provider_call_id.startsWith(PROOF_CALL))
+  // (Its test runs; its spawns are S3's Reviewers.)
+  const calls = own.filter(c => c.name === 'run_command')
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
-  if (!lead || (!calls.length && !checked)) return null
+  if (!lead || (!own.length && !checked)) return null
   if (checked?.checked?.some(row => row.kind === 'chat_off')) return offForChat(nodes, lead.id)
   const at = calls.find(c => c.status === 'running')
-  const rounds = roundsOf(calls, checked)
+  const said = roundsSaid(checked)
+  const rounds = Math.max(passesOf(calls) - 1, said.n)
   const lines = (checked?.checked ?? []).map(lineOf)
   const data: ChecksData = {
     runId: run.id,
@@ -112,8 +116,9 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const id = `checks:${run.id}`
   nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data })
   edges.push({ id: `agent:${lead.id}>${id}`, source: `agent:${lead.id}`, target: id, active: Boolean(at), plan: true, po: true })
-  for (let round = 1; round <= Math.min(rounds, MOST_ROUNDS); round++)
-    edges.push({ id: `${id}>agent:${lead.id}:${round}`, source: id, target: `agent:${lead.id}`, active: false, round: `round ${round} of ${MOST_ROUNDS}: tests fail` })
+  for (let round = 1; round <= Math.min(rounds, said.most); round++)
+    edges.push({ id: `${id}>agent:${lead.id}:${round}`, source: id, target: `agent:${lead.id}`, active: false, round: roundLine(round, said) })
+  reviewersAfter(state, own, `agent:${lead.id}`, id, edges)
   // (The Orchestrator's strip says it too.)
   const leadNode = nodes.find(node => node.id === `agent:${lead.id}`)
   if (leadNode) (leadNode.data as AgentData).checked = stripOf(data)
@@ -132,10 +137,28 @@ function sinceOf(state: ConvState, callId: string): string | null {
   return state.commands.find(c => c.tool_call_id === callId)?.started_at ?? null
 }
 
-/** Fix rounds: the passes after the first - and at its end what the Checked section says, where more (a pass after a round may run nothing: the Orchestrator's own run stood). */
-function roundsOf(calls: { arguments: string }[], checked: Message | undefined): number {
-  const said = checked?.checked?.find(row => row.kind === 'rounds')?.text.match(/\d+/)
-  return Math.max(passesOf(calls) - 1, said ? Number(said[0]) : 0)
+/**
+ * What the Checked section says of its fix rounds at its end: how many, of how many (the project's Fix rounds), and why each
+ * went back where a Reviewer's findings did - "Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)". Before
+ * its end, none (a pass after a round may run nothing: the Orchestrator's own run stood - counted here then).
+ */
+function roundsSaid(checked: Message | undefined): { n: number; most: number; why: string[] } {
+  const text = checked?.checked?.find(row => row.kind === 'rounds')?.text ?? ''
+  const [, n, most, why] = /(\d+) of (\d+) rounds?(?: \((.*)\))?/.exec(text) ?? []
+  return { n: Number(n ?? 0), most: most ? Number(most) : MOST_ROUNDS, why: why ? why.split('; ') : [] }
+}
+
+/** A round's line back: "round 1 of 2: tests fail" once the Checked section says its rounds; before that only "round 1" - the Fix rounds and what sent it back are not known yet. */
+function roundLine(round: number, said: { n: number; most: number; why: string[] }): string {
+  return said.n ? `round ${round} of ${said.most}: ${said.why[round - 1] ?? 'tests fail'}` : `round ${round}`
+}
+
+/** S3: the Reviewers KOLONİ opened at the turn's end are drawn after its Checks node - their spawn line from it, not the Orchestrator. */
+function reviewersAfter(state: ConvState, own: { id: string; name: string }[], from: string, to: string, edges: GraphEdge[]) {
+  const looks = new Set(own.filter(c => c.name === 'spawn_agent').map(c => c.id))
+  const mine = new Set(state.agents.filter(a => looks.has(a.tool_call_id ?? '')).map(a => `agent:${a.id}`))
+  for (const edge of edges)
+    if (edge.source === from && mine.has(edge.target)) Object.assign(edge, { id: `${to}>${edge.target}`, source: to })
 }
 
 function commandOf(argumentsJson: string): string {

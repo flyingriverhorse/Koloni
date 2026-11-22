@@ -267,6 +267,8 @@ class ProjectOut(Out):
     room_min_tokens: int | None
     # Kanıtlı bitiş: what KOLONİ checks after a turn that changed code (`app.proof`).
     after_change: AfterChange
+    # S3: how often the end check sends work back a turn - tests and the Reviewer's findings.
+    fix_rounds: int
     # 0162: Nothing because the user had turned "Finish only when the tests pass" off: said.
     after_change_from_off: bool
     # S1b: the test command(s) KOLONİ saved itself, by folder - {"command", "from", "at"}; and its
@@ -365,6 +367,7 @@ class ProjectPatch(BaseModel):
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
+    fix_rounds: int | None = Field(default=None, ge=1, le=5, strict=True)
     # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
     forget_tests_found: bool | None = None
     full_auto_check: FullAutoCheck | None = None

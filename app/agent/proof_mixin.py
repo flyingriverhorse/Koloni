@@ -1,9 +1,10 @@
 """Kanıtlı bitiş (proven finish, S1): a turn that changed the project does not end on the model's
 word. Where the Lead's answer would end the turn (`LoopMixin._loop_steps`, beside `_left_to_do`),
 KOLONİ runs the project's tests once on the work as it then stands, sends a failure back to the
-Orchestrator at most `MAX_SENT_BACK` times, and writes under the answer what was checked and what
-was not - a message of role "checked" (`_say_checked`) - `ProofMixin`. For every provider and CLI:
-it took over 89m's Claude-Code-only Stop hook."""
+Orchestrator at most the project's Fix rounds (S3: a Reviewer's findings count too, `ReviewMixin`),
+and writes under the answer what was checked and what was not - a message of role "checked"
+(`_say_checked`) - `ProofMixin`. For every provider and CLI: it took over 89m's Claude-Code-only
+Stop hook."""
 
 import asyncio
 import contextlib
@@ -70,6 +71,11 @@ class Proof:
     to on a card (`once`), the changes it last looked at, and (S2, S3) what was asked."""
     rows: list[Row] = field(default_factory=list)
     rounds: int = 0
+    # S3 (decisions 14a, 19): the project's Fix rounds, read once a turn - tests and the
+    # Reviewer's findings, one count; and why each round went back ("tests fail", "2 blocking
+    # findings").
+    most: int = MAX_SENT_BACK
+    sent: list[str] = field(default_factory=list)
     # The commands said yes to on a card, by the folder they ran in: a yes covers that text in
     # that folder only - never another part's command of the same text.
     yes: dict[str, set[str]] = field(default_factory=dict)
@@ -85,6 +91,13 @@ class Proof:
     stopped: bool = False
     asked_test: bool = False
     reviewed: bool = False
+    # S3 (`ReviewMixin`): the last look's verdict ("MERGE", "HOLD"; None: none yet), its rows, the
+    # change it saw (`proof.last_change`), the reviewers it took, and the rounds it sent back.
+    verdict: str | None = None
+    looked: list[Row] = field(default_factory=list)
+    looked_at: datetime | None = None
+    lookers: tuple[str, ...] = ()
+    review_rounds: int = 0
     # S1b (`FoundMixin`): where a guess came from ("guess", "look"), by (command, folder); and
     # why nothing was run - the look found no test, or there was no model to look.
     found_from: dict[tuple[str, str], str] = field(default_factory=dict)
@@ -94,7 +107,7 @@ class Proof:
 
 class ProofMixin:
     # The gate's steps, run in order: the first nudge ends the pass (later slices append theirs).
-    PROOF_STEPS: tuple[str, ...] = ("_proof_tests",)
+    PROOF_STEPS: tuple[str, ...] = ("_proof_tests", "_proof_review")
 
     async def _end_left(self: "AgentRunner", ctx: Ctx) -> str | None:
         """What the Lead is told before its answer may end the turn; None: it may."""
@@ -114,9 +127,10 @@ class ProofMixin:
                     session.get(Run, ctx.run_id)) in ("nothing", "off"):
                 return None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
+            most = project.fix_rounds
         if not any(one.in_project for one in found):
             return None
-        held = self._proofs.setdefault(ctx.run_id, Proof())
+        held = self._proofs.setdefault(ctx.run_id, Proof(most=most))
         held.changes = found
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         for name in self.PROOF_STEPS:
@@ -177,14 +191,15 @@ class ProofMixin:
             held.rows.append(self._no_runs_row(held))
             return None
         failed = await self._all_tests(ctx, held, runs)  # (S6: related first, the rest later)
-        if not failed or held.rounds >= MAX_SENT_BACK or held.recipe_spent:
+        if not failed or held.rounds >= held.most or held.recipe_spent:
             return None
         held.rounds += 1
+        held.sent.append("tests fail")
         tail = "\n\n".join("\n".join(output.rstrip().splitlines()[-TESTS_TAIL_LINES:])
                            for _run, output in failed).replace("```", "'''")[-TESTS_TAIL_CHARS:]
         return TESTS_FAILED_LEAD.format(
             command=", ".join(quoted(run.command) for run, _output in failed),
-            rounds=MAX_SENT_BACK, output=injection.noted(tail, "agent"))
+            rounds=held.most, output=injection.noted(tail, "agent"))
 
     def _fresh_of(self: "AgentRunner", ctx: Ctx, run: TestRun) -> tuple[Row, str] | None:
         """A fresh run on record that stands for `run`: its row and output; None: run it."""
@@ -435,14 +450,17 @@ class ProofMixin:
                 why=NOT_REACHED.get(status, ENDED_FIRST))), *waiting]
         rounds = []
         if held.rounds:
+            # (Why each went back, where a review's findings did: the canvas's round lines.)
+            why = f" ({'; '.join(held.sent)})" if set(held.sent) - {"tests fail"} else ""
             rounds.append(proof.row("rounds", "note", proof.SENT_BACK.format(
-                n=held.rounds, most=MAX_SENT_BACK)))
-        failing = any(one["state"] == "failed" for one in held.rows)
-        if failing and (held.rounds >= MAX_SENT_BACK or held.recipe_spent):
+                n=held.rounds, most=held.most) + why))
+        failing = any(one["state"] == "failed" for one in held.rows if one["kind"] == "tests")
+        if failing and (held.rounds >= held.most or held.recipe_spent):
             rounds.append(proof.row("rounds", "failed", proof.RECIPE_SPENT if held.recipe_spent
-                                    and held.rounds < MAX_SENT_BACK else proof.STILL_FAILING.format(
-                                        most=MAX_SENT_BACK)))
+                                    and held.rounds < held.most else proof.STILL_FAILING.format(
+                                        most=held.most)))
         later = proof.last_change(session, run_id)
+        rounds += self._hold_left(held)  # (S3: a hold nothing settled)
         if held.seen is not None and later is not None and later > held.seen:
             rounds.append(proof.row("tests", "not_run", proof.NOT_AGAIN.format(
                 why=NOT_REACHED.get(status, ENDED_FIRST))))
