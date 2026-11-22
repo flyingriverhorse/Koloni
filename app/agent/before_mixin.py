@@ -39,7 +39,7 @@ NOT_CAUGHT = "The new test passes on the old code too: it may not catch the bug"
 NO_BEFORE = "Not checked against the old code: {why}"
 CHANGED_BY_COMMAND = "a command changed the project this turn, and what it changed is not on record"
 ASKS_AGAIN = "not re-run alone or on the old code: it would ask again"
-REGRESSION = "Regression: {id} passed at the last green run and fails now"
+REGRESSION = "Regression: {id} passed at the last green run and fails now{by}"
 NOT_YOURS = " These were failing before this turn and are not yours to fix: {ids}."
 GREEN_LEAD = ("Not the end yet: {said}, against this project's last green run - and your answer "
               "does not say why. Put back what was taken away, or say in your answer why the "
@@ -151,9 +151,21 @@ class BeforeMixin:
                 held.rows += [proof.row("tests", "failed", one, run.command) for one in said]
                 return said
             project.tests_green = {**(project.tests_green or {}), key: {
-                "ran": ran, "skipped": skipped, "at": now().isoformat()}}
+                "ran": ran, "skipped": skipped, "at": now().isoformat(),
+                "ids": self._passed_now(session, ctx, run)}}
             session.commit()
         return []
+
+    @staticmethod
+    def _passed_now(session, ctx: Ctx, run: TestRun) -> list[str] | None:
+        """The tests the turn's last passing run of `run` by KOLONİ lists as passed; None: its
+        output lists none."""
+        output = session.scalar(
+            select(Command.output).join(ToolCall, ToolCall.id == Command.tool_call_id).where(
+                Command.run_id == ctx.run_id, Command.command == run.command,
+                ToolCall.provider_call_id.startswith(proof.PROOF_CALL), Command.exit_code == 0)
+            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc()).limit(1))
+        return proof_before.passed_ids(run.command, output or "")
 
     def _regressions(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
                      ids: list[str]) -> None:
@@ -163,10 +175,12 @@ class BeforeMixin:
             project = self._project(session, ctx.cid)
             green = (project.tests_green or {}) if project is not None else {}
             mine = set(self._new_tests(session, ctx))
-        if f"{run.cwd} {run.command}" not in green:
+        was = green.get(f"{run.cwd} {run.command}")
+        if was is None:
             return
-        held.rows += [proof.row("tests", "failed", REGRESSION.format(id=one), run.command)
-                      for one in ids if one.split("::")[0] not in mine]
+        held.rows += [proof.row("tests", "failed", REGRESSION.format(
+            id=one, by=" (by file)" if by_file else ""), run.command)
+            for one, by_file in proof_before.regressions(ids, was, mine)]
 
     def _at_last_run(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun) -> None:
         """A command whose last run by KOLONİ in this project (an earlier turn's) failed and
@@ -217,12 +231,11 @@ class BeforeMixin:
             held.rows.append(row)
 
     def _may_rerun(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun) -> bool:
-        """Whether `run` may be run again - alone, on the old code - with no card: it went
-        unasked (your own command, Full auto, a trigger's leave) or its card was said yes to this
-        turn. Else it is not: no second card is raised for it."""
+        """Whether `run` may be run again - alone, on the old code - with no card: it goes
+        unasked (your own command, Full auto, a trigger's leave). A guess whose card was said yes
+        to is not: no second card is raised for it."""
         how = self._may_run_tests(ctx, run)
-        return how == "run" or how == "ask" and (run.yours or self._full_auto(ctx) or (
-            run.command.strip() in held.yes.get(run.cwd, set())))
+        return how == "run" or how == "ask" and (run.yours or self._full_auto(ctx))
 
     async def _run_aside(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
                          place=None) -> tuple[proof.Row, str] | None:

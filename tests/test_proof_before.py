@@ -46,3 +46,27 @@ def test_new_tests_and_the_green_words():
     assert proof_before.green_said({"ran": 214, "skipped": 3}, 210, 9) == [
         "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9"]
     assert proof_before.green_said({"ran": 4, "skipped": 0}, 5, 0) == []
+
+
+
+def test_passed_ids_as_the_run_lists_them_or_none():
+    out = "tests/test_a.py::test_x PASSED\ntests/test_a.py::test_y PASSED\n=== 2 passed ===\n"
+    assert proof_before.passed_ids("python -m pytest -v", out) == [
+        "tests/test_a.py::test_x", "tests/test_a.py::test_y"]
+    assert proof_before.passed_ids("python -m pytest -q", "..\n2 passed in 0.1s\n") is None
+    assert proof_before.passed_ids("npx jest", "PASS src/a.test.js\nPASS src/b.test.js\n") == [
+        "src/a.test.js", "src/b.test.js"]
+    assert proof_before.passed_ids("npx vitest run", " ✓ src/a.test.ts (3)\n") == ["src/a.test.ts"]
+    many = "".join(f"t.py::test_{i} PASSED\n" for i in range(proof_before.MOST_IDS + 10))
+    assert len(proof_before.passed_ids("pytest -v", many)) == proof_before.MOST_IDS
+
+
+def test_a_regression_is_a_test_that_passed_then():
+    green = {"ran": 2, "skipped": 0, "ids": ["tests/test_a.py::test_x", "tests/test_a.py::test_y"]}
+    # (test_z was added after the green run: never a regression)
+    assert proof_before.regressions(["tests/test_a.py::test_x", "tests/test_a.py::test_z"],
+                                    green, set()) == [("tests/test_a.py::test_x", False)]
+    # (no ids kept: by file - not a file this turn added)
+    assert proof_before.regressions(["tests/test_a.py::test_x", "tests/test_n.py::test_m"],
+                                    {"ran": 2, "skipped": 0, "ids": None},
+                                    {"tests/test_n.py"}) == [("tests/test_a.py::test_x", True)]

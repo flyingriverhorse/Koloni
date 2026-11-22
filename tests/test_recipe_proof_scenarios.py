@@ -44,13 +44,20 @@ def lead(tests, review=True):
     return [*way, *([spawn("Reviewer", "review it", "r1")] if review else []), text("done")]
 
 
+# R4 (S7): Reproduce it shows the bug with a failing test it wrote - its run, the executor's first.
+REPRO = Script(["FAILED tests/test_repro.py::test_calc - ZeroDivisionError\n1 failed\n"], exit_code=1)
+REPRODUCES = [step(write("tests/test_repro.py", "def test_calc(): 1 / 0\n", "wr")),
+              cmd(f"{PYTEST} tests/test_repro.py", "kr"), text("Reproduced: calc(2) crashes.")]
+
+
 def scripts(*testers, review=True):
-    """Each Tester's script by its agent's name ("Tester", "Tester 2", ...), and a Coder for each."""
+    """Each Tester's script by its agent's name ("Tester", "Tester 2", ...), and a Coder for each;
+    the Debugger reproduces as R4 asks (`REPRODUCES`: the executor's first script is `REPRO`)."""
     named = [("Tester" if i == 0 else f"Tester {i + 1}") for i in range(len(testers))]
     coders = [("Coder" if i == 0 else f"Coder {i + 1}") for i in range(len(testers))]
     return {
         "Lead": lead(testers, review),
-        "Debugger": [text("Reproduced: calc(2) crashes.")],
+        "Debugger": list(REPRODUCES),
         **{name: [step(write("calc.py", f"x = {i}\n")), text("fixed")] for i, name in enumerate(coders)},
         **dict(zip(named, testers, strict=True)),
         "Reviewer": [text(NONE)],
@@ -71,7 +78,7 @@ def opened(snap):
 
 def test_a_tester_that_says_none_with_a_failing_run_blocks(make_client, wait_run, project_dir):
     # R2: "Findings: none" with a failing run on record - Bugfix's Test it goes back to Fix it.
-    executor = ScriptedExecutor([FAILED, PASSED])
+    executor = ScriptedExecutor([REPRO, FAILED, PASSED])
     client, _model = make_client(scripts(ran_tests(), ran_tests(id="k2")), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -86,7 +93,7 @@ def test_a_tester_that_says_none_with_a_failing_run_blocks(make_client, wait_run
 
 def test_already_failing_before_is_not_blocked_by_r2(make_client, wait_run, project_dir):
     # (Review of S4: only where it names every test the run says failed - FAILING names test_x.)
-    executor = ScriptedExecutor([Script(["FAILED tests/test_x.py::test_x - assert 0\n1 failed, 3 passed\n"],
+    executor = ScriptedExecutor([REPRO, Script(["FAILED tests/test_x.py::test_x - assert 0\n1 failed, 3 passed\n"],
                                         exit_code=1)])
     client, _model = make_client(scripts(ran_tests(FAILING)), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
@@ -103,7 +110,7 @@ OTHER_BEFORE = ("Ran pytest.\n\nAlready failing before: test_old_flaky in tests/
 def test_an_already_failing_line_about_another_test_does_not_turn_r2_off(make_client, wait_run, project_dir):
     failed = Script(["FAILED tests/test_repro.py::test_calc_2 - ZeroDivisionError\n1 failed, 3 passed\n"],
                     exit_code=1)
-    executor = ScriptedExecutor([failed, PASSED])
+    executor = ScriptedExecutor([REPRO, failed, PASSED])
     client, _model = make_client(scripts(ran_tests(OTHER_BEFORE), ran_tests(id="k2")), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -143,7 +150,7 @@ def test_a_tester_whose_failing_run_is_followed_by_a_help_blocks(make_client, wa
     failed = Script(["F\nRan 1 test in 0.001s\n\nFAILED (failures=1)\n"], exit_code=1)
     usage = Script(["usage: python -m unittest [-h] [-v] [-q]\n"], exit_code=0)
     tester = [cmd(UNITTEST, "k0"), cmd("python -m unittest -h", "k1"), text(NONE)]
-    executor = ScriptedExecutor([failed, usage, PASSED])
+    executor = ScriptedExecutor([REPRO, failed, usage, PASSED])
     client, _model = make_client(scripts(tester, ran_tests(id="k2")), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -156,7 +163,7 @@ def test_a_tester_whose_failing_run_is_followed_by_a_help_blocks(make_client, wa
 
 def test_a_narrower_pass_does_not_hide_a_whole_runs_failure(make_client, wait_run, project_dir):
     tester = [cmd(PYTEST, "k0"), cmd(f"{PYTEST} tests/test_ok.py", "k1"), text(NONE)]
-    executor = ScriptedExecutor([FAILED, Script(["2 passed\n"]), PASSED])
+    executor = ScriptedExecutor([REPRO, FAILED, Script(["2 passed\n"]), PASSED])
     client, _model = make_client(scripts(tester, ran_tests(id="k2")), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -170,7 +177,7 @@ def test_on_code_with_a_test_command_a_tester_passes_only_on_a_test_run(make_cli
     # Review of the R3 fix: the project's tests are known (its own command) and the recipe changes
     # code - a script of the Tester's own checks no test; the project's command does.
     from tests.test_recipe_run_scenarios import OWN_TEST, own_test
-    executor = ScriptedExecutor([Script(["all good\n"]), Script(["git version 2.47\n"]),
+    executor = ScriptedExecutor([REPRO, Script(["all good\n"]), Script(["git version 2.47\n"]),
                                  Script(["git version 2.47\n"])])
     client, _model = make_client(
         scripts([cmd("python check.py", "k0"), text(NONE)], [cmd(OWN_TEST, "k1"), text(NONE)]),
@@ -185,7 +192,7 @@ def test_on_code_with_a_test_command_a_tester_passes_only_on_a_test_run(make_cli
 
 def test_a_tester_that_ran_only_python_pass_does_not_pass(make_client, wait_run, project_dir):
     # CL-305 (noop): `python -c "pass"` started and is no read - and checks nothing.
-    executor = ScriptedExecutor([Script([]), PASSED])
+    executor = ScriptedExecutor([REPRO, Script([]), PASSED])
     client, _model = make_client(scripts([cmd('python -c "pass"', "k0"), text(NONE)], ran_tests()),
                                  executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
@@ -199,7 +206,7 @@ def test_a_tester_that_ran_only_python_pass_does_not_pass(make_client, wait_run,
 def test_a_tester_that_retried_with_another_spelling_passes(make_client, wait_run, project_dir):
     # Review of S4: `pytest` not on PATH, then `python -m pytest` passed - the same tool, passing.
     missing = Script(["'pytest' is not recognized as an internal or external command\n"], exit_code=1)
-    executor = ScriptedExecutor([missing, PASSED])
+    executor = ScriptedExecutor([REPRO, missing, PASSED])
     tester = [cmd("pytest -q", "k0"), cmd(PYTEST, "k1"), text(NONE)]
     client, _model = make_client(scripts(tester), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
@@ -209,7 +216,7 @@ def test_a_tester_that_retried_with_another_spelling_passes(make_client, wait_ru
 
 
 def test_a_tester_is_told_a_pass_needs_a_command_on_record(make_client, wait_run, project_dir):
-    client, _model = make_client(scripts(ran_tests()), executor=ScriptedExecutor([PASSED]))
+    client, _model = make_client(scripts(ran_tests()), executor=ScriptedExecutor([REPRO, PASSED]))
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert RUN_TO_PASS in agent(snap, "Tester")["task"]
@@ -218,7 +225,7 @@ def test_a_tester_is_told_a_pass_needs_a_command_on_record(make_client, wait_run
 
 def test_a_tester_that_only_read_does_not_pass(make_client, wait_run, project_dir):
     # Review of S4: `ls` checks nothing - R3 counts a command that started and is no mere read.
-    executor = ScriptedExecutor([Script(["calc.py\n"]), PASSED])
+    executor = ScriptedExecutor([REPRO, Script(["calc.py\n"]), PASSED])
     client, _model = make_client(scripts([cmd("ls", "k0"), text(NONE)], ran_tests()), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -228,9 +235,15 @@ def test_a_tester_that_only_read_does_not_pass(make_client, wait_run, project_di
 
 def test_a_check_whose_command_the_user_declined_stops_at_ready_for_you(make_client, wait_run, project_dir):
     # Review of S4: no loop back to a Coder who could not act on it - the user's, not checked.
-    client, _model = make_client(scripts(ran_tests(), review=False), executor=ScriptedExecutor([]))
+    client, _model = make_client(scripts(ran_tests(), review=False), executor=ScriptedExecutor([REPRO, ]))
     cid, run_id = bugfix_run(client, project_dir, mode="auto_edit")
+    # (R4: the Debugger's reproduction asks first - run once; then the Tester's is declined.)
     snap = until(client, cid, lambda s: [c for c in s["commands"] if c["status"] == "proposed"])
+    (repro,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert client.post(f"/api/commands/{repro['id']}/approve", json={"remember": False},
+                       headers=OWN).status_code == 200
+    snap = until(client, cid, lambda s: [c for c in s["commands"] if c["status"] == "proposed"
+                                         and c["id"] != repro["id"]])
     (proposed,) = [c for c in snap["commands"] if c["status"] == "proposed"]
     assert client.post(f"/api/commands/{proposed['id']}/reject", headers=OWN).status_code == 200
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
@@ -263,7 +276,7 @@ def test_a_tester_at_the_reproduce_step_may_see_the_test_fail(make_client, wait_
 
 def test_a_tester_that_ran_nothing_does_not_pass(make_client, wait_run, project_dir):
     # R3: it could run commands, and ran none - what it says of the tests is not on record.
-    executor = ScriptedExecutor([PASSED])
+    executor = ScriptedExecutor([REPRO, PASSED])
     client, _model = make_client(scripts([text(NONE)], ran_tests()), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -274,7 +287,7 @@ def test_a_tester_that_ran_nothing_does_not_pass(make_client, wait_run, project_
 
 
 def test_a_reviewer_without_run_command_is_not_held_to_r3(make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([PASSED])
+    executor = ScriptedExecutor([REPRO, PASSED])
     client, _model = make_client(scripts(ran_tests()), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -289,7 +302,7 @@ def test_a_cli_tester_whose_commands_are_not_seen_is_not_held_to_r3(
         make_client, wait_run, project_dir, monkeypatch):
     # (A CLI whose own work KOLONİ does not record - Codex's, say: its commands may have run.)
     monkeypatch.setattr("app.handoff.counted_on", lambda model: False)
-    client, _model = make_client(scripts([text(NONE)]))
+    client, _model = make_client(scripts([text(NONE)]), executor=ScriptedExecutor([REPRO]))
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert opened(snap) == ["Debugger", "Coder", "Tester", "Reviewer"], by_call(snap)
@@ -298,7 +311,7 @@ def test_a_cli_tester_whose_commands_are_not_seen_is_not_held_to_r3(
 
 def test_bugfix_failing_test_goes_back_to_fix_twice_then_stops(make_client, wait_run, project_dir):
     # R1: Test it loops back to Fix it, at most 2 rounds, as Review it does - then the user's.
-    executor = ScriptedExecutor([FAILED, FAILED, FAILED])
+    executor = ScriptedExecutor([REPRO, FAILED, FAILED, FAILED])
     client, _model = make_client(
         scripts(ran_tests(), ran_tests(id="k2"), ran_tests(id="k3"), review=False), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
@@ -314,7 +327,7 @@ def test_bugfix_failing_test_goes_back_to_fix_twice_then_stops(make_client, wait
 
 def test_the_reproduce_step_is_told_to_write_a_failing_test_only(make_client, wait_run, project_dir):
     # R4: Reproduce it writes the failing test; Fix it makes it pass.
-    executor = ScriptedExecutor([PASSED])
+    executor = ScriptedExecutor([REPRO, PASSED])
     client, _model = make_client(scripts(ran_tests()), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -324,21 +337,45 @@ def test_the_reproduce_step_is_told_to_write_a_failing_test_only(make_client, wa
 
 
 def test_a_reproduce_step_that_shows_no_failing_test_is_held(make_client, wait_run, project_dir):
-    # R4 (S7): Reproduce it must leave a failing test run on record - words alone are no bug shown.
-    from app.agent.words import NOT_REPRODUCED
-    client, _model = make_client(scripts(ran_tests()), executor=ScriptedExecutor([PASSED]))
-    cid, run_id = bugfix_run(client, project_dir)
-    snap = wait_run(client, cid, run_id)
-    held = agent(snap, "Debugger")["findings"] or []
-    assert (NOT_REPRODUCED["what"], True) in [(f["what"], f["blocking"]) for f in held], held
-
-
-def test_a_reproduce_step_whose_test_failed_is_not_held(make_client, wait_run, project_dir):
+    # R4 (S7): Reproduce it must leave a failing test run on record - words alone are no bug
+    # shown: held, and the recipe stops at Ready for you, as R3's declined check does.
     from app.agent.words import NOT_REPRODUCED
     shown = scripts(ran_tests())
-    shown["Debugger"] = [cmd(PYTEST, "dd1"), text("Reproduced: calc(2) crashes.")]
-    client, _model = make_client(shown, executor=ScriptedExecutor([FAILED, PASSED]))
+    shown["Debugger"] = [text("Reproduced: calc(2) crashes.")]  # (words, no test run)
+    client, _model = make_client(shown, executor=ScriptedExecutor([PASSED]))
+    cid, _run_id = bugfix_run(client, project_dir)
+    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
+    held = agent(snap, "Debugger")["findings"] or []
+    assert (NOT_REPRODUCED["what"], True) in [(f["what"], f["blocking"]) for f in held], held
+    assert opened(snap) == ["Debugger"], by_call(snap)  # (no Fix it on a bug not shown)
+    assert (row(snap)["status"], row(snap)["why"]) == (
+        "ready", f"Not checked: {NOT_REPRODUCED['what']}"), row(snap)
+
+
+def test_a_reproduce_step_must_fail_the_test_it_wrote(make_client, wait_run, project_dir):
+    # (It wrote tests/test_repro.py, and only another test failed in its run: not its bug shown.)
+    from app.agent.words import NOT_ITS_TEST
+    other = Script(["FAILED tests/test_other.py::test_q - x\n1 failed\n"], exit_code=1)
+    shown = scripts(ran_tests())
+    shown["Debugger"] = [step(write("tests/test_repro.py", "def test_calc(): assert 0\n")),
+                         cmd(PYTEST, "dd1"), text("Reproduced: calc(2) crashes.")]
+    client, _model = make_client(shown, executor=ScriptedExecutor([other, PASSED]))
+    cid, _run_id = bugfix_run(client, project_dir)
+    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
+    held = agent(snap, "Debugger")["findings"] or []
+    assert NOT_ITS_TEST.format(files="tests/test_repro.py") in [f["what"] for f in held], held
+
+
+def test_a_reproduce_step_whose_own_test_failed_is_not_held(make_client, wait_run, project_dir):
+    from app.agent.words import NOT_ITS_TEST, NOT_REPRODUCED
+    mine = Script(["FAILED tests/test_repro.py::test_calc - ZeroDivisionError\n1 failed\n"],
+                  exit_code=1)
+    shown = scripts(ran_tests())
+    shown["Debugger"] = [step(write("tests/test_repro.py", "def test_calc(): assert 0\n")),
+                         cmd(PYTEST, "dd1"), text("Reproduced: calc(2) crashes.")]
+    client, _model = make_client(shown, executor=ScriptedExecutor([mine, PASSED]))
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
-    held = agent(snap, "Debugger")["findings"] or []
-    assert NOT_REPRODUCED["what"] not in [f["what"] for f in held], held
+    held = [f["what"] for f in agent(snap, "Debugger")["findings"] or []]
+    assert NOT_REPRODUCED["what"] not in held and not any(
+        one.startswith(NOT_ITS_TEST.split("(")[0]) for one in held), held

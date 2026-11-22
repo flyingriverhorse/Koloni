@@ -74,6 +74,7 @@ from app import (
     mcp_client,
     project_map,
     project_view,
+    proof_before,
     raw,
     recipe_run,
     signs,
@@ -300,6 +301,7 @@ from app.agent.words import (
     NOT_HEARD,
     NOT_IN_A_COPY,
     NOT_IN_THE_PART,
+    NOT_ITS_TEST,
     NOT_ON_BRANCH_AGAIN,
     NOT_REPRODUCED,
     NOT_WORK,
@@ -6226,16 +6228,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return [{"what": ledger.failed_line(ran), "kind": "test", "role": None, "blocking": True}]
 
     def _reproduce_held(self, session, child: Ctx) -> list[dict]:
-        """R4 (S7): the agent of a recipe's reproduce step that left on record no test run of
-        its own that failed (`ledger.failed_tests`: one that really ran tests) did not show the
-        bug - held, as R3 holds a check that ran nothing. Not where its CLI's work is not seen
-        (`handoff.counted_on`).
-        shortcut: any failing test run of its own counts - not checked to be of a test it wrote;
-        hold to its written test files if a step is seen passing on an old failure."""
-        if not self._in_step(session, child, "reproduce") or not handoff.counted_on(
-                child.model) or ledger.failed_tests(session, child.agent_id) is not None:
+        """R4 (S7): the agent of a recipe's reproduce step must leave on record a test run that
+        failed (`ledger.failed_tests`: one that really ran tests) of a test file it wrote - any
+        failing run of its own only where it wrote none. Else it did not show the bug: held, its
+        run stopped at Ready for you as R3's declined check is (`_not_checked`). Not where its
+        CLI's work is not seen (`handoff.counted_on`)."""
+        if not self._in_step(session, child, "reproduce") or not handoff.counted_on(child.model):
             return []
-        return [NOT_REPRODUCED]
+        ran = ledger.failed_tests(session, child.agent_id)
+        wrote = proof_before.new_tests(session.scalars(select(FileChange.path).where(
+            FileChange.agent_id == child.agent_id)).all())
+        named = " ".join([*ledger.failing_named(ledger.tail(ran.output)), ran.command]) if (
+            ran) else ""
+        if ran is not None and (not wrote or any(path in named for path in wrote)):
+            return []  # (its own test failed - or, writing none, a run of its own did)
+        held = {**NOT_REPRODUCED, "what": NOT_ITS_TEST.format(files=", ".join(wrote))} if (
+            wrote) else NOT_REPRODUCED
+        self._not_checked[child.agent_id] = f"Not checked: {held['what']}"  # (stops, as R3's)
+        return [held]
 
     def _ran_held(self, session, child: Ctx, found: list | None) -> list[dict]:
         """R3: a recipe's check whose job is running checks (`_held_to_run`) that ran no command

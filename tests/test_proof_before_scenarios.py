@@ -192,5 +192,89 @@ def test_a_test_that_passed_at_the_last_green_run_and_fails_now_is_a_regression(
     snap = wait_run(client, cid, posted["run"]["id"])
     second = [r["text"] for m in snap["messages"] if m["role"] == "checked"
               and m["run_id"] == posted["run"]["id"] for r in m["checked"]]
-    assert before_mixin.REGRESSION.format(id=ONE) in second or "Tests passed" in " ".join(second)
+    assert before_mixin.REGRESSION.format(id=ONE, by=" (by file)") in second or (
+        "Tests passed" in " ".join(second))
     assert "FAILED" in told(model, 4)  # (sent back: new on the old code, so this turn's)
+
+
+
+def test_only_a_test_that_passed_at_the_green_run_is_a_regression(make_client, wait_run,
+                                                                  project_dir):
+    green = Script(["tests/test_a.py::test_x PASSED\ntests/test_a.py::test_y PASSED\n"
+                    "=== 2 passed in 0.1s ===\n"])
+    z = "tests/test_a.py::test_z"
+    # (one fix round: the second pass fails too, so the turn ends on its rows)
+    executor = ScriptedExecutor([green, *[failing(ONE, z), failing(ONE, z), passing()] * 2])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write("a.py", "x = 2\n", "w2"), text("done"),
+                                  write("a.py", "x = 3\n", "w3"), text("fixed")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST, fix_rounds=1)
+    wait_run(client, cid, run_id)
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
+    rows = rows_of(wait_run(client, cid, posted["run"]["id"]), posted["run"]["id"])
+    # (z came after the green run: no regression; x passed then: named, by its id)
+    assert [one for one in rows if one.startswith("Regression")] == [
+        before_mixin.REGRESSION.format(id=ONE, by="")], rows
+
+
+def test_the_throwaway_copy_is_gone_after_stop_and_the_project_untouched(make_client, project_dir,
+                                                                         gate):
+    import time
+
+    from tests.conftest import scaled
+    from tests.test_proof_end_scenarios import OWN
+    (project_dir / ".venv").mkdir()
+    (project_dir / ".venv" / "kept.txt").write_text("the project's own\n", encoding="utf-8")
+    old = Script(["running\n"], hold=gate)
+    executor = ScriptedExecutor([failing(ONE), failing(ONE), old])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    deadline = time.monotonic() + scaled(10)
+    while len(executor.started) < 3:
+        assert time.monotonic() < deadline, executor.started
+        time.sleep(0.05)
+    assert throwaways(client)  # (there, while its run runs)
+    assert client.post(f"/api/runs/{run_id}/cancel", headers=OWN).status_code == 202
+    while client.get(f"/api/conversations/{cid}").json()["runs"][0]["status"] == "running":
+        assert time.monotonic() < deadline + scaled(10)
+        time.sleep(0.05)
+    deadline = time.monotonic() + scaled(10)
+    while throwaways(client):
+        assert time.monotonic() < deadline, throwaways(client)
+        time.sleep(0.05)
+    assert (project_dir / ".venv" / "kept.txt").read_text(encoding="utf-8") == "the project's own\n"
+    assert (project_dir / "a.py").read_text(encoding="utf-8") == "x = 1\n"
+
+
+def test_at_ask_with_a_guess_no_second_card_is_raised(make_client, wait_run, project_dir,
+                                                      monkeypatch):
+    from tests.test_agent_writes import wait_status
+    from tests.test_proof_end_scenarios import OWN, guess
+    guess(monkeypatch, PYTEST)
+    executor = ScriptedExecutor([failing(ONE), passing()])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write("a.py", "x = 2\n", "w2"), text("fixed")], executor=executor)
+    cid, run_id = begin(client, project_dir, mode="auto_edit")
+    snap = wait_status(client, cid, "waiting_approval")
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert client.post(f"/api/commands/{asked['id']}/approve", json={"remember": False},
+                       headers=OWN).status_code == 200
+    snap = wait_run(client, cid, run_id)
+    assert lines(executor) == [PYTEST, PYTEST]  # (no run alone, none on the old code)
+    assert before_mixin.NO_BEFORE.format(why=before_mixin.ASKS_AGAIN) in texts(snap)
+    assert len([c for c in snap["commands"] if c["status"] in ("proposed", "rejected")]) == 0
+
+
+@pytest.mark.parametrize(("answer", "said"), [
+    ("done", True), ("I removed the obsolete test of the old parser", False)])
+def test_a_removed_test_file_is_said_unless_the_answer_says_why(make_client, wait_run, project_dir,
+                                                               answer, said):
+    executor = ScriptedExecutor([passing(4), PASS, passing(3)])
+    client, model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                 run("git rm tests/test_old.py"), write("a.py", "x = 2\n", "w2"),
+                                 text(answer), text("left as it is")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    wait_run(client, cid, run_id)
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
+    rows = rows_of(wait_run(client, cid, posted["run"]["id"]), posted["run"]["id"])
+    assert ("Tests went from 4 to 3 (1 removed)" in rows) is said, rows

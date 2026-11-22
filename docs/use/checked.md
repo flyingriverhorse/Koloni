@@ -182,9 +182,11 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
 When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped ones
 - as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
 failure unless the Orchestrator's answer says why (removed, deleted, skipped): "Tests went from
-214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a failing test. A test that
-fails where the suite was green before, in a file the turn did not add, is named: "Regression:
-`test` passed at the last green run and fails now".
+214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a failing test. Where the
+green run listed its passes (pytest with `-v`, jest's and vitest's files), KOLONİ keeps those
+names too (at most 5 000): a test that passed then and fails now is named, "Regression: `test`
+passed at the last green run and fails now" - never one added since. Where it listed none, the
+counts are kept and a failing test in a file the turn did not add is named "… (by file)".
 
 ### A bug fix
 
@@ -193,8 +195,10 @@ adds a test beside a change of the code, the new test runs alone on the old code
 that keeps the new test). It must fail there: "The new test fails on the old code ✓"; one that
 passes there too is said - "The new test passes on the old code too: it may not catch the bug".
 
-In a recipe, the **Reproduce it** step must leave a test run of its own that failed: one that did
-not is held - "Reproduce did not show a failing test".
+In a recipe, the **Reproduce it** step must leave a test run of its own that failed - of a test
+file it wrote, where it wrote one. One that did not is held, and the recipe stops at Ready for
+you: "Reproduce did not show a failing test: none of the tests it wrote failed (…)", or "… no test
+run of its own on record failed".
 
 ## The review
 
