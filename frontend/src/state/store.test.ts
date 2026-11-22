@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { conversation } from '../test-fixtures'
+import { conversation, run, userMessage } from '../test-fixtures'
 import { resetStoreForTests, useApp } from './store'
 
 /** A stand-in for the browser's EventSource that tests can drive by hand. */
@@ -472,7 +472,7 @@ test('Take in all that is refused part way still reads the night again: what was
   expect(asked).toEqual(['/api/merges/m1/approve', '/api/merges/m2/approve', '/api/projects/p/away'])
 })
 
-test('an agent that starts on a native provider opens its own window', async () => {
+test('no agent’s window opens by itself, on any provider - a Lead or a sub-agent; the user opens it', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(
@@ -491,15 +491,18 @@ test('an agent that starts on a native provider opens its own window', async () 
     ],
   })
   const source = FakeEventSource.open()[0]
-  const started = (id: string, provider_name: string) => ({ id, run_id: 'r', parent_agent_id: null, tool_call_id: null, provider_name, model_id: null, role_name: 'Lead', tools: [], task: null, depth: 0, status: 'running', report: null, error: null, input_tokens: null, output_tokens: null, created_at: 't', started_at: 't', ended_at: null })
+  const started = (id: string, provider_name: string, depth = 0) => ({ id, run_id: 'r', parent_agent_id: depth ? 'a2' : null, tool_call_id: null, provider_name, model_id: null, role_name: depth ? 'Coder' : 'Lead', tools: [], task: null, depth, status: 'running', report: null, error: null, input_tokens: null, output_tokens: null, created_at: 't', started_at: 't', ended_at: null })
   source.emit('agent.created', started('a1', 'Local'), '4')
   expect(useApp.getState().agentWindowId).toBeNull()
+  // (The chat shows a turn's work: on a native provider its Lead's window popped up on every message.)
   source.emit('agent.created', started('a2', 'Codex'), '5')
+  expect(useApp.getState().agentWindowId).toBeNull()
+  source.emit('agent.created', started('a3', 'Codex', 1), '6')
+  expect(useApp.getState().agentWindowId).toBeNull()
+  useApp.getState().openAgentWindow('a2')
   expect(useApp.getState().agentWindowId).toBe('a2')
   useApp.getState().closeAgentWindow()
   expect(useApp.getState().agentWindowId).toBeNull()
-  useApp.getState().openAgentWindow('a1')
-  expect(useApp.getState().agentWindowId).toBe('a1')
 })
 
 test('a note written on the shared notebook reaches the open conversation', async () => {
@@ -705,6 +708,29 @@ test('a message is sent to the topic it is said to go to, or as a new one; a top
   await useApp.getState().renameTopic('t1', 'The greeting')
   expect(sent.at(-1)).toEqual(['PATCH', '/api/topics/t1', { title: 'The greeting' }])
   expect(useApp.getState().conv?.topics[0].title).toBe('The greeting')
+})
+
+test('a message sent again once KOLONİ restarted is the newest turn: last in the chat, as the chat is read again', async () => {
+  const queued = run('q', 'interrupted', { conversation_id: 'a', started_at: null })
+  const sent = { message: { ...userMessage('q', 'then run the tests'), conversation_id: 'a', created_at: 'later' }, run: { ...queued, status: 'running' } }
+  const posted: [string, unknown][] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        posted.push([url, JSON.parse(String(init.body))])
+        return new Response(JSON.stringify(sent), { status: 200 })
+      }
+      if (url.endsWith('/conversations')) return new Response('[]', { status: 200 })
+      return new Response(JSON.stringify({ ...snapshot('a'), runs: [queued, run('b', 'completed', { conversation_id: 'a' })] }), { status: 200 })
+    }),
+  )
+  await useApp.getState().openConversation('a')
+  await useApp.getState().sendAgain('q')
+  expect(posted).toEqual([['/api/runs/q/send', { over_budget: false }]])
+  const conv = useApp.getState().conv!
+  expect(conv.runs.map(r => [r.id, r.status])).toEqual([['b', 'completed'], ['q', 'running']])
+  expect(conv.messages.find(m => m.id === sent.message.id)?.created_at).toBe('later')
 })
 
 // --- the board (slice 26) ----------------------------------------------------------------------

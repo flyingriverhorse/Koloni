@@ -62,17 +62,16 @@ test('while the Orchestrator asks, the message box says to answer above - open, 
   expect(screen.getByLabelText('Message')).not.toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
 })
 
-test('while running, Stop is a square with no words just before Queue, in Send’s place; More and Plan first keep their names (one line: the user’s report)', () => {
-  render(<Composer {...props} running onPlanFirst={vi.fn()} />)
+test('while running, Stop is a square with no words on the status line over the box, Queue in Send’s place; More keeps its name', () => {
+  const { container } = render(<Composer {...props} running />)
   const stop = screen.getByRole('button', { name: 'Stop' })
   const queue = screen.getByRole('button', { name: 'Queue' })
   expect(stop).toHaveTextContent(/^$/)
   expect(stop).toHaveAttribute('title')
-  expect(stop.nextElementSibling).toBe(queue)
+  expect(stop.closest('.composer-status')).toBe(container.querySelector('.composer-box')!.firstElementChild)
   expect(queue).toHaveAttribute('title', 'Queue')
   // Where their words are not shown, the names stay (and a tooltip says them).
   expect(screen.getByRole('button', { name: 'More' })).toHaveAttribute('title', 'More')
-  expect(screen.getByRole('switch', { name: 'Plan first' }).closest('label')).toHaveAttribute('title', expect.stringMatching(/^Plan first/))
 })
 
 test('a failed send keeps the draft and shows the reason', async () => {
@@ -83,14 +82,14 @@ test('a failed send keeps the draft and shows the reason', async () => {
   expect(screen.getByLabelText('Message')).toHaveValue('hello')
 })
 
-test('⚙ Chat on the model’s line opens this chat’s sheet over the row; Esc closes it, the focus back on ⚙; with no chat there is none', async () => {
+test('Chat settings under the box opens this chat’s sheet over the row; Esc closes it, the focus back on it; with no chat there is none', async () => {
   const { rerender } = render(<Composer {...props} />)
   expect(screen.queryByRole('button', { name: 'This chat’s settings' })).toBeNull()
   rerender(<Composer {...props} sheet={<p>its rows</p>} />)
   const gear = screen.getByRole('button', { name: 'This chat’s settings' })
-  // (on the model's line; the level and Plan first stay where they are, on the line below)
-  expect(gear.closest('.composer-line')).not.toBeNull()
-  expect(screen.getByLabelText('Permission level').closest('.composer-line')).toBeNull()
+  // (under the box, in the quiet row; the level stays in the box's own row)
+  expect(gear.closest('.composer-below')).not.toBeNull()
+  expect(screen.getByRole('button', { name: /^Permission level:/ }).closest('.composer-bar')).not.toBeNull()
   await userEvent.click(gear)
   expect(within(screen.getByRole('dialog', { name: 'This chat' })).getByText('its rows')).toBeInTheDocument()
   await userEvent.keyboard('{Escape}')
@@ -119,10 +118,11 @@ test('under More (a narrow row), what in ⚙ Chat goes elsewhere folds More too'
   expect(closeMore).toHaveBeenCalledTimes(1)
 })
 
-test('the permission level selector reports the new level', async () => {
+test('the permission level’s menu reports the new level', async () => {
   const onPermissionMode = vi.fn()
   render(<Composer {...props} onPermissionMode={onPermissionMode} />)
-  await userEvent.selectOptions(screen.getByLabelText('Permission level'), 'full_auto')
+  await userEvent.click(screen.getByRole('button', { name: 'Permission level: Ask before changes' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('menuitemradio', { name: 'Full auto' }))
   expect(onPermissionMode).toHaveBeenCalledWith('full_auto')
 })
 
@@ -138,7 +138,7 @@ test('full auto on this machine carries a standing warning; in Docker it does no
 // The user's pick (7 Nov, sample C): line one is what it runs on, line two how far it may go and Send. The model's button
 // may be cut with "…" (B-400: it broke letter by letter): model first, so the cut takes the least; its whole name in its
 // tooltip, its name and its window.
-test('two lines, two jobs: the model and New topic, then 📎, the level and Send; the model’s whole name in its tooltip and window', async () => {
+test('the model on the status line over the box, New topic under it, 📎 first in its row; the model’s whole name in its tooltip and window', async () => {
   const copilot = { id: 'p1', name: 'Copilot', kind: 'copilot_cli', default_model: 'gpt-6-luna', models: [] } as unknown as Provider
   const model = <ModelPicker providers={[copilot]} providerId={null} modelId={null} leadAuto onSave={vi.fn()} />
   render(<Composer {...props} model={model} topic={{ title: 'Fix the greeting' }} />)
@@ -150,23 +150,22 @@ test('two lines, two jobs: the model and New topic, then 📎, the level and Sen
   expect(label).toHaveTextContent('gpt-6-luna · Copilot · Orchestrator: automatic')
   expect(label.querySelector('.model-picker-provider')).toHaveTextContent('· Copilot')
   expect(label.querySelector('.model-picker-lead')).toHaveTextContent('· Orchestrator: automatic')
-  const [line, controls] = ['.composer-line', '.composer-controls'].map(at => document.querySelector<HTMLElement>(at)!)
-  expect(within(line).getByRole('button', { name: 'New topic' })).toBeInTheDocument()
-  expect(within(controls).getByRole('button', { name: 'Attach' })).toBe(controls.firstElementChild!.firstElementChild)
-  expect(within(controls).getByLabelText('Permission level')).toBeInTheDocument()
+  expect(button.closest('.composer-status')).not.toBeNull()
+  const [below, bar] = ['.composer-below', '.composer-bar'].map(at => document.querySelector<HTMLElement>(at)!)
+  expect(within(below).getByRole('button', { name: 'New topic' })).toBeInTheDocument()
+  expect(within(bar).getByRole('button', { name: 'Attach' })).toBe(bar.firstElementChild!.firstElementChild)
+  expect(within(bar).getByRole('button', { name: /^Permission level:/ })).toBeInTheDocument()
   await userEvent.click(button)
   expect(screen.getByRole('form', { name: 'Model for this conversation' })).toHaveTextContent(`Now: ${whole}`)
 })
 
-test('the level shows its short names; the chosen one’s full name is its tooltip and its description', () => {
+test('the level shows its short name; its button and tooltip say it in full, and what it does', () => {
   const { rerender } = render(<Composer {...props} />)
-  const level = screen.getByRole('combobox', { name: 'Permission level' })
-  expect(Array.from(level.querySelectorAll('option'), option => option.textContent)).toEqual(['Ask', 'Auto-edit', 'Full auto'])
-  expect(level).toHaveAttribute('title', 'Ask before changes')
-  expect(level).toHaveAccessibleDescription('Ask before changes')
-  rerender(<Composer {...props} permissionMode="auto_edit" />)
-  expect(level).toHaveAttribute('title', 'Auto-edit files')
-  expect(level).toHaveAccessibleDescription('Auto-edit files')
+  const level = screen.getByRole('button', { name: 'Permission level: Ask before changes' })
+  expect(level).toHaveTextContent(/^Ask$/)
+  expect(level).toHaveAttribute('title', 'Ask before changes: Each file change and command waits for your card')
+  rerender(<Composer {...props} permissionMode="full_auto" />)
+  expect(screen.getByRole('button', { name: 'Permission level: Full auto' })).toHaveTextContent(/^Full auto$/)
 })
 
 // --- topics (slice 18b) ------------------------------------------------------------------------
@@ -183,7 +182,7 @@ test('no "Continuing" line above the box; beside the model, "New topic" says in 
   expect(screen.queryByText(/Continuing/)).not.toBeInTheDocument()
   expect(toggle()).toHaveAttribute('aria-pressed', 'false')
   goesOnWith('Fix the greeting')
-  expect(toggle().closest('.composer-line')).not.toBeNull()
+  expect(toggle().closest('.composer-below')).not.toBeNull()
   // a trigger's topic is said to be one
   rerender(<Composer {...props} topic={{ title: 'Nightly look', scheduled: true }} />)
   goesOnWith('Nightly look, a trigger’s topic')
@@ -472,7 +471,7 @@ test('/model, /room and /mode open what their buttons open; closed, the chat say
   expect(screen.getByRole('form', { name: 'Work together' })).toBeVisible()
   await userEvent.keyboard('{Escape}')
   await userEvent.type(box, '/mode{Enter}')
-  expect(screen.getByLabelText('Permission level')).toHaveFocus()
+  expect(screen.getByRole('dialog', { name: 'Permission level' })).toHaveFocus()
 
   rerender(<Composer {...props} compact model={model} beside={room} />)
   await userEvent.type(box, '/mo')
@@ -524,15 +523,21 @@ test('a role of the user named as a command is not a second command of that name
 
 // --- plan first (slice 49) ---------------------------------------------------------------------
 
-test('Plan first stands beside the permission level and says when it is turned on or off', async () => {
+test('Plan first is set in the level’s menu only: the row has no button for it, the menu’s switch turns it on', async () => {
   const onPlanFirst = vi.fn()
   const { rerender } = render(<Composer {...props} planFirst={false} onPlanFirst={onPlanFirst} />)
-  const box = screen.getByRole('switch', { name: 'Plan first' })
-  expect(box).not.toBeChecked()
-  await userEvent.click(box)
+  expect(screen.queryByRole('button', { name: /Plan first/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
+  const menu = () => within(screen.getByRole('dialog', { name: 'Permission level' }))
+  expect(menu().getByRole('switch', { name: 'Plan first' })).not.toBeChecked()
+  await userEvent.click(menu().getByRole('switch', { name: 'Plan first' }))
   expect(onPlanFirst).toHaveBeenLastCalledWith(true)
   rerender(<Composer {...props} planFirst onPlanFirst={onPlanFirst} />)
-  expect(screen.getByRole('switch', { name: 'Plan first' })).toBeChecked()
+  expect(menu().getByRole('switch', { name: 'Plan first' })).toBeChecked()
+  // On, the level says so; it is the row's only button that does.
+  const level = screen.getByRole('button', { name: 'Permission level: Ask before changes, Plan first on' })
+  expect(level).toHaveTextContent(/^Ask · plan$/)
+  expect(screen.getAllByRole('button', { name: /Plan first/ })).toEqual([level])
 })
 
 test('/plan turns Plan first over, before a Planner role of the same start; without a conversation it is off', async () => {
@@ -741,4 +746,118 @@ test('the note stays past its seconds while its link has the focus, and goes whe
   } finally {
     vi.useRealTimers()
   }
+})
+
+// --- 0.1.5: the "Kovan konsolu" ---------------------------------------------------------------------------------------
+
+test('one box: status line, message, one row - Attach, level, Auto-read, Dictate, Send; under it Workspace first, New topic, Chat settings, More, what waits elsewhere', () => {
+  const { container } = render(
+    <Composer
+      {...props}
+      onPlanFirst={vi.fn()}
+      topic={{ title: 'Fix the greeting' }}
+      sheet={<p>its rows</p>}
+      workspace={<button type="button">Workspace 2 waiting</button>}
+      waits={{ count: 2, onOpen: vi.fn() }}
+    />,
+  )
+  const box = container.querySelector('.composer-row > .composer-box')!
+  expect(Array.from(box.children, child => child.className.split(' ')[0])).toEqual(['composer-status', 'composer-field', 'composer-pasted', 'composer-bar'])
+  const bar = box.querySelector<HTMLElement>('.composer-bar')!
+  expect(within(bar).getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+    'Attach',
+    'Permission level: Ask before changes',
+    // (Auto-read and Dictate stand before Send where this browser can speak and listen: jsdom can neither.)
+    'Send',
+  ])
+  expect(within(bar).getByRole('button', { name: 'Send' }).closest('.composer-actions')).not.toBeNull()
+  const below = container.querySelector<HTMLElement>('.composer-row > .composer-below')!
+  expect(within(below).getAllByRole('button').map(b => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+    'Workspace 2 waiting',
+    'New topic',
+    'This chat’s settings',
+    'More',
+    'Open Ready for you: 2 more wait elsewhere',
+  ])
+  expect(within(below).getByRole('button', { name: 'This chat’s settings' })).toHaveTextContent(/Chat settings/)
+  // The tab order is the box's: the status line, the message, the row, then under it.
+  expect(screen.getByLabelText('Message').compareDocumentPosition(within(bar).getByRole('button', { name: 'Send' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+test('the placeholder says what a message does now: ask, queue for after this turn, answer the question above', () => {
+  useApp.setState({ conv: convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')] }), projectId: 'p' })
+  const { rerender } = render(<Composer {...props} scope="c" />)
+  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Ask about this project or request a change…')
+  rerender(<Composer {...props} scope="c" running />)
+  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Queue a message for after this turn…')
+  useApp.setState({ conv: convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'waiting')], questions: [question('q', 'r')] }) })
+  rerender(<Composer {...props} scope="c" running />)
+  expect(screen.getByLabelText('Message')).toHaveAttribute('placeholder', 'Answer the question above, or queue a message…')
+})
+
+test('/mode opens the level’s menu', async () => {
+  render(<Composer {...props} onPlanFirst={vi.fn()} />)
+  await userEvent.type(screen.getByLabelText('Message'), '/mode{Enter}')
+  expect(screen.getByRole('dialog', { name: 'Permission level' })).toHaveFocus()
+})
+
+test('"N more wait elsewhere" is a quiet button under the box, only while something waits elsewhere; it opens Ready for you', async () => {
+  const onOpen = vi.fn()
+  const { rerender } = render(<Composer {...props} waits={{ count: 2, onOpen }} />)
+  const waits = screen.getByRole('button', { name: 'Open Ready for you: 2 more wait elsewhere' })
+  expect(waits.closest('.composer-below')).not.toBeNull()
+  expect(waits).toHaveClass('link-btn')
+  await userEvent.click(waits)
+  expect(onOpen).toHaveBeenCalled()
+  rerender(<Composer {...props} waits={{ count: 1, onOpen }} />)
+  expect(screen.getByRole('button', { name: 'Open Ready for you: 1 more waits elsewhere' })).toBeInTheDocument()
+  rerender(<Composer {...props} waits={{ count: 0, onOpen }} />)
+  expect(screen.queryByRole('button', { name: /^Open Ready for you/ })).toBeNull()
+})
+
+test('the row under the box is in fewer words ("Settings", "2 wait") while, measured, it has no room for all of them; with room, in all', () => {
+  let width = 400
+  let resized = () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe = vi.fn()
+      disconnect = vi.fn()
+      constructor(fit: () => void) {
+        resized = fit
+      }
+    },
+  )
+  // (jsdom lays nothing out: the row's words are 480 px long, 380 in fewer words.)
+  const row = (el: HTMLElement) => el.classList.contains('composer-below')
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    return row(this) ? width : 0
+  })
+  vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    return row(this) ? ('tight' in this.dataset ? 380 : 480) : 0
+  })
+  try {
+    const { container } = render(<Composer {...props} sheet={<p>its rows</p>} waits={{ count: 2, onOpen: vi.fn() }} />)
+    const below = container.querySelector<HTMLElement>('.composer-below')!
+    expect(below).toHaveAttribute('data-tight')
+    width = 500
+    act(() => resized())
+    expect(below).not.toHaveAttribute('data-tight')
+    width = 420
+    act(() => resized())
+    expect(below).toHaveAttribute('data-tight')
+  } finally {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  }
+})
+
+test('/model opens the model’s window while a turn runs too', async () => {
+  const copilot = { id: 'p1', name: 'Copilot', kind: 'copilot_cli', default_model: 'gpt-6-luna', models: [] } as unknown as Provider
+  const model = <ModelPicker providers={[copilot]} providerId={null} modelId={null} leadAuto onSave={vi.fn()} />
+  useApp.setState({ conv: convState({ runs: [run('r')], agents: [agent('r')] }), projectId: 'p' })
+  render(<Composer {...props} scope="c" running model={model} />)
+  expect(document.querySelector('.composer-status-running')).not.toBeNull()
+  await userEvent.type(screen.getByLabelText('Message'), '/model{Enter}')
+  expect(screen.getByRole('form', { name: 'Model for this conversation' })).toBeInTheDocument()
 })

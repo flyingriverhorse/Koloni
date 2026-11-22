@@ -58,10 +58,11 @@ PROPOSED_STATUSES = ("todo", "blocked", "done")
 # ends with where the job is not one for its copy (`away.turn_ended`).
 NEEDS_PROJECT = "Needs the project itself:"
 AWAY_JOB = (
-    "The user is away: this is a job of their While you're away list. It works in a copy of the "
-    "project of its own, kept for the user to take in when back - nothing of it goes into the "
-    "project meanwhile. What needs the user's word waits for them, and this job waits with it "
-    "while the next one goes on: decide what you can yourself, and end with a short report. "
+    "The user is away (☾ Away): this is a task of their To-do list, worked through while they "
+    "are away. It works in a copy of the project of its own, kept for the user to take in when "
+    "back - nothing of it goes into the project meanwhile. What needs the user's word waits for "
+    "them, and this job waits with it while the next one goes on: decide what you can "
+    "yourself, and end with a short report. "
     # B-122 (live): "delete build/" found no build/ in the copy and was counted done.
     "The copy leaves out " + ", ".join(f"{name}/" for name in sorted(copies.NOT_COPIED))
     + " and shares " + ", ".join(f"{name}/" for name in sorted(copies.LINKED)) + " with the "
@@ -347,7 +348,7 @@ def busy(session: Session, project_id: str, waiting: bool = False) -> str | None
     `waiting`: a task whose turn waits for the user's word (a yes, an answer) is not at work
     (B-147: an earlier night's job waiting for an approval held a new night off for good)."""
     if away(session, project_id):
-        return "the project works while you're away"
+        return "you're away from this project"
     ended = (*ENDED, "waiting_approval") if waiting else ENDED
     at_work = session.scalar(
         select(BacklogTask.title).join(Run, Run.conversation_id == BacklogTask.conversation_id)
@@ -947,14 +948,15 @@ def read_backlog(session: Session, project_id: str, args: dict) -> str:
     return "\n".join(lines)
 
 
-def add_task(session: Session, project_id: str, args: dict) -> str:
+def add_task(session: Session, project_id: str, args: dict, chat: str | None = None) -> str:
+    """`chat`: the one it is proposed in (☾ Away ticks it there)."""
     fields = _fields(args, title_required=True)
     # The first task not done yet that looks like this one (as a room's item is,
     # `room.looks_like`): said, never refused - a likeness wrongly seen must not hold the
     # work up.
     like = next((one for one in ordered(session, project_id)
                  if one.status != "done" and alike(fields["title"], one.title)), None)
-    task = add(session, project_id, fields, "agent")
+    task = add(session, project_id, {**fields, "proposed_in": chat}, "agent")
     session.flush()
     said = (f"proposed task {task.id} ({task.title!r}): it waits for the user's approval "
             "before it is on the To-do list")

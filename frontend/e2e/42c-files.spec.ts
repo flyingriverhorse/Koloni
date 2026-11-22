@@ -126,8 +126,8 @@ test('the Workspace button’s number is what waits for you as the Board counts 
   try {
     await aPageWaits(page)
     await expect(workspaceButton(page)).toHaveAccessibleName('Workspace 1 waiting', { timeout: 15_000 })
-    // (a small one at the open chat's foot, at the end of the model's line; none in its header nor the top bar - slice 42d)
-    await expect(chatOf(page).locator('.composer-line').getByRole('button', { name: /^Workspace/ })).toHaveCount(1)
+    // (the first under the open chat's message box, 0.1.5; none in its header nor the top bar - slice 42d)
+    await expect(chatOf(page).locator('.composer-below > :first-child')).toHaveAccessibleName(/^Workspace/)
     await expect(chatOf(page).locator('.chat-top').getByRole('button', { name: /^Workspace/ })).toHaveCount(0)
     await expect(page.getByRole('banner').getByRole('button', { name: /^Workspace/ })).toHaveCount(0)
     await chatOf(page).getByRole('button', { name: 'Approve' }).click()

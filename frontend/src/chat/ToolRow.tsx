@@ -1,5 +1,5 @@
 import { Check, CircleNotch, Clock, MinusCircle, X } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import type { ToolCall } from '../api/types'
 import { commandSeconds } from '../commands/commandStatus'
 import { StatusLabel } from '../shell/StatusLabel'
@@ -42,6 +42,8 @@ interface Props {
   waits?: string | null
   /** K-inspector: under it, how big its result is and how long it took (an agent's steps); the result stays folded. */
   sized?: boolean
+  /** In the chat (0.1.5): its kind's icon, in place of a done step's tick; its file as a pill. */
+  icon?: ReactNode
 }
 
 /** Under a step: how big its result is, and how long it took where that is known. */
@@ -68,10 +70,26 @@ const detailOf = (call: ToolCall) => (
   </div>
 )
 
-export function ToolRow({ call, waits = null, sized = false }: Props) {
+/** A step's words, what follows its tool's name - its file, its search - as a pill: the words stay as they are. */
+function Said({ summary, name }: { summary: string; name: string }) {
+  if (!summary.startsWith(`${name} `)) return summary
+  return (
+    <>
+      {name} <span className="step-file">{summary.slice(name.length + 1)}</span>
+    </>
+  )
+}
+
+/** How a row reads: its state's word and colour, its mark and its words - in the chat (`icon`) a done step's kind's icon and its file a pill. */
+function lookOf(call: ToolCall, waits: string | null, icon: ReactNode) {
+  if (waits) return { label: 'waiting', color: 'var(--muted)', mark: <Clock size={13} />, summary: `${toolName(call)}: ${waits}`, pill: false }
+  const [label, color] = TOOL_STATUS[call.status]
+  return { label, color, mark: icon && call.status === 'succeeded' ? icon : <StatusIcon status={call.status} />, summary: toolSummary(call), pill: Boolean(icon) }
+}
+
+export function ToolRow({ call, waits = null, sized = false, icon }: Props) {
   const [open, setOpen] = useState(false)
-  const [label, color] = waits ? ['waiting', 'var(--muted)'] : TOOL_STATUS[call.status]
-  const summary = waits ? `${toolName(call)}: ${waits}` : toolSummary(call)
+  const { label, color, mark, summary, pill } = lookOf(call, waits, icon)
   const answered = webNote(call)
   const cid = useApp(s => s.conv?.conversation.id)
   const shot = shotOf(call)
@@ -84,9 +102,9 @@ export function ToolRow({ call, waits = null, sized = false }: Props) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <span style={{ color, display: 'grid' }}>{waits ? <Clock size={13} /> : <StatusIcon status={call.status} />}</span>
+        <span style={{ color, display: 'grid' }}>{mark}</span>
         <span className="tool-row-summary mono" title={waits ? summary : undefined}>
-          {summary}
+          {pill ? <Said summary={summary} name={toolName(call)} /> : summary}
         </span>
         {call.origin === 'cli' && <span className="tool-row-status mono muted">own tool</span>}
         <StatusLabel color={color}>{label}</StatusLabel>

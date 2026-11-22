@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { Sign } from '../api/types'
 import { took } from '../canvas/timeline'
+import { useNow } from './useNow'
 
 /** The user's answers to signs, by agent id: kept in this browser only; the sign itself stays on the agent's record. */
 const KEY = 'koloni-signs'
@@ -21,15 +22,6 @@ function keep(agentId: string, answer: Answer) {
 }
 
 /** The time now, read again every `ms`: for what is shown only after a while. */
-function useNow(ms: number): number {
-  const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), ms)
-    return () => clearInterval(timer)
-  }, [ms])
-  return now
-}
-
 // What a click on the sign does to the node or row it sits on: nothing.
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation()
 
@@ -96,7 +88,7 @@ export function Quiet({ lastEventAt, inTool, trail = '' }: { lastEventAt: string
   if (!lastEventAt) return null
   const quiet = now - Date.parse(lastEventAt)
   const minutes = Math.floor(quiet / MINUTE)
-  // (In a tool: how long that has run is said with it, `Since`.)
+  // (In a tool: how long the agent has worked is said on its line, `LiveFacts`.)
   if (inTool && minutes < 20) return null
   const said = inTool ? `slow · no tool event for ${minutes} min` : minutes < 5 ? `last step ${took(quiet)} ago` : `no tool or step for ${minutes} min`
   return (
@@ -105,11 +97,4 @@ export function Quiet({ lastEventAt, inTool, trail = '' }: { lastEventAt: string
       {trail}
     </span>
   )
-}
-
-/** How long something of an agent's has run, by this browser's clock: its tool, "12s · " (slice 84d); its work, "at work 1m 12s". */
-export function Since({ at, work = false }: { at: string; work?: boolean }) {
-  const now = useNow(1000)
-  const time = took(now - Date.parse(at))
-  return work ? <>at work {time}</> : <>{time} · </>
 }

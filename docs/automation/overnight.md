@@ -1,79 +1,73 @@
-# Work while you're away
+# Work while you're away (☾ Away)
 
-Before you leave, the Orchestrator can plan jobs for while you are away: for an hour, an afternoon or
-the night. Each job works in its own copy of the project, so your project does not change while you
-are gone. When you are back you decide what comes in.
+Before you leave - for an hour, an afternoon or the night - press **☾ Away** on a chat's status
+line, or tell the Orchestrator you are going. The chat finishes its turn, then the
+[To-do](todo.md) tasks you tick are worked through, one at a time, each in its own copy of the
+project: your project does not change while you are gone. When you are back you decide what comes
+in.
 
-[![Work while you're away and triggers: the While you're away card, jobs one at a time in their own copies, and the report](../diagrams/night.svg)](../diagrams/night.svg)
+[![Work while you're away and triggers: the To-do tasks Away works through one at a time in their own copies, and the report](../diagrams/night.svg)](../diagrams/night.svg)
 
 *Work while you're away (below) and triggers (above): work that runs while nobody watches.*
 
-## Planning the jobs
+## Going away
 
-Tell the Orchestrator you are going away (to sleep, out, for a while) and what it should work on
-meanwhile. It does none of that work itself. It puts the jobs on a **While you're away** card instead,
-and nothing starts before your **Start**.
+**☾ Away** is on the line over the message box of a chat with a folder (not in a plain chat; in a
+chat with no turn yet it waits: "Write to the Orchestrator first: Away finishes this chat's turn").
+It opens the Away panel:
 
-Only the Orchestrator plans these jobs, in a turn you started, in a chat with a folder, where it keeps
-the To-do list. It does not plan them in a **Plan first** turn, nor while jobs of the project run
-while you're away. A newer card takes the place of one not started yet.
+- "The Orchestrator finishes this chat, then works through To-do in order.", and the level the tasks
+  run at: "the lower of this chat's level and the To-do page's".
+- **Then from To-do, in this order**: the project's open tasks (proposed or to do). The tasks
+  proposed in this chat are ticked already ("new · from this chat"); older ones are not ("on To-do
+  since Mon"). Tick up to 10; **Move up** and **Move down** change the order, which is saved to
+  To-do. A ticked proposed task counts as your OK.
+- **Decides for you** and **Always waits for you**: see [Questions and approvals](#questions-and-approvals).
+- **Until**, **spend at most** and **kept out**: none unless you set one. If the project has a
+  monthly budget, the work spends at most what is left of it. Name a file or folder of the project
+  to keep out (up to 20): a pattern such as `src/*` or a place outside the project is refused.
+- **Go away**, or **Cancel**. **How it works** says the rest.
 
-### The jobs
+![The Away panel over the message box: the two tasks this chat put on To-do ticked, what the Orchestrator decides for you and what always waits, Until 08:00, spend at most 2 USD, and Go away](../images/away-panel.png)
 
-A card has 1 to 10 jobs, in the order they run. Each job has:
+*The Away panel, opened from **☾ Away** on the chat's status line.*
 
-- a title, one plain line of at most 200 characters;
-- optionally, what makes it done;
-- optionally, a team, and a recipe for it; without a recipe the team works by its default recipe. A
-  recipe with no team is not used.
+Go away is refused while **Stop everything** holds (press **Resume** first), while a To-do task is
+at work, and from a chat with no turn.
 
-### The card
+### From the chat
 
-The card says "The Orchestrator's jobs for while you're away: change anything before you start."
+Tell the Orchestrator you are going away (to sleep, out, in any language) and what it should work on
+meanwhile. It does none of that work itself: it puts each piece on To-do and offers one line under
+its answer - "☾ Go away now? Add a bye line, Say hello twice · Until 08:00 · at most 2.00 USD" with
+**Go away** and **Change** (the panel, there). The line names, and Go away takes, only the tasks the
+Orchestrator itself put on To-do in that turn, each by its name: a task a sub-agent proposed (one
+of a CLI's own sub-agents too), or an earlier turn's, stays in the panel for you to tick. With an
+Orchestrator on a CLI whose own sub-agents KOLONİ cannot yet tell apart (all but Claude Code), the
+line names no task: "Tick the tasks to take in Change". The limits are only
+those it heard from you. Nothing starts before your Go away. Only
+the Orchestrator offers this, in a turn you started in a chat with a folder - not in a **Plan first**
+turn, nor while the project is away. A newer offer takes the place of one not answered yet.
 
-- "**Each job works in its own copy.** Your project does not change while you're away; you take the
-  work in when you're back."
-- "**If a job needs your word, it waits** and the next one goes on." See
-  [Questions and approvals](#questions-and-approvals).
-- What is kept out: files or folders of the project no job may change.
-- When to stop: **Stop at** a time, or after spending an amount, whichever comes first. By default
-  there is no time limit and no spend limit: the jobs run until they are done. Set a time or an
-  amount (in the currency of your prices) on the card, or tell the Orchestrator, if you want one.
-  If the project has a monthly budget, the jobs spend at most what is left of it. Empty a field and
-  that limit is off; the card says "(empty: no time limit)" and "(empty: no spend limit)". On a
-  provider paid by plan no money is counted, and the card says so: "there only the time holds".
-  Your provider limits hold too.
-- A job works as long as it makes progress. Once nothing has moved for Settings › The app ›
-  **Stuck after this many minutes with no progress** (30 unless you change it) - no file of the job
-  changed, no agent finished its work, no failing command passed - it fails with that reason, is
-  tried once more, and the next one goes on. As a last resort a job stops after **An unattended
-  turn runs at most (hours)** (8 unless you change it; empty: no limit), what it did kept in its
-  copy; on the report it is under **Could not be done**, with "Stopped after 8 hours, the most one
-  job works".
+### While you're away
 
-**Change the list** lets you edit each job and what makes it done, take a job out (one must stay), add
-one with **+ Add a job** (up to 10), and change what is kept out: up to 20 files or folders of the
-project, one a line or with commas between. Name the file or folder itself: a pattern such as
-`src/*` or a place outside the project is refused. Then **Save the list**, or **Cancel**.
-
-**Start** starts the jobs; they go onto the [To-do](todo.md) list too. **Not now** puts the card
-away. Start is refused while **Stop everything** holds (press **Resume** first), and while a To-do
-task is at work.
-
-The card can also offer **Let the Orchestrator answer what it safely can**. It turns on the project's
-**When you're away** setting, which then stays on after the jobs; change it back under
-Settings › This project › Asking and away. See [Answering for you](answering-for-you.md).
+The status line says where it stands: "Away · To-do 1 of 2: Add a bye line · 3 decided for you · 1
+waits", then "To-do 2 of 2 looked at". The chip becomes **I'm back**, and the message box says
+"Write to come back…". Away lasts until you are back: press **I'm back**, or write a message in any
+chat of the project. Once every task was looked at, you get one notification if you set them up.
 
 ## How the jobs run
 
-Jobs run one at a time, in the card's order. Each starts in a new chat named after it, its first
-message the job and what makes it done, and works in a copy of the project of its own.
+Tasks run one at a time, in the panel's order, once the chat you went away from has finished its
+turn (a turn that waits for your word does not hold them back). A task added meanwhile does not join.
+Each starts in a new chat named after it, its first message the task and what makes it done, and
+works in a copy of the project of its own.
 
-- **Level and model:** the job's chat has the permission level and the model of the chat where the
-  card was, not the To-do page's run settings. Its other settings are the project's, as in any chat:
+- **Level and model:** the job's chat has the model of the chat you went away from, and the lower of
+  that chat's permission level and the To-do page's (the Away panel says which). Its other settings are the project's, as in any chat:
   who changes the files, opening sub-agents, and the rest.
-- **Team and recipe:** a job with a team works in **Manual** with that team, by the recipe the card
-  gave.
+- **Team and recipe:** where you picked the teams in that chat (**Manual**), the job's chat has
+  them, with their recipes.
 - **The copy** leaves out `.git/`, `build/`, `dist/` and caches, and shares `node_modules/`, `.venv/`
   and `venv/` with the project. A job that needs what is not in the copy changes nothing and waits for
   you, its report ending "Needs the project itself: …".
@@ -81,8 +75,8 @@ message the job and what makes it done, and works in a copy of the project of it
   one goes on.
 - **A job that waits for your word** waits, and the next one goes on.
 
-The top bar shows "☾ Away · job 2 of 4" with **Stop all**, and "· until 07:00" after it when the card
-has a stop time. The To-do page shows the jobs too: since when, what they spent against the limit,
+The top bar shows "☾ Away · To-do 2 of 4" with **I'm back** and **Stop all**, and "· until 07:00"
+after it when you set a stop time. The To-do page shows the jobs too: since when, what they spent against the limit,
 and each job as it stands, with what its agents are doing right now. A job's chat says at the top when
 its jobs started, with a link back to their report.
 
@@ -101,25 +95,32 @@ its jobs started, with a link back to their report.
 - **CLIs:** a CLI working with its own tools that is not started in the job's copy, or not held to
   it (Copilot working Native, agy when it may write), cannot work on a job: "… cannot work on a job
   while you're away".
-- At **Full auto** the Orchestrator does not answer KOLONİ's own cards while you're away, as it does
-  while you watch.
+- At **Full auto**, with **Check what I said first** on, a command that deletes is first checked
+  against your own words - your preferences, the project's saved rules and your messages in the chat
+  you went away from, never the task's words - and runs in the job's copy without a card where a line
+  of yours names it. Only a delete in the folder, on one line: a command of more than one line or
+  continued (a backtick or a backslash at a line's end), a line that also sends work off the machine
+  or touches a git remote, Docker's prune or volumes, and a delete of a file that steers agents
+  (`AGENTS.md`, `CLAUDE.md`) keep their card - in the chat you went away from as in a task's. See [Permissions](../use/permissions.md).
 
 ## Questions and approvals
 
 What needs your word waits for you, and the job waits with it. The next job goes on meanwhile.
 
-With **When you're away** set to **The Orchestrator answers what it safely can**, the Orchestrator
-answers at once while the jobs run, without waiting the minutes you set. It answers only an agent's
-question, a recipe's "Ask me", and opening a sub-agent on its role's own model; it does not answer once
-the project is over its monthly budget or a provider is over its limit. Everything else waits: commands
-and changes that ask, the web, secrets, folders, new roles and skills. See
-[Answering for you](answering-for-you.md).
+While you're away the Orchestrator decides at once, in the chat you went away from and in the
+tasks' chats, what it may decide for you (another chat of the project keeps its own minutes): an agent's question, a recipe's "Ask me", opening a sub-agent on its role's own model,
+and going on or stopping at a step limit. The cards already waiting when you press Go away are decided
+then. Its own questions to you wait for your return. It does not answer once the project is over its
+monthly budget or a provider is over its limit. Everything else always waits: commands and changes
+that ask, the web, secrets, folders, another model that may cost money, new roles and skills, Take in,
+Discard, Commit. See [Answering for you](answering-for-you.md).
 
 A job that waits is shown under **Waits for your word**, on the report and in **Ready for you**.
 
 ## Step limits while away
 
-Nobody is there to answer a Continue / Stop here card, so none comes:
+Nobody is there to answer a Continue / Stop here card in a job, so none comes (in the chat you went
+away from, the Orchestrator decides that card at once):
 
 - A sub-agent that reaches its step limit stops. The job's Orchestrator is told its part is not done,
   and may tell it once to go on, with a new step limit.
@@ -134,11 +135,13 @@ See [Step limits](../agents/step-limits.md).
 
 ## What stops the jobs
 
-The jobs end when:
+Away ends when:
 
-- every job was tried;
-- the card's stop time comes, if it has one ("Stopped at 07:00, the time you set.");
-- they have spent their money ("Stopped at 5.02 of 5.00 USD, the spend limit.");
+- you are back: **I'm back**, or a message of yours (the job at work finishes; its cards then wait for
+  you);
+- the stop time comes, if you set one ("Stopped at 07:00, the time you set.");
+- it has spent its money - what the tasks' chats and the chat you went away from spent since Go away
+  ("Stopped at 5.02 of 5.00 USD, the spend limit."); the chat's turn at work is stopped too;
 - the project is over its monthly budget, or the Orchestrator's provider is over its limit, when the
   next job is about to start;
 - you press **Stop all** ("Stopped by you.");
@@ -149,27 +152,36 @@ The time and the money are checked before each model step. A clock also watches 
 each job's hours at most, so a long command is cut at them too. Its minutes with nothing moving
 do not run out while a command or a model step of it is under way, an agent below the Orchestrator
 is at work, or it waits for your word: those have limits of their own. When the jobs stop, the job at work stops, its
-work kept in its copy, and is shown as **Stopped**. A job that waits for your word goes on waiting.
+work kept in its copy, and is shown as **Stopped**. A job that waits for your word goes on waiting -
+but **Stop all** stops it too.
 When KOLONİ is closed, the jobs at work and those that wait count as could not be done: answer what
 waits before you close KOLONİ.
 
 **Stop everything** in the top bar holds the jobs instead of ending them: the job at work and a job
-that waits for your word are stopped, the next job waits for **Resume**, and the card's time and money
-still end them.
+that waits for your word are stopped, the next job waits for **Resume**, and the time and money you
+set still end them.
 
 A trigger's budget plays no part here: these jobs are not trigger turns.
 
-If you set up [notifications](../settings.md#notifications), you get one when the jobs end.
+If you set up [notifications](../settings.md#notifications), you get one when every task was looked
+at, and one when a limit or Stop all ends Away - none when you come back yourself.
 
 ## When you're back
 
-KOLONİ opens on the report on the canvas until you have seen it. The chat where the card was has one
-line, such as "While you were away: 3 done, 1 waits - on the canvas".
+The chat you went away from has one summary: "While you were away (23:10 – 07:42): 2 of 2 To-do
+done · 3 decided for you · 1 waits · 0.84 USD", what was done (waiting in Ready to take in), what was
+decided for you, what waits (with **Allow and go on** / **Refuse**), **Review and take in** and **On the
+canvas**. KOLONİ opens on the report on the canvas until you have seen it.
+
+![Back from Away: the chat's summary, While you were away, 2 of 2 To-do done, with Review and take in and On the canvas; on the canvas the two jobs and their report](../images/away-summary.png)
+
+*Back: the summary in the chat you went away from, and the report on the canvas.*
 
 The report shows when the jobs ran, what they spent and why they ended; nothing of it is in your
 project before you take it in. Its sections are **Done**, **Waits for your word**, **Could not be
-done**, **Stopped**, **Not started**, **Proposed while you were away, not started** (with **Add to
-To-do** or **Dismiss**) and **Kept out, as you asked** (what tried to change those places, refused).
+done**, **Stopped**, **Not started**, **Decided for you**, **Proposed while you were away, not started**
+(with **Add to To-do** or **Dismiss**) and **Kept out, as you asked** (what tried to change those
+places, refused).
 
 Each job row says what its reviews found, and warns where its copy changed a place you kept out, or a
 file another job changed too. A job that changed nothing is "Done, nothing changed". For each job:
@@ -180,12 +192,12 @@ file another job changed too. A job that changed nothing is "Done, nothing chang
 - **Take in** brings its work into the project; **Take in all** takes in every done job's work. Where
   two jobs changed one file, the two are joined line by line where their lines do not clash. A
   clashing line is not taken: the card of the job's kept copy, in its chat, decides it.
-- **Try again**, for a job that could not be done or was stopped, once the jobs are over. It runs in
+- **Try again**, for a job that could not be done or was stopped, once you are back. It runs in
   the job's chat as an ordinary turn, not in a copy: its changes go into the project as that chat's
   level says.
 - **See the changes** or **Open its chat**.
 
 The To-do page shows the same jobs, open by itself while a job needs a decision of yours.
 
-See [A job while you're away](../examples/overnight-job.md) for the steps from planning to taking the
-work in.
+See [A job while you're away](../examples/overnight-job.md) for the steps from going away to taking
+the work in.

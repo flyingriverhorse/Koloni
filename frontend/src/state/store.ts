@@ -8,7 +8,7 @@ import type {
   Availability,
   Away,
   AwayAsk,
-  AwayChange,
+  AwayGo,
   BacklogAuto,
   BacklogChoice,
   BacklogTask,
@@ -27,6 +27,7 @@ import type {
   TierOrder,
   Tiers,
   CataloguePrice,
+  Command,
   Conversation,
   ConversationsDeleted,
   ClaudeSessionSetup,
@@ -249,14 +250,17 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   runBacklog(): Promise<void>
   /** What the user typed, written as tasks by a model asked once ("Write it with the Product owner"); nothing is saved. Throws ApiError. */
   draftTasks(text: string): Promise<BacklogDraft>
-  /** The open project's night while you're away (slice 106): the one that runs, else its last; null: none, or not read yet. */
+  /** The open project's ☾ Away (slice 106): the one that runs, else its last; null: none, or not read yet. */
   away: Away | null
   loadAway(): Promise<void>
-  /**
-   * Your word on a "While you're away" card or its night: a change to the card (before Start), Start,
-   * Not now, Stop all, or Try again for a job. The card and the night are read again. Throws ApiError.
-   */
-  awayDo(awayId: string, action: 'change' | 'start' | 'dismiss' | 'stop' | `jobs/${string}/again`, change?: AwayChange): Promise<void>
+  /** Go away from a chat: its turn finishes, then the To-do tasks ticked are worked through. Throws ApiError. */
+  goAway(cid: string, body: AwayGo): Promise<void>
+  /** I'm back: Away ends, its summary in the chat; the job at work finishes. Throws ApiError. */
+  comeBack(awayId: string): Promise<void>
+  /** Stop all, or Try again for a job once Away is over. Away is read again. Throws ApiError. */
+  awayDo(awayId: string, action: 'stop' | `jobs/${string}/again`): Promise<void>
+  /** You type an answer to a question: the Orchestrator does not decide it for you meanwhile (at most once in 30 s). */
+  typing(questionId: string): void
   /** Yes or no to what a waiting job asks, at its own endpoint (Allow and go on, Refuse). Throws ApiError. */
   answerAsk(ask: AwayAsk, yes: boolean): Promise<void>
   /** Take in a job's kept copies, one after another (Take in, Take in all). Throws ApiError. */
@@ -500,6 +504,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   renameTopic(topicId: string, title: string): Promise<void>
   stop(): Promise<void>
   cancelRun(runId: string): Promise<void>
+  /** A message still queued when KOLONİ restarted, sent now (`overBudget`: the user's word to go on over the budget). Throws ApiError. */
+  sendAgain(runId: string, overBudget?: boolean): Promise<void>
   setPermissionMode(mode: PermissionMode): Promise<void>
   /** Each new message starts with a plan to approve first, or not. */
   setPlanFirst(on: boolean): Promise<void>
@@ -509,8 +515,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   decidePlan(runId: string, decision: 'approve' | 'reject', text?: string, overBudget?: boolean): Promise<void>
   /** "False alarm" on a warning of the open chat (93-A4): counted for its rule, once. Throws ApiError. */
   falseAlarm(warningId: number): Promise<void>
-  /** Run once, always run (adds an allow-list rule) or reject a waiting command. */
-  decideCommand(commandId: string, decision: 'once' | 'always' | 'reject'): Promise<void>
+  /** Run once, always run (adds an allow-list rule), run once and allow such deletes in the project (a disposable one) or reject a waiting command. */
+  decideCommand(commandId: string, decision: 'once' | 'always' | 'disposable' | 'reject'): Promise<void>
   removeRule(ruleId: string): Promise<void>
   /** Let a waiting web search or HTTP request go out once, always (keeps a rule), or not. */
   decideWeb(requestId: string, decision: 'once' | 'always' | 'reject'): Promise<void>
@@ -553,6 +559,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   /** "Decided for you" (K-vekil-karar): OK to what the Lead answered for you, or your own answer in its place. Throws ApiError. */
   decidedOk(questionId: string): Promise<void>
   decidedChange(questionId: string, answer: string): Promise<void>
+  /** K-yargıç: OK to a command Full auto's check of your words let run with no card. Throws ApiError. */
+  commandSeen(commandId: string): Promise<void>
   /** Change where the current project's commands run. Throws ApiError. */
   saveProjectSettings(values: ProjectSettingsValues): Promise<void>
   /** Use what the folder's .koloni/settings.json asks for (slice 86c), as the card showed it; the project as it is then saved. Throws ApiError (409: the file changed since). */
@@ -578,6 +586,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   lookAt(ref: string): void
   /** The project's branch as the git map last read it (K-dallar: a Take in card says its copy was made on another). */
   gitBranch: string | null
+  /** How many times the git map read the project on another branch than it last read (the Workspace is made anew on it). */
+  gitSwitches: number
   /** How many times the git map was asked for from outside the top bar ("Show git" in the chat, slice 70). */
   gitAsked: number
   showGit(): void
@@ -600,6 +610,8 @@ let conversationsAsked = 0
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let memoryReads = 0
 let backlogReads = 0
+// When each question's answer was last said to be typed (`typing`): once in 30 s is enough to hold it.
+const typed = new Map<string, number>()
 // The backlog's choice being saved: Run the backlog waits for it - a model name is saved as its field
 // is left, which a click on Run the backlog does.
 let backlogChoice: Promise<unknown> = Promise.resolve()
@@ -770,14 +782,10 @@ export const useApp = create<AppStore>()((set, get) => {
     if (moved || ['claims.changed', 'agent.created', 'run.updated', 'run.finished'].includes(type)) void get().loadBoard()
   }
 
-  /** The window an event of the open conversation opens: an agent's own, a room's, a discussion's. */
+  /** The window an event of the open conversation opens: a room's, a discussion's. */
   function openWindowOn(type: string, payload: unknown) {
-    // An agent that works with its own tools shows its work in its own window.
-    if (type === 'agent.created') {
-      const started = payload as { id: string; provider_name: string | null }
-      const provider = get().providers.find(p => p.name === started.provider_name)
-      if (provider?.mode === 'native' || provider?.mode === 'reads') set({ agentWindowId: started.id })
-    }
+    // Never an agent's (the user's, 21 Nov): the chat shows a turn's work, and on a native provider its Lead's window
+    // opened on every message. It opens from its node, the Inspector or a link.
     // A room is something to watch too: its window opens over the canvas as it opens - the focus left where it is.
     // (Another's window open - the user may be writing in it: the new one comes as a tab beside it.)
     if (type === 'room.created') {
@@ -1143,10 +1151,26 @@ export const useApp = create<AppStore>()((set, get) => {
       if (get().projectId === projectId) set({ away })
     },
 
-    async awayDo(awayId, action, change) {
-      if (action === 'change') await api.patch('/away/' + awayId, change)
-      else await api.post('/away/' + awayId + '/' + action)
+    async goAway(cid, body) {
+      await api.post('/conversations/' + cid + '/away', body)
       await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
+    },
+
+    async comeBack(awayId) {
+      await api.post('/away/' + awayId + '/back')
+      await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
+    },
+
+    async awayDo(awayId, action) {
+      await api.post('/away/' + awayId + '/' + action)
+      await Promise.all([get().loadAway(), readCards(), get().loadBacklog(), refreshConversations()])
+    },
+
+    typing(questionId) {
+      const now = Date.now()
+      if (now - (typed.get(questionId) ?? -Infinity) < 30_000) return
+      typed.set(questionId, now)
+      void api.post('/questions/' + questionId + '/typing').catch(() => {})
     },
 
     async answerAsk(ask, yes) {
@@ -1939,6 +1963,18 @@ export const useApp = create<AppStore>()((set, get) => {
       await api.post(`/runs/${runId}/cancel`)
     },
 
+    async sendAgain(runId, overBudget = false) {
+      const sent = await api.post<{ message: ConvState['messages'][number]; run: Run }>(`/runs/${runId}/send`, { over_budget: overBudget })
+      // Its turn is the newest now: under the others, as the chat is read again (unless its events came first).
+      set(s => {
+        if (s.conv?.conversation.id !== sent.run.conversation_id) return s
+        const conv = applyEvent(s.conv, null, 'message.created', sent.message)
+        const had = conv.runs.find(r => r.id === runId)
+        const run = had && had.status !== 'interrupted' ? had : sent.run
+        return { conv: { ...conv, runs: [...conv.runs.filter(r => r.id !== runId), run] } }
+      })
+    },
+
     async setPermissionMode(mode) {
       // The level belongs to a conversation: choosing one before the first message starts it.
       if (!get().conv) await get().newConversation()
@@ -1975,7 +2011,9 @@ export const useApp = create<AppStore>()((set, get) => {
 
     async decideCommand(commandId, decision) {
       if (decision === 'reject') await api.post(`/commands/${commandId}/reject`)
-      else await api.post(`/commands/${commandId}/approve`, { remember: decision === 'always' })
+      else await api.post(`/commands/${commandId}/approve`, { remember: decision === 'always', disposable: decision === 'disposable' })
+      // (Its project allows such deletes now: no later card offers it again.)
+      if (decision === 'disposable') void api.get<Project[]>('/projects').then(projects => set({ projects }), () => {})
     },
 
     async removeRule(ruleId) {
@@ -2085,6 +2123,11 @@ export const useApp = create<AppStore>()((set, get) => {
       set(s => (s.conv ? { conv: applyEvent(s.conv, null, 'question.updated', question) } : s))
     },
 
+    async commandSeen(commandId) {
+      const command = await api.post<Command>(`/commands/${commandId}/seen`, {})
+      set(s => (s.conv ? { conv: applyEvent(s.conv, null, 'command.updated', command) } : s))
+    },
+
     async saveProjectSettings(values) {
       const { projectId } = get()
       if (!projectId) return
@@ -2132,6 +2175,7 @@ export const useApp = create<AppStore>()((set, get) => {
     filesAt: { key: null, n: 0 },
     filesRef: null,
     gitBranch: null,
+    gitSwitches: 0,
     gitAsked: 0,
 
     showGit() {

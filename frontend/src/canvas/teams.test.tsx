@@ -391,8 +391,8 @@ test('B-142: a Take in that met a clash needs you - its card waits in the list',
   expect(screen.queryByText('Nothing waits to be taken in.')).toBeNull()
 })
 
-test('B-142 review: what else of the chat waits - a night’s card, another turn’s clash - is counted, but needs no Take in here', () => {
-  const card = { id: 'a1', run_id: 'r', status: 'planned', jobs: [] } as unknown as Away
+test('B-142 review: what else of the chat waits - a job of Away, another turn’s clash - is counted, but needs no Take in here', () => {
+  const card = { id: 'a1', run_id: 'r', status: 'running', jobs: [{ task_id: 't', state: 'waits' }] } as unknown as Away
   const theirs = { id: 'm', run_id: 'other', agent_id: 'r', status: 'pending', files: [], kept_in: null } as unknown as Merge
   const data = ready(team('in', 'You', { away: [card], merges: [theirs] }))
   expect([data.waiting.count, data.waiting.mine]).toEqual([2, 0])

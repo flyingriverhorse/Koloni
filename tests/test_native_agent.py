@@ -198,7 +198,7 @@ def test_codex_reaches_other_agents_and_the_user_through_koloni(
     # nothing else is offered
     assert seen["tools"] == [
         "spawn_agent", "create_role", "ask_user", "ask_folder", "message_agent", "discuss",
-        "read_backlog", "add_task", "change_task", "assess_task", "plan_away", "post_note",
+        "read_backlog", "add_task", "change_task", "assess_task", "offer_away", "post_note",
         "read_notes",
         "remember", "recall", "recall_output"]
     assert [reported(r["content"][0]["text"]) for r in seen["results"]] == [

@@ -1,8 +1,10 @@
 # Permission levels
 
-The permission level decides what agents may do without asking you first. You pick it in the
-menu next to the message box. Each chat has its own level. The box shows the short name (**Ask**,
-**Auto-edit** or **Full auto**); its tooltip says the full one.
+The permission level decides what agents may do without asking you first. It stands in the message box's
+row as three comb cells and its name (**Ask** one cell, **Auto-edit** two, **Full auto** three): a click
+lists the levels, each with a line on what it does - Ask before changes: "Each file change and command waits
+for your card"; Auto-edit files: "Writes files at once (revertible); commands still ask"; Full auto: "Changes
+and commands run; only harmful or risky actions ask" - and **Plan first**. Each chat has its own level.
 
 | Level | In short |
 |---|---|
@@ -26,7 +28,8 @@ menu next to the message box. Each chat has its own level. The box shows the sho
 | A command that only reads, such as `cat`, `ls` or `git status` | Runs | Runs | Runs |
 | Any other command | Card, unless a rule covers it | Card, unless a rule covers it | Runs |
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
-| A command that deletes, cannot be undone, or sends data off the machine (`rm -rf`, `git reset --hard`, `git push --force`, `scp`, a `curl` that posts data, …) | Card | Card | Card |
+| A command that deletes, cannot be undone, or sends data off the machine (`rm -rf`, `git reset --hard`, `git push --force`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |
+| A delete KOLONİ checks is disposable - a build folder git ignores, a clean worktree of yours, a merged branch - where you allowed [such deletes](#disposable-deletes) | Card | Runs | Runs |
 | A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless what it runs is harmful |
 | Reading a secret file (`.env`, keys, …) | Card | Card | Card |
 | A command that names a secret file, or searches a folder that holds one | Card | Card | Card |
@@ -40,6 +43,8 @@ menu next to the message box. Each chat has its own level. The box shows the sho
 | A tool of a trusted MCP server | Card, unless the tool is set to run without asking | Card, unless the tool is set to run without asking | Card, unless the tool is set to run without asking |
 | A file outside the project | Card | Card | Card |
 | A change in a folder added to the chat for reading only | Card | Card | Card |
+| A command that stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a process up and stops it | Card | Card | Card (in the project, **Check what I said first** may let it run, but never for python, node, uvicorn, an agent's CLI, a filter, a wildcard, `kill -1` or a process looked up) |
+| A sub-agent's command in its copy that names another agent's copy, a worktree of the project or a place above its copy (`../..`), or writes in or installs into the linked `node_modules`, `.venv` or `venv` | Card | Card | Card |
 
 A plain `git` command counts as read-only only when it runs at the top of the project and the
 project holds no secret file.
@@ -60,6 +65,8 @@ agy's reads): see [Known limits](../reference/known-limits.md#secrets).
   commands never get a rule; their card says "This command is asked every time." A rejected command
   ends that one action, not the task. If you reject a command that writes a file or applies a patch,
   the agent is told to make the change with its file tools instead, so it comes to you as a file change.
+- A delete KOLONİ found disposable also offers **Allow such deletes in this project**
+  (see [Disposable deletes](#disposable-deletes)).
 - **"Search the web?"** offers **Search once**, **Always allow searching in this conversation**
   and **Reject**.
 - **"Make this request?"** offers **Send once**, **Always allow GET to …** (for that site) and
@@ -83,6 +90,54 @@ You can see and remove the rules you made under Settings › This project › **
 
 Below Full auto, a command that keeps running (a server) asks every time, even with a rule.
 
+## Disposable deletes
+
+Some deletes KOLONİ can check by itself. Where you allow them - Settings › This project › Asking and
+away › **Agents may delete what is disposable without asking**, or **Allow such deletes in this
+project** on the card of one - they run without a card at **Auto-edit files** and **Full auto**, in
+a chat you started, and the command's row says "Ran without asking · disposable: …":
+
+- a build or cache folder (`build`, `dist`, `__pycache__`, `.pytest_cache`, `.ruff_cache`,
+  `.mypy_cache`, `coverage`, `.next`, `.turbo`, `target`) below where the command runs, spelt as the
+  folder is on disk, that git ignores and that holds no file git tracks or would take (in any case of
+  its letters), no link and no repository of its own - not inside `node_modules`, `.venv`, `venv`, a
+  folder whose name starts with a dot, KOLONİ's own, a folder git ignores, or another repository, a
+  submodule or a worktree in the project; in the project, and in a sub-agent's copy;
+- a worktree of yours that git lists, named with no link on the way, `..` only at its start and by
+  no end of its path another worktree shares: not the main one, not locked, not one of KOLONİ's, on
+  a branch, holding nothing its commits do not (a new or changed file, one marked skip-worktree or
+  assume-unchanged - whatever `status.showUntrackedFiles` says - or a last commit on no branch, tag
+  or remote), no link, no secret file and nothing git ignores but whole build and cache folders with
+  no repository in them (git deletes what it ignores with the worktree);
+- a local branch that neither the project, the turn nor any worktree stands on: with `-d`, git
+  itself deletes only one it finds merged; with `-D`, only one whose commits the default branch has.
+  Never the default branch, `main` or `master`, nor KOLONİ's `koloni/…` ones.
+
+Worktrees and branches go this way only from the project itself (the Orchestrator), never from a
+copy, and only run in the project's top folder or a plain folder in it - not in another repository,
+a submodule or a worktree inside the project, nor through a link.
+
+Only such a delete alone on its line counts, written the way the shell it runs in reads it:
+
+- **PowerShell** - KOLONİ's own commands on Windows, and Claude Code's PowerShell tool: `Remove-Item`
+  or its aliases (`rm`, `ri`, `del`, `erase`) with `-Recurse` (or `-r`), `-Force` (`-fo`) if you like,
+  and one path: `Remove-Item -Recurse dist`, `rm -r build`, `ri -r -Force build`. `rm -rf build` is
+  not disposable there: PowerShell refuses `-rf` and deletes nothing, so it keeps its card.
+- **sh** - KOLONİ's own commands on Linux and macOS and in Docker, and Claude Code's Bash tool (Git
+  Bash on Windows): `rm` with `-r`, `-R` or `-rf`, `-f` / `--force` if you like: `rm -rf build dist`.
+- **git**, in every shell: `git worktree remove ../wt/x`, `git branch -d old`.
+
+Codex, agy and Qoder do not say which shell their command runs in, so their delete of a folder keeps
+its card. A disposable delete that ran and then failed says so on its row: "Ran without asking as
+disposable (…) and failed: exit 1". Anything else on the line, a forced worktree
+remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI
+whose folder KOLONİ does not know or that its model names, and any of GitHub Copilot CLI's own
+commands (it has no sandbox) asks as before. A delete whose folder changed
+between KOLONİ's look and its run - a card of the turn was answered meanwhile - asks too. At
+**Ask before changes**, in a turn nobody watches,
+a side of a comparison, a To-do task's turn and a job while you are away, every delete asks or waits
+as before. No **Always run** rule covers a delete either way.
+
 ## Sub-agents
 
 Sub-agents work in a working copy of your project, not in your folder. Their edits there never
@@ -100,6 +155,44 @@ Files that steer agents are held for your card at every level.
 Whether opening a sub-agent asks first is set under Settings › This project › Asking and away ›
 **Opening a sub-agent**: **Ask when it matters** (the default: a card at Ask before changes when
 the sub-agent can change things), **Always ask** or **Never ask**.
+
+## Check what I said first
+
+In the level menu, under the levels, **Check what I said first** is the project's switch (Settings
+› This project › Asking and away › **A harmful-looking command at Full auto**): "Before a
+harmful-looking command waits for you at Full auto or while you're away, your own words are read
+first; it runs without a card only where a line of yours names it." It is off (**Ask me**) until you
+turn it on.
+
+At Full auto, in a chat you started, a command that deletes, overwrites or sends something off this
+machine would wait for you on a card. With the switch on, the first model of your Fast tier first reads
+your preferences, this project's rules as saved on the [Memory](../memory.md) page and your own
+messages in the chat - never anything an agent wrote - and then:
+
+- A whole line of yours that names the command and what it touches ("You may delete build/ and
+  dist/."), and forbids nothing and sets no condition: the command runs without a card. Its row says
+  "Ran without asking · your rule: …" with where the line is (Your preferences, This project's rules
+  or your message).
+- A whole sentence of yours that forbids it ("Never push to main."): it is not run and opens no card.
+  The agent is told that sentence (for a sentence in a message of yours, only that one of yours
+  forbids it - the sentence stays with you), and not to run it or anything that does the same again,
+  and goes on with the rest of its task. Its row says "Not run · your rule: …".
+- A sentence that sets a condition or asks to be asked ("unless", "ask me before"), or nothing of
+  yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
+
+A command that ran or was not run this way also waits under **Decided for you** until you press
+**OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
+that turn asks you on a card. Secret files, `.koloni`, files that steer later turns, paths outside the
+folder, a delete or a send of the whole folder, and a CLI's command whose folder KOLONİ does not know
+are always asked; anything that goes wrong (no Fast model, over the budget, a slow or unreadable
+answer) opens the card as before. Each such command is one request of your Fast tier's first model.
+
+While you're away it holds in a
+To-do task's chat at Full auto too, reading the chat you went away from - never the task's words -
+for a one-line delete in the task's copy only: a command of more than one line or continued, a send,
+a git remote's branch, Docker's prune or volumes, a file that steers agents and a command that runs
+another through a shell or a wrapper keep their card. The
+same holds in the chat you went away from, while you're away. A plain chat has no such switch.
 
 ## Plan first
 

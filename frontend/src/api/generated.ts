@@ -325,24 +325,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/away/{away_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Change Card */
-        patch: operations["change_card_api_away__away_id__patch"];
-        trace?: never;
-    };
-    "/api/away/{away_id}/dismiss": {
+    "/api/away/{away_id}/back": {
         parameters: {
             query?: never;
             header?: never;
@@ -352,10 +335,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Dismiss
-         * @description Not now: the card is put away, nothing started.
+         * Come Back
+         * @description I'm back: Away ends, its summary in the chat; the job at work finishes.
          */
-        post: operations["dismiss_api_away__away_id__dismiss_post"];
+        post: operations["come_back_api_away__away_id__back_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -403,26 +386,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/away/{away_id}/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Start
-         * @description The user's Start: the only way a night begins.
-         */
-        post: operations["start_api_away__away_id__start_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/away/{away_id}/stop": {
         parameters: {
             query?: never;
@@ -434,8 +397,8 @@ export interface paths {
         put?: never;
         /**
          * Stop All
-         * @description Stop all: the job at work stops, its copy kept, and no other starts. One that waits for
-         *     the user's word waits on.
+         * @description Stop all: the job at work stops, its copy kept, and no other starts - one that waits for
+         *     the user's word too, and the chat gone from's turn.
          */
         post: operations["stop_all_api_away__away_id__stop_post"];
         delete?: never;
@@ -784,6 +747,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/commands/{command_id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seen
+         * @description K-yargıç: the user's OK on a command the check of their words let run without a card, or
+         *     did not run - it leaves Decided for you.
+         */
+        post: operations["seen_api_commands__command_id__seen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/commands/{command_id}/stop": {
         parameters: {
             query?: never;
@@ -952,7 +936,11 @@ export interface paths {
          */
         get: operations["read_cards_api_conversations__cid__away_get"];
         put?: never;
-        post?: never;
+        /**
+         * Go Away
+         * @description The user's Go away from this chat: the only way Away begins.
+         */
+        post: operations["go_away_api_conversations__cid__away_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3578,6 +3566,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/questions/{question_id}/typing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Typing
+         * @description ☾ Away: the user types this question's answer - the Lead does not decide it for them
+         *     until `TYPING_HOLD_SECONDS` after the last such word (a ping nobody waits on is nothing).
+         */
+        post: operations["typing_api_questions__question_id__typing_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/recipes": {
         parameters: {
             query?: never;
@@ -4083,6 +4092,27 @@ export interface paths {
          * @description The plan is turned down, with why if the user said: nothing more runs of it.
          */
         post: operations["reject_plan_api_runs__run_id__plan_reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Again
+         * @description A message of the user's still queued when KOLONİ restarted, sent now: its turn runs, or
+         *     waits behind one at work, as the newest - nothing is ever sent again by itself.
+         */
+        post: operations["send_again_api_runs__run_id__send_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4852,6 +4882,11 @@ export interface components {
         /** ApproveIn */
         ApproveIn: {
             /**
+             * Disposable
+             * @default false
+             */
+            disposable: boolean;
+            /**
              * Remember
              * @default false
              */
@@ -4949,31 +4984,30 @@ export interface components {
             text: string;
         };
         /**
-         * AwayIn
-         * @description The user's changes to a "While you're away" card before its Start (slice 106).
+         * AwayGoIn
+         * @description The user's Go away (☾ Away): the To-do tasks ticked, the panel's order of the list, the
+         *     places kept out and the limits - none unless named.
          */
-        AwayIn: {
-            /** Jobs */
-            jobs?: components["schemas"]["AwayJobIn"][] | null;
-            /** Kept Out */
-            kept_out?: string[] | null;
+        AwayGoIn: {
+            /**
+             * Kept Out
+             * @default []
+             */
+            kept_out: string[];
             /** Money */
             money?: number | null;
+            /**
+             * Order
+             * @default []
+             */
+            order: string[];
+            /**
+             * Task Ids
+             * @default []
+             */
+            task_ids: string[];
             /** Until */
             until?: string | null;
-        };
-        /** AwayJobIn */
-        AwayJobIn: {
-            /** Line */
-            line?: string | null;
-            /** Recipe */
-            recipe?: string | null;
-            /** Task Id */
-            task_id?: string | null;
-            /** Team */
-            team?: string | null;
-            /** Title */
-            title: string;
         };
         /**
          * AwayJobOut
@@ -5046,7 +5080,8 @@ export interface components {
         };
         /**
          * AwayOut
-         * @description A "While you're away" card and its night (`app.away`).
+         * @description ☾ Away (`app.away`): the Orchestrator's offer ("planned"), or the user's Go away and
+         *     what came of it.
          */
         AwayOut: {
             /** At Least */
@@ -5059,6 +5094,11 @@ export interface components {
             };
             /** Currency */
             currency: string;
+            /**
+             * Decided
+             * @default []
+             */
+            decided: string[];
             /** Ended At */
             ended_at: string | null;
             /** Id */
@@ -5254,6 +5294,11 @@ export interface components {
             /** Conversation Id */
             conversation_id: string | null;
             /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
              * Created By
              * @enum {string}
              */
@@ -5281,6 +5326,8 @@ export interface components {
              * @enum {string}
              */
             priority: "high" | "normal" | "low";
+            /** Proposed In */
+            proposed_in?: string | null;
             /**
              * Queued
              * @default false
@@ -5787,6 +5834,7 @@ export interface components {
             cwd: string | null;
             /** Danger */
             danger: string;
+            disposable?: components["schemas"]["DisposableOut"] | null;
             /** Ended At */
             ended_at: string | null;
             /** Exit Code */
@@ -5795,6 +5843,7 @@ export interface components {
             id: string;
             /** Image */
             image: string | null;
+            judged?: components["schemas"]["Judged"] | null;
             /** Keep Running */
             keep_running: boolean;
             /**
@@ -5821,7 +5870,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "proposed" | "approved" | "running" | "exited" | "timed_out" | "killed" | "rejected" | "failed_to_start" | "interrupted" | "blocked";
+            status: "proposed" | "approved" | "running" | "exited" | "timed_out" | "killed" | "rejected" | "failed_to_start" | "interrupted" | "blocked" | "refused";
             /** Suggested Prefix */
             suggested_prefix: string;
             /** Timeout Seconds */
@@ -6448,6 +6497,17 @@ export interface components {
             round: number;
         };
         /**
+         * DisposableOut
+         * @description Coordination §4: what of a command KOLONİ found disposable ("build folder dist; branch
+         *     old"), and whether it ran without a card for that (`unasked`).
+         */
+        DisposableOut: {
+            /** Unasked */
+            unasked: boolean;
+            /** What */
+            what: string;
+        };
+        /**
          * ExpertIn
          * @description K-bilgi: a new expert - its role, and its knowledge in this project.
          */
@@ -6975,6 +7035,47 @@ export interface components {
             run_id: string;
             /** Title */
             title: string;
+        };
+        /**
+         * Judged
+         * @description K-yargic: what the check of the user's words said of a command at Full auto: it ran with
+         *     no card ("run": on `quote`, a line of the user's found in `source`), it was not run and its
+         *     agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
+         *     it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
+         *     (Decided for you).
+         */
+        Judged: {
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+            /**
+             * Seen
+             * @default false
+             */
+            seen: boolean;
+            /**
+             * Source
+             * @default
+             * @enum {string}
+             */
+            source: "preferences" | "rules" | "message" | "";
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "run" | "ask" | "refuse";
+            /**
+             * Why
+             * @default
+             */
+            why: string;
         };
         /**
          * Knowledge
@@ -7725,6 +7826,10 @@ export interface components {
          *     worktree); `way`, "pull_request" where the project's finished work goes as one;
          *     `ask_way`, the card asks which way (the project's first finished branch with a GitHub
          *     remote) - `pr_off`, why a pull request cannot be chosen now.
+         *     W-1: `taken_in`, whose Take in, in the folder and not committed, is among what is in the way
+         *     ((A).3); `started`, that the branch began from the user's last commit, not their folder as it
+         *     was, and why; `not_taken`, what of theirs its snapshot left out (a secret, a link) - both said,
+         *     never in the way (not in `note`, which the card counts so).
          */
         MergeBranchOut: {
             /** Ask Way */
@@ -7737,12 +7842,18 @@ export interface components {
             into?: string | null;
             /** Name */
             name: string;
+            /** Not Taken */
+            not_taken?: string | null;
             /** Note */
             note?: string | null;
             /** Pr Off */
             pr_off?: string | null;
             /** Resolve */
             resolve?: boolean | null;
+            /** Started */
+            started?: string | null;
+            /** Taken In */
+            taken_in?: string | null;
             /** Way */
             way?: "pull_request" | null;
         };
@@ -8624,12 +8735,19 @@ export interface components {
             /** Rules Changed At */
             rules_changed_at?: string | null;
             /**
+             * Rules Differ
+             * @default false
+             */
+            rules_differ: boolean;
+            /**
              * Rules Kept
              * @default false
              */
             rules_kept: boolean;
             /** Rules Not Read */
             rules_not_read?: string | null;
+            /** Rules Saved */
+            rules_saved?: string | null;
             /**
              * Suggestions
              * @default []
@@ -8659,6 +8777,8 @@ export interface components {
             day_note_at: string | null;
             /** Discussion Budget */
             discussion_budget: number | null;
+            /** Disposable Deletes */
+            disposable_deletes: boolean;
             /** Docker Image */
             docker_image: string | null;
             /** Docker Network */
@@ -8677,6 +8797,11 @@ export interface components {
             finish_tests_auto: components["schemas"]["FinishTestsAuto"];
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
+            /**
+             * Full Auto Check
+             * @enum {string}
+             */
+            full_auto_check: "ask" | "judge";
             /** Git Commit */
             git_commit: boolean;
             /** Has Notify Url */
@@ -8813,6 +8938,8 @@ export interface components {
             day_note_at?: string | null;
             /** Discussion Budget */
             discussion_budget?: number | null;
+            /** Disposable Deletes */
+            disposable_deletes?: boolean | null;
             /** Docker Image */
             docker_image?: string | null;
             /** Docker Network */
@@ -8827,6 +8954,8 @@ export interface components {
             finish_tests?: boolean | null;
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
+            /** Full Auto Check */
+            full_auto_check?: ("ask" | "judge") | null;
             /** Git Commit */
             git_commit?: boolean | null;
             /** Hide Secrets */
@@ -8947,6 +9076,8 @@ export interface components {
             note?: string | null;
             /** Off Why */
             off_why?: string | null;
+            /** Routing */
+            routing?: ("efficiency" | "balance" | "intelligence" | "standard" | "high" | "max") | null;
             /** Tier */
             tier?: ("fast" | "balanced" | "strongest") | null;
         };
@@ -10014,6 +10145,8 @@ export interface components {
         };
         /** RunOut */
         RunOut: {
+            /** By User */
+            by_user: boolean;
             /** Compare Id */
             compare_id: string | null;
             /** Conversation Id */
@@ -10118,6 +10251,14 @@ export interface components {
             unread: string[];
             /** Whole Env */
             whole_env: boolean;
+        };
+        /** SendIn */
+        SendIn: {
+            /**
+             * Over Budget
+             * @default false
+             */
+            over_budget: boolean;
         };
         /**
          * SharedFileOut
@@ -11923,42 +12064,7 @@ export interface operations {
             };
         };
     };
-    change_card_api_away__away_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                away_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AwayIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AwayOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dismiss_api_away__away_id__dismiss_post: {
+    come_back_api_away__away_id__back_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -12038,37 +12144,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    start_api_away__away_id__start_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                away_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AwayOut"];
-                };
             };
             /** @description Validation Error */
             422: {
@@ -12726,6 +12801,37 @@ export interface operations {
             };
         };
     };
+    seen_api_commands__command_id__seen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     stop_api_commands__command_id__stop_post: {
         parameters: {
             query?: never;
@@ -13011,6 +13117,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AwayOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    go_away_api_conversations__cid__away_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AwayGoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwayOut"];
                 };
             };
             /** @description Validation Error */
@@ -17911,6 +18052,35 @@ export interface operations {
             };
         };
     };
+    typing_api_questions__question_id__typing_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_recipes_api_recipes_get: {
         parameters: {
             query?: {
@@ -18814,6 +18984,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_again_api_runs__run_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SendIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostMessageOut"];
                 };
             };
             /** @description Validation Error */

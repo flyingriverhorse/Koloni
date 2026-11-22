@@ -17,8 +17,8 @@ from app import agent, backlog
 from app.agent import po_mixin
 from app.db.models import Agent, BacklogTask, Discussion, Project, Room, Run
 from app.team import Entry
-from tests.test_away_scenarios import PLAN, card
 from tests.test_away_scenarios import ended as night_over
+from tests.test_away_scenarios import go_away, to_do
 from tests.test_backlog import setup
 from tests.test_chat_flow import text
 from tests.test_spawn import call, step
@@ -371,12 +371,12 @@ def test_a_nights_jobs_propose_and_nothing_is_added_for_the_user(team, project_d
     # (the user, 7 Nov: proposals from a night too - they wait for the user in the morning;
     # each job's view and proposals are the same answer here: the order of the two is not fixed)
     client, default, _fast = team(
-        [step(call("plan_away", PLAN)), text("card is up"), FAILED, text(ANSWER), FAILED, text(ANSWER)],
+        [to_do(), text("on your To-do"), FAILED, text(ANSWER), FAILED, text(ANSWER)],
         [po(task("Add CLI help", "the CLI help text"))] * 4)
     tiered(team, client)
     pid, cid, run_id = start(client, project_dir, mode="full_auto", content="sleep: do one and two")
-    ended(run_id)  # (the card's turn: it did nothing that asks)
-    client.post(f"/api/away/{card(client, cid)['id']}/start")
+    ended(run_id)  # (the chat's turn: it did nothing that asks)
+    go_away(client, cid)
     night_over(client, pid)
     ended(count=3)
     found = [one for one in tasks(client, pid) if one["po"]]

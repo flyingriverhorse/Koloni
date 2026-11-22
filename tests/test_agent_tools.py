@@ -27,7 +27,7 @@ def test_tool_result_reaches_the_next_model_step(make_client, wait_run, project_
     assert (run["input_tokens"], run["output_tokens"]) == (30, 9)  # input: last step; output: sum
     # (two more since the web tools: a search and a request; no notify without an address;
     # and show, every agent's at its own work; and open_room, add_skill, ask_folder and the
-    # backlog's four, the lead's; and ask_secret, with run_command; and plan_away, slice 106;
+    # backlog's four, the lead's; and ask_secret, with run_command; and offer_away, slice 106;
     # and recall_output, every agent's at its own work: K-gecmis-zengin; and the eight browser
     # tools, slice 51; and view_image, 28e; and diagram_image, K-drawio)
     assert model.tool_args[0] is not None and len(model.tool_args[0]) == 38

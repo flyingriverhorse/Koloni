@@ -194,8 +194,8 @@ class Project(Base):
     lead_work: Mapped[str] = mapped_column(
         String(9), default="delegates", server_default="delegates")
     # K-cli-vekil: who answers while the user is away, and after how many minutes.
-    when_away: Mapped[str] = mapped_column(String(5), default="waits", server_default="waits")
-    away_minutes: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
+    when_away: Mapped[str] = mapped_column(String(5), default="lead", server_default="lead")
+    away_minutes: Mapped[int] = mapped_column(Integer, default=5, server_default="5")
     spawn_approval: Mapped[str] = mapped_column(String(8), default="auto", server_default="auto")
     spawn_max_depth: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
     spawn_max_agents: Mapped[int] = mapped_column(Integer, default=6, server_default="6")
@@ -212,6 +212,14 @@ class Project(Base):
     # 89m: whether a Claude Code agent that changed files finishes only once the tests pass.
     # None: automatic (`app.finish_tests.automatic`).
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
+    # checked against what they wrote ("judge", `JudgeMixin._judged`). The user's own setting.
+    full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
+    # Coordination §4: whether agents delete what KOLONİ checked is disposable (a build or cache
+    # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
+    # watched turn. The user's own setting, off until they allow it.
+    disposable_deletes: Mapped[bool] = mapped_column(Boolean, default=False,
+                                                     server_default=false())
 
     @property
     def has_notify_url(self) -> bool:
@@ -265,7 +273,7 @@ class Conversation(Base):
         String(9), default="delegates", server_default="delegates")
     # While the user is away (K-vekil-karar): "waits" - every question waits for them - or
     # "lead": the Lead answers what it safely can, once a question has waited `away_minutes`
-    # (at once while the folder's night runs).
+    # (at once while the folder's night runs). A plain chat's stays "waits": it cannot change it.
     when_away: Mapped[str] = mapped_column(String(5), default="waits", server_default="waits")
     away_minutes: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     # The Lead's reasoning level in this conversation ("low" ... "max"); None: its role's.
@@ -580,6 +588,12 @@ class Command(Base):
     web_off: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # The first address on this machine it printed, KOLONİ's and model servers' ports aside.
     preview_url: Mapped[str | None] = mapped_column(Text, default=None)
+    # K-yargic: what the check of the user's words said of it (`schemas.Judged`); None: not
+    # checked. Set by KOLONİ, never from a CLI's own words.
+    judged: Mapped[dict | None] = mapped_column(JSON, default=None)
+    # Coordination §4: what of it KOLONİ found disposable, {"what", "unasked"} (`schemas.
+    # DisposableOut`); None: nothing. Set by KOLONİ, never from a CLI's own words.
+    disposable: Mapped[dict | None] = mapped_column(JSON, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     ended_at: Mapped[datetime | None] = mapped_column(default=None)
@@ -1720,6 +1734,8 @@ class BacklogTask(Base):
     away_run_id: Mapped[str | None] = mapped_column(String(32), default=None, index=True)
     away_state: Mapped[str | None] = mapped_column(String(8), default=None)
     away_why: Mapped[str | None] = mapped_column(Text, default=None)
+    # ☾ Away: the chat an agent proposed it in - ticked there in the Away panel. None: the user's.
+    proposed_in: Mapped[str | None] = mapped_column(String(32), default=None)
     # K-symphony, how it stands in a run of the backlog (`app.backlog.chain`): {"after": the
     # ids of the tasks it waits for (the user's), "queued": Run the backlog took it, "fix": why
     # its fix round is due, "fixed": it had it, "stuck": why it is blocked}. Replaced whole
@@ -1770,6 +1786,8 @@ class AwayRun(Base):
     seen_at: Mapped[datetime | None] = mapped_column(default=None)
     # What tried a place kept out, refused: [{"task_id", "what"}].
     tried: Mapped[list] = mapped_column(JSON, default=list)
+    # What its chat had spent at Go away: not counted to its money (`app.away.spent`).
+    spent_before: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
 
 

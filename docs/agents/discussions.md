@@ -16,7 +16,11 @@ cut there and ends with "[the rest was cut]"; the rest is not kept.
 ## When it ends
 
 A discussion ends when nobody has anything to add, at its round limit, when it reaches its token
-budget, or when you end it. It also ends at the message's and the project's own limits.
+budget, or when you end it. It also ends at the message's and the project's own limits. One that broke
+off with an error shows **Failed**; one its Orchestrator stopped waiting for shows **Stopped**.
+
+On the canvas, while it runs, the agent that opened it says "Waiting for the discussion" and a member
+opened for it "Waiting for its turn to speak".
 
 Each step of a speech sends the speaker's whole work so far again, so the token count grows faster
 than the talk does. The budget is set under Settings › This project › Limits and money › **A discussion's tokens, at most**. Empty means

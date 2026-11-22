@@ -17,7 +17,7 @@ question off.
 - **The pill in the top bar**, such as "2 wait". It opens the **Ready for you** panel. When nothing
   waits but the Orchestrator decided things for you in this chat, the pill says how many it decided.
 - **In the chat**, where the card was asked. A closed chat's line says how many wait for you, and a
-  chat says when more wait elsewhere.
+  chat says under its message box when more wait elsewhere ("2 more wait elsewhere").
 - Ctrl+K lists **Ready for you** too.
 
 ### The panel
@@ -60,7 +60,7 @@ What waits:
   (**Add** / **Reject**). See [Memory](../memory.md).
 - **While away**: jobs while you're away that wait. You answer it in its chat (**Open its chat to answer**).
 
-A proposed trigger, a Project notes offer or a While you're away card waits only in its own chat unless that
+A proposed trigger, a Project notes offer or the Orchestrator's Go away line waits only in its own chat unless that
 chat has something else waiting.
 
 ## The "Teams' work is ready" card
@@ -104,9 +104,10 @@ On the canvas the same card is a box titled **Ready for you**. **Open the list �
 | An agent's question itself, saying who asks (**Orchestrator asks**, **Coder asks**), or a title of KOLONİ's own such as **Allow this?** or **Go on with the recipe?** (**KOLONİ asks**), with its words whole under it | its own options, or **Or answer in your own words…** | An agent, or KOLONİ, asks you a question. KOLONİ's **Deny** is shown as **Reject**. A question KOLONİ did not put to you (your message was waiting, or it offered **Take in**) is a row in the chat, "Wanted to ask: … · not asked"; open it for why. |
 | **Make this trigger?** | **Approve**, **Edit**, **Reject** | An agent proposes a trigger. |
 | **Add to Project notes?** | ticks, **Add**, **Not now** | After a turn found things worth noting. It never holds the turn. |
-| **While you're away** | **Start**, **Change the list**, **Not now** | The Orchestrator proposes work for while you are away. |
-| **Decided for you while you were away** | **OK**, or **Change →** another answer | The Orchestrator answered for you. See Settings › This project › Asking and away › **When you're away**. |
+| **☾ Go away now?** | **Go away**, **Change** | The Orchestrator put work on To-do and offers to go away; nothing starts before Go away. |
+| **Decided for you while you were away** | **OK**, or **Change →** another answer | The Orchestrator answered for you (see [Answering for you](../automation/answering-for-you.md)), or [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, on a line of yours (**OK**). |
 | **Go on past its step limit?** | **Continue (+*N* steps)**, **Stop here** | An agent came to its step limit before its work was done. See [Step limits](../agents/step-limits.md). |
+| "*Model* has not answered for 5 min. Keep waiting, or stop this turn and pick another model?" | **Keep waiting**, **Stop and pick another model** | The Orchestrator's model said nothing for 5 minutes in a turn you started. See [Step limits](../agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer). |
 
 See [Permission levels](permissions.md) for when each card is asked.
 
@@ -131,5 +132,6 @@ These have a grey edge. Nothing waits on them.
   the project yet: server.py waits in Ready for you - Take in to apply it.", or "Nothing reached the
   project." The line is written when the turn ends: a copy you take in later does not change it.
 - When KOLONİ starts again, work that was open is marked interrupted. Nothing is ever run again by
-  itself.
+  itself: a message that was still queued says "Not sent: KOLONİ restarted", and runs only when you
+  press its **Send**.
 - A question that ended without an answer shows in the chat as "not answered".

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { api } from '../api/client'
 import type { Command } from '../api/types'
 import { StatusLabel } from '../shell/StatusLabel'
-import { TONE_COLOR, commandSeconds, commandStatus } from './commandStatus'
+import { JUDGED_FROM, TONE_COLOR, commandSeconds, commandStatus } from './commandStatus'
 import { outputPreview } from './outputPreview'
 
 /**
@@ -11,10 +11,12 @@ import { outputPreview } from './outputPreview'
  * it a click further (the canvas's Command node had it - the user's, 5 Nov), and Stop while it runs. A CLI's own command
  * that failed is on record as ended with no exit code, its call as failed: it reads as failed.
  */
-export function CommandRow({ command, failed = false }: { command: Command; failed?: boolean }) {
-  const [open, setOpen] = useState(false)
+export function CommandRow({ command, failed = false, live = false }: { command: Command; failed?: boolean; live?: boolean }) {
+  const [picked, setOpen] = useState<boolean | null>(null)
   const { label, tone } = failed && command.status === 'exited' && command.exit_code === null ? CLI_FAILED : commandStatus(command)
   const seconds = commandSeconds(command)
+  // In the chat (`live`): open while output comes and when it failed, until a click says otherwise.
+  const open = picked ?? (live && (tone === 'del' || (command.status === 'running' && command.output !== '')))
   return (
     <div className="tool-row">
       <div className="tool-row-top">
@@ -29,12 +31,37 @@ export function CommandRow({ command, failed = false }: { command: Command; fail
         </button>
         <StopCommand command={command} />
       </div>
+      <OnYourWords judged={command.judged} />
+      <RanDisposable command={command} />
       {open && <CommandOutput command={command} />}
     </div>
   )
 }
 
 const CLI_FAILED = { label: 'failed (its CLI said so)', tone: 'del' as const }
+
+/** A command that ran at Full auto with no card, or was not run, by the check of the user's own words: the line it rested on. */
+function OnYourWords({ judged }: { judged: Command['judged'] }) {
+  if (!judged || judged.verdict === 'ask' || !judged.source) return null
+  return (
+    <div className="tool-row-note muted">
+      {judged.verdict === 'run' ? 'Ran without asking' : 'Not run'} · your rule: “{judged.quote}” ({JUDGED_FROM[judged.source]})
+    </div>
+  )
+}
+
+/** Coordination §4: a delete that ran with no card, as KOLONİ found it disposable where the project allows such deletes - and, where it then failed, that it did (nothing may have gone: PowerShell's error for `rm -rf`, B). */
+function RanDisposable({ command }: { command: Command }) {
+  const disposable = command.disposable
+  if (!disposable?.unasked) return null
+  const failed =
+    command.status === 'failed_to_start' ? 'did not start' : command.exit_code !== null && command.exit_code !== 0 ? `failed: exit ${command.exit_code}` : null
+  return (
+    <div className="tool-row-note muted">
+      {failed ? `Ran without asking as disposable (${disposable.what}) and ${failed}` : `Ran without asking · disposable: ${disposable.what}`}
+    </div>
+  )
+}
 
 /** Its output: the first and last lines, and all of it on "Show all". */
 function CommandOutput({ command }: { command: Command }) {

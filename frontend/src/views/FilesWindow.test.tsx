@@ -461,18 +461,20 @@ function opened(more: Parameters<typeof convState>[0] = {}) {
   return conv
 }
 
-test('one Workspace button: open, a small file at the chat’s foot, at the end of the model’s line - not in its header nor the top bar - that glows while something waits; closed, beside the small box: its number is what waits for you as the Board counts it', async () => {
+test('one Workspace button: open, the first under the message box (0.1.5) - not in its header nor the top bar - with its number, glowing while something waits; closed, beside the small box: its number is what waits for you as the Board counts it', async () => {
   opened()
   render(<ChatPanel />)
   const chat = screen.getByRole('region', { name: 'Chat' })
   // (the Board not read yet: no number, nothing to glow for)
   const foot = within(chat).getByRole('button', { name: 'Workspace' })
   expect(foot).toHaveAttribute('title', expect.stringMatching(/^Workspace/))
-  expect(foot.closest('.composer-line')).not.toBeNull()
+  expect(foot.closest('.composer-below')!.firstElementChild).toBe(foot)
+  expect(foot).toHaveTextContent(/^Workspace$/)
   expect(chat.querySelector('.chat-top')).not.toContainElement(foot)
   expect(foot).not.toHaveClass('glow')
   act(() => useApp.setState({ everywhere: board(2) }))
   expect(within(chat).getByRole('button', { name: 'Workspace 2 waiting' })).toHaveClass('glow')
+  expect(foot).toHaveTextContent(/^Workspace2$/)
   expect(screen.getAllByRole('button', { name: /^Workspace/ })).toHaveLength(1)
   // opened, it stops
   await userEvent.click(foot)
@@ -844,10 +846,24 @@ test('K-dallar: on a branch it reads that branch from git, read only - its tree,
 test('K-dallar: the project switched to another branch, the Workspace reads its folders again - not what it read on the one before', async () => {
   opened()
   render(<ChatPanel />)
+  act(() => useApp.setState({ gitBranch: 'main' }))
   act(() => useApp.getState().openFiles())
   await waitFor(() => expect(asked.filter(one => one === 'GET /api/projects/p/files?path=')).toHaveLength(1))
-  act(() => useApp.setState({ gitBranch: 'feature' }))
+  // (as the git map says it: a branch read after another one)
+  act(() => useApp.setState(s => ({ gitBranch: 'feature', gitSwitches: s.gitSwitches + 1 })))
   await waitFor(() => expect(asked.filter(one => one === 'GET /api/projects/p/files?path=')).toHaveLength(2))
+})
+
+test('the project’s branch first read as the page loads keeps the file picked before it in the Workspace', async () => {
+  // (Seen 20 Nov: a file picked right after the page loaded fell back to "Pick a file in the tree.")
+  opened()
+  render(<ChatPanel />)
+  act(() => useApp.getState().openFiles())
+  await userEvent.click(await within(treeOf()).findByRole('treeitem', { name: 'hello.py' }))
+  expect(screen.queryByText('Pick a file in the tree.')).toBeNull()
+  act(() => useApp.setState({ gitBranch: 'main' })) // (git answered: no switch)
+  expect(screen.queryByText('Pick a file in the tree.')).toBeNull()
+  expect(within(treeOf()).getByRole('treeitem', { name: 'hello.py' })).toHaveAttribute('aria-selected', 'true')
 })
 
 test('B-342: a change done with that changes nothing is no diff to open on: the page opens as it is', () => {
@@ -899,4 +915,27 @@ test('K-degisenler, sample A: a copy that waits, or was kept, opens on what it h
     expect(useApp.getState().selectedNodeId).toBe('agent:c')
     unmount()
   }
+})
+
+test('a copy at work is under Working copies in Files, on a tab of its own; a tab clicked is shown; a diff side by side or in one column is remembered', async () => {
+  const coder = agent('r1', 'running', { id: 'c', name: 'Coder', copy: { state: 'own' } })
+  panel({ agents: [lead, coder], changes: [fileChange('f1', 'r1', { status: 'proposed', diff: '@@ -1 +1 @@\n-a\n+b\n' })] }, 'src/a.py')
+  await userEvent.click(await within(treeOf()).findByRole('treeitem', { name: /^Coder's copy/ }))
+  expect(within(treeOf()).getByRole('treeitem', { name: /^Working copies/ })).toBeInTheDocument()
+  expect(await screen.findByRole('region', { name: 'a.txt' })).toBeInTheDocument()
+  expect(tabs()).toEqual(['a.py', "Coder's copy"])
+  await userEvent.click(screen.getByRole('tab', { name: 'a.py' }))
+  expect(screen.getByRole('tab', { name: 'a.py' })).toHaveAttribute('aria-selected', 'true')
+  const split = screen.getByRole('button', { name: 'Side by side' })
+  expect(split).toHaveAttribute('aria-pressed', 'true')
+  await userEvent.click(split)
+  expect(split).toHaveAttribute('aria-pressed', 'false')
+  expect(localStorage.getItem('koloni-diff-split')).toBe('false')
+})
+
+test('K-39-betik: Always run in this chat that could not be saved says so, over the page', async () => {
+  useApp.setState({ conv: convState(), setPageScripts: vi.fn().mockRejectedValue(new Error('down')) })
+  panel({ views: [view('v1', 'a.html')] }, 'a.html')
+  await userEvent.click(screen.getByRole('button', { name: 'Always run in this chat' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/^It could not be saved\. Try again\.$/)
 })

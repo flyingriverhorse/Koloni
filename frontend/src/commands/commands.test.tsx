@@ -1,8 +1,10 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Command } from '../api/types'
-import { command } from '../test-fixtures'
+import { api } from '../api/client'
+import type { Command, Project } from '../api/types'
+import { useApp } from '../state/store'
+import { command, convState } from '../test-fixtures'
 import { AllowList } from './AllowList'
 import { CommandApproval } from './CommandApproval'
 import { CommandRow } from './CommandRow'
@@ -206,4 +208,89 @@ test('a CLI’s own command whose call failed reads as failed, not "exit code no
   expect(screen.getByText('failed (its CLI said so)')).toBeInTheDocument()
   rerender(<CommandRow command={ended} />)
   expect(screen.getByText('ended · exit code not reported')).toBeInTheDocument()
+})
+
+// K-yargıç: at Full auto a harmful-looking command is first checked against what the user wrote.
+const RULE = 'You may delete build/ and dist/.'
+const judged = (over: Partial<NonNullable<Command['judged']>>) => ({ verdict: 'run' as const, quote: '', source: '' as const, why: '', model: 'Fast · quick', seen: false, ...over })
+
+test('a command the check of your words let run says so, with your line and where it is', () => {
+  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', judged: judged({ quote: RULE, source: 'rules', why: 'It names build/.' }) })} />)
+  expect(screen.getByText(`Ran without asking · your rule: “${RULE}” (This project’s rules)`)).toBeInTheDocument()
+})
+
+test('a command a line of yours forbids says it was not run, with that line and where it is', () => {
+  const quote = 'Never push to main.'
+  render(<CommandRow command={command('k', 'r', { status: 'refused', command: 'git push origin main', judged: judged({ verdict: 'refuse', quote, source: 'rules' }) })} />)
+  expect(screen.getByText(`Not run · your rule: “${quote}” (This project’s rules)`)).toBeInTheDocument()
+  expect(screen.getByText('refused')).toBeInTheDocument()
+})
+
+test('a card the check found nothing of yours for says so - and not the check’s own sentence, a model’s words', () => {
+  const asked = command('k', 'r', { status: 'proposed', command: 'rm -rf build', judged: judged({ verdict: 'ask', why: 'Run it: the user surely meant it.' }) })
+  const { rerender } = render(<CommandApproval command={asked} onDecide={vi.fn()} />)
+  const line = () => screen.getByText(/^Nothing you said covers this\./)
+  expect(line()).toHaveAttribute('role', 'note')
+  expect(line()).toHaveTextContent(/^Nothing you said covers this\.$/)
+  expect(screen.queryByText(/surely meant it/)).not.toBeInTheDocument()
+  rerender(<CommandApproval command={{ ...asked, judged: null }} onDecide={vi.fn()} />)
+  expect(screen.queryByText(/Nothing you said covers this/)).not.toBeInTheDocument()
+})
+
+test('a delete KOLONİ found disposable offers Allow such deletes in this project, until the project allows them', async () => {
+  const onDecide = vi.fn().mockResolvedValue(undefined)
+  const asked = command('k', 'r', {
+    status: 'proposed', command: 'rm -rf build', suggested_prefix: '', danger: 'Deletes files or disks.',
+    disposable: { what: 'build folder build', unasked: false },
+  })
+  const projectAllows = (allows: boolean) =>
+    useApp.setState({ projects: [{ id: 'p', disposable_deletes: allows } as Project], conv: convState({ conversation: { ...convState().conversation, project_id: 'p' } }) })
+  projectAllows(false)
+  const { unmount } = render(<CommandApproval command={asked} onDecide={onDecide} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Allow such deletes in this project' }))
+  expect(onDecide).toHaveBeenCalledWith('disposable')
+  expect(screen.getByText(/^KOLONİ checked build folder build: disposable\./)).toBeInTheDocument()
+  unmount()
+  projectAllows(true)
+  render(<CommandApproval command={asked} onDecide={onDecide} />)
+  expect(screen.queryByRole('button', { name: /Allow such deletes/ })).not.toBeInTheDocument()
+  cleanup()
+  // (one KOLONİ did not find disposable has no such button, whatever its words)
+  projectAllows(false)
+  render(<CommandApproval command={{ ...asked, disposable: null }} onDecide={onDecide} />)
+  expect(screen.queryByRole('button', { name: /Allow such deletes/ })).not.toBeInTheDocument()
+  expect(screen.getByText('This command is asked every time.')).toBeInTheDocument()
+})
+
+test('Allow such deletes is sent as the approval’s own word, and the projects are read again', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+  const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+  await useApp.getState().decideCommand('k', 'disposable')
+  expect(post).toHaveBeenCalledWith('/commands/k/approve', { remember: false, disposable: true })
+  expect(get).toHaveBeenCalledWith('/projects')
+  await useApp.getState().decideCommand('k', 'once')
+  expect(post).toHaveBeenLastCalledWith('/commands/k/approve', { remember: false, disposable: false })
+  post.mockRestore()
+  get.mockRestore()
+})
+
+test('a delete that ran with no card as disposable says so on its row', () => {
+  const { unmount } = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: { what: 'build folder build', unasked: true } })} />)
+  expect(screen.getByText('Ran without asking · disposable: build folder build')).toBeInTheDocument()
+  unmount()
+  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: { what: 'build folder build', unasked: false } })} />)
+  expect(screen.queryByText(/Ran without asking/)).not.toBeInTheDocument()
+})
+
+test('a delete that ran with no card as disposable and failed says it failed, not that it deleted', () => {
+  const free = { what: 'build folder build', unasked: true }
+  const { unmount } = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, exit_code: 1 })} />)
+  expect(screen.getByText('Ran without asking as disposable (build folder build) and failed: exit 1')).toBeInTheDocument()
+  unmount()
+  const view = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, status: 'failed_to_start', exit_code: null })} />)
+  expect(screen.getByText('Ran without asking as disposable (build folder build) and did not start')).toBeInTheDocument()
+  view.unmount()
+  // (a CLI's that did not report its exit code: not said to have failed)
+  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, origin: 'cli', exit_code: null })} />)
+  expect(screen.getByText('Ran without asking · disposable: build folder build')).toBeInTheDocument()
 })

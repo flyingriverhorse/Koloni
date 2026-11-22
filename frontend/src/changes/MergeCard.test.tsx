@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
@@ -487,6 +488,45 @@ test('K-dal-takim: a branch is merged whole - what is in the way is said, and Me
   expect(screen.queryByRole('note', { name: 'Not merged yet' })).not.toBeInTheDocument()
 })
 
+test("W-1: whose Take in is in a branch's way is said under what is in the way; a branch from your last commit says so, in nobody's way", async () => {
+  const taken = "lines.txt: Coder's Take in is in your folder, not committed - commit it on its card first, then Merge"
+  const started = 'koloni/fix started from your last commit, not your folder as it was: git 2.39.3 cannot start a branch from your folder as it is - 2.40 or later can. Your uncommitted changes were not in it.'
+  const branch = { name: 'koloni/fix', into: 'main', conflicts: [], dirty: ['lines.txt'], note: null, taken_in: taken, started }
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch })} name="Coder 2" onDecide={vi.fn()} />)
+  const note = screen.getByRole('note', { name: 'Not merged yet' })
+  expect(note).toHaveTextContent(`Your uncommitted changes are in the way (commit, stash or unstage them first): lines.txt${taken}`)
+  expect(screen.getByRole('note', { name: 'Where it started' })).toHaveTextContent(started)
+  cleanup()
+  // Said alone, it stands in nobody's way: no "Not merged yet".
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch: { ...branch, dirty: [], taken_in: null } })} name="Coder 2" onDecide={vi.fn()} />)
+  expect(screen.getByRole('note', { name: 'Where it started' })).toHaveTextContent(started)
+  expect(screen.queryByRole('note', { name: 'Not merged yet' })).not.toBeInTheDocument()
+})
+
+test('a long path with no spaces in what a merge waits for, where it started or what it left out breaks anywhere rather than run past the card (340 px)', () => {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/theme/changes.css', 'utf8') // (run from frontend/)
+  document.head.append(style)
+  const long = 'frontend/src/components/somewhere/very_long_name.tsx'
+  const branch = {
+    name: 'koloni/fix', into: 'main', conflicts: [long], dirty: [long], note: null,
+    started: `koloni/fix started from your last commit: ${long}`, not_taken: `Not in its branch: ${long}`,
+  }
+  render(<MergeCard merge={merge({ files: [{ ...file(long), note: 'asked again' }], branch })} name="Coder" onDecide={vi.fn()} />)
+  for (const name of ['Not merged yet', 'Where it started', 'Not in its branch'])
+    expect(getComputedStyle(screen.getByRole('note', { name })).overflowWrap, name).toBe('anywhere')
+  expect(getComputedStyle(screen.getByText('— asked again', { exact: false })).overflowWrap).toBe('anywhere')
+  style.remove()
+})
+
+test("W-1: what of yours a branch's snapshot left out is said in one quiet line, in nobody's way", () => {
+  const left = 'Not in its branch: 2 of your files (.env, token.json) - a secret by its name, or through a link'
+  const branch = { name: 'koloni/fix', into: 'main', conflicts: [], dirty: [], note: null, not_taken: left }
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch })} name="Coder" onDecide={vi.fn()} />)
+  expect(screen.getByRole('note', { name: 'Not in its branch' })).toHaveTextContent(left)
+  expect(screen.queryByRole('note', { name: 'Not merged yet' })).not.toBeInTheDocument()
+})
+
 test("K-dal-takim: a backlog task's whole turn on a branch - the Orchestrator's own card waits for you", async () => {
   const { WaitingList } = await import('../chat/MessageList')
   const { waitingSummary, waitingOf } = await import('../chat/waiting')
@@ -537,6 +577,26 @@ test('K-dal-takim D2: an agent may resolve the conflicts, the branch may be kept
   await userEvent.click(screen.getByRole('button', { name: 'Open pull request' }))
   expect(onDecide).toHaveBeenLastCalledWith('approve', {}, {}, { keep_branch: false, way: 'pull_request' })
   cleanup()
+})
+
+test("K-dal-takim D2: a branch git named no branch to go into goes into yours; a note of git's is in the way, and a way picked can be picked back", async () => {
+  const onDecide = vi.fn().mockResolvedValue(undefined)
+  const branch = { name: 'koloni/fix', into: null, conflicts: ['lines.txt'], dirty: [], note: 'git is busy', resolve: true, ask_way: true }
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch })} name="Coder" onDecide={onDecide} />)
+  expect(screen.getByText("Merge koloni/fix into the project's branch? · 1 file")).toBeInTheDocument()
+  const note = screen.getByRole('note', { name: 'Not merged yet' })
+  expect(note).toHaveTextContent('git is busy')
+  expect(note).toHaveTextContent('Merge looks again first: nothing is merged while any of this stands.')
+  expect(note).toHaveTextContent('KOLONİ merges your branch into koloni/fix')
+  expect(screen.getByRole('group', { name: 'How finished work reaches your branch' })).toHaveTextContent(/^How finished work reaches your branch/)
+  expect(screen.getByText(/Merge brings what the branch holds now into/)).toHaveTextContent('into your branch as one commit')
+  await userEvent.click(screen.getByRole('radio', { name: /Open a pull request/ }))
+  expect(note).not.toHaveTextContent('Merge looks again first')
+  expect(screen.getByText(/opens a pull request into/)).toHaveTextContent('opens a pull request into your branch; nothing is')
+  expect(screen.getByRole('checkbox', { name: /Keep this branch after the pull request/ })).not.toBeChecked()
+  await userEvent.click(screen.getByRole('radio', { name: /Merge here/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Merge' }))
+  expect(onDecide).toHaveBeenCalledWith('approve', {}, {}, { keep_branch: false, way: 'merge' })
 })
 
 test('K-dal-takim D2: a pull request opened says what was pushed and where it is', () => {

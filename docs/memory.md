@@ -24,6 +24,12 @@ A fact has a subject (a few words, such as `test command`) and usually a source:
 range of lines. The core holds at most 4 000 characters of facts; the **Facts** tab shows how much
 is used.
 
+The rules you save here are also written to the folder's `.koloni/rules.md`. When that file says
+something else (a `git pull` or a script changed it), the **Told** tab says so - "The folder's
+rules.md differs from what you saved here; Full auto's check goes by what you saved." - and shows the
+folder's text, with **Use the folder's rules here** to take it into the box. Full auto's
+[Check what I said first](use/permissions.md#check-what-i-said-first) reads the rules saved here.
+
 KOLONİ may also suggest a preference. It shows under **Your preferences** with a "suggested" tag
 and the buttons **Add** and **Reject**.
 

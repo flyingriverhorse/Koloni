@@ -12,7 +12,7 @@ import { titleOf } from '../agents/agentStatus'
 import { agentState, agentWhere, when } from '../agents/AgentWindow'
 import { OwnSubAgentWork } from '../agents/OwnSubAgent'
 import { homeOf, isOwnSubAgent, ownSubAgentBrief, ownSubAgentTask, subAgentIds } from '../agents/ownWork'
-import type { Agent, Command, FileChange, Merge, PendingRole, Provider, Question, Run } from '../api/types'
+import type { Agent, Attachment, Command, FileChange, Merge, Message, PendingRole, Provider, Question, Run, Team, ToolCall } from '../api/types'
 import { commandSeconds, commandStatus, placeLabel, TONE_COLOR } from '../commands/commandStatus'
 import { CHANGE_LABEL } from '../changes/changeLabel'
 import { CommandRow } from '../commands/CommandRow'
@@ -102,26 +102,467 @@ function poPanel(state: ConvState | null, kind: string | undefined, refId: strin
   )
 }
 
+/** What a panel of the inspector is drawn from: the node chosen, what it points at, and what its buttons do. */
+interface Shown extends Omit<Props, 'state' | 'selectedId'> {
+  state: ConvState
+  kind: string | undefined
+  refId: string | undefined
+  /** The inspector's own close: the focus goes back to what opened it. */
+  onClose: () => void
+  teams: Team[]
+  /** The agent whose window is open, if any. */
+  windowed: string | null
+  subAgents: Set<string>
+  subAgent: ToolCall | undefined
+  agent: Agent | undefined
+  run: Run | undefined
+  change: FileChange | undefined
+  request: Message | undefined
+  command: Command | undefined
+  file: Attachment | undefined
+  roleOf: (agentId: string) => string
+  filesOf: (messageId: string | undefined) => Attachment[]
+  openWindow: (agentId: string) => void
+}
+
+/** The request node: what you said, with your files and links. */
+function requestPanel({ kind, request, filesOf, onClose }: Shown): ReactNode {
+  if (!(kind === 'request' && request)) return null
+  return (
+    <>
+      <Header icon={<User size={16} />} title="You" sub={when(request.created_at)} onClose={onClose} />
+      <div className="insp-body">
+        <p className="insp-request">{request.content}</p>
+        <Minis files={filesOf(request.id)} links={linksIn(request.content)} />
+      </div>
+    </>
+  )
+}
+
+/** A file of yours (slice 85b), and whom it was handed to. */
+function attachmentPanel({ file, roleOf, onClose }: Shown): ReactNode {
+  if (!file) return null
+  const to = file.given_to.map(roleOf)
+  return (
+    <>
+      <Header icon={<FileText size={16} />} title={file.name} sub={to.length ? `handed to ${to.join(', ')}` : 'attached by you'} onClose={onClose} />
+      <div className="insp-body">
+        <AttachmentPreview file={file} />
+      </div>
+    </>
+  )
+}
+
+/** The box of a message’s many files (its turn’s: "files:<run>"). */
+function filesPanel({ kind, request, filesOf, onClose }: Shown): ReactNode {
+  if (!(kind === 'files' && request)) return null
+  return (
+    <>
+      <Header icon={<FileText size={16} />} title={`${filesOf(request.id).length} files`} sub="attached by you" onClose={onClose} />
+      <div className="insp-body">
+        <Minis files={filesOf(request.id)} links={[]} />
+      </div>
+    </>
+  )
+}
+
+/** An agent: its report card, or where it is shown, and a way to its window. */
+function agentPanel({
+  state, kind, agent, run, teams, windowed, onClose, onOpenAgent, openWindow,
+  providers, onOpenChange, onSelect, renderSpawnApproval, renderMerge, renderRoleApproval, renderQuestion, renderCommandApproval,
+}: Shown): ReactNode {
+  if (!(kind === 'agent' && agent && run)) return null
+  const [label, color] = agentState(state, agent)
+  return (
+    <>
+      <Header icon={<Robot size={16} />} title={titleOf(agent.name || agent.role_name, teams)}
+        sub={
+          // (Under its name, which the panel's width leaves whole: its window has them on one line.)
+          <>
+            <StatusLabel color={color}>{label}</StatusLabel> {agentWhere(state, agent)}
+          </>
+        }
+        onClose={onClose}
+        action={
+          onOpenAgent && (
+            <button type="button" className="btn btn-small" onClick={() => openWindow(agent.id)}>
+              Open window
+            </button>
+          )
+        }
+      />
+      {/* Its report card; its whole story is in its window - while that is open, not beside it as well (R160). */}
+      <div className="insp-body">
+        {windowed === agent.id ? (
+          <p className="muted">Shown in its window.</p>
+        ) : (
+          <AgentCard
+            key={agent.id}
+            agent={agent}
+            state={state}
+            providers={providers}
+            onOpenChange={id => onOpenChange?.(id)}
+            onSelectAgent={id => onSelect?.(`agent:${id}`)}
+            renderSpawnApproval={renderSpawnApproval}
+            renderMerge={renderMerge}
+            renderRoleApproval={renderRoleApproval}
+            renderQuestion={renderQuestion}
+            renderCommandApproval={renderCommandApproval}
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
+/** A discussion: its topic, who is in it and what was said last. */
+function discussionPanel({ state, kind, refId, teams, onClose, onOpenDiscussion }: Shown): ReactNode {
+  if (!(kind === 'discussion' && state.discussions.some(d => d.id === refId))) return null
+  const discussion = state.discussions.find(d => d.id === refId)!
+  const said = state.discussionPosts.filter(p => p.discussion_id === discussion.id && p.kind === 'said' && !p.passed)
+  return (
+    <>
+      <Header
+        icon={<ChatsCircle size={16} />}
+        title="Discussion"
+        sub={discussionLine(discussion)}
+        onClose={onClose}
+        action={
+          onOpenDiscussion && (
+            <button type="button" className="btn btn-small" onClick={() => onOpenDiscussion(discussion.id)}>
+              Open discussion
+            </button>
+          )
+        }
+      />
+      <div className="insp-body">
+        <p className="insp-request">{discussion.topic}</p>
+        <div className="kicker">In it</div>
+        <p className="mono">{discussion.members.map(m => nameIn(state, m.agent_id, teams)).join(' · ')}</p>
+        <div className="kicker">Said last</div>
+        {said.length === 0 && <p className="muted">Nothing yet.</p>}
+        {said.slice(-3).map(p => (
+          <p key={p.id}>
+            <span className="mono">{nameIn(state, p.agent_id, teams)}:</span> {p.content}
+          </p>
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** A room: its goal, who is in it, what it spent and what was said last. */
+function roomPanel({ state, kind, refId, teams, onClose, onOpenRoom }: Shown): ReactNode {
+  if (!(kind === 'room' && state.rooms.some(r => r.id === refId))) return null
+  const room = state.rooms.find(r => r.id === refId)!
+  const said = state.roomPosts.filter(p => p.room_id === room.id).sort((a, b) => a.number - b.number)
+  return (
+    <>
+      <Header
+        icon={<UsersThree size={16} />}
+        title="Room"
+        sub={roomLine(room)}
+        onClose={onClose}
+        action={
+          onOpenRoom && (
+            <button type="button" className="btn btn-small" onClick={() => onOpenRoom(room.id)}>
+              Open the room
+            </button>
+          )
+        }
+      />
+      <div className="insp-body">
+        <p className="insp-request">{room.goal}</p>
+        <div className="kicker">In it</div>
+        <p className="mono">{room.members.map(m => memberTag(state, room, m, teams)).join(' · ')}</p>
+        <div className="kicker">Spent of its budget</div>
+        <p className="mono">{spentLines(room).join(' · ')}</p>
+        <div className="kicker">Said last</div>
+        {said.length === 0 && <p className="muted">Nothing yet.</p>}
+        {said.slice(-3).map(p => (
+          <p key={p.id}>
+            <span className="mono">{nameInRoom(state, p.agent_id, teams)}:</span> {p.text}
+          </p>
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** A plan, as it stands. */
+function planPanel({ state, kind, refId, onClose }: Shown): ReactNode {
+  if (!(kind === 'plan' && state.runs.some(r => r.id === refId && r.plan))) return null
+  // The plan node points at its turn; the plan as it stands, edited or not.
+  const plan = state.runs.find(r => r.id === refId)?.plan as NonNullable<Run['plan']>
+  return (
+    <>
+      <Header icon={<ListChecks size={16} />} title={`Plan · ${plan.status}`} sub={plannedBy(plan)} onClose={onClose} />
+      <div className="insp-body markdown">
+        <Markdown>{plan.text}</Markdown>
+      </div>
+    </>
+  )
+}
+
+/** A CLI’s own sub-agent: what it waits on you for, how it stands, and what it did. */
+function subAgentPanel({ state, kind, subAgent, subAgents, roleOf, onClose, onOpenAgent, openWindow, renderQuestion, onOpenChange }: Shown): ReactNode {
+  if (!(kind === 'subagent' && subAgent)) return null
+  const [label, color] = TOOL_STATUS[subAgent.status]
+  // What it waits on the user for in words: leave for itself, or for a tool of its.
+  const asked = state.questions.filter(
+    q =>
+      q.status === 'pending' &&
+      (q.tool_call_id === subAgent.id ||
+        homeOf(state.toolCalls.find(t => t.id === q.tool_call_id), subAgents) === subAgent.id),
+  )
+  return (
+    <>
+      <Header
+        icon={<Robot size={16} />}
+        title={ownSubAgentTask(subAgent) || 'Sub-agent'}
+        sub={`own sub-agent of ${roleOf(subAgent.agent_id)}`}
+        onClose={onClose}
+        action={
+          onOpenAgent && (
+            <button type="button" className="btn btn-small" onClick={() => openWindow(subAgent.agent_id)}>
+              Open window
+            </button>
+          )
+        }
+      />
+      <div className="insp-body">
+        {asked.map(q => renderQuestion?.(q))}
+        <dl className="facts">
+          <dt>Status</dt>
+          <dd className="mono" style={{ color }}>
+            {label}
+          </dd>
+          <dt>Kind</dt>
+          <dd className="mono">{ownSubAgentBrief(subAgent).kind ?? 'unknown'}</dd>
+          <dt>Opened by</dt>
+          <dd className="mono">the CLI itself; it is not one of KOLONİ’s agents</dd>
+          <dt>Started</dt>
+          <dd className="mono">{when(subAgent.started_at)}</dd>
+          <dt>Ended</dt>
+          <dd className="mono">{when(subAgent.ended_at)}</dd>
+        </dl>
+        <OwnSubAgentWork state={state} call={subAgent} onOpenChange={onOpenChange} />
+      </div>
+    </>
+  )
+}
+
+/** A tool node: the calls of the agent, or of one of its CLI’s own sub-agents. */
+function toolsPanel({ state, kind, agent, subAgent, subAgents, onClose }: Shown): ReactNode {
+  if (!((kind === 'tools' || kind === 'owntools') && (agent || subAgent))) return null
+  // The two tool nodes: what KOLONİ ran for the agent, and what the CLI used on its
+  // own - by the agent itself, or inside one of its own sub-agents.
+  const own = kind === 'owntools'
+  const calls = state.toolCalls
+    .filter(
+      t =>
+        t.agent_id === (agent?.id ?? subAgent?.agent_id) &&
+        (t.origin === 'cli') === own &&
+        homeOf(t, subAgents) === (subAgent?.id ?? null) &&
+        t.name !== 'run_command' &&
+        !subAgents.has(t.id) &&
+        !state.agents.some(a => a.tool_call_id === t.id),
+    )
+    .sort((a, b) => a.seq - b.seq)
+  return (
+    <>
+      <Header
+        icon={<Wrench size={16} />}
+        title={own ? 'Own tools' : 'Tools'}
+        sub={`${calls.length} calls`}
+        onClose={onClose}
+      />
+      <div className="insp-body">
+        {calls.map(call => (
+          <ToolRow key={call.id} call={call} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** A card of many commands. */
+function commandsPanel({ state, kind, agent, subAgent, subAgents, onClose }: Shown): ReactNode {
+  if (!(kind === 'commands' && (agent || subAgent))) return null
+  // A card of many commands: the agent's own, or those of one of its CLI's own sub-agents.
+  const commands = state.commands.filter(
+    c =>
+      c.agent_id === (agent?.id ?? subAgent?.agent_id) &&
+      homeOf(state.toolCalls.find(t => t.id === c.tool_call_id), subAgents) === (subAgent?.id ?? null),
+  )
+  return (
+    <>
+      <Header icon={<TerminalWindow size={16} />} title="Commands" sub={`${commands.length} commands`} onClose={onClose} />
+      <div className="insp-body">
+        {commands.map(command => (
+          <CommandRow key={command.id} command={command} failed={state.toolCalls.find(t => t.id === command.tool_call_id)?.status === 'failed'} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** A card of many changed files. */
+function changesPanel({ state, kind, agent, subAgent, subAgents, onClose, onSelect }: Shown): ReactNode {
+  if (!(kind === 'changes' && (agent || subAgent))) return null
+  // A card of many changed files, as the card holds them: one that waits for the user has a card of its own.
+  const changes = state.fileChanges.filter(
+    f =>
+      f.status !== 'proposed' &&
+      f.agent_id === (agent?.id ?? subAgent?.agent_id) &&
+      homeOf(state.toolCalls.find(t => t.id === f.tool_call_id), subAgents) === (subAgent?.id ?? null),
+  )
+  return (
+    <>
+      <Header icon={<FileText size={16} />} title="Files" sub={`${changes.length} files`} onClose={onClose} />
+      <div className="insp-body">
+        {changes.map(change => (
+          <div key={change.id} className="chat-change">
+            <span className="mono chat-change-path" title={change.path}>
+              {change.path}
+            </span>
+            <span className="mono" style={{ color: 'var(--ok)' }}>+{change.additions}</span>
+            <span className="mono" style={{ color: 'var(--del)' }}>−{change.deletions}</span>
+            <span className={CHANGE_LABEL[change.status][1]}>{CHANGE_LABEL[change.status][0]}</span>
+            <button type="button" className="btn btn-small" aria-label={`Open ${change.path}`} onClick={() => onSelect?.(`file:${change.id}`)}>
+              Open
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+/** One tool call: how it stands, what it was given and what came back. */
+function callPanel({ state, kind, refId, roleOf, onClose }: Shown): ReactNode {
+  if (!(kind === 'call' && state.toolCalls.some(t => t.id === refId))) return null
+  // One call, picked from the list of an expanded tool node: open at once.
+  const call = state.toolCalls.find(t => t.id === refId)!
+  const [label, color] = TOOL_STATUS[call.status]
+  return (
+    <>
+      <Header icon={<Wrench size={16} />} title={toolSummary(call)} sub="one tool call" onClose={onClose} />
+      <div className="insp-body">
+        <dl className="facts">
+          <dt>Status</dt>
+          <dd className="mono" style={{ color }}>
+            {label}
+          </dd>
+          <dt>Agent</dt>
+          <dd className="mono">{roleOf(call.agent_id)}</dd>
+          <dt>Run by</dt>
+          <dd className="mono">{call.origin === 'cli' ? 'the CLI itself, with a tool of its own' : 'KOLONİ'}</dd>
+          <dt>Started</dt>
+          <dd className="mono">{when(call.started_at)}</dd>
+          <dt>Ended</dt>
+          <dd className="mono">{when(call.ended_at)}</dd>
+        </dl>
+        <div className="kicker">Arguments</div>
+        <pre className="mono insp-output">{call.arguments || '{}'}</pre>
+        <div className="kicker">Result</div>
+        <pre className="mono insp-output">{call.result ?? '(no result yet)'}</pre>
+      </div>
+    </>
+  )
+}
+
+/** One command: what it is, where it ran, its card while it waits, and its output. */
+function commandPanel({ kind, command, roleOf, onClose, renderCommandApproval }: Shown): ReactNode {
+  if (!(kind === 'command' && command)) return null
+  const status = commandStatus(command)
+  const seconds = commandSeconds(command)
+  return (
+    <>
+      <Header
+        icon={<TerminalWindow size={16} />}
+        title="Command"
+        sub={placeLabel(command)}
+        onClose={onClose}
+      />
+      <div className="insp-body">
+        <pre className="mono cmd-approval-command">{command.command}</pre>
+        <dl className="facts">
+          <dt>Status</dt>
+          <dd className="mono" style={{ color: TONE_COLOR[status.tone] }}>
+            {status.label}
+          </dd>
+          <dt>Agent</dt>
+          <dd className="mono">{roleOf(command.agent_id)}</dd>
+          <dt>Run by</dt>
+          <dd className="mono">{command.origin === 'cli' ? "the CLI itself, with a tool of its own" : 'KOLONİ'}</dd>
+          <dt>Folder</dt>
+          <dd className="mono">{command.cwd ?? 'not known'}</dd>
+          <dt>Runs on</dt>
+          <dd className="mono">{placeLabel(command)}</dd>
+          <dt>Duration</dt>
+          <dd className="mono">{seconds === null ? '—' : `${seconds}s`}</dd>
+          <dt>Time limit</dt>
+          <dd className="mono">{command.timeout_seconds}s</dd>
+        </dl>
+        {command.status === 'proposed' && renderCommandApproval?.(command)}
+        {command.output !== '' && <pre className="mono insp-output">{command.output}</pre>}
+        {command.output === '' && command.status !== 'proposed' && (
+          <p className="muted">No output.</p>
+        )}
+      </div>
+    </>
+  )
+}
+
+/** One file change: by whom, of what kind, how it stands, and its diff and buttons. */
+function filePanel({ kind, change, roleOf, onClose, renderChange }: Shown): ReactNode {
+  if (!(kind === 'file' && change)) return null
+  return (
+    <>
+      <Header
+        icon={<FileText size={16} />}
+        title={change.path.split('/').pop() ?? change.path}
+        sub={change.path}
+        onClose={onClose}
+      />
+      <div className="insp-body">
+        <dl className="facts">
+          <dt>Agent</dt>
+          <dd className="mono">{roleOf(change.agent_id)}</dd>
+          <dt>Made by</dt>
+          <dd className="mono">{change.origin === 'cli' ? "the CLI itself, with a tool of its own" : 'KOLONİ'}</dd>
+          <dt>Kind</dt>
+          <dd className="mono">
+            {change.kind === 'create' ? 'new file' : change.kind === 'delete' ? 'deleted file' : 'edit'}
+          </dd>
+          <dt>Status</dt>
+          <dd>
+            <span className={CHANGE_LABEL[change.status][1]}>{CHANGE_LABEL[change.status][0]}</span>
+          </dd>
+        </dl>
+        {renderChange?.(change)}
+      </div>
+    </>
+  )
+}
+
+/** Each kind of node's panel, in the order they are tried. */
+const PANELS = [requestPanel, attachmentPanel, filesPanel, agentPanel, discussionPanel, roomPanel, planPanel, subAgentPanel, toolsPanel, commandsPanel, changesPanel, callPanel, commandPanel, filePanel]
+
+/** The panel of the node chosen: the first that has something to show, else none. */
+function panelOf(shown: Shown): ReactNode {
+  for (const panel of PANELS) {
+    const drawn = panel(shown)
+    if (drawn) return drawn
+  }
+  return null
+}
+
 /** What has an Esc of its own, which the inspector's Esc leaves to it. */
 const OWN_ESC = '.chat, .turns, .changes, [role="dialog"], input, textarea, select, [contenteditable="true"]'
 
-export function Inspector({
-  state,
-  providers,
-  selectedId,
-  onClose: close,
-  renderChange,
-  onOpenChange,
-  renderCommandApproval,
-  onSelect,
-  renderSpawnApproval,
-  renderMerge,
-  renderRoleApproval,
-  renderQuestion,
-  onOpenAgent,
-  onOpenDiscussion,
-  onOpenRoom,
-}: Props) {
+export function Inspector({ state, selectedId, onClose: close, onOpenAgent, ...given }: Props) {
   // What had the focus when the inspector opened: it has it back when it is closed.
   const opener = useRef<Element | null>(null)
   const windowed = useApp(s => s.agentWindowId)
@@ -183,369 +624,11 @@ export function Inspector({
   // (onClose is only handed on, to the panel's close button: no ref is read while it draws.)
   // oxlint-disable-next-line react/refs
   let content: ReactNode = poPanel(state, kind, refId, onClose)
-  if (state && kind === 'request' && request) {
-    content = (
-      <>
-        <Header icon={<User size={16} />} title="You" sub={when(request.created_at)} onClose={onClose} />
-        <div className="insp-body">
-          <p className="insp-request">{request.content}</p>
-          <Minis files={filesOf(request.id)} links={linksIn(request.content)} />
-        </div>
-      </>
-    )
-  } else if (state && file) {
-    const to = file.given_to.map(roleOf)
-    content = (
-      <>
-        <Header icon={<FileText size={16} />} title={file.name} sub={to.length ? `handed to ${to.join(', ')}` : 'attached by you'} onClose={onClose} />
-        <div className="insp-body">
-          <AttachmentPreview file={file} />
-        </div>
-      </>
-    )
-  } else if (state && kind === 'files' && request) {
-    content = (
-      <>
-        <Header icon={<FileText size={16} />} title={`${filesOf(request.id).length} files`} sub="attached by you" onClose={onClose} />
-        <div className="insp-body">
-          <Minis files={filesOf(request.id)} links={[]} />
-        </div>
-      </>
-    )
-  } else if (state && kind === 'agent' && agent && run) {
-    const [label, color] = agentState(state, agent)
-    content = (
-      <>
-        <Header icon={<Robot size={16} />} title={titleOf(agent.name || agent.role_name, teams)}
-          sub={
-            // (Under its name, which the panel's width leaves whole: its window has them on one line.)
-            <>
-              <StatusLabel color={color}>{label}</StatusLabel> {agentWhere(state, agent)}
-            </>
-          }
-          onClose={onClose}
-          action={
-            onOpenAgent && (
-              <button type="button" className="btn btn-small" onClick={() => openWindow(agent.id)}>
-                Open window
-              </button>
-            )
-          }
-        />
-        {/* Its report card; its whole story is in its window - while that is open, not beside it as well (R160). */}
-        <div className="insp-body">
-          {windowed === agent.id ? (
-            <p className="muted">Shown in its window.</p>
-          ) : (
-            <AgentCard
-              key={agent.id}
-              agent={agent}
-              state={state}
-              providers={providers}
-              onOpenChange={id => onOpenChange?.(id)}
-              onSelectAgent={id => onSelect?.(`agent:${id}`)}
-              renderSpawnApproval={renderSpawnApproval}
-              renderMerge={renderMerge}
-              renderRoleApproval={renderRoleApproval}
-              renderQuestion={renderQuestion}
-              renderCommandApproval={renderCommandApproval}
-            />
-          )}
-        </div>
-      </>
-    )
-  } else if (state && kind === 'discussion' && state.discussions.some(d => d.id === refId)) {
-    const discussion = state.discussions.find(d => d.id === refId)!
-    const said = state.discussionPosts.filter(p => p.discussion_id === discussion.id && p.kind === 'said' && !p.passed)
-    content = (
-      <>
-        <Header
-          icon={<ChatsCircle size={16} />}
-          title="Discussion"
-          sub={discussionLine(discussion)}
-          onClose={onClose}
-          action={
-            onOpenDiscussion && (
-              <button type="button" className="btn btn-small" onClick={() => onOpenDiscussion(discussion.id)}>
-                Open discussion
-              </button>
-            )
-          }
-        />
-        <div className="insp-body">
-          <p className="insp-request">{discussion.topic}</p>
-          <div className="kicker">In it</div>
-          <p className="mono">{discussion.members.map(m => nameIn(state, m.agent_id, teams)).join(' · ')}</p>
-          <div className="kicker">Said last</div>
-          {said.length === 0 && <p className="muted">Nothing yet.</p>}
-          {said.slice(-3).map(p => (
-            <p key={p.id}>
-              <span className="mono">{nameIn(state, p.agent_id, teams)}:</span> {p.content}
-            </p>
-          ))}
-        </div>
-      </>
-    )
-  } else if (state && kind === 'room' && state.rooms.some(r => r.id === refId)) {
-    const room = state.rooms.find(r => r.id === refId)!
-    const said = state.roomPosts.filter(p => p.room_id === room.id).sort((a, b) => a.number - b.number)
-    content = (
-      <>
-        <Header
-          icon={<UsersThree size={16} />}
-          title="Room"
-          sub={roomLine(room)}
-          onClose={onClose}
-          action={
-            onOpenRoom && (
-              <button type="button" className="btn btn-small" onClick={() => onOpenRoom(room.id)}>
-                Open the room
-              </button>
-            )
-          }
-        />
-        <div className="insp-body">
-          <p className="insp-request">{room.goal}</p>
-          <div className="kicker">In it</div>
-          <p className="mono">{room.members.map(m => memberTag(state, room, m, teams)).join(' · ')}</p>
-          <div className="kicker">Spent of its budget</div>
-          <p className="mono">{spentLines(room).join(' · ')}</p>
-          <div className="kicker">Said last</div>
-          {said.length === 0 && <p className="muted">Nothing yet.</p>}
-          {said.slice(-3).map(p => (
-            <p key={p.id}>
-              <span className="mono">{nameInRoom(state, p.agent_id, teams)}:</span> {p.text}
-            </p>
-          ))}
-        </div>
-      </>
-    )
-  } else if (state && kind === 'plan' && state.runs.some(r => r.id === refId && r.plan)) {
-    // The plan node points at its turn; the plan as it stands, edited or not.
-    const plan = state.runs.find(r => r.id === refId)?.plan as NonNullable<Run['plan']>
-    content = (
-      <>
-        <Header icon={<ListChecks size={16} />} title={`Plan · ${plan.status}`} sub={plannedBy(plan)} onClose={onClose} />
-        <div className="insp-body markdown">
-          <Markdown>{plan.text}</Markdown>
-        </div>
-      </>
-    )
-  } else if (state && kind === 'subagent' && subAgent) {
-    const [label, color] = TOOL_STATUS[subAgent.status]
-    // What it waits on the user for in words: leave for itself, or for a tool of its.
-    const asked = state.questions.filter(
-      q =>
-        q.status === 'pending' &&
-        (q.tool_call_id === subAgent.id ||
-          homeOf(state.toolCalls.find(t => t.id === q.tool_call_id), subAgents) === subAgent.id),
-    )
-    content = (
-      <>
-        <Header
-          icon={<Robot size={16} />}
-          title={ownSubAgentTask(subAgent) || 'Sub-agent'}
-          sub={`own sub-agent of ${roleOf(subAgent.agent_id)}`}
-          onClose={onClose}
-          action={
-            onOpenAgent && (
-              <button type="button" className="btn btn-small" onClick={() => openWindow(subAgent.agent_id)}>
-                Open window
-              </button>
-            )
-          }
-        />
-        <div className="insp-body">
-          {asked.map(q => renderQuestion?.(q))}
-          <dl className="facts">
-            <dt>Status</dt>
-            <dd className="mono" style={{ color }}>
-              {label}
-            </dd>
-            <dt>Kind</dt>
-            <dd className="mono">{ownSubAgentBrief(subAgent).kind ?? 'unknown'}</dd>
-            <dt>Opened by</dt>
-            <dd className="mono">the CLI itself; it is not one of KOLONİ’s agents</dd>
-            <dt>Started</dt>
-            <dd className="mono">{when(subAgent.started_at)}</dd>
-            <dt>Ended</dt>
-            <dd className="mono">{when(subAgent.ended_at)}</dd>
-          </dl>
-          <OwnSubAgentWork state={state} call={subAgent} onOpenChange={onOpenChange} />
-        </div>
-      </>
-    )
-  } else if (state && (kind === 'tools' || kind === 'owntools') && (agent || subAgent)) {
-    // The two tool nodes: what KOLONİ ran for the agent, and what the CLI used on its
-    // own - by the agent itself, or inside one of its own sub-agents.
-    const own = kind === 'owntools'
-    const calls = state.toolCalls
-      .filter(
-        t =>
-          t.agent_id === (agent?.id ?? subAgent?.agent_id) &&
-          (t.origin === 'cli') === own &&
-          homeOf(t, subAgents) === (subAgent?.id ?? null) &&
-          t.name !== 'run_command' &&
-          !subAgents.has(t.id) &&
-          !state.agents.some(a => a.tool_call_id === t.id),
-      )
-      .sort((a, b) => a.seq - b.seq)
-    content = (
-      <>
-        <Header
-          icon={<Wrench size={16} />}
-          title={own ? 'Own tools' : 'Tools'}
-          sub={`${calls.length} calls`}
-          onClose={onClose}
-        />
-        <div className="insp-body">
-          {calls.map(call => (
-            <ToolRow key={call.id} call={call} />
-          ))}
-        </div>
-      </>
-    )
-  } else if (state && kind === 'commands' && (agent || subAgent)) {
-    // A card of many commands: the agent's own, or those of one of its CLI's own sub-agents.
-    const commands = state.commands.filter(
-      c =>
-        c.agent_id === (agent?.id ?? subAgent?.agent_id) &&
-        homeOf(state.toolCalls.find(t => t.id === c.tool_call_id), subAgents) === (subAgent?.id ?? null),
-    )
-    content = (
-      <>
-        <Header icon={<TerminalWindow size={16} />} title="Commands" sub={`${commands.length} commands`} onClose={onClose} />
-        <div className="insp-body">
-          {commands.map(command => (
-            <CommandRow key={command.id} command={command} failed={state.toolCalls.find(t => t.id === command.tool_call_id)?.status === 'failed'} />
-          ))}
-        </div>
-      </>
-    )
-  } else if (state && kind === 'changes' && (agent || subAgent)) {
-    // A card of many changed files, as the card holds them: one that waits for the user has a card of its own.
-    const changes = state.fileChanges.filter(
-      f =>
-        f.status !== 'proposed' &&
-        f.agent_id === (agent?.id ?? subAgent?.agent_id) &&
-        homeOf(state.toolCalls.find(t => t.id === f.tool_call_id), subAgents) === (subAgent?.id ?? null),
-    )
-    content = (
-      <>
-        <Header icon={<FileText size={16} />} title="Files" sub={`${changes.length} files`} onClose={onClose} />
-        <div className="insp-body">
-          {changes.map(change => (
-            <div key={change.id} className="chat-change">
-              <span className="mono chat-change-path" title={change.path}>
-                {change.path}
-              </span>
-              <span className="mono" style={{ color: 'var(--ok)' }}>+{change.additions}</span>
-              <span className="mono" style={{ color: 'var(--del)' }}>−{change.deletions}</span>
-              <span className={CHANGE_LABEL[change.status][1]}>{CHANGE_LABEL[change.status][0]}</span>
-              <button type="button" className="btn btn-small" aria-label={`Open ${change.path}`} onClick={() => onSelect?.(`file:${change.id}`)}>
-                Open
-              </button>
-            </div>
-          ))}
-        </div>
-      </>
-    )
-  } else if (state && kind === 'call' && state.toolCalls.some(t => t.id === refId)) {
-    // One call, picked from the list of an expanded tool node: open at once.
-    const call = state.toolCalls.find(t => t.id === refId)!
-    const [label, color] = TOOL_STATUS[call.status]
-    content = (
-      <>
-        <Header icon={<Wrench size={16} />} title={toolSummary(call)} sub="one tool call" onClose={onClose} />
-        <div className="insp-body">
-          <dl className="facts">
-            <dt>Status</dt>
-            <dd className="mono" style={{ color }}>
-              {label}
-            </dd>
-            <dt>Agent</dt>
-            <dd className="mono">{roleOf(call.agent_id)}</dd>
-            <dt>Run by</dt>
-            <dd className="mono">{call.origin === 'cli' ? 'the CLI itself, with a tool of its own' : 'KOLONİ'}</dd>
-            <dt>Started</dt>
-            <dd className="mono">{when(call.started_at)}</dd>
-            <dt>Ended</dt>
-            <dd className="mono">{when(call.ended_at)}</dd>
-          </dl>
-          <div className="kicker">Arguments</div>
-          <pre className="mono insp-output">{call.arguments || '{}'}</pre>
-          <div className="kicker">Result</div>
-          <pre className="mono insp-output">{call.result ?? '(no result yet)'}</pre>
-        </div>
-      </>
-    )
-  } else if (state && kind === 'command' && command) {
-    const status = commandStatus(command)
-    const seconds = commandSeconds(command)
-    content = (
-      <>
-        <Header
-          icon={<TerminalWindow size={16} />}
-          title="Command"
-          sub={placeLabel(command)}
-          onClose={onClose}
-        />
-        <div className="insp-body">
-          <pre className="mono cmd-approval-command">{command.command}</pre>
-          <dl className="facts">
-            <dt>Status</dt>
-            <dd className="mono" style={{ color: TONE_COLOR[status.tone] }}>
-              {status.label}
-            </dd>
-            <dt>Agent</dt>
-            <dd className="mono">{roleOf(command.agent_id)}</dd>
-            <dt>Run by</dt>
-            <dd className="mono">{command.origin === 'cli' ? "the CLI itself, with a tool of its own" : 'KOLONİ'}</dd>
-            <dt>Folder</dt>
-            <dd className="mono">{command.cwd ?? 'not known'}</dd>
-            <dt>Runs on</dt>
-            <dd className="mono">{placeLabel(command)}</dd>
-            <dt>Duration</dt>
-            <dd className="mono">{seconds === null ? '—' : `${seconds}s`}</dd>
-            <dt>Time limit</dt>
-            <dd className="mono">{command.timeout_seconds}s</dd>
-          </dl>
-          {command.status === 'proposed' && renderCommandApproval?.(command)}
-          {command.output !== '' && <pre className="mono insp-output">{command.output}</pre>}
-          {command.output === '' && command.status !== 'proposed' && (
-            <p className="muted">No output.</p>
-          )}
-        </div>
-      </>
-    )
-  } else if (state && kind === 'file' && change) {
-    content = (
-      <>
-        <Header
-          icon={<FileText size={16} />}
-          title={change.path.split('/').pop() ?? change.path}
-          sub={change.path}
-          onClose={onClose}
-        />
-        <div className="insp-body">
-          <dl className="facts">
-            <dt>Agent</dt>
-            <dd className="mono">{roleOf(change.agent_id)}</dd>
-            <dt>Made by</dt>
-            <dd className="mono">{change.origin === 'cli' ? "the CLI itself, with a tool of its own" : 'KOLONİ'}</dd>
-            <dt>Kind</dt>
-            <dd className="mono">
-              {change.kind === 'create' ? 'new file' : change.kind === 'delete' ? 'deleted file' : 'edit'}
-            </dd>
-            <dt>Status</dt>
-            <dd>
-              <span className={CHANGE_LABEL[change.status][1]}>{CHANGE_LABEL[change.status][0]}</span>
-            </dd>
-          </dl>
-          {renderChange?.(change)}
-        </div>
-      </>
-    )
+  if (state) {
+    const shown = { ...given, state, kind, refId, onClose, onOpenAgent, teams, windowed, subAgents, subAgent, agent, run, change, request, command, file, roleOf, filesOf, openWindow }
+    // (as above: onClose and openWindow are handed on to buttons)
+    // oxlint-disable-next-line react/refs
+    content = panelOf(shown) ?? content
   }
 
   // Hidden until something is selected, so the canvas keeps the room.

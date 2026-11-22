@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App } from './App'
 import { resetStoreForTests, useApp } from './state/store'
-import { conversation, question, run } from './test-fixtures'
+import type { Discussion } from './api/types'
+import { agent, conversation, question, run } from './test-fixtures'
 
 const project = {
   id: 'p',
@@ -305,4 +306,116 @@ test('while the default does not answer, First steps offers another provider for
   expect(within(steps).getAllByRole('button').map(button => button.textContent)).toEqual(['Choose a folder', 'Hide the first steps'])
   await vi.waitFor(() => expect(document.activeElement).toHaveClass('main'))
   expect(asked().filter(call => call.includes('provider_id='))).toEqual([])
+})
+
+/** A server whose pages read nothing yet: what is not a list is not there, the usage and the day are refused. */
+const emptyPages = (over: Record<string, unknown> = {}) => {
+  const none = ['/api/recipes', '/api/tiers', '/api/projects/p/away', '/api/projects/p/budget', '/api/projects/p/memory']
+  const refused = ['/api/usage', '/api/projects/p/day']
+  return vi.fn(async (url: string) => {
+    const path = url.split('?')[0]
+    if (none.includes(path)) return new Response('null', { status: 200 })
+    if (refused.includes(path)) return new Response('{"detail":"down"}', { status: 500 })
+    return answer(url, over)
+  })
+}
+test('each page of the rail is the one in the workspace; a page of a folder, in a plain chat, asks for a folder, and Usage has no day', async () => {
+  // (The canvas is known by its first steps: a test above may have hidden them.)
+  localStorage.removeItem('koloni-first-steps')
+  vi.stubGlobal('fetch', emptyPages())
+  const { container } = render(<App />)
+  await screen.findByText('this machine')
+  const rail = (name: string) => within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name })
+  /** The page in the workspace: its box's class and its heading, else its first words. */
+  const shown = () => {
+    const page = container.querySelector('.workspace')!.firstElementChild as HTMLElement
+    return [page.className, (page.querySelector('h1, h2') ?? page.querySelector('p'))?.textContent]
+  }
+  /** Each page of the rail chosen in turn, and shown as said. */
+  const visit = async (pages: [string, string, string][]) => {
+    for (const [name, ...said] of pages) {
+      await userEvent.click(rail(name))
+      await vi.waitFor(() => expect([name, ...shown()]).toEqual([name, ...said]))
+    }
+  }
+  await visit([
+    ['Agents', 'paged', 'Agents'],
+    ['Models', 'paged', 'Models'],
+    ['Tools', 'memory-page tools-page', 'Tools'],
+    ['Ready', 'memory-page ready-page', 'Ready for you · 0, oldest first'],
+    ['Board', 'memory-page', 'Board'],
+    ['To-do', 'memory-page', 'To-do'],
+    ['Usage', 'memory-page', 'Usage'],
+    ['Memory', 'memory-page', 'Reading the project’s memory…'],
+    ['Knowledge', 'triggers-page knowledge-page', 'Knowledge'],
+    ['Triggers', 'triggers-page', 'Triggers'],
+    ['Chats', 'conv-page', 'Conversations'],
+    ['Canvas', 'stage', 'First steps'],
+  ])
+  await userEvent.click(rail('Usage'))
+  expect(await screen.findByText(/^The day could not be read/)).toBeInTheDocument()
+  const plain = { ...chat, id: 'n', project_id: null }
+  vi.stubGlobal('fetch', emptyPages({ '/api/conversations/n': { ...snapshot, conversation: plain } }))
+  await act(() => useApp.getState().openConversation('n'))
+  const noFolder = (page: string) => `This chat has no folder - pick one with the folder button to use the ${page}.`
+  await visit([
+    ['Agents', 'paged', 'Agents'],
+    ['Models', 'paged', 'Models'],
+    ['Tools', 'memory-page tools-page', 'Tools'],
+    ['Ready', 'memory-page ready-page', 'Ready for you · 0, oldest first'],
+    ['Board', 'memory-page', noFolder('Board')],
+    ['To-do', 'memory-page', noFolder('To-do')],
+    ['Usage', 'memory-page', 'Usage'],
+    ['Memory', 'memory-page', noFolder('Memory')],
+    ['Knowledge', 'memory-page', noFolder('Knowledge page')],
+    ['Triggers', 'memory-page', noFolder('Triggers')],
+    ['Chats', 'conv-page', 'Conversations'],
+    ['Canvas', 'stage', 'First steps'],
+  ])
+  // (The day of a folder says it is read as soon as it is drawn: here there is none.)
+  await visit([['Usage', 'memory-page', 'Usage']])
+  expect(screen.queryByText(/^Reading the day…$|^The day could not be read/)).toBeNull()
+})
+
+test("the top bar's pill says what the Lead decided for you when nothing waits; it opens and shuts Ready for you, but not on the Ready page", async () => {
+  const decided = question('q', 'r', { status: 'answered', answer: 'yes', lead_why: 'as your rules say', answered_at: 't' })
+  vi.stubGlobal('fetch', emptyPages({ '/api/conversations/c': { ...snapshot, runs: [run('r', 'completed')], questions: [decided] } }))
+  render(<App />)
+  const pill = await screen.findByRole('button', { name: '1 decided for you' })
+  expect(pill).toHaveTextContent(/^1 decided$/)
+  expect(pill).toHaveAttribute('aria-expanded', 'false')
+  expect(document.getElementById('ready-panel')).toBeNull()
+  await userEvent.click(pill)
+  expect(pill).toHaveAttribute('aria-expanded', 'true')
+  expect(document.getElementById('ready-panel')).not.toBeNull()
+  await userEvent.click(pill)
+  expect(document.getElementById('ready-panel')).toBeNull()
+  await userEvent.click(pill)
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Ready' }))
+  expect(pill).toHaveAttribute('aria-expanded', 'false')
+  expect(document.getElementById('ready-panel')).toBeNull()
+  await userEvent.click(pill)
+  expect(useApp.getState().readyPanel.open).toBe(true)
+  expect(document.getElementById('ready-panel')).toBeNull()
+})
+
+test("an agent's window and a discussion's open over the canvas only with a chat; selecting a node opens the inspector", async () => {
+  render(<App />)
+  await vi.waitFor(() => expect(useApp.getState().conv?.conversation.id).toBe('c'))
+  const lead = agent('r', 'running', { name: 'Lead' })
+  const talk: Discussion = {
+    id: 'd', run_id: 'r', agent_id: 'r', tool_call_id: '9', topic: 'Which way?', max_rounds: 3, round: 1, status: 'running', outcome: null,
+    created_at: '2026-10-05T10:00:00Z', ended_at: null, members: [{ agent_id: 'r', status: 'in', opened_here: false }],
+  }
+  act(() => useApp.setState(s => ({ conv: { ...s.conv!, runs: [run('r')], agents: [lead], discussions: [talk] }, agentWindowId: 'r' })))
+  expect(await screen.findByRole('region', { name: 'Agent window' })).toBeInTheDocument()
+  act(() => useApp.setState({ agentWindowId: null, discussionWindowId: 'd' }))
+  expect(screen.queryByRole('region', { name: 'Agent window' })).toBeNull()
+  expect(await screen.findByRole('region', { name: 'Discussion' })).toBeInTheDocument()
+  act(() => useApp.getState().select('agent:r'))
+  expect(await screen.findByRole('complementary', { name: 'Inspector' })).toBeInTheDocument()
+  act(() => useApp.setState({ conv: null, agentWindowId: 'r' }))
+  expect(screen.queryByRole('region', { name: 'Agent window' })).toBeNull()
+  expect(screen.queryByRole('region', { name: 'Discussion' })).toBeNull()
+  expect(screen.queryByRole('complementary', { name: 'Inspector' })).toBeNull()
 })

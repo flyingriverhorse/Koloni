@@ -8,18 +8,22 @@ import { runHead } from './toolRuns'
 // Calls whose line was left open, kept while the page is open (a reload closes them): by every
 // call of the line, so a line a card splits stays open on both sides, and one joined to an open one opens.
 const opened = new Set<string>()
+// Live lines you closed, by their first call: they stay closed as more calls join them.
+const shut = new Set<string>()
 
 interface Props {
   calls: ToolCall[]
   state: { commands: Command[]; fileChanges: FileChange[] }
   /** The calls' rows, as the chat shows each of them anywhere else. */
   children: ReactNode
+  /** The newest line of a turn at work (0.1.5): open while it runs, unless you closed it. */
+  live?: boolean
 }
 
 /** An agent's calls in a row, one line that counts them (K-ozet-satiri); opened, their rows. */
-export function ToolRun({ calls, state, children }: Props) {
+export function ToolRun({ calls, state, children, live = false }: Props) {
   const [, redraw] = useState(0)
-  const open = calls.some(call => opened.has(call.id))
+  const open = calls.some(call => opened.has(call.id)) || (live && !shut.has(calls[0].id))
   const { what, marks, status } = runHead(calls, state)
   const [label, color] = TOOL_STATUS[status]
   // "1 failed", "2 rejected", "1 interrupted": what did not end well is never folded away.
@@ -36,6 +40,8 @@ export function ToolRun({ calls, state, children }: Props) {
             if (open) opened.delete(call.id)
             else opened.add(call.id)
           }
+          if (open) shut.add(calls[0].id)
+          else shut.delete(calls[0].id)
           redraw(n => n + 1)
         }}
       >

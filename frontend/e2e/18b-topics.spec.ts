@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test, type APIRequestContext, type Locator, type Page } from './fixtures'
-import { OWN, contrasts, openFreshConversation, openTurns, shot, agentFold, openAgentFold } from './helpers'
+import { agentFold, contrasts, level, openAgentFold, openFreshConversation, openTurns, OWN, shot } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -93,8 +93,7 @@ async function twoTurns(page: Page) {
 async function autoEdit(page: Page) {
   // (Once the new conversation is open: its own settings are on the page then.)
   await expect(page.getByRole('button', { name: 'This chat’s settings' })).toBeAttached() // (⚙ Chat: there with a chat)
-  await page.getByLabel('Permission level').selectOption('auto_edit')
-  await expect(page.getByLabel('Permission level')).toHaveValue('auto_edit')
+  await level(page, 'auto_edit')
 }
 
 test('a message goes on with the topic: Recent names it, the canvas draws this turn alone, and the Coder carries on with what it did', async ({ page, request }) => {

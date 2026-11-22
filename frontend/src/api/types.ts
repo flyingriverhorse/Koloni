@@ -127,12 +127,13 @@ export type BacklogAuto = Schemas['BacklogAutoOut']
 export type BacklogChoice = Schemas['BacklogChoiceIn']
 /** A model's tasks from the user's note, saved nowhere, and who wrote them. */
 export type BacklogDraft = Schemas['BacklogDraftOut']
-/** A "While you're away" card the Lead put, and once you started it its night: jobs, places kept out, limits (slice 106). */
+/** ☾ Away: the Orchestrator's offer to go away ("planned"), or your Go away and its To-do tasks, places kept out, limits. */
 export type Away = Schemas['AwayOut']
 export type AwayJob = Schemas['AwayJobOut']
 /** What a waiting job asks: a yes or a no at its own endpoint, or answered in its chat. */
 export type AwayAsk = Schemas['AwayAsk']
-export type AwayChange = Schemas['AwayIn']
+/** Your Go away: the To-do tasks ticked, the panel's order, the places kept out and the limits. */
+export type AwayGo = Schemas['AwayGoIn']
 export type Day = Schemas['DayOut']
 export type DayWords = Schemas['DayWordsOut']
 export type PendingRole = Schemas['PendingRoleOut']

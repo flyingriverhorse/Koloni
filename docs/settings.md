@@ -8,8 +8,7 @@ The Settings page holds everything you set for one chat, for one project and for
   **The app** for a chat with no folder. Press it again, or the close button, to close the page.
 - Or press Ctrl+K and choose **Settings**. Ctrl+K also lists each section by name (the app's with
   "(the app)" after it), and opens Settings right at it.
-- Under the message box, **Chat** (the gear at the end of the model's line; under **More** in a narrow
-  chat) opens this chat's short sheet; its
+- Under the message box, **Chat settings** (**Settings** in a narrow chat) opens this chat's short sheet; its
   **All settings** opens Settings at **This chat**.
 
 Choosing another page on the rail closes Settings. The chat under it stays as it was, so a
@@ -41,7 +40,7 @@ the whole section and save each row on its own: **Runs without asking**, **Slash
 
 ## This chat
 
-The same rows as the sheet under **Chat** under the message box:
+The same rows as the sheet **Chat settings** opens under the message box:
 
 | Setting | What it does |
 |---|---|
@@ -60,10 +59,6 @@ defaults: ask when it matters, 2 at the same time, 2 levels, 6 per request.
 
 The sections are listed on the left, in this order.
 
-![Settings, This project: the sections on the left and the Agents section's fields on the right](images/settings-project.png)
-
-*Settings › This project, at its first section, **Agents**.*
-
 ### Agents
 
 "Every chat of this project follows these, the ones made before too."
@@ -77,10 +72,16 @@ The sections are listed on the left, in this order.
 
 ### Asking and away
 
+![Settings, This project: the sections on the left, and Asking and away on the right with Opening a sub-agent, When you're away, A harmful-looking command at Full auto and Agents may delete what is disposable without asking](images/settings-project.png)
+
+*Settings › This project, at **Asking and away**.*
+
 | Setting | What it does |
 |---|---|
 | **Opening a sub-agent** | **Ask when it matters**, **Always ask** or **Never ask**. With Never ask, sub-agents open on their own in every chat of this project. |
-| **When you're away** | **Everything waits for you**, or **The Orchestrator answers what it safely can**, after a number of minutes (0 to 1440). With the second, once you haven't answered for that long (or the away card is on), the Orchestrator picks, says why, and you see it under "Decided for you". It opens a sub-agent on its role's own model unless that model is at its limit, out of credit, or over this month's budget; a move onto another model that may cost money, commands it may not run, deleting, reaching outside and Take in still wait. An Orchestrator on a CLI uses one request of your plan for each answer. |
+| **When you're away** | **Everything waits for you**, or **The Orchestrator answers what it safely can**, after a number of minutes (0 to 1440; a new project: the second, after 5 minutes). With the second, once you haven't answered for that long - at once while you're away (☾ Away on a chat's line) - the Orchestrator picks, says why, and you see it under "Decided for you". It opens a sub-agent on its role's own model unless that model is at its limit, out of credit, or over this month's budget; a move onto another model that may cost money, commands it may not run, deleting, reaching outside and Take in still wait. An Orchestrator on a CLI uses one request of your plan for each answer. |
+| **A harmful-looking command at Full auto** | **Ask me** (the default) or **Check what I said first**. At Full auto, in a chat you started, a command that deletes, overwrites or sends something off this machine waits for you on a card. With **Check what I said first**, the first model of your Fast tier first reads your preferences, this project's rules as saved on the Memory page and your own messages in this chat (while you're away, in the chat you went away from) - not the folder's `.koloni/rules.md`, nor anything an agent wrote - and the command runs without a card only when a whole line of yours names it and what it touches ("You may delete build/ and dist/.") - one that forbids nothing and sets no condition. A command a whole sentence of yours forbids ("Never push to main.") is not run and opens no card: the agent is told your sentence (of a message of yours in the chat, only that one of yours forbids it - the sentence itself stays with you), and not to run it again or anything that does the same, and carries on with the rest of its task. A sentence that sets a condition or asks to be asked ("unless", "ask me before") keeps the card. Either way the command says which sentence it rested on, and waits under "Decided for you" until you press OK. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat, and the rest of that turn asks you on a card. Secret files, `.koloni`, files that steer later turns, paths outside the folder, a delete or a send of the whole folder, and a CLI's command whose folder is not known are always asked, and anything that goes wrong - no Fast model, over the budget, a slow or unreadable answer - opens the card as before. Each such command is one request of your Fast tier's first model (on a CLI, of your plan). |
+| **Agents may delete what is disposable without asking** | Off by default. At **Auto-edit files** and **Full auto**, in a chat you started, a delete KOLONİ checks is disposable runs without a card: a build or cache folder (`build`, `dist`, `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `coverage`, `.next`, `.turbo`, `target`) below where the command runs, spelt as it is on disk, that git ignores, holding no file git tracks or does not ignore, no link and no repository of its own; a worktree of yours that git lists, not locked and not one of KOLONİ's, holding nothing its commits do not, no link, no secret file and nothing else git ignores; a local branch that neither the project, the turn nor any worktree stands on (with `-D`, only one whose commits the default branch has). Only such a delete alone on its line, in its shell's own form (in PowerShell, KOLONİ's own commands on Windows: `Remove-Item -Recurse dist` or `rm -r build`, never `rm -rf`; in sh, on Linux, macOS, Docker and Claude Code's Bash tool: `rm -rf build`; git's `git worktree remove ../wt/x` and `git branch -d old` in any), never a forced worktree remove; a folder's delete by Codex, agy or Qoder, whose shell is not said, keeps its card; worktrees and branches only by the Orchestrator in the project. Its row says "Ran without asking · disposable: …", or, where it then failed, "… and failed: exit 1". At **Ask before changes** it still asks. The card of such a delete offers **Allow such deletes in this project**, which turns this on. See [Disposable deletes](use/permissions.md#disposable-deletes). |
 
 ### New chats start with
 

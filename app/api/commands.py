@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 from app import triggers
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.commands import MAX_RULE, rules_here, tidy_rule
-from app.db.models import AllowedCommand, Command, Conversation
+from app.db.models import AllowedCommand, Command, Conversation, Run
 from app.schemas import AllowedCommandOut, CommandOut, FrameOut
-from app.serialize import allowed_command_out, command_out
+from app.serialize import allowed_command_out, command_event, command_out
 
 router = APIRouter(prefix="/api", tags=["commands"], dependencies=[Depends(require_origin)])
 
@@ -25,6 +25,9 @@ MOST_REDIRECTS = 5
 class ApproveIn(BaseModel):
     # Also add this command's prefix to the conversation's allow list.
     remember: bool = False
+    # Coordination §4: also allow such deletes in the project from now on - only on a delete
+    # KOLONİ found disposable, and with no rule.
+    disposable: bool = False
 
 
 class RuleIn(BaseModel):
@@ -53,7 +56,12 @@ async def _decide(command_id: str, decision: str, request: Request, session: Ses
 async def approve(
     command_id: str, body: ApproveIn, request: Request, session: Session = Depends(get_session)
 ):
-    return await _decide(command_id, "always" if body.remember else "once", request, session)
+    if body.disposable and (command := session.get(Command, command_id)) is not None and (
+            body.remember or not command.disposable):
+        raise HTTPException(422, "only a delete KOLONİ found disposable allows such deletes, "
+                                 "and with no rule")
+    decision = "disposable" if body.disposable else "always" if body.remember else "once"
+    return await _decide(command_id, decision, request, session)
 
 
 @router.post("/commands/{command_id}/reject", response_model=CommandOut,
@@ -78,6 +86,25 @@ async def stop(command_id: str, request: Request, session: Session = Depends(get
             command.origin == "cli" and command.status in ("approved", "running")
             and runner.stop_cli(command.agent_id)):
         raise HTTPException(409, "this command is not running")
+    return command_out(command)
+
+
+# (async: the bus is the event loop's, not a worker thread's)
+@router.post("/commands/{command_id}/seen", response_model=CommandOut,
+             dependencies=[Depends(require_own_origin)])
+async def seen(command_id: str, request: Request, session: Session = Depends(get_session)):
+    """K-yargıç: the user's OK on a command the check of their words let run without a card, or
+    did not run - it leaves Decided for you."""
+    command = session.get(Command, command_id)
+    judged = command.judged if command is not None else None
+    if command is None or not judged or judged.get("verdict") not in ("run", "refuse"):
+        raise HTTPException(404, "no command the check of your words let run or refused")
+    if judged.get("seen"):
+        raise HTTPException(409, "this one is seen already")
+    command.judged = {**judged, "seen": True}  # (a new dict: the column sees it changed)
+    session.commit()
+    request.app.state.bus.emit(session.get_one(Run, command.run_id).conversation_id,
+                               command.run_id, "command.updated", command_event(command))
     return command_out(command)
 
 

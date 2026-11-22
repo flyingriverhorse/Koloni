@@ -3,9 +3,11 @@ import { useState } from 'react'
 import { errorText } from '../api/client'
 import type { Command } from '../api/types'
 import { CardMore } from '../shell/CardMore'
+import { useApp } from '../state/store'
 import { placeLabel } from './commandStatus'
 
-export type CommandDecision = 'once' | 'always' | 'reject'
+/** `disposable`: run once, and allow such deletes in the project from now on (coordination §4). */
+export type CommandDecision = 'once' | 'always' | 'disposable' | 'reject'
 
 interface Props {
   command: Command
@@ -14,12 +16,47 @@ interface Props {
   onDecide: (decision: CommandDecision) => Promise<void>
 }
 
+/** K-yargıç: Full auto's check of the user's words found no line of theirs that covers it. Not its own sentence: a model's
+ *  words, which a command's text may have steered, are no reason shown on the card (kept on the record). */
+function NothingYouSaid({ judged }: { judged: Command['judged'] }) {
+  if (judged?.verdict !== 'ask') return null
+  return (
+    <div role="note" className="cmd-approval-note">
+      Nothing you said covers this.
+    </div>
+  )
+}
+
+/** Coordination §4: a delete KOLONİ found disposable, while its chat's project does not allow such deletes yet. */
+function useOffersDisposable(command: Command): boolean {
+  const allowed = useApp(s => s.projects.find(p => p.id === s.conv?.conversation.project_id)?.disposable_deletes)
+  return command.disposable != null && !allowed
+}
+
+/** Under Details: why no rule is offered, and what Allow such deletes turns on. */
+function CardNotes({ command, rememberable, offers }: { command: Command; rememberable: boolean; offers: boolean }) {
+  if (rememberable && !offers) return null
+  return (
+    <CardMore>
+      {!rememberable && <div>{command.web_off ? 'This command is asked every time while web is off.' : 'This command is asked every time.'}</div>}
+      {offers && (
+        <div>
+          KOLONİ checked {command.disposable?.what}: disposable. Allow such deletes in this project runs this one, and from now on, at Auto-edit and
+          Full auto in a chat you watch, such deletes (clean worktrees and merged branches you no longer use, build and cache folders) go without a
+          card. Settings › This project › Asking and away turns it off.
+        </div>
+      )}
+    </CardMore>
+  )
+}
+
 /** Asks before a command runs: what, where, and whether to remember the answer. */
 export function CommandApproval({ command, why, onDecide }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // The server offers a rule only for commands a rule can safely cover: none for one asked because web is off (K-web-komut).
   const rememberable = command.suggested_prefix !== ''
+  const offers = useOffersDisposable(command)
 
   async function decide(decision: CommandDecision) {
     setBusy(true)
@@ -50,6 +87,7 @@ export function CommandApproval({ command, why, onDecide }: Props) {
           {why}
         </div>
       )}
+      <NothingYouSaid judged={command.judged} />
       <div className="cmd-approval-where">
         <span className="tag">{placeLabel(command)}</span>
         {command.cwd && command.cwd !== '.' && <span className="mono muted">in {command.cwd}</span>}
@@ -73,12 +111,18 @@ export function CommandApproval({ command, why, onDecide }: Props) {
             Always run {command.suggested_prefix}
           </button>
         )}
+        {offers && (
+          <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('disposable')}>
+            <Checks size={13} />
+            Allow such deletes in this project
+          </button>
+        )}
         <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('reject')}>
           <X size={13} />
           Reject
         </button>
       </div>
-      {!rememberable && <CardMore>{command.web_off ? 'This command is asked every time while web is off.' : 'This command is asked every time.'}</CardMore>}
+      <CardNotes command={command} rememberable={rememberable} offers={offers} />
       {error && (
         <div role="alert" className="alert">
           {error}

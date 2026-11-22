@@ -5,7 +5,7 @@ import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import type { ProjectSettingsValues } from '../shell/ProjectSettings'
 import { Find } from './Find'
-import { type NewFact, RulesBox, WriteBox } from './forms'
+import { FolderRules, type NewFact, RulesBox, WriteBox } from './forms'
 import { byTopic, decisionId, decisionOf, lastAutoText, linesOf, meter, moment, subject, type Tab, TABS, wouldReplace, writerOf } from './memoryText'
 import { CoreFact, JournalNote, PastRecord, Proposal, Suggestion } from './records'
 import { GUIDE } from '../shell/guide'
@@ -90,6 +90,9 @@ function lastTurnOf(memory: ProjectMemory | null, conv: ConvState | null) {
   const ofAuto = memory?.last_auto ? conv?.runs.find(run => run.id === memory.last_auto?.run_id) : undefined
   return ofAuto && conv ? `the work on the ${moment(ofAuto.created_at)} message in “${conv.conversation.title}”` : 'a message of a conversation not open here'
 }
+
+/** The rules in the box: the folder's where it is read - but the saved ones where they differ, which Full auto's check reads (K-yargıç). */
+const boxRules = (memory: ProjectMemory) => (memory.rules_differ ? (memory.rules_saved ?? null) : memory.rules)
 
 const FACTS_MORE =
   'What agents are given: what you approved or wrote, each with its source. A fact is given to an agent whose work names its subject; any agent can look the rest up. Each rests on file lines: a fact whose source changed, or moved within its file, is given to no agent until you look at it again. “Source unchanged since noted” only means the file lines a record rests on read as they did when it was written. It does not mean the record is right.'
@@ -241,7 +244,7 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
     <div id="memory-panel-told" role="tabpanel" aria-labelledby="memory-tab-told" className="memory-panel" hidden={tab !== 'told'}>
       <TabHead
         line="Said to every agent, always."
-        more="Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either."
+        more="Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either. At Full auto, with Check what I said first on (Settings › This project › Asking and away), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”"
       />
       <Section title="Your preferences">
         {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
@@ -262,13 +265,14 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
       <Section title="This project’s rules">
         {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
         <RulesBox
-          key={memory.rules ?? ''}
-          rules={memory.rules}
+          key={boxRules(memory) ?? ''}
+          rules={boxRules(memory)}
           onSave={rules => {
             setKeptBefore(memory.rules_kept ?? true)
             return on.onSaveRules(rules)
           }}
         />
+        {memory.rules_differ && <FolderRules rules={memory.rules} onUse={on.onSaveRules} />}
         {!keptBefore && memory.rules_kept && (
           <p role="status" className="muted">
             {KEPT_IN_FOLDER}

@@ -34,6 +34,7 @@ from app.main import create_app
 from app.model_native import CodexNativeClient
 from app.model_session import ClaudeSessionClient
 from app.roles import BUILTIN_ROLES, RAN, WHO_SPLITS
+from app.tools import OPENED_TOGETHER
 from app.workspace import Workspace, WorkspaceError
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
@@ -136,11 +137,11 @@ def without_memory(tools):
     """Tool schemas (or their names) as they were before `remember` and `recall` - and
     before the web tools, which came later still (slice 18c), show (slice 39),
     open_room (slice 29b-2), add_skill (slice 45), the backlog's tools (slice 52),
-    ask_folder (slice 75), ask_secret (slice 91), plan_away (slice 106), propose_trigger
+    ask_folder (slice 75), ask_secret (slice 91), offer_away (slice 106), propose_trigger
     (slice 69) and recall_output (K-gecmis-zengin)."""
     later = (*NEW_TOOLS, "web_search", "http_request", "notify", "show", "open_room",
              "add_skill", "read_backlog", "add_task", "change_task", "assess_task", "ask_folder",
-             "ask_secret", "plan_away", "propose_trigger", "recall_output")
+             "ask_secret", "offer_away", "propose_trigger", "recall_output")
     if tools and isinstance(tools[0], str):
         return [name for name in tools if name not in later]
     kept = json.loads(json.dumps([t for t in tools if t["function"]["name"] not in later]))
@@ -173,6 +174,10 @@ def without_memory(tools):
             tool["function"]["parameters"]["properties"].pop("effort", None)
             # And whose findings it carries (slice 84c): one more input, no other word.
             tool["function"]["parameters"]["properties"].pop("findings_from", None)
+            # And that sub-agents opened together work beside each other (K-koordinasyon): one
+            # more sentence, no other word.
+            tool["function"]["description"] = tool["function"]["description"].replace(
+                f" {OPENED_TOGETHER}", "")
             for name in LATER_ROLES:
                 tool["function"]["description"] = tool["function"]["description"].replace(
                     f"\n- {name} — {BUILTIN_ROLES[name].description}", "")

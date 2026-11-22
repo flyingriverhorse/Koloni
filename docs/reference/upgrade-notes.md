@@ -16,5 +16,36 @@ put one back in place of `runtime/data/koloni.db`.
 
 ## Version by version
 
-No version has been released yet. Changes that need your attention will be listed here, and in the
-[Changelog](../changelog.md).
+Only what needs your attention after an update; everything else is in the [Changelog](../changelog.md).
+
+### 0.1.5
+
+- **When you're away**: a new project lets the Orchestrator decide a waiting card after 5 minutes. A
+  project from before keeps what it had: turn it on under Settings › This project › Asking and away.
+  See [Answering for you](../automation/answering-for-you.md).
+- **A harmful-looking command at Full auto** stays **Ask me**, and **Agents may delete what is
+  disposable without asking** stays off, in every project, until you turn them on there. See
+  [Check what I said first](../use/permissions.md#check-what-i-said-first) and
+  [Disposable deletes](../use/permissions.md#disposable-deletes).
+- The "While you're away" card is gone: press **☾ Away** on a chat's status line, or **Go away** on
+  the Orchestrator's line. See [Work while you're away](../automation/overnight.md).
+- **Plan first** is in the permission level's menu (or `/plan`); the button beside the level is gone.
+- No agent's window opens by itself any more: open it from the window icon on its box, a double click,
+  **Open window** in the Inspector, or the Orchestrator's name over its turn.
+- GitHub Copilot CLI: KOLONİ runs the version Copilot itself reports, also after Copilot updated
+  itself; from 1.0.114 on it runs **Native** again. See
+  [Set up a CLI](../models/setup-cli.md#github-copilot-cli).
+- A team's branch now starts from your folder as it is, your uncommitted files too, and its merge waits
+  for your commit where the agent changed what you had not committed. Your repository's git hooks do
+  not run for the agent's commits on its branch. See [Branches](../use/workspace.md#branches).
+
+### 0.1.2 to 0.1.4
+
+Nothing to do.
+
+### 0.1.1
+
+- A project that already had **Project notes** keeps them off for the Orchestrator: switch them on once
+  on the Agents page, the **Lead** role, **Knowledge** tab. See [Project notes](../knowledge.md#project-notes).
+- The Orchestrator no longer stops at a fixed count of steps. A limit of your own goes on the **Lead**
+  role. See [Step limits](../agents/step-limits.md#the-orchestrator-no-step-count).

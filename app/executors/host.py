@@ -216,9 +216,11 @@ class HostExecutor:
         env.setdefault("PYTHONUNBUFFERED", "1")
         if copy is not None:
             env["PYTHONPATH"] = copy_python_path(copy, env.get("PYTHONPATH"))
-            # git in a copy never answers with a repository the copies folder is in.
-            env["GIT_CEILING_DIRECTORIES"] = copies.ceiling(copy)
         try:
+            if copy is not None:
+                # git in a copy never answers with a repository the copies folder is in, nor runs
+                # a hook of the one it finds (a branch's worktree is the user's own repository).
+                env.update(copies.git_env(copy, env))  # (its empty hooks folder made: OSError)
             process = await asyncio.create_subprocess_exec(
                 *shell_argv(command),
                 cwd=cwd,

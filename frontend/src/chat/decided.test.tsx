@@ -4,7 +4,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import type { BacklogTask, Provider } from '../api/types'
 import { deriveGraph } from '../canvas/deriveGraph'
 import { useApp } from '../state/store'
-import { agent, conversation, convState, question, run } from '../test-fixtures'
+import { agent, command, conversation, convState, question, run } from '../test-fixtures'
 import { WaitingList } from './MessageList'
 import { decidedOf, waitingOf } from './waiting'
 
@@ -138,7 +138,7 @@ test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word,
   const po = (lead: 'add' | 'no') => ({ chat: state.conversation.id, why: 'the parser tests', lead, lead_why: `It said ${lead}.`, seen: false, injection: [] })
   const task = (id: string, status: 'todo' | 'proposed' | 'doing', lead: 'add' | 'no'): BacklogTask => ({
     id, title: id, detail: null, criteria: null, priority: 'normal', status, position: 0, conversation_id: null, created_by: 'agent',
-    pending: null, assessment: null, not_in: false, after: [], queued: false, stuck: null, waiting: false, po: po(lead),
+    pending: null, assessment: null, not_in: false, after: [], queued: false, stuck: null, waiting: false, created_at: '2026-10-05T10:00:00Z', po: po(lead),
   })
   useApp.setState({ backlog: [task('tests', 'todo', 'add'), task('help', 'proposed', 'no'), task('docs', 'doing', 'add'), { ...task('other', 'todo', 'add'), po: { ...po('add'), chat: 'elsewhere' } }] })
   const seen = vi.spyOn(useApp.getState(), 'seenTask').mockResolvedValue()
@@ -163,4 +163,40 @@ test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word,
   expect(within(docs).queryByRole('button', { name: /Change/ })).toBeNull()
   expect(within(docs).getByText("can't be undone: it has started")).toBeInTheDocument()
   useApp.setState({ backlog: null })
+})
+
+test('a command the check of your words let run waits under Decided for you until OK', async () => {
+  const rule = 'You may delete build/ and dist/.'
+  const judged = { verdict: 'run' as const, quote: rule, source: 'rules' as const, why: 'It names build/.', model: 'Fast · quick', seen: false }
+  const ran = command('c1', 'r', { agent_id: 'lead', command: 'rm -rf build', judged })
+  const asked = vi.fn(async () => new Response(JSON.stringify({ ...ran, judged: { ...judged, seen: true } }), { status: 200 }))
+  vi.stubGlobal('fetch', asked)
+  const commands = [ran, command('c2', 'r', { judged: { ...judged, seen: true } }), command('c3', 'r', { judged: { ...judged, verdict: 'ask' } }), command('c4', 'r')]
+  render(<WaitingList state={convState({ runs: [run('r', 'running')], agents: [lead], commands })} on={on} onDecidePlan={vi.fn()} known={known} />)
+  const section = screen.getByRole('region', { name: /Decided for you/ })
+  expect(within(section).getByText('1')).toBeInTheDocument()
+  const item = within(section).getByRole('button', { name: 'OK' }).closest('.decided-item') as HTMLElement
+  expect(item).toHaveTextContent('Lead ran rm -rf build without asking')
+  expect(item).toHaveTextContent(`Your rule: “${rule}” (This project’s rules)`)
+  expect(within(item).queryByRole('button', { name: /Change|Run it/ })).toBeNull()
+  await userEvent.click(within(item).getByRole('button', { name: 'OK' }))
+  expect(asked).toHaveBeenCalledWith('/api/commands/c1/seen', expect.objectContaining({ method: 'POST' }))
+  vi.unstubAllGlobals()
+})
+
+test('a command a line of yours kept from running waits under Decided for you until OK, with no Run it', async () => {
+  const rule = 'Never push to main.'
+  const judged = { verdict: 'refuse' as const, quote: rule, source: 'rules' as const, why: 'The rule forbids it.', model: 'Fast · quick', seen: false }
+  const refused = command('c1', 'r', { agent_id: 'lead', command: 'git push origin main', status: 'refused', judged })
+  const asked = vi.fn(async () => new Response(JSON.stringify({ ...refused, judged: { ...judged, seen: true } }), { status: 200 }))
+  vi.stubGlobal('fetch', asked)
+  render(<WaitingList state={convState({ runs: [run('r', 'running')], agents: [lead], commands: [refused] })} on={on} onDecidePlan={vi.fn()} known={known} />)
+  const section = screen.getByRole('region', { name: /Decided for you/ })
+  const item = within(section).getByRole('button', { name: 'OK' }).closest('.decided-item') as HTMLElement
+  expect(item).toHaveTextContent('KOLONİ did not run git push origin main for Lead')
+  expect(item).toHaveTextContent(`Your rule: “${rule}” (This project’s rules)`)
+  expect(within(item).queryByRole('button', { name: /Change|Run it/ })).toBeNull()
+  await userEvent.click(within(item).getByRole('button', { name: 'OK' }))
+  expect(asked).toHaveBeenCalledWith('/api/commands/c1/seen', expect.objectContaining({ method: 'POST' }))
+  vi.unstubAllGlobals()
 })

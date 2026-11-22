@@ -20,7 +20,7 @@ import hashlib
 import json
 import os
 import stat
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cached_property
@@ -61,6 +61,8 @@ NO_PLACE = (
 # or rewrites its working folder reaches it.
 TREE = "tree"
 BASE_FILE = "base.json"
+# Beside it too: an empty folder that git is told holds the hooks (`git_env`).
+NO_HOOKS = "no-hooks"
 # More than a copy of `MAX_FILES` files ever writes there (a path and a digest each).
 MAX_BASE_BYTES = MAX_FILES * 2048
 # Beside the tree too: the bytes of each file as it was copied, at the same path, for a
@@ -144,6 +146,29 @@ def ceiling(tree: Path) -> str:
     return os.pathsep.join(
         [str(tree.parent.parent), *filter(None, [os.environ.get("GIT_CEILING_DIRECTORIES")])]
     )
+
+
+def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
+    """What git is given for whatever is started in a copy's tree, `env` being the environment it
+    is started with: it looks no higher than the copies folder (`ceiling`), and runs no hook of the
+    repository it finds - its hooks folder is an empty one beside the tree (`NO_HOOKS`) -, nor its
+    fsmonitor, nor asks for a signature (a key's prompt), after the config `env` gives git already.
+    A branch's worktree is the user's own repository: its hooks and settings, and a
+    `core.hooksPath` in the tree (husky's), which the agent can write.
+    GIT_CONFIG_PARAMETERS, not GIT_CONFIG_COUNT/KEY/VALUE: GIT_CONFIG_KEY_0 is a secret by its
+    name (`commands.secret_name`), held back where its count is not - and git stops at a count
+    with no key. Not `safe.bareRepository=explicit`, as KOLONİ's own git has it: a project's tests
+    that use a bare repository by its folder (`git -C remote.git log`) would fail in a copy
+    (measured), and what such a repository's config could run (hooks, fsmonitor) is off here."""
+    # shortcut: an empty core.hooksPath stops the hooks git finds in a folder, not hooks set in its
+    # config (`hook.<name>.command` / `.event`: git 2.53 ran none, probed 21 Nov); turn those off
+    # here too once a git that runs them is seen.
+    empty = tree.parent / NO_HOOKS
+    empty.mkdir(exist_ok=True)
+    ours = "'" + f"core.hooksPath={empty}".replace("'", "'\\''") + "'"  # (git's own quoting)
+    return {"GIT_CEILING_DIRECTORIES": ceiling(tree), "GIT_CONFIG_PARAMETERS": " ".join(
+        filter(None, [env.get("GIT_CONFIG_PARAMETERS"), ours, "'core.fsmonitor=false'",
+                      "'commit.gpgsign=false'"]))}
 
 
 def _key(path: str) -> str:
@@ -416,6 +441,16 @@ class Copy:
     # ... and the project's branch it was made from, with that one's commit then: what its merge
     # is held to (`git.branch_look`'s drift).
     start: tuple[str, str] | None = None
+    # W-1: the commit of the user's folder as the branch began (`git._snapshot`; not `snapshot`,
+    # which is a look at the copy's files) - what its agents' work is measured from on its way
+    # back (`git.agents_share`); None: it began at `start`'s commit. And why it did not begin
+    # from the folder where it holds work of the user's that was not committed (said on its
+    # card); None where nothing was left out.
+    snapshot_sha: str | None = None
+    from_head: str | None = None
+    # ... and what of the user's own the snapshot left out: a secret by its name, a link (said on
+    # its card, `git._taker`).
+    not_taken: tuple[str, ...] = ()
 
     def holds(self, path: str) -> bool:
         """Whether a path from the project root is one this copy holds (`part`): all that Take
@@ -507,16 +542,36 @@ class Copy:
         - a file over `MAX_BASE_TEXT`, a copy from before this was kept, a file the
         project did not have - or is not what the copy's record says the file was
         (`base`: instead of the copy's own): what stands beside the tree, where a
-        command could reach it, is believed no further than its digest."""
+        command could reach it, is believed no further than its digest. W-1: of a branch
+        copy, which keeps none beside its tree, from git (`_from_git`) - believed as far."""
         was = (self.base if base is None else base).get(_key(path))
-        place = None if self.two_way or was is None else _inside(self._kept, path)
-        try:
-            if place is None or _is_link(place) or not place.is_file():
-                return None
-            data = place.read_bytes()
-        except OSError:
+        if self.two_way or was is None:
             return None
-        return data if hashlib.sha256(data).hexdigest() == was else None
+        place = _inside(self._kept, path)
+        try:
+            data = place.read_bytes() if place and not _is_link(place) and place.is_file() else (
+                self._from_git(path))
+        except OSError:
+            data = None
+        return data if data is not None and hashlib.sha256(data).hexdigest() == was else None
+
+    def _from_git(self, path: str) -> bytes | None:
+        """W-1: a branch copy's file as the commit it was made from holds it - the snapshot, or
+        the start - as git checked it out (`git.blob_at`), by the path as git spells it (`names`).
+        None for a copy, or where git does not say.
+        shortcut: a branch opened again was checked out at its tip, which is not on its record:
+        its files are not merged line by line (no digest matches); record the tip it was opened
+        at if that is missed."""
+        commit = self.snapshot_sha or (self.start[1] if self.start else None)
+        if not self.branch or commit is None:
+            return None
+        from app import git  # (here: git's executors import commands, which imports this)
+
+        try:
+            return git.blob_at(self.project, commit, self.names.get(_key(path), path),
+                               MAX_BASE_TEXT)
+        except git.Refused:
+            return None
 
     def _based(self, path: str, data: bytes | None) -> None:
         """What the copy was made from, for one file, is `data` from here on (None: no
@@ -890,18 +945,21 @@ def _carry(source: Copy, copy: Copy, paths: Iterable[str],
 
 def make_branch(
     project: Path, runtime_root: Path, name: str, short: str, linked: bool = True,
-    start: Sequence[str] | None = None, tip: str | None = None,
+    start: Sequence[str] | None = None, tip: str | None = None, snapshot: str | None = None,
 ) -> Copy:
     """K-dal-takim: a copy whose tree is a git worktree on a new branch `koloni/<short>`, made
-    from where the project's branch is (`git.add_worktree`), in `<copies folder>/<name>` as a
-    copy is. It holds what git tracks (`Copy.git`): what the project's git ignores is read in
-    the project. The dependency folders are linked in as a copy's. `git.Refused` where git will
-    not (no repository, HEAD on no branch); TooBig over a copy's caps - nothing left behind.
+    from the user's folder as it is - or, over a copy's caps in new files or with an older git,
+    from where the project's branch is, and why (`git.add_worktree`: `Copy.snapshot_sha`,
+    `Copy.from_head`) - in `<copies folder>/<name>` as a copy is. It holds what git tracks
+    (`Copy.git`): what the project's git ignores is read in the project. The dependency folders
+    are linked in as a copy's. `git.Refused` where git will not (no repository, HEAD on no
+    branch); TooBig over a copy's caps - nothing left behind.
     shortcut: the worktree is checked out whole before the caps are counted; count `git
     ls-files` first if a project that big is ever put on a branch.
     `short` a branch of KOLONİ's own (`koloni/x`): that branch as it is, opened again for an agent
-    that goes on (`git.reopen_worktree`, held to the `start` and `tip` on its record) - and never
-    deleted here, which would take its work."""
+    that goes on (`git.reopen_worktree`, held to the `start` and `tip` on its record; `snapshot`,
+    the one it began from, as its record has it) - and never deleted here, which would take its
+    work."""
     from app import git  # (here: git's executors import commands, which imports this)
 
     held = folder(runtime_root)
@@ -909,16 +967,21 @@ def make_branch(
         raise OSError(NO_PLACE)
     project, root = Path(project).resolve(), held / _plain(name) / TREE
     root.parent.mkdir(parents=True)
-    branch, again = None, short.startswith(git.BRANCH_PREFIX)
+    branch, again, why, left = None, short.startswith(git.BRANCH_PREFIX), None, []
     try:
-        branch, into, sha = git.reopen_worktree(
-            project, root, short, root.parent / "no-hooks", start, tip) if again else (
-            git.add_worktree(project, root, short, root.parent / "no-hooks"))
+        if again:
+            branch, into, sha = git.reopen_worktree(
+                project, root, short, root.parent / NO_HOOKS, start, tip,
+                under=folders(runtime_root))
+        else:
+            branch, into, sha, snapshot, why, left = git.add_worktree(
+                project, root, short, root.parent / NO_HOOKS, (MAX_FILES, MAX_BYTES))
         files, _links, _size = _scan(root, stop=True)
         listed = _git_listed(project)
         links = _scan(project, avoid=held.resolve(), held=listed)[1] if listed is not None else []
         copy = Copy(project, root, {}, {}, {}, git=True, branch=branch,
-                    start=(into, sha))
+                    start=(into, sha), snapshot_sha=snapshot, from_head=why,
+                    not_taken=tuple(left))
         for path in files:
             copy.base[_key(path)] = hashlib.sha256((root / path).read_bytes()).hexdigest()
             copy.names[_key(path)] = path

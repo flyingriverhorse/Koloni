@@ -1,9 +1,12 @@
-import { CaretDown, CaretRight, ChatsCircle, Clock, FileText, Lightbulb, ListChecks, Moon, Robot, User, UsersThree } from '@phosphor-icons/react'
+import { AppWindow, CaretDown, CaretRight, ChatsCircle, Clock, FileText, Lightbulb, ListChecks, Moon, Robot, User, UsersThree } from '@phosphor-icons/react'
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import { AGENT_STATUS, WAITS } from '../agents/agentStatus'
-import { SignChip, Since } from '../agents/signs'
+import { Facts } from '../agents/LiveFacts'
+import { liveFactList } from '../agents/liveLine'
+import { useNow } from '../agents/useNow'
+import { SignChip } from '../agents/signs'
 import { ranOn } from '../shell/modelName'
 import { StatusLabel } from '../shell/StatusLabel'
 import { AwayReport } from '../backlog/Away'
@@ -237,8 +240,32 @@ export function AgentNode(props: AgentProps) {
   return props.data.chip ? <AgentChip {...props} /> : <AgentCard {...props} />
 }
 
+/**
+ * Its window, from its node (the user's, 21 Nov): what the Inspector's Open window opens, at the right of its head. Only that:
+ * the node is not picked, dragged or opened a second time by the same click or key.
+ */
+function OpenWindow({ id, name }: { id: string; name: string }) {
+  const said = `Open ${name}'s window`
+  return (
+    <button
+      type="button"
+      className="node-open nodrag"
+      aria-label={said}
+      title={said}
+      onClick={event => {
+        event.stopPropagation()
+        useApp.getState().openAgentWindow(id.replace(/^agent:/, ''))
+      }}
+      onDoubleClick={event => event.stopPropagation()}
+      onKeyDown={event => event.stopPropagation()}
+    >
+      <AppWindow size={12} />
+    </button>
+  )
+}
+
 /** Its name and how it ended; a click picks it, two open its window - as on its card (the node's own clicks). */
-function AgentChip({ data, selected }: AgentProps) {
+function AgentChip({ id, data, selected }: AgentProps) {
   const name = data.name || data.role
   const chip = data.chip!
   return (
@@ -248,6 +275,7 @@ function AgentChip({ data, selected }: AgentProps) {
         <span className="node-chip-name">{name}</span>
         <span style={{ color: chip.colour }}>{chip.said}</span>
       </button>
+      <OpenWindow id={id} name={name} />
       <Handle type="source" position={Position.Right} isConnectable={false} />
       <Ends />
     </div>
@@ -297,6 +325,36 @@ export function RoundNode({ id, data }: NodeProps<Node<RoundData & Record<string
 const toneOf = (status: AgentData['status']): Tone =>
   status === 'running' || status === 'waiting' ? 'running' : status === 'waiting_approval' || status === 'proposed' ? 'approval' : 'idle'
 
+/** An agent's state line, in its state's colour; what was counted of its calls first, so that its state is what gets cut off. */
+function StateLine({ id, data, said }: { id: string; data: AgentData; said: string }) {
+  const sign = data.sign && <SignChip agentId={id.replace(/^agent:/, '')} sign={data.sign} stopped={data.signStopped} />
+  if (data.status === 'running') return <WorkingLine data={data} said={said} sign={sign} />
+  return (
+    <div className="node-line mono" title={data.asks || said}>
+      {sign}
+      <StatusLabel color={AGENT_STATUS[data.status][1]}>{said}</StatusLabel>
+    </div>
+  )
+}
+
+/**
+ * An agent at work's line (0.1.5): what it does, for how long, its tokens and tier - where the box is too narrow its
+ * tier goes first, then its tokens, then its time, and only then is what it does cut; all of it under the pointer. Its
+ * dot blinks.
+ */
+function WorkingLine({ data, said, sign }: { data: AgentData; said: string; sign: ReactNode }) {
+  const facts = liveFactList(useNow(1000), data.since, data.wrote, data.kind)
+  return (
+    <div className="node-line mono node-now" title={data.asks || [said, ...facts].filter(Boolean).join(' · ')}>
+      {sign}
+      <StatusLabel color={AGENT_STATUS[data.status][1]}>
+        <span className="node-live-what">{data.activity}</span>
+        <Facts pieces={facts} />
+      </StatusLabel>
+    </div>
+  )
+}
+
 function AgentCard({ id, data, selected }: AgentProps) {
   const tone = toneOf(data.status)
   const name = data.name || data.role
@@ -315,18 +373,12 @@ function AgentCard({ id, data, selected }: AgentProps) {
           <span className="node-title">{name}</span>
           <span className="node-where"> · {where}</span>
         </span>
+        <OpenWindow id={id} name={name} />
       </div>
       <div className="node-body">
         {/* Its state's colour, as everywhere; its dot blinks while it is at work. Waiting for your answer, what it asks is
             under the pointer. */}
-        <div className={`node-line mono${data.status === 'running' ? ' node-now' : ''}`} title={data.asks || said}>
-          {/* What was counted of its calls first, so that its state is what gets cut off. */}
-          {data.sign && <SignChip agentId={id.replace(/^agent:/, '')} sign={data.sign} stopped={data.signStopped} />}
-          <StatusLabel color={AGENT_STATUS[data.status][1]}>
-            {data.since && <Since at={data.since} />}
-            {said}
-          </StatusLabel>
-        </div>
+        <StateLine id={id} data={data} said={said} />
         {(data.summary || data.spent) && <div className="node-meta mono">{[data.summary, data.spent].filter(Boolean).join(' · ')}</div>}
       </div>
       <Handle type="source" position={Position.Right} isConnectable={false} />

@@ -17,7 +17,7 @@ export const WHEN_AWAY: [value: Project['when_away'], label: string][] = [
   ['lead', 'The Orchestrator answers what it safely can'],
 ]
 const AWAY_WHY =
-  'Questions and decisions wait until you’re back - or, once you haven’t answered for so many minutes or the away card is on, the Orchestrator picks, says why, and you see it under “Decided for you”. It opens a sub-agent on its role’s own model unless that model is at its limit, out of credit, or over this month’s budget; a move onto another model that may cost money, commands it may not run, deleting, reaching outside and Take in still wait.'
+  'Once a card has waited this many minutes - at once while you’re away (☾ Away on a chat’s line) - the Orchestrator picks, says why, and you see it under “Decided for you”: its agents’ questions, going on or stopping at a step limit. It opens a sub-agent on its role’s own model unless that model is at its limit, out of credit, or over this month’s budget; a move onto another model that may cost money, commands it may not run, deleting, reaching outside and Take in still wait.'
 
 export const OPENING: [value: Project['spawn_approval'], label: string][] = [
   ['auto', 'Ask when it matters'],
@@ -25,6 +25,14 @@ export const OPENING: [value: Project['spawn_approval'], label: string][] = [
   ['never', 'Never ask'],
 ]
 const OPENING_WHY = 'Ask when it matters: only when you approve everything and the sub-agent could write files or run commands. Always: before every sub-agent. Never: sub-agents open on their own.'
+
+/** K-yargıç: at Full auto a command that deletes, overwrites or sends something off this machine asks you, or is first checked against what you said. */
+export const FULL_AUTO_CHECK: [value: Project['full_auto_check'], label: string][] = [
+  ['ask', 'Ask me'],
+  ['judge', 'Check what I said first'],
+]
+const CHECK_WHY =
+  'Check what I said first: your preferences, this project’s rules as saved on the Memory page (not the folder’s .koloni/rules.md) and your own messages in this chat are read first, and the command runs without a card only when a line of yours names it. Secret files, .koloni, files that steer later turns and paths outside the folder are always asked; anything that goes wrong opens the card as before.'
 
 /** What a look over each report costs, and what is sent to which model, in sight under its box; the rest behind ⓘ. */
 const OBSERVE_SHOWN =
@@ -134,13 +142,17 @@ export function useAgents(project: Project) {
 /** This project › Asking and away: when a sub-agent is asked for, and who answers while you are away. */
 export function useAsking(project: Project) {
   const savedAway = project.when_away ?? 'waits'
-  const savedMinutes = project.away_minutes ?? 10
+  const savedMinutes = project.away_minutes ?? 5
   const savedApproval = project.spawn_approval ?? 'auto'
   const [whenAway, setWhenAway] = useState(savedAway)
   const [minutesText, setMinutesText] = useState(String(savedMinutes))
   const awayMinutes = within(minutesText, 0, 1440)
   const [approval, setApproval] = useState(savedApproval)
+  const check = useFullAutoCheck(project)
+  const disposable = useDisposableDeletes(project)
   const patch = {
+    ...check.patch,
+    ...disposable.patch,
     ...(approval !== savedApproval && { spawn_approval: approval }),
     ...(whenAway !== savedAway && { when_away: whenAway }),
     ...(awayMinutes !== undefined && awayMinutes !== savedMinutes && { away_minutes: awayMinutes }),
@@ -188,6 +200,53 @@ export function useAsking(project: Project) {
           min
         </span>
       </Row>
+      {check.row}
+      {disposable.row}
     </>,
   )
+}
+
+/** `useAsking`'s switch for what KOLONİ checks is disposable (coordination §4): such a delete goes without a card where it is on. */
+function useDisposableDeletes(project: Project) {
+  const [allowed, setAllowed] = useState(project.disposable_deletes)
+  return {
+    patch: allowed === project.disposable_deletes ? {} : { disposable_deletes: allowed },
+    row: (
+      <label className="choice">
+        <input type="checkbox" checked={allowed} onChange={e => setAllowed(e.target.checked)} />
+        <span>
+          Agents may delete what is disposable without asking
+          <span className="choice-note">
+            (clean worktrees and merged branches you no longer use, build and cache folders) - at Auto-edit and Full auto, in a chat you
+            watch. KOLONİ checks each one first; any other delete asks as before.
+          </span>
+        </span>
+      </label>
+    ),
+  }
+}
+
+/** `useAsking`'s row for a harmful-looking command at Full auto (K-yargıç): what it costs in sight once it checks. */
+function useFullAutoCheck(project: Project) {
+  const saved = project.full_auto_check ?? 'ask'
+  const [check, setCheck] = useState(saved)
+  return {
+    patch: check === saved ? {} : { full_auto_check: check },
+    row: (
+      <Row
+        label="A harmful-looking command at Full auto"
+        htmlFor="full-auto-check"
+        doc={GUIDE.settingsAsking} why={CHECK_WHY}
+        warn={check === 'judge' && <span className="choice-note">Each such command is one request of your Fast tier’s first model (on a CLI, of your plan).</span>}
+      >
+        <select id="full-auto-check" className="input" value={check} onChange={e => setCheck(e.target.value as Project['full_auto_check'])}>
+          {FULL_AUTO_CHECK.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </Row>
+    ),
+  }
 }

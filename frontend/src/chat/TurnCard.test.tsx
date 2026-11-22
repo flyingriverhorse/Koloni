@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { when } from '../canvas/turns'
 import { agent, assistantMessage, convState, run, userMessage } from '../test-fixtures'
+import { useApp } from '../state/store'
 import { DEFAULTS, useVoice } from '../voice/voice'
 import { MessageList } from './MessageList'
 import { AnswerActions, TurnCard } from './TurnCard'
@@ -37,6 +38,66 @@ test('the card names who answered, its model and the time of its last message; a
   rerender(card(true))
   expect(screen.getByRole('article', { name: 'Orchestrator, waits for you' })).toHaveTextContent('Orchestratorqwenwaits for youthe work')
   expect(container.querySelector('time')).toBeNull()
+})
+
+test('a Lead whose model Copilot’s fusion picked says so in its head, with Copilot’s own reason under it; another says nothing', () => {
+  const why = 'Copilot Fusion selected GPT-6 Luna since the task has low complexity.'
+  const picked = agent('r', 'running', {
+    provider_name: 'Copilot',
+    model_id: 'gpt-6-luna',
+    model_from: 'fusion',
+    effort_note: `high → none: fusion takes no level. Copilot's fusion picked gpt-6-luna: “${why}”`,
+  })
+  const card = (lead: typeof picked) => (
+    <TurnCard state={convState({ runs: [run('r')], agents: [lead] })} run={run('r')} lead={lead} answer={undefined} summary={null} waits={false}>
+      the work
+    </TurnCard>
+  )
+  const { container, rerender } = render(card(picked))
+  expect(container.querySelector('.turn-model')).toHaveTextContent(/^fusion → gpt-6-luna$/)
+  // (Its own words, whole in its tooltip: a long one is cut on its line.)
+  const said = container.querySelector('.turn-why')
+  expect(said).toHaveTextContent(new RegExp(`^${why}$`))
+  expect(said).toHaveAttribute('title', why)
+  rerender(card(agent('r')))
+  expect(container.querySelector('.turn-model')).toHaveTextContent(/^qwen$/)
+  expect(container.querySelector('.turn-why')).toBeNull()
+  // A later model said with no reason of its own is not given the one before (review, 21 Nov).
+  rerender(card({ ...picked, model_id: 'gpt-7' }))
+  expect(container.querySelector('.turn-model')).toHaveTextContent(/^fusion → gpt-7$/)
+  expect(container.querySelector('.turn-why')).toBeNull()
+})
+
+test('the turn’s name opens its Lead’s window, by pointer or keyboard: where Tell reaches an agent at work', async () => {
+  useApp.setState({ agentWindowId: null })
+  const lead = agent('lead-1', 'running', { run_id: 'r' })
+  render(
+    <TurnCard state={convState({ runs: [run('r')], agents: [lead] })} run={run('r')} lead={lead} answer={undefined} summary={null} waits={false}>
+      the work
+    </TurnCard>,
+  )
+  const name = screen.getByRole('button', { name: 'Orchestrator' })
+  expect(name).toHaveAttribute('title', 'Open its window')
+  await userEvent.tab()
+  expect(name).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
+  expect(useApp.getState().agentWindowId).toBe('lead-1')
+  useApp.setState({ agentWindowId: null })
+  await userEvent.click(name)
+  expect(useApp.getState().agentWindowId).toBe('lead-1')
+  useApp.setState({ agentWindowId: null })
+})
+
+test('the foot holds Copy and Read aloud first, what it did at its right', () => {
+  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [userMessage('r', 'go'), answer] })
+  const { container } = render(
+    <TurnCard state={state} run={run('r', 'completed')} lead={agent('r', 'completed')} answer={answer} summary={<button type="button">What it did</button>} waits={false}>
+      the work
+    </TurnCard>,
+  )
+  const foot = container.querySelector('footer.turn-foot')!
+  expect(foot.firstElementChild).toHaveClass('turn-actions')
+  expect(foot.lastElementChild).toHaveAccessibleName('What it did')
 })
 
 test('a night’s closing line, put on the turn before it, leaves that turn’s time as it was', () => {

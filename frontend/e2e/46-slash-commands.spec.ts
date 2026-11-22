@@ -118,8 +118,8 @@ for (const theme of ['light', 'dark'] as const)
     await box.fill('/stop')
     await page.keyboard.press('Enter')
     await expect(chat.getByText('Open this sub-agent?')).toHaveCount(0)
-    // last: the list it opens is the browser's own (showPicker), and is left open
+    // last: the level's menu it opens (0.1.5), with the focus in it
     await box.fill('/mode')
     await page.keyboard.press('Enter')
-    await expect(chat.getByLabel('Permission level')).toBeFocused()
+    await expect(chat.getByRole('dialog', { name: 'Permission level' })).toBeFocused()
   })

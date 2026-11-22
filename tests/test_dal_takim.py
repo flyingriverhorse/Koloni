@@ -16,7 +16,7 @@ from app import copies, git
 from app.commands import SHARED_GIT
 from app.db.models import Agent, BacklogTask
 from app.model_client import ModelUnavailable
-from tests.conftest import Gate
+from tests.conftest import Gate, scaled
 from tests.test_backlog import setup
 from tests.test_backlog_auto import tasks, worked
 from tests.test_chat_flow import text
@@ -200,14 +200,17 @@ def test_a_branch_not_koloni_s_is_never_dropped_and_one_with_work_stays_unless_t
 # --- the Orchestrator puts a line on a branch -------------------------------------------------
 
 
-def on_branch(make_client, repo, coder, then=(), **conversation):
+def on_branch(make_client, repo, coder, then=(), wip=None, **conversation):
     """A project in git with `lines.txt` and `check.py` committed, and a Lead that opens one
     Coder on a branch `koloni/fix` (and takes the steps `then`); returns the client, the
-    conversation's and the run's ids."""
+    conversation's and the run's ids. `wip`: the user's files not committed, by path - what
+    they hold (W-1: the branch starts from them)."""
     (repo / "lines.txt").write_bytes(LINES.encode())
     (repo / "check.py").write_bytes(CHECK.encode())
     run(repo, "add", "-A")
     run(repo, "commit", "-qm", "lines")
+    for path, held in (wip or {}).items():
+        (repo / path).write_bytes(held.encode())
     lead = [step(call("spawn_agent", {"role": "Coder", "task": "fix two", "on_branch": "fix"},
                       "s")), *then, text("done")]
     client, _pid, cid, run_id = start(make_client, repo, coder, lead=lead, **conversation)
@@ -555,6 +558,111 @@ def test_no_hook_runs_when_the_branch_goes(repo, runtime):
     assert not marker.exists() and run(repo, "branch", "--list", "koloni/*") == ""
 
 
+def test_git_in_a_copy_is_given_an_empty_hooks_folder_after_the_config_it_had(tmp_path):
+    tree = tmp_path / "it's" / "agent1" / copies.TREE  # (a quote in the path)
+    tree.mkdir(parents=True)
+    empty = tree.parent / copies.NO_HOOKS
+    ours = ("'core.hooksPath=" + str(empty).replace("'", "'\\''") + "' 'core.fsmonitor=false' "
+            "'commit.gpgsign=false'")
+    told = copies.git_env(tree, {"GIT_CONFIG_PARAMETERS": "'user.name=x'"})
+    assert told == {"GIT_CEILING_DIRECTORIES": copies.ceiling(tree),
+                    "GIT_CONFIG_PARAMETERS": f"'user.name=x' {ours}"}
+    assert copies.git_env(tree, {})["GIT_CONFIG_PARAMETERS"] == ours and empty.is_dir()
+    # git reads them back as written: the quote, and a Windows path's backslashes
+    for key, value in (("core.hooksPath", str(empty)), ("user.name", "x"),
+                       ("core.fsmonitor", "false"), ("commit.gpgsign", "false")):
+        done = subprocess.run(["git", "config", "--get", key], cwd=tree, capture_output=True,
+                              text=True, env={**os.environ, **told})
+        assert (done.returncode, done.stdout.strip()) == (0, value), done.stderr
+
+
+def test_no_fsmonitor_of_the_repository_runs_for_git_in_a_branch_copy(repo, runtime, tmp_path):
+    from tests.test_git_view import marker
+
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+    mark, line = marker(tmp_path, "fsmonitor", passes=False)
+    run(repo, "config", "core.fsmonitor", line)
+
+    def status(env=None):
+        done = subprocess.run(["git", "status", "--porcelain"], cwd=copy.root, env=env,
+                              capture_output=True, text=True)
+        assert done.returncode == 0, done.stderr
+
+    status()
+    assert mark.exists()  # (the control: git by itself runs it)
+    mark.unlink()
+    status({**os.environ, **copies.git_env(copy.root, os.environ)})
+    assert not mark.exists()
+
+
+def hooked(folder, marker):
+    """A pre-commit hook in `folder` that marks a commit on a branch of KOLONİ's - a commit of the
+    user's own runs it too."""
+    folder.mkdir(parents=True, exist_ok=True)
+    hook = folder / "pre-commit"
+    hook.write_text('#!/bin/sh\ncase "$(git rev-parse --abbrev-ref HEAD)" in koloni/*) '
+                    f"echo ran >> '{marker.as_posix()}' ;; esac\n", newline="\n")
+    os.chmod(hook, 0o755)
+
+
+@pytest.mark.parametrize("where", [".git/hooks", ".husky"])
+def test_no_hook_of_the_repository_runs_for_a_commit_in_a_branch_copy(repo, runtime, where):
+    marker = runtime.parent / "hook-ran"
+    hooked(repo / where, marker)
+    if where == ".husky":  # (committed, and named by the repository's config: husky's way)
+        run(repo, "add", "--chmod=+x", ".husky/pre-commit")
+        run(repo, "commit", "-qm", "husky")
+        run(repo, "config", "core.hooksPath", ".husky")
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+
+    def commit(message, env=None):
+        (copy.root / "a.txt").write_text(message)
+        done = subprocess.run(["git", "commit", "-qam", message], cwd=copy.root, env=env,
+                              capture_output=True, text=True)
+        assert done.returncode == 0, done.stderr  # (made: not a git that stopped at its config)
+        assert run(copy.root, "log", "-1", "--format=%s") == message
+
+    commit("by git itself")
+    assert marker.exists()  # (the control: git by itself runs it)
+    marker.unlink()
+    commit("an agent's", {**os.environ, **copies.git_env(copy.root, os.environ)})
+    assert not marker.exists()
+
+
+def test_no_hook_of_the_repository_runs_for_an_agents_own_commit_on_its_branch(
+    make_client, wait_run, repo
+):
+    marker = repo.parent / "hook-ran"
+    hooked(repo / ".git" / "hooks", marker)
+    client, cid, run_id = on_branch(make_client, repo, [
+        step(edit("two", "TWO-agent")),
+        step(call("run_command", {"command": "git commit -qam mine"}, "c")), text("A done")])
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    (ran,) = [one for one in snap["commands"] if one["command"] == "git commit -qam mine"]
+    assert (ran["status"], ran["exit_code"]) == ("exited", 0), ran["output"]
+    assert lines(repo)[1] == "TWO-agent" and not marker.exists()
+
+
+@pytest.mark.parametrize("docker", [False, True])
+def test_an_agent_on_a_branch_is_told_git_works_in_its_worktree_but_not_in_docker(
+    make_client, wait_run, repo, docker
+):
+    from app.agent import GIT_ON_BRANCH, NO_GIT
+
+    models: list = []
+    # (In Docker the worktree's .git names a folder of this machine's: git fails in the container.)
+    project = {"project": {"exec_location": "docker", "docker_image": "python:3.12"}} if docker \
+        else {}
+    client, cid, run_id = on_branch(keeping(make_client, models), repo, [
+        step(edit("two", "TWO-agent")), text("A done")], **project)
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    said = "\n".join(str(m.get("content")) for m in models[0].calls_of["Coder"][-1])
+    assert (GIT_ON_BRANCH.format(branch="koloni/fix") in said) is not docker
+    assert (NO_GIT in said) is docker
+
+
 def test_a_secret_is_found_in_a_file_that_is_not_utf8(repo, runtime):
     """Finding 6."""
     from app.agent import _secret_in
@@ -871,6 +979,73 @@ def test_in_a_worktree_git_beyond_the_agents_own_work_is_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command) == SHARED_GIT
+
+
+@pytest.mark.parametrize("command", [
+    # git's own variables cleared or unset: what KOLONİ gives git in a copy (`copies.git_env`: no
+    # hook, no repository above) would go - a commit would run the repository's hooks again
+    "unset GIT_CONFIG_PARAMETERS; git commit -m x", "unset -v GIT_CEILING_DIRECTORIES; git status",
+    "export -n GIT_CONFIG_PARAMETERS; git commit -m x", "declare +x GIT_DIR; git status",
+    "env -u GIT_CONFIG_PARAMETERS git commit -m x", "env -uGIT_CONFIG_PARAMETERS git status",
+    "env --unset=GIT_CONFIG_PARAMETERS git commit -m x", "env --unset GIT_WORK_TREE git status",
+    "env -i git commit -m x", "env - git commit -m x", "env --ignore-environment git status",
+    "env -v -i PATH=/usr/bin git commit -m x", "timeout 5 env -i git status",
+    "sh -c 'unset GIT_CONFIG_PARAMETERS; git commit -m x'", "env -i python x.py",
+    # ... or set (to nothing, or to something else)
+    "export GIT_CONFIG_PARAMETERS=''; git commit -m x", "GIT_CONFIG_PARAMETERS= git commit -m x",
+    "GIT_CEILING_DIRECTORIES=/ git status", "export GIT_WORK_TREE=../..; git status",
+    "$env:GIT_CONFIG_PARAMETERS = ''; git commit -m x", "${env:GIT_DIR} = 'x'; git status",
+    "Remove-Item env:GIT_CONFIG_PARAMETERS; git commit -m x",
+    r"Remove-Item Env:\GIT_CONFIG_PARAMETERS; git commit -m x",
+    "Remove-Item -Path 'Env:/GIT_DIR'; git status", r"Remove-Item Env:\*; git commit -m x",
+    "[Environment]::SetEnvironmentVariable('GIT_CONFIG_PARAMETERS', $null); git commit -m x",
+    "set GIT_CONFIG_PARAMETERS= && git commit -m x", 'set "GIT_CONFIG_PARAMETERS=" && git status',
+    'cmd /c "set GIT_DIR=x&& git status"',
+    # the review's (each ran the repository's hook end to end): a name not written out, env by
+    # its path, a wildcard of PowerShell's env: drive
+    "$n='GIT_CONFIG_PARAMETERS'; [Environment]::SetEnvironmentVariable($n,$null); git commit -qam x",
+    r"& 'C:\Program Files\Git\usr\bin\env.exe' -i PATH=x git commit -qam x",
+    "/usr/bin/env -i PATH=/usr/bin git commit -m x", r"\env -i git commit -m x",
+    'unset "${!GI@}"; git commit -m x', "Remove-Item Env:GIT*; git commit -m x",
+    'Remove-Item "Env:$v"; git commit -m x',
+])
+def test_a_command_that_clears_or_sets_gits_own_environment_is_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
+
+
+@pytest.mark.parametrize("command", [
+    "/usr/lib/git-core/git-push origin HEAD", "git-reset --hard", "git-branch -D main",
+    "git-update-ref refs/heads/main HEAD~1",
+    r"& 'C:\Program Files\Git\mingw64\libexec\git-core\git-push.exe' origin HEAD",
+])
+def test_one_of_gits_own_programs_by_its_name_is_git_and_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
+
+
+@pytest.mark.parametrize("command", [
+    "git commit -m x", "git status", "env git status", "env -C src git status", "npm test",
+    "env NODE_ENV=test npm test", "printenv PATH", "unset FOO; git status", "export X=1; git log",
+    "python scripts/git-stats.py", "cd /home/me/git-projects/x && git status",
+    "echo $env:PATH; git status", "Get-ChildItem env:",
+])
+def test_git_with_its_environment_left_alone_is_not_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == ""
+
+
+@pytest.mark.parametrize("word", ["unset ", "declare +x ", "export -n "])
+def test_a_long_line_of_unsets_is_judged_at_once(word):
+    """The review: `unset ` 8 000 times (48 KB) took 1.9 s, 192 KB 30 s - on the event loop."""
+    from app.commands import reaches_shared_git
+
+    began = time.monotonic()
+    reaches_shared_git(word * (200_000 // len(word)), "koloni/x")
+    assert time.monotonic() - began < scaled(2.0)
 
 
 def test_gits_own_files_are_found_in_any_case_and_lfs_too(repo, runtime):
@@ -1296,12 +1471,12 @@ def test_the_first_finished_branch_on_github_asks_which_way_and_a_pull_request_i
     assert project["finish_way"] == "pull_request"
 
 
-def pr_run(make_client, repo, meanwhile, **conversation):
+def pr_run(make_client, repo, meanwhile, wip=None, **conversation):
     """A Coder on `koloni/fix` in a project whose finished work goes as a pull request; the user
-    does `meanwhile` while it works."""
+    does `meanwhile` while it works (`wip`: as `on_branch`)."""
     held = Gate()
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), held.step(text("A done"))],
+        make_client, repo, [step(edit("two", "TWO-agent")), held.step(text("A done"))], wip=wip,
         project={"finish_way": "pull_request", "check_command": "python check.py TWO-agent"},
         **conversation)
     held.wait_partial()
@@ -1616,12 +1791,13 @@ def test_another_branch_of_the_same_name_since_is_not_opened_again(repo, runtime
     assert copy.branch == "koloni/x"
 
 
-def test_a_branch_whose_worktree_folder_was_deleted_by_hand_is_opened_again(
-    repo, runtime, tmp_path
-):
+def test_a_branch_whose_worktree_folder_was_deleted_by_hand_is_opened_again(repo, runtime):
     first = stopped_on(repo, runtime)
-    run(repo, "worktree", "add", str(tmp_path / "elsewhere"), "koloni/x")
-    shutil.rmtree(tmp_path / "elsewhere")  # (git's record of it stays)
+    # (In KOLONİ's copies folder: a record of one elsewhere is the user's, never removed for it -
+    # test_coordination.)
+    gone = copies.folders(runtime)[0] / "gone" / "tree"
+    run(repo, "worktree", "add", str(gone), "koloni/x")
+    shutil.rmtree(gone.parent)  # (git's record of it stays)
     copy = copies.make_branch(repo, runtime, "agent1", "koloni/x", start=first.start)
     assert (copy.root / "a.txt").read_text() == "one\nTWO\n" and len(worktrees(repo)) == 2
 

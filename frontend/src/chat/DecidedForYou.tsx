@@ -1,11 +1,12 @@
 import { useId, useState } from 'react'
 import { errorText } from '../api/client'
-import type { BacklogTask, Question } from '../api/types'
+import type { BacklogTask, Command, Question } from '../api/types'
+import { JUDGED_FROM } from '../commands/commandStatus'
 import { useAsk } from '../memory/useAsk'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { hearsNothing } from '../agents/agentStatus'
-import { decidedOf, decidedTasks } from './waiting'
+import { decidedOf, decidedTasks, judgedCommands } from './waiting'
 import { shownOption, shownQuestion } from '../agents/teamRun'
 
 /** A time as this machine's clock says it: "02:10". */
@@ -25,13 +26,15 @@ export function DecidedForYou({ state }: { state: ConvState }) {
   const items = decidedOf(state)
   const backlog = useApp(s => s.backlog)
   const tasks = decidedTasks(backlog, state.conversation.id)
+  const commands = judgedCommands(state)
+  const count = items.length + tasks.length + commands.length
   const working = sent && state.agents.some(a => a.id === sent.id && !OVER.has(a.status))
   const said = working && (
     <p role="status" className="muted decided-note">
       Sent to {sent.name} while it works
     </p>
   )
-  if (items.length === 0 && tasks.length === 0) return said || null
+  if (count === 0) return said || null
   // (By the time itself, not as the clock says it: a night goes past midnight.)
   const times = items.map(q => q.answered_at ?? '').sort()
   const [from, to] = [clock(times[0]), clock(times.at(-1) ?? null)]
@@ -43,7 +46,7 @@ export function DecidedForYou({ state }: { state: ConvState }) {
             "at Full auto" here by the chat's level if the heading is seen to mislead. */}
         Decided for you while you were away
         <span className="decided-count">
-          {items.length + tasks.length}
+          {count}
           {span && ` · ${span}`}
         </span>
       </h3>
@@ -52,6 +55,9 @@ export function DecidedForYou({ state }: { state: ConvState }) {
       ))}
       {tasks.map(task => (
         <DecidedTask key={task.id} task={task} />
+      ))}
+      {commands.map(command => (
+        <DecidedCommand key={command.id} command={command} state={state} />
       ))}
       {said}
     </section>
@@ -135,6 +141,35 @@ function DecidedTask({ task }: { task: BacklogTask }) {
             Change → {added ? 'Reject' : 'Add'}
           </button>
         )}
+      </div>
+      {error && (
+        <div role="alert" className="alert">
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** K-yargıç: a command Full auto's check of your words let run with no card, or did not run, and the line of yours it
+ *  rested on. OK only: it ran already, or its agent went its way (no "Run it" yet: you can tell it to). */
+function DecidedCommand({ command, state }: { command: Command; state: ConvState }) {
+  const { busy, error, ask } = useAsk()
+  const agent = state.agents.find(a => a.id === command.agent_id)
+  const name = agent?.name || agent?.role_name || 'An agent'
+  const { quote = '', source = '' } = command.judged ?? {}
+  return (
+    <div className="decided-item">
+      <div className="decided-q">
+        {command.status === 'refused' ? `KOLONİ did not run ${command.command} for ${name}` : `${name} ran ${command.command} without asking`}
+      </div>
+      <div className="decided-why">
+        Your rule: “{quote}” ({source && JUDGED_FROM[source]})
+      </div>
+      <div className="decided-btns">
+        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => useApp.getState().commandSeen(command.id))}>
+          OK
+        </button>
       </div>
       {error && (
         <div role="alert" className="alert">

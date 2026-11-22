@@ -204,3 +204,21 @@ def test_a_command_of_qoders_that_names_a_folder_to_run_in_is_asked_at_every_lev
     cid, _run_id = start(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert asked["status"] == "proposed" and asked["danger"] == CWD_NOT_KNOWN.format(cwd='".claude"')
+
+
+def test_a_qoder_orchestrators_go_away_line_sends_no_task_of_its_own_accord(
+        qoder_app, wait_run, project_dir):
+    # ☾ Away (re-check): whether Qoder's hook names its own sub-agents is not measured - its
+    # line names no task, and the user ticks them in the panel.
+    client, provider = qoder_app([
+        {"koloni": "add_task", "args": {"title": "mine"}},
+        {"koloni": "offer_away", "args": {}},
+        {"say": "It is on your To-do."}])
+    cid, run_id = start(client, project_dir, provider, "full_auto")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    pid = snap["conversation"]["project_id"]
+    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
+    assert (task["title"], task["status"]) == ("mine", "proposed")
+    (offered,) = client.get(f"/api/conversations/{cid}/away").json()
+    assert offered["status"] == "planned" and offered["jobs"] == []

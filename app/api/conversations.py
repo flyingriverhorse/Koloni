@@ -8,7 +8,7 @@ from sqlalchemy import bindparam, delete, literal_column, or_, select, text, upd
 from sqlalchemy.orm import Session
 
 from app import attachments, away, backlog, injection, project_map, project_notes, topics, triggers
-from app.agent import NEW_CONVERSATION, TERMINAL, folders_of, prune_commit_sides
+from app.agent import NEW_CONVERSATION, TERMINAL, announce, folders_of, prune_commit_sides
 from app.api.board import outcomes
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.api.projects import checked_folders
@@ -765,21 +765,40 @@ def new_turn(
 ) -> tuple[Run, Message]:
     """A turn the user's words start, with that message: running, or queued behind a turn
     of the conversation that is not over yet. Not committed."""
-    busy = session.scalar(
-        select(Run.id)
-        .where(Run.conversation_id == conversation_id, Run.status.not_in(TERMINAL))
-        .limit(1)
-    )
     run = Run(conversation_id=conversation_id, topic_id=topic_id, **fields)
-    if busy:
-        run.status = "queued"
-    else:
-        run.status, run.started_at = "running", now()
+    queue_or_start(session, run)
     session.add(run)
     session.flush()
     message = Message(conversation_id=conversation_id, run_id=run.id, role="user", content=content)
     session.add(message)
     return run, message
+
+
+def queue_or_start(session: Session, run: Run) -> None:
+    """A turn the user sends: running, or queued behind a turn of its conversation that is
+    not over yet (`new_turn`, `app.api.runs.send_again`)."""
+    busy = session.scalar(
+        select(Run.id)
+        .where(Run.conversation_id == run.conversation_id, Run.status.not_in(TERMINAL))
+        .limit(1)
+    )
+    if busy:
+        run.status = "queued"
+    else:
+        run.status, run.started_at = "running", now()
+
+
+def _back(request: Request, session: Session, project: Project | None) -> None:
+    """☾ Away: a message of the user's own (from the app's own page, not an agent's command)
+    ends the project's Away, its summary in the chat they went away from."""
+    if project is None or request.headers.get("origin") not in (
+            request.app.state.settings.allowed_origins):
+        return
+    if (said := away.back(session, project.id)) is not None:
+        request.app.state.bus.emit(said.conversation_id, None, "message.created",
+                                   message_out(said))
+        announce(request.app.state.session_factory, request.app.state.bus, project.id,
+                 "backlog.changed")
 
 
 def _users_own_message(request: Request, project: Project | None, conversation: Conversation,
@@ -852,6 +871,7 @@ async def post_message(
         )
     except topics.Refused as exc:
         raise HTTPException(422, str(exc)) from None
+    _back(request, session, project)  # (a message refused above ends nothing)
     run, message = new_turn(
         session, conversation_id, topic.id, content,
         spoken=body.spoken.model_dump(exclude_none=True) if body.spoken else None,
@@ -928,7 +948,8 @@ async def rerun_failed(
     last = session.scalars(
         select(Run).where(Run.conversation_id == conversation_id, or_(
             Run.status != "cancelled", Run.started_at.is_not(None)))
-        .order_by(literal_column("runs.rowid").desc()).limit(1)).first()
+        # (By when it was sent: a message sent again after a restart is the newest.)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc()).limit(1)).first()
     if last is None or last.status not in TERMINAL:
         raise HTTPException(409, "its last turn is not over")
     failed = [(agent, how) for agent, how, again in outcomes(session, [last.id]).get(

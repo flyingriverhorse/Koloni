@@ -38,13 +38,13 @@ def test_a_models_tier_stays_when_something_else_of_its_provider_is_saved(team):
     _local, fast = tiered(team, client)
     kept = client.patch(f"/api/providers/{fast}", json={"note": "Another note."}).json()
     assert kept["models"] == [{"name": "quick", "note": None, "tier": "fast", "agents": True, "enabled": None, "off_why": None,
-                               "inputs": None, "context": None},
+                               "inputs": None, "context": None, "routing": None},
                               {"name": "deep", "note": None, "tier": "balanced",
-                               "agents": True, "enabled": None, "off_why": None, "inputs": None, "context": None}]
+                               "agents": True, "enabled": None, "off_why": None, "inputs": None, "context": None, "routing": None}]
     # and a list sent without one takes it away again
     cleared = client.patch(f"/api/providers/{fast}", json={"models": [{"name": "quick"}]}).json()
     assert cleared["models"] == [{"name": "quick", "note": None, "tier": None, "agents": True, "enabled": None, "off_why": None,
-                                  "inputs": None, "context": None}]
+                                  "inputs": None, "context": None, "routing": None}]
 
 
 # --- a role's tier --------------------------------------------------------------------------
@@ -609,6 +609,26 @@ def test_stop_ends_a_turn_while_it_is_being_asked_how_hard_it_is(team, wait_run,
         assert (asked.input_tokens, asked.output_tokens) == (None, None)
     row = by_model(client)["Fast", "quick"]
     assert (row["input_tokens"], row["output_tokens"], row["unknown_agents"]) == (None, None, 1)
+
+
+def test_a_lead_moved_to_another_tier_keeps_no_reason_copilot_gave_for_its_model_before(
+    team, wait_run, project_dir, gate  # noqa: F811
+):
+    # (Review, 21 Nov: a Lead moved off a fusion pick kept fusion's reason for the model before.)
+    client, default, fast = team([text("the lead answers")], [gate.step(text("hard: many files"))])
+    tiered(team, client)
+    cid, run_id = begin(client, project_dir, lead_auto=True)
+    gate.wait_partial()
+    with client.app.state.session_factory() as session:
+        lead = session.scalar(select(Agent).where(Agent.run_id == run_id))
+        lead.model_from = "fusion"
+        lead.effort_note = "Its level. Copilot's fusion picked gpt-6-luna: “Easy.”"
+        session.commit()
+    gate.release()
+    snap = wait_run(client, cid, run_id)
+    lead = snap["agents"][0]
+    assert lead["chosen_why"] == "hard: many files" and lead["model_from"] is None
+    assert lead["effort_note"] == "Its level.", lead["effort_note"]
 
 
 def test_a_turn_stopped_while_it_stands_in_line_for_the_question_leaves_no_record_of_one(

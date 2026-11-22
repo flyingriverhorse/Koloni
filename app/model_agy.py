@@ -528,7 +528,7 @@ class AgyClient(CodexNativeClient):
         on_item: OnItem,
         withheld: tuple[str, ...] = (),
         linked: tuple[str, ...] = (),
-        ceiling: str | None = None,
+        git_env: Callable[[dict[str, str]], dict[str, str]] | None = None,
         also: tuple[str, ...] = (),
         effort: str | None = None,
         pass_env: str | None = None,
@@ -555,10 +555,12 @@ class AgyClient(CodexNativeClient):
         # against the real CLI); it starts in the project alone. Give them once one is.
         # Nor `denied`: its sandbox cannot write to the project (K-agy-bypass). Nor
         # `skills` as its own (nor `skills_told`): they are in its instructions.
-        # In a working copy, git there looks no higher than the copies' folder; the secret
-        # variables the user passes (`pass_env`) go in too.
-        env = {**self._inherited(pass_env), **(planted or {}),
-               **({"GIT_CEILING_DIRECTORIES": ceiling} if ceiling else {})}
+        # In a working copy, git there looks no higher than the copies' folder and runs no hook
+        # of the repository (`git_env`); the secret variables the user passes (`pass_env`) go in
+        # too.
+        env = {**self._inherited(pass_env), **(planted or {})}
+        if git_env:
+            env = {**env, **git_env(env)}
         # (An older agy, `cli_surface.checked`, is handed none: not even a Lead's pick_teams.)
         tools = tools if self.collaborates else []
         bridged = _Bridged(frozenset(tool["function"]["name"] for tool in tools or []))

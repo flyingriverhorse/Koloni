@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import type { RecordRow, Sign } from '../api/types'
 import { recordLine, recordSummary, rediscoveryLine } from './record'
-import { Quiet, SignChip, Since } from './signs'
+import { LiveFacts } from './LiveFacts'
+import { Quiet, SignChip } from './signs'
 
 const sign: Sign = {
   kind: 'same_failure',
@@ -62,11 +63,6 @@ test('quiet is the time measured since the last event: its last step while it mo
   expect(screen.queryByText(/ago|min/)).toBeNull()
 })
 
-test('an agent’s work time counts from its record’s start (R53 G6)', () => {
-  render(<Since at={new Date(Date.now() - 72_000).toISOString()} work />)
-  expect(screen.getByText('at work 1m 12s')).toBeInTheDocument()
-})
-
 test('the record says what is unknown as unknown, never as a zero', () => {
   const row: RecordRow = {
     role_name: 'Coder',
@@ -122,4 +118,22 @@ test('after an answer, focus goes to the row the sign was on', () => {
   )
   fireEvent.click(screen.getByRole('button', { name: 'Snooze 10 min', hidden: true }))
   expect(screen.getByTestId('row')).toHaveFocus()
+})
+
+test('the clock stops while the tab is hidden and reads the time again as it is shown', () => {
+  let hidden = false
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
+  // (Its own getter again, for the files after this one: they share the page.)
+  onTestFinished(() => void Reflect.deleteProperty(document, 'hidden'))
+  const { container } = render(<LiveFacts since="2026-10-14T11:59:50Z" wrote={null} kind={null} />)
+  expect(container).toHaveTextContent(/^· 10s$/)
+  expect(vi.getTimerCount()).toBe(1)
+  hidden = true
+  act(() => void document.dispatchEvent(new Event('visibilitychange')))
+  expect(vi.getTimerCount()).toBe(0)
+  vi.setSystemTime(new Date('2026-10-14T12:01:00Z'))
+  hidden = false
+  act(() => void document.dispatchEvent(new Event('visibilitychange')))
+  expect(vi.getTimerCount()).toBe(1)
+  expect(container).toHaveTextContent(/^· 1m 10s$/)
 })

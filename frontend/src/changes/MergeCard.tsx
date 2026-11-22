@@ -42,7 +42,7 @@ function FileRow({ file }: { file: MergeFile }) {
     <>
       {/* Asked about again: why it is not in the project yet. */}
       {file.note && (
-        <div className="muted cmd-approval-note">
+        <div className="muted cmd-approval-note merge-note">
           <span className="mono">{file.path}</span> — {file.note}
         </div>
       )}
@@ -254,7 +254,7 @@ function copyNote(merge: Merge, name: string, kept: boolean, branch: boolean) {
     <div className="muted cmd-approval-note">
       {kept ? (
         <>
-          Its working copy is kept in <span className="mono">{merge.kept_in}</span>. Discard deletes that folder.
+          Its working copy is kept in <span className="mono cmd-approval-path">{merge.kept_in}</span>. Discard deletes that folder.
         </>
       ) : (
         `${name} made these in a working copy of its own. Until you decide it holds these files: another agent that wants one waits.`
@@ -263,70 +263,45 @@ function copyNote(merge: Merge, name: string, kept: boolean, branch: boolean) {
   )
 }
 
-interface Props {
-  merge: Merge
-  /** The agent whose changes these are. */
-  name: string
-  /** It did not finish its work: what it had changed so far is what is asked about. */
-  unfinished?: boolean
-  /** A recipe's kept copy: how its teams that ended early ended, and what Take in takes in with it (G1.3, B-84). */
-  also?: string
-  /** Take in (with whose side is taken of each file that clashes, and what the card shows) or Discard. */
-  /** `said`: of a branch's card, keep the branch, and which way it goes (K-dal-takim D2) - only where there is one. */
-  onDecide: (decision: SpawnDecision, choices?: Choices, shown?: Shown, said?: BranchSaid) => Promise<void>
-  /** Run the project's check command on what the card would take. */
-  onCheck?: (choices: Choices) => Promise<void>
-  /** Commit the files that were taken, with this message. */
-  onCommit?: (message: string, hooks?: 'with' | 'without') => Promise<void>
-  /** K-devam-butce: the agent stopped at a step limit in a turn still open - Continue gives it this many more steps. */
-  onContinue?: { steps: number; run: () => Promise<void> }
-}
+type Branch = NonNullable<Merge['branch']>
 
-/**
- * One card for everything an agent changed in its working copy: the files, each with its
- * diff against the project as it is now; apart from them the ones the project changed too -
- * those that went together by themselves, and those of which you say whose side is taken.
- * Take in takes what the card shows; Discard throws the copy away. Once it is in the project,
- * the card goes on with the commit of those files, where that is offered.
- */
-export function MergeCard({ merge, name, unfinished = false, also = '', onDecide, onCheck, onCommit, onContinue }: Props) {
-  const [choices, setChoices] = useState<Picks>({})
-  // K-dal-takim D2: "Keep this branch after merging", and - where the card asks - which way finished work goes.
-  const [keep, setKeep] = useState(false)
-  const [way, setWay] = useState<'merge' | 'pull_request'>('merge')
-  // K-dallar: the branch its copy was made on, where the project is now on another (switched outside KOLONİ, or
-  // by an agent): what it takes in goes onto that other branch.
-  const madeOn = useApp(s => s.conv?.agents.find(a => a.id === merge.agent_id)?.copy?.branch ?? null)
-  const now = useApp(s => s.gitBranch)
-  const kept = isKept(merge)
-  if (merge.status !== 'pending' && !kept) {
-    return merge.commit ? <CommitStep merge={merge} name={name} onCommit={onCommit ?? (async () => {})} /> : null
-  }
-  const ready = merge.files.filter(f => f.state === 'ready')
-  const merged = merge.files.filter(f => f.state === 'merged')
-  const clashes = merge.files.filter(f => f.state === 'conflict' && !f.two_way)
+/** The card's files by how each stands, and how many are open: offered to take in. */
+function filesOf(files: MergeFile[]) {
+  const ready = files.filter(f => f.state === 'ready')
+  const merged = files.filter(f => f.state === 'merged')
+  const clashes = files.filter(f => f.state === 'conflict' && !f.two_way)
   // Of a kept copy that does not say what it started from: nothing is known but that they differ.
-  const differing = merge.files.filter(f => f.state === 'conflict' && f.two_way)
-  const applied = merge.files.filter(f => f.state === 'applied')
-  const refused = merge.files.filter(f => f.state === 'refused')
+  const differing = files.filter(f => f.state === 'conflict' && f.two_way)
+  const applied = files.filter(f => f.state === 'applied')
+  const refused = files.filter(f => f.state === 'refused')
   // Of such a copy too: files that differ and that nothing says the agent changed - your own later work, as likely.
   // B-189: a new file git ignores in the project (generated output) is not offered either, and says so in its note.
-  const ignored = merge.files.filter(f => f.state === 'left_out' && f.note === IGNORED_BY_GIT)
-  const leftOut = merge.files.filter(f => f.state === 'left_out').length - ignored.length
+  const ignored = files.filter(f => f.state === 'left_out' && f.note === IGNORED_BY_GIT)
+  const leftOut = files.filter(f => f.state === 'left_out').length - ignored.length
   const open = ready.length + merged.length + clashes.length + differing.length
-  // What you chose of a file that is no longer asked about, or not as it was then, says nothing.
+  return { ready, merged, clashes, differing, applied, refused, ignored, leftOut, open }
+}
+
+/** What you chose of a file that is no longer asked about, or not as it was then, says nothing. */
+function saidOf(clashes: MergeFile[], choices: Picks): Choices {
   const said: Choices = {}
   for (const file of clashes) {
     const side = pickOf(choices, file)
     if (side) said[file.path] = side
   }
-  const shown = Object.fromEntries([...ready, ...merged, ...clashes, ...differing].flatMap(f => (f.shown ? [[f.path, f.shown]] : [])))
-  const unsaid = clashes.length - Object.keys(said).length
-  const look = worthALook(merge.files)
-  // K-dal-takim: a line's work on a git branch of its own, merged whole - not while anything clashes or is in the way.
+  return said
+}
+
+/** K-dal-takim: a line's work on a git branch of its own, merged whole - not while anything clashes or is in the way. */
+function branchOf(merge: Merge, kept: boolean, way: 'merge' | 'pull_request') {
   const branch = kept ? null : (merge.branch ?? null)
   const inTheWay = branch ? branch.conflicts.length + branch.dirty.length + (branch.note ? 1 : 0) : 0
   const pr = !!branch && (branch.way === 'pull_request' || (!!branch.ask_way && way === 'pull_request'))
+  return { branch, inTheWay, pr }
+}
+
+/** The card's heading: what Take in, Merge or Open pull request would do, and of how many files. */
+function kickerOf(name: string, kept: boolean, branch: Branch | null, pr: boolean, { open, differing, applied }: ReturnType<typeof filesOf>) {
   // The copy was kept on disk: no agent is at work and no file is held. Why it was kept is not
   // on record - its turn broke off, or it holds files that were not taken - so the heading says
   // only what the files say: whether some of it is in the project.
@@ -334,133 +309,88 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
     applied.length > 0
       ? `Some of ${name}'s changes are in the project, the rest is kept in its copy`
       : `${name}'s changes did not reach the project`
-  const kicker = branch
+  return branch
     ? `${pr ? 'Open a pull request for' : 'Merge'} ${branch.name} into ${branch.into ?? "the project's branch"}? · ${files(open)}`
     : !kept
     ? `Take in ${name}'s work? · ${files(open)}`
     : open > 0
       ? `${before} — take in what ${differing.length > 0 ? 'its copy holds' : 'it had changed'}? · ${files(open)}`
       : `${before} — nothing ${applied.length > 0 ? 'more ' : ''}of it can be taken in from here`
+}
+
+/** What a branch's merge waits for: conflicts, your changes in the way, git's note, and who may resolve them. */
+function notMergedYet(branch: Branch, pr: boolean, name: string) {
   return (
-    <DecisionCard
-      kicker={kicker}
-      // (A branch's Merge and Open pull request are their own acts: what reaches git, not a copy taken in.)
-      approve={kept && open === 0 ? undefined : branch ? (pr ? 'Open pull request' : 'Merge') : 'Take in'}
-      approveOff={unsaid > 0}
-      off={merge.check?.state === 'running'}
-      reject="Discard"
-      onDecide={decision =>
-        decision !== 'approve'
-          ? onDecide(decision)
-          : branch && (keep || branch.ask_way)
-            ? onDecide(decision, said, shown, { keep_branch: keep, ...(branch.ask_way && { way }) })
-            : onDecide(decision, said, shown)
-      }
-      also={
-        kept && onContinue
-          ? { label: `Continue (+${onContinue.steps} steps)`, run: onContinue.run }
-          : branch?.resolve
-            ? { label: 'Let an agent resolve the conflicts', run: () => useApp.getState().resolveMerge(merge.id) }
-            : undefined
-      }
-    >
-      {unfinished && (
-        <div className="muted cmd-approval-note">{name} did not finish its work: this is what it had changed.</div>
-      )}
-      {madeOn && now && madeOn !== now && (
-        <div className="muted cmd-approval-note" role="note">
-          made on <span className="mono">{madeOn}</span>, the project is now on <span className="mono">{now}</span>
+    <div className="muted cmd-approval-note merge-note" role="note" aria-label="Not merged yet">
+      {branch.conflicts.length > 0 && (
+        <div>
+          Changed on both sides, and git does not put them together:{' '}
+          <span className="mono">{branch.conflicts.join(', ')}</span>
         </div>
       )}
-      {also && <div className="muted cmd-approval-note">{also}</div>}
-      {branch && inTheWay > 0 && (
-        <div className="muted cmd-approval-note" role="note" aria-label="Not merged yet">
-          {branch.conflicts.length > 0 && (
-            <div>
-              Changed on both sides, and git does not put them together:{' '}
-              <span className="mono">{branch.conflicts.join(', ')}</span>
-            </div>
-          )}
-          {branch.dirty.length > 0 && (
-            <div>
-              Your uncommitted changes are in the way (commit, stash or unstage them first):{' '}
-              <span className="mono">{branch.dirty.join(', ')}</span>
-            </div>
-          )}
-          {branch.note && <div>{branch.note}</div>}
-          {!pr && branch.conflicts.length + branch.dirty.length > 0 && (
-            <div>Merge looks again first: nothing is merged while any of this stands.</div>
-          )}
-          {branch.resolve && (
-            <div>
-              Let an agent resolve the conflicts: KOLONİ merges {branch.into ?? 'your branch'} into {branch.name} in the branch's own folder -
-              your branch is not touched - and {name} puts the files together there; you see the result here first.
-            </div>
-          )}
+      {branch.dirty.length > 0 && (
+        <div>
+          Your uncommitted changes are in the way (commit, stash or unstage them first):{' '}
+          <span className="mono">{branch.dirty.join(', ')}</span>
         </div>
       )}
-      {look.length > 0 && (
-        <div className="muted cmd-approval-note" role="note" aria-label="Worth a look">
-          <span className="tag tag-warn">Worth a look</span>{' '}
-          {look.map(({ why, paths }, i) => (
-            <span key={why}>
-              {i > 0 && ' · '}
-              {why}: <span className="mono">{few(paths)}</span>
-            </span>
-          ))}
+      {branch.taken_in && <div>{branch.taken_in}</div>}
+      {branch.note && <div>{branch.note}</div>}
+      {!pr && branch.conflicts.length + branch.dirty.length > 0 && (
+        <div>Merge looks again first: nothing is merged while any of this stands.</div>
+      )}
+      {branch.resolve && (
+        <div>
+          Let an agent resolve the conflicts: KOLONİ merges {branch.into ?? 'your branch'} into {branch.name} in the branch's own folder -
+          your branch is not touched - and {name} puts the files together there; you see the result here first.
         </div>
       )}
-      {ready.length > 0 && (
-        <div className="merge-files" role="group" aria-label="Files to take in">
-          {ready.map(file => (
-            <FileRow key={file.path} file={file} />
-          ))}
-        </div>
-      )}
-      {merged.length > 0 && (
-        <div className="merge-files" role="group" aria-label="Merged with the project's changes">
-          <div className="kicker">Merged with the project's changes</div>
-          {merged.map(file => (
-            <FileRow key={file.path} file={file} />
-          ))}
-          <div className="muted cmd-approval-note">
-            The project changed these too. {name}'s changes and the project's are put together line by line: each diff
-            shows what that does to the project's file as it is now.
-            {merged.some(f => f.chose) &&
-              ` Where the same lines had changed on both sides, they are as you chose: ${merged
-                .filter(f => f.chose)
-                .map(f => `${f.path} — ${f.chose === 'agent' ? `${name}'s` : "the project's"}`)
-                .join(', ')}.`}
-          </div>
-        </div>
-      )}
-      {clashes.length > 0 && (
-        <div className="merge-files" role="group" aria-label="Changed on both sides">
-          <div className="kicker">Changed on both sides</div>
-          {clashes.map(file => (
-            <Clash key={file.path} file={file} name={name} choice={pickOf(choices, file)} onChoose={side => setChoices(c => pick(c, file, side))} />
-          ))}
-          <div className="muted cmd-approval-note">
-            {unsaid > 0
-              ? `Say whose side is taken of ${unsaid === 1 ? 'this file' : `each of these, ${unsaid} still`}: until then nothing is taken in${merge.check && !kept ? ', and the test does not run' : ''}.`
-              : 'Take in takes what you chose.'}{' '}
-            Nothing is chosen for you; which side is newer is only said.
-          </div>
-        </div>
-      )}
-      {differing.length > 0 && (
-        <div className="merge-files" role="group" aria-label="Differs from the project">
-          <div className="kicker">Differs from the project</div>
-          {differing.map(file => (
-            <FileRow key={file.path} file={file} />
-          ))}
-          <div className="muted cmd-approval-note">
-            What {name}'s copy started from is not known, so these are shown against the project as it is now: each
-            differs, and whether the copy or the project changed it cannot be told. Take in puts the copy's file in the
-            project, over the project's where it has one; it deletes nothing. Discard keeps the project's.
-          </div>
-        </div>
-      )}
+    </div>
+  )
+}
+
+/** The files that went together with the project's changes, and whose side each clash it had is on. */
+function mergedFiles(merged: MergeFile[], name: string) {
+  return (
+    <div className="merge-files" role="group" aria-label="Merged with the project's changes">
+      <div className="kicker">Merged with the project's changes</div>
+      {merged.map(file => (
+        <FileRow key={file.path} file={file} />
+      ))}
+      <div className="muted cmd-approval-note">
+        The project changed these too. {name}'s changes and the project's are put together line by line: each diff
+        shows what that does to the project's file as it is now.
+        {merged.some(f => f.chose) &&
+          ` Where the same lines had changed on both sides, they are as you chose: ${merged
+            .filter(f => f.chose)
+            .map(f => `${f.path} — ${f.chose === 'agent' ? `${name}'s` : "the project's"}`)
+            .join(', ')}.`}
+      </div>
+    </div>
+  )
+}
+
+/** Of a kept copy that does not say what it started from: the files that differ from the project. */
+function differingFiles(differing: MergeFile[], name: string) {
+  return (
+    <div className="merge-files" role="group" aria-label="Differs from the project">
+      <div className="kicker">Differs from the project</div>
+      {differing.map(file => (
+        <FileRow key={file.path} file={file} />
+      ))}
+      <div className="muted cmd-approval-note">
+        What {name}'s copy started from is not known, so these are shown against the project as it is now: each
+        differs, and whether the copy or the project changed it cannot be told. Take in puts the copy's file in the
+        project, over the project's where it has one; it deletes nothing. Discard keeps the project's.
+      </div>
+    </div>
+  )
+}
+
+/** The files not offered - left out, ignored by git, already in the project, or refused - each said in a line. */
+function notOffered({ leftOut, ignored, applied, refused }: ReturnType<typeof filesOf>) {
+  return (
+    <>
       {leftOut > 0 && (
         <div className="muted cmd-approval-note">
           {leftOut === 1
@@ -485,50 +415,217 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
           {file.note && ` — ${file.note}`}
         </div>
       ))}
+    </>
+  )
+}
+
+/** Where a branch's card asks: how finished work reaches your branch, merged here or as a pull request. */
+function wayField(branch: Branch, mergeId: string, way: 'merge' | 'pull_request', setWay: (way: 'merge' | 'pull_request') => void) {
+  return (
+    <fieldset className="merge-way" aria-label="How finished work reaches your branch">
+      <legend className="kicker">How finished work reaches {branch.into ?? 'your branch'}</legend>
+      <label>
+        <input type="radio" name={`way-${mergeId}`} checked={way === 'merge'} onChange={() => setWay('merge')} /> Merge here
+      </label>{' '}
+      <label title={branch.pr_off ?? undefined}>
+        <input type="radio" name={`way-${mergeId}`} checked={way === 'pull_request'} disabled={!!branch.pr_off} onChange={() => setWay('pull_request')} /> Open a
+        pull request on GitHub
+        {branch.pr_off && <span className="muted"> — not now: {branch.pr_off}</span>}
+      </label>
+      <div className="muted cmd-approval-note">
+        Kept for this project; Settings › This project › Checks and git can change it. A pull request lets KOLONİ push this project's finished
+        branches to GitHub - it never merges one.
+      </div>
+    </fieldset>
+  )
+}
+
+/** Where a branch's work was made, and what Merge or Open pull request does with it. */
+function branchNote(branch: Branch, pr: boolean, name: string) {
+  return (
+    <div className="muted cmd-approval-note">
+      {name} made these on branch <span className="mono">{branch.name}</span>, in a worktree of its own, where KOLONİ
+      committed them.{' '}
+      {pr ? (
+        <>
+          Open pull request pushes what the branch holds now to GitHub as one commit by KOLONİ - not the agents' own
+          steps - and opens a pull request into <span className="mono">{branch.into ?? 'your branch'}</span>; nothing is
+          merged here, and KOLONİ never merges it. Discard deletes the branch.
+        </>
+      ) : (
+        <>
+          Merge brings what the branch holds now into <span className="mono">{branch.into ?? 'your branch'}</span> as one
+          commit by KOLONİ - not the agents' own steps - then deletes the branch, unless you keep it; Discard deletes it.
+        </>
+      )}
+    </div>
+  )
+}
+
+interface Props {
+  merge: Merge
+  /** The agent whose changes these are. */
+  name: string
+  /** It did not finish its work: what it had changed so far is what is asked about. */
+  unfinished?: boolean
+  /** A recipe's kept copy: how its teams that ended early ended, and what Take in takes in with it (G1.3, B-84). */
+  also?: string
+  /** Take in (with whose side is taken of each file that clashes, and what the card shows) or Discard. */
+  /** `said`: of a branch's card, keep the branch, and which way it goes (K-dal-takim D2) - only where there is one. */
+  onDecide: (decision: SpawnDecision, choices?: Choices, shown?: Shown, said?: BranchSaid) => Promise<void>
+  /** Run the project's check command on what the card would take. */
+  onCheck?: (choices: Choices) => Promise<void>
+  /** Commit the files that were taken, with this message. */
+  onCommit?: (message: string, hooks?: 'with' | 'without') => Promise<void>
+  /** K-devam-butce: the agent stopped at a step limit in a turn still open - Continue gives it this many more steps. */
+  onContinue?: { steps: number; run: () => Promise<void> }
+}
+
+/** The card's own button: none on a kept copy with nothing left to take, Merge or Open pull request on a branch, else Take in. */
+const approveOf = (kept: boolean, open: number, branch: Branch | null, pr: boolean) =>
+  kept && open === 0 ? undefined : branch ? (pr ? 'Open pull request' : 'Merge') : 'Take in'
+
+/** Beside it: Continue an agent stopped at a step limit, or let an agent resolve a branch's conflicts. */
+const alsoOf = (merge: Merge, kept: boolean, branch: Branch | null, onContinue: Props['onContinue']) =>
+  kept && onContinue
+    ? { label: `Continue (+${onContinue.steps} steps)`, run: onContinue.run }
+    : branch?.resolve
+      ? { label: 'Let an agent resolve the conflicts', run: () => useApp.getState().resolveMerge(merge.id) }
+      : undefined
+
+/**
+ * One card for everything an agent changed in its working copy: the files, each with its
+ * diff against the project as it is now; apart from them the ones the project changed too -
+ * those that went together by themselves, and those of which you say whose side is taken.
+ * Take in takes what the card shows; Discard throws the copy away. Once it is in the project,
+ * the card goes on with the commit of those files, where that is offered.
+ */
+export function MergeCard({ merge, name, unfinished = false, also = '', onDecide, onCheck, onCommit, onContinue }: Props) {
+  const [choices, setChoices] = useState<Picks>({})
+  // K-dal-takim D2: "Keep this branch after merging", and - where the card asks - which way finished work goes.
+  const [keep, setKeep] = useState(false)
+  const [way, setWay] = useState<'merge' | 'pull_request'>('merge')
+  // K-dallar: the branch its copy was made on, where the project is now on another (switched outside KOLONİ, or
+  // by an agent): what it takes in goes onto that other branch.
+  const madeOn = useApp(s => s.conv?.agents.find(a => a.id === merge.agent_id)?.copy?.branch ?? null)
+  const now = useApp(s => s.gitBranch)
+  const kept = isKept(merge)
+  if (merge.status !== 'pending' && !kept) {
+    return merge.commit ? <CommitStep merge={merge} name={name} onCommit={onCommit ?? (async () => {})} /> : null
+  }
+  const got = filesOf(merge.files)
+  const { ready, merged, clashes, differing, open } = got
+  const said = saidOf(clashes, choices)
+  const shown = Object.fromEntries([...ready, ...merged, ...clashes, ...differing].flatMap(f => (f.shown ? [[f.path, f.shown]] : [])))
+  const unsaid = clashes.length - Object.keys(said).length
+  const look = worthALook(merge.files)
+  const { branch, inTheWay, pr } = branchOf(merge, kept, way)
+
+  /** Over the files: that it did not finish, the branch it was made on, what else Take in takes, what a merge waits for, what is worth a look. */
+  const heads = () => (
+    <>
+      {unfinished && (
+        <div className="muted cmd-approval-note">{name} did not finish its work: this is what it had changed.</div>
+      )}
+      {madeOn && now && madeOn !== now && (
+        <div className="muted cmd-approval-note" role="note">
+          made on <span className="mono">{madeOn}</span>, the project is now on <span className="mono">{now}</span>
+        </div>
+      )}
+      {also && <div className="muted cmd-approval-note">{also}</div>}
+      {branch?.started && (
+        <div className="muted cmd-approval-note merge-note" role="note" aria-label="Where it started">
+          {branch.started}
+        </div>
+      )}
+      {branch?.not_taken && (
+        <div className="muted cmd-approval-note merge-note" role="note" aria-label="Not in its branch">
+          {branch.not_taken}
+        </div>
+      )}
+      {branch && inTheWay > 0 && notMergedYet(branch, pr, name)}
+      {look.length > 0 && (
+        <div className="muted cmd-approval-note merge-note" role="note" aria-label="Worth a look">
+          <span className="tag tag-warn">Worth a look</span>{' '}
+          {look.map(({ why, paths }, i) => (
+            <span key={why}>
+              {i > 0 && ' · '}
+              {why}: <span className="mono">{few(paths)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  )
+
+  /** The files both sides changed, whose side of each you say: nothing is taken in until you have. */
+  const clashFiles = () => (
+    <div className="merge-files" role="group" aria-label="Changed on both sides">
+      <div className="kicker">Changed on both sides</div>
+      {clashes.map(file => (
+        <Clash key={file.path} file={file} name={name} choice={pickOf(choices, file)} onChoose={side => setChoices(c => pick(c, file, side))} />
+      ))}
+      <div className="muted cmd-approval-note">
+        {unsaid > 0
+          ? `Say whose side is taken of ${unsaid === 1 ? 'this file' : `each of these, ${unsaid} still`}: until then nothing is taken in${merge.check && !kept ? ', and the test does not run' : ''}.`
+          : 'Take in takes what you chose.'}{' '}
+        Nothing is chosen for you; which side is newer is only said.
+      </div>
+    </div>
+  )
+
+  /** The files offered: to take in, merged with the project's changes, changed on both sides, and differing from the project. */
+  const groups = () => (
+    <>
+      {ready.length > 0 && (
+        <div className="merge-files" role="group" aria-label="Files to take in">
+          {ready.map(file => (
+            <FileRow key={file.path} file={file} />
+          ))}
+        </div>
+      )}
+      {merged.length > 0 && mergedFiles(merged, name)}
+      {clashes.length > 0 && clashFiles()}
+      {differing.length > 0 && differingFiles(differing, name)}
+    </>
+  )
+
+  /** A branch's way (where the card asks), Keep this branch, and where its work was made. */
+  const branchParts = (branch: Branch) => (
+    <>
+      {branch.ask_way && wayField(branch, merge.id, way, setWay)}
+      <label className="muted cmd-approval-note">
+        <input type="checkbox" checked={keep} onChange={event => setKeep(event.target.checked)} /> Keep this branch after{' '}
+        {pr ? 'the pull request' : 'merging'}
+      </label>
+      {branchNote(branch, pr, name)}
+    </>
+  )
+
+  return (
+    <DecisionCard
+      kicker={kickerOf(name, kept, branch, pr, got)}
+      // (A branch's Merge and Open pull request are their own acts: what reaches git, not a copy taken in.)
+      approve={approveOf(kept, open, branch, pr)}
+      approveOff={unsaid > 0}
+      off={merge.check?.state === 'running'}
+      reject="Discard"
+      onDecide={decision =>
+        decision !== 'approve'
+          ? onDecide(decision)
+          : branch && (keep || branch.ask_way)
+            ? onDecide(decision, said, shown, { keep_branch: keep, ...(branch.ask_way && { way }) })
+            : onDecide(decision, said, shown)
+      }
+      also={alsoOf(merge, kept, branch, onContinue)}
+    >
+      {heads()}
+      {groups()}
+      {notOffered(got)}
       {open > 0 && (
         <Check merge={merge} onBranch={!!branch} onRun={!kept && onCheck ? { off: unsaid > 0, run: () => onCheck(said) } : undefined} />
       )}
-      {branch?.ask_way && (
-        <fieldset className="merge-way" aria-label="How finished work reaches your branch">
-          <legend className="kicker">How finished work reaches {branch.into ?? 'your branch'}</legend>
-          <label>
-            <input type="radio" name={`way-${merge.id}`} checked={way === 'merge'} onChange={() => setWay('merge')} /> Merge here
-          </label>{' '}
-          <label title={branch.pr_off ?? undefined}>
-            <input type="radio" name={`way-${merge.id}`} checked={way === 'pull_request'} disabled={!!branch.pr_off} onChange={() => setWay('pull_request')} /> Open a
-            pull request on GitHub
-            {branch.pr_off && <span className="muted"> — not now: {branch.pr_off}</span>}
-          </label>
-          <div className="muted cmd-approval-note">
-            Kept for this project; Settings › This project › Checks and git can change it. A pull request lets KOLONİ push this project's finished
-            branches to GitHub - it never merges one.
-          </div>
-        </fieldset>
-      )}
-      {branch && (
-        <label className="muted cmd-approval-note">
-          <input type="checkbox" checked={keep} onChange={event => setKeep(event.target.checked)} /> Keep this branch after{' '}
-          {pr ? 'the pull request' : 'merging'}
-        </label>
-      )}
-      {branch && (
-        <div className="muted cmd-approval-note">
-          {name} made these on branch <span className="mono">{branch.name}</span>, in a worktree of its own, where KOLONİ
-          committed them.{' '}
-          {pr ? (
-            <>
-              Open pull request pushes what the branch holds now to GitHub as one commit by KOLONİ - not the agents' own
-              steps - and opens a pull request into <span className="mono">{branch.into ?? 'your branch'}</span>; nothing is
-              merged here, and KOLONİ never merges it. Discard deletes the branch.
-            </>
-          ) : (
-            <>
-              Merge brings what the branch holds now into <span className="mono">{branch.into ?? 'your branch'}</span> as one
-              commit by KOLONİ - not the agents' own steps - then deletes the branch, unless you keep it; Discard deletes it.
-            </>
-          )}
-        </div>
-      )}
+      {branch && branchParts(branch)}
       {copyNote(merge, name, kept, !!branch)}
     </DecisionCard>
   )

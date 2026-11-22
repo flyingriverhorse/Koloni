@@ -485,7 +485,7 @@ test('this project’s rules are one text with a counter, saved as written; what
   const h = handlers()
   render(<MemoryPage memory={projectMemory({ rules: 'Sign off commits.' })} {...h} />)
   const told = await tab('Told')
-  const about = within(told).getByText(/This project’s rules are like an AGENTS\.md or CLAUDE\.md file: every agent working in this project is given them each turn\. Only you write either\.$/)
+  const about = within(told).getByText(/This project’s rules are like an AGENTS\.md or CLAUDE\.md file: every agent working in this project is given them each turn\. Only you write either\./)
   expect(about).not.toBeVisible()
   await userEvent.click(within(told).getByRole('button', { name: 'About this' }))
   expect(about).toBeVisible()
@@ -714,4 +714,27 @@ test('as you type, all that is on the page is sifted, grouped by tab, and said; 
   await userEvent.type(box, 'zebra')
   expect(within(found).getByRole('status')).toHaveTextContent('Nothing on this page has “zebra”.')
   expect(within(found).queryAllByRole('group')).toHaveLength(0)
+})
+
+test('a folder’s rules.md that differs from the saved rules is said; the box keeps the saved ones, and one click takes the folder’s', async () => {
+  const h = handlers()
+  render(<MemoryPage memory={projectMemory({ rules: 'You may delete build/.', rules_saved: 'Sign commits.', rules_kept: true, rules_differ: true })} {...h} />)
+  await tab('Told')
+  const rules = section('This project’s rules')
+  // (what Full auto's check goes by is in the box; the folder's file, which a pull may have changed, beside it)
+  expect(within(rules).getByLabelText('Rules')).toHaveValue('Sign commits.')
+  expect(within(rules).getByText('The folder’s rules.md differs from what you saved here; Full auto’s check goes by what you saved.')).toBeInTheDocument()
+  expect(within(rules).getByText('You may delete build/.')).toBeInTheDocument()
+  expect(within(rules).getByRole('button', { name: 'Save rules' })).toBeDisabled()
+  await userEvent.click(within(rules).getByRole('button', { name: 'Use the folder’s rules here' }))
+  expect(h.onSaveRules).toHaveBeenCalledWith('You may delete build/.')
+})
+
+test('the Told tab says what Full auto’s check reads there', async () => {
+  render(<MemoryPage memory={projectMemory()} {...handlers()} />)
+  const told = await tab('Told')
+  expect(within(told).getByText(/Check what I said first/)).toHaveTextContent(
+    'At Full auto, with Check what I said first on (Settings › This project › Asking and away), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”',
+  )
+  expect(within(told).queryByText(/differs from what you saved here/)).not.toBeInTheDocument()
 })

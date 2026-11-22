@@ -143,6 +143,8 @@ def command_out(command: Command, live_output: str | None = None, held: bool = F
         or (SEARCHES_FOLDER if held and command.status == "proposed" else ""),
         "keep_running": command.keep_running,
         "preview_url": command.preview_url,
+        "judged": command.judged,
+        "disposable": command.disposable,
         "created_at": command.created_at,
         "started_at": command.started_at,
         "ended_at": command.ended_at,

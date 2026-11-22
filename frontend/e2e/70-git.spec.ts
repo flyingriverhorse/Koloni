@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
-import { contrasts, LINK, OWN } from './helpers'
+import { contrasts, level, LINK, OWN } from './helpers'
 import { APP_PORT } from './paths.mjs'
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -71,7 +71,7 @@ test('the project’s git in the top bar, its map, a copy’s way back to main, 
   const status = page.getByRole('button', { name: '⑂ main · 1 changed' })
   await expect(status).toBeVisible(READ)
 
-  await page.getByLabel('Permission level').selectOption('ask')
+  await level(page, 'ask')
   await page.getByLabel('Message').fill('two coders in their own copies, in git')
   await page.getByRole('button', { name: 'Send' }).click()
   const chat = page.getByRole('region', { name: 'Chat' })

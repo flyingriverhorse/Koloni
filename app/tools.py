@@ -425,55 +425,27 @@ def pick_schema(teams, recipes) -> dict:
     )
 
 
-def away_schema(teams, recipes) -> dict:
-    """plan_away (slice 106): the Lead's "While you're away" card, the teams and recipes a
-    job may name listed."""
+def offer_schema() -> dict:
+    """offer_away (☾ Away): the Orchestrator's one line under its answer offering the user to go
+    away - the work already on To-do (add_task). Nothing starts before their Go away."""
     return _fn(
-        "plan_away",
+        "offer_away",
         "When the user says they are going away - to sleep, out, for the night, in any "
-        "language - and lists work for meanwhile, call this first and do none of that work "
-        "yourself: no edit, no command, no agent for it. Put it before them as a short list of "
-        "jobs on a card. Each job "
-        "is worked on later in a chat and a copy of the project of its own, one after another, "
-        "and kept for the user to take in. This starts nothing: only the user's Start on the "
-        "card does, once they have changed the list if they want. Put what the user said not "
-        "to touch in kept_out. A newer card takes the place of one not started yet.",
+        "language - and gives work for meanwhile: put each piece of the work on the To-do list "
+        "with add_task first, do none of it, then call this: one line under your answer offers "
+        "to go away. Nothing starts before their Go away. Put what the user said not to touch "
+        "in kept_out.",
         {
-            "jobs": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "title": {"type": "string", "description": "The job in one plain line; "
-                                  "at most 200 characters."},
-                        "line": {"type": "string", "description": "Optional: in one short "
-                                 "plain line, what makes it done."},
-                        "team": {"type": "string", **({"enum": list(teams)} if teams else {}),
-                                 "description": "Optional: the team that does it."},
-                        "recipe": {"type": "string", **({"enum": list(recipes)} if recipes
-                                                        else {}),
-                                   "description": "Optional: the recipe it works by; left out, "
-                                   "the team's own."},
-                        "task_id": {"type": "string", "description": "Optional: where the job "
-                                    "is a task to do on the project's To-do list already, its id "
-                                    "as read_backlog gives it - that task is worked on, not a "
-                                    "copy; left out, the job is added to the list as a new task."},
-                    },
-                    "required": ["title"],
-                },
-                "description": "1 to 10 jobs, in the order they are to be done.",
-            },
             "kept_out": {"type": "array", "items": {"type": "string"},
                          "description": "Optional: files or folders of the project the user said "
                          "not to touch, relative to the project folder."},
             "until": {"type": "string", "description": "Optional: the time of day to stop by, "
-                      "HH:MM, if the user said one; left out, no time limit: the jobs run "
-                      "until done, or until a spend limit (money), if the user gave one."},
-            "money": {"type": "number", "description": "Optional: the most the jobs may spend, "
+                      "HH:MM, if the user said one; left out, no time limit."},
+            "money": {"type": "number", "description": "Optional: the most the work may spend, "
                       "if the user said; left out, no spend limit (what is left of the month's "
                       "budget, if one is set, still holds)."},
         },
-        ["jobs"],
+        [],
     )
 
 
@@ -519,6 +491,15 @@ def tier_rule(role) -> str:
     return "" if len(allowed) == len(TIERS) else f" ({allowed[0]} to {allowed[-1]})"
 
 
+# K-koordinasyon: sub-agents opened together work beside each other, each in a copy of its own.
+OPENED_TOGETHER = (
+    "Sub-agents you open together work at the same time, each in its own copy. Give each its own "
+    "files or folders and name them in its task (\"works in app/api/, leaves web/ alone\"). A "
+    "file two must change - a lockfile, a shared config - goes to one of them, or you change it "
+    "after both are back."
+)
+
+
 def spawn_schema(roles, team=()) -> dict:
     """The spawn_agent tool, listing the roles that exist right now - and, when the user
     lets agents choose any, the providers of the team guide (app.team.guide)."""
@@ -528,7 +509,7 @@ def spawn_schema(roles, team=()) -> dict:
     description = (
         "Hand a separate part of the work to a sub-agent in one of the roles below and get "
         "its report back. The sub-agent starts with a clean context: it sees only the task "
-        "you write, not this conversation. You wait while it works.\n"
+        f"you write, not this conversation. You wait while it works. {OPENED_TOGETHER}\n"
         f"Available roles:\n{listed}"
     )
     properties = {
@@ -1173,7 +1154,9 @@ ON_BRANCH_PROPERTY = {
     "as it is now. Its work is committed there and merged into the project's branch when done "
     "(by itself at Full auto where the tests pass, else on the user's card). Give it for a big "
     "job, or one of several teams working at once, and always when the user asks for a branch; "
-    "leave it out for a small job. Left out: it works in a copy, as usual.",
+    "leave it out for a small job. Left out: it works in a copy, as usual. Branches named "
+    "koloni/… and the worktrees in KOLONİ's copies folder belong to agents at work or to work "
+    "waiting for the user: never delete, rename or switch to them; KOLONİ removes them.",
 }
 
 

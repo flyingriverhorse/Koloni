@@ -11,12 +11,13 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app import copies, mcp_client
+from app import copies, disposable, mcp_client
 from app.agent.cards import _glob_could_take, _shared
 from app.agent.ctx import Ctx, _NobodyToAsk, _Transcript, _Watch
 from app.agent.merge import _planned_edit
 from app.agent.words import (
     ANSWER_PREFIX,
+    ASKED_AGAIN,
     CANARY_REFUSED,
     CANARY_STOPPED,
     CHANGE_REJECTED,
@@ -25,9 +26,9 @@ from app.agent.words import (
     NOT_IN_THE_PART,
     SHARED_WITH_PROJECT,
 )
-from app.command_runner import CARRY_ON, rejected
-from app.commands import copy_reason, reads_here, search_reason, sends_canary, web_off_reason
-from app.db.models import Conversation, FileChange, now
+from app.command_runner import CARRY_ON, refused_by_rule, rejected
+from app.commands import reads_here, search_reason, sends_canary, web_off_reason
+from app.db.models import Command, Conversation, FileChange, now
 from app.model_native import (
     CLAUDE_KNOWN,
     CLAUDE_READS,
@@ -37,7 +38,7 @@ from app.model_native import (
     INSIDE,
 )
 from app.model_session import PREFIX
-from app.serialize import file_change_out
+from app.serialize import command_event, file_change_out
 from app.team import quoted, reads_only
 from app.tools import WRITE_TOOLS, ToolError
 from app.workspace import (
@@ -147,8 +148,9 @@ class ApprovalsMixin:
             return False
         searched = await asyncio.to_thread(search_reason, command, root, str(folder))
         return not (web_off_reason(command, self._off()) or searched or copy is not None and (
-            copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root))
+            self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where))
             or self._branch_asks(ctx, command, copy is not None)
+            or self._shared_install(ctx, command, copy is not None and bool(copy.links))
             or self._night_asks(ctx, command, where))
 
     async def _approve(  # noqa: C901
@@ -371,12 +373,32 @@ class ApprovalsMixin:
         # script makes there after the ask is followed - `scratch_delete_only`.)
         scratch_of = str(root) if at in ("", ".") and copy is None and not claimed and (
             not new_shell) else None
-        reason = web_off or reason or searched or (
-            copy_reason(command, bool(copy.links), ctx.folder, self.settings.runtime_root)
-            if copy is not None else "") or self._branch_asks(
-            ctx, command, copy is not None) or self._night_asks(
-            ctx, command, at, scratch_of) or (
-            self._night_asks(ctx, command, None) if claimed else "")
+        # One that names a folder to read in only by its full path is asked about, as
+        # KOLONİ's own commands are.
+        always = self._read_named(ctx, command) is not None or where is None
+        # Coordination §4: as KOLONİ's own command's - only where its folder is known, and not
+        # by its model's word; never GitHub Copilot CLI's, which may report a folder for a shell
+        # it keeps, with no sandbox: a link a script makes after this look is followed (as a
+        # delete in the scratch from its new shell is not let go: `scratch_of`).
+        cli = getattr(ctx.model, "command", "")
+        found = await self._disposable(
+            ctx, command, root, None if claimed or cli == "copilot" else (
+                where if isinstance(cwd, str) and cwd else unnamed), copy is not None,
+            disposable.cli_shell(cli, tool))
+        free = bool(found and found["allowed"])
+        before = web_off or reason or searched or (
+            self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where)
+            if copy is not None and not free else "") or self._branch_asks(
+            ctx, command, copy is not None) or (
+            self._shared_install(ctx, command, copy is not None and bool(copy.links)))
+        # K-yargic: harm alone may first be checked against the user's own words (`_judged`) -
+        # not for a role that runs no command (it is refused below whatever the check says), nor
+        # where it runs is not known: no folder (`at` None), or one its model wrote (`claimed`).
+        night, judged = await self._judged(ctx, command, at, "" if before or free else (
+            self._night_asks(ctx, command, at, scratch_of)) or (
+            self._night_asks(ctx, command, None) if claimed else ""),
+            asked_anyway=always or claimed or at is None or "run_command" not in ctx.tools)
+        reason = before or night
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
         noted = {"command": command, **({"reason": reason} if reason else {}),
@@ -401,12 +423,9 @@ class ApprovalsMixin:
         call_id = self._note(ctx, transcript, "run_command", noted, None, None, parent=under)
         if reason:  # (on its card)
             self._set_call(ctx.cid, call_id, why_asked=reason)
-        # One that names a folder to read in only by its full path is asked about, as
-        # KOLONİ's own commands are.
         allowed, command_id = await self.commands.ask_for(
             ctx.run_id, ctx.cid, ctx.agent_id, call_id, command, ask=refused is None,
-            always=self._read_named(ctx, command) is not None or bool(reason)
-            or where is None, held=bool(searched), web_off=bool(web_off),
+            always=always or bool(reason), held=bool(searched), web_off=bool(web_off),
             reads=not given.get("not_read_only") and await asyncio.to_thread(
                 reads_here, command, root, where in ("", ".")),
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
@@ -420,12 +439,15 @@ class ApprovalsMixin:
             # path is judged at the wrong place - a `cd` into a protected folder is a card
             # itself. Measure it, and read a cwd from the hook's payload if it carries one.
             cwd=(where if where is not None else cwd)
-            if isinstance(cwd, str) and cwd else unnamed,
+            if isinstance(cwd, str) and cwd else unnamed, judgement=judged, disposable=found,
         )
         if not allowed:
-            self._set_call(ctx.cid, call_id, status="denied", result=rejected(command),
-                           ended_at=now())
-            return deny(rejected(command), fixed=True)
+            said = (refused_by_rule(judged)
+                    if judged and judged["verdict"] == "refuse" else rejected(command))
+            self._set_call(ctx.cid, call_id, status="denied", result=said, ended_at=now())
+            return deny(said, fixed=True)
+        if (earlier := watch.commands.get(use_id)) is not None:
+            self._close_asked_again(ctx, *earlier)
         watch.commands[use_id] = (call_id, command_id)
         # What it names was on its card (asked at every level): what it writes under that
         # name stands at the look after it, that one (`_command_names`).
@@ -434,6 +456,20 @@ class ApprovalsMixin:
         if copy is None:
             watch.approved.add(use_id)
         return allow
+
+    def _close_asked_again(self: "AgentRunner", ctx: Ctx, call_id: str, command_id: str) -> None:
+        """A command its CLI asked about again for the same call (Copilot's own request after its
+        hook's, saying more: `CopilotNativeClient._permit`): it runs under the record of the second
+        ask, and the first is closed - approved, and never run under it."""
+        with self._factory() as session:
+            row = session.get_one(Command, command_id)
+            if row.status in ("proposed", "approved", "running"):
+                row.status, row.started_at, row.ended_at = "interrupted", None, now()
+                session.commit()
+            payload = command_event(row)
+        self.bus.emit(ctx.cid, ctx.run_id, "command.updated", payload)
+        self._set_call(ctx.cid, call_id, status="succeeded", ended_at=now(),
+                       result=ASKED_AGAIN)
 
     async def _approve_write(  # noqa: C901
         self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", *,

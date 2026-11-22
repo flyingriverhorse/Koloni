@@ -85,8 +85,9 @@ export function factsText(facts: ModelFacts | null | undefined): string {
 export type Named = false | 'name' | 'auto'
 const NAMED: Record<string, Named> = { 'its name says its level': 'name', 'Copilot picks it (auto)': 'auto' }
 export const namedLevel = (facts: ModelFacts | null | undefined): Named => NAMED[facts?.sources.efforts ?? ''] ?? false
-/** The same of a role's model as the roles' list says it (`level_named`): only Copilot's takes the name auto. */
-export const namedOf = (levelNamed: boolean | undefined, model: string | null | undefined): Named => levelNamed ? (model === 'auto' ? 'auto' : 'name') : false
+/** The same of a role's model as the roles' list says it (`level_named`): only Copilot's auto and fusion pick theirs. */
+export const namedOf = (levelNamed: boolean | undefined, model: string | null | undefined): Named =>
+  levelNamed ? (model === 'auto' || model === 'fusion' ? 'auto' : 'name') : false
 /** Why none is sent, in a line's words. */
 export const NAMED_WHY: Record<'name' | 'auto', string> = { name: 'its name sets its level', auto: 'Copilot picks the model and its level' }
 

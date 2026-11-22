@@ -220,12 +220,19 @@ export function applyEvent(
   )
 }
 
+/** A turn upserted - one sent again after a restart (its time moved) under the others, by when each was sent, as the chat is read. */
+function resent(runs: Run[], run: Run): Run[] {
+  const moved = runs.some(r => r.id === run.id && r.created_at !== run.created_at)
+  const next = upsert(runs, run)
+  return moved ? next.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)) : next
+}
+
 /** A turn started, went on, ended; its model thinks. */
 function runEvent(state: ConvState, type: string, payload: unknown): ConvState | null {
   switch (type) {
     case 'run.started':
     case 'run.updated':
-      return { ...state, runs: upsert(state.runs, payload as Run) }
+      return { ...state, runs: resent(state.runs, payload as Run) }
     case 'run.finished':
       return {
         ...state,

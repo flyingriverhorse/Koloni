@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { openFreshConversation, projectSettings, saveSettings } from './helpers'
+import { level, openFreshConversation, projectSettings, saveSettings } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 const tidy = () => rmSync(path.join(PROJECT_DIR, 'farewell.py'), { force: true })
@@ -11,8 +11,7 @@ test.afterEach(tidy)
 test('in a new conversation the Lead hands code to a Coder; switched to doing it itself and saved, that is kept', async ({ page, request }) => {
   const url = `/api/conversations/${await openFreshConversation(page, { leadWrites: false })}`
   // Files are written without asking: neither the Coder nor its change waits for a decision.
-  await page.getByLabel('Permission level').selectOption('auto_edit')
-  await expect(page.getByLabel('Permission level')).toHaveValue('auto_edit')
+  await level(page, 'auto_edit')
 
   // (Every chat of the project follows it: Settings › This project › Agents - tek-ev.)
   const settings = await projectSettings(page, /^Agents/)

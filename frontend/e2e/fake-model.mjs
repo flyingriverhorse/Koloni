@@ -492,9 +492,21 @@ function nextStep(all, tools = [], model = '') {
     // Slice 52: a task Run the backlog started is done at once; asked to keep the backlog,
     // the Lead proposes a task, which waits for the user's word.
     if (/\(A task of the project's To-do list to work on/.test(last.content)) return say('Worked on the task.')
-    // Slice 106: told the user goes to sleep, the Lead puts the night's jobs on a card; nothing starts.
+    // The guide's pictures of ☾ Away (guide-shots): as slice 106, in a person's words, with a stop time and a spend limit.
+    if (/going away for the night, guide/i.test(last.content)) {
+      return toolCalls([
+        ['cg1', 'add_task', { title: 'Add a bye line', criteria: 'it prints bye' }],
+        ['cg2', 'add_task', { title: 'Say hello twice' }],
+        ['cg3', 'offer_away', { until: '08:00', money: 2 }],
+      ])
+    }
+    // Slice 106, ☾ Away: told the user goes to sleep, the Lead puts the work on To-do and offers to go away; nothing starts.
     if (/going to sleep, 106/i.test(last.content)) {
-      return toolCall('c106', 'plan_away', { jobs: [{ title: 'Add a bye line, 106', line: 'it prints bye' }, { title: 'Say hello twice, 106' }], kept_out: ['secret106'] })
+      return toolCalls([
+        ['c106a', 'add_task', { title: 'Add a bye line, 106', criteria: 'it prints bye' }],
+        ['c106b', 'add_task', { title: 'Say hello twice, 106' }],
+        ['c106c', 'offer_away', { kept_out: ['secret106'] }],
+      ])
     }
     // Slice 69: asked to keep an eye on the dependencies, the Lead proposes a trigger; nothing is made before Approve.
     if (/check the dependencies on fridays, 69/i.test(last.content)) {
@@ -823,7 +835,7 @@ function nextStep(all, tools = [], model = '') {
   }
   if (result.startsWith('Coder finished') && result.includes('Fixed: it prints Hello now.')) return say('The Coder fixed what the review found.')
   if (result.startsWith('proposed task')) return say('Proposed a task for your backlog.')
-  if (result.startsWith('Your card of')) return say('The card is up: press Start when you go.')
+  if (result.startsWith('A line under your answer offers')) return say('Two tasks are on your To-do: press Go away when you go.')
   if (result.startsWith('proposed: the user sees the trigger')) return say('The trigger is on a card: approve it if you want it.')
   if (result.startsWith('Coder finished')) return say(result.includes('goodbye') ? 'The coder changed it: it says goodbye.' : 'The coder added a farewell.')
   if (result.startsWith('The user answered: ')) return say('Going with ' + result.slice(19) + '.')

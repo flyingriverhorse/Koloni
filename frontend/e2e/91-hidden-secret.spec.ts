@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from './fixtures'
-import { OWN, contrasts, openFreshConversation, shot } from './helpers'
+import { OWN, contrasts, openFreshConversation, shot, steps } from './helpers'
 import { PROJECT_DIR } from './paths.mjs'
 
 // (Tall: the chat panel shows the whole card in its shot.)
@@ -30,6 +30,9 @@ for (const theme of ['light', 'dark'] as const) {
 
     await expect(chat.getByText('The key was there, hidden.')).toBeVisible()
     await expect(card).toHaveCount(0)
+    // (The command is in the finished turn's folded steps: wait for the fold, then open it.)
+    await expect(chat.locator('details.turn-steps > summary')).toHaveText(/^Completed/)
+    await steps(chat)
     await chat.getByRole('button', { name: /python key91\.py/ }).click()
     await expect(chat.getByText('key=***')).toBeVisible()
     expect(await page.content()).not.toContain(VALUE)

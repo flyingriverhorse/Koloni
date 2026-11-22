@@ -184,6 +184,41 @@ test('a read on its way as the branch is switched does not put the old branch ba
   post.mockRestore()
 })
 
+test('a switch is a branch read after another one: not the first read, nor the same branch again after a read that failed', async () => {
+  // (Seen 20 Nov: the first read as the page loaded made the Workspace anew - the file just picked in it gone.)
+  const read = vi.spyOn(api, 'get').mockResolvedValueOnce(git()).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(git()).mockResolvedValue(git({ branch: 'feature' }))
+  useApp.setState({ conv: null })
+  const from = useApp.getState().gitSwitches
+  render(<GitStatus projectId="p" />)
+  await screen.findByRole('button', { name: /main/ })
+  // (read again as each turn ends)
+  const ended = async (n: number) => {
+    act(() => useApp.setState({ conv: convState({ runs: [run(`r${n}`, 'completed', { ended_at: 't' })] }) }))
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(n))
+  }
+  await ended(2)
+  await waitFor(() => expect(useApp.getState().gitBranch).toBeNull())
+  await ended(3)
+  await waitFor(() => expect(useApp.getState().gitBranch).toBe('main'))
+  expect(useApp.getState().gitSwitches).toBe(from)
+  await ended(4)
+  await waitFor(() => expect(useApp.getState().gitBranch).toBe('feature'))
+  expect(useApp.getState().gitSwitches).toBe(from + 1)
+  read.mockRestore()
+})
+
+test('another project’s first branch read is no switch: its Workspace is new already', async () => {
+  const read = vi.spyOn(api, 'get').mockResolvedValueOnce(git()).mockResolvedValue(git({ branch: 'dev' }))
+  useApp.setState({ conv: null })
+  const from = useApp.getState().gitSwitches
+  const { rerender } = render(<GitStatus projectId="a" />)
+  await waitFor(() => expect(useApp.getState().gitBranch).toBe('main'))
+  rerender(<GitStatus projectId="b" />)
+  await waitFor(() => expect(useApp.getState().gitBranch).toBe('dev'))
+  expect(useApp.getState().gitSwitches).toBe(from)
+  read.mockRestore()
+})
+
 const branch = (name: string, over: Partial<Git['branches'][number]> = {}): Git['branches'][number] => ({
   name,
   ref: `refs/heads/${name}`,

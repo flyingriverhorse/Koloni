@@ -10,6 +10,7 @@ Some settings make one more model request each time. Each says so where you swit
 | **Have a model look over each sub-agent's report** (Settings › This project › Agents) | One request after every sub-agent's report. |
 | **Orchestrator model: automatic** (the chat's model picker) | One request for each message you send. |
 | **The Orchestrator answers what it safely can** (Settings › This project › Asking and away › When you're away), on a CLI | One request of your plan for each answer. |
+| **Check what I said first** (Settings › This project › Asking and away › A harmful-looking command at Full auto) | One request of your Fast tier's first model (on a CLI, of your plan) for each harmful-looking command at Full auto. |
 | **Try a real run** (Models page, a CLI) | One short run, on your plan. |
 | **Read now** for Claude Code (a provider's card) | One short request. |
 | Search by meaning (Memory page) | One embeddings request for each search. |
@@ -30,7 +31,8 @@ Some settings make one more model request each time. Each says so where you swit
 - Use a model server on your own machine for work that does not need a large model: it spends no money.
 - On GitHub Copilot CLI, give the provider a model. Copilot's `auto` picks one for each request; with no
   model and Medium thinking, Copilot's default spent 7.12 AI credits for the same short answer that `auto`
-  answered for 0.18 (measured once, 7 Nov 2026, Copilot CLI 1.0.105). See
+  answered for 0.18 (measured once, 7 Nov 2026, Copilot CLI 1.0.105). Copilot Fusion (`fusion`, and its
+  **High** and **Max** routing) runs each turn on several models: it costs more than `auto`. See
   [GitHub Copilot CLI](../models/setup-cli.md#github-copilot-cli).
 
 See [Usage and budgets](usage.md).

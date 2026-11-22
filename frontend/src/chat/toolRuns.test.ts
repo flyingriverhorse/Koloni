@@ -101,3 +101,10 @@ test('while it runs, the head says what runs now, and counts only what has ended
   )
   expect(head).toEqual({ what: 'Read 2 files · now: read_file cart.py', marks: [], status: 'running' })
 })
+
+test('a command that exited with an error is marked failed on its line, though its call ended well, and is not counted as done', () => {
+  const ran = toolCall('c1', 'r', 'run_command', 'succeeded', '{"command":"pytest -q"}')
+  const read = toolCall('c2', 'r', 'read_file', 'succeeded', '{"path":"a.py"}')
+  const state = { commands: [command('k1', 'r', { tool_call_id: 'c1', exit_code: 1 })], fileChanges: [] }
+  expect(runHead([read, ran], state)).toEqual({ what: 'Read 1 file', marks: [['failed', 1]], status: 'succeeded' })
+})

@@ -29,7 +29,8 @@ unread and how many things wait for you.
 ### Writing a message
 
 - While agents work, **Send** becomes **Queue**: your message waits and runs after the current work.
-  A queued message can be removed. **Stop** stops the work.
+  A queued message can be removed. **Stop**, on the line over the message, stops the work. If KOLONİ restarts before a queued message
+  runs, it stays in the chat as "Not sent: KOLONİ restarted", with **Send** to send it now.
 - **Stop everything**, in the top bar on every page, stops every turn in every chat and holds what
   starts by itself: triggers, To-do lists that run by themselves, and work while you're away. It asks first, saying
   what runs and what will be held. Then the button reads **Held · Resume**; its panel lists the chats it
@@ -42,30 +43,56 @@ unread and how many things wait for you.
   [Working copies and Take in](workspace.md#when-an-agent-stops).
 - Pasted code becomes a code block by itself, with **Paste as plain text** to undo that.
 - **New topic** starts a new topic with the next message.
-- Under the box, two lines. The first is what the message runs on: the model button, **New topic**,
-  **Workspace** and **Chat**. The second is how far it may go, and Send: **Attach**, the permission level
-  (see [Permission levels](permissions.md)), **Plan first** (see [Plan first](plan-first.md)), **More**
-  (Compare and Work together) and **Send**.
-- **Chat** (the gear, at the end of the first line; under **More** in a narrow chat) opens this chat's own settings: its teams and folders (each opens its own panel),
+- The message box is one box. Its top line says what the chat does now: "Orchestrator is ready" with the
+  model (choose the model there; on GitHub Copilot's `auto` or `fusion` it names the model Copilot picked
+  last, "fusion → gpt-6-luna", with Copilot's reason in its tooltip); while a turn runs, what it does now,
+  for how long, the tokens written and the tier or model, with **Stop** and how many messages are queued;
+  "waits for your answer" while it asks. In a chat with a folder the line also has **☾ Away**, before the
+  model, which opens the Away panel ([Work while you're away](../automation/overnight.md)); while you are away it
+  reads **I'm back**.
+  What is not known is left out: a CLI that does not tell its tokens shows none. Where the line is narrow, the
+  tier goes first, then the tokens, then the time, then the model's name (down to its icon); what it does is cut last.
+- Under the message, one row: **Attach**, the permission level as three comb cells and its name (a click
+  lists the levels, each with a line on what it does, and the **Plan first** switch - see
+  [Permission levels](permissions.md) and [Plan first](plan-first.md); while Plan first is on, the level
+  reads, say, "Auto-edit · plan"), **Auto-read**, **Dictate** and **Send**.
+- Under the box, quiet words: **Workspace** with its number, **New topic**, **Chat settings**, **More**
+  (Compare and Work together) and, at the right, how many things wait elsewhere ("2 more wait elsewhere"),
+  which opens Ready for you.
+- **Chat settings** opens this chat's own settings: its teams and folders (each opens its own panel),
   its page scripts, what runs without asking in it, and, read only, what it takes from its project. Its
   **All settings** opens [Settings](../settings.md#this-chat) at This chat.
-- In a narrow chat the model button ends in "…": its tooltip and its window say the whole name. Buttons
-  keep only their icon, and Auto-read and Dictate go under **More** (a dot on it says so). The level
-  always shows its short name ("Ask", "Auto-edit", "Full auto"); its tooltip says the full one.
+- In a narrow chat the model shows as its arrow alone (its tooltip and its window say the whole name); while the
+  row under the box has no room for all its words, **Chat settings** reads **Settings** and what waits reads
+  "2 wait"; at the narrowest **New topic** and **More** keep only their icon, **Settings** its word. The level always shows its name
+  ("Ask", "Auto-edit", "Full auto").
 - Type `/` for slash commands: `/new`, `/room`, `/stop`, `/model`, `/mode`, `/plan`, `/compare`, a role's
   name to hand it a task, and your own commands (Settings › This project › Slash commands).
 
 ### What the chat shows
 
-- Each turn of the Orchestrator's is one card under your message: who answered, with which model and
-  when, then its steps, each a quiet pill, and its answer.
-- Two or more tool calls in a row by the same agent fold into one line, such as "Read 4 files, listed 4
-  folders". Failed or rejected calls are always shown, and a question the Orchestrator was not let ask
-  stands on its own line: "Wanted to ask: … · not asked".
-- At the foot of a turn that did something, once it is over, one line sums it up, such as "2 agents · 3
-  files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and known cost.
-- **Copy** (the answer as written) and **Read aloud** stand at the foot's right; they show when you point
-  at the card or tab into it, and always under a turn with nothing else at its foot.
+- The chat reads at VS Code's sizes: answers and your messages at 13 px, headings at 16, 14 and 13 px, code at
+  11.5 px. Each turn of the Orchestrator's has no card around it: a small head (who answered, with which
+  model, when), its steps, its answer. Where GitHub Copilot's `auto` or `fusion` picked the model, the head
+  says so ("fusion → gpt-6-luna"), and a quiet line under it gives Copilot's own reason (two lines at most,
+  the whole of it in its tooltip). The Orchestrator's name in the head opens its window.
+- A step is a quiet row with an icon for its kind (a book reads, a pencil edits, a terminal runs), its file
+  as a small pill. Two or more tool calls in a row by the same agent are one line, such as "Read 4 files,
+  listed 4 folders"; the newest is open while it runs and closes once words come after it. A command opens
+  by itself while its output comes or when it failed, its output 6 lines tall, then scrolling.
+- Once the turn is over, everything before its answer folds into one line, "Completed 5 steps in 32s",
+  which counts what failed or was rejected ("1 failed"); a click opens it. With a step that failed, the first
+  one's reason is a line under it ("↳ …"), so why something did not happen is in sight. Sub-agents, rooms, discussions,
+  a server that still runs and every card that waits for you stay outside it, in sight.
+- The Orchestrator's question waits just above the message box: numbered options, your own answer and
+  **Submit**; keys 1-9 pick an option and Enter sends it; "‹ 1/2 ›" when it asks two. In its turn one line
+  says it asks (a click goes to the card) and, once answered, "Question: … / Answered: …" opens to its
+  options with the one given ticked. KOLONİ's own cards and sub-agents' questions stay in the turn.
+- At the foot of a turn that did something, once it is over, one line sums it up at the right, such as "2
+  agents · 3 files changed", with what is left open. **details ▸** shows the files, sub-agents, tokens and
+  known cost.
+- **Copy** (the answer as written) and **Read aloud** stand at the foot's left: always under the latest
+  answer, under older ones when you point at them or tab into them.
 - A message's **⋯** menu has **Copy**, **Restore to before this message** and **Show its work on the
   canvas**. The **↺** button on a message whose work changed files is **Undo these changes**.
 
@@ -101,7 +128,9 @@ as this folder's default** keep the list.
 ## The canvas
 
 Every agent is a small box of at most three lines: its name and model, its state, and what it did,
-counted. Its tools, commands and files are in the Inspector and its window (below). Lines show work
+counted. The window icon at the right of its name opens its window. An agent at work says on its state's line what it does now, how long it has worked, the tokens it wrote
+(where its CLI tells them) and its tier or model: "pytest -q · 12s · ↓ 1.2k tokens · Fast". Where the box is
+narrow, the tier goes first, then the tokens, then the time; what it does is cut last. Its tools, commands and files are in the Inspector and its window (below). Lines show work
 handed to a sub-agent, agents that talked, findings handed on, and an agent waiting for a file another
 holds. **Canvas legend** explains every line and sign.
 
@@ -157,7 +186,8 @@ Click an agent to open the **Inspector**, a short report card. From the top:
 
 Its model, how full its context is, and **Compact now** are in its window's **Details**.
 
-**Open window** opens the agent's whole story. Read from the top:
+**Open window** opens the agent's whole story; so do the window icon on its box, a double click on its box
+and, in the chat, the Orchestrator's name over its turn. No agent's window opens by itself. Read from the top:
 
 - its report;
 - **What it did**, told in a few plain steps. Reads in a row are one step ("Looked around — read 6 files,

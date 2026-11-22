@@ -66,6 +66,64 @@ interface EditorProps extends Omit<Props, 'providers' | 'onAvailability' | 'pric
   onDone: () => void
 }
 
+/** What the form starts from: the saved provider's, else a new one's. */
+const startOf = (provider: Provider | null) => ({
+  name: provider?.name ?? '',
+  kind: provider?.kind ?? 'openai_compat',
+  address: provider?.base_url ?? '',
+  model: provider?.default_model ?? '',
+  executable: provider?.executable ?? '',
+  mode: provider?.mode ?? null,
+  note: provider?.note ?? '',
+  forAgents: provider?.for_agents ?? false,
+  onlyListed: provider?.only_listed ?? false,
+  atOnce: provider?.max_running ? String(provider.max_running) : '',
+})
+
+/** The options the form starts from: Copilot's on a model server of your own, Anthropic's workspace, Claude Code's own setup. */
+function optionsOf(provider: Provider | null) {
+  const saved = (provider?.options ?? {}) as Partial<CopilotOptions>
+  return {
+    serverType: saved.provider_type ?? 'openai',
+    maxPrompt: saved.max_prompt_tokens ? String(saved.max_prompt_tokens) : '',
+    maxOutput: saved.max_output_tokens ? String(saved.max_output_tokens) : '',
+    offline: saved.offline ?? true,
+    workspace: (provider?.options as Partial<AnthropicOptions> | null)?.workspace_id ?? '',
+    ownSetup: (provider?.options as { own_setup?: boolean } | null)?.own_setup ?? false,
+  }
+}
+
+/** Anthropic's workspace, said only when it is not what is saved: options left out stay as they are. */
+const scopedOf = (anthropic: boolean, workspace: string, savedWorkspace: string): Pick<NewProvider, 'options'> =>
+  anthropic && workspace.trim() !== savedWorkspace ? { options: { workspace_id: workspace.trim() || null } } : {}
+
+/**
+ * Whether it is a model server on this machine, and what an empty "At once" holds: the server's word for a saved provider
+ * as it is (`most_at_once`: a llama-server's slots once read), else its kind's.
+ */
+function atOnceOf(provider: Provider | null, kind: ProviderKind, address: string) {
+  const onThisMachine = kind === 'openai_compat' && /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])([:/]|$)/i.test(address.trim())
+  const asSaved = provider && provider.max_running == null && provider.kind === kind && (provider.base_url ?? '') === address.trim()
+  const usualAtOnce = (asSaved && provider.most_at_once) || (kind.endsWith('_cli') ? 3 : 8)
+  return { onThisMachine, usualAtOnce }
+}
+
+/** Empty: its kind's default (`most_at_once`). Anything else has to be a whole number from 1 to 1000 - nothing else is sent. */
+const mostOf = (atOnce: string) =>
+  atOnce.trim() === '' ? null : /^[1-9]\d{0,3}$/.test(atOnce.trim()) && Number(atOnce) <= 1000 ? Number(atOnce) : undefined
+
+/** The model a real run named, when it is a name. */
+const reportedOf = (tested: ProviderTest | null) =>
+  tested?.ok && tested.reply != null && tested.model_id && !/ default$/.test(tested.model_id) ? tested.model_id : null
+
+/** The ways a kind can be run, and the one it runs in. */
+function runsOf(kind: ProviderKind, mode: Mode | null, address: string) {
+  const modes = MODES[kind] ?? []
+  // A kind runs in its default way unless another of its ways was chosen.
+  const runs = mode && modes.includes(mode) ? mode : firstMode(kind, address)
+  return { modes, runs }
+}
+
 export function ProviderEditor({
   provider,
   onlyOne,
@@ -92,11 +150,12 @@ export function ProviderEditor({
   onRunLocalServer,
   unkept = null,
 }: EditorProps) {
-  const [name, setName] = useState(provider?.name ?? '')
-  const [kind, setKind] = useState<ProviderKind>(provider?.kind ?? 'openai_compat')
-  const [address, setAddress] = useState(provider?.base_url ?? '')
+  const start = startOf(provider)
+  const [name, setName] = useState(start.name)
+  const [kind, setKind] = useState<ProviderKind>(start.kind)
+  const [address, setAddress] = useState(start.address)
   const [key, setKey] = useState('')
-  const [model, setModel] = useState(provider?.default_model ?? '')
+  const [model, setModel] = useState(start.model)
   // The default model and the guide's rows offer the same names.
   const listId = useId()
   const facts = useModelFacts(onFacts, provider?.id ?? null, model.trim())
@@ -123,20 +182,18 @@ export function ProviderEditor({
       current = false
     }
   }, [provider, onSuggest, kind, asked])
-  const [executable, setExecutable] = useState(provider?.executable ?? '')
-  const [mode, setMode] = useState<Mode | null>(provider?.mode ?? null)
-  const saved = (provider?.options ?? {}) as Partial<CopilotOptions>
-  const [serverType, setServerType] = useState<CopilotOptions['provider_type']>(saved.provider_type ?? 'openai')
-  const [maxPrompt, setMaxPrompt] = useState(saved.max_prompt_tokens ? String(saved.max_prompt_tokens) : '')
-  const [maxOutput, setMaxOutput] = useState(saved.max_output_tokens ? String(saved.max_output_tokens) : '')
-  const [offline, setOffline] = useState(saved.offline ?? true)
-  const savedWorkspace = (provider?.options as Partial<AnthropicOptions> | null)?.workspace_id ?? ''
+  const [executable, setExecutable] = useState(start.executable)
+  const [mode, setMode] = useState<Mode | null>(start.mode)
+  const saved = optionsOf(provider)
+  const [serverType, setServerType] = useState<CopilotOptions['provider_type']>(saved.serverType)
+  const [maxPrompt, setMaxPrompt] = useState(saved.maxPrompt)
+  const [maxOutput, setMaxOutput] = useState(saved.maxOutput)
+  const [offline, setOffline] = useState(saved.offline)
+  const savedWorkspace = saved.workspace
   const [workspace, setWorkspace] = useState(savedWorkspace)
   const anthropic = kind === 'anthropic'
-  // Said only when it is not what is saved: options left out stay as they are.
-  const scoped: Pick<NewProvider, 'options'> =
-    anthropic && workspace.trim() !== savedWorkspace ? { options: { workspace_id: workspace.trim() || null } } : {}
-  const savedOwnSetup = (provider?.options as { own_setup?: boolean } | null)?.own_setup ?? false
+  const scoped = scopedOf(anthropic, workspace, savedWorkspace)
+  const savedOwnSetup = saved.ownSetup
   const [ownSetup, setOwnSetup] = useState(savedOwnSetup)
   // K-claude-hesap: signed in with the user's own Claude Code or Codex, or with a folder of its own.
   const savedSignIn = signInOf(provider)
@@ -155,24 +212,24 @@ export function ProviderEditor({
       offline,
     },
   }
-  const [note, setNote] = useState(provider?.note ?? '')
+  const [note, setNote] = useState(start.note)
   // Agents may use a model when it says so and its provider is one they may choose (from before 81a, a provider
   // not ticked had its models on): the first change saved says it of each model, and the provider follows.
   const latest = useRef(provider)
   latest.current = provider
   const savedRows = (from = latest.current): GuideRow[] =>
-    (from?.models ?? []).map(m => ({ name: m.name, note: m.note ?? '', tier: m.tier ?? null, agents: from!.for_agents && m.agents, ...(m.enabled === false && { enabled: false, off_why: m.off_why }), inputs: m.inputs ?? null, ...(m.context && { context: m.context }) }))
+    (from?.models ?? []).map(m => ({ name: m.name, note: m.note ?? '', tier: m.tier ?? null, agents: from!.for_agents && m.agents, ...(m.enabled === false && { enabled: false, off_why: m.off_why }), inputs: m.inputs ?? null, ...(m.context && { context: m.context }), ...(m.routing && { routing: m.routing }) }))
   const [rows, setRows] = useState(() => savedRows())
   // A provider with no list says it of itself (a CLI or a server on its default model): on Connection.
-  const [forAgents, setForAgents] = useState(provider?.for_agents ?? false)
+  const [forAgents, setForAgents] = useState(start.forAgents)
   // A model added joins the provider's way: agents may use it when they may use one of the others already (or,
   // with none listed yet, the provider itself).
   const usual = rows.length ? rows.some(row => row.agents) : (provider?.for_agents ?? false)
-  const [onlyListed, setOnlyListed] = useState(provider?.only_listed ?? false)
+  const [onlyListed, setOnlyListed] = useState(start.onlyListed)
   // How many a catalogue fill left out, while what it proposed is not saved yet (null: no such proposal).
   const [leftOut, setLeftOut] = useState<number | null>(null)
   const listedOf = (list: GuideRow[]): ListedModel[] =>
-    list.map(row => ({ name: row.name, note: row.note.trim() || null, tier: row.tier, agents: row.agents, ...(row.enabled !== undefined && { enabled: row.enabled }), ...(row.inputs != null && { inputs: row.inputs }), ...(row.context !== undefined && { context: row.context }) }))
+    list.map(row => ({ name: row.name, note: row.note.trim() || null, tier: row.tier, agents: row.agents, ...(row.enabled !== undefined && { enabled: row.enabled }), ...(row.inputs != null && { inputs: row.inputs }), ...(row.context !== undefined && { context: row.context }), ...(row.routing !== undefined && { routing: row.routing }) }))
   const listed = listedOf(rows)
   // The Models tab saves each change at once (a tier, a note, a model added or removed), as the tiers' order does;
   // only a catalogue's proposal waits for its own Save. Nothing of the Connection tab is sent with it.
@@ -218,15 +275,16 @@ export function ProviderEditor({
   // A provider not added yet is filled over the rows typed so far; its catalogue is found by
   // its kind, and an OpenAI-compatible server's by its address.
   const draft = `${kind} ${address.trim()}`
-  const propose =
+  const proposeOf = () =>
     provider && onFill
       ? () => onFill(provider.id)
       : !provider && onFillNew && (kind !== 'openai_compat' || address.trim())
         ? () => onFillNew({ kind, base_url: address.trim() || null, models: listed })
         : null
+  const propose = proposeOf()
   // The kind and address a fill found no catalogue for.
   const [noCatalogue, setNoCatalogue] = useState<string | null>(null)
-  const [atOnce, setAtOnce] = useState(provider?.max_running ? String(provider.max_running) : '')
+  const [atOnce, setAtOnce] = useState(start.atOnce)
   // What is typed and not saved yet: closing the window asks before it is thrown away.
   const draftOf = (typedKey: string) =>
     JSON.stringify([name, kind, address, typedKey, model, executable, mode, serverType, maxPrompt, maxOutput, offline,
@@ -237,13 +295,8 @@ export function ProviderEditor({
     onDirty?.(dirty)
     return () => onDirty?.(false)
   }, [dirty, onDirty])
-  // Empty: its kind's default (`most_at_once`). Anything else has to be a whole number from 1 to 1000 - nothing else is sent.
-  // What an empty field holds: the server's word for a saved provider as it is (`most_at_once`: a llama-server's
-  // slots once read), else its kind's.
-  const onThisMachine = kind === 'openai_compat' && /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])([:/]|$)/i.test(address.trim())
-  const asSaved = provider && provider.max_running == null && provider.kind === kind && (provider.base_url ?? '') === address.trim()
-  const usualAtOnce = (asSaved && provider.most_at_once) || (kind.endsWith('_cli') ? 3 : 8)
-  const most = atOnce.trim() === '' ? null : /^[1-9]\d{0,3}$/.test(atOnce.trim()) && Number(atOnce) <= 1000 ? Number(atOnce) : undefined
+  const { onThisMachine, usualAtOnce } = atOnceOf(provider, kind, address)
+  const most = mostOf(atOnce)
   /** What changed in the guide and the limit; what was not touched is left out and stays as it is. */
   // (A saved provider's models are not in it: its Models tab saves them itself.)
   function guide(): Pick<NewProvider, 'for_agents' | 'note' | 'models' | 'only_listed' | 'max_running'> {
@@ -259,22 +312,24 @@ export function ProviderEditor({
   const [error, setError] = useState<string | null>(null)
   const [tested, setTested] = useState<ProviderTest | null>(null)
   // The model a real run named, when it is a name and not yet on the list.
-  const reported =
-    tested?.ok && tested.reply != null && tested.model_id && !/ default$/.test(tested.model_id) ? tested.model_id : null
+  const reported = reportedOf(tested)
   const canAdd = reported !== null && !listed.some(m => m.name === reported) && rows.length < MAX_MODELS
   const cli = isCli(kind)
-  const modes = MODES[kind] ?? []
-  // A kind runs in its default way unless another of its ways was chosen.
-  const runs = mode && modes.includes(mode) ? mode : firstMode(kind, address)
-  const claudeNative = kind === 'claude_cli' && runs === 'native'
-  // Whose sign-in it runs on: not asked on a model server of the user's, where nothing is signed in to.
-  const signs = ownServer && !address.trim()
-  const signing = signs ? signIn : 'own' // (a provider moved to a model server leaves its own sign-in)
-  // Like the workspace: said only when it is not what is saved - both together, as the server keeps what is sent whole.
-  const setup: Pick<NewProvider, 'options'> =
-    (claudeNative && ownSetup !== savedOwnSetup) || (ownServer && signing !== savedSignIn)
-      ? { options: { ...(kind === 'claude_cli' ? { own_setup: ownSetup } : {}), ...(signing === 'koloni' ? { sign_in: 'koloni' } : {}) } }
-      : {}
+  const { modes, runs } = runsOf(kind, mode, address)
+  /** Claude Code's own setup and whose sign-in a CLI runs on, and the options that say them where they are not what is saved. */
+  const signOf = () => {
+    const claudeNative = kind === 'claude_cli' && runs === 'native'
+    // Whose sign-in it runs on: not asked on a model server of the user's, where nothing is signed in to.
+    const signs = ownServer && !address.trim()
+    const signing = signs ? signIn : 'own' // (a provider moved to a model server leaves its own sign-in)
+    // Like the workspace: said only when it is not what is saved - both together, as the server keeps what is sent whole.
+    const setup: Pick<NewProvider, 'options'> =
+      (claudeNative && ownSetup !== savedOwnSetup) || (ownServer && signing !== savedSignIn)
+        ? { options: { ...(kind === 'claude_cli' ? { own_setup: ownSetup } : {}), ...(signing === 'koloni' ? { sign_in: 'koloni' } : {}) } }
+        : {}
+    return { claudeNative, signs, setup }
+  }
+  const { claudeNative, signs, setup } = signOf()
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
@@ -377,7 +432,7 @@ export function ProviderEditor({
   )
 
   // The provider itself: how it is reached and run, what agents are told of it, and what is done to it.
-  const form = (
+  const connection = () => (
     <form className="role-editor" onSubmit={submit}>
       {/* Slice 64: the card of the server on this machine (Start / Stop / Restart, its model file and
           settings) goes here, above the rest. Nothing of it is built yet. */}
@@ -523,6 +578,7 @@ export function ProviderEditor({
       </div>
     </form>
   )
+  const form = connection()
   if (!provider) return form
   return (
     <ProviderTabs

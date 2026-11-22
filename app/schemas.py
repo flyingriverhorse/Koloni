@@ -77,6 +77,9 @@ LeadWork = Literal["delegates", "decides", "itself"]
 # While the user is away (K-vekil-karar): every question waits, or the Lead answers what it
 # safely can after a chat's minutes (0: at once; a day at most).
 WhenAway = Literal["waits", "lead"]
+# K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
+# against what they wrote.
+FullAutoCheck = Literal["ask", "judge"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -270,6 +273,12 @@ class ProjectOut(Out):
     # None: as `finish_tests_auto` says.
     finish_tests: bool | None
     finish_tests_auto: FinishTestsAuto
+    # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
+    # checked against what they wrote ("judge").
+    full_auto_check: FullAutoCheck
+    # Coordination §4: whether a disposable delete goes without a card at Auto-edit and Full
+    # auto in a watched turn.
+    disposable_deletes: bool
 
     @computed_field
     @property
@@ -357,6 +366,8 @@ class ProjectPatch(BaseModel):
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     # Sent as null: automatic again (`ProjectOut.finish_tests_auto`). Left out: kept.
     finish_tests: bool | None = None
+    full_auto_check: FullAutoCheck | None = None
+    disposable_deletes: bool | None = None
 
 
 class NeverOut(BaseModel):
@@ -666,6 +677,9 @@ class RunOut(Out):
     plan: PlanOut | None
     # One side of a comparison (slice 54); None for every other turn.
     compare_id: str | None
+    # Started by the user's own message, from the app's own page: one never begun can be sent
+    # again (`app.api.runs.send_again`).
+    by_user: bool
     # B-107: the chat's teams as this turn left them; None for a turn without, or from before.
     teams: list[ChatTeamOut] | None = None
     # The Assistant PO's request after the turn; None where it was not asked.
@@ -701,6 +715,11 @@ class PlanApproveIn(BaseModel):
     # The plan as the user edited it; left out or empty: as it was proposed.
     text: str | None = Field(default=None, max_length=20_000)
     # The user's word to start the work though the project is over this month's budget.
+    over_budget: bool = False
+
+
+class SendIn(BaseModel):
+    # The user's word to send it though the project is over this month's budget.
     over_budget: bool = False
 
 
@@ -1033,7 +1052,31 @@ CommandStatus = Literal[
     "proposed", "approved", "running", "exited", "timed_out", "killed", "rejected",
     "failed_to_start", "interrupted",
     "blocked",  # K-48: a CLI's own, its write refused by its sandbox (`model_native.WRITE_BLOCKED`)
+    "refused",  # K-yargic: at Full auto a sentence of the user's forbids it - not asked, not run
 ]
+
+
+class Judged(BaseModel):
+    """K-yargic: what the check of the user's words said of a command at Full auto: it ran with
+    no card ("run": on `quote`, a line of the user's found in `source`), it was not run and its
+    agent told that line ("refuse"), or it was asked ("ask"; `why`, the check's own sentence where
+    it said so). `model`: who was asked; `seen`: the user's OK on one that ran or was not run
+    (Decided for you)."""
+
+    verdict: Literal["run", "ask", "refuse"]
+    quote: str = ""
+    source: Literal["preferences", "rules", "message", ""] = ""
+    why: str = ""
+    model: str = ""
+    seen: bool = False
+
+
+class DisposableOut(BaseModel):
+    """Coordination §4: what of a command KOLONİ found disposable ("build folder dist; branch
+    old"), and whether it ran without a card for that (`unasked`)."""
+
+    what: str
+    unasked: bool
 
 
 class CommandOut(BaseModel):
@@ -1066,6 +1109,11 @@ class CommandOut(BaseModel):
     # only, never KOLONİ's own port nor a model server's (slice 42b).
     keep_running: bool
     preview_url: str | None
+    # K-yargic: what the check of the user's words said of it; None: not checked.
+    judged: Judged | None = None
+    # Coordination §4: what of it is disposable; None: nothing. Its own, not `judged`'s: no card
+    # of Decided for you.
+    disposable: DisposableOut | None = None
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None
@@ -1434,7 +1482,11 @@ class MergeBranchOut(BaseModel):
     D2: `resolve`, an agent may be asked to put the conflicts together (in the branch's
     worktree); `way`, "pull_request" where the project's finished work goes as one;
     `ask_way`, the card asks which way (the project's first finished branch with a GitHub
-    remote) - `pr_off`, why a pull request cannot be chosen now."""
+    remote) - `pr_off`, why a pull request cannot be chosen now.
+    W-1: `taken_in`, whose Take in, in the folder and not committed, is among what is in the way
+    ((A).3); `started`, that the branch began from the user's last commit, not their folder as it
+    was, and why; `not_taken`, what of theirs its snapshot left out (a secret, a link) - both said,
+    never in the way (not in `note`, which the card counts so)."""
 
     name: str
     into: str | None = None
@@ -1445,6 +1497,9 @@ class MergeBranchOut(BaseModel):
     way: Literal["pull_request"] | None = Field(None, exclude_if=lambda value: value is None)
     ask_way: bool | None = Field(None, exclude_if=lambda value: not value)
     pr_off: str | None = Field(None, exclude_if=lambda value: value is None)
+    taken_in: str | None = Field(None, exclude_if=lambda value: value is None)
+    started: str | None = Field(None, exclude_if=lambda value: value is None)
+    not_taken: str | None = Field(None, exclude_if=lambda value: value is None)
 
 
 Side = Literal["agent", "project"]
@@ -3284,6 +3339,10 @@ class ProviderModel(BaseModel):
     # K-copilot-baglam: Copilot's context window tier (`--context`), only on the user's GitHub
     # account (`providers.check_guide`). None or "default": none is passed.
     context: Literal["default", "long_context"] | None = None
+    # Copilot's auto's or fusion's routing (`model_session.ROUTINGS`), only on the user's GitHub
+    # account (`providers.check_guide`). None: Copilot's own default.
+    routing: Literal["efficiency", "balance", "intelligence", "standard", "high", "max"] | None = (
+        None)
 
 
 class TierModel(BaseModel):
@@ -3741,6 +3800,11 @@ class ProjectMemoryOut(BaseModel):
     rules: str | None
     # Whether they are the folder's .koloni/rules.md (slice 86c), kept in git with it.
     rules_kept: bool = False
+    # K-yargic: whether that file says other than the rules saved here, which Full auto's check
+    # of a harmful-looking command goes by.
+    rules_differ: bool = False
+    # The rules as saved here (`Project.rules`): `rules` are the folder's where it is read.
+    rules_saved: str | None = None
     # Why the folder's .koloni/rules.md is not read, as the page says it; null: it is, or is
     # not there.
     rules_not_read: str | None = None
@@ -4437,6 +4501,9 @@ class BacklogTaskOut(Out):
     waiting: bool = False
     # Proposed by the Assistant PO at a turn's end (`BacklogTask.po`); None: not its.
     po: "BacklogPoOut | None" = None
+    # ☾ Away: the chat an agent proposed it in (None: the user's), and when it was made.
+    proposed_in: str | None = None
+    created_at: datetime
 
 
 class BacklogPoOut(BaseModel):
@@ -4534,21 +4601,15 @@ class BacklogDraftOut(BaseModel):
     by: str
 
 
-class AwayJobIn(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
-    line: str | None = Field(default=None, max_length=4000)
-    team: str | None = None
-    recipe: str | None = None
-    task_id: str | None = None  # the To-do list's task the job is (B-409); None: a new one
+class AwayGoIn(BaseModel):
+    """The user's Go away (☾ Away): the To-do tasks ticked, the panel's order of the list, the
+    places kept out and the limits - none unless named."""
 
-
-class AwayIn(BaseModel):
-    """The user's changes to a "While you're away" card before its Start (slice 106)."""
-
-    jobs: list[AwayJobIn] | None = Field(default=None, min_length=1, max_length=10)
-    kept_out: list[str] | None = Field(default=None, max_length=20)
+    task_ids: list[str] = Field(default=[], max_length=10)
+    order: list[str] = Field(default=[], max_length=200)
     until: str | None = None  # HH:MM; null: no time limit
     money: float | None = Field(default=None, ge=0)  # null: no money limit
+    kept_out: list[str] = Field(default=[], max_length=20)
 
 
 class AwayAsk(BaseModel):
@@ -4598,7 +4659,8 @@ class AwayJobOut(BaseModel):
 
 
 class AwayOut(BaseModel):
-    """A "While you're away" card and its night (`app.away`)."""
+    """☾ Away (`app.away`): the Orchestrator's offer ("planned"), or the user's Go away and
+    what came of it."""
 
     id: str
     project_id: str
@@ -4630,6 +4692,8 @@ class AwayOut(BaseModel):
     counts: dict[str, int]
     # What agents proposed for the To-do list while it ran: not started, the user's to keep.
     proposed: list[BacklogTaskOut]
+    # What the Orchestrator decided for the user meanwhile (`away.decided`), oldest first.
+    decided: list[str] = []
 
 
 SnapshotOut.model_rebuild()  # (its cards are defined above)

@@ -1,22 +1,24 @@
-import { Article, CaretDown, DotsThree, GearSix, ListChecks, PaperPlaneRight, Stop } from '@phosphor-icons/react'
-import { type ClipboardEvent, type KeyboardEvent, type ReactNode, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { Article, CaretDown, DotsThree, GearSix, PaperPlaneRight } from '@phosphor-icons/react'
+import { type ClipboardEvent, type KeyboardEvent, type ReactNode, type RefObject, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { errorText, overWhat } from '../api/client'
 import type { PermissionMode, Provider } from '../api/types'
 import type { LoadModels } from '../models/ModelNameInput'
-import { fold } from '../shell/fold'
 import { CloseMore, usePanel } from '../shell/usePanel'
 import type { ConvState } from '../state/applyEvent'
 import { type ChatTab, useApp } from '../state/store'
 import { AutoRead, Dictate, ReadFailed } from '../voice/VoiceControls'
 import { engine } from '../voice/engine'
-import { keep, stored, useWidth } from '../views/TwoPane'
+import { keep, stored } from '../views/TwoPane'
 import { stopReading } from '../voice/voice'
-import { AttachMenu, Chips, type Pending } from './Attach'
-import { fromProject, linksIn, MAX_BYTES, MAX_FILES, sizeText, upload, VIDEO_HEAD } from './attachments'
+import { AttachMenu, Chips } from './Attach'
+import { linksIn, MAX_BYTES, sizeText } from './attachments'
 import { leadQuestion } from './chatLine'
 import { Compare, type Second } from './Compare'
-import { takeFrames } from './frames'
+import { ComposerStatus } from './ComposerStatus'
 import { asCode } from './pastedCode'
+import { LevelMenu } from './LevelMenu'
+import { type SlashCommand, useSlash } from './slashCommands'
+import { useAttach } from './useAttach'
 
 /** The topic a message would go on with, as the line above the message box names it. */
 export interface ComposerTopic {
@@ -51,6 +53,9 @@ interface Props {
   planFirst?: boolean
   /** Turn Plan first on or off; without it there is nothing to set it on. */
   onPlanFirst?: (on: boolean) => void
+  /** Check what I said first (K-yargıç), the project's; without its setter (a plain chat) the level menu has no switch. */
+  checkFirst?: boolean
+  onCheckFirst?: (on: boolean) => void
   /** Where this project's commands run; decides whether full auto needs a warning. */
   location?: 'host' | 'docker'
   /** The conversation's model: its button, first under the message box. */
@@ -65,6 +70,8 @@ interface Props {
   compare?: { providers: Provider[]; first: string; onCompare: (content: string, second: Second, fresh: boolean, overBudget?: boolean) => Promise<void>; onModels?: LoadModels }
   /** The Workspace window's button, at the end of the model's line (slice 42d). */
   workspace?: ReactNode
+  /** What waits for you outside this chat (tek-ev §1): its count under the box, and what opens Ready for you. */
+  waits?: { count: number; onOpen: () => void }
   /**
    * The closed chat's small box (slice 38e): the message box alone, one line, Enter sends.
    * The rest is hidden, not gone: a choice half made under More stays.
@@ -73,36 +80,15 @@ interface Props {
 }
 
 /**
- * A command of the `/` menu (slice 46): the keyboard's way to a button that is there already.
- * A role's does nothing when chosen: it becomes the chip, and the task is written after it.
- */
-interface Command {
-  name: string
-  what: string
-  /** Why it cannot be chosen now; null while it can. */
-  off: string | null
-  /** Done when chosen. */
-  run?: () => void
-  /** Or the buttons under the box it presses, in turn. */
-  press?: string[]
-  /** Or the permission level's list it opens. */
-  level?: true
-  /** Or the text it puts in the box (the user's own, slice 53). */
-  fill?: string
-  /** Named in full with what follows it ("/test-yaz login form"): it alone is meant. */
-  called?: boolean
-}
-
-/** The commands' names: a role of one of these names is left out, not shown as a second one. */
-const COMMANDS = ['new', 'room', 'stop', 'model', 'mode', 'plan', 'compare']
-
-/**
  * What the empty box says. While the Orchestrator's question is open in the open chat, on its Chat tab, that it is
  * answered on its card and a message sent now is queued (0.1.4); closed, the chat's line says what it asks, and the
  * Talk and Notes tabs, over which the same box stands, do not show it.
  */
-function placeholderOf(conv: ConvState | null, projectId: string | null, compact: boolean, tab: ChatTab): string {
+function placeholderOf(conv: ConvState | null, projectId: string | null, compact: boolean, tab: ChatTab, running: boolean, away: boolean): string {
   if (!compact && tab === 'Chat' && conv && leadQuestion(conv)) return 'Answer the question above, or queue a message…'
+  // (☾ Away: a message of yours ends it.)
+  if (away) return 'Write to come back…'
+  if (running) return 'Queue a message for after this turn…'
   return projectId ? 'Ask about this project or request a change…' : 'Ask anything - pick a folder with the folder button to work on files'
 }
 
@@ -114,6 +100,8 @@ export function Composer({
   onPermissionMode,
   planFirst = false,
   onPlanFirst,
+  checkFirst = false,
+  onCheckFirst,
   location = 'host',
   model,
   unseen = null,
@@ -121,17 +109,13 @@ export function Composer({
   beside,
   compare,
   workspace,
+  waits,
   topic = null,
   other = null,
   scope = '',
   compact = false,
 }: Props) {
-  // The conversation's own draft, from the store: it outlives this box. Before there is a
-  // conversation, the project's: one written for a project does not turn up in another.
-  const projectId = useApp(s => s.projectId)
-  const key = scope || `new in ${projectId ?? ''}`
-  const draft = useApp(s => s.drafts[key] ?? '')
-  const setDraft = (text: string) => useApp.getState().setDraft(key, text)
+  const { projectId, key, draft, setDraft } = useDraft(scope)
   const [error, setError] = useState<string | null>(null)
   // The server said the project is over this month's budget: the message waits for the user's word, kept in the box.
   // (Kept by the draft's key: another conversation's message is not the one asked about.)
@@ -139,62 +123,34 @@ export function Composer({
   const [over, setOver] = useState<{ key: string; said: string; again?: () => Promise<void> } | null>(null)
   const [sending, setSending] = useState(false)
   const input = useRef<HTMLTextAreaElement>(null)
-  // "New topic", chosen for the next message of one conversation; null while not chosen.
-  const [freshIn, setFreshIn] = useState<string | null>(null)
-  // A role named at the start ("/coder fix it", any case): the chip, and the task after it.
-  // The longest name first: "/Docs writer x" is for Docs writer, not for Docs. (Not the Lead: the message goes to it anyway.)
-  const roles = useApp(s => s.roles).filter(r => r.name !== 'Lead' && !COMMANDS.includes(fold(r.name)))
-  // The user's own (slice 53), after the built-ins.
-  // One named as a role made after it is hidden: the role's chip wins (the server refuses the name while the role is there).
-  const own = useApp(s => s.ownCommands).filter(c => !roles.some(r => fold(r.name) === fold(c.name)))
-  // What Esc left as it was written ("/tester"): text, not a chip, while the box starts with it.
-  const [kept, setKept] = useState<string | null>(null)
-  const role = kept && draft.startsWith(kept) ? null : [...roles].sort((a, b) => b.name.length - a.name.length).find(r => fold(draft.slice(0, r.name.length + 2)) === fold(`/${r.name} `)) ?? null
-  const head = role ? draft.slice(0, role.name.length + 2) : ''
-  const text = draft.slice(head.length)
-  // The files added to the next message (slice 85b): the server's, as the conversation has them; those on their way here.
+  const { fresh, setFreshIn } = useFresh(topic, scope)
   const conv = useApp(s => (scope && s.conv?.conversation.id === scope ? s.conv : null))
   const tab = useApp(s => s.chatTab)
-  const files = conv?.attachments.filter(one => !one.message_id && !one.frame_of) ?? []
-  const frames = Object.fromEntries(files.map(one => [one.id, conv!.attachments.filter(f => f.frame_of === one.id).length]))
-  const [pending, setPending] = useState<Pending[]>([])
-  // What was not added says so till the files it was refused beside change: one is taken off, or the message goes (B-106).
-  const dropRefused = () => setPending(was => was.filter(one => !one.error))
-  const [noFrames, setNoFrames] = useState<Record<string, string>>({})
-  // "Save these to the project too" (slice 23): remembered for each project, ticked or not.
-  const saveKey = `koloni-save-attachments:${conv?.conversation.project_id}`
-  const [saves, setSaves] = useState<Record<string, boolean>>({})
-  const save = saves[saveKey] ?? stored(saveKey, false, read => typeof read === 'boolean')
-  const setSave = (on: boolean) => {
-    keep(saveKey, on)
-    setSaves(was => ({ ...was, [saveKey]: on }))
-  }
-  const [dropping, setDropping] = useState(false)
-  const links = linksIn(text)
-  // Videos whose frames are being taken: the message waits for them, else it would go without them.
-  const [framing, setFraming] = useState(0)
-  const going = pending.some(one => !one.error) || framing > 0
-  const canSend = (text.trim().length > 0 || files.length > 0) && !sending && !going
-  // What the line says is what is sent: a new topic by choice, or for want of one to go on with.
-  const fresh = topic === 'new' || (topic !== null && freshIn === scope)
-
-  // Code just pasted, put in the box fenced (slice 85a): the box then, and as it was pasted, for the way back.
-  // Its note is shown till the box changes, or a few seconds on - kept while its link has the focus.
-  const [pasted, setPasted] = useState<{ key: string; done: string; plain: string; at: number; language: string | null } | null>(null)
-  const noted = pasted?.key === key && pasted.done === draft ? pasted : null
-  const asPlain = useRef<HTMLButtonElement>(null)
-  // Where the cursor goes once the box holds what was put in it.
-  const caret = useRef<number | null>(null)
-  useLayoutEffect(() => {
-    if (caret.current === null) return
-    input.current?.setSelectionRange(caret.current, caret.current)
-    caret.current = null
+  const away = useApp(s => !!projectId && s.away?.status === 'running' && s.away.project_id === projectId)
+  // Where the `/` menu's commands press their buttons; the level's chooser.
+  const row = useRef<HTMLDivElement>(null)
+  const slash = useSlash({
+    draft,
+    setDraft,
+    compact,
+    running,
+    onStop,
+    noTopic: topic === null,
+    fresh,
+    startTopic: () => setFreshIn(scope),
+    room: Boolean(beside),
+    model: Boolean(model),
+    compare: Boolean(compare),
+    planFirst,
+    onPlanFirst,
+    row,
   })
-  useEffect(() => {
-    if (!noted) return
-    const gone = setTimeout(() => document.activeElement !== asPlain.current && setPasted(null), 8000)
-    return () => clearTimeout(gone)
-  }, [noted])
+  const { role, head, text, menu } = slash
+  const { files, frames, pending, setPending, dropRefused, noFrames, going, dropping, drop, add, addFromProject } = useAttach({ conv, scope, draftKey: key, draft })
+  const { save, setSave } = useSave(conv)
+  const links = linksIn(text)
+  const canSend = sendable(text, files.length, sending || going)
+  const { noted, setPasted, asPlain, caret } = usePasted(key, draft, input)
 
   function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
     // A screenshot, or files copied (slice 85b): added to the message. (Cells copied from a sheet bring a
@@ -222,82 +178,6 @@ export function Composer({
     }
     // (after the insert: onChange clears it)
     setPasted({ key, done: head + before + fence + after, plain: head + before + raw + after, at: before.length + raw.length, language: code.language })
-  }
-
-  /** The conversation files are added to: this one, or - before there is one - a new one, the words written so far taken along. */
-  async function conversationFor(): Promise<string | null> {
-    if (scope) return scope
-    const written = draft
-    await useApp.getState().newConversation()
-    const made = useApp.getState().conv?.conversation.id ?? null
-    if (made && written) {
-      useApp.getState().setDraft(made, written)
-      useApp.getState().setDraft(key, '')
-    }
-    return made
-  }
-
-  /** Files added to the next message: each goes up at once and its chip says what it is; a video's frames follow it. */
-  async function add(chosen: File[]) {
-    if (!chosen.length) return
-    let room = MAX_FILES - files.length - pending.filter(one => !one.error).length
-    const keyed = chosen.map(file => ({ file, key: `${file.name}\n${Math.random()}` }))
-    const said = (key: string, error: string | null) => setPending(was => was.map(one => (one.key === key ? { ...one, error } : one)))
-    setPending(was => [...was, ...keyed.map(({ file, key }) => ({ key, name: file.name, error: null }))])
-    let cid: string | null = null
-    try {
-      cid = await conversationFor()
-    } catch (err) {
-      return keyed.forEach(({ key }) => said(key, errorText(err)))
-    }
-    for (const { file, key } of keyed) {
-      // A larger video goes as its frames alone: its first bytes say what it is, and none of it is kept.
-      const framesOnly = file.size > MAX_BYTES && file.type.startsWith('video/')
-      if (file.size > MAX_BYTES && !framesOnly) said(key, `larger than ${MAX_BYTES / 2 ** 20} MB: not added`)
-      else if (room-- <= 0) said(key, `a message has ${MAX_FILES} files at most: not added`)
-      else if (cid) {
-        // One after another: the chips stand in the order the files were chosen.
-        try {
-          const added = framesOnly ? await upload(cid, file.slice(0, VIDEO_HEAD), file.name, undefined, file.size) : await upload(cid, file, file.name)
-          setPending(was => was.filter(one => one.key !== key))
-          useApp.getState().attached(added)
-          // (Its frames held before its chip is done: Send never opens in between.)
-          if (added.kind === 'video') void framesOf(cid, file, added.id)
-        } catch (err) {
-          said(key, errorText(err))
-        }
-      }
-    }
-  }
-
-  /** Frames of a video, taken here in the browser, added beside it; where it cannot be opened its chip says so. */
-  async function framesOf(cid: string, file: File, videoId: string) {
-    setFraming(n => n + 1)
-    try {
-      const shots = await takeFrames(file)
-      for (const [at, shot] of shots.entries()) useApp.getState().attached(await upload(cid, shot, `${file.name} frame ${at + 1}.jpg`, videoId))
-    } catch (err) {
-      const why = err instanceof Error ? err.message : errorText(err)
-      if (file.size > MAX_BYTES) {
-        // Not kept and no frames: nothing of it would reach a model, so it is taken off again.
-        await useApp.getState().detach(videoId).catch(() => {})
-        setPending(was => [...was, { key: `${file.name}\n${Math.random()}`, name: file.name, error: `not added: its frames could not be taken (${why})` }])
-      } else setNoFrames(was => ({ ...was, [videoId]: `kept as a file; no frames: ${why}` }))
-    } finally {
-      setFraming(n => n - 1)
-    }
-  }
-
-  async function addFromProject(path: string) {
-    const key = `${path}\n${Math.random()}`
-    setPending(was => [...was, { key, name: path.split('/').at(-1) ?? path, error: null }])
-    try {
-      const cid = await conversationFor()
-      if (cid) useApp.getState().attached(await fromProject(cid, path))
-      setPending(was => was.filter(one => one.key !== key))
-    } catch (err) {
-      setPending(was => was.map(one => (one.key === key ? { ...one, error: errorText(err) } : one)))
-    }
   }
 
   async function send(overBudget = false) {
@@ -351,141 +231,22 @@ export function Composer({
     }
   }
 
-  // The `/` menu: open while the box holds one line that starts with `/` and names a command,
-  // until Esc or the focus leaves - closed then till something is written.
   const list = useId()
-  const row = useRef<HTMLDivElement>(null)
-  // In a chat under ~380px wide (a row under ~360px; it was 290 before 📎 came down to this row) the mic and Auto-read
-  // do not fit beside the level and Send: they go under More, and the row stays one line (B-106).
-  const { measure, width: rowWidth } = useWidth()
-  const rowRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      row.current = el
-      measure(el)
-    },
-    [measure],
-  )
-  const voiceInMore = rowWidth !== null && rowWidth <= 360
   const voice = (
-    <>
-      <AutoRead />
-      <Dictate
-        // Written where the cursor is: what is said takes the place of what was selected.
-        onStart={() => {
-          const at = input.current
-          return { before: text.slice(0, at?.selectionStart ?? text.length), after: text.slice(at?.selectionEnd ?? text.length) }
-        }}
-        onText={said => setDraft(head + said)}
-        onError={setError}
-      />
-    </>
+    <Dictate
+      // Written where the cursor is: what is said takes the place of what was selected.
+      onStart={() => {
+        const at = input.current
+        return { before: text.slice(0, at?.selectionStart ?? text.length), after: text.slice(at?.selectionEnd ?? text.length) }
+      }}
+      onText={said => setDraft(head + said)}
+      onError={setError}
+    />
   )
-  const level = useRef<HTMLSelectElement>(null)
-  const [shut, setShut] = useState<string | null>(null)
-  const [at, setAt] = useState(0)
-  // shortcut: pressed by class, a rename in ModelPicker/WorkTogether breaks /model, /room silently; upgrade to props if it bites.
-  // shortcut: closed, the row under the box is hidden and so is what these open; upgrade by opening the chat first if asked.
-  const closed = compact ? 'open the chat for this' : null
-  const commands: Command[] = [
-    { name: 'new', what: 'Start a new topic with the next message', off: topic === null || fresh ? 'it starts one anyway' : null, run: () => setFreshIn(scope) },
-    {
-      name: 'room',
-      what: 'Open a room: agents work on one goal together',
-      off: closed ?? (beside ? null : 'no room can be opened here yet'),
-      press: ['.composer-more > button', '.composer-beside button'],
-    },
-    { name: 'stop', what: 'Stop the work in progress', off: running ? null : 'nothing is at work', run: onStop },
-    { name: 'model', what: 'Choose this conversation’s model', off: closed ?? (model ? null : 'no model to choose yet'), press: ['.model-picker-button'] },
-    {
-      name: 'mode',
-      what: 'Choose the permission level',
-      off: closed,
-      // Only the chooser: a higher level is still the user's own pick, sent from this page.
-      level: true,
-    },
-    {
-      name: 'plan',
-      what: `Switch Plan first ${planFirst ? 'off' : 'on'}`,
-      off: onPlanFirst ? null : 'there is no conversation to set it on',
-      run: () => onPlanFirst?.(!planFirst),
-    },
-    {
-      name: 'compare',
-      what: 'Send the message to two models side by side',
-      off: closed ?? (compare ? null : 'there is no model to compare with yet'),
-      press: ['.composer-more > button', '.composer-compare button'],
-    },
-    ...roles.map(r => ({ name: r.name, what: `Ask the Orchestrator to hand a task to the ${r.name} role`, off: null })),
-    ...own.map(c => {
-      // Its name, then a space or a new line: what follows may take more lines.
-      const called = fold(draft.slice(0, c.name.length + 1)) === fold(`/${c.name}`) && /\s/.test(draft.charAt(c.name.length + 1))
-      const typed = called ? draft.slice(c.name.length + 2).trim() : ''
-      const line = c.template.split('\n')[0]
-      // (split/join, not replace: a `$&` typed stays as it was typed.)
-      const filled = c.template.includes('{args}') ? c.template.split('{args}').join(typed) : [c.template, typed].filter(Boolean).join(' ')
-      // As the role's chip; a role gone since leaves the text, not a "/Ghost" sent as words.
-      const chip = c.role === null ? undefined : roles.find(r => fold(r.name) === fold(c.role!))
-      return { name: c.name, what: c.description || (line.length > 80 ? `${line.slice(0, 79)}…` : line), off: null, fill: chip ? `/${chip.name} ${filled}` : filled, called }
-    }),
-  ]
-  // shortcut: while an own command's text takes more lines, the arrows move in the menu, not between the lines; Esc frees them.
-  const wanted = !role && shut !== draft && (/^\/[^\n]*$/.test(draft) || commands.some(c => c.called)) ? fold(draft.slice(1)) : null
-  // Named in full first ("/mode" is not "/model"), then those it starts, then those holding it.
-  const rank = (command: Command) => (command.called || fold(command.name) === wanted ? 0 : fold(command.name).startsWith(wanted ?? '') ? 1 : 2)
-  const shown = wanted === null ? [] : commands.filter(c => c.called || fold(c.name).includes(wanted)).sort((a, b) => rank(a) - rank(b))
-  const menu = shown.length > 0
-  const active = Math.min(at, shown.length - 1)
-
-  function openLevel() {
-    level.current?.focus()
-    try {
-      level.current?.showPicker?.()
-    } catch {
-      // no list opened without a key or a click: the focus is on it, and the arrows choose
-    }
-  }
-
-  function choose(command: Command) {
-    if (command.off) return
-    setAt(0)
-    setKept(null)
-    if (command.fill !== undefined) return setDraft(command.fill)
-    if (!command.run && !command.press && !command.level) return setDraft(`/${command.name} `)
-    setDraft('')
-    command.run?.()
-    if (command.level) openLevel()
-    // What the button does, unless what it opens is open already.
-    for (const selector of command.press ?? []) {
-      const button = row.current?.querySelector<HTMLElement>(selector)
-      if (button?.getAttribute('aria-expanded') !== 'true') button?.click()
-    }
-  }
-
-  /** The open menu's keys: the arrows move in it, Enter (or Tab) chooses, Esc closes it. True where the key was its. */
-  function menuKey(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault()
-      setAt((active + (event.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length)
-      return true
-    }
-    // (Tab on one that is off is not taken: the focus moves on.)
-    if (!event.shiftKey && (event.key === 'Enter' || (event.key === 'Tab' && !shown[active].off))) {
-      event.preventDefault()
-      choose(shown[active])
-      return true
-    }
-    if (event.key === 'Escape') {
-      event.stopPropagation() // the menu's: the chat stays open
-      setKept(draft)
-      setShut(draft)
-      return true
-    }
-    return false
-  }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.nativeEvent.isComposing) return
-    if (menu && menuKey(event)) return
+    if (menu && slash.menuKey(event)) return
     // At the chip's edge Backspace takes the chip away.
     if (event.key === 'Backspace' && head && event.currentTarget.selectionStart === 0 && event.currentTarget.selectionEnd === 0) {
       event.preventDefault()
@@ -498,79 +259,299 @@ export function Composer({
     if (!event.shiftKey) void send()
   }
 
-  // Files dragged over the box: where they are dropped is shown (slice 85b).
-  const carriesFiles = (event: { dataTransfer: DataTransfer | null }) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
   return (
-    <div
-      className={compact ? 'composer composer-compact' : 'composer'}
-      onDragOver={event => {
-        if (!carriesFiles(event)) return
-        event.preventDefault()
-        setDropping(true)
-      }}
-      onDragLeave={event => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false)
-      }}
-      onDrop={event => {
-        if (!carriesFiles(event)) return
-        event.preventDefault()
-        setDropping(false)
-        void add(Array.from(event.dataTransfer.files))
-      }}
-    >
-      {dropping && (
+    <div className={compact ? 'composer composer-compact' : 'composer'} {...drop}>
+      <Notes
+        dropping={dropping}
+        error={error}
+        budget={over?.key === key ? over : null}
+        onGoOn={() => void (over?.again ? over.again() : send(true))}
+        onCancel={() => {
+          setOver(null)
+          input.current?.focus()
+        }}
+        warn={permissionMode === 'full_auto' && location === 'host'}
+        goes={goesOf(compact, topic, fresh)}
+      />
+      {/* One framed box (0.1.5, "Kovan konsolu"): what the chat does now, the message, one row; under it, quiet words. */}
+      <div className="composer-row" ref={row}>
+        <div className="composer-box">
+          {/* What the chat does now, over the box: ready (its model chosen there), at work with Stop, or waiting for your answer. */}
+          <ComposerStatus conv={conv} compact={compact} running={running} onStop={onStop} model={model} />
+          <Attached
+            files={files}
+            frames={frames}
+            noFrames={noFrames}
+            links={links}
+            pending={pending}
+            unseen={unseen}
+            dropRefused={dropRefused}
+            onError={setError}
+            onDismiss={dismissed => setPending(was => was.filter(one => one.key !== dismissed))}
+            save={conv?.conversation.project_id ? { on: save, set: setSave } : null}
+          />
+          <Field
+            list={list}
+            slash={slash}
+            text={text}
+            compact={compact}
+            input={input}
+            onText={value => {
+              // Writing, the user is no longer listening - nor dictating: what is typed would be written over.
+              stopReading()
+              engine.stop()
+              setDraft(head + value)
+              setPasted(null)
+            }}
+            onPaste={onPaste}
+            onKeyDown={onKeyDown}
+            placeholder={placeholderOf(conv, projectId, compact, tab, running, away)}
+          />
+          <PastedNote
+            noted={noted}
+            asPlain={asPlain}
+            onPlain={plain => {
+              caret.current = plain.at
+              setPasted(null)
+              setDraft(plain.plain)
+              input.current?.focus()
+            }}
+            onLeave={() => setPasted(null)}
+          />
+          <ComposerBar
+            hidden={compact}
+            attach={
+              <AttachMenu
+                projectId={scope ? (conv?.conversation.project_id ?? null) : projectId}
+                onFiles={chosen => void add(chosen)}
+                onProject={path => void addFromProject(path)}
+                onError={setError}
+                onType={() => input.current?.focus()}
+              />
+            }
+            mode={permissionMode}
+            onMode={onPermissionMode}
+            planFirst={planFirst}
+            onPlanFirst={onPlanFirst}
+            checkFirst={checkFirst}
+            onCheckFirst={onCheckFirst}
+            dictate={voice}
+            running={running}
+            canSend={canSend}
+            onSend={() => void send()}
+          />
+        </div>
+        <ComposerBelow
+          hidden={compact}
+          workspace={workspace}
+          topic={topic}
+          fresh={fresh}
+          onFresh={() => setFreshIn(fresh ? null : scope)}
+          other={topic === 'new' || !fresh ? other : null}
+          sheet={sheet}
+          waits={waits}
+        >
+          <span className="composer-beside">{beside}</span>
+          {compare && (
+            <span className="composer-compare">
+              <Compare providers={compare.providers} first={compare.first} content={draft} onCompare={(content, second) => compareOn(content, second)} onModels={compare.onModels} />
+            </span>
+          )}
+        </ComposerBelow>
+      </div>
+    </div>
+  )
+}
+
+/** The conversation's own draft, from the store: it outlives this box. Before there is a conversation, the project's: one written for a project does not turn up in another. */
+function useDraft(scope: string) {
+  const projectId = useApp(s => s.projectId)
+  const key = scope || `new in ${projectId ?? ''}`
+  const draft = useApp(s => s.drafts[key] ?? '')
+  return { projectId, key, draft, setDraft: (text: string) => useApp.getState().setDraft(key, text) }
+}
+
+/** "New topic", chosen for the next message of one conversation (`freshIn`; null while not chosen): what the line says is what is sent - a new topic by choice, or for want of one to go on with. */
+function useFresh(topic: ComposerTopic | 'new' | null, scope: string) {
+  const [freshIn, setFreshIn] = useState<string | null>(null)
+  return { fresh: topic === 'new' || (topic !== null && freshIn === scope), setFreshIn }
+}
+
+/** "Save these to the project too" (slice 23): remembered for each project, ticked or not. */
+function useSave(conv: ConvState | null) {
+  const saveKey = `koloni-save-attachments:${conv?.conversation.project_id}`
+  const [saves, setSaves] = useState<Record<string, boolean>>({})
+  const save = saves[saveKey] ?? stored(saveKey, false, read => typeof read === 'boolean')
+  const setSave = (on: boolean) => {
+    keep(saveKey, on)
+    setSaves(was => ({ ...was, [saveKey]: on }))
+  }
+  return { save, setSave }
+}
+
+/** Words or files to send, and nothing on its way (a send, a file going up, a video's frames). */
+const sendable = (text: string, files: number, busy: boolean) => (text.trim().length > 0 || files > 0) && !busy
+
+type Pasted = { key: string; done: string; plain: string; at: number; language: string | null }
+
+/**
+ * Code just pasted, put in the box fenced (slice 85a): the box then, and as it was pasted, for the way back. Its note is
+ * shown till the box changes, or a few seconds on - kept while its link has the focus. `caret`: where the cursor goes
+ * once the box holds what was put in it.
+ */
+function usePasted(key: string, draft: string, input: RefObject<HTMLTextAreaElement | null>) {
+  const [pasted, setPasted] = useState<Pasted | null>(null)
+  const noted = pasted?.key === key && pasted.done === draft ? pasted : null
+  const asPlain = useRef<HTMLButtonElement>(null)
+  const caret = useRef<number | null>(null)
+  useLayoutEffect(() => {
+    if (caret.current === null) return
+    input.current?.setSelectionRange(caret.current, caret.current)
+    caret.current = null
+  })
+  useEffect(() => {
+    if (!noted) return
+    const gone = setTimeout(() => document.activeElement !== asPlain.current && setPasted(null), 8000)
+    return () => clearTimeout(gone)
+  }, [noted])
+  return { noted, setPasted, asPlain, caret }
+}
+
+/** Closed, where the message goes is said only where it is not the usual. */
+function goesOf(compact: boolean, topic: ComposerTopic | 'new' | null, fresh: boolean): string | null {
+  if (!compact || topic === null || topic === 'new' || !(fresh || topic.scheduled)) return null
+  return fresh ? 'Goes to a new topic' : `Goes to ${topic.title}, a trigger’s topic`
+}
+
+/** The message box, with the chosen role's chip at its start and the `/` menu over it (slice 46). */
+function Field(p: {
+  list: string
+  slash: ReturnType<typeof useSlash>
+  text: string
+  compact: boolean
+  input: RefObject<HTMLTextAreaElement | null>
+  onText: (text: string) => void
+  onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void
+  onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
+  placeholder: string
+}) {
+  const { menu, shown, active, choose, role } = p.slash
+  const { input } = p
+  return (
+    <div className="composer-field">
+      {menu && <SlashMenu id={p.list} shown={shown} active={active} onChoose={choose} />}
+      {/* The sign as well as the colour says it is a command. */}
+      {role && (
+        <span id={`${p.list}-chip`} className="tag tag-accent composer-chip">
+          /{role.name}
+          <span className="visually-hidden">: the Orchestrator is asked to hand this to the {role.name} role; Backspace at the start takes it away</span>
+        </span>
+      )}
+      <textarea
+        aria-label="Message"
+        // A textbox, not a combobox: a textarea keeps its lines (ARIA in HTML allows it no role).
+        aria-haspopup="listbox"
+        aria-controls={menu ? p.list : undefined}
+        aria-autocomplete="list"
+        aria-activedescendant={menu ? `${p.list}-${active}` : undefined}
+        aria-describedby={role ? `${p.list}-chip` : undefined}
+        className="input composer-input"
+        rows={p.compact ? 1 : Math.min(6, Math.max(1, p.text.split('\n').length))}
+        ref={input}
+        value={p.text}
+        onChange={e => {
+          p.onText(e.target.value)
+          p.slash.setAt(0)
+          p.slash.setShut(null)
+        }}
+        onPaste={p.onPaste}
+        onKeyDown={p.onKeyDown}
+        // (Gone with the focus; written in again, it is back.)
+        onBlur={() => p.slash.setShut(p.slash.head + p.text)}
+        placeholder={p.placeholder}
+      />
+    </div>
+  )
+}
+
+/** Under the message, after code was pasted (slice 85a): on the page before it says anything - a region that comes already filled is often not read out. */
+function PastedNote({ noted, asPlain, onPlain, onLeave }: { noted: Pasted | null; asPlain: RefObject<HTMLButtonElement | null>; onPlain: (pasted: Pasted) => void; onLeave: () => void }) {
+  return (
+    <div role="status" className="composer-pasted muted">
+      {noted && (
+        <>
+          Pasted as code{noted.language && ` (${noted.language})`} ·{' '}
+          <button type="button" ref={asPlain} className="link-btn" onClick={() => onPlain(noted)} onBlur={onLeave}>
+            Paste as plain text
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Over the box: files dropped on it, an error, the month's budget asked about, a reading that failed, Full auto's warning, where the message goes. */
+function Notes(p: {
+  dropping: boolean
+  error: string | null
+  budget: { said: string } | null
+  onGoOn: () => void
+  onCancel: () => void
+  warn: boolean
+  goes: string | null
+}) {
+  return (
+    <>
+      {p.dropping && (
         <div className="att-drop" aria-hidden="true">
           Drop files here to add them to your message
           <div className="att-drop-sub">code, images, PDF, Word, video · up to {MAX_BYTES / 2 ** 20} MB each; a larger video goes as its frames only</div>
         </div>
       )}
-      {error && (
+      {p.error && (
         <div role="alert" className="alert">
-          {error}
+          {p.error}
         </div>
       )}
-      {over?.key === key && (
-        <div role="group" aria-label={over.said} className="composer-warning composer-budget">
-          <span role="alert">{over.said}. Send it anyway?</span>
+      {p.budget && (
+        <div role="group" aria-label={p.budget.said} className="composer-warning composer-budget">
+          <span role="alert">{p.budget.said}. Send it anyway?</span>
           {/* (The question is where the focus goes; Cancel gives it back to the message.) */}
-          <button type="button" className="btn btn-small" autoFocus onClick={() => void (over.again ? over.again() : send(true))}>
+          <button type="button" className="btn btn-small" autoFocus onClick={p.onGoOn}>
             Go on anyway
           </button>
-          <button
-            type="button"
-            className="btn btn-small"
-            onClick={() => {
-              setOver(null)
-              input.current?.focus()
-            }}
-          >
+          <button type="button" className="btn btn-small" onClick={p.onCancel}>
             Cancel
           </button>
         </div>
       )}
       <ReadFailed />
       {/* (These in the small box too: a message sent from it starts a turn as well.) */}
-      {permissionMode === 'full_auto' && location === 'host' && (
+      {p.warn && (
         <div role="note" className="composer-warning">
           Commands run on this machine without asking.
         </div>
       )}
-      {/* Closed, where the message goes is said only where it is not the usual. */}
-      {compact && topic !== null && topic !== 'new' && (fresh || topic.scheduled) && (
-        <div className="composer-topic muted">{fresh ? 'Goes to a new topic' : `Goes to ${topic.title}, a trigger’s topic`}</div>
-      )}
+      {p.goes && <div className="composer-topic muted">{p.goes}</div>}
+    </>
+  )
+}
+
+/** In the box, over the message: the files added to it, how many and how big, and whether they go into the project too. */
+function Attached({ files, save, dropRefused, onError, ...chips }: Omit<Parameters<typeof Chips>[0], 'onRemove'> & {
+  dropRefused: () => void
+  onError: (error: string) => void
+  save: { on: boolean; set: (on: boolean) => void } | null
+}) {
+  return (
+    <>
       <Chips
         files={files}
-        frames={frames}
-        noFrames={noFrames}
-        links={links}
-        pending={pending}
-        unseen={unseen}
+        {...chips}
         onRemove={id => {
           dropRefused()
-          void useApp.getState().detach(id).catch(err => setError(errorText(err)))
+          void useApp.getState().detach(id).catch(err => onError(errorText(err)))
         }}
-        onDismiss={dismissed => setPending(was => was.filter(one => one.key !== dismissed))}
       />
       {/* (Under the chips, not beside Send: there it pushed Send off the level's line.) */}
       {files.length > 0 && (
@@ -578,214 +559,182 @@ export function Composer({
           {files.length} attached · {sizeText(files.reduce((sum, one) => sum + one.size, 0))}
         </span>
       )}
-      {files.length > 0 && conv?.conversation.project_id && (
+      {files.length > 0 && save && (
         <label className="att-save muted">
-          <input type="checkbox" checked={save} onChange={e => setSave(e.target.checked)} />
+          <input type="checkbox" checked={save.on} onChange={e => save.set(e.target.checked)} />
           Save these to the project too <span className="att-save-where">(into <span className="mono">docs/attachments/</span>, without asking; undo takes them back)</span>
         </label>
       )}
-      <div className="composer-field">
-        {menu && (
-          <ul
-            id={list}
-            role="listbox"
-            aria-label="Commands"
-            className="palette-list composer-commands"
-            // The focus stays in the box: a click or its scrollbar, and Shift+Tab, do not take it here.
-            tabIndex={-1}
-            onMouseDown={event => event.preventDefault()}
-          >
-            {shown.map((command, index) => (
-              <li
-                key={command.name}
-                id={`${list}-${index}`}
-                role="option"
-                aria-selected={index === active}
-                aria-disabled={command.off ? true : undefined}
-                className="palette-row"
-                ref={index === active ? item => item?.scrollIntoView?.({ block: 'nearest' }) : undefined}
-                onClick={() => choose(command)}
-              >
-                <span className="palette-name mono">/{command.name}</span>{' '}
-                <span className="muted palette-kind">
-                  {command.what}
-                  {command.off && ` - ${command.off}`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* The sign as well as the colour says it is a command. */}
-        {role && (
-          <span id={`${list}-chip`} className="tag tag-accent composer-chip">
-            /{role.name}
-            <span className="visually-hidden">: the Orchestrator is asked to hand this to the {role.name} role; Backspace at the start takes it away</span>
+    </>
+  )
+}
+
+/** The `/` menu over the message (slice 46): its rows the palette's; the focus stays in the box. */
+function SlashMenu({ id, shown, active, onChoose }: { id: string; shown: SlashCommand[]; active: number; onChoose: (command: SlashCommand) => void }) {
+  return (
+    <ul
+      id={id}
+      role="listbox"
+      aria-label="Commands"
+      className="palette-list composer-commands"
+      // The focus stays in the box: a click or its scrollbar, and Shift+Tab, do not take it here.
+      tabIndex={-1}
+      onMouseDown={event => event.preventDefault()}
+    >
+      {shown.map((command, index) => (
+        <li
+          key={command.name}
+          id={`${id}-${index}`}
+          role="option"
+          aria-selected={index === active}
+          aria-disabled={command.off ? true : undefined}
+          className="palette-row"
+          ref={index === active ? item => item?.scrollIntoView?.({ block: 'nearest' }) : undefined}
+          onClick={() => onChoose(command)}
+        >
+          <span className="palette-name mono">/{command.name}</span>{' '}
+          <span className="muted palette-kind">
+            {command.what}
+            {command.off && ` - ${command.off}`}
           </span>
-        )}
-        <textarea
-          aria-label="Message"
-          // A textbox, not a combobox: a textarea keeps its lines (ARIA in HTML allows it no role).
-          aria-haspopup="listbox"
-          aria-controls={menu ? list : undefined}
-          aria-autocomplete="list"
-          aria-activedescendant={menu ? `${list}-${active}` : undefined}
-          aria-describedby={role ? `${list}-chip` : undefined}
-          className="input composer-input"
-          rows={compact ? 1 : Math.min(6, Math.max(1, text.split('\n').length))}
-          ref={input}
-          value={text}
-          onChange={e => {
-            // Writing, the user is no longer listening - nor dictating: what is typed would be written over.
-            stopReading()
-            engine.stop()
-            setDraft(head + e.target.value)
-            setAt(0)
-            setShut(null)
-            setPasted(null)
-          }}
-          onPaste={onPaste}
-          onKeyDown={onKeyDown}
-          // (Gone with the focus; written in again, it is back.)
-          onBlur={() => setShut(draft)}
-          placeholder={placeholderOf(conv, projectId, compact, tab)}
-        />
-      </div>
-      {/* (On the page before it says anything: a region that comes already filled is often not read out.) */}
-      <div role="status" className="composer-pasted muted">
-        {noted && (
-          <>
-            Pasted as code{noted.language && ` (${noted.language})`} ·{' '}
-            <button
-              type="button"
-              ref={asPlain}
-              className="link-btn"
-              onClick={() => {
-                caret.current = noted.at
-                setPasted(null)
-                setDraft(noted.plain)
-                input.current?.focus()
-              }}
-              onBlur={() => setPasted(null)}
-            >
-              Paste as plain text
-            </button>
-          </>
-        )}
-      </div>
-      {/* Under the message box, two lines, two jobs (the user's pick, sample C): what it runs on and where it goes; then 📎, how far it may go, the rest under More, and Send. */}
-      <div className="composer-row" hidden={compact} ref={rowRef}>
-        <div className="composer-line">
-          {model}
-          {/* The next message goes on with the topic it is in; pressed, it starts a new one (pressed again: it goes on). */}
-          {topic !== null && topic !== 'new' && (
-            <button
-              type="button"
-              className="btn btn-small composer-new-topic"
-              aria-pressed={fresh}
-              title={
-                fresh
-                  ? `Your next message starts a new topic: press again to go on with ${topic.title}`
-                  : `Your next message goes on with ${topic.title}${topic.scheduled ? ', a trigger’s topic' : ''}: press to start a new topic`
-              }
-              onClick={() => setFreshIn(fresh ? null : scope)}
-            >
-              <Article size={14} className="composer-icon" aria-hidden />
-              <span className="composer-words">New topic</span>
-            </button>
-          )}
-          {/* Not while "New topic" is pressed: one choice is undone at a time. */}
-          {other && (topic === 'new' || !fresh) && (
-            <button type="button" className="btn btn-small composer-new-topic" title={other.label} onClick={other.onPick}>
-              {other.label}
-            </button>
-          )}
-          {workspace}
-          {/* (On this line: the one below has no room to spare. Narrower, it is under More, as the voice is.) */}
-          <Sheet sheet={sheet} shown={!voiceInMore} />
-        </div>
-        {/* One line down to a 240px chat (the user's report: two while a turn ran): what has words keeps its icon, name and tooltip where they do not fit. */}
-        <div className="composer-controls">
-          <AttachMenu
-            projectId={scope ? (conv?.conversation.project_id ?? null) : projectId}
-            onFiles={chosen => void add(chosen)}
-            onProject={path => void addFromProject(path)}
-            onError={setError}
-            onType={() => input.current?.focus()}
-          />
-          {/* The levels by their short names (sample A), the chosen one's full name in its tooltip and description. */}
-          <select
-            ref={level}
-            aria-label="Permission level"
-            aria-describedby={`${list}-level`}
-            title={LEVELS[permissionMode]}
-            className="input composer-mode"
-            value={permissionMode}
-            onChange={e => onPermissionMode(e.target.value as PermissionMode)}
-          >
-            <option value="ask">Ask</option>
-            <option value="auto_edit">Auto-edit</option>
-            <option value="full_auto">Full auto</option>
-          </select>
-          {onPlanFirst && (
-            <label className="composer-plan" title="Plan first: each new message gets a plan to approve before anything changes">
-              <ListChecks size={14} className="composer-icon" aria-hidden />
-              <input type="checkbox" role="switch" className="switch" checked={planFirst} onChange={e => onPlanFirst(e.target.checked)} />
-              <span className="composer-words">Plan first</span>
-            </label>
-          )}
-          <More voice={voiceInMore}>
-            <Sheet sheet={sheet} shown={voiceInMore} />
-            {voiceInMore && <span className="composer-actions">{voice}</span>}
-            <span className="composer-beside">{beside}</span>
-            {compare && (
-              <span className="composer-compare">
-                <Compare
-                  providers={compare.providers}
-                  first={compare.first}
-                  content={draft}
-                  onCompare={(content, second) => compareOn(content, second)}
-                  onModels={compare.onModels}
-                />
-              </span>
-            )}
-          </More>
-          <div className="composer-actions">
-            {!voiceInMore && voice}
-            {/* While a turn runs: Stop a square beside the button in Send's place, which then queues. */}
-            {running && (
-              <button type="button" className="icon-btn composer-stop" aria-label="Stop" title="Stop the work" onClick={onStop}>
-                <Stop size={14} weight="fill" />
-              </button>
-            )}
-            <button type="button" className="btn btn-primary" title={running ? 'Queue' : 'Send'} disabled={!canSend} onClick={() => void send()}>
-              <PaperPlaneRight size={14} />
-              <span className="composer-say">{running ? 'Queue' : 'Send'}</span>
-            </button>
-          </div>
-        </div>
-        {/* (The level's description, out of the line it is measured by.) */}
-        <span id={`${list}-level`} className="visually-hidden">
-          {LEVELS[permissionMode]}
-        </span>
-      </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** The box's one row (0.1.5): 📎, the level's comb (Plan first is in its menu), then Auto-read, Dictate and Send (Queue while a turn runs). */
+function ComposerBar(p: {
+  hidden: boolean
+  attach: ReactNode
+  mode: PermissionMode
+  onMode: (mode: PermissionMode) => void
+  planFirst: boolean
+  onPlanFirst?: (on: boolean) => void
+  checkFirst: boolean
+  onCheckFirst?: (on: boolean) => void
+  dictate: ReactNode
+  running: boolean
+  canSend: boolean
+  onSend: () => void
+}) {
+  const say = p.running ? 'Queue' : 'Send'
+  return (
+    <div className="composer-bar" hidden={p.hidden}>
+      {p.attach}
+      <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} checkFirst={p.checkFirst} onCheckFirst={p.onCheckFirst} />
+      <span className="composer-actions">
+        <AutoRead />
+        {p.dictate}
+        <button type="button" className="btn btn-primary composer-send" title={say} disabled={!p.canSend} onClick={p.onSend}>
+          <PaperPlaneRight size={14} />
+          <span className="composer-say">{say}</span>
+        </button>
+      </span>
     </div>
   )
 }
 
-/** Each level's full name: the select shows the short ones. */
-const LEVELS: Record<PermissionMode, string> = { ask: 'Ask before changes', auto_edit: 'Auto-edit files', full_auto: 'Full auto' }
+/**
+ * Under the box, quiet words (0.1.5): Workspace first, New topic, the other place a message could go, Chat settings,
+ * More - Work together and Compare -, and at the right what waits for you elsewhere.
+ */
+function ComposerBelow(p: {
+  hidden: boolean
+  workspace?: ReactNode
+  topic: ComposerTopic | 'new' | null
+  fresh: boolean
+  onFresh: () => void
+  other: Props['other']
+  sheet?: ReactNode
+  waits?: Props['waits']
+  children: ReactNode
+}) {
+  const named = p.topic !== null && p.topic !== 'new' ? p.topic : null
+  const row = useTight()
+  return (
+    <div ref={row} className="composer-below" hidden={p.hidden}>
+      {p.workspace}
+      {/* The next message goes on with the topic it is in; pressed, it starts a new one (pressed again: it goes on). */}
+      {named && (
+        <button
+          type="button"
+          className="btn btn-small composer-new-topic"
+          aria-pressed={p.fresh}
+          title={
+            p.fresh
+              ? `Your next message starts a new topic: press again to go on with ${named.title}`
+              : `Your next message goes on with ${named.title}${named.scheduled ? ', a trigger’s topic' : ''}: press to start a new topic`
+          }
+          onClick={p.onFresh}
+        >
+          <Article size={14} className="composer-icon" aria-hidden />
+          <span className="composer-words">New topic</span>
+        </button>
+      )}
+      {/* Not while "New topic" is pressed: one choice is undone at a time. */}
+      {p.other && (
+        <button type="button" className="btn btn-small composer-other" title={p.other.label} onClick={p.other.onPick}>
+          {p.other.label}
+        </button>
+      )}
+      <Sheet sheet={p.sheet} />
+      <More>{p.children}</More>
+      <Waits waits={p.waits} />
+    </div>
+  )
+}
 
-/** ⚙ Chat: this chat's own settings in one panel over the row (sample C); what in it goes elsewhere closes it first. */
-function Sheet({ sheet, shown }: { sheet: ReactNode; shown: boolean }) {
+/**
+ * While the row under the box has no room for all its words, it is `data-tight`: "Chat settings" is "Settings" and what
+ * waits "2 wait". Measured, not guessed from its width: after each render (what is in it may have changed) and as it is
+ * resized. (Only the row is watched: its fewer words do not change its own size.)
+ */
+function useTight() {
+  const row = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => fit(row.current))
+  useLayoutEffect(() => {
+    const at = row.current
+    if (!at || typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(() => fit(at))
+    watch.observe(at)
+    return () => watch.disconnect()
+  }, [])
+  return row
+}
+
+function fit(row: HTMLElement | null) {
+  if (!row) return
+  delete row.dataset.tight
+  if (row.scrollWidth > row.clientWidth) row.dataset.tight = ''
+}
+
+/** What waits for you outside this chat (tek-ev §1): its number and a few words, which open Ready for you. */
+function Waits({ waits }: { waits?: Props['waits'] }) {
+  if (!waits || waits.count <= 0) return null
+  const verb = waits.count === 1 ? 'waits' : 'wait'
+  return (
+    <button type="button" className="link-btn composer-waits" aria-label={`Open Ready for you: ${waits.count} more ${verb} elsewhere`} onClick={waits.onOpen}>
+      <b>{waits.count}</b> <span className="composer-waits-long">more {verb} elsewhere</span>
+      <span className="composer-waits-short">{verb}</span>
+    </button>
+  )
+}
+
+/** ⚙ Chat settings: this chat's own settings in one panel over the row (sample C); what in it goes elsewhere closes it first. */
+function Sheet({ sheet }: { sheet: ReactNode }) {
   const { open, setOpen, close, button, panel } = usePanel()
   // Under More (a narrow row), what goes elsewhere folds More too.
   const closeMore = useContext(CloseMore)
-  if (!sheet || !shown) return null
+  if (!sheet) return null
   return (
     <div className="allow-list chat-sheet-button">
       <button ref={button} type="button" className="btn btn-small" aria-expanded={open} aria-label="This chat’s settings" title="This chat’s settings" onClick={() => (open ? close() : setOpen(true))}>
         <GearSix size={14} className="composer-icon" aria-hidden />
-        <span className="composer-words">Chat</span>
+        <span className="composer-words">
+          <span className="sheet-long">Chat settings</span>
+          <span className="sheet-short">Settings</span>
+        </span>
       </button>
       {open && (
         <div ref={panel} tabIndex={-1} role="dialog" aria-label="This chat" className="allow-list-panel chat-sheet-panel">
@@ -808,10 +757,9 @@ function Sheet({ sheet, shown }: { sheet: ReactNode; shown: boolean }) {
  * What else can be done with a message, folded under one button: Work together, Compare. Each opens its own panel over the
  * row; Esc there closes that panel, and the next Esc, the button or a click elsewhere
  * closes More, the focus back on its button - unless a panel in it stays open, keeping a
- * change not saved. (Hidden, not gone: a form half written in it stays.) `voice`: Auto-read and Dictate are in it
- * (a narrow row): a dot on its button says so, and its description.
+ * change not saved. (Hidden, not gone: a form half written in it stays.)
  */
-function More({ children, voice = false }: { children: ReactNode; voice?: boolean }) {
+function More({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
@@ -839,26 +787,11 @@ function More({ children, voice = false }: { children: ReactNode; voice?: boolea
 
   return (
     <div className="composer-more" ref={box} onKeyDown={onKeyDown}>
-      <button
-        ref={button}
-        type="button"
-        className="btn btn-small"
-        aria-expanded={open}
-        aria-controls={id}
-        aria-describedby={voice ? `${id}-voice` : undefined}
-        title="More"
-        onClick={() => (open ? fold() : setOpen(true))}
-      >
+      <button ref={button} type="button" className="btn btn-small" aria-expanded={open} aria-controls={id} title="More" onClick={() => (open ? fold() : setOpen(true))}>
         <DotsThree size={14} weight="bold" className="composer-icon" />
         <span className="composer-words">More</span>
         <CaretDown size={12} className="composer-words" />
       </button>
-      {/* (Beside the button, not in it: its name stays "More".) */}
-      {voice && (
-        <span id={`${id}-voice`} className="visually-hidden composer-more-voice">
-          Auto-read and Dictate are in here
-        </span>
-      )}
       <div id={id} className="composer-more-panel" hidden={!open}>
         <CloseMore.Provider
           value={() => {

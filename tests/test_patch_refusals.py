@@ -153,7 +153,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         "away_minutes": 7, "spawn_approval": "always", "spawn_max_depth": 2,
         "spawn_max_agents": 3, "spawn_max_parallel": 4, "discussion_budget": 9000,
         "room_posts": 5, "room_tokens": 6000, "room_minutes": 7, "room_min_tokens": 8,
-        "finish_tests": True,
+        "finish_tests": True, "full_auto_check": "judge", "disposable_deletes": True,
     }
     status, out = answer(client, f"/api/projects/{pid}", sent)
     assert status == 200, out
@@ -189,6 +189,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
     {"room_min_tokens": None}, {"max_agents": None}, {"day_note_at": None},
     {"monthly_budget": None}, {"finish_tests": None}, {"embedding_provider_id": None},
     {"teams_mode": "none"}, {"teams": []}, {"also_in": []}, {"read_in": []},
+    {"full_auto_check": "ask"}, {"disposable_deletes": False},
 ])
 def test_a_project_takes_these_only_from_the_apps_own_page(client, pid, body):
     assert answer(client, f"/api/projects/{pid}", body, own=False) == NO_ORIGIN

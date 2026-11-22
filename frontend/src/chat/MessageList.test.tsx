@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, onTestFinished, test, vi } from 'vitest'
+import { ApiError } from '../api/client'
 import type { Attachment, Message, Provider, Role } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
@@ -19,6 +20,10 @@ import {
 import { ALIBABA_CONSOLE } from '../agents/failure'
 import { when } from '../canvas/turns'
 import { MessageList } from './MessageList'
+import { AskCard } from './AskCard'
+
+/** A step's row by its words: in the chat its file is a pill in them (0.1.5). */
+const stepSaid = (words: string) => (_: string, el: Element | null) => el?.classList.contains('tool-row-summary') === true && el.textContent === words
 
 const handlers = {
   onRemoveQueued: vi.fn(),
@@ -116,11 +121,52 @@ test('a message removed from the queue stays visible and says so', () => {
   expect(screen.queryByText('Stopped')).not.toBeInTheDocument()
 })
 
+test('a message still queued when KOLONİ restarted says it was not sent, and Send sends it', async () => {
+  // (Code review, 14 Nov: "Interrupted by a server restart - Send a message to continue." under a message never sent.)
+  const sendAgain = vi.fn(async () => {})
+  const real = useApp.getState().sendAgain
+  useApp.setState({ sendAgain })
+  onTestFinished(() => useApp.setState({ sendAgain: real }))
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('a', 'interrupted'), run('q', 'interrupted', { started_at: null })],
+        messages: [userMessage('a', 'first'), userMessage('q', 'then run the tests')],
+      })}
+    />,
+  )
+  expect(screen.getByText(/Not sent/)).toHaveTextContent('Not sent: KOLONİ restarted')
+  expect(screen.getAllByText('Interrupted by a server restart')).toHaveLength(1) // (the first, that ran)
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+  expect(sendAgain).toHaveBeenCalledWith('q', false)
+})
+
+test('a message not sent, held back over the budget, is sent on the user’s word; any other refusal is said under it', async () => {
+  const sendAgain = vi
+    .fn()
+    .mockRejectedValueOnce(new ApiError(409, "this project is over this month's budget (10.50 of 10.00 USD): say to go on over it"))
+    .mockResolvedValueOnce(undefined)
+    .mockRejectedValueOnce(new ApiError(409, 'only a message of yours that was never sent can be sent'))
+  const real = useApp.getState().sendAgain
+  useApp.setState({ sendAgain })
+  onTestFinished(() => useApp.setState({ sendAgain: real }))
+  render(<MessageList {...handlers} state={convState({ runs: [run('q', 'interrupted', { started_at: null })], messages: [userMessage('q', 'later')] })} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Go on anyway' }))
+  expect(sendAgain).toHaveBeenLastCalledWith('q', true)
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('only a message of yours that was never sent can be sent')
+})
+
 test.each([
   [run('r', 'failed', { error: 'model server unreachable: refused' }), 'Run failed', 'model server unreachable: refused'],
   [run('r', 'failed', { error: 'step_limit' }), 'Stopped at its step limit', null],
   [run('r', 'cancelled'), 'Stopped', null],
   [run('r', 'interrupted'), 'Interrupted by a server restart', 'Send a message to continue.'],
+  [run('r', 'interrupted', { started_at: null, unattended: true }), 'Interrupted by a server restart', 'Send a message to continue.'],
+  // (A turn KOLONİ made and never began - an approved plan's work, a re-run: no message of the user's to send again.)
+  [run('r', 'interrupted', { started_at: null, by_user: false }), 'Interrupted by a server restart', 'Send a message to continue.'],
 ])('a turn that did not complete says why, as a card that only tells', (endedRun, title, said) => {
   render(
     <MessageList
@@ -131,6 +177,7 @@ test.each([
   const card = screen.getByText(title).closest('.cmd-approval')
   expect(card).toHaveClass('card-tell')
   if (said) expect(card).toHaveTextContent(`${title}${said}`)
+  expect(screen.queryByText(/Not sent/)).toBeNull()
 })
 
 test('a failed turn says the one thing to do about it under why it failed; where nothing is known to help, nothing', () => {
@@ -180,7 +227,7 @@ test('tool calls sit under the step that made them; a step with only tools shows
       })}
     />,
   )
-  expect(screen.getByText('read_file a.py')).toBeInTheDocument()
+  expect(screen.getByText(stepSaid('read_file a.py'))).toBeInTheDocument()
   expect(container.querySelector('.msg-assistant')).toBeNull()
 })
 
@@ -253,7 +300,7 @@ test('the chat is the lead agent’s conversation: sub-agent messages stay out',
   render(<MessageList {...handlers} state={spawned} />)
   expect(screen.getByText('I will hand this over.')).toBeInTheDocument()
   expect(screen.queryByText('child private thoughts')).not.toBeInTheDocument()
-  expect(screen.queryByText('read_file secret.py')).not.toBeInTheDocument()
+  expect(screen.queryByText(stepSaid('read_file secret.py'))).not.toBeInTheDocument()
 })
 
 test('a spawn call is one row with its approval card, and both report back', async () => {
@@ -639,12 +686,19 @@ const askedBy = (over: Parameters<typeof question>[2] = {}) =>
     questions: [question('q', 'r', { options: ['hello', 'hey'], ...over })],
   })
 
-test('a question the lead asks is answered under its call', async () => {
-  const onAnswer = vi.fn().mockResolvedValue(undefined)
-  render(<MessageList {...handlers} state={askedBy()} onAnswer={onAnswer} />)
-  expect(screen.getByText('Which greeting?')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'hey' }))
-  expect(onAnswer).toHaveBeenCalledWith('q', 'hey')
+test('in its turn the open question is one line that takes the focus to the card over the box', async () => {
+  // (The card itself is over the message box: ChatPanel's AskCard.)
+  render(
+    <>
+      <MessageList {...handlers} state={askedBy()} />
+      <AskCard conv={askedBy()} open tab="Chat" onAnswer={vi.fn(async () => {})} />
+    </>,
+  )
+  const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
+  const line = within(card).getByRole('button', { name: 'Orchestrator asks: Which greeting? · waits for you' })
+  expect(within(card).queryByRole('button', { name: 'hey' })).toBeNull()
+  await userEvent.click(line)
+  expect(screen.getByRole('radio', { name: 'hello' })).toHaveFocus()
 })
 
 const WAITS_FOR_ANSWER = 'Your message waits until this question is answered'
@@ -668,7 +722,7 @@ test('a message queued behind a question says it waits for the answer, under the
 test('an answered question shows the question and what you said, and no card', () => {
   render(<MessageList {...handlers} state={askedBy({ status: 'answered', answer: 'hey' })} />)
   expect(screen.getByText('Which greeting?')).toBeInTheDocument()
-  expect(screen.getByText('hey')).toBeInTheDocument()
+  expect(screen.getByText('hey', { selector: 'summary span' })).toBeInTheDocument()
   expect(screen.queryByLabelText('Your answer')).not.toBeInTheDocument()
   expect(screen.queryByText(/ask_user/)).not.toBeInTheDocument()
 })
@@ -1166,7 +1220,7 @@ test('calls in a row are one closed line that counts them; opened, the rows are 
   const head = screen.getByRole('button', { name: 'Read 1 file, listed 1 folder, 1 failed, 3 calls, done' })
   expect(head).toHaveAttribute('aria-expanded', 'false')
   expect(head).toHaveTextContent('1 failed')
-  expect(screen.queryByText('read_file a.py')).not.toBeInTheDocument()
+  expect(screen.queryByText(stepSaid('read_file a.py'))).not.toBeInTheDocument()
   // (its words stay outside it, after it)
   expect(head.compareDocumentPosition(screen.getByText('Found it.')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
@@ -1178,7 +1232,7 @@ test('calls in a row are one closed line that counts them; opened, the rows are 
   expect(screen.getByRole('button', { name: /list_dir \./ })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /read_file gone\.py.*failed/ })).toBeInTheDocument()
   await userEvent.click(head)
-  expect(screen.queryByText('read_file a.py')).not.toBeInTheDocument()
+  expect(screen.queryByText(stepSaid('read_file a.py'))).not.toBeInTheDocument()
 })
 
 test('a line left open stays open when the chat is shown again', async () => {
@@ -1348,9 +1402,9 @@ test('a Lead turn is one card named after the Lead (the Orchestrator, as the scr
   )
   const card = screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })
   expect(card).toHaveTextContent('qwen')
-  for (const part of ['I read it first.', 'read_file a.py', 'It greets twice.']) expect(within(card).getByText(part)).toBeInTheDocument()
+  for (const part of ['I read it first.', stepSaid('read_file a.py'), 'It greets twice.']) expect(within(card).getByText(part)).toBeInTheDocument()
   // The user's message stands above it, not in it.
-  expect(screen.getByText('look at a.py').closest('.turn-card')).toBeNull()
+  expect(screen.getByText('look at a.py').closest('.turn')).toBeNull()
   // The answer opens with its point; the words before it do not.
   expect(card.querySelector('.msg-answer > p:first-child')).toHaveTextContent('It greets twice.')
   expect(screen.getByText('I read it first.').closest('.msg-assistant')).not.toHaveClass('msg-answer')
@@ -1389,7 +1443,7 @@ test('a compare run and a turn with only the user’s message get no card', () =
       })}
     />,
   )
-  expect(screen.getByText('read_file a.py')).toBeInTheDocument()
+  expect(screen.getByText(stepSaid('read_file a.py'))).toBeInTheDocument()
   expect(screen.queryByRole('article')).toBeNull()
 })
 
@@ -1445,12 +1499,13 @@ test('a turn with no Lead gets no card, and what it did stands under its last me
   expect(screen.getByRole('region', { name: 'What it did' })).toHaveTextContent('1 agent')
 })
 
-test('the Lead’s open question sits in its turn’s card, and the card says it waits for you where its time would be', () => {
+test('the Lead’s open question is a line in its turn, and the turn says it waits for you where its time would be', () => {
   render(<MessageList {...handlers} state={askedBy()} />)
   const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
-  expect(within(card).getByText('Which greeting?')).toBeInTheDocument()
-  expect(within(card).getByRole('button', { name: 'hey' })).toBeInTheDocument()
-  expect(within(card).getByText('waits for you')).toBeInTheDocument()
+  expect(within(card).getByRole('button', { name: /^Orchestrator asks: Which greeting\?/ })).toBeInTheDocument()
+  // (Its options and your answer are on the card over the message box.)
+  expect(within(card).queryByLabelText('Your answer')).toBeNull()
+  expect(card.querySelector('.turn-head')).toHaveTextContent(/waits for you$/)
   expect(card.querySelector('time')).toBeNull()
 })
 
@@ -1471,7 +1526,7 @@ test('two open questions in one turn show one queued-message note, under both', 
   for (const one of ['Which greeting?', 'Which colour?']) expect(text.indexOf(one)).toBeLessThan(text.indexOf(WAITS_FOR_ANSWER))
 })
 
-test('an answered question closes to its row in the card, and the foot counts it', () => {
+test('answered, "Question: … / Answered: …" opens to its options with the given one ticked; the foot counts it', async () => {
   const asked = askedBy({ status: 'answered', answer: 'hey' })
   // (Not counted: KOLONİ's own card, and one the Orchestrator answered for you.)
   const others = [
@@ -1481,6 +1536,279 @@ test('an answered question closes to its row in the card, and the foot counts it
   const state = { ...asked, runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [...asked.messages, assistantMessage('m2', 'r', 'Going with hey.')], questions: [...asked.questions, ...others] }
   render(<MessageList {...handlers} state={state} />)
   const card = screen.getByRole('article', { name: /^Orchestrator, / })
-  expect(within(card).getByText('Which greeting?').closest('.question-row')).toHaveTextContent('hey')
+  const row = within(card).getByText('Which greeting?').closest('details.asked-row') as HTMLElement
+  expect(row.querySelector('summary')).toHaveTextContent(/^Question: Which greeting\?Answered: hey$/)
+  await userEvent.click(row.querySelector('summary')!)
+  expect(within(row).getByRole('listitem', { name: 'hey, your answer' })).toBeInTheDocument()
+  expect(within(row).getByRole('listitem', { name: 'hello' })).toBeInTheDocument()
   expect(within(card).getByRole('region', { name: 'What it did' })).toHaveTextContent(/^1 question/)
+})
+
+// --- 0.1.5: a finished turn's steps fold into one line ---------------------------------------------------------------
+
+const ENDED = '2026-10-05T10:00:32Z'
+/** A turn of words, a read and an answer: running, or ended 32s after it began. */
+const twoSteps = (status: 'running' | 'completed') =>
+  convState({
+    runs: [run('r', status, { ended_at: status === 'completed' ? ENDED : null })],
+    agents: [agent('r', status)],
+    messages: [userMessage('r', 'look at a.py'), assistantMessage('m', 'r', 'I read it first.'), assistantMessage('m2', 'r', 'It greets twice.')],
+    toolCalls: [toolCall('1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
+  })
+
+test('at a turn’s end everything before the answer is one closed "Completed N steps in 32s"; the answer and its foot stay outside', () => {
+  const { container } = render(<MessageList {...handlers} state={twoSteps('completed')} />)
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(fold).not.toHaveAttribute('open')
+  expect(fold.querySelector('summary')).toHaveTextContent(/^Completed 2 steps in 32s$/)
+  expect(within(fold).getByText('I read it first.')).toBeInTheDocument()
+  expect(within(fold).getByText(stepSaid('read_file a.py'))).toBeInTheDocument()
+  expect(fold).not.toContainElement(screen.getByText('It greets twice.'))
+  expect(fold).not.toContainElement(container.querySelector('footer.turn-foot') as HTMLElement)
+  expect(fold.closest('article')).toHaveClass('turn')
+})
+
+test('under two steps before the answer nothing folds', () => {
+  const state = twoSteps('completed')
+  const { container } = render(<MessageList {...handlers} state={{ ...state, toolCalls: [] }} />)
+  expect(container.querySelector('details.turn-steps')).toBeNull()
+  expect(screen.getByText('I read it first.')).toBeVisible()
+})
+
+/** A turn whose Lead read two files (one failed), opened a sub-agent whose work waits to be taken in, a room and a discussion, and started a server that still runs. */
+function busyTurn(status: 'running' | 'completed'): ConvState {
+  const at = '2026-10-05T10:00:05Z'
+  const lead = (id: string, name: string, state: 'succeeded' | 'failed' | 'running', args: string) => toolCall(id, 'r', name, state, args, { message_id: 'm', seq: Number(id.slice(1)) })
+  return convState({
+    runs: [run('r', status, { ended_at: status === 'completed' ? ENDED : null })],
+    agents: [agent('r', status), agent('r', 'completed', { id: 'k', name: 'Coder', role_name: 'Coder', parent_agent_id: 'r', depth: 1, tool_call_id: 'b3' })],
+    messages: [userMessage('r', 'go'), assistantMessage('m', 'r', 'I’ll look first.'), assistantMessage('m2', 'r', 'Done.')],
+    toolCalls: [
+      lead('b1', 'read_file', 'succeeded', '{"path":"a.py"}'),
+      lead('b2', 'read_file', 'failed', '{"path":"gone.py"}'),
+      lead('b3', 'spawn_agent', 'succeeded', '{"role":"Coder","task":"fix it"}'),
+      lead('b4', 'open_room', 'succeeded', '{"goal":"Meet on it"}'),
+      lead('b5', 'start_discussion', 'succeeded', '{"topic":"Keep hi?"}'),
+      lead('b6', 'run_command', 'running', '{"command":"python -m http.server"}'),
+    ],
+    commands: [command('s', 'r', { tool_call_id: 'b6', command: 'python -m http.server', keep_running: true, status: 'running', exit_code: null, ended_at: null })],
+    rooms: [{ id: 'o', run_id: 'r', agent_id: 'r', goal: 'Meet on it', status: 'working', outcome: null, why: null, members: [] }] as unknown as ConvState['rooms'],
+    discussions: [
+      { id: 't', run_id: 'r', agent_id: 'r', tool_call_id: 'b5', topic: 'Keep hi?', status: 'ended', outcome: 'agreed', round: 1, max_rounds: 3, created_at: at, ended_at: at, members: [] },
+    ] as unknown as ConvState['discussions'],
+    merges: [
+      {
+        id: 'g', run_id: 'r', agent_id: 'k', status: 'pending', kept_in: null, check: null, commit: null, created_at: at, decided_at: null,
+        files: [{ path: 'a.py', kind: 'changed', state: 'ready', whole: false, diff: '', additions: 3, deletions: 1, note: null }],
+      },
+    ] as unknown as ConvState['merges'],
+  })
+}
+
+test('a failed step folds but is counted on the fold’s line; a sub-agent, a room, a discussion, a card that waits and a running server never fold', () => {
+  const { container } = render(<MessageList {...handlers} state={busyTurn('completed')} />)
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  const summary = fold.querySelector('summary') as HTMLElement
+  expect(summary).toHaveTextContent(/^Completed 2 steps in 32s/)
+  expect(within(summary).getByText('1 failed')).toHaveClass('tag-del')
+  const kept = [
+    screen.getByTitle('Show this agent on the canvas'),
+    container.querySelector('[data-room-line]') as HTMLElement,
+    screen.getByTitle('Open the discussion'),
+    screen.getByRole('button', { name: 'Take in' }),
+    screen.getByRole('button', { name: 'Stop python -m http.server' }),
+  ]
+  for (const one of kept) {
+    expect(one).toBeInTheDocument()
+    expect(fold).not.toContainElement(one)
+  }
+  expect(document.querySelector('[data-room-line]')!.closest('details')).toBeNull()
+})
+
+test('a card kept outside the fold is the same element after the turn ends: nothing typed or chosen in it is lost', () => {
+  const { rerender } = render(<MessageList {...handlers} state={busyTurn('running')} />)
+  const before = screen.getByRole('button', { name: 'Take in' })
+  rerender(<MessageList {...handlers} state={busyTurn('completed')} />)
+  expect(document.querySelector('details.turn-steps')).not.toBeNull()
+  expect(screen.getByRole('button', { name: 'Take in' })).toBe(before)
+})
+
+test('while the turn runs nothing folds; its newest group of steps is open, and closes once words come after it', () => {
+  const calls = [
+    toolCall('31', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' }),
+    toolCall('32', 'r', 'read_file', 'running', '{"path":"b.py"}', { message_id: 'm' }),
+  ]
+  const state = (more: Message[]) =>
+    convState({ runs: [run('r')], agents: [agent('r')], messages: [userMessage('r', 'go'), assistantMessage('m', 'r', ''), ...more], toolCalls: calls })
+  const { container, rerender } = render(<MessageList {...handlers} state={state([])} />)
+  expect(container.querySelector('details.turn-steps')).toBeNull()
+  expect(screen.getByRole('button', { name: /^Read 1 file · now: read_file b\.py/ })).toHaveAttribute('aria-expanded', 'true')
+  rerender(<MessageList {...handlers} state={state([assistantMessage('m3', 'r', 'Both read.')])} />)
+  expect(screen.getByRole('button', { name: /^Read 1 file · now: read_file b\.py/ })).toHaveAttribute('aria-expanded', 'false')
+})
+
+test('a command that exited with an error is counted as failed on the fold’s line, though its call ended well', () => {
+  // (KOLONİ records the call of a command that exits 1 as succeeded: the command's own record says it failed.)
+  const state = convState({
+    runs: [run('r', 'completed', { ended_at: ENDED })],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'test it'), assistantMessage('m', 'r', 'I’ll run the tests.'), assistantMessage('m2', 'r', 'One test fails.')],
+    toolCalls: [toolCall('41', 'r', 'run_command', 'succeeded', '{"command":"pytest -q"}', { message_id: 'm' })],
+    commands: [command('k41', 'r', { tool_call_id: '41', exit_code: 1, output: '1 failed' })],
+  })
+  const { container } = render(<MessageList {...handlers} state={state} />)
+  const summary = container.querySelector('details.turn-steps > summary') as HTMLElement
+  expect(summary).toHaveTextContent(/^Completed 2 steps in 32s/)
+  expect(within(summary).getByText('1 failed')).toHaveClass('tag-del')
+})
+
+test('a folded turn with failed steps says the first one’s reason in one line under its line, outside the fold; with none failed, nothing', () => {
+  const reason = 'the Feature recipe of Docs is at its Write the spec step, for Spec writer: it draws 1 agent'
+  const failed = (id: string, why: string, seq: number) => toolCall(id, 'r', 'spawn_agent', 'failed', '{"role":"Coder","task":"Add farewell.py"}', { message_id: 'm', seq, result: `error: ${why}
+the rest` })
+  const state = convState({
+    runs: [run('r', 'completed', { ended_at: ENDED })],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'make farewell'), assistantMessage('m', 'r', 'I’ll ask a Coder.'), assistantMessage('m2', 'r', 'I could not finish.')],
+    toolCalls: [toolCall('90', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm', seq: 1 }), failed('91', reason, 2), failed('92', 'a later one', 3)],
+  })
+  const { container, rerender } = render(<MessageList {...handlers} state={state} />)
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(within(fold.querySelector('summary')!).getByText('2 failed')).toBeInTheDocument()
+  const why = screen.getByText(reason)
+  // Under the fold's line, outside the fold: read without opening it.
+  expect(fold).not.toContainElement(why)
+  expect(fold.nextElementSibling).toContainElement(why)
+  expect(fold.nextElementSibling).toHaveTextContent(`↳ ${reason}`)
+  expect(screen.queryByText(/a later one/)).toBeNull()
+  rerender(<MessageList {...handlers} state={{ ...state, toolCalls: state.toolCalls.slice(0, 1).concat(toolCall('93', 'r', 'read_file', 'succeeded', '{"path":"b.py"}', { message_id: 'm', seq: 2 })) }} />)
+  expect(screen.queryByText(reason)).toBeNull()
+  expect(container.querySelector('details.turn-steps')!.nextElementSibling?.textContent ?? '').not.toMatch(/^↳/)
+})
+
+test('a night’s closing line and the room you opened stay plain lines in the new flow: outside the fold, the room’s line its focus target', () => {
+  const night = { ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'), role: 'away' as const, agent_id: null }
+  const room = { id: 'o6', run_id: 'r', agent_id: null, goal: 'Meet on the greeting', status: 'done', outcome: null, why: null, members: [] }
+  const state = convState({
+    runs: [run('r', 'completed', { ended_at: ENDED })],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'Meet on the greeting'), assistantMessage('m', 'r', 'I read it first.'), night, assistantMessage('m2', 'r', 'It greets twice.')],
+    toolCalls: [toolCall('61', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
+    rooms: [room] as unknown as ConvState['rooms'],
+  })
+  const { container } = render(<MessageList {...handlers} state={state} />)
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(fold).not.toBeNull()
+  expect(fold).not.toContainElement(screen.getByText('While you were away: 2 done - on the canvas'))
+  expect(screen.getByText('While you were away: 2 done - on the canvas').closest('.away-said')).toBeVisible()
+  const line = container.querySelector('[data-room-line]') as HTMLElement
+  expect(line).toHaveTextContent('Meet on the greeting')
+  expect(line.closest('details')).toBeNull()
+})
+
+test('the fold’s line says how the turn ended: completed in its time, or failed, stopped or interrupted after its steps', () => {
+  const ended = (status: 'failed' | 'cancelled' | 'interrupted') => {
+    const state = twoSteps('completed')
+    return { ...state, runs: [run('r', status, { ended_at: ENDED, error: status === 'failed' ? 'boom' : null })], agents: [agent('r', 'completed')] }
+  }
+  const { container, rerender } = render(<MessageList {...handlers} state={ended('failed')} />)
+  const summary = () => container.querySelector('details.turn-steps > summary')
+  expect(summary()).toHaveTextContent(/^Failed after 2 steps$/)
+  rerender(<MessageList {...handlers} state={ended('cancelled')} />)
+  expect(summary()).toHaveTextContent(/^Stopped after 2 steps$/)
+  rerender(<MessageList {...handlers} state={ended('interrupted')} />)
+  expect(summary()).toHaveTextContent(/^Interrupted after 2 steps$/)
+})
+
+test('a command that ran on your words (K-yargıç) never folds: what ran on them stays in sight', () => {
+  const state = twoSteps('completed')
+  const judged = { verdict: 'run' as const, quote: 'rm build/ is fine', source: 'rules' as const, why: 'It names build/.', model: 'Fast', seen: false }
+  const { container } = render(
+    <MessageList
+      {...handlers}
+      state={{
+        ...state,
+        toolCalls: [...state.toolCalls, toolCall('71', 'r', 'run_command', 'succeeded', '{"command":"rm -rf build"}', { message_id: 'm', seq: 2 })],
+        commands: [command('k71', 'r', { tool_call_id: '71', command: 'rm -rf build', judged } as Partial<ReturnType<typeof command>>)],
+      }}
+    />,
+  )
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(fold).not.toBeNull()
+  expect(fold).not.toContainElement(screen.getByText('rm -rf build'))
+})
+
+test('a command a line of yours kept from running never folds either', () => {
+  const state = twoSteps('completed')
+  const judged = { verdict: 'refuse' as const, quote: 'Never push to main.', source: 'rules' as const, why: '', model: 'Fast', seen: false }
+  const { container } = render(
+    <MessageList
+      {...handlers}
+      state={{
+        ...state,
+        toolCalls: [...state.toolCalls, toolCall('72', 'r', 'run_command', 'denied', '{"command":"git push origin main"}', { message_id: 'm', seq: 2 })],
+        commands: [command('k72', 'r', { tool_call_id: '72', command: 'git push origin main', status: 'refused', judged } as Partial<ReturnType<typeof command>>)],
+      }}
+    />,
+  )
+  const fold = container.querySelector('details.turn-steps') as HTMLElement
+  expect(fold).not.toBeNull()
+  expect(fold).not.toContainElement(screen.getByText('git push origin main'))
+})
+
+test('a turn KOLONİ started has its topic’s line before the fold, not after it', () => {
+  const state = convState({
+    topics: [topic('t1', 'Greeting'), topic('t2', 'Nightly look')],
+    runs: [run('a', 'completed', { topic_id: 't1' }), run('b', 'completed', { topic_id: 't2', ended_at: ENDED, by_user: false })],
+    agents: [agent('a', 'completed'), agent('b', 'completed')],
+    messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.'), assistantMessage('b1', 'b', 'I’ll look at the night.'), assistantMessage('b2', 'b', 'All well.')],
+    toolCalls: [toolCall('81', 'b', 'read_file', 'succeeded', '{"path":"log.txt"}', { message_id: 'b1' })],
+  })
+  const { container } = render(<MessageList {...handlers} state={state} />)
+  const divider = screen.getByText(/New topic: Nightly look/).closest('[role=separator]') as HTMLElement
+  const fold = container.querySelector('details.turn-steps')!
+  expect(fold).not.toContainElement(divider)
+  expect(divider.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+test('the focus on a step that folds as its turn ends goes to the fold’s line, not the page', () => {
+  const { container, rerender } = render(<MessageList {...handlers} state={twoSteps('running')} />)
+  container.querySelector<HTMLElement>('.tool-row-head')!.focus()
+  rerender(<MessageList {...handlers} state={twoSteps('completed')} />)
+  expect(container.querySelector('details.turn-steps > summary')).toHaveFocus()
+})
+
+test('only the newest turn is "latest": a newer comparison leaves an older turn’s Copy and Read aloud to the pointer', () => {
+  const older = convState({ runs: [run('a', 'completed')], agents: [agent('a', 'completed')], messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.')] })
+  const { container, rerender } = render(<MessageList {...handlers} state={older} />)
+  expect(container.querySelector('article.turn')).toHaveClass('turn-latest')
+  rerender(
+    <MessageList
+      {...handlers}
+      state={{
+        ...older,
+        runs: [...older.runs, run('b', 'completed', { compare_id: 'k' }), run('c', 'completed', { compare_id: 'k' })],
+        agents: [...older.agents, agent('b', 'completed'), agent('c', 'completed')],
+        messages: [...older.messages, userMessage('b', 'go'), assistantMessage('mb', 'b', 'B side.'), userMessage('c', 'go'), assistantMessage('mc', 'c', 'C side.')],
+      }}
+    />,
+  )
+  expect(container.querySelector('article.turn')).not.toHaveClass('turn-latest')
+})
+
+test('an older turn that ends with its answer’s words lets its hidden foot stand over them; one that ends with a card keeps the foot under it', () => {
+  const offer = { id: 'o9', run_id: 'a', lines: ['docs/api.md was changed'], status: 'waiting', answer: null }
+  const state = (offers: unknown[]) =>
+    convState({
+      runs: [run('a', 'completed'), run('b', 'completed')],
+      agents: [agent('a', 'completed'), agent('b', 'completed')],
+      messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.'), userMessage('b', 'and'), assistantMessage('b1', 'b', 'Done.')],
+      notesOffers: offers as ConvState['notesOffers'],
+    })
+  const { container, rerender } = render(<MessageList {...handlers} state={state([])} />)
+  const older = () => container.querySelectorAll('article.turn')[0]
+  expect(older()).toHaveClass('turn-words-end')
+  rerender(<MessageList {...handlers} state={state([offer])} />)
+  expect(older()).not.toHaveClass('turn-words-end')
+  expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
 })

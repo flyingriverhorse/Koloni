@@ -113,6 +113,11 @@
   font-size: var(--text-note);
 }
 
+/* A folder's path in it (a kept copy's): it has no spaces to break at, so it breaks anywhere rather than run past the card. */
+.cmd-approval-path {
+  overflow-wrap: anywhere;
+}
+
 /* What a command does that cannot be taken back (slice 90). */
 .cmd-approval-danger {
   display: flex;
@@ -3573,7 +3578,7 @@ fieldset.choice > label .choice-note,
   min-width: 0;
 }
 
-.composer-row .model-picker-button {
+.composer-status .model-picker-button {
   width: auto;
   max-width: 100%;
   justify-content: flex-start;
@@ -4324,6 +4329,13 @@ fieldset.choice > label .choice-note,
   border: 1.5px solid var(--tool-team);
 }
 
+/* CL-264: beside the open chat's column, never over it - as wide as is left, clear of the canvas's zoom buttons at the
+   right (62px), at least 240px. */
+.chat:not(.chat-closed) ~ .changes.room-window:not(.moved) {
+  left: calc(var(--chat-w) + 14px);
+  width: max(240px, min(700px, calc(var(--room) - var(--chat-w) - 14px - 62px)));
+}
+
 .room-window .changes-bar {
   cursor: default;
 }
@@ -4439,6 +4451,10 @@ fieldset.choice > label .choice-note,
   flex-wrap: wrap;
   gap: 8px;
   max-width: calc(100% - 28px - 62px);
+}
+
+.chat:not(.chat-closed) ~ .room-tabs {
+  left: calc(var(--chat-w) + 14px);
 }
 
 .room-tab {
