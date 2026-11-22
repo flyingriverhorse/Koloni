@@ -253,6 +253,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
 
     let used = 0
     for (const root of roots) used += place(root, NODE_W + COL_GAP, top + used) + ROW_GAP
+    used += checksInFrame(own, positions, sizes)
     // An agent opened by one of a frame laid out by its work line, not in that frame (one the user declined): under the rest.
     for (const agent of agents.filter(a => !positions[a.id])) used += place(agent, NODE_W + COL_GAP, top + used) + ROW_GAP
     for (const node of own) {
@@ -493,14 +494,28 @@ function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>
 
 /**
  * KOLONİ's Checks node (`checks:`), under the turn's Orchestrator in its column, its line straight down from it - before the
- * Assistant PO; returns the room it takes.
- * shortcut: under the Orchestrator, not right of it as the sketch has it (and in a recipe's turn not inside its frame as its
- * last step): placed as the PO is; move it once the canvas's columns make room.
+ * Assistant PO; returns the room it takes. (In a recipe's turn it is in the frame: `checksInFrame`.)
+ * shortcut: under the Orchestrator, not right of it as the sketch has it: placed as the PO is; move it once the canvas's
+ * columns make room.
  */
 function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {
   const checks = own.find(n => n.kind === 'checks')
-  if (!checks) return 0
+  if (!checks || positions[checks.id]) return 0
   positions[checks.id] = { x: NODE_W + COL_GAP, y: top }
+  return NODE_H + ROW_GAP
+}
+
+/**
+ * S5c: in a recipe's turn its Checks node is the recipe's last step - inside its frame, under the frame's last column - before
+ * the frame is drawn round its agents; returns the room it adds under them.
+ */
+function checksInFrame(own: GraphNode[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
+  const checks = own.find(n => n.kind === 'checks' && n.team)
+  const members = checks ? own.filter(n => n.team === checks.team && n.id !== checks.id && positions[n.id]) : []
+  if (!checks || !members.length) return 0
+  const x = Math.max(...members.map(n => positions[n.id].x))
+  const y = Math.max(...members.map(n => positions[n.id].y + (sizes[n.id]?.height ?? NODE_H))) + ROW_GAP
+  positions[checks.id] = { x, y }
   return NODE_H + ROW_GAP
 }
 

@@ -1,0 +1,121 @@
+"""Kanıtlı bitiş S5c (plan decision 16): a recipe's own Checks step - what KOLONİ checks at its
+end, set for the recipe - is what its turn's end gate checks: a report-like recipe with Tests off
+and Docs on runs no test and checks its documents; Fix rounds 0 checks only, sending nothing back.
+A fake model and a scripted executor (none of its runs may start)."""
+
+import pytest
+
+from app import proof
+from app.agent import review_mixin
+from tests.fakes import ScriptedExecutor
+from tests.test_chat_flow import text
+from tests.test_chat_teams_scenarios import teams_of
+from tests.test_claim_scenarios import write
+from tests.test_proof_end_scenarios import texts
+from tests.test_recipe_run_scenarios import made, recipe_named, row
+from tests.test_recipes_scenarios import graph
+from tests.test_recipes_scenarios import step as part
+from tests.test_spawn import begin, spawn, step
+
+pytestmark = pytest.mark.no_po
+
+BROKEN = "README.md: link to gone.md not found"
+
+
+def docs_recipe(client, **checks):
+    """One step, the Docs writer's - its Checks step set for the recipe: documents and nothing
+    else, unless `checks` says otherwise."""
+    return made(client, "Write the docs", {**graph(
+        [part("write", "Write the docs", {"role": "Docs writer"})],
+        [("start", "write"), ("write", "end")]),
+        "checks": {"tests": False, "review": False, "docs": True, **checks}})
+
+
+def run_it(client, project_dir, recipe):
+    web = teams_of(client)["Web app"]
+    return begin(client, project_dir, mode="full_auto", spawn_approval="never",
+                 teams_mode="manual", teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}])
+
+
+def writer():
+    return [step(write("README.md", "# Guide\n\n[more](gone.md)\n")), text("written")]
+
+
+def test_a_recipe_with_tests_off_and_docs_on_runs_no_test_and_checks_its_docs(
+        make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([])  # (a test run would start one: none may)
+    client, model = make_client({
+        "Lead": [spawn("Docs writer", "write the guide", "d1"), text("done"),
+                 text("left it")],
+        "Docs writer": writer(),
+    }, executor=executor)
+    recipe = docs_recipe(client, fix_rounds=1)
+    assert recipe["graph"]["checks"]["docs"] is True  # (kept with the recipe)
+    cid, run_id = run_it(client, project_dir, recipe)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert row(snap)["status"] == "in" and executor.started == []
+    rows = texts(snap)
+    assert proof.TESTS_OFF in rows and BROKEN in rows, rows
+    assert "Sent back to fix: 1 of 1 rounds (1 problem in what it wrote)" in rows, rows
+    assert "gone.md" in str(model.calls[-1])  # (the fix round told the Orchestrator)
+
+
+def test_fix_rounds_0_checks_only_and_sends_nothing_back(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([])
+    client, model = make_client({
+        "Lead": [spawn("Docs writer", "write the guide", "d1"), text("done")],
+        "Docs writer": writer(),
+    }, executor=executor)
+    cid, run_id = run_it(client, project_dir, docs_recipe(client, fix_rounds=0))
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    rows = texts(snap)
+    assert BROKEN in rows and not any(one.startswith("Sent back") for one in rows), rows
+    assert review_mixin.REVIEW_OFF in rows, rows  # (the pass went on past the documents)
+    assert "gone.md" not in str(model.calls[-1])  # (nothing sent back)
+
+
+def test_a_recipe_whose_checks_step_checks_nothing_says_so(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([])
+    client, _model = make_client({
+        "Lead": [spawn("Docs writer", "write the guide", "d1"), text("done")],
+        "Docs writer": writer(),
+    }, executor=executor)
+    cid, run_id = run_it(client, project_dir, docs_recipe(client, docs=False))
+    snap = wait_run(client, cid, run_id)
+    assert texts(snap)[0] == proof.RECIPE_OFF and executor.started == [], texts(snap)
+
+
+def test_the_ready_bugfix_checks_its_tests_and_a_review(make_client):
+    client, _model = make_client([])
+    checks = recipe_named(client, "Bugfix")["graph"]["checks"]
+    assert {part for part, on in checks.items() if on is True} == {"tests", "review"}
+    assert "checks" not in recipe_named(client, "Research")["graph"]  # (it follows the project)
+
+
+def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(make_client,
+                                                                            project_dir):
+    import json
+
+    from tests.test_recipes_scenarios import OWN, SMALL, listed
+    client, _model = make_client([])
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    folder = project_dir / ".koloni" / "recipes"
+    folder.mkdir(parents=True)
+    checks = {"tests": False, "review": True, "docs": True, "diagram": False, "data": False,
+              "slides": False, "fix_rounds": 0}
+    (folder / "report.json").write_text(json.dumps(
+        {"name": "Report", "graph": {**SMALL, "checks": checks}}), encoding="utf-8")
+    for name, wrong in (("rounds", {**checks, "fix_rounds": 9}), ("pages", {"pages": True})):
+        (folder / f"{name}.json").write_text(json.dumps(
+            {"name": name, "graph": {**SMALL, "checks": wrong}}), encoding="utf-8")
+    read = listed(client, project_id=pid)
+    (mine,) = [r for r in read["recipes"] if r["project_id"]]
+    assert mine["graph"]["checks"] == checks and len(read["broken"]) == 2, read["broken"]
+    # (Written back by the page as it reads: the step's choice kept in the file.)
+    saved = client.put(f"/api/projects/{pid}/recipes/report",
+                       json={"name": "Report", "graph": mine["graph"]}, headers=OWN)
+    assert saved.status_code == 200, saved.text
+    assert json.loads((folder / "report.json").read_text(encoding="utf-8"))["graph"][
+        "checks"] == checks

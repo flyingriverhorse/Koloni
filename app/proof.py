@@ -17,7 +17,17 @@ from sqlalchemy.orm import Session
 from app import finish_tests, ledger, project_map, test_found
 from app.code_map import PYTHON, SCRIPT, tested
 from app.commands import only_reads, plain
-from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run, ToolCall
+from app.db.models import (
+    Command,
+    Conversation,
+    ConversationTeam,
+    FileChange,
+    Flag,
+    Message,
+    Project,
+    Run,
+    ToolCall,
+)
 from app.tools import MAX_TIMEOUT
 from app.workspace import in_scratch, secret_in_project, unified_diff
 
@@ -397,8 +407,8 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
     """After a change for a turn of this chat (S10, plan decision 17): the project's ("check",
     "tests", "nothing") unless the chat says otherwise - "off" (its switch off: nothing checked),
     or on: the project's, Test and review where that is Nothing. A recipe's turn (`run.teams`)
-    follows the recipe, never the chat's switch: today the project's (shortcut: S5c gives a recipe
-    its own Checks step)."""
+    follows the recipe, never the chat's switch: the project's, unless its recipe's Checks step
+    is set for the recipe (`checks_of`)."""
     project = session.get(Project, conversation.project_id) if conversation.project_id else None
     own = project.after_change if project is not None else "nothing"
     if run is not None and run.teams:
@@ -406,6 +416,60 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
     if conversation.after_change == "off":
         return "off"
     return "check" if conversation.after_change == "on" and own == "nothing" else own
+
+
+# S5c (plan decision 16): what the end gate checks, part by part - the project's tests, the
+# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.KINDS`).
+PARTS = ("tests", "review", "docs", "diagram", "data", "slides")
+
+
+class Checks(NamedTuple):
+    """What a turn's end gate checks (S5c): its parts `on`; its Fix rounds (0: check only); the
+    effective After a change (`after_change_of`); and whether a recipe of the turn set its own
+    (its Checks step's "Set for this recipe")."""
+    on: frozenset[str]
+    rounds: int
+    setting: str
+    own: bool
+
+
+def recipe_checks(session: Session, run: Run | None) -> list[dict | None]:
+    """The Checks step of each recipe run in this turn, as its row's copy of the graph has it
+    (`RecipeGraph.checks`; None: it follows the project)."""
+    if run is None or not run.teams:
+        return []
+    rows = session.scalars(select(ConversationTeam.state).where(
+        ConversationTeam.conversation_id == run.conversation_id))
+    return [state["graph"].get("checks") for state in rows if state and state.get(
+        "run_id") == run.id and isinstance(state.get("graph"), dict)]
+
+
+def checks_of(session: Session, conversation: Conversation, run: Run | None = None) -> Checks:
+    """What the end gate checks in this turn: the project's After a change (Test and review: the
+    tests, the review and each kind its Check by kind of work leaves on; Tests only: the tests;
+    Nothing / off for the chat: nothing) and Fix rounds - or, in a recipe's turn whose Checks
+    step is set for the recipe, what it sets (decisions 16, 17: never the chat's switch). Two
+    recipes in one turn: what either checks, the more rounds of the two.
+    shortcut: a turn's recipe is known once it has started - the words its agents get before
+    that (`_checks_told`) follow the project; tell them again if a recipe's own is missed."""
+    setting = after_change_of(session, conversation, run)
+    project = session.get(Project, conversation.project_id) if conversation.project_id else None
+    rounds = project.fix_rounds if project is not None else 2
+    kinds = dict(project.check_kinds or {}) if project is not None else {}
+    theirs = frozenset(
+        (["tests"] if setting in ("check", "tests") else []) + (
+            ["review", *(kind for kind in PARTS[2:] if kinds.get(kind, True))]
+            if setting == "check" else []))
+    recipes = recipe_checks(session, run)
+    if all(one is None for one in recipes):
+        return Checks(theirs, rounds, setting, False)
+    on: set[str] = set()
+    most = 0
+    for one in recipes:
+        on |= theirs if one is None else {part for part in PARTS if one.get(part)}
+        own = None if one is None else one.get("fix_rounds")
+        most = max(most, rounds if own is None else own)
+    return Checks(frozenset(on), most, setting, True)
 
 
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:
@@ -474,6 +538,11 @@ WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
 OFF_FOR_CHAT = "Not checked: off for this chat"
+# S5c: a recipe's Checks step set to check nothing; its tests set off; its Fix rounds at 0.
+RECIPE_OFF = "Not checked: this recipe's Checks step checks nothing"
+TESTS_OFF = "Tests not checked: off in this recipe's Checks step"
+CHECK_ONLY = ("Checked only: this recipe's Checks step sends nothing back to fix - you decide "
+              "(Fix it)")
 LAST_RUN = "An agent ran {command} {when} the last change: {how}"
 # S2: the tests a turn added or changed; its Orchestrator's reason for none, where it was asked;
 # a test it removed.

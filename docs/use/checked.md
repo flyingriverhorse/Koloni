@@ -51,7 +51,8 @@ on with the project's setting.
 
 It is free at every level. At **Full auto** with it off, the menu says so under it: "Full auto
 with no checks: nothing checks this chat's changes". A turn that runs a team's recipe follows
-the recipe, not this switch: today the project's setting.
+the recipe's **Checks** step, not this switch: the project's setting, unless the recipe sets its own
+([The Checks step](../agents/recipes.md#the-checks-step)).
 
 A project that had turned off the old **Finish only when the tests pass** switch is on
 **Nothing**, and Settings says so under the setting.
@@ -466,7 +467,8 @@ Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2
 finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
 Orchestrator's own box gets one line: "● checking…"
 while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
-not run), "✗ still failing" or "not checked". In a recipe's turn the node says "end of the recipe".
+not run), "✗ still failing" or "not checked". In a recipe's turn the node is the recipe's last step,
+inside its frame, and says "end of the recipe".
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
@@ -518,6 +520,9 @@ the Orchestrator's window, whose record holds the runs.
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
 | – Not checked: off for this chat | This chat's **Test and review changes** is off. |
+| – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
+| – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |
+| ✗ Checked only: this recipe's Checks step sends nothing back to fix - you decide (Fix it) | The recipe's Fix rounds are 0: the tests failed and nothing went back. |
 | – CI commands found: `lines` - not run until you approve them once (Run these) | The project's CI lint, typecheck and test lines, offered. **Run these** approves exactly these. |
 | – CI step `name`: not run: `why` / e2e not run: `name` / CI file not read: `file` - `why` | What of the CI is left out beside the lines it offers or runs: an e2e step, a line not plain, an install, a secret, another shell, a folder outside, a file past the limits. |
 | – CI commands not used: a workflow changed in this turn | A workflow file changed in the turn: its lines wait for the next one. |

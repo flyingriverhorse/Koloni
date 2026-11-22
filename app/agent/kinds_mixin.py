@@ -51,23 +51,20 @@ class KindsMixin:
         with self._factory() as session:
             made = list(session.scalars(select(ShownFile.path).join(
                 Agent, Agent.id == ShownFile.agent_id).where(Agent.run_id == ctx.run_id)))
-            setting = proof.after_change_of(session, session.get_one(Conversation, ctx.cid),
-                                            session.get(Run, ctx.run_id))
-            project = self._project(session, ctx.cid)
-            switched = dict(project.check_kinds or {}) if project is not None else {}
             asked = session.scalar(select(Message.content).where(
                 Message.run_id == ctx.run_id, Message.role == "user").order_by(
                 Message.created_at, literal_column("messages.rowid")).limit(1)) or ""
             before = proof.before_of(session, ctx.run_id)
             held.kinds_seen = proof.last_change(session, ctx.run_id)
-        written = _written(held.changes, made)
-        if setting != "check" or not written:  # (Tests only: tests only)
+        written, checks = _written(held.changes, made), held.checks
+        if not written or not checks.own and checks.setting != "check":  # (Tests only: tests)
             return None
         ws, rows = self._ws(ctx), []
         for kind, paths in written.items():
-            if not switched.get(kind, True):
-                rows.append(proof.row(kind, "note", proof_kinds.NOT_CHECKED_KIND.format(
-                    kind=proof_kinds.SHOWN[kind])))
+            if kind not in checks.on:  # (off in Check by kind of work, or the recipe's step)
+                rows.append(proof.row(kind, "note", (
+                    proof_kinds.OFF_IN_RECIPE if checks.own else proof_kinds.NOT_CHECKED_KIND
+                ).format(kind=proof_kinds.SHOWN[kind])))
                 continue
             more = {"asked": asked} if kind == "docs" else {}
             rows += await asyncio.to_thread(proof_kinds.CHECKS[kind], ws, paths, before=before,
@@ -89,8 +86,9 @@ class KindsMixin:
         stand for them: never made (the turn ended on an earlier step's nudge), or made before
         the last change - said, never an old result for the new work."""
         written = _written(found)
-        if not written or proof.after_change_of(
-                session, session.get_one(Conversation, cid), session.get(Run, run_id)) != "check":
+        on = proof.checks_of(session, session.get_one(Conversation, cid),
+                             session.get(Run, run_id)).on
+        if not set(written) & on:
             return []
         if held.kinds_seen is None:
             return [proof.row("kinds", "not_run", NOT_REACHED.format(kinds=_shown(written)))]

@@ -10,6 +10,8 @@ export const MOST_ROUNDS = 2
 export const OFF_FOR_CHAT = 'not checked · off for this chat'
 /** ... and of a project whose After a change is Nothing: no node either (nothing is checked), the strip says so. */
 export const SET_TO_NOTHING = 'not checked · After a change is Nothing'
+/** S5c: a recipe's turn whose Checks step checks nothing: no node either, the strip says so. */
+export const OFF_IN_RECIPE = 'not checked · off in the recipe’s Checks step'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -127,8 +129,8 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   if (!lead || (!own.length && !checked)) return null
   // (Off for this chat, or After a change at Nothing: KOLONİ checked nothing - no node, as no check ran.)
-  const off = checked?.checked?.find(row => row.kind === 'chat_off' || row.kind === 'not_checked')
-  if (off) return notChecked(nodes, lead.id, off.kind === 'chat_off' ? OFF_FOR_CHAT : SET_TO_NOTHING)
+  const off = checked?.checked?.find(row => row.kind in OFF_STRIPS)
+  if (off) return notChecked(nodes, lead.id, OFF_STRIPS[off.kind])
   const at = calls.find(c => c.status === 'running')
   const said = roundsSaid(checked)
   const rounds = Math.max(passesOf(calls) - 1, said.n)
@@ -144,7 +146,9 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
     recipe: Boolean(run.teams?.length),
   }
   const id = `checks:${run.id}`
-  nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data })
+  // S5c: in a recipe's turn, the recipe's last step - inside its frame (the turn's last), where the layout puts it.
+  const frame = nodes.filter(node => node.kind === 'team' && node.runId === run.id).at(-1)
+  nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data, ...(frame && { team: frame.id }) })
   edges.push({ id: `agent:${lead.id}>${id}`, source: `agent:${lead.id}`, target: id, active: Boolean(at), plan: true, po: true })
   for (let round = 1; round <= Math.min(rounds, said.most); round++)
     edges.push({ id: `${id}>agent:${lead.id}:${round}`, source: id, target: `agent:${lead.id}`, active: false, round: roundLine(round, said) })
@@ -154,6 +158,9 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   if (leadNode) (leadNode.data as AgentData).checked = stripOf(data)
   return data
 }
+
+/** The Checked rows that say nothing was checked, each with the strip's words. */
+const OFF_STRIPS: Record<string, string> = { chat_off: OFF_FOR_CHAT, not_checked: SET_TO_NOTHING, recipe_off: OFF_IN_RECIPE }
 
 /** Off for this chat, or set to Nothing: no Checks node is drawn - the Orchestrator's strip says it, so nobody takes the turn as checked. */
 function notChecked(nodes: GraphNode[], leadId: string, said: string): null {

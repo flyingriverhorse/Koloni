@@ -726,3 +726,20 @@ test('5 Nov: Evolve with its earlier rounds opened: no line of it runs under a c
   const out = lines.flatMap(({ e, legs }) => legs.flatMap(leg => [leg.slice(0, 2), leg.slice(2)]).filter(([x, y]) => x < f.x || x > f.x + f.width || y < f.y || y > f.y + f.height).map(() => e.id))
   expect(out).toEqual([])
 })
+
+test('S5c: in a recipe’s turn the Checks node is the recipe’s last step - inside its frame, under its last column', () => {
+  const rows = [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null, counts: null }]
+  const checked = { id: 'k', conversation_id: 'c', run_id: 'r', agent_id: null, role: 'checked' as const, content: '', created_at: at, checked: rows }
+  const g = foldGraph(deriveGraph(web({ runs: [{ ...run('r', 'completed'), teams: [row('web', 'Web app', AGENTS, PASSES, STEPS)] }], messages: [checked] } as Parameters<typeof web>[0])), OPENED)
+  const checks = g.nodes.find(node => node.kind === 'checks')
+  expect(checks?.team).toBe('team:r:web')
+  expect(checks?.data).toMatchObject({ recipe: true })
+  const { positions, sizes } = layoutGraph(g.nodes, g.edges)
+  const frame = { ...positions['team:r:web'], ...sizes['team:r:web'] }
+  const at_ = positions[checks?.id ?? '']
+  expect(at_.x).toBeGreaterThan(frame.x)
+  expect(at_.x + NODE_W).toBeLessThan(frame.x + frame.width)
+  expect(at_.y + NODE_H).toBeLessThan(frame.y + frame.height)
+  // (Under every agent of the frame: its last step.)
+  for (const id of AGENTS) expect(at_.y).toBeGreaterThan(positions[`agent:${id}`].y)
+})
