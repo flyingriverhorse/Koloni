@@ -6,10 +6,11 @@ import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 export const PROOF_CALL = 'koloni_proof_'
 /** How often the end check sends work back, at most, where its Checked section does not say yet (the project's Fix rounds' default). */
 export const MOST_ROUNDS = 2
-/** S10: a turn of a chat whose Check after a change was off - no node, only the Orchestrator's strip says so. */
+/**
+ * S10: a turn of a chat whose Check after a change was off - no node, only the Orchestrator's strip says so (a choice made for this
+ * chat). One of a project whose After a change is Nothing has neither: its standing choice, which the Checked section already says.
+ */
 export const OFF_FOR_CHAT = 'not checked · off for this chat'
-/** ... and of a project whose After a change is Nothing: no node either (nothing is checked), the strip says so. */
-export const SET_TO_NOTHING = 'not checked · After a change is Nothing'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -100,9 +101,9 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const calls = own.filter(c => c.name === 'run_command')
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   if (!lead || (!own.length && !checked)) return null
-  // (Off for this chat, or After a change at Nothing: KOLONİ checked nothing - no node, as no check ran.)
+  // (Off for this chat, or After a change at Nothing: KOLONİ checked nothing - no node, as no check ran; a strip only for the chat's own switch.)
   const off = checked?.checked?.find(row => row.kind === 'chat_off' || row.kind === 'not_checked')
-  if (off) return notChecked(nodes, lead.id, off.kind === 'chat_off' ? OFF_FOR_CHAT : SET_TO_NOTHING)
+  if (off) return notChecked(nodes, lead.id, off.kind === 'chat_off' ? OFF_FOR_CHAT : null)
   const at = calls.find(c => c.status === 'running')
   const said = roundsSaid(checked)
   const rounds = Math.max(passesOf(calls) - 1, said.n)
@@ -129,10 +130,10 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   return data
 }
 
-/** Off for this chat, or set to Nothing: no Checks node is drawn - the Orchestrator's strip says it, so nobody takes the turn as checked. */
-function notChecked(nodes: GraphNode[], leadId: string, said: string): null {
+/** Off for this chat, or set to Nothing: no Checks node is drawn - off for this chat, the Orchestrator's strip says it, so nobody takes the turn as checked. */
+function notChecked(nodes: GraphNode[], leadId: string, said: string | null): null {
   const leadNode = nodes.find(node => node.id === `agent:${leadId}`)
-  if (leadNode) (leadNode.data as AgentData).checked = said
+  if (leadNode && said) (leadNode.data as AgentData).checked = said
   return null
 }
 

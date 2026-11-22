@@ -356,6 +356,9 @@ finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes afte
 Orchestrator's own box gets one line: "● checking…"
 while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
 not run), "✗ still failing" or "not checked". In a recipe's turn the node says "end of the recipe".
+A turn KOLONİ did not check has no Checks node: off for this chat, the Orchestrator's box says "not
+checked · off for this chat"; in a project whose After a change is **Nothing**, it says nothing of
+it - the Checked section does.
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
