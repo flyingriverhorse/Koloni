@@ -287,7 +287,8 @@ class ReviewMixin:
                 Message.created_at, literal_column("messages.rowid")).limit(1)) or ""
         cut = (f"{CUT_SHORT} (shown {len(diff)} of {total} characters; not shown: "
                f"{', '.join(left)})") if left else ""
-        tests = proof.checked_text([one for one in held.rows if one["kind"] == "tests"]) or (
+        tests = proof.checked_text([one for one in held.rows if one["kind"] in (
+            "tests", "coverage")]) or (
             "no test was run")
         facing = [one.path for one in held.changes if one.in_project and one.kind == "ui"] or (
             ["a command's option"] if any(USER_FACING.search(line) for line in diff.splitlines()
@@ -303,6 +304,8 @@ class ReviewMixin:
                 f"The user's request:\n{injection.noted(asked, 'agent')}\n\n"
                 f"The change{cut}:\n{injection.noted(diff or '(no text diff)', 'agent')}\n\n"
                 f"KOLONİ's own test run:\n{tests}"
+                + (f"\n\n{injection.noted(unrun, 'agent')}" if (
+                    unrun := self._unrun_lines(held)) else "")
                 + (REMOVED_ASK.format(paths=", ".join(removed)) if removed else ""))
 
         def brief(role: str) -> str:

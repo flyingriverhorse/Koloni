@@ -261,6 +261,12 @@ UNCHECKED = {"what": "it said nothing was found, but not what it checked", "kind
 # (`_step_says`).
 RAN_NOTHING = {"what": "it is a check that ran no test on record: nothing it says was run",
                "kind": "test", "role": None, "blocking": True}
+# R4 (S7): a recipe's reproduce step that left on record no test run that failed - really ran
+# tests - showed no bug: held, as R3 holds a check that ran nothing.
+NOT_REPRODUCED = {"what": "Reproduce did not show a failing test: no test run of its own on record "
+                          "failed", "kind": "test", "role": None, "blocking": True}
+# ...one that wrote a test file: a failing run of that very test counts, none other.
+NOT_ITS_TEST = "Reproduce did not show a failing test: none of the tests it wrote failed ({files})"
 RUN_TO_PASS = ("This check passes only on a command you run yourself that KOLONİ records - the "
                "tests, or the check itself; a report of what you read, or a listing, is no pass.")
 # Kanıtlı bitiş S2: the Orchestrator asked, once a turn, for the test its change lacks

@@ -90,6 +90,10 @@ the journal. A few rules apply:
 - Text that reads like an instruction is refused.
 - A newer note on the same subject replaces the older one.
 
+**KOLONİ notes a flaky test.** A test that failed in a full run and passed alone once is noted in
+the journal as KOLONİ's, under "flaky test: `test`", with how many times it was seen so
+([Not this turn's](use/checked.md#not-this-turns-flaky-tests-and-failures-from-before)).
+
 **Agents propose facts; you approve them.** An agent can put a note forward for the core. Nothing
 enters the core unless you approve it. Waiting proposals show above the tabs, with a line such as
 "1 fact waits for your word". For each one you can choose **Approve**, **Edit and approve**

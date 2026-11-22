@@ -172,14 +172,11 @@ def test_a_coder_is_told_nothing_of_nearby_tests_under_nothing(make_client, wait
 
 def test_a_recipe_whose_reproduce_step_wrote_a_test_is_not_asked(make_client, wait_run,
                                                                  project_dir):
-    from tests.test_recipe_proof_scenarios import PASSED, bugfix_run, ran_tests, scripts
-    from tests.test_spawn import step
+    from tests.test_recipe_proof_scenarios import PASSED, REPRO, bugfix_run, ran_tests, scripts
 
-    client, model = make_client({
-        **scripts(ran_tests()),
-        "Debugger": [step(write("tests/test_repro.py", TEST_A).tool_calls[0]),
-                     text("Reproduced: test_repro shows it.")]},
-        executor=ScriptedExecutor([PASSED, PASSED, PASSED]))
+    # (S7's R4: its Reproduce step writes tests/test_repro.py and runs it failing - `REPRODUCES`)
+    client, model = make_client(scripts(ran_tests()),
+                                executor=ScriptedExecutor([REPRO, PASSED, PASSED, PASSED]))
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]

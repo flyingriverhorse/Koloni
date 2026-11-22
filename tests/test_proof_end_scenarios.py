@@ -798,6 +798,7 @@ def test_a_bugfix_still_failing_after_its_rounds_is_not_sent_round_again(
     from tests.test_recipe_proof_scenarios import (
         FAILED,
         PYTEST,
+        REPRO,
         bugfix_run,
         ran_tests,
         row,
@@ -805,13 +806,13 @@ def test_a_bugfix_still_failing_after_its_rounds_is_not_sent_round_again(
     )
 
     guess(monkeypatch, PYTEST)
-    executor = ScriptedExecutor([FAILED, FAILED, FAILED])
+    executor = ScriptedExecutor([REPRO, FAILED, FAILED, FAILED])  # (R4: its reproduction first)
     client, _model = make_client(scripts(ran_tests(), ran_tests(id="k2"), ran_tests(id="k3"),
                                          review=False), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert row(snap)["status"] == "in" and len(executor.started) == 3
+    assert row(snap)["status"] == "in" and len(executor.started) == 4
     assert proof_calls(snap) == []
     assert texts(snap) == [
         f"Tests failed: {PYTEST} (guessed) - 1 failed, 3 passed", SAVED,
@@ -824,6 +825,7 @@ def test_a_bugfix_that_passes_is_not_run_again_at_the_end(make_client, wait_run,
     from tests.test_recipe_proof_scenarios import (
         PASSED,
         PYTEST,
+        REPRO,
         bugfix_run,
         ran_tests,
         row,
@@ -831,12 +833,12 @@ def test_a_bugfix_that_passes_is_not_run_again_at_the_end(make_client, wait_run,
     )
 
     guess(monkeypatch, PYTEST)
-    executor = ScriptedExecutor([PASSED])
+    executor = ScriptedExecutor([REPRO, PASSED])  # (R4: its reproduction first)
     client, _model = make_client(scripts(ran_tests()), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert row(snap)["status"] == "in" and len(executor.started) == 1
+    assert row(snap)["status"] == "in" and len(executor.started) == 2
     assert proof_calls(snap) == []
     assert texts(snap) == [f"Tests passed: {PYTEST} - run by Tester after the last change", SAVED]
 
@@ -867,17 +869,25 @@ def test_a_read_only_command_after_the_pass_leaves_it_standing(make_client, wait
 def test_a_command_after_a_bugfix_testers_pass_runs_the_tests_again(
         make_client, wait_run, project_dir, monkeypatch):
     from tests.test_agent_commands import cmd
-    from tests.test_recipe_proof_scenarios import PASSED, PYTEST, bugfix_run, ran_tests, scripts
+    from tests.test_recipe_proof_scenarios import (
+        PASSED,
+        PYTEST,
+        REPRO,
+        bugfix_run,
+        ran_tests,
+        scripts,
+    )
 
     guess(monkeypatch, PYTEST)
     steps = scripts(ran_tests())
     steps["Lead"] = [*steps["Lead"][:-1], cmd("python fmt.py", "kf"), text("done")]
-    executor = ScriptedExecutor([PASSED, Script(["formatted\n"]), PASSED])
+    executor = ScriptedExecutor([REPRO, PASSED, Script(["formatted\n"]), PASSED])
     client, _model = make_client(steps, executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert len(executor.started) == 3 and len(proof_calls(snap)) == 1
+    # (the Debugger's reproduction, the Tester's run, the formatter, KOLONİ's run)
+    assert len(executor.started) == 4 and len(proof_calls(snap)) == 1
     assert texts(snap) == [f"Tests passed: {PYTEST} (guessed) - 4 passed", SAVED]
 
 

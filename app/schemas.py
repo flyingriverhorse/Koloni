@@ -85,6 +85,8 @@ FullAutoCheck = Literal["ask", "judge"]
 AfterChange = Literal["check", "tests", "nothing"]
 # S10: Test and review changes, for one chat; None (not sent as such) the project's.
 ChatAfterChange = Literal["off", "on"]
+# S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`).
+CheckKind = Literal["docs", "slides", "diagram", "data"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -269,6 +271,8 @@ class ProjectOut(Out):
     after_change: AfterChange
     # S3: how often the end check sends work back a turn - tests and the Reviewer's findings.
     fix_rounds: int
+    # S5a: Check by kind of work - {kind: on}; a kind left out is on.
+    check_kinds: dict[str, bool] = {}
     # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
     # config and screens) - `proof.BIG_LINES` / `BIG_FILES` (app.proof imports what imports this
     # module: the same numbers, held equal by a test), said where After a change is chosen.
@@ -376,6 +380,8 @@ class ProjectPatch(BaseModel):
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
     fix_rounds: int | None = Field(default=None, ge=1, le=5, strict=True)
+    # S5a: the kinds switched, merged into the project's (a kind left out keeps its switch).
+    check_kinds: dict[CheckKind, bool] | None = None
     # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
     forget_tests_found: bool | None = None
     full_auto_check: FullAutoCheck | None = None

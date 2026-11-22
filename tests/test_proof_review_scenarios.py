@@ -563,6 +563,22 @@ def test_a_small_change_that_deletes_a_test_is_looked_over_and_the_reviewer_judg
     assert "a test deleted: tests/test_old.py" in asked and "Tests the change deleted" in asked
 
 
+def test_new_lines_no_test_runs_reach_the_reviewer_as_data(make_client, wait_run, project_dir):
+    # (S9: the coverage row with the others, and the lines no test ran, noted, in its brief)
+    from app.agent import coverage_mixin
+    from tests.test_coverage_scenarios import PYTEST, Measuring, with_cov
+    with_cov(project_dir)
+    executor = Measuring([PASS], {"a.py": ([n for n in range(1, 91) if n not in (3, 12, 13, 14)],
+                                           [3, 12, 13, 14])})
+    client, model = make_client({"Lead": [write("a.py", BIG), text("done")], "Reviewer": [MERGE]},
+                                executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    snap = wait_run(client, cid, run_id)
+    assert texts(snap)[1] == coverage_mixin.MEASURED.format(p=96, tool="pytest-cov"), texts(snap)
+    asked = calls_of(model, "Reviewer")[0]
+    assert "New lines no test runs: a.py 3, 12-14" in asked and "Coverage: 96%" in asked
+
+
 # --- decision 6: the Reviewer runs what only reads, and the approved test command -----------
 
 TESTS = "python -m pytest -q"

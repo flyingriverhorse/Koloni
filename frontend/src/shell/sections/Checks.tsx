@@ -4,6 +4,7 @@ import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
 import { Hint } from '../Hint'
 import { useAfterChange } from './AfterChange'
+import { useCheckKinds } from './CheckKinds'
 import { part, Row } from './part'
 
 /** When a commit of what was taken is offered, and the rest of that note, which is folded under it. */
@@ -20,6 +21,7 @@ export function useChecks(project: Project, shown: boolean) {
   const [finishWay, setFinishWay] = useState(project.finish_way ?? null)
   const [prOff, setPrOff] = useState<string | null | undefined>(undefined)
   const after = useAfterChange(project)
+  const kinds = useCheckKinds(project)
   useEffect(() => {
     if (!shown || prOff !== undefined) return
     api.get<{ why_not: string | null }>(`/projects/${project.id}/pull-request`).then(
@@ -29,6 +31,7 @@ export function useChecks(project: Project, shown: boolean) {
   }, [shown, prOff, project.id])
   const patch = {
     ...after.patch,
+    ...kinds.patch,
     ...(checkCommand.trim() !== (project.check_command ?? '') && { check_command: checkCommand.trim() }),
     ...(measureCommand.trim() !== (project.measure_command ?? '') && { measure_command: measureCommand.trim() }),
     ...(gitCommit !== project.git_commit && { git_commit: gitCommit }),
@@ -40,6 +43,7 @@ export function useChecks(project: Project, shown: boolean) {
     <>
       <h2>After a turn that changed code</h2>
       {after.view}
+      {kinds.view}
       <h2>When a sub-agent’s work is added</h2>
       <Row
         label="Test before adding"
