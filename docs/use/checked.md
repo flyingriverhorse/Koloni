@@ -111,9 +111,11 @@ KOLONİ's test run is asked about as the Orchestrator's own command would be:
   rule, it runs by itself.
 - A command KOLONİ saved (see [Saved by KOLONİ](#saved-by-koloni)) is not a
   leave of yours: at **Ask before changes** and **Auto-edit files** it waits on a card like a
-  guess. **Always** on that card keeps it as yours for that very line in this project: from then
-  on it runs without a card, in every chat, and while you're away. At **Full auto** it runs by
-  itself.
+  guess. **Always** on that card (or on the guess's card before it was saved) keeps it as yours
+  for that very line in this project: from then on it runs without a card, in every chat, and
+  while you're away. An **Always run** rule you gave another command's card (`python -m pytest`)
+  lets it run without a card in that chat only. **Forget it** forgets that too. At **Full auto**
+  it runs by itself.
 - While you're away (a job of **Away**, or a To-do task's turn while Away runs) a guessed
   command is not run: the section says "Tests not run: a guessed command, you were away", and the
   job finishes. Nor is a saved command you have not said **Always** to: "Tests not run: a saved

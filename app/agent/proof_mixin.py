@@ -91,6 +91,8 @@ class Proof:
     # S1b (`FoundMixin`): where a guess came from ("guess", "look"), by (command, folder); and
     # why nothing was run - the look found no test, or there was no model to look.
     found_from: dict[tuple[str, str], str] = field(default_factory=dict)
+    # Option A: the (command, folder)s whose own card the user answered Always in this turn.
+    always: set[tuple[str, str]] = field(default_factory=set)
     looked_none: bool = False
     no_look: bool = False
 
@@ -360,7 +362,7 @@ class ProofMixin:
         await self._tests_put_back(copy, was, kept)
         self._set_call(ctx.cid, call_id, status="denied" if ended == "rejected" else
                        "failed" if code is None else "succeeded", result=said, ended_at=now())
-        self._always_kept(ctx, run)  # (option A: Always on a saved command's card - from now)
+        self._always_kept(ctx, held, run, call_id)  # (option A: Always on its own card)
         if ended == "rejected" or False in taken:
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
                 why="declined on its card" if ended == "rejected" else SLOT_BUSY), run.command,

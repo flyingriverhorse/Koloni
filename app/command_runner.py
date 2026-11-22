@@ -198,6 +198,9 @@ class CommandRunner:
         self._update_run = update_run
         # command id -> future resolved with "once", "always", "disposable" or "reject"
         self._decisions: dict[str, asyncio.Future[str]] = {}
+        # The commands whose own card the user answered "Always run" (the end check reads it:
+        # option A, a saved test command kept as the user's - `said_always`).
+        self._always: set[str] = set()
         # command id -> (conversation id, output so far) while the command runs
         self._live: dict[str, tuple[str, str]] = {}
         # command id -> what hides the secrets in its output, while it runs (slice 90)
@@ -686,6 +689,7 @@ class CommandRunner:
             # moment it is said, whether or not this command ever gets to run.
             if word == "always":
                 self._add_rule(cid, rule)
+                self._always.add(command_id)
             elif word == "disposable":
                 self._allow_disposable(cid, command_id)
             # A yes is on record the moment it is given - "approved", not the user's to
@@ -709,6 +713,14 @@ class CommandRunner:
             # Also when the wait is cut short: the turn no longer waits on this one.
             self._update_run(run_id, cid, status="running")
         return decision
+
+    def said_always(self, command_id: str) -> bool:
+        """Whether the user answered this command's own card "Always run" (asked once: forgotten
+        as it is read)."""
+        if command_id not in self._always:
+            return False
+        self._always.discard(command_id)
+        return True
 
     def _add_rule(self, cid: str, prefix: str) -> None:
         if not prefix:

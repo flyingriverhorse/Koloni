@@ -3,6 +3,7 @@ project's marker files (any language, by part), an agent's run that really ran t
 by the Fast tier's model - runs it, and saves it the first time it really runs tests."""
 
 import json
+import sys
 from dataclasses import replace
 
 import pytest
@@ -239,12 +240,23 @@ def test_a_saved_command_waits_on_a_card_at_ask_and_never_runs_in_a_trigger_turn
     assert rows[0]["state"] == "not_run" and len(executor.started) == 1, rows
 
 
+def another_chat(client, project_dir, mode="auto_edit") -> tuple[str, str]:
+    """A second chat of the project of `project_dir`, its first message sent."""
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode,
+                 "lead_hands_code": False}, headers=OWN)
+    return cid, client.post(f"/api/conversations/{cid}/messages",
+                            json={"content": "and this"}).json()["run"]["id"]
+
+
 def test_always_on_a_saved_commands_card_lets_it_run_unasked_from_then_on(
         make_client, wait_run, project_dir):
     # (Option A: the card's Always is the user's leave for that very line, in the project.)
-    executor = ScriptedExecutor([PASS, PASS])
+    executor = ScriptedExecutor([PASS, PASS, PASS])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
-                                  write("a.py", "x = 2\n", "w2"), text("done")], executor=executor)
+                                  write("a.py", "x = 2\n", "w2"), text("done"),
+                                  write("a.py", "x = 3\n", "w3"), text("done")], executor=executor)
     saved_project(client, project_dir)
     cid, run_id = begin(client, project_dir, mode="auto_edit")
     (card,) = asked_for(client, cid)
@@ -254,6 +266,57 @@ def test_always_on_a_saved_commands_card_lets_it_run_unasked_from_then_on(
     assert project(client, project_dir)["tests_found"]["."]["always"] is True
     rows = again(client, cid, wait_run)  # (no card: it would wait here)
     assert rows[0]["state"] == "passed" and len(executor.started) == 2
+    # (...and in another chat too.)
+    other, second = another_chat(client, project_dir)
+    assert checked(wait_run(client, other, second))[0]["state"] == "passed"
+    assert len(executor.started) == 3
+
+
+def test_always_on_another_lines_card_lets_the_saved_line_run_in_that_chat_alone(
+        make_client, wait_run, project_dir):
+    # (Review: Always on `python -m pytest tests/x.py -k foo`'s card keeps the rule
+    # `python -m pytest` in that chat - it covers the saved line there, as any rule does, but is
+    # no Always on the saved line's own card: the project keeps nothing, another chat asks.)
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, _model = make_client([run("python -m pytest tests/x.py -k foo", "k1"),
+                                  write("a.py", "x = 1\n"), text("done"),
+                                  write("a.py", "x = 2\n", "w2"), text("done")], executor=executor)
+    saved_project(client, project_dir)
+    cid, run_id = begin(client, project_dir, mode="auto_edit")
+    (card,) = asked_for(client, cid)
+    assert card["command"] == "python -m pytest tests/x.py -k foo"
+    assert client.post(f"/api/commands/{card['id']}/approve", json={"remember": True},
+                       headers=OWN).status_code == 200
+    assert checked(wait_run(client, cid, run_id))[0]["state"] == "passed"  # (no second card)
+    assert len(executor.started) == 2
+    assert "always" not in project(client, project_dir)["tests_found"]["."]
+    other, _second = another_chat(client, project_dir)
+    (asked,) = asked_for(client, other)
+    assert asked["command"] == "python -m pytest -q"
+
+
+@pytest.mark.parametrize("old", ["./web/", "Web"])
+def test_an_entry_under_an_old_key_is_kept_under_its_folders_key_with_its_always(
+        make_client, wait_run, project_dir, old):
+    # (Review of CL-316: saved before keys were one per folder, `Web` on Windows - its Always had
+    # no place to go.)
+    if old == "Web" and sys.platform not in ("win32", "darwin"):
+        pytest.skip("one folder in one case only where the file system has one")
+    (project_dir / "web").mkdir()
+    executor = ScriptedExecutor([PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    with client.app.state.session_factory() as session:
+        session.get(Project, pid).tests_found = {old: {
+            "command": "python -m pytest -q", "from": "guess", "at": "x"}}
+        session.commit()
+    cid, run_id = begin(client, project_dir, mode="auto_edit")
+    (card,) = asked_for(client, cid)
+    assert client.post(f"/api/commands/{card['id']}/approve", json={"remember": True},
+                       headers=OWN).status_code == 200
+    wait_run(client, cid, run_id)
+    found = project(client, project_dir)["tests_found"]
+    assert list(found) == ["web"] and found["web"]["always"] is True, found
 
 
 def test_a_saved_command_with_always_runs_unasked_in_another_chat(make_client, wait_run,
