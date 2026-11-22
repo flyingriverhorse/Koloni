@@ -169,8 +169,7 @@ def test_a_compound_line_is_never_offered_and_says_why(make_client, wait_run, pr
     assert offer_of(snap, run_id)
     assert ("ci_offer", found_mixin.CI_OFFERED.format(lines="ruff check app")) in rows_of(
         snap, run_id)
-    assert "CI step Tests: not run: not a plain command" in ci_of(
-        client, snap["conversation"]["project_id"])["offered"]["said"]
+    assert ("ci", "CI step Tests: not run: not a plain command") in rows_of(snap, run_id)
 
 
 def test_a_trigger_turn_runs_only_ticked_ci_commands(make_client, wait_run, project_dir):

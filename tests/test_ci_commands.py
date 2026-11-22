@@ -1,6 +1,8 @@
 """Kanıtlı bitiş S8, what needs no model: the lint, typecheck and test lines of a project's GitHub
 Actions workflows - never an e2e step, an expression, a secret or an install."""
 
+import asyncio
+
 from app import ci_commands
 
 FLOW = """
@@ -131,7 +133,8 @@ def test_hostile_workflow_text_is_said_never_raised(tmp_path):
     big = "jobs:\n  a:\n    steps:\n" + "".join(f"      - run: pytest -k t{i}\n"
                                                 for i in range(60000))
     write(tmp_path, big, "big.yml")
-    runs, said = ci_commands.ci_runs(tmp_path)
+    # (in a worker thread, as the end check reads them: its stack is not the main one's)
+    runs, said = asyncio.run(asyncio.to_thread(ci_commands.ci_runs, tmp_path))
     assert runs == [] and said == [
         "CI file not read: big.yml - over 256 KB",
         "CI file not read: bomb.yml - it uses YAML aliases, which are not read",
@@ -164,3 +167,11 @@ def test_a_link_is_not_read(tmp_path):
     except OSError:
         pytest.skip("this machine makes no symlinks (Windows without developer mode)")
     assert ci_commands.ci_runs(tmp_path) == ([], ["CI file not read: x.yml - not a regular file"])
+
+
+def test_a_long_line_is_not_offered_and_a_name_is_cut(tmp_path):
+    line = "pytest " + "-k a " * 200
+    write(tmp_path, "jobs:\n  a:\n    steps:\n      - name: " + "N" * 300 + "\n        run: "
+                    + line + "\n")
+    assert ci_commands.ci_runs(tmp_path) == ([], [
+        f"CI step {'N' * ci_commands.MOST_NAME}: not run: a line over 500 characters"])

@@ -94,7 +94,8 @@ class FoundMixin:
                        root: str) -> list[TestRun]:
         """S8 (decision 3): the lint, typecheck and test lines of the project's CI workflows,
         where the user approved exactly these once (Run these) and no workflow changed since -
-        nor in this turn; their e2e steps said not run. Else none, and the found lines offered
+        nor in this turn; what of the CI is left out said beside (e2e steps, a line not plain, a
+        file not read). Where none is kept: nothing said. Else none, and the found lines offered
         under the answer with the offer's own name (its card: not run until approved, at Full
         auto and away too). The files are hashed first and read again only when they changed
         (`ci_commands.found`, in a thread: repository text, bounded) - lines and hash of the
@@ -130,10 +131,11 @@ class FoundMixin:
             shown = offered or {}
             self._ci_said(held, "ci_offer", CI_OFFERED.format(lines=", ".join(
                 one["command"] for one in shown["commands"])), shown.get("offer"))
+            for one in shown.get("said") or []:  # (what of the CI is left out, and why)
+                self._ci_said(held, "ci", one)
             return []
         for one in approved.get("said") or []:
-            if one.startswith("e2e"):
-                self._ci_said(held, "ci", one)
+            self._ci_said(held, "ci", one)
         # (an approval stored before a stricter reading is held to it: one plain command each)
         return [TestRun(one["command"], one["cwd"], True, ci=True)
                 for one in approved["commands"] if ci_commands.kept(one["command"])]

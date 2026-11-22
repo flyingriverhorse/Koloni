@@ -38,6 +38,9 @@ MOST_ALL = 1024 * 1024
 # its own) runs them as its own language.
 SHELLS = frozenset({"bash", "sh", "pwsh", "powershell", "cmd"})
 NOT_PLAIN = "not a plain command"
+# A line longer is no command a person reads on its row; a step's name is said cut.
+MOST_LINE = 500
+MOST_NAME = 80
 
 
 class CiRun(NamedTuple):
@@ -208,8 +211,10 @@ def _read_one(name: str, data: bytes, runs: list[CiRun], said: list[str],
         lines = [one.strip() for one in _text(step.get("run")).splitlines() if one.strip()]
         if not lines:
             continue
-        name_of = _text(step.get("name")) or lines[0]
+        name_of = (_text(step.get("name")) or lines[0])[:MOST_NAME]
         why = _skipped(step, defaults, lines, name_of)
+        if why is None and any(len(one) > MOST_LINE for one in lines):
+            why = f"not run: a line over {MOST_LINE} characters"
         if why is None and not all(kept(one) for one in lines):
             # (a test or lint line chained with another, piped, redirected: said; an unrelated
             # line beside: the step is none of the CI's checks, left out unsaid)

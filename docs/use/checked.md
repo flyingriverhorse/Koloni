@@ -93,12 +93,14 @@ command: nothing was run"; after the look found no tests at all, "No tests in th
 Where the project has GitHub Actions workflows (`.github/workflows/*.yml`), KOLONİ reads their
 lint, typecheck and test lines - `ruff`, `eslint`, `mypy`, `ty check`, `tsc`, `pytest`, `vitest` and
 the like, each in its step's `working-directory` (or the job's or workflow's `defaults.run`). Each
-line must be one plain command: a line that chains, pipes, redirects or substitutes (`pytest;
-curl …`, `npm test && …`, `pytest $(…)`) is not taken, and the step says "not a plain command".
-It never takes an e2e step ("e2e not run: …"), nor a step with a `${{ … }}` expression, a secret or
-an install in it, one whose `shell:` is another language, or one whose folder is outside the
-project. The workflow files are read with limits - at most 50 files, 256 KB each and 1 MB in all,
-no links, no YAML aliases; a file past them is said, not read.
+line must be one plain command of at most 500 characters: a line that chains, pipes, redirects
+or substitutes (`pytest; curl …`, `npm test && …`, `cd web && npm test`, `pytest $(…)`) is not
+taken. It never takes an e2e step, nor a step with a `${{ … }}` expression, a secret or an install
+in it, one whose `shell:` is another language, or one whose folder is outside the project. The
+workflow files are read with limits - at most 50 files, 256 KB each and 1 MB in all, no links, no
+YAML aliases; a file past them is not read. What was left out is said beside the lines it offers
+or runs ("e2e not run: …", "CI step Tests: not run: not a plain command", "CI file not read: …");
+where no line is taken, nothing of the CI is said.
 
 It asks once a project: the section lists them - "CI commands found: ruff check app, python -m
 pytest -q - not run until you approve them once (Run these)" - and **Run these** approves exactly
@@ -392,3 +394,6 @@ the Orchestrator's window, whose record holds the runs.
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
 | – Not checked: off for this chat | This chat's **Test and review changes** is off. |
+| – CI commands found: `lines` - not run until you approve them once (Run these) | The project's CI lint, typecheck and test lines, offered. **Run these** approves exactly these. |
+| – CI step `name`: not run: `why` / e2e not run: `name` / CI file not read: `file` - `why` | What of the CI is left out beside the lines it offers or runs: an e2e step, a line not plain, an install, a secret, another shell, a folder outside, a file past the limits. |
+| – CI commands not used: a workflow changed in this turn | A workflow file changed in the turn: its lines wait for the next one. |
