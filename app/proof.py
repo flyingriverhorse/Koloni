@@ -7,12 +7,13 @@ import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import NamedTuple, TypedDict
+from typing import NamedTuple, NotRequired, TypedDict
 
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
 
 from app import finish_tests, ledger, project_map, test_found
+from app.code_map import PYTHON, SCRIPT, tested
 from app.commands import only_reads, plain
 from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run, ToolCall
 from app.tools import MAX_TIMEOUT
@@ -78,6 +79,8 @@ class TestRun(NamedTuple):
     cwd: str
     yours: bool
     saved: bool = False
+    # S8: a line of the project's CI workflows the user approved (said "from CI").
+    ci: bool = False
 
     @property
     def guessed(self) -> bool:
@@ -106,6 +109,8 @@ class Change(NamedTuple):
     deleted: bool
     agent_id: str
     in_project: bool
+    # S2: whether it was there before the turn - one it made and deleted again is no removal.
+    existed: bool = True
 
 
 def changes(session: Session, run_id: str, lead_id: str,
@@ -121,8 +126,44 @@ def changes(session: Session, run_id: str, lead_id: str,
                                              path, context=0)
         found.append(Change(path, kind_of(path), added, removed, last.kind == "delete",
                             last.agent_id, last.status in ("applied", MERGED)
-                            or last.agent_id in here))
+                            or last.agent_id in here, made[0].kind != "create"))
     return found
+
+
+# S2: the source files a test is asked for - a script of a language, by its extension.
+# shortcut: by the file's name alone, as `code_map.tested` reads tests (`FooTest.java` is no test
+# there: a Java change with only such a test is asked for one); read a language's own test
+# convention if that is met.
+SOURCE = frozenset({*PYTHON, *SCRIPT, ".vue", ".svelte", ".go", ".rs", ".java", ".kt", ".cs",
+                    ".rb", ".php", ".ex", ".exs", ".swift", ".scala", ".c", ".cc", ".cpp", ".h",
+                    ".hpp"})
+
+
+def is_test(path: str) -> bool:
+    """Whether a path is a test file, by its name or folder (`code_map.tested`)."""
+    return tested(path.replace("\\", "/")) is not None
+
+
+def new_tests(changes: list[Change]) -> list[Change]:
+    """The test files the turn added or changed - not deleted; one an agent's work holds still
+    waiting in Ready for you too (a test is written for the change)."""
+    return [one for one in changes if not one.deleted and is_test(one.path)]
+
+
+def removed_tests(changes: list[Change]) -> list[str]:
+    """The test files the turn deleted that were there before it."""
+    return [one.path for one in changes
+            if one.in_project and one.deleted and one.existed and is_test(one.path)]
+
+
+def untested(changes: list[Change]) -> list[str]:
+    """S2: the source files the turn changed in the project (a script of a language, not deleted,
+    not a test) where it changed no test; else none."""
+    if new_tests(changes):
+        return []
+    return [one.path for one in changes if one.in_project and not one.deleted
+            and one.kind in ("code", "ui") and not is_test(one.path)
+            and PurePosixPath(one.path.replace("\\", "/").casefold()).suffix in SOURCE]
 
 
 def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:
@@ -351,6 +392,8 @@ class Row(TypedDict):
     # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None:
     # no count known (never made up).
     counts: dict | None
+    # S8: a "ci_offer" row's offer, by its name (`ci_commands.offer_id`): Run these approves it.
+    offer: NotRequired[str]
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
 
 PASSED_ROW = "Tests passed: {command}{guessed} - {summary}"
@@ -382,6 +425,11 @@ RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
 OFF_FOR_CHAT = "Not checked: off for this chat"
 LAST_RUN = "An agent ran {command} {when} the last change: {how}"
+# S2: the tests a turn added or changed; its Orchestrator's reason for none, where it was asked;
+# a test it removed.
+NEW_TESTS = "New tests: {files}"
+NO_NEW_TEST = "No new test: the Orchestrator said “{line}”"
+TEST_REMOVED = "Test removed: {path}"
 
 
 def row(kind: str, state: str, text: str, command: str | None = None,
@@ -445,7 +493,7 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
     record's status (None: none - it never started); `seconds`: the wait it was given. Its
     output is read with its colours off (`commands.plain`: CL-316)."""
     output = plain(output)
-    guessed = " (guessed)" if run.guessed else ""
+    guessed = " (guessed)" if run.guessed else " (from CI)" if run.ci else ""
     found = test_found.counts(output, run.command)
 
     def made(state: str, text: str) -> Row:

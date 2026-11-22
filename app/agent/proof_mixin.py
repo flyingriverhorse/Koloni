@@ -117,7 +117,7 @@ class Proof:
 
 class ProofMixin:
     # The gate's steps, run in order: the first nudge ends the pass (later slices append theirs).
-    PROOF_STEPS: tuple[str, ...] = ("_proof_tests", "_proof_review")
+    PROOF_STEPS: tuple[str, ...] = ("_proof_tests", "_proof_review", "_proof_test_ask")
 
     async def _end_left(self: "AgentRunner", ctx: Ctx) -> str | None:
         """What the Lead is told before its answer may end the turn; None: it may."""
@@ -482,7 +482,8 @@ class ProofMixin:
         if held.seen is not None and later is not None and later > held.seen:
             rounds.append(proof.row("tests", "not_run", proof.NOT_AGAIN.format(
                 why=NOT_REACHED.get(status, ENDED_FIRST))))
-        return [*held.rows, *rounds, *waiting]
+        tested = self._test_rows(session, run_id, lead.agent_id if lead else None, found, held)
+        return [*held.rows, *tested, *rounds, *waiting]  # (S2's rows: `TestAskMixin`)
 
     @staticmethod
     def _waiting_rows(session, found: list[Change]) -> list[Row]:

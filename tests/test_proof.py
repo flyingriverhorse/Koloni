@@ -188,6 +188,43 @@ def test_changes_merge_rows_per_path_and_skip_scratch(factory):
     assert all(one.in_project for one in found.values())
 
 
+def made(path, deleted=False, in_project=True, existed=True):
+    return proof.Change(path, proof.kind_of(path), 1, 0, deleted, "lead", in_project, existed)
+
+
+@pytest.mark.parametrize(("paths", "untested"), [
+    (["app/a.py"], ["app/a.py"]),
+    (["app/a.py", "tests/test_a.py"], []),
+    (["README.md"], []),
+    (["src/x.ts", "src/x.test.ts"], []),  # (a .test. file is a test)
+    (["src/App.tsx", "src/App.css"], ["src/App.tsx"]),  # (a screen's script, not its style)
+    (["pkg/calc.go", "pkg/calc_test.go"], []),
+    (["logo.png", ".gitignore", "LICENSE", "pyproject.toml"], []),  # (no source of a language)
+])
+def test_untested_names_source_changed_without_a_test(paths, untested):
+    assert proof.untested([made(path) for path in paths]) == untested
+
+
+def test_untested_skips_what_is_gone_or_not_in_the_project_and_a_waiting_test_counts():
+    assert proof.untested([made("app/a.py", deleted=True)]) == []
+    assert proof.untested([made("app/a.py", in_project=False)]) == []
+    # (a test a sub-agent wrote that still waits in Ready for you: written for the change)
+    assert proof.untested([made("app/a.py"), made("tests/test_a.py", in_project=False)]) == []
+    assert [one.path for one in proof.new_tests([made("tests/test_a.py", deleted=True)])] == []
+
+
+def test_removed_tests(factory):
+    assert proof.removed_tests([made("tests/test_a.py", deleted=True), made("app/a.py", deleted=True),
+                                made("tests/test_b.py")]) == ["tests/test_a.py"]
+    # (one the turn made and deleted again was never the project's)
+    assert proof.removed_tests([made("tests/test_new.py", deleted=True, existed=False)]) == []
+    with factory() as s:
+        change(s, "tests/test_old.py", "def test_x(): pass\n", "", kind="delete")
+        change(s, "tests/test_tmp.py", None, "x\n", kind="create")
+        change(s, "tests/test_tmp.py", "x\n", "", kind="delete")
+        assert proof.removed_tests(proof.changes(s, "r", "lead")) == ["tests/test_old.py"]
+
+
 def test_a_copy_waiting_for_take_in_is_not_in_project(factory):
     with factory() as s:
         change(s, "a.py", "1\n", "2\n", agent="coder", status="in_copy")

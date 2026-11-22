@@ -277,6 +277,7 @@ from app.agent.talk_mixin import MAX_MESSAGES_PER_TURN as MAX_MESSAGES_PER_TURN
 from app.agent.talk_mixin import SENT_WHILE_IT_WORKS as SENT_WHILE_IT_WORKS
 from app.agent.talk_mixin import TURN_ENDING as TURN_ENDING
 from app.agent.talk_mixin import TalkMixin
+from app.agent.test_ask_mixin import TestAskMixin
 from app.agent.tiers_mixin import HOW_HARD as HOW_HARD
 from app.agent.tiers_mixin import OUTSIDE_A_COPY as OUTSIDE_A_COPY
 from app.agent.tiers_mixin import TiersMixin
@@ -1025,7 +1026,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
-                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, BeforeMixin):
+                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
+                  BeforeMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1220,6 +1222,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._touched: dict[str, float] = {}
         # run id -> the record its lead is given (`app.record`): made at its first step
         self._measured: dict[str, str] = {}
+        # S2: whether a turn's agents are told what KOLONİ checks at its end (`_checks_told`).
+        self._checks_said: dict[str, bool] = {}
         # (run id, whose work: None for the whole turn) -> what a turn that is over did
         # (`ledger.of_turn`): made once, so every later step is given the same words; the
         # LEDGERS_KEPT newest made (one that went is made again, from the same rows).
@@ -2018,6 +2022,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._closed_not_opened(run_id, cid)
         self._slots.pop(run_id, None)
         self._measured.pop(run_id, None)
+        self._checks_said.pop(run_id, None)
         self._git_at.pop(run_id, None)
         self._maps.pop(run_id, None)
         for key in [key for key in self._budgeted if key[0] == run_id]:

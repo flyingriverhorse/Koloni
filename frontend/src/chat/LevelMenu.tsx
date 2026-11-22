@@ -103,7 +103,7 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = f
         aria-label={`Permission level: ${level.name}${planFirst ? ', Plan first on' : ''}${unchecked ? ', no checks' : ''}`}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title={`${level.name}: ${level.says}${planFirst ? `. Plan first on: ${PLAN_FIRST.toLowerCase()}` : ''}`}
+        title={`${level.name}: ${level.says}${planFirst ? `. Plan first on: ${PLAN_FIRST.toLowerCase()}` : ''}${unchecked ? '. No checks: KOLONİ does not check this chat’s changes' : ''}`}
         onClick={() => (open ? close() : setOpen(true))}
       >
         <Comb cells={level.cells} />

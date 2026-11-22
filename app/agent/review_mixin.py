@@ -88,6 +88,11 @@ NO_VERDICT = "Review gave no verdict: not counted ({role}, {sign})"
 # A change a user sees: a screen's file, or a command's option added.
 USER_FACING = re.compile(r"add_argument\(|click\.option\(|\.option\(|process\.argv|argparse")
 DOCS = ("docs", "README.md", "README", "README.rst", "CHANGELOG.md", "CHANGELOG")
+# S2: a test the change deleted (its Checked row says "Test removed", failed) - for the Reviewer
+# to judge, whatever the change's size.
+REMOVED_ASK = ("\n\nTests the change deleted: {paths}. Judge each: one removed to make the "
+               "tests pass, or one that still guards what the change keeps, is a blocking "
+               "finding; one whose code went with it is not.")
 # shortcut: no wall clock of its own - an agent's step limits and Stop end it; time it if a
 # review is seen to hold a turn's end too long.
 
@@ -180,7 +185,8 @@ class ReviewMixin:
             return None
         # (B3: every line of the change - not the part of it the Reviewer is shown.)
         reasons = proof.review_reasons(held.changes, whole)
-        if held.verdict is None and not (reasons.big or reasons.security):
+        if held.verdict is None and not (reasons.big or reasons.security or (
+                proof.removed_tests(held.changes))):  # (S2: a deleted test is looked at)
             held.rows.append(proof.row("review", "note", SMALL.format(lines=reasons.lines,
                                                                        files=reasons.files)))
             return None
@@ -270,12 +276,15 @@ class ReviewMixin:
         docs = [name for name in DOCS if root and (Path(root) / name).exists()]
         extra = " " + DOCS_ASK.format(what=", ".join(facing[:5]), docs=", ".join(docs)) if (
             facing and docs) else ""
+        removed = proof.removed_tests(held.changes)
         why = "; ".join(([f"{reasons.lines} lines in {reasons.files} files"] if reasons.big else [])
-                        + reasons.security)
+                        + reasons.security + ([f"a test deleted: {', '.join(removed)}"]
+                                              if removed else []))
         body = (f"\n\nWhy it is looked over: {why or 'a fix round before'}.\n\n"
                 f"The user's request:\n{injection.noted(asked, 'agent')}\n\n"
                 f"The change{cut}:\n{injection.noted(diff or '(no text diff)', 'agent')}\n\n"
-                f"KOLONİ's own test run:\n{tests}")
+                f"KOLONİ's own test run:\n{tests}"
+                + (REMOVED_ASK.format(paths=", ".join(removed)) if removed else ""))
 
         def brief(role: str) -> str:
             plain = REFUTE if role == "Security reviewer" else REVIEW_PLAIN

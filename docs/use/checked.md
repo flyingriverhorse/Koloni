@@ -88,6 +88,32 @@ how many it named that were not tried.
 A guessed command is tagged **guessed**. If nothing can be found, the section says "No test
 command: nothing was run"; after the look found no tests at all, "No tests in this project".
 
+### From your CI
+
+Where the project has GitHub Actions workflows (`.github/workflows/*.yml`), KOLONİ reads their
+lint, typecheck and test lines - `ruff`, `eslint`, `mypy`, `ty check`, `tsc`, `pytest`, `vitest` and
+the like, each in its step's `working-directory` (or the job's or workflow's `defaults.run`). Each
+line must be one plain command of at most 500 characters: a line that chains, pipes, redirects
+or substitutes (`pytest; curl …`, `npm test && …`, `cd web && npm test`, `pytest $(…)`) is not
+taken. It never takes an e2e step, nor a step with a `${{ … }}` expression, a secret or an install
+in it, one whose `shell:` is another language, or one whose folder is outside the project. The
+workflow files are read with limits - at most 50 files, 256 KB each and 1 MB in all, no links, no
+YAML aliases; a file past them is not read. What was left out is said beside the lines it offers
+or runs ("e2e not run: …", "CI step Tests: not run: not a plain command", "CI file not read: …");
+where no line is taken, nothing of the CI is said.
+
+It asks once a project: the section lists them - "CI commands found: ruff check app, python -m
+pytest -q - not run until you approve them once (Run these)" - and **Run these** approves exactly
+the lines that row shows. If the workflow files changed since, or another turn offered other lines,
+nothing is approved and they are offered again after the next change. From the next change on they are the turn's test run, one line each, said "(from
+CI)". Until you approve them they are not run - at **Full auto** and while you're away too. A
+change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
+commands not used: a workflow changed in this turn"). Your own **Test before adding** command wins
+over them. Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
+level says. An approved line runs as your own command does: `make test`, `npm test` or `tox` run
+the project's own Makefile, package scripts or tox file, whatever they hold. A trigger's turn runs
+one only with the trigger's own leave for that line.
+
 ### Saved by KOLONİ
 
 The first time a guessed command really runs tests (its runner counted some that passed or
@@ -211,6 +237,26 @@ runner names none - jest, go - by its name in that file). A run that failed beca
 not even load (a syntax error, collecting) shows no bug. One that did not is held, and the recipe stops at Ready for
 you: "Reproduce did not show a failing test: none of the tests it wrote failed (…)", or "… no test
 run of its own on record failed".
+
+## A test for the change
+
+A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
+is asked, once, for a test: "Not the end yet: `a.py` changed and no test did." The Orchestrator
+has one written - by an agent that writes code, or itself; for a bug fix, first a test that fails
+without the fix - and KOLONİ runs the tests again on it. Where no test fits (documents, settings, a
+one-off script), it says so in one line instead, and that line is quoted under the answer. The ask
+comes last, after the tests and the review, spends no fix round, and is made under **Test and
+review** and **Tests only**, never under **Nothing** or where checks are off for the chat. A
+turn of a recipe whose steps wrote a test (Bugfix's **Reproduce it**) is not asked. It works the
+same while you're away and at Full auto: the Orchestrator writes the test or gives its reason.
+
+A test is known by its name or folder: `test_a.py`, `a_test.go`, `a.test.ts`, `a.spec.js`, a file
+under `tests/` or `__tests__/`. A test file the turn deleted is said under the answer as "Test
+removed", failed, and under **Test and review** the Reviewer looks at it whatever the change's
+size: one removed to make the tests pass is a blocking finding.
+
+While they work, agents that write and run code are told to run only the tests near their change;
+KOLONİ runs the project's whole test command once, at the end. The Orchestrator is told so too.
 
 ## The review
 
@@ -398,6 +444,12 @@ the Orchestrator's window, whose record holds the runs.
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
+| – New tests: `files` | The test files the turn added or changed. |
+| – No new test: the Orchestrator said “`line`” | It was asked for a test and gave this reason instead (its first line). |
+| ✗ Test removed: `path` | The turn deleted a test file that was there before it. |
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
 | – Not checked: off for this chat | This chat's **Test and review changes** is off. |
+| – CI commands found: `lines` - not run until you approve them once (Run these) | The project's CI lint, typecheck and test lines, offered. **Run these** approves exactly these. |
+| – CI step `name`: not run: `why` / e2e not run: `name` / CI file not read: `file` - `why` | What of the CI is left out beside the lines it offers or runs: an e2e step, a line not plain, an install, a secret, another shell, a folder outside, a file past the limits. |
+| – CI commands not used: a workflow changed in this turn | A workflow file changed in the turn: its lines wait for the next one. |

@@ -108,3 +108,19 @@ test('a Reviewer that still held the change after the Fix rounds: Fix it asks fo
   expect(send).toHaveBeenCalledWith(FIX_REVIEW)
   expect(FIX_REVIEW).not.toContain('divides by zero')
 })
+
+test('CI commands offered: Run these approves them, on the latest turn only', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ approved: 2 } as never)
+  try {
+    const name = 'a'.repeat(64)
+    const offer = row('note', 'CI commands found: ruff check app, pytest -q - not run until you approve them once (Run these); a change to a workflow asks again', { kind: 'ci_offer', offer: name })
+    const { rerender } = render(<CheckedSection message={checked([offer])} over latest={false} />)
+    expect(screen.queryByRole('button', { name: 'Run these' })).toBeNull()
+    rerender(<CheckedSection message={checked([offer])} over latest />)
+    await userEvent.click(screen.getByRole('button', { name: 'Run these' }))
+    expect(post).toHaveBeenCalledWith('/runs/r/ci/approve', { offer: name })  // (exactly the lines this row showed)
+    expect(await screen.findByRole('status')).toHaveTextContent('Approved: they run after the next change.')
+  } finally {
+    vi.restoreAllMocks()
+  }
+})
