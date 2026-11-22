@@ -6,8 +6,11 @@ was not - a message of role "checked" (`_say_checked`) - `ProofMixin`. For every
 it took over 89m's Claude-Code-only Stop hook."""
 
 import asyncio
+import contextlib
 import json
 import logging
+import math
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -25,6 +28,7 @@ from app.proof import Change, Row, TestRun
 from app.serialize import message_out
 from app.team import quoted
 from app.tools import MAX_TIMEOUT, ToolError
+from app.workspace import Workspace
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -37,9 +41,11 @@ log = logging.getLogger(__name__)
 # record (`ledger.of_turn`'s "last tests": the Command is the Lead's).
 PROOF_CALL = "koloni_proof_"
 # S1, until a run can go on in the background (S6): a turn the user watches waits at most this
-# long for the tests at its end; past it they are stopped and said not waited for. An Away job, a
-# To-do task's and a trigger's turn wait to the commands' own limit (MAX_TIMEOUT).
+# long for the tests at its end - all its test commands, and another turn's run before them; past
+# it they are stopped and said not waited for. An Away job, a To-do task's and a trigger's turn
+# wait to the commands' own limit (MAX_TIMEOUT), each command.
 END_WAIT_SECONDS = 120
+SLOT_BUSY = "another of KOLONİ's test runs held the machine past the wait"
 
 TESTS_FAILED_LEAD = (
     "Not the end yet: KOLONİ ran the project's tests ({command}) on the work as it is now, and "
@@ -62,6 +68,9 @@ class Proof:
     changes: list[Change] = field(default_factory=list)
     # When the newest change its last pass saw was made: one made later was not tested.
     seen: datetime | None = None
+    # In a turn the user watches: when its pass stops waiting for tests (monotonic); None: no
+    # such limit but each command's own.
+    until: float | None = None
     asked_test: bool = False
     reviewed: bool = False
 
@@ -114,6 +123,7 @@ class ProofMixin:
             project = self._project(session, ctx.cid)
             root = project.root_path if project is not None else None
             held.seen = proof.last_change(session, ctx.run_id)
+        held.until = time.monotonic() + END_WAIT_SECONDS if self._answer_waits(ctx) else None
         found = await self._map_made(ctx, root) if root else None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
@@ -139,7 +149,6 @@ class ProofMixin:
     async def _tests_of(self: "AgentRunner", ctx: Ctx, run: TestRun,
                         held: Proof) -> tuple[Row, str]:
         """One test command's row, and its output: from a fresh run on record, or run now."""
-        seconds = END_WAIT_SECONDS if self._answer_waits(ctx) else None  # (None: the check's)
         with self._factory() as session:
             ran = proof.fresh(session, ctx.run_id, ctx.agent_id, run,
                               proof.last_change(session, ctx.run_id))
@@ -150,12 +159,15 @@ class ProofMixin:
                         session, ran))
                 return made, ran.output
             project = self._project(session, ctx.cid)
-            slow = proof.too_slow(session, project.id, run, seconds) if (
-                project is not None and seconds is not None) else None
-        if slow and seconds:
+            slow = proof.too_slow(session, project.id, run, END_WAIT_SECONDS) if (
+                project is not None and held.until is not None) else None
+        # (None: the check's own limit.)
+        seconds = None if held.until is None else math.ceil(held.until - time.monotonic())
+        if slow or (seconds is not None and seconds < 1):
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
-                why=f"{run.command} - {slow}; a turn you watch waits at most "
-                    f"{proof.clock(seconds)} for them"), run.command, not run.yours), ""
+                why=f"{run.command} - {slow or 'the wait went on the runs before it'}; a turn "
+                    f"you watch waits at most {proof.clock(END_WAIT_SECONDS)} for them"),
+                run.command, not run.yours), ""
         how = self._may_run_tests(ctx, run)
         if how not in ("run", "ask"):
             return proof.row("tests", "not_run", proof.NOT_RUN.format(why=how), run.command,
@@ -190,8 +202,8 @@ class ProofMixin:
     async def _run_tests(self: "AgentRunner", ctx: Ctx, run: TestRun, how: str, held: Proof,
                          seconds: int | None) -> tuple[Row, str]:
         """Run one test command where the Lead's work is (`_ws`: the project, or its own copy),
-        one of KOLONİ's at a time app-wide (`_test_slot`), on record as KOLONİ's call on the
-        Lead's last answer - the user sees it run, and its card where one is asked."""
+        on record as KOLONİ's call on the Lead's last answer - the user sees it run, and its card
+        where one is asked."""
         with self._factory() as session:
             message_id = session.scalar(select(Message.id).where(
                 Message.agent_id == ctx.agent_id, Message.run_id == ctx.run_id,
@@ -203,8 +215,7 @@ class ProofMixin:
         if run.yours:  # (the user's own command: no card of the level's for it)
             held.yes.add(run.command.strip())
         try:
-            async with self._test_slot:
-                return await self._run_tests_now(ctx, run, how, held, seconds, message_id)
+            return await self._run_tests_now(ctx, run, how, held, seconds, message_id)
         except asyncio.CancelledError:
             held.rows.append(proof.row("tests", "not_run", proof.STOPPED, run.command,
                                        not run.yours))
@@ -217,22 +228,56 @@ class ProofMixin:
                                   json.dumps(args))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         self._set_call(ctx.cid, call_id, status="running", started_at=now())
+        ws, taken = self._ws(ctx), []
+
+        async def in_slot() -> Workspace:
+            # One of KOLONİ's runs at a time app-wide - taken once it may start, never while its
+            # card waits; a turn the user watches waits for it within its pass's wait.
+            try:
+                await asyncio.wait_for(self._test_slot.acquire(), seconds)
+            except TimeoutError:
+                taken.append(False)
+                raise ToolError(SLOT_BUSY) from None
+            taken.append(True)
+            return ws
+        copy = self._copies.get(self._works_in(ctx) or "")
+        was, kept = await asyncio.to_thread(lambda: copy.snapshot(
+            [path for path, _kind, _state in copy.changes()])) if copy else ({}, {})
         try:
             code, output, said, ended = await self._run_in_copy(
-                ctx, self._ws(ctx), run.command, call_id, ask=how == "ask",
-                once=held.yes, cwd=run.cwd, seconds=seconds)
+                ctx, ws, run.command, call_id, ask=how == "ask", once=held.yes, cwd=run.cwd,
+                seconds=seconds, where=in_slot)
         except _GateRefused as exc:
             self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
             return proof.row("tests", "not_run", proof.NOT_RUN.format(why=exc), run.command,
                              not run.yours), ""
         except ToolError as exc:
             code, output, said, ended = None, "", f"error: {exc}", None
+        finally:
+            if True in taken:
+                self._test_slot.release()
+        await self._tests_put_back(copy, was, kept)
         self._set_call(ctx.cid, call_id, status="denied" if ended == "rejected" else
                        "failed" if code is None else "succeeded", result=said, ended_at=now())
-        if ended == "rejected":
+        if ended == "rejected" or False in taken:
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
-                why="declined on its card"), run.command, not run.yours), ""
+                why="declined on its card" if ended == "rejected" else SLOT_BUSY), run.command,
+                not run.yours), ""
         return proof.tests_row(run, code, output, ended, said, seconds or MAX_TIMEOUT), output
+
+    @staticmethod
+    async def _tests_put_back(copy, was: dict, kept: dict) -> None:
+        """What the tests wrote in the Lead's copy (a report, a cache) is not the turn's work: put
+        back, as the Take-in check's is (`_check`) - never taken in, nor kept aside for the user.
+        shortcut: a run that was stopped leaves its files in the copy; put them back there too if
+        a kept copy is seen holding them."""
+        if copy is None:
+            return
+        touched = await asyncio.to_thread(copy.moved_since, was)
+        copy.put_back(touched, was, kept)
+        if touched:
+            with contextlib.suppress(OSError):
+                copy.save()
 
     def _say_checked(self: "AgentRunner", cid: str, run_id: str, due: bool,
                      status: str = "completed") -> None:

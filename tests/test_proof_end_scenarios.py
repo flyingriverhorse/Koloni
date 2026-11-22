@@ -3,6 +3,7 @@ work as it now stands, sends a failure back to the Orchestrator at most twice, a
 the answer what was checked and what was not ("checked" message). It took over 89m's Claude Code
 Stop hook, for every provider."""
 
+import asyncio
 import json
 import time
 
@@ -205,8 +206,12 @@ def test_the_users_own_command_runs_unasked_in_a_watched_turn(make_client, wait_
 
 def test_a_fresh_pass_by_the_lead_is_not_run_again(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([PASS])  # (the Lead's own run, after its change)
-    client, _model = make_client([write("a.py", "x = 1\n"), run("python check.py"),
-                                  text("done")], executor=executor)
+
+    async def later(_on_delta):  # (its run ends after the write, whatever the clock's tick)
+        await asyncio.sleep(0.05)
+        return run("python check.py")
+    client, _model = make_client([write("a.py", "x = 1\n"), later, text("done")],
+                                 executor=executor)
     cid, run_id = begin(client, project_dir, check_command="python check.py")
     snap = wait_run(client, cid, run_id)
     assert len(executor.started) == 1 and proof_calls(snap) == []
@@ -417,13 +422,13 @@ def test_a_trigger_turn_runs_only_what_its_trigger_allows(make_client, wait_run,
 ONE_JOB = {"jobs": [{"title": "one"}], "kept_out": []}
 
 
-def away_job(make_client, project_dir, mode, **project):
+def away_job(make_client, project_dir, mode, check="print('3 passed')\n", **project):
     """An Away night of one job whose Lead edits hello.py; the job's chat id, once looked at."""
     from tests.test_agent_writes import edit
     from tests.test_away_scenarios import evening, go_away, looked_at, night
     from tests.test_backlog_auto import until
 
-    (project_dir / "check.py").write_text("print('3 passed')\n", encoding="utf-8")
+    (project_dir / "check.py").write_text(check, encoding="utf-8")
     client, _model, pid, cid, run_id = evening(
         make_client, project_dir, [edit(), text("one done"), text("good morning")], mode=mode,
         plan=ONE_JOB, lead_work="itself", **project)
@@ -522,3 +527,49 @@ def test_a_change_after_the_last_run_is_said_untested(make_client, wait_run, pro
     assert texts(snap) == ["Tests failed: python check.py - 1 failed, 3 passed",
                            "Sent back to fix: 1 of 2 rounds",
                            "Tests not run on the last change: the turn failed before its end"]
+
+
+def test_an_away_jobs_tests_leave_nothing_of_their_own_in_its_copy(make_client, project_dir):
+    client, _pid, job = away_job(make_client, project_dir, "full_auto",
+                                 check="open('report.xml', 'w').write('x')\nprint('3 passed')\n",
+                                 check_command="python check.py")
+    _snap, (rows,) = job_rows(client, job)
+    assert rows[0]["state"] == "passed", rows
+    # (the report the tests wrote is no work of the job's: never offered for Take in)
+    assert job["files"] == ["hello.py"], job
+
+
+def test_a_card_waiting_holds_up_no_other_turns_tests(make_client, wait_run, tmp_path,
+                                                      monkeypatch):
+    guess(monkeypatch)  # (the first project's: asked on a card at Auto-edit)
+    executor = ScriptedExecutor([PASS, PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write("a.py", "x = 1\n", "w2"), text("done")], executor=executor)
+    first, second = tmp_path / "one", tmp_path / "two"
+    first.mkdir()
+    second.mkdir()
+    cid1, run1 = begin(client, first, mode="auto_edit")
+    snap = wait_status(client, cid1, "waiting_approval")
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    cid2, run2 = begin(client, second, check_command="python check.py")
+    assert checked(wait_run(client, cid2, run2))[0]["state"] == "passed"  # (while the card waits)
+    assert client.post(f"/api/commands/{asked['id']}/approve", json={"remember": False},
+                       headers=OWN).status_code == 200
+    assert checked(wait_run(client, cid1, run1))[0]["state"] == "passed"
+
+
+def test_a_watched_turn_waits_for_another_run_at_most_its_wait(
+        make_client, wait_run, project_dir, monkeypatch):
+    monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", 1)
+    executor = ScriptedExecutor([])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    slot = client.app.state.runner._test_slot
+    client.portal.call(slot.acquire)  # (another turn's run holds the machine)
+    try:
+        cid, run_id = begin(client, project_dir, check_command="python check.py")
+        snap = wait_run(client, cid, run_id)
+    finally:
+        client.portal.call(slot.release)
+    row = checked(snap)[0]
+    assert (row["state"], row["text"]) == ("not_run", f"Tests not run: {proof_mixin.SLOT_BUSY}")
+    assert executor.started == []

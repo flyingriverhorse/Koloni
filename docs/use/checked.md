@@ -16,7 +16,8 @@ It works the same for every model and CLI.
 - Once, after the turn's work is in: the agents run only the tests near their change while
   they work, and KOLONİ runs the whole test command at the end, like a pull request's CI.
 - KOLONİ runs one such test run at a time, across the app. A second turn that ends meanwhile
-  waits for the first.
+  waits for the first. A run whose card waits for your yes holds up no other: it takes its turn
+  once you answer.
 
 **Settings › This project › Checks and git › After a change** turns it on or off for the
 project:
@@ -73,8 +74,10 @@ its own two rounds. A turn can have both.
 
 ## How long it waits
 
-- In a turn you watch, KOLONİ waits at most **2 minutes** for the tests. A longer run is
-  stopped, and the section says "Tests not waited for: still running at 2:00". Until the run
+- In a turn you watch, KOLONİ waits at most **2 minutes** for the tests: all of the turn's test
+  commands together, and another turn's run before them. A longer run is stopped, and the
+  section says "Tests not waited for: still running at 2:00"; one that never got to start says
+  "Tests not run" and why. Until the run
   takes less than that again (for example, when an agent's run of the same command does), later
   turns you watch say "Tests not run" and why, instead of waiting again.
 - A job while you're away, a To-do task's turn and a trigger's turn wait up to the commands'
