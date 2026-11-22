@@ -263,6 +263,25 @@ RAN_NOTHING = {"what": "it is a check that ran no test on record: nothing it say
                "kind": "test", "role": None, "blocking": True}
 RUN_TO_PASS = ("This check passes only on a command you run yourself that KOLONİ records - the "
                "tests, or the check itself; a report of what you read, or a listing, is no pass.")
+# Kanıtlı bitiş S2: the Orchestrator asked, once a turn, for the test its change lacks
+# (`TestAskMixin._proof_test_ask`; `files`: three named, then "+N more").
+TEST_ASKED = (
+    "Not the end yet: {files} changed and no test did. Have a test written for the change - by an "
+    "agent that writes code, or yourself; for a bug fix, first a test that fails without the fix. "
+    "Where no test can be written for it (documents, settings, a one-off script), say so in one "
+    "line instead.")
+# ...an agent that writes and runs code, told to run the tests near its change only; and the
+# Orchestrator, what KOLONİ checks at the end - where After a change is not Nothing for the turn
+# (`ContextMixin._checks_told`: decided once a turn, the same text at every step).
+NEAR_TESTS = (
+    "While you work, run only the tests near your change: its part's test command on the test "
+    "files of what you changed. KOLONİ runs the project's whole test command once, when the "
+    "turn's work is in.")
+PROOF_LEAD = (
+    "After a turn that changes code KOLONİ runs the project's tests once on the work as it is "
+    "then, asks for a test where none changed, and - under Test and review - has a big or "
+    "security-touching change read by a Reviewer. Do not run the whole test suite yourself at "
+    "the end; its result comes to you.")
 # R4: what the agent of a recipe's step with the id "reproduce" (the ready Bugfix's) is told
 # under its task (`AgentRunner._step_says`).
 # shortcut: told, not held - a step that wrote its test and ran none passes (CL-305); S7 holds it

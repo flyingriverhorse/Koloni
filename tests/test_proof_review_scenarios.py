@@ -541,3 +541,21 @@ def test_a_reviewer_moved_on_never_lands_on_a_cli_with_its_own_tools(team, wait_
     assert row["state"] == "not_run", row
     assert not team.stubs["Codex"].started
     assert all(a.get("provider_name") != "Codex" for a in reviewers(snap)), reviewers(snap)
+
+
+def test_a_small_change_that_deletes_a_test_is_looked_over_and_the_reviewer_judges_it(
+        make_client, wait_run, project_dir):
+    # (S2: a deleted test is a failed "Test removed" row - and the Reviewer's to judge, however
+    # small the change.)
+    from tests.test_proof_test_ask_scenarios import TEST_A, deletes
+
+    (project_dir / "tests").mkdir()
+    (project_dir / "tests" / "test_old.py").write_text(TEST_A, encoding="utf-8")
+    client, model = make_client({"Lead": [write("a.py", "x = 1\n")], "Reviewer": [MERGE]},
+                                executor=ScriptedExecutor([PASS]))
+    model.by_agent["Lead"].append(deletes(client, project_dir, "tests/test_old.py"))
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    snap = wait_run(client, cid, run_id)
+    assert [a["role_name"] for a in reviewers(snap)] == ["Reviewer"], texts(snap)
+    asked = calls_of(model, "Reviewer")[0]
+    assert "a test deleted: tests/test_old.py" in asked and "Tests the change deleted" in asked

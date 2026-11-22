@@ -156,6 +156,26 @@ after the recipe's fix rounds: you decide (Fix it)".
 The check before a sub-agent's work is taken in (**Test before adding**) is a separate check with
 its own two rounds. A turn can have both.
 
+## A test for the change
+
+A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
+is asked, once, for a test: "Not the end yet: `a.py` changed and no test did." The Orchestrator
+has one written - by an agent that writes code, or itself; for a bug fix, first a test that fails
+without the fix - and KOLONİ runs the tests again on it. Where no test fits (documents, settings, a
+one-off script), it says so in one line instead, and that line is quoted under the answer. The ask
+comes last, after the tests and the review, spends no fix round, and is made under **Test and
+review** and **Tests only**, never under **Nothing** or where checks are off for the chat. A
+turn of a recipe whose steps wrote a test (Bugfix's **Reproduce it**) is not asked. It works the
+same while you're away and at Full auto: the Orchestrator writes the test or gives its reason.
+
+A test is known by its name or folder: `test_a.py`, `a_test.go`, `a.test.ts`, `a.spec.js`, a file
+under `tests/` or `__tests__/`. A test file the turn deleted is said under the answer as "Test
+removed", failed, and under **Test and review** the Reviewer looks at it whatever the change's
+size: one removed to make the tests pass is a blocking finding.
+
+While they work, agents that write and run code are told to run only the tests near their change;
+KOLONİ runs the project's whole test command once, at the end. The Orchestrator is told so too.
+
 ## The review
 
 Under **Test and review**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
@@ -342,6 +362,9 @@ the Orchestrator's window, whose record holds the runs.
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
+| – New tests: `files` | The test files the turn added or changed. |
+| – No new test: the Orchestrator said “`line`” | It was asked for a test and gave this reason instead (its first line). |
+| ✗ Test removed: `path` | The turn deleted a test file that was there before it. |
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
 | – Not checked: off for this chat | This chat's **Test and review changes** is off. |
