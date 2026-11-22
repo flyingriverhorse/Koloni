@@ -6198,7 +6198,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     def _ran_held(self, session, child: Ctx, found: list | None) -> list[dict]:
         """R3: a recipe's check whose job is running checks (`_held_to_run`) that ran no command
         on record that started and checks something - no mere read, no `echo` or `python -c
-        "pass"` (`ledger.ran_check`) - does not pass
+        "pass"`; on code where the project's tests are known (`ledger.test_lines`), no command
+        but a test run that really ran tests (`ledger.ran_check`) - does not pass
         (`RAN_NOTHING`) - not one whose report has no Findings section (no pass already), nor
         where its CLI's work is not seen (`handoff.counted_on`: a command it ran may not be on
         record). Where the user declined its command, it checked nothing for a fixer to act on:
@@ -6206,7 +6207,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         step = self._reviews.get(child.agent_id)
         if found is None or step is None or not handoff.counted_on(child.model) or not (
                 _held_to_run(find_role(session, child.role), step, child.tools)) or (
-                ledger.ran_check(session, child.agent_id)):
+                ledger.ran_check(session, child.agent_id, ledger.test_lines(
+                    session, child.run_id, self._project(session, child.cid)))):
             return []
         if (command := ledger.declined(session, child.agent_id)) is None:
             return [RAN_NOTHING]

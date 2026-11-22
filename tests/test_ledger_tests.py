@@ -168,6 +168,7 @@ def test_a_run_that_counts_no_test_is_no_verdict(ran):
     "python -m pytest -m slow", "python -m unittest -q test_ok", "npx vitest run -t adds",
     "npx jest --testNamePattern=adds", "go test -run TestOk ./...", "cargo test -p one",
     "dotnet test --filter Name=Ok", "./gradlew test --tests Ok", "npx playwright test --grep ok",
+    "npx jest -o",
 ])
 def test_a_narrower_pass_clears_no_wider_failure(ran, narrow):
     failing = ledger.read_test(narrow)[0]
@@ -184,6 +185,45 @@ def test_the_same_line_or_a_whole_run_clears_a_narrower_failure(ran):
     # (Where its output goes picks no test: `2>&1`, `> out.txt` are no path of its.)
     assert ran(("pytest -q", 1, "1 failed"), ("python -m pytest -q 2>&1", 0, "4 passed")) is None
     assert ran(("pytest -q", 1, "1 failed"), ("pytest -q -n 2 > out.txt 2>&1", 0, "4 passed")) is None
+
+
+NAMED_FAILED = "F\nFAILED tests/test_a.py::test_x - assert 1 == 2\n1 failed, 3 passed\n"
+THREE_PASSED = "...\n3 passed in 0.1s\n"
+
+
+# Review of the R2 fix: a pass that leaves tests out, or reads its options from elsewhere, is a
+# narrower one - with `=` as spaced; and a `cd ..` after a `cd` that may have failed (`;`) is no
+# folder known.
+@pytest.mark.parametrize("narrow", [
+    "pytest -q --ignore=tests/test_a.py", "pytest -q --deselect=tests/test_a.py::test_x",
+    "pytest -q --ignore-glob=*test_a*", "pytest -q -c other.ini", "pytest -q --config-file=other.ini",
+    "pytest -q -o addopts=-ktest_ok", "pytest -q --override-ini=testpaths=tests/ok",
+    "pytest -q --rootdir=sub", "PYTEST_ADDOPTS=-ktest_ok pytest -q",
+    "$env:PYTEST_ADDOPTS='-k test_ok'; pytest -q", "export PYTEST_ADDOPTS=-kok && pytest -q",
+    "pytest -q --lf", "pytest -q --deselect tests/test_a.py::test_x", "pytest -q --ignore tests/test_a.py",
+    "pushd sub && pytest -q", "cd sub; cd ..; pytest -q",
+])
+def test_a_pass_that_leaves_tests_out_clears_nothing(ran, narrow):
+    assert ran(("pytest -q", 1, NAMED_FAILED), (narrow, 0, THREE_PASSED)) == "pytest -q", narrow
+
+
+# ...and one by paths alone clears a failure whose every failing test lies under them, where it
+# really ran tests; `-p no:<plugin>` picks none. (`-x` stops at a failure: passing, it ran all.)
+@pytest.mark.parametrize("wide", [
+    "pytest tests", "pytest tests/", "pytest -p no:cacheprovider", "python -m pytest -q tests/",
+    "pytest -q ./tests/test_a.py", "pytest -q -x", "pytest -q -pno:randomly",
+])
+def test_a_pass_that_runs_every_failing_test_clears_it(ran, wide):
+    assert ran(("pytest -q", 1, NAMED_FAILED), (wide, 0, THREE_PASSED)) is None, wide
+
+
+@pytest.mark.parametrize(("failed", "passed"), [
+    (NAMED_FAILED, "...\n"),  # (no count: no tests known to have run)
+    ("1 failed, 3 passed\n", THREE_PASSED),  # (it names no failing test)
+    ("FAILED tests/test_a.py::test_x\nFAILED src/test_b.py::test_y\n2 failed\n", THREE_PASSED),
+])
+def test_a_pass_by_paths_holds_where_a_failing_test_is_not_known_under_them(ran, failed, passed):
+    assert ran(("pytest -q", 1, failed), ("pytest -q tests", 0, passed)) == "pytest -q"
 
 
 def test_a_pass_in_another_folder_clears_nothing(factory):
@@ -337,6 +377,64 @@ def test_a_check_ran_is_a_command_that_started_and_is_no_mere_read(factory, comm
                           timeout_seconds=60))
         s.commit()
         assert ledger.ran_check(s, "t") is checked
+
+
+def ran_one(s, command, code=0, output=""):
+    s.add(Command(run_id="r", agent_id="t", command=command, location="host", status="exited",
+                  exit_code=code, output=output, timeout_seconds=60))
+    s.commit()
+
+
+# Review of the R3 fix: no project test command known - these check nothing either, a test run
+# that ran none by its output too.
+@pytest.mark.parametrize(("command", "code", "output"), [
+    ('python -c "import sys"', 0, ""), ('node -e ""', 0, ""), ("exit 0", 0, ""),
+    ("cmd /c rem", 0, ""), ("Write-Output ok", 0, "ok"), ("pytest --co -q", 0, ""),
+    ("pytest -k nothing_matches", 5, "3 deselected in 0.01s"),
+    ("npm test -- --passWithNoTests", 0, "No tests found, exiting with code 0"),
+    ('python -c "print(1+1)"', 0, "2"), ("node -v", 0, "v22.0.0"), ("sleep 1", 0, ""),
+    ("whoami", 0, "me"), ('python -c "0"', 0, ""),
+])
+def test_a_command_that_checks_nothing_is_no_check(factory, command, code, output):
+    with factory() as s:
+        ran_one(s, command, code, output)
+        assert ledger.ran_check(s, "t") is False, command
+
+
+# ...and on code where the project has a test command (`test_lines`), only a test run that really
+# ran tests is one: its runner counted some, else its exit code and output - the project's own
+# line by its exit code.
+@pytest.mark.parametrize(("command", "code", "output", "checked"), [
+    ("python check.py", 0, "all good", False), ("node -e \"require('./calc')\"", 0, "", False),
+    ("pytest -q", 0, "3 passed in 0.1s", True), ("pytest -q", 1, "1 failed, 2 passed", True),
+    ("pytest -k nothing_matches", 5, "3 deselected in 0.01s", False),
+    ("cargo test", 0, "running...", True), ("cargo test", 0, "", False),
+    ("make check", 0, "", True),
+])
+def test_a_check_of_code_runs_tests(factory, command, code, output, checked):
+    with factory() as s:
+        ran_one(s, command, code, output)
+        assert ledger.ran_check(s, "t", {"make check"}) is checked, command
+
+
+def test_the_test_lines_a_check_of_code_is_held_to(factory, tmp_path):
+    from app.db.models import FileChange, Project
+    with factory() as s:
+        project = s.get_one(Project, "p")
+        assert ledger.test_lines(s, "r", project) is None  # (none known)
+        project.test_commands = {"./": "make check", "web/": ""}
+        project.tests_found = {"api": {"command": "go  test ./..."}}
+        assert ledger.test_lines(s, "r", project) == {"make check", "go test ./..."}
+        s.add(FileChange(run_id="r", agent_id="t", path="README.md", before_content="a",
+                         after_content="b", after_sha="0", kind="edit", status="applied"))
+        s.commit()
+        assert ledger.test_lines(s, "r", project) is None  # (only a document changed)
+        project.test_commands, project.tests_found = {}, {}
+        (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+        s.add(FileChange(run_id="r", agent_id="t", path="calc.py", before_content="a",
+                         after_content="b", after_sha="0", kind="edit", status="applied"))
+        s.commit()
+        assert ledger.test_lines(s, "r", project) == {"python -m pytest -q"}  # (its files name one)
 
 
 def test_a_declined_check_is_named(factory):

@@ -166,6 +166,23 @@ def test_a_narrower_pass_does_not_hide_a_whole_runs_failure(make_client, wait_ru
     assert agent(snap, "Tester 2")["findings"] == []
 
 
+def test_on_code_with_a_test_command_a_tester_passes_only_on_a_test_run(make_client, wait_run, project_dir):
+    # Review of the R3 fix: the project's tests are known (its own command) and the recipe changes
+    # code - a script of the Tester's own checks no test; the project's command does.
+    from tests.test_recipe_run_scenarios import OWN_TEST, own_test
+    executor = ScriptedExecutor([Script(["all good\n"]), Script(["git version 2.47\n"]),
+                                 Script(["git version 2.47\n"])])
+    client, _model = make_client(
+        scripts([cmd("python check.py", "k0"), text(NONE)], [cmd(OWN_TEST, "k1"), text(NONE)]),
+        executor=executor)
+    own_test(client, project_dir)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Reviewer"], by_call(snap)
+    assert agent(snap, "Tester")["findings"] == [RAN_NOTHING]
+    assert agent(snap, "Tester 2")["findings"] == []
+
+
 def test_a_tester_that_ran_only_python_pass_does_not_pass(make_client, wait_run, project_dir):
     # CL-305 (noop): `python -c "pass"` started and is no read - and checks nothing.
     executor = ScriptedExecutor([Script([]), PASSED])
