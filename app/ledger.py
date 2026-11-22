@@ -17,7 +17,7 @@ from typing import NamedTuple
 from sqlalchemy import literal_column, select, true
 from sqlalchemy.orm import Session
 
-from app.commands import RECALL_HINT, OutputMask, only_reads, recallable, secret_values
+from app.commands import RECALL_HINT, OutputMask, only_reads, plain, recallable, secret_values
 from app.db.models import Agent, Command, FileChange, Project, ToolCall
 from app.finish_tests import command_of, did_not_start
 from app.workspace import in_scratch, unified_diff
@@ -45,6 +45,12 @@ TESTS = re.compile(
     re.IGNORECASE)
 # How a test run sums itself up: pytest's "3 failed, 10 passed", vitest's "1 failed | 5 passed".
 SUMS_UP = re.compile(r"\b\d+ (?:passed|failed)\b", re.IGNORECASE)
+
+
+def tail(output: str, chars: int = 4000) -> str:
+    """The end of a run's output as its counts and failures are read: its colours off (`plain` -
+    pytest's coloured `\x1b[1m1 passed` holds no `1 passed` to a pattern)."""
+    return plain(output[-4 * chars:])[-chars:]
 
 
 def _short(text: object) -> str:
@@ -75,7 +81,7 @@ def _ended(command: Command) -> str:
 
 
 def _sum_of(output: str) -> str:
-    lines = [line.strip(" =-") for line in output[-4000:].splitlines() if SUMS_UP.search(line)]
+    lines = [line.strip(" =-") for line in tail(output).splitlines() if SUMS_UP.search(line)]
     return f", {_quoted(lines[-1])}" if lines else ""
 
 
@@ -410,7 +416,7 @@ def _covers(paths: list[str], one: Command, other: Command) -> bool:
     or one with no file (go's `TestX`, jest's suite)."""
     from app.test_found import counts  # (here: test_found imports this module)
     counted = counts(one.output, one.command)
-    named = failing_named(other.output[-4000:])
+    named = failing_named(tail(other.output))
     under = [path.replace("\\", "/").removeprefix("./").rstrip("/") for path in paths]
     files = [re.split(r"::| > ", name)[0].replace("\\", "/").removeprefix("./") for name in named]
     return counted is not None and counted.ran and bool(files) and all(
@@ -446,7 +452,7 @@ def _ran_none(one: Command, test: _Test) -> bool:
     counted = counts(one.output, one.command)
     return _runs_none(test.tool, test.args) or did_not_start(one.exit_code, one.output) or (
         test.tool == "pytest" and one.exit_code in (4, 5)) or (
-        not counted.ran if counted is not None else bool(_NONE_RAN.search(one.output[-4000:])))
+        not counted.ran if counted is not None else bool(_NONE_RAN.search(tail(one.output))))
 
 
 def _ran_no_test(one: Command) -> bool:
@@ -462,7 +468,7 @@ def _verdict(one: Command, call: str | None, test: _Test) -> bool | None:
     `finish_tests.did_not_start`; pytest's 4, no such file or option), ran none (pytest's 5, a
     help, a version, a list, 0 counted: `_ran_none`), or its exit is masked and it counted no
     failure."""
-    if one.status == "timed_out" or FAILED.search(one.output[-4000:]):
+    if one.status == "timed_out" or FAILED.search(tail(one.output)):
         return True
     if test.masked or did_not_start(one.exit_code, one.output) or _ran_none(one, test):
         return None
@@ -508,7 +514,7 @@ _NAMED_FAILING = re.compile(
 def failing_named(output: str) -> list[str]:
     """The tests a run's output names as failing, once each, in their order."""
     return list(dict.fromkeys(next(name for name in found if name)
-                              for found in _NAMED_FAILING.findall(output)))
+                              for found in _NAMED_FAILING.findall(plain(output))))
 
 
 # A test file a report's line names (`tests/x.py`, `src/a.test.ts`); a vitest / jest suite's step.
@@ -552,7 +558,7 @@ def covered(one: Command, before: list[str], never: Collection[str] = ()) -> boo
     """R2: whether every test a failed run names as failing (`failing_named`, of its output's
     tail) is one a report's "Already failing before" lines name (`_names`); False where it names
     none, or one of `never` - what a step that reproduced the bug showed failing (`failing_of`)."""
-    named = failing_named(one.output[-4000:])
+    named = failing_named(tail(one.output))
     bare = [_bare(test) for test in named]
     return bool(named) and all(test not in never and any(
         _names(line, test, bare.count(_bare(test)) == 1) for line in before) for test in named)
@@ -567,13 +573,13 @@ def failing_of(session: Session, agent_ids: Collection[str]) -> set[str]:
                 Command.run_id == run_id, Command.agent_id.in_(ids),
                 Command.status.in_(("exited", "timed_out")))):
             if read_test(command) is not None:
-                named.update(failing_named(output[-4000:]))
+                named.update(failing_named(tail(output)))
     return named
 
 
 def failing_shown(one: Command) -> str:
     """A failed run said by the tests it names as failing; else by its command, keys hidden."""
-    named = failing_named(one.output[-4000:])
+    named = failing_named(tail(one.output))
     return ", ".join(named)[:200] if named else OutputMask(secret_values(os.environ)).hide(
         one.command)[:60]
 
@@ -743,7 +749,7 @@ def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
     # (No exit code reported - Claude Code's pass - fails only where its output counts a failure.)
     failed = sum(not one.keep_running and (
         one.status != "exited" or one.exit_code not in (0, None)
-        or one.exit_code is None and bool(FAILED.search(one.output[-4000:]))) for one in commands)
+        or one.exit_code is None and bool(FAILED.search(tail(one.output)))) for one in commands)
     # (CL-305 B: not a run that ran no test - `unittest -h` is no pass to say "no need" of.)
     tests = [one for one in commands if one.status == "exited" and TESTS.search(one.command)
              and not _ran_no_test(one)]
@@ -779,7 +785,7 @@ def _last_test(last: Command, since: bool) -> str:
     to run it again"."""
     read = read_test(last.command)
     masked = read is not None and read[1]
-    if FAILED.search(last.output[-4000:]) or (last.exit_code not in (0, None) and not masked):
+    if FAILED.search(tail(last.output)) or (last.exit_code not in (0, None) and not masked):
         return f"last test run failed ({_exit(last)})"
     if masked:
         return "last test run: no verdict (its exit was masked)"

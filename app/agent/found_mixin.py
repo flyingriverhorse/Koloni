@@ -18,6 +18,7 @@ from sqlalchemy import func, literal_column, select, update
 from app import finish_tests, injection, proof, test_found
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
+from app.commands import is_allowed, rules_here
 from app.db.models import Command, Conversation, Project, now
 from app.proof import Row, TestRun
 from app.providers import ask_once
@@ -58,13 +59,23 @@ class FoundMixin:
             if project is None:
                 return []
             runs = proof.test_runs(project, found)
-            saved, root = dict(project.tests_found or {}), project.root_path
+            saved = {test_found.folder_key(folder): one
+                     for folder, one in (project.tests_found or {}).items()}
+            root = project.root_path
             if (project.check_command or "").strip():  # (the user's check is the project's: alone)
                 return runs
-        runs = [TestRun(saved[run.cwd]["command"], run.cwd, True)
-                if not run.yours and run.cwd in saved else run for run in runs]
-        runs += [TestRun(one["command"], folder, True) for folder, one in saved.items()
-                 if folder not in {run.cwd for run in runs}]
+            rules = [rule.prefix for rule in session.scalars(rules_here(
+                session.get_one(Conversation, ctx.cid)))]
+
+        def kept(folder: str, one: dict) -> TestRun:
+            # Option A (22 Nov): a save is no leave of the user's - it runs as theirs only under
+            # an Always rule: this chat's, or the one said on its card in any chat (`always`).
+            return TestRun(one["command"], folder, bool(one.get("always")) or is_allowed(
+                one["command"], rules), saved=True)
+        runs = [kept(run.cwd, saved[key]) if not run.yours and (
+            key := test_found.folder_key(run.cwd)) in saved else run for run in runs]
+        ran = {test_found.folder_key(run.cwd) for run in runs}
+        runs += [kept(folder, one) for folder, one in saved.items() if folder not in ran]
         runs += self._parts_guessed(root, found, {run.cwd for run in runs})
         if not runs and (adopted := self._agents_test(ctx, held)) is not None:
             runs = [adopted]
@@ -102,7 +113,7 @@ class FoundMixin:
                     run = TestRun(" ".join(one.command.split()), one.cwd or ".", False)
                     if row := self._found_saved(ctx, run, "agent"):
                         held.rows.append(row)
-                        return run._replace(yours=True)
+                        return run._replace(saved=True)
         return None
 
     def _save_found(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, made: Row,
@@ -110,35 +121,80 @@ class FoundMixin:
         """A guess's run that really ran tests (some passed or failed, as its runner counts them)
         is saved as the project's test command - its row says so; else nothing."""
         counted = test_found.counts(output, run.command)
-        if run.yours or made["state"] not in ("passed", "failed") or not counted or not (
+        if not run.guessed or made["state"] not in ("passed", "failed") or not counted or not (
                 counted.ran):
             return []
-        row = self._found_saved(ctx, run, held.found_from.get((run.command, run.cwd), "guess"))
+        row = self._found_saved(ctx, run, held.found_from.get((run.command, run.cwd), "guess"),
+                                (run.command, run.cwd) in held.always)
         return [row] if row else []
 
-    def _found_saved(self: "AgentRunner", ctx: Ctx, run: TestRun, whence: str) -> Row | None:
+    def _found_saved(self: "AgentRunner", ctx: Ctx, run: TestRun, whence: str,
+                     always: bool = False) -> Row | None:
         """Saved in its folder's place where that is still free - no check command of the user's,
         no part test of theirs, nothing KOLONİ saved there (read again now: never over theirs).
         One statement sets that folder's key alone, and only while it is free: a save in another
-        chat, or a Forget it, at the same time is not undone."""
-        if '"' in run.cwd:  # (not one JSON path can name)
+        chat, or a Forget it, at the same time is not undone. `always`: the user said Always on
+        this guess's own card (option A) - kept the user's for that line, in the project."""
+        key = test_found.folder_key(run.cwd)
+        if '"' in key:  # (not one JSON path can name)
             return None
-        place = f'$."{run.cwd}"'
-        entry = json.dumps({"command": run.command, "from": whence, "at": now().isoformat()})
+        place = f'$."{key}"'
+        entry = json.dumps({"command": run.command, "from": whence, "at": now().isoformat(),
+                            **({"always": True} if always else {})})
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             part = "./" if run.cwd == "." else f"{run.cwd}/"
             if project is None or (project.check_command or "").strip() or part in (
                     project.test_commands or {}):
                 return None
+            pid = project.id
+            _keys_normalized(session, project)
             saved = session.execute(update(Project).where(
-                Project.id == project.id, func.json_type(Project.tests_found, place).is_(None),
+                Project.id == pid, func.json_type(Project.tests_found, place).is_(None),
             ).values(tests_found=func.json_set(Project.tests_found, place, func.json(entry))))
             session.commit()
         if saved.rowcount != 1:
             return None
+        self._project_changed(ctx, pid)
         return proof.row("found", "note", SAVED.format(whence=WHENCE.get(whence, "")),
                          run.command)
+
+    def _project_changed(self: "AgentRunner", ctx: Ctx, project_id: str) -> None:
+        """CL-316: what KOLONİ saved of the project is shown in Settings at once, not on a
+        reload: the page reads the project again."""
+        self.bus.emit(ctx.cid, ctx.run_id, "project.changed", {"project_id": project_id})
+
+    def _always_kept(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
+                     call_id: str) -> None:
+        """Option A: where the user answered this run's own card Always (`said_always`), the line
+        is kept as theirs, in the project: a guess's as it is saved (`held.always`), a saved
+        one's now (`always` on its entry) - any chat's end check, and an Away job's, run it
+        unasked. A wider rule of a chat's (`python -m pytest`) lets it run unasked in that chat
+        alone (`_runs_found`), and keeps nothing."""
+        key = test_found.folder_key(run.cwd)
+        with self._factory() as session:
+            ran = session.scalar(select(Command.id).where(Command.tool_call_id == call_id)
+                                 .order_by(Command.created_at.desc()).limit(1))
+        if ran is None or not self.commands.said_always(ran):
+            return
+        held.always.add((run.command, run.cwd))
+        if not run.saved or run.yours or '"' in key:
+            return
+        place = f'$."{key}"'
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+            if project is None:
+                return
+            pid = project.id
+            _keys_normalized(session, project)
+            kept = session.execute(update(Project).where(
+                Project.id == pid,
+                func.json_extract(Project.tests_found, f"{place}.command") == run.command,
+            ).values(tests_found=func.json_set(Project.tests_found, f"{place}.always",
+                                               func.json("true"))))
+            session.commit()
+        if kept.rowcount == 1:
+            self._project_changed(ctx, pid)
 
     async def _look_for_tests(self: "AgentRunner", ctx: Ctx, held: "Proof", root: str,
                               found: dict | None) -> list[TestRun]:
@@ -238,3 +294,16 @@ class FoundMixin:
         model to look for one, or no command."""
         return proof.row("tests", "not_run", NO_TESTS_HERE if held.looked_none
                          else NO_LOOK if held.no_look else proof.NO_COMMAND)
+
+
+def _keys_normalized(session, project: Project) -> None:
+    """Review of CL-316: an entry saved under a folder's key before keys were one per folder
+    (`Web` on Windows) is written again under `folder_key` - so a save, or an Always, finds it
+    there. Only where nothing changed the entries meanwhile (another chat's save stands)."""
+    found = dict(project.tests_found or {})
+    fixed = {test_found.folder_key(folder): one for folder, one in found.items()}
+    if list(fixed) == list(found):
+        return
+    session.execute(update(Project).where(
+        Project.id == project.id, func.json(Project.tests_found) == func.json(json.dumps(found)),
+    ).values(tests_found=fixed))

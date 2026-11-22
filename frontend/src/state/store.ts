@@ -775,6 +775,16 @@ export const useApp = create<AppStore>()((set, get) => {
     if (type === 'conversation.updated') void refreshConversations().catch(() => {})
   }
 
+  /** CL-316: what KOLONİ saved of a project (its test command) shows in Settings at once - the project is read again. */
+  function readProjectOn(type: string, payload: unknown) {
+    if (type !== 'project.changed') return
+    const id = (payload as { project_id: string }).project_id
+    void api.get<Project>(`/projects/${id}`).then(
+      project => set(s => ({ projects: s.projects.map(p => (p.id === project.id ? project : p)) })),
+      () => {},
+    )
+  }
+
   /** (Before the event is folded into the conversation: an agent is compared with what it was.) */
   function readBoardOn(type: string, payload: unknown) {
     // The board is read again when a file changes hands, a turn stops to ask or goes
@@ -1807,6 +1817,7 @@ export const useApp = create<AppStore>()((set, get) => {
         snapshot.last_event_id,
         (eventId, type, payload) => {
           readAgainOn(type)
+          readProjectOn(type, payload)
           readBoardOn(type, payload)
           openWindowOn(type, payload)
           set(s => {

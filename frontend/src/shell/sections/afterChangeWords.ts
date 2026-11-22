@@ -22,6 +22,12 @@ export function testsRun(project: Testing, where = true): string {
 
 const times = (n: number) => `${n} time${n === 1 ? '' : 's'}`
 
+/** How long a turn you watch waits for its tests, in seconds: the whole suite before it goes on after the answer
+ *  (`proof_later_mixin.DETACH_SECONDS`), and all of them where the work is in its own copy (`proof_mixin.END_WAIT_SECONDS`).
+ *  tests/test_proof_background_scenarios.py keeps them the server's. */
+export const WAITS = { detach: 60, copy: 120 }
+const minutes = (seconds: number) => (seconds === 60 ? '1 minute' : seconds % 60 ? `${seconds} seconds` : `${seconds / 60} minutes`)
+
 /** Settings › After a change: what it does in this project now - live as the choice and Fix rounds change. */
 export function afterChangeSaid(project: Testing & Pick<Project, 'review_lines' | 'review_files'>, after: Project['after_change'], fix: number): string {
   if (after === 'nothing') return 'Nothing is tested or reviewed; each answer says Not checked.'
@@ -29,7 +35,7 @@ export function afterChangeSaid(project: Testing & Pick<Project, 'review_lines' 
     after === 'check'
       ? `; a change over ${project.review_lines} lines or ${project.review_files} files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request)`
       : '; no review'
-  return `Runs ${testsRun(project)}, related tests first, the whole suite in the background${review}. Failing work goes back up to ${times(fix)}.`
+  return `Runs ${testsRun(project)}, related tests first, the whole suite in the background${review}. A turn you watch waits for the related tests (with none, at most ${minutes(WAITS.detach)} for the whole suite; in its own working copy, at most ${minutes(WAITS.copy)} for them all). Failing work goes back up to ${times(fix)}.`
 }
 
 /** The permission menu's switch, of what runs: "runs <command> after each change, then a Reviewer reads big or security changes. Failing work goes back to be fixed, up to N times." */

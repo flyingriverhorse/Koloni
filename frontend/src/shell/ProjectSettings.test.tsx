@@ -133,7 +133,7 @@ test('After a change saves after_change', async () => {
   expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Test and review', 'Tests only', 'Nothing'])
   // (One line, live: what it runs now, when the Reviewer reads, the Fix rounds.)
   expect(box).toHaveAccessibleDescription(
-    'Runs the test command KOLONİ finds (it asks you once), related tests first, the whole suite in the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request). Failing work goes back up to 2 times.',
+    'Runs the test command KOLONİ finds (it asks you once), related tests first, the whole suite in the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request). A turn you watch waits for the related tests (with none, at most 1 minute for the whole suite; in its own working copy, at most 2 minutes for them all). Failing work goes back up to 2 times.',
   )
   await userEvent.selectOptions(box, 'tests')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))

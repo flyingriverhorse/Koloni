@@ -68,7 +68,7 @@ def related(run: TestRun, paths: list[str], root: Path) -> TestRun | None:
     for reader in (_pytest, _js, _go, _cargo, _dotnet):
         said = reader(words, mine, cwd)
         if said is not None:
-            return None if said == words else TestRun(" ".join(said), run.cwd, run.yours)
+            return None if said == words else run._replace(command=" ".join(said))
     return None
 
 

@@ -51,6 +51,9 @@ SLOT_BUSY = "another of KOLONİ's test runs held the machine past the wait"
 # Plan decision 8: while the user is away (an Away job, a To-do turn) nobody is there to say yes to
 # a guess - it is not run; the user's own saved command still is.
 AWAY_GUESS = "a guessed command, you were away"
+# ...nor is a command KOLONİ saved that no Always rule covers (option A, 22 Nov: a save is no
+# leave of the user's).
+AWAY_SAVED = "a saved command no Always rule covers, you were away"
 # What of the failing output goes back to the Orchestrator: its last lines, cut by characters too.
 TESTS_TAIL_CHARS = 4000
 
@@ -101,6 +104,8 @@ class Proof:
     # S1b (`FoundMixin`): where a guess came from ("guess", "look"), by (command, folder); and
     # why nothing was run - the look found no test, or there was no model to look.
     found_from: dict[tuple[str, str], str] = field(default_factory=dict)
+    # Option A: the (command, folder)s whose own card the user answered Always in this turn.
+    always: set[tuple[str, str]] = field(default_factory=set)
     looked_none: bool = False
     no_look: bool = False
 
@@ -234,11 +239,11 @@ class ProofMixin:
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
                 why=f"{run.command} - {slow or 'the wait went on the runs before it'}; a turn "
                     f"you watch waits at most {proof.clock(END_WAIT_SECONDS)} for them"),
-                run.command, not run.yours), ""
+                run.command, run.guessed), ""
         how = self._may_run_tests(ctx, run)
         if how not in ("run", "ask"):
             return proof.row("tests", "not_run", proof.NOT_RUN.format(why=how), run.command,
-                             not run.yours), ""
+                             run.guessed), ""
         return await self._run_tests(ctx, run, how, held, seconds)
 
     @staticmethod
@@ -271,13 +276,14 @@ class ProofMixin:
 
     def _may_run_tests(self: "AgentRunner", ctx: Ctx, run: TestRun) -> Literal["run", "ask"] | str:
         """As the Lead's own run_command would be: in a watched turn "ask" - the user's own
-        command, an Always run rule, the part's own test and Full auto pass unasked, a guess at Ask
-        or Auto-edit gets one card a turn (an Away job's is answered as its other cards are); in
-        a trigger's turn "run" only on its leave for this very command; else why not."""
+        command, an Always run rule, the part's own test and Full auto pass unasked, a guess - or
+        a command KOLONİ saved that no Always rule covers (option A) - at Ask or Auto-edit gets
+        one card a turn, and is not run while the user is away; in a trigger's turn "run" only on
+        its leave for this very command; else why not."""
         if off := web_off_reason(run.command, self._off()):
             return off
         if not run.yours and self._away_now(ctx):
-            return AWAY_GUESS
+            return AWAY_SAVED if run.saved else AWAY_GUESS
         if self._watched(ctx.run_id):
             return "ask"
         refused = self._nobody_to_ask(ctx, "command", f"run {quoted(run.command)}",
@@ -306,7 +312,7 @@ class ProofMixin:
                 ctx, run, how, held, seconds, message_id, check, (slot, workers)))
         except asyncio.CancelledError:
             held.rows.append(proof.row("tests", "not_run", proof.STOPPED, run.command,
-                                       not run.yours))
+                                       run.guessed))
             raise
 
     async def _run_tests_now(self: "AgentRunner", ctx: Ctx, run: TestRun, how: str, held: Proof,
@@ -355,7 +361,7 @@ class ProofMixin:
         except _GateRefused as exc:
             self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
             return proof.row("tests", "not_run", proof.NOT_RUN.format(why=exc), run.command,
-                             not run.yours), ""
+                             run.guessed), ""
         except ToolError as exc:
             code, output, said, ended = None, "", f"error: {exc}", None
         except asyncio.CancelledError:
@@ -371,10 +377,11 @@ class ProofMixin:
         await self._tests_put_back(copy, was, kept)
         self._set_call(ctx.cid, call_id, status="denied" if ended == "rejected" else
                        "failed" if code is None else "succeeded", result=said, ended_at=now())
+        self._always_kept(ctx, held, run, call_id)  # (option A: Always on its own card)
         if ended == "rejected" or False in taken:
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
                 why="declined on its card" if ended == "rejected" else SLOT_BUSY), run.command,
-                not run.yours), ""
+                run.guessed), ""
         return proof.tests_row(run, code, output, ended, said,
                                given["seconds"] or MAX_TIMEOUT), output
 

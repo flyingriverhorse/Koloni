@@ -440,8 +440,10 @@ def test_a_trigger_turn_runs_only_what_its_trigger_allows(make_client, wait_run,
 ONE_JOB = {"jobs": [{"title": "one"}], "kept_out": []}
 
 
-def away_job(make_client, project_dir, mode, check="print('3 passed')\n", **project):
-    """An Away night of one job whose Lead edits hello.py; the job's chat id, once looked at."""
+def away_job(make_client, project_dir, mode, check="print('3 passed')\n", ready=None,
+             **project):
+    """An Away night of one job whose Lead edits hello.py; the job's chat id, once looked at.
+    `ready(client, pid)`: before the user goes away."""
     from tests.test_agent_writes import edit
     from tests.test_away_scenarios import evening, go_away, looked_at, night
     from tests.test_backlog_auto import until
@@ -452,6 +454,8 @@ def away_job(make_client, project_dir, mode, check="print('3 passed')\n", **proj
         plan=ONE_JOB, lead_work="itself", **project)
     until(lambda: client.get(f"/api/conversations/{cid}").json()["runs"][0]["status"]
           == "completed")
+    if ready is not None:
+        ready(client, pid)
     assert go_away(client, cid).status_code in (200, 201)
     found = until(lambda: (n := night(client, pid)) and looked_at(n) and n, seconds=30)
     return client, pid, found["jobs"][0]
@@ -483,6 +487,30 @@ def test_while_away_a_guessed_command_is_not_run(make_client, project_dir, monke
     assert (rows[0]["state"], rows[0]["text"]) == (
         "not_run", "Tests not run: a guessed command, you were away"), rows
     assert [c for c in snap["commands"] if c["command"] == "python check.py"] == []
+
+
+@pytest.mark.parametrize("always", [False, True])
+def test_while_away_a_saved_command_runs_only_under_an_always_rule(make_client, project_dir,
+                                                                   always):
+    # (Option A, 22 Nov: a command KOLONİ saved is no leave of the user's - as a guess, it is not
+    # run while away; the Always said on its card is.)
+    from app.db.models import Project
+
+    def saved(client, pid):
+        with client.app.state.session_factory() as session:
+            session.get(Project, pid).tests_found = {".": {
+                "command": "python check.py", "from": "guess", "at": "x",
+                **({"always": True} if always else {})}}
+            session.commit()
+    client, _pid, job = away_job(make_client, project_dir, "full_auto", ready=saved)
+    snap, (rows,) = job_rows(client, job)
+    ran = [c for c in snap["commands"] if c["command"] == "python check.py"]
+    if always:
+        assert rows[0]["state"] == "passed" and len(ran) == 1, rows
+    else:
+        assert (rows[0]["state"], rows[0]["text"]) == (
+            "not_run", "Tests not run: a saved command no Always rule covers, you were away"), rows
+        assert ran == []
 
 
 def test_a_turn_that_fails_before_its_end_says_the_tests_were_not_run(

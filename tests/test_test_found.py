@@ -47,6 +47,29 @@ def test_counts_of_each_known_runner(output, counts):
     assert test_found.counts(output) == counts
 
 
+@pytest.mark.parametrize(("output", "counts"), [
+    # (CL-316: coloured - pytest's with `--color=yes`, vitest's as a terminal shows it; a skip
+    # alone is no count, as without colour)
+    ("\x1b[32m\x1b[32m\x1b[1m1 passed\x1b[0m\x1b[32m in 0.01s\x1b[0m\x1b[0m\n", Counts(1, 0, 0)),
+    ("\x1b[33m\x1b[33m\x1b[1m1 skipped\x1b[0m\x1b[33m in 0.01s\x1b[0m\x1b[0m\n", None),
+    ("\x1b[31m\x1b[31m\x1b[1m1 failed\x1b[0m\x1b[31m in 0.05s\x1b[0m\x1b[0m\n", Counts(0, 1, 0)),
+    ("\x1b[2m Test Files \x1b[22m \x1b[1m\x1b[32m1 passed\x1b[39m\x1b[22m\x1b[90m (1)\x1b[39m\n"
+     "\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m2 passed\x1b[39m\x1b[22m\x1b[90m (2)\x1b[39m\n",
+     Counts(2, 0, 0)),
+])
+def test_counts_of_a_coloured_run(output, counts):
+    assert test_found.counts(output, "npx vitest run" if "Test Files" in output else "pytest -q") == counts
+
+
+@pytest.mark.parametrize(("folder", "key"), [
+    (".", "."), ("", "."), ("./", "."), ("sub", "sub"), ("sub/", "sub"), ("a\\b", "a/b"),
+])
+def test_a_saved_commands_folder_key(folder, key):
+    assert test_found.folder_key(folder) == key
+    # (CL-316: one folder where the file system has one case - never `SUB` and `sub` saved twice)
+    assert test_found.folder_key("SUB") == ("sub" if sys.platform in ("win32", "darwin") else "SUB")
+
+
 def test_an_unknown_runner_has_no_counts():
     assert test_found.counts("all good\nBUILD SUCCESSFUL in 3s\n") is None
     assert test_found.counts("") is None

@@ -6,11 +6,13 @@ its answer is read. The runner's part: `FoundMixin`."""
 import json
 import os
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
 from app import ledger
+from app.commands import plain
 from app.workspace import secret_in_project
 
 
@@ -143,7 +145,8 @@ PARSERS: tuple[tuple[Callable[[str], Counts | None], bool], ...] = (
 def counts(output: str, command: str = "") -> Counts | None:
     """What a run's output counts, by the first runner whose summary it holds - pytest's own first
     where the command is pytest's; None: none known - the run is judged by its exit code alone,
-    and says so."""
+    and says so. Its colours aside (`commands.plain`: CL-316)."""
+    output = plain(output)
     tail = output[-4000:]
     read = ledger.read_test(command) if command else None
     if read is not None and read[0] == "pytest" and (own := _pytest_like(tail)) is not None:
@@ -200,6 +203,14 @@ def said_runs(said: str, root: Path) -> tuple[list[tuple[str, str]], int]:
                 (place := inside(root, folder)) is not None):
             out.append((" ".join(command.split()), place))
     return out[:MOST_SAID], named - len(out[:MOST_SAID])
+
+
+def folder_key(folder: str) -> str:
+    """A folder of the project as the key a saved test command is kept under
+    (`Project.tests_found`): POSIX, "." the root - in one case where the file system has one
+    (CL-316: on Windows and macOS `SUB` and `sub` are one folder, never two saves)."""
+    key = str(PurePosixPath(folder.replace("\\", "/").strip() or "."))
+    return key.casefold() if sys.platform in ("win32", "darwin") else key
 
 
 def inside(root: Path, folder: str) -> str | None:
