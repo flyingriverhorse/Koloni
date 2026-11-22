@@ -545,13 +545,6 @@ _HANDS_WORDS = re.compile(r"(?i)(?<![\w-])(?:xargs|parallel)(?![\w-])")
 _AWK = re.compile(r"(?i)(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?[gmn]?awk(?:\.exe)?\s")
 _CODE_STOPS = re.compile(r"(?i)(?<![\w-])(?:taskkill|tskill|pkill|killall|kill|stop-process|spps)"
                          r"(?![\w-])|\.(?:kill|terminate)\s*\(|\bsignal\.SIG")
-# ...where the code calls a process's own way to run or end one (k-okuyucu): a stop's name in a
-# string alone (`print('kill')`, `awk '/kill/'`) runs nothing.
-_PROCESS_API = re.compile(
-    r"(?i)\b(?:system|subprocess|child_process|popen\w*|spawn\w*|exec\w*|eval|shell_exec|"
-    r"passthru|proc_open|runtime|processbuilder|start-process|invoke-expression|iex|"
-    r"shellexecute\w*|os\.kill|process\.kill|signal\.sig\w*|qx)\b|\.(?:kill|terminate)\s*\(|`"
-    r"|\bkill\s*[(\d$-]|\bkill\s+['\"]")
 # A line's words as its shell splits them - by its quotes, glued ones too (`--grep="x|kill"`) -
 # and what joins its commands (`_stands`).
 _SHELL_WORDS = re.compile(r"""(?:[^\s'";&|(){}]|"[^"]*"|'[^']*')+|[;&|(){}]+""")
@@ -882,7 +875,7 @@ def _stop_kind_of(command: str) -> str:
                for words in _parts(stage, _BLOCKS) if words)
     if _WMI_STOPS.search(command) or stands and _HANDS_WORDS.search(command) or ends and (
             _stands(command, _STOP_METHODS)) or _CODE_STOPS.search(command) and (
-            _PROCESS_API.search(command)) and (_INLINE.search(command) or _AWK.search(command)):
+            _INLINE.search(command) or _AWK.search(command)):
         return "koloni"
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 

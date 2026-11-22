@@ -8,7 +8,6 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Fixed
 
-- **Chat**: an agent's command whose inline code only prints a stop's name (`python -c "print('kill')"`, `awk '/kill/ {print}' log.txt`) no longer asks as a stop of KOLONİ itself; one whose code runs or ends a process (`os.system('pkill x')`, `execSync(...)`, `system(...)`, `os.kill(...)`) still does ([docs](use/permissions.md)).
 
 ### Security
 
