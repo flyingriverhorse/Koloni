@@ -50,6 +50,8 @@ export interface ProjectSettingsValues {
   measure_command?: string
   /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code - Check it, Tests only or Nothing. Sent only when changed. */
   after_change?: Project['after_change']
+  /** S1b: forget the test command KOLONİ found and saved, and its look; found again at the next change. */
+  forget_tests_found?: boolean
   /** Whether what is taken from a sub-agent is offered for a commit. Sent only when changed. */
   git_commit?: boolean
   /** K-dal-takim D2: how a team's finished branch reaches yours - merged here, or as a pull request. Sent only when changed. */

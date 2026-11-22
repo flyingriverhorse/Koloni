@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
+import { FoundTests } from './FoundTests'
 import { Row } from './part'
 
 /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code, in this project. */
@@ -20,27 +21,31 @@ export function useAfterChange(project: Project) {
   // (A server older than the page has no such field yet: the default.)
   const saved = project.after_change ?? 'check'
   const [after, setAfter] = useState(saved)
-  const patch = after !== saved ? { after_change: after } : {}
+  const [forget, setForget] = useState(false)
+  const patch = { ...(after !== saved && { after_change: after }), ...(forget && { forget_tests_found: true }) }
   const view = (
-    <Row
-      label="After a change"
-      htmlFor="after-change"
-      doc={GUIDE.checked}
-      warn={
-        <span id="after-change-note" className="choice-note">
-          {AFTER_CHANGE_NOTE}
-          {project.after_change_from_off && after === 'nothing' && <span data-testid="after-change-from-off"> {FROM_OFF}</span>}
-        </span>
-      }
-    >
-      <select id="after-change" className="input" value={after} aria-describedby="after-change-note" onChange={e => setAfter(e.target.value as Project['after_change'])}>
-        {AFTER_CHANGE.map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </Row>
+    <>
+      <Row
+        label="After a change"
+        htmlFor="after-change"
+        doc={GUIDE.checked}
+        warn={
+          <span id="after-change-note" className="choice-note">
+            {AFTER_CHANGE_NOTE}
+            {project.after_change_from_off && after === 'nothing' && <span data-testid="after-change-from-off"> {FROM_OFF}</span>}
+          </span>
+        }
+      >
+        <select id="after-change" className="input" value={after} aria-describedby="after-change-note" onChange={e => setAfter(e.target.value as Project['after_change'])}>
+          {AFTER_CHANGE.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </Row>
+      <FoundTests found={project.tests_found ?? {}} forget={forget} setForget={setForget} />
+    </>
   )
-  return { patch, view }
+  return { patch, view, saved: () => setForget(false) }
 }

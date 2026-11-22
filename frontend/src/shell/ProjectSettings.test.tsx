@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, after_change: 'check', after_change_from_off: false, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, after_change: 'check', after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -867,4 +867,25 @@ test('what the folder’s settings ask for is said in words, each part only when
     expect(screen.getByRole('group', { name: 'This folder’s settings' })).toHaveTextContent(`This folder’s settings ask to ${said} — use them?`)
     unmount()
   }
+})
+
+test('the test command KOLONİ found is shown with where it came from, and can be forgotten', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  const found = { ...project, tests_found: { '.': { command: 'python -m pytest -q', from: 'look', at: '2026-11-22T16:00:00' }, web: { command: 'npm test', from: 'guess', at: '2026-11-22T16:01:00' } } }
+  render(<ProjectSettings {...base} project={found} onSave={onSave} />)
+  await choose(/^Checks/)
+  const shown = screen.getByTestId('tests-found')
+  expect(shown).toHaveTextContent('python -m pytest -q in ./ - its look at the code found it, 2026-11-22.')
+  expect(shown).toHaveTextContent('npm test in web/ - from the project’s files, 2026-11-22.')
+  await userEvent.click(screen.getByRole('checkbox', { name: /^Forget it/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ forget_tests_found: true })
+})
+
+test('with nothing found, nothing of it is shown', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={vi.fn()} />)
+  await choose(/^Checks/)
+  expect(screen.queryByTestId('tests-found')).toBeNull()
 })

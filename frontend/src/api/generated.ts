@@ -5797,6 +5797,17 @@ export interface components {
             /** Why */
             why?: string | null;
         };
+        /** CheckedCounts */
+        CheckedCounts: {
+            /** Failed */
+            failed: number;
+            /** Passed */
+            passed: number;
+            /** Skipped */
+            skipped: number;
+            /** Unit */
+            unit: string;
+        };
         /**
          * CheckedRow
          * @description One line of a turn's Checked section (`app.proof.Row`).
@@ -5804,6 +5815,7 @@ export interface components {
         CheckedRow: {
             /** Command */
             command: string | null;
+            counts?: components["schemas"]["CheckedCounts"] | null;
             /** Guessed */
             guessed: boolean;
             /** Kind */
@@ -8905,6 +8917,16 @@ export interface components {
              * @enum {string}
              */
             teams_mode: "lead" | "manual" | "none";
+            /** Tests Found */
+            tests_found: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Tests Look */
+            tests_look: {
+                [key: string]: unknown;
+            } | null;
             /** Turn Token Limit */
             turn_token_limit: number | null;
             /**
@@ -8969,6 +8991,8 @@ export interface components {
             exec_location?: ("host" | "docker") | null;
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
+            /** Forget Tests Found */
+            forget_tests_found?: boolean | null;
             /** Full Auto Check */
             full_auto_check?: ("ask" | "judge") | null;
             /** Git Commit */
