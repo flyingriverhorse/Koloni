@@ -683,8 +683,9 @@ async def patch_conversation(
         # What the user keeps in view is theirs to say, from the app's own page.
         require_own_origin(request)
         conversation.archived_at = (conversation.archived_at or now()) if body.archived else None
-        if body.archived:  # (put away: what it left serving stops)
+        if body.archived:  # (put away: what it left serving stops, and its tests gone on)
             request.app.state.runner.commands.stop_all(conversation_id)
+            request.app.state.runner.stop_later(conversation_id)
     apply_choice(session, conversation, body)
     # Putting it away, or back, is no activity of its: its place by last activity stays.
     if body.model_fields_set - {"archived"}:

@@ -6,6 +6,7 @@ import { usePanel } from '../shell/usePanel'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { AwayPanel } from './AwayPanel'
+import { RunningFor } from './CheckedSection'
 import { type ChatStatus, statusOf } from './statusLine'
 
 interface Props {
@@ -101,6 +102,12 @@ function Said({ status }: { status: ChatStatus }) {
   ) : (
     <span className="composer-status-what">
       <b>{status.who}</b> is ready
+      {status.tests && (
+        <span className="live-facts">
+          {' · Full tests running…'}
+          <RunningFor since={status.tests} />
+        </span>
+      )}
     </span>
   )
 }

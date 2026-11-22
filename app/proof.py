@@ -9,12 +9,12 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import NamedTuple, TypedDict
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
 
 from app import finish_tests, ledger, project_map, test_found
 from app.commands import only_reads
-from app.db.models import Command, Conversation, FileChange, Project, Run
+from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run
 from app.tools import MAX_TIMEOUT
 from app.workspace import in_scratch, unified_diff
 
@@ -340,3 +340,93 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
 def checked_text(rows: list[Row]) -> str:
     """The Checked section as text: one line a row, its state's mark first."""
     return "\n".join(ICONS.get(one["state"], "– ") + one["text"] for one in rows)
+
+
+# --- S6: related tests first, the whole suite in the background; the machine's load ----------
+
+# A whole suite that goes on after the answer (`running`): waiting for another of KOLONİ's runs
+# to end (no `started_at`), then running (`started_at` set: the page ticks its clock).
+FULL_QUEUED = "Full tests waiting for another test run to end: {command}"
+FULL_RUNNING = "Full tests running: {command}"
+FULL_HELD = "Full tests not run: the related tests fail"
+SUPERSEDED = "Tests not finished: the project changed, and a newer run took their place"
+RESTARTED = "Tests not finished: KOLONİ restarted"
+# A result that came after the project changed beneath it: it stands for no state of the work.
+CHANGED_WHILE = " - the project changed while they ran"
+
+# Settings › The app: KOLONİ's own test runs at once, and the test processes each may start
+# (pytest-xdist's `-n auto` reads it). Cautious: this machine once failed under test load.
+TEST_RUNS_FLAG, TEST_RUNS_RANGE, TEST_RUNS = "test_runs_at_once", (1, 4), 1
+TEST_WORKERS_FLAG, TEST_WORKERS_RANGE, TEST_WORKERS = "test_workers", (1, 16), 2
+
+
+def related_said(text: str) -> str:
+    """A related run's row: "Related tests passed: …" - not to be read as the whole suite's."""
+    return f"Related t{text[1:]}" if text.startswith("Tests ") else text
+
+
+def load_of(session: Session) -> tuple[int, int]:
+    """KOLONİ's test runs at once, and the test processes each may start, as Settings › The app
+    has them; a value out of its range is held to it, one that is no whole number is the
+    default."""
+    def read(name: str, low_high: tuple[int, int], default: int) -> int:
+        value = session.scalar(select(Flag.value).where(Flag.name == name))
+        try:
+            return default if value is None else min(low_high[1], max(low_high[0], int(value)))
+        except ValueError:
+            return default
+    return (read(TEST_RUNS_FLAG, TEST_RUNS_RANGE, TEST_RUNS),
+            read(TEST_WORKERS_FLAG, TEST_WORKERS_RANGE, TEST_WORKERS))
+
+
+def written_since(session: Session, project_id: str,
+                  since: datetime) -> dict[str, list[tuple[datetime, str | None]]]:
+    """The project's paths a recorded change wrote after `since` - written there, taken in from a
+    copy, or taken back (Undo), by any chat's turn - each with when, and what those changes
+    left there (None: no file)."""
+    left: dict[str, list[tuple[datetime, str | None]]] = {}
+    for change in session.scalars(
+            select(FileChange).join(Run, Run.id == FileChange.run_id)
+            .join(Conversation, Conversation.id == Run.conversation_id)
+            .where(Conversation.project_id == project_id,
+                   FileChange.status.in_(("applied", MERGED, "reverted")),
+                   or_(FileChange.created_at > since, FileChange.decided_at > since))):
+        # (Undo puts back what it replaced - nothing where it made the file: `revert_change`.)
+        held = (None if change.kind == "create" else change.before_content or "") if (
+            change.status == "reverted") else (
+            None if change.kind == "delete" else change.after_content)
+        left.setdefault(change.path, []).append((change.decided_at or change.created_at, held))
+    return left
+
+
+def changed_since(session: Session, project_id: str, since: datetime,
+                  ran: Command | None = None) -> bool:
+    """Whether the project changed after `since` beneath `ran` (a test run of KOLONİ's): a
+    recorded change (`written_since`), or a command of any turn in it that may have changed
+    files - `_rewritten_after`'s rule, the same as for a pass that stands.
+    shortcut: what the user changes outside KOLONİ is not on record; read the files' times if a
+    background result is seen to stand for an edit it never ran on."""
+    if written_since(session, project_id, since):
+        return True
+    if ran is None or ran.started_at is None:
+        return False
+    agents: dict[str, set[str]] = {}
+    for run_id, agent_id in session.execute(
+            select(Command.run_id, Command.agent_id).join(Run, Run.id == Command.run_id)
+            .join(Conversation, Conversation.id == Run.conversation_id)
+            .where(Conversation.project_id == project_id, Command.id != ran.id,
+                   Command.started_at.is_not(None), Command.started_at >= since)):
+        agents.setdefault(run_id, set()).add(agent_id)
+    return any(_rewritten_after(session, run_id, by, ran, _folded(ran.command))
+               for run_id, by in agents.items())
+
+
+def settle_running(session: Session) -> None:
+    """At start-up: a test run that went on after its turn ended with the process that ran it -
+    its row says so, never "running" on (`recover_interrupted`)."""
+    for note in session.scalars(select(Message).where(
+            Message.role == "checked", Message.content.contains(ICONS["running"]))):
+        rows = [row("tests", "not_run", RESTARTED, one["command"], one["guessed"])
+                if one["state"] == "running" else one
+                for one in (note.blocks or {}).get("rows", [])]
+        note.blocks, note.content = {"rows": rows}, checked_text(rows)

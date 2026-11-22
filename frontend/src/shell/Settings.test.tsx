@@ -22,7 +22,7 @@ const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true,
 /** The server, by what is asked. */
 function server(rules: ChatRules[] = []) {
   vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-    (path === '/answer-in' ? { answer_in: null } : path === '/folders' ? { never: [] } : path === '/storage' ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/unattended' ? { stuck_minutes: 30, turn_hours: 8 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : path.endsWith('/allowed') ? rules : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never,
+    (path === '/answer-in' ? { answer_in: null } : path === '/folders' ? { never: [] } : path === '/storage' ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/unattended' ? { stuck_minutes: 30, turn_hours: 8 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : path === '/test-load' ? { runs_at_once: 1, workers: 2 } : path.endsWith('/allowed') ? rules : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never,
   )
 }
 
@@ -147,6 +147,26 @@ test('App: when work nobody watches is stuck, and its ceiling (B-413), are read,
   expect(put).toHaveBeenCalledWith('/unattended', { stuck_minutes: 45 })
   expect(put).toHaveBeenCalledWith('/unattended', { turn_hours: null })
   expect(put).not.toHaveBeenCalledWith('/steps', expect.anything())
+})
+
+test('App: KOLONİ’s test runs at once and the test processes each may start save within their ranges (S6)', async () => {
+  server()
+  const put = vi.spyOn(api, 'put').mockImplementation(async (_path, body) => body as never)
+  render(<Settings {...base} project={null} onSave={vi.fn()} />)
+  const runs = await screen.findByLabelText('KOLONİ’s test runs at once')
+  const workers = screen.getByLabelText('Test processes per run')
+  await vi.waitFor(() => expect(runs).toHaveValue('1'))
+  expect(workers).toHaveValue('2')
+  const save = screen.getByRole('button', { name: 'Save' })
+  await userEvent.clear(runs)
+  await userEvent.type(runs, '5')
+  expect(screen.getByText('A whole number from 1 to 4.')).toBeVisible()
+  expect(save).toBeDisabled()
+  await userEvent.clear(runs)
+  await userEvent.type(runs, '2')
+  await userEvent.click(save)
+  expect(put).toHaveBeenCalledWith('/test-load', { runs_at_once: 2 })
+  expect(put).not.toHaveBeenCalledWith('/test-load', { workers: expect.anything() })
 })
 
 test('App: what knowledge from a repository or a folder reads at most is read, held to its range and sent only when changed', async () => {

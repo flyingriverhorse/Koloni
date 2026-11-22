@@ -1757,6 +1757,17 @@ class Unattended(BaseModel):
     turn_hours: int | None = Field(None, ge=1, le=72, strict=True)
 
 
+class TestLoad(BaseModel):
+    """Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+    processes each may start - settings of the whole app (`proof.load_of`). Their ranges are
+    `proof.TEST_RUNS_RANGE` and `TEST_WORKERS_RANGE`, written again here and in Settings.tsx.
+    Sent one at a time - the one not sent stays as it is."""
+
+    model_config = ConfigDict(extra="forbid")
+    runs_at_once: int | None = Field(None, ge=1, le=4, strict=True)
+    workers: int | None = Field(None, ge=1, le=16, strict=True)
+
+
 class TreeLimits(BaseModel):
     """The most files and MB a repository or a folder on this machine may hold to be learned
     (`knowledge.tree_limits`): one setting of the whole app. Its ranges are `knowledge.FILES_RANGE`
