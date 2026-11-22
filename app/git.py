@@ -2573,16 +2573,79 @@ def _taken_in_unpushed(
     KOLONİ's, aside): what came in from elsewhere - the user's branch or another merged in (by D2
     or by its agent's own merge: a parent of it), fast-forwarded to, rebased onto, cherry-picked.
     Their short ids; Refused where git does not say (fails closed).
-    shortcut: what an agent copies into a commit of its own - a squash merge, `cherry-pick -n`,
-    `checkout <ref> -- <path>` - is its own work to git: each of those reaches the user's
-    repository and is asked at every level; compare the commit's content with their unpushed
-    commits if a rule is ever seen to allow one."""
+    What an agent copies of such a commit into a commit of its own (an amend after a fast-forward,
+    `reset --soft` and `commit -C`, `merge --squash`, `cherry-pick -n`) is made there to git, and
+    some of those run unasked at Full auto: `_users_content` reads the pushed files themselves,
+    and a pull request is asked about while the user has commits not on origin
+    (`unpushed_count`)."""
     code, out, said = _in(project, git, *UNASKED, "rev-list", source, f"^{start}", "--not",
                           "--remotes=origin", seconds=SHORT_SECONDS, **UNASKED_ENV)
     if code != 0:
         raise Refused(f"git rev-list failed: {_text(out, said)[-TAIL:]}")
     made = _made_on(project, git, branch) | ({snapshot} if snapshot else set())
     return [sha[:10] for sha in out.decode("ascii", "replace").split() if sha not in made]
+
+
+# Why a pull request is not pushed: a file of it is a file of the user's work not pushed yet.
+USERS_CONTENT = ("{files} in it is your work not pushed yet (as a commit of yours holds it): push "
+                 "it first, or take it off the branch - a pull request never sends it")
+NOT_PUSHED = ("--exclude=koloni/*", "--branches", "--not", "--remotes=origin")
+
+
+def unpushed_count(project: Path) -> int:
+    """How many commits the user's own branches (KOLONİ's aside) hold that no branch of origin's
+    does, as git last fetched it - all of theirs where origin has none. Refused as `repository`,
+    and where git does not say."""
+    git, _folder = repository(project)
+    code, out, said = _in(project, git, *UNASKED, "rev-list", "--count", *NOT_PUSHED,
+                          seconds=SHORT_SECONDS, **UNASKED_ENV)
+    if code != 0 or not out.strip().isdigit():
+        raise Refused(f"git rev-list failed: {_text(out, said)[-TAIL:]}")
+    return int(out)
+
+
+def _said_or_refused(project: Path, git: str, stdin: bytes | None, *args: str) -> bytes:
+    code, out, said = _fed(project, git, stdin, *UNASKED, *args, seconds=SHORT_SECONDS,
+                           **UNASKED_ENV)
+    if code != 0:
+        raise Refused(f"git {args[0]} failed: {_text(out, said)[-TAIL:]}")
+    return out
+
+
+def _new_blobs(raw: bytes) -> dict[str, str]:
+    """What `--raw -z` output added or changed: by path, its new object."""
+    parts, found = raw.split(b"\0"), {}
+    for at, fields in enumerate(parts[:-1]):
+        words = fields.decode("ascii", "replace").lstrip(":").split()
+        if fields.startswith(b":") and len(words) == 5 and words[4][:1] in "AMT":
+            found[_listed(parts[at + 1])[0]] = words[3]
+    return found
+
+
+def _users_content(project: Path, git: str, base: str, tip: str) -> list[str]:
+    """The files a push would add or change (`tip` against `base`) that hold exactly what a commit
+    of the user's not on origin introduced - one their branches hold, or their reflogs do (one
+    amended away), KOLONİ's branches aside: their work copied onto the branch. An empty file is
+    no one's. Refused where git does not say (fails closed)."""
+    heads = [one for one in _said_or_refused(
+        project, git, None, "for-each-ref", "--format=%(refname)", "refs/heads/").decode(
+        "utf-8", "surrogateescape").split() if not one.startswith(f"refs/heads/{BRANCH_PREFIX}")]
+    logged = [_said_or_refused(project, git, None, "log", "-g", "--format=%H", head)
+              if _in(project, git, "rev-parse", "-q", "--verify", f"{head}@{{0}}")[0] == 0
+              else b"" for head in heads]
+    theirs = _said_or_refused(project, git, None, "for-each-ref", "--format=^%(objectname)",
+                              "refs/remotes/origin/")
+    commits = _said_or_refused(project, git, b"\n".join(
+        [one.encode() for one in heads] + logged + [theirs]), "rev-list", "--stdin")
+    if not commits.strip():
+        return []
+    held = set(_new_blobs(_said_or_refused(
+        project, git, commits, "log", "--no-walk", "--stdin", "--format=", "--raw", "-z",
+        "--no-abbrev", "--no-renames", "--diff-merges=first-parent")).values())
+    held.discard(_said_or_refused(project, git, b"", "hash-object", "--stdin").decode().strip())
+    pushed = _new_blobs(_said_or_refused(project, git, None, "diff-tree", "-r", "-z",
+                                         "--no-renames", base, tip))
+    return sorted(path for path, blob in pushed.items() if blob in held)
 
 
 def push_one(
@@ -2617,6 +2680,9 @@ def push_one(
         more = len(taken) - NAMED_COMMITS
         raise Refused(TAKEN_IN_UNPUSHED.format(commits=", ".join(taken[:NAMED_COMMITS]) + (
             f" and {more} more" if more > 0 else "")))
+    if copied := _users_content(project, git, base, tip):
+        raise Refused(USERS_CONTENT.format(files=", ".join(copied[:NAMED_COMMITS]) + (
+            f" and {len(copied) - NAMED_COMMITS} more" if len(copied) > NAMED_COMMITS else "")))
     code, out, said = _in(project, git, *UNASKED, "-c", "commit.gpgsign=false", "commit-tree",
                           f"{tip}^{{tree}}", "-p", base, "-m", message,
                           seconds=SHORT_SECONDS, **UNASKED_ENV, **KOLONI_ID)

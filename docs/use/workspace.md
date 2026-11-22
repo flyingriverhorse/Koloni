@@ -94,7 +94,10 @@ project's `origin` must be the GitHub repository gh sees. Until then the card sa
 A branch that holds commits of yours that origin does not have - your branch or another merged into it,
 fast-forwarded to, rebased onto or cherry-picked - is not pushed until you push them, also after you
 amended, rebased or dropped them; the card names them. What counts as the agent's own is what its branch's
-history says was committed on it.
+history says was committed on it. Nor is a file that holds exactly what a commit of yours not pushed yet
+put there (an agent's squash, pick or amend of it). And while your branches hold any commit not on
+GitHub, a pull request waits for your click at every level, Full auto too: the card says how many, so
+you can check its files are the agent's work.
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").

@@ -12,12 +12,13 @@ from types import SimpleNamespace
 import pytest
 
 from app import copies, git
-from app.agent import BRANCH_OVER_YOURS, NOT_IN_BRANCH, AgentRunner
+from app.agent import BRANCH_OVER_YOURS, NOT_IN_BRANCH, PR_UNPUSHED, AgentRunner
 from tests import test_dal_takim
 from tests.conftest import Gate, scaled
 from tests.test_branch_snapshot import has_object, needs_merge_base, porcelain
 from tests.test_chat_flow import text
-from tests.test_dal_takim import on_branch, run
+from tests.test_dal_takim import on_branch, pr_run, pushed_main, run
+from tests.test_parallel import until
 from tests.test_spawn import step
 from tests.test_take_in_scenarios import LONG, card, edit, needs_git
 
@@ -614,3 +615,89 @@ def test_the_dependency_links_kolonis_worktree_holds_never_go_into_the_share(rep
     assert look["files"] == {"agent.txt": "A"} and look["dirty"] == [] and look["share"]
     assert run(repo, "diff", "--name-only", "HEAD", look["share"]).split() == ["agent.txt"]
     assert "120000" not in run(repo, "ls-tree", "-r", look["share"])
+
+
+# --- what an agent copies of the user's unpushed work never goes up unasked ---------------------
+
+
+def agent_git(copy, *args):
+    """git as the agent runs it in its worktree (`copies.git_env`): what Full auto runs unasked."""
+    done = subprocess.run(["git", *args], cwd=copy.root, capture_output=True, text=True,
+                          env={**os.environ, **copies.git_env(copy.root, os.environ)})
+    assert done.returncode == 0, done.stderr
+
+
+def a1_amended(copy, made):  # (a fast-forward, then the agent's own amend of what came)
+    agent_git(copy, "merge", "-q", "--ff-only", "main")
+    (copy.root / "agent.txt").write_text("agent\n")
+    agent_git(copy, "add", "agent.txt")
+    agent_git(copy, "commit", "-q", "--amend", "--no-edit")
+
+
+def a2_soft(copy, made):  # (a fast-forward, taken back softly and committed again as its own)
+    agent_git(copy, "merge", "-q", "--ff-only", "main")
+    agent_git(copy, "reset", "-q", "--soft", "HEAD~1")
+    agent_git(copy, "commit", "-q", "-C", "ORIG_HEAD")
+
+
+def a3_squash(copy, made):
+    agent_git(copy, "merge", "-q", "--squash", "main")
+    agent_git(copy, "commit", "-qm", "the agent's, squashed")
+
+
+def a4_picked(copy, made):
+    agent_git(copy, "cherry-pick", "-n", made)
+    agent_git(copy, "commit", "-qm", "the agent's, picked")
+
+
+COPIED = {"a1": a1_amended, "a2": a2_soft, "a3": a3_squash, "a4": a4_picked}
+
+
+@needs_merge_base
+@pytest.mark.parametrize("after", ["kept", "amended"])
+@pytest.mark.parametrize("way", list(COPIED))
+def test_your_unpushed_work_copied_into_the_agents_own_commit_never_goes_up(
+    repo, runtime, way, after
+):
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=False)
+    private(repo)
+    COPIED[way](copy, run(repo, "rev-parse", "HEAD"))
+    AFTER[after](repo)  # (amended: only main's reflog holds it now)
+    # (Kept, an a2 made the user's very commit again - same tree, parent, author, second: what
+    # "push main first" refuses already. Amended away, only the files say whose it is.)
+    said = "private.txt.*not pushed yet" if after == "amended" else "not (pushed|on origin) yet"
+    with pytest.raises(git.Refused, match=said):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@needs_merge_base
+def test_how_many_commits_of_yours_are_not_on_origin(repo, runtime):
+    copy, _origin = origin_case(repo, runtime)
+    assert git.unpushed_count(repo) == 0  # (KOLONİ's branch is not the user's)
+    private(repo)
+    private(repo, "private2.txt")
+    assert git.unpushed_count(repo) == 2
+
+
+@needs_merge_base
+def test_with_commits_of_yours_not_on_github_full_auto_asks_before_a_pull_request(
+    make_client, wait_run, repo, github
+):
+    bare, _log = github
+
+    def meanwhile():  # (theirs up, then one more not pushed - nothing of it on the branch)
+        pushed_main(repo)
+        private(repo, "mine.txt")
+
+    client, cid, run_id = pr_run(make_client, repo, meanwhile)
+    merge = until(client, cid, lambda s: (((s["merges"] or [{}])[0].get("branch") or {}).get(
+        "note") or "").startswith("you have"), timeout=LONG)["merges"][0]
+    assert merge["branch"]["note"] == PR_UNPUSHED.format(commits="1 commit")
+    assert merge["status"] == "pending" and run(bare, "for-each-ref", "refs/heads/koloni/") == ""
+    assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
+    snap = wait_run(client, cid, run_id, timeout=LONG)
+    assert snap["merges"][0]["commit"]["state"] == "pull_request"
+    pushed = run(bare, "rev-parse", "refs/heads/koloni/fix")
+    assert run(bare, "diff", "--name-only", f"{pushed}^", pushed).split() == ["lines.txt"]
+

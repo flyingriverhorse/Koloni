@@ -1504,6 +1504,11 @@ def test_the_users_own_commits_not_on_origin_never_go_up_with_a_pull_request(
 ):
     bare, log = github
     client, cid, run_id = pr_run(make_client, repo, lambda: None)  # (main not pushed)
+    # (At Full auto too, asked first: the user's branches hold commits not on GitHub.)
+    merge = until(client, cid, lambda s: "not on GitHub yet" in (
+        (s["merges"] or [{}])[0].get("branch") or {}).get("note", "") or "", timeout=LONG)[
+        "merges"][0]
+    assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
     merge = until(client, cid, lambda s: "push main first" in (
         (s["merges"] or [{}])[0].get("branch") or {}).get("note", "") or "", timeout=LONG)[
         "merges"][0]

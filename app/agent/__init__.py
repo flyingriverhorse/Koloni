@@ -925,6 +925,10 @@ PR_NOTES = 4000
 PR_CONFIG = (".git/config changed during this turn - a push runs what it names (an address, a "
              "credential helper, an ssh command): look at it, then Open pull request")
 PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your click"
+# ... and where the user's own branches hold commits origin does not: what an agent copied of them
+# into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
+PR_UNPUSHED = ("you have {commits} not on GitHub yet: check its files are the agent's work, then "
+               "Open pull request")
 PR_OPENED = ("{name}'s changes on branch {branch} were pushed to origin and a pull request was "
              "opened: {url}. Nothing is merged into the project here: do not go on as if they "
              "were in it.")
@@ -3189,6 +3193,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                                 copy.project)["config"] if way == "pull_request" else None
             config_moved = config is not None and config != (
                 self._git_at_start.get(ctx.run_id) or {}).get("config")
+            # (A pull request while the user's branches hold commits origin does not: asked.)
+            unpushed = await self._unpushed(copy) if way == "pull_request" else 0
             async with lock:  # (looked at again right before: two teams finish at once)
                 look = await self._branch_look(copy)
                 # W-1: what is scanned and merged - of a branch that began from the user's folder,
@@ -3237,6 +3243,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         state["note"] = pr_blocked
                     elif named and merge_id is None:
                         state["note"] = PR_NAMED_SECRET.format(files=_few(named))
+                    elif unpushed and merge_id is None:  # (pushed on a click with this said)
+                        state["note"] = PR_UNPUSHED.format(commits=(
+                            f"{unpushed} commit" + ("s" if unpushed != 1 else "")))
                     elif config_moved and (merge_id is None or config != config_shown):
                         state["note"] = PR_CONFIG  # (pushed on a click with this said)
                     elif not asks:
@@ -3506,6 +3515,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise git.Refused(f"{branch} was pushed to origin, but {exc}") from None
         return {"state": "pull_request", "message": title, "sha": sha, "url": url,
                 "pushed": f"origin/{branch}"}
+
+    async def _unpushed(self, copy: copies.Copy) -> int:
+        """How many commits the user's own branches hold that origin does not
+        (`git.unpushed_count`): a pull request is asked about while there are any - what an agent
+        copied of them into a commit of its own its history does not show (`PR_UNPUSHED`). Where
+        git does not say, one."""
+        try:
+            return await asyncio.to_thread(git.unpushed_count, copy.project)
+        except git.Refused:
+            return 1
 
     async def _sent(self, copy: copies.Copy, look: dict) -> str:
         """What a branch's pull request pushes (`git.push_one`): its tip - or, of a branch that
