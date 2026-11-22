@@ -40,7 +40,7 @@ function LatestActions({ rows, runId }: { rows: Row[]; runId: string | null }) {
   return (
     <>
       {fix && !held && <FixIt asked={fix} />}
-      {held && <NotTaken row={held} />}
+      {held && <NotTaken row={held} runId={runId} />}
       {runId && offer && <RunThese runId={runId} offer={offer} />}
     </>
   )
@@ -77,7 +77,7 @@ function FixIt({ asked }: { asked: string }) {
 }
 
 /** S11 (decision 18): failing work not taken in - Take in anyway takes its kept copy in, the user's word; Fix it sends their answer to the stronger model's question. No pop-up card. */
-function NotTaken({ row }: { row: Row }) {
+function NotTaken({ row, runId }: { row: Row; runId: string | null }) {
   const [said, setSaid] = useState<string | null>(null)
   const [answering, setAnswering] = useState(false)
   const question = row.question ?? ''
@@ -91,21 +91,22 @@ function NotTaken({ row }: { row: Row }) {
       <button type="button" className="btn btn-small" onClick={() => setAnswering(true)}>
         Fix it
       </button>
-      {answering && <Answer question={question} onError={setSaid} />}
+      {answering && <Answer question={question} onError={setSaid} held={runId && row.merge_id ? { runId, mergeId: row.merge_id } : null} />}
       {said && <span role="status">{said}</span>}
     </span>
   )
 }
 
-/** Fix it's answer to the question, sent as a new message of the user's. */
-function Answer({ question, onError }: { question: string; onError: (said: string) => void }) {
+/** Fix it's answer to the question: a turn that goes on in the kept work's copy where there is one (else a new message of the user's). */
+function Answer({ question, onError, held }: { question: string; onError: (said: string) => void; held: { runId: string; mergeId: string } | null }) {
   const [reply, setReply] = useState('')
+  const sent = () => (held ? api.post(`/runs/${held.runId}/held/fix`, { merge_id: held.mergeId, reply }) : useApp.getState().send(FIX_HELD(question, reply)))
   return (
     <form
       className="checked-answer"
       onSubmit={e => {
         e.preventDefault()
-        void useApp.getState().send(FIX_HELD(question, reply)).catch(err => onError(errorText(err)))
+        void sent().catch(err => onError(errorText(err)))
       }}
     >
       <label>

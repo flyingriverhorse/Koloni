@@ -161,3 +161,51 @@ def test_with_the_default_spawn_approval_the_hand_off_asks_nothing(team, wait_ru
     snap = wait_run(client, cid, run_id, timeout=60)
     texts = [one[2] for one in rows_of(snap, run_id)]
     assert "Tests passed: python check.py - 4 passed in 0.1s" in texts, (texts, snap["agents"])
+
+
+def test_approach_wrong_in_a_copy_starts_over_in_a_fresh_one(make_client, project_dir,
+                                                             monkeypatch):
+    # (decision 19: the copy's changes dropped, a fresh copy from the start state, only the short
+    # note of what was tried - here an Away job's copy; the tier given, as `make_client` has none)
+    from tests.test_agent_writes import edit
+    from tests.test_away_scenarios import evening, go_away, looked_at, night
+    from tests.test_backlog_auto import until
+    from tests.test_proof_end_scenarios import ONE_JOB, job_rows
+
+    monkeypatch.setattr(s11.StrongerMixin, "_stronger_tiers",
+                        lambda _self, _ctx, _held, _first: ([("strongest", "Local", "big")], []))
+    check = ("import sys\nok = 'bye' in open('hello.py').read()\n"
+             "print('3 passed' if ok else '1 failed')\nsys.exit(0 if ok else 1)\n")
+    (project_dir / "check.py").write_text(check, encoding="utf-8")
+    client, _model, pid, cid, _run = evening(
+        make_client, project_dir,
+        [edit(), text("one done"), text("good morning"),
+         said(s11.APPROACH_WRONG, "printing hello was never the way"),
+         step(write("hello.py", "print('bye')\n", "wb").tool_calls[0]), text("did it another way")],
+        mode="full_auto", plan=ONE_JOB, lead_work="itself", check_command=CHECK, fix_rounds=1)
+    until(lambda: client.get(f"/api/conversations/{cid}").json()["runs"][0]["status"]
+          == "completed")
+    assert go_away(client, cid).status_code in (200, 201)
+    job = until(lambda: (n := night(client, pid)) and looked_at(n) and n, seconds=30)["jobs"][0]
+    snap, rows = job_rows(client, job)
+    texts = [r["text"] for one in rows for r in one]
+    assert s11.STARTED_OVER.format(why="printing hello was never the way") in texts, texts
+    assert any(one.startswith("Tests passed") for one in texts), (texts, [(c["name"], c["status"], (c.get("result") or "")[:160]) for c in snap["tool_calls"]])
+    # (the first approach's edit is no change of the work any more: dropped with its copy)
+    assert [c["status"] for c in snap["file_changes"] if c["agent_id"] == snap["agents"][0]["id"]
+            and c["path"] == "hello.py"][:1] == ["discarded"], snap["file_changes"]
+
+
+def test_a_tier_over_its_limit_is_skipped_and_said(team, wait_run, project_dir,  # noqa: F811
+                                                   monkeypatch):
+    monkeypatch.setattr(s11, "over_limit",
+                        lambda _session, provider: "over" if provider.name == "Local" else None)
+    executor = ScriptedExecutor([PASS, failing(), PASS, PASS])
+    client, cid, run_id = started(team, project_dir, {"Lead": FIRST}, {
+        "Coder": [step(write("a.py", "x = 1\n").tool_calls[0]), text("wrote it")],
+        "Coder 2": [said(s11.FIX_INCOMPLETE)],
+        "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")]}, executor)
+    snap = wait_run(client, cid, run_id, timeout=60)
+    texts = [one[2] for one in rows_of(snap, run_id)]
+    assert s11.SKIPPED.format(tier="Strongest", why=s11.OVER_ITS_LIMIT) in texts, texts
+    assert not any("(Strongest)" in one for one in texts), texts

@@ -139,7 +139,10 @@ test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends th
     await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
     await userEvent.type(screen.getByLabelText('May the total be zero?'), 'yes, zero is fine')
     await userEvent.click(screen.getByRole('button', { name: 'Send' }))
-    expect(send).toHaveBeenCalledWith(FIX_HELD('May the total be zero?', 'yes, zero is fine'))
+    // (with its kept copy: a turn that goes on in that copy - not a message from the project)
+    expect(post).toHaveBeenCalledWith('/runs/r/held/fix', { merge_id: 'm1', reply: 'yes, zero is fine' })
+    expect(send).not.toHaveBeenCalled()
+    expect(FIX_HELD('Q?', ' a ')).toContain('My answer: a')
   } finally {
     vi.restoreAllMocks()
   }

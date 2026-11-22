@@ -1431,6 +1431,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._held_back: dict[str, str] = {}
         # ...and the spawn calls of KOLONİ's fixers, whose agents work in the turn's copy.
         self._joins_copy: set[str] = set()
+        # S11: Fix it on a "Not taken in" row - the new turn's kept copy (by run: its Merge),
+        # and, once its Lead took it up, the run whose agents all work in that copy.
+        self._resume_in: dict[str, str] = {}
+        self._resumed: dict[str, str] = {}
         # S9: where the coverage flags failed a whole suite - (project, folder, command) -> its
         # coverage settings then (`coverage.config_mark`): not tried again till they change, or
         # KOLONİ starts again (it was run twice each turn).
@@ -1817,6 +1821,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self.bus.emit(cid, None, "conversation.updated", gone_out)
         if t.run_compare:
             self._sides[run_id] = ctx.agent_id
+        self._resume_held(ctx)  # (S11: Fix it - the kept work's copy is this turn's)
         return ctx, cid
 
     def _lead_tools(self, session: Session, run: Run, project: Project | None,
@@ -1877,9 +1882,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     self._koloni_line(cid, run_id, said)
         if t.run_compare and status in ("completed", "failed"):
             await self._side_aside(ctx, t.run_compare)
-        if run_id in self._branch_runs and run_id in self._held_back:  # (S11: never merged)
+        own = run_id in self._branch_runs or run_id in self._resumed  # (the Lead's own copy)
+        if own and run_id in self._held_back:  # (S11: never merged, nor taken in)
             self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=self._held_back[run_id]))
-        elif run_id in self._branch_runs and self._copies.get(ctx.agent_id) is not None:
+        elif own and self._copies.get(ctx.agent_id) is not None:
             # K-dal-takim: the turn's work, on its own branch, merges as an agent's does -
             # on a card that waits for the user where it is not merged by itself.
             try:
@@ -2081,6 +2087,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._worked_below.pop(run_id, None)
         self._recipe_copy.pop(run_id, None)
         self._held_back.pop(run_id, None)
+        self._resume_in.pop(run_id, None)
+        self._resumed.pop(run_id, None)
         self._disputed.pop(run_id, None)
         # (After its copy is gone: until then its members' changes are that copy's.)
         room = self._rooms.pop(run_id, None)
@@ -2124,6 +2132,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return self._branch_runs[ctx.run_id]
         if ctx.run_id in self._away_jobs:  # (its recipe's copy is its lead's too)
             return self._away_jobs[ctx.run_id]
+        if ctx.run_id in self._resumed:  # (S11: Fix it goes on in the kept work's copy)
+            return self._resumed[ctx.run_id]
         if ctx.depth == 0 or only_in_project(ctx.model, ctx.tools):
             return None
         owner = ctx

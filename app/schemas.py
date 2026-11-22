@@ -738,6 +738,12 @@ class CiApproveIn(BaseModel):
     offer: str = Field(min_length=64, max_length=64)
 
 
+class HeldFixIn(BaseModel):
+    # S11: the "Not taken in" row's kept copy, and the user's answer to its question.
+    merge_id: str = Field(min_length=1, max_length=64)
+    reply: str = Field(min_length=1, max_length=4000)
+
+
 class PlanApproveIn(BaseModel):
     # The plan as the user edited it; left out or empty: as it was proposed.
     text: str | None = Field(default=None, max_length=20_000)

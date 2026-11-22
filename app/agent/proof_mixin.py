@@ -136,6 +136,7 @@ class Proof:
     first_by: str = ""
     diagnosis: tuple[str, str] | None = None
     question: str = ""
+    passed_by_stronger: bool = False
 
 
 class ProofMixin:

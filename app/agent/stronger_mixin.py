@@ -11,16 +11,19 @@ import json
 import logging
 import re
 import uuid
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import injection, proof, proof_before
+from app import copies, injection, proof, proof_before
 from app.agent.ctx import Ctx
-from app.db.models import Agent, Conversation, FileChange, Merge, Message, Provider
+from app.api.usage import over_limit, over_month
+from app.db.models import Agent, Conversation, FileChange, Merge, Message, Provider, now
 from app.model_client import ToolCallRequest
 from app.proof import Row
 from app.roles import effective_tools, find_role
+from app.serialize import merge_out
 from app.team import TIERS, tier_of, would_run
 
 if TYPE_CHECKING:
@@ -42,8 +45,15 @@ NOT_QUOTED = "{model} said test-wrong without the request's words: it goes on as
 IN_PROJECT = ("approach-wrong, but the work is in the project, not a copy of its own: it goes on "
               "from the work as it is")
 TEST_CHANGED = "Test changed: {why}"
+SKIPPED = "{tier} skipped: {why}"
+NONE_HANDED = "No stronger model tried: {why}"
+OVER_ITS_LIMIT = "over its limit"
+TURN_LIMIT = "the turn's token limit is reached"
 NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
-REDO_SAID = "approach-wrong: it does the work again another way, from the work as it is"
+STARTED_OVER = "Started over in a fresh copy: {why}"
+NOT_STARTED_OVER = "approach-wrong, but {why}: it goes on from the work as it is"
+BRANCH_COPY = "the work is on a branch of its own, which KOLONİ does not start over"
+NOT_COPIED = "the project could not be copied again"
 NOT_HANDED = "Not handed to {model}: {why}"
 STILL_HANDED = "Still failing after rounds by {by}: you decide (Fix it)"
 DIAGNOSE_TASK = (
@@ -83,6 +93,11 @@ NOT_TAKEN_KEPT = "not taken in: {why}"
 NOT_TAKEN = "Not taken in: {what} after rounds by {by}"
 NOT_TAKEN_PLAIN = "Not taken in: {why}"
 ASK_DEFAULT = "Should the code change, or the test?"
+RESUME_FAILED = ("Fix it could not go on in the kept work: {why}. This turn works in the project; "
+                 "the kept work still waits (Take in anyway).")
+DECIDED = "it was decided since"
+FIX_HELD = ("The last turn's work was not taken in: its tests still fail. {question} My answer: "
+            "{reply} Fix it - you work in that turn's copy, as it was left.")
 
 
 def rounds_said(n: int) -> str:
@@ -138,6 +153,7 @@ class StrongerMixin:
             # (decision 18: failing work in a copy of the turn's own is never taken in - kept)
             self._held_back.setdefault(ctx.run_id, TESTS_FAILING)
         elif not held.left_failing and held.handed and self._held_back.pop(ctx.run_id, None):
+            held.passed_by_stronger = True  # (its recipe's row still says findings were left)
             await self._ready_at_end(ctx)  # (it passes now: Ready for you, as it would have)
         return None
 
@@ -150,7 +166,9 @@ class StrongerMixin:
             first = self._first_model(session, ctx)
         role, by_provider, by_model, _tier = first
         held.first_by = by_model or by_provider
-        for tier, provider, model in self._stronger_tiers(ctx, held, first):
+        tiers, said = self._stronger_tiers(ctx, held, first)
+        held.rows += said
+        for tier, provider, model in tiers:
             if held.stopped or not held.left_failing:
                 break
             await self._one_tier(ctx, held, role, tier, provider, model)
@@ -176,6 +194,56 @@ class StrongerMixin:
                 known.run_id in self._recipe_copy):
             self._in_recipe.add(agent_id)
 
+    def held_fix(self: "AgentRunner", run_id: str, merge_id: str) -> str | None:
+        """Why Fix it on this turn's "Not taken in" row cannot go on in its kept work; None: it
+        can - the caller starts the turn (`resume_on`)."""
+        with self._factory() as session:
+            merge = session.get(Merge, merge_id)
+            return None if merge is not None and merge.run_id == run_id and self._undecided(
+                merge) else DECIDED
+
+    def _undecided(self: "AgentRunner", merge: Merge) -> bool:
+        """A kept copy still waiting for the user, nothing of it taken in."""
+        return merge.status == "interrupted" and bool(merge.kept_in) and (
+            merge.id not in self._deciding) and not any(
+            one["state"] == "applied" for one in merge.files)
+
+    def resume_on(self: "AgentRunner", run_id: str, merge_id: str) -> None:
+        """The turn Fix it starts goes on in the kept work (`_resume_held`, at its start)."""
+        self._resume_in[run_id] = merge_id
+
+    def _resume_held(self: "AgentRunner", ctx: Ctx) -> None:
+        """S11: a turn Fix it started - the kept copy is its Lead's copy again (B-322's way:
+        loaded, its links back, its kept card withdrawn), and every agent of the turn works
+        there; at its end it goes in as any copy's work, or is kept again. Where it cannot be,
+        said, and the turn works in the project."""
+        merge_id = self._resume_in.pop(ctx.run_id, None)
+        if merge_id is None:
+            return
+        why, copy, payload = None, None, None
+        with self._factory() as session:
+            merge = session.get(Merge, merge_id)
+            if merge is None or not self._undecided(merge) or not merge.kept_in:
+                why = DECIDED
+            else:
+                try:
+                    copy = copies.load(Path(ctx.folder), self.settings.runtime_root,
+                                       copies.named(self.settings.runtime_root, merge.kept_in))
+                    copies.relink(copy)
+                except (OSError, ValueError) as exc:
+                    why = f"its copy could not be opened ({exc})"
+                else:
+                    merge.status, merge.files, merge.kept_in = "discarded", [], None
+                    merge.check, merge.decided_at = None, now()
+                    session.commit()
+                    payload = merge_out(merge)
+        if copy is None:
+            self._koloni_line(ctx.cid, ctx.run_id, RESUME_FAILED.format(why=why or DECIDED))
+            return
+        self._copies[ctx.agent_id] = copy
+        self._resumed[ctx.run_id] = ctx.agent_id
+        self.bus.emit(ctx.cid, ctx.run_id, "merge.updated", payload)
+
     def _first_model(self: "AgentRunner", session, ctx: Ctx) -> tuple[str, str, str, str | None]:
         """The role whose work failed, the model it ran on and that model's tier: the newest
         kept change's agent (the Orchestrator's own: the Coder role, on its model)."""
@@ -189,15 +257,22 @@ class StrongerMixin:
         return role, agent.provider_name or "", agent.model_id or "", tier
 
     def _stronger_tiers(self: "AgentRunner", ctx: Ctx, held: "Proof",
-                        first: tuple[str, str, str, str | None]) -> list[tuple[str, str, str]]:
+                        first: tuple[str, str, str, str | None]
+                        ) -> tuple[list[tuple[str, str, str]], list[Row]]:
         """The tiers above the first model's (an untiered one: the strongest alone), each with
         the model it gives the role now (`Would.pick`): one it really holds at that tier, not one
-        that already had rounds, not a tier tried this turn."""
+        that already had rounds, not a tier tried this turn - and none over its provider's limit,
+        nor any over the project's month budget or the turn's token limit (each said)."""
         role_name, provider_name, model, at = first
-        found = []
+        found: list[tuple[str, str, str]] = []
+        said: list[Row] = []
         with self._factory() as session:
             role = find_role(session, role_name)
             conversation = session.get_one(Conversation, ctx.cid)
+            project = self._project(session, ctx.cid)
+            if why := over_month(session, project) or (
+                    TURN_LIMIT if self._review_over(session, project, ctx.run_id) else None):
+                return [], [proof.row("stronger", "not_run", NONE_HANDED.format(why=why))]
             above = TIERS[TIERS.index(at) + 1:] if at in TIERS else TIERS[-1:]
             would = would_run(session, role, conversation, tools=effective_tools(
                 role.tools, self._caps(ctx)) if role else None, step=self.providers)
@@ -205,16 +280,24 @@ class StrongerMixin:
             for tier in above:
                 if tier in held.tiers_tried:
                     continue
+                tried = would.tried(tier)
                 picked, _why = would.pick(tier)
                 if picked is None:
+                    if tried and all(entry.name in would.past_limit for entry, _n in tried):
+                        said.append(proof.row("stronger", "not_run", SKIPPED.format(
+                            tier=TIER_NAMES[tier], why=OVER_ITS_LIMIT)))
                     continue
                 entry, name = picked
                 there = session.get_one(Provider, entry.provider_id)
                 if tier_of(there, name) != tier or (there.name, name) in used:
                     continue
+                if over_limit(session, there):
+                    said.append(proof.row("stronger", "not_run", SKIPPED.format(
+                        tier=TIER_NAMES[tier], why=OVER_ITS_LIMIT)))
+                    continue
                 used.add((there.name, name))
                 found.append((tier, entry.name, name))
-        return found
+        return found, said
 
     async def _one_tier(self: "AgentRunner", ctx: Ctx, held: "Proof", role: str, tier: str,
                         provider: str, model: str) -> None:
@@ -226,13 +309,17 @@ class StrongerMixin:
             model=model, tier=TIER_NAMES[tier], n=rounds_said(held.rounds), by=by)))
         held.handed.append(model)
         kind, why = await self._diagnose(ctx, held, role, tier, model, by)
+        if kind == APPROACH_WRONG:  # (started over: only the short note of what was tried)
+            held.attempts = [f"Tried before, and why it failed: {why}"]
         for _round in range(held.most):
             status, said = await self._koloni_agent(ctx, "fix", {
                 "role": role, "tier": tier,
                 "why": f"KOLONİ hands it the fix: the tests still fail after rounds by {by}",
                 "task": FIX_TASK.format(n=held.rounds, by=by, how=HOW[kind],
                                         why=injection.noted(why, "agent"),
-                                        output=self._failing_tail(held),
+                                        output=self._failing_tail(held) if kind != (
+                                            APPROACH_WRONG) else injection.noted(
+                                            "(the work starts over: none yet)", "agent"),
                                         attempts=self._attempts(held))})
             if status != "succeeded":
                 held.rows.append(proof.row("stronger", "not_run", NOT_HANDED.format(
@@ -283,21 +370,29 @@ class StrongerMixin:
             return FIX_INCOMPLETE, why
         if kind == TEST_WRONG:
             held.rows.append(proof.row("stronger", "note", TEST_CHANGED.format(why=why)))
-        if kind == APPROACH_WRONG and self._works_in(ctx) is None:
-            # shortcut: the work is in the project, which KOLONİ never reverts - redo from the
-            # start only in a copy of the turn's own (`_redo_in_copy`).
-            held.rows.append(proof.row("stronger", "note", IN_PROJECT))
+        if kind == APPROACH_WRONG and not await self._redo_in_copy(ctx, held, why):
             return FIX_INCOMPLETE, why
-        if kind == APPROACH_WRONG:
-            await self._redo_in_copy(ctx, held, why)
         return kind, why
 
-    async def _redo_in_copy(self: "AgentRunner", ctx: Ctx, held: "Proof", why: str) -> None:
-        """approach-wrong in a copy of the turn's own: the fixer does the work again another way.
-        shortcut: the copy's changes are not dropped first (decision 19 drops them and starts a
-        fresh copy from the start state); drop them through the copy's own snapshot / put-back
-        and the FileChange statuses when this path is seen used."""
-        held.rows.append(proof.row("stronger", "note", REDO_SAID))
+    async def _redo_in_copy(self: "AgentRunner", ctx: Ctx, held: "Proof", why: str) -> bool:
+        """approach-wrong (decision 19): the copy's changes dropped - on record as discarded,
+        its folder gone (`_drop_copy`) - and a fresh copy made from the start state, the
+        project (nothing of the work went in). Said. False where it cannot be: the work in the
+        project (KOLONİ never reverts it), on a branch of its own, or not copied again."""
+        owner = self._works_in(ctx)
+        blocked = IN_PROJECT if owner is None or self._copies.get(owner) is None else (
+            NOT_STARTED_OVER.format(why=BRANCH_COPY) if ctx.run_id in self._branch_runs
+            else None)
+        if blocked is None and owner is not None:
+            self._drop_copy(owner)
+            known = self._ctxs.get(owner)
+            if known is None or await self._working_copy(known, owner) is None:
+                blocked = NOT_STARTED_OVER.format(why=NOT_COPIED)
+        if blocked is not None:
+            held.rows.append(proof.row("stronger", "note", blocked))
+            return False
+        held.rows.append(proof.row("stronger", "note", STARTED_OVER.format(why=why)))
+        return True
 
     async def _recheck(self: "AgentRunner", ctx: Ctx, held: "Proof") -> None:
         """After a stronger model's round: the tests again on the work as it now stands."""
@@ -372,6 +467,9 @@ class StrongerMixin:
         shortcut: a check that ran nothing (R3, R4's unshown bug) still waits on its Ready for you
         card - never taken in unasked either; fold it into this row if the card is felt."""
         from app.agent import FINDINGS_LEFT  # (where S4 keeps it; this module is imported first)
+
+        if (held := self._proofs.get(ctx.run_id)) is not None and held.passed_by_stronger:
+            return None
 
         left = any((state.get("why") or "").startswith(FINDINGS_LEFT) for _team, state in rows)
         return RECIPE_FAILING if left and self._recipe_spent(ctx) else None

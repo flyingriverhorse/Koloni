@@ -244,7 +244,9 @@ When the **Fix rounds** are spent and a test still fails - or a blocking finding
 stands - KOLONİ hands the fix to the next stronger tier on the Models page (fast, then balanced,
 then strongest), the same role on that tier's model, for the same number of rounds. Each tier
 tries at most once a turn, and its model's use is always said: "Handed to `model` (Strongest)
-after 2 rounds by `model`". Switch it off in **Settings › This project › Checks and git › Then a
+after 2 rounds by `model`". A tier whose provider is over its limit is skipped ("Strongest
+skipped: over its limit"), and none is tried where the project's month budget or the turn's
+token limit is spent. Switch it off in **Settings › This project › Checks and git › Then a
 stronger model**; then the work waits after the first model's rounds.
 
 Before the stronger model's rounds, KOLONİ looks at what is not this turn's: a flaky test and one
@@ -255,9 +257,11 @@ stronger model first says what is wrong, in one line of its own, before it chang
 - **test-wrong** - the test asks for something the request does not: it may change the test, only
   with its reason in the request's words - never deleting or loosening one silently. The section
   says "Test changed: `why`", and the Reviewer reads that change too.
-- **approach-wrong** - the way the work went cannot pass: the stronger model does the work again
-  another way, told what was tried and why it failed. (What the first model changed is not
-  dropped first: it goes on from the work as it is, and the section says so.)
+- **approach-wrong** - the way the work went cannot pass: where the work is in its own working
+  copy, what it changed there is dropped and the work starts again from the start state in a
+  fresh copy, the stronger model told only what was tried and why it failed - "Started over in a
+  fresh copy: `why`". Work already in the project (which KOLONİ never reverts), or on a branch of
+  its own, goes on from the work as it is, and the section says so.
 
 A line that only looks like a verdict - in the work itself, in a quote or a code block of its
 answer - is not one; with none, or two different ones, it goes on as fix-incomplete. A test-wrong
@@ -267,12 +271,15 @@ Failing work is never taken in, at any level - Full auto and while you're away t
 passes after the strongest tier (or none is set, or the switch is off), the work stays in its
 copy and the section says "Not taken in: 2 tests still fail after rounds by `A` and `B`", with
 what the stronger model found as one question to you, and two buttons on that line: **Take in
-anyway** and **Fix it** (your answer to the question goes to the Orchestrator as a new message;
-that turn starts from the project, so take the kept work in first if the fix should go on from
-it). An Away job ends
+anyway** and **Fix it**: your answer to the question starts a turn that goes on in the kept
+work's copy - what was done there holds - and it goes into the project at that turn's end when
+its tests pass. Where the kept work was decided since, Fix it says so and Take in anyway is left.
+An Away job ends
 there, and its report lists it. Work that is already in the project (no copy) gets the stronger
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
 own check ran nothing still waits on its Ready for you card, as before - never taken in unasked.
+A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model yet: the user
+decides, as before (Fix it).
 
 ## Documents, diagrams, data and slides
 
@@ -557,6 +564,8 @@ the Orchestrator's window, whose record holds the runs.
 | – Handed to `model` (Strongest) after 2 rounds by `model` | The Fix rounds were spent with a test still failing: the next stronger tier tries. Its model's use counts. |
 | – `model` says fix-incomplete: `why` | The stronger model's diagnosis, before it changed anything (fix-incomplete, test-wrong, approach-wrong). |
 | – Test changed: `why` | The stronger model changed a test, with its reason in the request's words. The Reviewer reads it. |
+| – Started over in a fresh copy: `why` | The stronger model said approach-wrong: the copy's changes were dropped and the work began again from the start state. |
+| – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – CI commands found: `lines` - not run until you approve them once (Run these) | The project's CI lint, typecheck and test lines, offered. **Run these** approves exactly these. |
