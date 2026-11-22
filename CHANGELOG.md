@@ -79,6 +79,7 @@ How to write an entry (every release looks the same):
 - **Workspace**: a **Stop** while a branch is being merged by itself at Full auto waits for git to finish: the merge is on its card and the branch's worktree goes, where before the merge landed with nothing on record.
 - **Chat**: in a window under 1200 px wide, an agent's window opened while the Inspector lies over the canvas no longer reaches 6 px under the Inspector where the open chat leaves too little room beside it: it opens where it would without the chat, over the chat's right edge, in front.
 - **Workspace**: a branch's working copy kept over a restart merges a file you changed too line by line, from what the branch was made of, where it showed both files whole; and its **Discard** deletes its branch and git's record of its worktree, which stayed behind ([docs](docs/use/workspace.md#when-an-agent-stops)).
+- **Workspace**: on Linux and macOS, a branch whose agent ran `git add -A` in its worktree no longer brings KOLONİ's own `.venv` or `node_modules` link with it: its merge card no longer waits on `.venv` as in the way, and neither the merge nor a pull request carries it ([docs](docs/use/workspace.md#branches)).
 
 ### Security
 
