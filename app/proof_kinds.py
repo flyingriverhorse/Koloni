@@ -124,7 +124,10 @@ def _xml(data: bytes) -> ElementTree.Element:
 
 def _member(held: zipfile.ZipFile, info: zipfile.ZipInfo, left: int) -> bytes:
     """A zip member's bytes, inflated no further than `left` + 1 - never by the size the zip says
-    it holds, which it may lie about (review of S5a)."""
+    it holds, which it may lie about (review of S5a). Stored or deflated only: zipfile bounds a
+    read of no other (bzip2, LZMA inflate whole in one call) - and Office writes no other."""
+    if info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+        raise WorkspaceError("compressed in a way KOLONİ does not read")
     with held.open(info) as file:
         body = file.read(left + 1)
     if len(body) > left:

@@ -365,3 +365,19 @@ def test_a_dtd_is_refused_whatever_the_encoding(tmp_path):
     assert said(check_diagrams(tmp_path, ["laughs.svg", "outside.svg", "fine.svg"])) == [
         ("note", f"laughs.svg: {refused}"), ("note", f"outside.svg: {refused}"),
         ("passed", "fine.svg: parses")]
+
+
+def test_a_member_compressed_other_than_office_does_is_not_read(tmp_path):
+    # (S5a re-check: zipfile bounds no bzip2 or LZMA read - a <1 KB .docx inflated 60 MB at once)
+    def zipped(name, how):
+        made = io.BytesIO()
+        with zipfile.ZipFile(made, "w") as held:
+            held.writestr(zipfile.ZipInfo(name), b"<a:t>" + b"x" * 10_000 + b"</a:t>",
+                          compress_type=how)
+        return made.getvalue()
+    put(tmp_path, "b.docx", zipped("word/document.xml", zipfile.ZIP_BZIP2))
+    put(tmp_path, "l.pptx", zipped("ppt/slides/slide1.xml", zipfile.ZIP_LZMA))
+    odd = "not checked: compressed in a way KOLONİ does not read"
+    rows = said(check_docs(tmp_path, ["b.docx"]) + check_slides(tmp_path, ["l.pptx"]))
+    assert [one for one in rows if one[1].startswith(("b.docx", "l.pptx"))] == [
+        ("note", f"b.docx: {odd}"), ("note", f"l.pptx: {odd}")], rows
