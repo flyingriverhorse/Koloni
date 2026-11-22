@@ -598,3 +598,83 @@ def test_the_reviewer_runs_a_read_and_the_approved_tests_and_nothing_else_never_
         snap["commands"])
     assert (project_dir / "a.py").read_text(encoding="utf-8") == BIG
     assert "run_skill_script" not in offered_to(model, "Reviewer")
+
+
+def test_the_reviewers_approved_tests_are_the_users_saves_under_always_and_approved_ci(
+        client, project_dir):
+    """Decision 6's sources, each in its folder: a part's own test, a save an Always rule covers
+    (not one none covers), a CI line approved while its workflows stand (not one not plain) - and
+    a line that is not plain is never named for the Reviewer to run."""
+    from types import SimpleNamespace
+
+    from app import ci_commands
+    from app.db.models import Project
+    from app.tools import ToolError, Workspace, plan_command
+
+    for folder in ("web", "api", "lib", ".koloni", ".ssh"):
+        (project_dir / folder).mkdir(exist_ok=True)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    lint = {"command": "ruff check .", "cwd": ".", "step": "lint"}
+    chained = {"command": "npm ci && npm test", "cwd": "web", "step": "test"}
+    with client.app.state.session_factory() as session:
+        project = session.get(Project, pid)
+        project.check_command = None
+        project.test_commands = {"web/": "npm test", "./": ""}
+        project.tests_found = {"api": {"command": "pytest -q", "always": True},
+                               "lib": {"command": "cargo test"}}
+        project.ci_commands = {"approved": {"hash": ci_commands.fingerprint(project_dir),
+                                            "commands": [lint, chained]}}
+        session.commit()
+    runner, ctx = client.app.state.runner, SimpleNamespace(cid=cid, run_id="none")
+    assert client.portal.call(runner._approved_tests, ctx) == [
+        ("npm test", "web"), ("pytest -q", "api"), ("ruff check .", ".")]
+
+    def runs(line, cwd="."):
+        planned = plan_command(Workspace(project_dir), {"command": line, "cwd": cwd})
+        try:
+            return client.portal.call(runner._review_runs, ctx, project_dir, planned)
+        except ToolError as refused:
+            return str(refused)
+
+    assert runs("npm test", "web") is True and runs("pytest -q", "api") is True
+    assert runs("ruff check .") is True and runs("git diff") is True
+    refused = runs("npm test")  # (not in its part's folder)
+    assert refused.startswith("npm test is not available"), refused
+    assert '"pytest -q" in api' in refused and "cargo test" not in refused
+    assert "npm ci" not in refused  # (not plain: it would be refused again)
+    assert runs("cargo test", "lib").startswith("cargo test is not available")
+    # (a read `CommandRunner.run` asks at every level - in a standing or a secret folder: refused)
+    asked = "is not available: KOLONİ's Reviewer is never asked about (it names"
+    assert runs("cat rules.md", ".koloni").startswith(f"cat rules.md {asked} .koloni")
+    assert runs("ls", ".ssh").startswith(f"ls {asked} a secret file")
+    with client.app.state.session_factory() as session:  # (a workflow changed: no CI line)
+        session.get(Project, pid).ci_commands = {"approved": {"hash": "x", "commands": [lint]}}
+        session.commit()
+    assert runs("ruff check .").startswith("ruff check . is not available")
+
+
+def test_the_reviewers_own_test_run_beneath_the_suite_is_no_change_of_the_project(
+        make_client, wait_run, project_dir, gate, monkeypatch):
+    # (The whole suite goes on after the answer while the Reviewer looks, and may run the approved
+    # test command beneath it: it changes nothing the tests read, as KOLONİ's own runs do not -
+    # even failing, it is no "the project changed while they ran".)
+    from app.agent import proof_later_mixin
+    from tests.test_proof_background_scenarios import held, rows_of, until
+
+    monkeypatch.setattr(proof_later_mixin, "DETACH_SECONDS", 0.2)
+    executor = ScriptedExecutor([held(gate, "4 passed\n"), failing()])
+    client, _model = make_client({
+        "Lead": [write("a.py", BIG), text("done")],
+        "Reviewer": [step(call("run_command", {"command": CHECK}, "r1")), MERGE]},
+        executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    snap = wait_run(client, cid, run_id)
+    assert [command for command, _cwd in executor.started] == [CHECK, CHECK]
+    (looked,) = reviewers(snap)
+    assert [(c["status"], c["exit_code"]) for c in snap["commands"]
+            if c["agent_id"] == looked["id"]] == [("exited", 1)]
+    gate.release()
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["kind"] == "tests" and one["state"] != "running"])
+    assert (row["state"], row["text"]) == ("passed", f"Tests passed: {CHECK} - 4 passed"), row

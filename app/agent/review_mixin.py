@@ -23,7 +23,16 @@ from app.agent.context_mixin import FINDINGS_PROMPT
 from app.agent.ctx import Ctx
 from app.agent.spawn_mixin import BEFORE_THE_WORK, CUT_SHORT, MAX_REVIEW_DIFF
 from app.agent.summary import _blocking, _findings
-from app.commands import is_allowed, is_exactly, reads_here, rules_here
+from app.commands import (
+    is_allowed,
+    is_exactly,
+    names_secret,
+    reads_here,
+    rules_here,
+    search_reason,
+    standing_asked,
+    with_cwd,
+)
 from app.db.models import Agent, Conversation, Message, Run, now
 from app.model_client import ToolCallRequest
 from app.proof import Row
@@ -388,21 +397,42 @@ class ReviewMixin:
         """Decision 6: a command of KOLONİ's Reviewer runs, unasked (True), only where it only
         reads (`reads_here`: git's only at the folder's root, with no secret file there) or is
         one of the project's approved test commands to the letter, in its folder
-        (`_approved_tests`) - and stops by itself; else it is refused by raising, the approved
-        ones named so it can run one."""
+        (`_approved_tests`) - and stops by itself, is asked at no level (`_asked_anyway`) and,
+        where nobody watches, has a trigger's leave; else it is refused by raising, the
+        approved ones named so it can run one. (K-yargic's check is not needed: neither a read
+        nor such a test line looks harmful.)"""
         command, cwd = planned.command, planned.cwd_rel
         if planned.keep_running:
             raise ToolError(ASKED_FOR_REVIEW.format(command=command, why="it would keep running"))
-        if await asyncio.to_thread(reads_here, command, root, cwd == "."):
-            return True
-        approved = await self._approved_tests(ctx)
-        key = test_found.folder_key(cwd)
-        if any(is_exactly(command, line) and test_found.folder_key(folder) == key
-               for line, folder in approved):
-            return True
-        tests = "; ".join(f"{json.dumps(line, ensure_ascii=False)} in {folder}"
-                          for line, folder in approved) or "none is set"
-        raise ToolError(NOT_RUN_FOR_REVIEW.format(command=command, tests=f"approved: {tests}"))
+        if not await asyncio.to_thread(reads_here, command, root, cwd == "."):
+            # (only a line `is_exactly` lets through is named: another would be refused again)
+            approved = [(line, folder) for line, folder in await self._approved_tests(ctx)
+                        if is_exactly(line, line)]
+            key = test_found.folder_key(cwd)
+            if not any(command == line and test_found.folder_key(folder) == key
+                       for line, folder in approved):
+                tests = "; ".join(f"{json.dumps(line, ensure_ascii=False)} in {folder}"
+                                  for line, folder in approved) or "none is set"
+                raise ToolError(NOT_RUN_FOR_REVIEW.format(command=command,
+                                                          tests=f"approved: {tests}"))
+        # What `CommandRunner.run` asks at every level is never asked for it: refused.
+        self._never_asked(True, command, await self._asked_anyway(root, command, cwd))
+        # (A turn nobody watches: as any agent's command - a ticked rule, or a part's own test.)
+        if refused := self._nobody_to_ask(ctx, "command", f"run {command}", command=command,
+                                          cwd=cwd):
+            raise ToolError(refused)
+        return True
+
+    @staticmethod
+    async def _asked_anyway(root: Path, command: str, cwd: str) -> str:
+        """Why `CommandRunner.run` asks this command at every level, judged with its folder: a
+        secret file named, a standing file (AGENTS.md, .koloni/: read_file reads them), or a
+        search of a folder that holds a secret - "" for none."""
+        judged = with_cwd(command, cwd)
+        standing = standing_asked(judged)
+        return ("it names a secret file" if names_secret(judged) else
+                f"it names {standing} - read it with read_file" if standing else
+                await asyncio.to_thread(search_reason, command, root, cwd))
 
     @staticmethod
     def _never_asked(review: bool, command: str, why: str) -> None:
