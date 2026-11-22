@@ -612,18 +612,21 @@ def test_a_chain_of_ten_links_stays_within_the_budget_and_keeps_task_and_report(
     make_client, wait_run, project_dir, settings_env, monkeypatch
 ):
     from app.agent import ASK_NOT_REPORT, THIN_TASK, TRUST_RECORD
+    from app.agent.words import NEAR_TESTS
     from app.executors.host import SHELL_WRITES
     from app.handoff import REPORT_PROMPT
 
     # (tight on purpose: the newest link just fits; grown with the prompts, B-109 - B-182's line and B-192's,
     # and twice B-321's 77 characters on a refusal, B-324's shell line, K-devir-1's report
     # headings, K-brief-kalitesi's line on a thin task and K-kanit's on the record line (a Coder
-    # opens agents too): half of what the budget grows goes to
+    # opens agents too), and S2's line to an agent that writes and runs code, to run the tests
+    # near its change: half of what the budget grows goes to
     # the shortened links, whose share is a part of it, `topics.share_of`; counted with Windows
     # PowerShell's shell line, whichever shell this machine has)
     monkeypatch.setattr("app.executors.host._pwsh", lambda: None)
     budget = 9300 + len(ASK_NOT_REPORT) + 440 + 2 * (
-        77 + len(SHELL_WRITES) + len(REPORT_PROMPT) + len(THIN_TASK) + len(TRUST_RECORD))
+        77 + len(SHELL_WRITES) + len(REPORT_PROMPT) + len(THIN_TASK) + len(TRUST_RECORD)
+        + len(NEAR_TESTS) + 2)
     settings_env["KOLONI_CONTEXT_CHARS"] = str(budget)
     filler = " lorem ipsum dolor sit amet" * 14
     lead = [step(call("spawn_agent", {"role": "Coder", "task": f"TASK-1 start{filler}"}, "s1")),

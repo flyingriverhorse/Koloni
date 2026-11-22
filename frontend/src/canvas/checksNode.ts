@@ -8,6 +8,8 @@ export const PROOF_CALL = 'koloni_proof_'
 export const MOST_ROUNDS = 2
 /** S10: a turn of a chat whose Check after a change was off - no node, only the Orchestrator's strip says so. */
 export const OFF_FOR_CHAT = 'not checked · off for this chat'
+/** ... and of a project whose After a change is Nothing: no node either (nothing is checked), the strip says so. */
+export const SET_TO_NOTHING = 'not checked · After a change is Nothing'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -98,7 +100,9 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const calls = own.filter(c => c.name === 'run_command')
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   if (!lead || (!own.length && !checked)) return null
-  if (checked?.checked?.some(row => row.kind === 'chat_off')) return offForChat(nodes, lead.id)
+  // (Off for this chat, or After a change at Nothing: KOLONİ checked nothing - no node, as no check ran.)
+  const off = checked?.checked?.find(row => row.kind === 'chat_off' || row.kind === 'not_checked')
+  if (off) return notChecked(nodes, lead.id, off.kind === 'chat_off' ? OFF_FOR_CHAT : SET_TO_NOTHING)
   const at = calls.find(c => c.status === 'running')
   const said = roundsSaid(checked)
   const rounds = Math.max(passesOf(calls) - 1, said.n)
@@ -125,10 +129,10 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   return data
 }
 
-/** Off for this chat: no Checks node is drawn - the Orchestrator's strip says it, so nobody takes the turn as checked. */
-function offForChat(nodes: GraphNode[], leadId: string): null {
+/** Off for this chat, or set to Nothing: no Checks node is drawn - the Orchestrator's strip says it, so nobody takes the turn as checked. */
+function notChecked(nodes: GraphNode[], leadId: string, said: string): null {
   const leadNode = nodes.find(node => node.id === `agent:${leadId}`)
-  if (leadNode) (leadNode.data as AgentData).checked = OFF_FOR_CHAT
+  if (leadNode) (leadNode.data as AgentData).checked = said
   return null
 }
 
