@@ -267,6 +267,10 @@ class ProjectOut(Out):
     after_change: AfterChange
     # 0162: Nothing because the user had turned "Finish only when the tests pass" off: said.
     after_change_from_off: bool
+    # S1b: the test command(s) KOLONİ saved itself, by folder - {"command", "from", "at"}; and its
+    # one look for one (None: not yet).
+    tests_found: dict[str, dict]
+    tests_look: dict | None
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge").
     full_auto_check: FullAutoCheck
@@ -359,6 +363,8 @@ class ProjectPatch(BaseModel):
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
+    # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
+    forget_tests_found: bool | None = None
     full_auto_check: FullAutoCheck | None = None
     disposable_deletes: bool | None = None
 
@@ -822,6 +828,14 @@ class AttachmentTextOut(BaseModel):
     text: str | None
 
 
+class CheckedCounts(BaseModel):
+    passed: int
+    failed: int
+    skipped: int
+    # "tests", or "packages" (go's, without -v)
+    unit: str
+
+
 class CheckedRow(BaseModel):
     """One line of a turn's Checked section (`app.proof.Row`)."""
     # S1: "tests", "rounds", "waiting", "not_checked"; later slices add theirs.
@@ -834,6 +848,9 @@ class CheckedRow(BaseModel):
     guessed: bool
     # When a running row's run started; None: not running.
     started_at: str | None
+    # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None: no
+    # count known, never made up.
+    counts: CheckedCounts | None = None
 
 
 class MessageOut(Out):

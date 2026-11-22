@@ -12,7 +12,7 @@ from typing import NamedTuple, TypedDict
 from sqlalchemy import literal_column, select
 from sqlalchemy.orm import Session
 
-from app import finish_tests, ledger, project_map
+from app import finish_tests, ledger, project_map, test_found
 from app.commands import only_reads
 from app.db.models import Command, Conversation, FileChange, Project, Run
 from app.tools import MAX_TIMEOUT
@@ -212,6 +212,9 @@ class Row(TypedDict):
     command: str | None
     guessed: bool
     started_at: str | None
+    # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None:
+    # no count known (never made up).
+    counts: dict | None
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
 
 PASSED_ROW = "Tests passed: {command}{guessed} - {summary}"
@@ -247,7 +250,7 @@ LAST_RUN = "An agent ran {command} {when} the last change: {how}"
 def row(kind: str, state: str, text: str, command: str | None = None,
         guessed: bool = False) -> Row:
     return {"kind": kind, "state": state, "text": text, "command": command, "guessed": guessed,
-            "started_at": None}
+            "started_at": None, "counts": None}
 
 
 def clock(seconds: int) -> str:
@@ -274,6 +277,23 @@ def _ran_none(run: TestRun, code: int, output: str) -> bool:
         _summary(output) is None and bool(RAN_NO_TEST.search(output[-4000:])))
 
 
+def _counted(found: "test_found.Counts | None") -> str | None:
+    """A runner's counts in words, where its summary is not pytest's own line: "11 passed, 1
+    failed, 2 skipped" (of packages, for go's)."""
+    if found is None or not found.total:
+        return None
+    unit = "" if found.unit == "tests" else f" {found.unit}"
+    return ", ".join(f"{n}{unit} {word}" for n, word in zip(found[:3], (
+        "passed", "failed", "skipped"), strict=True) if n or word == "passed")
+
+
+def _skipped_only(output: str, found: "test_found.Counts | None") -> str | None:
+    """Where a passing run ran no test but skipped some: its summary; None: not so."""
+    if found is not None:
+        return _counted(found) if found.skipped and not found.passed + found.failed else None
+    return _summary(output, SKIPPED) if _summary(output) is None else None
+
+
 def _first(*said: str) -> str:
     for text in said:
         if line := next((one.strip() for one in text.splitlines() if one.strip()), ""):
@@ -287,9 +307,11 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
     aside) or a failure its output counts; never passed without exit code 0. `ended`: its
     record's status (None: none - it never started); `seconds`: the wait it was given."""
     guessed = "" if run.yours else " (guessed)"
+    found = test_found.counts(output)
 
     def made(state: str, text: str) -> Row:
-        return row("tests", state, text, run.command, not run.yours)
+        return {**row("tests", state, text, run.command, not run.yours),
+                "counts": found._asdict() if found else None}
     if ended in (None, "failed_to_start") or code not in (0, None) and (
             finish_tests.did_not_start(code, output)):
         return made("not_run", NOT_STARTED.format(first=_first(said, output)))
@@ -304,11 +326,11 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
         return made("not_run", NO_VERDICT.format(command=run.command))
     if _ran_none(run, code, output):
         return made("not_run", RAN_NONE.format(command=run.command))
-    summary = _summary(output)
+    summary = _summary(output) or _counted(found)
     if code != 0 or counted:
         return made("failed", FAILED_ROW.format(command=run.command, guessed=guessed,
                                                 summary=summary or f"exit {code}"))
-    if summary is None and (skipped := _summary(output, SKIPPED)):
+    if (skipped := _skipped_only(output, found)) is not None:
         return made("not_run", SKIPPED_ONLY.format(command=run.command, summary=skipped))
     return made("passed", PASSED_ROW.format(command=run.command, guessed=guessed, summary=summary)
                 if summary else BY_CODE.format(command=run.command, guessed=guessed))

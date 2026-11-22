@@ -66,6 +66,8 @@ def told(model):
 
 
 PASS = Script(["....\n===== 4 passed in 0.1s =====\n"])
+# S1b: a guess that really ran tests is saved as the project's test command, and says so.
+SAVED = "Saved as this project's test command - change it in Settings"
 # A watched turn's wait where a test lets it run out: seconds, more on a CI runner.
 WAIT = round(scaled(3))
 
@@ -197,7 +199,9 @@ def test_a_guess_at_ask_waits_on_one_card_and_the_next_round_is_not_asked_again(
                        headers=OWN).status_code == 200
     snap = wait_run(client, cid, run_id)  # (no second card: it would wait here)
     assert len(executor.started) == 2
-    assert texts(snap)[0] == "Tests passed: python check.py (guessed) - 4 passed in 0.1s"
+    # (S1b: its first run, failing, really ran tests - saved; the second runs as the project's.)
+    assert texts(snap) == [SAVED, "Tests passed: python check.py - 4 passed in 0.1s",
+                           "Sent back to fix: 1 of 2 rounds"]
 
 
 def test_the_users_own_command_runs_unasked_in_a_watched_turn(make_client, wait_run, project_dir):
@@ -585,7 +589,9 @@ def test_a_yes_for_one_folders_command_is_not_another_folders(make_client, wait_
     assert client.post(f"/api/commands/{asked['id']}/approve", json={"remember": False},
                        headers=OWN).status_code == 200
     rows = checked(wait_run(client, cid, run_id))
-    assert [(row["state"], row["guessed"]) for row in rows] == [("passed", False), ("passed", True)]
+    # (S1b: the web part's guess really ran tests - saved for it, said so.)
+    assert [(row["state"], row["guessed"]) for row in rows] == [
+        ("passed", False), ("passed", True), ("note", False)]
 
 
 def test_a_watched_turns_run_after_a_wait_gets_only_what_is_left(
@@ -768,7 +774,7 @@ def test_a_bugfix_still_failing_after_its_rounds_is_not_sent_round_again(
     assert row(snap)["status"] == "in" and len(executor.started) == 3
     assert proof_calls(snap) == []
     assert texts(snap) == [
-        f"Tests failed: {PYTEST} (guessed) - 1 failed, 3 passed",
+        f"Tests failed: {PYTEST} (guessed) - 1 failed, 3 passed", SAVED,
         "Still failing after the recipe's fix rounds: you decide (Fix it)"]
 
 
@@ -792,7 +798,7 @@ def test_a_bugfix_that_passes_is_not_run_again_at_the_end(make_client, wait_run,
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert row(snap)["status"] == "in" and len(executor.started) == 1
     assert proof_calls(snap) == []
-    assert texts(snap) == [f"Tests passed: {PYTEST} - run by Tester after the last change"]
+    assert texts(snap) == [f"Tests passed: {PYTEST} - run by Tester after the last change", SAVED]
 
 
 
@@ -832,7 +838,7 @@ def test_a_command_after_a_bugfix_testers_pass_runs_the_tests_again(
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert len(executor.started) == 3 and len(proof_calls(snap)) == 1
-    assert texts(snap) == [f"Tests passed: {PYTEST} (guessed) - 4 passed"]
+    assert texts(snap) == [f"Tests passed: {PYTEST} (guessed) - 4 passed", SAVED]
 
 
 def test_a_to_do_turn_with_nobody_away_runs_a_guess_as_any_turn(

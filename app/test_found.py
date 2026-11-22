@@ -63,7 +63,10 @@ def _go(text: str) -> Counts | None:
 
 def _cargo(text: str) -> Counts | None:
     found = re.findall(r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored", text)
-    return Counts(*(sum(int(one[at]) for one in found) for at in range(3))) if found else None
+    if not found:
+        return None
+    passed, failed, skipped = (sum(int(one[at]) for one in found) for at in range(3))
+    return Counts(passed, failed, skipped)
 
 
 def _last(pattern: str, make: Callable[[re.Match], Counts]) -> Callable[[str], Counts | None]:

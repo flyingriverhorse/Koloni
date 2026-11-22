@@ -82,6 +82,11 @@ class Proof:
     until: float | None = None
     asked_test: bool = False
     reviewed: bool = False
+    # S1b (`FoundMixin`): where a guess came from ("guess", "look"), by (command, folder); and
+    # why nothing was run - the look found no test, or there was no model to look.
+    found_from: dict[tuple[str, str], str] = field(default_factory=dict)
+    looked_none: bool = False
+    no_look: bool = False
 
 
 class ProofMixin:
@@ -162,16 +167,15 @@ class ProofMixin:
             held.seen = proof.last_change(session, ctx.run_id)
         held.until = time.monotonic() + END_WAIT_SECONDS if self._answer_waits(ctx) else None
         found = await self._map_made(ctx, root) if root else None
-        with self._factory() as session:
-            project = self._project(session, ctx.cid)
-            runs = proof.test_runs(project, found) if project is not None else []
+        runs = await self._runs_found(ctx, held, found)  # (S1b: the user's, saved, found, looked)
         if not runs:
-            held.rows.append(proof.row("tests", "not_run", proof.NO_COMMAND))
+            held.rows.append(self._no_runs_row(held))
             return None
         failed = []
         for run in runs:
             made, output = await self._tests_of(ctx, run, held)
             held.rows.append(made)
+            held.rows.extend(self._save_found(ctx, held, run, made, output))
             if made["state"] == "failed":
                 failed.append((run, output))
         if not failed or held.rounds >= MAX_SENT_BACK or held.recipe_spent:

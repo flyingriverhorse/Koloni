@@ -576,6 +576,8 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
         setattr(project, name, getattr(body, name))
     if body.after_change is not None:  # (0162's note of the old switch is said no more: theirs now)
         project.finish_tests = None
+    if body.forget_tests_found:  # (S1b: found again - looked at again - at the next change)
+        project.tests_found, project.tests_look = {}, None
 
 
 def _change_memory(session: Session, project: Project, body: ProjectPatch,
@@ -642,7 +644,7 @@ async def patch_project(
                     "hide_secrets", "pass_env",
                     "canary", "lead_work", "continue_steps", "memory_links", "embedding_model",
                     "when_away", "away_minutes", "full_auto_check", "disposable_deletes",
-                    "after_change", *SPAWN)
+                    "after_change", "forget_tests_found", *SPAWN)
     limited = "turn_token_limit" in body.model_fields_set  # null takes the limit away
     # tek-ev: what a discussion and a room may spend; null: no limit (and, B-414, no least).
     spends = {"discussion_budget", "room_posts", "room_tokens", "room_minutes",

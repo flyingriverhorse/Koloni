@@ -187,11 +187,22 @@ def no_po_where_calls_are_counted(request):
 # run for the map's guesses).
 END_CHECK_OFF: set[str] = set()
 NOTHING_AFTER = {"test_copy_part"}
+# S1b: with no test command found, the end check asks the Fast tier's model once a project where
+# its tests are (`FoundMixin._look_for_tests`) - in a test, a step of the scripted model more in
+# every turn that changes code. On only where it is tested.
+LOOK_ON = {"test_found_scenarios"}
 
 
 @pytest.fixture(autouse=True)
 def end_check_where_it_fits(request, monkeypatch):
     module = request.module.__name__.rpartition(".")[2]
+    if module not in LOOK_ON:
+        from app.agent.found_mixin import FoundMixin
+
+        async def no_look(_self, *_args):
+            return []
+
+        monkeypatch.setattr(FoundMixin, "_look_for_tests", no_look)
     if module in END_CHECK_OFF:
         from app.agent.proof_mixin import ProofMixin
 
