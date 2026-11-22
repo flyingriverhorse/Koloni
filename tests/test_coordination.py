@@ -489,6 +489,12 @@ def test_a_stop_of_a_pid_written_out_or_the_lines_own_is_no_harm(command, wrappe
         "Set-Variable p (Get-Process python)", "sv p (gps python)",
         "gps python | Tee-Object -Variable p", "$p = gps python",
         "Get-Process -Id $p.Id"]],
+    # (review round 5: a start's value piped on, or with a block or a subexpression in it)
+    "$p = Start-Process python -PassThru | % { Get-Process node }; Stop-Process -Id $p.Id",
+    "$p = Start-Process python -PassThru | ForEach-Object { gps node }; Stop-Process -Id $p.Id",
+    "$p = Start-Process python -PassThru | Select-Object @{n='Id';e={(Get-Process node).Id}}; "
+    "Stop-Process -Id $p.Id",
+    "$p = Start-Process python -PassThru -ArgumentList (gps node).Id; Stop-Process -Id $p.Id",
 ])
 def test_a_started_variable_named_anywhere_else_is_not_the_lines_own(command):
     assert harm_class(command) == "always", command

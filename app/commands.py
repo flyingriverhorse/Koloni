@@ -560,7 +560,9 @@ _KOLONIS_NAMES = re.compile(r"(?i)(?:python|uvicorn|node|claude|codex|copilot|qo
 _PS_SETS = re.compile(r"(?i)\$(\w+)\s*=(?!=)\s*([^;\r\n]*)")
 _PS_LOOPS = re.compile(r"(?i)\bforeach\s*\(\s*\$(\w+)\s+in\b")
 _SH_SETS = re.compile(r"(?<![\w$.-])([A-Za-z_]\w*)=([^\s;&|]*)")
-_STARTS = re.compile(r"(?i)\s*(?:start-process|saps|start)\b.*-passthru")
+# A start's whole value: Start-Process with -PassThru and nothing that pipes it on, runs a block
+# or a subexpression, or chains another command (`| % { Get-Process node }`, `(gps node).Id`).
+_STARTS = re.compile(r"(?i)\s*(?:start-process|saps|start)\b[^|&;(){}`]*-passthru[^|&;(){}`]*")
 # Names the shell keeps for itself - bash's (`PPID=$!` leaves `$PPID` its parent's), PowerShell's
 # `$PID` (its own id): a stop of one is never of what the line started.
 _SHELLS_NAMES = frozenset({"ppid", "uid", "euid", "bashpid", "groups", "random", "srandom",
@@ -587,7 +589,7 @@ def _started(command: str) -> set[str]:
     for name in _PS_LOOPS.findall(command):
         sets.setdefault(f"${name.casefold()}.id", []).append("")
     return {name for name, values in sets.items()
-            if all(_STARTS.match(value) or value.strip() == "$!" for value in values)
+            if all(_STARTS.fullmatch(value) or value.strip() == "$!" for value in values)
             and not _named_elsewhere(command, name[1:].removesuffix(".id"))}
 
 
@@ -598,7 +600,7 @@ def _named_elsewhere(command: str, name: str) -> bool:
     in`, `read PID`, `mapfile -t PID`, `printf -v PID`, `((PID++))`), `$p, $q =` - any of which
     may set it to another process."""
     named = re.compile(rf"(?i)(?<![\w/-]){re.escape(name)}(?!\w)")
-    start = re.compile(rf"(?i)\s*(?:\${re.escape(name)}\s*=(?!=){_STARTS.pattern[4:]}.*"
+    start = re.compile(rf"(?i)\s*(?:\${re.escape(name)}\s*=(?!=){_STARTS.pattern[4:]}"
                        rf"|{re.escape(name)}=\$!\s*)")
     for part in _BLOCKS.split(command):
         if not named.search(part) or start.fullmatch(part):

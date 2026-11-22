@@ -56424,10 +56424,6 @@ false
 "uv pip compile r.in": "OA3: uv pip compile writes a lock file and installs nothing (web-off still asks it)"
 },
 "xfail": [
-"$p = Start-Process python -PassThru -ArgumentList (gps node).Id; Stop-Process -Id $p.Id",
-"$p = Start-Process python -PassThru | % { Get-Process node }; Stop-Process -Id $p.Id",
-"$p = Start-Process python -PassThru | ForEach-Object { Get-Process -Name node }; Stop-Process -Id $p.Id",
-"$p = Start-Process python -PassThru | Select-Object @{n='Id';e={(Get-Process node).Id}}; Stop-Process -Id $p.Id",
 "Select-String -Encoding utf8 ../../b/tree/secret",
 "Select-String -Raw ../../b",
 "Select-String -SimpleMatch ../../b/tree/secret x.txt",
