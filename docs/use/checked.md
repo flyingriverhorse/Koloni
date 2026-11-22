@@ -163,9 +163,10 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
 - **Flaky.** The failing tests run once more, alone. One that passes then failed in the full run
   and passed alone: "Flaky: `test` failed in the full run and passed alone (noted in this
   project's memory)". It is not sent back. The project's memory gets a note on it, "Failed in a
-  full run and passed alone (date); seen 2 times", counting each time.
+  full run and passed alone (date); seen 2 times", counting each time. A run alone that ran no
+  test (it only collected them, say) tells nothing: no test is called flaky by it.
 - **Failing before.** What still fails runs on the code as it was before the turn: a throwaway
-  copy of the work with each file the turn changed written back as it was. Tests that fail there
+  copy of the work with each file the turn changed written back byte for byte as it was. Tests that fail there
   too were failing before: "1 were failing before this turn, 1 new". Only the new ones go back,
   and the Orchestrator is told the others are not its to fix. The copy is deleted after, its
   linked folders (`.venv`, `node_modules`) let go of first, never emptied.
@@ -174,6 +175,11 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
   changed the project this turn …", and every failure counts as new.
 - A run that would ask its card again is not run again: "… not re-run alone or on the old code:
   it would ask again".
+- A test's name comes from what the run printed, and KOLONİ runs these lines without asking - so
+  only a plain name goes on one: letters, digits, `_ - . / \ :` and `[ ]`, inside the folder (no
+  leading `-`, `/` or drive, no `..`). Any other is not run again, and it counts as new: "Not
+  re-run alone or on the old code: an unusual test name (…)". The same holds for a bug fix's new
+  test file.
 - A command whose last run by KOLONİ, in an earlier turn, failed and passes now: "1 were failing
   at the last run (date), 0 now".
 
@@ -181,8 +187,12 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
 
 When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped ones
 - as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
-failure unless the Orchestrator's answer says why (removed, deleted, skipped): "Tests went from
-214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a failing test. Where the
+failure unless the Orchestrator's answer says why - in one sentence that says it removed, deleted,
+dropped or skipped them and names the tests (test, tests, skip, xfail; for more skipped ones, skip
+or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a
+failing test. Said why, it is still shown, as a note quoting that sentence - "Tests went from 4 to
+3 (1 removed) - the answer says why: “I removed the obsolete test of the old parser”" - and the
+new counts are the green state from then on. Where the
 green run listed its passes (pytest with `-v`, jest's and vitest's files), KOLONİ keeps those
 names too (at most 5 000): a test that passed then and fails now is named, "Regression: `test`
 passed at the last green run and fails now" - never one added since. Where it listed none, the
@@ -196,7 +206,9 @@ that keeps the new test). It must fail there: "The new test fails on the old cod
 passes there too is said - "The new test passes on the old code too: it may not catch the bug".
 
 In a recipe, the **Reproduce it** step must leave a test run of its own that failed - of a test
-file it wrote, where it wrote one. One that did not is held, and the recipe stops at Ready for
+file it wrote, where it wrote one: a test of that file named failing (by its file, or, where the
+runner names none - jest, go - by its name in that file). A run that failed because the file did
+not even load (a syntax error, collecting) shows no bug. One that did not is held, and the recipe stops at Ready for
 you: "Reproduce did not show a failing test: none of the tests it wrote failed (…)", or "… no test
 run of its own on record failed".
 

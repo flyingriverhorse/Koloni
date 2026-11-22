@@ -163,21 +163,63 @@ def test_the_last_green_state_holds_a_drop_in_tests_and_a_rise_in_skipped(make_c
     assert "Tests went from 4 to 3 (1 removed)" in told(model, 4)
 
 
-def test_a_drop_the_answer_says_why_is_the_new_green_state(make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([passing(4), passing(3)])
-    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
-                                  write("a.py", "x = 2\n", "w2"),
-                                  text("I removed the obsolete test of the old parser")],
-                                 executor=executor)
-    cid, run_id = begin(client, project_dir, check_command=PYTEST)
-    wait_run(client, cid, run_id)
-    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
-    rows = rows_of(wait_run(client, cid, posted["run"]["id"]), posted["run"]["id"])
-    assert not any(one.startswith("Tests went from") for one in rows), rows
+def green_ran(client):
     with client.app.state.session_factory() as session:
         from app.db.models import Project
         (green,) = session.scalars(select(Project.tests_green)).all()
-    assert next(iter(green.values()))["ran"] == 3
+    return next(iter(green.values()))["ran"]
+
+
+def test_a_drop_the_answer_says_why_is_the_new_green_state(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([passing(4), passing(3)])
+    client, model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                 write("a.py", "x = 2\n", "w2"),
+                                 text("I removed the obsolete test of the old parser")],
+                                executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    wait_run(client, cid, run_id)
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
+    snap = wait_run(client, cid, posted["run"]["id"])
+    rows = [(r["text"], r["state"]) for m in snap["messages"] if m["role"] == "checked"
+            and m["run_id"] == posted["run"]["id"] for r in m["checked"]]
+    # (excused, still shown: a note quoting the answer - review of S7 - and nothing sent back)
+    assert (before_mixin.EXCUSED.format(said="Tests went from 4 to 3 (1 removed)",
+                                        why="I removed the obsolete test of the old parser"),
+            "note") in rows, rows
+    assert not any(state == "failed" for _text, state in rows), rows
+    assert len(model.calls) == 4 and green_ran(client) == 3
+
+
+def test_an_excuse_that_names_no_test_hides_nothing(make_client, wait_run, project_dir):
+    # (Review of S7's probe: 4 green, then 1 passed and 3 skipped - "Removed a stray debug
+    # print." is no reason for either: both said, sent back, the green state kept.)
+    executor = ScriptedExecutor([passing(4), passing(1, skipped=3), passing(1, skipped=3)])
+    client, model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                 write("a.py", "x = 2\n", "w2"),
+                                 text("Removed a stray debug print."), text("left as it is")],
+                                executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST, fix_rounds=1)
+    wait_run(client, cid, run_id)
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
+    rows = rows_of(wait_run(client, cid, posted["run"]["id"]), posted["run"]["id"])
+    assert "Tests went from 4 to 1 (3 removed)" in rows and "Skipped rose from 0 to 3" in rows, rows
+    assert "in a sentence that names the tests" in told(model, 4)
+    assert green_ran(client) == 4
+
+
+def test_a_rise_in_skipped_needs_skip_named(make_client, wait_run, project_dir):
+    # (One removed and one skipped: the answer says why the one went - not why one is skipped.)
+    executor = ScriptedExecutor([passing(4), passing(3, skipped=1), passing(3, skipped=1)])
+    client, model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                 write("a.py", "x = 2\n", "w2"),
+                                 text("I removed the obsolete test of the old parser"),
+                                 text("left as it is")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST, fix_rounds=1)
+    wait_run(client, cid, run_id)
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
+    rows = rows_of(wait_run(client, cid, posted["run"]["id"]), posted["run"]["id"])
+    assert "Skipped rose from 0 to 1" in rows, rows
+    assert "Skipped rose from 0 to 1" in told(model, 4)
 
 
 def test_a_test_that_passed_at_the_last_green_run_and_fails_now_is_a_regression(
@@ -278,3 +320,80 @@ def test_a_removed_test_file_is_said_unless_the_answer_says_why(make_client, wai
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
     rows = rows_of(wait_run(client, cid, posted["run"]["id"]), posted["run"]["id"])
     assert ("Tests went from 4 to 3 (1 removed)" in rows) is said, rows
+    assert (before_mixin.EXCUSED.format(said="Tests went from 4 to 3 (1 removed)", why=answer)
+            in rows) is not said, rows
+
+
+def test_an_unusual_test_name_a_run_printed_is_never_run_again(make_client, wait_run,
+                                                                project_dir):
+    # (Review of S7's probe: the ids are what the run PRINTED - `$(...)` in a line run unasked
+    # ran in PowerShell's double quotes; `--co` made the run alone a collect-only one.)
+    crafted = "tests/test_a.py::t$(whoami)"
+    executor = ScriptedExecutor([
+        Script([f"FAILED {crafted} - boom\nFAILED --co\n=== 2 failed, 3 passed in 0.1s ===\n"],
+               exit_code=1), passing()])
+    client, model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                 write("a.py", "x = 2\n", "w2"), text("fixed")],
+                                executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    snap = wait_run(client, cid, run_id)
+    assert lines(executor) == [PYTEST, PYTEST], lines(executor)  # (no run alone, none on old code)
+    assert before_mixin.UNUSUAL.format(ids=f"{crafted}, --co") in texts(snap), texts(snap)
+    assert "FAILED" in told(model, 2)  # (sent back: not known to be anyone else's)
+    assert notes(client, crafted) == [] and throwaways(client) == []
+
+
+def test_a_run_alone_that_ran_no_tests_is_no_verdict(make_client, wait_run, project_dir):
+    # (Collected only, exit 0: no test passed alone - never flaky; on to the old code, where it
+    # passes: this turn's, sent back.)
+    executor = ScriptedExecutor([failing(ONE), Script([f"{ONE}\n\n1 test collected in 0.01s\n"]),
+                                 passing(1), passing()])
+    client, model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                 write("a.py", "x = 2\n", "w2"), text("fixed")],
+                                executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    rows = texts(wait_run(client, cid, run_id))
+    assert before_mixin.FLAKY.format(id=ONE) not in rows and notes(client, ONE) == [], rows
+    assert executor.started[2][1] != str(project_dir)  # (the old code's run)
+    assert "FAILED" in told(model, 2)
+
+
+def test_the_old_code_in_the_throwaway_copy_is_its_bytes(make_client, wait_run, project_dir, gate):
+    # (Review of S7's probe: written back as text, CRLF became CR CR LF on Windows - a
+    # SyntaxError on the "old code" - and LF became CRLF.)
+    import time
+
+    from tests.conftest import scaled
+    old = {"crlf.py": b'x = 1 + \\\r\n    2\r\nS = """a\r\nb"""\r\n',
+           "lf.py": b'x = 1 + \\\n    2\nS = """a\nb"""\n'}
+    for name, data in old.items():
+        (project_dir / name).write_bytes(data)
+    executor = ScriptedExecutor([failing(ONE), failing(ONE), Script(["running\n"], hold=gate),
+                                 passing()])
+    client, _model = make_client([write("crlf.py", "x = 3\r\n"), write("lf.py", "x = 3\n", "w2"),
+                                  text("done"), text("left as it is")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    deadline = time.monotonic() + scaled(10)
+    while len(executor.started) < 3:
+        assert time.monotonic() < deadline, executor.started
+        time.sleep(0.05)
+    there = Path(executor.started[2][1])
+    held = {name: (there / name).read_bytes() for name in old}
+    gate.release()
+    wait_run(client, cid, run_id)
+    assert held == old
+    for data in held.values():
+        compile(data, "m.py", "exec")
+
+
+def test_a_bugfix_test_with_an_unusual_name_is_not_run_on_the_old_code(make_client, wait_run,
+                                                                       project_dir):
+    executor = ScriptedExecutor([passing(), passing()])
+    client, _model = make_client([write("calc.py", "x = 1\n"),
+                                  write("tests/test_bug$(whoami).py", "def test_calc(): pass\n",
+                                        "w2"), text("fixed")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST, content="fix the crash in calc")
+    rows = texts(wait_run(client, cid, run_id))
+    assert before_mixin.UNUSUAL.format(ids="tests/test_bug$(whoami).py") in rows, rows
+    assert not any("$(" in one for one in lines(executor)), lines(executor)
+    assert before_mixin.CAUGHT not in rows and before_mixin.NOT_CAUGHT not in rows

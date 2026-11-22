@@ -1,8 +1,6 @@
 """Kanıtlı bitiş S7, what needs no model: the tests a failing run names, the line that runs them
 alone, a bug-fix turn's words, new test files, and the last green state's words."""
 
-import sys
-
 import pytest
 
 from app import proof_before
@@ -22,15 +20,73 @@ def test_failed_ids_pytest_vitest_jest():
 
 
 def test_alone_builds_a_rerun_or_none():
-    quoted = '"t.py::a"' if sys.platform == "win32" else "t.py::a"
-    assert proof_before.alone("python -m pytest -q", ["t.py::a"]) == f"python -m pytest -q {quoted}"
-    files = '"a.test.ts"' if sys.platform == "win32" else "a.test.ts"
-    assert proof_before.alone("npm test", ["a.test.ts"]) == f"npm test -- {files}"
-    assert proof_before.alone("npx vitest run", ["a.test.ts"]) == f"npx vitest run {files}"
+    # (single quotes on both platforms: literal to sh and to PowerShell alike - review of S7)
+    assert proof_before.alone("python -m pytest -q", ["t.py::a[1-2]"]) == (
+        "python -m pytest -q 't.py::a[1-2]'")
+    assert proof_before.alone("npm test", ["a.test.ts"]) == "npm test -- 'a.test.ts'"
+    assert proof_before.alone("npx vitest run", ["a.test.ts"]) == "npx vitest run 'a.test.ts'"
     assert proof_before.alone("pytest -q | tail -1", ["t.py::a"]) is None  # (its exit masked)
     assert proof_before.alone("pytest", ["t.py::a'b"]) is None
+    assert proof_before.alone("pytest", ["t.py::a", "t.py::t$(whoami)"]) is None
     assert proof_before.alone("make test", ["t"]) is None
     assert proof_before.alone("pytest", []) is None
+
+
+@pytest.mark.parametrize(("one", "plain"), [
+    ("tests/test_a.py::TestK::test_x[1-2]", True), ("tests\\test_a.py::t", True),
+    ("src/a.test.ts", True), ("x.py::t", True), ("tests/test_düzelt.py::test_ğ", True),
+    # (PowerShell reads its curly quotes and dashes as ' " -)
+    ("t.py::a‘b", False), ("t.py::a“b", False), ("t.py::a–b", False),
+    # (what a run PRINTED, put on a line KOLONİ runs unasked: nothing a shell reads, no option,
+    # nothing outside the folder)
+    ("tests/test_a.py::t$(whoami)", False), ("tests/test_a.py::t`$env:USERNAME`x", False),
+    ("tests/test_a.py::t;Write-Output;INJECTED", False), ("tests/test_a.py::t%PATH%^x", False),
+    ("tests/test_a.py::t&x", False), ("tests/test_a.py::t|x", False), ("t.py::a b", False),
+    ("t.py::a'b", False), ('t.py::a"b', False), ("t.py::a\nb", False), ("--co", False),
+    ("-p", False), ("--rootdir=C:/elsewhere", False), ("C:/x/test_a.py::t", False),
+    ("/abs/test_a.py::t", False), ("\\\\host\\t.py::t", False),
+    ("..\\..\\outside\\test_x.py::t", False), ("tests/../../x.py::t", False), ("", False)])
+def test_only_a_plain_test_name_is_run_again(one, plain):
+    assert proof_before.plain_id(one) is plain
+
+
+@pytest.mark.parametrize(("answer", "drop", "skip"), [
+    ("Removed a stray debug print.", None, None),  # (the probe: excuses nothing)
+    ("I removed the obsolete test of the old parser", "I removed the obsolete test of the old "
+     "parser", None),
+    ("Done. Removed test_old.py: it tested the old parser.\nAll green.",
+     "Removed test_old.py: it tested the old parser.", None),
+    ("I marked two tests skip on Windows.", "I marked two tests skip on Windows.",
+     "I marked two tests skip on Windows."),
+    ("I removed the old parser. The tests pass.", None, None),  # (not in one sentence)
+    ("Removed a specific print.", None, None)])
+def test_an_excuse_names_tests_in_the_sentence_that_says_why(answer, drop, skip):
+    assert proof_before.excuse(answer, "Tests went from 4 to 3 (1 removed)") == drop
+    assert proof_before.excuse(answer, "Skipped rose from 0 to 2") == skip
+    long = "Removed the tests of " + "x" * 300
+    assert len(proof_before.excuse(long, "Tests went from 4 to 3 (1 removed)")) == (
+        proof_before.MOST_SAID)
+
+
+def test_a_reproduction_is_a_failing_test_of_a_file_it_wrote():
+    wrote = {"tests/test_bug.py": "def test_calc():\n    assert calc() == 2\n"}
+    failed = "FAILED tests/test_bug.py::test_calc - assert 1 == 2\n=== 1 failed in 0.1s ===\n"
+    assert proof_before.reproduces(failed, wrote)
+    # (a collection or syntax error names no failing test: no reproduction - review of S7)
+    broken = ("ERROR collecting tests/test_bug.py\nE   SyntaxError: invalid syntax\n"
+              "ERROR tests/test_bug.py\n!!! Interrupted: 1 error during collection !!!\n")
+    assert not proof_before.reproduces(broken, wrote)
+    assert not proof_before.reproduces(failed.replace("test_bug", "test_other"), wrote)
+    # (run from a sub-folder: its ids are from there)
+    assert proof_before.reproduces(failed, {"backend/tests/test_bug.py": ""})
+    assert proof_before.reproduces(" FAIL  src/bug.test.ts > calc > adds\n",
+                                   {"src/bug.test.ts": ""})
+    # (jest and go name no file: by the test's name in the file it wrote)
+    jest = "  \u25cf calc \u203a adds two\n"
+    assert proof_before.reproduces(jest, {"src/bug.test.js": "it('adds two', () => {})"})
+    assert not proof_before.reproduces(jest, {"src/bug.test.js": "it('subtracts', () => {})"})
+    assert proof_before.reproduces("--- FAIL: TestAdd (0.00s)\n",
+                                   {"add_test.go": "func TestAdd(t *testing.T) {}"})
 
 
 @pytest.mark.parametrize(("words", "fix"), [

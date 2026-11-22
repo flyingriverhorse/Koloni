@@ -366,6 +366,25 @@ def test_a_reproduce_step_must_fail_the_test_it_wrote(make_client, wait_run, pro
     assert NOT_ITS_TEST.format(files="tests/test_repro.py") in [f["what"] for f in held], held
 
 
+def test_a_reproduce_step_whose_test_does_not_even_load_is_held(make_client, wait_run,
+                                                                  project_dir):
+    # (Review of S7: its run named its file and failed - on a syntax error, collecting: no test
+    # of it failed, no bug shown.)
+    from app.agent.words import NOT_ITS_TEST
+    broken = Script(["ERROR collecting tests/test_repro.py\nE   SyntaxError: invalid syntax\n"
+                     "ERROR tests/test_repro.py\n!!! Interrupted: 1 error during collection !!!\n"
+                     "=== 1 error in 0.1s ===\n"], exit_code=2)
+    shown = scripts(ran_tests())
+    shown["Debugger"] = [step(write("tests/test_repro.py", "def test_calc(:\n")),
+                         cmd(f"{PYTEST} tests/test_repro.py", "dd1"),
+                         text("Reproduced: calc(2) crashes.")]
+    client, _model = make_client(shown, executor=ScriptedExecutor([broken, PASSED]))
+    cid, _run_id = bugfix_run(client, project_dir)
+    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
+    held = agent(snap, "Debugger")["findings"] or []
+    assert NOT_ITS_TEST.format(files="tests/test_repro.py") in [f["what"] for f in held], held
+
+
 def test_a_reproduce_step_whose_own_test_failed_is_not_held(make_client, wait_run, project_dir):
     from app.agent.words import NOT_ITS_TEST, NOT_REPRODUCED
     mine = Script(["FAILED tests/test_repro.py::test_calc - ZeroDivisionError\n1 failed\n"],

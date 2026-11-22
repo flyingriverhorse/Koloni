@@ -6236,11 +6236,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if not self._in_step(session, child, "reproduce") or not handoff.counted_on(child.model):
             return []
         ran = ledger.failed_tests(session, child.agent_id)
-        wrote = proof_before.new_tests(session.scalars(select(FileChange.path).where(
-            FileChange.agent_id == child.agent_id)).all())
-        named = " ".join([*ledger.failing_named(ledger.tail(ran.output)), ran.command]) if (
-            ran) else ""
-        if ran is not None and (not wrote or any(path in named for path in wrote)):
+        texts = dict(session.execute(select(FileChange.path, FileChange.after_content).where(
+            FileChange.agent_id == child.agent_id).order_by(
+            FileChange.created_at, literal_column("file_changes.rowid"))).tuples().all())
+        wrote = proof_before.new_tests(texts)
+        # (Review of S7: a failing TEST of a file it wrote - not a failing command that names it.)
+        if ran is not None and (not wrote or proof_before.reproduces(
+                ran.output or "", {path: texts[path] or "" for path in wrote})):
             return []  # (its own test failed - or, writing none, a run of its own did)
         held = {**NOT_REPRODUCED, "what": NOT_ITS_TEST.format(files=", ".join(wrote))} if (
             wrote) else NOT_REPRODUCED

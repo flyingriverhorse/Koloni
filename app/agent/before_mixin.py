@@ -40,10 +40,13 @@ NO_BEFORE = "Not checked against the old code: {why}"
 CHANGED_BY_COMMAND = "a command changed the project this turn, and what it changed is not on record"
 ASKS_AGAIN = "not re-run alone or on the old code: it would ask again"
 REGRESSION = "Regression: {id} passed at the last green run and fails now{by}"
+UNUSUAL = "Not re-run alone or on the old code: an unusual test name ({ids})"
+EXCUSED = "{said} - the answer says why: “{why}”"
 NOT_YOURS = " These were failing before this turn and are not yours to fix: {ids}."
 GREEN_LEAD = ("Not the end yet: {said}, against this project's last green run - and your answer "
-              "does not say why. Put back what was taken away, or say in your answer why the "
-              "tests were removed or skipped; KOLONİ runs them again.")
+              "does not say why. Put back what was taken away, or say in your answer, in a "
+              "sentence that names the tests, why they were removed or skipped; KOLONİ runs them "
+              "again.")
 _SEEN = re.compile(r"seen (\d+) times")
 
 
@@ -56,8 +59,11 @@ class BeforeMixin:
         are all one or the other drops out."""
         kept = []
         for run, output in failed:
-            ids = proof_before.failed_ids(run.command, output)
-            self._regressions(ctx, held, run, ids)
+            named = proof_before.failed_ids(run.command, output)
+            self._regressions(ctx, held, run, named)
+            # (Review: an id is what the run PRINTED - only a plain one goes on a line run unasked.)
+            ids = [one for one in named if proof_before.plain_id(one)]
+            odd = self._unusual(held, run.command, named)
             if not ids or not self._may_rerun(ctx, held, run):
                 if ids:
                     self._said_once(held, proof.row("before", "note", NO_BEFORE.format(
@@ -66,7 +72,7 @@ class BeforeMixin:
                 continue
             still = await self.flaky(ctx, held, run, ids)
             new = await self.failing_before(ctx, held, run, still) if still else []
-            if new:
+            if new or odd:
                 kept.append((run, output))
         return kept
 
@@ -80,8 +86,8 @@ class BeforeMixin:
             return ids
         row, output = made
         counted = test_found.counts(output, line or "")
-        if row["state"] != "passed" and not (counted and counted.ran):
-            return ids  # (it ran none, or did not end: no word on any of them)
+        if not (counted and counted.ran):
+            return ids  # (it ran none - collected only, say - or did not end: no word on any)
         failing = set() if row["state"] == "passed" else set(
             proof_before.failed_ids(line or "", output))
         if row["state"] != "passed" and not failing:
@@ -147,9 +153,14 @@ class BeforeMixin:
             if project is None:
                 return []
             said = proof_before.green_said((project.tests_green or {}).get(key), ran, skipped)
-            if said and not proof_before.SAID_WHY.search(self._last_answer(session, ctx)):
-                held.rows += [proof.row("tests", "failed", one, run.command) for one in said]
-                return said
+            answer = self._last_answer(session, ctx)
+            why = {one: proof_before.excuse(answer, one) for one in said}
+            for one in (one for one in said if why[one]):  # (excused, still shown: a note)
+                self._said_once(held, proof.row("tests", "note", EXCUSED.format(
+                    said=one, why=why[one]), run.command))
+            if left := [one for one in said if not why[one]]:
+                held.rows += [proof.row("tests", "failed", one, run.command) for one in left]
+                return left
             project.tests_green = {**(project.tests_green or {}), key: {
                 "ran": ran, "skipped": skipped, "at": now().isoformat(),
                 "ids": self._passed_now(session, ctx, run)}}
@@ -212,8 +223,11 @@ class BeforeMixin:
             written = self._new_tests(session, ctx)
         code = [one for one in held.changes if one.in_project and one.kind == "code"
                 and one.path not in written]
+        if not proof_before.BUGFIX.search(asked) or not written or not code or self._unusual(
+                held, runs[0].command if runs else "", written):
+            return
         run = next((one for one in runs if proof_before.alone(one.command, written)), None)
-        if not proof_before.BUGFIX.search(asked) or not written or not code or run is None:
+        if run is None:
             return
         line = proof_before.alone(run.command, written) or run.command
         async with self._throwaway_copy(ctx, keep=written) as place:
@@ -223,6 +237,15 @@ class BeforeMixin:
             caught = made[0]["state"] == "failed"
             held.rows.append(proof.row("tests", "passed" if caught else "failed",
                                        CAUGHT if caught else NOT_CAUGHT, line))
+
+    def _unusual(self: "AgentRunner", held: "Proof", command: str, ids: list[str]) -> list[str]:
+        """Of test ids a run printed (or test files written), those that are no plain name
+        (`proof_before.plain_id`): never put on a line KOLONİ runs unasked - said once."""
+        odd = [one for one in ids if not proof_before.plain_id(one)]
+        if odd:
+            self._said_once(held, proof.row("before", "note", UNUSUAL.format(
+                ids=", ".join(one[:80] for one in odd[:3])), command))
+        return odd
 
     @staticmethod
     def _said_once(held: "Proof", row: proof.Row) -> None:
@@ -272,9 +295,12 @@ class BeforeMixin:
                 before = rows[0].before_content
                 if before is None:
                     place.unlink(missing_ok=True)
-                else:
+                else:  # (its bytes as on record: no newline of the platform's put in)
+                    # shortcut: only text is on record - a binary file changed off it (by a
+                    # command: `_changed_by_command` says so; by a CLI's own file tool: not
+                    # seen) stays as it is now; keep the look's `made` per turn if one is met.
                     place.parent.mkdir(parents=True, exist_ok=True)
-                    place.write_text(before, encoding="utf-8")
+                    place.write_bytes(before.encode("utf-8"))
         except Exception as exc:  # (no old code to run on: said as no "before")
             log.warning("run %s: no copy of the old code: %r", ctx.run_id, exc)
             if made is not None:

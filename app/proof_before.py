@@ -5,8 +5,6 @@ counts of a whole suite that passed, against which a drop in tests or a rise in 
 said. The runner's part: `BeforeMixin`."""
 
 import re
-import shlex
-import sys
 from collections.abc import Iterable
 
 from app import ledger
@@ -29,8 +27,17 @@ _FILE_PASS = re.compile(r"^\s*(?:PASS|✓)\s+(\S+)", re.MULTILINE)
 # shortcut: at most this many passed ids are kept of a green run - a regression past them is said
 # by file; keep more if a project that big is seen naming one wrong.
 MOST_IDS = 5000
-# What an agent's answer says when it took tests away or skipped them on purpose.
+# What an agent's answer says when it took tests away or skipped them on purpose - in a sentence
+# that names tests (`excuse`): "Removed a stray debug print." excuses nothing.
 SAID_WHY = re.compile(r"\b(?:remov|delet|skip|xfail|drop|retir)\w*", re.IGNORECASE)
+_NAMES_TESTS = re.compile(r"\b(?:test|skip|xfail)|\bspecs?\b", re.IGNORECASE)
+_SKIPS = re.compile(r"\b(?:skip|xfail)", re.IGNORECASE)
+_SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
+MOST_SAID = 120  # characters of the sentence quoted
+# A test id KOLONİ runs again alone, unasked, from what a run PRINTED (review of S7): plain
+# characters only - letters of any alphabet (`test_düzelt`), digits, `_ - . / \ : [ ]`; none a
+# shell reads (`$ ( ) ; % ^ & | < >`, a backtick, a quote - PowerShell's curly ones too - a space).
+_PLAIN_ID = re.compile(r"[\w\-./\\:\[\]]{1,500}")
 
 
 def failed_ids(command: str, output: str) -> list[str]:
@@ -66,17 +73,27 @@ def regressions(failing: list[str], green: dict, mine: set[str]) -> list[tuple[s
     return [(one, True) for one in failing if one.split("::")[0] not in mine]
 
 
+def plain_id(one: str) -> bool:
+    """Whether a test id (a run printed it) may go on a line KOLONİ runs unasked: plain
+    characters, relative - no leading `-` (an option), `/` or `\\`, no drive, no `..` part."""
+    if not _PLAIN_ID.fullmatch(one) or one.startswith(("-", "/", "\\")):
+        return False
+    parts = re.split(r"::|[/\\]", one)
+    return not re.match(r"[A-Za-z]:(?!:)", one) and ".." not in parts
+
+
 def _quoted(one: str) -> str:
-    """For the shell the host runs a line in: POSIX quoting, or double quotes on Windows."""
-    return f'"{one}"' if sys.platform == "win32" else shlex.quote(one)
+    """In single quotes on both platforms: literal to sh and to PowerShell alike (a plain id
+    holds no quote: `plain_id`)."""
+    return f"'{one}'"
 
 
 def alone(command: str, ids: list[str]) -> str | None:
     """The line that runs only `ids` of `command` again: pytest's ids after it, npm's test
     script's files after `--`, vitest's / jest's files after it; None: no such line (another
-    tool, an exit masked, an id with a quote or a line break in it)."""
+    tool, an exit masked, an id that is no plain one: `plain_id`)."""
     read = ledger.read_test(command)
-    if not ids or read is None or read[1] or any(c in one for one in ids for c in "'\"\r\n"):
+    if not ids or read is None or read[1] or not all(map(plain_id, ids)):
         return None
     named = " ".join(map(_quoted, ids))
     if read[0] == "pytest" or read[0] in ("vitest", "jest"):
@@ -84,10 +101,38 @@ def alone(command: str, ids: list[str]) -> str | None:
     return f"{command} -- {named}" if read[0] in _FILE_TOOLS else None
 
 
+def reproduces(output: str, wrote: dict[str, str]) -> bool:
+    """R4: whether a failing run's output names a failing TEST of a test file the agent wrote
+    (`wrote`: its project-relative path to its text) - by the file the id names (pytest's
+    `x::t`, vitest's `file > name`; from a sub-folder, the end of the path), or where the tool
+    names no file (jest's `suite › name`, go's `--- FAIL: TestX`) by its name in that file. A
+    collection or syntax error names no failing test (review of S7): no reproduction."""
+    for one in ledger.failing_named(ledger.tail(output)):
+        if "::" in one or " > " in one:
+            head = re.split(r"::| > ", one)[0].strip().replace("\\", "/").removeprefix("./")
+            if any(path == head or path.endswith(f"/{head}") for path in wrote):
+                return True
+        elif (bare := ledger._bare(one)) and any(bare in text for text in wrote.values()):
+            return True
+    return False
+
+
 def new_tests(created: Iterable[str]) -> list[str]:
     """The test files among a turn's new files (S2's `proof.new_tests` takes its place once in:
     shortcut, a test written into an existing file is not counted here)."""
     return [path for path in created if TEST_FILE.search(path.replace("\\", "/"))]
+
+
+def excuse(answer: str, said: str) -> str | None:
+    """The sentence of the agent's answer that says why the tests changed as `said` says: for a
+    drop, one that says it removed / skipped / dropped them and names tests; for a rise in
+    skipped ones, one that names skip or xfail. None: the answer says no why."""
+    skips = said.startswith("Skipped rose")
+    for sentence in (one.strip() for one in _SENTENCE.split(answer)):
+        if skips and _SKIPS.search(sentence) or not skips and SAID_WHY.search(
+                sentence) and _NAMES_TESTS.search(sentence):
+            return sentence if len(sentence) <= MOST_SAID else sentence[:MOST_SAID - 1] + "…"
+    return None
 
 
 def green_said(was: dict | None, ran: int, skipped: int) -> list[str]:
