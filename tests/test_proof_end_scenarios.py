@@ -78,6 +78,7 @@ def test_a_turn_that_changed_code_runs_the_tests_and_says_so_under_the_answer(
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert [command for command, _cwd in executor.started] == ["python check.py"]
+    assert snap["commands"][0]["timeout_seconds"] == 120  # (a turn you watch waits 2 min at most)
     (call,) = proof_calls(snap)
     assert call["name"] == "run_command" and call["status"] == "succeeded"
     lead = next(a["id"] for a in snap["agents"] if a["depth"] == 0)
@@ -471,3 +472,41 @@ def test_an_away_job_at_ask_leaves_the_card_to_when_away(make_client, project_di
     until(lambda: night(client, pid)["jobs"][0]["state"] == "done")
     _snap, (rows,) = job_rows(client, job)
     assert rows[0]["state"] == "passed" and rows[0]["guessed"] is True, rows
+
+
+def test_a_turn_that_fails_before_its_end_says_the_tests_were_not_run(
+        make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([])
+    client, _model = make_client([write("a.py", "x = 1\n"), RuntimeError("its model broke")],
+                                 executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "failed" and executor.started == []
+    assert texts(snap) == ["Tests not run: the turn failed before its end"]
+
+
+def test_a_to_do_task_waits_for_its_tests_to_the_commands_limit(make_client, wait_run, project_dir):
+    # (Nobody waits on a To-do task's answer: its tests are not cut at a watched turn's 2 minutes.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
+                                 executor=ScriptedExecutor([PASS]))
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={
+        "check_command": "python check.py", "lead_work": "itself"}, headers=OWN).status_code == 200
+    assert client.put(f"/api/projects/{pid}/backlog/choice", json={"permission_mode": "full_auto"},
+                      headers=OWN).status_code == 200
+    client.post(f"/api/projects/{pid}/backlog", json={"title": "greeting"}, headers=OWN)
+    cid = client.post(f"/api/projects/{pid}/backlog/next", headers=OWN).json()["conversation_id"]
+    run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
+    snap = wait_run(client, cid, run_id)
+    (ran,) = snap["commands"]
+    assert ran["timeout_seconds"] == 600 and checked(snap)[0]["state"] == "passed", snap["commands"]
+
+
+def test_a_requirements_change_runs_the_tests(make_client, wait_run, project_dir):
+    # (A .txt, but a dependency list: config, which the tests read - not a document.)
+    executor = ScriptedExecutor([PASS])
+    client, _model = make_client([write("requirements.txt", "requests==2.32.3\n"), text("done")],
+                                 executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    assert checked(wait_run(client, cid, run_id))[0]["state"] == "passed"
+    assert len(executor.started) == 1
