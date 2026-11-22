@@ -100,6 +100,17 @@ test('the strip says still failing or not checked; the tool is the runner, not p
   expect(toolOf('python -m pytest -q')).toBe('pytest')
   expect(toolOf('npx vitest run')).toBe('vitest')
   expect(toolOf('go test ./...')).toBe('go')
+  expect(toolOf('npx --no c8 --reporter=json --report-dir ".koloni/tmp/coverage-1" npm test')).toBe('c8')
+})
+
+test('S9: the coverage row is a line like the others, and no test run of its own', () => {
+  const rows = [
+    row('passed', 'Tests passed: python -m pytest -q - 4 passed', { command: 'python -m pytest -q', counts: { passed: 4, failed: 0, skipped: 0, unit: 'tests' } }),
+    row('note', 'Coverage: 67% of the changed lines are run by tests (pytest-cov)', { kind: 'coverage', command: 'python -m pytest -q' }),
+  ]
+  const { data, nodes } = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked(rows)] }))
+  expect(data?.lines).toEqual([{ state: 'passed', text: 'pytest · 4 ✓' }, { state: 'note', text: rows[1].text }])
+  expect((nodes[0].data as AgentData).checked).toBe('✓ checked')
 })
 
 function shown(data: ChecksData) {
@@ -172,6 +183,16 @@ test('a turn of a chat with checks off: no node - the Orchestrator’s strip say
   expect(checksNode(state, run('r', 'completed'), nodes, edges)).toBeNull()
   expect(nodes.map(node => node.kind)).toEqual(['agent'])
   expect((nodes[0].data as AgentData).checked).toBe('not checked · off for this chat')
+  expect(deriveGraph(state).nodes.some(node => node.kind === 'checks')).toBe(false)
+})
+
+test('a turn of a project whose After a change is Nothing: no node either - the strip says why', () => {
+  // (CI, 0.1.6: the e2e project at Nothing drew a Checks node for a turn KOLONİ checked nothing in)
+  const nodes: GraphNode[] = [{ id: 'agent:r', kind: 'agent', runId: 'r', refId: 'r', data: {} as AgentData }]
+  const rows = [row('note', 'Not checked: After a change is set to Nothing', { kind: 'not_checked' }), row('note', 'Last test run: pytest -q, passed, after the last change', { kind: 'tests' })]
+  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked(rows)] })
+  expect(checksNode(state, run('r', 'completed'), nodes, [])).toBeNull()
+  expect((nodes[0].data as AgentData).checked).toBe('not checked · After a change is Nothing')
   expect(deriveGraph(state).nodes.some(node => node.kind === 'checks')).toBe(false)
 })
 

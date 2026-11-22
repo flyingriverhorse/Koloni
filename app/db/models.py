@@ -218,6 +218,14 @@ class Project(Base):
     # S3 (0165, plan decisions 14a and 19): how often the end check sends work back - failing
     # tests and a Reviewer's blocking findings, one count a turn - 1 to 5.
     fix_rounds: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    # S7 (0166, decision 14b): the project's last green state, by "<folder> <command>": what its
+    # last whole suite KOLONİ ran that passed counted - {"ran", "skipped", "at"}.
+    tests_green: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # S8 (0168, decision 3): the CI commands KOLONİ found in the project's workflows -
+    # {"offered": {"hash", "commands": [{"command", "cwd", "step"}]}, "approved": the same, or
+    # absent}: the user's Run these approves the offer, exactly those lines; a change to a
+    # workflow file (its hash) asks again. None: none found yet.
+    ci_commands: Mapped[dict | None] = mapped_column(JSON, default=None)
     # S5a (0167): which kinds of work KOLONİ checks after a turn wrote them - {kind: on} for
     # "docs", "slides", "diagram", "data" (`app.proof_kinds.KINDS`); a kind left out is on.
     check_kinds: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")

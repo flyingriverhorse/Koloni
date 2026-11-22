@@ -4059,6 +4059,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/ci/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Ci
+         * @description S8 (decision 3) "Run these": the CI lines this turn's row showed are approved - exactly
+         *     those, the user's own approval from the app's page; the end check runs them from the next
+         *     change on. The offer goes by its name (`ci_commands.offer_id`, the row's `offer`): it must be
+         *     on this turn's row, be the project's offer still, and its workflow files be as they are now -
+         *     else 409, offered again after the next change (another turn may have offered other lines).
+         */
+        post: operations["approve_ci_api_runs__run_id__ci_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/notes": {
         parameters: {
             query?: never;
@@ -5865,6 +5889,8 @@ export interface components {
             guessed: boolean;
             /** Kind */
             kind: string;
+            /** Offer */
+            offer?: string | null;
             /** Started At */
             started_at: string | null;
             /**
@@ -5874,6 +5900,11 @@ export interface components {
             state: "passed" | "failed" | "running" | "not_run" | "timed_out" | "note";
             /** Text */
             text: string;
+        };
+        /** CiApproveIn */
+        CiApproveIn: {
+            /** Offer */
+            offer: string;
         };
         /**
          * ClaimOut
@@ -19038,6 +19069,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_ci_api_runs__run_id__ci_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CiApproveIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Literal
 from sqlalchemy import literal_column, select
 
 from app import away, injection, ledger, proof, recipe_run
+from app.agent.before_mixin import NOT_YOURS
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
@@ -79,6 +80,10 @@ class Proof:
     # findings").
     most: int = MAX_SENT_BACK
     sent: list[str] = field(default_factory=list)
+    # S7 (`BeforeMixin`): where a run of KOLONİ's goes instead of the Lead's work (the old code's
+    # throwaway copy; None: the work); and the failing tests that were failing before the turn.
+    place: Workspace | None = None
+    before_ids: list[str] = field(default_factory=list)
     # The commands said yes to on a card, by the folder they ran in: a yes covers that text in
     # that folder only - never another part's command of the same text.
     yes: dict[str, set[str]] = field(default_factory=dict)
@@ -95,6 +100,16 @@ class Proof:
     asked_test: bool = False
     # S5a: the newest change the kinds' last look saw (None: none made).
     kinds_seen: datetime | None = None
+    # S9 (`CoverageMixin`): the line a run really runs where report flags were added, by its
+    # (command, folder); its coverage rows to say after it; a run gone on after the answer whose
+    # report is read as it ends; and the new lines no test ran, by file (for the Reviewer).
+    lines: dict[tuple[str, str], str] = field(default_factory=dict)
+    covered: dict[tuple[str, str], list] = field(default_factory=dict)
+    covering: dict[tuple[str, str], tuple] = field(default_factory=dict)
+    uncovered: dict[str, list[int]] = field(default_factory=dict)
+    # ...and what was measured, by run, with the turn's last change then: a later pass that
+    # reuses the run on the same work says it again.
+    measured: dict[tuple[str, str], tuple] = field(default_factory=dict)
     reviewed: bool = False
     # S3 (`ReviewMixin`): the last look's verdict ("MERGE", "HOLD"; None: none yet), its rows, the
     # change it saw (`proof.last_change`), the reviewers it took, and the rounds it sent back.
@@ -184,7 +199,8 @@ class ProofMixin:
     async def _proof_tests(self: "AgentRunner", ctx: Ctx, held: Proof) -> str | None:
         """The project's tests on the work as it stands: a fresh run on record stands for it, else
         each is run; a failure goes back to the Orchestrator while rounds are left."""
-        held.rows = [one for one in held.rows if one["kind"] != "tests"]
+        held.rows = [one for one in held.rows if one["kind"] not in ("tests", "coverage")]
+        held.uncovered.clear()  # (S9: this pass's word on the new lines, not an earlier one's)
         if not proof.needs_tests(one.path for one in held.changes if one.in_project):
             held.rows.append(proof.row("tests", "note", proof.NO_TESTS_ROW))
             return None
@@ -199,7 +215,10 @@ class ProofMixin:
             held.rows.append(self._no_runs_row(held))
             return None
         failed = await self._all_tests(ctx, held, runs)  # (S6: related first, the rest later)
-        if not failed or held.rounds >= held.most or held.recipe_spent:
+        failed = await self._proof_before(ctx, held, failed) if failed else failed  # (S7)
+        if not failed:
+            return await self._after_pass(ctx, held, runs)  # (S7: green state, a bug fix)
+        if held.rounds >= held.most or held.recipe_spent:
             return None
         held.rounds += 1
         held.sent.append("tests fail")
@@ -207,7 +226,8 @@ class ProofMixin:
                            for _run, output in failed).replace("```", "'''")[-TESTS_TAIL_CHARS:]
         return TESTS_FAILED_LEAD.format(
             command=", ".join(quoted(run.command) for run, _output in failed),
-            rounds=held.most, output=injection.noted(tail, "agent"))
+            rounds=held.most, output=injection.noted(tail, "agent")) + (NOT_YOURS.format(
+                ids=", ".join(held.before_ids)) if held.before_ids else "")
 
     def _fresh_of(self: "AgentRunner", ctx: Ctx, run: TestRun) -> tuple[Row, str] | None:
         """A fresh run on record that stands for `run`: its row and output; None: run it."""
@@ -225,10 +245,12 @@ class ProofMixin:
             return made, ran.output
 
     async def _tests_of(self: "AgentRunner", ctx: Ctx, run: TestRun,
-                        held: Proof, until: float | None = None) -> tuple[Row, str]:
+                        held: Proof, until: float | None = None,
+                        fresh: bool = True) -> tuple[Row, str]:
         """One test command's row, and its output: from a fresh run on record, or run now.
-        `until` (S6): a whole suite that goes on after the answer from then if not over."""
-        if (reused := self._fresh_of(ctx, run)) is not None:
+        `until` (S6): a whole suite that goes on after the answer from then if not over.
+        `fresh` False (S9): run it now - the run on record failed on KOLONİ's own flags."""
+        if fresh and (reused := self._fresh_of(ctx, run)) is not None:
             return reused
         if until is not None:
             return await self._go_on_tests(ctx, run, held, until)
@@ -321,13 +343,19 @@ class ProofMixin:
     async def _run_tests_now(self: "AgentRunner", ctx: Ctx, run: TestRun, how: str, held: Proof,
                              seconds: int | None, message_id: str, check: Check,
                              load: tuple[Slots, int]) -> tuple[Row, str]:
-        args = {"command": run.command, **({"cwd": run.cwd} if run.cwd != "." else {})}
+        # (S9: with coverage's report flags where they were added - the run's name stays its own)
+        line = held.lines.get((run.command, run.cwd), run.command)
+        # (and on its call the command it was built from: `proof._known_as`)
+        args = {"command": line, **({"cwd": run.cwd} if run.cwd != "." else {}),
+                **({"known_as": run.command} if line != run.command else {})}
         request = ToolCallRequest(f"{PROOF_CALL}{uuid.uuid4().hex[:16]}", "run_command",
                                   json.dumps(args))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         check.call_id = call_id
         self._set_call(ctx.cid, call_id, status="running", started_at=now())
-        ws, taken, given, (slot, workers) = self._ws(ctx), [], {"seconds": seconds}, load
+        # (S7: on the old code's throwaway copy where it is that run)
+        ws, taken, given, (slot, workers) = held.place or self._ws(ctx), [], {
+            "seconds": seconds}, load
 
         def left() -> int | None:
             return None if check.until is None else math.ceil(check.until - time.monotonic())
@@ -358,7 +386,7 @@ class ProofMixin:
             [path for path, _kind, _state in copy.changes()])) if copy else ({}, {})
         try:
             code, output, said, ended = await self._run_in_copy(
-                ctx, ws, run.command, call_id, ask=how == "ask",
+                ctx, ws, line, call_id, ask=how == "ask",
                 once=held.yes.setdefault(run.cwd, set()), cwd=run.cwd, seconds=seconds,
                 where=in_slot, env={WORKERS_ENV: str(workers)}, over=lambda: check.later)
         except _GateRefused as exc:

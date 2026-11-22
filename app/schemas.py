@@ -730,6 +730,11 @@ class CompareChoice(BaseModel):
     run_id: str
 
 
+class CiApproveIn(BaseModel):
+    # S8: the offer Run these was shown, by its name (the row's `offer`): only it is approved.
+    offer: str = Field(min_length=64, max_length=64)
+
+
 class PlanApproveIn(BaseModel):
     # The plan as the user edited it; left out or empty: as it was proposed.
     text: str | None = Field(default=None, max_length=20_000)
@@ -871,6 +876,8 @@ class CheckedRow(BaseModel):
     # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None: no
     # count known, never made up.
     counts: CheckedCounts | None = None
+    # S8: a "ci_offer" row's offer by its name - Run these sends it back: exactly these lines.
+    offer: str | None = None
 
 
 class MessageOut(Out):

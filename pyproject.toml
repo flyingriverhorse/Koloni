@@ -20,6 +20,8 @@ dependencies = [
   "alembic>=1.16,<2",
   # A PDF's text, for one attached to a chat (slice 85b): BSD-3-Clause, pinned.
   "pypdf==6.21.4",
+  # The project's CI workflows, read for the end check's commands (kanıtlı bitiş S8): MIT.
+  "pyyaml>=6,<7",
 ]
 
 [project.optional-dependencies]

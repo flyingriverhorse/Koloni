@@ -14,7 +14,7 @@ AT = "2026-11-22 22:00:00"
 def test_check_kinds_default_empty_and_back(tmp_path):
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0165")
+    command.upgrade(cfg, "0166")
     with sqlite3.connect(db) as conn:
         conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
                      "VALUES ('p', 'p', 'C:/p', ?)", (AT,))
@@ -22,6 +22,6 @@ def test_check_kinds_default_empty_and_back(tmp_path):
     with sqlite3.connect(db) as conn:
         (kinds,) = conn.execute("SELECT check_kinds FROM projects").fetchone()
         assert json.loads(kinds) == {}
-    command.downgrade(cfg, "0165")
+    command.downgrade(cfg, "0166")
     with sqlite3.connect(db) as conn:
         assert "check_kinds" not in [row[1] for row in conn.execute("PRAGMA table_info(projects)")]
