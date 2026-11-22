@@ -106,7 +106,10 @@ def reproduces(output: str, wrote: dict[str, str]) -> bool:
     (`wrote`: its project-relative path to its text) - by the file the id names (pytest's
     `x::t`, vitest's `file > name`; from a sub-folder, the end of the path), or where the tool
     names no file (jest's `suite › name`, go's `--- FAIL: TestX`) by its name in that file. A
-    collection or syntax error names no failing test (review of S7): no reproduction."""
+    collection or syntax error names no failing test (review of S7): no reproduction.
+    shortcut: a failing name `ledger.failing_named` does not read - a jest test outside a
+    `describe` (`● adds two`), mocha's, node:test's - is none: such a run never reproduces (the
+    step is held); read those forms there if a Bugfix on such a project is seen held."""
     for one in ledger.failing_named(ledger.tail(output)):
         if "::" in one or " > " in one:
             head = re.split(r"::| > ", one)[0].strip().replace("\\", "/").removeprefix("./")

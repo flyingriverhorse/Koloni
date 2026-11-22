@@ -87,6 +87,9 @@ def test_a_reproduction_is_a_failing_test_of_a_file_it_wrote():
     assert not proof_before.reproduces(jest, {"src/bug.test.js": "it('subtracts', () => {})"})
     assert proof_before.reproduces("--- FAIL: TestAdd (0.00s)\n",
                                    {"add_test.go": "func TestAdd(t *testing.T) {}"})
+    # (shortcut, said in `reproduces`: a jest test outside a describe is a name not read - none)
+    assert not proof_before.reproduces("  ● adds two\n",
+                                       {"src/bug.test.js": "it('adds two', () => {})"})
 
 
 @pytest.mark.parametrize(("words", "fix"), [

@@ -296,9 +296,10 @@ class BeforeMixin:
                 if before is None:
                     place.unlink(missing_ok=True)
                 else:  # (its bytes as on record: no newline of the platform's put in)
-                    # shortcut: only text is on record - a binary file changed off it (by a
-                    # command: `_changed_by_command` says so; by a CLI's own file tool: not
-                    # seen) stays as it is now; keep the look's `made` per turn if one is met.
+                    # shortcut: only text is on record - a binary file changed off it stays as
+                    # it is now (by a command: `failing_before` says no old code, the bug-fix
+                    # check does not ask; by a CLI's own file tool: not seen). Keep the look's
+                    # `made` per turn if one is met.
                     place.parent.mkdir(parents=True, exist_ok=True)
                     place.write_bytes(before.encode("utf-8"))
         except Exception as exc:  # (no old code to run on: said as no "before")
