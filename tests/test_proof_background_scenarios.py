@@ -19,9 +19,11 @@ from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import (
     OWN,
     PASS,
+    SAVED,
     begin,
     checked,
     failing,
+    guess,
     proof_calls,
     run,
     texts,
@@ -629,3 +631,43 @@ def test_runs_at_once_lets_two_runs_go_together(make_client, wait_run, tmp_path,
     for cid, run_id in ((cid1, run1), (cid2, run2)):
         wait_run(client, cid, run_id)
         until(lambda c=cid, r=run_id: rows_of(client, c, r)[0]["state"] == "passed")
+
+
+# --- S1b with S6: a guessed whole suite gone on after the answer ---------------------------
+
+def found_of(client, root):
+    return next(p for p in client.get("/api/projects").json()
+                if p["root_path"] == str(root))["tests_found"]
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_guessed_suite_gone_on_after_the_answer_is_saved_as_it_ends(
+        make_client, wait_run, project_dir, gate, monkeypatch):
+    # (A slow suite always goes on after the answer: saved only in the turn, it never would be.)
+    guess(monkeypatch, PYTEST)
+    executor = ScriptedExecutor([held(gate, "....\n", "===== 4 passed in 9s =====\n")])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir)
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    assert found_of(client, project_dir) == {}
+    gate.release()
+    rows = until(lambda: (r := rows_of(client, cid, run_id)) and r[0]["state"] != "running" and r)
+    assert [row["text"] for row in rows] == [
+        f"Tests passed: {PYTEST} (guessed) - 4 passed in 9s", SAVED], rows
+    assert found_of(client, project_dir)["."]["command"] == PYTEST
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_guessed_suite_stopped_after_the_answer_saves_nothing(
+        make_client, wait_run, project_dir, gate, monkeypatch):
+    guess(monkeypatch, PYTEST)
+    executor = ScriptedExecutor([held(gate, "....\n", "===== 4 passed in 9s =====\n")])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir)
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    assert client.post(f"/api/runs/{run_id}/check/stop", headers=OWN).status_code == 200
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["state"] != "running"])
+    assert row["state"] == "not_run" and found_of(client, project_dir) == {}, row

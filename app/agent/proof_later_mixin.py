@@ -122,8 +122,8 @@ class ProofLaterMixin:
             made, output = self._unrun(run) if held.stopped else await self._tests_of(
                 ctx, run, held, until)
             held.rows.append(made)
-            # (S1b: a guess that really ran tests is saved. shortcut: not one gone on after the
-            # answer - its row is "running" here; save it as it ends if slow guesses are met.)
+            # (S1b: a guess that really ran tests is saved; one gone on after the answer, as it
+            # ends - `_ended_later`.)
             held.rows.extend(self._save_found(ctx, held, run, made, output))
             if made["state"] == "failed":
                 failed.append((run, output))
@@ -225,7 +225,7 @@ class ProofLaterMixin:
         self._checks[task] = check
         task.add_done_callback(lambda done: self._checks.pop(done, None))
         if not await self._waited(task, check.started, later):
-            return self._go_on_later(task, check, run), ""
+            return self._go_on_later(task, check, run, ctx, held), ""
         if task.cancelled():
             return self._stopped_row(check, run.command, not run.yours), ""
         return task.result()
@@ -257,8 +257,8 @@ class ProofLaterMixin:
         return proof.row("tests", "not_run", why.format(what=check.what, clock=proof.clock(took)),
                          command, guessed)
 
-    def _go_on_later(self: "AgentRunner", task: asyncio.Future, check: Check,
-                     run: TestRun) -> Row:
+    def _go_on_later(self: "AgentRunner", task: asyncio.Future, check: Check, run: TestRun,
+                     ctx: Ctx, held: "Proof") -> Row:
         """The row of a whole suite that goes on after the answer: waiting for the machine, then
         running (its clock from when it started), then as it ended - each written where it is
         (`_checked_update`). Kept in `_telling`: KOLONİ closing ends it. What it writes of
@@ -277,16 +277,21 @@ class ProofLaterMixin:
             going(check.going)
         else:
             check.going.add_done_callback(going)
-        task.add_done_callback(lambda done: self._ended_later(check, made, done))
+        task.add_done_callback(lambda done: self._ended_later(check, made, done, ctx, held, run))
         return made
 
-    def _ended_later(self: "AgentRunner", check: Check, made: Row, done: asyncio.Future) -> None:
-        """A suite gone on after its answer is over: its row as it ended. Ended by KOLONİ
+    def _ended_later(self: "AgentRunner", check: Check, made: Row, done: asyncio.Future,
+                     ctx: Ctx, held: "Proof", run: TestRun) -> None:
+        """A suite gone on after its answer is over: its row as it ended - and a guess that
+        really ran tests saved, as in the turn (`_save_found`), its row under it. Ended by KOLONİ
         closing: nothing here - the next start says so (`proof.settle_running`)."""
         if done.cancelled() and self._closing:
             return
         try:
-            self._checked_update(check, made, self._later_row(check, made, done))
+            saved = [] if done.cancelled() or done.exception() is not None else (
+                self._save_found(ctx, held, run, *done.result()))
+            held.rows.extend(saved)  # (its Checked section not yet written: there with the rest)
+            self._checked_update(check, made, self._later_row(check, made, done), *saved)
         except Exception as exc:  # (a row of KOLONİ's fails nothing)
             log.warning("run %s: the tests gone on after it not said: %r", check.run_id, exc)
 
@@ -308,10 +313,12 @@ class ProofLaterMixin:
         return {**row, "text": row["text"] + proof.CHANGED_WHILE,
                 "state": "note" if row["state"] == "passed" else row["state"]} if changed else row
 
-    def _checked_update(self: "AgentRunner", check: Check, row: Row, new: Row) -> None:
-        """`row` of the turn's Checked section is now `new`: in the turn's rows still to be
-        written, and in its "checked" message where that is written - sent again under the same
-        id, which the page puts in place of the first."""
+    def _checked_update(self: "AgentRunner", check: Check, row: Row, new: Row,
+                        *after: Row) -> None:
+        """`row` of the turn's Checked section is now `new` (and `after` follows it in the
+        written one): in the turn's rows still to be written, and in its "checked" message where
+        that is written - sent again under the same id, which the page puts in place of the
+        first."""
         was = dict(row)
         row.update(new)  # (every key of a row: none of the old is left)
         try:
@@ -321,7 +328,8 @@ class ProofLaterMixin:
                 rows = list((note.blocks or {}).get("rows", [])) if note is not None else []
                 if note is None or was not in rows:
                     return
-                rows[rows.index(was)] = dict(new)
+                at = rows.index(was)
+                rows[at:at + 1] = [dict(new), *map(dict, after)]
                 note.blocks, note.content = {"rows": rows}, proof.checked_text(rows)
                 session.commit()
                 payload = message_out(note)
