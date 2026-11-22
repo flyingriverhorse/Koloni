@@ -3,15 +3,15 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { expect, test } from 'vitest'
 import type { Message } from '../api/types'
 import { agent, assistantMessage, command, convState, run, toolCall } from '../test-fixtures'
-import { type ChecksData, checksNode, stripOf, toolOf } from './checksNode'
+import { type ChecksData, checksNode, lineOf, stripOf, toolOf } from './checksNode'
 import { type AgentData, deriveGraph, type GraphEdge, type GraphNode } from './deriveGraph'
 import { ChecksNode } from './nodes'
 
 type Row = NonNullable<Message['checked']>[number]
 const row = (state: Row['state'], text: string, more: Partial<Row> = {}): Row => ({ kind: 'tests', state, text, command: null, guessed: false, started_at: null, counts: null, ...more })
 const checked = (rows: Row[]): Message => ({ ...assistantMessage('k', 'r', 'x'), role: 'checked', agent_id: null, checked: rows })
-const proofCall = (id: string, status: 'running' | 'succeeded', started = '2026-10-05T10:00:03Z') =>
-  toolCall(id, 'r', 'run_command', status, JSON.stringify({ command: 'python -m pytest -q' }), { provider_call_id: `koloni_proof_${id}`, started_at: started })
+const proofCall = (id: string, status: 'running' | 'succeeded', started = '2026-10-05T10:00:03Z', line = 'python -m pytest -q') =>
+  toolCall(id, 'r', 'run_command', status, JSON.stringify({ command: line }), { provider_call_id: `koloni_proof_${id}`, started_at: started })
 
 function drawn(state: ReturnType<typeof convState>) {
   const nodes: GraphNode[] = [{ id: 'agent:r', kind: 'agent', runId: 'r', refId: 'r', data: {} as AgentData }]
@@ -21,8 +21,13 @@ function drawn(state: ReturnType<typeof convState>) {
 }
 
 test('a test run at work shows its tool and when it started, and no number it has not got', () => {
-  const { data, nodes } = drawn(convState({ runs: [run('r')], agents: [agent('r')], toolCalls: [proofCall('p1', 'running')] }))
-  expect(data?.running).toEqual({ command: 'python -m pytest -q', since: '2026-10-05T10:00:03Z' })
+  // (Its clock is its command's: the call may have waited for a free slot before it ran.)
+  const waiting = drawn(convState({ runs: [run('r')], agents: [agent('r')], toolCalls: [proofCall('p1', 'running')] }))
+  expect(waiting.data?.running).toEqual({ command: 'python -m pytest -q', since: null })
+  const { data, nodes } = drawn(
+    convState({ runs: [run('r')], agents: [agent('r')], toolCalls: [proofCall('p1', 'running')], commands: [command('c1', 'r', { tool_call_id: 'p1', started_at: '2026-10-05T10:00:09Z' })] }),
+  )
+  expect(data?.running).toEqual({ command: 'python -m pytest -q', since: '2026-10-05T10:00:09Z' })
   expect(data?.lines).toEqual([])
   expect((nodes[0].data as AgentData).checked).toBe('● checking…')
 })
@@ -49,6 +54,24 @@ test('a fix round is a line back to the Orchestrator, and its strip counts it', 
   expect(data?.rounds).toBe(1)
   expect(edges.find(e => e.round)).toMatchObject({ source: 'checks:r', target: 'agent:r', round: 'round 1 of 2: tests fail' })
   expect((nodes[0].data as AgentData).checked).toBe('✓ checked · 1 round')
+})
+
+test('two parts failing in one pass are one round, not two; a pass again is one', () => {
+  const failing = (id: string, line: string, started: string) => [proofCall(id, 'succeeded', started, line), command(`c${id}`, 'r', { tool_call_id: id, exit_code: 1 })] as const
+  const [api, apiRun] = failing('p1', 'mvn test', '2026-10-05T10:00:03Z')
+  const [web, webRun] = failing('p2', 'npm test', '2026-10-05T10:00:04Z')
+  const one = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], toolCalls: [api, web], commands: [apiRun, webRun] }))
+  expect(one.data?.rounds).toBe(0)
+  const [again, againRun] = failing('p3', 'mvn test', '2026-10-05T10:02:00Z')
+  const two = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], toolCalls: [api, web, again], commands: [apiRun, webRun, againRun] }))
+  expect(two.data?.rounds).toBe(1)
+})
+
+test('a count with none passed or failed is the row’s own words; go counts packages', () => {
+  const skipped = row('passed', 'Tests passed: npx jest (guessed) - 2 skipped', { command: 'npx jest', counts: { passed: 0, failed: 0, skipped: 2, unit: 'tests' } })
+  expect(lineOf(skipped)).toEqual({ state: 'passed', text: skipped.text })
+  const go = row('failed', 'Tests failed', { command: 'go test ./...', counts: { passed: 3, failed: 1, skipped: 0, unit: 'packages' } })
+  expect(lineOf(go)).toEqual({ state: 'failed', text: 'go · 3 packages ✓ · 1 ✗' })
 })
 
 test('nothing checked: no node, and the canvas draws it through deriveGraph where there is', () => {
