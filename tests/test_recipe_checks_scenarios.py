@@ -583,7 +583,7 @@ def test_a_room_that_reviews_opens_with_the_one_who_built_it():
 
 
 def test_a_review_with_no_loop_that_leaves_findings_stops_before_the_next_step():
-    # As the seeded Bugfix's Test it: no loop of its own, Review it after it.
+    # As the seeded Bugfix's Test it was before 0161: no loop of its own, Review it after it.
     from app import recipe_run
     state = run_of(graph(
         [part("test", "Test it", {"role": "Tester"}, done_when="no_findings"),
