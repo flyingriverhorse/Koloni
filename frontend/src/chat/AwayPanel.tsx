@@ -113,7 +113,7 @@ function AwayTasks({ tasks, cid, on, onTick, onMove }: TasksProps) {
         {tasks.map((task, i) => (
           <li key={task.id} className="away-task">
             <DotsSixVertical size={12} aria-hidden />
-            <label className="away-grow">
+            <label className="away-task-name">
               <input type="checkbox" checked={on.has(task.id)} disabled={!on.has(task.id) && on.size >= MOST} onChange={() => onTick(task.id)} /> {task.title}
             </label>
             <span className="tag">{task.proposed_in === cid ? 'new · from this chat' : `on To-do since ${weekday(task.created_at)}`}</span>
