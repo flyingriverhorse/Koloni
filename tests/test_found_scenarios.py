@@ -44,6 +44,9 @@ def test_a_guess_that_really_ran_tests_is_saved_and_said(make_client, wait_run, 
     assert texts(snap) == ["Tests passed: python -m pytest -q (guessed) - 4 passed in 0.1s", SAVED]
     found = project(client, project_dir)["tests_found"]
     assert found["."]["command"] == "python -m pytest -q" and found["."]["from"] == "guess"
+    # (CL-316: Settings is told at once - the page reads the project again.)
+    with client.stream("GET", f"/api/conversations/{cid}/events?after=0&once=1") as stream:
+        assert "event: project.changed" in stream.read().decode("utf-8")
     # (The next turn runs it as the project's own: no "guessed", nothing saved again.)
     rows = again(client, cid, wait_run)
     assert [row["text"] for row in rows] == ["Tests passed: python -m pytest -q - 4 passed in 0.1s"]
@@ -186,28 +189,46 @@ def test_what_koloni_found_can_be_forgotten_from_the_apps_own_page(client, proje
     assert (seen["tests_found"], seen["tests_look"]) == ({}, None)
 
 
-def test_a_saved_command_runs_unasked_at_ask_as_the_projects_but_never_in_a_trigger_turn(
-        make_client, wait_run, project_dir, monkeypatch):
-    # (What a save grants: the end check runs it as the project's own in a turn you are there
-    # for - no level card at Ask; a trigger's turn still needs its leave for that very command.)
+def saved_project(client, project_dir, **entry) -> str:
+    """The project of `project_dir` with `python -m pytest -q` saved as its test command."""
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    with client.app.state.session_factory() as session:
+        session.get(Project, pid).tests_found = {".": {
+            "command": "python -m pytest -q", "from": "guess", "at": "x", **entry}}
+        session.commit()
+    return pid
+
+
+def asked_for(client, cid):
+    from tests.test_agent_writes import wait_status
+    snap = wait_status(client, cid, "waiting_approval")
+    return [c for c in snap["commands"] if c["status"] == "proposed"]
+
+
+def test_a_saved_command_waits_on_a_card_at_ask_and_never_runs_in_a_trigger_turn(
+        make_client, wait_run, project_dir):
+    # (Option A, 22 Nov: a save is no leave of the user's - at Ask its run waits on a card, as a
+    # guess's; a trigger's turn still needs its leave for that very command.)
     from tests.test_triggers import leave, run_now, trigger
 
     executor = ScriptedExecutor([PASS])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
                                   write("a.py", "x = 2\n", "w2"), text("done")], executor=executor)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    with client.app.state.session_factory() as session:
-        found = session.get(Project, pid)
-        found.tests_found = {".": {"command": "python -m pytest -q", "from": "guess", "at": "x"}}
-        session.commit()
+    pid = saved_project(client, project_dir)
     cid, run_id = begin(client, project_dir, mode="ask")
-    # (At Ask the write itself waits on its card: approve it; the saved command asks nothing.)
+    # (At Ask the write itself waits on its card first: approved, then the saved command's.)
     from tests.test_agent_writes import wait_status
     snap = wait_status(client, cid, "waiting_approval")
     (change,) = [c for c in snap["file_changes"] if c["status"] == "proposed"]
     assert client.post(f"/api/file-changes/{change['id']}/approve", headers=OWN).status_code == 200
+    (card,) = asked_for(client, cid)
+    assert card["command"] == "python -m pytest -q" and executor.started == []
+    assert client.post(f"/api/commands/{card['id']}/approve", json={"remember": False},
+                       headers=OWN).status_code == 200
     rows = checked(wait_run(client, cid, run_id))
-    assert rows[0]["state"] == "passed" and len(executor.started) == 1
+    assert (rows[0]["state"], rows[0]["text"]) == (
+        "passed", "Tests passed: python -m pytest -q - 4 passed in 0.1s") and len(executor.started) == 1
+    assert "always" not in project(client, project_dir)["tests_found"]["."]  # (a yes, once)
     client.headers["Origin"] = OWN["Origin"]
     client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
     made = trigger(client, pid, cid, permissions=leave(write=True))
@@ -216,6 +237,33 @@ def test_a_saved_command_runs_unasked_at_ask_as_the_projects_but_never_in_a_trig
     (rows,) = [m["checked"] for m in snap["messages"] if m["role"] == "checked"
                and m["run_id"] == second]
     assert rows[0]["state"] == "not_run" and len(executor.started) == 1, rows
+
+
+def test_always_on_a_saved_commands_card_lets_it_run_unasked_from_then_on(
+        make_client, wait_run, project_dir):
+    # (Option A: the card's Always is the user's leave for that very line, in the project.)
+    executor = ScriptedExecutor([PASS, PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write("a.py", "x = 2\n", "w2"), text("done")], executor=executor)
+    saved_project(client, project_dir)
+    cid, run_id = begin(client, project_dir, mode="auto_edit")
+    (card,) = asked_for(client, cid)
+    assert client.post(f"/api/commands/{card['id']}/approve", json={"remember": True},
+                       headers=OWN).status_code == 200
+    assert checked(wait_run(client, cid, run_id))[0]["state"] == "passed"
+    assert project(client, project_dir)["tests_found"]["."]["always"] is True
+    rows = again(client, cid, wait_run)  # (no card: it would wait here)
+    assert rows[0]["state"] == "passed" and len(executor.started) == 2
+
+
+def test_a_saved_command_with_always_runs_unasked_in_another_chat(make_client, wait_run,
+                                                                   project_dir):
+    executor = ScriptedExecutor([PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    saved_project(client, project_dir, always=True)
+    cid, run_id = begin(client, project_dir, mode="auto_edit")
+    assert checked(wait_run(client, cid, run_id))[0]["state"] == "passed"
+    assert len(executor.started) == 1
 
 
 # (review of S1b: what is never run, never saved, never guessed)
@@ -377,7 +425,7 @@ def test_a_save_sets_its_own_folder_alone_and_never_over_one_made_meanwhile(clie
             other.commit()
         return found
     monkeypatch.setattr(MemoryMixin, "_project", meanwhile)
-    ctx = SimpleNamespace(cid=cid)
+    ctx = SimpleNamespace(cid=cid, run_id=None)  # (its save tells the page: `project.changed`)
     assert runner._found_saved(ctx, TestRun("npx vitest run", "web", False), "agent") is None
     made = runner._found_saved(ctx, TestRun("go test ./...", "svc", False), "guess")
     assert made is not None and made["text"] == SAVED

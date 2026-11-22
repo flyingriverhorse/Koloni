@@ -85,9 +85,10 @@ failed), KOLONİ saves it as this project's test command for that folder, with n
 section says "Saved as this project's test command - change it in Settings". A guess that ran no
 test, or no test tool, is never saved, and a command of yours is never replaced.
 
-Settings › This project › Checks and git shows each saved command under **Found by KOLONİ**, where
-it came from and when. **Forget it** clears them; they are found again at the next change. A
-saved command runs as the project's for this check only. It is not your **Test before adding**:
+Settings › This project › Checks and git shows each saved command under **Found by KOLONİ** as
+soon as it is saved, where it came from and when. **Forget it** clears them; they are found again
+at the next change. A saved command runs as the project's for this check only, and below **Full
+auto** on a card until you say **Always** on it (see [Asking](#asking)). It is not your **Test before adding**:
 it does not check a sub-agent's work before it is taken in, and agents and triggers do not get to
 run it unasked. To make it yours, set it there.
 
@@ -108,10 +109,16 @@ KOLONİ's test run is asked about as the Orchestrator's own command would be:
   Your yes holds for the rest of the turn, for that command in that folder only: the same command
   in another part of the project is asked again. At **Full auto**, or under an **Always run**
   rule, it runs by itself.
+- A command KOLONİ saved (see [Saved by KOLONİ](#saved-by-koloni)) is not a
+  leave of yours: at **Ask before changes** and **Auto-edit files** it waits on a card like a
+  guess. **Always** on that card keeps it as yours for that very line in this project: from then
+  on it runs without a card, in every chat, and while you're away. At **Full auto** it runs by
+  itself.
 - While you're away (a job of **Away**, or a To-do task's turn while Away runs) a guessed
   command is not run: the section says "Tests not run: a guessed command, you were away", and the
-  job finishes. Your own command still runs. A To-do task you run from the screen asks as any
-  turn does.
+  job finishes. Nor is a saved command you have not said **Always** to: "Tests not run: a saved
+  command no Always rule covers, you were away". Your own command still runs. A To-do task you
+  run from the screen asks as any turn does.
 - In a trigger's turn it runs only where the trigger allows that very command. Otherwise the
   section says "Tests not run" with the trigger's words.
 
@@ -198,7 +205,10 @@ the related tests (see [On the canvas](#on-the-canvas)).
   have changed files.
 - What the suite writes of the files that steer later work (`.vscode/`, `.claude/`, an
   instruction file, `.koloni/`) is taken back when it ends, as for any command; after its turn,
-  with no card. What another turn wrote there meanwhile stays.
+  with no card. What another turn wrote there meanwhile stays. Where its card asks you ("KOLONİ's
+  test run wrote `AGENTS.md` without naming it — taken back. Keep it?"), the section says "Full
+  tests ran: `command` - waiting for your answer on a file the tests wrote" until you answer,
+  with no clock.
 - **Stop everything** and putting the chat away stop it too. If KOLONİ closes while it runs,
   the next start says "Tests not finished: KOLONİ restarted".
 - A job while you're away, a To-do task's turn and a trigger's turn have nobody waiting for

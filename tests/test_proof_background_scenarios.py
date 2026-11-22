@@ -728,3 +728,37 @@ def test_two_suites_of_one_turn_do_not_unmake_each_others_pass(make_client, wait
     rows = until(lambda: (r := rows_of(client, cid, run_id)) and len(
         [one for one in r if one["kind"] == "tests" and one["state"] != "running"]) == 2 and r)
     assert [row["state"] for row in rows] == ["passed", "passed"], rows
+
+
+def test_a_file_the_suite_wrote_is_koloni_s_on_its_card_and_its_row_stops_counting(
+        make_client, wait_run, project_dir, monkeypatch):
+    # (CL-316: the card said "Lead wrote AGENTS.md", and while it waited after the run had ended
+    # the row went on counting "Full tests running (1:20)".)
+    monkeypatch.setattr(proof_later_mixin, "DETACH_SECONDS", scaled(1.0))
+    executor = ScriptedExecutor([Script(["4 passed\n"], writes={"AGENTS.md": "# anything goes\n"})])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["text"] == proof.FULL_ON_CARD.format(command="python check.py")])
+    assert (row["state"], row["started_at"]) == ("running", None), row
+    (asked,) = until(lambda: [q for q in client.get(f"/api/conversations/{cid}").json()["questions"]
+                              if q["status"] == "pending"])
+    assert asked["question"].startswith("KOLONİ's test run wrote `AGENTS.md` without naming it")
+    said = client.post(f"/api/questions/{asked['id']}/answer", json={"answer": "Take back"},
+                       headers=OWN)
+    assert said.status_code == 200, said.text
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["state"] != "running"])
+    assert row["text"] == "Tests passed: python check.py - 4 passed", row
+    assert not (project_dir / "AGENTS.md").exists()
+
+
+def test_the_settings_note_says_the_waits_the_server_keeps():
+    # (CL-316: Settings said 2 minutes where the whole suite waits 1 before it goes on.)
+    from pathlib import Path
+
+    from app.agent import proof_mixin
+    note = Path(__file__).parent.parent / "frontend/src/shell/sections/AfterChange.tsx"
+    assert (f"WAITS = {{ detach: {proof_later_mixin.DETACH_SECONDS}, "
+            f"copy: {proof_mixin.END_WAIT_SECONDS} }}") in note.read_text(encoding="utf-8")

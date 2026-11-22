@@ -513,6 +513,21 @@ test('a note written on the shared notebook reaches the open conversation', asyn
   expect(useApp.getState().conv?.boardPosts).toEqual([written])
 })
 
+test('a project KOLONİ saved a test command for is read again, so Settings shows it at once (CL-316)', async () => {
+  const found = { '.': { command: 'python -m pytest -q', from: 'guess', at: 't' } }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url.endsWith('/projects/p')) return new Response(JSON.stringify({ id: 'p', name: 'demo', tests_found: found }), { status: 200 })
+      return new Response(JSON.stringify(snapshot('a')), { status: 200 })
+    }),
+  )
+  useApp.setState({ projectId: 'p', projects: [{ id: 'p', name: 'demo', tests_found: {} } as never] })
+  await useApp.getState().openConversation('a')
+  FakeEventSource.open()[0].emit('project.changed', { project_id: 'p' }, '9')
+  await vi.waitFor(() => expect(useApp.getState().projects[0].tests_found).toEqual(found))
+})
+
 test('the memory is read when asked for, and again when it changes - not before it was looked at', async () => {
   const asked: string[] = []
   let core: unknown[] = []

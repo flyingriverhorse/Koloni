@@ -131,7 +131,7 @@ test('After a change saves after_change', async () => {
   const box = screen.getByLabelText('After a change')
   expect(box).toHaveValue('check')
   expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Check it', 'Tests only', 'Nothing'])
-  expect(box).toHaveAccessibleDescription(/runs this project’s tests once on the work as it now stands.*waits at most 2 minutes/)
+  expect(box).toHaveAccessibleDescription(/runs this project’s tests once on the work as it now stands.*at most 1 minute for the whole suite.*at most 2 minutes for them all/)
   await userEvent.selectOptions(box, 'tests')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ after_change: 'tests' })

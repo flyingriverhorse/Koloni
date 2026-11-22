@@ -81,7 +81,8 @@ class Check:
     """One of KOLONİ's test runs at a turn's end, while it runs: whose, what it is called in its
     row, the command and folder it runs, how long its turn's pass waits for it (`until`, None:
     to its own limit), once it is past its card (`started`), once it has the machine (`going`,
-    with when), its call, whether it went on after the answer, and why it was stopped."""
+    with when), its call, whether it went on after the answer, why it was stopped, and once its
+    run ended and waits on the user's answer on a file it wrote (`on_card`)."""
     run_id: str
     cid: str
     project_id: str
@@ -94,6 +95,7 @@ class Check:
     call_id: str | None = None
     later: bool = False
     why: str | None = None
+    on_card: asyncio.Future = field(default_factory=lambda: _future())
 
 
 class ProofLaterMixin:
@@ -155,7 +157,7 @@ class ProofLaterMixin:
     @staticmethod
     def _unrun(run: TestRun) -> tuple[Row, str]:
         return proof.row("tests", "not_run", proof.NOT_RUN.format(why=YOU_STOPPED), run.command,
-                         not run.yours), ""
+                         run.guessed), ""
 
     async def _go_on_tests(self: "AgentRunner", ctx: Ctx, run: TestRun, held: "Proof",
                            until: float) -> tuple[Row, str]:
@@ -167,7 +169,7 @@ class ProofLaterMixin:
         how = self._may_run_tests(ctx, run)
         if how not in ("run", "ask"):
             return proof.row("tests", "not_run", proof.NOT_RUN.format(why=how), run.command,
-                             not run.yours), ""
+                             run.guessed), ""
         return await self._run_tests(ctx, run, how, held, None,
                                      0.0 if slow else max(0.0, until - time.monotonic()))
 
@@ -206,6 +208,13 @@ class ProofLaterMixin:
                              *max(writes, key=lambda one: one[0])[1:])
                 for rel, writes in found.items()}
 
+    def _on_file_card(self: "AgentRunner", call_id: str) -> None:
+        """CL-316: the check whose run (its call) ended and now waits on the user's answer on a
+        file it wrote - its row says so, and stops counting (`_go_on_later`)."""
+        for check in list(self._checks.values()):
+            if check.call_id == call_id and not check.on_card.done():
+                check.on_card.set_result(None)
+
     def checks_in(self: "AgentRunner", project_id: str) -> str | None:
         """Why a project is not deleted now: a test run of KOLONİ's in it runs, or waits for the
         machine - it would start later in a folder no longer KOLONİ's."""
@@ -227,7 +236,7 @@ class ProofLaterMixin:
         if not await self._waited(task, check.started, later):
             return self._go_on_later(task, check, run, ctx, held), ""
         if task.cancelled():
-            return self._stopped_row(check, run.command, not run.yours), ""
+            return self._stopped_row(check, run.command, run.guessed), ""
         return task.result()
 
     @staticmethod
@@ -267,16 +276,23 @@ class ProofLaterMixin:
         self._telling.add(task)
         task.add_done_callback(self._telling.discard)
         made = proof.row("tests", "running", proof.FULL_QUEUED.format(command=run.command),
-                         run.command, not run.yours)
+                         run.command, run.guessed)
 
         def going(at: asyncio.Future) -> None:
+            if not check.on_card.done():
+                self._checked_update(check, made, {
+                    **made, "text": proof.FULL_RUNNING.format(command=run.command),
+                    "started_at": at.result().isoformat()})
+
+        def on_card(_at: asyncio.Future) -> None:  # (CL-316: no clock while it waits on you)
             self._checked_update(check, made, {
-                **made, "text": proof.FULL_RUNNING.format(command=run.command),
-                "started_at": at.result().isoformat()})
+                **made, "text": proof.FULL_ON_CARD.format(command=run.command),
+                "started_at": None})
         if check.going.done():
             going(check.going)
         else:
             check.going.add_done_callback(going)
+        check.on_card.add_done_callback(on_card)
         task.add_done_callback(lambda done: self._ended_later(check, made, done, ctx, held, run))
         return made
 

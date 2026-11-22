@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app import project_map
+from app.commands import ANSI as _ANSI
 from app.commands import (
     MAX_STORED_OUTPUT,
     OutputMask,
@@ -159,8 +160,6 @@ SERVE_AT_MOST = 10.0
 MAX_SERVING = 3
 # How a command ended: its status, exit code, output, and why it failed to start if it did.
 Ended = tuple[str, int | None, str, str | None]
-# A terminal's colours, and its links (OSC 8: an address round an address).
-_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 # An address on this machine with its port, as a server prints it - up to the space after it,
 # so that one cut between two chunks of output is not taken half.
 _LOOPBACK = re.compile(

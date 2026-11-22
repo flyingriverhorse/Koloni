@@ -70,6 +70,39 @@ def test_test_runs_take_the_users_command_then_each_parts_then_the_guess(tmp_pat
 
 RUN = proof.TestRun("pytest -q", ".", True)
 
+# CL-316 (BULGU C): pytest's real output with `--color=yes` (and `FORCE_COLOR`, as Playwright starts
+# KOLONİ) - a code stands before each number - and the same runs without colour.
+COLOURED = {
+    "passed": ("\x1b[32m.\x1b[0m\x1b[32m" + " " * 72 + "[100%]\x1b[0m\n\x1b[32m\x1b[32m\x1b[1m1 "
+               "passed\x1b[0m\x1b[32m in 0.01s\x1b[0m\x1b[0m\n"),
+    "skipped": ("\x1b[33ms\x1b[0m\x1b[33m" + " " * 72 + "[100%]\x1b[0m\n\x1b[33m\x1b[33m\x1b[1m1 "
+                "skipped\x1b[0m\x1b[33m in 0.01s\x1b[0m\x1b[0m\n"),
+    "failed": ("\x1b[31mF\x1b[0m\x1b[31m" + " " * 72 + "[100%]\x1b[0m\n\x1b[1m\x1b[31mE       assert "
+               "1 == 2\x1b[0m\n\x1b[1m\x1b[31mtest_calc054.py\x1b[0m:5: AssertionError\n\x1b[36m\x1b[1m"
+               "=========================== short test summary info ===========================\x1b"
+               "[0m\n\x1b[31mFAILED\x1b[0m test_calc054.py::\x1b[1mtest_x\x1b[0m - assert 1 == 2\n\x1b"
+               "[31m\x1b[31m\x1b[1m1 failed\x1b[0m\x1b[31m in 0.05s\x1b[0m\x1b[0m\n"),
+}
+PLAIN = {
+    "passed": "." + " " * 72 + "[100%]\n1 passed in 0.01s\n",
+    "skipped": "s" + " " * 72 + "[100%]\n1 skipped in 0.01s\n",
+    "failed": ("F" + " " * 72 + "[100%]\nE       assert 1 == 2\ntest_calc054.py:5: AssertionError\n"
+               "=========================== short test summary info ===========================\n"
+               "FAILED test_calc054.py::test_x - assert 1 == 2\n1 failed in 0.05s\n"),
+}
+
+
+@pytest.mark.parametrize("outputs", [COLOURED, PLAIN], ids=["colour", "plain"])
+@pytest.mark.parametrize(("kind", "code", "state", "text"), [
+    ("passed", 0, "passed", "Tests passed: pytest -q - 1 passed in 0.01s"),
+    ("skipped", 0, "not_run", "Tests skipped only: pytest -q - 1 skipped in 0.01s"),
+    ("failed", 1, "failed", "Tests failed: pytest -q - 1 failed in 0.05s"),
+    ("failed", 0, "failed", "Tests failed: pytest -q - 1 failed in 0.05s"),  # (its exit masked)
+])
+def test_a_coloured_run_is_read_as_a_plain_one(outputs, kind, code, state, text):
+    made = proof.tests_row(RUN, code, outputs[kind], "exited", "")
+    assert (made["state"], made["text"]) == (state, text)
+
 
 def test_tests_row_states():
     passed = proof.tests_row(RUN, 0, "....\n===== 4 passed in 0.1s =====\n", "exited", "")

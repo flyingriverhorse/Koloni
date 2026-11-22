@@ -291,9 +291,22 @@ def test_a_masked_run_is_said_to_give_no_verdict(factory):
     (" FAIL  src/a.test.ts > sums > adds two\n Test Files  1 failed", ["src/a.test.ts > sums > adds two"]),
     ("--- FAIL: TestAdd (0.00s)\nFAIL", ["TestAdd"]),
     ("2 failed, 3 passed", []),
+    # (CL-316: pytest's coloured line)
+    ("\x1b[31mFAILED\x1b[0m test_calc054.py::\x1b[1mtest_x\x1b[0m - assert 1 == 2\n",
+     ["test_calc054.py::test_x"]),
 ])
 def test_the_tests_a_failed_run_names(output, names):
     assert ledger.failing_named(output) == names
+
+
+def test_a_coloured_run_is_read_as_a_plain_one(ran, factory):
+    from tests.test_proof import COLOURED
+    # (Its exit masked, a failure it counts is one; and passing, it clears one.)
+    assert ran(("pytest -q | tail -3", 0, COLOURED["failed"])) == "pytest -q | tail -3"
+    assert ran(("pytest -q", 1, COLOURED["failed"]), ("pytest -q", 0, COLOURED["passed"])) is None
+    with factory() as s:
+        record(s, ("pytest -q", 0, COLOURED["passed"]))
+        assert ledger.of_turn(s, "r").endswith('- last tests: "pytest -q" exit 0, "1 passed in 0.01s"')
 
 
 @pytest.mark.parametrize(("before", "covered"), [

@@ -13,7 +13,7 @@ from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
 
 from app import finish_tests, ledger, project_map, test_found
-from app.commands import only_reads
+from app.commands import only_reads, plain
 from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run, ToolCall
 from app.tools import MAX_TIMEOUT
 from app.workspace import in_scratch, unified_diff
@@ -71,10 +71,17 @@ def needs_tests(paths: Iterable[str]) -> bool:
 
 class TestRun(NamedTuple):
     """A test command, the folder it runs in (project-relative POSIX, "." the root), and whether
-    it is the user's own (else KOLONİ's guess from the project's files)."""
+    it runs as the user's own - their command, or one KOLONİ saved that an Always rule covers
+    (else on a card below Full auto: KOLONİ's guess, or a saved one no rule covers); and whether
+    KOLONİ saved it (`Project.tests_found`: no guess any more, said so)."""
     command: str
     cwd: str
     yours: bool
+    saved: bool = False
+
+    @property
+    def guessed(self) -> bool:
+        return not (self.yours or self.saved)
 
 
 def test_runs(project: Project, found: dict | None) -> list[TestRun]:
@@ -328,12 +335,14 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
               seconds: int = MAX_TIMEOUT) -> Row:
     """A test run as its Checked row: failed is any exit but 0 (pytest's 5, nothing collected,
     aside) or a failure its output counts; never passed without exit code 0. `ended`: its
-    record's status (None: none - it never started); `seconds`: the wait it was given."""
-    guessed = "" if run.yours else " (guessed)"
+    record's status (None: none - it never started); `seconds`: the wait it was given. Its
+    output is read with its colours off (`commands.plain`: CL-316)."""
+    output = plain(output)
+    guessed = " (guessed)" if run.guessed else ""
     found = test_found.counts(output, run.command)
 
     def made(state: str, text: str) -> Row:
-        return {**row("tests", state, text, run.command, not run.yours),
+        return {**row("tests", state, text, run.command, run.guessed),
                 "counts": found._asdict() if found else None}
     if ended in (None, "failed_to_start") or code not in (0, None) and (
             finish_tests.did_not_start(code, output)):
@@ -370,6 +379,8 @@ def checked_text(rows: list[Row]) -> str:
 # to end (no `started_at`), then running (`started_at` set: the page ticks its clock).
 FULL_QUEUED = "Full tests waiting for another test run to end: {command}"
 FULL_RUNNING = "Full tests running: {command}"
+# ...its run over, waiting on the user's answer on a file it wrote (CL-316: no clock counts then).
+FULL_ON_CARD = "Full tests ran: {command} - waiting for your answer on a file the tests wrote"
 FULL_HELD = "Full tests not run: the related tests fail"
 SUPERSEDED = "Tests not finished: the project changed, and a newer run took their place"
 RESTARTED = "Tests not finished: KOLONİ restarted"

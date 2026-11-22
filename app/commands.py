@@ -3482,6 +3482,16 @@ def is_allowed(command: str, prefixes: Iterable[str]) -> bool:
     return any(matches(command, prefix) for prefix in prefixes)
 
 
+# A terminal's colours, and its links (OSC 8: an address round an address).
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+
+
+def plain(output: str) -> str:
+    """A command's output as it reads on a screen: its colours and links' codes off (CL-316: a
+    coloured `1 passed` is no count where a code stands before its number)."""
+    return ANSI.sub("", output)
+
+
 # K-gecmis-zengin: said beside an output that was cut, or left out of a history to fit - its
 # call's id, which recall_output gives the whole of (`AgentRunner._recall_output`).
 RECALL_HINT = " (full: recall_output id={id})"
