@@ -31,7 +31,8 @@ for (const theme of ['light', 'dark'] as const)
     await box.fill('/plan')
     await page.keyboard.press('Enter')
     // On, the level's button says so: "Ask · plan", named "Plan first on".
-    await expect(chat.getByRole('button', { name: 'Permission level: Ask before changes, Plan first on' })).toHaveText(/^Ask · plan$/)
+    // (The e2e project's After a change is Nothing - `helpers.ts` - and S10 says so on the button: " · no checks".)
+    await expect(chat.getByRole('button', { name: /^Permission level: Ask before changes, Plan first on/ })).toHaveText(/^Ask · plan · no checks$/)
     await levelMenu.click()
     await expect(planFirst).toBeChecked()
     // (The menu's switch rows: Plan first, and the project's Check what I said first - each reads.)
@@ -42,7 +43,7 @@ for (const theme of ['light', 'dark'] as const)
     // At 340 px the row keeps it on its one line, inside the chat.
     const narrow = await page.addStyleTag({ content: '.stage { --chat-w: 340px !important; }' })
     await expect.poll(async () => Math.round((await chat.boundingBox())!.width)).toBe(340)
-    await expect(levelMenu).toHaveText(/^Ask · plan$/)
+    await expect(levelMenu).toHaveText(/^Ask · plan · no checks$/)
     const row = await chat.locator('.composer-bar').evaluate(bar => {
       const edge = bar.getBoundingClientRect()
       return { height: Math.round(edge.height), past: [...bar.children].filter(c => c.getBoundingClientRect().right > edge.right + 1).map(c => c.className) }

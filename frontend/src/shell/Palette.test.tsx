@@ -21,7 +21,7 @@ const health = {
 }
 const role = (id: string, name: string) => ({
   id, name, description: '', instructions: `${name}'s instructions`, tools: ['read_file'], builtin: false, created_by_agent: false, models: null,
-  provider_id: null, model_id: null, tier: null, tier_min: null, tier_max: null, kind: 'build', enabled: true, teams: [], pick_from: null, max_steps: null, max_tokens: null, mcp: [], created_at: 't', updated_at: 't',
+  provider_id: null, model_id: null, tier: null, tier_min: null, tier_max: null, kind: 'build', enabled: true, teams: [], pick_from: null, max_steps: null, max_tokens: null, mcp: [], locked_tools: [], created_at: 't', updated_at: 't',
 })
 const listed = (id: string, title: string) => ({ ...conversation, id, title, kept: false, created_at: '2026-10-17T10:00:00Z', updated_at: '2026-10-17T10:00:00Z' })
 const snapshot = (id: string, messages: unknown[] = []) => ({

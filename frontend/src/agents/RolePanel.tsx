@@ -258,7 +258,7 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
                   const on = has.includes(tool.name)
                   // The server keeps a role with at least one tool: the last one stays on; and a core role's
                   // locked tools (Karar 5).
-                  const locked = role.locked_tools.includes(tool.name)
+                  const locked = role.locked_tools?.includes(tool.name) ?? false
                   const keep = on && (locked || has.length === 1)
                   return (
                     <button
