@@ -9802,6 +9802,12 @@ export interface components {
             kind: string;
             /** Knows */
             knows: components["schemas"]["KnowsOut"][];
+            /**
+             * Locked Tools
+             * @description Karar 5: the tools it keeps whatever the user takes away, as `app.roles.locked_tools`
+             *     gives them (a core role's: never off either); [] for any other.
+             */
+            readonly locked_tools: string[];
             /** Max Effort */
             max_effort: ("off" | "low" | "medium" | "high" | "xhigh" | "max") | null;
             /** Max Steps */

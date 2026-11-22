@@ -13,7 +13,7 @@ const role = (over: Partial<Role>): Role => ({
   instructions: 'Write it.',
   tools: ['read_file', 'write_file'],
   builtin: false,
-  created_by_agent: false,
+  created_by_agent: false, locked_tools: [],
   models: null,
   provider_id: null,
   model_id: null,
