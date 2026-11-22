@@ -93,6 +93,13 @@ class Proof:
     # S6: the user stopped a check of the turn - no more of its runs start.
     stopped: bool = False
     asked_test: bool = False
+    # S9 (`CoverageMixin`): the line a run really runs where report flags were added, by its
+    # (command, folder); its coverage rows to say after it; a run gone on after the answer whose
+    # report is read as it ends; and the new lines no test ran, by file (for the Reviewer).
+    lines: dict[tuple[str, str], str] = field(default_factory=dict)
+    covered: dict[tuple[str, str], list] = field(default_factory=dict)
+    covering: dict[tuple[str, str], tuple] = field(default_factory=dict)
+    uncovered: dict[str, list[int]] = field(default_factory=dict)
     reviewed: bool = False
     # S3 (`ReviewMixin`): the last look's verdict ("MERGE", "HOLD"; None: none yet), its rows, the
     # change it saw (`proof.last_change`), the reviewers it took, and the rounds it sent back.
@@ -181,7 +188,8 @@ class ProofMixin:
     async def _proof_tests(self: "AgentRunner", ctx: Ctx, held: Proof) -> str | None:
         """The project's tests on the work as it stands: a fresh run on record stands for it, else
         each is run; a failure goes back to the Orchestrator while rounds are left."""
-        held.rows = [one for one in held.rows if one["kind"] != "tests"]
+        held.rows = [one for one in held.rows if one["kind"] not in ("tests", "coverage")]
+        held.uncovered.clear()  # (S9: this pass's word on the new lines, not an earlier one's)
         if not proof.needs_tests(one.path for one in held.changes if one.in_project):
             held.rows.append(proof.row("tests", "note", proof.NO_TESTS_ROW))
             return None
@@ -222,10 +230,12 @@ class ProofMixin:
             return made, ran.output
 
     async def _tests_of(self: "AgentRunner", ctx: Ctx, run: TestRun,
-                        held: Proof, until: float | None = None) -> tuple[Row, str]:
+                        held: Proof, until: float | None = None,
+                        fresh: bool = True) -> tuple[Row, str]:
         """One test command's row, and its output: from a fresh run on record, or run now.
-        `until` (S6): a whole suite that goes on after the answer from then if not over."""
-        if (reused := self._fresh_of(ctx, run)) is not None:
+        `until` (S6): a whole suite that goes on after the answer from then if not over.
+        `fresh` False (S9): run it now - the run on record failed on KOLONİ's own flags."""
+        if fresh and (reused := self._fresh_of(ctx, run)) is not None:
             return reused
         if until is not None:
             return await self._go_on_tests(ctx, run, held, until)
@@ -318,7 +328,9 @@ class ProofMixin:
     async def _run_tests_now(self: "AgentRunner", ctx: Ctx, run: TestRun, how: str, held: Proof,
                              seconds: int | None, message_id: str, check: Check,
                              load: tuple[Slots, int]) -> tuple[Row, str]:
-        args = {"command": run.command, **({"cwd": run.cwd} if run.cwd != "." else {})}
+        # (S9: with coverage's report flags where they were added - the run's name stays its own)
+        line = held.lines.get((run.command, run.cwd), run.command)
+        args = {"command": line, **({"cwd": run.cwd} if run.cwd != "." else {})}
         request = ToolCallRequest(f"{PROOF_CALL}{uuid.uuid4().hex[:16]}", "run_command",
                                   json.dumps(args))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
@@ -355,7 +367,7 @@ class ProofMixin:
             [path for path, _kind, _state in copy.changes()])) if copy else ({}, {})
         try:
             code, output, said, ended = await self._run_in_copy(
-                ctx, ws, run.command, call_id, ask=how == "ask",
+                ctx, ws, line, call_id, ask=how == "ask",
                 once=held.yes.setdefault(run.cwd, set()), cwd=run.cwd, seconds=seconds,
                 where=in_slot, env={WORKERS_ENV: str(workers)}, over=lambda: check.later)
         except _GateRefused as exc:

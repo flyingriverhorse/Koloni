@@ -176,6 +176,31 @@ size: one removed to make the tests pass is a blocking finding.
 While they work, agents that write and run code are told to run only the tests near their change;
 KOLONİ runs the project's whole test command once, at the end. The Orchestrator is told so too.
 
+## Coverage
+
+Where the project already measures coverage, KOLONİ says what share of the turn's changed lines
+the tests ran: "Coverage: 72% of the changed lines are run by tests (pytest-cov)". It installs
+nothing; it uses what the project has:
+
+- **pytest-cov**, named in `pyproject.toml`, `setup.cfg` or a `requirements*.txt`, for a pytest
+  run;
+- **Vitest's coverage** (`@vitest/coverage-v8` or `@vitest/coverage-istanbul` in `package.json`)
+  for a vitest run, or an `npm test` whose script runs vitest;
+- **c8**, in `package.json` and in the project's own `node_modules/.bin`, run as
+  `npx --no c8 …`, which never downloads it.
+
+Only the whole suite is measured, never the related tests run first, whether it ends before the
+answer or goes on after it (then the line comes when it ends). KOLONİ adds only report flags, and
+the report is written under the project's scratch folder (`.koloni/tmp/`), read there (up to
+20 MB) and deleted. The run keeps its own command everywhere: its line under the answer, its leave
+on your card (an approved command is approved with the flags too) and whether an earlier run of it
+still stands. Where the flags fail (the runner does not know them), KOLONİ runs it again without
+them and says "Coverage: not measured (the flags failed)". A run that stood from earlier is not
+measured again.
+
+Lines a test could run but none did go to the Reviewer, as data: "New lines no test runs: `a.py`
+3, 12-14". A turn with no Reviewer just shows the share.
+
 ## The review
 
 Under **Test and review**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
@@ -318,7 +343,7 @@ shows the tool and how long it has run; once the turn is over, each line of the 
 with the runner's counts ("pytest · 214 ✓ · 2 ✗"), the related step's ("related tests · 12
 passed"), and a whole suite running after the answer with its clock from its own start ("full
 tests · 2:14 …"), or "full tests · waiting for another test run to end", then its result or
-"full tests · stopped by you at 1:02 - not checked". Each fix round is a line back to the
+"full tests · stopped by you at 1:02 - not checked", and the coverage line where it was measured. Each fix round is a line back to the
 Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2: 1 blocking
 finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
 Orchestrator's own box gets one line: "● checking…"
@@ -362,6 +387,8 @@ the Orchestrator's window, whose record holds the runs.
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
+| – Coverage: 72% of the changed lines are run by tests (`tool`) | Of the turn's changed lines a test could run, the share the whole suite ran, by the project's own coverage tool. |
+| – Coverage: not measured (`why`) | The flags failed (the run went again without them) or no report was written. |
 | – New tests: `files` | The test files the turn added or changed. |
 | – No new test: the Orchestrator said “`line`” | It was asked for a test and gave this reason instead (its first line). |
 | ✗ Test removed: `path` | The turn deleted a test file that was there before it. |

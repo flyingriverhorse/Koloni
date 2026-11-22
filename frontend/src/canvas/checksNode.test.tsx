@@ -100,6 +100,17 @@ test('the strip says still failing or not checked; the tool is the runner, not p
   expect(toolOf('python -m pytest -q')).toBe('pytest')
   expect(toolOf('npx vitest run')).toBe('vitest')
   expect(toolOf('go test ./...')).toBe('go')
+  expect(toolOf('npx --no c8 --reporter=json --report-dir ".koloni/tmp/coverage-1" npm test')).toBe('c8')
+})
+
+test('S9: the coverage row is a line like the others, and no test run of its own', () => {
+  const rows = [
+    row('passed', 'Tests passed: python -m pytest -q - 4 passed', { command: 'python -m pytest -q', counts: { passed: 4, failed: 0, skipped: 0, unit: 'tests' } }),
+    row('note', 'Coverage: 67% of the changed lines are run by tests (pytest-cov)', { kind: 'coverage', command: 'python -m pytest -q' }),
+  ]
+  const { data, nodes } = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked(rows)] }))
+  expect(data?.lines).toEqual([{ state: 'passed', text: 'pytest · 4 ✓' }, { state: 'note', text: rows[1].text }])
+  expect((nodes[0].data as AgentData).checked).toBe('✓ checked')
 })
 
 function shown(data: ChecksData) {

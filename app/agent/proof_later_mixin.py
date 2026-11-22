@@ -121,9 +121,10 @@ class ProofLaterMixin:
             return failed
         until = time.monotonic() + (0 if quick else DETACH_SECONDS) if later else None
         for run in runs:
-            made, output = self._unrun(run) if held.stopped else await self._tests_of(
-                ctx, run, held, until)
+            made, output = self._unrun(run) if held.stopped else await self._covered_tests(
+                ctx, run, held, until)  # (S9: coverage on the whole suite only)
             held.rows.append(made)
+            held.rows += self._coverage_rows(held, run)
             # (S1b: a guess that really ran tests is saved; one gone on after the answer, as it
             # ends - `_ended_later`.)
             held.rows.extend(self._save_found(ctx, held, run, made, output))
@@ -310,6 +311,7 @@ class ProofLaterMixin:
             except Exception as exc:  # (a save that broke saves nothing: the row is said)
                 log.warning("run %s: the guess gone on after it not saved: %r", check.run_id, exc)
         try:
+            saved += self._coverage_later(ctx, held, run)  # (S9: its report, read as it ends)
             held.rows.extend(saved)  # (its Checked section not yet written: there with the rest)
             self._checked_update(check, made, self._later_row(check, made, done), *saved)
         except Exception as exc:  # (a row of KOLONİ's fails nothing)

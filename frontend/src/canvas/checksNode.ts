@@ -27,11 +27,11 @@ export interface ChecksData extends Record<string, unknown> {
   recipe: boolean
 }
 
-/** A command's tool, short: "pytest" of `python -m pytest -q`, else its first word. */
+/** A command's tool, short: "pytest" of `python -m pytest -q`, "c8" of S9's `npx --no c8 …`, else its first word. */
 export function toolOf(command: string): string {
   const words = command.split(/\s+/).filter(Boolean)
   const after = words.indexOf('-m')
-  return (after >= 0 ? words[after + 1] : words.find(word => !/^(npx|uv|poetry|run|python[\d.]*|py)$/.test(word))) ?? command
+  return (after >= 0 ? words[after + 1] : words.find(word => !word.startsWith('-') && !/^(npx|uv|poetry|run|python[\d.]*|py)$/.test(word))) ?? command
 }
 
 export type Line = { state: Row['state']; text: string; since?: string | null }

@@ -136,6 +136,7 @@ from app.agent.context_mixin import ContextMixin
 from app.agent.context_mixin import _taken_from as _taken_from
 from app.agent.context_mixin import git_prompt as git_prompt
 from app.agent.context_mixin import shell_note as shell_note
+from app.agent.coverage_mixin import CoverageMixin
 from app.agent.ctx import (
     NO_FOLDER,
     Ctx,
@@ -1022,7 +1023,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
-                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin):
+                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
+                  CoverageMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(

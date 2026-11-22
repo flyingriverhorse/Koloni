@@ -2,6 +2,7 @@
 project's test command(s), the turn's changes on record, whether a test run on record stands for
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
+import difflib
 import fnmatch
 import re
 from collections.abc import Collection, Iterable
@@ -12,7 +13,7 @@ from typing import NamedTuple, TypedDict
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
 
-from app import finish_tests, ledger, project_map, test_found
+from app import coverage, finish_tests, ledger, project_map, test_found
 from app.code_map import PYTHON, SCRIPT, tested
 from app.commands import only_reads, plain
 from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run, ToolCall
@@ -164,6 +165,27 @@ def untested(changes: list[Change]) -> list[str]:
             and PurePosixPath(one.path.replace("\\", "/").casefold()).suffix in SOURCE]
 
 
+def added_lines(session: Session, run_id: str, lead_id: str,
+                sharing: Collection[str] = ()) -> dict[str, list[int]]:
+    """S9: the lines the turn added (or rewrote) in each in-project file, by their number in
+    the file as it now is - from its first before to its last after on record."""
+    here = {lead_id, *sharing}
+    out: dict[str, list[int]] = {}
+    for path, made in _kept(session, run_id).items():
+        last = made[-1]
+        if not (last.status in ("applied", MERGED) or last.agent_id in here) or (
+                last.kind == "delete"):
+            continue
+        before = (made[0].before_content or "").splitlines()
+        after = (last.after_content or "").splitlines()
+        lines = [number + 1 for tag, _a, _b, start, end in difflib.SequenceMatcher(
+            None, before, after, autojunk=False).get_opcodes() if tag in ("replace", "insert")
+            for number in range(start, end)]
+        if lines:
+            out[path] = lines
+    return out
+
+
 def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:
     """The turn's kept changes by path, oldest first (none of its scratch folder)."""
     rows: dict[str, list[FileChange]] = {}
@@ -292,7 +314,8 @@ def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
 
 
 def _folded(command: str) -> str:
-    return " ".join(command.split())
+    # (S9: a run with KOLONİ's coverage flags is the same command)
+    return coverage.unflagged(" ".join(command.split()))
 
 
 def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: datetime | None,
