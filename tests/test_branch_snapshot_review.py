@@ -167,6 +167,8 @@ def test_after_a_resolve_what_you_committed_over_what_you_had_not_merges(repo, r
     assert "b.txt" in left
     (copy.root / "a.txt").write_text("one\nTWO-USER-MORE\n")  # (the agent keeps theirs)
     (copy.root / "b.txt").write_text("resolved-bee\n")
+    # (On Linux and macOS this also commits the copy's `.venv` - a symlink KOLONİ made, which the
+    # repository's `.venv/` does not ignore: the share leaves it out, `git._kolonis_links`.)
     run(copy.root, "add", "-A")
     run(copy.root, "-c", "core.hooksPath=", "commit", "-qm", "resolved")
     look = git.branch_look(repo, copy.branch, copy.start, copy.snapshot_sha)
@@ -538,3 +540,27 @@ def test_a_folder_whose_only_change_is_left_out_starts_from_head_and_names_it(re
     (repo / ".env").write_text("KEY=1\n")  # (not ignored here: its only change, a secret)
     snapshot, why, left = left_of(repo, runtime)
     assert (snapshot, why, left) == (None, None, [".env"])
+
+
+# --- KOLONİ's own links in a branch's worktree are never the agents' work -------------------------
+
+
+@needs_merge_base
+def test_the_dependency_links_kolonis_worktree_holds_never_go_into_the_share(repo, runtime):
+    # (On Linux and macOS a copy's .venv / node_modules are symlinks KOLONİ put there, and `.venv/`
+    # in a .gitignore names a folder alone: an agent's own `git add -A` commits them. Written here
+    # as git's entries, so that Windows - where they are junctions, folders to git - tries it too.)
+    (repo / "a.txt").write_text("one\ntwo-mine\n")  # (a snapshot)
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+    target = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=copy.root, check=True,
+                            capture_output=True, input=str(repo / ".venv").encode()
+                            ).stdout.decode().strip()
+    for path in (".venv", "frontend/node_modules"):
+        run(copy.root, "update-index", "--add", "--cacheinfo", f"120000,{target},{path}")
+    (copy.root / "agent.txt").write_text("agent\n")
+    run(copy.root, "add", "agent.txt")
+    run(copy.root, "-c", "core.hooksPath=", "commit", "-qm", "the agent's, links and all")
+    look = git.branch_look(repo, copy.branch, copy.start, copy.snapshot_sha)
+    assert look["files"] == {"agent.txt": "A"} and look["dirty"] == [] and look["share"]
+    assert run(repo, "diff", "--name-only", "HEAD", look["share"]).split() == ["agent.txt"]
+    assert "120000" not in run(repo, "ls-tree", "-r", look["share"])

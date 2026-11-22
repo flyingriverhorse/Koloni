@@ -278,7 +278,7 @@ class QuestionsMixin:
         if held:
             self._lead_asked[ctx.run_id] = self._lead_asked.get(ctx.run_id, 0) + 1
         decision = _Decision(self, ctx, kind, text, options, asked, says, question_id, held)
-        if delay == 0.0:
+        if delay is not None and delay <= 0:
             self._lead_taking.add(asked)
         if delay is not None:
             decision.arm(delay)

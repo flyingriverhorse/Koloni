@@ -1703,6 +1703,64 @@ def agents_share(
     return _share(project, git, folder, snapshot, tip, onto, branch)[:2]
 
 
+def _kolonis_links(project: Path, git: str, base: str, tip: str, onto: str) -> set[str]:
+    """What the branch made since `base` that is a link named as the dependency folders KOLONİ
+    links into a copy (`copies.LINKED`: node_modules, .venv, venv - at any depth) where `onto` holds
+    no link at that path: KOLONİ's own, never the agents' work. On Linux and macOS such a link is
+    a symlink, and a .gitignore's `.venv/` names a folder alone: an agent's own `git add -A` in
+    its worktree commits it (on Windows it is a junction, a folder to git). Refused where git
+    fails."""
+    from app import copies  # (here: copies imports git where it uses it)
+
+    code, out, said = _in(project, git, *UNASKED, "diff-tree", "-r", "-z", "--no-renames", base,
+                          tip, seconds=SHORT_SECONDS, **UNASKED_ENV)
+    if code != 0:
+        raise Refused(f"git diff-tree failed: {_text(out, said)[-TAIL:]}")
+    parts, found = out.split(b"\0"), []
+    # (each ":<old mode> <new mode> <old id> <new id> <letter>", then its path)
+    for fields, raw in zip(parts[::2], parts[1::2], strict=False):
+        words, path = fields.decode("ascii", "replace").lstrip(":").split(), _listed(raw)
+        if len(words) == 5 and path and words[1] == "120000" and path[0].rsplit(
+                "/", 1)[-1].rstrip(" .").casefold() in copies.LINKED:
+            found.append(path[0])
+    if not found:
+        return set()
+    there = _entries_at(project, git, onto, found)
+    return {path for path in found if there.get(path, ("", ""))[0] != "120000"}
+
+
+def _entries_at(
+    project: Path, git: str, commit: str, paths: list[str]
+) -> dict[str, tuple[str, str]]:
+    """These paths' entries in `commit`, by path: (mode, object); none for a path it lacks."""
+    code, out, said = _fed(project, git, None, *UNASKED, "ls-tree", "-z", commit, "--", *paths,
+                           seconds=SHORT_SECONDS, **UNASKED_ENV)
+    if code != 0:
+        raise Refused(f"git ls-tree failed: {_text(out, said)[-TAIL:]}")
+    found = {}
+    for entry in out.split(b"\0"):  # ("<mode> <type> <object>\t<path>")
+        if entry:
+            info, _tab, path = entry.partition(b"\t")
+            mode, _kind, oid = info.decode("ascii").split()
+            found[_listed(path)[0]] = (mode, oid)
+    return found
+
+
+def _without(project: Path, git: str, folder: Path, tip: str, base: str, paths: set[str]) -> str:
+    """`tip` with these paths as `base` has them (gone where it has none): one commit by KOLONİ on
+    `tip`, on no ref - what the agents' share is made of (`_share`)."""
+    held = _entries_at(project, git, base, sorted(paths))
+    tree = _rewritten(project, git, folder, f"{tip}^{{tree}}",
+                      [(*held[path], path) for path in sorted(paths) if path in held],
+                      [path for path in sorted(paths) if path not in held])
+    code, out, said = _in(project, git, *UNASKED, "-c", "commit.gpgsign=false", "commit-tree",
+                          tree, "-p", tip, "-m", "KOLONİ: without its own links",
+                          seconds=SHORT_SECONDS, **UNASKED_ENV, **KOLONI_ID)
+    if code != 0:
+        raise Refused(f"git commit-tree failed: {_text(out, said)[-TAIL:]}")
+    return out.decode("ascii", "replace").strip()
+
+
 def merge_base(project: Path, one: str, other: str) -> str:
     """Where two commits parted (`merge-base`). Refused where they never met, or git fails."""
     git, _folder = repository(project)
@@ -1722,20 +1780,23 @@ def _commit_of(project: Path, git: str, ref: str) -> str:
 
 def _share(
     project: Path, git: str, folder: Path, snapshot: str, tip: str, onto: str, branch: str
-) -> tuple[str | None, list[str], str]:
+) -> tuple[str | None, list[str], str, set[str]]:
     """`agents_share`, with git and its folder found - and the commit the work was measured from:
     the snapshot, or the snapshot carried onto where the branch met the user's (`_carried`; what
-    the card's files and diffs are measured from too, `branch_look`'s "since")."""
+    the card's files and diffs are measured from too, `branch_look`'s "since") - and KOLONİ's own
+    links the branch holds (`_kolonis_links`), left out of the share."""
     onto, start = _commit_of(project, git, onto), _commit_of(project, git, f"{snapshot}^")
     code, out, said = _in(project, git, *UNASKED, "merge-base", onto, tip,
                           seconds=SHORT_SECONDS, **UNASKED_ENV)
     if code != 0:
         raise Refused(f"git merge-base failed: {_text(out, said)[-TAIL:]}")
     met = out.decode("ascii", "replace").strip()
-    if met == start or _in(project, git, "merge-base", "--is-ancestor", start, met)[0] != 0:
-        return (*_merged(project, git, snapshot, onto, tip, branch), snapshot)
-    base = _carried(project, git, folder, start, met, snapshot, branch)
-    return (*_merged(project, git, base, onto, tip, branch), base)
+    base = snapshot if met == start or _in(
+        project, git, "merge-base", "--is-ancestor", start, met)[0] != 0 else _carried(
+        project, git, folder, start, met, snapshot, branch)
+    links = _kolonis_links(project, git, base, tip, onto)
+    theirs = _without(project, git, folder, tip, base, links) if links else tip
+    return (*_merged(project, git, base, onto, theirs, branch), base, links)
 
 
 def _carried(
@@ -1789,6 +1850,14 @@ def _theirs_stand(project: Path, git: str, folder: Path, tree: str, entries: lis
         if {1, 3} <= set(its) and all(its[n][0] in TEXT_MODES for n in (1, 2, 3)):
             oid = _favoured(project, git, folder, its[2][1], its[1][1], its[3][1]) or oid
         put.append((mode, oid, path))
+    return _rewritten(project, git, folder, tree, put, gone)
+
+
+def _rewritten(project: Path, git: str, folder: Path, tree: str,
+               put: list[tuple[str, str, str]], gone: list[str]) -> str:
+    """`tree` with these entries put in ((mode, object, path)) and these paths taken out: written
+    with an index of its own in the git folder, no hook (a hooks folder that is not there). The
+    new tree's id; Refused where git fails."""
     index = folder / f"koloni-index-{os.urandom(8).hex()}"
     own = (*UNASKED, "-c", f"core.hooksPath={folder / ('koloni-no-hooks-' + index.name[13:])}",
            *_OWN_INDEX)
@@ -1885,12 +1954,13 @@ def _from_snapshot(
     (`uncommitted`) - theirs to commit first, not a conflict an agent resolves, "since": what the
     work is measured from (`_share`), "over": what the share changes of what the user had not
     committed when it began - never merged unasked}."""
-    share, clash, since = _share(project, git, folder, snapshot, ref, "HEAD", branch)
+    share, clash, since, links = _share(project, git, folder, snapshot, ref, "HEAD", branch)
     theirs = _names_between(project, git, snapshot)
     yours = [path for path in clash if path in theirs and path in uncommitted]
     over = sorted(theirs & _names_between(project, git, "HEAD", share)) if share else []
-    return ([path for path in clash if path not in yours],
-            _touched(project, git, ref, f"{since}.."),
+    touched = {path: one for path, one in _touched(project, git, ref, f"{since}..").items()
+               if path not in links}  # (KOLONİ's own links: not on the card, nor in the way)
+    return ([path for path in clash if path not in yours], touched,
             {"share": share, "yours": yours, "since": since, "over": over})
 
 
