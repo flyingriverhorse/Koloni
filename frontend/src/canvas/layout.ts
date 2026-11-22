@@ -253,7 +253,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
 
     let used = 0
     for (const root of roots) used += place(root, NODE_W + COL_GAP, top + used) + ROW_GAP
-    used += checksInFrame(own, positions, sizes)
+    used += checksInFrame(own, edges, positions, sizes)
     // An agent opened by one of a frame laid out by its work line, not in that frame (one the user declined): under the rest.
     for (const agent of agents.filter(a => !positions[a.id])) used += place(agent, NODE_W + COL_GAP, top + used) + ROW_GAP
     for (const node of own) {
@@ -506,14 +506,16 @@ function checksUnder(own: GraphNode[], top: number, positions: Record<string, Po
 }
 
 /**
- * S5c: in a recipe's turn its Checks node is the recipe's last step - inside its frame, under the frame's last column - before
- * the frame is drawn round its agents; returns the room it adds under them.
+ * S5c: in a recipe's turn its Checks node is the recipe's last step - inside its frame, under all of its agents, in the column of
+ * the agent its line comes from (the last pass's: straight down, crossing none), else the last column - before the frame is
+ * drawn round them; returns the room it adds under them.
  */
-function checksInFrame(own: GraphNode[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
+function checksInFrame(own: GraphNode[], edges: GraphEdge[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
   const checks = own.find(n => n.kind === 'checks' && n.team)
   const members = checks ? own.filter(n => n.team === checks.team && n.id !== checks.id && positions[n.id]) : []
   if (!checks || !members.length) return 0
-  const x = Math.max(...members.map(n => positions[n.id].x))
+  const from = edges.find(e => e.target === checks.id && members.some(n => n.id === e.source))?.source
+  const x = from ? positions[from].x : Math.max(...members.map(n => positions[n.id].x))
   const y = Math.max(...members.map(n => positions[n.id].y + (sizes[n.id]?.height ?? NODE_H))) + ROW_GAP
   positions[checks.id] = { x, y }
   return NODE_H + ROW_GAP

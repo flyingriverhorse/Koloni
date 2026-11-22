@@ -245,3 +245,11 @@ test('S5a: a kind of work is one line, as a test run is - its files that passed 
   expect(data?.lines).toHaveLength(4)
   expect((nodes[0].data as AgentData).checked).toBe('✗ still failing')
 })
+
+test('S5c: a recipe’s turn whose Checks step checks nothing: no node - the strip says so', () => {
+  const nodes: GraphNode[] = [{ id: 'agent:r', kind: 'agent', runId: 'r', refId: 'r', data: {} as AgentData }]
+  const rows = [row('note', "Not checked: this recipe's Checks step checks nothing", { kind: 'recipe_off' })]
+  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked(rows)] })
+  expect(checksNode(state, run('r', 'completed'), nodes, [])).toBeNull()
+  expect((nodes[0].data as AgentData).checked).toBe('not checked · off in the recipe’s Checks step')
+})

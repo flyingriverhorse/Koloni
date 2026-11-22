@@ -119,3 +119,61 @@ def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(mak
     assert saved.status_code == 200, saved.text
     assert json.loads((folder / "report.json").read_text(encoding="utf-8"))["graph"][
         "checks"] == checks
+
+
+def begin_at(client, project_dir, project, chat, content="fix it"):
+    """A chat in a project set as `project` says, at the chat's `chat` settings, its message sent."""
+    from tests.test_recipes_scenarios import OWN
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json=project, headers=OWN).status_code == 200
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json=chat, headers=OWN).status_code == 200
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": content},
+                         headers=OWN).json()
+    return cid, posted["run"]["id"]
+
+
+def test_a_ready_bugfix_checks_its_tests_in_a_project_at_nothing(make_client, wait_run,
+                                                                  project_dir, monkeypatch):
+    # (Its own Checks step, not the project's After a change - as the chat's switch never did.)
+    from tests.test_proof_end_scenarios import guess
+    from tests.test_recipe_proof_scenarios import PASSED, PYTEST, REPRO, ran_tests, scripts
+    guess(monkeypatch, PYTEST)
+    executor = ScriptedExecutor([REPRO, PASSED])
+    client, _model = make_client(scripts(ran_tests()), executor=executor)
+    backend = teams_of(client)["Backend / API"]
+    cid, run_id = begin_at(client, project_dir, {"after_change": "nothing"}, {
+        "permission_mode": "full_auto", "spawn_approval": "never", "teams_mode": "manual",
+        "teams": [{"team_id": backend["id"], "recipe_id": None}]})
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    rows = texts(snap)
+    assert f"Tests passed: {PYTEST} - run by Tester after the last change" in rows, rows
+    assert proof.NOT_CHECKED not in rows
+
+
+def test_fix_rounds_0_with_failing_tests_says_check_only(make_client, wait_run, project_dir,
+                                                         monkeypatch):
+    # (A test command found, not the user's check command: that one would hold Take in first.)
+    from tests.fakes import Script
+    from tests.test_proof_end_scenarios import guess
+    pytest_q = "python -m pytest -q"
+    guess(monkeypatch, pytest_q)
+    executor = ScriptedExecutor([Script(["1 failed, 3 passed\n"], exit_code=1)])
+    client, model = make_client({
+        "Lead": [spawn("Coder", "build it", "c1"), text("done")],
+        "Coder": [step(write("a.py", "x = 1\n")), text("built")],
+    }, executor=executor)
+    recipe = made(client, "Build, check only", {**graph(
+        [part("build", "Build it", {"role": "Coder"})], [("start", "build"), ("build", "end")]),
+        "checks": {"tests": True, "review": False, "fix_rounds": 0}})
+    web = teams_of(client)["Web app"]
+    cid, run_id = begin_at(client, project_dir, {}, {
+        "permission_mode": "full_auto", "spawn_approval": "never", "teams_mode": "manual",
+        "teams": [{"team_id": web["id"], "recipe_id": recipe["id"]}]})
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    rows = texts(snap)
+    assert proof.CHECK_ONLY in rows and not any(one.startswith("Sent back") for one in rows), rows
+    assert [one for one, _cwd in executor.started] == [pytest_q]  # (once: nothing went back)
+    assert "1 failed" not in str(model.calls[-1])

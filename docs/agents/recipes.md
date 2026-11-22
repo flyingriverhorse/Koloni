@@ -95,8 +95,10 @@ recipe's Checks step checks nothing". The choice is kept with the recipe - in a 
 `.koloni/recipes/*.json` too, as its graph's `checks`.
 
 The ready recipes come set: **Bugfix** and **Feature** check their tests and a review, **Docs** its
-documents and a review, **Evolve** its tests; the others follow the project. A recipe's turn follows
-its Checks step, never the chat's **Test and review changes** switch. Rounds never stack: where the
+documents and a review, **Evolve** its tests; the others follow the project. A recipe set for itself
+checks so even in a project at **Nothing** - set its Checks step to **Follow the project** to leave it
+to the project. A recipe's turn follows its Checks step, never the chat's **Test and review
+changes** switch. Rounds never stack: where the
 recipe's own loop of test and fix ran out, the Checks step sends nothing back on top.
 
 ## Where a recipe is kept

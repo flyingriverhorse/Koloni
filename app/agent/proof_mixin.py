@@ -480,8 +480,9 @@ class ProofMixin:
         if project is None or not any(one.in_project for one in found):
             return []
         waiting = self._waiting_rows(session, found)
-        checks = proof.checks_of(session, session.get_one(Conversation, cid),
-                                 session.get(Run, run_id))
+        # (What the gate used where it ran: the recipe's row may have run again since.)
+        checks = held.checks if held is not None else proof.checks_of(
+            session, session.get_one(Conversation, cid), session.get(Run, run_id))
         if not checks.on:
             # (Off for this chat: its own kind - the canvas draws no Checks node for it.)
             said = proof.row("recipe_off", "note", proof.RECIPE_OFF) if checks.own else (

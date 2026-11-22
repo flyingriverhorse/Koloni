@@ -428,6 +428,14 @@ export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: stri
 /** "Set for this recipe" as it starts: the project's usual Test and review for code. */
 export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, fix_rounds: null })
 
+/** The Checks step's choice: set for the recipe, or - null - following the project (no `checks` kept, as the server keeps it). */
+export function setChecks(graph: RecipeGraph, checks: Checks | null): RecipeGraph {
+  if (checks) return { ...graph, checks }
+  const rest = { ...graph }
+  delete rest.checks
+  return rest
+}
+
 /** The Checks step's line: "follows the project", or what it checks and its rounds ("Docs · Review · rounds 2", "nothing · check only"). */
 export function checksLine(checks: Checks | null | undefined): string {
   if (!checks) return 'follows the project'

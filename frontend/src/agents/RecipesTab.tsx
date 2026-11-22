@@ -57,6 +57,7 @@ import {
   nameOf,
   ownChecks,
   place,
+  setChecks,
   remove,
   renameGroup,
   roomOf,
@@ -404,7 +405,7 @@ function whoShapes(step: RecipeStep | undefined) {
  */
 function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOnly: boolean; onChange: (graph: RecipeGraph) => void }) {
   const checks = graph.checks ?? null
-  const set = (next: Checks | null) => onChange({ ...graph, checks: next })
+  const set = (next: Checks | null) => onChange(setChecks(graph, next))
   return (
     <aside className="role-panel recipe-panel" aria-label="Recipe part Checks">
       <h3>Checks - the end of this recipe</h3>

@@ -146,10 +146,9 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
     recipe: Boolean(run.teams?.length),
   }
   const id = `checks:${run.id}`
-  // S5c: in a recipe's turn, the recipe's last step - inside its frame (the turn's last), where the layout puts it.
-  const frame = nodes.filter(node => node.kind === 'team' && node.runId === run.id).at(-1)
-  nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data, ...(frame && { team: frame.id }) })
-  edges.push({ id: `agent:${lead.id}>${id}`, source: `agent:${lead.id}`, target: id, active: Boolean(at), plan: true, po: true })
+  const { team, from } = recipeEnd(run, nodes, lead.id)
+  nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data, ...(team && { team }) })
+  edges.push({ id: `${from}>${id}`, source: from, target: id, active: Boolean(at), plan: true, po: true })
   for (let round = 1; round <= Math.min(rounds, said.most); round++)
     edges.push({ id: `${id}>agent:${lead.id}:${round}`, source: id, target: `agent:${lead.id}`, active: false, round: roundLine(round, said) })
   reviewersAfter(state, own, `agent:${lead.id}`, id, edges)
@@ -157,6 +156,17 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const leadNode = nodes.find(node => node.id === `agent:${lead.id}`)
   if (leadNode) (leadNode.data as AgentData).checked = stripOf(data)
   return data
+}
+
+/**
+ * S5c: in a recipe's turn the Checks node is the recipe's last step - inside its frame (the turn's last), joined from its last
+ * pass's agent, under which the layout puts it; else after the Orchestrator.
+ */
+function recipeEnd(run: Run, nodes: GraphNode[], leadId: string): { team?: string; from: string } {
+  const frame = nodes.filter(node => node.kind === 'team' && node.runId === run.id).at(-1)
+  if (!frame) return { from: `agent:${leadId}` }
+  const last = run.teams?.find(row => row.team_id === frame.refId)?.state?.passes.at(-1)?.agents.at(-1)
+  return { team: frame.id, from: last && nodes.some(node => node.id === `agent:${last}`) ? `agent:${last}` : `agent:${leadId}` }
 }
 
 /** The Checked rows that say nothing was checked, each with the strip's words. */

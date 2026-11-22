@@ -727,19 +727,30 @@ test('5 Nov: Evolve with its earlier rounds opened: no line of it runs under a c
   expect(out).toEqual([])
 })
 
-test('S5c: in a recipe’s turn the Checks node is the recipe’s last step - inside its frame, under its last column', () => {
+test('S5c: in a recipe’s turn the Checks node is the recipe’s last step - inside its frame, straight under its last pass’s agent', () => {
   const rows = [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null, counts: null }]
   const checked = { id: 'k', conversation_id: 'c', run_id: 'r', agent_id: null, role: 'checked' as const, content: '', created_at: at, checked: rows }
-  const g = foldGraph(deriveGraph(web({ runs: [{ ...run('r', 'completed'), teams: [row('web', 'Web app', AGENTS, PASSES, STEPS)] }], messages: [checked] } as Parameters<typeof web>[0])), OPENED)
+  const state = web({ runs: [{ ...run('r', 'completed'), teams: [row('web', 'Web app', AGENTS, PASSES, STEPS)] }], messages: [checked] } as Parameters<typeof web>[0])
+  const g = foldGraph(deriveGraph(state), OPENED)
   const checks = g.nodes.find(node => node.kind === 'checks')
   expect(checks?.team).toBe('team:r:web')
   expect(checks?.data).toMatchObject({ recipe: true })
+  // (Joined from the last pass's agent - Reviews again, rev2 - not from the Orchestrator across the frame.)
+  expect(g.edges.filter(e => e.target === checks?.id).map(e => e.source)).toEqual(['agent:rev2'])
   const { positions, sizes } = layoutGraph(g.nodes, g.edges)
   const frame = { ...positions['team:r:web'], ...sizes['team:r:web'] }
-  const at_ = positions[checks?.id ?? '']
-  expect(at_.x).toBeGreaterThan(frame.x)
-  expect(at_.x + NODE_W).toBeLessThan(frame.x + frame.width)
-  expect(at_.y + NODE_H).toBeLessThan(frame.y + frame.height)
-  // (Under every agent of the frame: its last step.)
-  for (const id of AGENTS) expect(at_.y).toBeGreaterThan(positions[`agent:${id}`].y)
+  const box = positions[checks?.id ?? '']
+  expect(box.x).toBeGreaterThan(frame.x)
+  expect(box.x + NODE_W).toBeLessThan(frame.x + frame.width)
+  expect(box.y + NODE_H).toBeLessThan(frame.y + frame.height)
+  for (const id of AGENTS) expect(box.y).toBeGreaterThan(positions[`agent:${id}`].y)
+  // Its line straight down from rev2 crosses no other agent's box.
+  const from = positions['agent:rev2']
+  expect(box.x).toBe(from.x)
+  const middle = from.x + NODE_W / 2
+  const others = AGENTS.filter(id => id !== 'rev2').map(id => ({ ...positions[`agent:${id}`], ...sizes[`agent:${id}`] }))
+  expect(crosses({ x1: middle, y1: from.y + sizes['agent:rev2'].height, x2: middle, y2: box.y }, others)).toBe(false)
+  // Folded, the frame holds it: not drawn, its lines go to the frame.
+  const folded = foldGraph(deriveGraph(state), { 'team:r:web': false })
+  expect(folded.nodes.some(node => node.kind === 'checks')).toBe(false)
 })
