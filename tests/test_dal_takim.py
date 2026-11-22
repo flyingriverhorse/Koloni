@@ -705,6 +705,39 @@ def test_the_worktrees_own_git_is_not_asked(command):
     assert reaches_shared_git(command) == ""
 
 
+@pytest.mark.parametrize("command", [
+    'echo "$(pwd -W)/x" > "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+    "Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
+    'git rev-parse feat > "$(dirname "$(dirname "$(git rev-parse --git-dir)")")/refs/remotes/'
+    'origin/x"',
+    'cd "$(dirname "$(git rev-parse --git-dir)")" && echo x > users-wt/gitdir',
+])
+def test_in_a_worktree_a_write_to_a_place_built_at_run_time_is_asked(command):
+    """K-okuyucu-3 (the k-pr-wt review): in a branch's worktree the place may be the user's shared
+    git - another worktree's gitdir, a ref under refs/remotes/origin (the gate's `shared` has more)."""
+    from app.commands import BUILT_TARGET, reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == BUILT_TARGET
+
+
+@pytest.mark.parametrize("command", [
+    'ls "$(dirname "$(git rev-parse --git-dir)")"', 'echo "$(date)" > log.txt',
+    "echo $(git rev-parse HEAD) > head.txt", 'Add-Content log.txt "$x"', "Set-Content out.txt $c",
+    "Set-Content -Path out.txt -Value (Get-Date) -Encoding utf8 -NoNewline",
+    "New-Item -ItemType File -Path notes.txt -Value $text -Force", 'cp "$src" dst/',
+    "Copy-Item $src -Destination dst/", "python -m pytest 2>$null", "npm test > $null 2>&1",
+    "npm test *> $null", "npm test 2>/dev/null", "npm test > NUL",
+    "npm test 2>&1 | Select-Object -Last 5", "git log --oneline > log.txt",
+    "[IO.File]::WriteAllText('out.txt', $x)", "echo x | tee out.txt", 'git commit -m "a > $b"',
+    'cd "$(git rev-parse --show-toplevel)" && npm test',
+    "cat > notes.md <<'EOF'\necho x > $HOME/y\nEOF", "echo done > out.txt # then > $x",
+])
+def test_in_a_worktree_a_read_or_a_write_to_a_place_written_out_is_not_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == ""
+
+
 def test_at_full_auto_a_stash_pop_in_a_branchs_worktree_waits_for_the_user(
     make_client, repo
 ):

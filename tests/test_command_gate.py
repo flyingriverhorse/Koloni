@@ -7,7 +7,8 @@ command tests' strings - and HEAD must give at least that: `harm_class` (none < 
 a card from `copy_reason` in a copy with links, `installs()`, `web_off_reason` with
 http_request off (review round 4). A line meant to go down (an
 over-ask cured) is in its `allow`, with why; a known regression still open, in its `xfail`; a
-line meant to go up (a hole 650e22a had too: a continued line) in its `up` - harm at least."""
+line meant to go up (a hole 650e22a had too: a continued line) in its `up` - harm at least. A line
+a branch's worktree must ask (k-okuyucu-3: a write to a place built at run time) is in `shared`."""
 
 import json
 import os
@@ -81,7 +82,15 @@ def test_the_gate_holds_its_lines_once_and_every_allowed_line_has_a_reason():
     assert len(names) == len(set(names))
     assert set(GATE["allow"]) <= set(names) and set(GATE["xfail"]) <= set(names)
     assert set(GATE["up"]) <= set(names) and not set(GATE["up"]) & set(GATE["allow"])
+    assert set(GATE["shared"]) <= set(names) and not set(GATE["shared"]) & set(GATE["allow"])
     assert all(reason.strip() for reason in GATE["allow"].values())
+
+
+def test_in_a_branchs_worktree_every_shared_line_is_asked():
+    # (k-okuyucu-3: `verdict` reads a copy's card; a branch's worktree asks `reaches_shared_git`
+    # too - a write to a place built at run time may be the user's own repository)
+    missing = [line for line in GATE["shared"] if not commands.reaches_shared_git(line, "koloni/x")]
+    assert not missing, "\n".join(missing)
 
 
 def test_every_line_is_read_as_written_too():

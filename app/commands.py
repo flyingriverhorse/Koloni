@@ -372,7 +372,8 @@ def _fetch_writes(command: str) -> bool:
 def matches(command: str, prefix: str) -> bool:
     """Whether an allow-list rule covers a command. Only a plain command can match, and never
     one that deletes or cannot be undone (`danger`), makes git run a program (`_git_runs`) or a
-    fetcher write a file (`_fetch_writes`)."""
+    fetcher write a file (`_fetch_writes`) - nor one whose words past the rule hold an option
+    that runs another program, fetches code or writes outside (`_past_the_rule`)."""
     if (not prefix or not is_plain(command) or is_wrapped(command) or _in_a_shell(command)
             or danger(command) or _git_runs(command) or _git_runs(prefix)
             or _fetch_writes(command)):
@@ -382,7 +383,49 @@ def matches(command: str, prefix: str) -> bool:
         if not offered or len(prefix.split()) < len(offered.split()):
             return False
     normal = " ".join(command.split())
-    return normal == prefix or normal.startswith(prefix + " ")
+    return (normal == prefix or normal.startswith(prefix + " ")) and not _past_the_rule(
+        normal.split(), normal[len(prefix):].split())
+
+
+# K-okuyucu-3: options that make a program run another one, fetch code or write outside the
+# folder - a rule ("Always run") for the program does not cover a line that adds one past it
+# (`_past_the_rule`): asked as if no rule matched. The rule names the program; these change what
+# it runs.
+_PAST_A_RULE = {
+    # emptied first (one outside is deleted: `_danger_of`); a plugin loaded by its name; which
+    # conftest.py and ini file run; settings of another's (its addopts: any of these again)
+    "pytest": ("--basetemp", "-p", "--rootdir", "--confcutdir", "-o", "--override-ini", "-c",
+               "--config-file"),
+    "go": ("-exec", "-toolexec"),  # (a program of the line's run on what it builds)
+    "cargo": ("--config",),  # (any setting: a runner, a linker)
+    **dict.fromkeys(("gradle", "gradlew"), ("-I", "--init-script")),  # (code run before the build)
+    # scripts run by another program; another folder's package.json; a package fetched
+    "npm": ("--script-shell", "--prefix", "-C", "--package"),
+    # runners: a package fetched to run (`_fetches_to_run`), or a shell line
+    "npx": ("-p", "--package", "-c", "--call"), "pnpm": ("--package",), "yarn": ("-p", "--package"),
+    "bunx": ("-p", "--package"), "uv": ("--with", "--from"), "uvx": ("--with", "--from"),
+    "pipx": ("--spec",),
+}
+# ...and a shell handed a line (`... bash -c "x"`, `cmd /c x`).
+_SHELL_LINE = re.compile(r"(?i)(?:^|\s)['\"]?(?:\S*[\\/])?(?:sh|bash|zsh|dash|cmd|powershell|pwsh)"
+                         r"(?:\.exe)?\s+[-/](?:c|command)\b")
+
+
+def _past_the_rule(words: list[str], extra: list[str]) -> bool:
+    """Whether a line's words past a rule (`extra`) hold an option `_PAST_A_RULE` lists for a
+    program the line names (`python -m pytest`, `uv run pytest`: pytest's too) - a long one by any
+    start of three letters or more (argparse and getopt take one cut short), `-x` glued to its value
+    too (`-pfoo`); a go one with one dash or two - or hand a shell a line (`_SHELL_LINE`)."""
+    options = [option for word in words for option in _PAST_A_RULE.get(_program(word), ())]
+    for word in (word for word in extra if word.startswith("-")):
+        name = word.split("=", 1)[0].lstrip("-")
+        for option in options:
+            full = option.lstrip("-")
+            if (len(full) == 1 and not word.startswith("--") and word[1:2] == full
+                    or name == full or word.startswith("--") and len(name) >= 3
+                    and full.startswith(name)):
+                return True
+    return bool(_SHELL_LINE.search(" ".join(extra)))
 
 
 MAX_RULE = 200
@@ -929,6 +972,12 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
         return "Makes a link, which can point anywhere."
     if program == "find" and "-delete" in rest:
         return "Deletes files (find -delete)."
+    if "pytest" in map(_program, words) and any(  # (`python -m pytest`, `uv run pytest`)
+            (temp := _option_value(rest, at, ("--basetemp",))) is not None and (
+                _outside(temp.strip("'\"")) or re.search(r"[$%~]", temp))
+            for at in range(len(rest))):
+        return ("Deletes the folder given to pytest's --basetemp, outside the project: pytest "
+                "empties it first.")
     if program in ("docker", "docker-compose"):
         # `docker volume rm x`, `docker --context x rm web`: the task is in the first two words
         named = [w for w in _after_options(rest, _DOCKER_VALUE_OPTIONS) if not w.startswith("-")]
@@ -1180,11 +1229,14 @@ def reaches_shared_git(command: str, own: str | None = None) -> str:
     `GIT_CONFIG_*`); git as a word not read as a command's program (`(git)`, `xargs git`, `& $g`);
     a line too deep to read. Read in what a shell or a wrapper is handed too (`_commands_in`). An
     alias of the repository's own config is a name not on the list: asked. `own`: the worktree's
-    own branch, the one a checkout or switch may go onto (None: none yet - asked).
+    own branch, the one a checkout or switch may go onto (None: none yet - asked). And a write to a
+    place built at run time (`_writes_built`: `BUILT_TARGET`), in any reading of the line.
     shortcut: git run by a script, or a name spliced by the shell (`g`it`, `$(echo git)`), is not
     seen - as `danger` does not see those either."""
     if _GIT_ENV.search(command):
         return SHARED_GIT
+    if any(_writes_built(line) for line in _readings(command)):
+        return BUILT_TARGET
     read = 0
     for words in (words for words in _commands_in(command) if words):
         if words == [UNREAD] or _program(words[0]) != "git" and _program(
@@ -1196,6 +1248,194 @@ def reaches_shared_git(command: str, own: str | None = None) -> str:
                 return SHARED_GIT
     # (PowerShell drops a backtick before a letter: `g`it` is git.)
     return SHARED_GIT if len(_GIT_WORD.findall(command.replace("`", ""))) > read else ""
+
+
+# K-okuyucu-3 (the k-pr-wt review): in a branch's worktree `$(git rev-parse --git-dir)` leads into
+# the user's own repository - one unasked `echo "$PWD/x" > "$(dirname "$(git rev-parse
+# --git-dir)")/<id>/gitdir"` took the user's other worktree for KOLONİ's, a ref written under
+# refs/remotes/origin hid their commit, and their unpushed work went out in a pull request.
+BUILT_TARGET = ("it writes to a place built at run time ($(...), a variable, Join-Path, git "
+                "rev-parse), which may be the project's shared git - the user's worktrees, "
+                "branches and remotes: asked at every level")
+# What builds a path at run time: a substitution or a variable (`$(`, `${`, `$x` - not `$null`), a
+# backtick, a bracket (PowerShell's `( ... )`), cmd's `%x%`, xargs' and find's `{}`, Join-Path,
+# Split-Path, git rev-parse.
+_BUILT = re.compile(r"(?i)\$(?!null\b)[\w({]|[`(]|%\w+%|\{\}|join-path|split-path|rev-parse")
+_NULL = re.compile(r"(?i)\$null|/dev/null|nul")  # (what is written there is thrown away)
+_IO_WRITE = re.compile(r"(?i)\[(?:system\.)?io\.file\]::(?:write|append)\w*\(")
+# What writes the place it is given last, or by `-t` / `--target-directory` / `-Destination`.
+_WRITES_TO_LAST = frozenset({"cp", "mv", "copy", "move", "copy-item", "cpi", "move-item", "mi",
+                             "install", "ln"})
+# PowerShell's writers: the parameters that name what they write, by any start of the name...
+_PS_TARGETS = {
+    **dict.fromkeys(("set-content", "sc", "add-content", "ac"),
+                    ("path", "literalpath", "pspath", "lp")),
+    "out-file": ("filepath", "path", "literalpath", "pspath", "lp"),
+    **dict.fromkeys(("new-item", "ni"), ("path", "name")),
+    "tee-object": ("filepath", "literalpath", "path"),
+}
+# ...those whose value is no path (another's value counts as one: it may name what is written),
+# and their switches.
+_PS_NOT_PATHS = ("value", "inputobject", "encoding", "itemtype", "type", "stream", "delimiter",
+                 "width", "filter", "include", "exclude", "credential", "target")
+_PS_SWITCHES = frozenset({"force", "nonewline", "append", "noclobber", "passthru", "whatif",
+                          "confirm", "asbytestream", "verbose", "debug"})
+_DEEPEST = 4  # (shells handed shells: deeper, asked)
+
+
+def _shell_words(line: str) -> list[str]:
+    """A line's words with what each holds kept whole - its quotes, a `$( ... )` and a `( ... )`
+    with the spaces and quotes inside (`"$(dirname "$(git rev-parse --git-dir)")/x"`, `((Split-Path
+    $p) + '/x')`) - and what joins or redirects commands (`;` `&` `|` `<` `>` `>&` `,` a line's
+    end) as words of their own. Linear; a quote or a bracket that does not close holds the rest.
+    shortcut: an escaped quote (`"a\\"b"`) closes its quotes here; read escapes if that is met."""
+    words: list[str] = []
+    word: list[str] = []
+    held: list[str] = []
+    for at, char in enumerate(line):
+        if _holding(char, line[at - 1:at], held) or not (char.isspace() or char in ";&|<>,"):
+            word.append(char)
+            continue
+        if word:
+            words.append("".join(word))
+            word = []
+        if char == "&" and words and words[-1] == ">":  # (`2>&1`: a stream joined)
+            words[-1] = ">&"
+        elif not char.isspace() or char == "\n":
+            words.append(char)
+    return [*words, "".join(word)] if word else words
+
+
+def _holding(char: str, before: str, held: list[str]) -> bool:
+    """`_shell_words`: whether `char` is in quotes or a bracket, or opens or closes one - `held`
+    the ones open, innermost last: in double quotes `$(` opens a bracket, in a bracket quotes open
+    anew."""
+    top = held[-1] if held else ""
+    if top in ("'", '"'):
+        if char == top:
+            held.pop()
+        elif top == '"' and char == "(" and before == "$":
+            held.append("(")
+        return True
+    if char in "'\"(":
+        held.append(char)
+        return True
+    if char == ")" and top == "(":
+        held.pop()
+        return True
+    return bool(held)
+
+
+def _writes_built(line: str, depth: int = 0) -> bool:
+    """Whether a line writes to a place built at run time (`_BUILT`): a redirect's target (`>`,
+    `>>`, `2>`; not `2>&1`, nor `$null`, `/dev/null`, `NUL`), a copy's, move's, install's or link's
+    (`_WRITES_TO_LAST`), what `tee` writes, a PowerShell writer's path (`_ps_targets`),
+    `[IO.File]::Write*`'s first argument - or any write after a `cd` to such a place (`cd
+    "$(git rev-parse --git-dir)" && echo x > config`). In what a shell or a wrapper is handed too
+    (`_unwrapped`), `_DEEPEST` shells deep: deeper, asked. A data heredoc's body and a comment
+    write nothing.
+    shortcut: a write by a program's own way (`sed -i`, `find -exec`, `git config --file`, code in
+    `python -c`, a script) is not read, nor a redirect inside a substitution's quotes; list them
+    where an agent is seen to write the shared git so."""
+    if depth > _DEEPEST:
+        return True
+    line = _uncommented(_blanked(line, ((start, end) for start, end, _quoted in _data_bodies(
+        line))))
+    for found in _IO_WRITE.finditer(line):
+        first = _shell_words(line[found.end():])[:1]
+        if first and _BUILT.search(first[0]):
+            return True
+    moved, part = False, []
+    for word in [*_shell_words(line), ";"]:
+        if word not in (";", "&", "|", "\n"):
+            part.append(word)
+            continue
+        targets, went = _part_targets(part, depth) if part else ([], False)
+        if UNREAD in targets or any(_BUILT.search(one) for one in targets) or moved and targets:
+            return True
+        moved, part = moved or went, []
+    return False
+
+
+def _part_targets(words: list[str], depth: int) -> tuple[list[str], bool]:
+    """What one part of a line writes (`_writes_built`) - UNREAD where a line it hands a shell
+    writes to a place built at run time, or is not read - and whether it is a `cd` to such a
+    place."""
+    targets: list[str] = []
+    rest: list[str] = []
+    at = 0
+    while at < len(words):
+        word = words[at]
+        at += 1
+        if word in (">", ">&", "<"):
+            if rest and re.fullmatch(r"[\d*]", rest[-1]):  # (`2>`, `*>`: the stream's number)
+                rest.pop()
+            while word == ">" and at < len(words) and words[at] == ">":  # (`>>`)
+                at += 1
+            if word == ">" and at < len(words) and not _NULL.fullmatch(words[at].strip("'\"")):
+                targets.append(words[at])
+            at += 1  # (the place written, read or joined to)
+            continue
+        rest.append(word)
+    went = False
+    for one in _unwrapped(rest) if rest else []:
+        word = one[0] if len(one) == 1 else ""
+        handed = len(word) > 1 and word[0] in "'\"" and word[-1] == word[0] and any(
+            map(str.isspace, word))
+        if one == [UNREAD] or handed and _writes_built(word[1:-1], depth + 1):
+            return [*targets, UNREAD], False  # (a line handed a shell or a wrapper, quoted)
+        if one:
+            written, moved = _command_targets(one)
+            targets += written
+            went = went or moved
+    return targets, went
+
+
+def _command_targets(words: list[str]) -> tuple[list[str], bool]:
+    """The places a command's words name as what it writes (`_writes_built`), and whether it is a
+    `cd` to a place built at run time."""
+    program, rest = _program(words[0]), words[1:]
+    if program in _CD:
+        return [], any(_BUILT.search(word) for word in rest)
+    if program == "tee":  # (any file it is given; PowerShell's is Tee-Object)
+        return rest, False
+    if program in _PS_TARGETS:
+        return _ps_targets(program, rest), False
+    if program not in _WRITES_TO_LAST:
+        return [], False
+    given = [value for at in range(len(rest))
+             if (value := _option_value(rest, at, _TARGET_OPTIONS)) is not None]
+    clustered = [found[1] or (rest[at + 1] if at + 1 < len(rest) else "")
+                 for at, word in enumerate(rest)
+                 if program in ("cp", "mv", "install", "ln") and (
+                     found := _CLUSTER_TARGET.fullmatch(word))]
+    return [*given, *clustered, *[word for word in rest if not word.startswith("-")][-1:]], False
+
+
+def _ps_targets(program: str, rest: list[str]) -> list[str]:
+    """What a PowerShell writer writes (`_PS_TARGETS`): the value of a path parameter, by any start
+    of its name - and of one not known to take what is no path (`_PS_NOT_PATHS`) - and its first
+    word given by position. A switch (`_PS_SWITCHES`) takes no value."""
+    names = _PS_TARGETS[program]
+    found: list[str] = []
+    placed: list[str] = []
+    at = 0
+    while at < len(rest):
+        word = rest[at]
+        at += 1
+        if not re.match(r"-[A-Za-z]", word):
+            placed.append(word)
+            continue
+        name, colon, value = word[1:].partition(":")
+        name = name.casefold()
+        if not colon:
+            if name in _PS_SWITCHES:
+                continue
+            value, at = (rest[at] if at < len(rest) else ""), at + 1
+        if any(full.startswith(name) for full in names) or not any(
+                full.startswith(name) for full in _PS_NOT_PATHS):
+            found.append(value)
+    return [*found, *placed[:1]]
 
 
 DELETES_THROUGH_LINKS = (
@@ -3838,15 +4078,18 @@ def installs(command: str) -> str:
     pipenv) or run as a module (`python -X utf8 -m pip install`, `py -m pip`), a bare `yarn` -
     and in what a shell or a wrapper is handed (`cmd /c "npm i x"`) or a runner (`uv run pip
     install x`, `npm exec --yes -- npm ci`). A script run by its name (`npm run install`) is
-    none; a dry run is one (review round 4: `pip install x # --dry-run` installs).
-    shortcut: `npx` and `dlx` run a package without installing it into the project, and are left;
-    `pip-sync` and `corepack` writing into node_modules / .venv are not seen, nor a verb a
-    `$(...)` gives (`npm $(echo ci)`) or an install word `_INSTALLERS` does not list (`pnpm
-    import`, `pnpm fetch`, `poetry sync`, `pdm add`, `conda install`); 0.1.6 (review round 4)."""
+    none; a dry run is one (review round 4: `pip install x # --dry-run` installs). A runner that
+    downloads a package to run it is one too (`_fetches_to_run`: K-okuyucu-3).
+    shortcut: `pip-sync` and `corepack` writing into node_modules / .venv are not seen, nor an
+    install word `_INSTALLERS` does not list (`pnpm import`, `pnpm fetch`, `poetry sync`, `pdm
+    add`, `conda install`); 0.1.6 (review round 4)."""
     for words in (words for line in _readings(command) for words in _commands_in(line) if words):
         if _installs_part(words):
             return ("It installs or removes packages: in a working copy its dependency folders "
                     "are the project's own, linked in.")
+        if _fetches_to_run(words):
+            return ("It downloads a package and runs it (npx -p, uvx, dlx): what runs comes from "
+                    "the internet, not from the project.")
     return ""
 
 
@@ -3855,6 +4098,27 @@ def _installs_part(words: list[str]) -> bool:
     return words == ["yarn"] or any(
         verb == UNREAD or verb.casefold() in (_INSTALLERS["pip"] if program.startswith(
             "pip") else _INSTALLERS.get(program, set())) for program, verb in _verbs(words))
+
+
+# K-okuyucu-3: what downloads a package to run it - an install by another name, from the internet:
+# `uvx x`, `bunx x`, `pnpx x`; `pnpm dlx`, `yarn dlx`, `pipx run`, `bun x`, `uv tool run`; `npx` and
+# `npm exec` given `-p` / `--package`, `uv run` given `--with`.
+# shortcut: a bare `npx <bin>` / `npm exec <bin>` runs the project's own bin where it has one, and
+# is left as before - one not installed it downloads all the same; card it if agents fetch so.
+_FETCH_RUNNERS = frozenset({"uvx", "bunx", "pnpx"})
+_FETCH_VERBS = frozenset({("pnpm", "dlx"), ("yarn", "dlx"), ("pipx", "run"), ("bun", "x")})
+
+
+def _fetches_to_run(words: list[str]) -> bool:
+    """Whether one part's words download a package to run it (`_FETCH_RUNNERS`, `_FETCH_VERBS`)."""
+    words = _module_run(words) or words
+    program, said = _program(words[0]), [word.casefold() for word in words[1:]]
+    verbs = {(name, verb.casefold()) for name, verb in _verbs(words)}
+    package = any(word in ("-p", "--package") or word.startswith("--package=") for word in said)
+    return (program in _FETCH_RUNNERS and bool(said) or bool(verbs & _FETCH_VERBS)
+            or ("uv", "tool") in verbs and "run" in said
+            or package and (program == "npx" or bool(verbs & {("npm", "exec"), ("npm", "x")}))
+            or ("uv", "run") in verbs and any(word.startswith("--with") for word in said))
 
 
 # What reaches the internet from a command (K-web-komut): `_SENDING_PROGRAMS` and these, as

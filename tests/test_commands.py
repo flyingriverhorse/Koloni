@@ -310,3 +310,49 @@ def test_a_git_rule_never_covers_these_changes(command, rule):
 ])
 def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, covered):
     assert matches(command, rule) is covered
+
+
+# --- k-okuyucu-3: an "Always" rule never covers an option that runs another program, fetches code
+# or writes outside the folder - past the rule; the rule's own words it covers as before ---------
+
+
+@pytest.mark.parametrize("command, rule, covered", [
+    ("python -m pytest --basetemp=C:/x", "python -m pytest", False),
+    ("python -m pytest --basetemp=.koloni/tmp/x", "python -m pytest", False),
+    ("python -m pytest -p no:cacheprovider", "python -m pytest", False),
+    ("python -m pytest -pno:cacheprovider", "python -m pytest", False),
+    ("pytest --rootdir=.. tests", "pytest", False), ("pytest --confcut=x", "pytest", False),
+    ("pytest -o addopts=-pevil", "pytest", False), ("pytest -c other.ini", "pytest", False),
+    ("pytest --override-ini=x", "pytest", False),
+    ("uv run pytest --basetemp x", "uv run pytest", False),
+    ("go test ./... -exec x", "go test", False), ("go test ./... --toolexec=x", "go test", False),
+    ("cargo test --config x", "cargo test", False),
+    ("gradle build -I x.gradle", "gradle build", False),
+    ("gradle build -Ix.gradle", "gradle build", False),
+    ("npm test --script-shell=x", "npm test", False), ("npm test --prefix ../x", "npm test", False),
+    ("npx eslint -p x src", "npx eslint", False), ("npx eslint --call x", "npx eslint", False),
+    ("uv run pytest --with x", "uv run pytest", False),
+    ("npm run x -- bash -c y", "npm run x", False),
+    # (as before: what changes nothing of what runs)
+    ("python -m pytest -q tests/x.py", "python -m pytest", True),
+    ("python -m pytest --co -q", "python -m pytest", True),
+    ("python -m pytest --cov=app -n 2", "python -m pytest", True),
+    ("go test ./... -run X", "go test", True), ("npm test -- --watch", "npm test", True),
+    ("npx eslint src", "npx eslint", True), ("uv run pytest -q", "uv run pytest", True),
+    ("git log -p", "git log", True), ("git switch -c x", "git switch", True),
+    ("python -m pytest -p no:cacheprovider", "python -m pytest -p no:cacheprovider", True),
+])
+def test_a_rule_never_covers_an_option_past_it_that_runs_fetches_or_writes_outside(
+    command, rule, covered
+):
+    assert is_allowed(command, [rule]) is covered
+
+
+@pytest.mark.parametrize("command", [
+    "python -m pytest --basetemp=C:/x", "python -m pytest --basetemp ../x",
+    "pytest --basetemp=/tmp/x", "uv run pytest --basetemp=$TMP/x",
+])
+def test_a_basetemp_outside_the_folder_is_a_delete(command):
+    """pytest empties --basetemp's folder first: one outside is deleted."""
+    assert harms(command).startswith("Deletes the folder given to pytest's --basetemp")
+    assert harms("python -m pytest --basetemp=.koloni/tmp/x") == ""

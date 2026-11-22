@@ -1042,13 +1042,29 @@ def test_an_install_however_it_is_written_is_one(command):
 
 @pytest.mark.parametrize("command", [
     "npm run build", "npm test", "yarn test", "yarn --version", "pip list", "pip --version",
-    "npx create-vite x", "pnpm dlx x", "python -m pytest", "py -m venv env", "npm run install-x",
+    "npx create-vite x", "python -m pytest", "py -m venv env", "npm run install-x",
     # (only the verb counts: a script's name, a word after it, is none)
     "uv run pytest -k sync", "npm run install", "pnpm run add", "pip show install",
     "uv pip list", "uv pip show x", "uv pip freeze", "uv pip compile r.in",
+    # (k-okuyucu-3: a bare runner runs the project's own bin, as before)
+    "npx eslint src", "npx tsc --noEmit", "npm exec eslint", "pnpm exec vitest", "yarn exec x",
+    "uv run pytest",
 ])
 def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command
+
+
+@pytest.mark.parametrize("command", [
+    "npx -p cowsay cowsay hi", "npx --package=cowsay cowsay", "npm exec --package cowsay cowsay",
+    "npm x --package=cowsay cowsay", "uv run --with requests python x.py", "uvx ruff check",
+    "uv tool run ruff check", "pipx run black .", "bunx cowsay", "bun x cowsay", "pnpx cowsay",
+    "pnpm dlx create-vite", "yarn dlx cowsay", 'cmd /c "uvx ruff check"',
+    "python -m uv run --with x pytest",
+])
+def test_a_runner_that_downloads_a_package_to_run_it_is_an_install(command):
+    """K-okuyucu-3: a card in a copy with links, asked with web off - what runs is the internet's."""
+    assert installs(command).startswith("It downloads a package and runs it"), command
+    assert web_off_reason(command, ["http_request"]), command
 
 
 # Review round 4: what a runner hands on installs, past any option of its own; a dry run is one

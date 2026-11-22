@@ -1,5 +1,5 @@
 {
-"about": "K-koordinasyon's command gate (review rounds 3-4): each line's verdict as 650e22a gave it - harm_class (0 none, 1 soft, 2 always), copy_reason in a copy with links (the sentence's family, '' no card), installs(), web_off_reason with http_request off - which HEAD must give at least. <x> is a path the test makes; win32: Windows' own spellings, checked there alone. `allow`: the lines meant to go down, each with why. `xfail`: known regressions still open. `up`: lines meant to go up (harm at least soft).",
+"about": "K-koordinasyon's command gate (review rounds 3-4): each line's verdict as 650e22a gave it - harm_class (0 none, 1 soft, 2 always), copy_reason in a copy with links (the sentence's family, '' no card), installs(), web_off_reason with http_request off - which HEAD must give at least. <x> is a path the test makes; win32: Windows' own spellings, checked there alone. `allow`: the lines meant to go down, each with why. `xfail`: known regressions still open. `up`: lines meant to go up (harm at least soft). `shared` (k-okuyucu-3): lines that in a branch's worktree reaches_shared_git must ask - a write to a place built at run time.",
 "lines": [
 [
 "",
@@ -7898,6 +7898,14 @@ true,
 false
 ],
 [
+"Add-Content -Path (Join-Path (git rev-parse --git-common-dir) 'worktrees/users-wt/gitdir') -Value x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Add-Content .venv/x hi",
 0,
 "write",
@@ -8290,6 +8298,14 @@ false,
 false
 ],
 [
+"Copy-Item x -Destination (Join-Path (git rev-parse --git-dir) 'x')",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Copy-Item x -Destination:\"../../b/tree/y",
 0,
 "out",
@@ -8467,6 +8483,14 @@ false
 ],
 [
 "Create",
+0,
+"",
+false,
+false,
+false
+],
+[
+"D=$(git rev-parse --git-common-dir); git rev-parse HEAD > $D/refs/remotes/origin/x",
 0,
 "",
 false,
@@ -10778,6 +10802,14 @@ false,
 false
 ],
 [
+"Move-Item x ((git rev-parse --git-dir) + '/x')",
+0,
+"",
+false,
+false,
+false
+],
+[
 "My key:",
 0,
 "",
@@ -10975,6 +11007,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"New-Item -Path (Split-Path (git rev-parse --git-dir)) -Name users-wt/gitdir -Value x -Force",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -12578,6 +12618,14 @@ false,
 false
 ],
 [
+"Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Set-Content (Join-Path .koloni/tmp ../settings.json) 1",
 2,
 "out",
@@ -12588,6 +12636,14 @@ false
 [
 "Set-Content (Resolve-Path .koloni/tmp/..)/x 1",
 2,
+"",
+false,
+false,
+false
+],
+[
+"Set-Content -LiteralPath $p -Value x",
+0,
 "",
 false,
 false,
@@ -12690,6 +12746,14 @@ true,
 false
 ],
 [
+"Set-Content .git/config x",
+2,
+"",
+false,
+false,
+false
+],
+[
 "Set-Content .github\\canli.yml x",
 2,
 "",
@@ -12783,6 +12847,14 @@ false
 "out",
 false,
 true,
+false
+],
+[
+"Set-Location (Split-Path (git rev-parse --git-dir)); Set-Content users-wt/gitdir x",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -16186,6 +16258,14 @@ false,
 false
 ],
 [
+"[IO.File]::WriteAllText((Join-Path (git rev-parse --git-dir) 'x'), 'y')",
+0,
+"",
+false,
+false,
+false
+],
+[
 "[ScriptBlock]::Create(\"npm ci\").Invoke()",
 0,
 "",
@@ -16231,6 +16311,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"[System.IO.File]::AppendAllText(\"$(git rev-parse --git-dir)/x\", 'y')",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -19202,6 +19290,14 @@ false,
 false
 ],
 [
+"bash -c 'echo x > \"$(git rev-parse --git-dir)/x\"'",
+0,
+"",
+false,
+false,
+false
+],
+[
 "bash -c 'git am x.patch'",
 2,
 "",
@@ -19730,6 +19826,14 @@ false,
 false
 ],
 [
+"bun x cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
 "bun x kill-port 3000",
 0,
 "",
@@ -19749,33 +19853,33 @@ false
 "bunx cowsay",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "bunx cowsay hi",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "bunx kill-port 3000",
 2,
 "kill",
+true,
 false,
-false,
-false
+true
 ],
 [
 "bunx npm ci",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "busybox killall python",
@@ -21667,6 +21771,14 @@ false
 ],
 [
 "cd ",
+0,
+"",
+false,
+false,
+false
+],
+[
+"cd \"$(dirname \"$(git rev-parse --git-dir)\")\" && echo x > users-wt/gitdir",
 0,
 "",
 false,
@@ -24186,6 +24298,14 @@ false,
 false
 ],
 [
+"cmd /c \"echo x > %G%/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "cmd /c \"echo x > ../../b/tree/y\"",
 0,
 "out",
@@ -25514,6 +25634,14 @@ false,
 false
 ],
 [
+"cmd /c \"uvx ruff check\"",
+0,
+"",
+true,
+false,
+true
+],
+[
 "cmd /c \"virtualenv .venv\"",
 0,
 "rebuild",
@@ -26698,6 +26826,14 @@ false,
 false
 ],
 [
+"cp -t \"$(git rev-parse --git-dir)\" x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "cp -t node_modules/.. a.py",
 0,
 "",
@@ -27282,6 +27418,14 @@ false,
 false
 ],
 [
+"cp x \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "cp x \"..\"/\"..\"/b",
 0,
 "out",
@@ -27740,6 +27884,14 @@ false
 [
 "cp x .`./../b",
 0,
+"",
+false,
+false,
+false
+],
+[
+"cp x .git/worktrees/users-wt/gitdir",
+2,
 "",
 false,
 false,
@@ -30189,6 +30341,14 @@ false
 "echo \"$(pgrep python | xargs kill)\"",
 2,
 "kill",
+false,
+false,
+false
+],
+[
+"echo \"$(pwd -W)/x\" > \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+0,
+"",
 false,
 false,
 false
@@ -33002,6 +33162,14 @@ false,
 false
 ],
 [
+"echo x 2> \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo x <# (a #> ; npm ci",
 0,
 "rebuild",
@@ -33028,6 +33196,22 @@ false
 [
 "echo x > \".cl\"\"aude/settings.json\"",
 2,
+"",
+false,
+false,
+false
+],
+[
+"echo x > ${D}/refs/remotes/origin/x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > %G%/x",
+0,
 "",
 false,
 false,
@@ -33115,6 +33299,22 @@ false
 ],
 [
 "echo x > .claude/x",
+2,
+"",
+false,
+false,
+false
+],
+[
+"echo x > .git",
+2,
+"",
+false,
+false,
+false
+],
+[
+"echo x > .git/hooks/pre-commit",
 2,
 "",
 false,
@@ -33239,6 +33439,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"echo x > `git rev-parse --git-dir`/x",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -43242,7 +43450,71 @@ false,
 false
 ],
 [
+"git rev-parse HEAD | Out-File $p",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse HEAD | Out-File -FilePath \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse HEAD | Tee-Object -FilePath $p",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse HEAD | tee \"$(git rev-parse --git-dir)/refs/remotes/origin/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse HEAD | tee -a $G/x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "git rev-parse HEAD~1",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse feat > \"$(dirname \"$(dirname \"$(git rev-parse --git-dir)\")\")/refs/remotes/origin/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse feat > .git/refs/remotes/origin/x",
+2,
+"",
+false,
+false,
+false
+],
+[
+"git rev-parse feat >> \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\"",
 0,
 "",
 false,
@@ -51530,6 +51802,14 @@ false,
 false
 ],
 [
+"install -D x \"$(git rev-parse --git-dir)/hooks/pre-commit\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "ionice -c 3 rm -rf x",
 2,
 "",
@@ -52706,6 +52986,14 @@ false,
 false
 ],
 [
+"ln x \"$(git rev-parse --git-dir)/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "ls",
 0,
 "",
@@ -52979,6 +53267,14 @@ false
 ],
 [
 "ls | Where-Object { $_.Length -gt 1 }",
+0,
+"",
+false,
+false,
+false
+],
+[
+"ls | xargs -I{} cp x {}/gitdir",
 0,
 "",
 false,
@@ -53355,6 +53651,14 @@ false
 ],
 [
 "mv src/a/x.ts src/a/../b/x.ts",
+0,
+"",
+false,
+false,
+false
+],
+[
+"mv x \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\"",
 0,
 "",
 false,
@@ -55538,12 +55842,28 @@ false,
 true
 ],
 [
+"npm exec --package cowsay cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm exec --package x -- npm ci",
 0,
 "",
 false,
 false,
 false
+],
+[
+"npm exec --package=cowsay -- cowsay hi",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "npm exec --package=kill-port -- kill-port 3000",
@@ -56370,6 +56690,14 @@ false,
 true
 ],
 [
+"npm x --package cowsay cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm x -c \"taskkill /F /IM python.exe\"",
 0,
 "",
@@ -56474,6 +56802,22 @@ false,
 false
 ],
 [
+"npx --package cowsay cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npx --package=cowsay cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npx --yes -- npm ci",
 0,
 "",
@@ -56522,12 +56866,20 @@ false,
 false
 ],
 [
+"npx -p cowsay cowsay hi",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npx -p kill-port kill-port 3000",
 2,
 "kill",
+true,
 false,
-false,
-false
+true
 ],
 [
 "npx -y kill-port 8790",
@@ -57754,6 +58106,14 @@ false,
 true
 ],
 [
+"pipx run black .",
+0,
+"",
+true,
+false,
+true
+],
+[
 "pipx run pip install x",
 0,
 "",
@@ -57765,9 +58125,9 @@ true
 "pipx run virtualenv .venv",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "pk\nill -f uvicorn",
@@ -58317,49 +58677,49 @@ false
 "pnpm dlx create-vite",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "pnpm dlx create-vite app",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "pnpm dlx kill-port 3000",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "pnpm dlx kill-port 8790",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "pnpm dlx npm ci",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "pnpm dlx x",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "pnpm exec -- pip install x",
@@ -58514,12 +58874,20 @@ false,
 true
 ],
 [
+"pnpx cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
 "pnpx kill-port 3000",
 2,
 "kill",
+true,
 false,
-false,
-false
+true
 ],
 [
 "poetry -C web run npm ci",
@@ -62706,6 +63074,14 @@ false,
 false
 ],
 [
+"pytest --basetemp=../x",
+2,
+"out",
+false,
+false,
+false
+],
+[
 "pytest -k \"$(pkill python)\"",
 2,
 "kill",
@@ -62853,6 +63229,14 @@ false
 "pytest -q && rm -rf build",
 1,
 "delete",
+false,
+false,
+false
+],
+[
+"pytest -q --basetemp=/tmp/x tests",
+2,
+"",
 false,
 false,
 false
@@ -64004,6 +64388,22 @@ false
 [
 "python -m pytest",
 0,
+"",
+false,
+false,
+false
+],
+[
+"python -m pytest --basetemp C:/x",
+2,
+"",
+false,
+false,
+false
+],
+[
+"python -m pytest --basetemp=C:/x",
+2,
 "",
 false,
 false,
@@ -78450,6 +78850,22 @@ false,
 true
 ],
 [
+"uv run --with requests python x.py",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv run --with=requests pytest",
+0,
+"",
+true,
+false,
+true
+],
+[
 "uv run -m pip install x",
 0,
 "",
@@ -78485,6 +78901,14 @@ true
 "uv run pytest",
 0,
 "",
+false,
+false,
+false
+],
+[
+"uv run pytest --basetemp=../../b/tree",
+2,
+"out",
 false,
 false,
 false
@@ -78653,9 +79077,9 @@ false
 "uv tool run ruff check",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "uv tree",
@@ -78722,12 +79146,28 @@ false,
 false
 ],
 [
+"uvx --from ruff ruff check .",
+0,
+"",
+true,
+false,
+true
+],
+[
 "uvx pip install x",
 0,
 "",
+true,
 false,
+true
+],
+[
+"uvx ruff check",
+0,
+"",
+true,
 false,
-false
+true
 ],
 [
 "v=$(pip install -r requirements.txt) && echo $v",
@@ -80834,20 +81274,28 @@ false,
 true
 ],
 [
+"yarn dlx -p cowsay cowsay",
+0,
+"",
+true,
+false,
+true
+],
+[
 "yarn dlx cowsay",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "yarn dlx kill-port 3000",
 0,
 "",
+true,
 false,
-false,
-false
+true
 ],
 [
 "yarn exec kill-port 3000",
@@ -82218,5 +82666,38 @@ false
 "Remove-Item -Recurse -Force build`\r\ngit push origin main": "round 4 (Away re-check): a backtick glued to a word continues nothing in pwsh -Command - at least its harm",
 "rm -rf build; npm pub\\\nlish": "round 4 (Away re-check): a backslash-newline inside a word joins it in bash - at least its harm",
 "curl https://x -\\\nd @report.txt": "round 4 (Away re-check): a backslash-newline inside a word joins it in bash - at least its harm"
-}
+},
+"shared": [
+"Add-Content -Path (Join-Path (git rev-parse --git-common-dir) 'worktrees/users-wt/gitdir') -Value x",
+"Copy-Item x -Destination (Join-Path (git rev-parse --git-dir) 'x')",
+"D=$(git rev-parse --git-common-dir); git rev-parse HEAD > $D/refs/remotes/origin/x",
+"Move-Item x ((git rev-parse --git-dir) + '/x')",
+"New-Item -Path (Split-Path (git rev-parse --git-dir)) -Name users-wt/gitdir -Value x -Force",
+"Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
+"Set-Content -LiteralPath $p -Value x",
+"Set-Location (Split-Path (git rev-parse --git-dir)); Set-Content users-wt/gitdir x",
+"[IO.File]::WriteAllText((Join-Path (git rev-parse --git-dir) 'x'), 'y')",
+"[System.IO.File]::AppendAllText(\"$(git rev-parse --git-dir)/x\", 'y')",
+"bash -c 'echo x > \"$(git rev-parse --git-dir)/x\"'",
+"cd \"$(dirname \"$(git rev-parse --git-dir)\")\" && echo x > users-wt/gitdir",
+"cmd /c \"echo x > %G%/x\"",
+"cp -t \"$(git rev-parse --git-dir)\" x",
+"cp x \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+"echo \"$(pwd -W)/x\" > \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
+"echo x 2> \"$(git rev-parse --git-dir)/x\"",
+"echo x > ${D}/refs/remotes/origin/x",
+"echo x > %G%/x",
+"echo x > `git rev-parse --git-dir`/x",
+"git rev-parse HEAD | Out-File $p",
+"git rev-parse HEAD | Out-File -FilePath \"$(git rev-parse --git-dir)/x\"",
+"git rev-parse HEAD | Tee-Object -FilePath $p",
+"git rev-parse HEAD | tee \"$(git rev-parse --git-dir)/refs/remotes/origin/x\"",
+"git rev-parse HEAD | tee -a $G/x",
+"git rev-parse feat > \"$(dirname \"$(dirname \"$(git rev-parse --git-dir)\")\")/refs/remotes/origin/x\"",
+"git rev-parse feat >> \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\"",
+"install -D x \"$(git rev-parse --git-dir)/hooks/pre-commit\"",
+"ln x \"$(git rev-parse --git-dir)/x\"",
+"ls | xargs -I{} cp x {}/gitdir",
+"mv x \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\""
+]
 }
