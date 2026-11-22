@@ -169,12 +169,14 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: date
 
 def _rewritten_after(session: Session, run_id: str, by: Collection[str], ran: Command,
                      wanted: str) -> bool:
-    """Whether a command of `by` started after `ran` that may have changed files: not a test
-    run (`ledger.read_test`), not the same test command again, not one that only reads
-    (`commands.only_reads`). Re-running is the safe direction."""
+    """Whether a command of `by` started after `ran` that may have changed files, or ran the same
+    test command again and did not pass: any but one that only reads (`commands.only_reads`) or
+    a clean pass of exactly the end check's command. A test tool on a line is no sign it only
+    tested - `fmt && pytest`, `jest -u`, `--snapshot-update` write. Re-running is the safe way."""
     return any(
-        _folded(line) != wanted and ledger.read_test(line) is None and not only_reads(line)
-        for line in session.scalars(select(Command.command).where(
+        not only_reads(one.command) and not (
+            _folded(one.command) == wanted and one.status == "exited" and one.exit_code == 0)
+        for one in session.scalars(select(Command).where(
             Command.run_id == run_id, Command.agent_id.in_(by), Command.id != ran.id,
             Command.started_at.is_not(None), Command.started_at > ran.started_at)))
 
