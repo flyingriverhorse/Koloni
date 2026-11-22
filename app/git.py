@@ -2671,6 +2671,15 @@ def _users_worktrees(project: Path, git: str, under: Iterable[Path]
                                  else None, common / "logs" / "HEAD", set())]
     admins = sorted((common / "worktrees").iterdir()) if (common / "worktrees").is_dir() else []
     for admin in admins:
+        tree: Path | None = None
+        try:  # (its worktree's .git file: absolute, or from here - worktree.useRelativePaths)
+            tree = Path(os.path.normpath(os.path.dirname(os.path.join(admin, (
+                admin / "gitdir").read_text("utf-8").strip()))))
+            skip = real(tree) == here or os.path.join(real(tree), "").startswith(tops)
+        except (OSError, ValueError):
+            skip = False  # (not read: taken for the user's)
+        if skip:
+            continue
         tip: str | None = f"worktrees/{admin.name}/HEAD"
         drop: set[str] = set()
         try:
@@ -2679,15 +2688,7 @@ def _users_worktrees(project: Path, git: str, under: Iterable[Path]
             on = ""  # (not read: taken for the user's)
         if on.startswith(f"ref: refs/heads/{BRANCH_PREFIX}"):
             tip, drop = None, _made_on(project, git, on.removeprefix("ref: refs/heads/"))
-        tree: Path | None = None
-        try:  # (its worktree's .git file: absolute, or from here - worktree.useRelativePaths)
-            tree = Path(os.path.normpath(os.path.dirname(os.path.join(admin, (
-                admin / "gitdir").read_text("utf-8").strip()))))
-            skip = real(tree) == here or os.path.join(real(tree), "").startswith(tops)
-        except (OSError, ValueError):
-            skip = False  # (not read: taken for the user's)
-        if not skip:
-            found.append((tip, tree, admin / "logs" / "HEAD", drop))
+        found.append((tip, tree, admin / "logs" / "HEAD", drop))
     return found
 
 

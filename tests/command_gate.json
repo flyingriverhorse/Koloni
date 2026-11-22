@@ -1146,6 +1146,14 @@ false,
 false
 ],
 [
+"$d = (Get-Content .git) -replace 'gitdir: ',''; [IO.File]::Copy('g.txt', \"$d/../users-wt/gitdir\", $true)",
+2,
+"",
+false,
+false,
+false
+],
+[
 "$d='con + fig",
 0,
 "",
@@ -8588,6 +8596,14 @@ false
 [
 "Create",
 0,
+"",
+false,
+false,
+false
+],
+[
+"D=$(cut -d' ' -f2 .git); perl -pi -e 's#.*#/x#' \"$D/../users-wt/gitdir\"",
+2,
 "",
 false,
 false,
@@ -56810,6 +56826,14 @@ false,
 false
 ],
 [
+"npm exec tsc -p tsconfig.json",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npm i",
 0,
 "",
@@ -57571,6 +57595,14 @@ false
 ],
 [
 "npm x cowsay",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npm x eslint -p",
 0,
 "",
 false,
@@ -69738,6 +69770,14 @@ false,
 false
 ],
 [
+"sed -i \"s#.*#$PWD/x#\" \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"",
+2,
+"",
+false,
+false,
+false
+],
+[
 "sed -i \"s#.*#$PWD/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
 0,
 "",
@@ -74932,6 +74972,14 @@ false
 [
 "taken only on the user's word",
 0,
+"",
+false,
+false,
+false
+],
+[
+"tar -C \"$(cut -d' ' -f2 .git)/..\" -xf evil.tar",
+2,
 "",
 false,
 false,

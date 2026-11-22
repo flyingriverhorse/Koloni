@@ -1052,6 +1052,7 @@ def test_an_install_however_it_is_written_is_one(command):
     "uv run ruff check -w", "npm exec eslint -- -p x", "npx vitest run -p 2",
     "npx --no-install tsc -p x", "npx -y tsc -p tsconfig.json", "npm exec -- cowsay --package=x",
     "npm init", "npm init -y", "go run ./cmd/x", "go run main.go -email a@b.com", "deno run main.ts",
+    "npm exec tsc -p tsconfig.json",
 ])
 def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command

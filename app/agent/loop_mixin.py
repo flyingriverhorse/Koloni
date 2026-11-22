@@ -61,6 +61,7 @@ from app.model_client import (
     OwnStop,
     StepResult,
     ToolCallRequest,
+    provider_call_id,
 )
 from app.model_session import ClaudeSessionClient, CliSessionClient, SessionStop
 from app.providers import list_providers, mode_of
@@ -1366,7 +1367,10 @@ class LoopMixin:
         requests: list[ToolCallRequest]
     ) -> None:
         """Record every requested call first, then run them in order. Sub-agents asked
-        for one after another are opened together and work at the same time."""
+        for one after another are opened together and work at the same time. A model's id named
+        as KOLONİ's own calls are (`koloni_...`, `cli_...`) is recorded as one of its own
+        (`provider_call_id`), whatever client gave it: KOLONİ trusts those by their names."""
+        requests = [replace(one, id=provider_call_id(one.id)) for one in requests]
         created = self._record_calls(ctx, message_id, requests)
         calls = [
             (made[0], request) for made, request in zip(created, requests, strict=True)

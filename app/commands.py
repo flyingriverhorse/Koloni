@@ -9,7 +9,7 @@ import re
 import shlex
 import sys
 import time
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from pathlib import Path, PureWindowsPath
 from typing import Literal
 from urllib.parse import quote
@@ -1338,7 +1338,7 @@ _PS_NOT_PATHS = ("value", "inputobject", "encoding", "itemtype", "type", "stream
 _PS_SWITCHES = frozenset({"force", "nonewline", "append", "noclobber", "passthru", "whatif",
                           "confirm", "asbytestream", "verbose", "debug"})
 _DEEPEST = 4  # (shells handed shells: deeper, asked)
-# Built, yet no place a line could aim at the shared git: cured narrowly (`_cured`) - the temp
+# Built, yet no place a line could aim at the shared git: cured narrowly (`_curing`) - the temp
 # folder by its variable where the line sets none of them (`$TMPDIR/f`, `$env:TEMP\a`), a `$(date
 # ...)` in the file's own name (`build-$(date +%s).log`), a `for` loop's variable over a glob or
 # names written out (`for f in *.py`: no `$`, bracket, backtick or `..` in its list, no path from a
@@ -1350,17 +1350,20 @@ _DATE_NAME = re.compile(r"\$\(date(?:\s[^()`$]*)?\)(?=[^\\/]*$)")
 _FOR_LIST = re.compile(r"(?:^|[\s;&|(])for\s+(\w+)\s+in\s+([^;\n]*)")
 
 
-def _cured(target: str, line: str) -> str:
-    """A write's target as `_BUILT` judges it on `line`: `_TEMP_VAR`, `_DATE_NAME` and a literal
-    `for` list's variable read as a plain name."""
-    if not _SETS_TEMP.search(line):
-        target = _TEMP_VAR.sub(r"\1x", target)
-    target = _DATE_NAME.sub("x", target)
-    for found in _FOR_LIST.finditer(line):
-        if not re.search(r"[$`(]|\.\.", found[2]) and not any(
-                _full(item.strip("'\"")) for item in found[2].split()):
-            target = re.sub(rf"\$(?:\{{{found[1]}\}}|{found[1]}\b)", "x", target)
-    return target
+def _curing(line: str) -> Callable[[str], str]:
+    """`_writes_built`'s cure for `line`, read once: a write's target as `_BUILT` judges it there -
+    `_TEMP_VAR`, `_DATE_NAME` and a literal `for` list's variable read as a plain name."""
+    temp = not _SETS_TEMP.search(line)
+    names = {found[1] for found in _FOR_LIST.finditer(line)
+             if not re.search(r"[$`(]|\.\.", found[2])
+             and not any(_full(item.strip("'\"")) for item in found[2].split())}
+    either = "|".join(sorted(names))
+    loops = re.compile(rf"\$(?:\{{(?:{either})\}}|(?:{either})\b)") if names else None
+
+    def cured(target: str) -> str:
+        target = _DATE_NAME.sub("x", _TEMP_VAR.sub(r"\1x", target) if temp else target)
+        return loops.sub("x", target) if loops else target
+    return cured
 
 
 def _shell_words(line: str) -> list[str]:
@@ -1425,13 +1428,13 @@ def _writes_built(line: str, depth: int = 0) -> bool:
         first = _shell_words(line[found.end():])[:1]
         if first and _BUILT.search(first[0]):
             return True
-    moved, part = False, []
+    moved, part, cured = False, [], _curing(line)
     for word in [*_shell_words(line), ";"]:
         if word not in (";", "&", "|", "\n"):
             part.append(word)
             continue
         targets, went = _part_targets(part, depth) if part else ([], False)
-        if UNREAD in targets or any(_BUILT.search(_cured(one, line)) for one in targets) or (
+        if UNREAD in targets or any(_BUILT.search(cured(one)) for one in targets) or (
                 moved and targets):
             return True
         moved, part = moved or went, []
@@ -4241,9 +4244,10 @@ def _fetches_to_run(words: list[str]) -> bool:
         return True
     if program == "npx":
         package = _npx_options(words[1:])
-    else:  # (npm exec reads `--package` anywhere before `--`: `npm exec x --package=y`)
+    else:  # (npm exec reads `--package` anywhere before `--`: `npm exec x --package=y`; its `-p`
+        # is npm's --parseable, `npm exec tsc -p x` tsc's)
         package = [w for verb in ("exec", "x") if ("npm", verb) in verbs
-                   for w in after[verb][:(after[verb] + ["--"]).index("--")]]
+                   for w in after[verb][:(after[verb] + ["--"]).index("--")] if w != "-p"]
     with_ = _runner_options(words[said.index("run") + 2:]) if ("uv", "run") in verbs else []
     return any(word in ("-p", "--package") or word.startswith("--package=")
                for word in package) or any(word.startswith(("--with", "-w")) for word in with_)
