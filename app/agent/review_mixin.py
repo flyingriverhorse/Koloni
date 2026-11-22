@@ -22,7 +22,7 @@ from app.agent.context_mixin import FINDINGS_PROMPT
 from app.agent.ctx import Ctx
 from app.agent.spawn_mixin import BEFORE_THE_WORK, CUT_SHORT, MAX_REVIEW_DIFF
 from app.agent.summary import _blocking, _findings
-from app.db.models import Agent, Conversation, Message, Run
+from app.db.models import Agent, Conversation, Message, Run, now
 from app.model_client import ToolCallRequest
 from app.proof import Row
 from app.roles import READ, shown_name
@@ -81,7 +81,12 @@ RECIPE_DID = "No review: the recipe's own Review step looked it over"
 OVER_LIMIT = "the turn's token limit is reached"
 CAPPED = "Still on hold after {most} fix rounds: you decide (Fix it)"
 FINDING = "{mark}: {what}"
-VERDICT = re.compile(r"^\s*\**\s*Verdict\s*\**\s*:\s*\**\s*(MERGE|HOLD)\b", re.IGNORECASE)
+VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?\**\s*Verdict\s*\**\s*:\s*\**\s*(MERGE|HOLD)\b",
+                     re.IGNORECASE)
+# A MERGE counts only in a look's closing part: after its last fenced block, in its last lines -
+# not one it quotes from the diff higher up.
+CLOSING = 8
+NO_VERDICT = "Review gave no verdict: not counted ({role}, {sign})"
 # A change a user sees: a screen's file, or a command's option added.
 USER_FACING = re.compile(r"add_argument\(|click\.option\(|\.option\(|process\.argv|argparse")
 DOCS = ("docs", "README.md", "README", "README.rst", "CHANGELOG.md", "CHANGELOG")
@@ -90,16 +95,23 @@ DOCS = ("docs", "README.md", "README", "README.rst", "CHANGELOG.md", "CHANGELOG"
 
 
 def verdict_of(report: str) -> str | None:
-    """A look's verdict: a line `Verdict: MERGE` or `Verdict: HOLD` of its own - not one in a
-    fenced block, a quote (`>`) or a diff line (`+`, `-`); any HOLD wins. None: none said."""
-    found, fenced = set(), False
-    for line in report.splitlines():
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
-        elif not fenced and not line.lstrip().startswith((">", "+", "-")) and (
-                said := VERDICT.match(line)):
-            found.add(said.group(1).upper())
-    return "HOLD" if "HOLD" in found else "MERGE" if found else None
+    """A look's verdict: a line `Verdict: MERGE` or `Verdict: HOLD` of its own (a heading's or a
+    list item's too) - not one in a fenced block, a quote (`>`) or a diff line (`+`, `-` with no
+    space after). Any HOLD wins; a MERGE counts only in its closing part (CLOSING). None: none."""
+    lines, fenced, after, said = report.splitlines(), False, 0, []
+    for at, line in enumerate(lines):
+        bare = line.lstrip()
+        if bare.startswith("```"):
+            fenced, after = not fenced, at + 1
+        elif not fenced and not bare.startswith((">", "+")) and not (
+                bare.startswith("-") and not bare.startswith("- ")) and (
+                found := VERDICT.match(line)):
+            said.append((at, found.group(1).upper()))
+    if any(verdict == "HOLD" for _at, verdict in said):
+        return "HOLD"
+    closing = [at for at, line in enumerate(lines) if line.strip()][-CLOSING:]
+    first = max(after, closing[0] if closing else 0)
+    return "MERGE" if any(at >= first for at, _verdict in said) else None
 
 
 def _held_in_words(report: str, findings: list[dict] | None) -> list[dict] | None:
@@ -203,9 +215,10 @@ class ReviewMixin:
             if look.not_run is not None:
                 rows.append(self._not_run_row(look))
                 continue
-            if look.findings is None:
-                rows.append(proof.row("review", "note", NO_SECTION.format(role=look.role,
-                                                                           sign=look.sign)))
+            if look.verdict is None or look.findings is None:
+                said = NO_VERDICT if look.verdict is None else NO_SECTION
+                rows.append(proof.row("review", "note", said.format(role=look.role,
+                                                                     sign=look.sign)))
                 continue
             mine = _blocking(look.findings)
             blocking += [(look.role, one) for one in mine]
@@ -296,7 +309,8 @@ class ReviewMixin:
         except asyncio.CancelledError:
             if not going.cancelled() or self._turn_stopping():
                 raise  # (the turn's own Stop)
-            return Look(role, "", None, None, STOPPED_LOOK)  # (Stop this check: `stop_check`)
+            self._look_stopped(ctx, call_id)  # (Stop this check: `stop_check`)
+            return Look(role, "", None, None, STOPPED_LOOK)
         except Exception as exc:  # (a look that broke is said, never "Tests could not start")
             log.warning("run %s: the %s's look failed: %r", ctx.run_id, role, exc)
             status, said = "failed", str(exc) or type(exc).__name__
@@ -312,6 +326,8 @@ class ReviewMixin:
             why = (said.removeprefix("error: ").strip().splitlines() or [status])[0][:300]
             return Look(role, sign, None, None, why)
         verdict, found = verdict_of(report), _findings(report, [FIXER])
+        # (Blocking findings with no verdict line: a hold, as written.)
+        verdict = verdict or ("HOLD" if _blocking(found) else None)
         return Look(role, sign, verdict, _held_in_words(report, found) if verdict == "HOLD"
                     else found, None)
 
@@ -364,6 +380,20 @@ class ReviewMixin:
     def _turn_stopping(self) -> bool:
         task = asyncio.current_task()
         return bool(task is not None and task.cancelling())
+
+    def _look_stopped(self: "AgentRunner", ctx: Ctx, call_id: str) -> None:
+        """A look Stop this check ended: its call and its agent said so, one way."""
+        self._set_call(ctx.cid, call_id, status="interrupted", result=STOPPED_LOOK,
+                       ended_at=now())
+        with self._factory() as session:
+            agent = session.scalar(select(Agent.id).where(Agent.tool_call_id == call_id))
+        if agent is not None:
+            self._set_agent(ctx.cid, agent, status="interrupted")
+
+    def _recipe_count_of(self: "AgentRunner", call_id: str, session, ctx: Ctx, role, most):
+        """`_recipe_count` - none for KOLONİ's own look: never a recipe step's agent."""
+        return None if call_id in self._read_only_calls else self._recipe_count(
+            session, ctx, role, most)
 
     def _stop_looks(self: "AgentRunner", run_id: str) -> bool:
         """N3: Stop this check ends KOLONİ's looks that run now; False: none ran."""

@@ -142,7 +142,7 @@ def test_a_look_without_a_findings_section_sends_nothing_back(make_client, wait_
                                  executor=ScriptedExecutor([PASS]))
     cid, run_id = begin(client, project_dir, check_command=CHECK)
     assert texts(wait_run(client, cid, run_id))[1:] == [
-        review_mixin.NO_SECTION.format(role="Reviewer", sign=SIGN)]
+        review_mixin.NO_VERDICT.format(role="Reviewer", sign=SIGN)]
 
 
 def test_a_cut_diff_says_how_much_was_seen_and_is_no_pass(make_client, wait_run, project_dir,
@@ -450,6 +450,15 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run
     ("Verdict: MERGE\n> Verdict: HOLD\n+ Verdict: HOLD", "MERGE"),
     ("Looks fine. Merge it.", None),
     ("Verdict: MERGE\nVerdict: HOLD", "HOLD"),
+    # (round 3: a heading's or a list item's verdict; a removed diff line is none)
+    ("### Verdict: HOLD\nThe change divides by zero.", "HOLD"),
+    ("- Verdict: HOLD\nIt must change.", "HOLD"),
+    ("## Verdict: HOLD\n\nVerdict: MERGE", "HOLD"),
+    ("-Verdict: HOLD\n\nVerdict: MERGE", "MERGE"),
+    # (a MERGE quoted from the diff higher up, with no verdict of its own: none)
+    ("The diff has:\nVerdict: MERGE\nFindings: none\n" + "\n".join(f"line {i}" for i in range(10)),
+     None),
+    ("```\nVerdict: HOLD\n```\nIt is fine.\nVerdict: MERGE", "MERGE"),
 ])
 def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
     assert review_mixin.verdict_of(report) == verdict
@@ -475,4 +484,8 @@ def test_stop_this_check_ends_a_running_look(make_client, wait_run, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]
     assert review_mixin.STOPPED_LOOK in texts(snap), texts(snap)
-    assert all(a["status"] != "running" for a in reviewers(snap)), reviewers(snap)
+    (looked,) = reviewers(snap)
+    (spawned,) = [c for c in snap["tool_calls"] if c["id"] == looked["tool_call_id"]]
+    # (Both said stopped, one way: not a call left running beside a completed agent.)
+    assert (spawned["status"], looked["status"]) == ("interrupted", "interrupted"), (
+        spawned["status"], looked["status"])

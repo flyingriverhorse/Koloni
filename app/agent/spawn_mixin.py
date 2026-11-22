@@ -1557,8 +1557,8 @@ class SpawnMixin:
             # conversation's), and what may be picked for it instead: what the table of who
             # uses what shows - for this turn, and for the tools this opener leaves it.
             # (For a recipe's step, or a team's lead: its task is the recipe's or the user's.)
-            in_recipe = role is not None and self._recipe_count(
-                session, ctx, role, settings_of(session, conversation).spawn_max_agents
+            in_recipe = role is not None and self._recipe_count_of(
+                call_id, session, ctx, role, settings_of(session, conversation).spawn_max_agents
             ) is not None
             would = would_run(
                 session, role, conversation, unattended=self._unwatched_like(ctx.run_id),
@@ -1694,7 +1694,8 @@ class SpawnMixin:
             self._channel(ctx, handed[0], child.agent_id, "findings", handed[1])
         if asked:
             self._took[child.agent_id] = None
-        self._in_run(ctx, child, role)
+        if call_id not in self._read_only_calls:  # (S3: KOLONİ's look is no recipe's step)
+            self._in_run(ctx, child, role)
         try:
             await self._start_with_others(call_id)
             status, result = await self._see_through(
@@ -2084,7 +2085,7 @@ class SpawnMixin:
             # One the user declined never ran, so it does not use up the turn's allowance. A
             # recipe's step has an allowance of its own (slice 84b-2: what it draws, 84e); its
             # agents use none of the turn's.
-            step = self._recipe_count(session, ctx, role, max_agents)
+            step = self._recipe_count_of(call_id, session, ctx, role, max_agents)
             opened, most, over = step or (session.scalar(
                 select(func.count()).select_from(Agent).where(
                     Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.status != "rejected",
