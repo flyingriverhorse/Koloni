@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Security
+
+- **Workspace**: a pull request of a branch never sends a commit of yours that origin does not have when it came onto the branch without a merge commit of the agent's - a fast-forward to your branch, a rebase onto it or a cherry-pick - also once you amended, rebased or dropped it: only what the branch's own history says was committed on it counts as the agent's ([docs](use/workspace.md#branches)).
+
 ## [0.1.5] - 2026-11-22
 
 ### Added

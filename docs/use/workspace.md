@@ -91,9 +91,10 @@ push the branch; it never merges one. **Keep this branch after merging** keeps t
 
 Opening a pull request needs **gh** (GitHub's CLI) installed and signed in (`gh auth login`), and the
 project's `origin` must be the GitHub repository gh sees. Until then the card says why it cannot open one.
-A branch that took in commits of yours that origin does not have (your branch merged into it, or another
-of yours) is not pushed until you push them, also after you amended, rebased or dropped them; the card
-names them.
+A branch that holds commits of yours that origin does not have - your branch or another merged into it,
+fast-forwarded to, rebased onto or cherry-picked - is not pushed until you push them, also after you
+amended, rebased or dropped them; the card names them. What counts as the agent's own is what its branch's
+history says was committed on it.
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").

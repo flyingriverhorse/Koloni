@@ -1599,7 +1599,7 @@ def commit_branch(
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
         listed = Path(empty) / "paths"  # (a list, not a command line: any number of them)
         listed.write_bytes(b"\0".join(path.encode("utf-8") for path in paths))
-        hooks = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false")
+        hooks = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false", *KEEP_REFLOG)
         code, out, said = _in(tree, git, *hooks, "add", "-A", f"--pathspec-from-file={listed}",
                               "--pathspec-file-nul", seconds=COMMIT_SECONDS, **off)
         if code != 0:
@@ -2266,7 +2266,7 @@ def merge_in(tree: Path, branch: str, into: str, no_hooks: Path) -> tuple[str, s
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
         own = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false", "-c",
                "core.symlinks=false", "-c", "submodule.recurse=false", "-c",
-               "merge.autoStash=false")
+               "merge.autoStash=false", *KEEP_REFLOG)
         code, out, said = _in(tree, git, *UNASKED, *own, "merge", "--no-ff", "--no-edit",
                               "--no-verify", "-m", f"Merge {into} into {branch}", sha,
                               seconds=COMMIT_SECONDS, **UNASKED_ENV, **KOLONI_ID, **off)
@@ -2544,31 +2544,50 @@ TAKEN_IN_UNPUSHED = ("the branch took in commits of yours not on origin ({commit
 NAMED_COMMITS = 3
 
 
-def _taken_in_unpushed(project: Path, git: str, source: str, start: str) -> list[str]:
-    """Of what a branch took in since it was made - each parent of a merge on it but its first (the
-    user's branch merged in, by D2 or by its agent's own merge, or any other branch) - the commits
-    no branch of origin's holds, as git last fetched it: their short ids. Refused where git does
-    not say (fails closed).
-    shortcut: what came in another way - an agent's own rebase or cherry-pick, asked at every
-    level - looks like its own work; walk the branch's reflog if that is ever allowed by a rule."""
-    code, out, said = _in(project, git, *UNASKED, "rev-list", "--parents", "--min-parents=2",
-                          source, f"^{start}", seconds=SHORT_SECONDS, **UNASKED_ENV)
+# How a branch's own reflog says a commit was made on it: by `git commit` (an amend, the end of a
+# merge too) or by git's own merge commit. Whatever else moved it - a fast-forward, a rebase, a
+# cherry-pick, a reset, a pull - brought a commit made elsewhere.
+_MADE_HERE = re.compile(r"commit(?: \((?:amend|merge|initial)\))?: |merge .*: Merge made by ")
+# What KOLONİ's own git, and an agent's in its worktree (`copies.git_env`), is told: a branch's
+# reflog is kept whatever the repository says - what `_made_on` reads.
+KEEP_REFLOG = ("-c", "core.logAllRefUpdates=true")
+
+
+def _made_on(project: Path, git: str, branch: str) -> set[str]:
+    """The commits the branch's own reflog says were made on it (`_MADE_HERE`). None where it has
+    no reflog (an old one expired): nothing is taken for made there (fails closed)."""
+    code, out, _said = _in(project, git, *UNASKED, "log", "-g", "--format=%H%x09%gs",
+                           f"refs/heads/{branch}", seconds=SHORT_SECONDS, **UNASKED_ENV)
+    if code != 0:
+        return set()
+    return {sha for sha, _tab, says in (
+        line.partition("\t") for line in out.decode("utf-8", "replace").splitlines())
+        if _MADE_HERE.match(says)}
+
+
+def _taken_in_unpushed(
+    project: Path, git: str, source: str, start: str, branch: str, snapshot: str | None
+) -> list[str]:
+    """Of the commits on the branch since it was made (`start..source`) that no branch of origin's
+    holds, as git last fetched it, those not made on it (`_made_on`; the snapshot it began from,
+    KOLONİ's, aside): what came in from elsewhere - the user's branch or another merged in (by D2
+    or by its agent's own merge: a parent of it), fast-forwarded to, rebased onto, cherry-picked.
+    Their short ids; Refused where git does not say (fails closed).
+    shortcut: what an agent copies into a commit of its own - a squash merge, `cherry-pick -n`,
+    `checkout <ref> -- <path>` - is its own work to git: each of those reaches the user's
+    repository and is asked at every level; compare the commit's content with their unpushed
+    commits if a rule is ever seen to allow one."""
+    code, out, said = _in(project, git, *UNASKED, "rev-list", source, f"^{start}", "--not",
+                          "--remotes=origin", seconds=SHORT_SECONDS, **UNASKED_ENV)
     if code != 0:
         raise Refused(f"git rev-list failed: {_text(out, said)[-TAIL:]}")
-    found: list[str] = []
-    for line in out.decode("ascii", "replace").splitlines():
-        for parent in line.split()[2:]:
-            code, out, _said = _in(project, git, *UNASKED, "for-each-ref", "--count=1",
-                                   "--format=%(refname)", f"--contains={parent}",
-                                   "refs/remotes/origin/", seconds=SHORT_SECONDS, **UNASKED_ENV)
-            if (code != 0 or not out.strip()) and parent[:10] not in found:
-                found.append(parent[:10])
-    return found
+    made = _made_on(project, git, branch) | ({snapshot} if snapshot else set())
+    return [sha[:10] for sha in out.decode("ascii", "replace").split() if sha not in made]
 
 
 def push_one(
     project: Path, tip: str, branch: str, into: str, start: str, message: str, no_hooks: Path,
-    source: str | None = None,
+    source: str | None = None, snapshot: str | None = None,
 ) -> str:
     """Push the branch's commit `tip` to the remote "origin", as `branch` there, as ONE commit
     by KOLONİ - its tree, on where it left the project's branch `into`: what `merge_branch`
@@ -2576,7 +2595,8 @@ def push_one(
     origin has that place already (`refs/remotes/origin/<into>` holds it): the user's own
     commits not pushed yet do not go up under it - nor, `start`, the commit the branch was made
     from (a local branch of theirs it left since) - nor what the branch took in that origin does not
-    hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1):
+    hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1,
+    `snapshot` the commit it began from):
     once the user rewrote or dropped such a commit, where the branch left theirs is its start,
     and the commit's content would go up under it. Never forced: a branch of that name there
     already refuses it. No hook, tag or signing of the repository's; git's own receive-pack.
@@ -2593,7 +2613,7 @@ def push_one(
            for one in (base, start)):
         raise Refused(f"push {into} first: commits of yours not on origin yet would go up with "
                       "the pull request")
-    if taken := _taken_in_unpushed(project, git, source or tip, start):
+    if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot):
         more = len(taken) - NAMED_COMMITS
         raise Refused(TAKEN_IN_UNPUSHED.format(commits=", ".join(taken[:NAMED_COMMITS]) + (
             f" and {more} more" if more > 0 else "")))

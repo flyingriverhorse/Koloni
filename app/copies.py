@@ -152,7 +152,9 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     """What git is given for whatever is started in a copy's tree, `env` being the environment it
     is started with: it looks no higher than the copies folder (`ceiling`), and runs no hook of the
     repository it finds - its hooks folder is an empty one beside the tree (`NO_HOOKS`) -, nor its
-    fsmonitor, nor asks for a signature (a key's prompt), after the config `env` gives git already.
+    fsmonitor, nor asks for a signature (a key's prompt), after the config `env` gives git already -
+    and keeps a branch's reflog, what a pull request's push reads its own commits by
+    (`git._made_on`).
     A branch's worktree is the user's own repository: its hooks and settings, and a
     `core.hooksPath` in the tree (husky's), which the agent can write.
     GIT_CONFIG_PARAMETERS, not GIT_CONFIG_COUNT/KEY/VALUE: GIT_CONFIG_KEY_0 is a secret by its
@@ -168,7 +170,7 @@ def git_env(tree: Path, env: Mapping[str, str]) -> dict[str, str]:
     ours = "'" + f"core.hooksPath={empty}".replace("'", "'\\''") + "'"  # (git's own quoting)
     return {"GIT_CEILING_DIRECTORIES": ceiling(tree), "GIT_CONFIG_PARAMETERS": " ".join(
         filter(None, [env.get("GIT_CONFIG_PARAMETERS"), ours, "'core.fsmonitor=false'",
-                      "'commit.gpgsign=false'"]))}
+                      "'commit.gpgsign=false'", "'core.logAllRefUpdates=true'"]))}
 
 
 def _key(path: str) -> str:
