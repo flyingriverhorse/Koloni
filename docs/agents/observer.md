@@ -3,6 +3,10 @@
 The Observer is a built-in role that never works on its own. When you switch it on, its model reads
 each sub-agent's report and says what the record shows of it.
 
+It is not the Reviewer that looks over a turn's change at its end under **Check it** (an agent
+that reads the change and the files, [The review](../use/checked.md#the-review)): the Observer is
+one request per report, about that report only.
+
 ## Switching it on
 
 Settings › This project › Agents › **Have a model look over each sub-agent's report**.
