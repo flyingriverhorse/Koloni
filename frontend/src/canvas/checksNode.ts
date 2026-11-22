@@ -13,10 +13,12 @@ type Row = NonNullable<Message['checked']>[number]
 export interface ChecksData extends Record<string, unknown> {
   runId: string
   leadId: string
-  /** KOLONİ's test run at work now: its command and when it started; null: none (no time is made up). */
+  /** KOLONİ's test run at work while the answer waits: its command and when it started; null: none (no time is made up). */
   running: { command: string; since: string | null } | null
-  /** What was checked, short, each with its state - from the turn's Checked section; a row still running (S6) as it is. */
-  lines: { state: Row['state']; text: string }[]
+  /** What was checked, short, each with its state - from the turn's Checked section; a whole suite still running after the answer (S6) with its start, its clock on the node. */
+  lines: Line[]
+  /** A check of the turn runs now: Stop this check stops it. */
+  stoppable: boolean
   /** Fix rounds sent back so far. */
   rounds: number
   /** In a recipe's turn: the recipe's end. */
@@ -30,10 +32,26 @@ export function toolOf(command: string): string {
   return (after >= 0 ? words[after + 1] : words.find(word => !/^(npx|uv|poetry|run|python[\d.]*|py)$/.test(word))) ?? command
 }
 
-/** A Checked row on the node: "pytest · 214 ✓ · 2 ✗" (go's "3 packages ✓") where its runner counted some passed or failed, else its own words. */
-export function lineOf(row: Row): { state: Row['state']; text: string } {
+export type Line = { state: Row['state']; text: string; since?: string | null }
+
+/** S6's rows by their step: "Full tests running: cmd" is "full tests · running", "Related tests passed: cmd" "related tests · passed"; any other row as it is. */
+function stepOf(row: Row): string | null {
+  const own = row.command && row.text.endsWith(`: ${row.command}`) ? row.text.slice(0, -row.command.length - 2) : row.text
+  const step = /^(Full|Related) tests (.*)$/.exec(own)
+  return step ? `${step[1].toLowerCase()} tests · ${step[2]}` : null
+}
+
+/**
+ * A Checked row on the node: "pytest · 214 ✓ · 2 ✗" (go's "3 packages ✓") where its runner counted some passed or failed, the related step's
+ * "related tests · 12 passed"; a whole suite running after the answer "full tests" with its start (the node's clock), one waiting for the
+ * machine "full tests · waiting for another test run to end"; else its own words.
+ */
+export function lineOf(row: Row): Line {
+  if (row.state === 'running' && row.started_at) return { state: row.state, text: 'full tests', since: row.started_at }
+  const step = stepOf(row)
   const counts = row.counts
-  if (!counts || !row.command || counts.passed + counts.failed === 0) return { state: row.state, text: row.text }
+  if (!counts || !row.command || counts.passed + counts.failed === 0) return { state: row.state, text: step ?? row.text }
+  if (step?.startsWith('related')) return { state: row.state, text: `related tests · ${counts.passed} passed${counts.failed ? ` · ${counts.failed} failed` : ''}` }
   const unit = counts.unit === 'tests' ? '' : ` ${counts.unit}`
   const failed = counts.failed ? ` · ${counts.failed} ✗` : ''
   return { state: row.state, text: `${toolOf(row.command)} · ${counts.passed}${unit} ✓${failed}` }
@@ -54,14 +72,16 @@ function passesOf(calls: { arguments: string }[]): number {
   return passes
 }
 
-/** The Orchestrator's strip: "✓ checked · 1 round", "✗ still failing", "not checked" - or nothing before its end. */
+/** The Orchestrator's strip: "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "not checked" - or nothing before its end. */
 export function stripOf(data: ChecksData): string | null {
-  if (data.running) return '● checking…'
+  if (data.running || data.lines.some(line => line.state === 'running')) return '● checking…'
   const tests = data.lines.filter(line => line.state !== 'note')
   if (!tests.length) return null
   const rounds = data.rounds ? ` · ${data.rounds} round${data.rounds === 1 ? '' : 's'}` : ''
   if (tests.some(line => line.state === 'failed')) return `✗ still failing${rounds}`
-  return tests.some(line => line.state === 'passed') ? `✓ checked${rounds}` : 'not checked'
+  const passed = tests.filter(line => line.state === 'passed')
+  if (!passed.length) return 'not checked'
+  return `✓ checked${passed.every(line => line.text.startsWith('related tests')) ? ' · related only' : ''}${rounds}`
 }
 
 /**
@@ -74,16 +94,15 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   if (!lead || (!calls.length && !checked)) return null
   const at = calls.find(c => c.status === 'running')
-  // (Its clock: the command's own start - not its call's, which may wait for a free slot first.)
-  const since = at ? (state.commands.find(c => c.tool_call_id === at.id)?.started_at ?? null) : null
-  // (At its end the Checked section says how many: a pass after a round may run nothing - the Orchestrator's own run stood.)
-  const said = checked?.checked?.find(row => row.kind === 'rounds')?.text.match(/\d+/)
-  const rounds = Math.max(passesOf(calls) - 1, said ? Number(said[0]) : 0)
+  const rounds = roundsOf(calls, checked)
+  const lines = (checked?.checked ?? []).map(lineOf)
   const data: ChecksData = {
     runId: run.id,
     leadId: lead.id,
-    running: at ? { command: commandOf(at.arguments), since } : null,
-    lines: (checked?.checked ?? []).map(lineOf),
+    // (Once the Checked section is written, a suite still running is its row: said once.)
+    running: at && !checked ? { command: commandOf(at.arguments), since: sinceOf(state, at.id) } : null,
+    lines,
+    stoppable: Boolean(at) || lines.some(line => line.state === 'running'),
     rounds,
     recipe: Boolean(run.teams?.length),
   }
@@ -96,6 +115,17 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const leadNode = nodes.find(node => node.id === `agent:${lead.id}`)
   if (leadNode) (leadNode.data as AgentData).checked = stripOf(data)
   return data
+}
+
+/** A test run's clock: its command's own start - not its call's, which may wait for a free slot first; null before it starts. */
+function sinceOf(state: ConvState, callId: string): string | null {
+  return state.commands.find(c => c.tool_call_id === callId)?.started_at ?? null
+}
+
+/** Fix rounds: the passes after the first - and at its end what the Checked section says, where more (a pass after a round may run nothing: the Orchestrator's own run stood). */
+function roundsOf(calls: { arguments: string }[], checked: Message | undefined): number {
+  const said = checked?.checked?.find(row => row.kind === 'rounds')?.text.match(/\d+/)
+  return Math.max(passesOf(calls) - 1, said ? Number(said[0]) : 0)
 }
 
 function commandOf(argumentsJson: string): string {

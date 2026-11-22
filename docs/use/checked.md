@@ -173,8 +173,8 @@ out after 10 min".
 **Stop this check**, under a suite running after the answer, stops it: what finished stays, and
 the line says "Full tests stopped by you at 1:02 - not checked" (counted from when it started),
 or "before they started" if it was still waiting for the machine. It works at every permission
-level. A button to stop the related tests while the answer waits for them comes with the
-canvas's Checks node; until then **Stop** ends the turn.
+level. The canvas's Checks node has it too, in its **⋯** menu, also while the answer waits for
+the related tests (see [On the canvas](#on-the-canvas)).
 
 - A newer turn that changes the same project and runs the same suite stops one still running in
   the background, as a new push stops a pull request's old CI run: "Tests not finished: the
@@ -212,10 +212,17 @@ it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pyte
 
 A checked turn has a **Checks** node under its Orchestrator. While KOLONİ's test run works, it
 shows the tool and how long it has run; once the turn is over, each line of the Checked section,
-with the runner's counts ("pytest · 214 ✓ · 2 ✗"). Each fix round is a line back to the
-Orchestrator, "round 1 of 2: tests fail". The Orchestrator's own box gets one line: "✓ checked ·
-1 round", "✗ still failing" or "not checked". The node's window button opens the Orchestrator's
-window, whose record holds the runs. In a recipe's turn the node says "end of the recipe".
+with the runner's counts ("pytest · 214 ✓ · 2 ✗"), the related step's ("related tests · 12
+passed"), and a whole suite running after the answer with its clock from its own start ("full
+tests · 2:14 …"), or "full tests · waiting for another test run to end", then its result or
+"full tests · stopped by you at 1:02 - not checked". Each fix round is a line back to the
+Orchestrator, "round 1 of 2: tests fail". The Orchestrator's own box gets one line: "● checking…"
+while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
+not run), "✗ still failing" or "not checked". In a recipe's turn the node says "end of the recipe".
+
+Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
+answer, at every permission level: what ran stays, the rest says "not checked" - and **Open its
+log**, the Orchestrator's window, whose record holds the runs.
 
 ## What each line means
 

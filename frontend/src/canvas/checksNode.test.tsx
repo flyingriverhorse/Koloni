@@ -1,7 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { ReactFlowProvider } from '@xyflow/react'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
+import { api } from '../api/client'
 import type { Message } from '../api/types'
+import { useApp } from '../state/store'
 import { agent, assistantMessage, command, convState, run, toolCall } from '../test-fixtures'
 import { type ChecksData, checksNode, lineOf, stripOf, toolOf } from './checksNode'
 import { type AgentData, deriveGraph, type GraphEdge, type GraphNode } from './deriveGraph'
@@ -85,25 +88,78 @@ test('nothing checked: no node, and the canvas draws it through deriveGraph wher
 })
 
 test('the strip says still failing or not checked; the tool is the runner, not python', () => {
-  const base: ChecksData = { runId: 'r', leadId: 'r', running: null, lines: [], rounds: 2, recipe: false }
+  const base: ChecksData = { runId: 'r', leadId: 'r', running: null, lines: [], stoppable: false, rounds: 2, recipe: false }
   expect(stripOf({ ...base, lines: [{ state: 'failed', text: 'x' }] })).toBe('✗ still failing · 2 rounds')
   expect(stripOf({ ...base, lines: [{ state: 'not_run', text: 'No test command' }] })).toBe('not checked')
   expect(stripOf(base)).toBeNull()
+  // (S6: a whole suite still running is no "checked"; one stopped leaves the related tests' pass alone said)
+  const related = { state: 'passed', text: 'related tests · 12 passed' } as const
+  expect(stripOf({ ...base, rounds: 0, lines: [related, { state: 'running', text: 'full tests', since: 'x' }] })).toBe('● checking…')
+  expect(stripOf({ ...base, rounds: 0, lines: [related, { state: 'not_run', text: 'full tests · stopped by you at 1:02 - not checked' }] })).toBe('✓ checked · related only')
   expect(toolOf('python -m pytest -q')).toBe('pytest')
   expect(toolOf('npx vitest run')).toBe('vitest')
   expect(toolOf('go test ./...')).toBe('go')
 })
 
-test('the node shows what runs now and each line, and opens the Orchestrator’s window', () => {
-  const data: ChecksData = { runId: 'r', leadId: 'agent:r', running: { command: 'python -m pytest -q', since: null }, lines: [{ state: 'failed', text: 'pytest · 12 ✓ · 2 ✗' }], rounds: 0, recipe: true }
+function shown(data: ChecksData) {
   const props = { id: 'checks:r', data, selected: false, type: 'checks', dragging: false, zIndex: 0, isConnectable: false, positionAbsoluteX: 0, positionAbsoluteY: 0, draggable: false, selectable: false, deletable: false }
-  render(
+  return render(
     <ReactFlowProvider>
       <ChecksNode {...(props as Parameters<typeof ChecksNode>[0])} />
     </ReactFlowProvider>,
   )
-  expect(screen.getByText('● pytest')).toBeInTheDocument()
-  expect(screen.getByText('✗ pytest · 12 ✓ · 2 ✗')).toHaveAttribute('data-state', 'failed')
-  expect(screen.getByText('KOLONİ · end of the recipe')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Open the Orchestrator\'s window' })).toBeInTheDocument()
+}
+
+test('the node shows what runs now and each line; its ⋯ stops the check and opens its log', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+  const opened = vi.fn()
+  useApp.setState({ openAgentWindow: opened })
+  try {
+    shown({ runId: 'r', leadId: 'r', running: { command: 'python -m pytest -q', since: null }, lines: [{ state: 'failed', text: 'pytest · 12 ✓ · 2 ✗' }], stoppable: true, rounds: 0, recipe: true })
+    expect(screen.getByText('● pytest')).toBeInTheDocument()
+    expect(screen.getByText('✗ pytest · 12 ✓ · 2 ✗')).toHaveAttribute('data-state', 'failed')
+    expect(screen.getByText('KOLONİ · end of the recipe')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Checks: more' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Stop this check' }))
+    expect(post).toHaveBeenCalledWith('/runs/r/check/stop')
+    await userEvent.click(screen.getByRole('button', { name: 'Checks: more' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open its log' }))
+    expect(opened).toHaveBeenCalledWith('r')
+  } finally {
+    vi.restoreAllMocks()
+  }
+})
+
+test('with nothing running the menu has no Stop', async () => {
+  shown({ runId: 'r', leadId: 'r', running: null, lines: [{ state: 'passed', text: 'pytest · 4 ✓' }], stoppable: false, rounds: 0, recipe: false })
+  await userEvent.click(screen.getByRole('button', { name: 'Checks: more' }))
+  expect(screen.queryByRole('menuitem', { name: 'Stop this check' })).toBeNull()
+  expect(screen.getByRole('menuitem', { name: 'Open its log' })).toBeInTheDocument()
+})
+
+test('S6 rows on the node: the related step, the whole suite running after the answer with its clock, waiting, stopped', () => {
+  const related = row('passed', 'Related tests passed: pytest -q t.py - 12 passed in 2s', { command: 'pytest -q t.py', counts: { passed: 12, failed: 0, skipped: 0, unit: 'tests' } })
+  expect(lineOf(related)).toEqual({ state: 'passed', text: 'related tests · 12 passed' })
+  const waiting = row('running', 'Full tests waiting for another test run to end: pytest -q', { command: 'pytest -q' })
+  expect(lineOf(waiting)).toEqual({ state: 'running', text: 'full tests · waiting for another test run to end' })
+  const stopped = row('not_run', 'Full tests stopped by you at 1:02 - not checked', { command: 'pytest -q' })
+  expect(lineOf(stopped)).toEqual({ state: 'not_run', text: 'full tests · stopped by you at 1:02 - not checked' })
+  const going = row('running', 'Full tests running: pytest -q', { command: 'pytest -q', started_at: '2026-11-22T10:00:00+00:00' })
+  // (Once the Checked section is written, the suite still running is its row - not a second "running" line - and Stop is offered.)
+  const { data } = drawn(
+    convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], toolCalls: [proofCall('p1', 'running', '2026-11-22T09:59:00Z', 'pytest -q')], messages: [checked([related, going])] }),
+  )
+  expect(data?.running).toBeNull()
+  expect(data?.lines[1]).toEqual({ state: 'running', text: 'full tests', since: '2026-11-22T10:00:00+00:00' })
+  expect(data?.stoppable).toBe(true)
+  vi.useFakeTimers({ now: Date.parse('2026-11-22T10:01:02Z'), toFake: ['Date', 'setInterval', 'clearInterval'] })
+  try {
+    shown(data!)
+    const line = () => document.querySelector('.node-line[data-state=running]')
+    expect(line()).toHaveTextContent('● full tests · 1:02 …')
+    act(() => vi.advanceTimersByTime(2000))
+    expect(line()).toHaveTextContent('● full tests · 1:04 …')
+  } finally {
+    vi.useRealTimers()
+  }
 })

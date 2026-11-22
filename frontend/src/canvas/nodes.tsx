@@ -13,6 +13,7 @@ import { AwayReport } from '../backlog/Away'
 import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
 import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
+import { runClock } from '../chat/checked'
 import { type ChecksData, toolOf } from './checksNode'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
@@ -244,8 +245,9 @@ const MARK: Record<string, string> = { passed: '✓', failed: '✗', running: '�
 
 /**
  * KOLONİ's Checks after the Orchestrator's work (plan decision 12): the test run at work now with how long it has run - no
- * time made up before it starts -, then each line of what came of it; a row still running in the background (S6) as it
- * is. Its window is the Orchestrator's, whose record holds the runs.
+ * time made up before it starts -, then each line of what came of it; a whole suite running in the background (S6) with
+ * its clock from its own start. Its ⋯ menu (plan decision 17) stops a running check and opens its log - the Orchestrator's
+ * window, whose record holds the runs.
  */
 export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
   const now = useNow(1000)
@@ -259,7 +261,7 @@ export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
         </span>
         <span className="node-title">Checks</span>
         <span className="node-label mono">{data.recipe ? 'KOLONİ · end of the recipe' : 'KOLONİ'}</span>
-        <OpenWindow id={data.leadId} name="the Orchestrator" />
+        <ChecksMenu runId={data.runId} leadId={data.leadId} stoppable={data.stoppable} />
       </div>
       <div className="node-body">
         {running && (
@@ -270,12 +272,61 @@ export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
         {data.lines.map((line, index) => (
           <div key={index} className="node-line" data-state={line.state}>
             {MARK[line.state] ?? '–'} {line.text}
+            {line.since && ` · ${runClock(line.since, now)} …`}
           </div>
         ))}
       </div>
       <Handle type="source" position={Position.Right} isConnectable={false} />
       <Ends />
     </div>
+  )
+}
+
+/** The Checks node's ⋯: Stop this check while one runs (`POST /runs/{id}/check/stop`, at every level: what ran stays), and Open its log. */
+function ChecksMenu({ runId, leadId, stoppable }: { runId: string; leadId: string; stoppable: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const item = (label: string, act: () => void) => (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={event => {
+        event.stopPropagation()
+        setOpen(false)
+        act()
+      }}
+    >
+      {label}
+    </button>
+  )
+  return (
+    <span className="node-menu nodrag" onDoubleClick={event => event.stopPropagation()} onKeyDown={event => event.key === 'Escape' && setOpen(false)}>
+      <button
+        type="button"
+        className="node-open"
+        aria-label="Checks: more"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={event => {
+          event.stopPropagation()
+          setOpen(!open)
+        }}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div role="menu" aria-label="Checks: more" className="node-menu-panel">
+          {stoppable && item('Stop this check', () => void api.post(`/runs/${runId}/check/stop`).then(() => setError(null), err => setError(errorText(err))))}
+          {/* S10: "Off for this chat" comes here - the same switch as the permission menu's. */}
+          {item('Open its log', () => useApp.getState().openAgentWindow(leadId.replace(/^agent:/, '')))}
+        </div>
+      )}
+      {error && (
+        <span role="alert" className="node-menu-error">
+          {error}
+        </span>
+      )}
+    </span>
   )
 }
 
