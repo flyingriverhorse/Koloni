@@ -389,7 +389,10 @@ def test_turn_diff_is_cut_names_what_is_left_out_and_shows_no_secret(factory):
     ("app/tokens.py", True), ("app/sessions.py", True), ("app/auth/session.py", True),
     ("AUTHORS.md", False), ("docs/authors.md", False), ("src/author.py", False),
     ("styles/tokens.css", True), ("nlp/tokenizer.py", False), ("aclocal.m4", False),
-    ("cookiecutter.json", False), ("src/sessionize.py", False), ("app/policy_net.py", False),
+    ("cookiecutter.json", False), ("src/sessionize.py", False),
+    # (Words of a name split on "_" and camelCase: a missed look is worse than one too many.)
+    ("app/user_auth.py", True), ("app/api_tokens.py", True), ("web/userAuth.ts", True),
+    ("app/policy_net.py", True),
 ])
 def test_security_path_words_are_whole_words(path, touches):
     # (Review of S3: "author", "tokenizer", "aclocal" are no sign-in, token or ACL code.)

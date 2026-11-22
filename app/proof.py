@@ -170,11 +170,17 @@ class Review(NamedTuple):
     files: int
 
 
+# A word boundary inside a camelCase name: "userAuth", "OAuthToken".
+_CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+
+
 def _security_path(path: str) -> bool:
     posix = path.replace("\\", "/").casefold()
     name = posix.rsplit("/", 1)[-1]
-    # (Words as a name's own: "policy_net", "user_auth" are one word each - not "policy".)
-    words = {word for part in posix.split("/") for word in re.split(r"\W+", part) if word}
+    # (Words of a name: "user_auth", "userAuth", "auth-service" - auth; a missed look is worse
+    # than one too many, so "policy_net" is policy.)
+    spaced = _CAMEL.sub(" ", path.replace("\\", "/"))
+    words = {word.casefold() for word in re.split(r"[\W_]+", spaced) if word}
     # (Whole words, trailing digits off: "oauth2", "tokens" - not "author", "tokenizer".)
     return any(word.rstrip("0123456789") in SECURITY_PATHS for word in words) or (
         "/.github/workflows/" in f"/{posix}") or any(
