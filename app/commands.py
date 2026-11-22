@@ -543,8 +543,15 @@ _HANDS_WORDS = re.compile(r"(?i)(?<![\w-])(?:xargs|parallel)(?![\w-])")
 # -e`; an awk program) is not read: a stop's name in it - a program's, a process object's own, a
 # signal - is a stop of what may be KOLONİ itself (review round 5).
 _AWK = re.compile(r"(?i)(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?[gmn]?awk(?:\.exe)?\s")
-_CODE_STOPS = re.compile(r"(?i)(?<![\w-])(?:taskkill|tskill|pkill|killall|kill|stop-process|spps)"
-                         r"(?![\w-])|\.(?:kill|terminate)\s*\(|\bsignal\.SIG")
+_CODE_STOPS = re.compile(r"(?i)(?<![\w-])(?:taskkill|tskill|pkill|killall|kill|killpg|posix_kill|"
+                         r"stop-process|spps|terminateprocess)(?![\w-])|\.(?:kill|terminate)\s*\("
+                         r"|\bsignal\.SIG")
+# ...and code an interpreter reads on stdin: piped into it, or a heredoc or a here-string on its
+# part (`echo "..." | python`, `python - <<'EOF'`, `tclsh <<< '...'` - k-okuyucu-2).
+_INTERPRETERS = (r"(?:python[\d.]*w?|py|node|ruby|perl|php|lua\w*|tclsh[\d.]*|wish|r|rscript|julia|"
+                 r"bun|deno|go)(?:\.exe)?")
+_STDIN_CODE = re.compile(rf"(?i)\|\s*(?:\S*[\\/])?{_INTERPRETERS}(?![\w.-])"
+                         rf"|(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?{_INTERPRETERS}(?![\w.-])[^|;&\n]*<<")
 # A line's words as its shell splits them - by its quotes, glued ones too (`--grep="x|kill"`) -
 # and what joins its commands (`_stands`).
 _SHELL_WORDS = re.compile(r"""(?:[^\s'";&|(){}]|"[^"]*"|'[^']*')+|[;&|(){}]+""")
@@ -875,7 +882,7 @@ def _stop_kind_of(command: str) -> str:
                for words in _parts(stage, _BLOCKS) if words)
     if _WMI_STOPS.search(command) or stands and _HANDS_WORDS.search(command) or ends and (
             _stands(command, _STOP_METHODS)) or _CODE_STOPS.search(command) and (
-            _INLINE.search(command) or _AWK.search(command)):
+            _INLINE.search(command) or _AWK.search(command) or _STDIN_CODE.search(command)):
         return "koloni"
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 
@@ -3728,9 +3735,9 @@ def runs_another(command: str) -> str:
 # `runs_another`'s. shortcut: a script the agent itself wrote runs unasked in a backlog turn;
 # card interpreters running a just-written file if that is seen live.
 _INLINE = re.compile(
-    r"""(?i)(?:^|(?<=[\s;&|('"]))(?:\S*[\\/])?(?:(?:python|py|node|ruby|perl|php|bun)[\d.]*w?"""
-    r"""(?:\.exe)?\s+(?:-\w+\s+)*?(?:-c|-e|-p|--eval|--print)|deno(?:\.exe)?\s+eval)"""
-    r"""(?=\s|$)""")
+    r"""(?i)(?:^|(?<=[\s;&|('"]))(?:\S*[\\/])?(?:(?:python|py|node|ruby|perl|php|bun|lua\w*|r|"""
+    r"""rscript|julia)[\d.]*w?(?:\.exe)?\s+(?:-\w+\s+)*?(?:-c|-e|-p|--eval|--print)"""
+    r"""|php[\d.]*(?:\.exe)?\s+(?:-\w+\s+)*?-r|deno(?:\.exe)?\s+eval)(?=\s|$)""")
 
 
 def runs_inline(command: str) -> str:

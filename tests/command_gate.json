@@ -80502,18 +80502,7 @@ false
 "rg -l ../../b/tree/secret": "round 5: the first word past options known to take no path is the search's pattern, no path",
 "rg -uuu ../../b": "round 5: the first word past options known to take no path is the search's pattern, no path"
 },
-"xfail": [
-"R -e 'system(\"pkill uvicorn\")'",
-"Rscript -e 'system(\"pkill python\")'",
-"echo \"import os; os.system('pkill python')\" | python",
-"lua -e 'os.execute(\"pkill python\")'",
-"lua -e 'os.execute(\"pkill uvicorn\")'",
-"node <<EOF\nrequire('child_process').execSync('taskkill /IM node.exe /F')\nEOF",
-"php -r 'exec(\"pkill python\");'",
-"php -r 'exec(\"pkill uvicorn\");'",
-"php -r 'shell_exec(\"killall node\");'",
-"python - <<'EOF'\nimport os\nos.system('pkill python')\nEOF"
-],
+"xfail": [],
 "up": {
 "git `\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
 "git \\\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",

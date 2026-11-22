@@ -740,6 +740,20 @@ def test_a_stop_in_code_an_interpreter_is_handed_is_always_asked(command):
     assert harm_class(command) == "always", command
 
 
+# ...on stdin too, and php's, lua's, R's, julia's (k-okuyucu-2).
+@pytest.mark.parametrize("command", [
+    "echo \"import os; os.system('pkill python')\" | python",
+    "python - <<'EOF'\nimport subprocess\nsubprocess.run(['pkill', 'uvicorn'])\nEOF",
+    "node <<EOF\nrequire('child_process').execSync('taskkill /IM node.exe /F')\nEOF",
+    "cat pids | python3 -c 'import os; os.kill(1, 9)'", "tclsh <<< 'exec pkill uvicorn'",
+    "php -r 'exec(\"pkill python\");'", "lua -e 'os.execute(\"pkill python\")'",
+    "Rscript -e 'system(\"pkill python\")'", "R -e 'system(\"pkill uvicorn\")'",
+    "julia -e 'run(`pkill uvicorn`)'", "python -c \"import os; os.killpg(0, 9)\"",
+    "go run - <<'EOF'\nfunc main() { exec.Command(\"pkill\", \"uvicorn\").Run() }\nEOF"])
+def test_a_stop_in_code_an_interpreter_reads_on_stdin_is_always_asked(command):
+    assert harm_class(command) == "always", command
+
+
 @pytest.mark.parametrize("line", ["echo " + "$(" * 1000 + "x" + ")" * 1000,
                                   "echo " + " ".join("`x`" for _ in range(1000))])
 def test_a_line_too_deep_to_read_is_asked_and_read_quickly(line):
