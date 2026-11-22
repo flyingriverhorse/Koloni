@@ -29,7 +29,6 @@ How to write an entry (every release looks the same):
 
 - **Chat**: a heredoc written to a file or handed to git as a message (`cat > notes.md <<'EOF'` with `1) first` in it), a comment (`echo done # 1) first step`), sh's `case … esac` patterns and a group only printed in quotes (`echo "(npm ci)"`, `git commit -m "run (npm ci) first"`) are no longer asked at every level as brackets that do not pair, nor read as an install ([docs](docs/use/permissions.md)).
 - **Agents**: the ready Bugfix recipe sends a failing test back to Fix it and starts with a failing test; a Tester or reviewer that reports nothing wrong while a test run on record failed no longer passes - unless its "Already failing before" lines name every test that failed - nor does a Tester that ran no command but reads; a check whose command you declined stops at Ready for you, not checked ([docs](docs/agents/recipes.md)).
-- **Chat**: an agent's command whose inline code only prints a stop's name (`python -c "print('kill')"`, `awk '/kill/ {print}' log.txt`) no longer asks as a stop of KOLONİ itself; one whose code runs or ends a process (`os.system('pkill x')`, `execSync(...)`, `system(...)`, `os.kill(...)`) still does ([docs](docs/use/permissions.md)).
 
 ### Security
 
