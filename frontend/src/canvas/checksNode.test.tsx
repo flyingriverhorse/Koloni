@@ -6,7 +6,7 @@ import { api } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
 import { agent, assistantMessage, command, convState, run, toolCall } from '../test-fixtures'
-import { type ChecksData, checksNode, lineOf, stripOf, toolOf } from './checksNode'
+import { type ChecksData, checksNode, lineOf, linesOf, stripOf, toolOf } from './checksNode'
 import { type AgentData, deriveGraph, type GraphEdge, type GraphNode } from './deriveGraph'
 import { ChecksNode } from './nodes'
 
@@ -203,4 +203,24 @@ test('S3: a review round is a line back saying its findings, of the project’s 
   expect(graph.edges.find(e => e.target === 'agent:rv')?.source).toBe('checks:r')
   // (Its spawn is no test run: the node runs nothing now.)
   expect(graph.nodes.find(n => n.kind === 'checks')?.data).toMatchObject({ running: null })
+})
+
+test('S5a: a kind of work is one line, as a test run is - its files that passed and failed; switched off, not checked', () => {
+  const rows = [
+    row('note', 'No tests: only documents, slides, diagrams or data changed'),
+    row('passed', 'README.md: 3 links, all found', { kind: 'docs' }),
+    row('failed', 'guide.md: link to x.md not found', { kind: 'docs' }),
+    row('note', 'Spelling: not checked', { kind: 'docs' }),
+    row('passed', 'a.csv: 3 rows × 2 columns', { kind: 'data' }),
+    row('note', 'Not checked: slides switched off for this project', { kind: 'slides' }),
+  ]
+  expect(linesOf(rows)).toEqual([
+    { state: 'note', text: rows[0].text },
+    { state: 'failed', text: 'documents · 1 ✓ · 1 ✗' },
+    { state: 'passed', text: 'data · 1 ✓' },
+    { state: 'note', text: 'slides · not checked' },
+  ])
+  const { data, nodes } = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked(rows)] }))
+  expect(data?.lines).toHaveLength(4)
+  expect((nodes[0].data as AgentData).checked).toBe('✗ still failing')
 })

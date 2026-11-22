@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -905,4 +905,18 @@ test('Fix rounds: 1 to 5 beside After a change, saved as fix_rounds', async () =
   await userEvent.selectOptions(box, '4')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ fix_rounds: 4 })
+})
+
+test('Check by kind of work: all on by default; unticking Slides saves check_kinds.slides false (S5a)', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const group = screen.getByRole('group', { name: 'Check by kind of work' })
+  expect(within(group).getAllByRole('checkbox').map(box => (box as HTMLInputElement).checked)).toEqual([true, true, true, true])
+  expect(within(group).getAllByRole('checkbox').map(box => box.closest('label')?.textContent)).toEqual(['Documents', 'Slides', 'Diagrams', 'Data'])
+  expect(group).toHaveAccessibleDescription(/without a model/)
+  await userEvent.click(within(group).getByRole('checkbox', { name: 'Slides' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { slides: false } })
 })

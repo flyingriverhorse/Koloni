@@ -59,6 +59,32 @@ export function lineOf(row: Row): Line {
   return { state: row.state, text: `${toolOf(row.command)} · ${counts.passed}${unit} ✓${failed}` }
 }
 
+/** S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`), each one line on the node. */
+const KINDS: Record<string, string> = { docs: 'documents', slides: 'slides', diagram: 'diagrams', data: 'data' }
+
+/** A kind's rows as one line, as a test run's: "documents · 2 ✓ · 1 ✗" - its files that passed and failed; "documents · not checked" where it was switched off. */
+function kindLine(kind: string, rows: Row[]): Line {
+  const passed = rows.filter(one => one.state === 'passed').length
+  const failed = rows.filter(one => one.state === 'failed').length
+  const state: Row['state'] = failed ? 'failed' : passed ? 'passed' : 'note'
+  if (!passed && !failed) return { state, text: `${KINDS[kind]} · ${rows.some(one => one.text.startsWith('Not checked')) ? 'not checked' : 'noted'}` }
+  return { state, text: `${KINDS[kind]} · ${passed} ✓${failed ? ` · ${failed} ✗` : ''}` }
+}
+
+/** The node's lines: each Checked row as `lineOf` says it - but a kind's rows (S5a) one line, where its first row was. */
+export function linesOf(rows: Row[]): Line[] {
+  const lines: Line[] = []
+  const seen = new Set<string>()
+  for (const one of rows) {
+    if (!(one.kind in KINDS)) lines.push(lineOf(one))
+    else if (!seen.has(one.kind)) {
+      seen.add(one.kind)
+      lines.push(kindLine(one.kind, rows.filter(other => other.kind === one.kind)))
+    }
+  }
+  return lines
+}
+
 /** The end check's passes: a new one where a run of the pass so far comes again. Each after the first followed a fix round (as `rounds` is counted on the server). */
 function passesOf(calls: { arguments: string }[]): number {
   let passes = calls.length ? 1 : 0
@@ -102,7 +128,7 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const at = calls.find(c => c.status === 'running')
   const said = roundsSaid(checked)
   const rounds = Math.max(passesOf(calls) - 1, said.n)
-  const lines = (checked?.checked ?? []).map(lineOf)
+  const lines = linesOf(checked?.checked ?? [])
   const data: ChecksData = {
     runId: run.id,
     leadId: lead.id,

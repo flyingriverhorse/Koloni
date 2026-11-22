@@ -156,6 +156,31 @@ after the recipe's fix rounds: you decide (Fix it)".
 The check before a sub-agent's work is taken in (**Test before adding**) is a separate check with
 its own two rounds. A turn can have both.
 
+## Documents, diagrams, data and slides
+
+Under **Test and review**, a turn that wrote documents, diagrams, data or slides gets KOLONİ's
+checks of them, with no model and nothing installed: each file its own line under the answer.
+They come after the tests and before the review. A turn that wrote only such files runs no tests
+("No tests: only documents, slides, diagrams or data changed") and gets these checks. Under
+**Tests only**, **Nothing**, or where checks are off for the chat, they do not run.
+
+| Kind | Checked | Said, not failed |
+|---|---|---|
+| Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file; a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
+| Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; a Mermaid file whose first line names no diagram type; PlantUML without `@startuml` … `@enduml` | labelled shapes on one box, shapes not connected where the page has edges, "drawn: not checked" for Mermaid |
+| Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
+| Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
+
+A checked problem goes back to the Orchestrator as a fix round, with the lines that failed: one
+count with failing tests and the Reviewer's findings (**Fix rounds**), "(1 problem in what it
+wrote)" beside the round. A problem the file had before the turn is said, not sent back: the turn
+did not make it. A file KOLONİ cannot read (over 8 MB, outside the project, an XML file that
+declares a DTD) is said as not checked. Each kind can be switched off in **Settings › This project
+› Checks and git › Check by kind of work**; then its line says "Not checked: slides switched off
+for this project". Where the turn ended before the check, or changed such a file after it, the
+section says so instead of an old result. On the canvas, the Checks node shows each kind as one
+line: "documents · 2 ✓ · 1 ✗".
+
 ## A test for the change
 
 A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
@@ -362,6 +387,11 @@ the Orchestrator's window, whose record holds the runs.
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
+| ✓ `file`: 3 links, all found · `file`: 120 rows × 4 columns · `file`: 12 slides, 3 with notes | A document, diagram, data file or deck KOLONİ checked and found right. |
+| ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
+| – `file`: … - so before this turn | A problem the file already had: said, not sent back. |
+| – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
+| – Not checked: `kinds` - the turn ended before KOLONİ's check / Not checked on the last change: `kinds` | The turn ended before these checks, or changed such a file after them. |
 | – New tests: `files` | The test files the turn added or changed. |
 | – No new test: the Orchestrator said “`line`” | It was asked for a test and gave this reason instead (its first line). |
 | ✗ Test removed: `path` | The turn deleted a test file that was there before it. |
