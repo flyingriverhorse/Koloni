@@ -164,8 +164,9 @@ itself, the end works like a pull request's CI:
     The runner must be the command's first word or follow its launcher (`python -m`,
     `uv run`, `npx`, ...): `tox -e pytest` or `make pytest` gets no related step. Where none can
     be named (another runner, a change to a configuration file or to `conftest.py`, a command
-    that names its own tests), there is no related step. A guessed command that would need its
-    card has no related step either: one card per command.
+    that names its own tests), there is no related step. A guessed command, or a saved one
+    you have not said **Always** to, that would need its card has no related step either: one card
+    per command.
 
     A test file named on the command line would get past what you left out of your tests, so
     where you left tests out there is no related step, only the whole suite: for pytest, an
@@ -207,8 +208,8 @@ the related tests (see [On the canvas](#on-the-canvas)).
   instruction file, `.koloni/`) is taken back when it ends, as for any command; after its turn,
   with no card. What another turn wrote there meanwhile stays. Where its card asks you ("KOLONİ's
   test run wrote `AGENTS.md` without naming it — taken back. Keep it?"), the section says "Full
-  tests ran: `command` - waiting for your answer on a file the tests wrote" until you answer,
-  with no clock.
+  tests waiting for your answer on a file the tests wrote: `command`" until you answer, with
+  no clock.
 - **Stop everything** and putting the chat away stop it too. If KOLONİ closes while it runs,
   the next start says "Tests not finished: KOLONİ restarted".
 - A job while you're away, a To-do task's turn and a trigger's turn have nobody waiting for

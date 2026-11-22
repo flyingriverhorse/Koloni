@@ -136,8 +136,13 @@ class FoundMixin:
         if '"' in key:  # (not one JSON path can name)
             return None
         place = f'$."{key}"'
-        entry = json.dumps({"command": run.command, "from": whence, "at": now().isoformat()})
         with self._factory() as session:
+            # (Option A: Always said on its card before it was saved - a rule of this chat that
+            # covers it - keeps it the user's for that line, in the project.)
+            rules = [rule.prefix for rule in session.scalars(rules_here(
+                session.get_one(Conversation, ctx.cid)))]
+            entry = json.dumps({"command": run.command, "from": whence, "at": now().isoformat(),
+                                **({"always": True} if is_allowed(run.command, rules) else {})})
             project = self._project(session, ctx.cid)
             part = "./" if run.cwd == "." else f"{run.cwd}/"
             if project is None or (project.check_command or "").strip() or part in (

@@ -266,6 +266,21 @@ def test_a_saved_command_with_always_runs_unasked_in_another_chat(make_client, w
     assert len(executor.started) == 1
 
 
+def test_always_on_a_guesss_first_card_is_kept_as_it_is_saved(make_client, wait_run, project_dir,
+                                                               monkeypatch):
+    # (Review: Always said before the save was this chat's rule alone - another chat, an Away job,
+    # asked again.)
+    guess(monkeypatch, "python -m pytest -q")
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
+                                 executor=ScriptedExecutor([PASS]))
+    cid, run_id = begin(client, project_dir, mode="auto_edit")
+    (card,) = asked_for(client, cid)
+    assert client.post(f"/api/commands/{card['id']}/approve", json={"remember": True},
+                       headers=OWN).status_code == 200
+    wait_run(client, cid, run_id)
+    assert project(client, project_dir)["tests_found"]["."]["always"] is True
+
+
 # (review of S1b: what is never run, never saved, never guessed)
 @pytest.mark.parametrize("line", ["python -m pytest -q --basetemp=../outside",
                                   "uv run --with evilpkg pytest", "go test -exec calc ./..."])

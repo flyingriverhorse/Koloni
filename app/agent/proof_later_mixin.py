@@ -322,13 +322,13 @@ class ProofLaterMixin:
             return proof.row("tests", "not_run", proof.NOT_STARTED.format(
                 first=str(exc) or type(exc).__name__), made["command"], made["guessed"])
         row, _output = done.result()
-        if not made["started_at"]:
+        if not check.going.done():  # (never started: nothing ran beneath a change)
             return row
         with self._factory() as session:
             ran = session.scalar(select(Command).where(
                 Command.tool_call_id == check.call_id)) if check.call_id else None
-            changed = proof.changed_since(session, check.project_id,
-                                          datetime.fromisoformat(made["started_at"]), ran)
+            # (From its start - its row's clock may be gone: it waited on your answer, CL-316.)
+            changed = proof.changed_since(session, check.project_id, check.going.result(), ran)
         # (Review Focus 2: a pass on what is no longer the work is no pass.)
         return {**row, "text": row["text"] + proof.CHANGED_WHILE,
                 "state": "note" if row["state"] == "passed" else row["state"]} if changed else row

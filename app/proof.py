@@ -380,7 +380,7 @@ def checked_text(rows: list[Row]) -> str:
 FULL_QUEUED = "Full tests waiting for another test run to end: {command}"
 FULL_RUNNING = "Full tests running: {command}"
 # ...its run over, waiting on the user's answer on a file it wrote (CL-316: no clock counts then).
-FULL_ON_CARD = "Full tests ran: {command} - waiting for your answer on a file the tests wrote"
+FULL_ON_CARD = "Full tests waiting for your answer on a file the tests wrote: {command}"
 FULL_HELD = "Full tests not run: the related tests fail"
 SUPERSEDED = "Tests not finished: the project changed, and a newer run took their place"
 RESTARTED = "Tests not finished: KOLONİ restarted"
