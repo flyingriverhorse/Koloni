@@ -6,6 +6,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-22
+
 ### Added
 
 - **Settings**: Settings › This project › Asking and away has **A harmful-looking command at Full auto**: **Ask me** (as before, and the default; existing projects keep it) or **Check what I said first** - before a command that deletes, overwrites or sends something off this machine waits for you at Full auto, the first model of your Fast tier reads your preferences, this project's rules as saved on the Memory page and your own messages in the chat, and the command runs without a card only when a whole line of yours names it - one that forbids nothing and sets no condition; one a whole sentence of yours forbids ("Never push to main.") is not run and opens no card - its agent is told that sentence (of a message of yours in the chat, only that one forbids it), and not to run it again or anything that does the same - while a sentence that sets a condition or asks to be asked ("unless", "ask me before") keeps the card, and after 3 such refusals in a row or 10 in a turn KOLONİ says so and the rest of the turn asks on a card; secret files, `.koloni`, files that steer later turns, paths outside the folder, a delete or a send of the whole folder and a CLI's command whose folder is not known are always asked, and anything that goes wrong opens the card as before ([docs](settings.md#asking-and-away)).
