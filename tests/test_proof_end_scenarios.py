@@ -593,8 +593,9 @@ def test_a_watched_turns_run_after_a_wait_gets_only_what_is_left(
     # (Its wait was fixed before the slot: a run that waited 2.5 s for it was still given 3 s.)
     wait = round(scaled(6))
     monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", wait)
-    executor = ScriptedExecutor([Script(["running\n"], hold=gate)])
-    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    executor = ScriptedExecutor([Script(["running\n"], hold=gate), PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write("a.py", "x = 2\n", "w2"), text("done")], executor=executor)
     slot = client.app.state.runner._test_slot
     client.portal.call(slot.acquire)  # (another turn's run holds the machine)
     try:
@@ -606,14 +607,25 @@ def test_a_watched_turns_run_after_a_wait_gets_only_what_is_left(
         time.sleep(2)  # (held on purpose: the wait it takes is what the test is about)
     finally:
         client.portal.call(slot.release)
-    row = checked(wait_run(client, cid, run_id, timeout=wait + 20))[0]
+    snap = wait_run(client, cid, run_id, timeout=wait + 20)
+    row = checked(snap)[0]
     given = re.search(r"still running at (\d+):(\d\d)", row["text"])
-    assert given and int(given[1]) * 60 + int(given[2]) <= wait - 2, row
+    seconds = int(given[1]) * 60 + int(given[2]) if given else None
+    assert seconds is not None and seconds <= wait - 2, row
+    # (N4: its record says the limit it really had; N1: cut short by the wait for the machine, it
+    # is no run "too slow" - the next turn runs it again.)
+    (ran,) = snap["commands"]
+    assert ran["timeout_seconds"] == seconds, ran
+    again = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
+    snap = wait_run(client, cid, again["run"]["id"])
+    rows = [m["checked"] for m in snap["messages"]
+            if m["role"] == "checked" and m["run_id"] == again["run"]["id"]][0]
+    assert rows[0]["state"] == "passed" and len(executor.started) == 2, rows
 
 
-def test_rounds_never_stack_after_a_recipe_spent_its_own(make_client, wait_run, project_dir):
-    # (Plan decision 13: a recipe whose fix loop ran out, taken in, failing still - the end check
-    # says so and offers Fix it; it does not send the Lead round again on the same failure.)
+def test_a_capped_review_loop_leaves_the_end_checks_own_rounds(make_client, wait_run, project_dir):
+    # (Only a capped test-to-fix loop spent the turn's fix rounds - S4's Bugfix, below; a review
+    # loop that ran out found no failing test: the end check's own failure goes back once more.)
     from tests.test_chat_teams_scenarios import teams_of
     from tests.test_claim_scenarios import write as written
     from tests.test_parallel import until
@@ -627,7 +639,7 @@ def test_rounds_never_stack_after_a_recipe_spent_its_own(make_client, wait_run, 
         "Lead": [spawn("Coder", "build", "c1"), spawn("Reviewer", "review", "r1"),
                  step(call("spawn_agent", {"role": "Coder", "task": "fix",
                                            "findings_from": "Reviewer"}, "c2")),
-                 spawn("Reviewer", "review", "r2"), text("over to you")],
+                 spawn("Reviewer", "review", "r2"), text("over to you"), text("I cannot fix it")],
         "Coder": [step(written("greet.py", "print('Helo')\n")), text("built")],
         "Coder 2": [text("still Helo")],
         "Reviewer": [text(FOUND)], "Reviewer 2": [text(FOUND)],
@@ -645,8 +657,7 @@ def test_rounds_never_stack_after_a_recipe_spent_its_own(make_client, wait_run, 
     assert row(snap)["status"] == "in"
     rows = checked(snap)
     assert rows[0]["state"] == "failed" and len(proof_calls(snap)) == 1, rows
-    assert [one["text"] for one in rows[1:]] == [
-        "Still failing after the recipe's fix rounds: you decide (Fix it)"]
+    assert [one["text"] for one in rows[1:]] == ["Sent back to fix: 1 of 2 rounds"]
 
 
 def test_an_error_inside_the_end_check_is_a_row_not_a_failed_turn(
@@ -782,3 +793,61 @@ def test_a_bugfix_that_passes_is_not_run_again_at_the_end(make_client, wait_run,
     assert row(snap)["status"] == "in" and len(executor.started) == 1
     assert proof_calls(snap) == []
     assert texts(snap) == [f"Tests passed: {PYTEST} - run by Tester after the last change"]
+
+
+
+# --- fix round 2 ----------------------------------------------------------------------------
+
+def test_a_command_after_the_leads_pass_runs_the_tests_again(make_client, wait_run, project_dir):
+    # (B1: a formatter, a codegen, a sed after the pass rewrote files no FileChange records.)
+    executor = ScriptedExecutor([PASS, Script(["formatted\n"]), PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), run("python check.py"),
+                                  run("python fmt.py", "r2"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert len(executor.started) == 3 and len(proof_calls(snap)) == 1
+    assert texts(snap) == ["Tests passed: python check.py - 4 passed in 0.1s"]
+
+
+def test_a_read_only_command_after_the_pass_leaves_it_standing(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([PASS, Script(["a.py\n"])])
+    client, _model = make_client([write("a.py", "x = 1\n"), run("python check.py"),
+                                  run("ls", "r2"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert len(executor.started) == 2 and proof_calls(snap) == []
+
+
+def test_a_command_after_a_bugfix_testers_pass_runs_the_tests_again(
+        make_client, wait_run, project_dir, monkeypatch):
+    from tests.test_agent_commands import cmd
+    from tests.test_recipe_proof_scenarios import PASSED, PYTEST, bugfix_run, ran_tests, scripts
+
+    guess(monkeypatch, PYTEST)
+    steps = scripts(ran_tests())
+    steps["Lead"] = [*steps["Lead"][:-1], cmd("python fmt.py", "kf"), text("done")]
+    executor = ScriptedExecutor([PASSED, Script(["formatted\n"]), PASSED])
+    client, _model = make_client(steps, executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert len(executor.started) == 3 and len(proof_calls(snap)) == 1
+    assert texts(snap) == [f"Tests passed: {PYTEST} (guessed) - 4 passed"]
+
+
+def test_a_to_do_turn_with_nobody_away_runs_a_guess_as_any_turn(
+        make_client, wait_run, project_dir, monkeypatch):
+    # (N3: away is an Away night of the project; a To-do turn the user runs from the screen is not.)
+    guess(monkeypatch)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
+                                 executor=ScriptedExecutor([PASS]))
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"lead_work": "itself"},
+                        headers=OWN).status_code == 200
+    assert client.put(f"/api/projects/{pid}/backlog/choice", json={"permission_mode": "full_auto"},
+                      headers=OWN).status_code == 200
+    client.post(f"/api/projects/{pid}/backlog", json={"title": "greeting"}, headers=OWN)
+    cid = client.post(f"/api/projects/{pid}/backlog/next", headers=OWN).json()["conversation_id"]
+    run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
+    row = checked(wait_run(client, cid, run_id))[0]
+    assert (row["state"], row["guessed"]) == ("passed", True), row

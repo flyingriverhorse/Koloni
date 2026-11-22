@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import literal_column, select
 
-from app import injection, ledger, proof, recipe_run
+from app import away, injection, ledger, proof, recipe_run
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
 from app.commands import web_off_reason
@@ -122,14 +122,20 @@ class ProofMixin:
         return None
 
     def _recipe_spent(self: "AgentRunner", ctx: Ctx) -> bool:
-        """Whether a recipe of this turn ran a loop of its own to its last round: its fix rounds
-        were the turn's - the end check sends nothing back on top of them."""
+        """Whether a recipe of this turn ran a test-to-fix loop of its own to its last round (S4's
+        Bugfix: its checking step runs the tests - a test step, or the Tester): its fix rounds were
+        the turn's, and the end check sends nothing back on top of them. A review's loop or a
+        candidates' `again` that ran out leaves the end check's own rounds."""
+        from app.agent import TEST_STEPS  # (where S4 keeps them; this module is imported first)
+
         with self._factory() as session:
             states = [state for row, _team, _lead in self._rows(session, ctx.cid)
                       if (state := self._live_state(row, ctx.run_id))]
         for state in states:
             graph = recipe_run.graph_of(state)
-            if any(loop.rounds and state.get("rounds", {}).get(
+            tests = {step.id for step in graph.steps if step.id in TEST_STEPS
+                     or getattr(step.who, "role", None) == "Tester"}
+            if any(loop.rounds and loop.from_ in tests and state.get("rounds", {}).get(
                     recipe_run.part_of(graph, loop.from_), 0) >= loop.rounds
                    for loop in graph.loops):
                 return True
@@ -221,6 +227,20 @@ class ProofMixin:
         return self._watched(ctx.run_id) and ctx.run_id not in self._away_jobs and (
             ctx.run_id not in self._backlog_turns)
 
+    def _away_now(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether the user is away from this turn: an Away job, or a To-do turn while an Away
+        runs for the project (`away.running`). A To-do turn they run from the screen is not.
+        shortcut: Away is the one sign of absence KOLONİ has - a To-do list left running by
+        itself while the user only walked off counts as watched; keep a presence beat if that
+        is met."""
+        if ctx.run_id in self._away_jobs:
+            return True
+        if ctx.run_id not in self._backlog_turns:
+            return False
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+            return project is not None and away.running(session, project.id) is not None
+
     def _may_run_tests(self: "AgentRunner", ctx: Ctx, run: TestRun) -> Literal["run", "ask"] | str:
         """As the Lead's own run_command would be: in a watched turn "ask" - the user's own
         command, an Always run rule, the part's own test and Full auto pass unasked, a guess at Ask
@@ -228,7 +248,7 @@ class ProofMixin:
         a trigger's turn "run" only on its leave for this very command; else why not."""
         if off := web_off_reason(run.command, self._off()):
             return off
-        if not run.yours and (ctx.run_id in self._away_jobs or ctx.run_id in self._backlog_turns):
+        if not run.yours and self._away_now(ctx):
             return AWAY_GUESS
         if self._watched(ctx.run_id):
             return "ask"
@@ -285,6 +305,7 @@ class ProofMixin:
                     taken.append(False)
                     raise ToolError(SLOT_BUSY)
                 args["timeout_seconds"] = given["seconds"] = now_left
+                self._timeout_on_record(call_id, now_left)
             return ws
         copy = self._copies.get(self._works_in(ctx) or "")
         was, kept = await asyncio.to_thread(lambda: copy.snapshot(
@@ -312,6 +333,14 @@ class ProofMixin:
                 not run.yours), ""
         return proof.tests_row(run, code, output, ended, said,
                                given["seconds"] or MAX_TIMEOUT), output
+
+    def _timeout_on_record(self: "AgentRunner", call_id: str, seconds: int) -> None:
+        """The limit a run really has, on its record: what is left of the wait once it held the
+        machine - not what it was given before the wait (`proof.too_slow` reads it)."""
+        with self._factory() as session:
+            for one in session.scalars(select(Command).where(Command.tool_call_id == call_id)):
+                one.timeout_seconds = seconds
+            session.commit()
 
     @staticmethod
     async def _tests_put_back(copy, was: dict, kept: dict) -> None:

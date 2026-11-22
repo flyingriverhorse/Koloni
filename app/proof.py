@@ -13,6 +13,7 @@ from sqlalchemy import literal_column, select
 from sqlalchemy.orm import Session
 
 from app import finish_tests, ledger, project_map
+from app.commands import only_reads
 from app.db.models import Command, Conversation, FileChange, Project, Run
 from app.tools import MAX_TIMEOUT
 from app.workspace import in_scratch, unified_diff
@@ -142,7 +143,9 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: date
     code and stands for the work as it is: the Lead's (or KOLONİ's, on its record) started after
     `since`; or one of `sharing`'s - the agents that worked where the Lead does, a recipe's Tester
     in its copy - started after `made` (`last_change` with them: what their copy held, Take in
-    brought in as it was; plan decision 13, no second run). None: run it. (Claude Code's pass,
+    brought in as it was; plan decision 13, no second run). Never one after which a command of
+    that place's agents started that may have changed files - a formatter, a codegen, a sed: no
+    FileChange records what it rewrote (`_rewritten_after`). None: run it. (Claude Code's pass,
     exit code None, is never reused; nor a sub-agent's in a copy of its own.)
     shortcut: a Take-in check that ran the same command on what then went in is not counted - the
     project may hold more by then; count it when its `checked` files equal what was taken, if the
@@ -158,15 +161,30 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: date
             continue
         looked.add(mine)
         after = since if mine else made
-        if after is None or (one.started_at or after) > after:
+        if (after is None or (one.started_at or after) > after) and not _rewritten_after(
+                session, run_id, by, one, wanted):
             return one
     return None
 
 
+def _rewritten_after(session: Session, run_id: str, by: Collection[str], ran: Command,
+                     wanted: str) -> bool:
+    """Whether a command of `by` started after `ran` that may have changed files: not a test
+    run (`ledger.read_test`), not the same test command again, not one that only reads
+    (`commands.only_reads`). Re-running is the safe direction."""
+    return any(
+        _folded(line) != wanted and ledger.read_test(line) is None and not only_reads(line)
+        for line in session.scalars(select(Command.command).where(
+            Command.run_id == run_id, Command.agent_id.in_(by), Command.id != ran.id,
+            Command.started_at.is_not(None), Command.started_at > ran.started_at)))
+
+
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:
     """Why `run` is not run where a turn's end waits at most `seconds` for it: the newest run of
-    it in the project (any chat's, anyone's) took longer, or was stopped at that wait - said as
-    when; None: run it. A quicker run since (an agent's, the user's) lets it run again."""
+    it in the project (any chat's, anyone's) ran longer, or was stopped at a limit of that wait or
+    more (the limit it really had, as its record keeps it - not one the wait for the machine ate
+    into) - said as when; None: run it. A quicker run since (an agent's, the user's) lets it run
+    again."""
     wanted = _folded(run.command)
     for one in session.scalars(
             select(Command).join(Run, Run.id == Command.run_id)
@@ -178,7 +196,8 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
         if _folded(one.command) != wanted or one.ended_at is None or one.started_at is None:
             continue
         took = (one.ended_at - one.started_at).total_seconds()
-        if one.status == "timed_out" and one.timeout_seconds >= seconds or took > seconds:
+        if took > seconds or one.status == "timed_out" and one.timeout_seconds >= seconds and (
+                took >= one.timeout_seconds - 1):  # (it ran its whole limit: a second's slack)
             return f"they ran past {clock(seconds)} on {one.ended_at:%d %b %H:%M}"
         return None
     return None

@@ -269,7 +269,7 @@ class CommandRunner:
                                 lead=session.get_one(Agent, agent_id).depth == 0)
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
             # (Its id is said beside a cut output only where recall_output would give it.)
-            asked = session.get(ToolCall, call_id)
+            asked = session.get(ToolCall, call_id) if call_id else None  # (a check: none)
             recall = call_id if asked is not None and recallable(
                 asked.name, asked.outside_folder, None, planned.command) else None
             # One the user is not asked about runs on a yes given before - a rule, the
