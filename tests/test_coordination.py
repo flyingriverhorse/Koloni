@@ -366,9 +366,9 @@ NO_STOP = ['git commit -m "fix: kill stale ps entries"', "cat docs/ps/kill.md",
            'git log --grep "(kill)"', 'rg -n "(kill|terminate)" app',
            "sed -i 's/(kill)/(stop)/' src/a.ts", 'echo "a; kill"', "echo 'x (kill) y'",
            'Write-Host "Stopping (kill)"',
-           # (review round 4: a stop's name past a quoted line's first word is no word of its own)
-           "rg -n 'terminate|kill' app", 'git commit -m "x | kill"', 'git commit -m "a|kill"',
-           'git log --grep="x|kill"', 'rg "a|kill" app', "rg 'foo|kill' app",
+           # (review round 4: a bare stop's name past a quoted line's first word is no word of its
+           # own - one with a word after it is asked: `rg -n 'terminate|kill' app` over-asks)
+           'git commit -m "x | kill"', 'git commit -m "a|kill"', 'git log --grep="x|kill"',
            'grep -E "(foo|kill)" app', 'echo "a | kill"']
 # A stop handed what it stops by a pipe, a file or a block (review round 4): of whatever it is
 # handed - by `xargs` or `parallel` even with words of its own.
@@ -379,7 +379,14 @@ PIPED_STOPS = [
     "Get-Process python | & 'Stop-Process'", "Get-Process python | . Stop-Process",
     "Get-Process python | Microsoft.PowerShell.Management\\Stop-Process",
     "xargs -a pids.txt kill", "xargs --arg-file=pids.txt kill", "xargs kill < pids.txt",
-    "gps python | Invoke-Method Kill", "kill -9 $(pgrep python)", "Stop-Process (gps node).Id"]
+    "gps python | Invoke-Method Kill", "kill -9 $(pgrep python)", "Stop-Process (gps node).Id",
+    # (review round 5: a stop with a target in a line a shell or a wrapper is handed by quotes)
+    'start "" cmd /c "echo & taskkill /F /IM python.exe"', 'echo "echo; pkill python" | bash',
+    "bash <<< 'echo; pkill python'", 'echo "Get-Date; Stop-Process -Name python" | pwsh -c -',
+    "tmux new -d 'sleep 1; pkill python'", "script -c 'echo; pkill python' /dev/null",
+    "xterm -e 'sleep 1; pkill python'", 'wt.exe -w 0 cmd /c "echo; taskkill /F /IM python.exe"',
+    'schtasks /create /tn x /tr "cmd /c echo & taskkill /F /IM python.exe" /sc once',
+    'at 12:00 "echo & taskkill /F /IM python.exe"', 'npm run stop -- "x; pkill python"']
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", 'bash -c "{c}"', "env X=1 {c}"])

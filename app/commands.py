@@ -841,11 +841,11 @@ def _stop_kind(command: str) -> str:
 
 def _stop_kind_of(command: str) -> str:
     started, stands = _started(command), _stands(command)
-    # (a stop's name the quote-blind split cut out of a message or a pattern stops nothing:
-    # `rg -n 'terminate|kill' app`)
+    # (`stands` acts only on a stop with no target, `_bare`: a stop with one, cut by the
+    # quote-blind split out of a line a shell is handed - `echo "x; pkill y" | bash` - is asked,
+    # one cut out of a message or a pattern too: `rg -n 'terminate|kill' app` over-asks)
     kinds = {_part_stop(_program(words[0]), words[1:], started, stands)
-             for words in _commands_in(command, at=_BLOCKS)
-             if words and (stands or _program(words[0]) not in _STOP_PROGRAMS)}
+             for words in _commands_in(command, at=_BLOCKS) if words}
     # (what a pipe hands its objects to, told to end them: `| Invoke-Method Kill`)
     ends = any({word.casefold() for word in words[1:]} & _STOP_METHODS
                for stage in re.split(r"(?<!\|)\|(?!\|)", command)[1:]
