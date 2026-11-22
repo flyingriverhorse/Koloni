@@ -317,18 +317,19 @@ def test_a_key_in_a_failing_test_runs_command_is_hidden_in_its_finding(
 
 
 def test_a_command_that_exits_1_and_is_no_test_run_is_no_problem(make_client, wait_run, project_dir):
-    # (A grep with no match exits 1: only a test run's failure is one.)
-    executor = ScriptedExecutor([Script([], exit_code=1)])
+    # (A grep with no match exits 1: only a test run's failure is one. The Tester runs the
+    # project's own test command too: with one known, a grep alone is no check - R3.)
+    executor = ScriptedExecutor([Script([], exit_code=1), Script(["git version 2.47\n"])])
     client, _model = make_client({
         "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
-        "Tester": [cmd("grep -rn TODO ."), text(NONE)],
+        "Tester": [cmd("grep -rn TODO ."), *checked()],
         **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
     cid, run_id = quality_run(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
     assert opened(snap) == ["Tester", *REVIEWERS]
     assert strip(row(snap))[1] == ("fix", "skipped", 0)
-    assert [c["exit_code"] for c in snap["commands"]] == [1]
+    assert [c["exit_code"] for c in snap["commands"]] == [1, 0]
 
 
 def test_a_test_run_whose_exit_code_was_not_reported_and_passed_is_no_problem(

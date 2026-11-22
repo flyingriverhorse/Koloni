@@ -52,7 +52,8 @@ NONE = "Fine.\n\nChecked: read greet.py\n\nFindings: none"
 
 # Kanıtlı bitiş R3: a Tester at a recipe's review step passes only on a command it ran that is no
 # mere read - here the project's own test command (`own_test`), which runs unasked at every level.
-OWN_TEST = "git --version"
+# (`git version`, not `git --version`: a version or help checks nothing - CL-305.)
+OWN_TEST = "git version"
 
 
 def own_test(client, project_dir):

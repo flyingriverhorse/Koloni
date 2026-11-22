@@ -28,6 +28,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Install**: closing KOLONİ with the page open takes one Ctrl+C (up to five seconds), and it now stops its local model server and the agents' browsers on Linux and macOS too ([docs](getting-started/install.md)).
 - **Chat**: coming back to a chat whose over-budget question is still open no longer moves the focus to "Go on anyway"; a new question still takes it.
 - **Chat**: with Auto-read on, an answer that holds a long run of dots no longer slows the page on every word that streams in.
+- **Agents**: in a recipe, a failed test run is no longer cleared by a later run of the same test tool that runs no tests (`-h`, `--version`, `--collect-only`, a list of the tests, none found) or only some of them (`-k`, a test name, `--ignore`, its own `-c` or `PYTEST_ADDOPTS`) - only by the same command passing again, the whole suite passing in the same folder, or a run of the files that hold every failing test; and a Tester that ran only commands that check nothing (`echo`, `python -c "pass"`, `--version`) does not pass, nor - where the project has a test command and the recipe changed code - one that ran no test that really ran tests ([docs](agents/recipes.md)).
 
 ### Security
 

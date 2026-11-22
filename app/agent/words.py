@@ -256,14 +256,17 @@ PAID_UNATTENDED = ("not opened on {to}: it is paid per token, and nobody is watc
 UNCHECKED = {"what": "it said nothing was found, but not what it checked", "kind": "other",
              "role": None, "blocking": True}
 # Kanıtlı bitiş R3: the finding a recipe's check whose job is running checks (`_held_to_run`) is
-# held to where it ran no command on record that is no mere read (`AgentRunner._ran_held`) - and
-# what it is told under its task of that (`_step_says`).
-RAN_NOTHING = {"what": "it is a check that ran no command on record: nothing it says was run",
+# held to where it ran no command on record that checks something - no mere read, no `echo` or
+# `python -c "pass"` (`AgentRunner._ran_held`) - and what it is told under its task of that
+# (`_step_says`).
+RAN_NOTHING = {"what": "it is a check that ran no test on record: nothing it says was run",
                "kind": "test", "role": None, "blocking": True}
 RUN_TO_PASS = ("This check passes only on a command you run yourself that KOLONİ records - the "
                "tests, or the check itself; a report of what you read, or a listing, is no pass.")
 # R4: what the agent of a recipe's step with the id "reproduce" (the ready Bugfix's) is told
 # under its task (`AgentRunner._step_says`).
+# shortcut: told, not held - a step that wrote its test and ran none passes (CL-305); S7 holds it
+# to a failing run on record.
 REPRODUCE_FIRST = ("This step only shows the bug: write a test that fails because of it, run it, "
                    "and report the failing output. Do not fix the bug in this step - the next step "
                    "does, and this test must pass after it.")

@@ -40,15 +40,25 @@ Before a step that runs only if a problem was found, a test run that failed is a
 the agent's report says. At any other review step it is one too where the report says nothing is wrong,
 unless its **Already failing before** lines name every test that run says failed - with its file or
 suite where the run gives them (a bare name only where no other failing test has it), and never one
-the run's reproduce step showed failing: that is the bug. Only the last run of
-each test tool counts (`pytest` and `python -m pytest` are one), and a run that never started its tests
-(the tool not found) or whose exit is hidden (`; true`, `|| true`, a pipe after it) is no verdict either
-way. In a step with the id `reproduce` (Bugfix's first) the failing test is the work: the agent's report
-says it "fails as it should".
+the run's reproduce step showed failing: that is the bug. A later pass clears a failed run only where it
+is the same command in the same folder, or a run of the same test tool in that folder that picks none of
+its tests (`pytest` and `python -m pytest` are one tool): a narrower pass - a test name, `-k`, `::`, `-t`,
+`--grep`, `-run`, `--filter`, tests left out (`--ignore`, `--deselect`), options of its own (`-c`,
+`-o`, `--rootdir`, `PYTEST_ADDOPTS`) - clears no wider failure. A pass of files or folders clears it only
+where it counted tests and every test the failed run names as failing is in one of them. A run that
+never started its tests (the tool not found), one that runs none (`-h`, `--help`, `--version`,
+`--collect-only`, a list of the tests, no tests found, or a summary that counts 0 passed and 0 failed)
+and one whose exit is hidden (`; true`, `|| true`, a pipe after it) gives no verdict either way. In a step
+with the id `reproduce` (Bugfix's first) the failing test is the work: the agent's report says it "fails
+as it should".
 
 A Tester at a review step, or any agent of a step with the id `test` or `tests`, passes only on a command
-it ran that is no mere read (`ls`, `cat` and `git status` check nothing): its task says so, and one that
-ran none does not pass - "it is a check that ran no command on record". Where you declined its command,
+it ran that checks something. Where the project has a test command (yours, one KOLONİ saved, or one its
+files name) and the recipe changed code, that is a test run that really ran tests - its runner counted
+some, or your own test command ran. Elsewhere a mere read (`ls`, `cat`, `git status`) checks nothing, nor
+does `echo`, `true`, `cd .`, `sleep`, `python -c "pass"`, a `--version` or `--help`, or a test run that
+ran none. Its task says so, and one that ran none does not pass - "it is a check that ran no test on
+record". Where you declined its command,
 the recipe stops at **Teams' work is ready**, "Not checked: you declined …", rather than sending the work
 back. A reviewer that only reads (a Data analyst, a Performance engineer) passes on its report. (Where an
 agent's CLI keeps its own commands off KOLONİ's record, its report is taken as it is.)

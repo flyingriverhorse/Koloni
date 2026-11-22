@@ -1,7 +1,8 @@
 """Kanıtlı bitiş S4 - the recipes' own proof (R1-R4), with the fake model and the ready Bugfix:
 a failing test goes back to Fix it (R1); a check that reports nothing wrong while a test run on
-record failed is blocked (R2); a Tester that ran no command but reads does not pass (R3);
-Reproduce it writes a failing test and fixes nothing (R4)."""
+record failed is blocked (R2) - a later help, list or narrower run of the tool hides none; a
+Tester that ran no command but reads or ones that check nothing (`python -c "pass"`) does not pass
+(R3); Reproduce it writes a failing test and fixes nothing (R4)."""
 
 from app.agent.words import RAN_NOTHING, REPRODUCE_FIRST, RUN_TO_PASS
 from tests.fakes import Script, ScriptedExecutor
@@ -131,6 +132,68 @@ def test_the_reproduction_test_is_never_already_failing_before(make_client, wait
     assert [(f["what"], f["blocking"]) for f in held] == [
         (f"last test run failed (exit 1): {PYTEST}", True)], held
     assert "Findings are left: back to Fix it, round 1 of 2" in by_call(snap)[2][1]
+
+
+UNITTEST = "python -m unittest -q test_bf037"
+
+
+def test_a_tester_whose_failing_run_is_followed_by_a_help_blocks(make_client, wait_run, project_dir):
+    # CL-305 B (in the browser): `unittest` failed, then `unittest -h` exited 0 and was taken for a
+    # pass of the same tool - the work went in with a failing test on record.
+    failed = Script(["F\nRan 1 test in 0.001s\n\nFAILED (failures=1)\n"], exit_code=1)
+    usage = Script(["usage: python -m unittest [-h] [-v] [-q]\n"], exit_code=0)
+    tester = [cmd(UNITTEST, "k0"), cmd("python -m unittest -h", "k1"), text(NONE)]
+    executor = ScriptedExecutor([failed, usage, PASSED])
+    client, _model = make_client(scripts(tester, ran_tests(id="k2")), executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Reviewer"], by_call(snap)
+    held = agent(snap, "Tester")["findings"]
+    assert [(f["what"], f["blocking"]) for f in held] == [
+        (f"last test run failed (exit 1): {UNITTEST}", True)], held
+    assert "Findings are left: back to Fix it, round 1 of 2" in by_call(snap)[2][1]
+
+
+def test_a_narrower_pass_does_not_hide_a_whole_runs_failure(make_client, wait_run, project_dir):
+    tester = [cmd(PYTEST, "k0"), cmd(f"{PYTEST} tests/test_ok.py", "k1"), text(NONE)]
+    executor = ScriptedExecutor([FAILED, Script(["2 passed\n"]), PASSED])
+    client, _model = make_client(scripts(tester, ran_tests(id="k2")), executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Reviewer"], by_call(snap)
+    assert [f["what"] for f in agent(snap, "Tester")["findings"]] == [
+        f"last test run failed (exit 1): {PYTEST}"]
+    assert agent(snap, "Tester 2")["findings"] == []
+
+
+def test_on_code_with_a_test_command_a_tester_passes_only_on_a_test_run(make_client, wait_run, project_dir):
+    # Review of the R3 fix: the project's tests are known (its own command) and the recipe changes
+    # code - a script of the Tester's own checks no test; the project's command does.
+    from tests.test_recipe_run_scenarios import OWN_TEST, own_test
+    executor = ScriptedExecutor([Script(["all good\n"]), Script(["git version 2.47\n"]),
+                                 Script(["git version 2.47\n"])])
+    client, _model = make_client(
+        scripts([cmd("python check.py", "k0"), text(NONE)], [cmd(OWN_TEST, "k1"), text(NONE)]),
+        executor=executor)
+    own_test(client, project_dir)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Reviewer"], by_call(snap)
+    assert agent(snap, "Tester")["findings"] == [RAN_NOTHING]
+    assert agent(snap, "Tester 2")["findings"] == []
+
+
+def test_a_tester_that_ran_only_python_pass_does_not_pass(make_client, wait_run, project_dir):
+    # CL-305 (noop): `python -c "pass"` started and is no read - and checks nothing.
+    executor = ScriptedExecutor([Script([]), PASSED])
+    client, _model = make_client(scripts([cmd('python -c "pass"', "k0"), text(NONE)], ran_tests()),
+                                 executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Reviewer"], by_call(snap)
+    assert agent(snap, "Tester")["findings"] == [RAN_NOTHING]
+    assert "ran no test" in RAN_NOTHING["what"]
+    assert agent(snap, "Tester 2")["findings"] == []
 
 
 def test_a_tester_that_retried_with_another_spelling_passes(make_client, wait_run, project_dir):

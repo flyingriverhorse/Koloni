@@ -4,18 +4,22 @@ turn again (`AgentRunner._history`); and the one line a tool result is cut down 
 history is over its budget (`gist`). No model writes either, and neither changes once its
 turn is over: a prompt cache keeps what stands before it."""
 
+import ast
 import json
 import os
+import posixpath
 import re
 import shlex
+import sys
 from collections.abc import Collection
+from typing import NamedTuple
 
 from sqlalchemy import literal_column, select, true
 from sqlalchemy.orm import Session
 
 from app.commands import RECALL_HINT, OutputMask, only_reads, recallable, secret_values
-from app.db.models import Agent, Command, FileChange, ToolCall
-from app.finish_tests import did_not_start
+from app.db.models import Agent, Command, FileChange, Project, ToolCall
+from app.finish_tests import command_of, did_not_start
 from app.workspace import in_scratch, unified_diff
 
 HEAD = ("KOLONİ's record of the turn above: names, commands and output quoted as they were "
@@ -187,8 +191,13 @@ def _name(word: str) -> str:
     return re.sub(r"\.(?:exe|cmd|bat)$", "", re.split(r"[\\/]", word.strip("'\""))[-1].lower())
 
 
+_REDIRECT = re.compile(r"[<>]+&?|&>+")  # (`>`, `>>`, `2>&1`'s `>&`, `&>`)
+
+
 def _split(line: str) -> list[tuple[list[str], str]]:
-    """A line's parts as its shell splits them, each with the operator after it ("" at its end)."""
+    """A line's parts as its shell splits them, each with the operator after it ("" at its end) -
+    a redirection off them (`> out.txt`, `2>&1`: no word of the command's).
+    shortcut: a number before one is taken as its stream (`2>`), also one spaced off (`-n 2 >`)."""
     lexer = shlex.shlex(line.replace("\n", " ; "), posix=False, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
@@ -197,10 +206,17 @@ def _split(line: str) -> list[tuple[list[str], str]]:
         words = line.split()
     parts: list[tuple[list[str], str]] = []
     part: list[str] = []
+    target = False
     for word in words:
-        if word in _OPERATORS:
+        if target:
+            target = False
+        elif word in _OPERATORS:
             parts.append((part, word))
             part = []
+        elif _REDIRECT.fullmatch(word):
+            if part and part[-1].isdigit():
+                part.pop()
+            target = True
         elif word not in ("(", ")"):
             part.append(word)
     return [*parts, (part, "")]
@@ -248,20 +264,56 @@ def _module(words: list[str]) -> list[str] | None:
     return words[at + 1:] if words[at:at + 1] == ["-m"] else None
 
 
-def _tool(words: list[str]) -> str | None:
-    """The test tool a part runs (its words from its program), by one name for each; None: none."""
+def _tool(words: list[str]) -> tuple[str, list[str]] | None:
+    """The test tool a part runs (its words from its program), by one name for each, and its words
+    past the tool and its `test` subcommand (`-q tests`; `test:unit` stays: another script);
+    None: none."""
     name, rest = (_name(words[0]), words[1:]) if words else ("", [])
     if _PYTHON.fullmatch(name):
         module = _module(words)
         return _tool(module) if module else None
     if name in _TOOLS:
         lint = name in ("tox", "nox") and any("lint" in word for word in rest)  # (`tox -e lint`)
-        return None if lint else _TOOLS[name]
+        return None if lint else (_TOOLS[name], rest)
     first = next((word for word in rest if word != "run" and not word.startswith("-")), "")
+    past = rest[rest.index(first) + (first in ("test", "tests")):] if first else []
     if name in _PACKAGERS:
-        return f"{name} test" if first.startswith("test") and "lint" not in first else None
-    return f"{name.removesuffix('w')} test" if name in _SUBCOMMANDS and first in (
+        return (f"{name} test", past) if first.startswith("test") and "lint" not in first else None
+    return (f"{name.removesuffix('w')} test", past) if name in _SUBCOMMANDS and first in (
         "test", "tests") else None
+
+
+class _Test(NamedTuple):
+    """A test run as its line says it (`_test_of`)."""
+    tool: str
+    masked: bool
+    args: list[str]  # (past the tool, `_tool`)
+    cds: tuple[str, ...]  # where a `cd` before it on the line went
+    addopts: bool = False  # options set before it, in `PYTEST_ADDOPTS` (`*_ADDOPTS`): a pick
+
+
+_CDS = frozenset({"cd", "pushd", "chdir", "set-location"})
+_ADDOPTS = re.compile(r"ADDOPTS\s*=", re.IGNORECASE)  # (`PYTEST_ADDOPTS=-k x`, `$env:…`)
+
+
+def _test_of(command: str) -> _Test | None:
+    parts = _split(command)
+    cds: list[str] = []
+    addopts = False
+    for at, (words, _after) in enumerate(parts):
+        masked = any(after not in ("", "&&") for _words, after in parts[at:])
+        addopts = addopts or any(_ADDOPTS.search(word) for word in words)
+        words = _past_leads(words)
+        if words and _name(words[0]) in _CDS:
+            cds.append(words[-1].strip("'\"") if len(words) > 1 else "~")
+            continue
+        line = _handed_on(words)
+        found = _test_of(line) if line is not None else (
+            _Test(tool[0], False, tool[1], ()) if (tool := _tool(words)) else None)
+        if found:
+            return found._replace(masked=found.masked or masked, cds=(*cds, *found.cds),
+                                  addopts=found.addopts or addopts)
+    return None
 
 
 def read_test(command: str) -> tuple[str, bool] | None:
@@ -270,16 +322,101 @@ def read_test(command: str) -> tuple[str, bool] | None:
     exit is masked - an operator other than `&&` after it (`; true`, `|| true`, `| tail -1`): its
     exit is then not the test's. None: it runs no test (`echo pytest`, `npm run test:lint`).
     shortcut: a line's first test part counts; read each if lines that run two tools are met."""
-    parts = _split(command)
-    for at, (words, _after) in enumerate(parts):
-        masked = any(after not in ("", "&&") for _words, after in parts[at:])
-        words = _past_leads(words)
-        line = _handed_on(words)
-        found = read_test(line) if line is not None else (
-            (tool, False) if (tool := _tool(words)) else None)
-        if found:
-            return found[0], found[1] or masked
-    return None
+    found = _test_of(command)
+    return None if found is None else (found.tool, found.masked)
+
+
+# CL-305 B: a test run's words that run no test - help, version, a list (`go test -list .`,
+# `cargo test -- --list`, `jest --listTests`, `dotnet test --list-tests`; `vitest list`) - and
+# `-V` where it is the version (ctest's is verbose; mvn's goes on to build).
+_NO_TESTS = frozenset({"-h", "--help", "--version", "--collect-only", "--co", "--fixtures",
+                       "--markers", "-list", "--list", "--listTests", "--list-tests"})
+# ...the words that pick some of its tests, leave some out or read where they are from elsewhere
+# (any word that is no option picks too: a path, a name; and an option of `=` not in `_VALUES`);
+_PICKS = frozenset({"-k", "-m", "-t", "--testNamePattern", "--grep", "-run", "-skip", "--skip",
+                    "--filter", "-p", "--package", "--tests", "--lf", "--last-failed", "--sw",
+                    "--stepwise", "--onlyChanged", "--changed", "-c", "-o", "--config-file",
+                    "--override-ini", "--rootdir", "--ignore", "--ignore-glob", "--deselect",
+                    "--testPathPattern", "--testPathIgnorePatterns", "--exclude", "--project",
+                    "--dir"})
+# ...the options that take a value, which is no pick (`-n 4`), and the words that pick none.
+_VALUES = frozenset({"-n", "-W", "--maxfail", "--tb", "--timeout", "--durations", "--reporter",
+                     "--maxWorkers", "-w", "-j", "-count", "-timeout", "--test-dir", "--color",
+                     "--junitxml", "--cov", "--cov-report", "--capture"})
+_WHOLE = frozenset({"run", "discover", ".", "./..."})
+
+
+def _runs_none(tool: str, args: list[str]) -> bool:
+    """Whether a test run's words run no test: help, version, a list (`_NO_TESTS`)."""
+    keys = {word.split("=", 1)[0] for word in args}
+    return bool(keys & _NO_TESTS) or ("-V" in keys and tool not in ("ctest", "mvn test")) or (
+        tool == "vitest" and args[:1] == ["list"])
+
+
+def _picked(test: _Test) -> list[str] | None:
+    """The paths a test run picks its tests by ([]: all of them); None: it picks some otherwise -
+    a name, `-k`, `::`, `--ignore=…`, a config of its own, `PYTEST_ADDOPTS` set before it.
+    `-p no:<plugin>` (pytest's) picks none.
+    shortcut: an option's value is known by `_VALUES` alone - a word after another option is read
+    as a path (`--some-option tests`); add an option when one is met."""
+    paths: list[str] = []
+    at = 0
+    while at < len(test.args) and not test.addopts:
+        word = test.args[at]
+        key, said, value = word.partition("=")
+        after = test.args[at + 1] if at + 1 < len(test.args) else ""
+        if key == "-p" and (value if said else after).startswith("no:"):
+            at += 1 if said else 2
+        elif key in _PICKS or "::" in word or said and word.startswith("-") and key not in _VALUES:
+            return None
+        elif word.startswith("-"):
+            at += 2 if key in _VALUES and not said else 1
+        else:
+            paths += [] if word in _WHOLE else [word]
+            at += 1
+    return None if test.addopts else paths
+
+
+def _place(cwd: str | None) -> str:
+    return posixpath.normpath((cwd or ".").replace("\\", "/"))
+
+
+def _folder(one: Command, test: _Test) -> str | None:
+    """Where a test run ran: its folder in the project, then where a `cd` on its line went; None:
+    not known - a `cd ..` (after a `cd` that failed under `;`, the project's parent)."""
+    cds = [place.replace("\\", "/") for place in test.cds]
+    if any(".." in place.split("/") for place in cds):
+        return None
+    return posixpath.normpath(posixpath.join(_place(one.cwd), *cds))
+
+
+def _clears(passed: tuple[Command, _Test], failed: tuple[Command, _Test]) -> bool:
+    """Whether a later pass clears a failed test run: the same line however it is spaced, in the
+    same folder; or, in the same known folder, a run of the same tool that picks none of its tests
+    or picks them by paths alone that hold every test the failed run names failing (`_covers`)."""
+    (one, test), (other, its) = passed, failed
+    if one.command.split() == other.command.split():
+        return _place(one.cwd) == _place(other.cwd)
+    here = _folder(one, test)
+    if here is None or here != _folder(other, its) or test.tool != its.tool:
+        return False
+    picked = _picked(test)
+    return picked == [] or bool(picked) and _covers(picked, one, other)
+
+
+def _covers(paths: list[str], one: Command, other: Command) -> bool:
+    """Whether a pass by paths really ran tests (its runner counted some) and every test the failed
+    run names failing (`failing_named`) is in a file under one of them; False where it names none
+    or one with no file (go's `TestX`, jest's suite)."""
+    from app.test_found import counts  # (here: test_found imports this module)
+    counted = counts(one.output, one.command)
+    named = failing_named(other.output[-4000:])
+    under = [path.replace("\\", "/").removeprefix("./").rstrip("/") for path in paths]
+    files = [re.split(r"::| > ", name)[0].replace("\\", "/").removeprefix("./") for name in named]
+    return counted is not None and counted.ran and bool(files) and all(
+        _TEST_FILE.fullmatch(file) and any(
+            file == path or file.startswith(path + "/") for path in under) for file in files)
+
 
 def _many(count: int, what: str) -> str:
     return f"{count} {what}" + ("" if count == 1 else "s")
@@ -295,39 +432,65 @@ def _family(session: Session, agent_id: str) -> tuple[str, set[str]]:
     return run_id, ids
 
 
-def _verdict(one: Command, call: str | None, read: tuple[str, bool]) -> bool | None:
-    """A test run's verdict (`read`: its tool and whether its exit is masked, `read_test`): True,
+# A runner that says it ran none: pytest's "no tests ran", jest's "No tests found", vitest's "No
+# test files found", unittest's "NO TESTS RAN".
+_NONE_RAN = re.compile(r"\bno test(?:s| files) (?:found|ran)\b", re.IGNORECASE)
+
+
+def _ran_none(one: Command, test: _Test) -> bool:
+    """Whether a test run ran no test: by its words (`_runs_none`); it never started (its program
+    not found, `finish_tests.did_not_start`); pytest's exit 4 (no such file or option) or 5 (none
+    collected or all deselected); its runner's summary counting none passed and none failed
+    (`test_found.counts`), or, with none, saying it ran none (`_NONE_RAN`)."""
+    from app.test_found import counts  # (here: test_found imports this module)
+    counted = counts(one.output, one.command)
+    return _runs_none(test.tool, test.args) or did_not_start(one.exit_code, one.output) or (
+        test.tool == "pytest" and one.exit_code in (4, 5)) or (
+        not counted.ran if counted is not None else bool(_NONE_RAN.search(one.output[-4000:])))
+
+
+def _ran_no_test(one: Command) -> bool:
+    """Whether a command is a test run that ran no test (`_ran_none`)."""
+    return (test := _test_of(one.command)) is not None and _ran_none(one, test)
+
+
+def _verdict(one: Command, call: str | None, test: _Test) -> bool | None:
+    """A test run's verdict (`test`: its tool and whether its exit is masked, `_test_of`): True,
     failed - timed out, a failure counted, exited non-zero, or no exit code reported where its CLI
     said its call failed (its own timeout, say); False, passed (no exit code reported is Claude
     Code's pass); None, none - it never started tests (its program not found,
-    `finish_tests.did_not_start`; pytest's 4, no such file or option), ran none (pytest's 5), or
-    its exit is masked and it counted no failure."""
+    `finish_tests.did_not_start`; pytest's 4, no such file or option), ran none (pytest's 5, a
+    help, a version, a list, 0 counted: `_ran_none`), or its exit is masked and it counted no
+    failure."""
     if one.status == "timed_out" or FAILED.search(one.output[-4000:]):
         return True
-    if read[1] or did_not_start(one.exit_code, one.output) or (
-            read[0] == "pytest" and one.exit_code in (4, 5)):
+    if test.masked or did_not_start(one.exit_code, one.output) or _ran_none(one, test):
         return None
     return one.exit_code not in (0, None) or (one.exit_code is None and call == "failed")
 
 
 def failed_tests(session: Session, agent_id: str) -> Command | None:
-    """Of the test runs of an agent and the agents it opened, the last with a verdict of each test
-    tool, however it is spelled (`pytest -q` failing, then `python -m pytest -q` passing: none) -
-    a passing `npm test` hides no failing `pytest`: the latest that failed; None where none did or
-    none gave a verdict (killed: no result)."""
+    """Of the test runs of an agent and the agents it opened, the latest that failed and that no
+    later pass clears (`_clears`): the same line in the same folder, or a run there of the same
+    tool however it is spelled that picks none of its tests (`pytest -q` failing, then `python -m
+    pytest -q` passing: none). A narrower pass (`pytest tests/test_ok.py`, `-k ok`), another
+    tool's (a passing `npm test` hides no failing `pytest`), one in another folder, and a run that
+    ran none (`-h`, `--collect-only`) clear none. None where none failed or none gave a verdict
+    (killed: no result)."""
     run_id, ids = _family(session, agent_id)
-    seen: set[str] = set()
+    passes: list[tuple[Command, _Test]] = []
     for one, call in session.execute(
             select(Command, ToolCall.status)
             .outerjoin(ToolCall, ToolCall.id == Command.tool_call_id)
             .where(Command.run_id == run_id, Command.agent_id.in_(ids),
                    Command.status.in_(("exited", "timed_out")))
             .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())):
-        read = read_test(one.command)
-        if read is None or read[0] in seen or (verdict := _verdict(one, call, read)) is None:
+        test = _test_of(one.command)
+        if test is None or (verdict := _verdict(one, call, test)) is None:
             continue
-        seen.add(read[0])
-        if verdict:
+        if not verdict:
+            passes.append((one, test))
+        elif not any(_clears(passed, (one, test)) for passed in passes):
             return one
     return None
 
@@ -416,15 +579,125 @@ def failing_shown(one: Command) -> str:
 
 
 # R3 (review of S4): what counts as a check that ran - a command that started (asked and not run,
-# blocked, failed to start: not) and is no mere read (`commands.only_reads`: `ls`, `cat`).
+# blocked, failed to start: not), is no mere read (`commands.only_reads`: `ls`, `cat`) and checks
+# something (`_checks_nothing`).
 STARTED = ("exited", "running", "timed_out", "killed")
+# CL-305: what checks nothing - a part that prints, waits, does nothing, says who or changes folder;
+# inline code that only passes, imports the standard library or prints a literal; a version or
+# help.
+_IDLE = frozenset({"echo", "printf", "write-host", "write-output", "true", ":", "exit", "rem",
+                   "sleep", "start-sleep", "whoami", *_CDS})
+_ABOUT = frozenset({"--version", "-V", "--help"})
 
 
-def ran_check(session: Session, agent_id: str) -> bool:
-    """Whether an agent, or an agent it opened, ran a command that started and is no mere read."""
+def _idle(words: list[str], ran_none: bool = False) -> bool:
+    """R3: whether a part of a line (its words from its program) checks nothing - a test run by its
+    words, or where it ran none (`ran_none`, by its output)."""
+    if not words or _name(words[0]) in _IDLE or only_reads(" ".join(words)):
+        return True
+    if (line := _handed_on(words)) is not None:
+        return _checks_nothing(line, ran_none)
+    if (tool := _tool(words)) is not None:
+        return ran_none or _runs_none(*tool)
+    return words[1:] == ["-v"] or bool(_ABOUT & set(words[1:])) or _idle_code(words)
+
+
+def _idle_code(words: list[str]) -> bool:
+    """Inline code that checks nothing: node's empty `-e ""`; Python's `-c` of `pass`, literals
+    and sums of them, `print` of those, imports of the standard library."""
+    if len(words) != 3 or words[1] not in ("-c", "-e", "--eval"):
+        return False
+    quoted = len(words[2]) > 1 and words[2][0] == words[2][-1] and words[2][0] in "'\""
+    code, name = words[2][1:-1] if quoted else words[2], _name(words[0])
+    if name == "node":
+        return not code.strip()
+    try:  # (read, never run)
+        tree = ast.parse(code) if _PYTHON.fullmatch(name) and words[1] == "-c" else None
+        return tree is not None and all(_idle_statement(one) for one in tree.body)
+    except (SyntaxError, ValueError, MemoryError, RecursionError):
+        return False
+
+
+def _idle_statement(node: ast.stmt) -> bool:
+    if isinstance(node, ast.Import | ast.ImportFrom):
+        names = [one.name for one in node.names] if isinstance(node, ast.Import) else [
+            node.module or ""]
+        return all(name.split(".")[0] in sys.stdlib_module_names for name in names)
+    if not isinstance(node, ast.Expr):
+        return isinstance(node, ast.Pass)
+    value = node.value
+    if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and (
+            value.func.id == "print") and not value.keywords:
+        return all(map(_literal, value.args))
+    return _literal(value)
+
+
+def _literal(node: ast.expr) -> bool:
+    """A literal, or sums and signs of them (`1+1`, `-2`)."""
+    if isinstance(node, ast.BinOp):
+        return _literal(node.left) and _literal(node.right)
+    if isinstance(node, ast.UnaryOp):
+        return _literal(node.operand)
+    try:
+        ast.literal_eval(node)
+    except (ValueError, TypeError, SyntaxError):
+        return False
+    return True
+
+
+def _checks_nothing(command: str, ran_none: bool = False) -> bool:
+    """R3: whether every part of a line only reads or checks nothing (`_idle`): `echo ok`, `true`,
+    `:`, `cd .`, `python -c "pass"`, `python --version`, `pytest --collect-only`, `git status`,
+    `cmd /c rem`; a test run that ran none (`ran_none`)."""
+    return all(_idle(_past_leads(words), ran_none) for words, _after in _split(command))
+
+
+def _ran_tests(one: Command, own: Collection[str]) -> bool:
+    """R3 on code: whether a command is a test run - a test tool's, or the project's own line - that
+    really ran tests: its runner counted some passed or failed; with no count known, an exit code
+    and output (the project's own line: its exit code alone) - never one that ran none or never
+    started (`did_not_start`)."""
+    from app.test_found import counts  # (here: test_found imports this module)
+    test = _test_of(one.command)
+    mine = " ".join(one.command.split()) in own
+    if (test is None and not mine) or (test is not None and _ran_none(one, test)) or (
+            did_not_start(one.exit_code, one.output)):
+        return False
+    counted = counts(one.output, one.command)
+    if counted is not None:
+        return counted.ran
+    return one.exit_code is not None and (mine or bool(one.output.strip()))
+
+
+def ran_check(session: Session, agent_id: str, tests: Collection[str] | None = None) -> bool:
+    """Whether an agent, or an agent it opened, ran a command that started and checks something
+    (`_checks_nothing`, a test run by its output too). `tests` (`test_lines`: a check of code where
+    the project's tests are known): only a test run that really ran tests is one (`_ran_tests`)."""
     run_id, ids = _family(session, agent_id)
-    return any(not only_reads(command) for command in session.scalars(select(Command.command).where(
-        Command.run_id == run_id, Command.agent_id.in_(ids), Command.status.in_(STARTED))))
+    ran = session.scalars(select(Command).where(
+        Command.run_id == run_id, Command.agent_id.in_(ids), Command.status.in_(STARTED))).all()
+    if tests is not None:
+        return any(_ran_tests(one, tests) for one in ran)
+    return any(not _checks_nothing(one.command, _ran_no_test(one)) for one in ran)
+
+
+def test_lines(session: Session, run_id: str, project: Project | None) -> set[str] | None:
+    """R3 (review of CL-305): the project's test lines a check of this run must run one of - the
+    user's check command and parts' tests, those KOLONİ saved, else one its files name
+    (`finish_tests.command_of`); None where none is known, or the run changed only documents,
+    data or slides (`proof.needs_tests`): then what it ran is judged by `_checks_nothing`."""
+    from app.proof import needs_tests  # (here: proof imports this module)
+    if project is None:
+        return None
+    saved = [one.get("command") for one in (project.tests_found or {}).values()
+             if isinstance(one, dict)]
+    lines = {" ".join(str(line or "").split()) for line in (
+        project.check_command, *(project.test_commands or {}).values(), *saved)} - {""}
+    if not lines and (guess := command_of(project.root_path, None)):
+        lines = {guess}
+    changed = list(session.scalars(select(FileChange.path).where(
+        FileChange.run_id == run_id, FileChange.status.in_(KEPT))))
+    return lines if lines and (not changed or needs_tests(changed)) else None
 
 
 def declined(session: Session, agent_id: str) -> str | None:
@@ -471,7 +744,9 @@ def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
     failed = sum(not one.keep_running and (
         one.status != "exited" or one.exit_code not in (0, None)
         or one.exit_code is None and bool(FAILED.search(one.output[-4000:]))) for one in commands)
-    tests = [one for one in commands if one.status == "exited" and TESTS.search(one.command)]
+    # (CL-305 B: not a run that ran no test - `unittest -h` is no pass to say "no need" of.)
+    tests = [one for one in commands if one.status == "exited" and TESTS.search(one.command)
+             and not _ran_no_test(one)]
     parts = []
     if seen or read:
         parts.append("read " + _many(len(read), "file"))
