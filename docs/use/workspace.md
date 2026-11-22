@@ -91,9 +91,42 @@ push the branch; it never merges one. **Keep this branch after merging** keeps t
 
 Opening a pull request needs **gh** (GitHub's CLI) installed and signed in (`gh auth login`), and the
 project's `origin` must be the GitHub repository gh sees. Until then the card says why it cannot open one.
+A branch that took in commits of yours that origin does not have (your branch merged into it, or another
+of yours) is not pushed until you push them, also after you amended, rebased or dropped them; the card
+names them.
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").
+
+The branch starts from your folder as it is, not only from your last commit: your edits, staged files
+and new files that git does not ignore are in the agent's worktree. KOLONİ makes that one commit
+("KOLONİ: your folder as koloni/*name* began") from an index of its own, so your files, your index,
+your branch and HEAD are not touched; it is the branch's first commit and shows in `git log
+koloni/*name*`. Left out, whether you staged them or not: what git ignores (`.env`, build output),
+files named as secrets (`.env.local`, a key file, `credentials.json`, `token.json`), `node_modules`,
+`.venv` and `venv` (linked in instead), a git repository inside your folder, KOLONİ's own `.koloni`
+folder, and every link or junction with what it leads to. Code named like a secret (`credentials.py`,
+`.env.example`) is taken as any file. The card says in one line which of your files were left out as a
+secret or a link.
+
+The card, the merge and a pull request carry the agent's work alone, measured from that commit - never
+your uncommitted files. A merge waits for your commit:
+
+- If the agent changed a file you have uncommitted changes in, the card lists it under what is in the
+  way; commit yours, then **Merge**.
+- If it changed the very lines you had not committed when it began (or a new file of yours), the card
+  says so - nothing is merged or sent as a pull request over them, and no agent puts them together.
+  Commit yours, then **Merge**.
+- If what is in the way is another agent's work you took in and did not commit yet, the card names that
+  agent's Take in: commit it (on its card, where a commit is offered), then **Merge**.
+
+Where the agent's work changes a file you had not committed when it began, the card says so and waits
+for your **Merge**, at Full auto too.
+
+If your folder had more new or changed files than a copy takes, your git is older than 2.40, or git
+could not take your folder as it is (a file another program holds open, a path too long for git, a
+folder it may not read, or longer than three minutes), the branch starts from your last commit as
+before, and its card says so in one line under its heading: your uncommitted changes were not in it.
 
 Its worktree, in KOLONİ's copies folder, is locked while the agent works (`git worktree list -v` says
 "KOLONİ: an agent works here; KOLONİ removes it"), so your own `git worktree prune`, `remove` or `move`
@@ -136,7 +169,12 @@ also when you press **Stop** or **Stop everything** while it works; the chat say
 Told to go on (by the Orchestrator, in this turn or a later one you watch), it goes on on the same
 branch: its earlier commits are there, and new work goes on top. Its merge is still held to where the
 branch was first made from: if the project is on another branch now, or that commit is gone from it, the
-merge waits for you, at Full auto too.
+merge waits for you, at Full auto too. Its work is still measured from your folder as the branch began.
+
+A branch copy kept over a restart comes back as a kept card, like a plain copy's: a file you changed too
+is merged line by line, from what the branch was made of. **Discard** deletes its branch and git's
+record of its worktree; so does a **Take in** that took all of it, unless the agent may still go on
+on that branch.
 
 Sometimes it cannot go on on its branch. Then it works in a fresh copy of the project instead:
 

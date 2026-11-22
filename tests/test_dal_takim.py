@@ -200,14 +200,17 @@ def test_a_branch_not_koloni_s_is_never_dropped_and_one_with_work_stays_unless_t
 # --- the Orchestrator puts a line on a branch -------------------------------------------------
 
 
-def on_branch(make_client, repo, coder, then=(), **conversation):
+def on_branch(make_client, repo, coder, then=(), wip=None, **conversation):
     """A project in git with `lines.txt` and `check.py` committed, and a Lead that opens one
     Coder on a branch `koloni/fix` (and takes the steps `then`); returns the client, the
-    conversation's and the run's ids."""
+    conversation's and the run's ids. `wip`: the user's files not committed, by path - what
+    they hold (W-1: the branch starts from them)."""
     (repo / "lines.txt").write_bytes(LINES.encode())
     (repo / "check.py").write_bytes(CHECK.encode())
     run(repo, "add", "-A")
     run(repo, "commit", "-qm", "lines")
+    for path, held in (wip or {}).items():
+        (repo / path).write_bytes(held.encode())
     lead = [step(call("spawn_agent", {"role": "Coder", "task": "fix two", "on_branch": "fix"},
                       "s")), *then, text("done")]
     client, _pid, cid, run_id = start(make_client, repo, coder, lead=lead, **conversation)
@@ -1468,12 +1471,12 @@ def test_the_first_finished_branch_on_github_asks_which_way_and_a_pull_request_i
     assert project["finish_way"] == "pull_request"
 
 
-def pr_run(make_client, repo, meanwhile, **conversation):
+def pr_run(make_client, repo, meanwhile, wip=None, **conversation):
     """A Coder on `koloni/fix` in a project whose finished work goes as a pull request; the user
-    does `meanwhile` while it works."""
+    does `meanwhile` while it works (`wip`: as `on_branch`)."""
     held = Gate()
     client, cid, run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")), held.step(text("A done"))],
+        make_client, repo, [step(edit("two", "TWO-agent")), held.step(text("A done"))], wip=wip,
         project={"finish_way": "pull_request", "check_command": "python check.py TWO-agent"},
         **conversation)
     held.wait_partial()

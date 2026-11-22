@@ -164,6 +164,7 @@ from app.agent.memory_mixin import MemoryMixin
 from app.agent.merge import CHECK_PRESS_RUN as CHECK_PRESS_RUN
 from app.agent.merge import MAX_LINES_COMPARED as MAX_LINES_COMPARED
 from app.agent.merge import (
+    _as_branch,
     _branch_files,
     _check_is_over,
     _cli,
@@ -175,6 +176,7 @@ from app.agent.merge import (
     _held,
     _is_stale,
     _kept_as,
+    _kept_branch,
     _kept_files,
     _kept_the_projects,
     _last_changes,
@@ -876,6 +878,27 @@ EARLIER_TURNS_TOO = ", with the work of its earlier turns on it"
 BRANCH_SPECIAL = ("{files}: the branch changes how git reads the project (.gitignore, "
                   ".gitattributes, .gitmodules), or holds a link or a submodule - look before "
                   "you merge; links come in as plain files")
+# W-1: a branch that began from the user's folder as it was (`git.agents_share`): its agents changed
+# what the user had not committed then - the merge, or a pull request, waits for their commit.
+BRANCH_ON_YOURS = ("the agent changed {files} where you had changes not committed when it began: "
+                   "commit yours, then Merge - nothing is merged or sent over them")
+# ... and where its work changes what the user had not committed when it began - committed since:
+# never merged unasked (an agent that took the snapshot off its branch would take that back).
+BRANCH_OVER_YOURS = ("{files}: the agent changed what you had not committed when it began - look "
+                     "at what Merge brings into them before you merge")
+# (A).3: what stands in a branch's way is another agent's Take in, in the folder, not committed.
+TAKEN_IN_FIRST = ("{files}: {name}'s Take in is in your folder, not committed - {how} first, "
+                  "then Merge")
+# How many of a project's latest Take in cards are looked at for that (`_taken_in`).
+# shortcut: an older one is not named, only its files under "in the way"; look further if missed.
+MOST_TAKEN_IN = 20
+# W-1: what of the user's a branch's snapshot left out (`git._snapshot`): said quietly on its card.
+NOT_IN_BRANCH = ("Not in its branch: {count} of your files ({files}) - a secret by its name, or "
+                 "through a link")
+NAMED_LEFT = 3
+# W-1, the user's answer (3): a branch that began from their last commit, and why.
+FROM_HEAD = ("{branch} started from your last commit, not your folder as it was: {why}. Your "
+             "uncommitted changes were not in it.")
 # D2: an agent puts what clashed together in the branch's worktree (`_resolve`); the branch kept
 # after its merge (`_keep_branch`); a pull request in place of the merge (`_pull_request`).
 RESOLVE_WORDS = (
@@ -2078,16 +2101,21 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     ) -> Callable[[], copies.Copy]:
         """What makes an owner's working copy, in a thread: on a git branch of its own where its
         opener asked (K-dal-takim) - or the one it stopped on (`left`, `_branch_again`) - or,
-        where git refuses that now, a copy as any, and why is kept for its opener (`_no_branch`)."""
+        where git refuses that now, a copy as any, and why is kept for its opener (`_no_branch`).
+        W-1: one opened again keeps the snapshot it began from, and why it began from a commit."""
         short = self._on_branch.pop(owner, None)
         start, tip = (left["start"], left["tip"]) if left else (None, None)
 
         def make() -> copies.Copy:
             if short:
                 try:
-                    return copies.make_branch(
+                    made = copies.make_branch(
                         Path(ctx.folder), self.settings.runtime_root, name, short, linked,
-                        start, tip)
+                        start, tip, (left or {}).get("snapshot"))
+                    if left:
+                        made.from_head = left.get("from_head")
+                        made.not_taken = tuple(left.get("not_taken") or ())
+                    return made
                 except git.Refused as exc:
                     self._no_branch[owner] = str(exc)
             return copies.make(Path(ctx.folder), self.settings.runtime_root, name, linked, part)
@@ -2161,7 +2189,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         else:
             self._on_branch[target.agent_id] = branch
             self._left_on[target.agent_id] = {
-                "branch": branch, "start": record["start"], "tip": record.get("tip"), "at": at}
+                "branch": branch, "start": record["start"], "tip": record.get("tip"), "at": at,
+                "snapshot": record.get("snapshot"), "from_head": record.get("from_head"),
+                "not_taken": record.get("not_taken")}
 
     def _drop_branch(self, copy: copies.Copy, force: bool = False) -> None:
         """K-dal-takim: a branch copy's folder is deleted - git's record of its worktree goes,
@@ -2192,6 +2222,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # (And where it was first made from, and - opened again - the commit it
             # stopped on: what a go-on holds it to, `_branch_again`.)
             where["on_branch"], where["start"] = made.branch, made.start
+            # (W-1: the snapshot of the user's folder it began from, or why from a commit.)
+            where["snapshot"], where["from_head"] = made.snapshot_sha, made.from_head
+            where["not_taken"] = list(made.not_taken)
             if left:
                 where["tip"] = left["tip"] or left["start"][1]
             # (git's config as its work begins, if no watch took it yet: a pull
@@ -2202,7 +2235,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         elif left:
             # Its branch not opened again, and still there: a later go-on tries it again
             # (not `on_branch`: the git map would name this copy's agent its team).
-            where.update(left_on=left["branch"], start=left["start"], tip=left["tip"])
+            where.update(left_on=left["branch"], start=left["start"], tip=left["tip"],
+                         snapshot=left.get("snapshot"), from_head=left.get("from_head"),
+                         not_taken=left.get("not_taken"))
             if why := self._no_branch.get(owner):  # (told before its first step)
                 self._nudges.setdefault(owner, []).append(
                     (left["at"], NOT_ON_BRANCH_AGAIN.format(why=why)))
@@ -2221,36 +2256,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 name = copies.free(self.settings.runtime_root, owner)
                 # (A branch opened again keeps its earlier work, whatever happens here.)
                 left = self._left_on.pop(owner, None)
-                again = left is not None
                 # A file another's Take in writes while the copy is made may be copied as it
                 # was: what goes in meanwhile is noted (`_into_copies`), and brought into it.
                 noted: set[str] = set()
                 self._made_now[owner] = (_project_key(ctx.folder), noted)
                 try:
-                    making = asyncio.ensure_future(asyncio.to_thread(self._make_copy(
-                        ctx, owner, name, _links_in_copy(self._ctxs[owner].model),
-                        self._copy_part(owner), left)))
-                    try:
-                        made = await asyncio.shield(making)
-                    except asyncio.CancelledError:
-                        # Stopped while the copy was being made: it is not left behind.
-                        late = None
-                        with contextlib.suppress(Exception):
-                            late = await making
-                        with contextlib.suppress(Exception):
-                            copies.remove(self.settings.runtime_root, name)
-                        if late is not None:
-                            self._drop_branch(late, force=not again)
-                        raise
-                    except copies.TooBig:
-                        made, state = None, "too_big"
-                    except Exception:
-                        # Whatever kept the copy from being made (a file of the project's
-                        # that cannot be read): the agent works in the project, as it does
-                        # where that is too big - and is not sent to try again at each change.
-                        made, state = None, "failed"
-                    else:
-                        state = "own"
+                    made, state = await self._made_copy(ctx, owner, name, left)
+                    if made is not None:
                         made.secrets = lambda run_id=ctx.run_id: self.given_spellings(run_id)
                         made.made_at = started
                     # (No await from the copy made to here: what goes in later finds it.)
@@ -2271,6 +2283,51 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     state = session.get_one(Agent, owner).copy["state"]
             self._set_agent(ctx.cid, ctx.agent_id, copy={"state": state})
         return copy
+
+    async def _made_copy(
+        self, ctx: Ctx, owner: str, name: str, left: dict | None
+    ) -> tuple[copies.Copy | None, str]:
+        """`_working_copy`'s copy, made in a thread (`_make_copy`), and its state: "own", or none
+        and why - "too_big", "failed". Stopped meanwhile: it is not left behind, nor its branch
+        where it was a new one. W-1: a branch's is made by the one way in (`_way_in`) - its
+        snapshot of the user's folder never beside a Take in's writes - held until its thread is
+        over (the snapshot within `git.SNAPSHOT_SECONDS`, the worktree checked out within
+        `git.COMMIT_SECONDS`), a Stop meanwhile too - a second Stop as well: what is not left
+        behind is cleared before the way in is free."""
+        again = left is not None
+        way = self._way_in(ctx.folder) if owner in self._on_branch else contextlib.nullcontext()
+        async with way:
+            making = asyncio.ensure_future(asyncio.to_thread(self._make_copy(
+                ctx, owner, name, _links_in_copy(self._ctxs[owner].model), self._copy_part(owner),
+                left)))
+            try:
+                return await asyncio.shield(making), "own"
+            except asyncio.CancelledError:
+                # Stopped while the copy was being made: it is not left behind - to its end,
+                # whatever Stop comes meanwhile.
+                clearing = asyncio.ensure_future(self._unmade(making, name, again))
+                while not clearing.done():
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await asyncio.shield(clearing)
+                raise
+            except copies.TooBig:
+                return None, "too_big"
+            except Exception:
+                # Whatever kept the copy from being made (a file of the project's that cannot be
+                # read): the agent works in the project, as it does where that is too big - and
+                # is not sent to try again at each change.
+                return None, "failed"
+
+    async def _unmade(self, making: asyncio.Future, name: str, again: bool) -> None:
+        """A copy stopped while it was being made (`_made_copy`): its thread waited for, its folder
+        removed, and its branch where it was a new one."""
+        late = None
+        with contextlib.suppress(Exception):
+            late = await making
+        with contextlib.suppress(Exception):
+            copies.remove(self.settings.runtime_root, name)
+        if late is not None:
+            self._drop_branch(late, force=not again)
 
     def _give_back(self, owner: str) -> copies.Copy | None:
         """B-322: an agent that stopped unfinished goes on - its kept copy, if its card is
@@ -2642,6 +2699,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             unattended = run.unattended
             files = {one["path"]: dict(one) for one in merge.files}
             tree, recorded, part = _kept_as(session, agent.id, copies.place(runtime, name))
+            on_branch = _kept_branch(session, agent.id, copies.place(runtime, name))
             times = _last_changes(session, _line_on_record(session, agent.id))
         # What Apply was asked for: the folder goes only when all of that was taken.
         asked = [path for path, one in files.items() if one["state"] in OPEN]
@@ -2650,7 +2708,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             if not asked:
                 return False  # nothing on the card can be applied: it is only to discard
             try:
-                copy = copies.kept(Path(root), runtime, name, tree, recorded, part)
+                copy = _as_branch(copies.kept(Path(root), runtime, name, tree, recorded, part),
+                                  on_branch)
             except (OSError, ValueError):
                 return False
             await self._kept_taken(ctx, copy, files, times, choices, unattended)
@@ -2670,6 +2729,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             copies.forget(runtime, name)
             with contextlib.suppress(OSError, ValueError):
                 copies.remove(runtime, name)
+            self._kept_branch_gone(Path(root), copies.place(runtime, name), on_branch, decision)
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         for kind, payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
@@ -2688,6 +2748,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._change_rows(ctx.cid, ctx.run_id, lambda _row, _team, _lead, state: (
                 state.pop("words", None) is not None) | (state.pop("carried", None) is not None))
         return True
+
+    def _kept_branch_gone(
+        self, project: Path, held: Path, on_branch: dict | None, decision: str
+    ) -> None:
+        """W-1: a kept branch copy's folder is gone (`_decide_kept`) - git's record of its worktree
+        goes, and its branch (`git.drop_branch`, unlocked first): forced where the user turned it
+        down, or took all of it in and no go-on is on record to open it again (`tip`); else only
+        where git finds it merged. Where git will not, the branch stays, as unmerged work does."""
+        if on_branch is None:
+            return
+        with contextlib.suppress(git.Refused):
+            git.drop_branch(project, held / copies.TREE, on_branch["branch"],
+                            self.settings.runtime_root / "no-hooks",
+                            force=decision == "reject" or not on_branch["tip"])
 
     def decide_merge(
         self, merge_id: str, decision: str, choices: dict[str, str] | None = None,
@@ -3110,6 +3184,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 self._git_at_start.get(ctx.run_id) or {}).get("config")
             async with lock:  # (looked at again right before: two teams finish at once)
                 look = await self._branch_look(copy)
+                # W-1: what is scanned and merged - of a branch that began from the user's folder,
+                # its agents' work alone (`git.agents_share`; None where it clashes), never its
+                # tip, which holds the user's uncommitted work too.
+                merged = look.get("share") if copy.snapshot_sha else look["tip"]
                 # (K-r135: in a backlog task's turn every standing file asks, as at night.)
                 files = await asyncio.to_thread(_branch_files, copy, look, "ask" if (
                     ctx.run_id in self._backlog_turns) else mode, held)
@@ -3117,23 +3195,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 # the branch (an agent's own commit): never merged, at any level; taking it off
                 # the branch is the only way on. (Not how it got there: the merge is a squash.)
                 secret = await asyncio.to_thread(
-                    git.holding, copy.project, look["tip"],
+                    git.holding, copy.project, merged,
                     [path for path, letter in look["files"].items() if letter != "D"],
-                    _secret_forms(copy)) if look["tip"] else []
+                    _secret_forms(copy)) if merged else []
                 blocked = look["note"] or look["half"] or (
                     BRANCH_SECRET.format(files=_few(secret)) if secret else None)
                 special = BRANCH_SPECIAL.format(files=_few(look["special"])) if (
                     look.get("special")) else None
+                yours, said_too = self._branch_notes(copy, look, project_id)
+                # (W-1: what the share changes of what the user had not committed when it began.)
+                over = BRANCH_OVER_YOURS.format(files=_few(look["over"])) if (
+                    look.get("over")) else None
                 state = {**{key: look[key] for key in ("name", "into", "conflicts", "dirty")},
-                         "note": failed or blocked or look["drift"] or special,
+                         "note": failed or blocked or yours or look["drift"] or special or over,
                          "resolve": bool(look["conflicts"]) and way == "merge" and ctx.depth > 0,
                          "way": "pull_request" if way == "pull_request" else None,
-                         "ask_way": ask_way, "pr_off": pr_off}
+                         "ask_way": ask_way, "pr_off": pr_off, **said_too}
                 # Unasked, not where a file waits for the user's word as at Take in, nor where
                 # the project moved off what the branch was made from, nor where the branch
                 # changes how git reads the tree or holds what is no file (`git.branch_look`) -
-                # nor where the card asks which way finished work goes.
-                asks = merge_id is None and (ask_way or look["drift"] or special or any(
+                # nor where the card asks which way finished work goes, nor where the work changes
+                # what the user had not committed when it began (W-1).
+                asks = merge_id is None and (ask_way or look["drift"] or special or over or any(
                     one["note"] for one in files.values() if one["state"] == "ready"))
                 if decision == "approve" and way == "pull_request":
                     # Nothing of the user's tree is touched: what clashes, or is in the way, is
@@ -3154,7 +3237,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 elif decision == "approve" and state["resolve"] and merge_id is None and not (
                         tried or blocked or asks):
                     act = "resolve"  # (once by itself at Full auto: the card's button after)
-                elif decision == "approve" and not (
+                elif decision == "approve" and merged and not (
                         look["conflicts"] or look["dirty"] or blocked or asks):
                     said_line = f"Merge {branch}: {first}"
                     try:
@@ -3162,7 +3245,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         # the branch the card named. A Stop meanwhile lands once git is over:
                         # the way in is not left while git still writes.)
                         sha = await to_its_end(asyncio.to_thread(
-                            git.merge_branch, copy.project, look["tip"], said_line,
+                            git.merge_branch, copy.project, merged, said_line,
                             runtime / "no-hooks", look["into"],
                             copy.start[1] if merge_id is None and copy.start else None))
                     except git.Refused as exc:
@@ -3248,7 +3331,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         the branch's tip is what they left, which the squash brings in (`git.merge_branch`).
         Returns what was not committed, by path, with why; Refused as `git.commit_branch`."""
         found = await asyncio.to_thread(copy.changes)
-        own = await asyncio.to_thread(git.committed_since, copy.root, copy.start[1]) if (
+        # (Since the snapshot it began from, W-1: the user's own uncommitted work is not theirs.)
+        own = await asyncio.to_thread(
+            git.committed_since, copy.root, copy.snapshot_sha or copy.start[1]) if (
             copy.start) else []
         changed = sorted({path for path, _kind, state in found
                           if state not in ("left_out", "refused")} | {
@@ -3399,10 +3484,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                                   "the card again")
             if copy.start is None:
                 raise git.Refused("what the branch was made from is not known")
+            # (Held to the branch's own tip too: what it took in that origin does not hold.)
             sha = await asyncio.to_thread(
-                git.push_one, copy.project, look["tip"], branch, look["into"] or "",
-                copy.start[1],
-                f"{title}\n\nKoloni-Agent: {ctx.name}", self.settings.runtime_root / "no-hooks")
+                git.push_one, copy.project, await self._sent(copy, look), branch,
+                look["into"] or "", copy.start[1],
+                f"{title}\n\nKoloni-Agent: {ctx.name}", self.settings.runtime_root / "no-hooks",
+                look["tip"])
             sent.update(tip=look["tip"], sha=sha)
         try:
             url = await asyncio.to_thread(
@@ -3413,16 +3500,85 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return {"state": "pull_request", "message": title, "sha": sha, "url": url,
                 "pushed": f"origin/{branch}"}
 
+    async def _sent(self, copy: copies.Copy, look: dict) -> str:
+        """What a branch's pull request pushes (`git.push_one`): its tip - or, of a branch that
+        began from the user's folder (W-1), its agents' work alone on the commit it was made from
+        (`git.agents_share`): never the user's uncommitted work, nor over it (`BRANCH_ON_YOURS`),
+        nor a secret given this turn - scanned as what goes up. Refused, with why."""
+        if not copy.snapshot_sha or copy.start is None:
+            return look["tip"]
+        # Onto where the branch left the user's branch, as a branch's push always went - not the
+        # commit it was made from: where the branch took theirs in since (D2, or its agent's own
+        # merge), their commits not pushed yet are below it, and `git.push_one` says so.
+        onto = await asyncio.to_thread(
+            git.merge_base, copy.project, f"refs/heads/{look['into'] or copy.start[0]}",
+            look["tip"])
+        share, clash = await asyncio.to_thread(
+            git.agents_share, copy.project, copy.snapshot_sha, look["tip"], onto,
+            copy.branch or "")
+        if share is None:
+            raise git.Refused(BRANCH_ON_YOURS.format(files=_few(clash)))
+        if secret := await asyncio.to_thread(
+                git.holding, copy.project, share,
+                [path for path, letter in look["files"].items() if letter != "D"],
+                _secret_forms(copy)):
+            raise git.Refused(BRANCH_SECRET.format(files=_few(secret)))
+        return share
+
+    def _branch_notes(
+        self, copy: copies.Copy, look: dict, project_id: str
+    ) -> tuple[str | None, dict[str, str | None]]:
+        """W-1 and (A).3: what a branch's card says beside git's look - why its agents' work does
+        not go in over what the user had not committed when it began (`BRANCH_ON_YOURS`), and,
+        apart from what stands in the way, whose Take in is in it ("taken_in", `_taken_in`), that
+        it began from the user's last commit ("started", `FROM_HEAD`) and what of theirs its
+        snapshot left out ("not_taken", `NOT_IN_BRANCH`: the first `NAMED_LEFT` of them)."""
+        yours = BRANCH_ON_YOURS.format(files=_few(look["yours"])) if look.get("yours") else None
+        left = list(copy.not_taken)
+        more = len(left) - NAMED_LEFT
+        return yours, {
+            "taken_in": self._taken_in(project_id, look["dirty"]),
+            "started": FROM_HEAD.format(branch=copy.branch, why=copy.from_head) if (
+                copy.from_head) else None,
+            "not_taken": NOT_IN_BRANCH.format(count=len(left), files=", ".join(
+                left[:NAMED_LEFT]) + (f" and {more} more" if more > 0 else "")) if left else None}
+
+    def _taken_in(self, project_id: str, dirty: list[str]) -> str | None:
+        """(A).3: where what stands in a branch's way (`dirty`) is another agent's work taken in
+        from its copy and not committed: the newest card of the project's that took any of those
+        files in from a copy (not a branch), whose commit is not made - whose, and how to commit
+        it (`TAKEN_IN_FIRST`: on its card where the commit is offered there). None where none is
+        (the user's own edits). Of the latest `MOST_TAKEN_IN` cards."""
+        if not dirty:
+            return None
+        with self._factory() as session:
+            rows = session.execute(
+                select(Merge, Agent.name).join(Run, Run.id == Merge.run_id)
+                .join(Conversation, Conversation.id == Run.conversation_id)
+                .join(Agent, Agent.id == Merge.agent_id)
+                .where(Conversation.project_id == project_id, Merge.status == "applied")
+                .order_by(Merge.decided_at.desc()).limit(MOST_TAKEN_IN)).all()
+        for merge, name in rows:
+            # (In Python: a None put in a JSON column may be stored as JSON null.)
+            commit = merge.commit or {}
+            if merge.branch or commit.get("state") == "committed":
+                continue
+            if files := sorted({one["path"] for one in merge.files
+                                if one.get("state") == "applied"} & set(dirty)):
+                return TAKEN_IN_FIRST.format(files=_few(files), name=name, how=(
+                    "commit it on its card" if commit.get("state") == "offered" else "commit it"))
+        return None
+
     async def _branch_look(self, copy: copies.Copy) -> dict:
         """`git.branch_look` of a branch copy, with its name - and where git did not say,
-        nothing to merge yet and why (`note`)."""
+        nothing to merge yet and why (`note`). W-1: measured from the snapshot it began from."""
         try:
             found = await asyncio.to_thread(
-                git.branch_look, copy.project, copy.branch or "", copy.start)
+                git.branch_look, copy.project, copy.branch or "", copy.start, copy.snapshot_sha)
         except git.Refused as exc:
             return {"name": copy.branch, "into": None, "files": {}, "conflicts": [],
                     "dirty": [], "special": [], "drift": None, "half": None, "tip": None,
-                    "note": str(exc)}
+                    "share": None, "yours": [], "since": None, "over": [], "note": str(exc)}
         return {"name": copy.branch, **found, "note": None}
 
     def _branch_merged(self, ctx: Ctx, copy: copies.Copy) -> None:

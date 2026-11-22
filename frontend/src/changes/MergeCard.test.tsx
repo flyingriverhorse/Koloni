@@ -487,6 +487,29 @@ test('K-dal-takim: a branch is merged whole - what is in the way is said, and Me
   expect(screen.queryByRole('note', { name: 'Not merged yet' })).not.toBeInTheDocument()
 })
 
+test("W-1: whose Take in is in a branch's way is said under what is in the way; a branch from your last commit says so, in nobody's way", async () => {
+  const taken = "lines.txt: Coder's Take in is in your folder, not committed - commit it on its card first, then Merge"
+  const started = 'koloni/fix started from your last commit, not your folder as it was: git 2.39.3 cannot start a branch from your folder as it is - 2.40 or later can. Your uncommitted changes were not in it.'
+  const branch = { name: 'koloni/fix', into: 'main', conflicts: [], dirty: ['lines.txt'], note: null, taken_in: taken, started }
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch })} name="Coder 2" onDecide={vi.fn()} />)
+  const note = screen.getByRole('note', { name: 'Not merged yet' })
+  expect(note).toHaveTextContent(`Your uncommitted changes are in the way (commit, stash or unstage them first): lines.txt${taken}`)
+  expect(screen.getByRole('note', { name: 'Where it started' })).toHaveTextContent(started)
+  cleanup()
+  // Said alone, it stands in nobody's way: no "Not merged yet".
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch: { ...branch, dirty: [], taken_in: null } })} name="Coder 2" onDecide={vi.fn()} />)
+  expect(screen.getByRole('note', { name: 'Where it started' })).toHaveTextContent(started)
+  expect(screen.queryByRole('note', { name: 'Not merged yet' })).not.toBeInTheDocument()
+})
+
+test("W-1: what of yours a branch's snapshot left out is said in one quiet line, in nobody's way", () => {
+  const left = 'Not in its branch: 2 of your files (.env, token.json) - a secret by its name, or through a link'
+  const branch = { name: 'koloni/fix', into: 'main', conflicts: [], dirty: [], note: null, not_taken: left }
+  render(<MergeCard merge={merge({ files: [file('lines.txt')], branch })} name="Coder" onDecide={vi.fn()} />)
+  expect(screen.getByRole('note', { name: 'Not in its branch' })).toHaveTextContent(left)
+  expect(screen.queryByRole('note', { name: 'Not merged yet' })).not.toBeInTheDocument()
+})
+
 test("K-dal-takim: a backlog task's whole turn on a branch - the Orchestrator's own card waits for you", async () => {
   const { WaitingList } = await import('../chat/MessageList')
   const { waitingSummary, waitingOf } = await import('../chat/waiting')
