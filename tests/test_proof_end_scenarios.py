@@ -906,3 +906,38 @@ def test_a_newer_failing_rerun_of_the_same_command_decides(make_client, wait_run
     snap = wait_run(client, cid, run_id)
     assert len(executor.started) == 2 and proof_calls(snap) == []
     assert checked(snap)[0]["state"] == "failed" and told(model) == 1
+
+
+# --- S10: Check after a change for one chat (plan decision 17) ------------------------------
+
+def chat_at(client, root, chat, **project):
+    """A chat whose own Check after a change is `chat` (None: the project's), its message sent."""
+    pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json=project, headers=OWN).status_code == 200
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json={
+        "permission_mode": "full_auto", "lead_hands_code": False, "after_change": chat},
+        headers=OWN).json()["after_change"] == chat
+    run_id = client.post(f"/api/conversations/{cid}/messages",
+                         json={"content": "fix the greeting"}).json()["run"]["id"]
+    return cid, run_id
+
+
+def test_a_chats_choice_wins_over_the_projects(make_client, wait_run, project_dir):
+    # (Off in a project at Check it: nothing runs, and the section says why - in its own kind.)
+    executor = ScriptedExecutor([PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = chat_at(client, project_dir, "off", check_command="python check.py")
+    rows = checked(wait_run(client, cid, run_id))
+    assert executor.started == [] and [(r["kind"], r["text"]) for r in rows] == [
+        ("chat_off", proof.OFF_FOR_CHAT)], rows
+
+
+def test_on_for_a_chat_checks_it_in_a_project_at_nothing(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = chat_at(client, project_dir, "on", after_change="nothing",
+                          check_command="python check.py")
+    rows = checked(wait_run(client, cid, run_id))
+    assert executor.started == [("python check.py", str(project_dir))]
+    assert rows[0]["state"] == "passed", rows

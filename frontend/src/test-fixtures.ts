@@ -32,6 +32,7 @@ export const conversation: Conversation = {
   model_id: null,
   lead_auto: false,
   plan_first: false,
+  after_change: null,
   page_scripts: false,
   lead_work: 'delegates',
   lead_hands_code: true,

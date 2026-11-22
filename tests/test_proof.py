@@ -311,3 +311,31 @@ def test_a_recipe_agents_run_where_the_lead_works_stands_across_its_take_in(fact
                             proof.last_change(s, "r", sharing))
         assert found is not None and found.agent_id == "tester"
         assert proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r")) is None
+
+
+# --- S10: Check after a change for one chat -------------------------------------------------
+
+@pytest.mark.parametrize(("project", "chat", "said"), [
+    ("check", None, "check"), ("tests", None, "tests"), ("nothing", None, "nothing"),
+    ("check", "off", "off"), ("nothing", "off", "off"),
+    ("nothing", "on", "check"), ("tests", "on", "tests"), ("check", "on", "check"),
+])
+def test_after_change_of_a_chat(factory, project, chat, said):
+    with factory() as s:
+        s.get_one(Project, "p").after_change = project
+        conversation = s.get_one(Conversation, "c")
+        conversation.after_change = chat
+        assert proof.after_change_of(s, conversation, s.get_one(Run, "r")) == said
+
+
+def test_a_recipe_turn_follows_the_recipe_not_the_chats_switch(factory):
+    # (Today the recipe's is the project's: S5c gives a recipe a Checks step of its own.)
+    with factory() as s:
+        conversation = s.get_one(Conversation, "c")
+        run = s.get_one(Run, "r")
+        run.teams = [{"team_id": "t", "name": "Backend / API"}]
+        conversation.after_change = "off"
+        assert proof.after_change_of(s, conversation, run) == "check"
+        s.get_one(Project, "p").after_change = "nothing"
+        conversation.after_change = "on"
+        assert proof.after_change_of(s, conversation, run) == "nothing"

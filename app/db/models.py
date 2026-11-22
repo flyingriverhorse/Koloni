@@ -273,6 +273,10 @@ class Conversation(Base):
     # Each new message of the user's starts a plan turn first (slice 49): the Lead only reads,
     # and what it answers is a plan the user approves, edits or turns down.
     plan_first: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # Kanıtlı bitiş S10 (plan decision 17): Check after a change for this chat - None the
+    # project's After a change, "off" none, "on" checked (Check it where the project's is
+    # Nothing). A recipe's turn follows the recipe (`proof.after_change_of`).
+    after_change: Mapped[str | None] = mapped_column(String(3), default=None)
     # K-39-betik: a page of this chat shown in the Workspace runs its scripts without asking -
     # the user's "Always run in this chat"; off, each page asks.
     page_scripts: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())

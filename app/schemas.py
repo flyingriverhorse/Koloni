@@ -83,6 +83,8 @@ WhenAway = Literal["waits", "lead"]
 FullAutoCheck = Literal["ask", "judge"]
 # Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): Check it, Tests only, Nothing.
 AfterChange = Literal["check", "tests", "nothing"]
+# S10: Check after a change for one chat; None (not sent as such) the project's.
+ChatAfterChange = Literal["off", "on"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -479,6 +481,8 @@ class ConversationOut(Out):
     lead_auto: bool
     # Each new message starts with a plan turn the user approves first (slice 49).
     plan_first: bool
+    # S10: Check after a change for this chat; None: the project's After a change.
+    after_change: ChatAfterChange | None
     # K-39-betik: a page shown in the Workspace runs its scripts without asking ("Always run in
     # this chat"); off, each page asks.
     page_scripts: bool
@@ -584,6 +588,8 @@ class ConversationPatch(BaseModel):
     model_id: str | None = Field(default=None, max_length=200)
     lead_auto: bool | None = None
     plan_first: bool | None = None
+    # Left out: kept as it is. Null: the project's After a change (S10).
+    after_change: ChatAfterChange | None = None
     page_scripts: bool | None = None
     # Slice 48's switch: true is "delegates", false "itself". `lead_work` wins where both are.
     lead_hands_code: bool | None = None

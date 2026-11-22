@@ -23,7 +23,7 @@ from app.agent.ctx import Ctx, _GateRefused
 from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
 from app.commands import web_off_reason
-from app.db.models import Agent, Command, Message, ToolCall, now
+from app.db.models import Agent, Command, Conversation, Message, Run, ToolCall, now
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row, TestRun
 from app.serialize import message_out
@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 # _history_calls`) - a call added to an answer after the fact would have Anthropic's replay drop
 # that answer's signed thinking. The Lead hears the result in the nudge; a later turn, from the
 # record (`ledger.of_turn`'s "last tests": the Command is the Lead's).
-PROOF_CALL = "koloni_proof_"
+PROOF_CALL = proof.PROOF_CALL
 # S1, until a run can go on in the background (S6): a turn the user watches waits at most this
 # long for the tests at its end - all its test commands, and another turn's run before them; past
 # it they are stopped and said not waited for. An Away job, a To-do task's and a trigger's turn
@@ -102,14 +102,16 @@ class ProofMixin:
 
     async def _proof_left(self: "AgentRunner", ctx: Ctx) -> str | None:
         """The end gate: only for a Lead's own work in a project (not an answer, a discussion, a
-        side of a comparison), with After a change not Nothing, after a turn whose changes are
-        where the tests run."""
+        side of a comparison), with After a change not Nothing - nor off for this chat
+        (`proof.after_change_of`) -, after a turn whose changes are where the tests run."""
         if ctx.depth or ctx.answering or ctx.discussion or ctx.root is None or (
                 ctx.run_id in self._sides):
             return None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
-            if project is None or project.after_change == "nothing":
+            if project is None or proof.after_change_of(
+                    session, session.get_one(Conversation, ctx.cid),
+                    session.get(Run, ctx.run_id)) in ("nothing", "off"):
                 return None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
         if not any(one.in_project for one in found):
@@ -421,9 +423,13 @@ class ProofMixin:
         if project is None or not any(one.in_project for one in found):
             return []
         waiting = self._waiting_rows(session, found)
-        if project.after_change == "nothing":
-            return [proof.row("not_checked", "note", proof.NOT_CHECKED),
-                    *self._last_run_rows(session, run_id), *waiting]
+        setting = proof.after_change_of(session, session.get_one(Conversation, cid),
+                                        session.get(Run, run_id))
+        if setting in ("nothing", "off"):
+            # (Off for this chat: its own kind - the canvas draws no Checks node for it.)
+            said = proof.row("chat_off", "note", proof.OFF_FOR_CHAT) if setting == "off" else (
+                proof.row("not_checked", "note", proof.NOT_CHECKED))
+            return [said, *self._last_run_rows(session, run_id), *waiting]
         if held is None or not held.rows:
             return [proof.row("tests", "not_run", proof.NOT_RUN.format(
                 why=NOT_REACHED.get(status, ENDED_FIRST))), *waiting]

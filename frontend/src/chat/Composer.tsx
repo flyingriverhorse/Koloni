@@ -16,6 +16,7 @@ import { leadQuestion } from './chatLine'
 import { Compare, type Second } from './Compare'
 import { ComposerStatus } from './ComposerStatus'
 import { asCode } from './pastedCode'
+import type { Checks } from './levels'
 import { LevelMenu } from './LevelMenu'
 import { type SlashCommand, useSlash } from './slashCommands'
 import { useAttach } from './useAttach'
@@ -56,6 +57,8 @@ interface Props {
   /** Check what I said first (K-yargıç), the project's; without its setter (a plain chat) the level menu has no switch. */
   checkFirst?: boolean
   onCheckFirst?: (on: boolean) => void
+  /** S10: Check after a change for this chat, in the level menu; none in a plain chat. */
+  checks?: Checks
   /** Where this project's commands run; decides whether full auto needs a warning. */
   location?: 'host' | 'docker'
   /** The conversation's model: its button, first under the message box. */
@@ -102,6 +105,7 @@ export function Composer({
   onPlanFirst,
   checkFirst = false,
   onCheckFirst,
+  checks,
   location = 'host',
   model,
   unseen = null,
@@ -336,6 +340,7 @@ export function Composer({
             onPlanFirst={onPlanFirst}
             checkFirst={checkFirst}
             onCheckFirst={onCheckFirst}
+            checks={checks}
             dictate={voice}
             running={running}
             canSend={canSend}
@@ -621,6 +626,7 @@ function ComposerBar(p: {
   onPlanFirst?: (on: boolean) => void
   checkFirst: boolean
   onCheckFirst?: (on: boolean) => void
+  checks?: Checks
   dictate: ReactNode
   running: boolean
   canSend: boolean
@@ -630,7 +636,7 @@ function ComposerBar(p: {
   return (
     <div className="composer-bar" hidden={p.hidden}>
       {p.attach}
-      <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} checkFirst={p.checkFirst} onCheckFirst={p.onCheckFirst} />
+      <LevelMenu mode={p.mode} onMode={p.onMode} planFirst={p.planFirst} onPlanFirst={p.onPlanFirst} checkFirst={p.checkFirst} onCheckFirst={p.onCheckFirst} checks={p.checks} />
       <span className="composer-actions">
         <AutoRead />
         {p.dictate}
