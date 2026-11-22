@@ -112,6 +112,27 @@ def test_an_already_failing_line_about_another_test_does_not_turn_r2_off(make_cl
         (f"last test run failed (exit 1): {PYTEST}", True)], held
 
 
+def test_the_reproduction_test_is_never_already_failing_before(make_client, wait_run, project_dir):
+    # Review of S4 (re-review): what Reproduce it showed failing is the bug, not an old failure - a
+    # Tester's honest line about it does not let it be taken in still failing.
+    repro = Script(["FAILED tests/test_repro.py::test_calc_2 - ZeroDivisionError\n1 failed\n"], exit_code=1)
+    honest = ("Ran pytest.\n\nAlready failing before: the reproduction test_calc_2 was failing before the fix"
+              "\n\nChecked: ran pytest\n\nFindings: none")
+    executor = ScriptedExecutor([repro, repro, PASSED])
+    client, _model = make_client({
+        **scripts(ran_tests(honest), ran_tests(id="k2")),
+        "Debugger": [step(write("tests/test_repro.py", "def test_calc_2(): 1 / 0\n")),
+                     cmd(f"{PYTEST} tests/test_repro.py", "kd"), text("Reproduced: test_calc_2 fails.")]},
+        executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Reviewer"], by_call(snap)
+    held = agent(snap, "Tester")["findings"]
+    assert [(f["what"], f["blocking"]) for f in held] == [
+        (f"last test run failed (exit 1): {PYTEST}", True)], held
+    assert "Findings are left: back to Fix it, round 1 of 2" in by_call(snap)[2][1]
+
+
 def test_a_tester_that_retried_with_another_spelling_passes(make_client, wait_run, project_dir):
     # Review of S4: `pytest` not on PATH, then `python -m pytest` passed - the same tool, passing.
     missing = Script(["'pytest' is not recognized as an internal or external command\n"], exit_code=1)

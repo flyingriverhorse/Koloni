@@ -6122,12 +6122,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     def _failing_held(self, session, child: Ctx, before: list[str]) -> list[dict]:
         """R2: a test run of its own that failed (the last with a verdict of each tool:
         `ledger.failed_tests`) is a blocking finding - unless every test it names as failing is
-        one the report says was failing before (`ledger.covered`). Not before a step that fixes,
-        where every failing run is handed on already; nor in the step that reproduces the bug,
-        where the failing test is the work - said so, as no blocking finding."""
+        one the report says was failing before (`ledger.covered`) - and none the run's reproduce
+        step showed failing (`_reproduced`: that is the bug). Not before a step that fixes, where
+        every failing run is handed on already; nor in the step that reproduces the bug, where the
+        failing test is the work - said so, as no blocking finding."""
         ran = None if child.agent_id in self._before_fix else ledger.failed_tests(
             session, child.agent_id)
-        if ran is None or ledger.covered(ran, before):
+        if ran is None or ledger.covered(ran, before, self._reproduced(session, child)):
             return []
         if self._in_step(session, child, "reproduce"):
             return [{"what": f"fails as it should: {ledger.failing_shown(ran)}", "kind": "test",
@@ -6151,6 +6152,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._not_checked[child.agent_id] = f"Not checked: you declined {command}"
         return [{"what": f"not checked: you declined {command}", "kind": "test", "role": None,
                  "blocking": True}]
+
+    def _reproduced(self, session, child: Ctx) -> set[str]:
+        """R2 (review of S4): the tests the agents of this run's step with the id "reproduce"
+        showed failing (`ledger.failing_of`) - the bug itself, never "already failing before"
+        later in the run.
+        shortcut: by its part's passes - a reproduce step drawn in a group counts the group's
+        other agents' failing tests too (R2 then holds more); keep each agent's step on the pass
+        if that is met."""
+        agents = [agent for row, _team, _lead in self._rows(session, child.cid)
+                  if (state := self._live_state(row, child.run_id)) and any(
+                      s.id == "reproduce" for s in recipe_run.graph_of(state).steps)
+                  for one in state.get("passes", []) if one["part"] == recipe_run.part_of(
+                      recipe_run.graph_of(state), "reproduce") for agent in one["agents"]]
+        return ledger.failing_of(session, agents)
 
     def _in_step(self, session, child: Ctx, step_id: str) -> bool:
         """Whether `child`, or an agent above it, is at work for a recipe step of this id."""

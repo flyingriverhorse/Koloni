@@ -38,7 +38,9 @@ A step can also have **Done when**, **Only if the step before found a problem**,
 
 Before a step that runs only if a problem was found, a test run that failed is a problem, whatever
 the agent's report says. At any other review step it is one too where the report says nothing is wrong,
-unless its **Already failing before** lines name every test that run says failed. Only the last run of
+unless its **Already failing before** lines name every test that run says failed - with its file or
+suite where the run gives them (a bare name only where no other failing test has it), and never one
+the run's reproduce step showed failing: that is the bug. Only the last run of
 each test tool counts (`pytest` and `python -m pytest` are one), and a run that never started its tests
 (the tool not found) or whose exit is hidden (`; true`, `|| true`, a pipe after it) is no verdict either
 way. In a step with the id `reproduce` (Bugfix's first) the failing test is the work: the agent's report

@@ -347,19 +347,64 @@ def failing_named(output: str) -> list[str]:
                               for found in _NAMED_FAILING.findall(output)))
 
 
-def _names(line: str, test: str) -> bool:
-    """Whether a report's line names a test: its id, or its own name as a word (`test_calc_2` for
-    `tests/x.py::test_calc_2[1]`, `adds two` for `a.test.ts > sums > adds two`)."""
-    own = re.sub(r"\[.*\]$", "", re.split(r"::| > | › ", test)[-1]).strip()
-    return test in line or bool(own) and re.search(
-        rf"(?<![\w.]){re.escape(own)}(?!\w)", line) is not None
+# A test file a report's line names (`tests/x.py`, `src/a.test.ts`); a vitest / jest suite's step.
+_TEST_FILE = re.compile(r"[\w./-]+\.(?:py|[cm]?[jt]sx?|go|rb|php|rs|java|cs)\b")
+_SUITE = re.compile(r" > | › ")
 
 
-def covered(one: Command, before: list[str]) -> bool:
+def _bare(test: str) -> str:
+    """A test's own name, past its file, class or suite and its parameters (`test_x` for
+    `tests/a.py::TestK::test_x[1]`)."""
+    return re.sub(r"\[.*\]$", "", re.split(r"::| > | › ", test)[-1]).strip()
+
+
+def _whole(name: str, line: str) -> bool:
+    """Whether a line holds a name as a whole: not part of a longer id, word or suite."""
+    return re.search(rf"(?<![\w.:/>›])(?<!> )(?<!› ){re.escape(name)}(?![\w\[])(?! >)(?! ›)",
+                     line) is not None
+
+
+def _names(line: str, test: str, unique: bool) -> bool:
+    """Whether a report's line names a failing test (review of S4): its whole id; else - where the
+    line names no test file, or this one's - its name past its file as a whole: a vitest / jest
+    test by its suite and name (`App > renders`, never a word inside a sentence), a pytest test by
+    its class and name (`TestK::test_x`), and by its bare name (`test_x`, go's `TestAdd`) only
+    where no other failing test has that name (`unique`)."""
+    line = line.replace("\\", "/")
+    if test in line:
+        return True
+    # (Its file where the run gave one: pytest's `file::name`, vitest's `file > name`.)
+    file, name = next(((part[0], part[2]) for at in ("::", " > ")
+                       if (part := test.partition(at))[1]), (None, test))
+    files = _TEST_FILE.findall(line)
+    if file is not None and files and file not in files:
+        return False
+    if _SUITE.search(test):
+        return bool(_SUITE.search(name)) and _whole(name, line)
+    return "::" in name and _whole(name, line) or unique and _whole(_bare(test), line)
+
+
+def covered(one: Command, before: list[str], never: Collection[str] = ()) -> bool:
     """R2: whether every test a failed run names as failing (`failing_named`, of its output's
-    tail) is one a report's "Already failing before" lines name; False where it names none."""
+    tail) is one a report's "Already failing before" lines name (`_names`); False where it names
+    none, or one of `never` - what a step that reproduced the bug showed failing (`failing_of`)."""
     named = failing_named(one.output[-4000:])
-    return bool(named) and all(any(_names(line, test) for line in before) for test in named)
+    bare = [_bare(test) for test in named]
+    return bool(named) and all(test not in never and any(
+        _names(line, test, bare.count(_bare(test)) == 1) for line in before) for test in named)
+
+
+def failing_of(session: Session, agent_ids: Collection[str]) -> set[str]:
+    """The tests the test runs of these agents, and of the agents they opened, named failing."""
+    named: set[str] = set()
+    for agent_id in agent_ids:
+        run_id, ids = _family(session, agent_id)
+        for command, output in session.execute(select(Command.command, Command.output).where(
+                Command.run_id == run_id, Command.agent_id.in_(ids),
+                Command.status.in_(("exited", "timed_out")))):
+            if read_test(command) is not None:
+                named.update(failing_named(output[-4000:]))
+    return named
 
 
 def failing_shown(one: Command) -> str:

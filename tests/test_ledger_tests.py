@@ -192,6 +192,52 @@ def test_already_failing_before_covers_only_the_tests_it_names(factory, before, 
         assert ledger.covered(ledger.failed_tests(s, "t"), before) is False
 
 
+class _Run:  # (a failed run's output, as `covered` reads it)
+    def __init__(self, output):
+        self.output = output
+
+
+REPRO = "FAILED tests/test_repro.py::test_calc_2 - ZeroDivisionError\n1 failed"
+TWO_X = "FAILED tests/a.py::test_x - E\nFAILED tests/b.py::test_x - E\n2 failed"
+VITEST = " FAIL  src/a.test.ts > App > renders\n Test Files  1 failed"
+JEST = "  ● App › works\n Tests: 1 failed"
+
+
+# Review of S4 (re-review): a name is matched with its file or suite where the run gives them; a
+# bare name only where it is the one failing test of that name.
+@pytest.mark.parametrize(("output", "before", "covered"), [
+    (REPRO, ["tests/other.py::test_calc_2"], False),
+    (REPRO, ["test_calc_2 in tests/other.py"], False),
+    (REPRO, ["test_calc_2"], True),
+    (REPRO, ["tests/test_repro.py::test_calc_2"], True),
+    (TWO_X, ["test_x"], False),
+    (TWO_X, ["tests/a.py::test_x", "tests/b.py::test_x"], True),
+    (VITEST, ["login renders slowly"], False),
+    (VITEST, ["renders"], False),
+    (VITEST, ["App > renders"], True),
+    (VITEST, ["src/a.test.ts > App > renders"], True),
+    (JEST, ["it works"], False),
+    (JEST, ["App › works"], True),
+])
+def test_a_name_is_matched_with_its_file_or_suite(output, before, covered):
+    assert ledger.covered(_Run(output), before) is covered
+
+
+def test_a_test_the_reproduce_step_showed_failing_is_never_already_failing_before():
+    # (Review of S4: a Tester's honest "the reproduction test_calc_2 was failing before the fix".)
+    said = ["the reproduction test_calc_2 was failing before the fix"]
+    assert ledger.covered(_Run(REPRO), said) is True
+    assert ledger.covered(_Run(REPRO), said, never={"tests/test_repro.py::test_calc_2"}) is False
+
+
+def test_the_tests_some_agents_runs_named_failing(factory):
+    with factory() as s:
+        record(s, ("echo FAILED tests/x.py::test_no", 0, "FAILED tests/x.py::test_no"),
+               ("python -m pytest -q tests/test_repro.py", 1, REPRO))
+        assert ledger.failing_of(s, ["t"]) == {"tests/test_repro.py::test_calc_2"}
+        assert ledger.failing_of(s, []) == set()
+
+
 @pytest.mark.parametrize(("commands", "checked"), [
     ([("ls", "exited"), ("git status", "exited"), ("cat a.py", "exited")], False),
     ([("pytest -q", "blocked"), ("pytest -q", "failed_to_start"), ("pytest -q", "rejected")], False),
