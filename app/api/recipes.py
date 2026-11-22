@@ -1,9 +1,10 @@
 """Recipes (slice 84a): KOLONİ's own, the three ready ones among them, and a folder's own in its
 `.koloni/recipes/`. Each is saved only when it can run (`app.recipes.problems`), only from the
-app's own page; a ready one is copied, never changed. "Or write it" asks the Lead's model once
-for a draft and saves nothing."""
+app's own page; a ready one is copied, never changed. "Or write it" asks a balanced model (else
+the Lead's) once for a draft and saves nothing."""
 
 from pathlib import Path as FsPath
+from time import monotonic
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
 from sqlalchemy import func, literal_column, select, update
@@ -12,9 +13,10 @@ from sqlalchemy.orm import Session
 from app import recipes
 from app.api.deps import get_session, require_own_origin
 from app.api.usage import over_limit
+from app.config import is_local
 from app.db.models import ConversationTeam, Project, Provider, Recipe, Team, now
-from app.model_client import ModelUnavailable
-from app.providers import ask_own, mode_of
+from app.model_client import UNREACHABLE, ModelUnavailable
+from app.providers import LIST_DOWN_SECONDS, ask_own, looked_down, mode_of
 from app.roles import LEAD, agent_roles, find_role
 from app.schemas import (
     RecipeDraftIn,
@@ -24,7 +26,7 @@ from app.schemas import (
     RecipeOut,
     RecipesOut,
 )
-from app.team import asked_how_hard, would_run
+from app.team import askable, would_run
 from app.views import DEVICES, Refused
 
 router = APIRouter(tags=["recipes"])
@@ -90,25 +92,41 @@ def writer(session: Session) -> tuple[Provider, str | None] | str:
     return would.provider, would.model_id
 
 
-def asker(session: Session, providers, tier: str) -> tuple[Provider, str | None] | str:
-    """Whom a draft is asked of: the first model of `tier` the Lead may pick, as KOLONİ's other
-    small requests go, while under its provider's limit; none to be had, the Lead's own
-    (`writer`, which also says why nobody is asked)."""
+# Whom a draft is asked of, and how the page names it: (provider, model, "Balanced: Local · x").
+Asked = tuple[Provider, str | None, str]
+
+
+def askers(session: Session, providers, tier: str) -> list[Asked] | str:
+    """Whom a draft is asked of, in turn: each model of `tier` the Lead may pick, as KOLONİ's other
+    small requests go (`askable`: not one whose provider looked down when last read - a local
+    model server not running - nor a CLI that keeps its tools), while under its provider's limit;
+    then the Lead's own (`writer`, which also says why nobody is asked)."""
     can = writer(session)
     if isinstance(can, str):
         return can
-    picked = asked_how_hard(session, would_run(session, find_role(session, LEAD), None),
-                            providers, tier)
-    if picked and not over_limit(session, other := session.get_one(
-            Provider, picked[0].provider_id)):
-        return other, picked[1]
-    return can
+    tiered = [(other, model, tier.capitalize()) for entry, model in askable(
+        session, would_run(session, find_role(session, LEAD), None), providers, tier)
+        if not over_limit(session, other := session.get_one(Provider, entry.provider_id))]
+    def same(one: tuple[Provider, str | None]) -> tuple[str, str | None]:
+        return one[0].id, one[1] or one[0].default_model
+
+    lead = (*can, "the Orchestrator's model")
+    found = [*tiered, *([] if any(same(one[:2]) == same(can) for one in tiered) else [lead])]
+    return [(provider, model, f"{label}: {provider.name} · "
+             f"{model or provider.default_model or 'its default model'}")
+            for provider, model, label in found]
 
 
-async def ask_writer(request: Request, provider: Provider, model: str | None,
+def asker(session: Session, providers, tier: str) -> tuple[Provider, str | None] | str:
+    """The first of `askers`, or why nobody is asked."""
+    found = askers(session, providers, tier)
+    return found if isinstance(found, str) else found[0][:2]
+
+
+async def asked_once(request: Request, provider: Provider, model: str | None,
                      messages: list[dict], project_id: str | None = None) -> tuple[str, str]:
-    """`messages` asked once, with no tools: what was said, and by which model. A 502 says why
-    the provider did not answer."""
+    """`messages` asked once, with no tools: what was said, and by which model. ModelUnavailable
+    says why the provider did not answer, its key masked."""
     client = request.app.state.providers.client(provider, model)
     try:
         model = model or (await client.info()).model_id  # as the Lead learns its own
@@ -116,14 +134,23 @@ async def ask_writer(request: Request, provider: Provider, model: str | None,
                 provider.name, mode_of(provider)), client, model, messages, project_id=project_id)
     except ModelUnavailable as exc:
         reason = str(exc)
-        if provider.api_key:
-            reason = reason.replace(provider.api_key, "[key]")
-        raise HTTPException(502, f"{provider.name} isn't answering ({reason}).") from None
+        raise ModelUnavailable(reason.replace(provider.api_key, "[key]") if provider.api_key
+                               else reason) from None
     return said, getattr(answer, "model", None) or model
 
 
+async def ask_writer(request: Request, provider: Provider, model: str | None,
+                     messages: list[dict], project_id: str | None = None) -> tuple[str, str]:
+    """`asked_once`; a 502 says why the provider did not answer."""
+    try:
+        return await asked_once(request, provider, model, messages, project_id)
+    except ModelUnavailable as exc:
+        raise HTTPException(502, f"{provider.name} isn't answering ({exc}).") from None
+
+
 @router.get("/api/recipes", response_model=RecipesOut)
-def list_recipes(project_id: str | None = None, session: Session = Depends(get_session)):
+def list_recipes(request: Request, project_id: str | None = None,
+                 session: Session = Depends(get_session)):
     """KOLONİ's own, the ready ones first; with a project, its folder's own after them."""
     kept = session.scalars(select(Recipe).order_by(
         Recipe.ready.desc(), Recipe.created_at, literal_column("recipes.rowid"))).all()
@@ -134,9 +161,10 @@ def list_recipes(project_id: str | None = None, session: Session = Depends(get_s
         files, broken = recipes.folder_recipes(project.root_path)
         found += [RecipeOut(id=file, name=one.name, ready=False, graph=one.graph,
                             project_id=project.id, file=file) for file, one in files]
-    can = writer(session)
-    return RecipesOut(recipes=found, broken=broken,
-                      writer={"why": can if isinstance(can, str) else None})
+    can = askers(session, request.app.state.providers, "balanced")
+    return RecipesOut(recipes=found, broken=broken, writer={
+        "why": can if isinstance(can, str) else None,
+        "asks": None if isinstance(can, str) else can[0][2]})
 
 
 @router.post("/api/recipes", response_model=RecipeOut, status_code=201, dependencies=OWN)
@@ -246,20 +274,38 @@ async def draft_recipe(body: RecipeDraftIn, request: Request,
     the provider's own limit; hold it there too if recipes are drafted often. What it spends is
     on Usage as "KOLONİ itself", and counts toward that provider's limits (K-56)."""
     # The first balanced model: a recipe's graph is more than a line of words (B-69: it was
-    # drawn by the strongest model).
-    can = asker(session, request.app.state.providers, "balanced")
+    # drawn by the strongest model) - the next where one does not answer, then the Lead's.
+    can = askers(session, request.app.state.providers, "balanced")
     if isinstance(can, str):
         raise HTTPException(409, can)
-    provider, model = can
     roles = [role.name for role in agent_roles(session) if not (
         role.builtin and role.name == LEAD)]
     question = recipes.draw_question(session, body.text, roles)
-    said, model_id = await ask_writer(request, provider, model, [
-        {"role": "system", "content": recipes.DRAW},
-        # Said again over the sentence, which stands under it as data: a CLI's own rules
-        # tell it to do what the user's turn asks.
-        {"role": "user", "content": question},
-    ])
+    tried: list[str] = []
+    stopped: set[str] = set()  # (a server not running is so for each model of it)
+    for provider, model, _named in can:
+        if provider.id in stopped:
+            continue
+        try:
+            said, model_id = await asked_once(request, provider, model, [
+                {"role": "system", "content": recipes.DRAW},
+                # Said again over the sentence, which stands under it as data: a CLI's own rules
+                # tell it to do what the user's turn asks.
+                {"role": "user", "content": question},
+            ])
+            break
+        except ModelUnavailable as exc:
+            reason = str(exc)
+            if is_local(provider.base_url) and reason.startswith(UNREACHABLE):
+                # (its server is not running: passed over a while, here and by a tier's pick -
+                # one started later is asked again)
+                looked_down(session)[provider.id] = ("not answering",
+                                                     monotonic() + LIST_DOWN_SECONDS)
+                reason = "not running"
+                stopped.add(provider.id)
+            tried.append(f"{provider.name}{f' · {model}' if model else ''} ({reason})")
+    else:
+        raise HTTPException(502, f"No model answered: {', '.join(tried)}.")
     try:
         drawn = recipes.drafted(said)
     except ValueError as exc:

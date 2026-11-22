@@ -9625,6 +9625,8 @@ export interface components {
         };
         /** RecipeWriter */
         RecipeWriter: {
+            /** Asks */
+            asks?: string | null;
             /** Why */
             why: string | null;
         };

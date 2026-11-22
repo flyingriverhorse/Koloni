@@ -812,6 +812,12 @@ const notYet = (things: number) => `It cannot run yet: ${things === 1 ? 'one par
 /** Why "Make it a recipe" cannot ask: what the server says, or that the list is not read yet; null when it can. */
 const whyOf = (list: Recipes | string | null) => (list && typeof list !== 'string' ? list.writer.why : 'The recipes are not read yet.')
 
+/** The note under "Or write it": whom it asks first, as the server names it ("Balanced: Local · qwen3"). */
+const noteOf = (list: Recipes | string | null) => {
+  const asks = list && typeof list !== 'string' ? list.writer.asks : null
+  return `${asks ? `Asks ${asks}. It draws` : 'A model draws'} the recipe on the board; nothing is saved until you save it.`
+}
+
 /**
  * The Recipes tab (slice 84a): the recipes on the left, ready ones and yours, and "Or write it"; the chosen one drawn in the middle;
  * the chosen part of it on the right. Saved only when the server finds it can run; a ready one is copied to be changed.
@@ -945,9 +951,9 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
           onChange={e => setSentence(e.target.value)}
         />
         <button type="button" className="btn btn-small" disabled={!sentence.trim() || !!why || writing || !actions} onClick={() => void write()}>
-          {writing ? 'Asking the Orchestrator’s model…' : 'Make it a recipe'}
+          {writing ? 'Asking the model…' : 'Make it a recipe'}
         </button>
-        <span className="muted recipe-note">{why ?? 'The Orchestrator’s model draws it on the board; nothing is saved until you save it.'}</span>
+        <span className="muted recipe-note">{why ?? noteOf(list)}</span>
       </div>
     </div>
   )
