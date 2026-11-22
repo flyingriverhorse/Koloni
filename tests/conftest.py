@@ -197,6 +197,28 @@ REVIEW_ON = {"test_proof_review_scenarios"}
 # S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
 # the scripted Lead more in every such turn; its rows too. On only where tested.
 ASK_ON = {"test_proof_test_ask_scenarios"}
+# S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
+# their rows in every such turn, and a step of the scripted Lead more where one fails. On only
+# where tested.
+KINDS_ON = {"test_proof_kinds_scenarios"}
+
+
+async def _no_step(_self, _ctx, _held):
+    return None
+
+
+def _later_steps_off(module: str, monkeypatch) -> None:
+    """S2's ask and S5a's kinds, each on only in its own module (`ASK_ON`, `KINDS_ON`)."""
+    if module not in ASK_ON:
+        from app.agent.test_ask_mixin import TestAskMixin
+
+        monkeypatch.setattr(TestAskMixin, "_proof_test_ask", _no_step)
+        monkeypatch.setattr(TestAskMixin, "_test_rows", lambda *_args, **_more: [])
+    if module not in KINDS_ON:
+        from app.agent.kinds_mixin import KindsMixin
+
+        monkeypatch.setattr(KindsMixin, "_proof_kinds", _no_step)
+        monkeypatch.setattr(KindsMixin, "_kinds_left", lambda *_args, **_more: [])
 
 
 @pytest.fixture(autouse=True)
@@ -216,14 +238,7 @@ def end_check_where_it_fits(request, monkeypatch):
             return None
 
         monkeypatch.setattr(ReviewMixin, "_proof_review", no_review)
-    if module not in ASK_ON:
-        from app.agent.test_ask_mixin import TestAskMixin
-
-        async def no_ask(_self, _ctx, _held):
-            return None
-
-        monkeypatch.setattr(TestAskMixin, "_proof_test_ask", no_ask)
-        monkeypatch.setattr(TestAskMixin, "_test_rows", lambda *_args, **_more: [])
+    _later_steps_off(module, monkeypatch)
     if module in END_CHECK_OFF:
         from app.agent.proof_mixin import ProofMixin
 

@@ -93,6 +93,8 @@ class Proof:
     # S6: the user stopped a check of the turn - no more of its runs start.
     stopped: bool = False
     asked_test: bool = False
+    # S5a: the newest change the kinds' last look saw (None: none made).
+    kinds_seen: datetime | None = None
     reviewed: bool = False
     # S3 (`ReviewMixin`): the last look's verdict ("MERGE", "HOLD"; None: none yet), its rows, the
     # change it saw (`proof.last_change`), the reviewers it took, and the rounds it sent back.
@@ -112,7 +114,8 @@ class Proof:
 
 class ProofMixin:
     # The gate's steps, run in order: the first nudge ends the pass (later slices append theirs).
-    PROOF_STEPS: tuple[str, ...] = ("_proof_tests", "_proof_review", "_proof_test_ask")
+    PROOF_STEPS: tuple[str, ...] = ("_proof_tests", "_proof_kinds", "_proof_review",
+                                    "_proof_test_ask")
 
     async def _end_left(self: "AgentRunner", ctx: Ctx) -> str | None:
         """What the Lead is told before its answer may end the turn; None: it may."""
@@ -471,7 +474,8 @@ class ProofMixin:
         if held.seen is not None and later is not None and later > held.seen:
             rounds.append(proof.row("tests", "not_run", proof.NOT_AGAIN.format(
                 why=NOT_REACHED.get(status, ENDED_FIRST))))
-        tested = self._test_rows(session, run_id, lead.agent_id if lead else None, found, held)
+        tested = [*self._test_rows(session, run_id, lead.agent_id if lead else None, found, held),
+                  *self._kinds_left(session, run_id, cid, found, held)]  # (S5a)
         return [*held.rows, *tested, *rounds, *waiting]  # (S2's rows: `TestAskMixin`)
 
     @staticmethod

@@ -155,6 +155,7 @@ from app.agent.ctx import announce as announce
 from app.agent.discussions_mixin import DiscussionsMixin
 from app.agent.found_mixin import FoundMixin
 from app.agent.judge_mixin import JudgeMixin
+from app.agent.kinds_mixin import KindsMixin
 from app.agent.limits_mixin import BUDGET_NEAR as BUDGET_NEAR
 from app.agent.limits_mixin import OVER_LIMIT as OVER_LIMIT
 from app.agent.limits_mixin import LimitsMixin
@@ -1022,7 +1023,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
-                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin):
+                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
+                  KindsMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(

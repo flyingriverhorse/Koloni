@@ -164,6 +164,11 @@ def untested(changes: list[Change]) -> list[str]:
             and PurePosixPath(one.path.replace("\\", "/").casefold()).suffix in SOURCE]
 
 
+def before_of(session: Session, run_id: str) -> dict[str, str | None]:
+    """S5a: each path the turn kept a change of, as it was before the turn (None: not there)."""
+    return {path: made[0].before_content for path, made in _kept(session, run_id).items()}
+
+
 def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:
     """The turn's kept changes by path, oldest first (none of its scratch folder)."""
     rows: dict[str, list[FileChange]] = {}
