@@ -1,6 +1,7 @@
 """Slice 64: the model server on this machine, started and stopped from the Models page only.
 llama-server stands in as tests/fake_llama_server.py, nvidia-smi as a script of the test's."""
 
+import asyncio
 import socket
 import sys
 import time
@@ -202,6 +203,39 @@ def test_koloni_shutting_down_stops_it(server_app):
         until(client, lambda t: t["model"] is not None)
         assert answers(port)
     assert not answers(port)
+
+
+def test_a_shutdown_cut_short_at_the_lifespans_yield_still_stops_it(app, monkeypatch):
+    """Sonar S9152: with the page open a second Ctrl+C makes uvicorn skip the lifespan's
+    shutdown, and the lifespan is cancelled where it waits (Starlette's `await receive()`):
+    what follows its yield runs all the same, in its order."""
+    done = []
+
+    def spy(name, real):
+        async def called():
+            done.append(name)
+            await real()
+        return called
+
+    monkeypatch.setattr(app.state.runner, "shutdown", spy("runner", app.state.runner.shutdown))
+    monkeypatch.setattr(app.state.local_server, "stop", spy("server", app.state.local_server.stop))
+
+    async def served():
+        started = asyncio.Event()
+
+        async def lifespan():
+            async with app.router.lifespan_context(app):
+                started.set()
+                await asyncio.Event().wait()  # (the shutdown message that never comes)
+
+        task = asyncio.create_task(lifespan())
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(served())
+    assert done == ["runner", "server"]
 
 
 def test_gpu_numbers_are_read_from_nvidia_smi_or_left_unknown():
