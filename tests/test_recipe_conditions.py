@@ -22,6 +22,7 @@ from tests.test_recipe_run_scenarios import (
     asked,
     by_call,
     checked,
+    own_test,
     recipe_named,
     row,
     strip,
@@ -195,6 +196,7 @@ def test_a_conditional_step_saves_and_one_that_could_never_tell_is_refused(make_
 def quality_run(client, project_dir, mode="auto_edit"):
     quality = teams_of(client)["Quality"]
     assert quality["default_recipe_id"] == recipe_named(client, "Quality check")["id"]
+    own_test(client, project_dir)
     return begin(client, project_dir, mode=mode, spawn_approval="never", teams_mode="manual",
                  teams=[{"team_id": quality["id"], "recipe_id": None}])
 

@@ -1,7 +1,9 @@
-"""What counts as a test run that failed, before a recipe's fix step (`ledger.failed_tests`):
-the test tool is the command's first real word - after `cd <dir> &&`, `VAR=val`, `time` or a
-runner - never a command that only names it; a lint script is none, and pytest's exit 5 (no
-tests collected) no failure. Each test command's last run counts, not only the last of all."""
+"""What counts as a test run that failed, before a recipe's fix step and at any check's pass
+(`ledger.failed_tests`): the test tool is what a part of the line runs - past `cd <dir> &&`,
+`VAR=val`, `time`, `timeout`, a runner or a shell's `-c` - never a command that only names it; a
+lint script is none; pytest's exit 4 / 5 and a run that never started tests give no verdict, nor
+does one whose exit is masked (`; true`, `|| true`, a pipe). Each test tool's last run with a
+verdict counts, however it is spelled (`pytest`, `python -m pytest`)."""
 
 import pytest
 
@@ -17,9 +19,13 @@ from app.db.session import make_engine, make_session_factory, upgrade_db
     "CI=1 pytest -x", "CI=1 PYTHONPATH=. python -m pytest", "cd backend && pytest",
     'cd "my app" && npm test', "cd web && CI=true npx vitest", "tox -e py312",
     "pytest -s tests/test_lint.py",
+    # (review of S4: wrapped, chained and other test runs)
+    "make test", 'bash -c "pytest -q"', "timeout 600 pytest", "uv run --frozen pytest",
+    "python -X utf8 -m pytest", "./gradlew test", "echo x && pytest", "python3 -m pytest -q",
+    "py -3 -m pytest", "cmd /c pytest -q", 'pwsh -NoProfile -Command "pytest -q"',
 ])
 def test_a_test_tool_after_what_may_stand_before_it_is_a_test_run(command):
-    assert ledger.RUNS_TESTS.match(command)
+    assert ledger.read_test(command) is not None
 
 
 @pytest.mark.parametrize("command", [
@@ -27,7 +33,19 @@ def test_a_test_tool_after_what_may_stand_before_it_is_a_test_run(command):
     "tox -e lint", "nox -s lint", "npm run test:lint", "yarn test-lint", "git log pytest",
 ])
 def test_a_command_that_only_names_a_test_tool_or_lints_is_none(command):
-    assert not ledger.RUNS_TESTS.match(command)
+    assert ledger.read_test(command) is None
+
+
+@pytest.mark.parametrize(("command", "read"), [
+    ("pytest -q", ("pytest", False)), ("python -m pytest -q", ("pytest", False)),
+    ("py -3 -m pytest", ("pytest", False)), ("npx vitest run", ("vitest", False)),
+    ("vitest run", ("vitest", False)), ("npm run test", ("npm test", False)),
+    ("pytest -q > out.txt 2>&1; true", ("pytest", True)), ("pytest -q || true", ("pytest", True)),
+    ("pytest -q || exit 0", ("pytest", True)), ("pytest -q | tail -1", ("pytest", True)),
+    ('bash -c "pytest -q; true"', ("pytest", True)), ("cd web && pytest && echo ok", ("pytest", False)),
+])
+def test_a_test_run_is_read_as_its_tool_and_whether_its_exit_is_masked(command, read):
+    assert ledger.read_test(command) == read
 
 
 @pytest.fixture
@@ -84,6 +102,29 @@ def test_the_same_command_passing_after_it_failed_is_no_failure(ran):
     assert ran(("pytest -q", 1, "2 failed"), ("pytest  -q", 0, "5 passed")) is None
 
 
+def test_the_same_tool_passing_after_it_failed_is_no_failure_however_it_is_spelled(ran):
+    # (Review of S4: `pytest -q` not on PATH, then `python -m pytest -q` passed.)
+    assert ran(("pytest -q", 1, "1 failed"), ("python -m pytest -q", 0, "4 passed")) is None
+    assert ran(("npx vitest run", 1, "1 failed"), ("vitest run", 0, "4 passed")) is None
+
+
+@pytest.mark.parametrize(("code", "output"), [
+    (127, "bash: pytest: command not found"), (9009, ""),
+    (1, "'pytest' is not recognized as an internal or external command"),
+    (1, "/usr/bin/python: No module named pytest"), (4, "ERROR: file or directory not found: x"),
+])
+def test_a_run_that_never_started_tests_gives_no_verdict(ran, code, output):
+    assert ran(("pytest -q", code, output)) is None
+    # (...and hides no failure before it)
+    assert ran(("pytest -q", 1, "2 failed"), ("pytest -q", code, output)) == "pytest -q"
+
+
+def test_a_masked_exit_is_no_pass_but_a_failure_it_counts_is_one(ran):
+    assert ran(("pytest -q > out.txt 2>&1; true", 0, "")) is None
+    assert ran(("pytest -q", 1, "1 failed"), ("pytest -q || true", 0, "")) == "pytest -q"
+    assert ran(("pytest -q | tail -1", 0, "1 failed, 2 passed")) == "pytest -q | tail -1"
+
+
 def test_no_tests_collected_lint_and_a_grep_with_no_match_are_no_failure(ran):
     assert ran(("python -m pytest tests/none", 5, "no tests ran"), ("npm run test:lint", 1, ""),
                ("grep -rn pytest .", 1, "")) is None
@@ -116,3 +157,60 @@ def test_a_run_with_no_exit_code_reported_is_said_as_such_never_failed_or_passed
             ledger.did(s, "t"))
         assert ledger.failed_line(ledger.failed_tests(s, "t")) == (
             "last test run failed (no exit code reported): pytest -q")
+
+
+def test_a_masked_run_is_said_to_give_no_verdict(factory):
+    with factory() as s:
+        record(s, ("pytest -q || true", 0, ""))
+        assert "last test run: no verdict (its exit was masked)" in ledger.did(s, "t")
+
+
+# R2 (review of S4): what a failed run names as failing, and whether the report's "Already
+# failing before" lines cover every one of it.
+@pytest.mark.parametrize(("output", "names"), [
+    ("FAILED tests/test_repro.py::test_calc_2 - ZeroDivisionError\n1 failed, 3 passed",
+     ["tests/test_repro.py::test_calc_2"]),
+    ("tests/a.py::test_x FAILED\nERROR tests/b.py::test_y[1] - E\n", ["tests/a.py::test_x", "tests/b.py::test_y[1]"]),
+    (" FAIL  src/a.test.ts > sums > adds two\n Test Files  1 failed", ["src/a.test.ts > sums > adds two"]),
+    ("--- FAIL: TestAdd (0.00s)\nFAIL", ["TestAdd"]),
+    ("2 failed, 3 passed", []),
+])
+def test_the_tests_a_failed_run_names(output, names):
+    assert ledger.failing_named(output) == names
+
+
+@pytest.mark.parametrize(("before", "covered"), [
+    (["test_calc_2"], True), (["tests/test_repro.py::test_calc_2 (a flaky one)"], True),
+    (["test_old_flaky in tests/test_legacy.py"], False), (["test_calc_20"], False), ([], False),
+])
+def test_already_failing_before_covers_only_the_tests_it_names(factory, before, covered):
+    with factory() as s:
+        record(s, ("pytest -q", 1, "FAILED tests/test_repro.py::test_calc_2 - E\n1 failed"))
+        assert ledger.covered(ledger.failed_tests(s, "t"), before) is covered
+        # (A run that names no failing test is covered by none.)
+        record(s, ("pytest -q", 1, "1 failed"))
+        assert ledger.covered(ledger.failed_tests(s, "t"), before) is False
+
+
+@pytest.mark.parametrize(("commands", "checked"), [
+    ([("ls", "exited"), ("git status", "exited"), ("cat a.py", "exited")], False),
+    ([("pytest -q", "blocked"), ("pytest -q", "failed_to_start"), ("pytest -q", "rejected")], False),
+    ([("ls", "exited"), ("pytest -q", "exited")], True),
+    ([("python check.py", "timed_out")], True),
+])
+def test_a_check_ran_is_a_command_that_started_and_is_no_mere_read(factory, commands, checked):
+    with factory() as s:
+        for command, status in commands:
+            s.add(Command(run_id="r", agent_id="t", command=command, location="host", status=status,
+                          timeout_seconds=60))
+        s.commit()
+        assert ledger.ran_check(s, "t") is checked
+
+
+def test_a_declined_check_is_named(factory):
+    with factory() as s:
+        assert ledger.declined(s, "t") is None
+        s.add(Command(run_id="r", agent_id="t", command="pytest -q", location="host",
+                      status="rejected", timeout_seconds=60))
+        s.commit()
+        assert ledger.declined(s, "t") == "pytest -q"

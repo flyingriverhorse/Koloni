@@ -225,7 +225,9 @@ def test_editing_a_role_does_not_change_an_agent_already_opened(
     client, model = make_client([spawn("Reviewer"), text("r"), text("l")])
     cid, run_id = begin(client, project_dir, spawn_approval="always")
     kid = wait_status(client, cid, "waiting_approval")["agents"][1]
-    client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"tools": ["read_file"]})
+    # (Karar 5: the Reviewer keeps its reading tools - the edit takes away the rest.)
+    edited = client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"tools": [*READ, "ask_user"]})
+    assert edited.status_code == 200, edited.text
     assert client.post(f"/api/agents/{kid['id']}/approve").status_code == 200
     snap = wait_run(client, cid, run_id)
     assert snap["agents"][1]["tools"] == REVIEWER

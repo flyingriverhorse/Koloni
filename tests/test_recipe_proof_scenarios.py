@@ -1,16 +1,19 @@
 """Kanıtlı bitiş S4 - the recipes' own proof (R1-R4), with the fake model and the ready Bugfix:
 a failing test goes back to Fix it (R1); a check that reports nothing wrong while a test run on
-record failed is blocked (R2); a check that could run commands and ran none does not pass (R3);
+record failed is blocked (R2); a Tester that ran no command but reads does not pass (R3);
 Reproduce it writes a failing test and fixes nothing (R4)."""
 
-from app.agent.words import RAN_NOTHING, REPRODUCE_FIRST
+from app.agent.words import RAN_NOTHING, REPRODUCE_FIRST, RUN_TO_PASS
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import cmd
 from tests.test_chat_flow import text
-from tests.test_chat_teams_scenarios import teams_of
+from tests.test_chat_teams_scenarios import OWN, teams_of
 from tests.test_claim_scenarios import write
+from tests.test_parallel import until
 from tests.test_recipe_conditions import FAILING
-from tests.test_recipe_run_scenarios import NONE, by_call, recipe_named, row
+from tests.test_recipe_run_scenarios import NONE, READY, asked, by_call, made, recipe_named, row
+from tests.test_recipes_scenarios import graph
+from tests.test_recipes_scenarios import step as part
 from tests.test_spawn import begin, call, spawn, step
 
 PYTEST = "python -m pytest -q"
@@ -18,11 +21,11 @@ FAILED = Script(["1 failed, 3 passed\n"], exit_code=1)
 PASSED = Script(["4 passed\n"], exit_code=0)
 
 
-def bugfix_run(client, project_dir):
+def bugfix_run(client, project_dir, mode="full_auto"):
     """The Backend / API team by its ready recipe, Bugfix; at Full auto its commands run unasked."""
     backend = teams_of(client)["Backend / API"]
     assert backend["default_recipe_id"] == recipe_named(client, "Bugfix")["id"]
-    return begin(client, project_dir, mode="full_auto", spawn_approval="never", teams_mode="manual",
+    return begin(client, project_dir, mode=mode, spawn_approval="never", teams_mode="manual",
                  teams=[{"team_id": backend["id"], "recipe_id": None}])
 
 
@@ -81,12 +84,97 @@ def test_a_tester_that_says_none_with_a_failing_run_blocks(make_client, wait_run
 
 
 def test_already_failing_before_is_not_blocked_by_r2(make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([FAILED])
+    # (Review of S4: only where it names every test the run says failed - FAILING names test_x.)
+    executor = ScriptedExecutor([Script(["FAILED tests/test_x.py::test_x - assert 0\n1 failed, 3 passed\n"],
+                                        exit_code=1)])
     client, _model = make_client(scripts(ran_tests(FAILING)), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert opened(snap) == ["Debugger", "Coder", "Tester", "Reviewer"], by_call(snap)
     assert agent(snap, "Tester")["findings"] == []
+
+
+# Review of S4 (HIGH): a line about another test does not hide this one's failure.
+OTHER_BEFORE = ("Ran pytest.\n\nAlready failing before: test_old_flaky in tests/test_legacy.py\n\n"
+                "Checked: ran pytest\n\nFindings: none")
+
+
+def test_an_already_failing_line_about_another_test_does_not_turn_r2_off(make_client, wait_run, project_dir):
+    failed = Script(["FAILED tests/test_repro.py::test_calc_2 - ZeroDivisionError\n1 failed, 3 passed\n"],
+                    exit_code=1)
+    executor = ScriptedExecutor([failed, PASSED])
+    client, _model = make_client(scripts(ran_tests(OTHER_BEFORE), ran_tests(id="k2")), executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Reviewer"], by_call(snap)
+    held = agent(snap, "Tester")["findings"]
+    assert [(f["what"], f["blocking"]) for f in held] == [
+        (f"last test run failed (exit 1): {PYTEST}", True)], held
+
+
+def test_a_tester_that_retried_with_another_spelling_passes(make_client, wait_run, project_dir):
+    # Review of S4: `pytest` not on PATH, then `python -m pytest` passed - the same tool, passing.
+    missing = Script(["'pytest' is not recognized as an internal or external command\n"], exit_code=1)
+    executor = ScriptedExecutor([missing, PASSED])
+    tester = [cmd("pytest -q", "k0"), cmd(PYTEST, "k1"), text(NONE)]
+    client, _model = make_client(scripts(tester), executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Reviewer"], by_call(snap)
+    assert agent(snap, "Tester")["findings"] == []
+
+
+def test_a_tester_is_told_a_pass_needs_a_command_on_record(make_client, wait_run, project_dir):
+    client, _model = make_client(scripts(ran_tests()), executor=ScriptedExecutor([PASSED]))
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert RUN_TO_PASS in agent(snap, "Tester")["task"]
+    assert all(RUN_TO_PASS not in agent(snap, name)["task"] for name in ("Debugger", "Coder", "Reviewer"))
+
+
+def test_a_tester_that_only_read_does_not_pass(make_client, wait_run, project_dir):
+    # Review of S4: `ls` checks nothing - R3 counts a command that started and is no mere read.
+    executor = ScriptedExecutor([Script(["calc.py\n"]), PASSED])
+    client, _model = make_client(scripts([cmd("ls", "k0"), text(NONE)], ran_tests()), executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Reviewer"], by_call(snap)
+    assert agent(snap, "Tester")["findings"] == [RAN_NOTHING]
+
+
+def test_a_check_whose_command_the_user_declined_stops_at_ready_for_you(make_client, wait_run, project_dir):
+    # Review of S4: no loop back to a Coder who could not act on it - the user's, not checked.
+    client, _model = make_client(scripts(ran_tests(), review=False), executor=ScriptedExecutor([]))
+    cid, run_id = bugfix_run(client, project_dir, mode="auto_edit")
+    snap = until(client, cid, lambda s: [c for c in s["commands"] if c["status"] == "proposed"])
+    (proposed,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert client.post(f"/api/commands/{proposed['id']}/reject", headers=OWN).status_code == 200
+    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
+    assert (row(snap)["status"], row(snap)["why"]) == ("ready", f"Not checked: you declined {PYTEST}"), row(snap)
+    assert opened(snap) == ["Debugger", "Coder", "Tester"], by_call(snap)
+    assert [f["what"] for f in agent(snap, "Tester")["findings"]] == [f"not checked: you declined {PYTEST}"]
+
+
+def test_a_tester_at_the_reproduce_step_may_see_the_test_fail(make_client, wait_run, project_dir):
+    # Review of S4: there the failing test is the work - said so, and nothing is held against it.
+    # (In the ready Bugfix a Debugger reproduces and may open no Tester there - the step's door: a
+    # recipe of the user's whose reproduce step is a Tester's.)
+    fails = Script(["FAILED tests/test_repro.py::test_calc_2 - ZeroDivisionError\n1 failed\n"], exit_code=1)
+    client, _model = make_client({
+        "Lead": [spawn("Tester", "show the bug with a failing test", "t1"), spawn("Coder", "fix it", "c1"),
+                 text("done")],
+        "Tester": ran_tests(), "Coder": [step(write("calc.py", "x = 1\n")), text("fixed")]},
+        executor=ScriptedExecutor([fails]))
+    drawn = made(client, "Show then fix", graph(
+        [part("reproduce", "Reproduce it", {"role": "Tester"}), part("fix", "Fix it", {"role": "Coder"})],
+        [("start", "reproduce"), ("reproduce", "fix"), ("fix", "end")]))
+    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never", teams_mode="manual",
+                        teams=[{"team_id": teams_of(client)["Web app"]["id"], "recipe_id": drawn["id"]}])
+    snap = wait_run(client, cid, run_id)
+    assert opened(snap) == ["Tester", "Coder"], by_call(snap)
+    assert REPRODUCE_FIRST in agent(snap, "Tester")["task"]
+    assert [(f["what"], f["blocking"]) for f in agent(snap, "Tester")["findings"]] == [
+        ("fails as it should: tests/test_repro.py::test_calc_2", False)]
 
 
 def test_a_tester_that_ran_nothing_does_not_pass(make_client, wait_run, project_dir):

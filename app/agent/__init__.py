@@ -306,6 +306,7 @@ from app.agent.words import (
     RECONNECT,
     REPRODUCE_FIRST,
     RUN_THERE,
+    RUN_TO_PASS,
     SAME_MESSAGE,
     SECRET_IN_COPY,
     SHARED_WITH_PROJECT,
@@ -987,6 +988,20 @@ def _project_key(project: Path | str) -> str:
     return os.path.normcase(str(Path(project).resolve()))
 
 
+# R3 (kanıtlı bitiş, review of S4): the recipe steps whose job is running the tests - by the
+# ready recipes' ids. shortcut: a step of a user's own recipe is known by these ids alone (or by
+# its Tester); give steps a kind in the editor if users' own test steps are to be held so.
+TEST_STEPS = frozenset({"test", "tests"})
+
+
+def _held_to_run(role: Role | None, step: str, tools) -> bool:
+    """R3: whether a recipe's check passes only on a command it ran - one whose job is running
+    checks: the built-in Tester, or any role at a test step (`TEST_STEPS`), that may run commands.
+    A Data analyst or a Performance engineer reading a change is not (review of S4)."""
+    return "run_command" in tools and (step in TEST_STEPS or (
+        role is not None and role.builtin and role.name == "Tester"))
+
+
 class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
@@ -1373,9 +1388,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # K-rol-cogul. a spawn call of a reply's several -> the reply's calls not opened yet, and
         # the event their agents start on (`_run_tools`, `_arrive`). (Not K-paralel's `_opening`.)
         self._at_once: dict[str, tuple[set[str], asyncio.Event]] = {}
-        # The agents opened for a review step (done when no findings): told the findings'
-        # format and read for them, whatever their role's kind of work.
-        self._reviews: set[str] = set()
+        # The agents opened for a review step (done when no findings), each with its step's id:
+        # told the findings' format and read for them, whatever their role's kind of work.
+        self._reviews: dict[str, str] = {}
+        # R3 (kanıtlı bitiş, review of S4): a check whose command the user declined - why its step
+        # stops at Ready for you, not checked (`_ran_held`, `_after_step`).
+        self._not_checked: dict[str, str] = {}
         # 89p: the report each agent last handed back in REPORT_SCHEMA, valid (`_found`).
         self._schema_reports: dict[str, dict] = {}
         # Those of them whose step goes on to one that runs only if a problem was found
@@ -1925,7 +1943,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._candidates.discard(agent_id)
             self._scored.pop(agent_id, None)
             self._seeded.pop(agent_id, None)
-            self._reviews.discard(agent_id)
+            self._reviews.pop(agent_id, None)
             self._before_fix.discard(agent_id)
             self._leads.pop(agent_id, None)
             self._leads_gone.pop(agent_id, None)
@@ -4508,7 +4526,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """What this agent's sub-agents are capped by: its tools - a team's lead's, those of
         the Lead that opened it (slice 84b-2), so its team's agents can do their work; any
         other sub-agent's, the Orchestrator's (B-333: an Architect, which cannot write, opens
-        Coders that can). One whose opener is gone is capped by its own, as before."""
+        Coders that can). One whose opener is gone is capped by its own, as before.
+        shortcut: a core role's locked tools (Karar 5, `roles.CORE`) lock its role, not its
+        agents - a Lead without run_command caps every Tester's, and R3 then holds none of them
+        (`_held_to_run`); lock the Lead's tools a core role needs too if that is met."""
         while ctx.agent_id not in self._leads and ctx.depth > 0 and (
                 above := self._ctxs.get(ctx.parent_id or "")) is not None:
             ctx = above
@@ -6030,21 +6051,23 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             at and role.casefold() in {one.casefold() for one in at[1]}) else None
 
     def _step_says(self, ctx: Ctx, role: Role) -> str:
-        """Kanıtlı bitiş R4: what the step an agent of `role` is opened for tells it under its
-        task - `REPRODUCE_FIRST` at a step with the id "reproduce" (the ready Bugfix's first); ""
+        """Kanıtlı bitiş: what the step an agent of `role` is opened for tells it under its task -
+        `REPRODUCE_FIRST` at a step with the id "reproduce" (R4: the ready Bugfix's first);
+        `RUN_TO_PASS` at a review step it is held to run a check in (R3, `_held_to_run`); ""
         anywhere else, and for a helper a step's agent opens.
-        shortcut: keyed by the ready Bugfix's step id; give recipe steps a note field in the editor
-        if users' own recipes want the same."""
+        shortcut: keyed by the ready recipes' step ids; give recipe steps a note field in the
+        editor if users' own recipes want the same."""
         if not self._gives_slots(ctx):
             return ""
-        mine = role.name.casefold()
         with self._factory() as session:
             for row, _team in self._runs(session, ctx):
                 state = self._live_state(row, ctx.run_id)
-                if state and mine in recipe_run.allowed(state) and any(
-                        step == "reproduce" and mine in {one.casefold() for one in roles}
-                        for step, roles in state["slots"].get(state["at"], [])):
+                step = recipe_run.fills(state, role.name) if state else None
+                if step == "reproduce":
                     return "\n\n" + REPRODUCE_FIRST
+                if state and step and recipe_run.fills_review(state, role.name) and _held_to_run(
+                        role, step, role.tools):
+                    return "\n\n" + RUN_TO_PASS
         return ""
 
     def _tells_findings(self, session, ctx: Ctx) -> bool:
@@ -6091,22 +6114,53 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
     def _on_record(self, session, child: Ctx, found: list | None, before: list[str]) -> list[dict]:
         """`_found`, kanıtlı bitiş R2 / R3: what KOLONİ's record holds against a check whose
-        report gave no blocking finding. R2: a test run of its own that failed (the last of each
-        command: `ledger.failed_tests`), where it said nothing was failing before - before a step
-        that fixes, every failing run is handed on already. R3: a recipe's check that could run
-        commands and ran none (`RAN_NOTHING`) - not where its CLI's work is not seen
-        (`handoff.counted_on`), so a command it ran may not be on record."""
+        report gave no blocking finding (`_failing_held`, `_ran_held`)."""
         if _blocking(found):
             return []
-        held = []
-        if child.agent_id not in self._before_fix and not before and (
-                ran := ledger.failed_tests(session, child.agent_id)):
-            held.append({"what": ledger.failed_line(ran), "kind": "test", "role": None,
-                         "blocking": True})
-        if found is not None and child.agent_id in self._reviews and "run_command" in child.tools \
-                and handoff.counted_on(child.model) and not ledger.ran_any(session, child.agent_id):
-            held.append(RAN_NOTHING)
-        return held
+        return [*self._failing_held(session, child, before), *self._ran_held(session, child, found)]
+
+    def _failing_held(self, session, child: Ctx, before: list[str]) -> list[dict]:
+        """R2: a test run of its own that failed (the last with a verdict of each tool:
+        `ledger.failed_tests`) is a blocking finding - unless every test it names as failing is
+        one the report says was failing before (`ledger.covered`). Not before a step that fixes,
+        where every failing run is handed on already; nor in the step that reproduces the bug,
+        where the failing test is the work - said so, as no blocking finding."""
+        ran = None if child.agent_id in self._before_fix else ledger.failed_tests(
+            session, child.agent_id)
+        if ran is None or ledger.covered(ran, before):
+            return []
+        if self._in_step(session, child, "reproduce"):
+            return [{"what": f"fails as it should: {ledger.failing_shown(ran)}", "kind": "test",
+                     "role": None, "blocking": False}]
+        return [{"what": ledger.failed_line(ran), "kind": "test", "role": None, "blocking": True}]
+
+    def _ran_held(self, session, child: Ctx, found: list | None) -> list[dict]:
+        """R3: a recipe's check whose job is running checks (`_held_to_run`) that ran no command
+        on record that started and is no mere read (`ledger.ran_check`) does not pass
+        (`RAN_NOTHING`) - not one whose report has no Findings section (no pass already), nor
+        where its CLI's work is not seen (`handoff.counted_on`: a command it ran may not be on
+        record). Where the user declined its command, it checked nothing for a fixer to act on:
+        its step stops at Ready for you, not checked (`_not_checked`, `_after_step`)."""
+        step = self._reviews.get(child.agent_id)
+        if found is None or step is None or not handoff.counted_on(child.model) or not (
+                _held_to_run(find_role(session, child.role), step, child.tools)) or (
+                ledger.ran_check(session, child.agent_id)):
+            return []
+        if (command := ledger.declined(session, child.agent_id)) is None:
+            return [RAN_NOTHING]
+        self._not_checked[child.agent_id] = f"Not checked: you declined {command}"
+        return [{"what": f"not checked: you declined {command}", "kind": "test", "role": None,
+                 "blocking": True}]
+
+    def _in_step(self, session, child: Ctx, step_id: str) -> bool:
+        """Whether `child`, or an agent above it, is at work for a recipe step of this id."""
+        chain, at = set(), child
+        while at is not None:
+            chain.add(at.agent_id)
+            at = self._ctxs.get(at.parent_id) if at.parent_id else None
+        return any(e["step"] == step_id and e["agent"] in chain
+                   for row, _team, _lead in self._rows(session, child.cid)
+                   if (state := self._live_state(row, child.run_id)) for e in state["here"])
 
     def _level(self, ctx: Ctx) -> int:
         """How many levels below its Lead an agent is, for the chat's limit on them: in work of
@@ -6252,7 +6306,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     self._candidates.add(child.agent_id)
                 if any(s.id == step and s.done_when == "no_findings"
                        for s in recipe_run.graph_of(state).steps):
-                    self._reviews.add(child.agent_id)
+                    self._reviews[child.agent_id] = step
                     if recipe_run.fixed_next(state):
                         self._before_fix.add(child.agent_id)
             elif (mine and ctx.depth) or (
@@ -7505,12 +7559,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
         score = self._scored.pop(child.agent_id, None) or {
             "score": None, "why": CANDIDATE_STOPPED} if child.agent_id in self._candidates else None
+        declined = self._not_checked.pop(child.agent_id, None)  # (R3: `_ran_held`)
 
         def ended(state: dict, entry: dict) -> None:
             # (B-192: a suggestion sends no work back - it is the user's, on the card.)
             entry["ok"], entry["found"] = ok, found is None or bool(_blocking(found))
             entry["findings"] = bool(_blocking(found))  # (some to hand on with findings_from)
             entry["changed"] = changed
+            recipe_run.not_checked(state, declined)
             if score is not None:  # (K-evrim: with its end, so no pick is made without it)
                 # (K-evrim-model: its name, model and round, for the card and the strip.)
                 state.setdefault("scores", {})[child.agent_id] = {

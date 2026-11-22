@@ -1101,7 +1101,7 @@ def words_left(make_client, wait_run, project_dir):
                  spawn("Coder", "fix", "c3"), *[text("stopped")] * 2],
         # (an agent's name is its turn's: each script's second step is the next turn's)
         "Spec writer": [text("the spec")] * 2, "Coder": [step(write("greet.py", "print('Helo')\n")), text("built"), text("built")],
-        "Reviewer": [text(NONE), text(FOUND)], "Tester": [*checked(), *checked(id="ls2")], "Coder 2": [text("fixed")],
+        "Reviewer": [text(NONE), text(FOUND)], "Tester": [*checked(), *checked(id="t2")], "Coder 2": [text("fixed")],
     })
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], small_feature(client)))
     answer(client, asked(until(client, cid, asked)), "Go on")
@@ -1303,6 +1303,7 @@ def test_an_all_at_once_group_a_cli_lead_opens_one_call_at_a_time_works_together
     from tests.fakes import ScriptedModel
     from tests.keyed import TestClient
     from tests.test_chat_teams_scenarios import OWN
+    from tests.test_recipe_run_scenarios import OWN_TEST
 
     class Cli(ScriptedModel):
         session = True
@@ -1323,8 +1324,8 @@ def test_an_all_at_once_group_a_cli_lead_opens_one_call_at_a_time_works_together
                 await on_text("Fine.\n\nChecked: read greet.py\n\nFindings: none")
             elif "Your name here is Tester" in said:
                 self.tester.set()
-                # (Kanıtlı bitiş R3: a check that may run commands runs one - `ls` only reads.)
-                await call_tool("run_command", json.dumps({"command": "ls"}))
+                # (Kanıtlı bitiş R3: a Tester runs a check - the project's own test command.)
+                await call_tool("run_command", json.dumps({"command": OWN_TEST}))
                 await on_text("Fine.\n\nChecked: ran it\n\nFindings: none")
             else:
                 await call_tool("spawn_agent", json.dumps({"role": "Reviewer", "task": "review greet.py"}))
@@ -1532,7 +1533,7 @@ def test_the_users_words_at_ready_for_you_are_a_fact_on_the_file_and_the_next_co
         "Spec writer": [text("the spec")] * 2,
         "Coder": [step(write("greet.py", "print('Helo')\n")), text("built"),
                   step(write("greet.py", "print('Hello')\n", id="w2")), text("fixed")],
-        "Reviewer": [text(NONE)] * 2, "Tester": [*checked(), *checked(id="ls2")],
+        "Reviewer": [text(NONE)] * 2, "Tester": [*checked(), *checked(id="t2")],
     })
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], small_feature(client)))
     answer(client, asked(until(client, cid, asked)), "Go on")

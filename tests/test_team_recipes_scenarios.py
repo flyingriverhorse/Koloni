@@ -14,7 +14,16 @@ from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import teams_of
 from tests.test_claim_scenarios import write
 from tests.test_parallel import until
-from tests.test_recipe_run_scenarios import FOUND, NONE, asked, by_call, checked, row, strip
+from tests.test_recipe_run_scenarios import (
+    FOUND,
+    NONE,
+    asked,
+    by_call,
+    checked,
+    own_test,
+    row,
+    strip,
+)
 from tests.test_spawn import begin, call, spawn, step
 
 # K-takim-duzen's: the team, its new default, and the roles any recipe may call.
@@ -136,6 +145,7 @@ def ran(make_client, project_dir, team, lead, said, ready=True):
     """The team's chat run by its default recipe, as far as Ready for you (an "in" end) or its
     end (a report); the snapshot."""
     client, _model = make_client({"Lead": [*lead, text("all done")], **said})
+    own_test(client, project_dir)
     cid, _run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never",
                          teams_mode="manual",
                          teams=[{"team_id": teams_of(client)[team]["id"], "recipe_id": None}])
@@ -172,7 +182,7 @@ def test_model_change_plans_has_the_learned_expert_review_builds_checks_twice_an
         "Data scientist": [text("Hypothesis: a smaller learning rate; metric: AUC.")],
         "MLflow expert": [text(NONE)], "ML engineer": [step(write("made.txt", "x")), text("built")],
         "Tester": checked(), "Model evaluator": [text(FOUND)], "ML engineer 2": [text("fixed")],
-        "Tester 2": checked(), "Model evaluator 2": checked(), "Reviewer": [text(NONE)]})
+        "Tester 2": checked(), "Model evaluator 2": [text(NONE)], "Reviewer": [text(NONE)]})
     assert in_waves(opened(snap), 1, 1, 1, 2, 1, 2) == in_waves(
         ["Data scientist", "MLflow expert", "ML engineer", "Tester", "Model evaluator",
          "ML engineer", "Tester", "Model evaluator", "Reviewer"], 1, 1, 1, 2, 1, 2)
@@ -188,14 +198,16 @@ def test_model_change_plans_has_the_learned_expert_review_builds_checks_twice_an
 def test_a_change_is_checked_by_two_at_once_fixed_once_and_reviewed(
     make_client, project_dir, team, writer, first, second
 ):
-    def checks(role):  # (kanıtlı bitiş R3: one that may run commands runs one; a Security reviewer has none)
+    # (Kanıtlı bitiş R3: a Tester runs a check to pass; a Data analyst or a Performance engineer
+    # reading the change passes on its word - review of S4.)
+    def checks(role):
         return checked() if role == "Tester" else [text(NONE)]
 
     snap = ran(make_client, project_dir, team, [
         spawn(writer, "change it", "b"), both(first, second, "c"), fix(writer, second, "f"),
         both(first, second, "d"), spawn("Reviewer", "review it", "r")], {
         writer: [step(write("made.txt", "x")), text("changed")], first: checks(first), second: [text(FOUND)],
-        f"{writer} 2": [text("fixed")], f"{first} 2": checks(first), f"{second} 2": checked(),
+        f"{writer} 2": [text("fixed")], f"{first} 2": checks(first), f"{second} 2": [text(NONE)],
         "Reviewer": [text(NONE)]})
     assert in_waves(opened(snap), 1, 2, 1, 2) == in_waves(
         [writer, first, second, writer, first, second, "Reviewer"], 1, 2, 1, 2)

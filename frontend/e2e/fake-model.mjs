@@ -340,7 +340,8 @@ function nextStep(all, tools = [], model = '') {
   // K-takim-duzen: the ML team's Model change - the Lead opens each step's roles as the one before finishes (its experts'
   // step is passed: none has learned), and each of them reports at once, finding nothing.
   if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content))) {
-    if (/, mc$/.test(String(messages[1]?.content))) return ranFirst('cmcr', 'Done.\n\nChecked: ran it\n\nFindings: none')
+    // (Its task's first line: what a step adds goes under it - a Tester's "passes only on a command", R3.)
+    if (/, mc$/m.test(String(messages[1]?.content))) return ranFirst('cmcr', 'Done.\n\nChecked: ran it\n\nFindings: none')
   } else if (messages.some(m => m.role === 'user' && /model change it, mc/i.test(String(m.content)))) {
     const checks = [['Reviewer', 'Review it, mc']]
     const next = {
