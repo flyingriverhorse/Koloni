@@ -933,6 +933,11 @@ PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your c
 # into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
 PR_UNPUSHED = ("you have {commits} not on GitHub yet: before a pull request, check its files are "
                "the agent's work")
+# ... said with its commits where another worktree of the user's holds one (`git.unpushed_places`):
+# by its folder, and one deleted by hand is still git's until it is pruned.
+PR_HELD_IN = "in your worktree {folder}"
+PR_HELD_GONE = ("in your worktree {folder}, a folder that is gone: `git worktree prune` lets git "
+                "drop it")
 # ... and where the branch began from the user's folder with work not committed (W-1's snapshot): an
 # agent's copy of a file of it, under another name, is its own work to git.
 PR_SNAPSHOT = ("it began from your folder with work not committed: before a pull request, check "
@@ -3544,15 +3549,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     async def _pr_asks(self, copy: copies.Copy) -> str | None:
         """Why a pull request of this branch is asked about at every level, Full auto too - what an
         agent copied of the user's work into a commit of its own its history does not show: the
-        user has commits origin does not, or a stash (`git.unpushed_count`: `PR_UNPUSHED`; where
-        git does not say, one commit), or the branch began from their uncommitted work
-        (`PR_SNAPSHOT`). None where neither."""
+        user has commits origin does not, or a stash (`git.unpushed_count`: `PR_UNPUSHED`, with
+        the other worktree of theirs that holds one, `PR_HELD_IN`; where git does not say, one
+        commit) - not the agent's own commits a worktree of theirs holds as they look at its branch
+        -, or the branch began from their uncommitted work (`PR_SNAPSHOT`). None where neither."""
+        under = copies.folders(self.settings.runtime_root)
         try:
             commits, stashes = await asyncio.to_thread(
-                git.unpushed_count, copy.project, copies.folders(self.settings.runtime_root))
+                git.unpushed_count, copy.project, under, copy.branch)
+            places = await asyncio.to_thread(
+                git.unpushed_places, copy.project, under, copy.branch) if commits else []
         except git.Refused:
-            commits, stashes = 1, 0
-        said = [f"{commits} commit" + ("s" if commits != 1 else "")] if commits else []
+            commits, stashes, places = 1, 0, []
+        held = "; ".join((PR_HELD_IN if there else PR_HELD_GONE).format(folder=folder)
+                         for folder, there in places)
+        said = [f"{commits} commit" + ("s" if commits != 1 else "") + (
+            f" ({held})" if held else "")] if commits else []
         said += ["a stash" if stashes == 1 else f"{stashes} stashes"] if stashes else []
         if said:
             return PR_UNPUSHED.format(commits=" and ".join(said))
