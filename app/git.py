@@ -2539,7 +2539,8 @@ def issue(project: Path, ref: str) -> dict:
 
 
 # Why a pull request is not pushed: the branch took in commits not on origin (`_taken_in_unpushed`)
-# - the user's, where their own refs hold them; else whose is not known (its reflog expired).
+# - the user's, where their own refs hold them; else whose is not known (a pick of theirs is a new
+# commit; the branch's reflog expired).
 TAKEN_IN_UNPUSHED = ("the branch took in commits of yours not on origin ({commits}): push them "
                      "first - a pull request never sends them")
 TAKEN_IN_UNKNOWN = ("the branch holds commits not on origin that KOLONİ cannot attribute "
@@ -2731,13 +2732,14 @@ def push_one(
         raise Refused(f"push {into} first: commits of yours not on origin yet would go up with "
                       "the pull request")
     if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot):
-        # (Said to be the user's only where their own refs hold them: a reflog of the branch's
-        # expired or cut by gc leaves the agents' own commits not made on it to git.)
+        # (Named as the user's only those their own refs hold - what they can push; a reflog of
+        # the branch's expired or cut by gc leaves the agents' own commits not made on it to git.)
         yours = set(_users_unpushed(project, git, under).decode("ascii", "replace").split())
-        more = len(taken) - NAMED_COMMITS
-        raise Refused((TAKEN_IN_UNPUSHED if yours.issuperset(taken) else TAKEN_IN_UNKNOWN).format(
-            commits=", ".join(sha[:10] for sha in taken[:NAMED_COMMITS]) + (
-                f" and {more} more" if more > 0 else "")))
+        mine = [sha for sha in taken if sha in yours]
+        said, named = (TAKEN_IN_UNPUSHED, mine) if mine else (TAKEN_IN_UNKNOWN, taken)
+        more = len(named) - NAMED_COMMITS
+        raise Refused(said.format(commits=", ".join(sha[:10] for sha in named[:NAMED_COMMITS]) + (
+            f" and {more} more" if more > 0 else "")))
     if copied := _users_content(project, git, base, tip, under, snapshot):
         raise Refused(USERS_CONTENT.format(files=", ".join(copied[:NAMED_COMMITS]) + (
             f" and {len(copied) - NAMED_COMMITS} more" if len(copied) > NAMED_COMMITS else "")))

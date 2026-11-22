@@ -565,8 +565,13 @@ def test_a_commit_of_yours_that_came_in_by_no_merge_never_goes_up(repo, runtime,
     WAYS_IN[way](copy, run(repo, "rev-parse", "HEAD"))
     own_commit(copy)
     AFTER[after](repo)  # (amended: main no longer holds it, the branch still does)
-    with pytest.raises(git.Refused, match="not on origin"):
+    # (Amended: main's reflog holds theirs, named alone - a rebased commit of the agent's beside it
+    # is not. A pick is a new commit no ref of theirs holds: not called theirs.)
+    said = ("KOLONİ cannot attribute" if way == "cherry-pick" else
+            {"kept": "push main first", "amended": "commits of yours not on origin"}[after])
+    with pytest.raises(git.Refused, match=said) as refused:
         push_pr(repo, runtime, copy)
+    assert "," not in str(refused.value).partition("(")[2].partition(")")[0]  # (one named)
     assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
 
 
