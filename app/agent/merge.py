@@ -24,7 +24,7 @@ from typing import Literal
 from sqlalchemy import and_, func, literal_column, or_, select
 from sqlalchemy.orm import object_session
 
-from app import away, backlog, copies, git, koloni, project_view, recipe_run, web
+from app import away, backlog, copies, git, koloni, project_view, proof, recipe_run, web
 from app import room as rooms
 from app.agent.ctx import TERMINAL, Ctx
 from app.agent.words import (
@@ -1146,6 +1146,7 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:
             room.status, room.ended_at, room.clock_since = "interrupted", now(), None
             room.paused = False  # (29c: nothing is left to resume)
         _recover_teams(session)
+        proof.settle_running(session)  # (S6: a test run gone on after its turn)
         session.commit()
     return len(run_ids)
 

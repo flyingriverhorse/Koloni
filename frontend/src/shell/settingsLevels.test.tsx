@@ -30,7 +30,7 @@ function Opened({ folder = project as Project | null }) {
 beforeEach(() => {
   vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
     if (path.endsWith('/map')) throw new Error('no map')
-    const read: Record<string, unknown> = { '/answer-in': { answer_in: null }, '/compaction': { compact_at: 75 }, '/steps': { max_steps: 25 }, '/unattended': { stuck_minutes: 30, turn_hours: 8 }, '/knowledge-limits': { max_files: 50000, max_mb: 300 }, '/folders': { never: [] }, '/storage': { db_mb: 1, backups_mb: 1, copies_mb: 1, logs_mb: 1 } }
+    const read: Record<string, unknown> = { '/answer-in': { answer_in: null }, '/compaction': { compact_at: 75 }, '/steps': { max_steps: 25 }, '/unattended': { stuck_minutes: 30, turn_hours: 8 }, '/knowledge-limits': { max_files: 50000, max_mb: 300 }, '/test-load': { runs_at_once: 1, workers: 2 }, '/folders': { never: [] }, '/storage': { db_mb: 1, backups_mb: 1, copies_mb: 1, logs_mb: 1 } }
     return (read[path] ?? (path.endsWith('/others-instructions') ? { paths: [], more: 0, partial: false } : path.endsWith('/pull-request') ? { why_not: null } : [])) as never
   })
   useApp.setState({ conv: convState(), projects: [project, other], teams: [], settingsAsked: null })

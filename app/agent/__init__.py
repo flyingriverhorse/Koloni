@@ -48,7 +48,7 @@ import threading
 import time
 import uuid
 from collections import Counter
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -223,6 +223,7 @@ from app.agent.observe_mixin import ObserveMixin
 from app.agent.outside_mixin import OUTSIDE_REJECTED as OUTSIDE_REJECTED
 from app.agent.outside_mixin import OutsideMixin
 from app.agent.po_mixin import PoMixin, PoTurn
+from app.agent.proof_later_mixin import Check, ProofLaterMixin
 from app.agent.proof_mixin import Proof, ProofMixin
 from app.agent.questions_mixin import DELEGABLE as DELEGABLE
 from app.agent.questions_mixin import LEAD_ANSWERED as LEAD_ANSWERED
@@ -1013,7 +1014,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
-                  ProofMixin):
+                  ProofMixin, ProofLaterMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1396,7 +1397,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # Kanıtlı bitiş: by run, what its end gate found (`_proof_left`); and KOLONİ's own test
         # runs, one at a time app-wide (this machine once failed under test load).
         self._proofs: dict[str, Proof] = {}
-        self._test_slot = asyncio.Semaphore(1)
+        self._test_slot, self._test_runs = asyncio.Semaphore(1), 1  # (S6: as Settings say)
+        # S6: each of KOLONİ's test runs while it runs - in its turn, or gone on after it.
+        self._checks: dict[asyncio.Future, Check] = {}
         # K-rol-cogul. a spawn call of a reply's several -> the reply's calls not opened yet, and
         # the event their agents start on (`_run_tools`, `_arrive`). (Not K-paralel's `_opening`.)
         self._at_once: dict[str, tuple[set[str], asyncio.Event]] = {}
@@ -4047,6 +4050,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self, ctx: Ctx, ws: Workspace, command: str, call_id: str, ask: bool = False,
         gated: str = "refuse", once: set[str] | None = None, cwd: str = ".",
         seconds: int | None = None, where: Callable[[dict], Awaitable[Workspace]] | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> tuple[int | None, str, str, str | None]:
         """KOLONİ's own run of a project command where the agent's commands run (`ws`: its
         working copy, or the project), on record under `call_id`, with the check's time limit
@@ -4062,7 +4066,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         `once`: as `commands.run`'s (the measure's yes, for its run). `cwd`: the folder it runs
         in, from the root (a part's tests, `ProofMixin`); `seconds`: its time limit (None: the
         check's, CHECK_SECONDS); `where`: as `commands.run`'s, given the run's arguments, which it
-        may change (its time limit) - awaited once it may start. Its exit
+        may change (its time limit) - awaited once it may start; `env`: what its environment gets
+        besides (S6: KOLONİ's test runs, their processes). Its exit
         code (None but where it ran to its end), what it wrote, what the run said of it, and how
         its record ended (None: no record - it never started). A ToolError, or Stop, reaches the
         caller."""
@@ -4093,7 +4098,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             status, said = await self.commands.run(
                 ctx.run_id, ctx.cid, ctx.agent_id, ws, own, args,
                 ask=ask or asks, always=asks, once=once,
-                where=(lambda: where(args)) if where else None,
+                where=(lambda: where(args)) if where else None, env=env,
             )
             ran = True
         finally:

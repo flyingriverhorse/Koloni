@@ -83,7 +83,8 @@ def test_a_turn_that_changed_code_runs_the_tests_and_says_so_under_the_answer(
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert [command for command, _cwd in executor.started] == ["python check.py"]
-    assert snap["commands"][0]["timeout_seconds"] == 120  # (a turn you watch waits 2 min at most)
+    # (S6: the whole suite of a turn you watch may go on after the answer - its own limit)
+    assert snap["commands"][0]["timeout_seconds"] == 600
     (call,) = proof_calls(snap)
     assert call["name"] == "run_command" and call["status"] == "succeeded"
     lead = next(a["id"] for a in snap["agents"] if a["depth"] == 0)
@@ -261,10 +262,19 @@ def test_a_command_that_could_not_start_sends_nothing_back(make_client, wait_run
     assert len(model.calls) == 2
 
 
+def cannot_go_on(monkeypatch):
+    """S6: a turn whose tests cannot go on after its answer - a branch turn's, its work in a copy
+    taken in or set aside under the run: S1's wait holds for them."""
+    from app.agent import AgentRunner
+
+    monkeypatch.setattr(AgentRunner, "_may_go_on", lambda _self, _ctx: False)
+
+
 def test_a_test_that_never_ends_is_timed_out_and_the_turn_ends(
         make_client, wait_run, project_dir, monkeypatch, gate):
     # (A turn the user watches waits END_WAIT_SECONDS for them - 120 s; a few here.)
     monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", WAIT)
+    cannot_go_on(monkeypatch)
     executor = ScriptedExecutor([Script(["running\n"], hold=gate)])
     client, model = make_client([write("a.py", "x = 1\n"), text("done"),
                                  write("a.py", "x = 2\n", "w2"), text("again")],
@@ -553,6 +563,7 @@ def test_a_card_waiting_holds_up_no_other_turns_tests(make_client, wait_run, tmp
 def test_a_watched_turn_waits_for_another_run_at_most_its_wait(
         make_client, wait_run, project_dir, monkeypatch):
     monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", WAIT)
+    cannot_go_on(monkeypatch)
     executor = ScriptedExecutor([])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
     slot = client.app.state.runner._test_slot
@@ -593,6 +604,7 @@ def test_a_watched_turns_run_after_a_wait_gets_only_what_is_left(
     # (Its wait was fixed before the slot: a run that waited 2.5 s for it was still given 3 s.)
     wait = round(scaled(6))
     monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", wait)
+    cannot_go_on(monkeypatch)
     executor = ScriptedExecutor([Script(["running\n"], hold=gate), PASS])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
                                   write("a.py", "x = 2\n", "w2"), text("done")], executor=executor)

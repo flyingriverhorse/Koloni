@@ -83,16 +83,69 @@ its own two rounds. A turn can have both.
 
 ## How long it waits
 
-- In a turn you watch, KOLONİ waits at most **2 minutes** for the tests: all of the turn's test
-  commands together, and another turn's run before them. A longer run is stopped, and the
-  section says "Tests not waited for: still running at 2:00"; one that never got to start says
-  "Tests not run" and why. Until the run
+A long test suite does not hold up the answer. In a turn you watch, whose work is in the project
+itself, the end works like a pull request's CI:
+
+1. **Related tests first.** KOLONİ runs only the tests related to the files the turn changed,
+   and the answer waits for those. A failure goes back to the Orchestrator as above. They are
+   read from the test command itself, where its runner can name them:
+
+    | Runner | Related tests |
+    |---|---|
+    | pytest | the changed test files, and the test files named for a changed module (`test_greet.py` or `greet_test.py` for `greet.py`) |
+    | vitest | `vitest related --run` with the changed files |
+    | jest | `--findRelatedTests` with the changed files |
+    | go | `go test` of the changed packages, where the command is `go test ./...` |
+    | cargo | `cargo test -p` each changed crate of a workspace |
+    | dotnet | `dotnet test` of the one test project of the change |
+
+    Where none can be named (another runner, a change to a configuration file or to
+    `conftest.py`, a command that names its own tests), there is no related step. A guessed
+    command that would need its card has no related step either: one card per command.
+
+2. **Then the whole suite.** After related tests it goes on in the background at once. Without
+   them the answer waits up to **1 minute** for it: one that ends by then is said, and a
+   failure goes back as above. One that runs on goes on after the answer. The section says
+   "Full tests running: `command` (2:14)", and the line over the message box says
+   "Full tests running… (2:14)". When it ends, its line is written again with the result.
+   A failure then offers **Fix it**: nothing starts by itself.
+
+    If the related tests fail on the last round, the whole suite is not run: "Full tests not
+    run: the related tests fail".
+
+The whole suite's own limit is the commands' 10 minutes. Past it the section says "Tests timed
+out after 10 min".
+
+**Stop this check**, under a running line, stops it: what finished stays, and the line says
+"Full tests stopped by you at 1:02 - not checked" (or "Related tests…"). The turn's other test
+runs are then not started. It works at every permission level.
+
+- A newer turn that changes the same project stops a suite still running in the background, as
+  a new push stops a pull request's old CI run: "Tests not finished: the project changed, and a
+  newer run took their place". A result that comes after the project changed beneath it adds
+  "- the project changed while they ran", and a pass then is not shown as passed.
+- **Stop everything** and putting the chat away stop it too. If KOLONİ closes while it runs,
+  the next start says "Tests not finished: KOLONİ restarted".
+- A job while you're away, a To-do task's turn and a trigger's turn have nobody waiting for
+  the answer, and their fix rounds need the result: they wait for the whole suite, up to the
+  commands' 10 minutes, with no related step.
+- A turn whose work is in its own working copy (a team's branch) cannot leave its tests running
+  after it: the copy is taken in or set aside when the turn ends. There KOLONİ waits at most
+  **2 minutes** for the tests, all of the turn's test commands together and another turn's run
+  before them. A longer run is stopped, and the section says "Tests not waited for: still
+  running at 2:00"; one that never got to start says "Tests not run" and why. Until the run
   takes less than that again (for example, when an agent's run of the same command does), later
-  turns you watch say "Tests not run" and why, instead of waiting again.
-- A job while you're away, a To-do task's turn and a trigger's turn wait up to the commands'
-  limit of 10 minutes. Past it the section says "Tests timed out after 10 min".
-- **Stop** during the run ends the turn as Stopped. The section says "Tests not finished:
+  such turns say "Tests not run" and why, instead of waiting again.
+- **Stop** during the turn ends the turn as Stopped. The section says "Tests not finished:
   stopped".
+
+### How many run at once
+
+KOLONİ's own test runs queue: **Settings › The app › KOLONİ's test runs at once** (1 unless you
+change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
+"Full tests waiting for another test run to end". **Test processes per run** (2 unless you change
+it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pytest-xdist's
+`-n auto`. The agents' own commands are not limited by either.
 
 ## What each line means
 
@@ -108,6 +161,13 @@ its own two rounds. A turn can have both.
 | – Tests could not start: `why` | The program was not found, the command could not start, or KOLONİ's check itself broke. Nothing is sent back. |
 | – Tests not run: `why` | It was declined on its card, a trigger does not allow it, the web is off and it reaches the internet, or the turn ended first. |
 | – Tests timed out / not waited for | It did not end in time. This is neither a pass nor a failure. |
+| ✓ Related tests passed: `command` `files` - `summary` | The tests related to the changed files passed. The whole suite runs after them. |
+| … Full tests running: `command` (2:14) | The whole suite goes on after the answer. Its line is written again when it ends. |
+| … Full tests waiting for another test run to end: `command` | It waits its turn: see How many run at once. |
+| – Full tests not run: the related tests fail | The related tests still failed on the last round. |
+| – Full tests stopped by you at `m:ss` - not checked | You stopped it. Nothing it had run is counted. |
+| – Tests not finished: `why` | Stopped, a newer run took its place, or KOLONİ restarted while it ran. |
+| – `…` - the project changed while they ran | The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed. |
 | – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |
 | – No test command | There was nothing to run. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn. |

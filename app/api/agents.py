@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import away, raw
+from app import away, proof, raw
 from app import memory as kept
 from app.agent import (
     AGENT_TERMINAL,
@@ -31,6 +31,7 @@ from app.schemas import (
     StepLimit,
     SummaryIn,
     TellIn,
+    TestLoad,
     ToolCallDecision,
     ToolCallOut,
     Unattended,
@@ -264,6 +265,25 @@ def set_unattended(body: Unattended, session: Session = Depends(get_session)):
         session.merge(Flag(name=away.CEILING_FLAG, value=str(body.turn_hours or "")))
     session.commit()
     return unattended_limits(session)
+
+
+@router.get("/test-load", response_model=TestLoad)
+def read_test_load(session: Session = Depends(get_session)):
+    runs, workers = proof.load_of(session)
+    return {"runs_at_once": runs, "workers": workers}
+
+
+@router.put("/test-load", response_model=TestLoad, dependencies=[Depends(require_own_origin)])
+def set_test_load(body: TestLoad, session: Session = Depends(get_session)):
+    """Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+    processes each may start - the user's to say (the machine's load). A run already going keeps
+    what it had."""
+    if body.runs_at_once is not None:
+        session.merge(Flag(name=proof.TEST_RUNS_FLAG, value=str(body.runs_at_once)))
+    if body.workers is not None:
+        session.merge(Flag(name=proof.TEST_WORKERS_FLAG, value=str(body.workers)))
+    session.commit()
+    return read_test_load(session)
 
 
 @router.get("/answer-in", response_model=AnswerLanguage)

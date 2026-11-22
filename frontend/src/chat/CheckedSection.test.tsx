@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
+import { api } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
 import { assistantMessage, convState } from '../test-fixtures'
@@ -41,6 +42,32 @@ test('shows Fix it only on the latest turn with a failed tests row', async () =>
   await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
   expect(send).toHaveBeenCalledWith(FIX_IT('pytest -q'))
   expect(FIX_IT('pytest -q')).toBe('The tests KOLONİ ran at the end of the last turn failed: `pytest -q`. Fix what fails.')
+})
+
+test('a whole suite gone on after the answer ticks its clock, and Stop this check stops it', async () => {
+  vi.useFakeTimers({ now: Date.parse('2026-11-22T10:02:14Z'), toFake: ['Date', 'setInterval', 'clearInterval'] })
+  try {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const running = row('running', 'Full tests running: pytest -q', { command: 'pytest -q', started_at: '2026-11-22T10:00:00+00:00' })
+    render(<CheckedSection message={checked([row('passed', 'Related tests passed: pytest -q t.py - 3 passed'), running])} over latest />)
+    const line = () => screen.getByRole('region', { name: 'Checked' }).querySelector('[data-state=running]')
+    expect(line()).toHaveTextContent('…Full tests running: pytest -q (2:14)')
+    act(() => vi.advanceTimersByTime(3000))
+    expect(line()).toHaveTextContent('(2:17)')
+    await userEvent.click(screen.getByRole('button', { name: 'Stop this check' }), { advanceTimers: vi.advanceTimersByTime })
+    expect(post).toHaveBeenCalledWith('/runs/r/check/stop')
+  } finally {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  }
+})
+
+test('waiting for the machine it has no clock; with nothing running, no Stop', () => {
+  const { rerender } = render(<CheckedSection message={checked([row('running', 'Full tests waiting for another test run to end: pytest -q')])} over latest />)
+  expect(screen.getByRole('region', { name: 'Checked' })).not.toHaveTextContent('(0:')
+  expect(screen.getByRole('button', { name: 'Stop this check' })).toBeVisible()
+  rerender(<CheckedSection message={checked([FAILED])} over latest />)
+  expect(screen.queryByRole('button', { name: 'Stop this check' })).toBeNull()
 })
 
 test('nothing without a checked message, or while the turn runs', () => {

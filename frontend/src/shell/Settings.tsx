@@ -157,7 +157,7 @@ function Levels({ at, levels, onLevel, children }: { at: Level; levels: [Level, 
   )
 }
 
-type WholeKey = 'compact_at' | 'max_steps' | 'max_files' | 'max_mb' | 'stuck_minutes' | 'turn_hours'
+type WholeKey = 'compact_at' | 'max_steps' | 'max_files' | 'max_mb' | 'stuck_minutes' | 'turn_hours' | 'runs_at_once' | 'workers'
 
 /**
  * One whole-number setting of the app - `key` at `path`, from `low` to `high` - as the server keeps it (undefined
@@ -233,6 +233,9 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
   // (app/knowledge.py FILES_RANGE, MB_RANGE: the source of truth)
   const treeFiles = useWhole('/knowledge-limits', 'max_files', 100, 1_000_000, setReadError)
   const treeMb = useWhole('/knowledge-limits', 'max_mb', 1, 10_240, setReadError)
+  // (app/proof.py TEST_RUNS_RANGE, TEST_WORKERS_RANGE: the source of truth)
+  const testRuns = useWhole('/test-load', 'runs_at_once', 1, 4, setReadError)
+  const testWorkers = useWhole('/test-load', 'workers', 1, 16, setReadError)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -249,7 +252,7 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
   const languageSent = tidied(languageText)
   const languageValid = isLanguage(languageSent)
   const languageChanged = language !== undefined && languageSent !== language
-  const wholes = [compaction, steps, stuck, ceiling, treeFiles, treeMb]
+  const wholes = [compaction, steps, stuck, ceiling, treeFiles, treeMb, testRuns, testWorkers]
   const valid = languageValid && wholes.every(one => !one.bad)
   const changed = languageChanged || wholes.some(one => one.changed)
 
@@ -305,6 +308,8 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
       <WholeRow id="compact-at" label="Summarise a long context at (%)" setting={compaction} low={50} high={95} why="For every project: once an agent’s context passes this much of its model’s window, the older part is summarised before its next step." />
       <WholeRow id="tree-files" label="Knowledge reads at most (files)" setting={treeFiles} low={100} high={1_000_000} why={TREE_HINT} />
       <WholeRow id="tree-mb" label="Knowledge reads at most (MB)" setting={treeMb} low={1} high={10_240} why={TREE_HINT} />
+      <WholeRow id="test-runs" label="KOLONİ’s test runs at once" setting={testRuns} low={1} high={4} why="For every project: how many of the test runs KOLONİ makes at a turn’s end go at the same time; the rest wait their turn. More finishes sooner and loads the machine more. Agents’ own commands are not counted." />
+      <WholeRow id="test-workers" label="Test processes per run" setting={testWorkers} low={1} high={16} why="For every project: how many processes one of KOLONİ’s test runs may start, where its runner reads it (pytest-xdist’s -n auto). Agents’ own commands are not limited." />
       {error && (
         <div role="alert" className="alert">
           {error}

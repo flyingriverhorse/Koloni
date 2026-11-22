@@ -37,10 +37,12 @@ class Executor(Protocol):
     async def start(
         self, command_id: str, command: str, cwd: Path, copy: Path | None = None,
         links: dict[str, Path] | None = None, secrets: Mapping[str, str] | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> RunningCommand:
         """`copy`: the working copy the command runs in (`cwd` is inside it), when it
         runs for an agent that works in one and not in the project folder. `links`:
         the folders in that copy that are links to the project's own, with where each
         leads - for a place the links themselves do not reach. `secrets`: the variables
-        the user gave this turn on a card (slice 91), by name, for its environment."""
+        the user gave this turn on a card (slice 91), by name, for its environment. `env`:
+        what KOLONİ sets in it besides - no secret (S6: its test runs' processes)."""
         ...

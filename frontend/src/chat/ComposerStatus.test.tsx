@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { agent, command, convState, question, run, toolCall } from '../test-fixtures'
+import { agent, assistantMessage, command, convState, question, run, toolCall } from '../test-fixtures'
 import { ComposerStatus } from './ComposerStatus'
 
 // The turn began at 10:00:00 (the fixtures'); it is 12s later.
@@ -33,6 +33,13 @@ test('ready, running, asking and queued, in one line over the box - ☾ Away at 
   // (The closed chat's small box has none.)
   rerender(<ComposerStatus {...at} conv={asks} compact />)
   expect(line()).toBeNull()
+})
+
+test('ready while a whole suite goes on after the answer: the line says Full tests running, with its clock', () => {
+  const running = { kind: 'tests', state: 'running' as const, text: 'Full tests running: pytest -q', command: 'pytest -q', guessed: false, started_at: '2026-10-05T10:00:00Z' }
+  const note = { ...assistantMessage('k', 'r', '… Full tests running: pytest -q'), role: 'checked' as const, agent_id: null, checked: [running] }
+  const { container } = render(<ComposerStatus {...at} conv={convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [note] })} />)
+  expect(container.querySelector('.composer-status')).toHaveTextContent(/^Orchestrator is ready · Full tests running… \(0:12\)☾ Away$/)
 })
 
 test('a turn in which any agent’s tokens are not known shows no token count', () => {

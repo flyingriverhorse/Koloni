@@ -4037,6 +4037,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/check/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Check
+         * @description "Stop this check" (kanıtlı bitiş S6): the turn's test run that runs now - its related
+         *     tests while the answer waits, or its whole suite gone on after the answer - is stopped; what
+         *     finished stays. The user's, from the app's own page, at every level.
+         */
+        post: operations["stop_check_api_runs__run_id__check_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/notes": {
         parameters: {
             query?: never;
@@ -4328,6 +4350,29 @@ export interface paths {
         head?: never;
         /** Change Stage */
         patch: operations["change_stage_api_teams__team_id__stages__stage_id__patch"];
+        trace?: never;
+    };
+    "/api/test-load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Test Load */
+        get: operations["read_test_load_api_test_load_get"];
+        /**
+         * Set Test Load
+         * @description Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+         *     processes each may start - the user's to say (the machine's load). A run already going keeps
+         *     what it had.
+         */
+        put: operations["set_test_load_api_test_load_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/tiers": {
@@ -10755,6 +10800,19 @@ export interface components {
         TellIn: {
             /** Words */
             words: string;
+        };
+        /**
+         * TestLoad
+         * @description Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+         *     processes each may start - settings of the whole app (`proof.load_of`). Their ranges are
+         *     `proof.TEST_RUNS_RANGE` and `TEST_WORKERS_RANGE`, written again here and in Settings.tsx.
+         *     Sent one at a time - the one not sent stays as it is.
+         */
+        TestLoad: {
+            /** Runs At Once */
+            runs_at_once?: number | null;
+            /** Workers */
+            workers?: number | null;
         };
         /**
          * TierModel
@@ -18913,6 +18971,37 @@ export interface operations {
             };
         };
     };
+    stop_check_api_runs__run_id__check_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     write_note_api_runs__run_id__notes_post: {
         parameters: {
             query?: never;
@@ -19616,6 +19705,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_test_load_api_test_load_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestLoad"];
+                };
+            };
+        };
+    };
+    set_test_load_api_test_load_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestLoad"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestLoad"];
                 };
             };
             /** @description Validation Error */

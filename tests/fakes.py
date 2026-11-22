@@ -118,13 +118,14 @@ class ScriptedExecutor:
         self.closed: list[str] = []
         self.locations: list[str] = []
         self.envs: list[dict] = []  # the secrets given for each started command (slice 91)
+        self.extra_envs: list[dict] = []  # what KOLONİ set for it besides (S6: test workers)
 
     def factory(self, location: str, project) -> "ScriptedExecutor":
         self.locations.append(location)
         return self
 
     async def start(
-        self, command_id: str, command: str, cwd, copy=None, links=None, secrets=None
+        self, command_id: str, command: str, cwd, copy=None, links=None, secrets=None, env=None
     ) -> ScriptedCommand:
         script = self.scripts.pop(0)
         if script.start_error:
@@ -135,4 +136,5 @@ class ScriptedExecutor:
             (Path(cwd) / rel).write_bytes(content.encode("utf-8"))
         self.copies.append((copy, links))
         self.envs.append(dict(secrets or {}))
+        self.extra_envs.append(dict(env or {}))
         return ScriptedCommand(script, self, command_id)

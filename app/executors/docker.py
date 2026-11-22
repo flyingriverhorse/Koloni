@@ -76,6 +76,7 @@ def docker_argv(
     name: str, image: str, root: Path, cwd: Path, network: bool, command: str,
     links: dict[str, Path] | None = None, hidden: tuple[Path, ...] = (),
     empty: Path | None = None, named: tuple[str, ...] = (),
+    env: Mapping[str, str] | None = None,
 ) -> list[str]:
     """`root`: what the container gets as its /workspace - the project folder, or an
     agent's working copy instead of it. `links`: the copy's linked dependency folders,
@@ -84,7 +85,8 @@ def docker_argv(
     mounted; StartError for a folder that is not in the container at all. `hidden`: the
     secret files and folders in those, each with `empty`'s empty one of its kind mounted
     over it, read-only (slice 104). `named`: the variables it gets from the client's own
-    environment, by name only (slice 91)."""
+    environment, by name only (slice 91); `env`: what KOLONİ sets besides, no secret, with its
+    value (S6: its test runs' processes)."""
     places = {"": root, **{f"/{at}": target for at, target in (links or {}).items()}}
 
     def inside(path: Path) -> str | None:
@@ -120,6 +122,7 @@ def docker_argv(
         "-w", workdir, "--env", "PYTHONDONTWRITEBYTECODE=1",  # (no __pycache__/ left in it)
         *user,
         *(part for name in named for part in ("-e", name)),
+        *(part for name, value in (env or {}).items() for part in ("-e", f"{name}={value}")),
         "--network", "bridge" if network else "none",
         image, "sh", "-c", command,
     ]
@@ -172,6 +175,7 @@ class DockerExecutor:
     async def start(
         self, command_id: str, command: str, cwd: Path, copy: Path | None = None,
         links: dict[str, Path] | None = None, secrets: Mapping[str, str] | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> DockerCommand:
         # Nothing here falls back to the host: if Docker cannot run it, nothing runs.
         status = await docker_status()
@@ -203,7 +207,7 @@ class DockerExecutor:
             hidden = tuple(top / rel for rel in await asyncio.to_thread(secret_files, top))
         argv = docker_argv(
             name, self._image, top, cwd, self._network, command, links if copy else None,
-            hidden, self._empty, tuple(secrets or ()),
+            hidden, self._empty, tuple(secrets or ()), env,
         )
         try:
             process = await asyncio.create_subprocess_exec(
