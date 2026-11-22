@@ -730,3 +730,55 @@ def test_a_branch_turn_keeps_its_checked_after_the_merge(make_client, wait_run, 
     assert rows and rows[0][0]["state"] == "passed", (rows, [
         (f["path"], f["status"]) for f in snap["file_changes"]])
     assert not [one for one in rows[0] if one["text"].startswith("Tests not run on the last")]
+
+
+# --- S4's Bugfix with the end check (plan decision 13) ----------------------------------------
+
+def test_a_bugfix_still_failing_after_its_rounds_is_not_sent_round_again(
+        make_client, wait_run, project_dir, monkeypatch):
+    # (R1's loop ran its 2 rounds; taken in at Full auto with the test still failing. The end
+    # check reads the last Tester's run - no second run - and sends nothing back on top.)
+    from tests.test_recipe_proof_scenarios import (
+        FAILED,
+        PYTEST,
+        bugfix_run,
+        ran_tests,
+        row,
+        scripts,
+    )
+
+    guess(monkeypatch, PYTEST)
+    executor = ScriptedExecutor([FAILED, FAILED, FAILED])
+    client, _model = make_client(scripts(ran_tests(), ran_tests(id="k2"), ran_tests(id="k3"),
+                                         review=False), executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert row(snap)["status"] == "in" and len(executor.started) == 3
+    assert proof_calls(snap) == []
+    assert texts(snap) == [
+        f"Tests failed: {PYTEST} (guessed) - 1 failed, 3 passed",
+        "Still failing after the recipe's fix rounds: you decide (Fix it)"]
+
+
+def test_a_bugfix_that_passes_is_not_run_again_at_the_end(make_client, wait_run, project_dir,
+                                                         monkeypatch):
+    # (Its Tester's run of the same command, on what was then taken in, stands: said once.)
+    from tests.test_recipe_proof_scenarios import (
+        PASSED,
+        PYTEST,
+        bugfix_run,
+        ran_tests,
+        row,
+        scripts,
+    )
+
+    guess(monkeypatch, PYTEST)
+    executor = ScriptedExecutor([PASSED])
+    client, _model = make_client(scripts(ran_tests()), executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert row(snap)["status"] == "in" and len(executor.started) == 1
+    assert proof_calls(snap) == []
+    assert texts(snap) == [f"Tests passed: {PYTEST} - run by Tester after the last change"]

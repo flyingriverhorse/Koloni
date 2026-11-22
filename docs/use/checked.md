@@ -98,7 +98,8 @@ its own two rounds. A turn can have both.
 |---|---|
 | ✓ Tests passed: `command` - `summary` | The command ended with exit code 0 and its output counted no failure. |
 | ✓ Tests passed (by exit code, no count): `command` | Exit code 0 from a runner whose output KOLONİ reads no count from (an `npm test` that prints none). |
-| ✓ Tests passed: `command` - run by the Orchestrator after the last change | The Orchestrator ran the same command after the turn's last change, and it passed. KOLONİ did not run it again. |
+| ✓ Tests passed: `command` - run by `who` after the last change | The Orchestrator ran the same command after the turn's last change, or a recipe's Tester did on the work that was then taken in, and it passed. KOLONİ did not run it again. |
+| – Tests gave no verdict: `command` masks its exit | The test line hides its exit code (piped into `tail`, or followed by `; true`) and its output counts no failure. This is not a pass. |
 | ✗ Tests failed: `command` - `summary` | Any other exit code, or an exit code of 0 with a failure counted in its output. |
 | – Tests ran none: `command` collected no test | The runner found no test: pytest's or unittest's exit code 5, "Ran 0 tests", jest's "No tests found", vitest's "No test files found". This is not a pass. |
 | – Tests skipped only: `command` - `summary` | Every test it found was skipped. This is not a pass. |

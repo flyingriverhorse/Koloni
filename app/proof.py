@@ -119,40 +119,47 @@ def changes(session: Session, run_id: str, lead_id: str,
     return found
 
 
-def last_change(session: Session, run_id: str) -> datetime | None:
+def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
+                ) -> datetime | None:
     """When the turn's newest kept change was made or taken in: a test run that started before
-    it did not see it. (A merged branch's: when it was made - the gate ran on the branch.)"""
+    it did not see it. (A merged branch's: when it was made - the gate ran on the branch. And,
+    for a run where `made_there`'s agents worked, theirs: their copy held it when it was made.)"""
     times = session.execute(select(FileChange.created_at, FileChange.decided_at,
-                                   FileChange.status).where(
+                                   FileChange.status, FileChange.agent_id).where(
         FileChange.run_id == run_id, FileChange.status.in_((*ledger.KEPT, MERGED)))).all()
-    return max((one for made, decided, status in times
-                for one in (made, None if status == MERGED else decided) if one is not None),
-               default=None)
+    return max((one for made, decided, status, agent in times for one in (
+        made, None if status == MERGED or agent in made_there else decided) if one is not None),
+        default=None)
 
 
 def _folded(command: str) -> str:
     return " ".join(command.split())
 
 
-def fresh(session: Session, run_id: str, lead_id: str, run: TestRun,
-          since: datetime | None) -> Command | None:
-    """The newest run of exactly `run`'s command in its folder, by the Lead or KOLONİ (the Lead's
-    record: where the gate runs it - never a sub-agent's, which may be in its copy), that ran to
-    its end with an exit code, started after `since`; None: run it. (Claude Code's pass, exit
-    code None, is never reused.)
+def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: datetime | None,
+          sharing: Collection[str] = (), made: datetime | None = None) -> Command | None:
+    """The newest run of exactly `run`'s command in its folder that ran to its end with an exit
+    code and stands for the work as it is: the Lead's (or KOLONİ's, on its record) started after
+    `since`; or one of `sharing`'s - the agents that worked where the Lead does, a recipe's Tester
+    in its copy - started after `made` (`last_change` with them: what their copy held, Take in
+    brought in as it was; plan decision 13, no second run). None: run it. (Claude Code's pass,
+    exit code None, is never reused; nor a sub-agent's in a copy of its own.)
     shortcut: a Take-in check that ran the same command on what then went in is not counted - the
     project may hold more by then; count it when its `checked` files equal what was taken, if the
-    double run is felt.
-    shortcut: by the Lead's record alone - a Lead whose place moved within the turn (a recipe's
-    copy taken in) ran it elsewhere; the take-in is a newer change then, so it runs again."""
-    wanted = _folded(run.command)
+    double run is felt."""
+    wanted, by, looked = _folded(run.command), {lead_id, *sharing}, set()
     for one in session.scalars(
-            select(Command).where(Command.run_id == run_id, Command.agent_id == lead_id,
+            select(Command).where(Command.run_id == run_id, Command.agent_id.in_(by),
                                   Command.status == "exited", Command.exit_code.is_not(None),
                                   Command.cwd == run.cwd, Command.started_at.is_not(None))
             .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
-        if _folded(one.command) == wanted:
-            return one if since is None or (one.started_at or since) > since else None
+        mine = one.agent_id == lead_id  # (the newest of each place's runs is its word)
+        if _folded(one.command) != wanted or mine in looked:
+            continue
+        looked.add(mine)
+        after = since if mine else made
+        if after is None or (one.started_at or after) > after:
+            return one
     return None
 
 

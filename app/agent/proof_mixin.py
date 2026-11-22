@@ -180,9 +180,11 @@ class ProofMixin:
     async def _tests_of(self: "AgentRunner", ctx: Ctx, run: TestRun,
                         held: Proof) -> tuple[Row, str]:
         """One test command's row, and its output: from a fresh run on record, or run now."""
+        sharing = self._sharing(ctx) - {ctx.agent_id}
         with self._factory() as session:
             ran = proof.fresh(session, ctx.run_id, ctx.agent_id, run,
-                              proof.last_change(session, ctx.run_id))
+                              proof.last_change(session, ctx.run_id), sharing,
+                              proof.last_change(session, ctx.run_id, sharing))
             if ran is not None:
                 made = proof.tests_row(run, ran.exit_code, ran.output, ran.status, "")
                 if made["state"] == "passed":
@@ -208,8 +210,10 @@ class ProofMixin:
     @staticmethod
     def _who_ran(session, ran: Command) -> str:
         call = session.get(ToolCall, ran.tool_call_id) if ran.tool_call_id else None
-        return "KOLONİ" if call is not None and call.provider_call_id.startswith(
-            PROOF_CALL) else "the Orchestrator"
+        agent = session.get(Agent, ran.agent_id)
+        return "KOLONİ" if call is not None and call.provider_call_id.startswith(PROOF_CALL) else (
+            "the Orchestrator" if agent is None or not agent.depth
+            else agent.name or agent.role_name)
 
     def _answer_waits(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether somebody is there waiting for the answer: a turn the user watches - not an Away

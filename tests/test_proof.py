@@ -277,3 +277,23 @@ def test_a_masked_exit_is_no_verdict_unless_it_counts_a_failure():
     assert (made["state"], made["text"]) == (
         "not_run", "Tests gave no verdict: pytest -q | tail -1 masks its exit")
     assert proof.tests_row(masked, 0, "1 failed, 2 passed\n", "exited", "")["state"] == "failed"
+
+
+def test_a_recipe_agents_run_where_the_lead_works_stands_across_its_take_in(factory):
+    # (Plan decision 13: a recipe's Tester ran the same command on what its copy then held - what
+    # Take in brought into the project: no second run. The Lead's own run before the Take in did
+    # not see it.)
+    at = now()
+    with factory() as s:
+        s.add(Agent(id="tester", run_id="r", role_name="Tester", tools=[], depth=1))
+        s.commit()
+        change(s, "calc.py", "1\n", "2\n", agent="coder", at=at - timedelta(seconds=30))
+        ran(s, "pytest -q", 0, at - timedelta(seconds=10), agent="tester")
+        ran(s, "pytest -q", 0, at - timedelta(seconds=10))
+        s.query(FileChange).update({"decided_at": at})  # (taken in after both runs)
+        s.commit()
+        sharing = {"lead", "coder", "tester"}
+        found = proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r"), sharing,
+                            proof.last_change(s, "r", sharing))
+        assert found is not None and found.agent_id == "tester"
+        assert proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r")) is None
