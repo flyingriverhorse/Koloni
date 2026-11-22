@@ -5,6 +5,7 @@ Stop hook, for every provider."""
 
 import asyncio
 import json
+import re
 import time
 
 import pytest
@@ -19,6 +20,7 @@ from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import wait_status, write
 from tests.test_chat_flow import text
 from tests.test_claude_native import claude_app  # noqa: F401  (a fixture)
+from tests.test_dal_takim import repo  # noqa: F401  (a fixture)
 
 OWN = {"Origin": "http://127.0.0.1:8790"}
 NUDGE = TESTS_FAILED_LEAD.split("(")[0]  # "Not the end yet: KOLONİ ran the project's tests "
@@ -64,6 +66,8 @@ def told(model):
 
 
 PASS = Script(["....\n===== 4 passed in 0.1s =====\n"])
+# A watched turn's wait where a test lets it run out: seconds, more on a CI runner.
+WAIT = round(scaled(3))
 
 
 def failing():
@@ -259,8 +263,8 @@ def test_a_command_that_could_not_start_sends_nothing_back(make_client, wait_run
 
 def test_a_test_that_never_ends_is_timed_out_and_the_turn_ends(
         make_client, wait_run, project_dir, monkeypatch, gate):
-    # (A turn the user watches waits END_WAIT_SECONDS for them - 120 s; 1 s here.)
-    monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", 1)
+    # (A turn the user watches waits END_WAIT_SECONDS for them - 120 s; a few here.)
+    monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", WAIT)
     executor = ScriptedExecutor([Script(["running\n"], hold=gate)])
     client, model = make_client([write("a.py", "x = 1\n"), text("done"),
                                  write("a.py", "x = 2\n", "w2"), text("again")],
@@ -269,7 +273,7 @@ def test_a_test_that_never_ends_is_timed_out_and_the_turn_ends(
     snap = wait_run(client, cid, run_id)
     row = checked(snap)[0]
     assert row["state"] == "timed_out" and row["text"].startswith(
-        "Tests not waited for: still running at 0:01"), row
+        "Tests not waited for: still running at 0:"), row
     assert len(executor.killed) == 1 and len(model.calls) == 2  # (stopped; nothing sent back)
     # The next turn it is not run again while you watch: it ran past the wait last time.
     again = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
@@ -277,7 +281,7 @@ def test_a_test_that_never_ends_is_timed_out_and_the_turn_ends(
     assert len(executor.started) == 1
     (row,) = [m["checked"] for m in snap["messages"]
               if m["role"] == "checked" and m["run_id"] == again["run"]["id"]][0]
-    assert row["state"] == "not_run" and "ran past 0:01" in row["text"], row
+    assert row["state"] == "not_run" and f"ran past {proof.clock(WAIT)}" in row["text"], row
 
 
 def test_stop_during_the_final_run_ends_the_turn(make_client, wait_run, project_dir, gate):
@@ -455,28 +459,16 @@ def test_an_away_job_checks_its_own_copy(make_client, project_dir):
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"
 
 
-def test_an_away_job_at_full_auto_runs_a_guess_unasked(make_client, project_dir, monkeypatch):
+@pytest.mark.parametrize("mode", ["full_auto", "ask"])
+def test_while_away_a_guessed_command_is_not_run(make_client, project_dir, monkeypatch, mode):
+    # (Plan decision 8: nobody is there to say yes to a guess - the job finishes, and says so.)
     guess(monkeypatch)
-    client, _pid, job = away_job(make_client, project_dir, "full_auto")
-    _snap, (rows,) = job_rows(client, job)
-    assert rows[0]["guessed"] is True and rows[0]["state"] == "passed", rows
-
-
-def test_an_away_job_at_ask_leaves_the_card_to_when_away(make_client, project_dir, monkeypatch):
-    from tests.test_away_scenarios import night
-    from tests.test_backlog_auto import until
-
-    guess(monkeypatch)
-    client, pid, job = away_job(make_client, project_dir, "ask")
-    # (as the Lead's own command would: a command still waits for the user while they are away)
-    assert job["state"] == "waits", job
-    ((ask,),) = [job["asks"]]
-    assert ask["kind"] == "commands" and "python check.py" in json.dumps(job), job
-    assert client.post(f"/api/commands/{ask['id']}/approve", json={"remember": False}
-                       ).status_code == 200
-    until(lambda: night(client, pid)["jobs"][0]["state"] == "done")
-    _snap, (rows,) = job_rows(client, job)
-    assert rows[0]["state"] == "passed" and rows[0]["guessed"] is True, rows
+    client, _pid, job = away_job(make_client, project_dir, mode)
+    snap, (rows,) = job_rows(client, job)
+    assert job["state"] == "done", job
+    assert (rows[0]["state"], rows[0]["text"]) == (
+        "not_run", "Tests not run: a guessed command, you were away"), rows
+    assert [c for c in snap["commands"] if c["command"] == "python check.py"] == []
 
 
 def test_a_turn_that_fails_before_its_end_says_the_tests_were_not_run(
@@ -560,7 +552,7 @@ def test_a_card_waiting_holds_up_no_other_turns_tests(make_client, wait_run, tmp
 
 def test_a_watched_turn_waits_for_another_run_at_most_its_wait(
         make_client, wait_run, project_dir, monkeypatch):
-    monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", 1)
+    monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", WAIT)
     executor = ScriptedExecutor([])
     client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
     slot = client.app.state.runner._test_slot
@@ -573,3 +565,168 @@ def test_a_watched_turn_waits_for_another_run_at_most_its_wait(
     row = checked(snap)[0]
     assert (row["state"], row["text"]) == ("not_run", f"Tests not run: {proof_mixin.SLOT_BUSY}")
     assert executor.started == []
+
+
+
+def test_a_yes_for_one_folders_command_is_not_another_folders(make_client, wait_run, project_dir):
+    # (The user's own `npm test` at the root ran unasked; an agent's new web/package.json is a
+    # guess there, its text the same: asked on its card, never covered by the root's.)
+    (project_dir / "package.json").write_text(json.dumps({"scripts": {"test": "node t.js"}}),
+                                              encoding="utf-8")
+    web = json.dumps({"scripts": {"test": "node -e \"require('fs').rmSync('..')\""}})
+    executor = ScriptedExecutor([PASS, PASS])
+    client, _model = make_client([write("web/package.json", web), write("web/a.js", "x\n", "w2"),
+                                  text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, mode="auto_edit", parts={"./": "npm test"})
+    snap = wait_status(client, cid, "waiting_approval")
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert (asked["command"], asked["cwd"]) == ("npm test", "web")
+    assert len(executor.started) == 1  # (the root's, unasked)
+    assert client.post(f"/api/commands/{asked['id']}/approve", json={"remember": False},
+                       headers=OWN).status_code == 200
+    rows = checked(wait_run(client, cid, run_id))
+    assert [(row["state"], row["guessed"]) for row in rows] == [("passed", False), ("passed", True)]
+
+
+def test_a_watched_turns_run_after_a_wait_gets_only_what_is_left(
+        make_client, wait_run, project_dir, monkeypatch, gate):
+    # (Its wait was fixed before the slot: a run that waited 2.5 s for it was still given 3 s.)
+    wait = round(scaled(6))
+    monkeypatch.setattr(proof_mixin, "END_WAIT_SECONDS", wait)
+    executor = ScriptedExecutor([Script(["running\n"], hold=gate)])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    slot = client.app.state.runner._test_slot
+    client.portal.call(slot.acquire)  # (another turn's run holds the machine)
+    try:
+        cid, run_id = begin(client, project_dir, check_command="python check.py")
+        deadline = time.monotonic() + scaled(10)
+        while not client.get(f"/api/conversations/{cid}").json()["commands"]:
+            assert time.monotonic() < deadline, "the tests never asked for the machine"
+            time.sleep(0.02)
+        time.sleep(2)  # (held on purpose: the wait it takes is what the test is about)
+    finally:
+        client.portal.call(slot.release)
+    row = checked(wait_run(client, cid, run_id, timeout=wait + 20))[0]
+    given = re.search(r"still running at (\d+):(\d\d)", row["text"])
+    assert given and int(given[1]) * 60 + int(given[2]) <= wait - 2, row
+
+
+def test_rounds_never_stack_after_a_recipe_spent_its_own(make_client, wait_run, project_dir):
+    # (Plan decision 13: a recipe whose fix loop ran out, taken in, failing still - the end check
+    # says so and offers Fix it; it does not send the Lead round again on the same failure.)
+    from tests.test_chat_teams_scenarios import teams_of
+    from tests.test_claim_scenarios import write as written
+    from tests.test_parallel import until
+    from tests.test_recipe_checks_scenarios import build_review_ship
+    from tests.test_recipe_run_scenarios import FOUND, READY, answer, asked, manual, row
+    from tests.test_spawn import call, spawn, step
+
+    # (The Take-in check passes on what goes in; the end check fails on the project.)
+    executor = ScriptedExecutor([PASS, failing(), failing()])
+    client, _model = make_client({
+        "Lead": [spawn("Coder", "build", "c1"), spawn("Reviewer", "review", "r1"),
+                 step(call("spawn_agent", {"role": "Coder", "task": "fix",
+                                           "findings_from": "Reviewer"}, "c2")),
+                 spawn("Reviewer", "review", "r2"), text("over to you")],
+        "Coder": [step(written("greet.py", "print('Helo')\n")), text("built")],
+        "Coder 2": [text("still Helo")],
+        "Reviewer": [text(FOUND)], "Reviewer 2": [text(FOUND)],
+    }, executor=executor)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py"},
+                        headers=OWN).status_code == 200
+    cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"],
+                                               build_review_ship(client)))
+    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
+    assert "findings are left after 1 round" in asked(snap)["question"]
+    answer(client, asked(snap), "Take in")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert row(snap)["status"] == "in"
+    rows = checked(snap)
+    assert rows[0]["state"] == "failed" and len(proof_calls(snap)) == 1, rows
+    assert [one["text"] for one in rows[1:]] == [
+        "Still failing after the recipe's fix rounds: you decide (Fix it)"]
+
+
+def test_an_error_inside_the_end_check_is_a_row_not_a_failed_turn(
+        make_client, wait_run, project_dir, monkeypatch):
+    def broken(*_args):
+        raise OSError("the disk went away")
+
+    monkeypatch.setattr(proof, "test_runs", broken)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
+                                 executor=ScriptedExecutor([]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert texts(snap) == ["Tests could not start: the disk went away"]
+
+
+def test_the_failure_sent_back_is_cut_by_characters_too(make_client, wait_run, project_dir):
+    long = Script(["".join(f"E   {'x' * 500} line {n}\n" for n in range(60)) + "1 failed\n"],
+                  exit_code=1)
+    client, model = make_client([write("a.py", "x = 1\n"), text("done"), text("I cannot")],
+                                executor=ScriptedExecutor([long]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    nudged = next(str(m["content"]) for m in model.calls[-1]
+                  if m["role"] == "user" and NUDGE in str(m["content"]))
+    fenced = nudged.split("```\n", 1)[1].rsplit("\n```", 1)[0]
+    assert len(fenced) <= proof_mixin.TESTS_TAIL_CHARS and fenced.endswith("1 failed")
+
+
+def test_the_note_of_the_old_switch_goes_once_the_user_chooses(client, project_dir):
+    from app.db.models import Project
+
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    with client.app.state.session_factory() as session:  # (as 0160 left a project turned off)
+        found = session.get(Project, pid)
+        found.finish_tests, found.after_change = False, "nothing"
+        session.commit()
+
+    def said():
+        return next(p for p in client.get("/api/projects").json() if p["id"] == pid)[
+            "after_change_from_off"]
+    assert said() is True
+    for choice in ("check", "nothing"):
+        assert client.patch(f"/api/projects/{pid}", json={"after_change": choice},
+                            headers=OWN).status_code == 200
+        assert said() is False
+
+
+def test_a_branch_turn_keeps_its_checked_after_the_merge(make_client, wait_run, repo, gate):  # noqa: F811
+    from tests.test_backlog import setup
+    from tests.test_backlog_auto import tasks, worked
+    from tests.test_claim_scenarios import write as written
+    from tests.test_dal_takim import card
+    from tests.test_parallel import until
+    from tests.test_spawn import call, step
+    from tests.test_take_in_scenarios import LONG
+
+    executor = ScriptedExecutor([Script(["4 passed\n"]) for _ in range(6)])
+    client, _model = make_client({
+        "Lead": [gate.step(text("first done")),
+                 step(call("spawn_agent", {"role": "Coder", "task": "write b"}, "s")),
+                 text("second done")],
+        "Coder": [step(written("b.py", "B = 1\n")), text("b written")]}, executor=executor)
+    pid, (first,) = setup(client, repo, "first")
+    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py"}
+                        ).status_code == 200
+    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == first
+    gate.wait_partial()
+    second = client.post(f"/api/projects/{pid}/backlog", json={"title": "Second task"}).json()
+    assert client.post(f"/api/projects/{pid}/backlog/next").json()["task_id"] == second["id"]
+    cid = tasks(client, pid)["Second task"]["conversation_id"]
+    coder = until(client, cid, lambda s: any(a["status"] == "proposed" for a in s["agents"]),
+                  timeout=LONG)["agents"][-1]
+    assert client.post(f"/api/agents/{coder['id']}/approve").status_code == 200
+    merge = card(client, cid)
+    assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
+    worked(client, wait_run, pid, "Second task")
+    snap = client.get(f"/api/conversations/{cid}").json()
+    gate.release()
+    rows = [m["checked"] for m in snap["messages"] if m["role"] == "checked"]
+    assert rows and rows[0][0]["state"] == "passed", (rows, [
+        (f["path"], f["status"]) for f in snap["file_changes"]])
+    assert not [one for one in rows[0] if one["text"].startswith("Tests not run on the last")]

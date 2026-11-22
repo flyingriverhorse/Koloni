@@ -3998,7 +3998,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     async def _run_in_copy(
         self, ctx: Ctx, ws: Workspace, command: str, call_id: str, ask: bool = False,
         gated: str = "refuse", once: set[str] | None = None, cwd: str = ".",
-        seconds: int | None = None, where: Callable[[], Awaitable[Workspace]] | None = None,
+        seconds: int | None = None, where: Callable[[dict], Awaitable[Workspace]] | None = None,
     ) -> tuple[int | None, str, str, str | None]:
         """KOLONİ's own run of a project command where the agent's commands run (`ws`: its
         working copy, or the project), on record under `call_id`, with the check's time limit
@@ -4013,7 +4013,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         it writes of the project's standing files unnamed is put back (`_own_command_looked`).
         `once`: as `commands.run`'s (the measure's yes, for its run). `cwd`: the folder it runs
         in, from the root (a part's tests, `ProofMixin`); `seconds`: its time limit (None: the
-        check's, CHECK_SECONDS); `where`: as `commands.run`'s (awaited once it may start). Its exit
+        check's, CHECK_SECONDS); `where`: as `commands.run`'s, given the run's arguments, which it
+        may change (its time limit) - awaited once it may start. Its exit
         code (None but where it ran to its end), what it wrote, what the run said of it, and how
         its record ended (None: no record - it never started). A ToolError, or Stop, reaches the
         caller."""
@@ -4039,11 +4040,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._set_call(ctx.cid, own, why_asked=why)
         held = await asyncio.to_thread(standing_files, ctx.root) if ctx.root else None
         since, ran = time.monotonic(), False
+        args = {"command": command, "timeout_seconds": seconds or CHECK_SECONDS, "cwd": cwd}
         try:
             status, said = await self.commands.run(
-                ctx.run_id, ctx.cid, ctx.agent_id, ws, own,
-                {"command": command, "timeout_seconds": seconds or CHECK_SECONDS, "cwd": cwd},
-                ask=ask or asks, always=asks, once=once, where=where,
+                ctx.run_id, ctx.cid, ctx.agent_id, ws, own, args,
+                ask=ask or asks, always=asks, once=once,
+                where=(lambda: where(args)) if where else None,
             )
             ran = True
         finally:

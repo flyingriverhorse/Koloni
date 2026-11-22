@@ -50,9 +50,12 @@ KOLONİ's test run is asked about as the Orchestrator's own command would be:
 
 - Your own command (the check command, or a part's test command you set) runs without a card.
 - A guessed command at **Ask before changes** or **Auto-edit files** waits on one command card.
-  Your yes holds for the rest of the turn. At **Full auto**, or under an **Always run** rule, it
-  runs by itself.
-- In a job while you're away, its card waits for you as any command card of the job does.
+  Your yes holds for the rest of the turn, for that command in that folder only: the same command
+  in another part of the project is asked again. At **Full auto**, or under an **Always run**
+  rule, it runs by itself.
+- While you're away (a job of **Away**, a To-do task's turn) a guessed command is not run: the
+  section says "Tests not run: a guessed command, you were away", and the job finishes. Your own
+  command still runs.
 - In a trigger's turn it runs only where the trigger allows that very command. Otherwise the
   section says "Tests not run" with the trigger's words.
 
@@ -68,6 +71,10 @@ test to make it pass. Then KOLONİ runs the tests again.
 It is sent back at most **two** times a turn. After that the turn ends, and the section says
 "Still failing after 2 fix rounds: you decide (Fix it)". **Fix it**, on the newest turn, sends a
 new message that asks for the fix. Nothing starts until you click it.
+
+Rounds never stack: where a recipe of the turn has already run its own fix rounds to the end,
+KOLONİ does not send the Orchestrator round again on top of them. The section says "Still failing
+after the recipe's fix rounds: you decide (Fix it)".
 
 The check before a sub-agent's work is taken in (**Test before adding**) is a separate check with
 its own two rounds. A turn can have both.
@@ -90,10 +97,12 @@ its own two rounds. A turn can have both.
 | Line | Means |
 |---|---|
 | ✓ Tests passed: `command` - `summary` | The command ended with exit code 0 and its output counted no failure. |
+| ✓ Tests passed (by exit code, no count): `command` | Exit code 0 from a runner whose output KOLONİ reads no count from (an `npm test` that prints none). |
 | ✓ Tests passed: `command` - run by the Orchestrator after the last change | The Orchestrator ran the same command after the turn's last change, and it passed. KOLONİ did not run it again. |
 | ✗ Tests failed: `command` - `summary` | Any other exit code, or an exit code of 0 with a failure counted in its output. |
-| – Tests ran none: `command` collected no test | pytest found no test (its exit code 5). This is not a pass. |
-| – Tests could not start: `why` | The program was not found, or the command could not start. Nothing is sent back. |
+| – Tests ran none: `command` collected no test | The runner found no test: pytest's or unittest's exit code 5, "Ran 0 tests", jest's "No tests found", vitest's "No test files found". This is not a pass. |
+| – Tests skipped only: `command` - `summary` | Every test it found was skipped. This is not a pass. |
+| – Tests could not start: `why` | The program was not found, the command could not start, or KOLONİ's check itself broke. Nothing is sent back. |
 | – Tests not run: `why` | It was declined on its card, a trigger does not allow it, the web is off and it reaches the internet, or the turn ended first. |
 | – Tests timed out / not waited for | It did not end in time. This is neither a pass nor a failure. |
 | – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |

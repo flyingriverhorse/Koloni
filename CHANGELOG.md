@@ -23,7 +23,7 @@ How to write an entry (every release looks the same):
 
 ### Added
 
-- **Chat**: after a turn that changed code, KOLONİ runs the project's tests once and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice ([docs](docs/use/checked.md)).
+- **Chat**: after a turn that changed code, KOLONİ runs the project's tests once and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice; while you're away a guessed test command is not run ([docs](docs/use/checked.md)).
 
 ### Changed
 

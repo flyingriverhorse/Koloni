@@ -1004,7 +1004,7 @@ def test_after_the_room_its_members_are_the_leads_sub_agents_like_any_other(
     assert "write_file" in offered and not {"add_item", "post_to_room"} & set(offered)
     assert "You are in a room" not in model.calls_of["Coder"][2][0]["content"]
     # (Under the answer, KOLONİ's line on where the work is: B-205.)
-    assert [m["content"] for m in snap["messages"][-2:]] == [
+    assert [m["content"] for m in snap["messages"] if m["role"] != "checked"][-2:] == [
         "All of it is done.", "In the project: notes.txt (+1 −0)."]
 
 

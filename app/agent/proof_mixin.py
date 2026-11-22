@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import literal_column, select
 
-from app import injection, ledger, proof
+from app import injection, ledger, proof, recipe_run
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
 from app.commands import web_off_reason
@@ -46,6 +46,11 @@ PROOF_CALL = "koloni_proof_"
 # wait to the commands' own limit (MAX_TIMEOUT), each command.
 END_WAIT_SECONDS = 120
 SLOT_BUSY = "another of KOLONİ's test runs held the machine past the wait"
+# Plan decision 8: while the user is away (an Away job, a To-do turn) nobody is there to say yes to
+# a guess - it is not run; the user's own saved command still is.
+AWAY_GUESS = "a guessed command, you were away"
+# What of the failing output goes back to the Orchestrator: its last lines, cut by characters too.
+TESTS_TAIL_CHARS = 4000
 
 TESTS_FAILED_LEAD = (
     "Not the end yet: KOLONİ ran the project's tests ({command}) on the work as it is now, and "
@@ -64,7 +69,11 @@ class Proof:
     to on a card (`once`), the changes it last looked at, and (S2, S3) what was asked."""
     rows: list[Row] = field(default_factory=list)
     rounds: int = 0
-    yes: set[str] = field(default_factory=set)
+    # The commands said yes to on a card, by the folder they ran in: a yes covers that text in
+    # that folder only - never another part's command of the same text.
+    yes: dict[str, set[str]] = field(default_factory=dict)
+    # Plan decision 13: a recipe of the turn ran its own fix loop to its end - rounds never stack.
+    recipe_spent: bool = False
     changes: list[Change] = field(default_factory=list)
     # When the newest change its last pass saw was made: one made later was not tested.
     seen: datetime | None = None
@@ -99,10 +108,32 @@ class ProofMixin:
             return None
         held = self._proofs.setdefault(ctx.run_id, Proof())
         held.changes = found
+        held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         for name in self.PROOF_STEPS:
-            if (said := await getattr(self, name)(ctx, held)) is not None:
+            try:
+                said = await getattr(self, name)(ctx, held)
+            except Exception as exc:  # (a check that broke fails nothing of the turn: it says so)
+                log.warning("run %s: KOLONİ's end check %s failed: %r", ctx.run_id, name, exc)
+                held.rows.append(proof.row("tests", "not_run", proof.NOT_STARTED.format(
+                    first=str(exc) or type(exc).__name__)))
+                said = None
+            if said is not None:
                 return said
         return None
+
+    def _recipe_spent(self: "AgentRunner", ctx: Ctx) -> bool:
+        """Whether a recipe of this turn ran a loop of its own to its last round: its fix rounds
+        were the turn's - the end check sends nothing back on top of them."""
+        with self._factory() as session:
+            states = [state for row, _team, _lead in self._rows(session, ctx.cid)
+                      if (state := self._live_state(row, ctx.run_id))]
+        for state in states:
+            graph = recipe_run.graph_of(state)
+            if any(loop.rounds and state.get("rounds", {}).get(
+                    recipe_run.part_of(graph, loop.from_), 0) >= loop.rounds
+                   for loop in graph.loops):
+                return True
+        return False
 
     def _sharing(self: "AgentRunner", ctx: Ctx) -> set[str]:
         """The turn's agents that work where the Lead does, in its own copy (an Away job's, a
@@ -137,11 +168,11 @@ class ProofMixin:
             held.rows.append(made)
             if made["state"] == "failed":
                 failed.append((run, output))
-        if not failed or held.rounds >= MAX_SENT_BACK:
+        if not failed or held.rounds >= MAX_SENT_BACK or held.recipe_spent:
             return None
         held.rounds += 1
         tail = "\n\n".join("\n".join(output.rstrip().splitlines()[-TESTS_TAIL_LINES:])
-                           for _run, output in failed).replace("```", "'''")
+                           for _run, output in failed).replace("```", "'''")[-TESTS_TAIL_CHARS:]
         return TESTS_FAILED_LEAD.format(
             command=", ".join(quoted(run.command) for run, _output in failed),
             rounds=MAX_SENT_BACK, output=injection.noted(tail, "agent"))
@@ -193,6 +224,8 @@ class ProofMixin:
         a trigger's turn "run" only on its leave for this very command; else why not."""
         if off := web_off_reason(run.command, self._off()):
             return off
+        if not run.yours and (ctx.run_id in self._away_jobs or ctx.run_id in self._backlog_turns):
+            return AWAY_GUESS
         if self._watched(ctx.run_id):
             return "ask"
         refused = self._nobody_to_ask(ctx, "command", f"run {quoted(run.command)}",
@@ -212,8 +245,8 @@ class ProofMixin:
         if message_id is None:
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
                 why="the Orchestrator's answer is not on record"), run.command), ""
-        if run.yours:  # (the user's own command: no card of the level's for it)
-            held.yes.add(run.command.strip())
+        if run.yours:  # (the user's own command, in its folder: no card of the level's for it)
+            held.yes.setdefault(run.cwd, set()).add(run.command.strip())
         try:
             return await self._run_tests_now(ctx, run, how, held, seconds, message_id)
         except asyncio.CancelledError:
@@ -228,25 +261,35 @@ class ProofMixin:
                                   json.dumps(args))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         self._set_call(ctx.cid, call_id, status="running", started_at=now())
-        ws, taken = self._ws(ctx), []
+        ws, taken, given = self._ws(ctx), [], {"seconds": seconds}
 
-        async def in_slot() -> Workspace:
+        def left() -> int | None:
+            return None if held.until is None else math.ceil(held.until - time.monotonic())
+
+        async def in_slot(args: dict) -> Workspace:
             # One of KOLONİ's runs at a time app-wide - taken once it may start, never while its
-            # card waits; a turn the user watches waits for it within its pass's wait.
+            # card waits; a turn the user watches waits for it within its pass's wait, and the
+            # run is given what is left of that wait once it has the slot.
             try:
-                await asyncio.wait_for(self._test_slot.acquire(), seconds)
+                await asyncio.wait_for(self._test_slot.acquire(), left())
             except TimeoutError:
                 taken.append(False)
                 raise ToolError(SLOT_BUSY) from None
             taken.append(True)
+            if (now_left := left()) is not None:
+                if now_left < 1:
+                    taken.append(False)
+                    raise ToolError(SLOT_BUSY)
+                args["timeout_seconds"] = given["seconds"] = now_left
             return ws
         copy = self._copies.get(self._works_in(ctx) or "")
         was, kept = await asyncio.to_thread(lambda: copy.snapshot(
             [path for path, _kind, _state in copy.changes()])) if copy else ({}, {})
         try:
             code, output, said, ended = await self._run_in_copy(
-                ctx, ws, run.command, call_id, ask=how == "ask", once=held.yes, cwd=run.cwd,
-                seconds=seconds, where=in_slot)
+                ctx, ws, run.command, call_id, ask=how == "ask",
+                once=held.yes.setdefault(run.cwd, set()), cwd=run.cwd, seconds=seconds,
+                where=in_slot)
         except _GateRefused as exc:
             self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
             return proof.row("tests", "not_run", proof.NOT_RUN.format(why=exc), run.command,
@@ -263,7 +306,8 @@ class ProofMixin:
             return proof.row("tests", "not_run", proof.NOT_RUN.format(
                 why="declined on its card" if ended == "rejected" else SLOT_BUSY), run.command,
                 not run.yours), ""
-        return proof.tests_row(run, code, output, ended, said, seconds or MAX_TIMEOUT), output
+        return proof.tests_row(run, code, output, ended, said,
+                               given["seconds"] or MAX_TIMEOUT), output
 
     @staticmethod
     async def _tests_put_back(copy, was: dict, kept: dict) -> None:
@@ -327,9 +371,11 @@ class ProofMixin:
         if held.rounds:
             rounds.append(proof.row("rounds", "note", proof.SENT_BACK.format(
                 n=held.rounds, most=MAX_SENT_BACK)))
-        if held.rounds >= MAX_SENT_BACK and any(one["state"] == "failed" for one in held.rows):
-            rounds.append(proof.row("rounds", "failed", proof.STILL_FAILING.format(
-                most=MAX_SENT_BACK)))
+        failing = any(one["state"] == "failed" for one in held.rows)
+        if failing and (held.rounds >= MAX_SENT_BACK or held.recipe_spent):
+            rounds.append(proof.row("rounds", "failed", proof.RECIPE_SPENT if held.recipe_spent
+                                    and held.rounds < MAX_SENT_BACK else proof.STILL_FAILING.format(
+                                        most=MAX_SENT_BACK)))
         later = proof.last_change(session, run_id)
         if held.seen is not None and later is not None and later > held.seen:
             rounds.append(proof.row("tests", "not_run", proof.NOT_AGAIN.format(

@@ -3,6 +3,7 @@ project's test command(s), the turn's changes on record, whether a test run on r
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
 import fnmatch
+import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
 from pathlib import PurePosixPath
@@ -40,6 +41,9 @@ KIND_BY_EXT: dict[str, str] = {
 }
 # What changes nothing a test reads: only such a turn runs no test.
 NO_TESTS = frozenset({"docs", "slides", "diagram", "data"})
+# A branch turn's work once merged at its end (`_drop_copy`): still the turn's, made when it was
+# made - not at the merge.
+MERGED = "merged"
 
 
 def kind_of(path: str) -> str:
@@ -99,7 +103,7 @@ def changes(session: Session, run_id: str, lead_id: str,
     rows: dict[str, list[FileChange]] = {}
     for row in session.scalars(
             select(FileChange).where(FileChange.run_id == run_id,
-                                     FileChange.status.in_(ledger.KEPT))
+                                     FileChange.status.in_((*ledger.KEPT, MERGED)))
             .order_by(FileChange.created_at, literal_column("file_changes.rowid"))):
         if not in_scratch(row.path):
             rows.setdefault(row.path, []).append(row)
@@ -110,16 +114,20 @@ def changes(session: Session, run_id: str, lead_id: str,
         _diff, added, removed = unified_diff(made[0].before_content, last.after_content or "",
                                              path, context=0)
         found.append(Change(path, kind_of(path), added, removed, last.kind == "delete",
-                            last.agent_id, last.status == "applied" or last.agent_id in here))
+                            last.agent_id, last.status in ("applied", MERGED)
+                            or last.agent_id in here))
     return found
 
 
 def last_change(session: Session, run_id: str) -> datetime | None:
-    """When the turn's newest kept change was made or taken in: a test run before it did not
-    see it."""
-    times = session.execute(select(FileChange.created_at, FileChange.decided_at).where(
-        FileChange.run_id == run_id, FileChange.status.in_(ledger.KEPT))).all()
-    return max((one for pair in times for one in pair if one is not None), default=None)
+    """When the turn's newest kept change was made or taken in: a test run that started before
+    it did not see it. (A merged branch's: when it was made - the gate ran on the branch.)"""
+    times = session.execute(select(FileChange.created_at, FileChange.decided_at,
+                                   FileChange.status).where(
+        FileChange.run_id == run_id, FileChange.status.in_((*ledger.KEPT, MERGED)))).all()
+    return max((one for made, decided, status in times
+                for one in (made, None if status == MERGED else decided) if one is not None),
+               default=None)
 
 
 def _folded(command: str) -> str:
@@ -130,8 +138,8 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun,
           since: datetime | None) -> Command | None:
     """The newest run of exactly `run`'s command in its folder, by the Lead or KOLONİ (the Lead's
     record: where the gate runs it - never a sub-agent's, which may be in its copy), that ran to
-    its end with an exit code after `since`; None: run it. (Claude Code's pass, exit code None,
-    is never reused.)
+    its end with an exit code, started after `since`; None: run it. (Claude Code's pass, exit
+    code None, is never reused.)
     shortcut: a Take-in check that ran the same command on what then went in is not counted - the
     project may hold more by then; count it when its `checked` files equal what was taken, if the
     double run is felt.
@@ -141,10 +149,10 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun,
     for one in session.scalars(
             select(Command).where(Command.run_id == run_id, Command.agent_id == lead_id,
                                   Command.status == "exited", Command.exit_code.is_not(None),
-                                  Command.cwd == run.cwd, Command.ended_at.is_not(None))
-            .order_by(Command.ended_at.desc(), literal_column("commands.rowid").desc())):
+                                  Command.cwd == run.cwd, Command.started_at.is_not(None))
+            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
         if _folded(one.command) == wanted:
-            return one if since is None or (one.ended_at or since) > since else None
+            return one if since is None or (one.started_at or since) > since else None
     return None
 
 
@@ -179,6 +187,9 @@ class Row(TypedDict):
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
 
 PASSED_ROW = "Tests passed: {command}{guessed} - {summary}"
+# A runner KOLONİ reads no count of (an `npm test` that prints none): its exit code alone, said.
+BY_CODE = "Tests passed (by exit code, no count): {command}{guessed}"
+SKIPPED_ONLY = "Tests skipped only: {command} - {summary}"
 FAILED_ROW = "Tests failed: {command}{guessed} - {summary}"
 RAN_NONE = "Tests ran none: {command} collected no test"
 TIMED_OUT = "Tests timed out after {minutes} min: {command}"
@@ -196,6 +207,7 @@ NO_COMMAND = ("No test command: nothing was run (set one in Settings › This pr
 NO_TESTS_ROW = "No tests: only documents, slides, diagrams or data changed"
 SENT_BACK = "Sent back to fix: {n} of {most} rounds"
 STILL_FAILING = "Still failing after {most} fix rounds: you decide (Fix it)"
+RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)"
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
@@ -212,10 +224,24 @@ def clock(seconds: int) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
-def _summary(output: str) -> str | None:
-    lines = [line.strip(" =-") for line in output[-4000:].splitlines()
-             if ledger.SUMS_UP.search(line)]
+# What a runner says where it ran no test: unittest's "Ran 0 tests", jest's "No tests found",
+# vitest's "No test files found", pytest's "no tests ran" (its exit 5 too).
+RAN_NO_TEST = re.compile(r"\bRan 0 tests\b|\bNo tests found\b|\bNo test files found\b|"
+                         r"\bno tests ran\b", re.IGNORECASE)
+SKIPPED = re.compile(r"\b[1-9]\d* skipped\b", re.IGNORECASE)
+
+
+def _summary(output: str, counts: re.Pattern = ledger.SUMS_UP) -> str | None:
+    lines = [line.strip(" =-") for line in output[-4000:].splitlines() if counts.search(line)]
     return lines[-1] if lines else None
+
+
+def _ran_none(run: TestRun, code: int, output: str) -> bool:
+    """pytest's or unittest's exit 5, or a runner's own words that it ran no test - where its
+    output counts none that passed or failed."""
+    named = run.command.casefold()
+    return (code == 5 and ("pytest" in named or "unittest" in named)) or (
+        _summary(output) is None and bool(RAN_NO_TEST.search(output[-4000:])))
 
 
 def _first(*said: str) -> str:
@@ -234,7 +260,8 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
 
     def made(state: str, text: str) -> Row:
         return row("tests", state, text, run.command, not run.yours)
-    if ended in (None, "failed_to_start") or finish_tests.did_not_start(code, output):
+    if ended in (None, "failed_to_start") or code not in (0, None) and (
+            finish_tests.did_not_start(code, output)):
         return made("not_run", NOT_STARTED.format(first=_first(said, output)))
     if ended == "timed_out":
         return made("timed_out", TIMED_OUT.format(minutes=seconds // 60, command=run.command)
@@ -242,12 +269,16 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
                     NOT_WAITED.format(clock=clock(seconds), command=run.command))
     if ended != "exited" or code is None:
         return made("not_run", STOPPED)
-    if code == 5 and "pytest" in run.command.casefold():
+    if _ran_none(run, code, output):
         return made("not_run", RAN_NONE.format(command=run.command))
-    summary = _summary(output) or f"exit {code}"
-    failed = code != 0 or bool(ledger.FAILED.search(output[-4000:]))
-    return made("failed" if failed else "passed", (FAILED_ROW if failed else PASSED_ROW).format(
-        command=run.command, guessed=guessed, summary=summary))
+    summary = _summary(output)
+    if code != 0 or ledger.FAILED.search(output[-4000:]):
+        return made("failed", FAILED_ROW.format(command=run.command, guessed=guessed,
+                                                summary=summary or f"exit {code}"))
+    if summary is None and (skipped := _summary(output, SKIPPED)):
+        return made("not_run", SKIPPED_ONLY.format(command=run.command, summary=skipped))
+    return made("passed", PASSED_ROW.format(command=run.command, guessed=guessed, summary=summary)
+                if summary else BY_CODE.format(command=run.command, guessed=guessed))
 
 
 def checked_text(rows: list[Row]) -> str:

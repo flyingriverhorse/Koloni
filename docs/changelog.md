@@ -8,7 +8,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Added
 
-- **Chat**: after a turn that changed code, KOLONİ runs the project's tests once and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice ([docs](use/checked.md)).
+- **Chat**: after a turn that changed code, KOLONİ runs the project's tests once and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice; while you're away a guessed test command is not run ([docs](use/checked.md)).
 
 ### Changed
 

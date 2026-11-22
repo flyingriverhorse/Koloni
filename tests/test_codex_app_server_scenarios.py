@@ -355,13 +355,15 @@ def test_codexs_commentary_is_not_its_message(native_app, wait_run, project_dir)
         {"say": "Done.", "phase": "final_answer"}])
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
-    assert [m["content"] for m in snap["messages"][1:] if m["content"]] == ["Done."]
+    # (Not what KOLONİ checked at the turn's end: in the turn's foot, `test_proof_end_scenarios`.)
+    assert [m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"] == ["Done."]
     # A turn that said nothing but commentary is not left empty: its last one is what it said.
     native_app.rescript([{"say": "Looking at it.", "phase": "commentary"},
                          {"say": "Reading hello.py.", "phase": "commentary"}])
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
-    assert [m["content"] for m in snap["messages"][1:] if m["content"]] == ["Reading hello.py."]
+    # (Not what KOLONİ checked at the turn's end: in the turn's foot, `test_proof_end_scenarios`.)
+    assert [m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"] == ["Reading hello.py."]
 
 
 def test_what_codex_does_is_on_record_and_its_account_is_nowhere(
@@ -380,7 +382,8 @@ def test_what_codex_does_is_on_record_and_its_account_is_nowhere(
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert [m["content"] for m in snap["messages"][1:] if m["content"]] == [
+    # (Not what KOLONİ checked at the turn's end: in the turn's foot, `test_proof_end_scenarios`.)
+    assert [m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"] == [
         "I will fix it.", "Fixed.", "In the project: hello.py (+1 −1)."]  # (B-205: KOLONİ's line)
     assert [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]] == [
         ("edit_file", "succeeded", "cli"), ("run_command", "succeeded", "cli"),

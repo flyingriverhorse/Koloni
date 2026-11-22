@@ -181,25 +181,38 @@ def no_po_where_calls_are_counted(request):
 
 
 # Kanıtlı bitiş (S1): after a turn that changed code the app runs the project's tests and writes a
-# "checked" message under the answer - on by default. The tests written before it count the
-# commands, calls, model steps and messages of such turns: there it is off, as before it. The
-# modules that test it take it as the app has it.
-# shortcut: the older flows are not run with it on (16 of their files run so on 22 Nov failed only
-# on such counts and on a card or run it added); add a module to END_CHECK to run it with it.
-END_CHECK = {"test_proof", "test_proof_end_scenarios"}
+# "checked" message under the answer - on by default, in every module's tests too. Off only where a
+# module counts the messages, commands or model steps of such turns in an order the end check
+# changes (END_CHECK_OFF); in NOTHING_AFTER a project starts on Nothing (its fake executor has no
+# run for the map's guesses).
+END_CHECK_OFF: set[str] = set()
+NOTHING_AFTER = {"test_copy_part"}
 
 
 @pytest.fixture(autouse=True)
-def end_check_off_before_kanit(request, monkeypatch):
-    if request.module.__name__.rpartition(".")[2] in END_CHECK:
+def end_check_where_it_fits(request, monkeypatch):
+    module = request.module.__name__.rpartition(".")[2]
+    if module in END_CHECK_OFF:
+        from app.agent.proof_mixin import ProofMixin
+
+        async def no_gate(_self, _ctx):
+            return None
+
+        monkeypatch.setattr(ProofMixin, "_proof_left", no_gate)
+        monkeypatch.setattr(ProofMixin, "_say_checked", lambda *_args, **_more: None)
+    if module not in NOTHING_AFTER:
+        yield
         return
-    from app.agent.proof_mixin import ProofMixin
+    from sqlalchemy import event
 
-    async def no_gate(_self, _ctx):
-        return None
+    from app.db.models import Project
 
-    monkeypatch.setattr(ProofMixin, "_proof_left", no_gate)
-    monkeypatch.setattr(ProofMixin, "_say_checked", lambda *_args, **_more: None)
+    def nothing(_target, _args, kwargs):
+        kwargs.setdefault("after_change", "nothing")
+
+    event.listen(Project, "init", nothing)
+    yield
+    event.remove(Project, "init", nothing)
 
 
 @pytest.fixture(autouse=True)

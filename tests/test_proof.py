@@ -212,3 +212,59 @@ def test_a_run_over_the_wait_last_time_is_said_slow(factory):
         ran(s, "pytest -q", 0, at + timedelta(seconds=200))
         assert proof.too_slow(s, "p", RUN, 120) is None
         assert json.dumps(proof.row("tests", "note", "x"))  # (a row is plain JSON)
+
+
+# --- fix round (review of 22 Nov) -----------------------------------------------------------
+
+def test_a_run_started_before_the_last_change_is_not_fresh(factory):
+    # (It ended after the change, but did not see it: a Take in, a sub-agent's write meanwhile.)
+    at = now()
+    with factory() as s:
+        s.add(Command(run_id="r", agent_id="lead", command="pytest -q", cwd=".", location="host",
+                      status="exited", exit_code=0, output="3 passed", timeout_seconds=60,
+                      started_at=at - timedelta(seconds=10), ended_at=at))
+        s.commit()
+        change(s, "a.py", "1\n", "2\n", at=at - timedelta(seconds=5))
+        assert proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r")) is None
+
+
+def test_exit_0_with_command_not_found_in_its_output_is_passed():
+    out = "test_cli.py::test_missing_tool PASSED  (asserts 'bash: foo: command not found')\n3 passed\n"
+    assert proof.tests_row(RUN, 0, out, "exited", "")["state"] == "passed"
+
+
+@pytest.mark.parametrize(("command", "code", "output"), [
+    ("python -m unittest", 5, "\n------\nRan 0 tests in 0.000s\n\nNO TESTS RAN\n"),
+    ("python -m unittest discover", 0, "Ran 0 tests in 0.000s\n\nOK\n"),
+    ("npx jest", 1, "No tests found, exiting with code 1\n"),
+    ("npx vitest run", 1, "No test files found, exiting with code 1\n"),
+])
+def test_a_run_that_ran_no_test_is_said_so_for_unittest_jest_and_vitest(command, code, output):
+    made = proof.tests_row(proof.TestRun(command, ".", True), code, output, "exited", "")
+    assert (made["state"], made["text"]) == (
+        "not_run", f"Tests ran none: {command} collected no test")
+
+
+def test_only_skipped_is_not_a_pass():
+    made = proof.tests_row(RUN, 0, "sss\n3 skipped in 0.01s\n", "exited", "")
+    assert (made["state"], made["text"]) == (
+        "not_run", "Tests skipped only: pytest -q - 3 skipped in 0.01s")
+
+
+def test_an_exit_0_with_no_runner_count_passes_by_exit_code_and_says_so():
+    made = proof.tests_row(proof.TestRun("npm test", ".", False), 0, "> node t.js\nall good\n",
+                           "exited", "")
+    assert (made["state"], made["text"]) == (
+        "passed", "Tests passed (by exit code, no count): npm test (guessed)")
+
+
+def test_a_merged_branch_change_counts_from_when_it_was_made(factory):
+    # (A branch turn's work, merged at its end: its rows are "merged", decided at the merge.)
+    at = now()
+    with factory() as s:
+        change(s, "a.py", "1\n", "2\n", status="merged", at=at - timedelta(seconds=30))
+        s.query(FileChange).update({"decided_at": at})
+        s.commit()
+        (found,) = proof.changes(s, "r", "lead")
+        assert found.in_project and found.path == "a.py"
+        assert proof.last_change(s, "r") == at - timedelta(seconds=30)
