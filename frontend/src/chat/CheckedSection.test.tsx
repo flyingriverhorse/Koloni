@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
 import { assistantMessage, convState } from '../test-fixtures'
-import { FIX_IT, FIX_REVIEW, checkedOf } from './checked'
+import { FIX_HELD, FIX_IT, FIX_REVIEW, checkedOf } from './checked'
 import { CheckedSection } from './CheckedSection'
 
 type Row = NonNullable<Message['checked']>[number]
@@ -120,6 +120,26 @@ test('CI commands offered: Run these approves them, on the latest turn only', as
     await userEvent.click(screen.getByRole('button', { name: 'Run these' }))
     expect(post).toHaveBeenCalledWith('/runs/r/ci/approve', { offer: name })  // (exactly the lines this row showed)
     expect(await screen.findByRole('status')).toHaveTextContent('Approved: they run after the next change.')
+  } finally {
+    vi.restoreAllMocks()
+  }
+})
+
+test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends the answer to its question', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+  const send = vi.fn().mockResolvedValue(undefined)
+  useApp.setState({ send } as never)
+  try {
+    const held = row('failed', 'Not taken in: 2 tests still fail after rounds by quick and deep', { kind: 'not_taken', merge_id: 'm1', question: 'May the total be zero?' })
+    const failing = row('failed', 'Tests failed: pytest -q', { command: 'pytest -q' })
+    render(<CheckedSection message={checked([failing, held])} over latest />)
+    expect(screen.getAllByRole('button', { name: 'Fix it' })).toHaveLength(1)
+    await userEvent.click(screen.getByRole('button', { name: 'Take in anyway' }))
+    expect(post).toHaveBeenCalledWith('/merges/m1/approve')
+    await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
+    await userEvent.type(screen.getByLabelText('May the total be zero?'), 'yes, zero is fine')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(send).toHaveBeenCalledWith(FIX_HELD('May the total be zero?', 'yes, zero is fine'))
   } finally {
     vi.restoreAllMocks()
   }

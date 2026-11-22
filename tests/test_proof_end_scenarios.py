@@ -793,8 +793,9 @@ def test_a_branch_turn_keeps_its_checked_after_the_merge(make_client, wait_run, 
 
 def test_a_bugfix_still_failing_after_its_rounds_is_not_sent_round_again(
         make_client, wait_run, project_dir, monkeypatch):
-    # (R1's loop ran its 2 rounds; taken in at Full auto with the test still failing. The end
-    # check reads the last Tester's run - no second run - and sends nothing back on top.)
+    # (R1's loop ran its 2 rounds; with the test still failing it is not taken in at Full auto
+    # either - S11, decision 18. The end check reads the last Tester's run - no second run - and
+    # sends nothing back on top.)
     from tests.test_recipe_proof_scenarios import (
         FAILED,
         PYTEST,
@@ -812,11 +813,12 @@ def test_a_bugfix_still_failing_after_its_rounds_is_not_sent_round_again(
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert row(snap)["status"] == "in" and len(executor.started) == 4
+    assert row(snap)["status"] == "stopped" and len(executor.started) == 4
     assert proof_calls(snap) == []
     assert texts(snap) == [
         f"Tests failed: {PYTEST} (guessed) - 1 failed, 3 passed", SAVED,
-        "Still failing after the recipe's fix rounds: you decide (Fix it)"]
+        "Still failing after the recipe's fix rounds: you decide (Fix it)",
+        "Not taken in: the tests still fail after rounds by fake-model"]
 
 
 def test_a_bugfix_that_passes_is_not_run_again_at_the_end(make_client, wait_run, project_dir,

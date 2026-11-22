@@ -366,6 +366,7 @@ class ReviewMixin:
         (`_review_refuses`), no team's tools offered it."""
         if call_id in self._read_only_calls:
             self._read_only_agents.add(agent_id)
+        self._join_copy(call_id, agent_id)  # (S11's fixer: where the turn's work is)
 
     def _review_refuses(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
         """B2: KOLONİ's Reviewer calls only what reads (REVIEW_ALLOWED) - whatever it was offered

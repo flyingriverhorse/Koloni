@@ -730,6 +730,7 @@ class LoopMixin:
             # team is left: it is told which, and goes on (a CLI's session anew),
             # within the steps it had. Told, an answer with no call is its why: it stands.
             if status != "completed" or calls == self._calls_of(ctx):
+                await self._stronger_at_end(ctx, status)  # (S11: as at the gate's end)
                 return status, error
             left = await self._end_left(ctx)  # (and KOLONİ's end check, `_proof_left`)
             if left is None:

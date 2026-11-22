@@ -392,6 +392,10 @@ class Row(TypedDict):
     # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None:
     # no count known (never made up).
     counts: dict | None
+    # S11: a "not_taken" row's kept copy (Take in anyway) and the stronger model's question
+    # (Fix it sends the user's answer to it).
+    merge_id: NotRequired[str]
+    question: NotRequired[str]
     # S8: a "ci_offer" row's offer, by its name (`ci_commands.offer_id`): Run these approves it.
     offer: NotRequired[str]
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}

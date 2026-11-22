@@ -6,6 +6,9 @@ export const FIX_IT = (command: string) => `The tests KOLONİ ran at the end of 
 /** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds: words of the user's own - the findings reach the Orchestrator as data (`review_held`), never as theirs. */
 export const FIX_REVIEW = 'The Reviewer KOLONİ opened at the end of the last turn still held its change. Fix its blocking findings.'
 
+/** S11 (decision 18): what Fix it sends on a "Not taken in" row - the user's answer to the stronger model's question, their own words. */
+export const FIX_HELD = (question: string, reply: string) => `The last turn's work was not taken in: its tests still fail. ${question} My answer: ${reply.trim()} Fix it.`
+
 type Row = NonNullable<Message['checked']>[number]
 
 /** What Fix it asks for under a turn's Checked section: a failing test run first, else a Reviewer's hold; null: nothing to fix. */

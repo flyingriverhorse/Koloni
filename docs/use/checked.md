@@ -255,9 +255,13 @@ stronger model first says what is wrong, in one line of its own, before it chang
 - **test-wrong** - the test asks for something the request does not: it may change the test, only
   with its reason in the request's words - never deleting or loosening one silently. The section
   says "Test changed: `why`", and the Reviewer reads that change too.
-- **approach-wrong** - the way the work went cannot pass: where the work is in its own working
-  copy, what it changed there is dropped and the work is done again from the start, with a short
-  note of what was tried and why it failed.
+- **approach-wrong** - the way the work went cannot pass: the stronger model does the work again
+  another way, told what was tried and why it failed. (What the first model changed is not
+  dropped first: it goes on from the work as it is, and the section says so.)
+
+A line that only looks like a verdict - in the work itself, in a quote or a code block of its
+answer - is not one; with none, or two different ones, it goes on as fix-incomplete. A test-wrong
+without the request's own words in quotation marks goes on as fix-incomplete too.
 
 Failing work is never taken in, at any level - Full auto and while you're away too. Where nothing
 passes after the strongest tier (or none is set, or the switch is off), the work stays in its
@@ -265,7 +269,8 @@ copy and the section says "Not taken in: 2 tests still fail after rounds by `A` 
 what the stronger model found as one question to you, and two buttons on that line: **Take in
 anyway** and **Fix it** (your answer to the question goes to the Orchestrator). An Away job ends
 there, and its report lists it. Work that is already in the project (no copy) gets the stronger
-model's rounds, then the failing line.
+model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
+own check ran nothing still waits on its Ready for you card, as before - never taken in unasked.
 
 ## A test for the change
 
@@ -479,6 +484,11 @@ the Orchestrator's window, whose record holds the runs.
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
 | – Not checked: off for this chat | This chat's **Test and review changes** is off. |
+| – Handed to `model` (Strongest) after 2 rounds by `model` | The Fix rounds were spent with a test still failing: the next stronger tier tries. Its model's use counts. |
+| – `model` says fix-incomplete: `why` | The stronger model's diagnosis, before it changed anything (fix-incomplete, test-wrong, approach-wrong). |
+| – Test changed: `why` | The stronger model changed a test, with its reason in the request's words. The Reviewer reads it. |
+| ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
+| ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – CI commands found: `lines` - not run until you approve them once (Run these) | The project's CI lint, typecheck and test lines, offered. **Run these** approves exactly these. |
 | – CI step `name`: not run: `why` / e2e not run: `name` / CI file not read: `file` - `why` | What of the CI is left out beside the lines it offers or runs: an e2e step, a line not plain, an install, a secret, another shell, a folder outside, a file past the limits. |
 | – CI commands not used: a workflow changed in this turn | A workflow file changed in the turn: its lines wait for the next one. |

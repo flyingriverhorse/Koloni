@@ -5889,8 +5889,12 @@ export interface components {
             guessed: boolean;
             /** Kind */
             kind: string;
+            /** Merge Id */
+            merge_id?: string | null;
             /** Offer */
             offer?: string | null;
+            /** Question */
+            question?: string | null;
             /** Started At */
             started_at: string | null;
             /**

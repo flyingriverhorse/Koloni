@@ -57,7 +57,7 @@ def team(settings_env):
     Made again in the same test, it is another app with a database of its own."""
     opened = []
 
-    def make(default_steps, fast_steps=(), **fast):
+    def make(default_steps, fast_steps=(), executor=None, **fast):
         default = ScriptedModel(default_steps, model_id="big-model")
         quick = ScriptedModel(
             fast_steps if isinstance(fast_steps, dict) else list(fast_steps),
@@ -67,7 +67,8 @@ def team(settings_env):
         root = settings_env["KOLONI_RUNTIME_ROOT"] + (f"-{len(opened)}" if opened else "")
         app = create_app(
             load_settings({**settings_env, "KOLONI_RUNTIME_ROOT": root}), model=default,
-            clients={"Fast": quick, "Paid Api": paid, "Codex": codex})
+            clients={"Fast": quick, "Paid Api": paid, "Codex": codex},
+            executors=executor.factory if executor else None)
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)

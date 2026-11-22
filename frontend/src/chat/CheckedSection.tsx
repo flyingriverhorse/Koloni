@@ -3,7 +3,7 @@ import { useNow } from '../agents/useNow'
 import { api, errorText } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
-import { fixOf, runClock } from './checked'
+import { FIX_HELD, fixOf, runClock } from './checked'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -18,8 +18,6 @@ const MARK: Partial<Record<Row['state'], string>> = { passed: '✓', failed: '�
 export function CheckedSection({ message, over, latest }: { message?: Message; over: boolean; latest: boolean }) {
   const rows = message?.checked
   if (!message || !over || !rows?.length) return null
-  const fix = latest ? fixOf(rows) : null
-  const offer = rows.find(row => row.kind === 'ci_offer')?.offer
   return (
     <section className="checked" aria-label="Checked" title="From KOLONİ’s records, not the model’s words">
       <span className="checked-head">Checked</span>
@@ -28,10 +26,23 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
           <CheckedRow key={index} row={row} />
         ))}
       </ul>
-      {fix && <FixIt asked={fix} />}
-      {latest && message.run_id && offer && <RunThese runId={message.run_id} offer={offer} />}
+      {latest && <LatestActions rows={rows} runId={message.run_id} />}
       {message.run_id && rows.some(row => row.state === 'running') && <StopCheck runId={message.run_id} />}
     </section>
+  )
+}
+
+/** The latest turn's buttons: Fix it (or, for work not taken in, Take in anyway and Fix it), Run these. */
+function LatestActions({ rows, runId }: { rows: Row[]; runId: string | null }) {
+  const fix = fixOf(rows)
+  const offer = rows.find(row => row.kind === 'ci_offer')?.offer
+  const held = rows.find(row => row.kind === 'not_taken')
+  return (
+    <>
+      {fix && !held && <FixIt asked={fix} />}
+      {held && <NotTaken row={held} />}
+      {runId && offer && <RunThese runId={runId} offer={offer} />}
+    </>
   )
 }
 
@@ -62,6 +73,49 @@ function FixIt({ asked }: { asked: string }) {
       </button>
       {error && <span role="alert">{error}</span>}
     </span>
+  )
+}
+
+/** S11 (decision 18): failing work not taken in - Take in anyway takes its kept copy in, the user's word; Fix it sends their answer to the stronger model's question. No pop-up card. */
+function NotTaken({ row }: { row: Row }) {
+  const [said, setSaid] = useState<string | null>(null)
+  const [answering, setAnswering] = useState(false)
+  const question = row.question ?? ''
+  return (
+    <span className="checked-fix">
+      {row.merge_id && (
+        <button type="button" className="btn btn-small" onClick={() => api.post(`/merges/${row.merge_id}/approve`).then(() => setSaid('Taken in.'), err => setSaid(errorText(err)))}>
+          Take in anyway
+        </button>
+      )}
+      <button type="button" className="btn btn-small" onClick={() => setAnswering(true)}>
+        Fix it
+      </button>
+      {answering && <Answer question={question} onError={setSaid} />}
+      {said && <span role="status">{said}</span>}
+    </span>
+  )
+}
+
+/** Fix it's answer to the question, sent as a new message of the user's. */
+function Answer({ question, onError }: { question: string; onError: (said: string) => void }) {
+  const [reply, setReply] = useState('')
+  return (
+    <form
+      className="checked-answer"
+      onSubmit={e => {
+        e.preventDefault()
+        void useApp.getState().send(FIX_HELD(question, reply)).catch(err => onError(errorText(err)))
+      }}
+    >
+      <label>
+        {question}
+        <input className="input" value={reply} onChange={e => setReply(e.target.value)} />
+      </label>
+      <button type="submit" className="btn btn-small" disabled={!reply.trim()}>
+        Send
+      </button>
+    </form>
   )
 }
 

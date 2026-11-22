@@ -875,6 +875,10 @@ class CheckedRow(BaseModel):
     counts: CheckedCounts | None = None
     # S8: a "ci_offer" row's offer by its name - Run these sends it back: exactly these lines.
     offer: str | None = None
+    # S11: a "not_taken" row's kept copy - Take in anyway takes it in - and the question Fix it
+    # sends the user's answer to.
+    merge_id: str | None = None
+    question: str | None = None
 
 
 class MessageOut(Out):

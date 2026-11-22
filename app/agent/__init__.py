@@ -246,6 +246,7 @@ from app.agent.spawn_mixin import SpawnMixin
 from app.agent.spawn_mixin import _relative as _relative
 from app.agent.spawn_mixin import _said_from_here as _said_from_here
 from app.agent.spawn_mixin import thin_task as thin_task
+from app.agent.stronger_mixin import NOT_TAKEN_KEPT, NOT_TAKEN_TOLD, StrongerMixin
 from app.agent.summary import COMPACT_FLAG as COMPACT_FLAG
 from app.agent.summary import STATE as STATE
 from app.agent.summary import THEIRS as THEIRS
@@ -1027,7 +1028,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
                   ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
-                  BeforeMixin):
+                  BeforeMixin, StrongerMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1423,6 +1424,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._test_slot = Slots()  # (S6: as many at once as Settings say)
         # S6: each of KOLONİ's test runs while it runs - in its turn, or gone on after it.
         self._checks: dict[asyncio.Future, Check] = {}
+        # S11 (decision 18, CL-305): the turns whose recipe work is not taken in - its tests still
+        # fail after its rounds, or its check ran nothing - and why: kept in its copy, no card.
+        self._held_back: dict[str, str] = {}
+        # ...and the spawn calls of KOLONİ's fixers, whose agents work in the turn's copy.
+        self._joins_copy: set[str] = set()
         # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic
         # and wall clock), what it held then (None: no file) and whether that was read: a test
         # run that started before does not take it back while it holds that, and puts it back
@@ -1835,6 +1841,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             lead_tools = [tool for tool in lead_tools if tool not in NOT_IN_A_SIDE]
         return lead, lead_tools, instructions, planning
 
+    async def _side_aside(self, ctx: Ctx, compare_id: str) -> None:
+        """A side of a comparison is over: its work set aside for the user's pick."""
+        found = await self._look_aside(ctx.agent_id)
+        # Not once both were thrown away meanwhile (nothing awaited since the look).
+        with self._factory() as session:
+            still = session.get_one(Compare, compare_id).status == "open"
+        if still:
+            self._set_aside(ctx.agent_id, found=found)
+
     async def _lead_taken(self, run_id: str, cid: str, t: _LeadTurn, ctx: Ctx, status: str,
                           error: str | None) -> tuple[str, str | None]:
         """`execute` once its lead is done: what it said and planned kept, its branch's work
@@ -1855,13 +1870,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 if said := self._teams_not_opened(ctx):
                     self._koloni_line(cid, run_id, said)
         if t.run_compare and status in ("completed", "failed"):
-            found = await self._look_aside(ctx.agent_id)
-            # Not once both were thrown away meanwhile (nothing awaited since the look).
-            with self._factory() as session:
-                still = session.get_one(Compare, t.run_compare).status == "open"
-            if still:
-                self._set_aside(ctx.agent_id, found=found)
-        if run_id in self._branch_runs and self._copies.get(ctx.agent_id) is not None:
+            await self._side_aside(ctx, t.run_compare)
+        if run_id in self._branch_runs and run_id in self._held_back:  # (S11: never merged)
+            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=self._held_back[run_id]))
+        elif run_id in self._branch_runs and self._copies.get(ctx.agent_id) is not None:
             # K-dal-takim: the turn's work, on its own branch, merges as an agent's does -
             # on a card that waits for the user where it is not merged by itself.
             try:
@@ -1875,7 +1887,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 error = f"{error or ''} {said}".strip()
         self._end_runs(ctx, status)  # (slice 84b-2: a recipe it left at work)
         if t.job:  # (however it ended: nothing of a job goes into the project unasked)
-            self._set_aside(ctx.agent_id, KEPT_AWAY, await self._look_aside(ctx.agent_id))
+            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=held) if (
+                held := self._held_back.get(run_id)) else KEPT_AWAY,
+                await self._look_aside(ctx.agent_id))
         return status, error
 
     async def _lead_after(self, run_id: str, cid: str, t: _LeadTurn, ctx: Ctx, status: str,
@@ -2060,6 +2074,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._slow_dropped(run_id)
         self._worked_below.pop(run_id, None)
         self._recipe_copy.pop(run_id, None)
+        self._held_back.pop(run_id, None)
         self._disputed.pop(run_id, None)
         # (After its copy is gone: until then its members' changes are that copy's.)
         room = self._rooms.pop(run_id, None)
@@ -7384,6 +7399,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     if _blocking(agent.findings)), fixer)
         return fixer
 
+    @staticmethod
+    async def _changed_nothing(made: copies.Copy) -> bool:
+        """B-359: whether a recipe's copy holds no change (not read: it does, the card asks)."""
+        try:
+            return not await asyncio.to_thread(made.changes, dict(made.base), dict(made.names))
+        except OSError:
+            return False
+
     async def _ready_for_you(self, ctx: Ctx, child: Ctx) -> str:
         """The Lead hears back from an agent, every row of the turn's recipes has come to its
         end, stopped or failed, one of them at an "in" end, and no agent works in the recipe's
@@ -7391,7 +7414,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         Take in takes the copy into the project, the card being their yes (`_into_project`);
         Ask for changes, with their words, sends the rows back to work from their loop's
         step - their words are never a Take in."""
-        if ctx.run_id in self._readying:
+        if ctx.run_id in self._readying or ctx.run_id in self._held_back:
             return ""
         with self._factory() as session:
             rows = [(team, state) for row, team, _lead in self._rows(session, ctx.cid)
@@ -7452,6 +7475,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # in unasked at Full auto.
         failed = [team.name for team, state in rows if state["status"] == recipe_run.FAILED]
         also += "".join(f" {name} failed: its work is not finished." for name in failed)
+        if held := self._recipe_held(ctx, rows):
+            self._held_back[ctx.run_id] = held
+            return NOT_TAKEN_TOLD.format(why=held)
         self._readying.add(ctx.run_id)
         # K-fullauto-sorma: at Full auto the work is taken in by itself, as work outside a
         # recipe is - `_merge` still cards a clash, a root file or a failing check - unless a
@@ -7466,11 +7492,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # to take in - no card asks for it.
             # shortcut: so such a recipe offers no Ask for changes either (the user writes a new
             # message); bring back a card without Take in if that is missed.
-            empty = False
-            if made is not None and not said and not beside and APART not in own.values():
-                with contextlib.suppress(OSError):  # (not read: the card asks, as before)
-                    empty = not await asyncio.to_thread(
-                        made.changes, dict(made.base), dict(made.names))
+            empty = made is not None and not said and not beside and (
+                APART not in own.values()) and await self._changed_nothing(made)
             # (A job while the user is away is done here: its copy waits for the morning.)
             word = None if ctx.run_id in self._away_jobs else "Take in" if full or empty else (
                 await self._ask_row(
@@ -7609,7 +7632,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if status in KEEPS:
             # shortcut: these looks at the copies walk them on the event loop (`_end_runs` is
             # sync, called from async `_lead_taken`); pass `_look_aside`'s if it is felt.
-            self._set_aside(ctx.agent_id, "a recipe's work its turn ended before taking in")
+            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=held) if (
+                held := self._held_back.get(ctx.run_id)) else (
+                "a recipe's work its turn ended before taking in"))
             # K-evrim: and so is each candidate's a pick never came to - the would-be winner's too.
             for one in [a for a in self._candidates if a in self._copies
                         and (known := self._ctxs.get(a)) and known.run_id == ctx.run_id]:
