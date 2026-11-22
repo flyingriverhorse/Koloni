@@ -2287,11 +2287,8 @@ def _led(words: list[str]) -> list[str]:
     """A part's command past what leads into it (`_LEADS`): `if pkill -f x` is pkill's, `if not
     exist x.pid taskkill /IM python.exe` taskkill's, `$p = Get-Process x` Get-Process's - but
     `$g = 'git'` sets a word, runs nothing (its quotes are read: `_parts` hands the words as
-    written).
-    shortcut: cmd's quoted comparison (`if "%a%"=="x" npm ci`), a group run as one (`(cd web &&
-    npm ci)`, `{ npm ci; }`, `if exist x (npm ci)`, `if ($true) { npm ci }`: the quote-blind
-    split reads its inside where it is a part of its own only) and `trap -- '...' EXIT` are not
-    read past; 0.1.6 (review round 5)."""
+    written). cmd's quoted comparison too, however its quotes split it (`if "%a%"=="x" npm ci`),
+    and trap's `--`; what a group holds is `_groups`'."""
     while words:
         first = words[0].casefold()
         if first in _LEADS:

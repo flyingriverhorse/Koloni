@@ -155,7 +155,8 @@ What is not framed:
   ([Known limits](../reference/known-limits.md#clis)).
 - **Agents beside each other**: a sub-agent's command that names another agent's copy, a worktree or a
   place above its copy, writes in or installs into the linked dependency folders, or stops programs
-  by their name is asked at every level; KOLONİ's worktrees are locked while their agents work
+  by their name is asked at every level - inside a group too (`(cd web && npm ci)`, a script
+  block); KOLONİ's worktrees are locked while their agents work
   ([Working copies](../use/workspace.md#working-copies)).
 - **An agent's git on a branch** runs none of your repository's hooks (pre-commit, commit-msg, a
   `core.hooksPath` such as husky's), nor your fsmonitor, and signs nothing; a command that clears or
