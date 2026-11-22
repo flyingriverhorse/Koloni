@@ -12,7 +12,9 @@ export const AFTER_CHANGE: [value: Project['after_change'], label: string][] = [
 ]
 /** What it runs and how long a turn waits for it, in sight under the control. */
 export const AFTER_CHANGE_NOTE =
-  'After a turn that changed code KOLONİ runs this project’s tests once on the work as it now stands and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice. In a turn you watch it waits at most 2 minutes for them. Nothing runs nothing; the Checked lines still say so.'
+  'After a turn that changed code KOLONİ runs this project’s tests once on the work as it now stands and says under the answer what was checked and what was not; under Check it, a big or security-touching change is looked over by a read-only Reviewer too. Failing tests and blocking findings go back to the Orchestrator for at most the Fix rounds below. In a turn you watch it waits at most 2 minutes for the tests. Nothing runs nothing; the Checked lines still say so.'
+/** S3 (decisions 14a, 19): how often work goes back - failing tests and the Reviewer's findings, one count a turn. */
+export const FIX_ROUNDS_NOTE = 'How often a turn’s failing tests or the Reviewer’s blocking findings go back to the Orchestrator, 1 to 5; then you decide (Fix it).'
 /** 0162: a project that had turned 89m's switch off is Nothing - said, never silently. */
 export const FROM_OFF = 'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.'
 
@@ -22,7 +24,9 @@ export function useAfterChange(project: Project) {
   const saved = project.after_change ?? 'check'
   const [after, setAfter] = useState(saved)
   const [forget, setForget] = useState(false)
-  const patch = { ...(after !== saved && { after_change: after }), ...(forget && { forget_tests_found: true }) }
+  const rounds = project.fix_rounds ?? 2
+  const [fix, setFix] = useState(rounds)
+  const patch = { ...(after !== saved && { after_change: after }), ...(fix !== rounds && { fix_rounds: fix }), ...(forget && { forget_tests_found: true }) }
   const view = (
     <>
       <Row
@@ -40,6 +44,15 @@ export function useAfterChange(project: Project) {
           {AFTER_CHANGE.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
+            </option>
+          ))}
+        </select>
+      </Row>
+      <Row label="Fix rounds" htmlFor="fix-rounds" doc={GUIDE.checked} warn={<span id="fix-rounds-note" className="choice-note">{FIX_ROUNDS_NOTE}</span>}>
+        <select id="fix-rounds" className="input" value={fix} aria-describedby="fix-rounds-note" onChange={e => setFix(Number(e.target.value))}>
+          {[1, 2, 3, 4, 5].map(n => (
+            <option key={n} value={n}>
+              {n}
             </option>
           ))}
         </select>

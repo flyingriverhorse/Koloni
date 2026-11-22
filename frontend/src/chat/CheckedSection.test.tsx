@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
 import { assistantMessage, convState } from '../test-fixtures'
-import { FIX_IT, checkedOf } from './checked'
+import { FIX_IT, FIX_REVIEW, checkedOf } from './checked'
 import { CheckedSection } from './CheckedSection'
 
 type Row = NonNullable<Message['checked']>[number]
@@ -85,4 +85,25 @@ test('off for this chat: one line says so, nothing else', () => {
   const lines = Array.from(screen.getByRole('region', { name: 'Checked' }).querySelectorAll('li'))
   expect(lines.map(li => li.textContent)).toEqual(['–Not checked: off for this chat'])
   expect(screen.queryByRole('button', { name: 'Fix it' })).toBeNull()
+})
+
+test('a Reviewer that still held the change after the Fix rounds: Fix it asks for its blocking findings', async () => {
+  const send = vi.fn().mockResolvedValue(undefined)
+  useApp.setState({ send })
+  render(
+    <CheckedSection
+      message={checked([
+        row('passed', 'Tests passed: pytest -q - 4 passed', { command: 'pytest -q' }),
+        row('failed', 'Review: Reviewer (Local · m) - HOLD, 2 findings, 1 blocking', { kind: 'review' }),
+        row('note', 'Blocking: a.py:3 divides by zero', { kind: 'finding' }),
+        row('note', 'Suggestion: name it better', { kind: 'finding' }),
+        row('failed', 'Still on hold after 2 fix rounds: you decide (Fix it)', { kind: 'review' }),
+      ])}
+      over
+      latest
+    />,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
+  expect(send).toHaveBeenCalledWith(FIX_REVIEW(['a.py:3 divides by zero']))
+  expect(FIX_REVIEW(['a'])).toBe('The Reviewer KOLONİ opened at the end of the last turn held its change. Fix what it found:\n- a')
 })

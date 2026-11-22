@@ -189,3 +189,17 @@ test('the menu turns checks off for this chat - not where they are off already',
   await userEvent.click(screen.getByRole('button', { name: 'Checks: more' }))
   expect(screen.queryByRole('menuitem', { name: 'Off for this chat' })).toBeNull()
 })
+
+test('S3: a review round is a line back saying its findings, of the project’s Fix rounds; KOLONİ’s Reviewer comes after the node', () => {
+  const state = convState({
+    runs: [run('r', 'completed')],
+    agents: [agent('r', 'completed'), { ...agent('rv', 'completed'), run_id: 'r', depth: 1, parent_agent_id: 'r', tool_call_id: 'look', role_name: 'Reviewer' }],
+    toolCalls: [proofCall('p1', 'succeeded'), toolCall('look', 'r', 'spawn_agent', 'succeeded', '{}', { provider_call_id: 'koloni_proof_review_1' })],
+    messages: [checked([row('passed', 'Tests passed'), row('note', 'Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)', { kind: 'rounds' })])],
+  })
+  const graph = deriveGraph(state)
+  expect(graph.edges.filter(e => e.round).map(e => e.round)).toEqual(['round 1 of 3: tests fail', 'round 2 of 3: 2 blocking findings'])
+  expect(graph.edges.find(e => e.target === 'agent:rv')?.source).toBe('checks:r')
+  // (Its spawn is no test run: the node runs nothing now.)
+  expect(graph.nodes.find(n => n.kind === 'checks')?.data).toMatchObject({ running: null })
+})

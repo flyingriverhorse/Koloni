@@ -215,6 +215,9 @@ class Project(Base):
     # Kanıtlı bitiş: after a turn that changed code, "check" (Check it: the tests, and a look at
     # a big or security-touching change), "tests" (Tests only) or "nothing" (`app.proof`).
     after_change: Mapped[str] = mapped_column(String(7), default="check", server_default="check")
+    # S3 (0165, plan decisions 14a and 19): how often the end check sends work back - failing
+    # tests and a Reviewer's blocking findings, one count a turn - 1 to 5.
+    fix_rounds: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
     # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
     # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
     # never the user's own (their check command and part tests win, and keep their leave).

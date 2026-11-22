@@ -233,6 +233,7 @@ from app.agent.questions_mixin import USER_CHANGED as USER_CHANGED
 from app.agent.questions_mixin import USER_TOLD as USER_TOLD
 from app.agent.questions_mixin import QuestionsMixin
 from app.agent.record_mixin import RecordMixin
+from app.agent.review_mixin import ReviewMixin
 from app.agent.rooms_mixin import CODEX_NATIVE_NO_RECIPE as CODEX_NATIVE_NO_RECIPE
 from app.agent.rooms_mixin import RoomsMixin
 from app.agent.skills_mixin import SkillsMixin
@@ -1015,7 +1016,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
-                  ProofMixin, FoundMixin, ProofLaterMixin):
+                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1376,6 +1377,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._recipe_copy: dict[str, str] = {}
         # The agents opened for a step of a recipe, or to run one (a team's lead): in that copy.
         self._in_recipe: set[str] = set()
+        # S3: the spawn calls of KOLONİ's end-of-turn Reviewers - read tools only, no recipe
+        # started by them (`ReviewMixin._look`).
+        self._read_only_calls: set[str] = set()
         # K-evrim: the agents opened as a step's candidates - each in a copy of its own until one
         # is picked (`_pick`); what its measure gave, till its step hears of its end; and, by run,
         # a pick card's candidates (name -> agent id) while it waits for its word.

@@ -3,7 +3,7 @@ import { useNow } from '../agents/useNow'
 import { api, errorText } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
-import { FIX_IT, runClock } from './checked'
+import { fixOf, runClock } from './checked'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -18,7 +18,7 @@ const MARK: Partial<Record<Row['state'], string>> = { passed: '✓', failed: '�
 export function CheckedSection({ message, over, latest }: { message?: Message; over: boolean; latest: boolean }) {
   const rows = message?.checked
   if (!message || !over || !rows?.length) return null
-  const failed = latest ? rows.find(row => row.kind === 'tests' && row.state === 'failed' && row.command) : undefined
+  const fix = latest ? fixOf(rows) : null
   return (
     <section className="checked" aria-label="Checked" title="From KOLONİ’s records, not the model’s words">
       <span className="checked-head">Checked</span>
@@ -27,7 +27,7 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
           <CheckedRow key={index} row={row} />
         ))}
       </ul>
-      {failed?.command && <FixIt command={failed.command} />}
+      {fix && <FixIt asked={fix} />}
       {message.run_id && rows.some(row => row.state === 'running') && <StopCheck runId={message.run_id} />}
     </section>
   )
@@ -51,11 +51,11 @@ export function RunningFor({ since }: { since: string }) {
   return <span className="muted"> ({runClock(since, useNow(1000))})</span>
 }
 
-function FixIt({ command }: { command: string }) {
+function FixIt({ asked }: { asked: string }) {
   const [error, setError] = useState<string | null>(null)
   return (
     <span className="checked-fix">
-      <button type="button" className="btn btn-small" onClick={() => useApp.getState().send(FIX_IT(command)).then(() => setError(null), err => setError(errorText(err)))}>
+      <button type="button" className="btn btn-small" onClick={() => useApp.getState().send(asked).then(() => setError(null), err => setError(errorText(err)))}>
         Fix it
       </button>
       {error && <span role="alert">{error}</span>}

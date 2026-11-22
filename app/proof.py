@@ -16,7 +16,7 @@ from app import finish_tests, ledger, project_map, test_found
 from app.commands import only_reads
 from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run, ToolCall
 from app.tools import MAX_TIMEOUT
-from app.workspace import in_scratch, unified_diff
+from app.workspace import in_scratch, secret_in_project, unified_diff
 
 # KOLONİ's own end-of-turn test run: its call's id starts so (`ProofMixin`).
 PROOF_CALL = "koloni_proof_"
@@ -106,16 +106,9 @@ def changes(session: Session, run_id: str, lead_id: str,
     """The turn's kept changes, one a path. Not in the project: a copy's (`in_copy`) of an agent
     other than the Lead, waiting in Ready for you - but where that agent works in the Lead's own
     copy (`sharing`: an Away job's, a branch turn's), where the tests run."""
-    rows: dict[str, list[FileChange]] = {}
-    for row in session.scalars(
-            select(FileChange).where(FileChange.run_id == run_id,
-                                     FileChange.status.in_((*ledger.KEPT, MERGED)))
-            .order_by(FileChange.created_at, literal_column("file_changes.rowid"))):
-        if not in_scratch(row.path):
-            rows.setdefault(row.path, []).append(row)
     here = {lead_id, *sharing}
     found = []
-    for path, made in rows.items():
+    for path, made in _kept(session, run_id).items():
         last = made[-1]
         _diff, added, removed = unified_diff(made[0].before_content, last.after_content or "",
                                              path, context=0)
@@ -123,6 +116,111 @@ def changes(session: Session, run_id: str, lead_id: str,
                             last.agent_id, last.status in ("applied", MERGED)
                             or last.agent_id in here))
     return found
+
+
+def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:
+    """The turn's kept changes by path, oldest first (none of its scratch folder)."""
+    rows: dict[str, list[FileChange]] = {}
+    for row in session.scalars(
+            select(FileChange).where(FileChange.run_id == run_id,
+                                     FileChange.status.in_((*ledger.KEPT, MERGED)))
+            .order_by(FileChange.created_at, literal_column("file_changes.rowid"))):
+        if not in_scratch(row.path):
+            rows.setdefault(row.path, []).append(row)
+    return rows
+
+
+# --- S3: the Reviewer at a turn's end -------------------------------------------------------
+
+# A change this big is looked over (lines added and removed, files) - of code, config and
+# screens only: documents, slides, diagrams and data are not.
+BIG_LINES, BIG_FILES = 80, 3
+REVIEWED_KINDS = frozenset({"code", "config", "ui"})
+# Path words, matched against each part of a path (casefolded), and file names, that make a
+# change security-touching whatever its size.
+SECURITY_PATHS = ("auth", "login", "session", "token", "secret", "password", "passwd",
+                  "credential", "crypto", "cipher", "permission", "acl", "policy", "sandbox",
+                  "security", "oauth", "jwt", "csrf", "cors", "cookie")
+SECURITY_NAMES = (".env*", "*.pem", "*.key", "dockerfile")
+# ...and what an ADDED line may do: run a command, run code, load what runs code, reach the
+# network, put HTML in a page, loosen a check or a file's rights.
+SECURITY_LINES: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (name, re.compile(pattern)) for name, pattern in (
+        ("subprocess", r"\bsubprocess\b"), ("os.system", r"\bos\.system\b"),
+        ("shell=True", r"shell\s*=\s*True"), ("eval(", r"\beval\("), ("exec(", r"\bexec\("),
+        ("pickle.load", r"\bpickle\.loads?\b"), ("yaml.load(", r"\byaml\.load\("),
+        ("child_process", r"\bchild_process\b"),
+        ("dangerouslySetInnerHTML", r"dangerouslySetInnerHTML"),
+        (".innerHTML =", r"\.innerHTML\s*="), ("fetch(", r"\bfetch\("),
+        ("requests.", r"\brequests\.\w"), ("httpx.", r"\bhttpx\.\w"),
+        ("urllib.request", r"\burllib\.request\b"), ("socket.", r"\bsocket\.\w"),
+        ("verify=False", r"verify\s*=\s*False"), ("chmod", r"\bchmod\b"),
+        ("setuid", r"\bsetuid\b")))
+
+
+class Review(NamedTuple):
+    """Why a turn's change is looked over: it is big (`lines` / `files` of code, config and
+    screens), and what makes it security-touching ("app/auth.py (path)", "shell=True (added in
+    app/utils.py)")."""
+    big: bool
+    security: list[str]
+    lines: int
+    files: int
+
+
+def _security_path(path: str) -> bool:
+    posix = path.replace("\\", "/").casefold()
+    name = posix.rsplit("/", 1)[-1]
+    words = {word for part in posix.split("/") for word in re.split(r"[^a-z0-9]+", part) if word}
+    # (A word that starts with one: "tokens", "authentication" - and "author", looked over too.)
+    return any(word.startswith(SECURITY_PATHS) for word in words) or (
+        "/.github/workflows/" in f"/{posix}") or any(
+        fnmatch.fnmatchcase(name, pattern) for pattern in SECURITY_NAMES)
+
+
+def review_reasons(changes: Iterable[Change], diff: str) -> Review:
+    """Whether a turn's in-project change is to be looked over, and why: its size over code,
+    config and screens, its paths, and what its ADDED lines in `diff` do (a removed `eval(` is
+    no reason)."""
+    shown = [one for one in changes if one.in_project]
+    counted = [one for one in shown if one.kind in REVIEWED_KINDS]
+    lines = sum(one.added + one.removed for one in counted)
+    found = [f"{one.path} (path)" for one in shown if _security_path(one.path)]
+    path = ""
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].removeprefix("b/")
+        elif line.startswith("+") and not line.startswith("+++"):
+            found += [f"{name} (added in {path})" for name, pattern in SECURITY_LINES
+                      if pattern.search(line) and f"{name} (added in {path})" not in found]
+    return Review(lines > BIG_LINES or len(counted) > BIG_FILES, found, lines, len(counted))
+
+
+def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
+              sharing: Collection[str] = ()) -> tuple[str, int, list[str]]:
+    """The turn's in-project kept changes as one diff (each file from its first before to its
+    last after), cut at `most` characters: the text, how long it was whole, and the files left
+    out of it. A secret file is named, never shown."""
+    here = {lead_id, *sharing}
+    parts: list[tuple[str, str]] = []
+    for path, made in _kept(session, run_id).items():
+        last = made[-1]
+        if not (last.status in ("applied", MERGED) or last.agent_id in here):
+            continue
+        if secret_in_project(path):
+            parts.append((path, f"{path}: a secret file - changed, not shown\n"))
+            continue
+        diff, _added, _removed = unified_diff(made[0].before_content, last.after_content or "",
+                                              path)
+        parts.append((path, diff if diff.endswith("\n") or not diff else f"{diff}\n"))
+    whole = "".join(text for _path, text in parts)
+    shown, left = "", []
+    for path, text in parts:
+        if len(shown) + len(text) <= most:
+            shown += text
+        else:
+            left.append(path)
+    return shown, len(whole), left
 
 
 def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
