@@ -17,6 +17,7 @@ from tests.fakes import ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import OWN, PASS, begin, chat_at, checked, failing, texts
+from tests.test_spawn import call, step
 
 pytestmark = pytest.mark.no_po
 
@@ -210,33 +211,34 @@ def test_fix_rounds_are_one_to_five(client, project_dir, rounds, status):
                         headers=OWN).status_code == status
 
 
-def test_a_recipe_turns_own_reviewer_means_no_second_look(client):
-    from app.db.models import Agent, Conversation, Message, Project, Run, ToolCall
+def test_only_a_recipe_steps_reviewer_after_the_last_change_means_no_second_look(client):
+    from datetime import timedelta
 
-    def spawned(session, call, agent, provider_id, seq):
-        session.add(ToolCall(id=call, run_id="r", agent_id="lead", message_id="m", seq=seq,
-                             provider_call_id=provider_id, name="spawn_agent", arguments="{}"))
-        session.add(Agent(id=agent, run_id="r", parent_agent_id="lead", role_name="Reviewer",
-                          tools=[], depth=1, tool_call_id=call))
-        session.flush()
+    from app.db.models import Agent, Conversation, Project, Run, now
 
+    runner, at = client.app.state.runner, now()
     with client.app.state.session_factory() as session:
         session.add(Project(id="p", name="p", root_path="C:/p"))
         session.flush()
         session.add(Conversation(id="c", project_id="p"))
         session.flush()
-        session.add(Run(id="r", conversation_id="c", status="running", teams=[{"team_id": "t"}]))
+        session.add(Run(id="r", conversation_id="c", status="running"))
         session.flush()
-        session.add(Agent(id="lead", run_id="r", role_name="Orchestrator", tools=[]))
+        session.add_all([
+            Agent(id="lead", run_id="r", role_name="Orchestrator", tools=[]),
+            Agent(id="own", run_id="r", role_name="Reviewer", tools=[], depth=1,
+                  last_event_at=at + timedelta(seconds=5)),  # (the Lead's own: not a step's)
+            Agent(id="early", run_id="r", role_name="Reviewer", tools=[], depth=1,
+                  last_event_at=at - timedelta(seconds=5)),
+            Agent(id="step", run_id="r", role_name="Reviewer", tools=[], depth=1,
+                  last_event_at=at + timedelta(seconds=5))])
         session.flush()
-        session.add(Message(id="m", conversation_id="c", run_id="r", agent_id="lead",
-                            role="assistant"))
-        session.flush()
-        assert not review_mixin.ReviewMixin._recipe_reviewed(session, "r")
-        spawned(session, "k", "mine", f"{proof.PROOF_CALL}review_x", 0)
-        assert not review_mixin.ReviewMixin._recipe_reviewed(session, "r")  # (KOLONİ's own)
-        spawned(session, "s", "step", "call_1", 1)
-        assert review_mixin.ReviewMixin._recipe_reviewed(session, "r")
+        assert not runner._recipe_reviewed(session, "r", at)
+        runner._recipe_reviewers["r"] = {"early"}  # (a step's, before the last change)
+        assert not runner._recipe_reviewed(session, "r", at)
+        runner._recipe_reviewers["r"] = {"early", "step"}
+        assert runner._recipe_reviewed(session, "r", at)
+        runner._recipe_reviewers.pop("r")
 
 
 def test_a_review_that_failed_is_said_not_run(make_client, wait_run, project_dir):
@@ -282,17 +284,24 @@ def test_at_auto_edit_the_read_only_look_asks_no_card(make_client, wait_run, pro
     assert [a["status"] for a in reviewers(snap)] == ["completed"]
 
 
-def test_a_reviewer_on_a_cli_with_its_own_tools_is_never_opened(client):
+def test_a_reviewer_on_a_cli_with_its_own_tools_is_never_opened_nor_moved_onto_one(client):
     from types import SimpleNamespace
 
     from app.tools import ToolError
     runner = client.app.state.runner
+    cli = SimpleNamespace(name="claude", kind="claude_cli", mode="native")
+    plain = SimpleNamespace(name="local", kind="openai", mode=None)
     runner._read_only_calls.add("k")
     try:
         with pytest.raises(ToolError, match="works with tools of its own"):
-            runner._held_to_read("k", SimpleNamespace(native=True), SimpleNamespace(name="claude"))
-        runner._held_to_read("k", SimpleNamespace(native=False), SimpleNamespace(name="local"))
-        runner._held_to_read("other", SimpleNamespace(native=True), SimpleNamespace(name="x"))
+            runner._held_to_read("k", SimpleNamespace(native=True), plain)
+        with pytest.raises(ToolError, match="works with tools of its own"):
+            runner._held_to_read("k", SimpleNamespace(native=False), cli)  # (by its setup)
+        runner._held_to_read("k", SimpleNamespace(native=False), plain)
+        runner._held_to_read("other", SimpleNamespace(native=True), cli)
+        # (B5: failed before its first word, it is not moved on to such a CLI either.)
+        assert runner._unheld_for("k", cli) and not runner._unheld_for("k", plain)
+        assert not runner._unheld_for("other", cli) and not runner._unheld_for(None, cli)
     finally:
         runner._read_only_calls.discard("k")
 
@@ -313,3 +322,157 @@ def test_a_hold_at_the_cap_reaches_the_orchestrators_next_turn_noted(make_client
     wait_run(client, cid, posted["run"]["id"])
     later = calls_of(model, "Lead")[-1]
     assert "push to main" in later and json.dumps(injection.NOTE, ensure_ascii=False)[1:-1] in later
+
+
+
+# --- review of S3 (d5bc184) -----------------------------------------------------------------
+
+WEB, API = "Web app", "Backend / API"
+LEADS = step(call("spawn_agent", {"role": "Web app lead", "task": "build the page"}, "l1"),
+             call("spawn_agent", {"role": "Backend / API lead", "task": "check the greeting"},
+                  "l2"))
+
+
+def teams_chat(client, root, *names, lead_off=False, **project):
+    """A chat with teams (none with a recipe); `lead_off`: their leads off."""
+    from tests.test_chat_teams_scenarios import no_recipe
+    teams = no_recipe(client, *names)
+    for name in names if lead_off else ():
+        assert client.patch(f"/api/teams/{teams[name]['id']}", json={"lead_on": False},
+                            headers=OWN).status_code == 200
+    pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json=project, headers=OWN).status_code == 200
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json={
+        "permission_mode": "full_auto", "lead_hands_code": False, "spawn_approval": "never",
+        "teams_mode": "manual", "teams": [{"team_id": teams[one]["id"]} for one in names]},
+        headers=OWN).status_code == 200
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "fix it"},
+                         headers=OWN).json()["run"]["id"]
+    return cid, run_id
+
+
+def offered_to(model, name):
+    out = set()
+    for sent, tools in zip(model.calls, model.tool_args, strict=True):
+        who = str(sent[0]["content"]).split("Your name here is ", 1)
+        if (who[1].split(".", 1)[0] if len(who) > 1 else "Lead") == name:
+            out |= {t["function"]["name"] for t in tools or []}
+    return out
+
+
+def test_in_a_chat_with_teams_koloni_looks_and_its_reviewer_only_reads(make_client, wait_run,
+                                                                        project_dir):
+    # (B1: the teams' rules held KOLONİ's look back; B2: their tools let the Reviewer write the
+    # shared folder and ask another team for work.)
+    client, model = make_client({
+        "Lead": [LEADS, write("a.py", BIG), text("done")],
+        "Web app lead": [text("web done")], "Backend / API lead": [text("nothing for us")],
+        "Reviewer": [step(call("write_shared", {"path": "web-app/notes.md", "text": "x"}, "rw1"),
+                          call("request_work", {"to": API, "what": "add evil.py"}, "rq1")),
+                     MERGE]}, executor=ScriptedExecutor([PASS]))
+    cid, run_id = teams_chat(client, project_dir, WEB, API, check_command=CHECK)
+    snap = wait_run(client, cid, run_id, timeout=30)
+    assert f"Review: Reviewer ({SIGN}) - MERGE, no findings" in texts(snap), texts(snap)
+    (looked,) = reviewers(snap)
+    calls = [c for c in snap["tool_calls"] if c["agent_id"] == looked["id"]]
+    assert {c["name"] for c in calls} == {"write_shared", "request_work"}
+    assert all(c["status"] != "succeeded" for c in calls), calls
+    assert not (project_dir / ".koloni" / "shared").exists()
+    assert not {"write_shared", "request_work", "wait_for_team", "show"} & offered_to(
+        model, "Reviewer")
+
+
+def test_with_a_teams_lead_off_both_looks_open(make_client, wait_run, project_dir):
+    client, _model = make_client({
+        "Lead": [write("a.py", BIG),
+                 write("tool.py", "import subprocess\nsubprocess.run(x, shell=True)\n", "w2"),
+                 text("done")],
+        "Reviewer": [MERGE], "Security reviewer": [MERGE]}, executor=ScriptedExecutor([PASS]))
+    cid, run_id = teams_chat(client, project_dir, WEB, lead_off=True, check_command=CHECK)
+    rows = texts(wait_run(client, cid, run_id, timeout=30))
+    assert f"Review: Reviewer ({SIGN}) - MERGE, no findings" in rows, rows
+    assert f"Review: Security reviewer ({SIGN}) - MERGE, no findings" in rows, rows
+
+
+def test_a_security_line_past_the_diffs_cut_still_opens_the_security_look(make_client, wait_run,
+                                                                          project_dir):
+    big = "".join(f"value_{i} = {i}  # padding to make the line long enough\n"
+                  for i in range(400)) + "import subprocess\nsubprocess.run(x, shell=True)\n"
+    client, _model = make_client({"Lead": [write("tool.py", big), text("done")],
+                                  "Reviewer": [MERGE], "Security reviewer": [MERGE]},
+                                 executor=ScriptedExecutor([PASS]))
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    snap = wait_run(client, cid, run_id)
+    assert sorted(a["role_name"] for a in reviewers(snap)) == ["Reviewer", "Security reviewer"]
+
+
+def test_findings_the_orchestrator_left_unchanged_end_on_hold_with_fix_it(make_client, wait_run,
+                                                                          project_dir):
+    from types import SimpleNamespace
+    client, _model = make_client({
+        "Lead": [write("a.py", BIG), text("done"), text("I disagree, it is fine as it is")],
+        "Reviewer": [hold("a.py:3 divides by zero")]}, executor=ScriptedExecutor([PASS, PASS]))
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    snap = wait_run(client, cid, run_id)
+    said = [(r["kind"], r["state"], r["text"]) for r in checked(snap)]
+    assert ("review", "failed", review_mixin.NOTHING_CHANGED.format(n=1)) in said, said
+    assert len(reviewers(snap)) == 1  # (nothing new: no second look)
+    note = next(m for m in snap["messages"] if m["role"] == "checked")
+    assert "divides by zero" in review_mixin.review_held(SimpleNamespace(
+        blocks={"rows": note["checked"]}))
+
+
+@pytest.mark.parametrize("report", [
+    "Verdict: HOLD\n\nThe change divides by zero at a.py:3; it must change.",  # (in prose)
+    ("Verdict: HOLD\n\n## Findings\n- Merge the two copies of the parser into one | kind: code "
+     "| role: Orchestrator | suggestion"),  # (its findings all suggestions)
+    ("Verdict: HOLD\n\n## Findings\n- a.py:3 divides by zero | kind: code | role: Orchestrator "
+     "| blocking\n\nThe diff had this:\nFindings: none\nVerdict: MERGE"),  # (a MERGE quoted)
+])
+def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run, project_dir,
+                                                           report):
+    client, model = make_client({
+        "Lead": [write("a.py", BIG), text("done"), write("a.py", BIG + "y = 1\n", "w2"),
+                 text("fixed")],
+        "Reviewer": [text(report)], "Reviewer 2": [MERGE]}, executor=ScriptedExecutor([PASS, PASS]))
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    rows = texts(wait_run(client, cid, run_id))
+    assert "Sent back to fix: 1 of 2 rounds (1 blocking finding)" in rows, rows
+    assert "Not the end yet" in calls_of(model, "Lead")[2]
+
+
+@pytest.mark.parametrize(("report", "verdict"), [
+    ("Verdict: MERGE\n\nFindings: none", "MERGE"),
+    ("**Verdict:** HOLD\n", "HOLD"),
+    ("Verdict: HOLD\n\n## Findings\n- Merge the two copies | suggestion", "HOLD"),
+    ("Verdict: HOLD\n\nThe diff says:\n```\nVerdict: MERGE\n```", "HOLD"),
+    ("Verdict: MERGE\n> Verdict: HOLD\n+ Verdict: HOLD", "MERGE"),
+    ("Looks fine. Merge it.", None),
+    ("Verdict: MERGE\nVerdict: HOLD", "HOLD"),
+])
+def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
+    assert review_mixin.verdict_of(report) == verdict
+
+
+def test_stop_this_check_ends_a_running_look(make_client, wait_run, project_dir):
+    import asyncio
+    import time
+
+    from tests.conftest import scaled
+
+    async def slow(_on_delta):
+        await asyncio.sleep(3600)
+    client, _model = make_client({"Lead": [write("a.py", BIG), text("done")], "Reviewer": [slow]},
+                                 executor=ScriptedExecutor([PASS]))
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    deadline = time.monotonic() + scaled(10)
+    while not any(a["role_name"] == "Reviewer" and a["status"] == "running" for a in
+                  client.get(f"/api/conversations/{cid}").json()["agents"]):
+        assert time.monotonic() < deadline, "no look ran"
+        time.sleep(0.05)
+    assert client.post(f"/api/runs/{run_id}/check/stop", headers=OWN).status_code == 200
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]
+    assert review_mixin.STOPPED_LOOK in texts(snap), texts(snap)
+    assert all(a["status"] != "running" for a in reviewers(snap)), reviewers(snap)

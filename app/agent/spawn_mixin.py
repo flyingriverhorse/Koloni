@@ -1544,9 +1544,13 @@ class SpawnMixin:
             order = stage_order(session, led[1]) if led and members else ""
             if role is not None:
                 door = self._door(session, ctx)
-                shut = self._outrun_role(session, ctx, role) or closed(role, door, named) or (
-                    self._room_refused(session, ctx, role.name)) or untiered
-                shut = shut and (self._to_its_lead(session, ctx, role) or shut)
+                # (S3: KOLONİ's own Reviewer is no team's work - their doors, leads and groups
+                # do not hold it; its tier's rule does.)
+                shut = untiered if call_id in self._read_only_calls else (
+                    self._outrun_role(session, ctx, role) or closed(role, door, named) or (
+                        self._room_refused(session, ctx, role.name)) or untiered)
+                shut = shut and (self._to_its_lead(session, ctx, role) or shut) if (
+                    call_id not in self._read_only_calls) else shut
                 if shut and door.step is not None and role.name.casefold() not in door.step[0]:
                     self._refused_roles.setdefault(ctx.run_id, set()).add(role.name)
             # The sub-agent's own model (its role's choice, else the tier, else the
@@ -2138,6 +2142,7 @@ class SpawnMixin:
                 why if (chosen or tiered) and earlier is None else None), effort=effort,
         )
         self._channel(ctx, ctx.agent_id, child.agent_id, "task", task)
+        self._mark_read_only(call_id, child.agent_id)
         if lead:  # (slice 84b-2: its own agents are capped by what its opener may hand on)
             self._leads[child.agent_id] = tuple(self._caps(ctx))
 
@@ -2546,7 +2551,10 @@ class SpawnMixin:
                           if entry.name not in would.past_limit
                           and entry.name not in would.cannot_pick
                           and entry.name not in would.down and not another_account(
-                              provider, session.get_one(Provider, entry.provider_id), failure)),
+                              provider, session.get_one(Provider, entry.provider_id), failure)
+                          # (S3's Reviewer: never onto a CLI KOLONİ cannot hold to reading)
+                          and not self._unheld_for(agent.tool_call_id, session.get_one(
+                              Provider, entry.provider_id))),
                          None)
             if found is None:
                 return None

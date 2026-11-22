@@ -460,6 +460,7 @@ class ProofMixin:
                                     and held.rounds < held.most else proof.STILL_FAILING.format(
                                         most=held.most)))
         later = proof.last_change(session, run_id)
+        rounds += self._hold_left(held, later)  # (S3: a hold nothing settled)
         if held.seen is not None and later is not None and later > held.seen:
             rounds.append(proof.row("tests", "not_run", proof.NOT_AGAIN.format(
                 why=NOT_REACHED.get(status, ENDED_FIRST))))

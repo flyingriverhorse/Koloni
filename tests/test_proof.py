@@ -374,10 +374,23 @@ def test_turn_diff_is_cut_names_what_is_left_out_and_shows_no_secret(factory):
         change(s, "a.py", None, "".join(f"a{i} = {i}\n" for i in range(50)))
         change(s, "b.py", None, "".join(f"b{i} = {i}\n" for i in range(50)))
         change(s, ".env", None, "KEY=very-secret\n")
-        shown, total, left = proof.turn_diff(s, "r", "lead", 600)
+        shown, whole, left = proof.turn_diff(s, "r", "lead", 600)
     assert "+++ b/a.py" in shown and "a49 = 49" in shown and left == ["b.py"]
-    assert total > len(shown) and "very-secret" not in shown
+    assert len(whole) > len(shown) and "b49 = 49" in whole and "very-secret" not in whole
     with factory() as s:
         whole, _total, left = proof.turn_diff(s, "r", "lead", 100_000)
     assert left == [] and ".env: a secret file - changed, not shown" in whole
     assert "very-secret" not in whole
+
+
+
+@pytest.mark.parametrize(("path", "touches"), [
+    ("app/auth.py", True), ("app/authentication.py", True), ("src/oauth2.py", True),
+    ("app/tokens.py", True), ("app/sessions.py", True), ("app/auth/session.py", True),
+    ("AUTHORS.md", False), ("docs/authors.md", False), ("src/author.py", False),
+    ("styles/tokens.css", True), ("nlp/tokenizer.py", False), ("aclocal.m4", False),
+    ("cookiecutter.json", False), ("src/sessionize.py", False), ("app/policy_net.py", False),
+])
+def test_security_path_words_are_whole_words(path, touches):
+    # (Review of S3: "author", "tokenizer", "aclocal" are no sign-in, token or ACL code.)
+    assert bool(proof.review_reasons([_change(path, 1)], "").security) is touches

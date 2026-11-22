@@ -138,9 +138,11 @@ BIG_LINES, BIG_FILES = 80, 3
 REVIEWED_KINDS = frozenset({"code", "config", "ui"})
 # Path words, matched against each part of a path (casefolded), and file names, that make a
 # change security-touching whatever its size.
-SECURITY_PATHS = ("auth", "login", "session", "token", "secret", "password", "passwd",
-                  "credential", "crypto", "cipher", "permission", "acl", "policy", "sandbox",
-                  "security", "oauth", "jwt", "csrf", "cors", "cookie")
+SECURITY_PATHS = frozenset({
+    "auth", "authn", "authz", "authentication", "authorization", "oauth", "login", "session",
+    "sessions", "token", "tokens", "secret", "secrets", "password", "passwords", "passwd",
+    "credential", "credentials", "permission", "permissions", "cookie", "cookies", "crypto",
+    "cipher", "acl", "policy", "policies", "sandbox", "security", "jwt", "csrf", "cors"})
 SECURITY_NAMES = (".env*", "*.pem", "*.key", "dockerfile")
 # ...and what an ADDED line may do: run a command, run code, load what runs code, reach the
 # network, put HTML in a page, loosen a check or a file's rights.
@@ -171,9 +173,10 @@ class Review(NamedTuple):
 def _security_path(path: str) -> bool:
     posix = path.replace("\\", "/").casefold()
     name = posix.rsplit("/", 1)[-1]
-    words = {word for part in posix.split("/") for word in re.split(r"[^a-z0-9]+", part) if word}
-    # (A word that starts with one: "tokens", "authentication" - and "author", looked over too.)
-    return any(word.startswith(SECURITY_PATHS) for word in words) or (
+    # (Words as a name's own: "policy_net", "user_auth" are one word each - not "policy".)
+    words = {word for part in posix.split("/") for word in re.split(r"\W+", part) if word}
+    # (Whole words, trailing digits off: "oauth2", "tokens" - not "author", "tokenizer".)
+    return any(word.rstrip("0123456789") in SECURITY_PATHS for word in words) or (
         "/.github/workflows/" in f"/{posix}") or any(
         fnmatch.fnmatchcase(name, pattern) for pattern in SECURITY_NAMES)
 
@@ -197,10 +200,10 @@ def review_reasons(changes: Iterable[Change], diff: str) -> Review:
 
 
 def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
-              sharing: Collection[str] = ()) -> tuple[str, int, list[str]]:
+              sharing: Collection[str] = ()) -> tuple[str, str, list[str]]:
     """The turn's in-project kept changes as one diff (each file from its first before to its
-    last after), cut at `most` characters: the text, how long it was whole, and the files left
-    out of it. A secret file is named, never shown."""
+    last after), cut at `most` characters: the text, the whole of it (what is scanned for a
+    security touch: every line), and the files left out. A secret file is named, never shown."""
     here = {lead_id, *sharing}
     parts: list[tuple[str, str]] = []
     for path, made in _kept(session, run_id).items():
@@ -220,7 +223,7 @@ def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
             shown += text
         else:
             left.append(path)
-    return shown, len(whole), left
+    return shown, whole, left
 
 
 def last_change(session: Session, run_id: str, made_there: Collection[str] = ()

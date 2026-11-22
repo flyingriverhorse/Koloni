@@ -1380,6 +1380,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # S3: the spawn calls of KOLONİ's end-of-turn Reviewers - read tools only, no recipe
         # started by them (`ReviewMixin._look`).
         self._read_only_calls: set[str] = set()
+        # ...their agents (`_review_refuses`), a recipe step's Reviewers by run, and the looks
+        # running now (Stop this check ends them).
+        self._read_only_agents: set[str] = set()
+        self._recipe_reviewers: dict[str, set[str]] = {}
+        self._looks: dict[str, set[asyncio.Future]] = {}
         # K-evrim: the agents opened as a step's candidates - each in a copy of its own until one
         # is picked (`_pick`); what its measure gave, till its step hears of its end; and, by run,
         # a pick card's candidates (name -> agent id) while it waits for its word.
@@ -5177,6 +5182,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 "it again, in smaller parts if it was long"
             )
         args = parse_arguments(request.arguments)
+        self._review_refuses(ctx, request.name)  # (S3: KOLONİ's Reviewer only reads)
         # 101: before anything is asked or run. (Its output is not looked at: reading the
         # environment is no sending out, and the key is hidden there as any secret is.)
         if (canary := self._canaries.get(run_id)) and (
@@ -6394,6 +6400,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             else:
                 return False
             self._in_recipe.add(child.agent_id)
+            self._recipe_reviewer(ctx, child, role.name)
             return True
 
         def apart(row: ConversationTeam, team: Team, lead: Role,

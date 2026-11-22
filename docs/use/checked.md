@@ -144,17 +144,20 @@ its own two rounds. A turn can have both.
 Under **Check it**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
 config or screens - or one that touches security - is looked over by the **Reviewer**, an agent
 KOLONİ opens itself. A security touch is a path with a word like auth, login, session, token,
-secret, password, permission, crypto, cookie or cors in it, a `.env`, `.pem` or `.key` file, a
+secret, password, permission, crypto, cookie or cors as a whole word of a name in it (`auth.py`,
+`oauth2/`, `tokens.ts` - not `author.py` or `tokenizer.py`), a `.env`, `.pem` or `.key` file, a
 Dockerfile or a CI workflow, or an added line that runs a command (`subprocess`, `shell=True`,
 `os.system`, `child_process`), runs or loads code (`eval(`, `exec(`, `pickle.load`, `yaml.load(`),
 reaches the network (`fetch(`, `requests.`, `httpx.`, `socket.`), puts HTML in a page
 (`dangerouslySetInnerHTML`, `.innerHTML =`), or loosens a check or a file's rights
 (`verify=False`, `chmod`, `setuid`). Then the **Security reviewer** looks too, told to try to
-refute that the change is safe. Both may look at once.
+refute that the change is safe. Both may look at once. The whole change is read for these,
+also what does not fit in the diff the Reviewer is shown.
 
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
-  the project they open. They get read tools only and no MCP server, whatever their role is
+  the project they open. They do not run commands: KOLONİ's test lines are what they know of the
+  tests. They get read tools only and no MCP server, whatever their role is
   given: they change nothing. One whose model is a CLI that works with tools of its own is not
   opened ("Review not run: …"), as KOLONİ could not hold it to reading.
 - For a change a user sees (a screen's file, a command's option) in a project with `docs/`, a
@@ -168,6 +171,15 @@ refute that the change is safe. Both may look at once.
   sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
   as data, never as your words.
 - Each look is an agent's work on its model: on the canvas, in its window and in Usage.
+- In a chat with teams the look is KOLONİ's, not a team's: no team's lead or door holds it, and
+  it gets no team's tools (their shared folder, a request for another team's work).
+- The Orchestrator may answer the findings without changing anything: the turn ends there, and
+  the section says "Still on hold after round 1: nothing changed - you decide (Fix it)" (or "not
+  looked at again", where it changed something but no look followed).
+- A HOLD is a hold: one that marks no finding blocking, or writes its findings as prose, goes
+  back with its own words as the finding. The verdict is a line `Verdict: MERGE` or `Verdict:
+  HOLD` of its own (not one quoted or in a code block); any HOLD wins.
+- **Stop this check** ends a look that runs now too: "Review stopped by you - not checked".
 - No look: a small change, **Tests only**, tests that still fail (they are fixed first), a turn
   over its token limit, or a recipe whose own Review step looked already - rounds never stack.
   A recipe without a Review step gets this review at its end.

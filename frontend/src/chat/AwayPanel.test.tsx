@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
+import { api } from '../api/client'
 import type { Away, AwayJob, BacklogTask } from '../api/types'
 import { useApp } from '../state/store'
 import { conversation, convState, run } from '../test-fixtures'
@@ -110,14 +111,16 @@ test('the panel says the level the tasks run at: the lower of this chat’s and 
 })
 
 test('while the project is not on Check it the panel suggests it; Use Check it saves it; on it, nothing', async () => {
-  const save = vi.fn().mockResolvedValue(undefined)
-  useApp.setState({ backlog: [], projects: [{ id: conversation.project_id, after_change: 'tests' } as never], saveProjectSettings: save })
+  // (This chat's project - not the one open in the app: N8.)
+  const save = vi.spyOn(api, 'patch').mockResolvedValue({ id: conversation.project_id, after_change: 'check' } as never)
+  useApp.setState({ backlog: [], projectId: 'another', projects: [{ id: conversation.project_id, after_change: 'tests' } as never] })
   const { unmount } = render(<ComposerStatus {...at} conv={chat} />)
   await userEvent.click(screen.getByRole('button', { name: 'Away' }))
   const panel = screen.getByRole('dialog', { name: 'Away' })
   expect(panel).toHaveTextContent('While you’re away, Check it is suggested: tests, and a review of big or security-touching changes.')
   await userEvent.click(within(panel).getByRole('button', { name: 'Use Check it' }))
-  expect(save).toHaveBeenCalledWith({ after_change: 'check' })
+  expect(save).toHaveBeenCalledWith(`/projects/${conversation.project_id}`, { after_change: 'check' })
+  save.mockRestore()
   unmount()
   useApp.setState({ projects: [{ id: conversation.project_id, after_change: 'check' } as never] })
   render(<ComposerStatus {...at} conv={chat} />)
