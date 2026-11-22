@@ -149,3 +149,23 @@ def test_findings_from_an_unknown_agent_or_one_with_none_is_refused(make_client,
     assert refused["role"] == "tool" and why in refused["content"]
     assert [a["role_name"] for a in snap["agents"]] == ["Lead", "Reviewer"]
     assert not [m for m in snap["channel_messages"] if m["kind"] == "findings"]
+
+
+def test_disputed_lines_are_found_as_before_and_a_line_of_spaces_at_once():
+    # G1.4's DISPUTED, over a fixer's whole report on the server's loop. Before (Sonar S8786) a
+    # line of spaces took time cubic in them: 2k took 1.3 s (2.7 s on a loaded machine); now well
+    # under a millisecond. (Not 100k: the old pattern would not come back, and the test should fail.)
+    import os
+    import time
+
+    from app.agent.spawn_mixin import DISPUTED
+
+    report = ("- a.py:3 wrong | disputed: it is right\n  * x |disputed: y\n   | disputed: x\n"
+              "a | fixed: b\n-|disputed:z\n\t• q | DISPUTED: r\nb")
+    assert DISPUTED.findall(report) == ["a.py:3 wrong | disputed: it is right", "x |disputed: y",
+                                        " | disputed: x", "-|disputed:z", "q | DISPUTED: r"]
+    began = time.perf_counter()
+    assert DISPUTED.findall("a | fixed: y\n" + " " * 2000 + "\n") == []
+    took = time.perf_counter() - began
+    limit = 2.0 if os.environ.get("CI") else 0.5
+    assert took < limit, took

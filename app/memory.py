@@ -900,7 +900,8 @@ def keep_note(
 def read_notes(answer: str) -> list | None:
     """What the summariser answered, as the list it was asked for: one JSON array, alone
     or in a code fence. None for anything else - it is not searched for a list."""
-    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", answer.strip(), re.DOTALL)
+    # (`\s*+` gives nothing back: a run of blank lines after the fence took time cubic in it.)
+    fenced = re.fullmatch(r"```(?:json)?\s*+(.*?)\s*```", answer.strip(), re.DOTALL)
     try:
         notes = json.loads(fenced[1] if fenced else answer)
     except (ValueError, RecursionError):
