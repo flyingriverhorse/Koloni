@@ -1,6 +1,7 @@
-"""Kanıtlı bitiş S3 (plan decisions 6, 13, 14a, 14d): under Check it, a big or security-touching
-change is looked over at the turn's end by a read-only Reviewer AGENT that KOLONİ opens itself -
-and, for a security touch, the Security reviewer, told to try to refute that the change is safe.
+"""Kanıtlı bitiş S3 (plan decisions 6, 13, 14a, 14d): under Test and review, a big or
+security-touching change is looked over at the turn's end by a read-only Reviewer AGENT that KOLONİ
+opens itself - and, for a security touch, the Security reviewer, told to try to refute that the
+change is safe.
 Each reads the files it needs (its role's read tools only: it changes nothing) and ends with a
 verdict, MERGE or HOLD, and findings with file and line. Blocking findings go back to the
 Orchestrator as a fix round (the project's Fix rounds, one count with failing tests); KOLONİ runs

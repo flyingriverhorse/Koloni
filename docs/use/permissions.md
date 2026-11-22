@@ -4,8 +4,8 @@ The permission level decides what agents may do without asking you first. It sta
 row as three comb cells and its name (**Ask** one cell, **Auto-edit** two, **Full auto** three): a click
 lists the levels, each with a line on what it does - Ask before changes: "Each file change and command waits
 for your card"; Auto-edit files: "Writes files at once (revertible); commands still ask"; Full auto: "Changes
-and commands run; only harmful or risky actions ask" - **Plan first**, and in a project's chat **Check after
-a change** ([what KOLONİ checks after a change](checked.md#for-one-chat), on or off for this chat; off, the
+and commands run; only harmful or risky actions ask" - **Plan first**, and in a project's chat **Test and
+review changes** ([what KOLONİ checks after a change](checked.md#for-one-chat), on or off for this chat; off, the
 level says "· no checks"). Each chat has its own level.
 
 | Level | In short |

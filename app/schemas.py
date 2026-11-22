@@ -81,9 +81,9 @@ WhenAway = Literal["waits", "lead"]
 # K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
 # against what they wrote.
 FullAutoCheck = Literal["ask", "judge"]
-# Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): Check it, Tests only, Nothing.
+# Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): shown as Test and review, Tests only, Nothing.
 AfterChange = Literal["check", "tests", "nothing"]
-# S10: Check after a change for one chat; None (not sent as such) the project's.
+# S10: Test and review changes, for one chat; None (not sent as such) the project's.
 ChatAfterChange = Literal["off", "on"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
@@ -269,6 +269,11 @@ class ProjectOut(Out):
     after_change: AfterChange
     # S3: how often the end check sends work back a turn - tests and the Reviewer's findings.
     fix_rounds: int
+    # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
+    # config and screens) - `proof.BIG_LINES` / `BIG_FILES` (app.proof imports what imports this
+    # module: the same numbers, held equal by a test), said where After a change is chosen.
+    review_lines: int = 80
+    review_files: int = 3
     # 0162: Nothing because the user had turned "Finish only when the tests pass" off: said.
     after_change_from_off: bool
     # S1b: the test command(s) KOLONİ saved itself, by folder - {"command", "from", "at"}; and its
@@ -484,7 +489,7 @@ class ConversationOut(Out):
     lead_auto: bool
     # Each new message starts with a plan turn the user approves first (slice 49).
     plan_first: bool
-    # S10: Check after a change for this chat; None: the project's After a change.
+    # S10: Test and review changes, for this chat; None: the project's After a change.
     after_change: ChatAfterChange | None
     # K-39-betik: a page shown in the Workspace runs its scripts without asking ("Always run in
     # this chat"); off, each page asks.

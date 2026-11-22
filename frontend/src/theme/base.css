@@ -2927,6 +2927,17 @@ button.turn-name:hover {
   gap: 2px;
 }
 
+/* k-adlar: a switch row with its ⓘ beside it (outside its label: a click on ⓘ does not flip it). */
+.level-row-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.level-row-hint > .level-row {
+  flex: 1;
+}
+
 .level-row {
   display: flex;
   align-items: flex-start;

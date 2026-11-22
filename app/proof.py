@@ -21,7 +21,7 @@ from app.workspace import in_scratch, secret_in_project, unified_diff
 # KOLONİ's own end-of-turn test run: its call's id starts so (`ProofMixin`).
 PROOF_CALL = "koloni_proof_"
 
-# Project.after_change: Check it, Tests only, Nothing.
+# Project.after_change, shown as Test and review ("check"), Tests only, Nothing.
 AFTER_CHANGE = ("check", "tests", "nothing")
 # Conversation.after_change (S10): None the project's; this chat's "off" or "on".
 CHAT_AFTER_CHANGE = ("off", "on")
@@ -298,9 +298,9 @@ def _rewritten_after(session: Session, run_id: str, by: Collection[str], ran: Co
 def after_change_of(session: Session, conversation: Conversation, run: Run | None = None) -> str:
     """After a change for a turn of this chat (S10, plan decision 17): the project's ("check",
     "tests", "nothing") unless the chat says otherwise - "off" (its switch off: nothing checked),
-    or on: the project's, Check it where that is Nothing. A recipe's turn (`run.teams`) follows
-    the recipe, never the chat's switch: today the project's (shortcut: S5c gives a recipe its own
-    Checks step)."""
+    or on: the project's, Test and review where that is Nothing. A recipe's turn (`run.teams`)
+    follows the recipe, never the chat's switch: today the project's (shortcut: S5c gives a recipe
+    its own Checks step)."""
     project = session.get(Project, conversation.project_id) if conversation.project_id else None
     own = project.after_change if project is not None else "nothing"
     if run is not None and run.teams:

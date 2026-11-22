@@ -98,10 +98,10 @@ export function AwayPanel({ conv, offer, onClose }: Props) {
   )
 }
 
-/** S3: while you're away nobody looks at the work but KOLONİ's checks - Check it is suggested where the project is not on it. */
-export const CHECK_IT_SUGGESTED = 'While you’re away, Check it is suggested: tests, and a review of big or security-touching changes.'
+/** S3: while you're away nobody looks at the work but KOLONİ's checks - Test and review is suggested where the project is not on it. */
+export const CHECK_IT_SUGGESTED = 'While you’re away, Test and review is suggested: tests, and a review of big or security-touching changes.'
 
-/** This chat's project on Check it - not the project open in the app, which may be another. */
+/** This chat's project on Test and review - not the project open in the app, which may be another. */
 async function checkItFor(projectId: string) {
   const saved = await api.patch<Project>(`/projects/${projectId}`, { after_change: 'check' })
   useApp.setState(s => ({ projects: s.projects.map(one => (one.id === saved.id ? saved : one)) }))
@@ -115,7 +115,7 @@ function CheckItSuggested({ projectId }: { projectId: string | null }) {
     <p className="muted">
       {CHECK_IT_SUGGESTED}{' '}
       <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => checkItFor(projectId!))}>
-        Use Check it
+        Use Test and review
       </button>
       {error && <span role="alert"> {error}</span>}
     </p>

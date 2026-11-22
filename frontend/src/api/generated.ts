@@ -8926,6 +8926,16 @@ export interface components {
             pass_env: string | null;
             /** Read In */
             read_in: string[];
+            /**
+             * Review Files
+             * @default 3
+             */
+            review_files: number;
+            /**
+             * Review Lines
+             * @default 80
+             */
+            review_lines: number;
             /** Room Min Tokens */
             room_min_tokens: number | null;
             /** Room Minutes */

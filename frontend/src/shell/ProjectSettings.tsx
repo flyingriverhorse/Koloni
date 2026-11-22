@@ -48,7 +48,7 @@ export interface ProjectSettingsValues {
   check_command?: string
   /** K-evrim: the command that scores a candidate's work - the last line of its output, 0–100; empty: none. Sent only when changed. */
   measure_command?: string
-  /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code - Check it, Tests only or Nothing. Sent only when changed. */
+  /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code - Test and review, Tests only or Nothing. Sent only when changed. */
   after_change?: Project['after_change']
   /** S3: how often failing tests and the Reviewer's blocking findings go back, 1 to 5. Sent only when changed. */
   fix_rounds?: number
