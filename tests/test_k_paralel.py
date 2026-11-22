@@ -381,8 +381,10 @@ def test_a_cli_opener_is_refused_a_file_its_sub_agent_holds_at_once(
          {"say": "Left it."}],
         default_steps=[
             step(call("write_file", {"path": "hello.py", "content": "print('coder')\n"}, "w")),
-            a.step(text("changed"))],
-        later_script=[{"say": "Read it."}], later_when="changed")
+            # (a word no prompt holds: S2's words to the Orchestrator say "where none changed", and
+            # with "changed" the CLI took its later script at once - before it opened the Coder)
+            a.step(text("CODER-CHANGED-IT"))],
+        later_script=[{"say": "Read it."}], later_when="CODER-CHANGED-IT")
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": _local(client)["id"]})
     cid, run_id = start(client, project_dir, provider)
     a.wait_partial()  # the Coder holds hello.py now

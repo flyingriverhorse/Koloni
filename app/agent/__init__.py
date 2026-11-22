@@ -74,6 +74,7 @@ from app import (
     mcp_client,
     project_map,
     project_view,
+    proof_before,
     raw,
     recipe_run,
     signs,
@@ -93,6 +94,7 @@ from app.agent.approvals_mixin import ApprovalsMixin
 from app.agent.attachments_mixin import AttachmentsMixin
 from app.agent.away_mixin import AwayMixin
 from app.agent.away_mixin import branch_held as branch_held
+from app.agent.before_mixin import BeforeMixin
 from app.agent.browser_mixin import BrowserMixin
 from app.agent.cards import UNASKED_BY_CLI as UNASKED_BY_CLI
 from app.agent.cards import (
@@ -301,7 +303,9 @@ from app.agent.words import (
     NOT_HEARD,
     NOT_IN_A_COPY,
     NOT_IN_THE_PART,
+    NOT_ITS_TEST,
     NOT_ON_BRANCH_AGAIN,
+    NOT_REPRODUCED,
     NOT_WORK,
     OPEN,
     OUTRUN,
@@ -1024,7 +1028,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
                   ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
-                  CoverageMixin):
+                  BeforeMixin, CoverageMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -6180,7 +6184,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return None
         with self._factory() as session:
             kind_of = find_role(session, child.role)
-            if kind_of is not None and kind_of.kind == "check" or child.agent_id in self._reviews:
+            # (R4: a reproduce step's agent too, `_reproduce_held`)
+            if kind_of is not None and kind_of.kind == "check" or (
+                    child.agent_id in self._reviews) or self._in_step(session, child, "reproduce"):
                 roles = self._open_roles(session, child)
                 agents = {agent.name.casefold(): shown_name(agent.role_name) for agent in
                           session.scalars(select(Agent).where(Agent.run_id == child.run_id))}
@@ -6211,7 +6217,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         report gave no blocking finding (`_failing_held`, `_ran_held`)."""
         if _blocking(found):
             return []
-        return [*self._failing_held(session, child, before), *self._ran_held(session, child, found)]
+        return [*self._failing_held(session, child, before), *self._ran_held(session, child, found),
+                *self._reproduce_held(session, child)]
 
     def _failing_held(self, session, child: Ctx, before: list[str]) -> list[dict]:
         """R2: a test run of its own that failed (and no later pass of that line or whole run of
@@ -6229,6 +6236,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return [{"what": f"fails as it should: {ledger.failing_shown(ran)}", "kind": "test",
                      "role": None, "blocking": False}]
         return [{"what": ledger.failed_line(ran), "kind": "test", "role": None, "blocking": True}]
+
+    def _reproduce_held(self, session, child: Ctx) -> list[dict]:
+        """R4 (S7): the agent of a recipe's reproduce step must leave on record a test run that
+        failed (`ledger.failed_tests`: one that really ran tests) of a test file it wrote - any
+        failing run of its own only where it wrote none. Else it did not show the bug: held, its
+        run stopped at Ready for you as R3's declined check is (`_not_checked`). Not where its
+        CLI's work is not seen (`handoff.counted_on`)."""
+        if not self._in_step(session, child, "reproduce") or not handoff.counted_on(child.model):
+            return []
+        ran = ledger.failed_tests(session, child.agent_id)
+        texts = dict(session.execute(select(FileChange.path, FileChange.after_content).where(
+            FileChange.agent_id == child.agent_id).order_by(
+            FileChange.created_at, literal_column("file_changes.rowid"))).tuples().all())
+        wrote = proof_before.new_tests(texts)
+        # (Review of S7: a failing TEST of a file it wrote - not a failing command that names it.)
+        if ran is not None and (not wrote or proof_before.reproduces(
+                ran.output or "", {path: texts[path] or "" for path in wrote})):
+            return []  # (its own test failed - or, writing none, a run of its own did)
+        held = {**NOT_REPRODUCED, "what": NOT_ITS_TEST.format(files=", ".join(wrote))} if (
+            wrote) else NOT_REPRODUCED
+        self._not_checked[child.agent_id] = f"Not checked: {held['what']}"  # (stops, as R3's)
+        return [held]
 
     def _ran_held(self, session, child: Ctx, found: list | None) -> list[dict]:
         """R3: a recipe's check whose job is running checks (`_held_to_run`) that ran no command
