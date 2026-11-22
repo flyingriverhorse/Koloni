@@ -32,7 +32,7 @@ export function CommandRow({ command, failed = false, live = false }: { command:
         <StopCommand command={command} />
       </div>
       <OnYourWords judged={command.judged} />
-      <RanDisposable disposable={command.disposable} />
+      <RanDisposable command={command} />
       {open && <CommandOutput command={command} />}
     </div>
   )
@@ -50,10 +50,17 @@ function OnYourWords({ judged }: { judged: Command['judged'] }) {
   )
 }
 
-/** Coordination §4: a delete that ran with no card, as KOLONİ found it disposable where the project allows such deletes. */
-function RanDisposable({ disposable }: { disposable: Command['disposable'] }) {
+/** Coordination §4: a delete that ran with no card, as KOLONİ found it disposable where the project allows such deletes - and, where it then failed, that it did (nothing may have gone: PowerShell's error for `rm -rf`, B). */
+function RanDisposable({ command }: { command: Command }) {
+  const disposable = command.disposable
   if (!disposable?.unasked) return null
-  return <div className="tool-row-note muted">Ran without asking · disposable: {disposable.what}</div>
+  const failed =
+    command.status === 'failed_to_start' ? 'did not start' : command.exit_code !== null && command.exit_code !== 0 ? `failed: exit ${command.exit_code}` : null
+  return (
+    <div className="tool-row-note muted">
+      {failed ? `Ran without asking as disposable (${disposable.what}) and ${failed}` : `Ran without asking · disposable: ${disposable.what}`}
+    </div>
+  )
 }
 
 /** Its output: the first and last lines, and all of it on "Show all". */

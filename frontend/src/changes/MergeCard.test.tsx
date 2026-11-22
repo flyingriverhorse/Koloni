@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
@@ -500,6 +501,22 @@ test("W-1: whose Take in is in a branch's way is said under what is in the way; 
   render(<MergeCard merge={merge({ files: [file('lines.txt')], branch: { ...branch, dirty: [], taken_in: null } })} name="Coder 2" onDecide={vi.fn()} />)
   expect(screen.getByRole('note', { name: 'Where it started' })).toHaveTextContent(started)
   expect(screen.queryByRole('note', { name: 'Not merged yet' })).not.toBeInTheDocument()
+})
+
+test('a long path with no spaces in what a merge waits for, where it started or what it left out breaks anywhere rather than run past the card (340 px)', () => {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/theme/changes.css', 'utf8') // (run from frontend/)
+  document.head.append(style)
+  const long = 'frontend/src/components/somewhere/very_long_name.tsx'
+  const branch = {
+    name: 'koloni/fix', into: 'main', conflicts: [long], dirty: [long], note: null,
+    started: `koloni/fix started from your last commit: ${long}`, not_taken: `Not in its branch: ${long}`,
+  }
+  render(<MergeCard merge={merge({ files: [{ ...file(long), note: 'asked again' }], branch })} name="Coder" onDecide={vi.fn()} />)
+  for (const name of ['Not merged yet', 'Where it started', 'Not in its branch'])
+    expect(getComputedStyle(screen.getByRole('note', { name })).overflowWrap, name).toBe('anywhere')
+  expect(getComputedStyle(screen.getByText('— asked again', { exact: false })).overflowWrap).toBe('anywhere')
+  style.remove()
 })
 
 test("W-1: what of yours a branch's snapshot left out is said in one quiet line, in nobody's way", () => {
