@@ -65,11 +65,12 @@ def what(command: str, project: Path, root: Path, cwd: str | None, *, in_copy: b
 def _the_projects_git(root: Path, here: str) -> bool:
     """Whether git run in `here` is the project's own (`root`'s): a folder in it reached with no
     link on the way (git finds a repository upward from where a link leads), with no `.git` in it
-    or between (another repository's, a submodule's, a worktree's)."""
+    or between (another repository's, a submodule's, a worktree's), and git there says so (a bare
+    one, `mirror.git/`, has no `.git`)."""
     top = os.path.realpath(root)
     parts = [] if here == top else os.path.relpath(here, top).replace("\\", "/").split("/")
     return _real(here) == os.path.normcase(here) and ".." not in parts and not (
-        _another_repository(top, parts))
+        _another_repository(top, parts)) and git.same_repository(Path(top), Path(here))
 
 
 def _another_repository(top: str, parts: list[str]) -> bool:

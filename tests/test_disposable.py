@@ -865,3 +865,16 @@ def test_a_build_folder_below_a_folder_git_ignores_is_no_disposable(repo):
     assert judged(repo, "rm -rf target", cwd="data") is None
     (repo / "web" / "dist").mkdir(parents=True)
     assert judged(repo, "rm -rf web/dist") == "build folder web/dist"
+
+
+@needs_git
+def test_a_branch_delete_run_in_a_bare_repository_in_the_project_is_no_disposable(repo):
+    # (an ignored mirror.git/: git there finds no .git above it - the mirror is a repository)
+    git(repo, "clone", "-q", "--bare", ".", "mirror.git")
+    ignoring(repo, "mirror.git/")
+    assert judged(repo, "git branch -D old", cwd="mirror.git") is None
+    assert judged(repo, "git worktree remove ../wt/x", cwd="mirror.git") is None
+    (repo / "plain").mkdir()
+    assert judged(repo, "git branch -D old", cwd="plain") == "branch old"
+    assert git_.same_repository(repo, repo / "plain") is True
+    assert git_.same_repository(repo, repo / "mirror.git") is False

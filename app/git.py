@@ -2093,3 +2093,25 @@ def left_out(tree: Path) -> list[str] | None:
     except Refused:
         return None
     return None if said is None else [one for one in said.split("\0") if one]
+
+
+def same_repository(project: Path, folder: Path) -> bool:
+    """Whether git run in `folder` is the project's own: the same top folder and git folder
+    (`rev-parse --show-toplevel --git-common-dir`) - not a repository of its own in it, a
+    worktree's, nor a bare one (it has no top folder, and `_in` uses no bare one it was not
+    named: a mirror.git/ in the project). False where git does not say."""
+    try:
+        git, until = _looking(project)
+
+        def found(where: Path) -> tuple[str, ...] | None:
+            code, out, _said = _in(where, git, *UNASKED, "rev-parse", "--path-format=absolute",
+                                   "--show-toplevel", "--git-common-dir",
+                                   seconds=_left(until), **UNASKED_ENV)
+            lines = out.decode("utf-8", "replace").splitlines()
+            return tuple(os.path.normcase(os.path.realpath(line)) for line in lines) if (
+                code == 0 and len(lines) == 2) else None
+
+        own = found(project)
+        return own is not None and found(folder) == own
+    except Refused:
+        return False
