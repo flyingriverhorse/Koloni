@@ -133,11 +133,24 @@ test('After a change saves after_change', async () => {
   expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Test and review', 'Tests only', 'Nothing'])
   // (One line, live: what it runs now, when the Reviewer reads, the Fix rounds.)
   expect(box).toHaveAccessibleDescription(
-    'Runs the test command KOLONİ finds (it asks you once), related tests first, the whole suite in the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request). A turn you watch waits for the related tests (with none, at most 1 minute for the whole suite; in its own working copy, at most 2 minutes for them all). Failing work goes back up to 2 times.',
+    'Runs the test command KOLONİ finds (it asks you once), related tests first, the whole suite in the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request). A turn you watch waits for the related tests (with none, at most 1 minute for the whole suite; in its own working copy, at most 2 minutes for them all). Failing work goes back up to 2 times, then to a stronger model.',
   )
   await userEvent.selectOptions(box, 'tests')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ after_change: 'tests' })
+})
+
+test('S11: Then a stronger model is on, and saves off', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const box = screen.getByRole('checkbox', { name: /Then a stronger model/ })
+  expect(box).toBeChecked()
+  await userEvent.click(box)
+  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(expect.stringMatching(/Failing work goes back up to 2 times\.$/))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ stronger_model: false })
 })
 
 test('the old Finish only when the tests pass switch is gone', async () => {

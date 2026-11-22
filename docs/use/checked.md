@@ -238,6 +238,35 @@ not even load (a syntax error, collecting) shows no bug. One that did not is hel
 you: "Reproduce did not show a failing test: none of the tests it wrote failed (…)", or "… no test
 run of its own on record failed".
 
+## A stronger model
+
+When the **Fix rounds** are spent and a test still fails - or a blocking finding of the Reviewer
+stands - KOLONİ hands the fix to the next stronger tier on the Models page (fast, then balanced,
+then strongest), the same role on that tier's model, for the same number of rounds. Each tier
+tries at most once a turn, and its model's use is always said: "Handed to `model` (Strongest)
+after 2 rounds by `model`". Switch it off in **Settings › This project › Checks and git › Then a
+stronger model**; then the work waits after the first model's rounds.
+
+Before the stronger model's rounds, KOLONİ looks at what is not this turn's: a flaky test and one
+that was failing before the turn are said, not handed on (see Not this turn's above). Then the
+stronger model first says what is wrong, in one line of its own, before it changes anything:
+
+- **fix-incomplete** - the fix is not finished: it goes on from the work as it is.
+- **test-wrong** - the test asks for something the request does not: it may change the test, only
+  with its reason in the request's words - never deleting or loosening one silently. The section
+  says "Test changed: `why`", and the Reviewer reads that change too.
+- **approach-wrong** - the way the work went cannot pass: where the work is in its own working
+  copy, what it changed there is dropped and the work is done again from the start, with a short
+  note of what was tried and why it failed.
+
+Failing work is never taken in, at any level - Full auto and while you're away too. Where nothing
+passes after the strongest tier (or none is set, or the switch is off), the work stays in its
+copy and the section says "Not taken in: 2 tests still fail after rounds by `A` and `B`", with
+what the stronger model found as one question to you, and two buttons on that line: **Take in
+anyway** and **Fix it** (your answer to the question goes to the Orchestrator). An Away job ends
+there, and its report lists it. Work that is already in the project (no copy) gets the stronger
+model's rounds, then the failing line.
+
 ## A test for the change
 
 A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test

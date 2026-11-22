@@ -269,6 +269,8 @@ class ProjectOut(Out):
     after_change: AfterChange
     # S3: how often the end check sends work back a turn - tests and the Reviewer's findings.
     fix_rounds: int
+    # S11: then a stronger model tries, the rounds spent.
+    stronger_model: bool
     # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
     # config and screens) - `proof.BIG_LINES` / `BIG_FILES` (app.proof imports what imports this
     # module: the same numbers, held equal by a test), said where After a change is chosen.
@@ -373,6 +375,7 @@ class ProjectPatch(BaseModel):
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
     fix_rounds: int | None = Field(default=None, ge=1, le=5, strict=True)
+    stronger_model: bool | None = None
     # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
     forget_tests_found: bool | None = None
     full_auto_check: FullAutoCheck | None = None

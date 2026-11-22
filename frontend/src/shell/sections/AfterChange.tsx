@@ -15,6 +15,8 @@ export const AFTER_CHANGE: [value: Project['after_change'], label: string][] = [
 export const AFTER_CHANGE_WHY = 'After a turn that changed code KOLONİ tests the work as it now stands - and, under Test and review, a Reviewer reads a big or security-touching change - then says under the answer what was checked and what was not.'
 /** S3 (decisions 14a, 19): how often work goes back - failing tests and the Reviewer's findings, one count a turn. */
 export const FIX_ROUNDS_NOTE = 'How often a turn’s failing tests or the Reviewer’s blocking findings go back to the Orchestrator, 1 to 5; then you decide (Fix it).'
+/** S11 (decisions 18, 19): the rounds spent and a test still failing, the next stronger tier tries; off, the work waits. */
+export const STRONGER_NOTE = 'The rounds spent with a test still failing or a blocking finding left, the next stronger tier on the Models page tries (it says what is wrong first; its model’s use is said). Failing work is never taken in: you decide.'
 /** 0162: a project that had turned 89m's switch off is Nothing - said, never silently. */
 export const FROM_OFF = 'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.'
 
@@ -26,7 +28,14 @@ export function useAfterChange(project: Project) {
   const [forget, setForget] = useState(false)
   const rounds = project.fix_rounds ?? 2
   const [fix, setFix] = useState(rounds)
-  const patch = { ...(after !== saved && { after_change: after }), ...(fix !== rounds && { fix_rounds: fix }), ...(forget && { forget_tests_found: true }) }
+  const strongerSaved = project.stronger_model ?? true
+  const [stronger, setStronger] = useState(strongerSaved)
+  const patch = {
+    ...(after !== saved && { after_change: after }),
+    ...(fix !== rounds && { fix_rounds: fix }),
+    ...(stronger !== strongerSaved && { stronger_model: stronger }),
+    ...(forget && { forget_tests_found: true }),
+  }
   const view = (
     <>
       <Row
@@ -36,7 +45,7 @@ export function useAfterChange(project: Project) {
         doc={GUIDE.checked}
         warn={
           <span id="after-change-note" className="choice-note">
-            {afterChangeSaid(project, after, fix)}
+            {afterChangeSaid(project, after, fix, stronger)}
             {project.after_change_from_off && after === 'nothing' && <span data-testid="after-change-from-off"> {FROM_OFF}</span>}
           </span>
         }
@@ -58,6 +67,13 @@ export function useAfterChange(project: Project) {
           ))}
         </select>
       </Row>
+      <label className="choice">
+        <input type="checkbox" checked={stronger} onChange={e => setStronger(e.target.checked)} />
+        <span>
+          Then a stronger model
+          <span className="choice-note">{STRONGER_NOTE}</span>
+        </span>
+      </label>
       <FoundTests found={project.tests_found ?? {}} forget={forget} setForget={setForget} />
     </>
   )

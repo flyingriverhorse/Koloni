@@ -218,6 +218,10 @@ class Project(Base):
     # S3 (0165, plan decisions 14a and 19): how often the end check sends work back - failing
     # tests and a Reviewer's blocking findings, one count a turn - 1 to 5.
     fix_rounds: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    # S11 (0169, decisions 18, 19): Then a stronger model - the fix rounds spent with a test
+    # still failing (or a blocking finding left), the next stronger tier tries; off: the work
+    # waits after the first model's rounds.
+    stronger_model: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     # S7 (0166, decision 14b): the project's last green state, by "<folder> <command>": what its
     # last whole suite KOLONİ ran that passed counted - {"ran", "skipped", "at"}.
     tests_green: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")

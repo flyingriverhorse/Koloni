@@ -29,13 +29,13 @@ export const WAITS = { detach: 60, copy: 120 }
 const minutes = (seconds: number) => (seconds === 60 ? '1 minute' : seconds % 60 ? `${seconds} seconds` : `${seconds / 60} minutes`)
 
 /** Settings › After a change: what it does in this project now - live as the choice and Fix rounds change. */
-export function afterChangeSaid(project: Testing & Pick<Project, 'review_lines' | 'review_files'>, after: Project['after_change'], fix: number): string {
+export function afterChangeSaid(project: Testing & Pick<Project, 'review_lines' | 'review_files'>, after: Project['after_change'], fix: number, stronger = true): string {
   if (after === 'nothing') return 'Nothing is tested or reviewed; each answer says Not checked.'
   const review =
     after === 'check'
       ? `; a change over ${project.review_lines} lines or ${project.review_files} files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request)`
       : '; no review'
-  return `Runs ${testsRun(project)}, related tests first, the whole suite in the background${review}. A turn you watch waits for the related tests (with none, at most ${minutes(WAITS.detach)} for the whole suite; in its own working copy, at most ${minutes(WAITS.copy)} for them all). Failing work goes back up to ${times(fix)}.`
+  return `Runs ${testsRun(project)}, related tests first, the whole suite in the background${review}. A turn you watch waits for the related tests (with none, at most ${minutes(WAITS.detach)} for the whole suite; in its own working copy, at most ${minutes(WAITS.copy)} for them all). Failing work goes back up to ${times(fix)}${stronger ? ', then to a stronger model' : ''}.`
 }
 
 /** The permission menu's switch, of what runs: "runs <command> after each change, then a Reviewer reads big or security changes. Failing work goes back to be fixed, up to N times." */

@@ -8997,6 +8997,8 @@ export interface components {
             spawn_max_depth: number;
             /** Spawn Max Parallel */
             spawn_max_parallel: number;
+            /** Stronger Model */
+            stronger_model: boolean;
             /** Suggest Tasks */
             suggest_tasks: boolean;
             /**
@@ -9139,6 +9141,8 @@ export interface components {
             spawn_max_depth?: number | null;
             /** Spawn Max Parallel */
             spawn_max_parallel?: number | null;
+            /** Stronger Model */
+            stronger_model?: boolean | null;
             /** Suggest Tasks */
             suggest_tasks?: boolean | null;
             /** Suggest Tier */
