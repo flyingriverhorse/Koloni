@@ -56,7 +56,7 @@ runs in its copy is asked at every level, Full auto too, when it:
 
 KOLONİ reads the command as written: a path built in a script is not seen.
 
-[![A working copy's life: the copy is made, the agent works in it, a card in Ready for you, Run the test, then Take in, Merge or Open pull request, or Discard; clashes, commits, and what is removed or kept; and a lane for an agent on a branch: its work committed when it stops, go on on the same branch or in a copy, and a branch holding a secret never kept](../diagrams/working-copy.svg)](../diagrams/working-copy.svg)
+[![A working copy's life: the copy is made, the agent works in it, a card in Ready for you, Run the test, then Take in, Merge or Open pull request, or Discard; clashes, commits, and what is removed or kept; and a lane for an agent on a branch: a locked worktree made from your folder as it is, its work committed when it stops, go on on the same branch or in a copy, a merge that waits for your commit, a pull request that never sends your unpushed commits, and a branch holding a secret never kept](../diagrams/working-copy.svg)](../diagrams/working-copy.svg)
 
 *A working copy's life, from the copy to your project; the "On a branch" lane is [Branches](#branches) below. ([full size](../diagrams/working-copy.svg))*
 
