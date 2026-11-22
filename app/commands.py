@@ -539,6 +539,12 @@ _WMI_STOPS = re.compile(r"(?i)(?:^|(?<=[\s\"'(;&|{]))(?:wmic|invoke-cimmethod|ic
 _STOP_PROGRAMS = frozenset({"kill", "stop-process", "spps", "taskkill", "tskill", "pkill",
                             "killall"})
 _HANDS_WORDS = re.compile(r"(?i)(?<![\w-])(?:xargs|parallel)(?![\w-])")
+# Code an interpreter is handed on the line (`_INLINE`: `python -c`, `node -e`, `perl -e`, `ruby
+# -e`; an awk program) is not read: a stop's name in it - a program's, a process object's own, a
+# signal - is a stop of what may be KOLONİ itself (review round 5).
+_AWK = re.compile(r"(?i)(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?[gmn]?awk(?:\.exe)?\s")
+_CODE_STOPS = re.compile(r"(?i)(?<![\w-])(?:taskkill|tskill|pkill|killall|kill|stop-process|spps)"
+                         r"(?![\w-])|\.(?:kill|terminate)\s*\(|\bsignal\.SIG")
 # A line's words as its shell splits them - by its quotes, glued ones too (`--grep="x|kill"`) -
 # and what joins its commands (`_stands`).
 _SHELL_WORDS = re.compile(r"""(?:[^\s'";&|(){}]|"[^"]*"|'[^']*')+|[;&|(){}]+""")
@@ -853,7 +859,8 @@ def _stop_kind_of(command: str) -> str:
                for stage in re.split(r"(?<!\|)\|(?!\|)", command)[1:]
                for words in _parts(stage, _BLOCKS) if words)
     if _WMI_STOPS.search(command) or stands and _HANDS_WORDS.search(command) or ends and (
-            _stands(command, _STOP_METHODS)):
+            _stands(command, _STOP_METHODS)) or _CODE_STOPS.search(command) and (
+            _INLINE.search(command) or _AWK.search(command)):
         return "koloni"
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 

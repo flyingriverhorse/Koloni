@@ -620,6 +620,21 @@ def test_what_a_backtick_pair_holds_is_read(command):
     assert copy_reason(command, False, "/work/proj", "/work/rt") == KILLS_BY_NAME, command
 
 
+# An interpreter's code on the line is not read: a stop's name in it may stop KOLONİ itself
+# (review round 5 - 650e22a asked these).
+@pytest.mark.parametrize("command", [
+    "python -c \"import os; os.system('pkill -f uvicorn')\"",
+    "python -c \"import os; os.system('taskkill /F /IM python.exe')\"",
+    "python3 -c 'import os; os.system(\"kill -9 -1\")'",
+    "node -e \"require('child_process').execSync('taskkill /F /IM node.exe')\"",
+    "perl -e 'system(\"pkill python\")'", "ruby -e 'system(\"pkill python\")'",
+    "awk 'BEGIN{system(\"pkill python\")}'", "node -e \"process.kill(1234)\"",
+    "python -c \"import os,signal; os.kill(os.getppid(), signal.SIGKILL)\"",
+    "uv run python -c \"import os; os.system('pkill -f uvicorn')\""])
+def test_a_stop_in_code_an_interpreter_is_handed_is_always_asked(command):
+    assert harm_class(command) == "always", command
+
+
 def places(tmp_path):
     """A project, KOLONİ's runtime, this copy's own tree in its copies folder, the folder, and
     one of the project's worktrees."""
