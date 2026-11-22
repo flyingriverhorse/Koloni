@@ -634,6 +634,46 @@ def test_an_install_a_substitution_runs_is_one(command):
     assert web_off_reason(command, ["http_request"]), command
 
 
+@pytest.mark.parametrize("command", [
+    "echo '$(npm ci)'", "git commit -m 'use $(npm ci)'", "grep '$(npm ci)' x.sh",
+    'echo "\\$(npm ci)"', "$m = @'\n$(npm ci)\n'@", "cat > a.txt <<'EOF'\n$(npm ci)\nEOF"])
+def test_a_substitution_no_shell_runs_installs_nothing(command):
+    # (k-okuyucu-2: single quotes, `\$(`, a literal here-string, a quoted delimiter's data body)
+    assert not installs(command), command
+
+
+# A data heredoc hides nothing after it, and an unquoted delimiter's body runs its `$( )` and
+# backticks (the check of df5901d): every line is read as written too.
+@pytest.mark.parametrize("command", [
+    "cat > x.py <<'EOF'\nprint(1)\nEOF\npython x.py && pkill -f uvicorn",
+    "git commit -F - <<'EOF'\nmsg\nEOF\npkill python", "cat <<'EOF'\ndata\nEOF\ntaskkill /F /IM python.exe",
+    "cat <<'EOF'\ndata\nEOF\nStop-Process -Name python", "cat <<'EOF'\ndata\nEOF\npgrep x | xargs kill",
+    "cat << EOF\ndata\nEOF\npkill python", "cat <<-EOF\ndata\n\tEOF\npkill python",
+    "cat <<EOF\r\ndata\r\nEOF\r\npkill python", "cat <<'E'OF\ndata\nEOF\npkill python",
+    "cat <<A <<B\nx\nA\ny\nB\npkill python", "bash <<'OUT'\ncat <<'IN'\ndata\nIN\npkill python\nOUT",
+    "cat <<EOF\n$(pkill python)\nEOF", "git commit -F - <<EOF\nmsg $(pkill python)\nEOF",
+    "cat <<EOF\n${x:-$(pkill python)}\nEOF", "cat <<-EOF\n\t$(pkill python)\n\tEOF",
+    "cat <<EOF\n`pkill python`\nEOF", "<# c #> Stop-Process -Name python"])
+def test_a_stop_past_a_heredoc_or_in_its_substitution_is_asked(command):
+    assert harm_class(command) == "always", command
+    assert command in readings(command)
+
+
+@pytest.mark.parametrize("command", [
+    "Start-Process -FilePath \"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -ArgumentList "
+    "'-c','Stop-Process -Name python'",
+    "Start-Process pwsh -ArgumentList @('-c','Stop-Process -Name python')",
+    "Start-Process pwsh -ArgumentList $a",
+    "Start-Process -ArgumentList '-c','Stop-Process -Name python' -FilePath pwsh",
+    "Start-Process -ArgumentList '/c taskkill /F /IM python.exe' cmd",
+    "Start-Process taskkill -ArgumentList '/F /IM python.exe'", "saps pkill python",
+    "powershell /enc ZQBjAGgAbwA=",
+    "[System.Management.Automation.ScriptBlock]::Create('Stop-Process -Name python').Invoke()",
+    "Start-Process python -ArgumentList '-c \"import os; os.system(''pkill python'')\"'"])
+def test_a_launchers_other_spellings_are_read(command):
+    assert harm_class(command) == "always", command
+
+
 # The four checks that read a line as written read every reading (k-okuyucu): a continued line
 # and a group too - the strictest of them.
 def test_the_checks_that_read_a_line_as_written_read_every_reading():

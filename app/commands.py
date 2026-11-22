@@ -862,7 +862,8 @@ def _stop_kind(command: str) -> str:
     shortcut: a command run out of the line's sight is not read (review rounds 4, k-okuyucu-2):
     `find -exec kill {} ;`, `git submodule foreach '...'`, `script -q -c '...'`, `at`; a line
     kept in a variable or an alias first (`c='B'; $c`, `eval "$c"`, `iex $c`, `alias i='B'; i`,
-    `Set-Alias k Stop-Process; k -Name x`); a program's own way to run one (`sed e`, `vim -c
+    `Set-Alias k Stop-Process; k -Name x`); a program's own way to run one (`sed e`, ed's `!` -
+    in a script a heredoc hands them too: `sed -f - <<EOF`, `ed -s x <<EOF` -, `vim -c
     ':!...'`, `gdb -ex 'shell ...'`, `sqlite3 '.shell ...'`, `psql -c '\\! ...'`, `git -c
     core.pager=` / `alias.x='!...'`, `tar --checkpoint-action=exec=`); `ssh host '...'` (another
     machine's); a name in smart quotes PowerShell takes for quotes. Read them when one is seen."""
@@ -2246,7 +2247,7 @@ def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
     # (and what a `$( ... )` runs, in double quotes too: `out=$(npm ci)` - k-okuyucu-2; `_BLOCKS`
     # cuts at its brackets already; past MAX_OTHER_READINGS of them, not read: `_too_deep`)
     deep = _too_deep(command)
-    subs = _substituted(command) if at is _PARTS and not deep else []
+    subs = _substituted(_unliteral(command)) if at is _PARTS and not deep else []
     return [*([word.strip("'\"") for word in _words(inner)] for _quote, inner in sets),
             *([word.strip("'\"") for word in _led(_words(part.strip()))]
               for text in (command, *groups, *subs) for part in at.split(text)),
@@ -2261,7 +2262,9 @@ def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
     found: list[str] = []
     opened: list[tuple[str, int]] = []
     quote = ""
-    command = _uncommented(command)
+    # (a data heredoc's body, a comment and a case pattern pair no bracket)
+    command = _uncommented(_uncased(_blanked(command, (
+        (start, end) for start, end, _quoted in _data_bodies(command)))))
     for mark in re.finditer(r"""[(){}'"]""" if quotes else r"[(){}]", command):
         char, at = mark[0], mark.start()
         if quote:
@@ -2433,37 +2436,82 @@ def readings(line: str) -> list[str]:
 
 
 def _readings(line: str) -> list[str]:
-    """A line as the shell reads it (`joined`) and as written: a backtick or a backslash at a
-    line's end continues nothing in a comment (`rm x # done `⏎`npm publish`), glued to a word
-    in `pwsh -Command` (`build`⏎`git push`), after a Windows path (`C:\\`⏎) or in bash, where a
-    backtick opens what it runs (`echo `⏎`rm -rf build`⏎``) - reading it both ways may only
-    add (review round 4). And what its backticks hold, each a line of its own: bash runs it, in
-    double quotes too, so a message holding a backtick pair is no message (`git commit -m
-    "`kill -9 $(pgrep x)`"`).
+    """A line as written - always one of them: every other reading may only add (k-okuyucu-2) -
+    and as the shell reads it (`joined`): a backtick or a backslash at a line's end continues
+    nothing in a comment (`rm x # done `⏎`npm publish`), glued to a word in `pwsh -Command`
+    (`build`⏎`git push`), after a Windows path (`C:\\`⏎) or in bash, where a backtick opens what
+    it runs (`echo `⏎`rm -rf build`⏎``) (review round 4). And what its backticks hold, each a line
+    of its own: bash runs it, in double quotes too, so a message holding a backtick pair is no
+    message (`git commit -m "`kill -9 $(pgrep x)`"`); its `case` branches past their patterns
+    (`_uncased`); what follows a PowerShell block comment (`<# c #> Stop-Process ...`); what a
+    launcher hands on (`_handed`).
     shortcut: pairs taken in order - nested substitutions (`` `a \\`b\\`` ``) and PowerShell's own
     escapes (`` `t ``) read as pairs are not parsed as bash does; do so in 0.1.6."""
-    line = _uncased(_without_data_heredocs(line))
     insides = re.findall(r"`([^`]*)`", line)
-    return list(dict.fromkeys((joined(line), line, *(["\n".join(insides)] if insides else []),
-                               *_handed(line))))
+    return list(dict.fromkeys((
+        line, joined(line), _uncased(line), re.sub(r"(?s)<#.*?#>", " ", line),
+        *(["\n".join(insides)] if insides else []), *_handed(line))))
 
 
-# Lines a command hands on that its parts do not split out (k-okuyucu-2): Start-Process's argument
-# list to a shell (`Start-Process powershell -ArgumentList '-Command','taskkill ...'`), a package
-# runner's `-c` / `--call` (`npx -c 'taskkill ...'`), `[scriptblock]::Create('...')`.
-_START_PROCESS = re.compile(
-    r"(?i)(?:^|(?<=[\s;&|(]))(?:start-process|saps|start)\s+(?:-filepath[:\s]\s*|-f\s+)?(['\"]?)"
-    r"((?:\S*[\\/])?(?:powershell|pwsh|cmd|bash|sh|zsh|wsl)(?:\.exe)?)\1(?=\s|$)([^;\n|]*)")
+# Lines a command hands on that its parts do not split out (k-okuyucu-2): Start-Process's
+# argument list (`Start-Process powershell -ArgumentList '-Command','taskkill ...'`, any program,
+# its path quoted with a space, `@(...)`, named after its arguments), a package runner's `-c` /
+# `--call` (`npx -c 'taskkill ...'`), `[scriptblock]::Create('...')`.
+_START_PROCESS = re.compile(r"""(?i)(?:^|(?<=[\s;&|(]))(?:start-process|saps|start)(?=\s)"""
+                            r"""((?:'[^']*'|"[^"]*"|[^\n|;'"])*)""")
 _RUNNER_CALL = re.compile(r"(?i)\b(?:npx|npm\s+(?:exec|x)|pnpm\s+(?:dlx|exec)|yarn\s+(?:dlx|exec))"
                           r"\b[^;&|\n]*?\s(?:-c|--call)(?:=|\s+)(['\"])(.*?)\1")
-_SCRIPTBLOCK = re.compile(r"(?i)\[scriptblock\]::create\(\s*(['\"])(.*?)\1\s*\)")
-# Start-Process's own options with a value, and its switches: no part of what it hands on.
-_SP_VALUES = frozenset({"-windowstyle", "-workingdirectory", "-verb", "-credential", "-environment",
-                        "-redirectstandardoutput", "-redirectstandarderror",
-                        "-redirectstandardinput"})
-_SP_SWITCHES = frozenset({"-wait", "-nonewwindow", "-passthru", "-usenewenvironment",
-                          "-loaduserprofile", "-argumentlist", "-args", "-a", ","})
-_SP_TOKENS = re.compile(r"""'[^']*'|"[^"]*"|,|[^\s,'"]+""")
+_SCRIPTBLOCK = re.compile(r"(?i)\[(?:system\.management\.automation\.)?scriptblock\]::create\("
+                          r"\s*(['\"])(.*?)\1\s*\)")
+# Start-Process's own parameters, by any prefix PowerShell takes: those with a value, its
+# switches; its argument list and its program.
+_SP_VALUES = ("-windowstyle", "-workingdirectory", "-verb", "-credential", "-environment",
+              "-redirectstandardoutput", "-redirectstandarderror", "-redirectstandardinput")
+_SP_SWITCHES = ("-wait", "-nonewwindow", "-passthru", "-usenewenvironment", "-loaduserprofile",
+                "-whatif", "-confirm")
+_SP_TOKENS = re.compile(r"""'[^']*'|"[^"]*"|,|@\(|[()]|[^\s,'"()]+""")
+# What reads the line it is handed as code or commands: a variable in its place is not read.
+_RUNS_LINES = re.compile(rf"(?i){_INTERPRETERS}|(?:powershell|pwsh|cmd|bash|sh|zsh|wsl|dash)"
+                         r"(?:\.exe)?")
+
+
+def _sp_param(word: str, names: Iterable[str]) -> bool:
+    name = word.casefold().partition(":")[0]
+    return len(name) > 2 and any(full.startswith(name) for full in names)
+
+
+def _started_line(rest: str) -> str:
+    """What `Start-Process ...` runs, as a line (`_handed`): its program - `-FilePath`'s, else
+    its first word - and its argument list; UNREAD where it hands a shell or an interpreter a
+    variable (`-ArgumentList $a`)."""
+    tokens, program, items, at, listing = _SP_TOKENS.findall(rest), None, [], 0, False
+    while at < len(tokens):
+        token = tokens[at]
+        at += 1
+        if token in (",", "@(", "(", ")"):
+            continue
+        if token.startswith("-") and _sp_param(token, ("-filepath", "-pspath", "-path")):
+            program = tokens[at] if at < len(tokens) and ":" not in token else token.partition(
+                ":")[2]
+            at, listing = at + (0 if ":" in token else 1), False
+        elif token.startswith("-") and _sp_param(token, _SP_VALUES):
+            at, listing = at + (0 if ":" in token else 1), False
+        elif token.startswith("-") and _sp_param(token, _SP_SWITCHES):
+            listing = False
+        elif token.startswith("-") and _sp_param(token, ("-argumentlist", "-args")):
+            listing = True
+        elif program is None and not listing:
+            program = token if token.strip("'\"") else None  # (cmd's `start "" x`: a title)
+        else:
+            items.append(token.strip("'\""))
+            # (the list goes on past a comma only: `-ArgumentList '/c x' cmd` names cmd after it)
+            listing = listing and at < len(tokens) and tokens[at] == ","
+    program = (program or "").strip("'\"")
+    if any(item.startswith("$") for item in items) and _RUNS_LINES.fullmatch(_program(program)):
+        return UNREAD
+    return " ".join([f'"{program}"' if " " in program else program, *(
+        items if len(items) < 2 else (f"'{item}'" if '"' in item else f'"{item}"' if re.search(
+            r"\s", item) else item for item in items))])
 
 
 def _handed(line: str) -> list[str]:
@@ -2471,46 +2519,66 @@ def _handed(line: str) -> list[str]:
     each as the program handed it reads it (`powershell -Command "taskkill ..."`)."""
     found = [inner for _quote, inner in _RUNNER_CALL.findall(line)]
     found += [inner for _quote, inner in _SCRIPTBLOCK.findall(line)]
-    for _quote, shell, rest in _START_PROCESS.findall(line):
-        tokens, items, at = _SP_TOKENS.findall(rest), [], 0
-        while at < len(tokens):
-            name = tokens[at].casefold().partition(":")[0]
-            at += 2 if name in _SP_VALUES else 1
-            if name not in _SP_VALUES and name not in _SP_SWITCHES:
-                items.append(tokens[at - 1].strip("'\""))
-        found.append(" ".join([shell, *items]) if len(items) < 2 else " ".join(
-            [shell, *(f"'{item}'" if '"' in item else f'"{item}"' if re.search(r"\s", item)
-                      else item for item in items)]))
-    return found
+    return found + [_started_line(rest) for rest in _START_PROCESS.findall(line)]
 
 
-# A heredoc's body (`<<EOF`, `<<-'EOF'`, `<<"EOF"`) is data to what only reads it - a file it
-# writes, a message, a count (k-okuyucu-2): `1) first` in it is no command. Handed to anything
-# else (`bash <<EOF`, `python - <<'EOF'`, `make -f -`, a pipe on its line) it stays, read as the
-# line it is (an interpreter's code: `_STDIN_CODE`).
-_HEREDOC = re.compile(r"(?<!<)<<(-?)[ \t]*(['\"]?)([\w.-]+)\2")
+# A heredoc's body (`<<EOF`, `<<-'EOF'`, `<<"EOF"`, `<<\EOF`, `<<'E'OF`) is data to what only reads
+# it - a file it writes, a message, a count (k-okuyucu-2): its brackets pair nothing (`1) first`),
+# and where its delimiter is quoted its `$(...)` runs nothing either. Handed to anything else
+# (`bash <<EOF`, `python - <<'EOF'`, `make -f -`, a pipe or a chain on its line) it is code.
+_HEREDOC = re.compile(r"(?<!<)<<(-?)[ \t]*((?:'[^'\n]*'|\"[^\"\n]*\"|\\?[\w.@%+-])+)")
 _DATA_READERS = frozenset({
     "cat", "tee", "git", "gh", "wc", "sort", "uniq", "head", "tail", "grep", "egrep", "fgrep",
     "rg", "jq", "yq", "base64", "diff", "cmp", "less", "more", "nl", "tr", "cut", "column",
     "fold", "iconv", "xxd", "od", "md5sum", "sha256sum", "shasum", "curl", "echo", "printf"})
 
 
-def _without_data_heredocs(line: str) -> str:
-    """A line with the bodies of its heredocs taken out where the command on the heredoc's line
-    is one that only reads it as data (`_DATA_READERS`, alone on its line: no pipe, no chain)."""
-    at = 0
-    while found := _HEREDOC.search(line, at):
-        start, end = line.rfind("\n", 0, found.start()) + 1, line.find("\n", found.end())
-        head = line[start:] if end < 0 else line[start:end]
-        words = _words(head.strip())
-        at = found.end()
-        if end < 0 or re.search(r"[|;&]", re.sub(r"\d?>&\d|&>", "", head)) or not words or (
-                _program(words[0]) not in _DATA_READERS):
-            continue
+def _data_bodies(line: str) -> list[tuple[int, int, bool]]:
+    """Where each heredoc body handed to a data reader (`_DATA_READERS`, alone on its line: no
+    pipe, no chain) starts and ends in a line, and whether its delimiter is quoted. Two on one
+    line follow each other; one with no closing line runs to the line's end."""
+    bodies: list[tuple[int, int, bool]] = []
+    after: dict[int, int] = {}  # (a head line's next body: `cat <<A <<B`)
+    for found in _HEREDOC.finditer(line):
+        head_start = line.rfind("\n", 0, found.start()) + 1
+        head_end = line.find("\n", found.end())
+        if head_end < 0:
+            break
+        word = found[2]
+        delimiter = re.sub(r"['\"\\]", "", word)
+        start = after.get(head_start, head_end + 1)
         tabs = r"\t*" if found[1] else ""
-        close = re.compile(rf"^{tabs}{re.escape(found[3])}[ \t\r]*$", re.M).search(line, end + 1)
-        line = line[:end] + line[close.end() if close else len(line):]
-    return line
+        close = re.compile(rf"^{tabs}{re.escape(delimiter)}\r?$", re.M).search(line, start)
+        end = close.start() if close else len(line)
+        after[head_start] = close.end() + 1 if close else len(line)
+        head = line[head_start:head_end]
+        words = _words(head.strip())
+        if words and _program(words[0]) in _DATA_READERS and not re.search(
+                r"[|;&]", re.sub(r"\d?>&\d|&>", "", head)):
+            bodies.append((start, end, word != delimiter))
+    return bodies
+
+
+def _blanked(line: str, spans: Iterable[tuple[int, int]]) -> str:
+    """A line with these spans' characters but its line ends made spaces: what they hold is read
+    as nothing, and every other place stays where it was."""
+    chars = list(line)
+    for start, end in spans:
+        for at in range(start, end):
+            chars[at] = chars[at] if chars[at] in "\r\n" else " "
+    return "".join(chars)
+
+
+def _unliteral(line: str) -> str:
+    """A line with what no shell runs a `$( ... )` in made blank (`_substituted` reads the rest):
+    a single-quoted string, an escaped `\\$(`, a PowerShell literal here-string (`@'...'@`), a
+    quoted delimiter's heredoc body handed to a data reader (k-okuyucu-2).
+    shortcut: a single-quoted word inside an unquoted heredoc's body is blanked too, though the
+    shell expands what it holds there; read it so if an agent is seen to write one."""
+    line = _blanked(line, ((start, end) for start, end, quoted in _data_bodies(line) if quoted))
+    line = re.sub(r"""(?s)@'.*?'@|"(?:[^"\\`]|[\\`].)*"|'[^']*'""",
+                  lambda found: found[0] if found[0][:1] == '"' else " " * len(found[0]), line)
+    return line.replace("\\$(", "   ")  # (an escaped `\$(`, in double quotes too)
 
 
 # sh's `case x in a|b) cmd ;; esac`: its patterns are no command, only its branches are.
@@ -2570,7 +2638,7 @@ def standing_asked(command: str, instructions: bool = True) -> str:
 
 # PowerShell handed its command encoded (`-EncodedCommand`, `-enc`, `-ec`, `-e`).
 _ENCODED = re.compile(r"(?i)(?:^|(?<=[\s;&|(\"',]))(?:\S*[\\/])?(?:powershell|pwsh)(?:\.exe)?['\"]?"
-                      r"[\s,](?:[^;&|\n]*[\s,'\"])?-e(?:c|n[a-z]*)?(?=[\s:'\",]|$)")
+                      r"[\s,](?:[^;&|\n]*[\s,'\"])?[-/]e(?:c|n[a-z]*)?(?=[\s:'\",]|$)")
 
 
 def _harm(command: str) -> str:
