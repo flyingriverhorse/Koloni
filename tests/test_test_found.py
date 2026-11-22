@@ -127,11 +127,11 @@ def test_a_maps_fingerprint_changes_with_its_parts():
 
 # (review of S1b: a line KOLONİ did not write is tried only as one of a fixed few, as it is)
 @pytest.mark.parametrize("command", [
-    "pytest", "python -m pytest -q", "py -m pytest", "npx vitest run", "npx jest -v",
+    "pytest", "python -m pytest -q", "npx vitest run", "npx jest -v",
     "npm test", "yarn test", "pnpm test", "bun test", "tox", "nox", "go test ./...",
     "cargo test", "dotnet test", "mvn test", "gradle test", "./gradlew test", "bundle exec rspec",
     "composer test", "vendor/bin/phpunit", "mix test", "swift test", "ctest", "make test",
-    "ctest --test-dir build", "python -m unittest",
+    "ctest --test-dir build",
 ])
 def test_the_lines_that_may_be_tried(command):
     assert test_found.tryable(command)
@@ -211,8 +211,8 @@ def test_the_digest_never_walks_through_a_link_out_of_the_project(tmp_path, name
     _link_folder(outside, project / name)
     try:
         said = test_found.digest(project, {"parts": []})
-    finally:
-        os.rmdir(project / name)  # (the link only)
+    finally:  # (the link only)
+        (os.rmdir if sys.platform == "win32" else os.unlink)(project / name)
     assert f"{name}/" not in said and "test_0.py" not in said
 
 

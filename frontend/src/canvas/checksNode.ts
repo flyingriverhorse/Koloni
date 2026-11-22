@@ -76,7 +76,9 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const at = calls.find(c => c.status === 'running')
   // (Its clock: the command's own start - not its call's, which may wait for a free slot first.)
   const since = at ? (state.commands.find(c => c.tool_call_id === at.id)?.started_at ?? null) : null
-  const rounds = Math.max(passesOf(calls) - 1, 0)
+  // (At its end the Checked section says how many: a pass after a round may run nothing - the Orchestrator's own run stood.)
+  const said = checked?.checked?.find(row => row.kind === 'rounds')?.text.match(/\d+/)
+  const rounds = Math.max(passesOf(calls) - 1, said ? Number(said[0]) : 0)
   const data: ChecksData = {
     runId: run.id,
     leadId: lead.id,

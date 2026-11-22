@@ -157,11 +157,11 @@ MOST_LINE = 200  # characters of a command line tried
 # project's test command - the forms KOLONİ's own guesses take, each with at most `-q` or `-v`.
 # Nothing else: no prefix, no shell, no option with a value, no path, no file of tests.
 TRIED = frozenset({
-    "pytest", "python -m pytest", "py -m pytest", "npx vitest run", "npx jest", "npm test",
+    "pytest", "python -m pytest", "npx vitest run", "npx jest", "npm test",
     "yarn test", "pnpm test", "bun test", "tox", "nox", "go test ./...", "cargo test",
     "dotnet test", "mvn test", "gradle test", "./gradlew test", "bundle exec rspec",
     "composer test", "vendor/bin/phpunit", "mix test", "swift test", "ctest",
-    "ctest --test-dir build", "make test", "python -m unittest",
+    "ctest --test-dir build", "make test",
 })
 
 

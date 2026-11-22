@@ -65,6 +65,10 @@ test('two parts failing in one pass are one round, not two; a pass again is one'
   const [again, againRun] = failing('p3', 'mvn test', '2026-10-05T10:02:00Z')
   const two = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], toolCalls: [api, web, again], commands: [apiRun, webRun, againRun] }))
   expect(two.data?.rounds).toBe(1)
+  // (A pass after a round that ran nothing - the Orchestrator's own run stood: its end says so.)
+  const sent = checked([row('note', 'Sent back to fix: 1 of 2 rounds', { kind: 'rounds' }), row('passed', 'Tests passed')])
+  const stood = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], toolCalls: [api], commands: [apiRun], messages: [sent] }))
+  expect(stood.data?.rounds).toBe(1)
 })
 
 test('a count with none passed or failed is the row’s own words; go counts packages', () => {

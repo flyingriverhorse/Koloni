@@ -384,3 +384,32 @@ def test_a_save_sets_its_own_folder_alone_and_never_over_one_made_meanwhile(clie
     seen = project(client, project_dir)["tests_found"]
     assert {folder: one["command"] for folder, one in seen.items()} == {
         "api": "mvn test", "web": "npm test", "svc": "go test ./..."}
+
+
+def test_a_looks_wide_line_is_not_run_at_ask_under_an_always_rule_for_its_tool(
+        make_client, wait_run, project_dir, fast):
+    # (An "always" rule for `python -m pytest` would let `--basetemp=../outside` run unasked as
+    # its prefix: the line is never tried, so no card and no run.)
+    from app.db.models import AllowedCommand
+    from tests.test_agent_writes import wait_status
+
+    line = "python -m pytest -q --basetemp=../outside"
+    executor = ScriptedExecutor([PASS, PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  looked({"tests": [{"command": line, "folder": "."}]})],
+                                 executor=executor)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "ask",
+                 "lead_hands_code": False}, headers=OWN)
+    with client.app.state.session_factory() as session:
+        session.add(AllowedCommand(conversation_id=cid, project_id=pid, prefix="python -m pytest"))
+        session.commit()
+    run_id = client.post(f"/api/conversations/{cid}/messages",
+                         json={"content": "go"}).json()["run"]["id"]
+    snap = wait_status(client, cid, "waiting_approval")
+    (change,) = [c for c in snap["file_changes"] if c["status"] == "proposed"]
+    client.post(f"/api/file-changes/{change['id']}/approve", headers=OWN)
+    snap = wait_run(client, cid, run_id)
+    assert executor.started == [] and snap["commands"] == [], (snap["commands"], texts(snap))
+    assert texts(snap)[-1] == proof.NO_COMMAND

@@ -54,9 +54,8 @@ A project that had turned off the old **Finish only when the tests pass** switch
    named are tried again. With no Fast-tier model the section says so.
 
 A line an agent ran (5) or the model named (6) is tried only if it is one of the commands in 4,
-or `pytest`, `py -m pytest`, `npx vitest run`, `npx jest`, `yarn test`, `pnpm test`, `bun test`,
-`tox`, `nox`, `ctest` or `python -m unittest` - with at most `-q` or `-v` after it, in a folder of
-the project. Any other line (more options, a wrapper, a chain) is never run: the look's row says
+or `pytest`, `npx vitest run`, `npx jest`, `yarn test`, `pnpm test`, `bun test`, `tox`, `nox` or
+`ctest` - with at most `-q` or `-v` after it, in a folder of the project. Any other line (more options, a wrapper, a chain) is never run: the look's row says
 how many it named that were not tried.
 
 A guessed command is tagged **guessed**. If nothing can be found, the section says "No test

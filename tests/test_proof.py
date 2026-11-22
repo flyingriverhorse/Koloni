@@ -228,6 +228,20 @@ def test_a_run_started_before_the_last_change_is_not_fresh(factory):
         assert proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r")) is None
 
 
+def test_a_line_started_in_the_same_clock_tick_after_a_pass_unmakes_it(factory):
+    # (review of S1b: Windows' clock ticks ~15 ms - a later line may carry the pass's own start)
+    at = now()
+    with factory() as s:
+        change(s, "a.py", "1\n", "2\n", at=at - timedelta(seconds=30))
+        ran(s, "pytest -q", 0, at)
+        assert proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r")) is not None
+        s.add(Command(run_id="r", agent_id="lead", command="python fmt.py", cwd=".",
+                      location="host", status="exited", exit_code=0, output="",
+                      timeout_seconds=60, started_at=at - timedelta(seconds=1), ended_at=at))
+        s.commit()
+        assert proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r")) is None
+
+
 def test_exit_0_with_command_not_found_in_its_output_is_passed():
     out = "test_cli.py::test_missing_tool PASSED  (asserts 'bash: foo: command not found')\n3 passed\n"
     assert proof.tests_row(RUN, 0, out, "exited", "")["state"] == "passed"
