@@ -2621,9 +2621,9 @@ def unpushed_places(project: Path, under: Iterable[Path], branch: str | None = N
     nots = [b"^HEAD", *(b"^" + head.encode() for head in _users_heads(project, git)),
             *_origin_nots(project, git)]
     places = []
-    for ref, tree, log in _users_worktrees(project, git, under) if found else []:
-        lines = [*([ref.encode()] if _verified(project, git, ref) else []),
-                 *(sha.encode() for sha, _says in _reflog(log)), *nots]
+    for tip, tree, log, drop in _users_worktrees(project, git, under) if found else []:
+        lines = [*([tip.encode()] if tip and _verified(project, git, tip) else []),
+                 *(sha.encode() for sha, _says in _reflog(log) if sha not in drop), *nots]
         if tree is not None and found & set(_said_or_refused(
                 project, git, b"\n".join(lines) + b"\n", "rev-list", "--ignore-missing",
                 "--stdin").split()):
@@ -2649,13 +2649,16 @@ def _origin_nots(project: Path, git: str) -> list[bytes]:
 
 
 def _users_worktrees(project: Path, git: str, under: Iterable[Path]
-                     ) -> list[tuple[str, Path | None, Path]]:
+                     ) -> list[tuple[str | None, Path | None, Path, set[str]]]:
     """The repository's other worktrees - the main one (`main-worktree/HEAD`, where the project is a
-    linked one), each linked one (`worktrees/<id>/HEAD`) - but KOLONİ's own: in one of `under` (its
-    copies folders), or on a branch of KOLONİ's (`ref: refs/heads/koloni/...`: another runtime's,
-    as `_users_unpushed` leaves its branches out). Each its HEAD, its folder (None where it is not
-    read) and its HEAD's reflog file: a commit on a detached HEAD in a second worktree of the
-    user's is theirs as one in the project is."""
+    linked one), each linked one (`worktrees/<id>/HEAD`) - but KOLONİ's own, in one of `under` (its
+    copies folders): each its HEAD, its folder (None where it is not read), its HEAD's reflog file
+    and what of that reflog is not the user's. A commit on a detached HEAD in a second worktree of
+    the user's is theirs as one in the project is. One on a branch of KOLONİ's (`ref:
+    refs/heads/koloni/...`: another runtime's, or the user's own look at an agent's branch) gives no
+    HEAD - `_users_unpushed` leaves those branches out - and of its reflog, what that branch's own
+    reflog says was made on it (`_made_on`) is the agents': the rest, a commit the user made
+    there before, stays theirs."""
     common = Path(project, _said_or_refused(project, git, None, "rev-parse", "--git-common-dir")
                   .decode("utf-8", "surrogateescape").strip())
 
@@ -2663,16 +2666,19 @@ def _users_worktrees(project: Path, git: str, under: Iterable[Path]
         return os.path.normcase(os.path.realpath(path))
 
     here, tops = real(project), tuple(os.path.join(real(one), "") for one in under)
-    found: list[tuple[str, Path | None, Path]] = [] if real(common) == real(project / ".git") else [
-        ("main-worktree/HEAD", common.parent if common.name == ".git" else None,
-         common / "logs" / "HEAD")]
+    found: list[tuple[str | None, Path | None, Path, set[str]]] = [] if real(common) == real(
+        project / ".git") else [("main-worktree/HEAD", common.parent if common.name == ".git"
+                                 else None, common / "logs" / "HEAD", set())]
     admins = sorted((common / "worktrees").iterdir()) if (common / "worktrees").is_dir() else []
     for admin in admins:
+        tip: str | None = f"worktrees/{admin.name}/HEAD"
+        drop: set[str] = set()
         try:
-            if (admin / "HEAD").read_text("utf-8").startswith(f"ref: refs/heads/{BRANCH_PREFIX}"):
-                continue
+            on = (admin / "HEAD").read_text("utf-8").strip()
         except (OSError, ValueError):
-            pass  # (not read: taken for the user's)
+            on = ""  # (not read: taken for the user's)
+        if on.startswith(f"ref: refs/heads/{BRANCH_PREFIX}"):
+            tip, drop = None, _made_on(project, git, on.removeprefix("ref: refs/heads/"))
         tree: Path | None = None
         try:  # (its worktree's .git file: absolute, or from here - worktree.useRelativePaths)
             tree = Path(os.path.normpath(os.path.dirname(os.path.join(admin, (
@@ -2681,7 +2687,7 @@ def _users_worktrees(project: Path, git: str, under: Iterable[Path]
         except (OSError, ValueError):
             skip = False  # (not read: taken for the user's)
         if not skip:
-            found.append((f"worktrees/{admin.name}/HEAD", tree, admin / "logs" / "HEAD"))
+            found.append((tip, tree, admin / "logs" / "HEAD", drop))
     return found
 
 
@@ -2727,8 +2733,10 @@ def _users_unpushed(project: Path, git: str, under: Iterable[Path],
     heads = _users_heads(project, git)
     others = _users_worktrees(project, git, under)
     entries = [entry for ref in (*heads, "refs/stash", "HEAD") for entry in _logged(
-        project, git, ref)] + [entry for _ref, _tree, log in others for entry in _reflog(log)]
-    tops = [ref.encode() for ref, _tree, _log in others if _verified(project, git, ref)]
+        project, git, ref)] + [(sha, says) for _tip, _tree, log, drop in others
+                               for sha, says in _reflog(log) if sha not in drop]
+    tops = [tip.encode() for tip, _tree, _log, _drop in others
+            if tip and _verified(project, git, tip)]
     # (No empty line: rev-list's --stdin stops reading at one, and the ^origin ones would be lost.)
     lines = [*(sha.encode() for sha, _says in entries), *tops, *_origin_nots(project, git)]
     out = _said_or_refused(project, git, b"\n".join(lines) + b"\n", "rev-list",
@@ -2738,6 +2746,13 @@ def _users_unpushed(project: Path, git: str, under: Iterable[Path],
         return out
     agents = _made_on(project, git, branch) - {sha for sha, says in entries
                                                if _MADE_HERE.match(says)}
+    if agents:  # (never one a branch, tag or other remote of the user's holds too)
+        agents -= set(_said_or_refused(
+            project, git, b"\n".join(_origin_nots(project, git)) + b"\n", "rev-list",
+            # (--branches' and --remotes' patterns are their refs' short names)
+            "--ignore-missing", f"--exclude={BRANCH_PREFIX}*", "--branches", "--tags",
+            "--exclude=origin/*", "--remotes", "--stdin").decode(
+            "ascii", "replace").split())
     return b"".join(sha + b"\n" for sha in out.split() if sha.decode("ascii", "replace")
                     not in agents)
 
