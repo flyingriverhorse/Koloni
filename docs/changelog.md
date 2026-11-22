@@ -25,6 +25,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Fixed
 
+- **Agents**: a Candidates step with a loop (the ready **Evolve** recipe) runs one round only when the project has no measure command - with no score nothing reaches the target, so its other rounds opened up to 9 more Coders for nothing; the candidates' card says why ([docs](agents/recipes.md#candidates)).
 - **Chat**: a heredoc written to a file or handed to git as a message (`cat > notes.md <<'EOF'` with `1) first` in it), a comment (`echo done # 1) first step`), sh's `case … esac` patterns and a group only printed in quotes (`echo "(npm ci)"`, `git commit -m "run (npm ci) first"`) are no longer asked at every level as brackets that do not pair, nor read as an install ([docs](use/permissions.md)).
 - **Agents**: the ready Bugfix recipe sends a failing test back to Fix it and starts with a failing test; a Tester or reviewer that reports nothing wrong while a test run on record failed no longer passes - unless its "Already failing before" lines name every test that failed - nor does a Tester that ran no command but reads; a check whose command you declined stops at Ready for you, not checked ([docs](agents/recipes.md)).
 - **Agents**: KOLONİ no longer freezes for seconds when a tool's output holds a long run of digits (a command that prints a big number, a file of numbers read), when the fast model's notes on a turn start with many blank lines, or when a fixer's report holds a long line of spaces.
