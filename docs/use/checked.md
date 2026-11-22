@@ -88,6 +88,22 @@ how many it named that were not tried.
 A guessed command is tagged **guessed**. If nothing can be found, the section says "No test
 command: nothing was run"; after the look found no tests at all, "No tests in this project".
 
+### From your CI
+
+Where the project has GitHub Actions workflows (`.github/workflows/*.yml`), KOLONİ reads their
+lint, typecheck and test lines - `ruff`, `eslint`, `mypy`, `ty check`, `tsc`, `pytest`, `vitest` and
+the like, each in its step's `working-directory`. It never takes an e2e step ("e2e not run: …"),
+nor a step with a `${{ … }}` expression, a secret or an install in it.
+
+It asks once a project: the section lists them - "CI commands found: ruff check app, python -m
+pytest -q - not run until you approve them once (Run these)" - and **Run these** approves exactly
+those lines. From the next change on they are the turn's test run, one line each, said "(from
+CI)". Until you approve them they are not run - at **Full auto** and while you're away too. A
+change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
+commands not used: a workflow changed in this turn"). Your own **Test before adding** command wins
+over them. Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
+level says.
+
 ### Saved by KOLONİ
 
 The first time a guessed command really runs tests (its runner counted some that passed or

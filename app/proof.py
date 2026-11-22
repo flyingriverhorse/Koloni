@@ -79,6 +79,8 @@ class TestRun(NamedTuple):
     cwd: str
     yours: bool
     saved: bool = False
+    # S8: a line of the project's CI workflows the user approved (said "from CI").
+    ci: bool = False
 
     @property
     def guessed(self) -> bool:
@@ -489,7 +491,7 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
     record's status (None: none - it never started); `seconds`: the wait it was given. Its
     output is read with its colours off (`commands.plain`: CL-316)."""
     output = plain(output)
-    guessed = " (guessed)" if run.guessed else ""
+    guessed = " (guessed)" if run.guessed else " (from CI)" if run.ci else ""
     found = test_found.counts(output, run.command)
 
     def made(state: str, text: str) -> Row:

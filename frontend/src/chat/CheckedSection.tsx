@@ -28,6 +28,7 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
         ))}
       </ul>
       {fix && <FixIt asked={fix} />}
+      {latest && message.run_id && rows.some(row => row.kind === 'ci_offer') && <RunThese runId={message.run_id} />}
       {message.run_id && rows.some(row => row.state === 'running') && <StopCheck runId={message.run_id} />}
     </section>
   )
@@ -64,6 +65,19 @@ function FixIt({ asked }: { asked: string }) {
 }
 
 /** The user's stop of a running check (plan decision 17): what finished stays; its row says stopped, never passed. */
+/** S8 (decision 3): the CI lines offered under the answer - Run these approves exactly them, once a project; a change to a workflow asks again. */
+function RunThese({ runId }: { runId: string }) {
+  const [said, setSaid] = useState<string | null>(null)
+  return (
+    <span className="checked-fix">
+      <button type="button" className="btn btn-small" onClick={() => api.post(`/runs/${runId}/ci/approve`).then(() => setSaid('Approved: they run after the next change.'), err => setSaid(errorText(err)))}>
+        Run these
+      </button>
+      {said && <span role="status">{said}</span>}
+    </span>
+  )
+}
+
 function StopCheck({ runId }: { runId: string }) {
   const [error, setError] = useState<string | null>(null)
   return (

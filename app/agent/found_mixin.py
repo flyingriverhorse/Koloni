@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, literal_column, select, update
 
-from app import finish_tests, injection, proof, test_found
+from app import ci_commands, finish_tests, injection, proof, test_found
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
 from app.commands import is_allowed, rules_here
@@ -38,6 +38,10 @@ NOT_TRIED = " - and {n} more not tried (not one plain test command in the projec
 NO_TESTS_HERE = "No tests in this project: nothing KOLONİ found ran a test"
 NO_LOOK = ("No test command: nothing was run - and no Fast-tier model to look for one (set one "
            "in Settings › This project › Checks and git)")
+# S8: the project's CI lines, found and offered once; a workflow changed in this turn.
+CI_OFFERED = ("CI commands found: {lines} - not run until you approve them once (Run these); "
+              "a change to a workflow asks again")
+CI_CHANGED = "CI commands not used: a workflow changed in this turn"
 LOOK_FAILED = "Could not look for a test command: {why}"
 LOOK_SECONDS = 60  # (within a watched turn's wait for its end check)
 LOOK_ASK = (
@@ -67,6 +71,9 @@ class FoundMixin:
             rules = [rule.prefix for rule in session.scalars(rules_here(
                 session.get_one(Conversation, ctx.cid)))]
 
+        if ci := self._ci_runs(ctx, held, root):  # (S8: the project's CI, as approved once)
+            return ci
+
         def kept(folder: str, one: dict) -> TestRun:
             # Option A (22 Nov): a save is no leave of the user's - it runs as theirs only under
             # an Always rule: this chat's, or the one said on its card in any chat (`always`).
@@ -82,6 +89,44 @@ class FoundMixin:
         if not runs:
             runs = await self._look_for_tests(ctx, held, root, found)
         return runs
+
+    def _ci_runs(self: "AgentRunner", ctx: Ctx, held: "Proof", root: str) -> list[TestRun]:
+        """S8 (decision 3): the lint, typecheck and test lines of the project's CI workflows,
+        where the user approved exactly these once (Run these) and no workflow changed since -
+        nor in this turn; their e2e steps said not run. Else none, and the found lines offered
+        under the answer (its card: not run until approved, at Full auto and away too)."""
+        found, said = ci_commands.ci_runs(Path(root))
+        if not found:
+            return []
+        if any(one.path.replace("\\", "/").startswith(f"{ci_commands.WORKFLOWS}/")
+               for one in held.changes):
+            self._ci_said(held, "ci", CI_CHANGED)
+            return []
+        mark = ci_commands.fingerprint(Path(root))
+        listed = [one._asdict() for one in found]
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+            if project is None:
+                return []
+            known = dict(project.ci_commands or {})
+            approved = known.get("approved")
+            if not (approved and approved.get("hash") == mark):
+                project.ci_commands = {**known, "offered": {"hash": mark, "commands": listed}}
+                session.commit()
+                approved = None
+        if approved is None:
+            self._ci_said(held, "ci_offer", CI_OFFERED.format(
+                lines=", ".join(one.command for one in found)))
+            return []
+        for one in said:
+            if one.startswith("e2e"):
+                self._ci_said(held, "ci", one)
+        return [TestRun(one["command"], one["cwd"], True, ci=True) for one in approved["commands"]]
+
+    @staticmethod
+    def _ci_said(held: "Proof", kind: str, text: str) -> None:
+        if all(one["text"] != text for one in held.rows):
+            held.rows.append(proof.row(kind, "note", text))
 
     @staticmethod
     def _parts_guessed(root: str, found: dict | None, ran: set[str]) -> list[TestRun]:

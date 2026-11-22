@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import literal_column, select
 from sqlalchemy.orm import Session
 
-from app import away, backlog
+from app import away, backlog, ci_commands
 from app.agent import TERMINAL
 from app.api.conversations import new_turn, queue_or_start
 from app.api.deps import get_session, require_origin, require_own_origin
@@ -31,6 +33,26 @@ async def cancel_run(run_id: str, request: Request, session: Session = Depends(g
         raise HTTPException(409, "run already finished")
     stop(session, request, run)
     return {}
+
+
+@router.post("/{run_id}/ci/approve", dependencies=[Depends(require_own_origin)])
+def approve_ci(run_id: str, session: Session = Depends(get_session)):
+    """S8 (decision 3) "Run these": the CI lines this turn's project offered are approved -
+    exactly those, the user's own approval from the app's page; the end check runs them from the
+    next change on. Not where a workflow changed since they were offered (409: asked again)."""
+    run = session.get(Run, run_id)
+    project = project_of(session, session.get_one(Conversation, run.conversation_id)) if run else (
+        None)
+    if project is None:
+        raise HTTPException(404, "run not found")
+    known = dict(project.ci_commands or {})
+    offered = known.get("offered")
+    if not offered or offered.get("hash") != ci_commands.fingerprint(Path(project.root_path)):
+        raise HTTPException(409, "the CI files changed since: they are offered again after the "
+                                 "next change")
+    project.ci_commands = {**known, "approved": offered}
+    session.commit()
+    return {"approved": len(offered.get("commands") or [])}
 
 
 @router.post("/{run_id}/check/stop", dependencies=[Depends(require_own_origin)])

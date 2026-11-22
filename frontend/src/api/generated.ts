@@ -4059,6 +4059,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/ci/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Ci
+         * @description S8 (decision 3) "Run these": the CI lines this turn's project offered are approved -
+         *     exactly those, the user's own approval from the app's page; the end check runs them from the
+         *     next change on. Not where a workflow changed since they were offered (409: asked again).
+         */
+        post: operations["approve_ci_api_runs__run_id__ci_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/notes": {
         parameters: {
             query?: never;
@@ -19018,6 +19040,37 @@ export interface operations {
         };
     };
     stop_check_api_runs__run_id__check_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_ci_api_runs__run_id__ci_approve_post: {
         parameters: {
             query?: never;
             header?: never;
