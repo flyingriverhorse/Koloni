@@ -20,6 +20,7 @@ from app.commands import (
     NAMES_PROJECT,
     OUT_OF_COPY,
     WRITES_THROUGH_LINKS,
+    applies_patch,
     copy_reason,
     danger,
     harm_class,
@@ -28,6 +29,8 @@ from app.commands import (
     joined,
     readings,
     runs_another,
+    runs_inline,
+    switches_branch,
     web_off_reason,
     writes_git_config,
 )
@@ -563,6 +566,23 @@ def test_what_leads_into_a_command_is_read_past(command, lead):
                                      "x (y { z ) }"])
 def test_a_group_that_does_not_pair_is_always_asked(command):
     assert harm_class(command) == "always", command
+
+
+# The four checks that read a line as written read every reading (k-okuyucu): a continued line
+# and a group too - the strictest of them.
+def test_the_checks_that_read_a_line_as_written_read_every_reading():
+    for line in ["git `\nswitch main", "git `\r\ncheckout -b x", "(git switch main)",
+                 "{ git checkout -b x; }"]:
+        assert switches_branch(line), line
+    for line in ['python `\n-c "import os"', 'node `\n-e "x"', '(python -c "import os")']:
+        assert runs_inline(line), line
+    for line in ["git `\napply x.patch", "patch `\n-p1 < x.diff", "(git apply x.patch)",
+                 "{ git am x.patch; }"]:
+        assert applies_patch(line), line
+    # (what a git line lets stand is the least any reading lets: as written, `rm` runs)
+    assert writes_git_config("git init") and writes_git_config("git remote add o x")
+    for line in ["git init # done `\nrm .git/config", "git `\ninit", "(git init)"]:
+        assert not writes_git_config(line), line
 
 
 # A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,

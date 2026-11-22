@@ -1009,9 +1009,14 @@ def _outside_here(path: str) -> bool:
 
 def switches_branch(command: str) -> bool:
     """K-dallar: whether a part of a command moves the project onto another branch - `git
-    switch`, `git checkout <branch>` (not `-- <path>`, nor `.`, which `danger` asks about).
+    switch`, `git checkout <branch>` (not `-- <path>`, nor `.`, which `danger` asks about) - in
+    any reading (`_readings`: `git `⏎`switch x` too, k-okuyucu).
     shortcut: `git checkout file.py` with no `--` reads as a switch too - git itself tells them
     apart by what the word names; it is asked about only while another's work is held."""
+    return any(map(_switches_branch, _readings(command)))
+
+
+def _switches_branch(command: str) -> bool:
     for words in _parts(command):
         sub, rest = _git_sub(words)
         if not rest or {"-h", "--help"} & set(rest):
@@ -2343,7 +2348,13 @@ def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:
 def writes_git_config(command: str) -> bool:
     """Whether a command is git's own alone (`_git_alone`) and one of its parts rewrites
     `.git/config` as it works (`git init`, `git remote add`, `git push -u`, `git checkout
-    --track`, `git config` not `--global`)."""
+    --track`, `git config` not `--global`) - in every reading (`_readings`, k-okuyucu): what
+    it lets stand is the least any reading lets (`git init # `⏎`rm .git/config` is not git's
+    own alone as written)."""
+    return all(map(_writes_git_config, _readings(command)))
+
+
+def _writes_git_config(command: str) -> bool:
     return any(sub in _CONFIG_WRITERS
                or sub == "push" and bool({"-u", "--set-upstream"} & set(rest))
                or sub == "config" and not {"--global", "--system"} & set(rest)
@@ -2358,7 +2369,12 @@ _ONLY_LOOKS = ("--check", "--stat", "--numstat", "--summary", "--dry-run",
 def applies_patch(command: str) -> bool:
     """Whether a part of a command applies a patch (`git apply`, `git am`, `patch`): it writes
     whatever files the patch names - `.github/workflows` too - without the line naming them.
-    Not one that only looks at it (`--check`, `--stat`, `--dry-run`)."""
+    Not one that only looks at it (`--check`, `--stat`, `--dry-run`). In any reading
+    (`_readings`, k-okuyucu)."""
+    return any(map(_applies_patch, _readings(command)))
+
+
+def _applies_patch(command: str) -> bool:
     for words in _parts(command):
         sub, rest = _git_sub(words)
         applies = sub in ("apply", "am") or bool(words) and _program(words[0]) == "patch"
@@ -2385,9 +2401,7 @@ def joined(line: str) -> str:
 
 def readings(line: str) -> list[str]:
     """Every way KOLONİ reads a command line (`_readings`): joined, as written and what its
-    backtick pairs hold - a caller outside this module judges each (review round 4).
-    shortcut: `switches_branch`, `runs_inline`, `writes_git_config` and `applies_patch` read the
-    line as written only, not each reading; 0.1.6."""
+    backtick pairs hold - a caller outside this module judges each (review round 4)."""
     return _readings(line)
 
 
@@ -3619,9 +3633,10 @@ _INLINE = re.compile(
 
 
 def runs_inline(command: str) -> str:
-    """Why a command runs code written on its line (`_INLINE`), in one sentence; "" for none."""
+    """Why a command runs code written on its line (`_INLINE`), in one sentence; "" for none -
+    in any reading (`_readings`: `python `⏎`-c "x"` too, k-okuyucu)."""
     return ("It runs code written on the line: what it does is not seen."
-            if _INLINE.search(command) else "")
+            if any(map(_INLINE.search, _readings(command))) else "")
 
 
 def _module_run(words: list[str]) -> list[str]:
