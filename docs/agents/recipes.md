@@ -37,7 +37,10 @@ A step can also have **Done when**, **Only if the step before found a problem**,
 **Go on**, **Ask for changes** and **Stop**.
 
 Before a step that runs only if a problem was found, a test run that failed is a problem, whatever
-the agent's report says.
+the agent's report says. At any other review step it is one too where the report says nothing is wrong,
+unless it says the test was **Already failing before**. And a review step's agent that may run commands
+(a Tester, say) but ran none does not pass: "it is a check that ran no command on record". (Where its CLI's
+own commands are not on KOLONİ's record, its report is taken as it is.)
 
 **All at once** runs steps side by side. It waits for **all branches** or for **the first one done**.
 

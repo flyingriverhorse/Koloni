@@ -21,8 +21,13 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Changed
+
+- **Agents**: Coder, Tester, Reviewer, Debugger and Security reviewer are always on and keep the tools their job needs (a Tester keeps run_command); a role that lost one gets it back ([docs](docs/agents/roles.md)).
+
 ### Fixed
 
+- **Agents**: the ready Bugfix recipe sends a failing test back to Fix it and starts with a failing test; a Tester or reviewer that reports nothing wrong while a test run on record failed no longer passes, nor does a recipe's check that could run commands and ran none ([docs](docs/agents/recipe-cookbook.md)).
 - **Chat**: an agent's command whose inline code only prints a stop's name (`python -c "print('kill')"`, `awk '/kill/ {print}' log.txt`) no longer asks as a stop of KOLONİ itself; one whose code runs or ends a process (`os.system('pkill x')`, `execSync(...)`, `system(...)`, `os.kill(...)`) still does ([docs](docs/use/permissions.md)).
 
 ### Security
