@@ -17,9 +17,16 @@ from app.workspace import SCRATCH
 MOST_REPORT = 20 * 1024 * 1024
 REPORT = {"pytest-cov": "coverage.json", "vitest": "coverage-final.json",
           "c8": "coverage-final.json"}
-# What a runner says of an option it does not know: the flags failed, not the tests.
-FLAGS_FAILED = re.compile(r"unrecognized arguments|unknown option|no such option|"
-                          r"Unknown (?:argument|option)|error: unexpected argument", re.IGNORECASE)
+# What a runner says of an option it does not know, or of a coverage threshold of the project's
+# that measuring turned on (pytest-cov's, coverage.py's, Vitest's and c8's): the flags failed,
+# not the tests - the run goes again without them.
+FLAGS_FAILED = re.compile(r"unrecognized (?:arguments|option)|unknown option|no such option|"
+                          r"Unknown (?:argument|option)|error: unexpected argument|"
+                          r"Required test coverage of|less than fail-under|"
+                          r"does not meet (?:global )?threshold", re.IGNORECASE)
+# The package managers whose `test` script may run vitest or be run under c8; and node's runners.
+SCRIPTS = frozenset({"npm test", "pnpm test", "yarn test"})
+NODE = SCRIPTS | {"vitest", "jest", "mocha"}
 
 
 class Covered(NamedTuple):
@@ -61,8 +68,10 @@ def tool_of(folder: Path, command: str) -> str | None:
     if tool == "pytest":
         named = [folder / "pyproject.toml", folder / "setup.cfg", *folder.glob("requirements*.txt")]
         return "pytest-cov" if any("pytest-cov" in _text(one) for one in named) else None
+    if tool not in NODE:
+        return None
     deps, script = _package(folder)
-    vitest = tool == "vitest" or tool.endswith(" test") and "vitest" in script
+    vitest = tool == "vitest" or tool in SCRIPTS and "vitest" in script
     if vitest and ({"@vitest/coverage-v8", "@vitest/coverage-istanbul"} & set(deps)):
         return "vitest"
     if "c8" in deps and (folder / "node_modules" / ".bin" / ("c8.cmd" if sys.platform == "win32"
@@ -77,15 +86,18 @@ def _quoted(path: str) -> str:
 
 def with_coverage(command: str, tool: str, out: str) -> str:
     """The run's line with only report flags added, the report written to `out` (the project's
-    scratch): pytest-cov's JSON; Vitest's json reporter (after `--` through a package script);
-    c8 through the project's own bin (`npx --no`: never a download)."""
+    scratch, from the folder the run runs in): pytest-cov's JSON; Vitest's json reporter (after
+    `--` through npm's script - pnpm and yarn hand flags on as they are); c8 through the
+    project's own bin (`npx --no`: never a download).
+    shortcut: Vitest's flags and report were measured (22 Nov, coverage-v8); pytest-cov's and
+    c8's are as their documentation has them - measure them on a project that has them."""
     where = _quoted(out)
     if tool == "pytest-cov":
         return f"{command} --cov=. --cov-report=json:{_quoted(f'{out}/coverage.json')}"
     if tool == "vitest":
         flags = f"--coverage --coverage.reporter=json --coverage.reportsDirectory={where}"
         read = ledger.read_test(command)
-        through = read and read[0] != "vitest" and not re.search(r"(?:^|\s)--(?:\s|$)", command)
+        through = read and read[0] == "npm test" and not re.search(r"(?:^|\s)--(?:\s|$)", command)
         return f"{command} -- {flags}" if through else f"{command} {flags}"
     return f"npx --no c8 --reporter=json --report-dir {where} {command}"
 
@@ -120,23 +132,23 @@ def report(root: Path, out: Path, tool: str) -> dict | None:
         return None
 
 
-def _rel(root: Path, name: str) -> str:
-    path = Path(name)
-    if path.is_absolute():
-        try:
-            path = path.resolve().relative_to(root.resolve())
-        except (OSError, ValueError):
-            return ""
-    return path.as_posix().removeprefix("./")
+def _rel(root: Path, cwd: str, name: str) -> str:
+    """A report's file as a project path: an absolute one's, or one relative to the folder the
+    run ran in (`cwd`, coverage.py's way); "" outside the project."""
+    try:
+        return (root / cwd / name).resolve().relative_to(root.resolve()).as_posix()
+    except (OSError, ValueError):
+        return ""
 
 
-def _lines(root: Path, data: dict, tool: str) -> dict[str, tuple[set[int], set[int]]]:
+def _lines(root: Path, data: dict, tool: str,
+           cwd: str = ".") -> dict[str, tuple[set[int], set[int]]]:
     """By project path: the lines a test could run, and those it ran."""
     out: dict[str, tuple[set[int], set[int]]] = {}
     if tool == "pytest-cov":
         for name, one in (data.get("files") or {}).items():
             ran = set(one.get("executed_lines") or [])
-            out[_rel(root, name)] = (ran | set(one.get("missing_lines") or []), ran)
+            out[_rel(root, cwd, name)] = (ran | set(one.get("missing_lines") or []), ran)
         return out
     for name, one in data.items():
         if not isinstance(one, dict):
@@ -148,15 +160,15 @@ def _lines(root: Path, data: dict, tool: str) -> dict[str, tuple[set[int], set[i
                 could.add(line)
                 if (one.get("s") or {}).get(key):
                     ran.add(line)
-        out[_rel(root, one.get("path") or name)] = (could, ran)
+        out[_rel(root, cwd, one.get("path") or name)] = (could, ran)
     return out
 
 
-def changed_lines_covered(root: Path, data: dict, tool: str,
-                          added: dict[str, list[int]]) -> Covered:
+def changed_lines_covered(root: Path, data: dict, tool: str, added: dict[str, list[int]],
+                          cwd: str = ".") -> Covered:
     """Of the turn's added lines a test could run (the report's), the share it ran, and those
-    it did not, by path."""
-    lines = _lines(root, data, tool)
+    it did not, by path. `cwd`: the folder the run ran in, from `root`."""
+    lines = _lines(root, data, tool, cwd)
     could = ran = 0
     uncovered: dict[str, list[int]] = {}
     for path, numbers in added.items():

@@ -185,18 +185,22 @@ nothing; it uses what the project has:
 - **pytest-cov**, named in `pyproject.toml`, `setup.cfg` or a `requirements*.txt`, for a pytest
   run;
 - **Vitest's coverage** (`@vitest/coverage-v8` or `@vitest/coverage-istanbul` in `package.json`)
-  for a vitest run, or an `npm test` whose script runs vitest;
+  for a vitest run, or an `npm test`, `pnpm test` or `yarn test` whose script runs vitest;
 - **c8**, in `package.json` and in the project's own `node_modules/.bin`, run as
-  `npx --no c8 …`, which never downloads it.
+  `npx --no c8 …` around a node test run, which never downloads it.
+
+A part with a test command of its own (see Which tests) is measured from its own folder.
 
 Only the whole suite is measured, never the related tests run first, whether it ends before the
 answer or goes on after it (then the line comes when it ends). KOLONİ adds only report flags, and
 the report is written under the project's scratch folder (`.koloni/tmp/`), read there (up to
 20 MB) and deleted. The run keeps its own command everywhere: its line under the answer, its leave
 on your card (an approved command is approved with the flags too) and whether an earlier run of it
-still stands. Where the flags fail (the runner does not know them), KOLONİ runs it again without
-them and says "Coverage: not measured (the flags failed)". A run that stood from earlier is not
-measured again.
+still stands. Where the flags fail (the runner does not know them, a coverage threshold of the
+project's fails once coverage is on, or the run did not go for another reason than your no or your
+Stop), KOLONİ runs it again without them and says "Coverage: not measured (the flags failed)". A
+run that stood from earlier is not measured again; where it was KOLONİ's own measured run on the
+same work, its share is said again.
 
 Lines a test could run but none did go to the Reviewer, as data: "New lines no test runs: `a.py`
 3, 12-14". A turn with no Reviewer just shows the share.

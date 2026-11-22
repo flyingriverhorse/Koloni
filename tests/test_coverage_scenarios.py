@@ -30,7 +30,7 @@ class Measuring(ScriptedExecutor):
 
     async def start(self, command_id, command, cwd, *args, **kwargs):
         if found := _OUT.search(command):
-            out = Path(found.group(1))
+            out = Path(cwd) / found.group(1)  # (from the folder it runs in, as pytest-cov reads it)
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(json.dumps({"files": {path: {
                 "executed_lines": yes, "missing_lines": no}
@@ -121,6 +121,7 @@ def test_a_flagged_run_stands_for_its_command_when_nothing_changed_since(make_cl
     cid, run_id = begin(client, project_dir, check_command=PYTEST, fix_rounds=1)
     rows = texts(wait_run(client, cid, run_id))
     assert len(executor.started) == 1 and proof.STILL_FAILING.format(most=1) in rows, rows
+    assert coverage_mixin.MEASURED.format(p=100, tool="pytest-cov") in rows, rows  # (said again)
 
 
 def test_your_own_command_keeps_its_leave_with_the_flags(make_client, wait_run, project_dir):
@@ -131,3 +132,30 @@ def test_your_own_command_keeps_its_leave_with_the_flags(make_client, wait_run, 
     cid, run_id = begin(client, project_dir, mode="auto_edit", check_command=PYTEST)
     rows = texts(wait_run(client, cid, run_id))
     assert rows[1] == coverage_mixin.MEASURED.format(p=100, tool="pytest-cov"), rows
+
+
+def test_a_threshold_the_flags_turned_on_runs_it_again_without(make_client, wait_run, project_dir):
+    with_cov(project_dir)
+    below = Script(["....\n4 passed\nFAIL Required test coverage of 90% not reached. "
+                    "Total coverage: 67.00%\n"], exit_code=1)
+    executor = ScriptedExecutor([below, PASS])
+    client, _model = make_client([write("a.py", THREE), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    rows = texts(wait_run(client, cid, run_id))
+    assert [one for one, _cwd in executor.started][1:] == [PYTEST]
+    assert rows == [f"Tests passed: {PYTEST} - 4 passed in 0.1s", coverage_mixin.NOT_MEASURED.format(
+        why=coverage_mixin.FLAGS_FAILED)], rows
+
+
+def test_a_part_is_measured_from_its_own_folder(make_client, wait_run, project_dir):
+    # (coverage.py names a part's files from the part's folder: the project's paths are matched)
+    web = project_dir / "web"
+    web.mkdir()
+    with_cov(web)
+    executor = Measuring([PASS], {"a.py": ([1, 2], [3])})
+    client, _model = make_client([write("web/a.py", THREE), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, parts={"web/": PYTEST})
+    rows = texts(wait_run(client, cid, run_id))
+    (line, _cwd), = executor.started
+    assert "/.koloni/tmp/coverage-" in line and "../" not in line, line  # (never ../.koloni)
+    assert coverage_mixin.MEASURED.format(p=67, tool="pytest-cov") in rows, rows

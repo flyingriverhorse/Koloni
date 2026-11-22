@@ -100,6 +100,9 @@ class Proof:
     covered: dict[tuple[str, str], list] = field(default_factory=dict)
     covering: dict[tuple[str, str], tuple] = field(default_factory=dict)
     uncovered: dict[str, list[int]] = field(default_factory=dict)
+    # ...and what was measured, by run, with the turn's last change then: a later pass that
+    # reuses the run on the same work says it again.
+    measured: dict[tuple[str, str], tuple] = field(default_factory=dict)
     reviewed: bool = False
     # S3 (`ReviewMixin`): the last look's verdict ("MERGE", "HOLD"; None: none yet), its rows, the
     # change it saw (`proof.last_change`), the reviewers it took, and the rounds it sent back.
