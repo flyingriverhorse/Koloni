@@ -25,6 +25,7 @@ How to write an entry (every release looks the same):
 
 - **Workspace**: a pull request of a branch never sends a commit of yours that origin does not have when it came onto the branch without a merge commit of the agent's - a fast-forward to your branch, a rebase onto it or a cherry-pick - also once you amended, rebased or dropped it: only what the branch's own history says was committed on it counts as the agent's ([docs](docs/use/workspace.md#branches)).
 - **Workspace**: a pull request never sends a file that holds exactly what a commit of yours not pushed yet put there (an agent's squash, pick or amend of it), and while your branches hold commits not on GitHub a pull request waits for your click at every level, Full auto too, saying how many ([docs](docs/use/workspace.md#branches)).
+- **Workspace**: what a pull request reads as yours not on GitHub now also takes in your stashes, commits on a detached HEAD and the uncommitted files a branch began from: an exact copy of one is never sent, and a branch that began from your uncommitted work, or while you have a stash or commit not on GitHub, waits for your click before its pull request at every level, the card saying why at Ask and Auto-edit too ([docs](docs/use/workspace.md#branches)).
 
 ## [0.1.5] - 2026-11-22
 

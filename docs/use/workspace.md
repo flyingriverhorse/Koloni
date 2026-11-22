@@ -95,9 +95,11 @@ A branch that holds commits of yours that origin does not have - your branch or 
 fast-forwarded to, rebased onto or cherry-picked - is not pushed until you push them, also after you
 amended, rebased or dropped them; the card names them. What counts as the agent's own is what its branch's
 history says was committed on it. Nor is a file that holds exactly what a commit of yours not pushed yet
-put there (an agent's squash, pick or amend of it). And while your branches hold any commit not on
-GitHub, a pull request waits for your click at every level, Full auto too: the card says how many, so
-you can check its files are the agent's work.
+put there (an agent's squash, pick or amend of it, or a copy of a stashed file, of a commit on a detached
+HEAD, or of a file you had not committed when the branch began). And while you have any commit not on
+GitHub - on a branch, in a stash, on a detached HEAD - or the branch began from your uncommitted work, a
+pull request waits for your click at every level, Full auto too: the card says why, so you can check its
+files are the agent's work.
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").
