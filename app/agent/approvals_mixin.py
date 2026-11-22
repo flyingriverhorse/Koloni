@@ -376,15 +376,24 @@ class ApprovalsMixin:
         # One that names a folder to read in only by its full path is asked about, as
         # KOLONİ's own commands are.
         always = self._read_named(ctx, command) is not None or where is None
+        # Coordination §4: as KOLONİ's own command's - only where its folder is known, and not
+        # by its model's word; never GitHub Copilot CLI's, which may report a folder for a shell
+        # it keeps, with no sandbox: a link a script makes after this look is followed (as a
+        # delete in the scratch from its new shell is not let go: `scratch_of`).
+        found = await self._disposable(ctx, command, root, None if claimed or getattr(
+            ctx.model, "command", "") == "copilot" else (
+            where if isinstance(cwd, str) and cwd else unnamed), copy is not None)
+        free = bool(found and found["allowed"])
         before = web_off or reason or searched or (
             self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where)
-            if copy is not None else "") or self._branch_asks(ctx, command, copy is not None) or (
+            if copy is not None and not free else "") or self._branch_asks(
+            ctx, command, copy is not None) or (
             self._shared_install(ctx, command, copy is not None and bool(copy.links)))
         # K-yargic: harm alone may first be checked against the user's own words (`_judged`) -
         # not for a role that runs no command (it is refused below whatever the check says), nor
         # where it runs is not known: no folder (`at` None), or one its model wrote (`claimed`).
-        night, judged = await self._judged(ctx, command, at, "" if before else self._night_asks(
-            ctx, command, at, scratch_of) or (
+        night, judged = await self._judged(ctx, command, at, "" if before or free else (
+            self._night_asks(ctx, command, at, scratch_of)) or (
             self._night_asks(ctx, command, None) if claimed else ""),
             asked_anyway=always or claimed or at is None or "run_command" not in ctx.tools)
         reason = before or night
@@ -428,7 +437,7 @@ class ApprovalsMixin:
             # path is judged at the wrong place - a `cd` into a protected folder is a card
             # itself. Measure it, and read a cwd from the hook's payload if it carries one.
             cwd=(where if where is not None else cwd)
-            if isinstance(cwd, str) and cwd else unnamed, judgement=judged,
+            if isinstance(cwd, str) and cwd else unnamed, judgement=judged, disposable=found,
         )
         if not allowed:
             said = (refused_by_rule(judged)

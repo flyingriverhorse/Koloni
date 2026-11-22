@@ -4882,6 +4882,11 @@ export interface components {
         /** ApproveIn */
         ApproveIn: {
             /**
+             * Disposable
+             * @default false
+             */
+            disposable: boolean;
+            /**
              * Remember
              * @default false
              */
@@ -5829,6 +5834,7 @@ export interface components {
             cwd: string | null;
             /** Danger */
             danger: string;
+            disposable?: components["schemas"]["DisposableOut"] | null;
             /** Ended At */
             ended_at: string | null;
             /** Exit Code */
@@ -6489,6 +6495,17 @@ export interface components {
             passed: boolean;
             /** Round */
             round: number;
+        };
+        /**
+         * DisposableOut
+         * @description Coordination §4: what of a command KOLONİ found disposable ("build folder dist; branch
+         *     old"), and whether it ran without a card for that (`unasked`).
+         */
+        DisposableOut: {
+            /** Unasked */
+            unasked: boolean;
+            /** What */
+            what: string;
         };
         /**
          * ExpertIn
@@ -8760,6 +8777,8 @@ export interface components {
             day_note_at: string | null;
             /** Discussion Budget */
             discussion_budget: number | null;
+            /** Disposable Deletes */
+            disposable_deletes: boolean;
             /** Docker Image */
             docker_image: string | null;
             /** Docker Network */
@@ -8919,6 +8938,8 @@ export interface components {
             day_note_at?: string | null;
             /** Discussion Budget */
             discussion_budget?: number | null;
+            /** Disposable Deletes */
+            disposable_deletes?: boolean | null;
             /** Docker Image */
             docker_image?: string | null;
             /** Docker Network */

@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, finish_tests: null, full_auto_check: 'ask', finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, finish_tests: null, full_auto_check: 'ask', disposable_deletes: false, finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -736,6 +736,18 @@ test('a harmful-looking command at Full auto asks you, or first checks what you 
   expect(screen.getByText(costs)).toBeVisible()
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ full_auto_check: 'judge' })
+})
+
+test('disposable deletes are off until you allow them, and sent only when changed', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Asking and away/)
+  const allow = screen.getByRole('checkbox', { name: /^Agents may delete what is disposable without asking/ })
+  expect(allow).not.toBeChecked()
+  expect(allow.closest('label')).toHaveTextContent('clean worktrees and merged branches you no longer use, build and cache folders')
+  await userEvent.click(allow)
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenCalledWith({ disposable_deletes: true })
 })
 
 test('another project’s agent instructions below this folder are said, with how many more, whatever section is open (K-yabanci-talimat)', async () => {

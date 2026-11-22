@@ -569,7 +569,7 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
     for name in ("search_order", "search_agy", "notify_format", "notify_desktop", "auto_notes",
                  "observe_reports", "suggest_tasks", "suggest_tier", "hide_secrets", "canary",
                  "lead_work", "continue_steps", "when_away", "away_minutes", "full_auto_check",
-                 *SPAWN):
+                 "disposable_deletes", *SPAWN):
         if getattr(body, name) is not None:
             setattr(project, name, getattr(body, name))
     for name in spends:
@@ -639,7 +639,8 @@ async def patch_project(
                     "finish_way", "auto_notes", "observe_reports", "suggest_tasks", "suggest_tier",
                     "hide_secrets", "pass_env",
                     "canary", "lead_work", "continue_steps", "memory_links", "embedding_model",
-                    "when_away", "away_minutes", "full_auto_check", *SPAWN)
+                    "when_away", "away_minutes", "full_auto_check", "disposable_deletes",
+                    *SPAWN)
     limited = "turn_token_limit" in body.model_fields_set  # null takes the limit away
     # tek-ev: what a discussion and a room may spend; null: no limit (and, B-414, no least).
     spends = {"discussion_budget", "room_posts", "room_tokens", "room_minutes",
@@ -663,7 +664,8 @@ async def patch_project(
         # test key planted to catch one sent out (101). And whether a new
         # chat's Lead writes files itself, or answers for the user while they are away (a
         # request of their plan, K-cli-vekil), or its agents finish only once KOLONİ ran the tests.
-        # And so are its chats' sub-agent settings and what their discussions and rooms spend.
+        # And so are its chats' sub-agent settings and what their discussions and rooms spend,
+        # and which deletes go without a card.
         require_own_origin(request)
     _change_teams_and_folders(session, request, project, body)
     await _change_commands(project, body)

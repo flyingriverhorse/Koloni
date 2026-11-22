@@ -3711,3 +3711,75 @@ def web_off_reason(command: str, off: Iterable[str]) -> str:
     tool = next((name for name in ("http_request", "web_search") if name in off), None)
     what = reaches_network(command) if tool else ""
     return WEB_OFF.format(tool=tool, what=what) if what else ""
+
+
+# Coordination §4: the deletes KOLONİ can check by itself, where the user allowed them in the
+# project (`Project.disposable_deletes`) - a build or cache folder, a worktree, a branch. Read
+# from a line this plain only: words of ASCII letters, digits and `_ . / -`, one space between
+# them - no quote, backslash, drive, comment, splat, variable, wildcard or other space a shell
+# reads past a plain word - and no option that is not read here.
+DISPOSABLE_NAMES = frozenset({"build", "dist", "__pycache__", ".pytest_cache", ".ruff_cache",
+                              ".mypy_cache", "coverage", ".next", ".turbo", "target"})
+_DISPOSABLE_LINE = re.compile(r"[A-Za-z0-9_./-]+(?: [A-Za-z0-9_./-]+)*")
+_FORCES = frozenset({"-f", "-rf", "-fr", "--force", "-force", "-fo"})
+
+
+def disposable_targets(command: str) -> list[tuple[str, str, bool]] | None:
+    """What a line deletes where it is nothing but a delete KOLONİ can check: ("folder", its
+    path, forced) for each build or cache folder of `rm -r` / `Remove-Item -Recurse`;
+    ("worktree", its path, False) for `git worktree remove <path>`; ("branch", its name,
+    forced) for each of `git branch -d|-D`. None for any other line. What it names only: whether
+    each is disposable is for the checks of its folder."""
+    if not _DISPOSABLE_LINE.fullmatch(command):
+        return None
+    words = command.split(" ")
+    if words[0] == "git":
+        return _worktree_target(words[1:]) or _branch_targets(words[1:])
+    return _folder_targets(words)
+
+
+def _plain_name(part: str) -> bool:
+    """A path's or a branch's part as every shell and file system reads it: not empty, no
+    dot-name, nothing Windows opens as another (`node_modules.` is `node_modules`)."""
+    return bool(part) and not part.startswith(".") and not part.endswith(".")
+
+
+def _folder_targets(words: list[str]) -> list[tuple[str, str, bool]] | None:
+    """A bare deleter's recursive delete of build or cache folders below where it runs (no
+    trailing slash: `build/` is where a link named build leads)."""
+    flags = {word.casefold() for word in words[1:] if word.startswith("-")}
+    paths = [word for word in words[1:] if not word.startswith("-")]
+    if (words[0].casefold() not in _SCRATCH_DELETERS or not paths or not flags & _RECURSES
+            or not flags <= _SCRATCH_FLAGS):
+        return None
+    for path in paths:
+        *above, name = path.split("/")
+        if name not in DISPOSABLE_NAMES or not all(
+                _plain_name(part) and part.casefold() not in LINKED for part in above):
+            return None
+    return [("folder", path, bool(flags & _FORCES)) for path in paths]
+
+
+def _worktree_target(rest: list[str]) -> list[tuple[str, str, bool]] | None:
+    """`git worktree remove <path>` alone - never forced; up and absolute paths too (a
+    worktree is registered where it is)."""
+    if len(rest) != 3 or rest[:2] != ["worktree", "remove"] or rest[2].startswith("-"):
+        return None
+    parts = rest[2].split("/")
+    if all(part == ".." or _plain_name(part) and part.casefold() not in LINKED
+           for part in (parts if parts[0] else parts[1:])):  # (`/x/wt`: from the root)
+        return [("worktree", rest[2], False)]
+    return None
+
+
+def _branch_targets(rest: list[str]) -> list[tuple[str, str, bool]] | None:
+    """`git branch -d|-D <name>...`: none of KOLONİ's own (`koloni/…` - Windows and macOS find
+    `Koloni/x`'s ref file as `koloni/x`'s)."""
+    if len(rest) < 3 or rest[0] != "branch" or rest[1] not in ("-d", "-D"):
+        return None
+    for name in rest[2:]:
+        parts = name.split("/")
+        if name.startswith("-") or parts[0].casefold() == "koloni" or not all(
+                map(_plain_name, parts)):
+            return None
+    return [("branch", name, rest[1] == "-D") for name in rest[2:]]

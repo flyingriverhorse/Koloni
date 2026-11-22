@@ -276,6 +276,9 @@ class ProjectOut(Out):
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge").
     full_auto_check: FullAutoCheck
+    # Coordination §4: whether a disposable delete goes without a card at Auto-edit and Full
+    # auto in a watched turn.
+    disposable_deletes: bool
 
     @computed_field
     @property
@@ -364,6 +367,7 @@ class ProjectPatch(BaseModel):
     # Sent as null: automatic again (`ProjectOut.finish_tests_auto`). Left out: kept.
     finish_tests: bool | None = None
     full_auto_check: FullAutoCheck | None = None
+    disposable_deletes: bool | None = None
 
 
 class NeverOut(BaseModel):
@@ -1067,6 +1071,14 @@ class Judged(BaseModel):
     seen: bool = False
 
 
+class DisposableOut(BaseModel):
+    """Coordination §4: what of a command KOLONİ found disposable ("build folder dist; branch
+    old"), and whether it ran without a card for that (`unasked`)."""
+
+    what: str
+    unasked: bool
+
+
 class CommandOut(BaseModel):
     id: str
     run_id: str
@@ -1099,6 +1111,9 @@ class CommandOut(BaseModel):
     preview_url: str | None
     # K-yargic: what the check of the user's words said of it; None: not checked.
     judged: Judged | None = None
+    # Coordination §4: what of it is disposable; None: nothing. Its own, not `judged`'s: no card
+    # of Decided for you.
+    disposable: DisposableOut | None = None
     created_at: datetime
     started_at: datetime | None
     ended_at: datetime | None

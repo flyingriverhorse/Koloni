@@ -46,6 +46,26 @@ run** covers only a plain command. A rule never covers:
   file (`-o`, `-O`, `-OutFile`), reading options from a file (`-K`, `--config`), sending data, or a
   `file:` address.
 
+[Disposable deletes](../use/permissions.md#disposable-deletes), off until you allow them, are no rule:
+KOLONİ checks each one as it is asked, and fails closed - git that does not answer, a link, a folder
+it cannot read is a card. Never disposable: a forced `git worktree remove`, KOLONİ's `koloni/…`
+branches and its copies' worktrees, a locked worktree, the default branch, `main` and `master`, a
+branch any worktree stands on; a build folder spelt in another case than it is on disk, holding a
+file git tracks or does not ignore (in any case of its letters), a link or a repository of its own,
+inside `node_modules`, `.venv`, `venv`, a dot-folder, KOLONİ's own folders or any folder git ignores
+(a venv by another name, `data/`), or inside another repository, a submodule or a worktree in the
+project; a worktree named through a link, with a `..` after a name or by an end of its path another
+worktree shares, on no branch (detached) or with its last commit on no branch, tag or remote, holding
+a new or changed file (git's `status.showUntrackedFiles` aside), a file marked skip-worktree or
+assume-unchanged, a secret file, anything else git ignores but whole build and cache folders, or a
+repository inside one of those; a branch or worktree delete run in another repository, a submodule
+or a worktree in the project, or in a folder reached through a link; `.git`, `.koloni`, a path above the
+folder the command runs in (a registered worktree aside); any command of GitHub Copilot CLI's own;
+or any line that is not one plain delete. What is checked is the folder
+as it is then - KOLONİ's own command a second time just before it runs: one swapped for a link
+after that look is not seen. Windows PowerShell 5.1.26100, PowerShell 7 and Git Bash delete through
+no junction; older Windows 10 builds of PowerShell 5.1 do.
+
 ## Places agents never open
 
 - Your home folder, a drive's root and KOLONİ's own folder cannot be opened as a project. Settings ›

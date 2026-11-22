@@ -215,6 +215,11 @@ class Project(Base):
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge", `JudgeMixin._judged`). The user's own setting.
     full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
+    # Coordination §4: whether agents delete what KOLONİ checked is disposable (a build or cache
+    # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
+    # watched turn. The user's own setting, off until they allow it.
+    disposable_deletes: Mapped[bool] = mapped_column(Boolean, default=False,
+                                                     server_default=false())
 
     @property
     def has_notify_url(self) -> bool:
@@ -586,6 +591,9 @@ class Command(Base):
     # K-yargic: what the check of the user's words said of it (`schemas.Judged`); None: not
     # checked. Set by KOLONİ, never from a CLI's own words.
     judged: Mapped[dict | None] = mapped_column(JSON, default=None)
+    # Coordination §4: what of it KOLONİ found disposable, {"what", "unasked"} (`schemas.
+    # DisposableOut`); None: nothing. Set by KOLONİ, never from a CLI's own words.
+    disposable: Mapped[dict | None] = mapped_column(JSON, default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     ended_at: Mapped[datetime | None] = mapped_column(default=None)

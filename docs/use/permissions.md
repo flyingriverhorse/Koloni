@@ -29,6 +29,7 @@ and commands run; only harmful or risky actions ask" - and **Plan first**. Each 
 | Any other command | Card, unless a rule covers it | Card, unless a rule covers it | Runs |
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
 | A command that deletes, cannot be undone, or sends data off the machine (`rm -rf`, `git reset --hard`, `git push --force`, `scp`, a `curl` that posts data, …) | Card | Card | Card |
+| A delete KOLONİ checks is disposable - a build folder git ignores, a clean worktree of yours, a merged branch - where you allowed [such deletes](#disposable-deletes) | Card | Runs | Runs |
 | A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless what it runs is harmful |
 | Reading a secret file (`.env`, keys, …) | Card | Card | Card |
 | A command that names a secret file, or searches a folder that holds one | Card | Card | Card |
@@ -64,6 +65,8 @@ agy's reads): see [Known limits](../reference/known-limits.md#secrets).
   commands never get a rule; their card says "This command is asked every time." A rejected command
   ends that one action, not the task. If you reject a command that writes a file or applies a patch,
   the agent is told to make the change with its file tools instead, so it comes to you as a file change.
+- A delete KOLONİ found disposable also offers **Allow such deletes in this project**
+  (see [Disposable deletes](#disposable-deletes)).
 - **"Search the web?"** offers **Search once**, **Always allow searching in this conversation**
   and **Reject**.
 - **"Make this request?"** offers **Send once**, **Always allow GET to …** (for that site) and
@@ -86,6 +89,41 @@ You can see and remove the rules you made under Settings › This project › **
 - a command that names a secret file, `.koloni/`, or a file that steers agents.
 
 Below Full auto, a command that keeps running (a server) asks every time, even with a rule.
+
+## Disposable deletes
+
+Some deletes KOLONİ can check by itself. Where you allow them - Settings › This project › Asking and
+away › **Agents may delete what is disposable without asking**, or **Allow such deletes in this
+project** on the card of one - they run without a card at **Auto-edit files** and **Full auto**, in
+a chat you started, and the command's row says "Ran without asking · disposable: …":
+
+- a build or cache folder (`build`, `dist`, `__pycache__`, `.pytest_cache`, `.ruff_cache`,
+  `.mypy_cache`, `coverage`, `.next`, `.turbo`, `target`) below where the command runs, spelt as the
+  folder is on disk, that git ignores and that holds no file git tracks or would take (in any case of
+  its letters), no link and no repository of its own - not inside `node_modules`, `.venv`, `venv`, a
+  folder whose name starts with a dot, KOLONİ's own, a folder git ignores, or another repository, a
+  submodule or a worktree in the project; in the project, and in a sub-agent's copy;
+- a worktree of yours that git lists, named with no link on the way, `..` only at its start and by
+  no end of its path another worktree shares: not the main one, not locked, not one of KOLONİ's, on
+  a branch, holding nothing its commits do not (a new or changed file, one marked skip-worktree or
+  assume-unchanged - whatever `status.showUntrackedFiles` says - or a last commit on no branch, tag
+  or remote), no link, no secret file and nothing git ignores but whole build and cache folders with
+  no repository in them (git deletes what it ignores with the worktree);
+- a local branch that neither the project, the turn nor any worktree stands on: with `-d`, git
+  itself deletes only one it finds merged; with `-D`, only one whose commits the default branch has.
+  Never the default branch, `main` or `master`, nor KOLONİ's `koloni/…` ones.
+
+Worktrees and branches go this way only from the project itself (the Orchestrator), never from a
+copy, and only run in the project's top folder or a plain folder in it - not in another repository,
+a submodule or a worktree inside the project, nor through a link. Only such a delete alone on its line counts: `rm -r build`, `Remove-Item -Recurse dist`,
+`git worktree remove ../wt/x`, `git branch -d old`. Anything else on the line, a forced worktree
+remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI
+whose folder KOLONİ does not know or that its model names, and any of GitHub Copilot CLI's own
+commands (it has no sandbox) asks as before. A delete whose folder changed
+between KOLONİ's look and its run - a card of the turn was answered meanwhile - asks too. At
+**Ask before changes**, in a turn nobody watches,
+a side of a comparison, a To-do task's turn and a job while you are away, every delete asks or waits
+as before. No **Always run** rule covers a delete either way.
 
 ## Sub-agents
 

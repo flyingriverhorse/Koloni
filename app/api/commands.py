@@ -25,6 +25,9 @@ MOST_REDIRECTS = 5
 class ApproveIn(BaseModel):
     # Also add this command's prefix to the conversation's allow list.
     remember: bool = False
+    # Coordination §4: also allow such deletes in the project from now on - only on a delete
+    # KOLONİ found disposable, and with no rule.
+    disposable: bool = False
 
 
 class RuleIn(BaseModel):
@@ -53,7 +56,12 @@ async def _decide(command_id: str, decision: str, request: Request, session: Ses
 async def approve(
     command_id: str, body: ApproveIn, request: Request, session: Session = Depends(get_session)
 ):
-    return await _decide(command_id, "always" if body.remember else "once", request, session)
+    if body.disposable and (command := session.get(Command, command_id)) is not None and (
+            body.remember or not command.disposable):
+        raise HTTPException(422, "only a delete KOLONİ found disposable allows such deletes, "
+                                 "and with no rule")
+    decision = "disposable" if body.disposable else "always" if body.remember else "once"
+    return await _decide(command_id, decision, request, session)
 
 
 @router.post("/commands/{command_id}/reject", response_model=CommandOut,

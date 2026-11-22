@@ -32,6 +32,7 @@ export function CommandRow({ command, failed = false, live = false }: { command:
         <StopCommand command={command} />
       </div>
       <OnYourWords judged={command.judged} />
+      <RanDisposable disposable={command.disposable} />
       {open && <CommandOutput command={command} />}
     </div>
   )
@@ -47,6 +48,12 @@ function OnYourWords({ judged }: { judged: Command['judged'] }) {
       {judged.verdict === 'run' ? 'Ran without asking' : 'Not run'} · your rule: “{judged.quote}” ({JUDGED_FROM[judged.source]})
     </div>
   )
+}
+
+/** Coordination §4: a delete that ran with no card, as KOLONİ found it disposable where the project allows such deletes. */
+function RanDisposable({ disposable }: { disposable: Command['disposable'] }) {
+  if (!disposable?.unasked) return null
+  return <div className="tool-row-note muted">Ran without asking · disposable: {disposable.what}</div>
 }
 
 /** Its output: the first and last lines, and all of it on "Show all". */

@@ -61,6 +61,7 @@ from app import (
     browser,
     copies,
     diagram,
+    disposable,
     evolve,
     git,
     injection,
@@ -324,6 +325,7 @@ from app.commands import (
     CANARY,
     OutputMask,
     copy_reason,
+    disposable_targets,
     hide_keys,
     installs,
     search_reason,
@@ -4780,6 +4782,51 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return copy_reason(command, linked, ctx.folder, self.settings.runtime_root, own, cwd,
                            [one["path"] for one in seen.get("worktrees") or []])
 
+    async def _disposable(self, ctx: Ctx, command: str, root: Path | None, cwd: str | None,
+                          in_copy: bool) -> dict | None:
+        """Coordination §4: what of a delete is disposable (`disposable.what`) - run in `cwd` of
+        `root` (the project, or the tree of the copy it works in: `in_copy`) - and whether it goes
+        without a card (`allowed`): the project allows such deletes, the chat is at Auto-edit or
+        Full auto, and the user watches the turn - not a side of a comparison, a To-do task's, a
+        job while they are away. None for no such delete, or where it runs is not known (either
+        None: a copy not made yet, a CLI's folder not known or its model's word)."""
+        if root is None or cwd is None or ctx.root is None or disposable_targets(command) is None:
+            return None
+        seen = self._git_at.get(ctx.run_id) or {}
+        try:
+            what = await asyncio.to_thread(
+                disposable.what, command, Path(ctx.root), root, cwd, in_copy=in_copy,
+                copies_at=copies.folders(self.settings.runtime_root),
+                keep=seen.get("branch") or None)
+        except Exception:  # (a look that fails is no disposable delete: its card, as before)
+            log.warning("run %s: the look at a disposable delete failed", ctx.run_id,
+                        exc_info=True)
+            return None
+        if what is None:
+            return None
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+            mode = session.get_one(Conversation, ctx.cid).permission_mode
+        allowed = (project is not None and project.disposable_deletes
+                   and mode in ("auto_edit", "full_auto") and self._watched(ctx.run_id)
+                   and not {ctx.run_id} & ({*self._sides} | self._backlog_turns
+                                           | {*self._away_jobs}))
+        return {"what": what, "allowed": allowed}
+
+    async def _looked_again(self, ctx: Ctx, call_id: str, command: str, root: Path | None,
+                            cwd: str | None, in_copy: bool, found: dict | None,
+                            why: str) -> tuple[dict | None, str]:
+        """A delete that goes without a card as disposable (`found`, `_disposable`) looked at
+        again just before it runs - a card of the turn may have been waited for meanwhile - and
+        what it is then, with why it is asked at every level (`why`, as it was): where the second
+        look finds other than the first, no longer disposable and asked all the same
+        (`disposable.CHANGED`, on its call's card)."""
+        if not (found and found["allowed"]) or await self._disposable(
+                ctx, command, root, cwd, in_copy) == found:
+            return found, why
+        self._set_call(ctx.cid, call_id, why_asked=disposable.CHANGED)
+        return None, disposable.CHANGED
+
     def _shared_install(self, ctx: Ctx, command: str, linked: bool) -> str:
         """K-koordinasyon: why an agent's command in a copy with the project's dependency folders
         linked in (`linked`) is asked at every level in a turn the user watches - it installs
@@ -4811,11 +4858,17 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise ToolError(kept)
         # (Web off first: its card offers no rule, which would not cover it.)
         web_off = web_off_reason(planned.command, self._off())
+        # Coordination §4: a disposable delete the user allowed is asked neither for the copy's
+        # rules nor as harm (where it runs: a copy not made yet is not known).
+        place = made.root if made else None if owner else ws.root
+        found = await self._disposable(ctx, planned.command, place, planned.cwd_rel, bool(owner))
+        free = bool(found and found["allowed"])
         in_a_copy = web_off or (self._in_copy_asks(
-            ctx, planned.command, linked, made.root if made else None, planned.cwd_rel) if owner
-            else "") or self._branch_asks(ctx, planned.command, bool(owner)) or (
+            ctx, planned.command, linked, made.root if made else None, planned.cwd_rel)
+            if owner and not free else "") or self._branch_asks(
+            ctx, planned.command, bool(owner)) or (
             self._shared_install(ctx, planned.command, bool(owner) and linked))
-        night = "" if in_a_copy else self._night_asks(
+        night = "" if in_a_copy or free else self._night_asks(
             ctx, planned.command, planned.cwd_rel, None if owner else ctx.root)
         # K-yargic: (not a skill's script the user lets run unasked: nobody is asked of it)
         night, judged = (night, None) if unasked else await self._judged(
@@ -4858,6 +4911,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             since = time.monotonic()
             held = await asyncio.to_thread(standing_files, ctx.root)
             self._git_at_start.setdefault(run_id, _git_parts(held, Path(ctx.root)))
+        found, in_a_copy = await self._looked_again(
+            ctx, call_id, planned.command, place, planned.cwd_rel, bool(owner), found, in_a_copy)
         ran = False
         started_ns = time.time_ns()
         moved = None if unasked else await self._own_measure(
@@ -4869,6 +4924,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     run_id, cid, ctx.agent_id, ws, call_id, args,
                     ask=refused is None and not unasked, where=in_copy if owner else None,
                     always=bool(in_a_copy), web_off=bool(web_off), once=once, judgement=judged,
+                    disposable=found,
                 )
             ran = True
         finally:
