@@ -116,6 +116,11 @@ be on a line of its own:
 - **Launchers**: what `Start-Process … -ArgumentList`, `npx -c` / `--call`, `schtasks /tr`,
   `[scriptblock]::Create(…)`, `cmd /c` and `bash -c` hand on is read as the command it is; a command
   PowerShell is handed encoded (`-EncodedCommand`) is asked at every level.
+- **Runners**: what `poetry run`, `uv run`, `pipenv run`, `pdm run`, `hatch run`, `rye run`,
+  `conda run`, `npx`, `pnpm exec`, `yarn exec` / `run`, `bun x` and `cargo run --` / `dotnet run
+  --` run is read as a line of its own: `poetry run cmd /c rd /s /q src` is a delete, and a shell
+  it is handed is a line handed to another program, its path spelt out too
+  (`C:\Windows\System32\cmd.exe`).
 - **Substitutions**: an install inside `$( … )` (`out=$(npm ci)`) counts.
 - **Continued lines**: a line continued with a backtick, `\` or `^` is read joined as well.
 - **Writes to a place built at run time**: in a branch's worktree, a redirect (`>`, `>>`, `>|`,
@@ -128,9 +133,11 @@ be on a line of its own:
   `--git-common-dir`, `--absolute-git-dir` and `--git-path`, a read included (`ls "$(git rev-parse
   --git-dir)/.."`), so a writer KOLONİ does not list (`sed -i`, `tar -C`, `robocopy`) cannot reach it
   unasked. A path written out runs as before, and so do a few built places that cannot be `.git`:
-  the temp folder by its variable (`"$TMPDIR/f"`, `$env:TEMP\a`) where the line does not set it, a
-  date in a file's own name (`build-$(date +%s).log`), a `for` loop's name over a glob or names
-  written out (`for f in *.py`).
+  the temp folder by its variable (`"$TMPDIR/f"`, `$env:TEMP\a`), the folder the command runs in at
+  the start of the place (`"$PWD/out.txt"`, `$(pwd)/x`, `(Join-Path $PWD out.txt)`), a date in a
+  file's own name (`build-$(date +%s).log`, its format holding no `/`, `.` or quote), a `for`
+  loop's name over a glob or names written out (`for f in *.py`) - but never where the place climbs
+  (`..`) or the line gives that name a value (`TMPDIR=…`, `read … PWD`, `Set-Item env:TEMP`).
 - **Package runners**: `npx -p` / `--package` (before what npx runs), `npm exec --package`, `uv
   run --with` / `-w`, `uvx`, `pipx run`, `bunx`, `pnpm dlx`, `yarn dlx`, `npm create` / `npm init
   <x>` and `yarn` / `pnpm` / `bun create`, `deno run npm:…` / `jsr:…`, `go run <module>@<version>`

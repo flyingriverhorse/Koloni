@@ -1,5 +1,5 @@
 {
-"about": "K-koordinasyon's command gate (review rounds 3-4): each line's verdict as 650e22a gave it - harm_class (0 none, 1 soft, 2 always), copy_reason in a copy with links (the sentence's family, '' no card), installs(), web_off_reason with http_request off - which HEAD must give at least. <x> is a path the test makes; win32: Windows' own spellings, checked there alone. `allow`: the lines meant to go down, each with why. `xfail`: known regressions still open. `up`: lines meant to go up (harm at least soft). `shared` (k-okuyucu-3): lines that in a branch's worktree reaches_shared_git must ask, each with why.",
+"about": "K-koordinasyon's command gate (review rounds 3-4): each line's verdict as 650e22a gave it - harm_class (0 none, 1 soft, 2 always), copy_reason in a copy with links (the sentence's family, '' no card), installs(), web_off_reason with http_request off - which HEAD must give at least. <x> is a path the test makes; win32: Windows' own spellings, checked there alone. `allow`: the lines meant to go down, each with why. `xfail`: known regressions still open. `up`: lines meant to go up (harm at least soft). `shared` (k-okuyucu-3): lines that in a branch's worktree reaches_shared_git must ask, each with why. `unruled` (k-okuyucu-3 round 3): lines an Always rule (its value) never covers - a shell or program a runner is handed.",
 "lines": [
 [
 "",
@@ -8322,6 +8322,14 @@ true,
 false
 ],
 [
+"Copy-Item g \"$env:TEMP\\..\\users-wt\\gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Copy-Item src\\a.ts src\\b.ts",
 0,
 "",
@@ -11466,6 +11474,14 @@ false,
 false
 ],
 [
+"PWD=$(git rev-parse --git-dir); echo x > \"$PWD/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "PYTEST_ADDOPTS=\"--basetemp C:/x\" python -m pytest",
 1,
 "",
@@ -12850,7 +12866,39 @@ false,
 false
 ],
 [
+"Set-Content \"$PWD\\x\" y",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Set-Content (Join-Path $PWD $d) y",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Set-Content (Join-Path $PWD ..\\users-wt\\gitdir) y",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"Set-Content (Join-Path $PWD out.txt) y",
 0,
 "",
 false,
@@ -13082,6 +13130,14 @@ false,
 false
 ],
 [
+"Set-Item env:TEMP x; Copy-Item g \"$env:TEMP\\f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Set-Location $PSScriptRoot",
 0,
 "",
@@ -13139,6 +13195,14 @@ false
 ],
 [
 "Set-Location frontend; npm run build",
+0,
+"",
+false,
+false,
+false
+],
+[
+"Set-Variable PWD x; Set-Content \"$PWD\\x\" y",
 0,
 "",
 false,
@@ -15306,6 +15370,14 @@ false,
 false
 ],
 [
+"TMP+=/x; echo y > \"$TMP/f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "TMPDIR=$(git rev-parse --git-dir); echo x > \"$TMPDIR/f\"",
 0,
 "",
@@ -16475,6 +16547,14 @@ false
 ],
 [
 "[Environment]::Exit(0)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"[Environment]::SetEnvironmentVariable('TEMP', 'x'); Copy-Item g \"$env:TEMP\\f\"",
 0,
 "",
 false,
@@ -20170,6 +20250,14 @@ false,
 false
 ],
 [
+"bun x rm -rf src",
+1,
+"",
+true,
+false,
+true
+],
+[
 "bunu yapma.",
 0,
 "",
@@ -20656,6 +20744,22 @@ false
 false,
 false,
 true
+],
+[
+"cargo run -- C:\\Windows\\System32\\cmd.exe /c x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"cargo run -- rm -rf src",
+1,
+"",
+false,
+false,
+false
 ],
 [
 "case \"$(pkill python)\" in x) :;; esac",
@@ -23363,6 +23467,14 @@ false
 ],
 [
 "cd src && cd .. && pytest",
+0,
+"",
+false,
+false,
+false
+],
+[
+"cd src && echo x > \"$PWD/out.txt\"",
 0,
 "",
 false,
@@ -26786,6 +26898,14 @@ false,
 false
 ],
 [
+"conda run -n env rm -rf src",
+1,
+"",
+false,
+false,
+false
+],
+[
 "conda run pip install x",
 0,
 "",
@@ -29722,6 +29842,14 @@ false,
 false
 ],
 [
+"declare TMPDIR=x; echo y > \"$TMPDIR/f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "del %USERPROFILE%\\x",
 2,
 "",
@@ -30692,6 +30820,14 @@ false
 [
 "done",
 0,
+"",
+false,
+false,
+false
+],
+[
+"dotnet run -- rm -rf src",
+1,
 "",
 false,
 false,
@@ -33666,6 +33802,14 @@ false,
 false
 ],
 [
+"echo x > \"$(cd ..; pwd)/users-wt/gitdir\"",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "echo x > \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"",
 2,
 "",
@@ -33682,6 +33826,38 @@ false,
 false
 ],
 [
+"echo x > \"$(date +%s/x)\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"$(date +.''./x)\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"$(pwd -W)/out.txt\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"$(pwd)/out.txt\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo x > \"$D/users-wt/gitdir\"",
 0,
 "",
@@ -33690,7 +33866,47 @@ false,
 false
 ],
 [
+"echo x > \"$PWD/../users-wt/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"$PWD/out.txt\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"$TMPDIR/../users-wt/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo x > \"$TMPDIR/f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"${PWD%/*}/users-wt/gitdir\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo x > \"${PWD}/out.txt\"",
 0,
 "",
 false,
@@ -39066,6 +39282,14 @@ false,
 false
 ],
 [
+"for f in *.py; do f=../x; echo y > \"$f\"; done",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "for f in *.tmp; do rm -rf \"$f\"; done",
 0,
 "",
@@ -39077,6 +39301,14 @@ false
 "for f in ../*; do echo x > \"$f\"; done",
 0,
 "out",
+false,
+false,
+false
+],
+[
+"for f in a b; do echo y > \"$f/../users-wt/gitdir\"; done",
+0,
+"",
 false,
 false,
 false
@@ -46188,6 +46420,14 @@ false
 [
 "hatch run pip install x",
 0,
+"",
+false,
+false,
+false
+],
+[
+"hatch run rm -rf src",
+1,
 "",
 false,
 false,
@@ -58242,6 +58482,14 @@ false,
 false
 ],
 [
+"pdm run rm -rf src",
+1,
+"",
+false,
+false,
+false
+],
+[
 "pdm sync",
 0,
 "",
@@ -59042,6 +59290,14 @@ false,
 false
 ],
 [
+"pipenv run rm -rf src",
+1,
+"",
+false,
+false,
+false
+],
+[
 "pipenv sync",
 0,
 "",
@@ -59714,6 +59970,14 @@ false,
 false
 ],
 [
+"pnpm exec rm -rf src",
+1,
+"",
+false,
+false,
+false
+],
+[
 "pnpm exec tsc",
 0,
 "",
@@ -59892,6 +60156,30 @@ true
 [
 "poetry run -- npm ci",
 0,
+"",
+false,
+false,
+false
+],
+[
+"poetry run C:\\Windows\\System32\\cmd.exe /c rd /s /q src",
+1,
+"",
+false,
+false,
+false
+],
+[
+"poetry run bash -c 'rm -rf src'",
+1,
+"",
+false,
+false,
+false
+],
+[
+"poetry run cmd /c rd /s /q src",
+1,
 "",
 false,
 false,
@@ -66298,6 +66586,30 @@ false,
 false
 ],
 [
+"read -r _ PWD < .git; echo x > \"$PWD/gitdir\"",
+2,
+"",
+false,
+false,
+false
+],
+[
+"read -r _ TMPDIR < .git; echo x > \"$TMPDIR/../users-wt/gitdir\"",
+2,
+"",
+false,
+false,
+false
+],
+[
+"read -r _ TMPDIR < .git; echo x > \"$TMPDIR/gitdir\"",
+2,
+"",
+false,
+false,
+false
+],
+[
 "read it",
 0,
 "",
@@ -69412,6 +69724,14 @@ false
 [
 "rwmi",
 0,
+"",
+false,
+false,
+false
+],
+[
+"rye run rm -rf src",
+1,
 "",
 false,
 false,
@@ -79914,6 +80234,14 @@ false,
 true
 ],
 [
+"uv run \"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -c x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "uv run -- npm ci",
 0,
 "",
@@ -79962,6 +80290,14 @@ false,
 true
 ],
 [
+"uv run --with x rm -rf src",
+1,
+"",
+true,
+false,
+true
+],
+[
 "uv run --with=requests pytest",
 0,
 "",
@@ -79998,6 +80334,22 @@ true
 0,
 "",
 true,
+false,
+true
+],
+[
+"uv run C:\\Windows\\System32\\cmd.exe /c x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"uv run git push --force origin main",
+1,
+"",
+false,
 false,
 true
 ],
@@ -80084,6 +80436,14 @@ false
 [
 "uv run python x.py",
 0,
+"",
+false,
+false,
+false
+],
+[
+"uv run rm -rf src",
+1,
 "",
 false,
 false,
@@ -82458,6 +82818,14 @@ false,
 false
 ],
 [
+"yarn exec rm -rf src",
+1,
+"",
+false,
+false,
+false
+],
+[
 "yarn install",
 0,
 "",
@@ -82476,6 +82844,14 @@ true
 [
 "yarn run npm ci",
 0,
+"",
+false,
+false,
+false
+],
+[
+"yarn run rm -rf src",
+1,
 "",
 false,
 false,
@@ -83813,6 +84189,7 @@ false
 ": > \"$(git rev-parse --git-dir)/../users-wt/logs/HEAD\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "Add-Content -Path (Join-Path (git rev-parse --git-common-dir) 'worktrees/users-wt/gitdir') -Value x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "Copy-Item -Path x -Destination \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Copy-Item g \"$env:TEMP\\..\\users-wt\\gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "Copy-Item x -D \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "Copy-Item x -Dest \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "Copy-Item x -Destination (Join-Path (git rev-parse --git-dir) 'x')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
@@ -83830,12 +84207,19 @@ false
 "New-Item -Path (Split-Path (git rev-parse --git-dir)) -Name users-wt/gitdir -Value x -Force": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "New-Object IO.StreamWriter \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "Out-File -FilePath (git rev-parse --git-dir)/x -InputObject y": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"PWD=$(git rev-parse --git-dir); echo x > \"$PWD/x\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "Rename-Item x -NewName ((git rev-parse --git-dir) + '/x')": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Set-Content (Join-Path $PWD $d) y": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
+"Set-Content (Join-Path $PWD ..\\users-wt\\gitdir) y": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "Set-Content (Resolve-Path ((git rev-parse --git-dir) + '/../users-wt/gitdir')) x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "Set-Content -LiteralPath $p -Value x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Set-Item env:TEMP x; Copy-Item g \"$env:TEMP\\f\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "Set-Location (Split-Path (git rev-parse --git-dir)); Set-Content users-wt/gitdir x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"Set-Variable PWD x; Set-Content \"$PWD\\x\" y": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
+"TMP+=/x; echo y > \"$TMP/f\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "TMPDIR=$(git rev-parse --git-dir); echo x > \"$TMPDIR/f\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"[Environment]::SetEnvironmentVariable('TEMP', 'x'); Copy-Item g \"$env:TEMP\\f\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "[IO.File]::Copy(\"$PWD/g.txt\", (Join-Path (Split-Path (git rev-parse --git-dir)) 'users-wt/gitdir'), $true)": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "[IO.File]::Copy('x', \"$(git rev-parse --git-dir)/x\", $true)": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "[IO.File]::Create(\"$(git rev-parse --git-dir)/x\")": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
@@ -83859,6 +84243,7 @@ false
 "cmd /c mklink /J g \"%D%\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "cp -t \"$(git rev-parse --git-dir)\" x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "cp x \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"declare TMPDIR=x; echo y > \"$TMPDIR/f\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "dirname \"$PWD\" > \"$(git rev-parse --git-dir)/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo \"$(dirname \"$PWD\")/zz/x\" > \"$(git rev-parse --git-dir)/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo \"$(pwd -W)/x\" > \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
@@ -83866,9 +84251,15 @@ false
 "echo x &>\"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo x 1>\"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo x 2> \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > \"$(cd ..; pwd)/users-wt/gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "echo x > \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo x > \"$(date +%s)/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > \"$(date +%s/x)\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
+"echo x > \"$(date +.''./x)\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "echo x > \"$D/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"echo x > \"$PWD/../users-wt/gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
+"echo x > \"$TMPDIR/../users-wt/gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
+"echo x > \"${PWD%/*}/users-wt/gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "echo x > $D/../users-wt/gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo x > ${D}/refs/remotes/origin/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo x > %G%/x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
@@ -83888,7 +84279,9 @@ false
 "for /f %i in ('git rev-parse --git-dir') do echo x > %i\\..\\users-wt\\gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "for /f %i in ('type .git') do echo x > %i\\..\\users-wt\\gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "for f in $(ls ..); do echo x > \"$f/gitdir\"; done": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for f in *.py; do f=../x; echo y > \"$f\"; done": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "for f in ../*; do echo x > \"$f\"; done": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for f in a b; do echo y > \"$f/../users-wt/gitdir\"; done": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "git config --file \"$(git rev-parse --git-dir)/../users-wt/config.worktree\" core.worktree x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "git rev-parse --absolute-git-dir": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
 "git rev-parse --git-dir": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
@@ -83919,6 +84312,9 @@ false
 "printf 'x\\n' | dd of=\"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "python -c \"import subprocess,os;d=subprocess.check_output(['git','rev-parse','--git-dir'],text=True).strip();open(os.path.join(os.path.dirname(d),'users-wt','gitdir'),'w').write('x')\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "python -c \"open(__import__('os').path.dirname(r'$(git rev-parse --git-dir)')+'/users-wt/gitdir','w').write('x')\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"read -r _ PWD < .git; echo x > \"$PWD/gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
+"read -r _ TMPDIR < .git; echo x > \"$TMPDIR/../users-wt/gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
+"read -r _ TMPDIR < .git; echo x > \"$TMPDIR/gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "robocopy . \"$(git rev-parse --git-dir)\" x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "rsync gitdir \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "sed -i \"s#.*#$(pwd -W)/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
@@ -83928,5 +84324,12 @@ false
 "type x > \"%G%\\x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "unzip -o evil.zip -d \"$(dirname \"$(git rev-parse --git-dir)\")\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "xcopy x \"$(git rev-parse --git-dir)\\x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review"
+},
+"unruled": {
+"cargo run -- C:\\Windows\\System32\\cmd.exe /c x": "cargo run",
+"poetry run C:\\Windows\\System32\\cmd.exe /c rd /s /q src": "poetry",
+"poetry run cmd /c rd /s /q src": "poetry",
+"uv run \"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -c x": "uv run",
+"uv run C:\\Windows\\System32\\cmd.exe /c x": "uv run"
 }
 }

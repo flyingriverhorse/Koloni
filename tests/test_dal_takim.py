@@ -759,6 +759,11 @@ def test_in_a_worktree_computing_the_shared_gits_path_is_asked(command):
     'echo x > "$TMPDIR/f"', "echo x > $TMP/f", 'Copy-Item a "$env:TEMP\\a"',
     'for f in *.py; do black -q "$f" > "$f.new"; done', 'npm test > "build-$(date +%s).log"',
     "echo x > logs/run-$(date +%F).txt", 'for f in a.txt b.txt; do cp "$f" "$f.bak"; done',
+    # (round 3: the folder the line runs in, at the target's start, its name given no value)
+    'echo x > "$PWD/out.txt"', 'echo x > "${PWD}/out.txt"', 'echo x > "$(pwd)/out.txt"',
+    'echo x > "$(pwd -W)/out.txt"', 'Set-Content -Path "$PWD/x" -Value y',
+    'Set-Content "$PWD\\x" y', "Set-Content (Join-Path $PWD out.txt) y",
+    'cd src && echo x > "$PWD/out.txt"',
 ])
 def test_in_a_worktree_a_read_or_a_write_to_a_place_written_out_is_not_asked(command):
     from app.commands import reaches_shared_git

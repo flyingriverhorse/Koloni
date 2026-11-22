@@ -335,6 +335,10 @@ def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, cover
     ("npm test --script-shell=x", "npm test", False), ("npm test --prefix ../x", "npm test", False),
     ("uv run pytest --with x", "uv run pytest", False), ("uv run -w x pytest", "uv run", False),
     ("npm run x -- bash -c y", "npm run x", False),
+    # (round 3: a shell spelt by its path, Windows' too, or in quotes with a space)
+    (r"poetry run C:\Windows\System32\cmd.exe /c rd /s /q src", "poetry", False),
+    (r'uv run "C:\Program Files\PowerShell\7\pwsh.exe" -c x', "uv run", False),
+    (r"cargo run -- C:\Windows\System32\cmd.exe /c x", "cargo run", False),
     # (N5: another config, makefile, module, crate, project or shell; code loaded into node or
     # maven; a report written outside)
     ("npm test --userconfig x", "npm test", False),

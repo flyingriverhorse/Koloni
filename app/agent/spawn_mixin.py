@@ -1511,6 +1511,9 @@ class SpawnMixin:
         folder, part, on_branch = await self._spawn_where(ctx, args)
         chosen, not_to_be_had, shut = False, None, None
         with self._factory() as session:
+            # (KOLONİ's own call by its provider id - a model's never starts so: `_run_tools`)
+            own = session.get(ToolCall, call_id)
+            kolonis = own is not None and own.provider_call_id.startswith("koloni_")
             role = find_agent_role(session, " ".join(wanted.split())) or self._team_lead(
                 session, ctx, wanted)
             conversation = session.get_one(Conversation, ctx.cid)
@@ -1639,7 +1642,7 @@ class SpawnMixin:
         # K-brief-kalitesi: judged on the opener's own words, before what KOLONİ adds under them
         # - not a task of KOLONİ's (a lead or a group opened beside, `koloni_`), a recipe's or a
         # team's; said with the result, never refused.
-        thin = None if call_id.startswith("koloni_") or in_recipe or way or members else (
+        thin = None if kolonis or in_recipe or way or members else (
             thin_task(task, names_part=folder is not None or skipped is not None))
         if source is not None:
             handed, task = self._findings_handed(ctx, source, role, task)

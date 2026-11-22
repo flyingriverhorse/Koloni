@@ -8,7 +8,8 @@ a card from `copy_reason` in a copy with links, `installs()`, `web_off_reason` w
 http_request off (review round 4). A line meant to go down (an
 over-ask cured) is in its `allow`, with why; a known regression still open, in its `xfail`; a
 line meant to go up (a hole 650e22a had too: a continued line) in its `up` - harm at least. A line
-a branch's worktree must ask (k-okuyucu-3: a write to a place built at run time) is in `shared`."""
+a branch's worktree must ask (k-okuyucu-3: a write to a place built at run time) is in `shared`,
+one a rule never covers (a shell a runner is handed) in `unruled`, with that rule."""
 
 import json
 import os
@@ -83,6 +84,7 @@ def test_the_gate_holds_its_lines_once_and_every_allowed_line_has_a_reason():
     assert set(GATE["allow"]) <= set(names) and set(GATE["xfail"]) <= set(names)
     assert set(GATE["up"]) <= set(names) and not set(GATE["up"]) & set(GATE["allow"])
     assert set(GATE["shared"]) <= set(names) and not set(GATE["shared"]) & set(GATE["allow"])
+    assert set(GATE["unruled"]) <= set(names) and not set(GATE["unruled"]) & set(GATE["allow"])
     assert all(reason.strip() for reason in GATE["allow"].values())
 
 
@@ -91,6 +93,13 @@ def test_in_a_branchs_worktree_every_shared_line_is_asked():
     # too - a write to a place built at run time may be the user's own repository)
     missing = [line for line in GATE["shared"] if not commands.reaches_shared_git(line, "koloni/x")]
     assert not missing, "\n".join(missing)
+
+
+def test_no_rule_covers_an_unruled_line():
+    # (k-okuyucu-3 round 3: a shell or a program a runner is handed - `poetry run cmd /c ...` - is
+    # never covered by the runner's rule, its program spelt by a path too)
+    covered = [line for line, rule in GATE["unruled"].items() if commands.matches(line, rule)]
+    assert not covered, "\n".join(covered)
 
 
 def test_every_line_is_read_as_written_too():

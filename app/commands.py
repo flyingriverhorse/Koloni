@@ -206,6 +206,38 @@ _ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")  # `A=1 cmd`, `env A=1 cmd`
 MAX_READINGS = 8
 MAX_OTHER_READINGS = 64  # (of a whole line, `_commands_in`)
 UNREAD = "koloni:unread"  # (the program a part is read as past either)
+# K-okuyucu-3 round 3: what runs a program it is given (`poetry run cmd /c rd /s /q src`, `uv run
+# rm -rf x`, `npx x`) - what it runs is read as a line of its own too (`_runner_lines`): its harm, a
+# shell, a wrapper. `cargo run` / `dotnet run` hand on only what follows their `--`.
+_RUNS_PROGRAM = frozenset({
+    ("poetry", "run"), ("uv", "run"), ("pipenv", "run"), ("pdm", "run"), ("hatch", "run"),
+    ("rye", "run"), ("conda", "run"), ("pnpm", "exec"), ("pnpm", "dlx"), ("yarn", "exec"),
+    ("yarn", "run"), ("yarn", "dlx"), ("bun", "x"), ("npm", "exec"), ("npm", "x"),
+})
+_RUNS_AFTER_DASHES = frozenset({("cargo", "run"), ("dotnet", "run")})
+
+
+def _runner_lines(words: list[str]) -> list[str]:
+    """What a runner runs (`_RUNS_PROGRAM`, `npx` and its kin, `cargo run --`), as lines: from each
+    of its first three words that is no option - an option's value read as the program too, which
+    fails closed."""
+    program = _program(words[0])
+    rest: list[str] = words[1:] if program in _RUNNER_PROGRAMS else []
+    for name, verb in [] if rest else _verbs(words):
+        pair, at = (name, verb.casefold()), words.index(verb) if verb in words else -1
+        if at > 0 and pair in _RUNS_AFTER_DASHES and "--" in words[at:]:
+            dashes = words.index("--", at)
+            return [" ".join(_quoted_word(word) for word in words[dashes + 1:])][
+                :1 if dashes + 1 < len(words) else 0]
+        if at > 0 and pair in _RUNS_PROGRAM:
+            rest = words[at + 1:]
+            break
+    starts = [at for at, word in enumerate(rest) if not word.startswith("-")][:3]
+    return [" ".join(_quoted_word(word) for word in rest[at:]) for at in starts]
+
+
+def _quoted_word(word: str) -> str:
+    return f'"{word}"' if re.search(r"\s", word) else word
 
 
 def _unwrapped(words: list[str]) -> list[list[str]]:  # noqa: C901
@@ -260,6 +292,8 @@ def _unwrapped(words: list[str]) -> list[list[str]]:  # noqa: C901
                 break
             program, at = _program(words[at]), at + 1
         found.append(words[at:])
+        if at < len(words):  # (what a runner it reaches runs: a line of its own too)
+            lines_handed += [[line] for line in _runner_lines(words[at:])]
     return [*found, *lines_handed, *([[UNREAD]] if unread else [])]
 
 
@@ -432,8 +466,8 @@ _SHORT_VALUES = {"pytest": "kmnrW", "make": "CIjloW", "tox": "e", "uv": "p", "uv
 # (`-p no:x`), how it logs.
 _HARMLESS_INI = frozenset({"log_cli", "log_cli_level", "log_level", "console_output_style"})
 # ...and a shell handed a line (`... bash -c "x"`, `cmd /c x`), anywhere past the rule.
-_SHELL_LINE = re.compile(r"(?i)(?:^|\s)['\"]?(?:\S*[\/])?(?:sh|bash|zsh|dash|cmd|powershell|pwsh)"
-                         r"(?:\.exe)?\s+[-/](?:c|command)\b")
+_SHELL_LINE = re.compile(r"(?i)(?:^|\s)['\"]?(?:\S*[\\/])?(?:sh|bash|zsh|dash|cmd|powershell|pwsh)"
+                         r"(?:\.exe)?['\"]?\s+[-/](?:c|command)\b")
 
 
 def _past_the_rule(words: list[str], extra: list[str]) -> bool:
@@ -1339,29 +1373,58 @@ _PS_SWITCHES = frozenset({"force", "nonewline", "append", "noclobber", "passthru
                           "confirm", "asbytestream", "verbose", "debug"})
 _DEEPEST = 4  # (shells handed shells: deeper, asked)
 # Built, yet no place a line could aim at the shared git: cured narrowly (`_curing`) - the temp
-# folder by its variable where the line sets none of them (`$TMPDIR/f`, `$env:TEMP\a`), a `$(date
-# ...)` in the file's own name (`build-$(date +%s).log`), a `for` loop's variable over a glob or
-# names written out (`for f in *.py`: no `$`, bracket, backtick or `..` in its list, no path from a
-# root). Any other built place stays asked.
+# folder by its variable (`$TMPDIR/f`, `$env:TEMP\a`), the folder the line runs in at the start of
+# the target (`$PWD/x`, `$(pwd)/x`, `(Join-Path $PWD x)`), a `$(date ...)` in the file's own name
+# (`build-$(date +%s).log`, no `/`, `.` or quote in its format), a `for` loop's variable over a
+# glob or names written out (`for f in *.py`: no `$`, bracket, backtick or `..` in its list, no
+# path from a root). Never where the target climbs (`..`), nor where the line gives that name a
+# value (`_assigned`: `TMPDIR=`, `read ... PWD`, `Set-Item env:TEMP`). Any other built place stays
+# asked.
 _TEMP_VAR = re.compile(r"(?i)^(['\"]?)\$(?:\{(?:tmpdir|tmp|temp)\}|(?:tmpdir|tmp|temp)\b|"
                        r"env:(?:temp|tmp)\b)")
-_SETS_TEMP = re.compile(r"(?i)(?:^|[\s;&|(])(?:\$env:)?['\"]?(?:tmpdir|tmp|temp)\s*=")
-_DATE_NAME = re.compile(r"\$\(date(?:\s[^()`$]*)?\)(?=[^\\/]*$)")
+_PWD_START = re.compile(r"(?i)^(['\"]?)(?:\$\{pwd\}|\$pwd\b|\$\(pwd(?:\s+-W)?\))(?=[\\/'\"]|$)")
+_JOIN_PWD = re.compile(r"(?i)\(\s*join-path\s+\$pwd\s+['\"]?[^()$`'\"\s]+['\"]?\s*\)")
+_DATE_NAME = re.compile(r"\$\(date(?:\s+[^()`$/.'\"\\\s]*)*\)(?=[^\\/]*$)")
 _FOR_LIST = re.compile(r"(?:^|[\s;&|(])for\s+(\w+)\s+in\s+([^;\n]*)")
 
 
+_GIVES = frozenset({"read", "export", "declare", "typeset", "local", "readonly", "set",
+                    "set-variable", "new-variable", "sv", "nv", "set-item", "si"})
+
+
+def _assigned(line: str) -> set[str]:
+    """The names a line gives a value, in lower case: `x=`, `x+=`, `$env:x =`; any name after
+    `read` / `export` / `declare` / `typeset` / `local` / `readonly` / `set` / `Set-Variable` /
+    `New-Variable` / `Set-Item env:` in its part; `SetEnvironmentVariable('x'`. Linear: each part
+    read once."""
+    names = {found[1].casefold() for found in re.finditer(
+        r"(?<![\w$.-])(?:\$env:)?([A-Za-z_]\w*)\s*\+?=", line)}
+    names |= {found[1].casefold() for found in re.finditer(
+        r"(?i)setenvironmentvariable\(\s*['\"](\w+)", line)}
+    for part in re.split(r"[;&|\n]", line):
+        words = [re.sub(r"(?i)^(?:env:|-\w+:)", "", word.strip("'\"$")).split("=")[0].casefold()
+                 for word in part.split()]
+        given = next((at for at, word in enumerate(words) if word in _GIVES), None)
+        names |= set(words[given + 1:]) if given is not None else set()
+    return names
+
+
 def _curing(line: str) -> Callable[[str], str]:
-    """`_writes_built`'s cure for `line`, read once: a write's target as `_BUILT` judges it there -
-    `_TEMP_VAR`, `_DATE_NAME` and a literal `for` list's variable read as a plain name."""
-    temp = not _SETS_TEMP.search(line)
+    """`_writes_built`'s cure for `line`, read once: a write's target as `_BUILT` judges it."""
+    assigned = _assigned(line)
+    temp, here = not assigned & {"tmpdir", "tmp", "temp"}, "pwd" not in assigned
     names = {found[1] for found in _FOR_LIST.finditer(line)
-             if not re.search(r"[$`(]|\.\.", found[2])
+             if not re.search(r"[$`(]|\.\.", found[2]) and found[1].casefold() not in assigned
              and not any(_full(item.strip("'\"")) for item in found[2].split())}
     either = "|".join(sorted(names))
     loops = re.compile(rf"\$(?:\{{(?:{either})\}}|(?:{either})\b)") if names else None
 
     def cured(target: str) -> str:
-        target = _DATE_NAME.sub("x", _TEMP_VAR.sub(r"\1x", target) if temp else target)
+        if ".." in target:
+            return target
+        target = _TEMP_VAR.sub(r"\1x", target) if temp else target
+        target = _JOIN_PWD.sub("x", _PWD_START.sub(r"\1x", target)) if here else target
+        target = _DATE_NAME.sub("x", target)
         return loops.sub("x", target) if loops else target
     return cured
 
@@ -4146,9 +4209,18 @@ def runs_another(command: str) -> str:
         first, *stages = part.split("|")
         if is_wrapped(first) or _in_a_shell(first) or stages and (
                 renames or not all(map(_filters, stages))) or any(  # (in a block: `(cmd /c x)`)
-                is_wrapped(piece) or _in_a_shell(piece) for piece in _BLOCKS.split(part)):
+                is_wrapped(piece) or _in_a_shell(piece) or _runs_a_shell(piece)
+                for piece in _BLOCKS.split(part)):
             return ANOTHER
     return ""
+
+
+def _runs_a_shell(piece: str) -> bool:
+    """Whether a runner hands a shell or a wrapper a line (`poetry run cmd /c x`, `uv run env x`:
+    `_runner_lines`)."""
+    words = _words(piece.strip())
+    return bool(words) and any(is_wrapped(line) or _in_a_shell(line)
+                               for line in _runner_lines([word.strip("'\"") for word in words]))
 
 
 # K-r135: an interpreter handed its code on the line, quoted or not (`python -c "..."`, `node
