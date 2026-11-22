@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 
 from fastapi import APIRouter, Request
@@ -12,6 +13,35 @@ PING_SECONDS = 15
 def frame(event_id: int | None, type: str, payload: dict) -> str:
     head = f"id: {event_id}\n" if event_id is not None else ""
     return f"{head}event: {type}\ndata: {json.dumps(payload)}\n\n"
+
+
+async def _until_closed(sub, closing: asyncio.Event, cursor: int):
+    """A stream's events after its replay (those past `cursor`), a ping where none came for a
+    while - until KOLONİ closes (`main.closing_server`): the server waits for this stream before
+    its shutdown, and it ends then, not at the graceful time's end (CL-311)."""
+    shut = asyncio.ensure_future(closing.wait())
+    item: asyncio.Future | None = None
+    try:
+        while True:
+            item = asyncio.ensure_future(anext(sub))
+            done, _ = await asyncio.wait(
+                {item, shut}, timeout=PING_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+            if item not in done:
+                item.cancel()  # (its queue keeps what came: none is lost)
+                if shut in done:
+                    return
+                yield ": ping\n\n"
+                continue
+            event_id, type, payload = item.result()
+            if event_id is not None:
+                if event_id <= cursor:
+                    continue
+                cursor = event_id
+            yield frame(event_id, type, payload)
+    finally:  # (the page gone, or KOLONİ closing: nothing left waiting)
+        shut.cancel()
+        if item is not None:
+            item.cancel()
 
 
 @router.get("/{conversation_id}/events")
@@ -48,32 +78,10 @@ async def stream_events(
                 yield frame(None, "agent.live", one)
             if once:
                 return
-            # Until KOLONİ closes (`main.closing_server`): the server waits for this stream
-            # before its shutdown - it ends now, not at the graceful time's end (CL-311).
-            closing = asyncio.ensure_future(request.app.state.closing.wait())
-            item: asyncio.Future | None = None
-            try:
-                while True:
-                    item = asyncio.ensure_future(anext(sub))
-                    done, _ = await asyncio.wait(
-                        {item, closing}, timeout=PING_SECONDS,
-                        return_when=asyncio.FIRST_COMPLETED)
-                    if item not in done:
-                        item.cancel()  # (its queue keeps what came: none is lost)
-                        if closing in done:
-                            return
-                        yield ": ping\n\n"
-                        continue
-                    event_id, type, payload = item.result()
-                    if event_id is not None:
-                        if event_id <= cursor:
-                            continue
-                        cursor = event_id
-                    yield frame(event_id, type, payload)
-            finally:  # (the page gone, or KOLONİ closing: nothing left waiting)
-                closing.cancel()
-                if item is not None:
-                    item.cancel()
+            async with contextlib.aclosing(
+                    _until_closed(sub, request.app.state.closing, cursor)) as rest:
+                async for chunk in rest:
+                    yield chunk
 
     return StreamingResponse(
         generate(),
