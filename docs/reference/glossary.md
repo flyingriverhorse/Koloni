@@ -29,9 +29,10 @@ KOLONİ's own words, as they appear on screen.
   today.
 
 **Branch (a team's)**
-: A git branch `koloni/<name>` that the Orchestrator can give a team's work. Stopped, the agent's work
-  stays committed there; told to go on, it goes on on the same branch. The card offers **Merge** or
-  **Open pull request**. See [Branches](../use/workspace.md#branches).
+: A git branch `koloni/<name>` that the Orchestrator can give a team's work. It starts from your folder
+  as it is, your uncommitted files too, and its card carries the agent's work alone. Stopped, the
+  agent's work stays committed there; told to go on, it goes on on the same branch. The card offers
+  **Merge** or **Open pull request**. See [Branches](../use/workspace.md#branches).
 
 **Candidates**
 : A recipe step given to several agents at once, each in its own working copy. Each one's work is
@@ -41,6 +42,12 @@ KOLONİ's own words, as they appear on screen.
 : A box in the chat that waits for your answer, for example "Run this command?" with
   **Run once**, **Always run …** and **Reject**. There are cards for file changes, commands, web
   searches, secret files, opening a sub-agent, plans and more.
+
+**Check what I said first**
+: A switch in the permission level's menu, the project's: at Full auto, before a harmful-looking
+  command waits for you on a card, a fast model reads your own words, and the command runs without a
+  card only where a line of yours names it. See
+  [Permission levels](../use/permissions.md#check-what-i-said-first).
 
 **Compare**
 : **Compare…** under **More** next to the message box. One message goes to two models side by
@@ -56,7 +63,7 @@ KOLONİ's own words, as they appear on screen.
 **Decided for you**
 : Where you see the cards the Orchestrator decided for you: while you were away (☾ Away), or once a
   card waited the project's minutes (Settings › This project › Asking and away › **When you're
-  away**).
+  away**); and the commands **Check what I said first** ran, or did not run, on a line of yours.
 
 **Discussion**
 : Several agents talking one question through in rounds, with nobody changing anything meanwhile.

@@ -2,11 +2,11 @@
 
 What KOLONİ does not do yet, or does only in part.
 
-## First release (alpha)
+## An alpha
 
-Version 0.1.0 is the first release, an alpha: expect rough edges. Several paths were built against
-stand-ins only, including the **Server** tab for llama.cpp, Copilot with a GitHub token, and some limit
-and credit messages.
+KOLONİ is an alpha (0.1.x): expect rough edges. Several paths were built against stand-ins only,
+including the **Server** tab for llama.cpp, Copilot with a GitHub token, and some limit and credit
+messages.
 
 ## Secrets
 

@@ -56,7 +56,7 @@ runs in its copy is asked at every level, Full auto too, when it:
 
 KOLONİ reads the command as written: a path built in a script is not seen.
 
-[![A working copy's life: the copy is made, the agent works in it, a card in Ready for you, Run the test, then Take in, Merge or Open pull request, or Discard; clashes, commits, and what is removed or kept; and a lane for an agent on a branch: its work committed when it stops, go on on the same branch or in a copy, and a branch holding a secret never kept](../diagrams/working-copy.svg)](../diagrams/working-copy.svg)
+[![A working copy's life: the copy is made, the agent works in it, a card in Ready for you, Run the test, then Take in, Merge or Open pull request, or Discard; clashes, commits, and what is removed or kept; and a lane for an agent on a branch: a locked worktree made from your folder as it is, its work committed when it stops, go on on the same branch or in a copy, a merge that waits for your commit, a pull request that never sends your unpushed commits, and a branch holding a secret never kept](../diagrams/working-copy.svg)](../diagrams/working-copy.svg)
 
 *A working copy's life, from the copy to your project; the "On a branch" lane is [Branches](#branches) below. ([full size](../diagrams/working-copy.svg))*
 
@@ -107,7 +107,8 @@ files named as secrets (`.env.local`, a key file, `credentials.json`, `token.jso
 `.venv` and `venv` (linked in instead), a git repository inside your folder, KOLONİ's own `.koloni`
 folder, and every link or junction with what it leads to. Code named like a secret (`credentials.py`,
 `.env.example`) is taken as any file. The card says in one line which of your files were left out as a
-secret or a link.
+secret or a link: "Not in its branch: 2 of your files (.env, token.json) - a secret by its name, or
+through a link".
 
 The card, the merge and a pull request carry the agent's work alone, measured from that commit - never
 your uncommitted files. A merge waits for your commit:
@@ -164,7 +165,9 @@ branch:
 ### When an agent stops
 
 An agent on a branch that stops before it finishes leaves its work committed on the branch. That holds
-also when you press **Stop** or **Stop everything** while it works; the chat says so.
+also when you press **Stop** or **Stop everything** while it works; the chat says so. A **Stop** while
+KOLONİ merges a finished branch by itself (at Full auto) waits for git to finish: the merge is on its
+card, and the branch's worktree goes.
 
 Told to go on (by the Orchestrator, in this turn or a later one you watch), it goes on on the same
 branch: its earlier commits are there, and new work goes on top. Its merge is still held to where the

@@ -16,13 +16,13 @@ use, and the models you choose, in one place on your own machine, and shows you 
   runs without asking.
 - **Memory with sources.** Facts rest on lines of files and are checked again each time; a fact whose
   source changed is not used until you look.
-- **Work that goes on.** Teams follow recipes, triggers start work by themselves, and jobs run in copies
-  while you are away.
+- **Work that goes on.** Teams follow recipes, triggers start work by themselves, and with **☾ Away**
+  your To-do tasks are worked through in copies while you are away.
 - **Local.** KOLONİ listens on `127.0.0.1` only, keeps its data in a folder on your machine, and sends no
   telemetry.
 
 ## What it is not
 
-- Not finished: 0.1.0 is the first release, an alpha, so expect rough edges. See [Known limits](../reference/known-limits.md).
+- Not finished: KOLONİ is an alpha, so expect rough edges. See [Known limits](../reference/known-limits.md).
 - Not a sandbox by itself. Below Full auto your cards are the wall; for more, run commands in Docker. See
   [Security model](../security/model.md).

@@ -61,6 +61,8 @@ assume-unchanged, a secret file, anything else git ignores but whole build and c
 repository inside one of those; a branch or worktree delete run in another repository, a submodule
 or a worktree in the project, or in a folder reached through a link; `.git`, `.koloni`, a path above the
 folder the command runs in (a registered worktree aside); any command of GitHub Copilot CLI's own;
+a folder's delete in a form its shell does not read as one (`rm -rf` in PowerShell, which deletes
+nothing), or by a CLI that does not say its shell (Codex, agy, Qoder);
 or any line that is not one plain delete. What is checked is the folder
 as it is then - KOLONİ's own command a second time just before it runs: one swapped for a link
 after that look is not seen. Windows PowerShell 5.1.26100, PowerShell 7 and Git Bash delete through
@@ -155,6 +157,10 @@ What is not framed:
   place above its copy, writes in or installs into the linked dependency folders, or stops programs
   by their name is asked at every level; KOLONİ's worktrees are locked while their agents work
   ([Working copies](../use/workspace.md#working-copies)).
+- **An agent's git on a branch** runs none of your repository's hooks (pre-commit, commit-msg, a
+  `core.hooksPath` such as husky's), nor your fsmonitor, and signs nothing; a command that clears or
+  sets git's own environment is asked at every level. A pull request never pushes commits of yours that
+  origin does not have ([Branches](../use/workspace.md#branches)).
 - **Commands in Docker** (Settings › This project › Commands and secrets): a fresh container for each command, with only
   the folder mounted and the network off unless you allow it.
 - **Turns nobody watches** (triggers) may do only what the trigger allows.
@@ -165,6 +171,10 @@ What is not framed:
 
 ## Where protection ends
 
+- [Check what I said first](../use/permissions.md#check-what-i-said-first), when you turn it on, lets a
+  model decide whether a harmful-looking command at Full auto runs: it reads only your own words, never
+  an agent's, and asks on a card when anything is unclear, but a model can misread a line. Leave it on
+  **Ask me** where a wrong delete would cost you.
 - A command that names a secret file, or searches the whole folder when the folder holds one, is asked
   about at every level. Exceptions: when it runs **Native**, Codex runs commands its own rules count as
   safe (a read of `.env` or of a file outside the project) without asking KOLONİ; agy reading with its

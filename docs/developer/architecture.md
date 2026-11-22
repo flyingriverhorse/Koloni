@@ -26,8 +26,13 @@ SQLite, and runs agents as asyncio tasks.
 - **`workspace.py`**: file access confined to the project folder and the folders the user opens.
 - **`copies.py`**: each sub-agent works in its own copy, outside the project; its changes come back by a
   three-way merge.
+- **`git.py`**: running git - a file merged line by line, your commits, and a team's branch and
+  worktree, made from a snapshot of your folder.
 - **`commands.py`**, **`command_runner.py`**, **`executors/`**: which commands ask, and running them on
-  this machine or in Docker.
+  this machine or in Docker. **`judge.py`**: Full auto's check of your words (Check what I said first);
+  **`disposable.py`**: whether a delete is disposable.
+- **`away.py`**: ☾ Away, the To-do tasks worked through while you are away.
+- **`cli_surface.py`**: the version and protocol of each CLI KOLONİ runs, and whether it was measured.
 - **`triggers.py`**: clock, file-change and webhook turns.
 - **`mcp_client.py`**: the client for the user's MCP servers. **`mcp_bridge.py`**: the small program a CLI
   starts as its MCP server, which relays to KOLONİ's own tools.

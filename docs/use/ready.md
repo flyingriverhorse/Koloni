@@ -105,8 +105,9 @@ On the canvas the same card is a box titled **Ready for you**. **Open the list �
 | **Make this trigger?** | **Approve**, **Edit**, **Reject** | An agent proposes a trigger. |
 | **Add to Project notes?** | ticks, **Add**, **Not now** | After a turn found things worth noting. It never holds the turn. |
 | **☾ Go away now?** | **Go away**, **Change** | The Orchestrator put work on To-do and offers to go away; nothing starts before Go away. |
-| **Decided for you while you were away** | **OK**, or **Change →** another answer | The Orchestrator answered for you. See Settings › This project › Asking and away › **When you're away**. |
+| **Decided for you while you were away** | **OK**, or **Change →** another answer | The Orchestrator answered for you (see [Answering for you](../automation/answering-for-you.md)), or [Check what I said first](permissions.md#check-what-i-said-first) ran a command without a card, or did not run it, on a line of yours (**OK**). |
 | **Go on past its step limit?** | **Continue (+*N* steps)**, **Stop here** | An agent came to its step limit before its work was done. See [Step limits](../agents/step-limits.md). |
+| "*Model* has not answered for 5 min. Keep waiting, or stop this turn and pick another model?" | **Keep waiting**, **Stop and pick another model** | The Orchestrator's model said nothing for 5 minutes in a turn you started. See [Step limits](../agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer). |
 
 See [Permission levels](permissions.md) for when each card is asked.
 

@@ -16,7 +16,8 @@ and its tasks' chats it decides at once, whatever this setting says - also the c
 you pressed Go away. While you type an answer to a question, it waits (2 minutes after your last key);
 once you are back, a card held so waits this setting's minutes again.
 
-"An Orchestrator on a CLI uses one request of your plan for each answer."
+"An Orchestrator on a CLI uses one request of your plan for each answer." When it answers, it also
+reads your preferences and this project's rules as saved on the [Memory](../memory.md) page.
 
 ## What it may decide
 
@@ -46,6 +47,9 @@ undone any more, it says so.
 At **Full auto** the Orchestrator also answers questions in a chat you watch, at once, and some of
 KOLONİ's own cards, such as an agent's Continue / Stop here card at its
 [step limit](../agents/step-limits.md#who-answers-the-card); those answers show under the same heading.
+So does a command that [Check what I said first](../use/permissions.md#check-what-i-said-first) ran
+without a card, or did not run, on a line of yours: "Coder ran … without asking" or "KOLONİ did not run
+… for Coder", with that line, until you press **OK**.
 Full auto alone does not let it open a sub-agent for you; of KOLONİ's own cards only the step limit's
 is decided while you're away. An Orchestrator on a CLI answers at Full auto only where **When you're away** is set
 to **The Orchestrator answers what it safely can**.

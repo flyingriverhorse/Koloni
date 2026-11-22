@@ -111,4 +111,6 @@ auto**), **Who changes the files**, and the **Provider** and **Model name**.
 
 Task chats follow some extra rules: a CLI that works with its own tools does not run them; commands that
 delete, overwrite or send something off the machine, or that hand a command to a shell, ask at every
-level; and the Orchestrator never answers for you in them.
+level. The Orchestrator answers for you in them as in any chat of the project, once a card has waited
+the minutes of **When you're away** ([Answering for you](answering-for-you.md)). A task worked through
+while you're away runs at the lower of this level and the level of the chat you went away from.
