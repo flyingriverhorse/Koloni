@@ -189,8 +189,13 @@ def _name(word: str) -> str:
     return re.sub(r"\.(?:exe|cmd|bat)$", "", re.split(r"[\\/]", word.strip("'\""))[-1].lower())
 
 
+_REDIRECT = re.compile(r"[<>]+&?|&>+")  # (`>`, `>>`, `2>&1`'s `>&`, `&>`)
+
+
 def _split(line: str) -> list[tuple[list[str], str]]:
-    """A line's parts as its shell splits them, each with the operator after it ("" at its end)."""
+    """A line's parts as its shell splits them, each with the operator after it ("" at its end) -
+    a redirection off them (`> out.txt`, `2>&1`: no word of the command's).
+    shortcut: a number before one is taken as its stream (`2>`), also one spaced off (`-n 2 >`)."""
     lexer = shlex.shlex(line.replace("\n", " ; "), posix=False, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
@@ -199,10 +204,17 @@ def _split(line: str) -> list[tuple[list[str], str]]:
         words = line.split()
     parts: list[tuple[list[str], str]] = []
     part: list[str] = []
+    target = False
     for word in words:
-        if word in _OPERATORS:
+        if target:
+            target = False
+        elif word in _OPERATORS:
             parts.append((part, word))
             part = []
+        elif _REDIRECT.fullmatch(word):
+            if part and part[-1].isdigit():
+                part.pop()
+            target = True
         elif word not in ("(", ")"):
             part.append(word)
     return [*parts, (part, "")]

@@ -181,6 +181,9 @@ def test_a_narrower_pass_clears_no_wider_failure(ran, narrow):
 def test_the_same_line_or_a_whole_run_clears_a_narrower_failure(ran):
     assert ran(("pytest -q tests/test_x.py", 1, "1 failed"), ("pytest  -q tests/test_x.py", 0, "1 passed")) is None
     assert ran(("pytest -q tests/test_x.py", 1, "1 failed"), ("python -m pytest", 0, "4 passed")) is None
+    # (Where its output goes picks no test: `2>&1`, `> out.txt` are no path of its.)
+    assert ran(("pytest -q", 1, "1 failed"), ("python -m pytest -q 2>&1", 0, "4 passed")) is None
+    assert ran(("pytest -q", 1, "1 failed"), ("pytest -q -n 2 > out.txt 2>&1", 0, "4 passed")) is None
 
 
 def test_a_pass_in_another_folder_clears_nothing(factory):
@@ -321,7 +324,8 @@ def test_the_tests_some_agents_runs_named_failing(factory):
     ([('python -c "pass"', "exited"), ("echo ok", "exited"), ("true", "exited"), (":", "exited"),
       ("cd .", "exited"), ("python --version", "exited"), ("pytest -V", "exited"),
       ("pytest --collect-only -q", "exited"), ("npm --help", "exited"),
-      ("python -c \"print('ok')\"", "exited"), ("echo ok && cd . && git status", "exited")], False),
+      ("python -c \"print('ok')\"", "exited"), ("echo ok && cd . && git status", "exited"),
+      ('python -c "pass" 2>&1', "exited"), ("echo ok > done.txt", "exited")], False),
     ([("cd tests && python -m pytest -q", "exited")], True),
     ([('python -c "import calc; assert calc.x == 1"', "exited")], True),
     ([("python -c \"print(__import__('calc').x)\"", "exited")], True),
