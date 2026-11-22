@@ -52,6 +52,8 @@ export interface ProjectSettingsValues {
   after_change?: Project['after_change']
   /** S3: how often failing tests and the Reviewer's blocking findings go back, 1 to 5. Sent only when changed. */
   fix_rounds?: number
+  /** S5a: Check by kind of work - the kinds switched, merged into the project's. Sent only when changed. */
+  check_kinds?: Record<string, boolean>
   /** S1b: forget the test command KOLONİ found and saved, and its look; found again at the next change. */
   forget_tests_found?: boolean
   /** Whether what is taken from a sub-agent is offered for a commit. Sent only when changed. */

@@ -232,7 +232,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,

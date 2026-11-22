@@ -16,7 +16,7 @@ import uuid
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import literal_column, or_, select
 
 from app import copies, ledger, memory, proof, proof_before, test_found
 from app.agent.ctx import Ctx
@@ -48,6 +48,12 @@ GREEN_LEAD = ("Not the end yet: {said}, against this project's last green run - 
               "sentence that names the tests, why they were removed or skipped; KOLONİ runs them "
               "again.")
 _SEEN = re.compile(r"seen (\d+) times")
+
+
+def _named(command: str):
+    """KOLONİ's runs that may be known by `command`: its line, or one with coverage's report flags
+    (S9) - `proof._known_as` tells."""
+    return or_(Command.command == command, Command.command.contains("coverage-"))
 
 
 class BeforeMixin:
@@ -170,12 +176,15 @@ class BeforeMixin:
     @staticmethod
     def _passed_now(session, ctx: Ctx, run: TestRun) -> list[str] | None:
         """The tests the turn's last passing run of `run` by KOLONİ lists as passed; None: its
-        output lists none."""
-        output = session.scalar(
-            select(Command.output).join(ToolCall, ToolCall.id == Command.tool_call_id).where(
-                Command.run_id == ctx.run_id, Command.command == run.command,
+        output lists none. (Its run by the command it is known by - S9's line has coverage's
+        report flags: `proof._known_as`.)"""
+        wanted = proof._folded(run.command)
+        output = next((one.output for one in session.scalars(
+            select(Command).join(ToolCall, ToolCall.id == Command.tool_call_id).where(
+                Command.run_id == ctx.run_id, _named(run.command),
                 ToolCall.provider_call_id.startswith(proof.PROOF_CALL), Command.exit_code == 0)
-            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc()).limit(1))
+            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc()))
+            if proof._known_as(session, one) == wanted), None)
         return proof_before.passed_ids(run.command, output or "")
 
     def _regressions(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
@@ -198,15 +207,16 @@ class BeforeMixin:
         passes now: how many were failing then, said."""
         with self._factory() as session:
             project = self._project(session, ctx.cid)
-            last = session.scalar(
+            wanted = proof._folded(run.command)
+            last = next((one for one in session.scalars(
                 select(Command).join(ToolCall, ToolCall.id == Command.tool_call_id)
                 .join(Run, Run.id == Command.run_id).where(
                     ToolCall.provider_call_id.startswith(proof.PROOF_CALL),
-                    Command.command == run.command, Command.run_id != ctx.run_id,
+                    _named(run.command), Command.run_id != ctx.run_id,
                     Command.status == "exited", Run.conversation_id.in_(
                         self._chats_of(session, project)))
-                .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())
-                .limit(1)) if project is not None else None
+                .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc()))
+                if proof._known_as(session, one) == wanted), None) if project is not None else None
         if last is not None and last.exit_code not in (0, None):
             n = len(proof_before.failed_ids(last.command, last.output)) or 1
             when = last.started_at.strftime("%d %b %H:%M") if last.started_at else "earlier"

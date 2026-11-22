@@ -190,6 +190,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
     {"monthly_budget": None}, {"after_change": "nothing"}, {"embedding_provider_id": None},
     {"teams_mode": "none"}, {"teams": []}, {"also_in": []}, {"read_in": []},
     {"full_auto_check": "ask"}, {"disposable_deletes": False}, {"forget_tests_found": True}, {"fix_rounds": 3},
+    {"check_kinds": {"slides": False}},
 ])
 def test_a_project_takes_these_only_from_the_apps_own_page(client, pid, body):
     assert answer(client, f"/api/projects/{pid}", body, own=False) == NO_ORIGIN

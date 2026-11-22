@@ -397,3 +397,21 @@ def test_a_bugfix_test_with_an_unusual_name_is_not_run_on_the_old_code(make_clie
     assert before_mixin.UNUSUAL.format(ids="tests/test_bug$(whoami).py") in rows, rows
     assert not any("$(" in one for one in lines(executor)), lines(executor)
     assert before_mixin.CAUGHT not in rows and before_mixin.NOT_CAUGHT not in rows
+
+
+def test_the_green_state_keeps_the_passes_of_a_run_with_coverage_flags(make_client, wait_run,
+                                                                      project_dir):
+    # (S7 with S9: KOLONİ's line has coverage's report flags - its passes are still its command's)
+    from app.db.models import Project
+    from tests.test_coverage_scenarios import Measuring, with_cov
+    with_cov(project_dir)
+    green = Script(["tests/test_a.py::test_x PASSED\ntests/test_a.py::test_y PASSED\n"
+                    "=== 2 passed in 0.1s ===\n"])
+    executor = Measuring([green], {"a.py": ([1], [])})
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    wait_run(client, cid, run_id)
+    assert "--cov" in executor.started[0][0], executor.started
+    with client.app.state.session_factory() as session:
+        (kept,) = session.scalars(select(Project.tests_green)).all()
+    assert next(iter(kept.values()))["ids"] == [ONE, "tests/test_a.py::test_y"], kept

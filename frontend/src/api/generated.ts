@@ -8882,6 +8882,13 @@ export interface components {
             canary: boolean;
             /** Check Command */
             check_command: string | null;
+            /**
+             * Check Kinds
+             * @default {}
+             */
+            check_kinds: {
+                [key: string]: boolean;
+            };
             /** Continue Steps */
             continue_steps: number;
             /**
@@ -9071,6 +9078,10 @@ export interface components {
             canary?: boolean | null;
             /** Check Command */
             check_command?: string | null;
+            /** Check Kinds */
+            check_kinds?: {
+                [key: string]: boolean;
+            } | null;
             /** Continue Steps */
             continue_steps?: number | null;
             /** Day Note At */

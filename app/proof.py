@@ -2,7 +2,9 @@
 project's test command(s), the turn's changes on record, whether a test run on record stands for
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
+import difflib
 import fnmatch
+import json
 import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
@@ -166,6 +168,32 @@ def untested(changes: list[Change]) -> list[str]:
             and PurePosixPath(one.path.replace("\\", "/").casefold()).suffix in SOURCE]
 
 
+def before_of(session: Session, run_id: str) -> dict[str, str | None]:
+    """S5a: each path the turn kept a change of, as it was before the turn (None: not there)."""
+    return {path: made[0].before_content for path, made in _kept(session, run_id).items()}
+
+
+def added_lines(session: Session, run_id: str, lead_id: str,
+                sharing: Collection[str] = ()) -> dict[str, list[int]]:
+    """S9: the lines the turn added (or rewrote) in each in-project file, by their number in
+    the file as it now is - from its first before to its last after on record."""
+    here = {lead_id, *sharing}
+    out: dict[str, list[int]] = {}
+    for path, made in _kept(session, run_id).items():
+        last = made[-1]
+        if not (last.status in ("applied", MERGED) or last.agent_id in here) or (
+                last.kind == "delete"):
+            continue
+        before = (made[0].before_content or "").splitlines()
+        after = (last.after_content or "").splitlines()
+        lines = [number + 1 for tag, _a, _b, start, end in difflib.SequenceMatcher(
+            None, before, after, autojunk=False).get_opcodes() if tag in ("replace", "insert")
+            for number in range(start, end)]
+        if lines:
+            out[path] = lines
+    return out
+
+
 def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:
     """The turn's kept changes by path, oldest first (none of its scratch folder)."""
     rows: dict[str, list[FileChange]] = {}
@@ -297,6 +325,28 @@ def _folded(command: str) -> str:
     return " ".join(command.split())
 
 
+def _known_as(session: Session, one: Command) -> str:
+    """The command a run on record is known by, folded: S9 - KOLONİ's own end-check run (its call
+    `PROOF_CALL…`) that added coverage's report flags, by the command it built that very line
+    from (`known_as` on its call, beside the line - never read back out of the line: a project
+    path may hold a space or a parenthesis); never an agent's line, however like them it looks
+    (`pytest -q --cov=. --cov-report=json:….koloni/tmp/coverage-x;true` is not `pytest -q`)."""
+    folded = _folded(one.command)
+    if "coverage-" not in folded or one.tool_call_id is None:
+        return folded
+    call = session.execute(select(ToolCall.provider_call_id, ToolCall.arguments).where(
+        ToolCall.id == one.tool_call_id)).first()
+    if call is None or not (call[0] or "").startswith(PROOF_CALL):
+        return folded
+    try:
+        args = json.loads(call[1] or "{}")
+    except ValueError:
+        return folded
+    plain = args.get("known_as") if isinstance(args, dict) else None
+    built = isinstance(plain, str) and _folded(str(args.get("command", ""))) == folded
+    return _folded(plain) if built else folded
+
+
 def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: datetime | None,
           sharing: Collection[str] = (), made: datetime | None = None) -> Command | None:
     """The newest run of exactly `run`'s command in its folder that ran to its end with an exit
@@ -317,7 +367,7 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: date
                                   Command.cwd == run.cwd, Command.started_at.is_not(None))
             .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
         mine = one.agent_id == lead_id  # (the newest of each place's runs is its word)
-        if _folded(one.command) != wanted or mine in looked:
+        if _known_as(session, one) != wanted or mine in looked:
             continue
         looked.add(mine)
         after = since if mine else made
@@ -335,7 +385,7 @@ def _rewritten_after(session: Session, run_id: str, by: Collection[str], ran: Co
     tested - `fmt && pytest`, `jest -u`, `--snapshot-update` write. Re-running is the safe way."""
     return any(
         not only_reads(one.command) and not (
-            _folded(one.command) == wanted and one.status == "exited" and one.exit_code == 0)
+            _known_as(session, one) == wanted and one.status == "exited" and one.exit_code == 0)
         for one in session.scalars(select(Command).where(
             Command.run_id == run_id, Command.agent_id.in_(by), Command.id != ran.id,
             # (`>=`: a later line in the same tick of Windows' clock is no proof it came first)
@@ -372,7 +422,7 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
                    Command.status.in_(("exited", "timed_out")),
                    Command.started_at.is_not(None), Command.ended_at.is_not(None))
             .order_by(Command.ended_at.desc(), literal_column("commands.rowid").desc())):
-        if _folded(one.command) != wanted or one.ended_at is None or one.started_at is None:
+        if _known_as(session, one) != wanted or one.ended_at is None or one.started_at is None:
             continue
         took = (one.ended_at - one.started_at).total_seconds()
         if took > seconds or one.status == "timed_out" and one.timeout_seconds >= seconds and (
@@ -613,7 +663,7 @@ def changed_since(session: Session, project_id: str, since: datetime,
                    Command.started_at.is_not(None), Command.started_at >= since,
                    or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(proofs)))):
         agents.setdefault(run_id, set()).add(agent_id)
-    return any(_rewritten_after(session, run_id, by, ran, _folded(ran.command))
+    return any(_rewritten_after(session, run_id, by, ran, _known_as(session, ran))
                for run_id, by in agents.items())
 
 
