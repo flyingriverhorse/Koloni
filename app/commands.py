@@ -2190,8 +2190,13 @@ def _git_sub(words: list[str]) -> tuple[str | None, list[str]]:
 
 
 def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
-    return [_led([word.strip("'\"") for word in _words(part.strip())])
-            for part in at.split(command)]
+    # (cmd's `for /f %a in ('del x') do y` runs its set's command too: a part of its own - in
+    # any split, as `_BLOCKS` cuts at its brackets - as `_led` reads past the loop to `y`)
+    sets = re.findall(r"(?i)(?:^|[\s;&|(@])for\s[^;&|]*?\bin\s*\(\s*(['`\"])(.*?)\1\s*\)",
+                      command)
+    return [*([word.strip("'\"") for word in _words(inner)] for _quote, inner in sets),
+            *([word.strip("'\"") for word in _led(_words(part.strip()))]
+              for part in at.split(command))]
 
 
 # What leads into a part's command without being it (review round 4), for every rule: sh's `!`,
@@ -2205,7 +2210,9 @@ _CMD_COMPARES = frozenset({"==", "equ", "neq", "lss", "leq", "gtr", "geq"})
 
 def _led(words: list[str]) -> list[str]:
     """A part's command past what leads into it (`_LEADS`): `if pkill -f x` is pkill's, `if not
-    exist x.pid taskkill /IM python.exe` taskkill's, `$p = Get-Process x` Get-Process's."""
+    exist x.pid taskkill /IM python.exe` taskkill's, `$p = Get-Process x` Get-Process's - but
+    `$g = 'git'` sets a word, runs nothing (its quotes are read: `_parts` hands the words as
+    written)."""
     while words:
         first = words[0].casefold()
         if first in _LEADS:
@@ -2222,9 +2229,10 @@ def _led(words: list[str]) -> list[str]:
             return ["eval", words[1]]
         elif first.startswith("@") and len(first) > 1:
             words = [words[0][1:], *words[1:]]
-        elif len(words) > 2 and re.fullmatch(r"\$[\w:]+", words[0]) and words[1] == "=":
+        elif len(words) > 2 and re.fullmatch(r"\$[\w:]+", words[0]) and words[1] == "=" and (
+                not words[2].startswith(("'", '"'))):
             words = words[2:]
-        elif glued := re.fullmatch(r"\$[\w:]+=(.+)", words[0]):
+        elif glued := re.fullmatch(r"\$[\w:]+=([^'\"].*)", words[0]):
             words = [glued[1], *words[1:]]
         else:
             break
@@ -2300,8 +2308,16 @@ _CONTINUED = re.compile(r"`\r?\n|\\\r?\n")
 def joined(line: str) -> str:
     """A command line with its continued lines joined as the shell reads it: PowerShell's backtick
     at a line's very end as a space between words, sh's backslash as nothing (`gi\\⏎t` is `git`).
-    KOLONİ judges a line both so and as written (`_readings`): reading it joined may only add."""
+    KOLONİ judges a line both so and as written (`_readings`): reading it joined may only add.
+    Joined alone it misses what a line's end that continues nothing hands on (`rm x # done `⏎`npm
+    publish`): a caller judges each of `readings(line)`, not this alone."""
     return _CONTINUED.sub(lambda found: " " if found[0][0] == "`" else "", line)
+
+
+def readings(line: str) -> list[str]:
+    """Every way KOLONİ reads a command line (`_readings`): joined, as written and what its
+    backtick pairs hold - a caller outside this module judges each (review round 4)."""
+    return _readings(line)
 
 
 def _readings(line: str) -> list[str]:
@@ -3610,7 +3626,7 @@ def _commands_in(command: str, left: list[int] | None = None,
                 left[0] -= 1
             if len(handed) == 1 and " " in handed[0] and len(handed) < len(words):
                 found += _commands_in(handed[0], left, at)  # (handed as one quoted line)
-            elif (led := _led(handed)) != handed:  # (`cmd /c if exist x taskkill ...`)
+            elif handed != words and (led := _led(handed)) != handed:  # (`cmd /c if exist x ...`)
                 found += _commands_in(" ".join(f'"{word}"' if re.search(r"\s", word) else word
                                                for word in led), left, at)
             else:

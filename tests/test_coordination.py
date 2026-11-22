@@ -21,14 +21,16 @@ from app.commands import (
     OUT_OF_COPY,
     WRITES_THROUGH_LINKS,
     copy_reason,
+    danger,
     harm_class,
     harms,
     installs,
     joined,
+    readings,
     runs_another,
     web_off_reason,
+    writes_git_config,
 )
-from app.commands import _readings as readings
 from app.commands import _reasons as reasons
 from app.db.models import Agent
 from app.tools import ON_BRANCH_PROPERTY, OPENED_TOGETHER
@@ -582,6 +584,17 @@ def test_a_send_after_a_line_end_is_seen_whether_it_continues_or_not(line, sent)
     assert harm_class(line) != "", line
     assert harms(sent) in [said for one in readings(line) for said in reasons(one, True)], line
 
+
+
+def test_what_leads_in_hides_nothing_that_runs_and_a_quoted_value_runs_nothing():
+    # (cmd's `for /f ... in ('del /q x')` runs its set: never read past; `$g = 'git'` sets a word)
+    assert danger("for /f %a in ('del /q x') do type y")
+    assert not writes_git_config("for /f %a in ('del /q x') do git init")
+    assert installs("$v = 'npm ci'") == "" and installs("$v = npm ci")
+    assert harm_class("$x = Remove-Item y")
+    # (what a caller outside reads: every reading, as written too)
+    line = "rm -rf build # done `\nnpm publish"
+    assert line in readings(line) and joined(line) in readings(line)
 
 # Bash runs what a backtick pair holds, in double quotes too: a message holding one is no message
 # (review round 4).
