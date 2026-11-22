@@ -20,10 +20,12 @@ import re
 import zipfile
 import zlib
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import suppress
 from pathlib import Path
 from urllib.parse import unquote
 from xml.etree import ElementTree
+from xml.parsers import expat
 
 from app.proof import Row, row
 from app.workspace import Outside, Workspace, WorkspaceError
@@ -39,7 +41,12 @@ NOT_CHECKED_KIND = "Not checked: {kind} switched off for this project"
 NOT_CHECKED_FILE = "{path}: not checked: {why}"
 OUTSIDE = "{path}: not read - it is outside the project"
 BEFORE = " - so before this turn"
-MOST_BYTES = 8 * 2**20  # of a file, a zip's member, or a diagram once inflated
+MOST_BYTES = 8 * 2**20  # of a file read
+# Review of S5a: what a file inflates to - a zip's members, a draw.io file's compressed pages -
+# all of them together, each read no further than this (never by the size a zip SAYS it holds);
+# and the slides of a deck read.
+MOST_INFLATED = 8 * 2**20
+MOST_MEMBERS = 1000
 MOST_ROWS = 100_000  # of a CSV read
 MOST_NAMED = 5  # rows, links or items named in one line, then "+N more"
 MOST_SAID = 120  # characters of a link's target or a list item quoted
@@ -70,9 +77,18 @@ def _bytes(ws: Workspace, rel: str) -> bytes:
         raise Outside(rel, target.parent)
     if not target.is_file():
         raise WorkspaceError("it is not a file")
-    if target.stat().st_size > MOST_BYTES:
+    data = _head(target)
+    if data is None:
         raise WorkspaceError(f"it is over {MOST_BYTES // 2**20} MB")
-    return target.read_bytes()
+    return data
+
+
+def _head(path: Path) -> bytes | None:
+    """A file's bytes, read no further than MOST_BYTES + 1 (it may grow after a stat); None:
+    over that."""
+    with path.open("rb") as file:
+        data = file.read(MOST_BYTES + 1)
+    return None if len(data) > MOST_BYTES else data
 
 
 def _text(data: bytes) -> str:
@@ -82,12 +98,38 @@ def _text(data: bytes) -> str:
         raise WorkspaceError("it is not UTF-8 text") from None
 
 
+class _Started(Exception):
+    """The root element began: no DTD came before it."""
+
+
+def _refuse(*_said) -> None:
+    raise WorkspaceError("it declares a DTD or entities, which KOLONİ does not read")
+
+
+def _started(*_said) -> None:
+    raise _Started
+
+
 def _xml(data: bytes) -> ElementTree.Element:
     """XML parsed - never one that declares a DTD or entities (an entity may expand without end):
-    such a file is not read."""
-    if b"<!DOCTYPE" in data or b"<!ENTITY" in data:
-        raise WorkspaceError("it declares a DTD or entities, which KOLONİ does not read")
+    such a file is not read. Expat itself looks, as far as the root element, whatever the
+    encoding (review of S5a: a byte search missed UTF-16)."""
+    look = expat.ParserCreate()
+    look.StartDoctypeDeclHandler = look.EntityDeclHandler = _refuse
+    look.StartElementHandler = _started
+    with suppress(_Started, expat.ExpatError):  # (no DTD - or not well formed: ElementTree says)
+        look.Parse(data, True)
     return ElementTree.fromstring(data)
+
+
+def _member(held: zipfile.ZipFile, info: zipfile.ZipInfo, left: int) -> bytes:
+    """A zip member's bytes, inflated no further than `left` + 1 - never by the size the zip says
+    it holds, which it may lie about (review of S5a)."""
+    with held.open(info) as file:
+        body = file.read(left + 1)
+    if len(body) > left:
+        raise WorkspaceError(f"it is over {MOST_INFLATED // 2**20} MB inflated")
+    return body
 
 
 def _each(ws: Workspace, paths: Iterable[str], kind: str, check: Callable[[bytes, str], list[Row]],
@@ -182,9 +224,9 @@ def _target(ws: Workspace, at: str) -> Path | str | None:
 def _titles(there: Path, known: dict[Path, set[str]]) -> set[str]:
     """A Markdown file's anchors, read once a check (`known`)."""
     if there not in known:
+        data = _head(there) if there.is_file() else None
         known[there] = {slug(title) for _level, title in _headings(
-            there.read_bytes().decode("utf-8-sig", errors="replace"))} if (
-            there.is_file() and there.stat().st_size <= MOST_BYTES) else set()
+            data.decode("utf-8-sig", errors="replace"))} if data is not None else set()
     return known[there]
 
 
@@ -240,10 +282,7 @@ def _markdown(ws: Workspace, data: bytes, rel: str) -> list[Row]:
 def _docx(data: bytes, rel: str) -> list[Row]:
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as held:
-            body = held.getinfo("word/document.xml")
-            if body.file_size > MOST_BYTES:
-                raise WorkspaceError(f"its text is over {MOST_BYTES // 2**20} MB")
-            _xml(held.read(body))
+            _xml(_member(held, held.getinfo("word/document.xml"), MOST_INFLATED))
     except (zipfile.BadZipFile, KeyError, ElementTree.ParseError):
         return [row("docs", "failed", f"{rel}: does not open as a Word document")]
     return [row("docs", "passed", f"{rel}: opens")]
@@ -307,26 +346,32 @@ MERMAID = ("graph", "flowchart", "sequenceDiagram", "classDiagram", "stateDiagra
 _PLANT = re.compile(r"@start(\w{1,30})")
 
 
-def _inflated(packed: str) -> bytes:
-    """A compressed draw.io page: base64, raw deflate, then URL-encoded text - capped."""
+def _inflated(packed: str, left: int) -> bytes:
+    """A compressed draw.io page: base64, raw deflate, then URL-encoded text - inflated no
+    further than `left` + 1."""
     raw = base64.b64decode(packed.strip())
-    out = zlib.decompressobj(-15).decompress(raw, MOST_BYTES + 1)
-    if len(out) > MOST_BYTES:
-        raise WorkspaceError(f"a page is over {MOST_BYTES // 2**20} MB inflated")
+    out = zlib.decompressobj(-15).decompress(raw, left + 1)
+    if len(out) > left:
+        raise WorkspaceError(f"its pages are over {MOST_INFLATED // 2**20} MB inflated")
     return unquote(out.decode("utf-8")).encode("utf-8")
 
 
-def _models(root: ElementTree.Element) -> list[ElementTree.Element]:
+def _models(root: ElementTree.Element) -> Iterator[ElementTree.Element]:
+    """A draw.io file's page models, one at a time - a compressed page inflated as it comes, the
+    file's pages within MOST_INFLATED together (review of S5a: one page's tree let go of before
+    the next is made)."""
     if root.tag == "mxGraphModel":
-        return [root]
-    found = []
+        yield root
+        return
+    left = MOST_INFLATED
     for page in root.iter("diagram"):
         model = page.find("mxGraphModel")
         if model is None and (page.text or "").strip():
-            model = _xml(_inflated(page.text or ""))
+            out = _inflated(page.text or "", left)
+            left -= len(out)
+            model = _xml(out)
         if model is not None:
-            found.append(model)
-    return found
+            yield model
 
 
 def _box(cell: ElementTree.Element) -> tuple[str, ...] | None:
@@ -335,32 +380,37 @@ def _box(cell: ElementTree.Element) -> tuple[str, ...] | None:
         "x", "y", "width", "height"))
 
 
+def _page(model: ElementTree.Element, rel: str, rows: list[Row]) -> tuple[int, int, int]:
+    """One page's model: its failed and noted lines into `rows`; its edges, shapes, and shapes
+    no edge reaches (where it has edges)."""
+    cells = list(model.iter("mxCell"))
+    ids = {cell.get("id") for cell in cells}
+    lines = [cell for cell in cells if cell.get("edge") == "1"]
+    lined = {cell.get("id") for cell in lines}
+    boxes = [cell for cell in cells if cell.get("vertex") == "1"
+             and cell.get("parent") not in lined]  # (an edge's label is no shape)
+    ends = {cell.get(end) for cell in lines for end in ("source", "target")}
+    for cell in lines:
+        for end in ("source", "target"):
+            if cell.get(end) and cell.get(end) not in ids:
+                edge = _said(cell.get("id") or "?")
+                rows.append(row("diagram", "failed", f"{rel}: edge {edge} points at nothing"))
+    placed = Counter(_box(cell) for cell in boxes if (cell.get("value") or "").strip())
+    rows += [row("diagram", "note", f"{rel}: {n} labelled shapes lie on each other")
+             for box, n in placed.items() if box is not None and n > 1]
+    lonely = sum(cell.get("id") not in ends for cell in boxes) if lines else 0
+    return len(lines), len(boxes), lonely
+
+
 def _drawio(data: bytes, rel: str) -> list[Row]:
-    try:
-        models = _models(_xml(data))
-    except (ElementTree.ParseError, ValueError, zlib.error, UnicodeDecodeError) as exc:
-        return [row("diagram", "failed", f"{rel}: does not parse ({_said(str(exc))})")]
     rows: list[Row] = []
     edges = shapes = lonely = 0
-    for model in models:
-        cells = list(model.iter("mxCell"))
-        ids = {cell.get("id") for cell in cells}
-        lines = [cell for cell in cells if cell.get("edge") == "1"]
-        lined = {cell.get("id") for cell in lines}
-        boxes = [cell for cell in cells if cell.get("vertex") == "1"
-                 and cell.get("parent") not in lined]  # (an edge's label is no shape)
-        edges, shapes = edges + len(lines), shapes + len(boxes)
-        ends = {cell.get(end) for cell in lines for end in ("source", "target")}
-        for cell in lines:
-            for end in ("source", "target"):
-                if cell.get(end) and cell.get(end) not in ids:
-                    edge = _said(cell.get("id") or "?")
-                    rows.append(row("diagram", "failed", f"{rel}: edge {edge} points at nothing"))
-        if lines:
-            lonely += sum(cell.get("id") not in ends for cell in boxes)
-        placed = Counter(_box(cell) for cell in boxes if (cell.get("value") or "").strip())
-        rows += [row("diagram", "note", f"{rel}: {n} labelled shapes lie on each other")
-                 for box, n in placed.items() if box is not None and n > 1]
+    try:
+        for model in _models(_xml(data)):  # (each page checked as it comes: its tree let go of)
+            more = _page(model, rel, rows)
+            edges, shapes, lonely = edges + more[0], shapes + more[1], lonely + more[2]
+    except (ElementTree.ParseError, ValueError, zlib.error, UnicodeDecodeError) as exc:
+        return [row("diagram", "failed", f"{rel}: does not parse ({_said(str(exc))})")]
     if lonely:
         rows.append(row("diagram", "note", f"{rel}: {lonely} shapes are not connected"))
     if not any(one["state"] == "failed" for one in rows):
@@ -522,11 +572,12 @@ def _pptx(data: bytes, rel: str) -> list[Row]:
             slides = sorted((int(found.group(1)), info) for info in held.infolist()
                             if (found := _SLIDE.fullmatch(info.filename)))
             notes = sum(bool(_NOTES.fullmatch(info.filename)) for info in held.infolist())
-            empty = []
+            if len(slides) > MOST_MEMBERS:
+                raise WorkspaceError(f"it has over {MOST_MEMBERS} slides")
+            empty, left = [], MOST_INFLATED
             for number, info in slides:
-                if info.file_size > MOST_BYTES:
-                    raise WorkspaceError(f"slide {number} is over {MOST_BYTES // 2**20} MB")
-                body = held.read(info)
+                body = _member(held, info, left)  # (all its slides within MOST_INFLATED)
+                left -= len(body)
                 if not _SAID.search(body) and not _PICTURE.search(body):
                     empty.append(number)
     except zipfile.BadZipFile:

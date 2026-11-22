@@ -176,9 +176,10 @@ when the turn has a change on record. A checked problem goes back to the Orchest
 round, with the lines that failed (at most 20 named): one
 count with failing tests and the Reviewer's findings (**Fix rounds**), "(1 problem in what it
 wrote)" beside the round. A problem the file had before the turn is said, not sent back: the turn
-did not make it. A file KOLONİ cannot read (over 8 MB, outside the project, an XML file that
-declares a DTD, a CSV field over the reader's limit) is said as not checked; one file gives at most
-12 lines. Each kind can be switched off in **Settings › This project
+did not make it. A file KOLONİ cannot read (over 8 MB - or over 8 MB once its zip members or
+draw.io pages are inflated, all together, whatever size the file says they are; a deck of over
+1,000 slides - outside the project, an XML file that declares a DTD or entities in any encoding, a
+CSV field over the reader's limit) is said as not checked; one file gives at most 12 lines. Each kind can be switched off in **Settings › This project
 › Checks and git › Check by kind of work**; then its line says "Not checked: slides switched off
 for this project". Where the turn ended before the check, or changed such a file after it, the
 section says so instead of an old result. On the canvas, the Checks node shows each kind as one

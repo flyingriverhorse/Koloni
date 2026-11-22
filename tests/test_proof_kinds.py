@@ -5,7 +5,9 @@ tool may read otherwise is a note; what the file had before the turn is a note."
 import base64
 import io
 import json
+import struct
 import time
+import tracemalloc
 import zipfile
 import zlib
 from urllib.parse import quote
@@ -270,3 +272,96 @@ def test_a_reader_that_breaks_any_way_is_one_line_not_a_broken_check(tmp_path, m
     rel = put(tmp_path, "a.pptx", pptx("<a:t>x</a:t>"))
     assert said(check_slides(tmp_path, [rel])) == [
         ("note", "a.pptx: not checked: zipfile: a member of an unknown compression")]
+
+
+# --- review of S5a: what a hostile file inflates to is read no further than the caps -----------
+
+def peak_of(work):
+    """What `work` returns, and the most Python heap it held at once."""
+    was = tracemalloc.is_tracing()
+    tracemalloc.start()
+    tracemalloc.reset_peak()
+    try:
+        before = tracemalloc.get_traced_memory()[0]
+        out = work()
+        return out, tracemalloc.get_traced_memory()[1] - before
+    finally:
+        if not was:
+            tracemalloc.stop()
+
+
+def lying_docx(inflated: int, says: int) -> bytes:
+    """A .docx whose one member inflates to `inflated` bytes and whose zip says it holds `says`."""
+    squeeze = zlib.compressobj(9, zlib.DEFLATED, -15)
+    raw = squeeze.compress(b"<a>" + b"A" * inflated + b"</a>") + squeeze.flush()
+    name = b"word/document.xml"
+    local = struct.pack("<4s5H3L2H", b"PK\x03\x04", 20, 0, 8, 0, 0, 0, len(raw), says,
+                        len(name), 0) + name + raw
+    central = struct.pack("<4s6H3L5H2L", b"PK\x01\x02", 20, 20, 0, 8, 0, 0, 0, len(raw), says,
+                          len(name), 0, 0, 0, 0, 0, 0) + name
+    end = struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 1, 1, len(central), len(local), 0)
+    return local + central + end
+
+
+def test_a_zip_member_is_read_no_further_than_the_cap_whatever_size_it_says(tmp_path,
+                                                                             monkeypatch):
+    # (The probe: a 298 KB .docx saying 100 bytes inflated to 300 MB at once - 602 MB of heap.
+    # A file is read no further than MOST_BYTES + 1 - Python makes room for that much first.)
+    monkeypatch.setattr(proof_kinds, "MOST_INFLATED", 64 * 2**10)
+    monkeypatch.setattr(proof_kinds, "MOST_BYTES", 256 * 2**10)
+    put(tmp_path, "lies.docx", lying_docx(4 * 2**20, 100))
+    put(tmp_path, "big.docx", lying_docx(4 * 2**20, 4 * 2**20 + 7))
+    rows, peak = peak_of(lambda: said(check_docs(tmp_path, ["lies.docx", "big.docx"])))
+    assert peak < 2**20, peak  # (not the 4 MB it inflates to)
+    assert rows[0] == ("failed", "lies.docx: does not open as a Word document"), rows
+    assert rows[1][0] == "note" and rows[1][1].startswith("big.docx: not checked: it is over"), rows
+
+
+def test_a_decks_slides_are_capped_together_and_by_number(tmp_path, monkeypatch):
+    monkeypatch.setattr(proof_kinds, "MOST_INFLATED", 64 * 2**10)
+    rel = put(tmp_path, "many.pptx", pptx(*["<a:t>" + "x" * 10_000 + "</a:t>"] * 10))
+    ((state, text),) = said(check_slides(tmp_path, [rel]))
+    assert state == "note" and text.endswith("MB inflated"), text
+    monkeypatch.setattr(proof_kinds, "MOST_MEMBERS", 3)
+    rel = put(tmp_path, "four.pptx", pptx(*["<a:t>x</a:t>"] * 4))
+    assert said(check_slides(tmp_path, [rel])) == [
+        ("note", "four.pptx: not checked: it has over 3 slides")]
+
+
+def drawio_pages(n: int, size: int) -> str:
+    page = f"<mxGraphModel><root><mxCell id='0' value='{'A' * size}'/></root></mxGraphModel>"
+    return "<mxfile>" + "".join(f"<diagram id='p{i}'>{packed(page)}</diagram>"
+                                for i in range(n)) + "</mxfile>"
+
+
+def test_a_drawio_files_pages_are_capped_together(tmp_path, monkeypatch):
+    # (The probe: 30 pages just under 8 MB each, all kept until the end - 264 MB.)
+    monkeypatch.setattr(proof_kinds, "MOST_INFLATED", 64 * 2**10)
+    rel = put(tmp_path, "d.drawio", drawio_pages(30, 40_000))
+    ((state, text),) = said(check_diagrams(tmp_path, [rel]))
+    assert state == "note" and text.startswith("d.drawio: not checked: its pages are over"), text
+
+
+def test_a_drawio_files_pages_are_checked_one_at_a_time(tmp_path, monkeypatch):
+    # (20 pages of 200 KB: kept all at once they held 4 MB; one at a time, a page or two.)
+    monkeypatch.setattr(proof_kinds, "MOST_BYTES", 256 * 2**10)  # (the file: a few KB)
+    rel = put(tmp_path, "d.drawio", drawio_pages(20, 200_000))
+    rows, peak = peak_of(lambda: said(check_diagrams(tmp_path, [rel])))
+    assert rows == [("passed", "d.drawio: 0 edges, 0 shapes")], rows
+    assert peak < 2.5 * 2**20, peak
+
+
+def test_a_dtd_is_refused_whatever_the_encoding(tmp_path):
+    # (The probe: in UTF-16 the byte search for "<!DOCTYPE" found nothing.)
+    laughs = ('<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE svg [<!ENTITY a "' + "x" * 100
+              + '"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]><svg>&b;</svg>')
+    outside = ('<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE svg [<!ENTITY x SYSTEM '
+               '"file:///C:/Windows/win.ini">]><svg>&x;</svg>')
+    put(tmp_path, "laughs.svg", laughs.encode("utf-16"))
+    put(tmp_path, "outside.svg", outside.encode("utf-16"))
+    put(tmp_path, "fine.svg", '<?xml version="1.0" encoding="UTF-16"?><svg><rect/></svg>'.encode(
+        "utf-16"))
+    refused = "not checked: it declares a DTD or entities, which KOLONİ does not read"
+    assert said(check_diagrams(tmp_path, ["laughs.svg", "outside.svg", "fine.svg"])) == [
+        ("note", f"laughs.svg: {refused}"), ("note", f"outside.svg: {refused}"),
+        ("passed", "fine.svg: parses")]
