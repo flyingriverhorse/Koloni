@@ -651,6 +651,25 @@ def test_the_checks_that_read_a_line_as_written_read_every_reading():
         assert not writes_git_config(line), line
 
 
+# ...and behind a wrapper, in a group, past cmd's `^` (k-okuyucu-2) - what every other rule reads.
+WRAPPED = ["time {c}", "nohup {c} &", "env X=1 {c}", "X=1 {c}", "eval '{c}'", "bash -c '{c}'",
+           "call {c}", "start /b {c}", "iex '{c}'", 'powershell -Command "{c}"', "( {c} )",
+           "sudo {c}", "timeout 60 {c}"]
+
+
+@pytest.mark.parametrize("wrapper", WRAPPED)
+def test_the_branch_and_patch_checks_read_behind_a_wrapper(wrapper):
+    assert switches_branch(wrapper.replace("{c}", "git switch main")), wrapper
+    assert applies_patch(wrapper.replace("{c}", "git apply x.patch")), wrapper
+    # (what a git line lets stand stays the least: a wrapper's git is not git's own alone)
+    assert not writes_git_config(wrapper.replace("{c}", "git init")), wrapper
+
+
+def test_cmds_caret_at_a_lines_end_continues_it():
+    assert switches_branch("git ^\nswitch main") and applies_patch("git ^\r\napply x.patch")
+    assert joined("git ^\nswitch main") == "git switch main" and not writes_git_config("git ^\ninit")
+
+
 # A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,
 # sh's backslash (KOLONİ's own run_command runs in PowerShell on Windows).
 CONTINUED = [("git ", "push --force origin main"), ("npm ", "publish"),

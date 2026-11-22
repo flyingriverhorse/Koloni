@@ -1024,7 +1024,7 @@ def switches_branch(command: str) -> bool:
 
 
 def _switches_branch(command: str) -> bool:
-    for words in _parts(command):
+    for words in _commands_in(command):  # (behind a wrapper too: `time git switch x`)
         sub, rest = _git_sub(words)
         if not rest or {"-h", "--help"} & set(rest):
             continue
@@ -2397,7 +2397,7 @@ def applies_patch(command: str) -> bool:
 
 
 def _applies_patch(command: str) -> bool:
-    for words in _parts(command):
+    for words in _commands_in(command):  # (behind a wrapper too: `bash -c 'git apply x'`)
         sub, rest = _git_sub(words)
         applies = sub in ("apply", "am") or bool(words) and _program(words[0]) == "patch"
         if applies and not any(w.startswith(_ONLY_LOOKS) for w in (rest or words[1:])):
@@ -2407,17 +2407,19 @@ def _applies_patch(command: str) -> bool:
 
 # A line's continuations: PowerShell's backtick right at a line's end, sh's backslash. A backtick
 # with a space after it does not continue (measured, pwsh 7: `Write-Output one ` ⏎ two` runs `two`).
-# shortcut: a lone CR, U+2028 / U+0085 and cmd's `^` at a line's end are not joined (each part is
-# read as written); join them in 0.1.6 if an agent is seen to write one (review round 4).
-_CONTINUED = re.compile(r"`\r?\n|\\\r?\n")
+# cmd's `^` at a line's end continues it too (k-okuyucu-2).
+# shortcut: a lone CR, U+2028 / U+0085 are not joined (each part is read as written); join them
+# if an agent is seen to write one (review round 4).
+_CONTINUED = re.compile(r"`\r?\n|\\\r?\n|\^\r?\n")
 
 
 def joined(line: str) -> str:
     """A command line with its continued lines joined as the shell reads it: PowerShell's backtick
-    at a line's very end as a space between words, sh's backslash as nothing (`gi\\⏎t` is `git`).
-    KOLONİ judges a line both so and as written (`_readings`): reading it joined may only add.
-    Joined alone it misses what a line's end that continues nothing hands on (`rm x # done `⏎`npm
-    publish`): a caller judges each of `readings(line)`, not this alone."""
+    at a line's very end as a space between words, sh's backslash and cmd's `^` as nothing
+    (`gi\\⏎t` is `git`). KOLONİ judges a line both so and as written (`_readings`): reading it
+    joined may only add. Joined alone it misses what a line's end that continues nothing hands
+    on (`rm x # done `⏎`npm publish`): a caller judges each of `readings(line)`, not this
+    alone."""
     return _CONTINUED.sub(lambda found: " " if found[0][0] == "`" else "", line)
 
 
