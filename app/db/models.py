@@ -218,6 +218,11 @@ class Project(Base):
     # S3 (0165, plan decisions 14a and 19): how often the end check sends work back - failing
     # tests and a Reviewer's blocking findings, one count a turn - 1 to 5.
     fix_rounds: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    # S8 (0168, decision 3): the CI commands KOLONİ found in the project's workflows -
+    # {"offered": {"hash", "commands": [{"command", "cwd", "step"}]}, "approved": the same, or
+    # absent}: the user's Run these approves the offer, exactly those lines; a change to a
+    # workflow file (its hash) asks again. None: none found yet.
+    ci_commands: Mapped[dict | None] = mapped_column(JSON, default=None)
     # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
     # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
     # never the user's own (their check command and part tests win, and keep their leave).

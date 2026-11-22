@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, literal_column, select, update
 
-from app import finish_tests, injection, proof, test_found
+from app import ci_commands, finish_tests, injection, proof, test_found
 from app.agent.cards import _answer
 from app.agent.ctx import Ctx
 from app.commands import is_allowed, rules_here
@@ -38,6 +38,10 @@ NOT_TRIED = " - and {n} more not tried (not one plain test command in the projec
 NO_TESTS_HERE = "No tests in this project: nothing KOLONİ found ran a test"
 NO_LOOK = ("No test command: nothing was run - and no Fast-tier model to look for one (set one "
            "in Settings › This project › Checks and git)")
+# S8: the project's CI lines, found and offered once; a workflow changed in this turn.
+CI_OFFERED = ("CI commands found: {lines} - not run until you approve them once (Run these); "
+              "a change to a workflow asks again")
+CI_CHANGED = "CI commands not used: a workflow changed in this turn"
 LOOK_FAILED = "Could not look for a test command: {why}"
 LOOK_SECONDS = 60  # (within a watched turn's wait for its end check)
 LOOK_ASK = (
@@ -67,6 +71,9 @@ class FoundMixin:
             rules = [rule.prefix for rule in session.scalars(rules_here(
                 session.get_one(Conversation, ctx.cid)))]
 
+        if ci := await self._ci_runs(ctx, held, root):  # (S8: the project's CI, approved once)
+            return ci
+
         def kept(folder: str, one: dict) -> TestRun:
             # Option A (22 Nov): a save is no leave of the user's - it runs as theirs only under
             # an Always rule: this chat's, or the one said on its card in any chat (`always`).
@@ -82,6 +89,76 @@ class FoundMixin:
         if not runs:
             runs = await self._look_for_tests(ctx, held, root, found)
         return runs
+
+    async def _ci_runs(self: "AgentRunner", ctx: Ctx, held: "Proof",
+                       root: str) -> list[TestRun]:
+        """S8 (decision 3): the lint, typecheck and test lines of the project's CI workflows,
+        where the user approved exactly these once (Run these) and no workflow changed since -
+        nor in this turn; what of the CI is left out said beside (e2e steps, a line not plain, a
+        file not read). Where none is kept: nothing said. Else none, and the found lines offered
+        under the answer with the offer's own name (its card: not run until approved, at Full
+        auto and away too). The files are hashed first and read again only when they changed
+        (`ci_commands.found`, in a thread: repository text, bounded) - lines and hash of the
+        same bytes."""
+        place = Path(root)
+        mark = await asyncio.to_thread(ci_commands.fingerprint, place)
+        if mark == ci_commands.NONE:
+            return []
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+            if project is None:
+                return []
+            known = dict(project.ci_commands or {})
+        approved, offered = known.get("approved"), known.get("offered")
+        if not ((approved or {}).get("hash") == mark or (offered or {}).get("hash") == mark and (
+                offered or {}).get("offer")):
+            got = await asyncio.to_thread(ci_commands.found, place)
+            mark = got.mark
+            listed = [one._asdict() for one in got.runs]
+            offered: dict[str, Any] | None = {
+                "hash": mark, "offer": ci_commands.offer_id(mark, listed), "commands": listed,
+                "said": got.said}
+            self._ci_offered(ctx, offered)
+        if (approved or {}).get("hash") != mark:
+            approved = None
+        if not ((approved or offered or {}).get("commands")):
+            return []
+        if any(one.path.replace("\\", "/").startswith(f"{ci_commands.WORKFLOWS}/")
+               for one in held.changes):
+            self._ci_said(held, "ci", CI_CHANGED)
+            return []
+        if approved is None:
+            shown = offered or {}
+            self._ci_said(held, "ci_offer", CI_OFFERED.format(lines=", ".join(
+                one["command"] for one in shown["commands"])), shown.get("offer"))
+            for one in shown.get("said") or []:  # (what of the CI is left out, and why)
+                self._ci_said(held, "ci", one)
+            return []
+        for one in approved.get("said") or []:
+            self._ci_said(held, "ci", one)
+        # (an approval stored before a stricter reading is held to it: one plain command each)
+        return [TestRun(one["command"], one["cwd"], True, ci=True)
+                for one in approved["commands"] if ci_commands.kept(one["command"])]
+
+    def _ci_offered(self: "AgentRunner", ctx: Ctx, offered: dict) -> None:
+        """The project's offer, now: what Run these may approve - only by its own name."""
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+            if project is not None:
+                project.ci_commands = {**(project.ci_commands or {}), "offered": offered}
+                session.commit()
+
+    @staticmethod
+    def _ci_said(held: "Proof", kind: str, text: str, offer: str | None = None) -> None:
+        """A CI row, once; an offer replaces an earlier one (its lines may be the same, its
+        files not: Run these approves the offer by its name)."""
+        if kind == "ci_offer":
+            held.rows = [one for one in held.rows if one["kind"] != "ci_offer"]
+        if all(one["text"] != text for one in held.rows):
+            made = proof.row(kind, "note", text)
+            if offer:
+                made["offer"] = offer
+            held.rows.append(made)
 
     @staticmethod
     def _parts_guessed(root: str, found: dict | None, ran: set[str]) -> list[TestRun]:

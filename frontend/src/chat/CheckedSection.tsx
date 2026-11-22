@@ -19,6 +19,7 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
   const rows = message?.checked
   if (!message || !over || !rows?.length) return null
   const fix = latest ? fixOf(rows) : null
+  const offer = rows.find(row => row.kind === 'ci_offer')?.offer
   return (
     <section className="checked" aria-label="Checked" title="From KOLONİ’s records, not the model’s words">
       <span className="checked-head">Checked</span>
@@ -28,6 +29,7 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
         ))}
       </ul>
       {fix && <FixIt asked={fix} />}
+      {latest && message.run_id && offer && <RunThese runId={message.run_id} offer={offer} />}
       {message.run_id && rows.some(row => row.state === 'running') && <StopCheck runId={message.run_id} />}
     </section>
   )
@@ -59,6 +61,19 @@ function FixIt({ asked }: { asked: string }) {
         Fix it
       </button>
       {error && <span role="alert">{error}</span>}
+    </span>
+  )
+}
+
+/** S8 (decision 3): the CI lines offered under the answer - Run these approves exactly them, once a project; a change to a workflow asks again. */
+function RunThese({ runId, offer }: { runId: string; offer: string }) {
+  const [said, setSaid] = useState<string | null>(null)
+  return (
+    <span className="checked-fix">
+      <button type="button" className="btn btn-small" onClick={() => api.post(`/runs/${runId}/ci/approve`, { offer }).then(() => setSaid('Approved: they run after the next change.'), err => setSaid(errorText(err)))}>
+        Run these
+      </button>
+      {said && <span role="status">{said}</span>}
     </span>
   )
 }

@@ -76,7 +76,9 @@ pytest-xdist==3.8.0
 python-dotenv==1.2.4
     # via uvicorn
 pyyaml==6.0.3
-    # via uvicorn
+    # via
+    #   koloni-agent (pyproject.toml)
+    #   uvicorn
 ruff==0.16.7
     # via koloni-agent (pyproject.toml)
 sqlalchemy==2.0.52

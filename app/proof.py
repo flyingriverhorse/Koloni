@@ -7,7 +7,7 @@ import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import NamedTuple, TypedDict
+from typing import NamedTuple, NotRequired, TypedDict
 
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
@@ -79,6 +79,8 @@ class TestRun(NamedTuple):
     cwd: str
     yours: bool
     saved: bool = False
+    # S8: a line of the project's CI workflows the user approved (said "from CI").
+    ci: bool = False
 
     @property
     def guessed(self) -> bool:
@@ -390,6 +392,8 @@ class Row(TypedDict):
     # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None:
     # no count known (never made up).
     counts: dict | None
+    # S8: a "ci_offer" row's offer, by its name (`ci_commands.offer_id`): Run these approves it.
+    offer: NotRequired[str]
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
 
 PASSED_ROW = "Tests passed: {command}{guessed} - {summary}"
@@ -489,7 +493,7 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
     record's status (None: none - it never started); `seconds`: the wait it was given. Its
     output is read with its colours off (`commands.plain`: CL-316)."""
     output = plain(output)
-    guessed = " (guessed)" if run.guessed else ""
+    guessed = " (guessed)" if run.guessed else " (from CI)" if run.ci else ""
     found = test_found.counts(output, run.command)
 
     def made(state: str, text: str) -> Row:
