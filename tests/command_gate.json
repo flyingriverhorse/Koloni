@@ -80474,6 +80474,14 @@ false,
 true
 ],
 [
+"uv run --python-platform linux --color never rm -rf .",
+2,
+"delete",
+false,
+false,
+false
+],
+[
 "uv run --with requests python x.py",
 0,
 "",
@@ -80885,6 +80893,14 @@ true
 "uvx --from ruff ruff check .",
 0,
 "",
+true,
+false,
+true
+],
+[
+"uvx -c c.txt --torch-backend cpu rm -rf .",
+2,
+"delete",
 true,
 false,
 true
