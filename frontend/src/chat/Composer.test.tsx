@@ -540,6 +540,15 @@ test('Plan first is set in the level’s menu only: the row has no button for it
   expect(screen.getAllByRole('button', { name: /Plan first/ })).toEqual([level])
 })
 
+test('the level in the row says " · no checks" where this chat’s changes are not checked (S10)', async () => {
+  const onChange = vi.fn()
+  render(<Composer {...props} checks={{ chat: 'off', project: 'check', onChange }} />)
+  expect(screen.getByRole('button', { name: 'Permission level: Ask before changes, no checks' })).toHaveTextContent(/^Ask · no checks$/)
+  await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('switch', { name: 'Check after a change' }))
+  expect(onChange).toHaveBeenLastCalledWith(null)
+})
+
 test('/plan turns Plan first over, before a Planner role of the same start; without a conversation it is off', async () => {
   useApp.setState({ roles: roles('Planner') })
   const onPlanFirst = vi.fn()

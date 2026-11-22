@@ -29,6 +29,20 @@ project:
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
+### For one chat
+
+**Check after a change**, in the permission level's menu beside **Plan first**, turns it on or
+off for this chat only. Its line says what the project's setting is: "As the project: Check it",
+"Off for this chat · the project's is Check it", or "On for this chat · the project's is Nothing"
+(on in a project at Nothing checks this chat's changes as Check it). Off, the level's button
+says "· no checks", no Checks node is drawn for its turns, the Checked section says "Not checked:
+off for this chat" and the Orchestrator's box "not checked · off for this chat". Other chats go
+on with the project's setting.
+
+It is free at every level. At **Full auto** with it off, the menu says so under it: "Full auto
+with no checks: nothing checks this chat's changes". A turn that runs a team's recipe follows
+the recipe, not this switch: today the project's setting.
+
 A project that had turned off the old **Finish only when the tests pass** switch is on
 **Nothing**, and Settings says so under the setting.
 
@@ -221,8 +235,9 @@ while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (th
 not run), "✗ still failing" or "not checked". In a recipe's turn the node says "end of the recipe".
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
-answer, at every permission level: what ran stays, the rest says "not checked" - and **Open its
-log**, the Orchestrator's window, whose record holds the runs.
+answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
+chat** (the level menu's **Check after a change**, for the chat open now) and **Open its log**,
+the Orchestrator's window, whose record holds the runs.
 
 ## What each line means
 
@@ -250,3 +265,4 @@ log**, the Orchestrator's window, whose record holds the runs.
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn. |
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
+| – Not checked: off for this chat | This chat's **Check after a change** is off. |

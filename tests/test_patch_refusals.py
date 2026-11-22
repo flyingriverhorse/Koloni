@@ -81,7 +81,7 @@ def test_a_chat_takes_each_group_of_fields(client, plain, tmp_path):
     {"when_away": "lead"}, {"away_minutes": 5}, {"teams_mode": "none"}, {"teams": []},
     {"lead_effort": None}, {"discussion_budget": None}, {"room_posts": None},
     {"room_tokens": 5}, {"room_minutes": None}, {"room_min_tokens": None}, {"part": None},
-    {"archived": True}, {"archived": False},
+    {"archived": True}, {"archived": False}, {"after_change": "off"}, {"after_change": None},
 ])
 def test_a_chat_takes_these_only_from_the_apps_own_page(client, plain, body):
     # (With a choice of model nobody has: asked where it is from before that is looked at.)

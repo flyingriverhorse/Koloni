@@ -286,6 +286,8 @@ export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
 function ChecksMenu({ runId, leadId, stoppable }: { runId: string; leadId: string; stoppable: boolean }) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // (Already off for this chat: nothing to turn off here - the level menu turns it back on.)
+  const chatOn = useApp(s => Boolean(s.conv) && s.conv?.conversation.after_change !== 'off')
   const item = (label: string, act: () => void) => (
     <button
       type="button"
@@ -317,7 +319,8 @@ function ChecksMenu({ runId, leadId, stoppable }: { runId: string; leadId: strin
       {open && (
         <div role="menu" aria-label="Checks: more" className="node-menu-panel">
           {stoppable && item('Stop this check', () => void api.post(`/runs/${runId}/check/stop`).then(() => setError(null), err => setError(errorText(err))))}
-          {/* S10: "Off for this chat" comes here - the same switch as the permission menu's. */}
+          {/* S10: the same switch as the level menu's Check after a change, for the open chat. */}
+          {chatOn && item('Off for this chat', () => void useApp.getState().setAfterChange('off').then(() => setError(null), err => setError(errorText(err))))}
           {item('Open its log', () => useApp.getState().openAgentWindow(leadId.replace(/^agent:/, '')))}
         </div>
       )}

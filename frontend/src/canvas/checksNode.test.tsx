@@ -163,3 +163,29 @@ test('S6 rows on the node: the related step, the whole suite running after the a
     vi.useRealTimers()
   }
 })
+
+test('a turn of a chat with checks off: no node - the Orchestrator’s strip says it', () => {
+  const nodes: GraphNode[] = [{ id: 'agent:r', kind: 'agent', runId: 'r', refId: 'r', data: {} as AgentData }]
+  const edges: GraphEdge[] = []
+  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked([row('note', 'Not checked: off for this chat', { kind: 'chat_off' })])] })
+  expect(checksNode(state, run('r', 'completed'), nodes, edges)).toBeNull()
+  expect(nodes.map(node => node.kind)).toEqual(['agent'])
+  expect((nodes[0].data as AgentData).checked).toBe('not checked · off for this chat')
+  expect(deriveGraph(state).nodes.some(node => node.kind === 'checks')).toBe(false)
+})
+
+test('the menu turns checks off for this chat - not where they are off already', async () => {
+  const off = vi.fn().mockResolvedValue(undefined)
+  const conv = convState({})
+  useApp.setState({ conv: { ...conv, conversation: { ...conv.conversation, after_change: null } }, setAfterChange: off })
+  const data: ChecksData = { runId: 'r', leadId: 'r', running: null, lines: [{ state: 'passed', text: 'pytest · 4 ✓' }], stoppable: false, rounds: 0, recipe: false }
+  const { unmount } = shown(data)
+  await userEvent.click(screen.getByRole('button', { name: 'Checks: more' }))
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Off for this chat' }))
+  expect(off).toHaveBeenCalledWith('off')
+  unmount()
+  useApp.setState({ conv: { ...conv, conversation: { ...conv.conversation, after_change: 'off' } } })
+  shown(data)
+  await userEvent.click(screen.getByRole('button', { name: 'Checks: more' }))
+  expect(screen.queryByRole('menuitem', { name: 'Off for this chat' })).toBeNull()
+})

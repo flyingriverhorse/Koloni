@@ -6061,6 +6061,8 @@ export interface components {
          * @description A conversation as the project's list shows it.
          */
         ConversationListed: {
+            /** After Change */
+            after_change: ("off" | "on") | null;
             /** Also In */
             also_in: string[];
             /** Archived At */
@@ -6152,6 +6154,8 @@ export interface components {
         };
         /** ConversationOut */
         ConversationOut: {
+            /** After Change */
+            after_change: ("off" | "on") | null;
             /** Also In */
             also_in: string[];
             /** Archived At */
@@ -6238,6 +6242,8 @@ export interface components {
         };
         /** ConversationPatch */
         ConversationPatch: {
+            /** After Change */
+            after_change?: ("off" | "on") | null;
             /** Also In */
             also_in?: string[] | null;
             /** Archived */

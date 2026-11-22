@@ -538,6 +538,11 @@ def _change_switches(request: Request, conversation: Conversation,
             # user's from the app's own page, not an agent's command against its address.
             require_own_origin(request)
         conversation.plan_first = body.plan_first
+    if "after_change" in body.model_fields_set:
+        # S10: whether this chat's changes are checked - the user's word from the app's own
+        # page, not an agent's command against its address (off, nothing checks its work).
+        require_own_origin(request)
+        conversation.after_change = body.after_change
     if body.page_scripts is not None:
         if body.page_scripts:
             # K-39-betik: pages that run their scripts unasked - the user's leave, from the app's

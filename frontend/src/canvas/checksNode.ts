@@ -6,6 +6,8 @@ import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 export const PROOF_CALL = 'koloni_proof_'
 /** How often the end check sends failing tests back, at most (`MAX_SENT_BACK`). */
 export const MOST_ROUNDS = 2
+/** S10: a turn of a chat whose Check after a change was off - no node, only the Orchestrator's strip says so. */
+export const OFF_FOR_CHAT = 'not checked · off for this chat'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -93,6 +95,7 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const calls = state.toolCalls.filter(c => c.run_id === run.id && c.provider_call_id.startsWith(PROOF_CALL))
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   if (!lead || (!calls.length && !checked)) return null
+  if (checked?.checked?.some(row => row.kind === 'chat_off')) return offForChat(nodes, lead.id)
   const at = calls.find(c => c.status === 'running')
   const rounds = roundsOf(calls, checked)
   const lines = (checked?.checked ?? []).map(lineOf)
@@ -115,6 +118,13 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   const leadNode = nodes.find(node => node.id === `agent:${lead.id}`)
   if (leadNode) (leadNode.data as AgentData).checked = stripOf(data)
   return data
+}
+
+/** Off for this chat: no Checks node is drawn - the Orchestrator's strip says it, so nobody takes the turn as checked. */
+function offForChat(nodes: GraphNode[], leadId: string): null {
+  const leadNode = nodes.find(node => node.id === `agent:${leadId}`)
+  if (leadNode) (leadNode.data as AgentData).checked = OFF_FOR_CHAT
+  return null
 }
 
 /** A test run's clock: its command's own start - not its call's, which may wait for a free slot first; null before it starts. */

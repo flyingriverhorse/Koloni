@@ -20,6 +20,8 @@ from app.workspace import in_scratch, unified_diff
 
 # Project.after_change: Check it, Tests only, Nothing.
 AFTER_CHANGE = ("check", "tests", "nothing")
+# Conversation.after_change (S10): None the project's; this chat's "off" or "on".
+CHAT_AFTER_CHANGE = ("off", "on")
 
 # By the file's name, casefolded (a name wins over an extension).
 KIND_BY_NAME: dict[str, str] = {
@@ -182,6 +184,22 @@ def _rewritten_after(session: Session, run_id: str, by: Collection[str], ran: Co
             Command.started_at.is_not(None), Command.started_at >= ran.started_at)))
 
 
+
+def after_change_of(session: Session, conversation: Conversation, run: Run | None = None) -> str:
+    """After a change for a turn of this chat (S10, plan decision 17): the project's ("check",
+    "tests", "nothing") unless the chat says otherwise - "off" (its switch off: nothing checked),
+    or on: the project's, Check it where that is Nothing. A recipe's turn (`run.teams`) follows
+    the recipe, never the chat's switch: today the project's (shortcut: S5c gives a recipe its own
+    Checks step)."""
+    project = session.get(Project, conversation.project_id) if conversation.project_id else None
+    own = project.after_change if project is not None else "nothing"
+    if run is not None and run.teams:
+        return own
+    if conversation.after_change == "off":
+        return "off"
+    return "check" if conversation.after_change == "on" and own == "nothing" else own
+
+
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:
     """Why `run` is not run where a turn's end waits at most `seconds` for it: the newest run of
     it in the project (any chat's, anyone's) ran longer, or was stopped at a limit of that wait or
@@ -245,6 +263,7 @@ RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
+OFF_FOR_CHAT = "Not checked: off for this chat"
 LAST_RUN = "An agent ran {command} {when} the last change: {how}"
 
 

@@ -2,7 +2,7 @@ import { Check } from '@phosphor-icons/react'
 import { type KeyboardEvent, useId } from 'react'
 import type { PermissionMode } from '../api/types'
 import { usePanel } from '../shell/usePanel'
-import { LEVELS, PLAN_FIRST } from './levels'
+import { type Checks, checksOn, checksSaid, checksValue, LEVELS, NO_CHECKS_AT_FULL_AUTO, PLAN_FIRST } from './levels'
 
 const MODES = Object.keys(LEVELS) as PermissionMode[]
 
@@ -40,6 +40,8 @@ interface Props {
   checkFirst?: boolean
   /** Turn it on or off; without it (a plain chat) there is no project to set it on. */
   onCheckFirst?: (on: boolean) => void
+  /** S10: Check after a change for this chat; without it (a plain chat, nothing to check) no switch. */
+  checks?: Checks
 }
 
 const CHECK_FIRST =
@@ -62,15 +64,27 @@ function SwitchRow({ id, name, says, on, onChange }: { id: string; name: string;
   )
 }
 
+/** S10: Check after a change, beside Plan first - and at Full auto with it off, one line on what that leaves (never locked). */
+function ChecksRow({ id, mode, checks }: { id: string; mode: PermissionMode; checks: Checks }) {
+  const on = checksOn(checks)
+  return (
+    <>
+      <SwitchRow id={`${id}-checks`} name="Check after a change" says={checksSaid(checks)} on={on} onChange={next => checks.onChange(checksValue(next, checks.project))} />
+      {mode === 'full_auto' && !on && <p className="level-says level-warn">{NO_CHECKS_AT_FULL_AUTO}</p>}
+    </>
+  )
+}
+
 /**
  * The permission level in the message box's row (0.1.5): its comb and its short name - with Plan first on, " · plan"
- * after it -; a click opens each level with a line on what it does, and Plan first. Esc closes it, the focus back on its
- * button.
+ * after it, and " · no checks" where this chat's changes are not checked -; a click opens each level with a line on what
+ * it does, Plan first and Check after a change. Esc closes it, the focus back on its button.
  */
-export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = false, onCheckFirst }: Props) {
+export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = false, onCheckFirst, checks }: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
   const id = useId()
   const level = LEVELS[mode]
+  const unchecked = checks !== undefined && !checksOn(checks)
   return (
     <div className="allow-list composer-level-menu">
       <button
@@ -78,7 +92,7 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = f
         type="button"
         className="btn btn-small composer-level"
         data-level={mode}
-        aria-label={`Permission level: ${level.name}${planFirst ? ', Plan first on' : ''}`}
+        aria-label={`Permission level: ${level.name}${planFirst ? ', Plan first on' : ''}${unchecked ? ', no checks' : ''}`}
         aria-expanded={open}
         aria-haspopup="dialog"
         title={`${level.name}: ${level.says}${planFirst ? `. Plan first on: ${PLAN_FIRST.toLowerCase()}` : ''}`}
@@ -90,6 +104,12 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = f
           <>
             {' '}
             <span className="composer-level-plan">· plan</span>
+          </>
+        )}
+        {unchecked && (
+          <>
+            {' '}
+            <span className="composer-level-plan">· no checks</span>
           </>
         )}
       </button>
@@ -131,6 +151,7 @@ export function LevelMenu({ mode, onMode, planFirst, onPlanFirst, checkFirst = f
               <SwitchRow id={`${id}-plan`} name="Plan first" says={PLAN_FIRST} on={planFirst} onChange={onPlanFirst} />
             </>
           )}
+          {checks && <ChecksRow id={id} mode={mode} checks={checks} />}
         </div>
       )}
     </div>

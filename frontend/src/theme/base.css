@@ -2975,6 +2975,12 @@ button.turn-name:hover {
   font-size: var(--text-meta);
 }
 
+/* S10: at Full auto with Check after a change off - said, not locked. */
+.level-warn {
+  margin: 0 0 4px 30px;
+  color: var(--warn);
+}
+
 .level-sep {
   width: 100%;
   margin: 4px 0;

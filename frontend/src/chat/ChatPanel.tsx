@@ -597,6 +597,7 @@ export function ChatPanel() {
         onPlanFirst={on => void useApp.getState().setPlanFirst(on)}
         checkFirst={project?.full_auto_check === 'judge'}
         onCheckFirst={conv?.conversation.project_id ? on => void useApp.getState().saveProjectSettings({ full_auto_check: on ? 'judge' : 'ask' }) : undefined}
+        checks={conv && project ? { chat: conv.conversation.after_change, project: project.after_change, onChange: value => void useApp.getState().setAfterChange(value) } : undefined}
         location={location}
         // This chat's own settings; what it takes from its project is the project's, in Settings (tek-ev).
         sheet={conv && <ChatSheet sheet />}

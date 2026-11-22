@@ -79,3 +79,10 @@ test('nothing without a checked message, or while the turn runs', () => {
   expect(checkedOf(state, 'r')?.id).toBe('k')
   expect(checkedOf(state, 'other')).toBeUndefined()
 })
+
+test('off for this chat: one line says so, nothing else', () => {
+  render(<CheckedSection message={checked([row('note', 'Not checked: off for this chat', { kind: 'chat_off' })])} over latest />)
+  const lines = Array.from(screen.getByRole('region', { name: 'Checked' }).querySelectorAll('li'))
+  expect(lines.map(li => li.textContent)).toEqual(['–Not checked: off for this chat'])
+  expect(screen.queryByRole('button', { name: 'Fix it' })).toBeNull()
+})

@@ -509,6 +509,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   setPermissionMode(mode: PermissionMode): Promise<void>
   /** Each new message starts with a plan to approve first, or not. */
   setPlanFirst(on: boolean): Promise<void>
+  /** S10: the open chat's Check after a change - "off", "on", or null for the project's. Throws ApiError. */
+  setAfterChange(value: Conversation['after_change']): Promise<void>
   /** K-39-betik: the open chat's pages run their scripts without asking (true), or ask each time. Throws ApiError. */
   setPageScripts(on: boolean): Promise<void>
   /** Approve a plan turn's plan (`text`: as the user edited it) or turn it down (`text`: why); `overBudget`: the user's word to start it over the month's budget. Throws ApiError. */
@@ -1987,6 +1989,13 @@ export const useApp = create<AppStore>()((set, get) => {
       if (!get().conv) await get().newConversation()
       const conv = get().conv
       if (conv) await api.patch(`/conversations/${conv.conversation.id}`, { plan_first: on })
+    },
+
+    async setAfterChange(value) {
+      const conv = get().conv
+      if (!conv) return
+      const saved = await api.patch<Conversation>(`/conversations/${conv.conversation.id}`, { after_change: value })
+      set(s => (s.conv?.conversation.id === saved.id ? { conv: { ...s.conv, conversation: saved } } : s))
     },
 
     async setPageScripts(on) {
