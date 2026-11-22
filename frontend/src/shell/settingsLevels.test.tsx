@@ -12,8 +12,8 @@ import { APP_SECTIONS, Settings } from './Settings'
 const project: Project = {
   id: 'p', name: 'demo', root_path: 'C:/demo', created_at: 't', exec_location: 'docker', docker_image: 'python:3.12', docker_network: false,
   search_url: null, search_order: 'builtin', search_agy: false, has_notify_url: false, notify_format: 'slack', notify_desktop: false,
-  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, check_command: null, measure_command: null, finish_tests: null, full_auto_check: 'ask', disposable_deletes: false,
-  finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'm',
+  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, check_command: null, measure_command: null, after_change: 'check', after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false,
+  memory_links: [], embedding_provider_id: null, embedding_model: 'm',
   git_commit: false, finish_way: null, auto_notes: false, observe_reports: false, suggest_tasks: true, suggest_tier: 'fast', day_note_at: null, also_in: [], read_in: [], teams_mode: 'none', teams: [],
   hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6,
   spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000, pass_env: null, held_env: [],
@@ -30,7 +30,7 @@ function Opened({ folder = project as Project | null }) {
 beforeEach(() => {
   vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
     if (path.endsWith('/map')) throw new Error('no map')
-    const read: Record<string, unknown> = { '/answer-in': { answer_in: null }, '/compaction': { compact_at: 75 }, '/steps': { max_steps: 25 }, '/unattended': { stuck_minutes: 30, turn_hours: 8 }, '/knowledge-limits': { max_files: 50000, max_mb: 300 }, '/folders': { never: [] }, '/storage': { db_mb: 1, backups_mb: 1, copies_mb: 1, logs_mb: 1 } }
+    const read: Record<string, unknown> = { '/answer-in': { answer_in: null }, '/compaction': { compact_at: 75 }, '/steps': { max_steps: 25 }, '/unattended': { stuck_minutes: 30, turn_hours: 8 }, '/knowledge-limits': { max_files: 50000, max_mb: 300 }, '/test-load': { runs_at_once: 1, workers: 2 }, '/folders': { never: [] }, '/storage': { db_mb: 1, backups_mb: 1, copies_mb: 1, logs_mb: 1 } }
     return (read[path] ?? (path.endsWith('/others-instructions') ? { paths: [], more: 0, partial: false } : path.endsWith('/pull-request') ? { why_not: null } : [])) as never
   })
   useApp.setState({ conv: convState(), projects: [project, other], teams: [], settingsAsked: null })
@@ -103,13 +103,13 @@ test('each place a link or Ctrl+K asks for lands on its level and its section', 
  */
 const ONCE: (string | RegExp)[] = [
   'Page scripts',
-  'Who changes the files', /^Finish only when the tests pass/, /^Have a model look over each sub-agent’s report/,
+  'Who changes the files', /^Have a model look over each sub-agent’s report/,
   'Opening a sub-agent', 'When you’re away', 'Minutes before the Orchestrator answers',
   'New chats’ teams', 'Posts, at most', 'Minutes, at most', 'Tokens, at most',
   'At most this many agents at work in this project', 'Agents at the same time', 'Sub-agent levels', 'Sub-agents per request',
   'Continue gives this many more steps', 'Stop the work on a message over this many tokens', 'A discussion’s tokens, at most', 'Monthly budget',
   /^This machine/, /^Docker container/, 'Image', 'Allow network access', /^Hide secret files from commands/, 'Secret variables commands may see', /^Planted test key/,
-  'Test before adding', 'Measure command', /^Save each sub-agent’s work as a git commit/, /Merge here/, /Open a pull request/,
+  'After a change', 'Test before adding', 'Measure command', /^Save each sub-agent’s work as a git commit/, /Merge here/, /Open a pull request/,
   /^Note what the work found, by itself/, 'Search by meaning with', 'Embedding model', 'Also look in the memory of other',
   'Search address (SearXNG)', 'Otherwise search with', /^Let agy search too/,
   'Notification address', 'Post it as', /^Show a desktop notification/, 'Send the day’s summary at',

@@ -48,8 +48,10 @@ export interface ProjectSettingsValues {
   check_command?: string
   /** K-evrim: the command that scores a candidate's work - the last line of its output, 0–100; empty: none. Sent only when changed. */
   measure_command?: string
-  /** 89m: whether a Claude Code agent that changed files finishes only once the tests pass; null: automatic again. Sent only when changed. */
-  finish_tests?: boolean | null
+  /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code - Check it, Tests only or Nothing. Sent only when changed. */
+  after_change?: Project['after_change']
+  /** S1b: forget the test command KOLONİ found and saved, and its look; found again at the next change. */
+  forget_tests_found?: boolean
   /** Whether what is taken from a sub-agent is offered for a commit. Sent only when changed. */
   git_commit?: boolean
   /** K-dal-takim D2: how a team's finished branch reaches yours - merged here, or as a pull request. Sent only when changed. */

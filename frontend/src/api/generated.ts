@@ -4037,6 +4037,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/check/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Check
+         * @description "Stop this check" (kanıtlı bitiş S6): the turn's test run that runs now - its related
+         *     tests while the answer waits, or its whole suite gone on after the answer - is stopped; what
+         *     finished stays. The user's, from the app's own page, at every level.
+         */
+        post: operations["stop_check_api_runs__run_id__check_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/notes": {
         parameters: {
             query?: never;
@@ -4328,6 +4350,29 @@ export interface paths {
         head?: never;
         /** Change Stage */
         patch: operations["change_stage_api_teams__team_id__stages__stage_id__patch"];
+        trace?: never;
+    };
+    "/api/test-load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Test Load */
+        get: operations["read_test_load_api_test_load_get"];
+        /**
+         * Set Test Load
+         * @description Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+         *     processes each may start - the user's to say (the machine's load). A run already going keeps
+         *     what it had.
+         */
+        put: operations["set_test_load_api_test_load_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/tiers": {
@@ -5797,6 +5842,39 @@ export interface components {
             /** Why */
             why?: string | null;
         };
+        /** CheckedCounts */
+        CheckedCounts: {
+            /** Failed */
+            failed: number;
+            /** Passed */
+            passed: number;
+            /** Skipped */
+            skipped: number;
+            /** Unit */
+            unit: string;
+        };
+        /**
+         * CheckedRow
+         * @description One line of a turn's Checked section (`app.proof.Row`).
+         */
+        CheckedRow: {
+            /** Command */
+            command: string | null;
+            counts?: components["schemas"]["CheckedCounts"] | null;
+            /** Guessed */
+            guessed: boolean;
+            /** Kind */
+            kind: string;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "passed" | "failed" | "running" | "not_run" | "timed_out" | "note";
+            /** Text */
+            text: string;
+        };
         /**
          * ClaimOut
          * @description A file of the project that an agent of a running turn holds until its work is
@@ -6665,18 +6743,6 @@ export interface components {
             role: string | null;
             /** What */
             what: string;
-        };
-        /**
-         * FinishTestsAuto
-         * @description 89m: "Finish only when the tests pass" where the user has not said (`finish_tests`).
-         */
-        FinishTestsAuto: {
-            /** Command */
-            command: string | null;
-            /** On */
-            on: boolean;
-            /** Reason */
-            reason: string;
         };
         /** FolderBrowseIn */
         FolderBrowseIn: {
@@ -8075,6 +8141,8 @@ export interface components {
             agent_id: string | null;
             /** Board Post Id */
             board_post_id: string | null;
+            /** Checked */
+            checked?: components["schemas"]["CheckedRow"][] | null;
             /** Content */
             content: string;
             /** Conversation Id */
@@ -8096,7 +8164,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "user" | "assistant" | "agent" | "memory" | "trigger" | "away" | "git" | "koloni" | "landed";
+            role: "user" | "assistant" | "agent" | "memory" | "trigger" | "away" | "git" | "koloni" | "landed" | "checked";
             /** Room Post Id */
             room_post_id: string | null;
             /** Run Id */
@@ -8756,6 +8824,13 @@ export interface components {
         };
         /** ProjectOut */
         ProjectOut: {
+            /**
+             * After Change
+             * @enum {string}
+             */
+            after_change: "check" | "tests" | "nothing";
+            /** After Change From Off */
+            after_change_from_off: boolean;
             /** Also In */
             also_in: string[];
             /** Auto Notes */
@@ -8792,9 +8867,6 @@ export interface components {
              * @enum {string}
              */
             exec_location: "host" | "docker";
-            /** Finish Tests */
-            finish_tests: boolean | null;
-            finish_tests_auto: components["schemas"]["FinishTestsAuto"];
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
             /**
@@ -8890,6 +8962,16 @@ export interface components {
              * @enum {string}
              */
             teams_mode: "lead" | "manual" | "none";
+            /** Tests Found */
+            tests_found: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Tests Look */
+            tests_look: {
+                [key: string]: unknown;
+            } | null;
             /** Turn Token Limit */
             turn_token_limit: number | null;
             /**
@@ -8922,6 +9004,8 @@ export interface components {
         };
         /** ProjectPatch */
         ProjectPatch: {
+            /** After Change */
+            after_change?: ("check" | "tests" | "nothing") | null;
             /** Also In */
             also_in?: string[] | null;
             /** Auto Notes */
@@ -8950,10 +9034,10 @@ export interface components {
             embedding_provider_id?: string | null;
             /** Exec Location */
             exec_location?: ("host" | "docker") | null;
-            /** Finish Tests */
-            finish_tests?: boolean | null;
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
+            /** Forget Tests Found */
+            forget_tests_found?: boolean | null;
             /** Full Auto Check */
             full_auto_check?: ("ask" | "judge") | null;
             /** Git Commit */
@@ -10740,6 +10824,19 @@ export interface components {
         TellIn: {
             /** Words */
             words: string;
+        };
+        /**
+         * TestLoad
+         * @description Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+         *     processes each may start - settings of the whole app (`proof.load_of`). Their ranges are
+         *     `proof.TEST_RUNS_RANGE` and `TEST_WORKERS_RANGE`, written again here and in Settings.tsx.
+         *     Sent one at a time - the one not sent stays as it is.
+         */
+        TestLoad: {
+            /** Runs At Once */
+            runs_at_once?: number | null;
+            /** Workers */
+            workers?: number | null;
         };
         /**
          * TierModel
@@ -18898,6 +18995,37 @@ export interface operations {
             };
         };
     };
+    stop_check_api_runs__run_id__check_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     write_note_api_runs__run_id__notes_post: {
         parameters: {
             query?: never;
@@ -19601,6 +19729,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_test_load_api_test_load_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestLoad"];
+                };
+            };
+        };
+    };
+    set_test_load_api_test_load_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestLoad"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestLoad"];
                 };
             };
             /** @description Validation Error */

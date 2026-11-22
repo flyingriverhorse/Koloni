@@ -283,6 +283,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // shortcut: a line that would still cross a box is not drawn (the card stays); route it round if that is met.
     used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, everyone, used)
     used = besideTurn(own, talks, lane, top, used, positions, sizes)
+    used += checksUnder(own, top + used, positions)
     used += poUnder(own, top + used, positions)
     const under = filesUnder(own, runId, top, positions, box)
     top += Math.max(under - top, used)
@@ -487,6 +488,19 @@ function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>
   const po = own.find(n => n.kind === 'po')
   if (!po) return 0
   positions[po.id] = { x: NODE_W + COL_GAP, y: top }
+  return NODE_H + ROW_GAP
+}
+
+/**
+ * KOLONİ's Checks node (`checks:`), under the turn's Orchestrator in its column, its line straight down from it - before the
+ * Assistant PO; returns the room it takes.
+ * shortcut: under the Orchestrator, not right of it as the sketch has it (and in a recipe's turn not inside its frame as its
+ * last step): placed as the PO is; move it once the canvas's columns make room.
+ */
+function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {
+  const checks = own.find(n => n.kind === 'checks')
+  if (!checks) return 0
+  positions[checks.id] = { x: NODE_W + COL_GAP, y: top }
   return NODE_H + ROW_GAP
 }
 

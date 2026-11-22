@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, finish_tests: null, full_auto_check: 'ask', disposable_deletes: false, finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, after_change: 'check', after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -123,28 +123,37 @@ test('the measure command is set beside the test command, saying its last line i
   expect(onSave).toHaveBeenLastCalledWith({ measure_command: '' })
 })
 
-test('“Finish only when the tests pass” is on or off by itself, saying why; set as it would be by itself, it is automatic again', async () => {
+test('After a change saves after_change', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never)
-  const auto = { on: true, command: 'python -m pytest -q', reason: 'the tests took 12 s last time' }
-  const { unmount } = render(<ProjectSettings {...base} project={{ ...project, finish_tests_auto: auto }} onSave={onSave} />)
-  await choose(/^Agents/)
-  const box = screen.getByRole('checkbox', { name: /^Finish only when the tests pass/ })
-  expect(box).toBeChecked()
-  expect(box).toHaveAccessibleName(/An agent \(the Orchestrator or a sub-agent\) on Claude Code that changed files is sent back to work, at most twice, while python -m pytest -q fails/)
-  expect(screen.getByTestId('finish-tests-why')).toHaveTextContent(/^By default on: the tests took 12 s last time\.$/)
-  await userEvent.click(box)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const box = screen.getByLabelText('After a change')
+  expect(box).toHaveValue('check')
+  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Check it', 'Tests only', 'Nothing'])
+  expect(box).toHaveAccessibleDescription(/runs this project’s tests once on the work as it now stands.*waits at most 2 minutes/)
+  await userEvent.selectOptions(box, 'tests')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ finish_tests: false })
-  unmount()
-  // The user's own choice says so; turned back to what it would be by itself, null goes: automatic.
-  render(<ProjectSettings {...base} project={{ ...project, finish_tests: false, finish_tests_auto: auto }} onSave={onSave} />)
+  expect(onSave).toHaveBeenLastCalledWith({ after_change: 'tests' })
+})
+
+test('the old Finish only when the tests pass switch is gone', async () => {
+  render(<ProjectSettings {...base} onSave={vi.fn()} />)
   await choose(/^Agents/)
-  expect(screen.getByRole('checkbox', { name: /^Finish only when the tests pass/ })).not.toBeChecked()
-  expect(screen.getByTestId('finish-tests-why')).toHaveTextContent(/^You set this; by default it would be on: the tests took 12 s last time\.$/)
-  await userEvent.click(screen.getByRole('checkbox', { name: /^Finish only when the tests pass/ }))
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ finish_tests: null })
+  expect(screen.queryByRole('checkbox', { name: /Finish only when the tests pass/ })).toBeNull()
+})
+
+test('a project moved from the old switch says so once', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  const moved = { ...project, after_change: 'nothing' as const, after_change_from_off: true }
+  render(<ProjectSettings {...base} project={moved} onSave={vi.fn()} />)
+  await choose(/^Checks/)
+  expect(screen.getByTestId('after-change-from-off')).toHaveTextContent(
+    'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.')
+  expect(screen.getAllByText(/You had turned off/)).toHaveLength(1)
+  // (Chosen otherwise, it says nothing of the old switch.)
+  await userEvent.selectOptions(screen.getByLabelText('After a change'), 'check')
+  expect(screen.queryByTestId('after-change-from-off')).toBeNull()
 })
 
 test('where a search and a notification go is set here, and only what was changed is sent', async () => {
@@ -421,10 +430,10 @@ test('a chosen section alone is shown, each field under its label as before', as
   render(<ProjectSettings {...base} desktopAvailable onSave={vi.fn()} />)
   const fields: [RegExp, (string | RegExp)[]][] = [
     [/^Commands/, [/This machine/, /Docker container/]],
-    [/^Agents/, ['Who changes the files', /^Finish only when the tests pass/]],
+    [/^Agents/, ['Who changes the files']],
     [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', 'A harmful-looking command at Full auto']],
     [/^New chats start with/, ['New chats’ teams', 'Posts, at most', 'Minutes, at most', 'Tokens, at most']],
-    [/^Checks/, ['Test before adding', /^Save each sub-agent’s work as a git commit/]],
+    [/^Checks/, ['After a change', 'Test before adding', /^Save each sub-agent’s work as a git commit/]],
     [/^Memory and web/, [/^Note what the work found, by itself/, 'Search by meaning with', 'Search address (SearXNG)', 'Otherwise search with', /^Let agy search too/]],
     [/^Notifications/, ['Notification address', 'Post it as', /^Show a desktop notification/]],
     [/^Limits and money/, ['At most this many agents at work in this project', 'Agents at the same time', 'Continue gives this many more steps', 'Stop the work on a message over this many tokens']],
@@ -858,4 +867,25 @@ test('what the folder’s settings ask for is said in words, each part only when
     expect(screen.getByRole('group', { name: 'This folder’s settings' })).toHaveTextContent(`This folder’s settings ask to ${said} — use them?`)
     unmount()
   }
+})
+
+test('the test command KOLONİ found is shown with where it came from, and can be forgotten', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  const found = { ...project, tests_found: { '.': { command: 'python -m pytest -q', from: 'look', at: '2026-11-22T16:00:00' }, web: { command: 'npm test', from: 'guess', at: '2026-11-22T16:01:00' } } }
+  render(<ProjectSettings {...base} project={found} onSave={onSave} />)
+  await choose(/^Checks/)
+  const shown = screen.getByTestId('tests-found')
+  expect(shown).toHaveTextContent('python -m pytest -q in ./ - its look at the code found it, 2026-11-22.')
+  expect(shown).toHaveTextContent('npm test in web/ - from the project’s files, 2026-11-22.')
+  await userEvent.click(screen.getByRole('checkbox', { name: /^Forget it/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ forget_tests_found: true })
+})
+
+test('with nothing found, nothing of it is shown', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={vi.fn()} />)
+  await choose(/^Checks/)
+  expect(screen.queryByTestId('tests-found')).toBeNull()
 })

@@ -35,6 +35,7 @@ from app import memory as kept
 from app import room as rooms
 from app.agent.cards import _answer, _hands_back, _unasked, folders_of
 from app.agent.ctx import Ctx, announce, announce_memory
+from app.agent.proof_mixin import PROOF_CALL
 from app.agent.summary import (
     _compacted,
     _in_words,
@@ -1349,7 +1350,10 @@ class ContextMixin:
             .where(Run.conversation_id == cid)
             .order_by(ToolCall.seq)
         ):
-            calls.setdefault(call.message_id, []).append(call)
+            # (Not KOLONİ's own end-of-turn test run, put on an answer after the fact: that answer
+            # is sent back as it was given - its thinking too. `ProofMixin`, `PROOF_CALL`.)
+            if not call.provider_call_id.startswith(PROOF_CALL):
+                calls.setdefault(call.message_id, []).append(call)
         return calls
 
     def _history_system(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str],
@@ -1667,7 +1671,7 @@ class ContextMixin:
             if row.role == "agent":
                 self._history_agent_row(h, row)
                 continue
-            if row.role in ("away", "git", "koloni", "landed"):
+            if row.role in ("away", "git", "koloni", "landed", "checked"):
                 continue  # (KOLONİ's line in the chat - a night's end, git: the user's to read)
             if row.role == "trigger":
                 # What started an unattended turn: the trigger's message, said to be one.

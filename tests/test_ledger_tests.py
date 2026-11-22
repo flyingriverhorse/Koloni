@@ -23,6 +23,8 @@ from app.db.session import make_engine, make_session_factory, upgrade_db
     "make test", 'bash -c "pytest -q"', "timeout 600 pytest", "uv run --frozen pytest",
     "python -X utf8 -m pytest", "./gradlew test", "echo x && pytest", "python3 -m pytest -q",
     "py -3 -m pytest", "cmd /c pytest -q", 'pwsh -NoProfile -Command "pytest -q"',
+    # (review of S1b: the test lines KOLONİ may find and run, each read as one)
+    "bundle exec rspec", "composer test", "mix test", "swift test", "ctest --test-dir build",
 ])
 def test_a_test_tool_after_what_may_stand_before_it_is_a_test_run(command):
     assert ledger.read_test(command) is not None

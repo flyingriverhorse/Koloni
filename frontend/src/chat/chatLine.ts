@@ -58,7 +58,8 @@ export function latestOf(conv: ConvState, inChat: Message[]): string {
   const worker = run && conv.agents.findLast(a => a.run_id === run.id && a.status === 'running')
   if (worker) return `${titleOf(worker.name || worker.role_name)} is working`
   // (B-205: KOLONİ's line on where the work is stands under the answer in the chat; here the answer is the line, R178.)
-  return firstLine(answerLast(inChat.filter(m => m.role !== 'landed')).at(-1)?.content ?? '')
+  // (So is what KOLONİ checked at a turn's end: in the turn's foot, never its line.)
+  return firstLine(answerLast(inChat.filter(m => m.role !== 'landed' && m.role !== 'checked')).at(-1)?.content ?? '')
 }
 
 /** R178: KOLONİ's lines that came right after a Lead's answer ("Tester was not opened this turn.") stand just above it, so

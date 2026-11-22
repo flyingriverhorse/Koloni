@@ -39,7 +39,9 @@ def test_a_plain_turn_has_one_lead_agent_that_owns_its_records(make_client, wait
     assert (agent["input_tokens"], agent["output_tokens"]) == (30, 9)
     assert agent["started_at"] and agent["ended_at"] and agent["run_id"] == run_id
 
-    user, *assistant, landed = snap["messages"]
+    user, *assistant, landed = [m for m in snap["messages"] if m["role"] != "checked"]
+    # (What KOLONİ checked at the turn's end is KOLONİ's own too.)
+    assert all(m["agent_id"] is None for m in snap["messages"] if m["role"] == "checked")
     assert user["agent_id"] is None  # the user's own message belongs to no agent
     assert (landed["role"], landed["agent_id"]) == ("landed", None)  # KOLONİ's own (B-205)
     assert {m["agent_id"] for m in assistant} == {agent["id"]}

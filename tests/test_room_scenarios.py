@@ -163,7 +163,7 @@ def test_the_user_opens_a_room_its_members_share_the_work_out_and_do_it_in_one_c
     assert any("work is over. Its last words:" in m["content"] for m in snap["messages"]
                if m["room_post_id"])
     # (Under the answer, KOLONİ's line on where the work is: B-205.)
-    assert [m["content"] for m in snap["messages"][-2:]] == [
+    assert [m["content"] for m in snap["messages"] if m["role"] != "checked"][-2:] == [
         "The room is over: here is what came of it.", "In the project: hello.py (+1 −1)."]
     lead, coder, reviewer = snap["agents"]
     assert (lead["depth"], coder["depth"], reviewer["depth"]) == (0, 1, 1)

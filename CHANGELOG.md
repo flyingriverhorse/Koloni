@@ -21,8 +21,17 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Added
+
+- **Chat**: after a turn that changed code, KOLONİ runs the project's tests once and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice; while you're away a guessed test command is not run ([docs](docs/use/checked.md)).
+- **Chat**: with no test command set, KOLONİ finds one by the project's files in any language (Go, Rust, Java, .NET, Ruby, PHP, Elixir, Swift, C/C++, Make, besides Python and Node), by part; failing that, an agent's run of one, or one look by the Fast tier's model at the code - an agent's or the model's line only if it is a plain test command, nothing beside a **Test before adding** command of yours; the first that really runs tests is saved as the project's test command, shown in Settings › This project › Checks and git ([docs](docs/use/checked.md)).
+- **Canvas**: a checked turn has a **Checks** node under its Orchestrator - the test run at work, then what came of it with its counts, the related tests and a whole suite running after the answer with its clock - and each fix round is a line back to the Orchestrator; its **⋯** menu has **Stop this check** while a check runs and **Open its log** ([docs](docs/use/checked.md#on-the-canvas)).
+- **Chat**: a long test run no longer holds the answer: KOLONİ first runs the tests related to the changed files (pytest, vitest, jest, go, cargo, dotnet; none where you left tests out of the suite), then the whole suite goes on in the background, shown under the answer and on the line over the message box, and **Fix it** appears if it fails; **Stop this check** stops a running check, and a newer turn running the same suite in the same project takes the place of an older run ([docs](docs/use/checked.md#how-long-it-waits)).
+- **Settings**: Settings › The app sets how many of KOLONİ's own test runs go at once (1) and how many test processes each may use (2) ([docs](docs/use/checked.md#how-many-run-at-once)).
+
 ### Changed
 
+- **Settings**: **Finish only when the tests pass** is now **After a change** (Check it / Tests only / Nothing) in Settings › This project › Checks and git, for every model, not only Claude Code; a project that had turned it off gets Nothing (and Settings says so), the rest Check it.
 - **Agents**: Coder, Tester, Reviewer, Debugger and Security reviewer are always on and keep the tools their job needs (a Tester keeps run_command); a role that lost one gets it back ([docs](docs/agents/roles.md)).
 
 ### Fixed

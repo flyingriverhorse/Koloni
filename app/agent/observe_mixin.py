@@ -8,7 +8,9 @@ import hashlib
 import json
 import os
 import re
+import time
 import uuid
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,7 +19,15 @@ from sqlalchemy import select
 from app import copies, koloni, mcp_client
 from app.agent.cards import _changes_nothing, _unasked_note
 from app.agent.ctx import Ctx, _NobodyToAsk, _Transcript, _Watch
-from app.agent.merge import Taken, _as_dict, _command_names, _is_on_disk, _put_back, _restore
+from app.agent.merge import (
+    Taken,
+    Written,
+    _as_dict,
+    _command_names,
+    _is_on_disk,
+    _put_back,
+    _restore,
+)
 from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, IN_THE_PROJECT, STEERED, UNFINISHED
 from app.changes import DELETED_SHA
 from app.commands import (
@@ -119,7 +129,18 @@ class ObserveMixin:
         the user - are not the doing of a CLI at work in a copy of it: what the project
         holds now is what a change the CLI makes there (`_changed_in_project`) is told
         apart from. Nor are they of a native agent at work in the project, which is looked at
-        first for a standing file written unnamed (`_standing_look`): they stand."""
+        first for a standing file written unnamed (`_standing_look`): they stand. (Nor of a
+        test run of KOLONİ's already under way, S6: `_seen_writes`.)"""
+        when, at, folder = time.monotonic(), now(), Path(root).resolve()
+        for rel in paths:  # (with what it holds now: it stands only while it holds that)
+            held, known = None, True
+            try:
+                held = (folder / rel).read_bytes()
+            except FileNotFoundError:
+                pass  # (none there: that is what it left)
+            except OSError:
+                known = False
+            self._seen_writes[(str(folder), rel)] = (when, at, held, known)
         for watch in self._watches_in(root):
             if watch.ctx is not None and watch.transcript is not None:
                 await self._standing_look(watch.ctx, watch.transcript, watch, but=paths)
@@ -186,18 +207,21 @@ class ObserveMixin:
     async def _own_command_looked(
         self: "AgentRunner", ctx: Ctx, call_id: str, command: str, before: dict[str, bytes],
         since: float,
-        ended: bool, approved: bool,
+        ended: bool, approved: bool, stand: Mapping[str, Written] | None = None,
     ) -> None:
         """K-yazma-denetimi for a command KOLONİ ran itself (`run_command`): what it wrote of the
         project's standing files (`before`: as they were when it started, at `since`) is put
         back but for what it names where it was `approved` (`_command_names`: its card showed
         it; not a skill's script run unasked) - and the agent goes on once the user has said
-        whether to keep it. Not `ended` (stopped, or it did not start): put back all the same,
-        with no card and nothing waited for."""
+        whether to keep it. Not `ended` (stopped, or it did not start, or its turn is over):
+        put back all the same, with no card and nothing waited for. `stand`: what others wrote
+        meanwhile, on record, by path and the digests it left (S6: a test run that outlives its
+        turn) - not its to put back while it holds that (`_put_back`)."""
         paths, names = _command_names(
             command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx))
         taken, let = await asyncio.shield(asyncio.to_thread(
-            _put_back, Path(ctx.folder), before, paths, names, since, self._taken_folder(ctx)))
+            _put_back, Path(ctx.folder), before, paths, names, since, self._taken_folder(ctx),
+            stand))
         kept = [rel for rel in let if "*.pth" in names and rel.endswith(".pth")]
         cards: list[asyncio.Task] = []
         if taken or kept:

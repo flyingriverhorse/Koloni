@@ -81,6 +81,8 @@ WhenAway = Literal["waits", "lead"]
 # K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
 # against what they wrote.
 FullAutoCheck = Literal["ask", "judge"]
+# Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): Check it, Tests only, Nothing.
+AfterChange = Literal["check", "tests", "nothing"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -181,15 +183,6 @@ class ChatTeamOut(Out):
     state: ChatTeamState | None = None
 
 
-class FinishTestsAuto(BaseModel):
-    """89m: "Finish only when the tests pass" where the user has not said (`finish_tests`)."""
-    on: bool
-    # The tests' command: the check command, or one the folder's files show; None: none.
-    command: str | None
-    # Why it is on or off, in words.
-    reason: str
-
-
 class ProjectOut(Out):
     id: str
     name: str
@@ -270,10 +263,14 @@ class ProjectOut(Out):
     room_minutes: int | None
     # B-414: the least tokens an agent's room is given (`room_tokens` wins where lower); None: none.
     room_min_tokens: int | None
-    # 89m: whether a Claude Code agent that changed files finishes only once the tests pass;
-    # None: as `finish_tests_auto` says.
-    finish_tests: bool | None
-    finish_tests_auto: FinishTestsAuto
+    # Kanıtlı bitiş: what KOLONİ checks after a turn that changed code (`app.proof`).
+    after_change: AfterChange
+    # 0162: Nothing because the user had turned "Finish only when the tests pass" off: said.
+    after_change_from_off: bool
+    # S1b: the test command(s) KOLONİ saved itself, by folder - {"command", "from", "at"}; and its
+    # one look for one (None: not yet).
+    tests_found: dict[str, dict]
+    tests_look: dict | None
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge").
     full_auto_check: FullAutoCheck
@@ -365,8 +362,9 @@ class ProjectPatch(BaseModel):
     room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
-    # Sent as null: automatic again (`ProjectOut.finish_tests_auto`). Left out: kept.
-    finish_tests: bool | None = None
+    after_change: AfterChange | None = None
+    # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
+    forget_tests_found: bool | None = None
     full_auto_check: FullAutoCheck | None = None
     disposable_deletes: bool | None = None
 
@@ -830,6 +828,31 @@ class AttachmentTextOut(BaseModel):
     text: str | None
 
 
+class CheckedCounts(BaseModel):
+    passed: int
+    failed: int
+    skipped: int
+    # "tests", or "packages" (go's, without -v)
+    unit: str
+
+
+class CheckedRow(BaseModel):
+    """One line of a turn's Checked section (`app.proof.Row`)."""
+    # S1: "tests", "rounds", "waiting", "not_checked"; later slices add theirs.
+    kind: str
+    state: Literal["passed", "failed", "running", "not_run", "timed_out", "note"]
+    text: str
+    # The command it ran, or would have; None: none.
+    command: str | None
+    # A command KOLONİ guessed from the project's files, not the user's own.
+    guessed: bool
+    # When a running row's run started; None: not running.
+    started_at: str | None
+    # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None: no
+    # count known, never made up.
+    counts: CheckedCounts | None = None
+
+
 class MessageOut(Out):
     id: str
     conversation_id: str
@@ -843,8 +866,9 @@ class MessageOut(Out):
     # "koloni": KOLONİ's own line - under a Lead's answer that named a role it never opened;
     # at Take in, a .venv or the like an agent made in its copy, which stays out (B-383).
     # "landed": KOLONİ's line under a turn's answer on where its work is, from the records (B-205).
+    # "checked": what KOLONİ checked at the turn's end (`checked`), drawn in the turn's foot.
     role: Literal["user", "assistant", "agent", "memory", "trigger", "away", "git", "koloni",
-                  "landed"]
+                  "landed", "checked"]
     from_agent_id: str | None
     delivered_at: datetime | None
     discussion_id: str | None
@@ -857,6 +881,8 @@ class MessageOut(Out):
     spoken: str | None = None
     status: Literal["streaming", "complete"]
     created_at: datetime
+    # A "checked" message's rows; None for every other message.
+    checked: list[CheckedRow] | None = None
 
 
 class ToolCallOut(Out):
@@ -1729,6 +1755,17 @@ class Unattended(BaseModel):
     model_config = ConfigDict(extra="forbid")
     stuck_minutes: int | None = Field(None, ge=5, le=1440, strict=True)
     turn_hours: int | None = Field(None, ge=1, le=72, strict=True)
+
+
+class TestLoad(BaseModel):
+    """Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+    processes each may start - settings of the whole app (`proof.load_of`). Their ranges are
+    `proof.TEST_RUNS_RANGE` and `TEST_WORKERS_RANGE`, written again here and in Settings.tsx.
+    Sent one at a time - the one not sent stays as it is."""
+
+    model_config = ConfigDict(extra="forbid")
+    runs_at_once: int | None = Field(None, ge=1, le=4, strict=True)
+    workers: int | None = Field(None, ge=1, le=16, strict=True)
 
 
 class TreeLimits(BaseModel):

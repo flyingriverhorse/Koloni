@@ -78,7 +78,9 @@ def test_a_turn_that_ends_before_its_recipes_end_keeps_its_work_for_take_in(make
     assert landed(snap) == [
         "Not in the project yet: a.py waits in Ready for you - Take in to apply it."]
     # After the Lead's answer: the turn's last word in the chat is KOLONİ's.
-    assert [m["role"] for m in snap["messages"]][-2:] == ["assistant", "landed"]
+    # (What KOLONİ checked stands in the turn's foot, not in the chat's line of words.)
+    assert [m["role"] for m in snap["messages"] if m["role"] != "checked"][-2:] == [
+        "assistant", "landed"]
 
 
 def test_a_rejected_card_says_nothing_reached_the_project(

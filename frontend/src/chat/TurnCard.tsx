@@ -8,6 +8,7 @@ import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { ReadAloud } from '../voice/VoiceControls'
 import { useVoice } from '../voice/voice'
+import { CheckedSection } from './CheckedSection'
 
 interface Props {
   state: ConvState
@@ -24,6 +25,8 @@ interface Props {
   latest?: boolean
   /** It ends with its answer's words: hidden, its foot of only those stands over their end, taking no room. */
   wordsEnd?: boolean
+  /** What KOLONİ checked at its end (its "checked" message): under the answer once the turn is over. */
+  checked?: Message
 }
 
 /**
@@ -31,7 +34,7 @@ interface Props {
  * not a night's closing line, which KOLONİ puts on the last turn there was, hours later.
  */
 function lastAt(state: ConvState, run: Run, lead: Agent | undefined) {
-  return state.messages.filter(m => m.run_id === run.id && m.role !== 'away' && (!m.agent_id || m.agent_id === lead?.id)).at(-1)?.created_at ?? run.created_at
+  return state.messages.filter(m => m.run_id === run.id && m.role !== 'away' && m.role !== 'checked' && (!m.agent_id || m.agent_id === lead?.id)).at(-1)?.created_at ?? run.created_at
 }
 
 /** Its Lead's model as the head says it ("fusion → gpt-6-luna" where Copilot's routing picked it), and Copilot's reason for that pick. */
@@ -59,7 +62,7 @@ const saidOf = (state: ConvState, run: Run, speaking: string | null) => state.me
  * them; and once it is over a quiet foot - Copy and Read aloud, what it did at their right. A turn at work has none - only
  * the ■ of what of it Auto-read reads.
  */
-export function TurnCard({ state, run, lead, answer, children, summary, waits, latest = false, wordsEnd = false }: Props) {
+export function TurnCard({ state, run, lead, answer, children, summary, waits, latest = false, wordsEnd = false, checked }: Props) {
   const teams = useApp(s => s.teams)
   // (Whole answer reads a step's words while the next step is written: the ■ stays with the step still heard.)
   const said = useVoice(s => saidOf(state, run, s.speaking))
@@ -68,7 +71,7 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits, l
   const at = lastAt(state, run, lead)
   const over = summary !== null
   return (
-    <article className={['turn', latest && 'turn-latest', wordsEnd && 'turn-words-end'].filter(Boolean).join(' ')} data-run={run.id} aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
+    <article className={['turn', latest && 'turn-latest', wordsEnd && !checked && 'turn-words-end'].filter(Boolean).join(' ')} data-run={run.id} aria-label={`${name}, ${waits ? WAITS : when(at)}`}>
       <div className="turn-head">
         <span className="turn-avatar" aria-hidden>
           {name.charAt(0)}
@@ -83,6 +86,7 @@ export function TurnCard({ state, run, lead, answer, children, summary, waits, l
         </div>
       )}
       {children}
+      <CheckedSection message={checked} over={over} latest={latest} />
       {(over || said) && (
         // Its parts in fixed places: at the turn's end the ■ the keyboard is on stays the same button.
         <footer className="turn-foot">

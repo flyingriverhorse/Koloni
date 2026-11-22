@@ -107,7 +107,7 @@ def test_the_lead_opens_a_room_waits_for_it_and_is_given_its_record(
     # and spoke only after it was over: its last step was asked with the record in hand
     assert "It prints yo, as asked." in json.dumps(model.calls_of["Lead"][-1])
     # (Under the answer, KOLONİ's line on where the work is: B-205.)
-    assert [m["content"] for m in snap["messages"][-2:]] == [
+    assert [m["content"] for m in snap["messages"] if m["role"] != "checked"][-2:] == [
         "The room fixed it: the greeting says yo.", "In the project: hello.py (+1 −1)."]
 
 

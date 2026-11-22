@@ -100,6 +100,26 @@ test('the foot holds Copy and Read aloud first, what it did at its right', () =>
   expect(foot.lastElementChild).toHaveAccessibleName('What it did')
 })
 
+test('the Checked section stands in the foot under the answer once the turn is over', () => {
+  const rows = [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null }]
+  const checked = { ...assistantMessage('k', 'r', '✓ Tests passed: pytest -q - 4 passed'), role: 'checked' as const, agent_id: null, checked: rows, created_at: '2026-10-26T11:00:00' }
+  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [userMessage('r', 'go'), { ...answer, created_at: AT }, checked] })
+  const card = (over: boolean) => (
+    <TurnCard state={state} run={run('r', over ? 'completed' : 'running')} lead={agent('r')} answer={answer} summary={over ? <span>did</span> : null} waits={false} checked={checked} wordsEnd>
+      the answer
+    </TurnCard>
+  )
+  const { container, rerender } = render(card(false))
+  expect(screen.queryByRole('region', { name: 'Checked' })).toBeNull()
+  rerender(card(true))
+  expect(screen.getByRole('region', { name: 'Checked' })).toHaveTextContent('Tests passed: pytest -q - 4 passed')
+  const text = container.textContent ?? ''
+  expect(text.indexOf('the answer')).toBeLessThan(text.indexOf('Tests passed'))
+  // (Its time is still the answer's; and its foot stands under the section, not laid over the answer's last line.)
+  const turn = screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })
+  expect(turn).not.toHaveClass('turn-words-end')
+})
+
 test('a night’s closing line, put on the turn before it, leaves that turn’s time as it was', () => {
   // (KOLONİ puts "While you were away: …" on the conversation's last turn, hours after its answer.)
   const night = { ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'), role: 'away' as const, agent_id: null, created_at: '2026-10-27T07:10:00' }

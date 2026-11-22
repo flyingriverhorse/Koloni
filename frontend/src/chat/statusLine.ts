@@ -5,9 +5,11 @@ import { activityOf } from '../canvas/deriveGraph'
 import { turnTokens } from '../shell/tokens'
 import { activeRun, type ConvState } from '../state/applyEvent'
 import { leadQuestion } from './chatLine'
+import { testsRunningSince } from './checked'
 
 export type ChatStatus =
-  | { tone: 'ready'; who: string; queued: number }
+  /** `tests`: since when a whole suite gone on after the last answer runs (S6); null: none. */
+  | { tone: 'ready'; who: string; queued: number; tests: string | null }
   | { tone: 'running'; what: string; since: string | null; wrote: number | null; kind: string | null; queued: number }
   | { tone: 'asks'; who: string; queued: number }
   | { tone: 'away'; what: string; queued: number }
@@ -39,7 +41,7 @@ function chatStatus(conv: ConvState | null, teams: Team[], run: ReturnType<typeo
   const lead = conv?.agents.findLast(a => a.depth === 0 && (!run || a.run_id === run.id))
   const who = titleOf(lead?.name || 'Lead', teams)
   if (conv && leadQuestion(conv)) return { tone: 'asks', who, queued }
-  if (!conv || !run) return { tone: 'ready', who, queued }
+  if (!conv || !run) return { tone: 'ready', who, queued, tests: conv && testsRunningSince(conv) }
   // (Before its Orchestrator is on record, the turn waits for its model.)
   const what = lead?.run_id === run.id ? activityOf(lead, run, conv, teams) : 'Waiting for the model…'
   return { tone: 'running', what, since: run.started_at, wrote: turnTokens(conv, run).output_tokens, kind: lead ? liveKind(lead, run.model_id) : null, queued }

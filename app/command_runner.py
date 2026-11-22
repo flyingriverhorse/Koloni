@@ -5,7 +5,7 @@ import contextlib
 import os
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -237,6 +237,7 @@ class CommandRunner:
         ask: bool = True, where: Callable[[], Awaitable[Workspace]] | None = None,
         always: bool = False, web_off: bool = False, once: set[str] | None = None,
         judgement: dict | None = None, disposable: dict | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
         `ask` is False where the command has its leave already and nobody can be asked
@@ -253,7 +254,8 @@ class CommandRunner:
         it refused (`_refuses`) goes on record ended, "refused", and is neither asked nor run.
         `disposable`: what of it KOLONİ found disposable, {"what", "allowed"} (coordination §4):
         `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
-        deletes in this project" where it is asked."""
+        deletes in this project" where it is asked. `env`: what its environment gets besides
+        (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
         planned = plan_command(ws, args)
         searched = await asyncio.to_thread(
             search_reason, planned.command, ws.root, planned.cwd_rel)
@@ -269,7 +271,7 @@ class CommandRunner:
                                 lead=session.get_one(Agent, agent_id).depth == 0)
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
             # (Its id is said beside a cut output only where recall_output would give it.)
-            asked = session.get(ToolCall, call_id)
+            asked = session.get(ToolCall, call_id) if call_id else None  # (a check: none)
             recall = call_id if asked is not None and recallable(
                 asked.name, asked.outside_folder, None, planned.command) else None
             # One the user is not asked about runs on a yes given before - a rule, the
@@ -354,7 +356,7 @@ class CommandRunner:
             running = await self._executors(location, project).start(
                 command_id, planned.command, planned.cwd_path,
                 copy=ws.root if in_copy else None, links=ws.links if in_copy else None,
-                secrets=given,
+                secrets=given, env=env,
             )
         except StartError as exc:
             # The reason stays on the record, so the user sees it and not only the model.

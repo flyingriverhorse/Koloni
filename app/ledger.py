@@ -167,7 +167,8 @@ _LEADS = {"time": 0, "nohup": 0, "command": 0, "exec": 0, "env": 0, "nice": 0, "
           "npx": 0, "pnpx": 0, "bunx": 0}
 _TAKES = frozenset({"-k", "-s", "-n", "-u", "--signal", "--kill-after", "--with", "-p",
                     "--package"})
-_RUNNERS = frozenset({"uv", "poetry", "pipenv", "pdm", "hatch", "rye"})  # (`<runner> run`)
+_RUNNERS = {"uv": "run", "poetry": "run", "pipenv": "run", "pdm": "run", "hatch": "run",
+            "rye": "run", "bundle": "exec"}  # (`<runner> run`, `bundle exec`)
 # A shell that hands on a line, by the switch that hands it.
 _HANDS_ON = {"cmd": ("/c", "/k"), "bash": ("-c", "-lc"), "sh": ("-c",), "zsh": ("-c",),
              "dash": ("-c",), "pwsh": ("-command", "-c"), "powershell": ("-command", "-c")}
@@ -175,10 +176,10 @@ _PYTHON = re.compile(r"python[\d.]*|py")
 # The test tools, each by one name however it is run (`python -m pytest` is pytest's).
 _TOOLS = {"pytest": "pytest", "py.test": "pytest", "unittest": "unittest", "vitest": "vitest",
           "jest": "jest", "mocha": "mocha", "rspec": "rspec", "phpunit": "phpunit", "tox": "tox",
-          "nox": "nox"}
+          "nox": "nox", "ctest": "ctest"}
 _PACKAGERS = frozenset({"npm", "pnpm", "yarn", "bun"})  # (their `test` script)
 _SUBCOMMANDS = frozenset({"cargo", "go", "dotnet", "mvn", "gradle", "gradlew", "make",
-                          "playwright"})
+                          "playwright", "composer", "mix", "swift"})
 
 
 def _name(word: str) -> str:
@@ -215,7 +216,7 @@ def _past_leads(words: list[str]) -> list[str]:
         if re.fullmatch(r"\w+=.*", words[at]):
             at += 1
             continue
-        runner = name in _RUNNERS and words[at + 1:at + 2] == ["run"]
+        runner = name in _RUNNERS and words[at + 1:at + 2] == [_RUNNERS[name]]
         if name not in _LEADS and not runner:
             break
         at += 2 if runner else 1

@@ -129,7 +129,7 @@ def test_a_change_waits_for_approval_and_the_cli_waits_with_it(session_app, wait
     assert (project_dir / "n.txt").read_bytes() == b"new\n"
     assert session_app.record()["results"][0]["content"][0]["text"].startswith("applied: n.txt")
     # (Under the answer, KOLONİ's line on where the work is: B-205.)
-    assert [m["content"] for m in snap["messages"][-2:]] == [
+    assert [m["content"] for m in snap["messages"] if m["role"] != "checked"][-2:] == [
         "Written.", "In the project: n.txt (+1 −0)."]
 
 

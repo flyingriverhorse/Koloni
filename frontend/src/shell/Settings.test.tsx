@@ -10,8 +10,8 @@ afterEach(() => vi.restoreAllMocks())
 const project: Project = {
   id: 'p', name: 'demo', root_path: 'C:/demo', created_at: 't', exec_location: 'host', docker_image: null, docker_network: false,
   search_url: null, search_order: 'builtin', search_agy: false, has_notify_url: false, notify_format: 'slack', notify_desktop: false,
-  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, check_command: null, measure_command: null, finish_tests: null, full_auto_check: 'ask', disposable_deletes: false,
-  finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'm',
+  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, check_command: null, measure_command: null, after_change: 'check', after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false,
+  memory_links: [], embedding_provider_id: null, embedding_model: 'm',
   git_commit: false, finish_way: null, auto_notes: false, observe_reports: false, suggest_tasks: true, suggest_tier: 'fast', day_note_at: null, also_in: [], read_in: [], teams_mode: 'none', teams: [],
   hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6,
   spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000, pass_env: null, held_env: [],
@@ -22,7 +22,7 @@ const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true,
 /** The server, by what is asked. */
 function server(rules: ChatRules[] = []) {
   vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-    (path === '/answer-in' ? { answer_in: null } : path === '/folders' ? { never: [] } : path === '/storage' ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/unattended' ? { stuck_minutes: 30, turn_hours: 8 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : path.endsWith('/allowed') ? rules : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never,
+    (path === '/answer-in' ? { answer_in: null } : path === '/folders' ? { never: [] } : path === '/storage' ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/unattended' ? { stuck_minutes: 30, turn_hours: 8 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : path === '/test-load' ? { runs_at_once: 1, workers: 2 } : path.endsWith('/allowed') ? rules : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never,
   )
 }
 
@@ -147,6 +147,26 @@ test('App: when work nobody watches is stuck, and its ceiling (B-413), are read,
   expect(put).toHaveBeenCalledWith('/unattended', { stuck_minutes: 45 })
   expect(put).toHaveBeenCalledWith('/unattended', { turn_hours: null })
   expect(put).not.toHaveBeenCalledWith('/steps', expect.anything())
+})
+
+test('App: KOLONİ’s test runs at once and the test processes each may start save within their ranges (S6)', async () => {
+  server()
+  const put = vi.spyOn(api, 'put').mockImplementation(async (_path, body) => body as never)
+  render(<Settings {...base} project={null} onSave={vi.fn()} />)
+  const runs = await screen.findByLabelText('KOLONİ’s test runs at once')
+  const workers = screen.getByLabelText('Test processes per run')
+  await vi.waitFor(() => expect(runs).toHaveValue('1'))
+  expect(workers).toHaveValue('2')
+  const save = screen.getByRole('button', { name: 'Save' })
+  await userEvent.clear(runs)
+  await userEvent.type(runs, '5')
+  expect(screen.getByText('A whole number from 1 to 4.')).toBeVisible()
+  expect(save).toBeDisabled()
+  await userEvent.clear(runs)
+  await userEvent.type(runs, '2')
+  await userEvent.click(save)
+  expect(put).toHaveBeenCalledWith('/test-load', { runs_at_once: 2 })
+  expect(put).not.toHaveBeenCalledWith('/test-load', { workers: expect.anything() })
 })
 
 test('App: what knowledge from a repository or a folder reads at most is read, held to its range and sent only when changed', async () => {

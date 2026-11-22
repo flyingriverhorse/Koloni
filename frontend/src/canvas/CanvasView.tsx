@@ -21,7 +21,7 @@ import { type GraphEdge, type GraphNode, deriveGraph, type GroupData, type TeamD
 import { ArcEdge, LaneEdge, LevelEdge, type LineData, MemberEdge, RequestEdge } from './edges'
 import { type Folds, agentOf, foldAll, foldGraph, isGroup, nodeOf, readFolds, unfold, writeFolds } from './foldGraph'
 import { AT_ONCE_HEAD, AT_ONCE_PAD, DASH, DOOR_PAD, FILES_HEAD, type Layout, NODE_H, NODE_W, arcWay, crossTalk, frameLine, wallsOf, arced, keepInside, layoutGraph, memberFrame, memberLine, requestFrom, requestLine, stacked } from './layout'
-import { AgentNode, AttachmentNode, AwayJobNode, AwayNode, DiscussionNode, FilesNode, PlanNode, PoNode, ReadyNode, RequestNode, RoomNode, RoundNode, TeamNode } from './nodes'
+import { AgentNode, AttachmentNode, AwayJobNode, AwayNode, ChecksNode, DiscussionNode, FilesNode, PlanNode, PoNode, ReadyNode, RequestNode, RoomNode, RoundNode, TeamNode } from './nodes'
 import { useOutputs } from './outputs'
 import { SharedNode, useSharedFiles } from './SharedNode'
 import { SAID, SAID_LINES, SaidBox } from './Said'
@@ -48,6 +48,7 @@ const nodeTypes = {
   room: RoomNode,
   plan: PlanNode,
   po: PoNode,
+  checks: ChecksNode,
   team: TeamNode,
   ready: ReadyNode,
   attachment: AttachmentNode,
@@ -221,7 +222,7 @@ const edgeClass = (e: GraphEdge, lit: GraphEdge[] | null): string | undefined =>
 
 /** What a line React Flow draws says on it: its messages, or its findings, counted. */
 const edgeLabel = (e: GraphEdge): string | undefined =>
-  e.messages ? `${e.messages} message${e.messages > 1 ? 's' : ''}` : e.findings !== undefined ? `${e.findings} finding${e.findings === 1 ? '' : 's'}` : undefined
+  e.round ?? (e.messages ? `${e.messages} message${e.messages > 1 ? 's' : ''}` : e.findings !== undefined ? `${e.findings} finding${e.findings === 1 ? '' : 's'}` : undefined)
 
 /** How thick a line is: lit, a contract's arm, at work or talk or to a card, waiting, or any other. */
 const edgeWidth = (e: GraphEdge, lit: GraphEdge[] | null, talking: boolean): number =>
@@ -823,7 +824,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       // (Drawn by its own line where it is one of edges.tsx's.)
       label: drawn.type ? undefined : edgeLabel(e),
       // (a findings label in its line's colour: between two boxes close together, the label is most of the line)
-      labelStyle: { fill: e.findings !== undefined ? 'var(--warn)' : 'var(--muted)', fontSize: 'var(--text-kicker)' },
+      labelStyle: { fill: e.findings !== undefined || e.round ? 'var(--warn)' : 'var(--muted)', fontSize: 'var(--text-kicker)' },
       // The canvas's own background (there is no --canvas: that drew the label on black).
       labelBgStyle: { fill: 'var(--bg)' },
       // Which way the work, the findings and the talk go, in a team's frame.

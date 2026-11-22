@@ -33,6 +33,18 @@ async def cancel_run(run_id: str, request: Request, session: Session = Depends(g
     return {}
 
 
+@router.post("/{run_id}/check/stop", dependencies=[Depends(require_own_origin)])
+async def stop_check(run_id: str, request: Request, session: Session = Depends(get_session)):
+    """"Stop this check" (kanıtlı bitiş S6): the turn's test run that runs now - its related
+    tests while the answer waits, or its whole suite gone on after the answer - is stopped; what
+    finished stays. The user's, from the app's own page, at every level."""
+    if session.get(Run, run_id) is None:
+        raise HTTPException(404, "run not found")
+    if not request.app.state.runner.stop_check(run_id):
+        raise HTTPException(409, "no check of this turn is running")
+    return {}
+
+
 def stop(session: Session, request: Request, run: Run) -> None:
     """The user's Stop on a turn that has not ended (also Stop everything's, `app.api.hold`)."""
     runner = request.app.state.runner

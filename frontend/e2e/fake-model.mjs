@@ -536,6 +536,8 @@ function nextStep(all, tools = [], model = '') {
     if (/make the day page of slice 56/i.test(last.content)) return toolCall('c561', 'write_file', { path: 'day56.html', content: viewPage('day') })
     // Slice 86d: the same, so that its chat waits for the user, not for a file another spec's chat still holds.
     if (/make the tab file of slice 86d/i.test(last.content)) return toolCall('c86d', 'write_file', { path: 'tabs86d.py', content: "print('tabs')\n" })
+    // Kanıtlı bitiş: a code change, whose turn KOLONİ checks at its end.
+    if (/write the checked file, k-kanit/i.test(last.content)) return toolCall('ckanit', 'write_file', { path: 'kanit.py', content: 'x = 1\n' })
     // Slice 39: a page written to be seen beside the chat, written again; a picture shown.
     if (/make a view page/i.test(last.content)) return toolCall('c391', 'write_file', { path: 'view39.html', content: viewPage('one') })
     if (/change the view page/i.test(last.content)) return toolCall('c392', 'write_file', { path: 'view39.html', content: viewPage('two') })
@@ -756,6 +758,9 @@ function nextStep(all, tools = [], model = '') {
     return say(`Wrote the greeting as ${model}.`)
   }
   if (/write three files, k-dosya-grubu/i.test(String(messages.findLast(m => m.role === 'user')?.content))) return say('Wrote three files.')
+  if (/write the checked file, k-kanit/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
+    return say(result.startsWith('applied') ? 'Wrote kanit.py.' : `kanit.py was not written: ${result}`)
+  }
   // The trigger's turn: refused for want of somebody to ask, it says so and goes on; allowed, it reports.
   if (/\bnightly check\b/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
     return say(result.includes('nobody is here to ask') ? 'I could not write made.txt: I would have asked you first.' : 'Wrote made.txt.')

@@ -180,6 +180,52 @@ def no_po_where_calls_are_counted(request):
     event.remove(Project, "init", off)
 
 
+# Kanıtlı bitiş (S1): after a turn that changed code the app runs the project's tests and writes a
+# "checked" message under the answer - on by default, in every module's tests too. Off only where a
+# module counts the messages, commands or model steps of such turns in an order the end check
+# changes (END_CHECK_OFF); in NOTHING_AFTER a project starts on Nothing (its fake executor has no
+# run for the map's guesses).
+END_CHECK_OFF: set[str] = set()
+NOTHING_AFTER = {"test_copy_part"}
+# S1b: with no test command found, the end check asks the Fast tier's model once a project where
+# its tests are (`FoundMixin._look_for_tests`) - in a test, a step of the scripted model more in
+# every turn that changes code. On only where it is tested.
+LOOK_ON = {"test_found_scenarios"}
+
+
+@pytest.fixture(autouse=True)
+def end_check_where_it_fits(request, monkeypatch):
+    module = request.module.__name__.rpartition(".")[2]
+    if module not in LOOK_ON:
+        from app.agent.found_mixin import FoundMixin
+
+        async def no_look(_self, *_args):
+            return []
+
+        monkeypatch.setattr(FoundMixin, "_look_for_tests", no_look)
+    if module in END_CHECK_OFF:
+        from app.agent.proof_mixin import ProofMixin
+
+        async def no_gate(_self, _ctx):
+            return None
+
+        monkeypatch.setattr(ProofMixin, "_proof_left", no_gate)
+        monkeypatch.setattr(ProofMixin, "_say_checked", lambda *_args, **_more: None)
+    if module not in NOTHING_AFTER:
+        yield
+        return
+    from sqlalchemy import event
+
+    from app.db.models import Project
+
+    def nothing(_target, _args, kwargs):
+        kwargs.setdefault("after_change", "nothing")
+
+    event.listen(Project, "init", nothing)
+    yield
+    event.remove(Project, "init", nothing)
+
+
 @pytest.fixture(autouse=True)
 def no_catalogue_of_the_users(monkeypatch, tmp_path):
     """A catalog.local.json the user keeps in the checkout is not a test's."""
