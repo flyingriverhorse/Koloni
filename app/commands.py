@@ -859,10 +859,13 @@ def _stop_kind(command: str) -> str:
     """`_part_stop` of a whole line, in any part a shell is handed too: "koloni" where a part may
     stop KOLONİ itself, "soft" where one stops by another name, "" for none. WMI's stops
     (`_WMI_STOPS`) are read in the line as written. A continued line is read joined too.
-    shortcut: a stop run out of the line's sight is not read - `find -exec kill {} ;`, the
-    command line `Start-Process cmd -ArgumentList '/c taskkill ...'` hands on, a name made an
-    alias first (`Set-Alias k Stop-Process; k -Name x`), a name in smart quotes PowerShell takes
-    for quotes; read them in 0.1.6 (review round 4)."""
+    shortcut: a command run out of the line's sight is not read (review rounds 4, k-okuyucu-2):
+    `find -exec kill {} ;`, `git submodule foreach '...'`, `script -q -c '...'`, `at`; a line
+    kept in a variable or an alias first (`c='B'; $c`, `eval "$c"`, `iex $c`, `alias i='B'; i`,
+    `Set-Alias k Stop-Process; k -Name x`); a program's own way to run one (`sed e`, `vim -c
+    ':!...'`, `gdb -ex 'shell ...'`, `sqlite3 '.shell ...'`, `psql -c '\\! ...'`, `git -c
+    core.pager=` / `alias.x='!...'`, `tar --checkpoint-action=exec=`); `ssh host '...'` (another
+    machine's); a name in smart quotes PowerShell takes for quotes. Read them when one is seen."""
     kinds = {_stop_kind_of(line) for line in _readings(command)}
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 
