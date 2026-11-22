@@ -510,3 +510,15 @@ def test_a_requirements_change_runs_the_tests(make_client, wait_run, project_dir
     cid, run_id = begin(client, project_dir, check_command="python check.py")
     assert checked(wait_run(client, cid, run_id))[0]["state"] == "passed"
     assert len(executor.started) == 1
+
+
+def test_a_change_after_the_last_run_is_said_untested(make_client, wait_run, project_dir):
+    # (Sent back, the Lead fixes - and its model fails before KOLONİ can run the tests again.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write("a.py", "x = 2\n", "w2"), RuntimeError("its model broke")],
+                                 executor=ScriptedExecutor([failing()]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert texts(snap) == ["Tests failed: python check.py - 1 failed, 3 passed",
+                           "Sent back to fix: 1 of 2 rounds",
+                           "Tests not run on the last change: the turn failed before its end"]

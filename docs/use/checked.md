@@ -93,6 +93,7 @@ its own two rounds. A turn can have both.
 | – Tests could not start: `why` | The program was not found, or the command could not start. Nothing is sent back. |
 | – Tests not run: `why` | It was declined on its card, a trigger does not allow it, the web is off and it reaches the internet, or the turn ended first. |
 | – Tests timed out / not waited for | It did not end in time. This is neither a pass nor a failure. |
+| – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |
 | – No test command | There was nothing to run. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn. |
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |

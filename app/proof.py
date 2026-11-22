@@ -187,6 +187,8 @@ TIMED_OUT = "Tests timed out after {minutes} min: {command}"
 NOT_WAITED = ("Tests not waited for: still running at {clock}, so KOLONİ stopped them rather "
               "than hold the answer - {command}")
 NOT_RUN = "Tests not run: {why}"
+# (A change made after the last run: that run did not see it.)
+NOT_AGAIN = "Tests not run on the last change: {why}"
 NOT_STARTED = "Tests could not start: {first}"
 STOPPED = "Tests not finished: stopped"
 NO_COMMAND = ("No test command: nothing was run (set one in Settings › This project › Checks "

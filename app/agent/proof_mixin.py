@@ -10,6 +10,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import literal_column, select
@@ -59,6 +60,8 @@ class Proof:
     rounds: int = 0
     yes: set[str] = field(default_factory=set)
     changes: list[Change] = field(default_factory=list)
+    # When the newest change its last pass saw was made: one made later was not tested.
+    seen: datetime | None = None
     asked_test: bool = False
     reviewed: bool = False
 
@@ -110,6 +113,7 @@ class ProofMixin:
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             root = project.root_path if project is not None else None
+            held.seen = proof.last_change(session, ctx.run_id)
         found = await self._map_made(ctx, root) if root else None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
@@ -281,6 +285,10 @@ class ProofMixin:
         if held.rounds >= MAX_SENT_BACK and any(one["state"] == "failed" for one in held.rows):
             rounds.append(proof.row("rounds", "failed", proof.STILL_FAILING.format(
                 most=MAX_SENT_BACK)))
+        later = proof.last_change(session, run_id)
+        if held.seen is not None and later is not None and later > held.seen:
+            rounds.append(proof.row("tests", "not_run", proof.NOT_AGAIN.format(
+                why=NOT_REACHED.get(status, ENDED_FIRST))))
         return [*held.rows, *rounds, *waiting]
 
     @staticmethod
