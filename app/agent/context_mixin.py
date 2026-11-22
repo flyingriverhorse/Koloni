@@ -28,6 +28,7 @@ from app import (
     koloni,
     ledger,
     models_dev,
+    proof,
     record,
     topics,
 )
@@ -50,7 +51,16 @@ from app.agent.summary import (
     _trim_to_budget,
     compact_at,
 )
-from app.agent.words import FINDING_KINDS, FROM, IMAGE_HERE, IMAGE_MIME, IMAGE_SHOWN, UNFINISHED
+from app.agent.words import (
+    FINDING_KINDS,
+    FROM,
+    IMAGE_HERE,
+    IMAGE_MIME,
+    IMAGE_SHOWN,
+    NEAR_TESTS,
+    PROOF_LEAD,
+    UNFINISHED,
+)
 from app.commands import recallable
 from app.db.models import (
     Agent,
@@ -72,7 +82,7 @@ from app.model_client import ModelInfo, ModelUnavailable, OwnStop, Transient
 from app.providers import ask_once, list_providers
 from app.roles import LEAD, LEARN, LOOKUP, find_role, shown_name, tools_off
 from app.team import asked_how_hard, guide, quoted, would_run
-from app.tools import NOT_A_MODEL, ToolError, parse_arguments
+from app.tools import NOT_A_MODEL, WRITE_TOOLS, ToolError, parse_arguments
 from app.workspace import WorkspaceError, in_scratch, never
 
 if TYPE_CHECKING:
@@ -1465,7 +1475,22 @@ class ContextMixin:
             system += "\n\n" + mapped
         if told := self._map_told(ctx):
             system += "\n\n" + told
+        if not (ctx.answering or ctx.discussion or ctx.run_id in self._sides) and (
+                self._checks_told(session, ctx)):
+            system += "\n\n" + PROOF_LEAD  # (S2: what the end gate checks - its agent only)
         return system
+
+    def _checks_told(self: "AgentRunner", session: Session, ctx: Ctx) -> bool:
+        """S2: whether After a change is on for this turn (`proof.after_change_of`: Test and
+        review or Tests only) in a project - decided once a turn, so that its agents' words stay
+        the same at every step (the prompt cache's prefix) whatever is switched meanwhile."""
+        said = self._checks_said.get(ctx.run_id)
+        if said is None:
+            conversation = session.get_one(Conversation, ctx.cid)
+            said = self._checks_said[ctx.run_id] = bool(ctx.root) and (
+                conversation.project_id is not None) and proof.after_change_of(
+                session, conversation, session.get(Run, ctx.run_id)) not in ("nothing", "off")
+        return said
 
     def _history_sub(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str], system: str,
                      off: frozenset[str], links: list[tuple[Agent, int]]) -> list[dict]:
@@ -1498,6 +1523,11 @@ class ContextMixin:
             system += "\n\n" + mapped
         if about := self._about.get(ctx.agent_id):
             system += "\n\n" + about
+        # S2: one that writes and runs code runs the tests near its change - not a recipe's
+        # check, held to run its check (R3, `RUN_TO_PASS`).
+        if "run_command" in ctx.tools and WRITE_TOOLS & set(ctx.tools) and (
+                ctx.agent_id not in self._reviews) and self._checks_told(session, ctx):
+            system += "\n\n" + NEAR_TESTS
         if self._tells_findings(session, ctx):
             schema = _hands_back(ctx)  # (89p: in REPORT_SCHEMA, not in words)
             system += " " + (SCHEMA_FINDINGS_PROMPT if schema else FINDINGS_PROMPT).format(

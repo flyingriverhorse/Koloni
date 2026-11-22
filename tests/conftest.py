@@ -194,6 +194,9 @@ LOOK_ON = {"test_found_scenarios"}
 # S3: a big or security-touching change is looked over at a turn's end by a Reviewer agent - in a
 # test, a scripted agent more (and its row) in every turn that writes much. On only where tested.
 REVIEW_ON = {"test_proof_review_scenarios"}
+# S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
+# the scripted Lead more in every such turn; its rows too. On only where tested.
+ASK_ON = {"test_proof_test_ask_scenarios"}
 
 
 @pytest.fixture(autouse=True)
@@ -213,6 +216,14 @@ def end_check_where_it_fits(request, monkeypatch):
             return None
 
         monkeypatch.setattr(ReviewMixin, "_proof_review", no_review)
+    if module not in ASK_ON:
+        from app.agent.test_ask_mixin import TestAskMixin
+
+        async def no_ask(_self, _ctx, _held):
+            return None
+
+        monkeypatch.setattr(TestAskMixin, "_proof_test_ask", no_ask)
+        monkeypatch.setattr(TestAskMixin, "_test_rows", lambda *_args, **_more: [])
     if module in END_CHECK_OFF:
         from app.agent.proof_mixin import ProofMixin
 

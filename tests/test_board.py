@@ -75,7 +75,11 @@ def test_migration_0014_and_back(tmp_path):
         columns = [row[1] for row in conn.execute("PRAGMA table_info(messages)")]
         agents = [row[1] for row in conn.execute("PRAGMA table_info(agents)")]
         left = [row[0] for row in conn.execute("SELECT id FROM messages")]
-    assert tools == {"Lead": ["read_file", "discuss"], "Reviewer": ["search"],
+    # (The notebook's tools are gone again. On the way up 0161 gave the built-in Reviewer back the
+    # read tools its job needs, and on the way down it keeps a role's tools as they are - a tool
+    # is the user's to take away on the old app (kanıtlı bitiş S4): its list_dir and read_file
+    # stay.)
+    assert tools == {"Lead": ["read_file", "discuss"], "Reviewer": ["search", "list_dir", "read_file"],
                      "Mine": ["read_file"], "Documenter": ["read_file"]}
     assert "board_posts" not in tables
     assert "board_post_id" not in columns and "board_seen" not in agents
