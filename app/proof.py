@@ -4,6 +4,7 @@ this turn's, and the rows of the Checked section KOLONİ writes under the answer
 
 import difflib
 import fnmatch
+import json
 import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
@@ -13,7 +14,7 @@ from typing import NamedTuple, TypedDict
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
 
-from app import coverage, finish_tests, ledger, project_map, test_found
+from app import finish_tests, ledger, project_map, test_found
 from app.code_map import PYTHON, SCRIPT, tested
 from app.commands import only_reads, plain
 from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run, ToolCall
@@ -319,15 +320,24 @@ def _folded(command: str) -> str:
 
 def _known_as(session: Session, one: Command) -> str:
     """The command a run on record is known by, folded: S9 - KOLONİ's own end-check run (its call
-    `PROOF_CALL…`) without the coverage report flags it added; never an agent's line, however
-    like them it looks (`pytest -q --cov=. --cov-report=json:….koloni/tmp/coverage-x;true` is
-    not `pytest -q`)."""
+    `PROOF_CALL…`) that added coverage's report flags, by the command it built that very line
+    from (`known_as` on its call, beside the line - never read back out of the line: a project
+    path may hold a space or a parenthesis); never an agent's line, however like them it looks
+    (`pytest -q --cov=. --cov-report=json:….koloni/tmp/coverage-x;true` is not `pytest -q`)."""
     folded = _folded(one.command)
     if "coverage-" not in folded or one.tool_call_id is None:
         return folded
-    call = session.scalar(select(ToolCall.provider_call_id).where(
-        ToolCall.id == one.tool_call_id))
-    return coverage.unflagged(folded) if (call or "").startswith(PROOF_CALL) else folded
+    call = session.execute(select(ToolCall.provider_call_id, ToolCall.arguments).where(
+        ToolCall.id == one.tool_call_id)).first()
+    if call is None or not (call[0] or "").startswith(PROOF_CALL):
+        return folded
+    try:
+        args = json.loads(call[1] or "{}")
+    except ValueError:
+        return folded
+    plain = args.get("known_as") if isinstance(args, dict) else None
+    built = isinstance(plain, str) and _folded(str(args.get("command", ""))) == folded
+    return _folded(plain) if built else folded
 
 
 def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: datetime | None,

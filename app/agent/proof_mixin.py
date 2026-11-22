@@ -333,7 +333,9 @@ class ProofMixin:
                              load: tuple[Slots, int]) -> tuple[Row, str]:
         # (S9: with coverage's report flags where they were added - the run's name stays its own)
         line = held.lines.get((run.command, run.cwd), run.command)
-        args = {"command": line, **({"cwd": run.cwd} if run.cwd != "." else {})}
+        # (and on its call the command it was built from: `proof._known_as`)
+        args = {"command": line, **({"cwd": run.cwd} if run.cwd != "." else {}),
+                **({"known_as": run.command} if line != run.command else {})}
         request = ToolCallRequest(f"{PROOF_CALL}{uuid.uuid4().hex[:16]}", "run_command",
                                   json.dumps(args))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])

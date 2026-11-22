@@ -119,27 +119,6 @@ def with_coverage(command: str, tool: str, out: str) -> str:
     return f"npx --no c8 --reporter=json --report-dir {where} {command}"
 
 
-# KOLONİ's own report flags (`with_coverage`) exactly as it writes them: its folder in the
-# project's scratch (`coverage-` and 12 hex: `CoverageMixin`), relative at the root or whole in a
-# part - no `..`, no shell syntax, no space in it - at the line's end (c8's: at its start).
-_PATH = (r"(?:(?:[A-Za-z]:)?/(?:(?!\.\.?/)[^\s\"'`$;&|<>()/\\]+/)*)?"
-         r"\.koloni/tmp/coverage-[0-9a-f]{12}")
-_ADDED = (
-    re.compile(rf" --cov=\. --cov-report=json:([\"']?){_PATH}/coverage\.json\1$"),
-    re.compile(rf"(?: --)? --coverage --coverage\.reporter=json --coverage\.reportsDirectory="
-               rf"([\"']?){_PATH}\1$"),
-    re.compile(rf"^npx --no c8 --reporter=json --report-dir ([\"']?){_PATH}\1 (?=\S)"))
-
-
-def unflagged(line: str) -> str:
-    """A line of KOLONİ's own run without the report flags it added: the command it is known by
-    (reuse, the green state, how long it takes). Only KOLONİ's runs are read so
-    (`proof._known_as`): an agent's line that looks like one is its own."""
-    for flags in _ADDED:
-        line = flags.sub("", line, count=1)
-    return line
-
-
 def report(root: Path, out: Path, tool: str) -> dict | None:
     """A run's coverage report: only one under the project's scratch, at most MOST_REPORT bytes;
     None: none there, too big, outside, or not JSON."""

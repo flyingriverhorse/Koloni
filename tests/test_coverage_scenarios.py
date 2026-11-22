@@ -18,7 +18,7 @@ from tests.test_proof_end_scenarios import PASS, begin, checked, texts
 pytestmark = pytest.mark.no_po
 
 PYTEST = "python -m pytest -q"
-_OUT = re.compile(r"--cov-report=json:\"?([^\"\s]+)\"?")
+_OUT = re.compile(r"--cov-report=json:(?:\"([^\"]+)\"|'([^']+)'|(\S+))")
 
 
 class Measuring(ScriptedExecutor):
@@ -30,7 +30,8 @@ class Measuring(ScriptedExecutor):
 
     async def start(self, command_id, command, cwd, *args, **kwargs):
         if found := _OUT.search(command):
-            out = Path(cwd) / found.group(1)  # (from the folder it runs in, as pytest-cov reads it)
+            # (from the folder it runs in, as pytest-cov reads it)
+            out = Path(cwd) / next(one for one in found.groups() if one)
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(json.dumps({"files": {path: {
                 "executed_lines": yes, "missing_lines": no}
@@ -160,6 +161,30 @@ def test_a_part_is_measured_from_its_own_folder(make_client, wait_run, project_d
     assert "/.koloni/tmp/coverage-" in line and "../" not in line, line  # (never ../.koloni)
     assert coverage_mixin.MEASURED.format(p=67, tool="pytest-cov") in rows, rows
 
+
+
+def test_a_parts_run_under_a_folder_with_a_space_and_parentheses_is_known_by_its_command(
+        make_client, wait_run, tmp_path):
+    # (S9 re-check: the part's report path is whole and quoted - "My Project (copy)" - and the run
+    # is still known by its command, from what KOLONİ built it from, never read back from it)
+    from sqlalchemy import select
+
+    from app import proof
+    from app.db.models import Command
+    project_dir = tmp_path / "My Project (copy)"
+    web = project_dir / "web"
+    web.mkdir(parents=True)
+    with_cov(web)
+    executor = Measuring([PASS], {"a.py": ([1, 2], [3])})
+    client, _model = make_client([write("web/a.py", THREE), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, parts={"web/": PYTEST})
+    rows = texts(wait_run(client, cid, run_id))
+    (line, _cwd), = executor.started
+    assert "My Project (copy)" in line and "/.koloni/tmp/coverage-" in line, line
+    assert coverage_mixin.MEASURED.format(p=67, tool="pytest-cov") in rows, rows
+    with client.app.state.session_factory() as session:
+        (ran,) = session.scalars(select(Command).where(Command.run_id == run_id)).all()
+        assert ran.command == line and proof._known_as(session, ran) == PYTEST
 
 
 def test_flags_that_failed_are_not_tried_each_turn_till_the_settings_change(make_client, wait_run,

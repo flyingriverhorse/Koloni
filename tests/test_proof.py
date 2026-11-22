@@ -506,9 +506,21 @@ def test_an_agents_coverage_look_alike_is_no_pass_of_the_command(factory, line):
         assert proof.fresh(s, "r", "lead", run, at - timedelta(seconds=30)) is None
 
 
-def test_kolonis_own_flagged_run_is_its_command(factory):
+KOLONIS = "pytest -q --cov=. --cov-report=json:{out}/.koloni/tmp/coverage-0123456789ab/coverage.json"
+
+
+@pytest.mark.parametrize(("line", "args", "known"), [
+    (KOLONIS.format(out="."), {"known_as": "pytest -q"}, True),
+    # (S9 re-check: a part under a Windows profile folder - a space, parentheses - in quotes)
+    (KOLONIS.format(out='"C:/Users/John Smith/My Project (copy)/web"').replace(
+        'web"/.koloni/tmp/coverage-0123456789ab/coverage.json', 'web/.koloni/tmp/'
+        'coverage-0123456789ab/coverage.json"'), {"known_as": "pytest -q"}, True),
+    (KOLONIS.format(out="."), {}, False),  # (no word of what it was built from: its own line)
+    (KOLONIS.format(out="."), {"known_as": "pytest -q", "command": "pytest -q --other"}, False),
+])
+def test_kolonis_own_flagged_run_is_known_by_the_command_it_built_it_from(factory, line, args,
+                                                                         known):
     run, at = proof.TestRun("pytest -q", ".", True), now()
-    line = "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-0123456789ab/coverage.json"
     with factory() as s:
         said = Message(conversation_id="c", run_id="r", agent_id="lead", role="assistant",
                        content="done")
@@ -516,11 +528,11 @@ def test_kolonis_own_flagged_run_is_its_command(factory):
         s.flush()
         call = ToolCall(run_id="r", agent_id="lead", message_id=said.id, seq=0,
                         provider_call_id=f"{proof.PROOF_CALL}x", name="run_command",
-                        arguments="{}")
+                        arguments=json.dumps({"command": line, **args}))
         s.add(call)
         s.flush()
         s.add(Command(run_id="r", agent_id="lead", command=line, cwd=".", location="host",
                       status="exited", exit_code=0, output="", timeout_seconds=60,
                       tool_call_id=call.id, started_at=at, ended_at=at + timedelta(seconds=1)))
         s.commit()
-        assert proof.fresh(s, "r", "lead", run, at - timedelta(seconds=30)) is not None
+        assert (proof.fresh(s, "r", "lead", run, at - timedelta(seconds=30)) is not None) is known

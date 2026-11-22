@@ -81,27 +81,6 @@ def test_ranges():
     assert coverage.ranges([20, 12, 13, 14, 3]) == "3, 12-14, 20"
 
 
-def test_a_line_with_kolonis_flags_is_known_by_its_command():
-    for out in (".koloni/tmp/coverage-0123456789ab", "/p/q/.koloni/tmp/coverage-0123456789ab",
-                "C:/p/.koloni/tmp/coverage-0123456789ab"):
-        for command, tool in [("python -m pytest -q", "pytest-cov"),
-                              ("npm test -- --run", "vitest"), ("npx vitest run", "vitest"),
-                              ("npm test", "c8")]:
-            assert coverage.unflagged(coverage.with_coverage(command, tool, out)) == command
-    # (review, 22 Nov: KOLONİ's exact form only - shell syntax, `..`, another folder stay)
-    for line in ["pytest --cov=. --cov-report=json:out.json",
-                 "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-x>o.txt;true",
-                 "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-x||true",
-                 "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-x/../../../x;exit",
-                 "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-0123456789ab/"
-                 "coverage.json;true",
-                 "pytest -q --cov=. --cov-report=json:/a/../.koloni/tmp/coverage-0123456789ab/"
-                 "coverage.json",
-                 "pytest -q --cov=. --cov-report=json:$(x)/.koloni/tmp/coverage-0123456789ab/"
-                 "coverage.json"]:
-        assert coverage.unflagged(line) == line, line
-
-
 def test_a_report_that_breaks_the_reader_is_none(tmp_path):
     inside = tmp_path / ".koloni" / "tmp" / "coverage-1"
     inside.mkdir(parents=True)
