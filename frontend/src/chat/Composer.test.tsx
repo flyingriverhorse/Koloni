@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
+import { ApiError } from '../api/client'
 import type { OwnCommand, Provider, Role } from '../api/types'
 import { ModelPicker } from '../models/ModelPicker'
 import { WorkTogether } from '../room/WorkTogether'
@@ -860,4 +861,24 @@ test('/model opens the model’s window while a turn runs too', async () => {
   expect(document.querySelector('.composer-status-running')).not.toBeNull()
   await userEvent.type(screen.getByLabelText('Message'), '/model{Enter}')
   expect(screen.getByRole('form', { name: 'Model for this conversation' })).toBeInTheDocument()
+})
+
+test('the budget’s question takes the focus when it is asked, not each time its chat is shown again', async () => {
+  const over = () => new ApiError(409, "this project is over this month's budget")
+  const onSend = vi.fn().mockRejectedValueOnce(over())
+  const { rerender } = render(<Composer {...props} onSend={onSend} scope="c1" />)
+  await userEvent.type(screen.getByLabelText('Message'), 'more{Enter}')
+  expect(screen.getByRole('button', { name: 'Go on anyway' })).toHaveFocus()
+  // Away to another chat and back (the box is the same one): the focus stays where the user put it.
+  rerender(<Composer {...props} onSend={onSend} scope="c2" />)
+  expect(screen.queryByRole('button', { name: 'Go on anyway' })).toBeNull()
+  screen.getByLabelText('Message').focus()
+  rerender(<Composer {...props} onSend={onSend} scope="c1" />)
+  expect(screen.getByRole('button', { name: 'Go on anyway' })).not.toHaveFocus()
+  expect(screen.getByLabelText('Message')).toHaveFocus()
+  // Asked again, it takes it again.
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  onSend.mockRejectedValueOnce(over())
+  await userEvent.type(screen.getByLabelText('Message'), '{Enter}')
+  expect(screen.getByRole('button', { name: 'Go on anyway' })).toHaveFocus()
 })

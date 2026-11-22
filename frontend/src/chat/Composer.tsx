@@ -265,6 +265,7 @@ export function Composer({
         dropping={dropping}
         error={error}
         budget={over?.key === key ? over : null}
+        asked={over}
         onGoOn={() => void (over?.again ? over.again() : send(true))}
         onCancel={() => {
           setOver(null)
@@ -495,11 +496,18 @@ function Notes(p: {
   dropping: boolean
   error: string | null
   budget: { said: string } | null
+  /** The budget's question as it was asked, whichever chat is shown: one box serves every chat. */
+  asked: object | null
   onGoOn: () => void
   onCancel: () => void
   warn: boolean
   goes: string | null
 }) {
+  // The question takes the focus when it is asked, not each time its chat is shown again.
+  const goOn = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    goOn.current?.focus()
+  }, [p.asked])
   return (
     <>
       {p.dropping && (
@@ -516,8 +524,8 @@ function Notes(p: {
       {p.budget && (
         <div role="group" aria-label={p.budget.said} className="composer-warning composer-budget">
           <span role="alert">{p.budget.said}. Send it anyway?</span>
-          {/* (The question is where the focus goes; Cancel gives it back to the message.) */}
-          <button type="button" className="btn btn-small" autoFocus onClick={p.onGoOn}>
+          {/* (The question is where the focus goes, when it is asked; Cancel gives it back to the message.) */}
+          <button ref={goOn} type="button" className="btn btn-small" onClick={p.onGoOn}>
             Go on anyway
           </button>
           <button type="button" className="btn btn-small" onClick={p.onCancel}>

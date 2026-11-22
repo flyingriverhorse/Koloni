@@ -346,19 +346,23 @@ def create_app(
         refreshing = asyncio.create_task(
             models_dev.refresh(settings.runtime_root), name="catalogue",
         ) if settings.catalogue_refresh and (fresh is None or fresh.value != "0") else None
-        yield
-        indexing.cancel()
-        await asyncio.gather(indexing, return_exceptions=True)
-        if refreshing is not None:
-            refreshing.cancel()
-            await asyncio.gather(refreshing, return_exceptions=True)
-        if clock is not None:
-            clock.cancel()
-            await asyncio.gather(clock, return_exceptions=True)
-        await app.state.runner.shutdown()
-        # The model server the user started here ends with KOLONİ: none is left on the card.
-        await app.state.local_server.stop()
-        triggers.attach(None)
+        try:
+            yield
+        finally:
+            # (Also when the server is made to quit - a second Ctrl+C: this is cancelled at
+            # the yield, and what follows must still run.)
+            indexing.cancel()
+            await asyncio.gather(indexing, return_exceptions=True)
+            if refreshing is not None:
+                refreshing.cancel()
+                await asyncio.gather(refreshing, return_exceptions=True)
+            if clock is not None:
+                clock.cancel()
+                await asyncio.gather(clock, return_exceptions=True)
+            await app.state.runner.shutdown()
+            # The model server the user started here ends with KOLONİ: none is left on the card.
+            await app.state.local_server.stop()
+            triggers.attach(None)
 
     hide_webhook_keys()
     # A restore the user staged replaces the data before anything opens it (K-disa-aktar).
@@ -633,7 +637,10 @@ def run() -> None:
         sys.stdout.reconfigure(errors="replace")
     show_link(settings.port, app.state.page_key,
               (lambda: open_code(app.state)) if opens_browser() else None)
-    uvicorn.run(app, host=settings.host, port=settings.port, log_config=None)  # (set up above)
+    # The page's /events stream never ends by itself: without a time limit the first Ctrl+C
+    # waits on it, and the second skips the lifespan's shutdown.
+    uvicorn.run(app, host=settings.host, port=settings.port, log_config=None,  # (set up above)
+                timeout_graceful_shutdown=5)
 
 
 if __name__ == "__main__":

@@ -155,6 +155,8 @@ def test_the_log_rotates_by_size_holds_what_the_start_said_and_hides_keys(
 
     def serve(app, **kwargs):
         assert kwargs["log_config"] is None  # (set up before the app was made)
+        # (One Ctrl+C with the page open ends its stream and runs the lifespan's shutdown.)
+        assert kwargs["timeout_graceful_shutdown"] == 5
         logging.getLogger("uvicorn.access").info(
             '%s - "%s %s HTTP/%s" %d', "127.0.0.1:1", "GET", "/api/x?key=SECRET", "1.1", 200)
         logging.getLogger("httpx").info("HTTP Request: GET https://x/?key=SECRET")

@@ -29,6 +29,10 @@ How to write an entry (every release looks the same):
 
 - **Chat**: a heredoc written to a file or handed to git as a message (`cat > notes.md <<'EOF'` with `1) first` in it), a comment (`echo done # 1) first step`), sh's `case … esac` patterns and a group only printed in quotes (`echo "(npm ci)"`, `git commit -m "run (npm ci) first"`) are no longer asked at every level as brackets that do not pair, nor read as an install ([docs](docs/use/permissions.md)).
 - **Agents**: the ready Bugfix recipe sends a failing test back to Fix it and starts with a failing test; a Tester or reviewer that reports nothing wrong while a test run on record failed no longer passes - unless its "Already failing before" lines name every test that failed - nor does a Tester that ran no command but reads; a check whose command you declined stops at Ready for you, not checked ([docs](docs/agents/recipes.md)).
+- **Agents**: KOLONİ no longer freezes for seconds when a tool's output holds a long run of digits (a command that prints a big number, a file of numbers read), when the fast model's notes on a turn start with many blank lines, or when a fixer's report holds a long line of spaces.
+- **Install**: closing KOLONİ with the page open takes one Ctrl+C (up to five seconds), and it now stops its local model server and the agents' browsers on Linux and macOS too ([docs](docs/getting-started/install.md)).
+- **Chat**: coming back to a chat whose over-budget question is still open no longer moves the focus to "Go on anyway"; a new question still takes it.
+- **Chat**: with Auto-read on, an answer that holds a long run of dots no longer slows the page on every word that streams in.
 
 ### Security
 

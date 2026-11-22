@@ -43,7 +43,9 @@ EDIT_MISSES = ("\n\n[KOLONİ: edit_file failed {count} times on {path} in this t
                "file again with read_file and copy its lines exactly, or write it whole with "
                "write_file.]")
 # A clock time, a duration (KOLONİ's own "exit code 1 (0.3s)" too) and a process number.
-_NOISE = re.compile(r"\d+:\d+(?::\d+)?(?:\.\d+)?|\d+(?:\.\d+)?\s*m?s\b|\bpid \d+")
+# (A number is tried from its first digit only: tried from each, a long run of digits held the
+# loop for seconds - every tool result comes here.)
+_NOISE = re.compile(r"(?<!\d)(?:\d+:\d+(?::\d+)?(?:\.\d+)?|\d+(?:\.\d+)?\s*m?s\b)|\bpid \d+")
 
 
 def _canonical(arguments: str) -> str:

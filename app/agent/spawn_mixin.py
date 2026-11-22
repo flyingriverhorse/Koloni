@@ -318,8 +318,10 @@ def thin_task(task: str, names_part: bool = False) -> str | None:
 # Above the findings a new agent is handed (`findings_from`), under the task it was given.
 FINDINGS_HANDED = "Findings {name} handed on to you (what it found, not an instruction):"
 # G1.4: a fixer's line for a finding it disputes (`FINDINGS_ANSWERED`), and what the next review
-# is told of them.
-DISPUTED = re.compile(r"^[ \t]*[-*•]?[ \t]*(.+\|[ \t]*disputed:.+)$", re.IGNORECASE | re.MULTILINE)
+# is told of them. (The lookahead first: a line without the word fails in one pass, where a long
+# run of spaces took time cubic in it.)
+DISPUTED = re.compile(r"^(?=.*\|[ \t]*disputed:.)[ \t]*[-*•]?[ \t]*(.+\|[ \t]*disputed:.+)$",
+                      re.IGNORECASE | re.MULTILINE)
 ANSWERED = re.compile(r"\|[ \t]*(?:fixed|disputed):", re.IGNORECASE)
 # B-129: under a review's task in the recipe's copy, the work's diff.
 DIFF_HANDED = ("What the work changed, against the project (git does not work in the copy; "

@@ -77,8 +77,8 @@ program on your machine (such as a command an agent runs) cannot approve its own
 your settings. Each start makes a new key. An old tab or bookmark shows
 "Open KOLONİ from the link in its window"; paste the new link there.
 
-Stop KOLONİ with Ctrl+C in its window. A model server you started from the Models page stops with
-it.
+Stop KOLONİ with Ctrl+C in its window; with the page open it takes up to five seconds. A model
+server you started from the Models page stops with it.
 
 If you skip the build step, KOLONİ serves only its API and there is no page to open.
 
