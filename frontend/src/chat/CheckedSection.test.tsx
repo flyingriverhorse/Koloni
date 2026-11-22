@@ -104,6 +104,7 @@ test('a Reviewer that still held the change after the Fix rounds: Fix it asks fo
     />,
   )
   await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
-  expect(send).toHaveBeenCalledWith(FIX_REVIEW(['a.py:3 divides by zero']))
-  expect(FIX_REVIEW(['a'])).toBe('The Reviewer KOLONİ opened at the end of the last turn held its change. Fix what it found:\n- a')
+  // (The user's words only: the findings, a model's, reach the Orchestrator as data.)
+  expect(send).toHaveBeenCalledWith(FIX_REVIEW)
+  expect(FIX_REVIEW).not.toContain('divides by zero')
 })

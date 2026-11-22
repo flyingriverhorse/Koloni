@@ -55,7 +55,8 @@ test('a fix round is a line back to the Orchestrator, and its strip counts it', 
   })
   const { data, edges, nodes } = drawn(state)
   expect(data?.rounds).toBe(1)
-  expect(edges.find(e => e.round)).toMatchObject({ source: 'checks:r', target: 'agent:r', round: 'round 1 of 2: tests fail' })
+  // (Before the Checked section says its rounds: neither the Fix rounds nor why are known.)
+  expect(edges.find(e => e.round)).toMatchObject({ source: 'checks:r', target: 'agent:r', round: 'round 1' })
   expect((nodes[0].data as AgentData).checked).toBe('✓ checked · 1 round')
 })
 

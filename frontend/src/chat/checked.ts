@@ -3,9 +3,8 @@ import type { ConvState } from '../state/applyEvent'
 
 /** What Fix it sends: a new message of the user's, by their click - nothing starts by itself. */
 export const FIX_IT = (command: string) => `The tests KOLONİ ran at the end of the last turn failed: \`${command}\`. Fix what fails.`
-/** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds - its blocking findings. */
-export const FIX_REVIEW = (findings: string[]) =>
-  `The Reviewer KOLONİ opened at the end of the last turn held its change. Fix what it found:\n${findings.map(one => `- ${one}`).join('\n')}`
+/** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds: words of the user's own - the findings reach the Orchestrator as data (`review_held`), never as theirs. */
+export const FIX_REVIEW = 'The Reviewer KOLONİ opened at the end of the last turn still held its change. Fix its blocking findings.'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -13,9 +12,8 @@ type Row = NonNullable<Message['checked']>[number]
 export function fixOf(rows: Row[]): string | null {
   const failed = rows.find(row => row.kind === 'tests' && row.state === 'failed' && row.command)
   if (failed?.command) return FIX_IT(failed.command)
-  const held = rows.some(row => row.kind === 'review' && row.state === 'failed')
-  const found = rows.filter(row => row.kind === 'finding' && row.text.startsWith('Blocking: ')).map(row => row.text.slice('Blocking: '.length))
-  return held && found.length ? FIX_REVIEW(found) : null
+  const held = rows.some(row => row.kind === 'review' && row.text.startsWith('Still on hold'))
+  return held && rows.some(row => row.kind === 'finding' && row.text.startsWith('Blocking: ')) ? FIX_REVIEW : null
 }
 
 /** A turn's "checked" message: what KOLONİ checked at its end (kanıtlı bitiş), drawn by `CheckedSection`. */

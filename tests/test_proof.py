@@ -339,3 +339,45 @@ def test_a_recipe_turn_follows_the_recipe_not_the_chats_switch(factory):
         s.get_one(Project, "p").after_change = "nothing"
         conversation.after_change = "on"
         assert proof.after_change_of(s, conversation, run) == "nothing"
+
+
+# --- S3: what is looked over ----------------------------------------------------------------
+
+def _change(path, added, kind=None):
+    return proof.Change(path, kind or proof.kind_of(path), added, 0, False, "lead", True)
+
+
+def test_review_reasons_big_by_lines_and_files_of_code_only():
+    assert proof.review_reasons([_change("a.py", 81)], "").big
+    assert not proof.review_reasons([_change("a.py", 80)], "").big
+    # (Documents are not counted: 4 .md files are not big; 4 .py are.)
+    assert not proof.review_reasons([_change(f"d{i}.md", 30) for i in range(4)], "").big
+    assert proof.review_reasons([_change(f"m{i}.py", 1) for i in range(4)], "").big
+    said = proof.review_reasons([_change("a.py", 3), _change("b.md", 100)], "")
+    assert (said.lines, said.files) == (3, 1)
+
+
+def test_security_by_path_word_and_added_line_only():
+    diff = ("--- a/app/utils.py\n+++ b/app/utils.py\n+import subprocess\n"
+            "+subprocess.run(x, shell=True)\n-eval(old)\n")
+    said = proof.review_reasons([_change("app/utils.py", 2)], diff)
+    assert "shell=True (added in app/utils.py)" in said.security
+    assert not any(one.startswith("eval(") for one in said.security)  # (a removed line)
+    assert proof.review_reasons([_change("app/auth/session.py", 1)], "").security == [
+        "app/auth/session.py (path)"]
+    assert proof.review_reasons([_change(".env.local", 1)], "").security
+    assert not proof.review_reasons([_change("app/main.py", 1)], "+x = 1\n").security
+
+
+def test_turn_diff_is_cut_names_what_is_left_out_and_shows_no_secret(factory):
+    with factory() as s:
+        change(s, "a.py", None, "".join(f"a{i} = {i}\n" for i in range(50)))
+        change(s, "b.py", None, "".join(f"b{i} = {i}\n" for i in range(50)))
+        change(s, ".env", None, "KEY=very-secret\n")
+        shown, total, left = proof.turn_diff(s, "r", "lead", 600)
+    assert "+++ b/a.py" in shown and "a49 = 49" in shown and left == ["b.py"]
+    assert total > len(shown) and "very-secret" not in shown
+    with factory() as s:
+        whole, _total, left = proof.turn_diff(s, "r", "lead", 100_000)
+    assert left == [] and ".env: a secret file - changed, not shown" in whole
+    assert "very-secret" not in whole

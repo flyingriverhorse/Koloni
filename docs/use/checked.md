@@ -154,8 +154,9 @@ refute that the change is safe. Both may look at once.
 
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
-  the project they open. They get read tools only, whatever their role is given: they change
-  nothing.
+  the project they open. They get read tools only and no MCP server, whatever their role is
+  given: they change nothing. One whose model is a CLI that works with tools of its own is not
+  opened ("Review not run: …"), as KOLONİ could not hold it to reading.
 - For a change a user sees (a screen's file, a command's option) in a project with `docs/`, a
   README or a CHANGELOG, they also check the docs: "Docs not updated for: …" is a suggestion,
   blocking only where the project's own rules say docs must change with it.
@@ -164,7 +165,8 @@ refute that the change is safe. Both may look at once.
   as failing tests do; KOLONİ runs the tests again, and the Reviewer looks again at the new
   change - until MERGE with the tests passing, or the **Fix rounds** are spent. Then the section
   lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
-  sends the blocking findings in a new message.
+  sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
+  as data, never as your words.
 - Each look is an agent's work on its model: on the canvas, in its window and in Usage.
 - No look: a small change, **Tests only**, tests that still fail (they are fixed first), a turn
   over its token limit, or a recipe whose own Review step looked already - rounds never stack.

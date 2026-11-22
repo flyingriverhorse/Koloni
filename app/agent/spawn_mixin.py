@@ -2092,6 +2092,7 @@ class SpawnMixin:
             lead = any(one is not None and one.id == role.id
                        for _r, _t, one in self._rows(session, ctx.cid))
             tools = self._read_only(call_id, effective_tools(role.tools, self._caps(ctx)))
+            self._held_to_read(call_id, model, provider)
             # PAID_SWITCH: KOLONİ's move of it onto a provider paid per token (not a pick, not
             # the user's Run there). The user's word on that provider in this turn stands.
             paid = None if chosen and users is None or yes or users else self._paid_for(

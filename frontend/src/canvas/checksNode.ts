@@ -117,7 +117,7 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data })
   edges.push({ id: `agent:${lead.id}>${id}`, source: `agent:${lead.id}`, target: id, active: Boolean(at), plan: true, po: true })
   for (let round = 1; round <= Math.min(rounds, said.most); round++)
-    edges.push({ id: `${id}>agent:${lead.id}:${round}`, source: id, target: `agent:${lead.id}`, active: false, round: `round ${round} of ${said.most}: ${said.why[round - 1] ?? 'tests fail'}` })
+    edges.push({ id: `${id}>agent:${lead.id}:${round}`, source: id, target: `agent:${lead.id}`, active: false, round: roundLine(round, said) })
   reviewersAfter(state, own, `agent:${lead.id}`, id, edges)
   // (The Orchestrator's strip says it too.)
   const leadNode = nodes.find(node => node.id === `agent:${lead.id}`)
@@ -146,6 +146,11 @@ function roundsSaid(checked: Message | undefined): { n: number; most: number; wh
   const text = checked?.checked?.find(row => row.kind === 'rounds')?.text ?? ''
   const [, n, most, why] = /(\d+) of (\d+) rounds?(?: \((.*)\))?/.exec(text) ?? []
   return { n: Number(n ?? 0), most: most ? Number(most) : MOST_ROUNDS, why: why ? why.split('; ') : [] }
+}
+
+/** A round's line back: "round 1 of 2: tests fail" once the Checked section says its rounds; before that only "round 1" - the Fix rounds and what sent it back are not known yet. */
+function roundLine(round: number, said: { n: number; most: number; why: string[] }): string {
+  return said.n ? `round ${round} of ${said.most}: ${said.why[round - 1] ?? 'tests fail'}` : `round ${round}`
 }
 
 /** S3: the Reviewers KOLONİ opened at the turn's end are drawn after its Checks node - their spawn line from it, not the Orchestrator. */
