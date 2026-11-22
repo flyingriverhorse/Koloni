@@ -188,6 +188,8 @@ def _at_work(session: Session, project: Project, chats: list[str], runner) -> st
     if any(runner.commands.live_outputs(cid) for cid in chats):
         # (Kept running past its turn - a dev server - it would go on with no card to stop it.)
         return "a command it started is still running: stop it first"
+    if why := runner.checks_in(project.id):  # (S6: one waiting for the machine starts later)
+        return why
     if session.scalar(select(AwayRun.id).where(
             AwayRun.project_id == project.id, AwayRun.status == "running").limit(1)):
         return "its jobs are being worked on while you're away: stop them first"

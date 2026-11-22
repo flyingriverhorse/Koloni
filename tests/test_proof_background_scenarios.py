@@ -238,6 +238,191 @@ def test_a_background_run_past_its_limit_is_timed_out(make_client, wait_run, pro
     assert client.get(f"/api/conversations/{cid}").json()["commands"][0]["status"] == "timed_out"
 
 
+def status_of(client, cid, run_id):
+    snap = client.get(f"/api/conversations/{cid}").json()
+    return next(r["status"] for r in snap["runs"] if r["id"] == run_id)
+
+
+def approve_write(client, cid, path):
+    def proposed():
+        snap = client.get(f"/api/conversations/{cid}").json()
+        return [f for f in snap["file_changes"] if f["path"] == path and f["status"] == "proposed"]
+    (change,) = until(proposed)
+    answer = client.post(f"/api/file-changes/{change['id']}/approve", headers=OWN)
+    assert answer.status_code == 200 and answer.json()["status"] == "applied", answer.text
+
+
+SETTINGS = ".vscode/settings.json"  # (a standing file: it steers later work)
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_standing_file_the_suite_writes_after_its_turn_is_taken_back_with_no_card(
+        make_client, wait_run, project_dir, gate):
+    # (Review B2, probe A: a card here set the finished turn waiting again and held the slot.)
+    executor = ScriptedExecutor([Script(["4 passed\n"], hold=gate, writes={SETTINGS: "{}\n"})])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    gate.release()
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["state"] != "running"])
+    assert row["state"] == "passed" and status_of(client, cid, run_id) == "completed"
+    assert not (project_dir / SETTINGS).exists()  # (the tests' own write: not the work's)
+    snap = client.get(f"/api/conversations/{cid}").json()
+    (noted,) = [c for c in snap["tool_calls"]
+                if c["name"] == "write_file" and SETTINGS in (c["result"] or "")]
+    assert noted["status"] == "denied" and "its turn was over" in noted["result"], noted
+    assert not client.app.state.runner._test_slot.locked()
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_newer_turns_approved_standing_write_survives_the_older_run_it_ends(
+        make_client, wait_run, project_dir, gate):
+    # (Review B1, probe B: the superseded run took back what the newer turn wrote meanwhile.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write(SETTINGS, '{"a": 1}\n', "w2"), text("more")],
+                                 executor=ScriptedExecutor([held(gate), PASS, PASS]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    later = client.post(f"/api/conversations/{cid}/messages", json={"content": "and"}).json()
+    approve_write(client, cid, SETTINGS)
+    wait_run(client, cid, later["run"]["id"])
+    until(lambda: rows_of(client, cid, run_id)[0]["text"] == proof.SUPERSEDED)
+    assert (project_dir / SETTINGS).read_text(encoding="utf-8") == '{"a": 1}\n'
+    # (Never taken back at all - not only put there again by the newer turn's own run.)
+    snap = client.get(f"/api/conversations/{cid}").json()
+    assert not [c for c in snap["tool_calls"] if c["name"] == "write_file"
+                and SETTINGS in (c["result"] or "") and "taken back" in c["result"]], [
+        (c["status"], c["result"]) for c in snap["tool_calls"] if c["name"] == "write_file"]
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_later_turns_standing_write_survives_the_run_ending_after_it(
+        make_client, wait_run, project_dir, gate):
+    # (Review B1, probe C: the later turn checks nothing - the old run ends on its own.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write(SETTINGS, '{"a": 1}\n', "w2"), text("more")],
+                                 executor=ScriptedExecutor([held(gate, "4 passed\n")]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
+    client.patch(f"/api/projects/{pid}", json={"after_change": "nothing"}, headers=OWN)
+    later = client.post(f"/api/conversations/{cid}/messages", json={"content": "and"}).json()
+    approve_write(client, cid, SETTINGS)
+    wait_run(client, cid, later["run"]["id"])
+    gate.release()
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["state"] != "running"])
+    assert row["text"].endswith(proof.CHANGED_WHILE) and row["state"] == "note", row
+    assert (project_dir / SETTINGS).read_text(encoding="utf-8") == '{"a": 1}\n'
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_command_of_a_later_turn_beneath_the_run_says_the_project_changed(
+        make_client, wait_run, project_dir, gate):
+    # (Review item 1: no file on record - a formatter, a codegen - yet the project changed.)
+    executor = ScriptedExecutor([held(gate, "4 passed\n"), PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  run("python fmt.py"), text("formatted")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    later = client.post(f"/api/conversations/{cid}/messages", json={"content": "fmt"}).json()
+    wait_run(client, cid, later["run"]["id"])
+    gate.release()
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["state"] != "running"])
+    assert (row["state"], row["text"]) == (
+        "note", f"Tests passed: python check.py - 4 passed{proof.CHANGED_WHILE}")
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_newer_pass_ends_only_the_same_suite(make_client, wait_run, project_dir, gate):
+    # (Review item 2: another command, or another folder, is not the one it takes the place of.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write("b.py", "y = 1\n", "w2"), text("more")],
+                                 executor=ScriptedExecutor([held(gate, "4 passed\n"), PASS]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
+    client.patch(f"/api/projects/{pid}", json={"check_command": "python other.py"}, headers=OWN)
+    client.put("/api/test-load", json={"runs_at_once": 2}, headers=OWN)
+    later = client.post(f"/api/conversations/{cid}/messages", json={"content": "and"}).json()
+    wait_run(client, cid, later["run"]["id"])
+    assert rows_of(client, cid, run_id)[0]["state"] == "running"
+    gate.release()
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["state"] != "running"])
+    assert row["text"].startswith("Tests passed: python check.py"), row
+
+
+@pytest.mark.usefixtures("soon")
+def test_stopped_while_waiting_for_the_machine_it_says_so(make_client, wait_run, project_dir):
+    # (Review item 3: its clock is from its start - and one that never started says that.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
+                                 executor=ScriptedExecutor([]))
+    slot = client.app.state.runner._test_slot
+    client.portal.call(slot.acquire)  # (another run holds the machine)
+    try:
+        cid, run_id = begin(client, project_dir, check_command="python check.py")
+        wait_run(client, cid, run_id)
+        assert client.post(f"/api/runs/{run_id}/check/stop", headers=OWN).status_code == 200
+        (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                                if one["state"] != "running"])
+    finally:
+        client.portal.call(slot.release)
+    assert row["text"] == "Full tests stopped by you before they started - not checked"
+
+
+def test_a_lower_limit_holds_new_runs_until_enough_going_end():
+    # (Review item 4: the ones going under the old limit still count.)
+    import asyncio
+
+    async def go() -> list[str]:
+        slots, said = proof_later_mixin.Slots(2), []
+        await slots.acquire()
+        await slots.acquire()
+        slots.limit = 1
+
+        async def third():
+            await slots.acquire()
+            said.append("third")
+        waiting = asyncio.ensure_future(third())
+        slots.release()
+        await asyncio.sleep(0.05)
+        said.append("one released")
+        slots.release()
+        await asyncio.wait_for(waiting, 5)
+        return said
+    assert asyncio.run(go()) == ["one released", "third"]
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_project_is_not_deleted_under_a_run_waiting_for_the_machine(
+        make_client, wait_run, project_dir):
+    # (Review item 5: it would start later in a folder no longer KOLONİ's.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
+                                 executor=ScriptedExecutor([]))
+    slot = client.app.state.runner._test_slot
+    client.portal.call(slot.acquire)
+    try:
+        cid, run_id = begin(client, project_dir, check_command="python check.py")
+        wait_run(client, cid, run_id)
+        pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
+        refused = client.delete(f"/api/projects/{pid}", headers=OWN)
+        assert refused.status_code == 409 and refused.json()["detail"] == (
+            proof_later_mixin.BUSY_HERE)
+        assert client.post(f"/api/runs/{run_id}/check/stop", headers=OWN).status_code == 200
+        until(lambda: rows_of(client, cid, run_id)[0]["state"] != "running")
+        assert client.delete(f"/api/projects/{pid}", headers=OWN).status_code == 204
+    finally:
+        client.portal.call(slot.release)
+
+
 def test_koloni_s_variables_reach_the_command_on_the_host_and_in_docker(tmp_path):
     import asyncio
     import sys

@@ -6,6 +6,7 @@ changed test files and the ones named for a changed module; vitest - `vitest rel
 project of the change. Elsewhere, or for a change it cannot place (a config file, `conftest.py`,
 another language's file), none: the whole suite alone. No model; nothing is run here."""
 
+import configparser
 import json
 import os
 import re
@@ -14,9 +15,22 @@ from pathlib import Path, PurePosixPath
 
 from app.proof import NO_TESTS, TestRun, kind_of
 
-# A file name put on the command line as it is - nothing for sh or PowerShell to read otherwise.
-# (A changed file's name is an agent's word: one named otherwise gives no narrower run.)
-SAFE = re.compile(r"\w[\w./-]*")
+# A file name put on the command line as it is - nothing for sh or PowerShell to read otherwise:
+# plain ASCII parts, none that starts with a dot (no `..`, no hidden folder). (A changed file's
+# name is an agent's word: one named otherwise gives no narrower run.)
+SAFE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_][A-Za-z0-9_.-]*)*")
+# Where a runner's word may stand: first, or after one of these - not a word another tool reads
+# (`tox -e pytest`, `make pytest`, `nox -s pytest`).
+LAUNCHERS = {(), ("python", "-m"), ("python3", "-m"), ("py", "-m"), ("uv", "run"),
+             ("poetry", "run"), ("pipenv", "run"), ("pdm", "run"), ("hatch", "run"), ("npx",),
+             ("npx", "--no"), ("pnpm",), ("pnpm", "exec"), ("yarn",), ("bunx",)}
+# What leaves tests out. A file named on pytest's command line bypasses it - so where the user
+# left tests out, there is no related step (fail closed: review B3).
+EXCLUDING = ("--ignore", "--deselect")
+# Where pytest reads its options, in its order (9.x), from the folder it starts in upwards.
+PYTEST_FILES = ("pytest.toml", ".pytest.toml", "pytest.ini", ".pytest.ini", "pyproject.toml",
+                "tox.ini", "setup.cfg")
+VITEST_BINS = ("vitest", "vitest.cmd", "vitest.ps1")
 MOST = 40  # files on one command line at most
 # More than one command, a redirection, an expansion: what is added would land elsewhere.
 COMPOUND = re.compile(r"[;&|<>`$(){}\"']")
@@ -55,7 +69,9 @@ def _named(word: str) -> str:
 
 
 def _runner(words: list[str], *names: str) -> int | None:
-    return next((at for at, word in enumerate(words) if _named(word) in names), None)
+    """Where the runner's word is: first, or after a known launcher (`LAUNCHERS`)."""
+    at = next((at for at, word in enumerate(words) if _named(word) in names), None)
+    return at if at is not None and tuple(map(_named, words[:at])) in LAUNCHERS else None
 
 
 def _options_only(tail: list[str], values: set[str]) -> bool:
@@ -88,26 +104,117 @@ def _walk(cwd: Path, wanted) -> list[str]:
 
 def _pytest(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     """The changed test files, and the test files named for a changed module (`test_x.py`,
-    `x_test.py`) anywhere in the part. Not for `conftest.py`, nor any change but Python's."""
+    `x_test.py`) where pytest collects in the part. Not for `conftest.py`, nor any change but
+    Python's, nor where the user left tests out (`_collected`)."""
     at = _runner(words, "pytest", "py.test")
-    if at is None or not _options_only(words[at + 1:], PYTEST_VALUES):
+    if at is None or not _options_only(words[at + 1:], PYTEST_VALUES) or any(
+            word.startswith(EXCLUDING) for word in words[at + 1:]):
         return None
     names = [PurePosixPath(path).name for path in paths]
     if any(not name.endswith(".py") or name == "conftest.py" for name in names):
         return None
+    within = _collected(cwd)
+    if within is None:
+        return None
     tests = {name for name in names if name.startswith("test_") or name.endswith("_test.py")}
     stems = {name[:-3] for name in names if name not in tests and name != "__init__.py"}
     wanted = {one for stem in stems for one in (f"test_{stem}.py", f"{stem}_test.py")}
-    found = _files([path for path in paths if PurePosixPath(path).name in tests]
-                   + (_walk(cwd, wanted.__contains__) if wanted else []), cwd)
+    found = _files([path for path in [
+        *(path for path in paths if PurePosixPath(path).name in tests),
+        *(_walk(cwd, wanted.__contains__) if wanted else [])] if _under(path, within)], cwd)
     return [*words, *found] if found else None
+
+
+def _under(path: str, within: list[str]) -> bool:
+    return any(not top or path == top or path.startswith(f"{top}/") for top in within)
+
+
+def _collected(cwd: Path) -> list[str] | None:
+    """Where pytest collects in `cwd`: its `testpaths`, as folders from it ("": all of it).
+    None where the project leaves tests out - an ignore or deselect in `addopts`, a
+    `norecursedirs`, a conftest's `collect_ignore` / `pytest_ignore_collect` - or its config
+    cannot be read, or names its test paths by a pattern."""
+    try:
+        at, options = _pytest_config(cwd) or (cwd, {})
+    except ValueError:
+        return None
+    if "norecursedirs" in options or any(flag in options.get("addopts", "")
+                                         for flag in EXCLUDING) or _conftest_ignores(cwd, at):
+        return None
+    roots = options.get("testpaths", "").split()
+    if any(char in root for root in roots for char in "*?["):
+        return None
+    here, within = cwd.resolve(), []
+    for root in roots:
+        top = (at / root).resolve()
+        if here.is_relative_to(top):
+            within.append("")
+        elif top.is_relative_to(here):
+            within.append(top.relative_to(here).as_posix())
+    return within if roots else [""]
+
+
+def _pytest_config(cwd: Path) -> tuple[Path, dict[str, str]] | None:
+    """The folder of the config pytest reads from `cwd`, and its options as text; None: none.
+    ValueError: one that cannot be read."""
+    for at in (cwd, *cwd.parents):
+        for name in PYTEST_FILES:
+            options = _options_in(at / name)
+            if options is not None:
+                return at, options
+    return None
+
+
+def _options_in(path: Path) -> dict[str, str] | None:
+    """A pytest config file's options; None: no pytest section in it (a pytest.ini always is
+    one). ValueError: it cannot be read."""
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".toml":
+            return _toml_options(tomllib.loads(text), path.name == "pyproject.toml")
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.read_string(text)
+    except (OSError, ValueError, configparser.Error) as exc:
+        raise ValueError(path.name) from exc
+    section = "tool:pytest" if path.name == "setup.cfg" else "pytest"
+    if parser.has_section(section):
+        return dict(parser[section])
+    return {} if path.name.endswith("pytest.ini") else None
+
+
+def _toml_options(found: dict, pyproject: bool) -> dict[str, str] | None:
+    table = found.get("tool", {}).get("pytest") if pyproject else found.get("pytest", {})
+    if not isinstance(table, dict):
+        return None if pyproject else {}
+    table = table.get("ini_options", table)
+    return {key: " ".join(map(str, value)) if isinstance(value, list) else str(value)
+            for key, value in table.items() if key != "ini_options"}
+
+
+def _conftest_ignores(cwd: Path, at: Path) -> bool:
+    """Whether a conftest.py pytest loads for `cwd` (in it, or above it up to the config's
+    folder `at`) leaves tests out of the collection."""
+    above = [one / "conftest.py" for one in cwd.parents if one.is_relative_to(at)]
+    return any(_holds(one, ("collect_ignore", "pytest_ignore_collect")) for one in [
+        *(cwd / rel for rel in _walk(cwd, "conftest.py".__eq__)), *above])
+
+
+def _holds(path: Path, words: tuple[str, ...]) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return any(word in text for word in words)
 
 
 def _js(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     """vitest's `related`, jest's `--findRelatedTests`, of the changed sources - named in the
-    command, or `npm test`'s script. shortcut: jest is not measured on this machine (vitest
-    5.0.3 is, 22 Nov: `related --run` ends, no watch); pnpm / yarn test give none - add theirs
-    when met."""
+    command, or `npm test`'s script. vitest 5.0.3, measured 22 Nov: `related --run` ends (no
+    watch) and keeps the config's `exclude` (`related` of a file only e2e specs import found no
+    test). shortcut: jest is not measured on this machine - a `testPathIgnorePatterns` gives no
+    related step (fail closed); pnpm / yarn test give none - add theirs when met."""
     if any(PurePosixPath(path).suffix not in JS for path in paths):
         return None
     files = _files(paths, cwd)
@@ -119,7 +226,7 @@ def _js(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     if at is None:
         return None
     return _vitest(words[:at + 1], words[at + 1:], files) if _named(words[at]) == "vitest" else (
-        _jest(words, files))
+        _jest(words, files, cwd))
 
 
 def _vitest(launcher: list[str], tail: list[str], files: list[str]) -> list[str] | None:
@@ -129,28 +236,33 @@ def _vitest(launcher: list[str], tail: list[str], files: list[str]) -> list[str]
     return [*launcher, "related", *tail, "--run", "--passWithNoTests", *files]
 
 
-def _jest(words: list[str], files: list[str]) -> list[str] | None:
+def _jest(words: list[str], files: list[str], cwd: Path) -> list[str] | None:
     at = _runner(words, "jest") or 0
-    if WATCHING & set(words) or not _options_only(words[at + 1:], JEST_VALUES):
+    if WATCHING & set(words) or not _options_only(words[at + 1:], JEST_VALUES) or any(
+            _holds(one, ("testPathIgnorePatterns",))
+            for one in [cwd / "package.json", *cwd.glob("jest.config.*")]):
         return None
     return [*words, "--passWithNoTests", "--findRelatedTests", *files]
 
 
 def _npm_test(words: list[str], files: list[str], cwd: Path) -> list[str] | None:
     """`npm test` whose script is vitest or jest alone. vitest through `npx --no` - only where
-    the project's own vitest is installed (the one its script runs; `--no`: never an install);
-    jest through the script itself."""
+    the project's own vitest is installed (the one its script runs; `--no`: never an install),
+    and no `pretest` runs first (a build, a codegen: npx would skip it); jest through the script
+    itself."""
     try:
-        script = json.loads((cwd / "package.json").read_text(encoding="utf-8"))["scripts"]["test"]
+        scripts = json.loads((cwd / "package.json").read_text(encoding="utf-8"))["scripts"]
+        script = scripts["test"]
     except (OSError, ValueError, KeyError, TypeError):
         return None
     said = script.split() if isinstance(script, str) and not COMPOUND.search(script) else []
     if said and said[0] == "vitest":
         # (as npx finds it: in a node_modules/.bin here or above - a workspace's root)
-        own = any(next((at / "node_modules" / ".bin").glob("vitest*"), None)
-                  for at in (cwd, *cwd.parents))
-        return _vitest(["npx", "--no", "vitest"], said[1:], files) if own else None
-    if said and said[0] == "jest" and _jest(said, files) is not None:
+        own = any((at / "node_modules" / ".bin" / name).is_file()
+                  for at in (cwd, *cwd.parents) for name in VITEST_BINS)
+        return _vitest(["npx", "--no", "vitest"], said[1:], files) if (
+            own and "pretest" not in scripts) else None
+    if said and said[0] == "jest" and _jest(said, files, cwd) is not None:
         return [*words, "--", "--passWithNoTests", "--findRelatedTests", *files]
     return None
 

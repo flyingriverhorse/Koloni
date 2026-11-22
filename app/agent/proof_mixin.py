@@ -20,7 +20,7 @@ from sqlalchemy import literal_column, select
 
 from app import away, injection, ledger, proof, recipe_run
 from app.agent.ctx import Ctx, _GateRefused
-from app.agent.proof_later_mixin import WORKERS_ENV, Check
+from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
 from app.commands import web_off_reason
 from app.db.models import Agent, Command, Message, ToolCall, now
@@ -291,11 +291,12 @@ class ProofMixin:
 
     async def _run_tests_now(self: "AgentRunner", ctx: Ctx, run: TestRun, how: str, held: Proof,
                              seconds: int | None, message_id: str, check: Check,
-                             load: tuple[asyncio.Semaphore, int]) -> tuple[Row, str]:
+                             load: tuple[Slots, int]) -> tuple[Row, str]:
         args = {"command": run.command, **({"cwd": run.cwd} if run.cwd != "." else {})}
         request = ToolCallRequest(f"{PROOF_CALL}{uuid.uuid4().hex[:16]}", "run_command",
                                   json.dumps(args))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
+        check.call_id = call_id
         self._set_call(ctx.cid, call_id, status="running", started_at=now())
         ws, taken, given, (slot, workers) = self._ws(ctx), [], {"seconds": seconds}, load
 
@@ -330,7 +331,7 @@ class ProofMixin:
             code, output, said, ended = await self._run_in_copy(
                 ctx, ws, run.command, call_id, ask=how == "ask",
                 once=held.yes.setdefault(run.cwd, set()), cwd=run.cwd, seconds=seconds,
-                where=in_slot, env={WORKERS_ENV: str(workers)})
+                where=in_slot, env={WORKERS_ENV: str(workers)}, over=lambda: check.later)
         except _GateRefused as exc:
             self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
             return proof.row("tests", "not_run", proof.NOT_RUN.format(why=exc), run.command,

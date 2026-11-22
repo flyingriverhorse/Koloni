@@ -102,9 +102,19 @@ itself, the end works like a pull request's CI:
     | cargo | `cargo test -p` each changed crate of a workspace |
     | dotnet | `dotnet test` of the one test project of the change |
 
-    Where none can be named (another runner, a change to a configuration file or to
-    `conftest.py`, a command that names its own tests), there is no related step. A guessed
-    command that would need its card has no related step either: one card per command.
+    The runner must be the command's first word or follow its launcher (`python -m`,
+    `uv run`, `npx`, ...): `tox -e pytest` or `make pytest` gets no related step. Where none can
+    be named (another runner, a change to a configuration file or to `conftest.py`, a command
+    that names its own tests), there is no related step. A guessed command that would need its
+    card has no related step either: one card per command.
+
+    A test file named on the command line would get past what you left out of your tests, so
+    where you left tests out there is no related step, only the whole suite: for pytest, an
+    `--ignore`, `--ignore-glob` or `--deselect` (in the command or in `addopts`), a
+    `norecursedirs`, or a `conftest.py` with `collect_ignore` or `pytest_ignore_collect`; for
+    jest, a `testPathIgnorePatterns`. pytest's `testpaths` are kept: only test files under them
+    are named. vitest's `related` keeps the config's `exclude` itself. An `npm test` with a
+    `pretest` script gets no vitest related step (it would skip the `pretest`).
 
 2. **Then the whole suite.** After related tests it goes on in the background at once. Without
    them the answer waits up to **1 minute** for it: one that ends by then is said, and a
@@ -119,14 +129,21 @@ itself, the end works like a pull request's CI:
 The whole suite's own limit is the commands' 10 minutes. Past it the section says "Tests timed
 out after 10 min".
 
-**Stop this check**, under a running line, stops it: what finished stays, and the line says
-"Full tests stopped by you at 1:02 - not checked" (or "Related tests…"). The turn's other test
-runs are then not started. It works at every permission level.
+**Stop this check**, under a suite running after the answer, stops it: what finished stays, and
+the line says "Full tests stopped by you at 1:02 - not checked" (counted from when it started),
+or "before they started" if it was still waiting for the machine. It works at every permission
+level. A button to stop the related tests while the answer waits for them comes with the
+canvas's Checks node; until then **Stop** ends the turn.
 
-- A newer turn that changes the same project stops a suite still running in the background, as
-  a new push stops a pull request's old CI run: "Tests not finished: the project changed, and a
-  newer run took their place". A result that comes after the project changed beneath it adds
-  "- the project changed while they ran", and a pass then is not shown as passed.
+- A newer turn that changes the same project and runs the same suite stops one still running in
+  the background, as a new push stops a pull request's old CI run: "Tests not finished: the
+  project changed, and a newer run took their place". A result that comes after the project
+  changed beneath it adds "- the project changed while they ran", and a pass then is not shown
+  as passed: a change on record (written, taken in or undone) or a command of any turn that may
+  have changed files.
+- What the suite writes of the files that steer later work (`.vscode/`, `.claude/`, an
+  instruction file, `.koloni/`) is taken back when it ends, as for any command; after its turn,
+  with no card. What another turn wrote there meanwhile stays.
 - **Stop everything** and putting the chat away stop it too. If KOLONİ closes while it runs,
   the next start says "Tests not finished: KOLONİ restarted".
 - A job while you're away, a To-do task's turn and a trigger's turn have nobody waiting for

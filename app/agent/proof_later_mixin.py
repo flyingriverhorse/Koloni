@@ -17,13 +17,14 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
 from app import proof, proof_related
 from app.agent.ctx import Ctx
-from app.db.models import Message
+from app.db.models import Command, Message, now
 from app.proof import Row, TestRun
 from app.serialize import message_out
 
@@ -39,6 +40,9 @@ log = logging.getLogger(__name__)
 DETACH_SECONDS = 60
 YOU_STOPPED = "you stopped the check"
 BY_YOU = "{what} stopped by you at {clock} - not checked"
+BY_YOU_EARLY = "{what} stopped by you before they started - not checked"
+BUSY_HERE = ("its tests run on after a turn, or wait for the machine: stop them first (Stop this "
+             "check, under the turn's answer)")
 # What KOLONİ's own test runs are given besides the environment an agent's command gets.
 # shortcut: only pytest-xdist's `-n auto` reads it; vitest's / jest's workers are not set - set
 # theirs once measured.
@@ -49,20 +53,44 @@ def _future() -> asyncio.Future:
     return asyncio.get_running_loop().create_future()
 
 
+class Slots:
+    """KOLONİ's own test runs at once: at most `limit` (Settings), the ones going counted
+    across a change of it - a lower limit holds new runs until enough of those going end."""
+
+    def __init__(self, limit: int = 1) -> None:
+        self.limit, self.taken, self._freed = limit, 0, asyncio.Event()
+
+    async def acquire(self) -> bool:
+        while self.taken >= self.limit:
+            self._freed.clear()
+            await self._freed.wait()
+        self.taken += 1
+        return True
+
+    def release(self) -> None:
+        self.taken -= 1
+        self._freed.set()
+
+    def locked(self) -> bool:
+        return self.taken >= self.limit
+
+
 @dataclass
 class Check:
     """One of KOLONİ's test runs at a turn's end, while it runs: whose, what it is called in its
-    row, when it was started (monotonic), how long its turn's pass waits for it (`until`, None:
+    row, the command and folder it runs, how long its turn's pass waits for it (`until`, None:
     to its own limit), once it is past its card (`started`), once it has the machine (`going`,
-    with when), whether it went on after the answer, and why it was stopped."""
+    with when), its call, whether it went on after the answer, and why it was stopped."""
     run_id: str
     cid: str
     project_id: str
     what: str
+    command: str
+    cwd: str
     until: float | None
-    since: float = field(default_factory=time.monotonic)
     started: asyncio.Future = field(default_factory=lambda: _future())
     going: asyncio.Future = field(default_factory=lambda: _future())
+    call_id: str | None = None
     later: bool = False
     why: str | None = None
 
@@ -80,10 +108,10 @@ class ProofLaterMixin:
         suite may go on after the answer: the related tests first, then the whole suite - which
         stops holding the answer at once after them, else after DETACH_SECONDS."""
         later = self._may_go_on(ctx)
-        project_id = self._project_id(ctx)
-        if later:  # (what went on of an earlier state of the project is void now: as CI's)
-            self._end_checks(lambda one: one.later and one.project_id == project_id,
-                             proof.SUPERSEDED)
+        project_id, mine = self._project_id(ctx), {(run.command, run.cwd) for run in runs}
+        if later:  # (the same suite gone on over an earlier state of the project: void, as CI's)
+            self._end_checks(lambda one: one.later and one.project_id == project_id and (
+                one.command, one.cwd) in mine, proof.SUPERSEDED)
         failed, quick = await self._related_first(ctx, held, runs) if later else ([], False)
         if failed:
             held.rows.append(proof.row("tests", "note", proof.FULL_HELD))
@@ -144,12 +172,29 @@ class ProofLaterMixin:
             project = self._project(session, ctx.cid)
             return project.id if project is not None else ""
 
-    def _slot(self: "AgentRunner", runs: int) -> asyncio.Semaphore:
-        """The app-wide slot KOLONİ's test runs take, for `runs` at once: a new one where the
-        setting changed - a run holding the old one gives that one back."""
-        if runs != self._test_runs:
-            self._test_slot, self._test_runs = asyncio.Semaphore(runs), runs
+    def _slot(self: "AgentRunner", runs: int) -> Slots:
+        """The app-wide slots KOLONİ's test runs take, `runs` at once as Settings say now."""
+        self._test_slot.limit = runs
         return self._test_slot
+
+    def _written_since(self: "AgentRunner", ctx: Ctx, at: datetime, since: float) -> set[str]:
+        """What others wrote in the project after a test run of KOLONİ's started there (`at`;
+        `since`, monotonic): recorded changes of any turn (written, taken in, taken back) and
+        KOLONİ's own writes (`seen_in_project`) - never that run's to take back (review B1).
+        shortcut: a file the user edits by hand meanwhile is on no record: taken back, kept
+        aside (`_keep_aside`); look at the files' times if that is ever met."""
+        folder = str(Path(ctx.folder).resolve())
+        kept = {rel for (where, rel), when in self._seen_writes.items()
+                if where == folder and when >= since}
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+            return kept | (proof.written_since(session, project.id, at) if project else set())
+
+    def checks_in(self: "AgentRunner", project_id: str) -> str | None:
+        """Why a project is not deleted now: a test run of KOLONİ's in it runs, or waits for the
+        machine - it would start later in a folder no longer KOLONİ's."""
+        return BUSY_HERE if any(one.project_id == project_id and not task.done()
+                                for task, one in self._checks.items()) else None
 
     async def _as_check(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
                         later: float | None,
@@ -158,7 +203,7 @@ class ProofLaterMixin:
         past its card, then `later` seconds - still running then, it goes on after the answer.
         Stopped by the user meanwhile: its row says so, and the turn goes on."""
         check = Check(ctx.run_id, ctx.cid, self._project_id(ctx),
-                      "Tests" if later is None else "Full tests",
+                      "Tests" if later is None else "Full tests", run.command, run.cwd,
                       held.until if later is None else None)
         task = asyncio.ensure_future(start(check))
         self._checks[task] = check
@@ -187,19 +232,22 @@ class ProofLaterMixin:
 
     @staticmethod
     def _stopped_row(check: Check, command: str | None, guessed: bool) -> Row:
-        return proof.row("tests", "not_run", (check.why or proof.STOPPED).format(
-            what=check.what, clock=proof.clock(int(time.monotonic() - check.since))),
-            command, guessed)
+        """Its row once stopped: by the user, at how long it had run from its start (as its
+        row's clock counts) - or before it started; else why."""
+        went = check.going.result() if check.going.done() else None
+        why = check.why or proof.STOPPED
+        why = BY_YOU_EARLY if why == BY_YOU and went is None else why
+        took = int((now() - went).total_seconds()) if went is not None else 0
+        return proof.row("tests", "not_run", why.format(what=check.what, clock=proof.clock(took)),
+                         command, guessed)
 
     def _go_on_later(self: "AgentRunner", task: asyncio.Future, check: Check,
                      run: TestRun) -> Row:
         """The row of a whole suite that goes on after the answer: waiting for the machine, then
         running (its clock from when it started), then as it ended - each written where it is
-        (`_checked_update`). Kept in `_telling`: KOLONİ closing ends it.
-        shortcut: one that writes a standing file (an instruction file, `.koloni/`) asks about it
-        on a card as it ends (`_own_command_looked`) and holds its slot until that is answered,
-        its turn over; let such a card not wait after the turn if it is ever met."""
-        check.later = True
+        (`_checked_update`). Kept in `_telling`: KOLONİ closing ends it. What it writes of
+        standing files is taken back as it ends with no card, its turn untouched (review B2)."""
+        check.later = True  # (from here on its look at standing files asks nothing: `over`)
         self._telling.add(task)
         task.add_done_callback(self._telling.discard)
         made = proof.row("tests", "running", proof.FULL_QUEUED.format(command=run.command),
@@ -236,8 +284,10 @@ class ProofLaterMixin:
         if not made["started_at"]:
             return row
         with self._factory() as session:
+            ran = session.scalar(select(Command).where(
+                Command.tool_call_id == check.call_id)) if check.call_id else None
             changed = proof.changed_since(session, check.project_id,
-                                          datetime.fromisoformat(made["started_at"]))
+                                          datetime.fromisoformat(made["started_at"]), ran)
         # (Review Focus 2: a pass on what is no longer the work is no pass.)
         return {**row, "text": row["text"] + proof.CHANGED_WHILE,
                 "state": "note" if row["state"] == "passed" else row["state"]} if changed else row

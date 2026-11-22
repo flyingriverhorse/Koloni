@@ -9,7 +9,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Added
 
 - **Chat**: after a turn that changed code, KOLONİ runs the project's tests once and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice; while you're away a guessed test command is not run ([docs](use/checked.md)).
-- **Chat**: a long test run no longer holds the answer: KOLONİ first runs the tests related to the changed files (pytest, vitest, jest, go, cargo, dotnet), then the whole suite goes on in the background, shown under the answer and on the line over the message box, and **Fix it** appears if it fails; **Stop this check** stops a running check, and a newer turn in the same project takes the place of an older run ([docs](use/checked.md#how-long-it-waits)).
+- **Chat**: a long test run no longer holds the answer: KOLONİ first runs the tests related to the changed files (pytest, vitest, jest, go, cargo, dotnet; none where you left tests out of the suite), then the whole suite goes on in the background, shown under the answer and on the line over the message box, and **Fix it** appears if it fails; **Stop this check** stops a running check, and a newer turn running the same suite in the same project takes the place of an older run ([docs](use/checked.md#how-long-it-waits)).
 - **Settings**: Settings › The app sets how many of KOLONİ's own test runs go at once (1) and how many test processes each may use (2) ([docs](use/checked.md#how-many-run-at-once)).
 
 ### Changed

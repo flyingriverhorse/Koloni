@@ -223,7 +223,7 @@ from app.agent.observe_mixin import ObserveMixin
 from app.agent.outside_mixin import OUTSIDE_REJECTED as OUTSIDE_REJECTED
 from app.agent.outside_mixin import OutsideMixin
 from app.agent.po_mixin import PoMixin, PoTurn
-from app.agent.proof_later_mixin import Check, ProofLaterMixin
+from app.agent.proof_later_mixin import Check, ProofLaterMixin, Slots
 from app.agent.proof_mixin import Proof, ProofMixin
 from app.agent.questions_mixin import DELEGABLE as DELEGABLE
 from app.agent.questions_mixin import LEAD_ANSWERED as LEAD_ANSWERED
@@ -1397,9 +1397,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # Kanıtlı bitiş: by run, what its end gate found (`_proof_left`); and KOLONİ's own test
         # runs, one at a time app-wide (this machine once failed under test load).
         self._proofs: dict[str, Proof] = {}
-        self._test_slot, self._test_runs = asyncio.Semaphore(1), 1  # (S6: as Settings say)
+        self._test_slot = Slots()  # (S6: as many at once as Settings say)
         # S6: each of KOLONİ's test runs while it runs - in its turn, or gone on after it.
         self._checks: dict[asyncio.Future, Check] = {}
+        # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic):
+        # a test run that started before does not take it back (`_written_since`).
+        # shortcut: never dropped, one small entry a path; prune old ones if it is ever felt.
+        self._seen_writes: dict[tuple[str, str], float] = {}
         # K-rol-cogul. a spawn call of a reply's several -> the reply's calls not opened yet, and
         # the event their agents start on (`_run_tools`, `_arrive`). (Not K-paralel's `_opening`.)
         self._at_once: dict[str, tuple[set[str], asyncio.Event]] = {}
@@ -4050,7 +4054,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self, ctx: Ctx, ws: Workspace, command: str, call_id: str, ask: bool = False,
         gated: str = "refuse", once: set[str] | None = None, cwd: str = ".",
         seconds: int | None = None, where: Callable[[dict], Awaitable[Workspace]] | None = None,
-        env: Mapping[str, str] | None = None,
+        env: Mapping[str, str] | None = None, over: Callable[[], bool] | None = None,
     ) -> tuple[int | None, str, str, str | None]:
         """KOLONİ's own run of a project command where the agent's commands run (`ws`: its
         working copy, or the project), on record under `call_id`, with the check's time limit
@@ -4067,7 +4071,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         in, from the root (a part's tests, `ProofMixin`); `seconds`: its time limit (None: the
         check's, CHECK_SECONDS); `where`: as `commands.run`'s, given the run's arguments, which it
         may change (its time limit) - awaited once it may start; `env`: what its environment gets
-        besides (S6: KOLONİ's test runs, their processes). Its exit
+        besides (S6: KOLONİ's test runs, their processes). `over` (S6, KOLONİ's test runs):
+        whether its turn is over for it by its end (it went on after the answer) - what it wrote
+        of standing files is then taken back with no card, the finished turn untouched; and,
+        given at all, what recorded changes wrote there since it started stands
+        (`_written_since`): never theirs to take back. Its exit
         code (None but where it ran to its end), what it wrote, what the run said of it, and how
         its record ended (None: no record - it never started). A ToolError, or Stop, reaches the
         caller."""
@@ -4091,8 +4099,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._set_call(ctx.cid, own, status="running", started_at=now())
         if asks:  # (on its card: why it is asked at every level)
             self._set_call(ctx.cid, own, why_asked=why)
+        since, at = time.monotonic(), now()  # (before the look: a write after it is not its)
         held = await asyncio.to_thread(standing_files, ctx.root) if ctx.root else None
-        since, ran = time.monotonic(), False
+        ran = False
         args = {"command": command, "timeout_seconds": seconds or CHECK_SECONDS, "cwd": cwd}
         try:
             status, said = await self.commands.run(
@@ -4103,7 +4112,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             ran = True
         finally:
             if held is not None:
-                await self._own_command_looked(ctx, own, command, held, since, ran, ask or asks)
+                stand = self._written_since(ctx, at, since) if over is not None else set()
+                await self._own_command_looked(ctx, own, command, held, since, ran and not (
+                    over is not None and over()), ask or asks, stand)
         if own != call_id:
             self._set_call(ctx.cid, own, status=status, result=said, ended_at=now())
             if status == "denied":

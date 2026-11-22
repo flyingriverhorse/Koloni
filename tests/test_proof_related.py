@@ -21,6 +21,54 @@ def narrowed(root, command, paths, cwd=".", yours=True):
     return found and found.command
 
 
+@pytest.mark.parametrize("command", [
+    "pytest", "python -m pytest -q", ".venv/Scripts/python.exe -m pytest", "uv run pytest",
+    "poetry run pytest -x", ".venv/bin/pytest"])
+def test_pytest_is_read_first_or_after_a_known_launcher(tmp_path, command):
+    made(tmp_path, "tests/test_greet.py")
+    assert narrowed(tmp_path, command, ["tests/test_greet.py"]) == f"{command} tests/test_greet.py"
+
+
+@pytest.mark.parametrize(("config", "body"), [
+    ("pytest.ini", "[pytest]\naddopts = -q --ignore=live\n"),
+    ("pytest.ini", "[pytest]\nnorecursedirs = manual\n"),
+    ("pyproject.toml", '[tool.pytest.ini_options]\naddopts = ["--deselect", "tests/x.py::t"]\n'),
+    ("setup.cfg", "[tool:pytest]\naddopts = --ignore-glob=*live*\n"),
+    ("tox.ini", "[pytest]\nnorecursedirs = .git manual\n"),
+    ("conftest.py", "collect_ignore = ['tests/test_skipme.py']\n"),
+    ("tests/conftest.py", "def pytest_ignore_collect(collection_path):\n    return None\n"),
+    ("pytest.ini", "[pytest\nbroken"),  # (one it cannot read: nothing narrower)
+])
+def test_pytest_exclusions_in_the_projects_config_leave_no_related_step(tmp_path, config, body):
+    # (Fail closed: a file named on the command line bypasses them - B3 of the review.)
+    made(tmp_path, "tests/test_greet.py")
+    (tmp_path / config).write_text(body, encoding="utf-8")
+    assert narrowed(tmp_path, "pytest", ["tests/test_greet.py"]) is None
+
+
+def test_pytest_testpaths_keep_the_candidates_under_them(tmp_path):
+    made(tmp_path, "app/mod.py", "tests/test_mod.py", "other/deep/test_mod.py")
+    (tmp_path / "pytest.ini").write_text("[pytest]\naddopts = -q\ntestpaths = tests\n",
+                                         encoding="utf-8")
+    assert narrowed(tmp_path, "pytest", ["app/mod.py"]) == "pytest tests/test_mod.py"
+    (tmp_path / "pytest.ini").write_text("[pytest]\ntestpaths = tests/u*\n", encoding="utf-8")
+    assert narrowed(tmp_path, "pytest", ["app/mod.py"]) is None  # (a glob: not read)
+
+
+def test_a_pyproject_without_pytest_leaves_the_ini_beside_it_read(tmp_path):
+    made(tmp_path, "tests/test_greet.py")
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
+    (tmp_path / "tox.ini").write_text("[pytest]\naddopts = --ignore=live\n", encoding="utf-8")
+    assert narrowed(tmp_path, "pytest", ["tests/test_greet.py"]) is None
+
+
+@pytest.mark.parametrize("name", ["tests/test_ı.py", "tests/test_x².py", "tests/../../x/test_a.py",
+                                  "tests/.hidden/test_a.py"])
+def test_only_plain_ascii_names_with_no_parent_part_go_on_a_command_line(tmp_path, name):
+    made(tmp_path, name)
+    assert narrowed(tmp_path, "pytest", [name]) is None
+
+
 def test_pytest_runs_the_changed_test_files_and_those_named_for_a_changed_module(tmp_path):
     made(tmp_path, "app/greet.py", "tests/test_greet.py", "tests/test_other.py",
          "tests/test_new.py", "node_modules/x/test_greet.py", ".venv/test_greet.py")
@@ -38,6 +86,12 @@ def test_pytest_runs_the_changed_test_files_and_those_named_for_a_changed_module
     "pytest -k 'a and b'",
     "pytest -q && npm test",  # (more than one command)
     "python check.py",  # (no runner KOLONİ reads)
+    # (a runner named by another tool - its environment, target or session - is not the runner)
+    "tox -e pytest", "make pytest", "nox -s pytest", "just pytest", "cmd /c pytest",
+    "PYTHONPATH=. pytest",
+    # (what the user left out stays out: a file on the command line would bypass it)
+    "pytest --ignore=tests/live", "pytest --ignore tests/live", "pytest --ignore-glob=*live*",
+    "pytest --deselect tests/test_greet.py::test_slow",
 ])
 def test_a_command_it_cannot_read_gives_none(tmp_path, command):
     made(tmp_path, "tests/test_greet.py")
@@ -118,10 +172,34 @@ def test_npm_test_runs_vitest_through_npx_only_where_the_projects_own_is_install
     made(tmp_path, "web/src/a.ts")
     (tmp_path / "web" / "package.json").write_text(json.dumps({"scripts": {"test": "vitest"}}),
                                                    encoding="utf-8")
+    made(tmp_path, "node_modules/.bin/vitest-ui")  # (not vitest itself)
     assert narrowed(tmp_path, "npm test", ["web/src/a.ts"], cwd="web") is None
     made(tmp_path, "node_modules/.bin/vitest.cmd")  # (a workspace's root holds it: found above)
     assert narrowed(tmp_path, "npm test", ["web/src/a.ts"], cwd="web") == (
         "npx --no vitest related --run --passWithNoTests src/a.ts")
+
+
+def test_npm_test_with_a_pretest_script_has_no_vitest_related_step(tmp_path):
+    # (npm test runs `pretest` first - a build, a codegen - and npx vitest would not)
+    made(tmp_path, "src/a.ts", "node_modules/.bin/vitest")
+    (tmp_path / "package.json").write_text(json.dumps({"scripts": {
+        "test": "vitest", "pretest": "node gen.js"}}), encoding="utf-8")
+    assert narrowed(tmp_path, "npm test", ["src/a.ts"]) is None
+
+
+@pytest.mark.parametrize(("config", "body"), [
+    ("package.json", json.dumps({"scripts": {"test": "jest"},
+                                 "jest": {"testPathIgnorePatterns": ["/live/"]}})),
+    ("jest.config.js", "module.exports = { testPathIgnorePatterns: ['/live/'] }\n"),
+])
+def test_jest_with_ignored_test_paths_has_no_related_step(tmp_path, config, body):
+    # (shortcut in the code: jest is not measured here - fail closed; vitest's `related` keeps
+    # the config's `exclude`, measured)
+    made(tmp_path, "src/a.ts")
+    (tmp_path / config).write_text(body, encoding="utf-8")
+    assert narrowed(tmp_path, "npx jest", ["src/a.ts"]) is None
+    if config == "package.json":
+        assert narrowed(tmp_path, "npm test", ["src/a.ts"]) is None
 
 
 def test_go_tests_the_changed_packages(tmp_path):

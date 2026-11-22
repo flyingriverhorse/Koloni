@@ -356,18 +356,37 @@ def load_of(session: Session) -> tuple[int, int]:
             read(TEST_WORKERS_FLAG, TEST_WORKERS_RANGE, TEST_WORKERS))
 
 
-def changed_since(session: Session, project_id: str, since: datetime) -> bool:
-    """Whether a file of the project changed after `since`: written there, or taken in from a
-    copy, by any chat's turn.
-    shortcut: what the user changes outside KOLONİ is not on record; read the files' times if a
-    background result is seen to stand for an edit it never ran on."""
-    return session.scalar(
-        select(FileChange.id).join(Run, Run.id == FileChange.run_id)
+def written_since(session: Session, project_id: str, since: datetime) -> set[str]:
+    """The project's paths a recorded change wrote after `since`: written there, taken in from a
+    copy, or taken back (Undo), by any chat's turn."""
+    return set(session.scalars(
+        select(FileChange.path).join(Run, Run.id == FileChange.run_id)
         .join(Conversation, Conversation.id == Run.conversation_id)
         .where(Conversation.project_id == project_id,
-               FileChange.status.in_(("applied", MERGED)),
-               or_(FileChange.created_at > since, FileChange.decided_at > since)).limit(1)
-    ) is not None
+               FileChange.status.in_(("applied", MERGED, "reverted")),
+               or_(FileChange.created_at > since, FileChange.decided_at > since))))
+
+
+def changed_since(session: Session, project_id: str, since: datetime,
+                  ran: Command | None = None) -> bool:
+    """Whether the project changed after `since` beneath `ran` (a test run of KOLONİ's): a
+    recorded change (`written_since`), or a command of any turn in it that may have changed
+    files - `_rewritten_after`'s rule, the same as for a pass that stands.
+    shortcut: what the user changes outside KOLONİ is not on record; read the files' times if a
+    background result is seen to stand for an edit it never ran on."""
+    if written_since(session, project_id, since):
+        return True
+    if ran is None or ran.started_at is None:
+        return False
+    agents: dict[str, set[str]] = {}
+    for run_id, agent_id in session.execute(
+            select(Command.run_id, Command.agent_id).join(Run, Run.id == Command.run_id)
+            .join(Conversation, Conversation.id == Run.conversation_id)
+            .where(Conversation.project_id == project_id, Command.id != ran.id,
+                   Command.started_at.is_not(None), Command.started_at > since)):
+        agents.setdefault(run_id, set()).add(agent_id)
+    return any(_rewritten_after(session, run_id, by, ran, _folded(ran.command))
+               for run_id, by in agents.items())
 
 
 def settle_running(session: Session) -> None:
