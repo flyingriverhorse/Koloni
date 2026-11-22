@@ -85,6 +85,9 @@ def test_the_marker_files_of_any_language_show_a_test_command(tmp_path, files, c
     ("pytest && rm -rf .", False), ("pytest; true", False), ("pytest | tail -1", False),
     ("echo pytest", False), ("make deploy", False), ("pytest\nrm -rf .", False),
     ("x" * 300, False),
+    # (review of S1b: where it is run as saved, a newline or a tab makes it two commands, or another)
+    ("npm\ntest", False), ("yarn\ntest", False), ("bundle\nexec rspec", False), ("npm  test", False),
+    ("make\ttest", False),
 ])
 def test_only_one_plain_test_line_is_tried(command, tried):
     assert test_found.tryable(command) is tried

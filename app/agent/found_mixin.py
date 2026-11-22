@@ -99,7 +99,7 @@ class FoundMixin:
                     .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
                 if test_found.tryable(one.command.strip()) and (
                         counted := test_found.counts(one.output, one.command)) and counted.ran:
-                    run = TestRun(one.command.strip(), one.cwd or ".", False)
+                    run = TestRun(" ".join(one.command.split()), one.cwd or ".", False)
                     if row := self._found_saved(ctx, run, "agent"):
                         held.rows.append(row)
                         return run._replace(yours=True)

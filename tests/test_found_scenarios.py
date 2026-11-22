@@ -413,3 +413,15 @@ def test_a_looks_wide_line_is_not_run_at_ask_under_an_always_rule_for_its_tool(
     snap = wait_run(client, cid, run_id)
     assert executor.started == [] and snap["commands"] == [], (snap["commands"], texts(snap))
     assert texts(snap)[-1] == proof.NO_COMMAND
+
+
+@pytest.mark.parametrize("line", ["bundle\nexec rspec", "yarn\ntest", "make\ttest"])
+def test_an_agents_line_split_over_lines_is_never_adopted(make_client, wait_run, project_dir,
+                                                          line):
+    # (Saved as it is, it would later run unasked as two commands - `bundle` alone installs.)
+    executor = ScriptedExecutor([Script(["3 examples, 0 failures\n"]), Script(["x"])])
+    client, _model = make_client([write("a.py", "x = 1\n"), run(line), text("done")],
+                                 executor=executor)
+    cid, run_id = begin(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert project(client, project_dir)["tests_found"] == {}, texts(snap)

@@ -167,9 +167,10 @@ TRIED = frozenset({
 
 def tryable(command: str) -> bool:
     """Whether a line that is not the user's may be tried, and saved, as the project's test
-    command: exactly one of `TRIED`, at most `-q` or `-v` after it."""
+    command: exactly one of `TRIED`, at most `-q` or `-v` after it - single-spaced (a newline
+    or a tab would make it two commands, or another, where it is run as saved)."""
     words = command.split()
-    if len(command) > MOST_LINE or len(words) > 6:
+    if len(command) > MOST_LINE or len(words) > 6 or command != " ".join(words):
         return False
     if words and words[-1] in ("-q", "-v"):
         words = words[:-1]
