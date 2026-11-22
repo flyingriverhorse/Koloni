@@ -635,6 +635,17 @@ def test_a_stop_in_code_an_interpreter_is_handed_is_always_asked(command):
     assert harm_class(command) == "always", command
 
 
+@pytest.mark.parametrize("line", ["echo " + "$(" * 1000 + "x" + ")" * 1000,
+                                  "echo " + " ".join("`x`" for _ in range(1000))])
+def test_a_line_too_deep_to_read_is_asked_and_read_quickly(line):
+    # (review round 5: 1000 nested `$(` took 8.3 s to read; past MAX_OTHER_READINGS of them a
+    # line is not read further and is asked as what may stop KOLONİ itself)
+    limit = 15 if os.environ.get("CI") else 3
+    start = time.monotonic()
+    assert harm_class(line) == "always"
+    assert time.monotonic() - start < limit
+
+
 def places(tmp_path):
     """A project, KOLONİ's runtime, this copy's own tree in its copies folder, the folder, and
     one of the project's worktrees."""

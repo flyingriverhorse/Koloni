@@ -769,9 +769,12 @@ def _bare(stands: bool) -> str:
 
 
 def _substituted(line: str) -> list[str]:
-    """What each `$(...)` of a line runs, to its own closing bracket - in quotes too."""
-    found = []
+    """What each `$(...)` of a line runs, to its own closing bracket - in quotes too; past
+    MAX_OTHER_READINGS of them, no more (`_too_deep`)."""
+    found: list[str] = []
     for start in (found.end() for found in re.finditer(r"\$\(", line)):
+        if len(found) > MAX_OTHER_READINGS:
+            break
         depth, at = 1, start
         while at < len(line) and depth:
             depth += {"(": 1, ")": -1}.get(line[at], 0)
@@ -780,13 +783,23 @@ def _substituted(line: str) -> list[str]:
     return found
 
 
+def _too_deep(command: str) -> bool:
+    """Whether a line holds more than MAX_OTHER_READINGS backtick pairs and `$(...)`: past them it
+    is not read, and a stop on it is asked as one of what may be KOLONİ itself (review round 5:
+    reading 1000 nested ones took seconds)."""
+    return command.count("`") // 2 + command.count("$(") > MAX_OTHER_READINGS
+
+
 def _stands(command: str, names: frozenset[str] = _STOP_PROGRAMS, depth: int = 4) -> bool:
     """Whether one of `names` is a word of its own in a line - split by its quotes, its quotes
     then taken off (`xargs 'kill'`, `| & "Stop-Process"`, `/bin/kill`, cmd's `@taskkill`) - in
     what its backticks or a `$(...)` run, in quotes too (`"`kill $x`"`, `"$(pkill x)"`), first
     in a line in quotes (`$s = 'Stop-Process -Name x'; iex $s`, a here-string) or in a line a
     shell or a wrapper is handed (`bash -c "x; kill $(y)"`); not past a message's or a pattern's
-    first word (`git commit -m "tidy; kill"`)."""
+    first word (`git commit -m "tidy; kill"`). Past MAX_OTHER_READINGS of what backticks
+    and `$(...)` run, it stands (`_too_deep`)."""
+    if _too_deep(command):
+        return True
     for text in [command, *re.findall(r"`([^`]*)`", command), *_substituted(command)]:
         if _SHELL_WORDS.sub("", text).strip():  # (unbalanced quotes: every word)
             text = re.sub(r"['\"]", " ", text)
@@ -848,6 +861,8 @@ def _stop_kind(command: str) -> str:
 
 
 def _stop_kind_of(command: str) -> str:
+    if _too_deep(command):
+        return "koloni"
     started, stands = _started(command), _stands(command)
     # (`stands` acts only on a stop with no target, `_bare`: a stop with one, cut by the
     # quote-blind split out of a line a shell is handed - `echo "x; pkill y" | bash` - is asked,
@@ -1214,9 +1229,9 @@ def _writes_links(words: list[str], own: re.Pattern | None = None) -> bool:
     folder - and what writes by a program's own way (`New-Item -Value`, `[IO.File]::WriteAllText`,
     `touch`, `mkdir`, `robocopy`, `xcopy`, `tar -C`, `unzip -d`, `Expand-Archive`, `perl -pi`,
     code in `python -c`, `npm config set`, `pip-sync`, `corepack`, a script) is not seen -
-    nor `install -D`, `curl -o`, `wget -O`, `Invoke-WebRequest -OutFile`, a linked name in
-    quotes of its own (`"node_modules"/x`), or a target with a comment after it read as the
-    last word (`cp a.js node_modules/x # ok`); 0.1.6 (review round 4)."""
+    nor `install -D`, `curl -o`, `wget -O`, `Invoke-WebRequest -OutFile`, `uv pip compile -o`,
+    a linked name in quotes of its own (`"node_modules"/x`), or a target with a comment after it
+    read as the last word (`cp a.js node_modules/x # ok`); 0.1.6 (review rounds 4-5)."""
     for at, word in enumerate(words):
         redirect = re.search(r">{1,2}(?!&)", word)
         target = word[redirect.end():] or (words[at + 1] if at + 1 < len(words) else "") if (
@@ -2224,7 +2239,11 @@ def _led(words: list[str]) -> list[str]:
     """A part's command past what leads into it (`_LEADS`): `if pkill -f x` is pkill's, `if not
     exist x.pid taskkill /IM python.exe` taskkill's, `$p = Get-Process x` Get-Process's - but
     `$g = 'git'` sets a word, runs nothing (its quotes are read: `_parts` hands the words as
-    written)."""
+    written).
+    shortcut: cmd's quoted comparison (`if "%a%"=="x" npm ci`), a group run as one (`(cd web &&
+    npm ci)`, `{ npm ci; }`, `if exist x (npm ci)`, `if ($true) { npm ci }`: the quote-blind
+    split reads its inside where it is a part of its own only) and `trap -- '...' EXIT` are not
+    read past; 0.1.6 (review round 5)."""
     while words:
         first = words[0].casefold()
         if first in _LEADS:
@@ -2328,7 +2347,9 @@ def joined(line: str) -> str:
 
 def readings(line: str) -> list[str]:
     """Every way KOLONİ reads a command line (`_readings`): joined, as written and what its
-    backtick pairs hold - a caller outside this module judges each (review round 4)."""
+    backtick pairs hold - a caller outside this module judges each (review round 4).
+    shortcut: `switches_branch`, `runs_inline`, `writes_git_config` and `applies_patch` read the
+    line as written only, not each reading; 0.1.6."""
     return _readings(line)
 
 
