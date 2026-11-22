@@ -153,7 +153,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         "away_minutes": 7, "spawn_approval": "always", "spawn_max_depth": 2,
         "spawn_max_agents": 3, "spawn_max_parallel": 4, "discussion_budget": 9000,
         "room_posts": 5, "room_tokens": 6000, "room_minutes": 7, "room_min_tokens": 8,
-        "finish_tests": True, "full_auto_check": "judge", "disposable_deletes": True,
+        "after_change": "tests", "full_auto_check": "judge", "disposable_deletes": True,
     }
     status, out = answer(client, f"/api/projects/{pid}", sent)
     assert status == 200, out
@@ -169,7 +169,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
     status, out = answer(client, f"/api/projects/{pid}", {
         "check_command": " ", "pass_env": "", "search_url": "", "embedding_model": " ",
         "turn_token_limit": None, "max_agents": None, "monthly_budget": None,
-        "finish_tests": None, "room_posts": None})
+        "room_posts": None})
     assert status == 200, out
     assert [out[name] for name in ("check_command", "pass_env", "search_url", "turn_token_limit",
                                    "max_agents", "monthly_budget", "room_posts")] == [None] * 7
@@ -187,7 +187,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
     {"spawn_max_parallel": 1}, {"turn_token_limit": None}, {"discussion_budget": None},
     {"room_posts": None}, {"room_tokens": None}, {"room_minutes": None},
     {"room_min_tokens": None}, {"max_agents": None}, {"day_note_at": None},
-    {"monthly_budget": None}, {"finish_tests": None}, {"embedding_provider_id": None},
+    {"monthly_budget": None}, {"after_change": "nothing"}, {"embedding_provider_id": None},
     {"teams_mode": "none"}, {"teams": []}, {"also_in": []}, {"read_in": []},
     {"full_auto_check": "ask"}, {"disposable_deletes": False},
 ])

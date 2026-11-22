@@ -209,9 +209,12 @@ class Project(Base):
     # where it is lower); None: none.
     room_min_tokens: Mapped[int | None] = mapped_column(
         Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS))
-    # 89m: whether a Claude Code agent that changed files finishes only once the tests pass.
-    # None: automatic (`app.finish_tests.automatic`).
+    # 89m, "Finish only when the tests pass", as the user last set it (None: never said). Kept
+    # (0160), read only for `after_change_from_off`: `after_change` holds the setting now.
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    # Kanıtlı bitiş: after a turn that changed code, "check" (Check it: the tests, and a look at
+    # a big or security-touching change), "tests" (Tests only) or "nothing" (`app.proof`).
+    after_change: Mapped[str] = mapped_column(String(7), default="check", server_default="check")
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge", `JudgeMixin._judged`). The user's own setting.
     full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
@@ -226,10 +229,10 @@ class Project(Base):
         return bool(self.notify_url)
 
     @property
-    def finish_tests_auto(self) -> dict:
-        from app.finish_tests import automatic  # (it reads this model's tables)
-
-        return automatic(object_session(self), self)
+    def after_change_from_off(self) -> bool:
+        """0160: Nothing because the user had turned "Finish only when the tests pass" off -
+        said in Settings, never silently."""
+        return self.finish_tests is False and self.after_change == "nothing"
 
 
 class Conversation(Base):
@@ -448,7 +451,8 @@ class Message(Base):
     # "trigger": what started an unattended turn - the trigger's message, not the user's
     # words of that moment. Or "away": KOLONİ's one line at the end of a night while the
     # user was away (slice 106), which no agent is given. KOLONİ's lines in the chat:
-    # "git", "koloni", "landed" (where a turn's work is, B-205).
+    # "git", "koloni", "landed" (where a turn's work is, B-205), "checked" (what KOLONİ checked
+    # at the turn's end, its rows in `blocks`: `checked`).
     role: Mapped[str] = mapped_column(String(12))
     from_agent_id: Mapped[str | None] = mapped_column(String(32), default=None)
     # For a message from another agent: when its receiver was given it. A note left for
@@ -467,10 +471,15 @@ class Message(Base):
     # The line the lead wrote to be said aloud, off the end of `content` (slice 32a).
     spoken: Mapped[str | None] = mapped_column(Text, default=None)
     # An answer that thought, as its API gave it, to be sent back so (`StepResult.blocks`):
-    # never shown, never edited. None for every other message.
+    # never shown, never edited; a "checked" message's rows (`checked`). None for every other.
     blocks: Mapped[dict | None] = mapped_column(JSON, default=None)
     status: Mapped[str] = mapped_column(String(12), default="complete")
     created_at: Mapped[datetime] = mapped_column(default=now)
+
+    @property
+    def checked(self) -> list | None:
+        """A "checked" message's rows (`app.proof.Row`); None for every other message."""
+        return (self.blocks or {}).get("rows") if self.role == "checked" else None
 
 
 class Attachment(Base):

@@ -80,6 +80,8 @@ WhenAway = Literal["waits", "lead"]
 # K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
 # against what they wrote.
 FullAutoCheck = Literal["ask", "judge"]
+# Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): Check it, Tests only, Nothing.
+AfterChange = Literal["check", "tests", "nothing"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -180,15 +182,6 @@ class ChatTeamOut(Out):
     state: ChatTeamState | None = None
 
 
-class FinishTestsAuto(BaseModel):
-    """89m: "Finish only when the tests pass" where the user has not said (`finish_tests`)."""
-    on: bool
-    # The tests' command: the check command, or one the folder's files show; None: none.
-    command: str | None
-    # Why it is on or off, in words.
-    reason: str
-
-
 class ProjectOut(Out):
     id: str
     name: str
@@ -269,10 +262,10 @@ class ProjectOut(Out):
     room_minutes: int | None
     # B-414: the least tokens an agent's room is given (`room_tokens` wins where lower); None: none.
     room_min_tokens: int | None
-    # 89m: whether a Claude Code agent that changed files finishes only once the tests pass;
-    # None: as `finish_tests_auto` says.
-    finish_tests: bool | None
-    finish_tests_auto: FinishTestsAuto
+    # Kanıtlı bitiş: what KOLONİ checks after a turn that changed code (`app.proof`).
+    after_change: AfterChange
+    # 0160: Nothing because the user had turned "Finish only when the tests pass" off: said.
+    after_change_from_off: bool
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge").
     full_auto_check: FullAutoCheck
@@ -364,8 +357,7 @@ class ProjectPatch(BaseModel):
     room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
-    # Sent as null: automatic again (`ProjectOut.finish_tests_auto`). Left out: kept.
-    finish_tests: bool | None = None
+    after_change: AfterChange | None = None
     full_auto_check: FullAutoCheck | None = None
     disposable_deletes: bool | None = None
 
@@ -829,6 +821,20 @@ class AttachmentTextOut(BaseModel):
     text: str | None
 
 
+class CheckedRow(BaseModel):
+    """One line of a turn's Checked section (`app.proof.Row`)."""
+    # S1: "tests", "rounds", "waiting", "not_checked"; later slices add theirs.
+    kind: str
+    state: Literal["passed", "failed", "running", "not_run", "timed_out", "note"]
+    text: str
+    # The command it ran, or would have; None: none.
+    command: str | None
+    # A command KOLONİ guessed from the project's files, not the user's own.
+    guessed: bool
+    # When a running row's run started; None: not running.
+    started_at: str | None
+
+
 class MessageOut(Out):
     id: str
     conversation_id: str
@@ -842,8 +848,9 @@ class MessageOut(Out):
     # "koloni": KOLONİ's own line - under a Lead's answer that named a role it never opened;
     # at Take in, a .venv or the like an agent made in its copy, which stays out (B-383).
     # "landed": KOLONİ's line under a turn's answer on where its work is, from the records (B-205).
+    # "checked": what KOLONİ checked at the turn's end (`checked`), drawn in the turn's foot.
     role: Literal["user", "assistant", "agent", "memory", "trigger", "away", "git", "koloni",
-                  "landed"]
+                  "landed", "checked"]
     from_agent_id: str | None
     delivered_at: datetime | None
     discussion_id: str | None
@@ -856,6 +863,8 @@ class MessageOut(Out):
     spoken: str | None = None
     status: Literal["streaming", "complete"]
     created_at: datetime
+    # A "checked" message's rows; None for every other message.
+    checked: list[CheckedRow] | None = None
 
 
 class ToolCallOut(Out):

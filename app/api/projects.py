@@ -569,7 +569,7 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
     for name in ("search_order", "search_agy", "notify_format", "notify_desktop", "auto_notes",
                  "observe_reports", "suggest_tasks", "suggest_tier", "hide_secrets", "canary",
                  "lead_work", "continue_steps", "when_away", "away_minutes", "full_auto_check",
-                 "disposable_deletes", *SPAWN):
+                 "disposable_deletes", "after_change", *SPAWN):
         if getattr(body, name) is not None:
             setattr(project, name, getattr(body, name))
     for name in spends:
@@ -640,7 +640,7 @@ async def patch_project(
                     "hide_secrets", "pass_env",
                     "canary", "lead_work", "continue_steps", "memory_links", "embedding_model",
                     "when_away", "away_minutes", "full_auto_check", "disposable_deletes",
-                    *SPAWN)
+                    "after_change", *SPAWN)
     limited = "turn_token_limit" in body.model_fields_set  # null takes the limit away
     # tek-ev: what a discussion and a room may spend; null: no limit (and, B-414, no least).
     spends = {"discussion_budget", "room_posts", "room_tokens", "room_minutes",
@@ -648,9 +648,8 @@ async def patch_project(
     crowded = "max_agents" in body.model_fields_set  # the same: null takes it away
     noted = "day_note_at" in body.model_fields_set  # the same: null sends it no more
     budgeted = "monthly_budget" in body.model_fields_set  # the same
-    gated = "finish_tests" in body.model_fields_set  # the same: null is automatic again
     embedded = "embedding_provider_id" in body.model_fields_set  # the same: null is off
-    if limited or crowded or noted or budgeted or gated or embedded or spends or any(
+    if limited or crowded or noted or budgeted or embedded or spends or any(
         getattr(body, name) is not None for name in users_own
     ):
         # Where a search and a notification go, how much a turn or a month may spend, how many
@@ -663,14 +662,13 @@ async def patch_project(
         # its secrets its commands see: a command must not hand itself one, nor take away the
         # test key planted to catch one sent out (101). And whether a new
         # chat's Lead writes files itself, or answers for the user while they are away (a
-        # request of their plan, K-cli-vekil), or its agents finish only once KOLONİ ran the tests.
+        # request of their plan, K-cli-vekil), or what KOLONİ checks after a change (it runs the
+        # tests, and may ask a model).
         # And so are its chats' sub-agent settings and what their discussions and rooms spend,
         # and which deletes go without a card.
         require_own_origin(request)
     _change_teams_and_folders(session, request, project, body)
     await _change_commands(project, body)
-    if gated:
-        project.finish_tests = body.finish_tests
     if limited:
         project.turn_token_limit = body.turn_token_limit
     if crowded:
