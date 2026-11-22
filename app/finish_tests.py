@@ -32,11 +32,23 @@ def command_of(root: str, check_command: str | None) -> str | None:
     return found or ("python -m pytest -q" if (folder / "tests").is_dir() else None)
 
 
+MOST_READ = 64 * 1024  # bytes of a manifest or a Makefile read
+
+
+def _head(place: Path) -> str | None:
+    """The first MOST_READ bytes of a file, as text; None: not read."""
+    try:
+        with place.open("rb") as handle:
+            return handle.read(MOST_READ).decode("utf-8", errors="replace")
+    except OSError:
+        return None
+
+
 def _script(manifest: Path) -> object:
     """A package.json's or composer.json's own `test` script; None: none."""
     try:
-        return json.loads(manifest.read_text(encoding="utf-8"))["scripts"]["test"]
-    except (OSError, ValueError, KeyError, TypeError):
+        return json.loads(_head(manifest) or "")["scripts"]["test"]
+    except (ValueError, KeyError, TypeError):
         return None
 
 
@@ -45,11 +57,8 @@ def _has(folder: Path, *patterns: str) -> bool:
 
 
 def _make_test(folder: Path) -> str | None:
-    try:
-        text = (folder / "Makefile").read_text(encoding="utf-8", errors="replace")[:64 * 1024]
-    except OSError:
-        return None
-    return "make test" if re.search(r"^test\s*:", text, re.MULTILINE) else None
+    text = _head(folder / "Makefile")
+    return "make test" if text and re.search(r"^test\s*:", text, re.MULTILINE) else None
 
 
 # Plan decision 11: a folder's marker files, and the command that runs its tests - the first that
@@ -59,7 +68,8 @@ def _make_test(folder: Path) -> str | None:
 MARKER_TESTS: tuple[Callable[[Path], str | None], ...] = (
     lambda folder: "go test ./..." if (folder / "go.mod").is_file() else None,
     lambda folder: "cargo test" if (folder / "Cargo.toml").is_file() else None,
-    lambda folder: "mvn -q test" if (folder / "pom.xml").is_file() else None,
+    # (Not -q: it would hide surefire's "Tests run:" line - no count, never saved.)
+    lambda folder: "mvn test" if (folder / "pom.xml").is_file() else None,
     lambda folder: ("./gradlew test" if (folder / "gradlew").is_file() else "gradle test")
     if _has(folder, "build.gradle", "build.gradle.kts") else None,
     lambda folder: "dotnet test" if _has(folder, "*.sln", "*.csproj", "*.fsproj") else None,

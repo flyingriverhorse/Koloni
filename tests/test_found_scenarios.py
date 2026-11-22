@@ -3,9 +3,11 @@ project's marker files (any language, by part), an agent's run that really ran t
 by the Fast tier's model - runs it, and saves it the first time it really runs tests."""
 
 import json
+from dataclasses import replace
 
 import pytest
 
+from app import proof
 from app.agent import found_mixin
 from app.db.models import Project
 from app.model_client import StepResult
@@ -90,7 +92,7 @@ def test_parts_of_any_language_get_one_guess_each(make_client, wait_run, project
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     ran = sorted((c["command"], c["cwd"]) for c in snap["commands"])
-    assert ran == [("mvn -q test", "api"), ("npm test", "web")], ran
+    assert ran == [("mvn test", "api"), ("npm test", "web")], ran
     assert set(project(client, project_dir)["tests_found"]) == {"api", "web"}
 
 
@@ -165,7 +167,8 @@ def test_the_look_is_data_never_a_command_it_made_up(make_client, wait_run, proj
         executor=ScriptedExecutor([]))
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
-    assert snap["commands"] == [] and texts(snap)[-1] == found_mixin.NO_TESTS_HERE
+    # (Not "no tests in this project": it named one, KOLONİ would not run it.)
+    assert snap["commands"] == [] and texts(snap)[-1] == proof.NO_COMMAND
 
 
 def test_what_koloni_found_can_be_forgotten_from_the_apps_own_page(client, project_dir):
@@ -213,3 +216,171 @@ def test_a_saved_command_runs_unasked_at_ask_as_the_projects_but_never_in_a_trig
     (rows,) = [m["checked"] for m in snap["messages"] if m["role"] == "checked"
                and m["run_id"] == second]
     assert rows[0]["state"] == "not_run" and len(executor.started) == 1, rows
+
+
+# (review of S1b: what is never run, never saved, never guessed)
+@pytest.mark.parametrize("line", ["python -m pytest -q --basetemp=../outside",
+                                  "uv run --with evilpkg pytest", "go test -exec calc ./..."])
+def test_a_looks_line_that_is_more_than_a_test_command_is_never_run(make_client, wait_run,
+                                                                    project_dir, fast, line):
+    executor = ScriptedExecutor([PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  looked({"tests": [{"command": line, "folder": "."}]})],
+                                 executor=executor)
+    cid, run_id = begin(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    rows = texts(snap)
+    assert executor.started == [] and snap["commands"] == [], (executor.started, rows)
+    assert rows[0].endswith("which named none - and 1 more not tried (not one plain test command "
+                            "in the project)") and rows[1:] == [proof.NO_COMMAND], rows
+    assert project(client, project_dir)["tests_found"] == {}
+
+
+@pytest.mark.parametrize("line", ["uv run --with evilpkg pytest", "npx -p evilpkg jest",
+                                  "go test -exec calc ./...",
+                                  "python -m pytest --basetemp=../outside"])
+def test_an_agents_line_that_is_more_than_a_test_command_is_never_adopted(make_client, wait_run,
+                                                                         project_dir, line):
+    client, _model = make_client([write("a.py", "x = 1\n"), run(line), text("done")],
+                                 executor=ScriptedExecutor([PASS, PASS]))
+    cid, run_id = begin(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert project(client, project_dir)["tests_found"] == {}, texts(snap)
+
+
+@pytest.mark.parametrize(("line", "out", "code"), [
+    ("npx jest", "Tests:       2 skipped, 2 total\nTime: 1 s\n", 0),
+    ("go test ./...", "ok  \texample.com/x\t0.002s [no tests to run]\n", 0),
+    ("go test ./...", "FAIL\texample.com/x [build failed]\nFAIL\n", 1),
+])
+def test_an_agents_run_that_ran_no_test_is_not_adopted(make_client, wait_run, project_dir, line,
+                                                       out, code):
+    executor = ScriptedExecutor([Script([out], exit_code=code), PASS, PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), run(line), text("done")],
+                                 executor=executor)
+    cid, run_id = begin(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert project(client, project_dir)["tests_found"] == {}, (texts(snap), executor.started)
+
+
+def test_an_agents_test_run_in_an_away_job_is_not_adopted(make_client, project_dir):
+    from tests.test_agent_writes import edit
+    from tests.test_away_scenarios import evening, go_away, looked_at, night
+    from tests.test_backlog_auto import until
+    from tests.test_proof_end_scenarios import ONE_JOB
+
+    executor = ScriptedExecutor([PASS, PASS, PASS, PASS])
+
+    def made(steps, **kw):
+        return make_client(steps, executor=executor, **kw)
+    client, _model, pid, cid, _run = evening(
+        made, project_dir, [edit(), run("python -m pytest -q"), text("one done"),
+                            text("good morning")], mode="full_auto", plan=ONE_JOB,
+        lead_work="itself")
+    until(lambda: client.get(f"/api/conversations/{cid}").json()["runs"][0]["status"]
+          == "completed")
+    assert go_away(client, cid).status_code in (200, 201)
+    until(lambda: (seen := night(client, pid)) and looked_at(seen) and seen, seconds=30)
+    saved = project(client, project_dir)["tests_found"]
+    assert saved == {}, (saved, executor.started)
+
+
+@pytest.mark.parametrize("marker", [("web", "package.json", json.dumps(
+    {"scripts": {"test": "vitest run"}}), "web/a.js"), ("api", "pom.xml", "<project/>",
+                                                         "api/A.java")])
+def test_the_users_check_command_runs_alone(make_client, wait_run, project_dir, marker):
+    folder, name, body, edited = marker
+    (project_dir / folder).mkdir()
+    (project_dir / folder / name).write_text(body, encoding="utf-8")
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, _model = make_client([write(edited, "x\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert executor.started == [("python check.py", str(project_dir))], (
+        executor.started, texts(snap))
+
+
+def test_a_part_the_user_set_to_no_test_is_not_guessed(make_client, wait_run, project_dir):
+    (project_dir / "web").mkdir()
+    (project_dir / "web" / "package.json").write_text(
+        json.dumps({"scripts": {"test": "vitest run"}}), encoding="utf-8")
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, _model = make_client([write("web/a.js", "x\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, parts={"web/": ""})
+    snap = wait_run(client, cid, run_id)
+    assert not any(cwd.endswith("web") for _c, cwd in executor.started), (
+        executor.started, texts(snap))
+
+
+def test_a_looks_line_that_failed_is_run_again_after_the_fix(make_client, wait_run, project_dir,
+                                                            fast):
+    err = Script(["ImportError while importing test module\n"
+                  "Interrupted: 1 error during collection\n=== 1 error in 0.12s ===\n"],
+                 exit_code=2)
+    executor = ScriptedExecutor([err, PASS, PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  looked({"tests": [{"command": "python -m pytest -q",
+                                                     "folder": "."}]}),
+                                  write("a.py", "x = 2\n", "w2"), text("fixed it")],
+                                 executor=executor)
+    cid, run_id = begin(client, project_dir)
+    rows = texts(wait_run(client, cid, run_id))
+    assert found_mixin.NO_TESTS_HERE not in rows and len(executor.started) == 2, (
+        executor.started, rows)
+
+
+def test_a_looks_line_that_passed_by_its_exit_code_alone_is_tried_again(make_client, wait_run,
+                                                                      project_dir, fast):
+    # (Not saved - no count; the look is not asked again for the same map, its line is.)
+    executor = ScriptedExecutor([Script(["all good\n"]), Script(["all good\n"])])
+    client, model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                 looked({"tests": [{"command": "make test", "folder": "."}]}),
+                                 write("a.py", "x = 2\n", "w2"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir)
+    first = texts(wait_run(client, cid, run_id))
+    rows = [row["text"] for row in again(client, cid, wait_run)]
+    assert found_mixin.NO_TESTS_HERE not in rows and len(executor.started) == 2, (
+        first, rows, executor.started)
+    assert len(model.calls) == 5 and project(client, project_dir)["tests_found"] == {}
+
+
+def test_the_looks_row_names_the_model_it_asked(make_client, wait_run, project_dir, monkeypatch):
+    # (The Fast tier's model with no name set: its server's own name, as it was asked.)
+    monkeypatch.setattr(found_mixin.FoundMixin, "_look_model", lambda _self, _session, ctx: (
+        replace(ctx, model_name=None), None))
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"), looked({"tests": []})],
+                                 executor=ScriptedExecutor([]))
+    cid, run_id = begin(client, project_dir)
+    rows = texts(wait_run(client, cid, run_id))
+    assert rows[0] == "Looked for a test command once: asked Local · fake-model, which named none"
+
+
+def test_a_save_sets_its_own_folder_alone_and_never_over_one_made_meanwhile(client, project_dir,
+                                                                           monkeypatch):
+    # (Another chat's save lands between this save's read of the project and its write.)
+    from types import SimpleNamespace
+
+    from app.agent.memory_mixin import MemoryMixin
+    from app.proof import TestRun
+
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    runner, factory = client.app.state.runner, client.app.state.session_factory
+    read = MemoryMixin._project
+
+    def meanwhile(self, session, conversation):
+        found = read(self, session, conversation)
+        with factory() as other:
+            other.get_one(Project, pid).tests_found = {
+                "api": {"command": "mvn test", "from": "guess", "at": "x"},
+                "web": {"command": "npm test", "from": "guess", "at": "x"}}
+            other.commit()
+        return found
+    monkeypatch.setattr(MemoryMixin, "_project", meanwhile)
+    ctx = SimpleNamespace(cid=cid)
+    assert runner._found_saved(ctx, TestRun("npx vitest run", "web", False), "agent") is None
+    made = runner._found_saved(ctx, TestRun("go test ./...", "svc", False), "guess")
+    assert made is not None and made["text"] == SAVED
+    seen = project(client, project_dir)["tests_found"]
+    assert {folder: one["command"] for folder, one in seen.items()} == {
+        "api": "mvn test", "web": "npm test", "svc": "go test ./..."}

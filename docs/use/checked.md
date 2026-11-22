@@ -31,28 +31,36 @@ A project that had turned off the old **Finish only when the tests pass** switch
 
 ## Which tests
 
-1. The project's own **Test before adding** command, if it has one.
+1. The project's own **Test before adding** command, if it has one - and then only it: nothing is
+   guessed, found or saved beside it.
 2. Otherwise each part's test command from the project map (yours, or the map's guess), run in
-   that part's folder.
+   that part's folder. A part you set to no test is never guessed.
 3. Otherwise the test command KOLONİ saved before (below).
 4. Otherwise a command KOLONİ guesses from each part's files, in any language: `python -m pytest
    -q` (a `pyproject.toml`, `pytest.ini` or `tests/`), `npm test` (a test script in
-   `package.json`), `go test ./...` (`go.mod`), `cargo test` (`Cargo.toml`), `mvn -q test`
+   `package.json`), `go test ./...` (`go.mod`), `cargo test` (`Cargo.toml`), `mvn test`
    (`pom.xml`), `./gradlew test` or `gradle test` (`build.gradle`), `dotnet test` (a `.sln` or
    `.csproj`), `bundle exec rspec` (a `Gemfile` and `spec/`), `composer test` or
    `vendor/bin/phpunit` (`composer.json`), `mix test` (`mix.exs`), `swift test`
    (`Package.swift`), `ctest --test-dir build` (`CMakeLists.txt`), `make test` (a `test:` target
    in the `Makefile`).
-5. Otherwise a test command an agent ran in this turn that really ran tests.
+5. Otherwise a test command an agent ran in this turn that really ran tests, in a turn you are
+   there for (not while you're away, not a trigger's).
 6. Otherwise KOLONİ asks the project's **Fast** tier's model once, in a turn you are there for,
    where its tests are. KOLONİ shows it the project's parts and languages, its test files and the
-   start of its README, CONTRIBUTING and Makefile (never a secret file), with no tool. It answers
-   with command lines, which are read as data: only a single plain test command in a folder of
-   the project is tried. The request shows in Usage. It is asked again only when the project's
-   parts change. With no Fast-tier model the section says so.
+   start of its README, CONTRIBUTING and Makefile (never a secret file, nor one reached through a
+   link), with no tool. It answers with command lines, which are read as data. The request shows
+   in Usage. It is asked again only when the project's parts change; until then the commands it
+   named are tried again. With no Fast-tier model the section says so.
+
+A line an agent ran (5) or the model named (6) is tried only if it is one of the commands in 4,
+or `pytest`, `py -m pytest`, `npx vitest run`, `npx jest`, `yarn test`, `pnpm test`, `bun test`,
+`tox`, `nox`, `ctest` or `python -m unittest` - with at most `-q` or `-v` after it, in a folder of
+the project. Any other line (more options, a wrapper, a chain) is never run: the look's row says
+how many it named that were not tried.
 
 A guessed command is tagged **guessed**. If nothing can be found, the section says "No test
-command: nothing was run"; after the look found nothing, "No tests in this project".
+command: nothing was run"; after the look found no tests at all, "No tests in this project".
 
 ### Saved by KOLONİ
 

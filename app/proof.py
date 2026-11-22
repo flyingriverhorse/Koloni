@@ -178,7 +178,8 @@ def _rewritten_after(session: Session, run_id: str, by: Collection[str], ran: Co
             _folded(one.command) == wanted and one.status == "exited" and one.exit_code == 0)
         for one in session.scalars(select(Command).where(
             Command.run_id == run_id, Command.agent_id.in_(by), Command.id != ran.id,
-            Command.started_at.is_not(None), Command.started_at > ran.started_at)))
+            # (`>=`: a later line in the same tick of Windows' clock is no proof it came first)
+            Command.started_at.is_not(None), Command.started_at >= ran.started_at)))
 
 
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:
@@ -307,7 +308,7 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
     aside) or a failure its output counts; never passed without exit code 0. `ended`: its
     record's status (None: none - it never started); `seconds`: the wait it was given."""
     guessed = "" if run.yours else " (guessed)"
-    found = test_found.counts(output)
+    found = test_found.counts(output, run.command)
 
     def made(state: str, text: str) -> Row:
         return {**row("tests", state, text, run.command, not run.yours),
