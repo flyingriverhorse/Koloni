@@ -52,10 +52,14 @@ it cannot read is a card. Never disposable: a forced `git worktree remove`, KOLO
 branches and its copies' worktrees, a locked worktree, the default branch, `main` and `master`, a
 branch any worktree stands on; a build folder spelt in another case than it is on disk, holding a
 file git tracks or does not ignore (in any case of its letters), a link or a repository of its own,
-or inside `node_modules`, `.venv`, `venv`, a dot-folder or KOLONİ's own folders; a worktree named
-through a link, with a `..` after a name or by an end of its path another worktree shares, holding a new or changed file (git's
-`status.showUntrackedFiles` aside), a file marked skip-worktree or assume-unchanged, a secret file or
-anything else git ignores but whole build and cache folders; `.git`, `.koloni`, a path above the
+inside `node_modules`, `.venv`, `venv`, a dot-folder, KOLONİ's own folders or any folder git ignores
+(a venv by another name, `data/`), or inside another repository, a submodule or a worktree in the
+project; a worktree named through a link, with a `..` after a name or by an end of its path another
+worktree shares, on no branch (detached) or with its last commit on no branch, tag or remote, holding
+a new or changed file (git's `status.showUntrackedFiles` aside), a file marked skip-worktree or
+assume-unchanged, a secret file, anything else git ignores but whole build and cache folders, or a
+repository inside one of those; a branch or worktree delete run in another repository, a submodule
+or a worktree in the project, or in a folder reached through a link; `.git`, `.koloni`, a path above the
 folder the command runs in (a registered worktree aside); any command of GitHub Copilot CLI's own;
 or any line that is not one plain delete. What is checked is the folder
 as it is then - KOLONİ's own command a second time just before it runs: one swapped for a link

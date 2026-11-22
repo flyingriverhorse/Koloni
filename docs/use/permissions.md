@@ -101,18 +101,21 @@ a chat you started, and the command's row says "Ran without asking · disposable
   `.mypy_cache`, `coverage`, `.next`, `.turbo`, `target`) below where the command runs, spelt as the
   folder is on disk, that git ignores and that holds no file git tracks or would take (in any case of
   its letters), no link and no repository of its own - not inside `node_modules`, `.venv`, `venv`, a
-  folder whose name starts with a dot or KOLONİ's own; in the project, and in a sub-agent's copy;
+  folder whose name starts with a dot, KOLONİ's own, a folder git ignores, or another repository, a
+  submodule or a worktree in the project; in the project, and in a sub-agent's copy;
 - a worktree of yours that git lists, named with no link on the way, `..` only at its start and by
-  no end of its path another worktree shares: not the main one, not locked, not one of KOLONİ's, holding nothing its
-  commits do not (a new or changed file, or one marked skip-worktree or assume-unchanged - whatever
-  `status.showUntrackedFiles` says), no link, no secret file and nothing git ignores but whole build
-  and cache folders (git deletes what it ignores with the worktree);
+  no end of its path another worktree shares: not the main one, not locked, not one of KOLONİ's, on
+  a branch, holding nothing its commits do not (a new or changed file, one marked skip-worktree or
+  assume-unchanged - whatever `status.showUntrackedFiles` says - or a last commit on no branch, tag
+  or remote), no link, no secret file and nothing git ignores but whole build and cache folders with
+  no repository in them (git deletes what it ignores with the worktree);
 - a local branch that neither the project, the turn nor any worktree stands on: with `-d`, git
   itself deletes only one it finds merged; with `-D`, only one whose commits the default branch has.
   Never the default branch, `main` or `master`, nor KOLONİ's `koloni/…` ones.
 
 Worktrees and branches go this way only from the project itself (the Orchestrator), never from a
-copy. Only such a delete alone on its line counts: `rm -r build`, `Remove-Item -Recurse dist`,
+copy, and only run in the project's top folder or a plain folder in it - not in another repository,
+a submodule or a worktree inside the project, nor through a link. Only such a delete alone on its line counts: `rm -r build`, `Remove-Item -Recurse dist`,
 `git worktree remove ../wt/x`, `git branch -d old`. Anything else on the line, a forced worktree
 remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI
 whose folder KOLONİ does not know or that its model names, and any of GitHub Copilot CLI's own

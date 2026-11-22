@@ -767,3 +767,101 @@ def test_a_copilot_command_is_never_disposable_even_where_it_says_its_folder(
     assert card["disposable"] is None
     assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
     wait_run(client, cid, run_id)
+
+
+# --- the review's second round: another repository's, and commits on no branch -----------------
+
+def nested(folder):
+    """A repository of its own at `folder`, one commit on main."""
+    folder.mkdir(parents=True, exist_ok=True)
+    git(folder, "init", "-q", "-b", "main")
+    git(folder, "config", "user.email", "user@example.com")
+    git(folder, "config", "user.name", "The User")
+    git(folder, "config", "commit.gpgsign", "false")
+    (folder / "i.txt").write_text("i\n")
+    git(folder, "add", "-A")
+    git(folder, "commit", "-q", "-m", "i")
+
+
+@needs_git
+def test_a_detached_worktree_or_one_whose_head_no_ref_holds_is_no_disposable(repo, tmp_path):
+    tree = tmp_path / "wt" / "d"
+    git(repo, "worktree", "add", "-q", "--detach", str(tree))
+    assert judged(repo, "git worktree remove ../wt/d") is None  # (on no branch)
+    (tree / "c.txt").write_text("a commit on no branch\n")
+    git(tree, "add", "c.txt")
+    git(tree, "commit", "-q", "-m", "only here")
+    assert judged(repo, "git worktree remove ../wt/d") is None
+    assert git_.not_committed(tree) == ["HEAD"]  # (its reflog goes with the worktree)
+
+
+@needs_git
+def test_a_branch_delete_run_in_another_repository_or_through_a_link_is_no_disposable(
+        repo, tmp_path):
+    # (the project's `old` is merged; the nested one's, unmerged, is what git deletes there)
+    nested(repo / "sub")
+    git(repo / "sub", "branch", "old")
+    assert judged(repo, "git branch -D old") == "branch old"
+    assert judged(repo, "git branch -D old", cwd="sub") is None
+    (repo / "mod").mkdir()
+    (repo / "mod" / ".git").write_text("gitdir: ../.git/modules/mod\n")  # (a submodule's)
+    assert judged(repo, "git branch -D old", cwd="mod") is None
+    assert judged(repo, "git worktree remove ../wt/x", cwd="sub") is None
+    # (a link into another repository's folder: git finds that one, upward from where it leads)
+    nested(tmp_path / "other")
+    (tmp_path / "other" / "deep").mkdir()
+    junction(repo / "J", tmp_path / "other" / "deep")
+    assert judged(repo, "git branch -D old", cwd="J") is None
+    (repo / "plain").mkdir()
+    assert judged(repo, "git branch -D old", cwd="plain") == "branch old"
+
+
+@needs_git
+def test_a_build_folder_of_another_repository_or_worktree_in_the_project_is_no_disposable(
+        repo, tmp_path):
+    nested(repo / "sub")
+    (repo / "sub" / "build").mkdir()
+    (repo / "sub" / "build" / "x").write_text("tracked by sub\n")
+    git(repo / "sub", "add", "-f", "build/x")
+    git(repo / "sub", "commit", "-q", "-m", "x")
+    (repo / "sub" / "build" / "x").write_text("edited in sub, not committed\n")
+    assert judged(repo, "rm -rf build", cwd="sub") is None
+    assert judged(repo, "rm -rf sub/build") is None
+    # (the project's own worktree inside it, on a branch that tracks build/)
+    git(repo, "switch", "-q", "-c", "tools")
+    (repo / "build" / "make.ps1").write_text("make\n")
+    git(repo, "add", "-f", "build/make.ps1")
+    git(repo, "commit", "-q", "-m", "tools")
+    git(repo, "switch", "-q", "main")
+    ignoring(repo, "worktrees/")
+    git(repo, "worktree", "add", "-q", str(repo / "worktrees" / "x"), "tools")
+    assert judged(repo, "rm -rf worktrees/x/build") is None
+    assert judged(repo, "rm -rf build", cwd="worktrees/x") is None
+
+
+@needs_git
+@pytest.mark.parametrize("dotgit", ["repository", "file"])
+def test_a_worktree_whose_ignored_build_folder_holds_a_repository_is_no_disposable(
+        repo, tmp_path, dotgit):
+    tree = tmp_path / "wt" / "x"
+    git(repo, "worktree", "add", "-q", "-b", "feat", str(tree))
+    (tree / "build").mkdir()
+    assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
+    if dotgit == "repository":
+        nested(tree / "build" / "clone")
+    else:
+        (tree / "build" / "m").mkdir()
+        (tree / "build" / "m" / ".git").write_text("gitdir: elsewhere\n")
+    assert judged(repo, "git worktree remove ../wt/x") is None
+
+
+@needs_git
+def test_a_build_folder_below_a_folder_git_ignores_is_no_disposable(repo):
+    ignoring(repo, "env/", "data/")
+    (repo / "env" / "Lib" / "site-packages" / "pkg" / "build").mkdir(parents=True)
+    assert judged(repo, "rm -rf build", cwd="env/Lib/site-packages/pkg") is None
+    (repo / "data" / "target").mkdir(parents=True)
+    assert judged(repo, "rm -rf data/target") is None
+    assert judged(repo, "rm -rf target", cwd="data") is None
+    (repo / "web" / "dist").mkdir(parents=True)
+    assert judged(repo, "rm -rf web/dist") == "build folder web/dist"

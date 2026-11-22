@@ -46,9 +46,10 @@ def what(command: str, project: Path, root: Path, cwd: str | None, *, in_copy: b
     if targets is None or cwd is None:
         return None
     gits = {kind for kind, _target, _force in targets if kind != "folder"}
-    if gits and in_copy:  # (a worktree, a branch: the project's own, never a copy's)
-        return None
     here = os.path.normpath(os.path.join(os.path.realpath(root), cwd))
+    # (a worktree, a branch: the project's own, never a copy's - nor another repository's in it)
+    if gits and (in_copy or not _the_projects_git(root, here)):
+        return None
     seen = git.where(project) if gits else None
     default = git.default_branch(project) if "branch" in gits else None
     for kind, target, force in targets:
@@ -59,6 +60,24 @@ def what(command: str, project: Path, root: Path, cwd: str | None, *, in_copy: b
                 and _branch(project, target, force, seen, keep, default)):
             return None
     return "; ".join(f"{NAMES[kind]} {target}" for kind, target, _force in targets)
+
+
+def _the_projects_git(root: Path, here: str) -> bool:
+    """Whether git run in `here` is the project's own (`root`'s): a folder in it reached with no
+    link on the way (git finds a repository upward from where a link leads), with no `.git` in it
+    or between (another repository's, a submodule's, a worktree's)."""
+    top = os.path.realpath(root)
+    parts = [] if here == top else os.path.relpath(here, top).replace("\\", "/").split("/")
+    return _real(here) == os.path.normcase(here) and ".." not in parts and not (
+        _another_repository(top, parts))
+
+
+def _another_repository(top: str, parts: list[str]) -> bool:
+    """Whether a `.git` - a repository's folder, or a submodule's or a worktree's file - is in a
+    folder between `top` and the end of `parts`, that one too: git there is another
+    repository's, or another worktree's index, not the project's."""
+    return any(os.path.lexists(os.path.join(top, *parts[:at], ".git"))
+               for at in range(1, len(parts) + 1))
 
 
 def _real(path: str | Path) -> str:
@@ -93,9 +112,12 @@ def _folder(project: Path, root: Path, here: str, rel: str) -> bool:
     inside = "/".join(parts)
     if real != os.path.normcase(spelt) or not all(
             _plain_name(part) and part.casefold() not in LINKED for part in parts[:-1]) or not (
-            _as_on_disk(top, parts)) or _koloni_s(top, spelt):
+            _as_on_disk(top, parts)) or _koloni_s(top, spelt) or _another_repository(top, parts):
         return False
-    return (not _holds_more(real) and git.ignored(project, [inside + "/"]) == {inside + "/"}
+    # (ignored itself, no folder above it ignored: `env/`, a venv by another name, or `data/`)
+    above = ["/".join(parts[:at]) + "/" for at in range(1, len(parts))]
+    return (not _holds_more(real)
+            and git.ignored(project, [*above, inside + "/"]) == {inside + "/"}
             and git.kept_under(project, inside) is False)
 
 
@@ -151,13 +173,21 @@ def _worktree(project: Path, here: str, path: str, seen: dict, copies_at: list[P
     own = _real(project)
     listed = [one for one in seen["worktrees"][1:] if _real(one["path"]) == real]
     if real != os.path.normcase(spelt) or _climbs_past_a_name(path) or not listed or listed[0][
-            "locked"] or _under(own, real) or _ends_alike(path, seen["worktrees"], real) or any(
-            _under(real, _real(held)) for held in copies_at):
+            "locked"] or listed[0]["branch"] is None or _under(own, real) or _ends_alike(
+            path, seen["worktrees"], real) or any(_under(real, _real(held)) for held in copies_at):
         return False
+    return _holds_nothing_else(real)
+
+
+def _holds_nothing_else(real: str) -> bool:
+    """Whether a worktree's folder holds nothing but its commits and whole build and cache
+    folders git ignores, holding no repository or link of their own: git deletes what it
+    ignores with the worktree. No link anywhere in it, no secret file."""
     commands._held.pop(Path(real), None)  # (walked anew: a walk kept for 10 s misses a new one)
     left = git.left_out(Path(real))
     return left is not None and all(
-        one.endswith("/") and one.rstrip("/").split("/")[-1] in DISPOSABLE_NAMES for one in left
+        one.endswith("/") and one.rstrip("/").split("/")[-1] in DISPOSABLE_NAMES
+        and not _holds_more(os.path.join(real, one)) for one in left
     ) and git.not_committed(Path(real)) == [] and not (
         _holds_link([real]) or secret_files(Path(real)))
 

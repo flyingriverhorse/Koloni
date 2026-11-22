@@ -2065,19 +2065,23 @@ def kept_under(project: Path, rel: str) -> bool | None:
 def not_committed(tree: Path) -> list[str] | None:
     """What a worktree's folder holds that none of its commits does, as git's own look before
     `worktree remove` may not see it: a changed file, a new one it does not ignore (whatever
-    `status.showUntrackedFiles` says), and a tracked one marked skip-worktree or
-    assume-unchanged, whose changes git hides; None where git does not say."""
+    `status.showUntrackedFiles` says), a tracked one marked skip-worktree or assume-unchanged,
+    whose changes git hides - and "HEAD" where its last commit is on no branch, tag or remote
+    (a detached one's: its reflog goes with the worktree); None where git does not say."""
     try:
         git, until = _looking(tree)
         changed = _said(tree, git, until, "ls-files", "-z", "--modified", "--others",
                         "--exclude-standard")
         tagged = _said(tree, git, until, "ls-files", "-z", "-v")
+        alone = _said(tree, git, until, "rev-list", "-n1", "HEAD", "--not", "--branches",
+                      "--tags", "--remotes")
     except Refused:
         return None
-    if changed is None or tagged is None:
+    if changed is None or tagged is None or alone is None:
         return None
     return [one for one in changed.split("\0") if one] + [
-        one[2:] for one in tagged.split("\0") if one and not one.startswith("H ")]
+        one[2:] for one in tagged.split("\0") if one and not one.startswith("H ")] + (
+        ["HEAD"] if alone.strip() else [])
 
 
 def left_out(tree: Path) -> list[str] | None:
