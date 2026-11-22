@@ -75,8 +75,9 @@ function inline(text: string): string {
 export function sentences(text: string): { done: string[]; rest: string } {
   const done: string[] = []
   let at = 0
-  // An end mark (closing quotes and brackets with it) with whitespace after it.
-  for (const end of text.matchAll(/[.!?…]+["'”’)\]]*\s+/g)) {
+  // An end mark (closing quotes and brackets with it) with whitespace after it. (Tried from the first mark of a run
+  // only: from each, a long run of dots took time in its square, on every update while auto-read is on.)
+  for (const end of text.matchAll(/(?<![.!?…])[.!?…]+["'”’)\]]*\s+/g)) {
     const sentence = text.slice(at, end.index + end[0].length).trim()
     if (sentence) done.push(sentence)
     at = end.index + end[0].length
