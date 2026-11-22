@@ -6179,12 +6179,13 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return [*self._failing_held(session, child, before), *self._ran_held(session, child, found)]
 
     def _failing_held(self, session, child: Ctx, before: list[str]) -> list[dict]:
-        """R2: a test run of its own that failed (the last with a verdict of each tool:
-        `ledger.failed_tests`) is a blocking finding - unless every test it names as failing is
-        one the report says was failing before (`ledger.covered`) - and none the run's reproduce
-        step showed failing (`_reproduced`: that is the bug). Not before a step that fixes, where
-        every failing run is handed on already; nor in the step that reproduces the bug, where the
-        failing test is the work - said so, as no blocking finding."""
+        """R2: a test run of its own that failed (and no later pass of that line or whole run of
+        its tool cleared: `ledger.failed_tests`) is a blocking finding - unless every test it
+        names as failing is one the report says was failing before (`ledger.covered`) - and none
+        the run's reproduce step showed failing (`_reproduced`: that is the bug). Not before a
+        step that fixes, where every failing run is handed on already; nor in the step that
+        reproduces the bug, where the failing test is the work - said so, as no blocking
+        finding."""
         ran = None if child.agent_id in self._before_fix else ledger.failed_tests(
             session, child.agent_id)
         if ran is None or ledger.covered(ran, before, self._reproduced(session, child)):
@@ -6196,7 +6197,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
     def _ran_held(self, session, child: Ctx, found: list | None) -> list[dict]:
         """R3: a recipe's check whose job is running checks (`_held_to_run`) that ran no command
-        on record that started and is no mere read (`ledger.ran_check`) does not pass
+        on record that started and checks something - no mere read, no `echo` or `python -c
+        "pass"` (`ledger.ran_check`) - does not pass
         (`RAN_NOTHING`) - not one whose report has no Findings section (no pass already), nor
         where its CLI's work is not seen (`handoff.counted_on`: a command it ran may not be on
         record). Where the user declined its command, it checked nothing for a fixer to act on:

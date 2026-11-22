@@ -6,9 +6,11 @@ turn is over: a prompt cache keeps what stands before it."""
 
 import json
 import os
+import posixpath
 import re
 import shlex
 from collections.abc import Collection
+from typing import NamedTuple
 
 from sqlalchemy import literal_column, select, true
 from sqlalchemy.orm import Session
@@ -248,20 +250,51 @@ def _module(words: list[str]) -> list[str] | None:
     return words[at + 1:] if words[at:at + 1] == ["-m"] else None
 
 
-def _tool(words: list[str]) -> str | None:
-    """The test tool a part runs (its words from its program), by one name for each; None: none."""
+def _tool(words: list[str]) -> tuple[str, list[str]] | None:
+    """The test tool a part runs (its words from its program), by one name for each, and its words
+    past the tool and its `test` subcommand (`-q tests`; `test:unit` stays: another script);
+    None: none."""
     name, rest = (_name(words[0]), words[1:]) if words else ("", [])
     if _PYTHON.fullmatch(name):
         module = _module(words)
         return _tool(module) if module else None
     if name in _TOOLS:
         lint = name in ("tox", "nox") and any("lint" in word for word in rest)  # (`tox -e lint`)
-        return None if lint else _TOOLS[name]
+        return None if lint else (_TOOLS[name], rest)
     first = next((word for word in rest if word != "run" and not word.startswith("-")), "")
+    past = rest[rest.index(first) + (first in ("test", "tests")):] if first else []
     if name in _PACKAGERS:
-        return f"{name} test" if first.startswith("test") and "lint" not in first else None
-    return f"{name.removesuffix('w')} test" if name in _SUBCOMMANDS and first in (
+        return (f"{name} test", past) if first.startswith("test") and "lint" not in first else None
+    return (f"{name.removesuffix('w')} test", past) if name in _SUBCOMMANDS and first in (
         "test", "tests") else None
+
+
+class _Test(NamedTuple):
+    """A test run as its line says it (`_test_of`)."""
+    tool: str
+    masked: bool
+    args: list[str]  # (past the tool, `_tool`)
+    cds: tuple[str, ...]  # where a `cd` before it on the line went
+
+
+_CDS = frozenset({"cd", "pushd", "chdir", "set-location"})
+
+
+def _test_of(command: str) -> _Test | None:
+    parts = _split(command)
+    cds: list[str] = []
+    for at, (words, _after) in enumerate(parts):
+        masked = any(after not in ("", "&&") for _words, after in parts[at:])
+        words = _past_leads(words)
+        if words and _name(words[0]) in _CDS:
+            cds.append(words[-1].strip("'\"") if len(words) > 1 else "~")
+            continue
+        line = _handed_on(words)
+        found = _test_of(line) if line is not None else (
+            _Test(tool[0], False, tool[1], ()) if (tool := _tool(words)) else None)
+        if found:
+            return found._replace(masked=found.masked or masked, cds=(*cds, *found.cds))
+    return None
 
 
 def read_test(command: str) -> tuple[str, bool] | None:
@@ -270,16 +303,60 @@ def read_test(command: str) -> tuple[str, bool] | None:
     exit is masked - an operator other than `&&` after it (`; true`, `|| true`, `| tail -1`): its
     exit is then not the test's. None: it runs no test (`echo pytest`, `npm run test:lint`).
     shortcut: a line's first test part counts; read each if lines that run two tools are met."""
-    parts = _split(command)
-    for at, (words, _after) in enumerate(parts):
-        masked = any(after not in ("", "&&") for _words, after in parts[at:])
-        words = _past_leads(words)
-        line = _handed_on(words)
-        found = read_test(line) if line is not None else (
-            (tool, False) if (tool := _tool(words)) else None)
-        if found:
-            return found[0], found[1] or masked
-    return None
+    found = _test_of(command)
+    return None if found is None else (found.tool, found.masked)
+
+
+# CL-305 B: a test run's words that run no test - help, version, a list (`go test -list .`,
+# `cargo test -- --list`, `jest --listTests`, `dotnet test --list-tests`; `vitest list`) - and
+# `-V` where it is the version (ctest's is verbose; mvn's goes on to build).
+_NO_TESTS = frozenset({"-h", "--help", "--version", "--collect-only", "--co", "--fixtures",
+                       "--markers", "-list", "--list", "--listTests", "--list-tests"})
+# ...the words that pick some of its tests (any word that is no option does too: a path, a name);
+_PICKS = frozenset({"-k", "-m", "-t", "--testNamePattern", "--grep", "-run", "--filter", "-p",
+                    "--package", "--tests", "--lf", "--last-failed", "--sw", "--stepwise",
+                    "--onlyChanged", "--changed"})
+# ...the options that take a value, which is no pick (`-n 4`), and the words that pick none.
+_VALUES = frozenset({"-n", "-c", "-o", "-W", "--maxfail", "--tb", "--timeout", "--durations",
+                     "--reporter", "--maxWorkers", "-w", "-j", "-count", "-timeout", "--test-dir"})
+_WHOLE = frozenset({"run", "discover", ".", "./..."})
+
+
+def _runs_none(tool: str, args: list[str]) -> bool:
+    """Whether a test run's words run no test: help, version, a list (`_NO_TESTS`)."""
+    keys = {word.split("=", 1)[0] for word in args}
+    return bool(keys & _NO_TESTS) or ("-V" in keys and tool not in ("ctest", "mvn test")) or (
+        tool == "vitest" and args[:1] == ["list"])
+
+
+def _picks(test: _Test) -> bool:
+    """Whether a test run picks some of its tests - a path, a name, `-k`, `::` - not all.
+    shortcut: an option's value is known by `_VALUES` alone - any other word that is no option is
+    read as a pick (a pass then clears less, never more); add an option when one is met."""
+    at = 0
+    while at < len(test.args):
+        word = test.args[at]
+        key = word.split("=", 1)[0]
+        if key in _PICKS or "::" in word or not word.startswith("-") and word not in _WHOLE:
+            return True
+        at += 2 if key in _VALUES and "=" not in word else 1
+    return False
+
+
+def _folder(one: Command, test: _Test) -> str:
+    """Where a test run ran: its folder in the project, then where a `cd` on its line went."""
+    return posixpath.normpath(posixpath.join(
+        *(place.replace("\\", "/") for place in (one.cwd or ".", *test.cds))))
+
+
+def _clears(passed: tuple[Command, _Test], failed: tuple[Command, _Test]) -> bool:
+    """Whether a later pass clears a failed test run: in the same folder, the same line however
+    it is spaced, or a run of the same tool that picks none of its tests (`_picks`)."""
+    (one, test), (other, its) = passed, failed
+    return _folder(one, test) == _folder(other, its) and (
+        one.command.split() == other.command.split() or (
+            test.tool == its.tool and not _picks(test)))
+
 
 def _many(count: int, what: str) -> str:
     return f"{count} {what}" + ("" if count == 1 else "s")
@@ -295,39 +372,52 @@ def _family(session: Session, agent_id: str) -> tuple[str, set[str]]:
     return run_id, ids
 
 
-def _verdict(one: Command, call: str | None, read: tuple[str, bool]) -> bool | None:
-    """A test run's verdict (`read`: its tool and whether its exit is masked, `read_test`): True,
+def _ran_none(one: Command, test: _Test) -> bool:
+    """Whether a test run ran no test: by its words (`_runs_none`), or its runner's summary counts
+    none passed and none failed (`test_found.counts`; no summary known: by its exit)."""
+    from app.test_found import counts  # (here: test_found imports this module)
+    counted = counts(one.output, one.command)
+    return _runs_none(test.tool, test.args) or counted is not None and not counted.ran
+
+
+def _verdict(one: Command, call: str | None, test: _Test) -> bool | None:
+    """A test run's verdict (`test`: its tool and whether its exit is masked, `_test_of`): True,
     failed - timed out, a failure counted, exited non-zero, or no exit code reported where its CLI
     said its call failed (its own timeout, say); False, passed (no exit code reported is Claude
     Code's pass); None, none - it never started tests (its program not found,
-    `finish_tests.did_not_start`; pytest's 4, no such file or option), ran none (pytest's 5), or
-    its exit is masked and it counted no failure."""
+    `finish_tests.did_not_start`; pytest's 4, no such file or option), ran none (pytest's 5, a
+    help, a version, a list, 0 counted: `_ran_none`), or its exit is masked and it counted no
+    failure."""
     if one.status == "timed_out" or FAILED.search(one.output[-4000:]):
         return True
-    if read[1] or did_not_start(one.exit_code, one.output) or (
-            read[0] == "pytest" and one.exit_code in (4, 5)):
+    if test.masked or did_not_start(one.exit_code, one.output) or (
+            test.tool == "pytest" and one.exit_code in (4, 5)) or _ran_none(one, test):
         return None
     return one.exit_code not in (0, None) or (one.exit_code is None and call == "failed")
 
 
 def failed_tests(session: Session, agent_id: str) -> Command | None:
-    """Of the test runs of an agent and the agents it opened, the last with a verdict of each test
-    tool, however it is spelled (`pytest -q` failing, then `python -m pytest -q` passing: none) -
-    a passing `npm test` hides no failing `pytest`: the latest that failed; None where none did or
-    none gave a verdict (killed: no result)."""
+    """Of the test runs of an agent and the agents it opened, the latest that failed and that no
+    later pass clears (`_clears`): the same line in the same folder, or a run there of the same
+    tool however it is spelled that picks none of its tests (`pytest -q` failing, then `python -m
+    pytest -q` passing: none). A narrower pass (`pytest tests/test_ok.py`, `-k ok`), another
+    tool's (a passing `npm test` hides no failing `pytest`), one in another folder, and a run that
+    ran none (`-h`, `--collect-only`) clear none. None where none failed or none gave a verdict
+    (killed: no result)."""
     run_id, ids = _family(session, agent_id)
-    seen: set[str] = set()
+    passes: list[tuple[Command, _Test]] = []
     for one, call in session.execute(
             select(Command, ToolCall.status)
             .outerjoin(ToolCall, ToolCall.id == Command.tool_call_id)
             .where(Command.run_id == run_id, Command.agent_id.in_(ids),
                    Command.status.in_(("exited", "timed_out")))
             .order_by(Command.created_at.desc(), literal_column("commands.rowid").desc())):
-        read = read_test(one.command)
-        if read is None or read[0] in seen or (verdict := _verdict(one, call, read)) is None:
+        test = _test_of(one.command)
+        if test is None or (verdict := _verdict(one, call, test)) is None:
             continue
-        seen.add(read[0])
-        if verdict:
+        if not verdict:
+            passes.append((one, test))
+        elif not any(_clears(passed, (one, test)) for passed in passes):
             return one
     return None
 
@@ -416,15 +506,43 @@ def failing_shown(one: Command) -> str:
 
 
 # R3 (review of S4): what counts as a check that ran - a command that started (asked and not run,
-# blocked, failed to start: not) and is no mere read (`commands.only_reads`: `ls`, `cat`).
+# blocked, failed to start: not), is no mere read (`commands.only_reads`: `ls`, `cat`) and checks
+# something (`_checks_nothing`).
 STARTED = ("exited", "running", "timed_out", "killed")
+# CL-305: what checks nothing - a part that prints, does nothing or changes folder; inline Python
+# that only passes or prints a literal; a version or help.
+_IDLE = frozenset({"echo", "printf", "write-host", "write-output", "true", ":", *_CDS})
+_IDLE_CODE = re.compile(r"""\s*(?:pass|print\(\s*(?:'[^']*'|"[^"]*"|\d*)\s*\))?\s*""")
+_ABOUT = frozenset({"--version", "-V", "--help"})
+
+
+def _idle(words: list[str]) -> bool:
+    """R3: whether a part of a line (its words from its program) checks nothing."""
+    if not words or _name(words[0]) in _IDLE or only_reads(" ".join(words)):
+        return True
+    if (tool := _tool(words)) is not None:
+        return _runs_none(*tool)
+    code = words[2].strip("'\"") if len(words) == 3 and words[1] == "-c" and _PYTHON.fullmatch(
+        _name(words[0])) else None
+    if code is not None:
+        return all(_IDLE_CODE.fullmatch(one) for one in code.split(";"))
+    return bool(_ABOUT & set(words[1:]))
+
+
+def _checks_nothing(command: str) -> bool:
+    """R3: whether every part of a line only reads or checks nothing (`_idle`): `echo ok`, `true`,
+    `:`, `cd .`, `python -c "pass"`, `python --version`, `pytest --collect-only`, `git status`.
+    shortcut: a line a shell is handed (`bash -c "…"`) is taken as a check; read it if one that
+    checks nothing is seen so."""
+    return all(_idle(_past_leads(words)) for words, _after in _split(command))
 
 
 def ran_check(session: Session, agent_id: str) -> bool:
-    """Whether an agent, or an agent it opened, ran a command that started and is no mere read."""
+    """Whether an agent, or an agent it opened, ran a command that started and checks something."""
     run_id, ids = _family(session, agent_id)
-    return any(not only_reads(command) for command in session.scalars(select(Command.command).where(
-        Command.run_id == run_id, Command.agent_id.in_(ids), Command.status.in_(STARTED))))
+    return any(not _checks_nothing(command) for command in session.scalars(
+        select(Command.command).where(Command.run_id == run_id, Command.agent_id.in_(ids),
+                                      Command.status.in_(STARTED))))
 
 
 def declined(session: Session, agent_id: str) -> str | None:
@@ -471,7 +589,9 @@ def did(session: Session, agent_id: str, seen: bool = True) -> str | None:
     failed = sum(not one.keep_running and (
         one.status != "exited" or one.exit_code not in (0, None)
         or one.exit_code is None and bool(FAILED.search(one.output[-4000:]))) for one in commands)
-    tests = [one for one in commands if one.status == "exited" and TESTS.search(one.command)]
+    # (CL-305 B: not a run that ran no test - `unittest -h` is no pass to say "no need" of.)
+    tests = [one for one in commands if one.status == "exited" and TESTS.search(one.command)
+             and not ((test := _test_of(one.command)) is not None and _ran_none(one, test))]
     parts = []
     if seen or read:
         parts.append("read " + _many(len(read), "file"))
