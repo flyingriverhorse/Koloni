@@ -13,7 +13,7 @@ const coder: Role = {
   instructions: '',
   tools: ['list_dir', 'read_file', 'search', 'run_command', 'assess_task'],
   builtin: true,
-  created_by_agent: false, models: null,
+  created_by_agent: false, locked_tools: [], models: null,
   provider_id: null,
   model_id: null,
   tier: null,
@@ -114,6 +114,28 @@ test('the last tool stays on: a role needs one', async () => {
   expect(tile('List folders')).toBeEnabled()
   await userEvent.click(tile('Read files'))
   expect(onPatch).not.toHaveBeenCalled()
+})
+
+// Karar 5: a core role (the Coder, Tester, Reviewer, Debugger, Security reviewer) keeps the tools its job needs.
+const core = { ...coder, locked_tools: ['list_dir', 'read_file', 'search', 'run_command'] }
+
+test("a locked tool's tile is ticked, disabled and says why", async () => {
+  const onPatch = await open(core)
+  expect(tile('Run commands')).toHaveAttribute('aria-pressed', 'true')
+  expect(tile('Run commands')).toBeDisabled()
+  expect(tile('Run commands')).toHaveAttribute('title', "Kept: KOLONİ's checks and recipes need it")
+  await userEvent.click(tile('Run commands'))
+  expect(onPatch).not.toHaveBeenCalled()
+  // Its other tools are the user's.
+  expect(tile('Write files')).toBeEnabled()
+  await userEvent.click(tile('Write files'))
+  expect(onPatch).toHaveBeenCalledWith('r1', { tools: [...core.tools, 'write_file'] })
+})
+
+test('a core role has no off switch', async () => {
+  render(<AgentsPage roles={[core, { ...coder, id: 'r2', name: 'Translator', builtin: true }]} picked={core.id} onPatch={vi.fn()} {...handlers()} />)
+  expect(screen.queryByRole('switch', { name: 'Coder on' })).toBeNull()
+  expect(screen.getAllByRole('switch', { name: 'Translator on' }).length).toBeGreaterThan(0)
 })
 
 test("0.1.0-ui: the role's MCP servers and skills are a list, each opening the Tools page on it; nothing is given here", async () => {

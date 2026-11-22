@@ -52,7 +52,7 @@ const role: Role = {
   instructions: '',
   tools: ['read_file'],
   builtin: true,
-  created_by_agent: false, models: null,
+  created_by_agent: false, locked_tools: [], models: null,
   provider_id: null,
   model_id: null,
   tier: null,

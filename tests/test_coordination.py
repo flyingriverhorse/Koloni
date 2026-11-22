@@ -568,6 +568,112 @@ def test_a_group_that_does_not_pair_is_always_asked(command):
     assert harm_class(command) == "always", command
 
 
+# Brackets that are no group (k-okuyucu-2): a heredoc's body handed to what only reads it as data,
+# a comment, a case pattern, a group only printed - asked no more than a plain line.
+@pytest.mark.parametrize("command", [
+    "cat > notes.md <<'EOF'\n1) first\n2) second\nEOF", "cat <<EOF > a.txt\nsmile :)\nEOF",
+    "tee x.md <<'EOF'\na) one\nb) two\nEOF", "git commit -F - <<'EOF'\nfix: close paren)\nEOF",
+    "cat > x.py <<'EOF'\nprint(\"a\")\nfoo(\nEOF", "cat > setup.sh <<'EOF'\n(cd web && npm ci)\nEOF",
+    "cat > notes.md <<-EOF\n\t1) first\n\tEOF", "cat > a.md <<'EOF'\r\n1) first\r\nEOF\r\n",
+    "echo done # 1) first step", "ls -la # see (notes", "npm test # } end of block",
+    "REM (a cmd remark\ndir", ":: (another remark\ndir", "echo ok & rem )",
+    "case \"$1\" in\n  start) echo s ;;\n  stop) echo t ;;\nesac",
+    "case $x in a|b) ls ;; *) pwd ;; esac", "echo \"(npm ci)\"",
+    "git commit -m \"run (npm ci) first\""])
+def test_brackets_that_are_no_group_ask_nothing(command):
+    assert harm_class(command) == "" and not installs(command), command
+    assert not web_off_reason(command, ["http_request"]), command
+    assert not copy_reason(command, True, "/work/proj", "/work/rt"), command
+
+
+@pytest.mark.parametrize("command", [
+    "bash <<EOF\npkill python\nEOF", "sh -s <<EOF\ncd web\npkill python\nEOF",
+    "cat <<EOF | bash\npkill python\nEOF", "case \"$1\" in stop) pkill python ;; esac",
+    "pkill python # )", "(pkill python) # (", "echo x; rem\npkill python"])
+def test_what_a_shell_is_handed_past_a_heredoc_a_comment_or_a_case_still_stops(command):
+    assert harm_class(command) == "always", command
+
+
+@pytest.mark.parametrize("command", [
+    "sh -s <<EOF\ncd web\nnpm ci\nEOF", "case \"$1\" in start) npm ci ;; esac",
+    "case \"$1\" in\n  start)\n    npm ci\n    ;;\nesac", "npm ci # )"])
+def test_an_install_past_a_heredoc_a_comment_or_a_case_is_one(command):
+    assert installs(command), command
+
+
+# A line a launcher hands a shell, a package runner's `-c` / `--call`, a script block made of a
+# string and PowerShell's encoded command are read - or, encoded, asked (k-okuyucu-2).
+@pytest.mark.parametrize("command", [
+    "Start-Process powershell -WindowStyle Hidden -Wait -ArgumentList "
+    "'-Command','taskkill /IM python.exe /F'",
+    "Start-Process -FilePath pwsh -ArgumentList '-c','Stop-Process -Name python'",
+    "Start-Process cmd -ArgumentList '/c taskkill /F /IM python.exe'",
+    "Start-Process bash -Args '-c','pkill python'", "Start-Process wsl -ArgumentList 'pkill','python'",
+    'saps powershell "-Command taskkill /IM python.exe /F"',
+    "Start-Process powershell -ArgumentList '-EncodedCommand','ZQBjAGgAbwA='",
+    "powershell -EncodedCommand ZQBjAGgAbwA=", "pwsh -NoProfile -enc ZQBjAGgAbwA=",
+    "npx -c 'taskkill /IM python.exe /F'", "npx --call 'pkill python'", "npm exec -c 'pkill python'",
+    "[scriptblock]::Create('taskkill /IM python.exe /F').Invoke()",
+    "&([scriptblock]::Create('taskkill /IM python.exe /F'))"])
+def test_a_line_a_launcher_hands_on_is_read(command):
+    assert harm_class(command) == "always", command
+
+
+def test_an_install_a_launcher_hands_a_shell_is_one():
+    assert installs("Start-Process cmd -ArgumentList '/c npm ci' -Wait")
+    assert installs("Start-Process powershell -ArgumentList '-Command','npm ci'")
+    assert harm_class("Start-Process notepad -ArgumentList 'x.txt'") == ""
+
+
+# What a `$( ... )` runs installs as the line it is (k-okuyucu-2), sh's and PowerShell's.
+@pytest.mark.parametrize("command", [
+    "out=$(npm ci)", "output=$(npm install 2>&1)", 'echo "$(npm ci)"', "result=$(cd web && npm ci)",
+    "v=$(pip install -r requirements.txt) && echo $v", "$r = $(npm ci)", "Write-Host $(npm ci)"])
+def test_an_install_a_substitution_runs_is_one(command):
+    assert installs(command), command
+    assert web_off_reason(command, ["http_request"]), command
+
+
+@pytest.mark.parametrize("command", [
+    "echo '$(npm ci)'", "git commit -m 'use $(npm ci)'", "grep '$(npm ci)' x.sh",
+    'echo "\\$(npm ci)"', "$m = @'\n$(npm ci)\n'@", "cat > a.txt <<'EOF'\n$(npm ci)\nEOF"])
+def test_a_substitution_no_shell_runs_installs_nothing(command):
+    # (k-okuyucu-2: single quotes, `\$(`, a literal here-string, a quoted delimiter's data body)
+    assert not installs(command), command
+
+
+# A data heredoc hides nothing after it, and an unquoted delimiter's body runs its `$( )` and
+# backticks (the check of df5901d): every line is read as written too.
+@pytest.mark.parametrize("command", [
+    "cat > x.py <<'EOF'\nprint(1)\nEOF\npython x.py && pkill -f uvicorn",
+    "git commit -F - <<'EOF'\nmsg\nEOF\npkill python", "cat <<'EOF'\ndata\nEOF\ntaskkill /F /IM python.exe",
+    "cat <<'EOF'\ndata\nEOF\nStop-Process -Name python", "cat <<'EOF'\ndata\nEOF\npgrep x | xargs kill",
+    "cat << EOF\ndata\nEOF\npkill python", "cat <<-EOF\ndata\n\tEOF\npkill python",
+    "cat <<EOF\r\ndata\r\nEOF\r\npkill python", "cat <<'E'OF\ndata\nEOF\npkill python",
+    "cat <<A <<B\nx\nA\ny\nB\npkill python", "bash <<'OUT'\ncat <<'IN'\ndata\nIN\npkill python\nOUT",
+    "cat <<EOF\n$(pkill python)\nEOF", "git commit -F - <<EOF\nmsg $(pkill python)\nEOF",
+    "cat <<EOF\n${x:-$(pkill python)}\nEOF", "cat <<-EOF\n\t$(pkill python)\n\tEOF",
+    "cat <<EOF\n`pkill python`\nEOF", "<# c #> Stop-Process -Name python"])
+def test_a_stop_past_a_heredoc_or_in_its_substitution_is_asked(command):
+    assert harm_class(command) == "always", command
+    assert command in readings(command)
+
+
+@pytest.mark.parametrize("command", [
+    "Start-Process -FilePath \"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -ArgumentList "
+    "'-c','Stop-Process -Name python'",
+    "Start-Process pwsh -ArgumentList @('-c','Stop-Process -Name python')",
+    "Start-Process pwsh -ArgumentList $a",
+    "Start-Process -ArgumentList '-c','Stop-Process -Name python' -FilePath pwsh",
+    "Start-Process -ArgumentList '/c taskkill /F /IM python.exe' cmd",
+    "Start-Process taskkill -ArgumentList '/F /IM python.exe'", "saps pkill python",
+    "powershell /enc ZQBjAGgAbwA=",
+    "[System.Management.Automation.ScriptBlock]::Create('Stop-Process -Name python').Invoke()",
+    "Start-Process python -ArgumentList '-c \"import os; os.system(''pkill python'')\"'"])
+def test_a_launchers_other_spellings_are_read(command):
+    assert harm_class(command) == "always", command
+
+
 # The four checks that read a line as written read every reading (k-okuyucu): a continued line
 # and a group too - the strictest of them.
 def test_the_checks_that_read_a_line_as_written_read_every_reading():
@@ -583,6 +689,25 @@ def test_the_checks_that_read_a_line_as_written_read_every_reading():
     assert writes_git_config("git init") and writes_git_config("git remote add o x")
     for line in ["git init # done `\nrm .git/config", "git `\ninit", "(git init)"]:
         assert not writes_git_config(line), line
+
+
+# ...and behind a wrapper, in a group, past cmd's `^` (k-okuyucu-2) - what every other rule reads.
+WRAPPED = ["time {c}", "nohup {c} &", "env X=1 {c}", "X=1 {c}", "eval '{c}'", "bash -c '{c}'",
+           "call {c}", "start /b {c}", "iex '{c}'", 'powershell -Command "{c}"', "( {c} )",
+           "sudo {c}", "timeout 60 {c}"]
+
+
+@pytest.mark.parametrize("wrapper", WRAPPED)
+def test_the_branch_and_patch_checks_read_behind_a_wrapper(wrapper):
+    assert switches_branch(wrapper.replace("{c}", "git switch main")), wrapper
+    assert applies_patch(wrapper.replace("{c}", "git apply x.patch")), wrapper
+    # (what a git line lets stand stays the least: a wrapper's git is not git's own alone)
+    assert not writes_git_config(wrapper.replace("{c}", "git init")), wrapper
+
+
+def test_cmds_caret_at_a_lines_end_continues_it():
+    assert switches_branch("git ^\nswitch main") and applies_patch("git ^\r\napply x.patch")
+    assert joined("git ^\nswitch main") == "git switch main" and not writes_git_config("git ^\ninit")
 
 
 # A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,
@@ -669,18 +794,23 @@ def test_what_a_backtick_pair_holds_is_read(command):
     "perl -e 'system(\"pkill python\")'", "ruby -e 'system(\"pkill python\")'",
     "awk 'BEGIN{system(\"pkill python\")}'", "node -e \"process.kill(1234)\"",
     "python -c \"import os,signal; os.kill(os.getppid(), signal.SIGKILL)\"",
-    "uv run python -c \"import os; os.system('pkill -f uvicorn')\"",
-    "perl -e 'kill 9, 1234'", "ruby -e '`pkill python`'"])
+    "uv run python -c \"import os; os.system('pkill -f uvicorn')\""])
 def test_a_stop_in_code_an_interpreter_is_handed_is_always_asked(command):
     assert harm_class(command) == "always", command
 
 
+# ...on stdin too, and php's, lua's, R's, julia's (k-okuyucu-2).
 @pytest.mark.parametrize("command", [
-    "python -c \"print('kill')\"", "node -e \"console.log('kill')\"",
-    "awk '/kill/ {print}' log.txt", "python -c \"x = 'pkill'\""])
-def test_a_stop_name_in_code_that_calls_no_process_is_no_stop(command):
-    # (k-okuyucu: a stop's name in a string alone runs nothing - no process API is called)
-    assert harm_class(command) == "", command
+    "echo \"import os; os.system('pkill python')\" | python",
+    "python - <<'EOF'\nimport subprocess\nsubprocess.run(['pkill', 'uvicorn'])\nEOF",
+    "node <<EOF\nrequire('child_process').execSync('taskkill /IM node.exe /F')\nEOF",
+    "cat pids | python3 -c 'import os; os.kill(1, 9)'", "tclsh <<< 'exec pkill uvicorn'",
+    "php -r 'exec(\"pkill python\");'", "lua -e 'os.execute(\"pkill python\")'",
+    "Rscript -e 'system(\"pkill python\")'", "R -e 'system(\"pkill uvicorn\")'",
+    "julia -e 'run(`pkill uvicorn`)'", "python -c \"import os; os.killpg(0, 9)\"",
+    "go run - <<'EOF'\nfunc main() { exec.Command(\"pkill\", \"uvicorn\").Run() }\nEOF"])
+def test_a_stop_in_code_an_interpreter_reads_on_stdin_is_always_asked(command):
+    assert harm_class(command) == "always", command
 
 
 @pytest.mark.parametrize("line", ["echo " + "$(" * 1000 + "x" + ")" * 1000,

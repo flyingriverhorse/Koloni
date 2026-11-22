@@ -6,15 +6,15 @@ what was checked: "check" (Check it), "tests" (Tests only) or "nothing" (Nothing
 choice, said in Settings while `finish_tests` stays as it was - every other one Check it. The old
 column is kept (not dropped in 0.1.6). Going back drops the new one.
 
-Revision ID: 0160
-Revises: 0159
+Revision ID: 0162
+Revises: 0161
 """
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0160"
+revision = "0162"
 # (Written on the k-kanit-son branch: re-chained after main's newest at its merge.)
-down_revision = "0159"
+down_revision = "0161"
 branch_labels = None
 depends_on = None
 

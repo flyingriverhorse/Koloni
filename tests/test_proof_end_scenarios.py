@@ -680,7 +680,7 @@ def test_the_note_of_the_old_switch_goes_once_the_user_chooses(client, project_d
     from app.db.models import Project
 
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    with client.app.state.session_factory() as session:  # (as 0160 left a project turned off)
+    with client.app.state.session_factory() as session:  # (as 0162 left a project turned off)
         found = session.get(Project, pid)
         found.finish_tests, found.after_change = False, "nothing"
         session.commit()

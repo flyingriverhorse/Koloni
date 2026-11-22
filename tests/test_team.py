@@ -580,7 +580,9 @@ def test_a_note_to_an_agent_that_cannot_message_says_nothing_of_answering(
         "Tester": [NOTE, text("B done")],
     })
     coder = role_id(client, "Coder")
-    client.patch(f"/api/roles/{coder}", json={"tools": ["list_dir", "read_file", "write_file"]})
+    # (Without message_agent; Karar 5: the Coder keeps its files and commands.)
+    client.patch(f"/api/roles/{coder}", json={"tools": ["list_dir", "read_file", "search", "view_image",
+                                                    "write_file", "edit_file", "run_command"]})
     cid, run_id = begin(client, project_dir, mode="full_auto")
     left_a_note(client, cid, held, wait_run, run_id)
     assert model.calls_of["Coder"][1][-1]["content"] == FROM_TESTER.format(how="")

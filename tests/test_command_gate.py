@@ -82,3 +82,10 @@ def test_the_gate_holds_its_lines_once_and_every_allowed_line_has_a_reason():
     assert set(GATE["allow"]) <= set(names) and set(GATE["xfail"]) <= set(names)
     assert set(GATE["up"]) <= set(names) and not set(GATE["up"]) & set(GATE["allow"])
     assert all(reason.strip() for reason in GATE["allow"].values())
+
+
+def test_every_line_is_read_as_written_too():
+    # (k-okuyucu-2: a stripped, joined or normalised reading may only add - never stand in for
+    # the line as written: a data heredoc's body once cut the commands after it)
+    missing = [row[0] for row in GATE["lines"] if row[0] not in commands.readings(row[0])]
+    assert not missing, "\n".join(missing[:20])

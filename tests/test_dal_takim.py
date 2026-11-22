@@ -563,14 +563,15 @@ def test_git_in_a_copy_is_given_an_empty_hooks_folder_after_the_config_it_had(tm
     tree.mkdir(parents=True)
     empty = tree.parent / copies.NO_HOOKS
     ours = ("'core.hooksPath=" + str(empty).replace("'", "'\\''") + "' 'core.fsmonitor=false' "
-            "'commit.gpgsign=false'")
+            "'commit.gpgsign=false' 'core.logAllRefUpdates=true'")
     told = copies.git_env(tree, {"GIT_CONFIG_PARAMETERS": "'user.name=x'"})
     assert told == {"GIT_CEILING_DIRECTORIES": copies.ceiling(tree),
                     "GIT_CONFIG_PARAMETERS": f"'user.name=x' {ours}"}
     assert copies.git_env(tree, {})["GIT_CONFIG_PARAMETERS"] == ours and empty.is_dir()
     # git reads them back as written: the quote, and a Windows path's backslashes
     for key, value in (("core.hooksPath", str(empty)), ("user.name", "x"),
-                       ("core.fsmonitor", "false"), ("commit.gpgsign", "false")):
+                       ("core.fsmonitor", "false"), ("commit.gpgsign", "false"),
+                       ("core.logAllRefUpdates", "true")):
         done = subprocess.run(["git", "config", "--get", key], cwd=tree, capture_output=True,
                               text=True, env={**os.environ, **told})
         assert (done.returncode, done.stdout.strip()) == (0, value), done.stderr
@@ -1503,6 +1504,11 @@ def test_the_users_own_commits_not_on_origin_never_go_up_with_a_pull_request(
 ):
     bare, log = github
     client, cid, run_id = pr_run(make_client, repo, lambda: None)  # (main not pushed)
+    # (At Full auto too, asked first: the user's branches hold commits not on GitHub.)
+    merge = until(client, cid, lambda s: "not on GitHub yet" in (
+        (s["merges"] or [{}])[0].get("branch") or {}).get("note", "") or "", timeout=LONG)[
+        "merges"][0]
+    assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
     merge = until(client, cid, lambda s: "push main first" in (
         (s["merges"] or [{}])[0].get("branch") or {}).get("note", "") or "", timeout=LONG)[
         "merges"][0]

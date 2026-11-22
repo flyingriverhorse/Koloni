@@ -13,15 +13,23 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Changed
 
 - **Settings**: **Finish only when the tests pass** is now **After a change** (Check it / Tests only / Nothing) in Settings › This project › Checks and git, for every model, not only Claude Code; a project that had turned it off gets Nothing (and Settings says so), the rest Check it.
+- **Agents**: Coder, Tester, Reviewer, Debugger and Security reviewer are always on and keep the tools their job needs (a Tester keeps run_command); a role that lost one gets it back ([docs](agents/roles.md)).
 
 ### Fixed
 
+- **Chat**: a heredoc written to a file or handed to git as a message (`cat > notes.md <<'EOF'` with `1) first` in it), a comment (`echo done # 1) first step`), sh's `case … esac` patterns and a group only printed in quotes (`echo "(npm ci)"`, `git commit -m "run (npm ci) first"`) are no longer asked at every level as brackets that do not pair, nor read as an install ([docs](use/permissions.md)).
+- **Agents**: the ready Bugfix recipe sends a failing test back to Fix it and starts with a failing test; a Tester or reviewer that reports nothing wrong while a test run on record failed no longer passes - unless its "Already failing before" lines name every test that failed - nor does a Tester that ran no command but reads; a check whose command you declined stops at Ready for you, not checked ([docs](agents/recipes.md)).
 - **Chat**: an agent's command whose inline code only prints a stop's name (`python -c "print('kill')"`, `awk '/kill/ {print}' log.txt`) no longer asks as a stop of KOLONİ itself; one whose code runs or ends a process (`os.system('pkill x')`, `execSync(...)`, `system(...)`, `os.kill(...)`) still does ([docs](use/permissions.md)).
 
 ### Security
 
+- **Chat**: a line a launcher hands to a shell is read as the command it is - `Start-Process powershell -ArgumentList '-Command','taskkill …'`, `Start-Process cmd -ArgumentList '/c …'`, `npx -c '…'`, `[scriptblock]::Create('…')`, `schtasks /tr "…"` - and a command PowerShell is handed encoded (`-EncodedCommand`) is asked at every level ([docs](use/permissions.md)).
+- **Chat**: an install in a `$( … )` (`out=$(npm ci)`), a stop in code an interpreter reads on stdin (`echo "…" | python`, `python - <<'EOF'`) or is handed by `php -r`, `lua -e`, `R -e` or `julia -e` is asked; a branch switch and a patch are read behind a wrapper (`time git switch main`, `bash -c '…'`), and cmd's `^` at a line's end continues it ([docs](use/permissions.md)).
 - **Chat**: what an agent's command runs inside a group is read as a command of its own - `(cd web && npm ci)`, `{ npm ci; }`, `if exist x (npm ci) else (npm i)`, `for %a in (*) do (npm ci)` and PowerShell's script blocks (`if ($true) { npm ci }`, `ForEach-Object { … }`, `& { … }`, `Invoke-Command -ScriptBlock { … }`): an install, a rebuild, a write through a working copy's linked folders, a stop, a delete or a send there is asked as it is on a line of its own, with web off too; a group whose brackets do not pair is always asked ([docs](use/permissions.md)).
 - **Chat**: cmd's `if "%a%"=="x" …`, `trap -- '…' EXIT` and `npx --call="…"` are read to the command they run, and a branch switch, inline code, a patch and a git command that rewrites `.git/config` are read in a continued line too (`git `⏎`switch main`) ([docs](use/permissions.md)).
+- **Workspace**: a pull request of a branch never sends a commit of yours that origin does not have when it came onto the branch without a merge commit of the agent's - a fast-forward to your branch, a rebase onto it or a cherry-pick - also once you amended, rebased or dropped it: only what the branch's own history says was committed on it counts as the agent's ([docs](use/workspace.md#branches)).
+- **Workspace**: a pull request never sends a file that holds exactly what a commit of yours not pushed yet put there (an agent's squash, pick or amend of it), and while your branches hold commits not on GitHub a pull request waits for your click at every level, Full auto too, saying how many ([docs](use/workspace.md#branches)).
+- **Workspace**: what a pull request reads as yours not on GitHub now also takes in your stashes, commits on a detached HEAD and the uncommitted files a branch began from: an exact copy of one is never sent, and a branch that began from your uncommitted work, or while you have a stash or commit not on GitHub, waits for your click before its pull request at every level, the card saying why at Ask and Auto-edit too ([docs](use/workspace.md#branches)).
 
 ## [0.1.5] - 2026-11-22
 

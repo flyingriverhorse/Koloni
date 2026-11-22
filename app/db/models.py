@@ -210,7 +210,7 @@ class Project(Base):
     room_min_tokens: Mapped[int | None] = mapped_column(
         Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS))
     # 89m, "Finish only when the tests pass", as the user last set it (None: never said). Kept
-    # (0160), read only for `after_change_from_off`: `after_change` holds the setting now.
+    # (0162), read only for `after_change_from_off`: `after_change` holds the setting now.
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
     # Kanıtlı bitiş: after a turn that changed code, "check" (Check it: the tests, and a look at
     # a big or security-touching change), "tests" (Tests only) or "nothing" (`app.proof`).
@@ -230,7 +230,7 @@ class Project(Base):
 
     @property
     def after_change_from_off(self) -> bool:
-        """0160: Nothing because the user had turned "Finish only when the tests pass" off -
+        """0162: Nothing because the user had turned "Finish only when the tests pass" off -
         said in Settings, never silently."""
         return self.finish_tests is False and self.after_change == "nothing"
 

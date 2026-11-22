@@ -574,7 +574,7 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
             setattr(project, name, getattr(body, name))
     for name in spends:
         setattr(project, name, getattr(body, name))
-    if body.after_change is not None:  # (0160's note of the old switch is said no more: theirs now)
+    if body.after_change is not None:  # (0162's note of the old switch is said no more: theirs now)
         project.finish_tests = None
 
 

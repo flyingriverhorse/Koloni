@@ -86,7 +86,7 @@ test('a lookup that failed says so; a model that takes none says nothing is sent
 
 test('the role editor shows the levels of the model picked for the role, before it is saved', async () => {
   const role: Role = {
-    id: 'r1', name: 'Coder', description: '', instructions: '', tools: [], builtin: false, created_by_agent: false, models: null,
+    id: 'r1', name: 'Coder', description: '', instructions: '', tools: [], builtin: false, created_by_agent: false, locked_tools: [], models: null,
     provider_id: null, model_id: null, tier: null, tier_min: null, tier_max: null, kind: 'build', enabled: true, teams: [], pick_from: null, max_steps: null, max_tokens: null, effort: null,
     max_effort: null, context_window: null, mcp: [], skills: [], inside_cli: false, knows: [], created_at: 't', updated_at: 't',
   }

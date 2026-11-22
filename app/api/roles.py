@@ -529,11 +529,22 @@ def apply_skills(session: Session, request: Request, role: Role, body: RolePatch
         role.skills = [name for name in kept if name in wanted]
 
 
+def check_core(role: Role, tools: list[str] | None, enabled: bool | None) -> None:
+    """Karar 5: a core role (`roles.CORE`) keeps its locked tools and is never switched off."""
+    if left := [one for one in roles.locked_tools(role) if tools is not None and one not in tools]:
+        raise HTTPException(422, f"the {role.name} keeps {', '.join(left)}: KOLONİ's checks and "
+                                 "recipes need them")
+    if enabled is False and roles.locked_tools(role):
+        raise HTTPException(422, f"the {role.name} role is always on: KOLONİ's checks and recipes "
+                                 "use it")
+
+
 @router.patch("/{role_id}", response_model=RoleOut, dependencies=[Depends(require_origin)])
 def patch_role(
     role_id: str, body: RolePatch, request: Request, session: Session = Depends(get_session)
 ):
     role = _role(session, role_id)
+    check_core(role, body.tools, body.enabled)
     if body.name is not None and clean_name(body.name) != role.name:
         if role.builtin:
             raise HTTPException(422, "built-in roles keep their name")

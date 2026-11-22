@@ -397,14 +397,16 @@ class ProofMixin:
         last = next((one for one in session.scalars(
             select(Command).where(Command.run_id == run_id, Command.status == "exited")
             .order_by(Command.ended_at.desc(), literal_column("commands.rowid").desc()))
-            if ledger.RUNS_TESTS.match(one.command)), None)
+            if ledger.read_test(one.command)), None)
         if last is None:
             return []
         made = proof.tests_row(TestRun(last.command, last.cwd or ".", True), last.exit_code,
                                last.output, last.status, "")
         since = proof.last_change(session, run_id)
+        # ("passed", "failed"; else its row's own word: "gave no verdict", "ran none"...)
+        how = made["state"] if made["state"] in ("passed", "failed") else (
+            made["text"].partition(": ")[0].removeprefix("Tests "))
         return [proof.row("tests", "note", proof.LAST_RUN.format(
             command=last.command, when="after" if since is None or last.ended_at > since
-            else "before", how="no exit code reported" if last.exit_code is None
-            else made["state"] if made["state"] in ("passed", "failed") else made["text"]),
+            else "before", how="no exit code reported" if last.exit_code is None else how),
             last.command)]

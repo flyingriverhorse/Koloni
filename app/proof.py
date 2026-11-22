@@ -190,6 +190,8 @@ PASSED_ROW = "Tests passed: {command}{guessed} - {summary}"
 # A runner KOLONİ reads no count of (an `npm test` that prints none): its exit code alone, said.
 BY_CODE = "Tests passed (by exit code, no count): {command}{guessed}"
 SKIPPED_ONLY = "Tests skipped only: {command} - {summary}"
+# A test line whose exit is not the tests' (`ledger.read_test`: `| tail -1`, `|| true`).
+NO_VERDICT = "Tests gave no verdict: {command} masks its exit"
 FAILED_ROW = "Tests failed: {command}{guessed} - {summary}"
 RAN_NONE = "Tests ran none: {command} collected no test"
 TIMED_OUT = "Tests timed out after {minutes} min: {command}"
@@ -269,10 +271,13 @@ def tests_row(run: TestRun, code: int | None, output: str, ended: str | None, sa
                     NOT_WAITED.format(clock=clock(seconds), command=run.command))
     if ended != "exited" or code is None:
         return made("not_run", STOPPED)
+    counted = bool(ledger.FAILED.search(output[-4000:]))
+    if (read := ledger.read_test(run.command)) is not None and read[1] and not counted:
+        return made("not_run", NO_VERDICT.format(command=run.command))
     if _ran_none(run, code, output):
         return made("not_run", RAN_NONE.format(command=run.command))
     summary = _summary(output)
-    if code != 0 or ledger.FAILED.search(output[-4000:]):
+    if code != 0 or counted:
         return made("failed", FAILED_ROW.format(command=run.command, guessed=guessed,
                                                 summary=summary or f"exit {code}"))
     if summary is None and (skipped := _summary(output, SKIPPED)):

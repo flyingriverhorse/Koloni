@@ -52,6 +52,8 @@ const isBuiltin = (role: Role, name: string) => role.builtin && role.name === na
 export const drawn = (roles: Role[]) => roles.filter(role => !isBuiltin(role, 'Lead'))
 /** The Lead, the Planner and the Observer are always there: no switch. */
 export const canSwitch = (role: Role) => !role.builtin || !['Lead', 'Planner', 'Observer'].includes(role.name)
+/** Karar 5: a core role (one with tools it keeps) has no switch either - but a team's door still holds it back, so `inUse` keeps `canSwitch`. */
+export const hasSwitch = (role: Role) => canSwitch(role) && role.locked_tools.length === 0
 
 /** Which model a role uses, in a few words (mockup B), wherever it is said: "Orchestrator · fast–strongest",
  *  "Always balanced", "Claude Code · opus", "As the chat". */

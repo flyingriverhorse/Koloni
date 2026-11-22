@@ -50,6 +50,26 @@ FOUND = "Found one.\n\n## Findings\n- greet says Helo | kind: code | role: Coder
 NONE = "Fine.\n\nChecked: read greet.py\n\nFindings: none"
 
 
+# Kanıtlı bitiş R3: a Tester at a recipe's review step passes only on a command it ran that is no
+# mere read - here the project's own test command (`own_test`), which runs unasked at every level.
+OWN_TEST = "git --version"
+
+
+def own_test(client, project_dir):
+    """The project of `project_dir` (made now where it is not) with OWN_TEST as its own test
+    command - what `checked` runs."""
+    from app.db.models import Project
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=OWN).json()["id"]
+    with client.app.state.session_factory() as session:
+        session.get_one(Project, pid).test_commands = {"./": OWN_TEST}
+        session.commit()
+
+
+def checked(report=NONE, id="t1"):
+    """A Tester's run that passes: the project's own test command (`own_test`), then `report`."""
+    return [step(call("run_command", {"command": OWN_TEST}, id)), text(report)]
+
+
 def made(client, name, drawn):
     saved = client.post("/api/recipes", json={"name": name, "graph": drawn}, headers=OWN)
     assert saved.status_code == 201, saved.text
@@ -77,6 +97,7 @@ def one_step(client, name, role):
 
 def manual(client, project_dir, *rows):
     # (Auto-edit: at Full auto a recipe's cards go to the Lead or nobody - K-fullauto-sorma 2.)
+    own_test(client, project_dir)
     return begin(client, project_dir, mode="auto_edit", spawn_approval="never", teams_mode="manual",
                  teams=[{"team_id": team["id"], "recipe_id": recipe["id"]} for team, recipe in rows])
 
@@ -608,9 +629,10 @@ def test_the_ready_feature_recipe_runs_to_its_end_on_a_default_chat(make_client,
         "Coder": [step(write("greet.py", "print('Helo')\n")), text("built")],
         "Coder 2": [step(write("greet.py", "print('Hello')\n", id="w2")), text("fixed")],
         "Reviewer": [text(FOUND)], "Reviewer 2": [text(NONE)],
-        **{f"{role}{n}": [text(NONE)] for role in REVIEWS[1:] for n in ("", " 2")},
+        **{f"{role}{n}": checked() if role == "Tester" else [text(NONE)] for role in REVIEWS[1:] for n in ("", " 2")},
     })
     web, feature = teams_of(client)["Web app"], recipe_named(client, "Feature")
+    own_test(client, project_dir)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never", teams_mode="manual",
                         teams=[{"team_id": web["id"], "recipe_id": feature["id"]}])
     assert client.get(f"/api/conversations/{cid}").json()["conversation"]["spawn_max_agents"] == 6
@@ -630,13 +652,14 @@ def test_one_step_opens_what_it_draws_whatever_the_chats_limit(make_client, wait
     client, _model = make_client({
         "Lead": [step(call("spawn_agent", {"role": "Reviewer", "task": "review"}, "r1"),
                       call("spawn_agent", {"role": "Tester", "task": "test"}, "t1")), text("stopped")],
-        "Reviewer": [text(NONE)], "Tester": [text(NONE)],
+        "Reviewer": [text(NONE)], "Tester": checked(),
     })
     web = teams_of(client)["Web app"]
     both = made(client, "Two at once", graph(
         [part("code", "Code review", {"role": "Reviewer"}, group="g", done_when="no_findings"),
          part("tests", "Test it", {"role": "Tester"}, group="g", done_when="no_findings")],
         [("start", "g"), ("g", "end")], groups=[{"id": "g", "name": "Reviews"}]))
+    own_test(client, project_dir)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never", teams_mode="manual",
                         spawn_max_agents=1, teams=[{"team_id": web["id"], "recipe_id": both["id"]}])
     snap = wait_run(client, cid, run_id)  # (K-r144: two reviews change no file - no card)
@@ -1066,9 +1089,10 @@ def test_the_ready_quality_check_recipe_runs_the_tests_then_two_reviews_at_once_
         "Lead": [spawn("Tester", "run the tests", "t1"),
                  step(*(call("spawn_agent", {"role": role, "task": "review"}, f"r{at}") for at, role in enumerate(reviewers))),
                  text("all checked")],
-        "Tester": [text(NONE)], **{role: [text(NONE)] for role in reviewers}})
+        "Tester": checked(), **{role: [text(NONE)] for role in reviewers}})
     quality = teams_of(client)["Quality"]
     assert quality["default_recipe_id"] == recipe_named(client, "Quality check")["id"]
+    own_test(client, project_dir)
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never", teams_mode="manual",
                         teams=[{"team_id": quality["id"], "recipe_id": None}])
     snap = wait_run(client, cid, run_id)

@@ -12,7 +12,7 @@ export const AFTER_CHANGE: [value: Project['after_change'], label: string][] = [
 /** What it runs and how long a turn waits for it, in sight under the control. */
 export const AFTER_CHANGE_NOTE =
   'After a turn that changed code KOLONİ runs this project’s tests once on the work as it now stands and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice. In a turn you watch it waits at most 2 minutes for them. Nothing runs nothing; the Checked lines still say so.'
-/** 0160: a project that had turned 89m's switch off is Nothing - said, never silently. */
+/** 0162: a project that had turned 89m's switch off is Nothing - said, never silently. */
 export const FROM_OFF = 'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.'
 
 /** Settings › This project › Checks and git: After a change - its part of the section's Save, and its row. */

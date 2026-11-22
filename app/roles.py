@@ -97,6 +97,21 @@ class RoleSpec:
 
 # The roles that are always there: no team holds them back, and they are never off (slice 62).
 ALWAYS = frozenset({LEAD, "Planner", OBSERVER})
+# Karar 5 (kanıtlı bitiş, the user's: some roles must always be there): the built-in roles that do
+# KOLONİ's checks and recipes' work are never off, and keep the tools their job needs - a team's
+# door still holds them back, as any role's (not `ALWAYS`). Migration 0161 for installs.
+CORE: dict[str, tuple[str, ...]] = {
+    "Coder": (*READ, *WRITE, "run_command"),
+    "Tester": (*READ, "run_command"),
+    "Reviewer": READ,
+    "Debugger": (*READ, *WRITE, "run_command"),
+    "Security reviewer": READ,
+}
+
+
+def locked_tools(role: Role) -> tuple[str, ...]:
+    """The tools a role keeps whatever the user takes away (`CORE`): none but a core role's."""
+    return CORE.get(role.name, ()) if role.builtin else ()
 # KOLONİ's ready teams (slice 62), made once by migration 0065; a built-in role added later
 # joins those of them that are still there.
 READY_TEAMS = {

@@ -268,3 +268,12 @@ def test_a_merged_branch_change_counts_from_when_it_was_made(factory):
         (found,) = proof.changes(s, "r", "lead")
         assert found.in_project and found.path == "a.py"
         assert proof.last_change(s, "r") == at - timedelta(seconds=30)
+
+
+def test_a_masked_exit_is_no_verdict_unless_it_counts_a_failure():
+    # (As S4 reads a run: `| tail -1`, `|| true` - the exit is not the tests'.)
+    masked = proof.TestRun("pytest -q | tail -1", ".", True)
+    made = proof.tests_row(masked, 0, "3 passed in 0.1s\n", "exited", "")
+    assert (made["state"], made["text"]) == (
+        "not_run", "Tests gave no verdict: pytest -q | tail -1 masks its exit")
+    assert proof.tests_row(masked, 0, "1 failed, 2 passed\n", "exited", "")["state"] == "failed"

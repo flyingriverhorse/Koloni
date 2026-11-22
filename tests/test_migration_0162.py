@@ -1,4 +1,4 @@
-"""Migration 0160 (after a change): "Finish only when the tests pass" (89m) folds into After a change -
+"""Migration 0162 (after a change): "Finish only when the tests pass" (89m) folds into After a change -
 a project that had turned it off gets Nothing, every other one Check it; going back drops the new
 setting and keeps the old one as it was."""
 
@@ -21,10 +21,10 @@ def _three_projects(db):
 def test_finish_tests_off_becomes_nothing_and_the_rest_check_it(tmp_path):
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0159")
+    command.upgrade(cfg, "0161")
     _three_projects(db)
 
-    command.upgrade(cfg, "0160")
+    command.upgrade(cfg, "0162")
     with sqlite3.connect(db) as conn:
         got = dict(conn.execute("SELECT id, after_change FROM projects").fetchall())
         assert got == {"unset": "check", "on": "check", "off": "nothing"}
@@ -37,11 +37,11 @@ def test_finish_tests_off_becomes_nothing_and_the_rest_check_it(tmp_path):
 def test_downgrade_drops_after_change_and_keeps_finish_tests(tmp_path):
     db = tmp_path / "old.db"
     cfg = _config(db)
-    command.upgrade(cfg, "0159")
+    command.upgrade(cfg, "0161")
     _three_projects(db)
-    command.upgrade(cfg, "0160")
+    command.upgrade(cfg, "0162")
 
-    command.downgrade(cfg, "0159")
+    command.downgrade(cfg, "0161")
     with sqlite3.connect(db) as conn:
         assert "after_change" not in [
             row[1] for row in conn.execute("PRAGMA table_info(projects)")]

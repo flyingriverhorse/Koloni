@@ -1599,7 +1599,7 @@ def commit_branch(
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
         listed = Path(empty) / "paths"  # (a list, not a command line: any number of them)
         listed.write_bytes(b"\0".join(path.encode("utf-8") for path in paths))
-        hooks = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false")
+        hooks = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false", *KEEP_REFLOG)
         code, out, said = _in(tree, git, *hooks, "add", "-A", f"--pathspec-from-file={listed}",
                               "--pathspec-file-nul", seconds=COMMIT_SECONDS, **off)
         if code != 0:
@@ -2266,7 +2266,7 @@ def merge_in(tree: Path, branch: str, into: str, no_hooks: Path) -> tuple[str, s
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
         own = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false", "-c",
                "core.symlinks=false", "-c", "submodule.recurse=false", "-c",
-               "merge.autoStash=false")
+               "merge.autoStash=false", *KEEP_REFLOG)
         code, out, said = _in(tree, git, *UNASKED, *own, "merge", "--no-ff", "--no-edit",
                               "--no-verify", "-m", f"Merge {into} into {branch}", sha,
                               seconds=COMMIT_SECONDS, **UNASKED_ENV, **KOLONI_ID, **off)
@@ -2544,31 +2544,125 @@ TAKEN_IN_UNPUSHED = ("the branch took in commits of yours not on origin ({commit
 NAMED_COMMITS = 3
 
 
-def _taken_in_unpushed(project: Path, git: str, source: str, start: str) -> list[str]:
-    """Of what a branch took in since it was made - each parent of a merge on it but its first (the
-    user's branch merged in, by D2 or by its agent's own merge, or any other branch) - the commits
-    no branch of origin's holds, as git last fetched it: their short ids. Refused where git does
-    not say (fails closed).
-    shortcut: what came in another way - an agent's own rebase or cherry-pick, asked at every
-    level - looks like its own work; walk the branch's reflog if that is ever allowed by a rule."""
-    code, out, said = _in(project, git, *UNASKED, "rev-list", "--parents", "--min-parents=2",
-                          source, f"^{start}", seconds=SHORT_SECONDS, **UNASKED_ENV)
+# How a branch's own reflog says a commit was made on it: by `git commit` (an amend, the end of a
+# merge too) or by git's own merge commit. Whatever else moved it - a fast-forward, a rebase, a
+# cherry-pick, a reset, a pull - brought a commit made elsewhere.
+_MADE_HERE = re.compile(r"commit(?: \((?:amend|merge|initial)\))?: |merge .*: Merge made by ")
+# What KOLONİ's own git, and an agent's in its worktree (`copies.git_env`), is told: a branch's
+# reflog is kept whatever the repository says - what `_made_on` reads.
+KEEP_REFLOG = ("-c", "core.logAllRefUpdates=true")
+
+
+def _made_on(project: Path, git: str, branch: str) -> set[str]:
+    """The commits the branch's own reflog says were made on it (`_MADE_HERE`). None where it has
+    no reflog (an old one expired): nothing is taken for made there (fails closed)."""
+    code, out, _said = _in(project, git, *UNASKED, "log", "-g", "--format=%H%x09%gs",
+                           f"refs/heads/{branch}", seconds=SHORT_SECONDS, **UNASKED_ENV)
+    if code != 0:
+        return set()
+    return {sha for sha, _tab, says in (
+        line.partition("\t") for line in out.decode("utf-8", "replace").splitlines())
+        if _MADE_HERE.match(says)}
+
+
+def _taken_in_unpushed(
+    project: Path, git: str, source: str, start: str, branch: str, snapshot: str | None
+) -> list[str]:
+    """Of the commits on the branch since it was made (`start..source`) that no branch of origin's
+    holds, as git last fetched it, those not made on it (`_made_on`; the snapshot it began from,
+    KOLONİ's, aside): what came in from elsewhere - the user's branch or another merged in (by D2
+    or by its agent's own merge: a parent of it), fast-forwarded to, rebased onto, cherry-picked.
+    Their short ids; Refused where git does not say (fails closed).
+    What an agent copies of such a commit into a commit of its own (an amend after a fast-forward,
+    `reset --soft` and `commit -C`, `merge --squash`, `cherry-pick -n`) is made there to git, and
+    some of those run unasked at Full auto: `_users_content` reads the pushed files themselves,
+    and a pull request is asked about while the user has commits not on origin
+    (`unpushed_count`)."""
+    code, out, said = _in(project, git, *UNASKED, "rev-list", source, f"^{start}", "--not",
+                          "--remotes=origin", seconds=SHORT_SECONDS, **UNASKED_ENV)
     if code != 0:
         raise Refused(f"git rev-list failed: {_text(out, said)[-TAIL:]}")
-    found: list[str] = []
-    for line in out.decode("ascii", "replace").splitlines():
-        for parent in line.split()[2:]:
-            code, out, _said = _in(project, git, *UNASKED, "for-each-ref", "--count=1",
-                                   "--format=%(refname)", f"--contains={parent}",
-                                   "refs/remotes/origin/", seconds=SHORT_SECONDS, **UNASKED_ENV)
-            if (code != 0 or not out.strip()) and parent[:10] not in found:
-                found.append(parent[:10])
+    made = _made_on(project, git, branch) | ({snapshot} if snapshot else set())
+    return [sha[:10] for sha in out.decode("ascii", "replace").split() if sha not in made]
+
+
+# Why a pull request is not pushed: a file of it is a file of the user's work not pushed yet.
+USERS_CONTENT = ("{files} in it is your work not pushed yet (as a commit of yours holds it): push "
+                 "it first, or take it off the branch - a pull request never sends it")
+def unpushed_count(project: Path) -> int:
+    """How many commits of the user's no branch of origin's holds, as git last fetched it
+    (`_users_unpushed`) - all of theirs where origin has none. Refused as `repository`, and where
+    git does not say."""
+    git, _folder = repository(project)
+    return len(_users_unpushed(project, git).split())
+
+
+def _users_unpushed(project: Path, git: str) -> bytes:
+    """The commits of the user's that no branch of origin's holds: what every ref of theirs reaches
+    (`--all`: branches, tags, other remotes, the stash, this worktree's HEAD - KOLONİ's branches and
+    worktrees aside) and what their branches', the stash's and HEAD's reflogs do (an amended one, a
+    stash below the top, a commit on a detached HEAD) - with the commits stashes keep (index,
+    untracked files) as their parents. One per line. Refused where git does not say."""
+    heads = [one for one in _said_or_refused(
+        project, git, None, "for-each-ref", "--format=%(refname)", "refs/heads/").decode(
+        "utf-8", "surrogateescape").split() if not one.startswith(f"refs/heads/{BRANCH_PREFIX}")]
+    logged = [_said_or_refused(project, git, None, "log", "-g", "--format=%H", ref)
+              if _in(project, git, "rev-parse", "-q", "--verify", f"{ref}@{{0}}")[0] == 0
+              else b"" for ref in (*heads, "refs/stash", "HEAD")]
+    theirs = _said_or_refused(project, git, None, "for-each-ref", "--format=^%(objectname)",
+                              "refs/remotes/origin/")
+    # (No empty line: rev-list's --stdin stops reading at one, and the ^origin ones would be lost.)
+    lines = [line for chunk in (*logged, theirs) for line in chunk.splitlines() if line.strip()]
+    return _said_or_refused(project, git, b"\n".join(lines) + b"\n", "rev-list",
+                            "--single-worktree", f"--exclude=refs/heads/{BRANCH_PREFIX}*",
+                            "--all", "--stdin")
+
+
+def _said_or_refused(project: Path, git: str, stdin: bytes | None, *args: str) -> bytes:
+    code, out, said = _fed(project, git, stdin, *UNASKED, *args, seconds=SHORT_SECONDS,
+                           **UNASKED_ENV)
+    if code != 0:
+        raise Refused(f"git {args[0]} failed: {_text(out, said)[-TAIL:]}")
+    return out
+
+
+def _new_blobs(raw: bytes) -> dict[str, str]:
+    """What `--raw -z` output added or changed: by path, its new object."""
+    parts, found = raw.split(b"\0"), {}
+    for at, fields in enumerate(parts[:-1]):
+        words = fields.decode("ascii", "replace").lstrip(":").split()
+        if fields.startswith(b":") and len(words) == 5 and words[4][:1] in "AMT":
+            found[_listed(parts[at + 1])[0]] = words[3]
     return found
+
+
+def _users_content(
+    project: Path, git: str, base: str, tip: str, snapshot: str | None = None
+) -> list[str]:
+    """The files a push would add or change (`tip` against `base`) that hold exactly what a commit
+    of the user's not on origin introduced (`_users_unpushed`: their branches, stashes, a detached
+    HEAD, what their reflogs keep) - or what the branch's `snapshot` took of their folder, not
+    committed: their work copied onto the branch. An empty file is no one's. Refused where git does
+    not say (fails closed)."""
+    commits = _users_unpushed(project, git)
+    held: set[str] = set()
+    if commits.strip():
+        held |= set(_new_blobs(_said_or_refused(
+            project, git, commits, "-c", "log.showRoot=true", "log", "--no-walk", "--stdin",
+            "--format=", "--raw", "-z", "--no-abbrev", "--no-renames",
+            "--diff-merges=first-parent")).values())
+    if snapshot:
+        held |= set(_new_blobs(_said_or_refused(project, git, None, "diff-tree", "-r", "-z",
+                                                "--no-renames", f"{snapshot}^", snapshot)).values())
+    held.discard(_said_or_refused(project, git, b"", "hash-object", "--stdin").decode().strip())
+    pushed = _new_blobs(_said_or_refused(project, git, None, "diff-tree", "-r", "-z",
+                                         "--no-renames", base, tip))
+    return sorted(path for path, blob in pushed.items() if blob in held)
 
 
 def push_one(
     project: Path, tip: str, branch: str, into: str, start: str, message: str, no_hooks: Path,
-    source: str | None = None,
+    source: str | None = None, snapshot: str | None = None,
 ) -> str:
     """Push the branch's commit `tip` to the remote "origin", as `branch` there, as ONE commit
     by KOLONİ - its tree, on where it left the project's branch `into`: what `merge_branch`
@@ -2576,7 +2670,8 @@ def push_one(
     origin has that place already (`refs/remotes/origin/<into>` holds it): the user's own
     commits not pushed yet do not go up under it - nor, `start`, the commit the branch was made
     from (a local branch of theirs it left since) - nor what the branch took in that origin does not
-    hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1):
+    hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1,
+    `snapshot` the commit it began from):
     once the user rewrote or dropped such a commit, where the branch left theirs is its start,
     and the commit's content would go up under it. Never forced: a branch of that name there
     already refuses it. No hook, tag or signing of the repository's; git's own receive-pack.
@@ -2593,10 +2688,13 @@ def push_one(
            for one in (base, start)):
         raise Refused(f"push {into} first: commits of yours not on origin yet would go up with "
                       "the pull request")
-    if taken := _taken_in_unpushed(project, git, source or tip, start):
+    if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot):
         more = len(taken) - NAMED_COMMITS
         raise Refused(TAKEN_IN_UNPUSHED.format(commits=", ".join(taken[:NAMED_COMMITS]) + (
             f" and {more} more" if more > 0 else "")))
+    if copied := _users_content(project, git, base, tip, snapshot):
+        raise Refused(USERS_CONTENT.format(files=", ".join(copied[:NAMED_COMMITS]) + (
+            f" and {len(copied) - NAMED_COMMITS} more" if len(copied) > NAMED_COMMITS else "")))
     code, out, said = _in(project, git, *UNASKED, "-c", "commit.gpgsign=false", "commit-tree",
                           f"{tip}^{{tree}}", "-p", base, "-m", message,
                           seconds=SHORT_SECONDS, **UNASKED_ENV, **KOLONI_ID)
