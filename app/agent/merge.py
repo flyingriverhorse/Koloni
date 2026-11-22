@@ -883,13 +883,17 @@ def _command_names(
 def _put_back(
     root: Path, before: dict[str, bytes], paths: set[str], names: frozenset[str] = frozenset(),
     since: float = 0.0, keep_in: Path | None = None,
+    stand: Mapping[str, Collection[str | None]] | None = None,
 ) -> tuple[list[Taken], set[str]]:
     """K-yazma-denetimi: the project's standing files (`standing_files`) that differ from
     `before` are put back as they were - deleted, where there was none; and where there was a
     link, what is there instead is taken away, as KOLONİ makes no link - but for what the
     user's yes named: `paths` (casefolded), and for this one look `names` (of
     `NOT_WRITTEN_UNATTENDED`, anywhere in a path; "*.pth": an install's), and what KOLONİ itself
-    wrote in `.koloni/` since `since`. What an agent - or the user, by hand - wrote there is
+    wrote in `.koloni/` since `since`; and a path of `stand` (casefolded) while it holds what
+    others' recorded writes left there - one of its digests, None for no file (S6: a test run
+    outliving its turn; by the bytes, never the path alone). What an agent - or the user, by
+    hand - wrote there is
     kept in `keep_in` first, where it can be (`_keep_aside`). Returns what was put back - its
     path, what it held (None: it was deleted), why it could not be (then it stands as it is),
     what is said of it - and the paths let stand; `before` is what is on disk now."""
@@ -909,7 +913,8 @@ def _put_back(
         wrote = koloni.WROTE.get((here, rel))
         if rel.casefold() in paths or any(_name(part) in names for part in rel.split("/")) or (
                 "*.pth" in names and rel.endswith(".pth") and "/site-packages/" in rel.casefold()
-        ) or (wrote is not None and wrote[1] >= since and wrote[0] == theirs):
+        ) or (wrote is not None and wrote[1] >= since and wrote[0] == theirs) or (
+                _left_there(stand, rel, theirs)):
             let.add(rel)
             failed: str | None = "named"
         else:
@@ -928,6 +933,13 @@ def _put_back(
             else:
                 before[rel] = theirs
     return taken, let
+
+
+def _left_there(stand: Mapping[str, Collection[str | None]] | None, rel: str,
+                theirs: bytes | None) -> bool:
+    """Whether `rel` holds what a recorded write of another's left (`_put_back`'s `stand`)."""
+    digest = None if theirs is None else hashlib.sha256(theirs).hexdigest()
+    return stand is not None and digest in stand.get(rel.casefold(), ())
 
 
 def _keep_aside(keep_in: Path, rel: str, data: bytes) -> str:

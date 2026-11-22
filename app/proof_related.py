@@ -7,6 +7,7 @@ project of the change. Elsewhere, or for a change it cannot place (a config file
 another language's file), none: the whole suite alone. No model; nothing is run here."""
 
 import configparser
+import fnmatch
 import json
 import os
 import re
@@ -27,6 +28,13 @@ LAUNCHERS = {(), ("python", "-m"), ("python3", "-m"), ("py", "-m"), ("uv", "run"
 # What leaves tests out. A file named on pytest's command line bypasses it - so where the user
 # left tests out, there is no related step (fail closed: review B3).
 EXCLUDING = ("--ignore", "--deselect")
+# What picks, overrides or plugs into the config read here: what it leaves out is not known then
+# (review round 2) - long options, and short ones with their value glued on too.
+CHOOSING = ("--config-file", "--override-ini", "--rootdir")
+CHOOSING_SHORT = ("-c", "-o", "-p")
+# pytest's default `norecursedirs`: a test file under one is collected only when named - never
+# named here.
+NORECURSE = ("*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}")
 # Where pytest reads its options, in its order (9.x), from the folder it starts in upwards.
 PYTEST_FILES = ("pytest.toml", ".pytest.toml", "pytest.ini", ".pytest.ini", "pyproject.toml",
                 "tox.ini", "setup.cfg")
@@ -107,8 +115,7 @@ def _pytest(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     `x_test.py`) where pytest collects in the part. Not for `conftest.py`, nor any change but
     Python's, nor where the user left tests out (`_collected`)."""
     at = _runner(words, "pytest", "py.test")
-    if at is None or not _options_only(words[at + 1:], PYTEST_VALUES) or any(
-            word.startswith(EXCLUDING) for word in words[at + 1:]):
+    if at is None or not _plain_pytest(words[at + 1:]):
         return None
     names = [PurePosixPath(path).name for path in paths]
     if any(not name.endswith(".py") or name == "conftest.py" for name in names):
@@ -121,12 +128,27 @@ def _pytest(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     wanted = {one for stem in stems for one in (f"test_{stem}.py", f"{stem}_test.py")}
     found = _files([path for path in [
         *(path for path in paths if PurePosixPath(path).name in tests),
-        *(_walk(cwd, wanted.__contains__) if wanted else [])] if _under(path, within)], cwd)
+        *(_walk(cwd, wanted.__contains__) if wanted else [])]
+        if _under(path, within) and _recursed(path)], cwd)
     return [*words, *found] if found else None
+
+
+def _plain_pytest(tail: list[str]) -> bool:
+    """Options only - none that leaves tests out, or picks or overrides the config - and no
+    PYTEST_ADDOPTS in KOLONİ's environment (its runs get it; what it holds is not read here)."""
+    return _options_only(tail, PYTEST_VALUES) and not any(
+        word.startswith(EXCLUDING + CHOOSING) or word[:2] in CHOOSING_SHORT for word in tail
+    ) and not os.environ.get("PYTEST_ADDOPTS", "").strip()
 
 
 def _under(path: str, within: list[str]) -> bool:
     return any(not top or path == top or path.startswith(f"{top}/") for top in within)
+
+
+def _recursed(path: str) -> bool:
+    """Whether pytest collects into `path`'s folders by itself (its default `norecursedirs`)."""
+    return not any(fnmatch.fnmatchcase(part, pattern) for part in PurePosixPath(path).parts[:-1]
+                   for pattern in NORECURSE)
 
 
 def _collected(cwd: Path) -> list[str] | None:

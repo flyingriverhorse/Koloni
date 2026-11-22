@@ -1400,10 +1400,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._test_slot = Slots()  # (S6: as many at once as Settings say)
         # S6: each of KOLONİ's test runs while it runs - in its turn, or gone on after it.
         self._checks: dict[asyncio.Future, Check] = {}
-        # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic):
-        # a test run that started before does not take it back (`_written_since`).
+        # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic)
+        # and the digest of what it held then (None: no file): a test run that started before
+        # does not take it back while it holds that (`_written_since`).
         # shortcut: never dropped, one small entry a path; prune old ones if it is ever felt.
-        self._seen_writes: dict[tuple[str, str], float] = {}
+        self._seen_writes: dict[tuple[str, str], tuple[float, str | None]] = {}
         # K-rol-cogul. a spawn call of a reply's several -> the reply's calls not opened yet, and
         # the event their agents start on (`_run_tools`, `_arrive`). (Not K-paralel's `_opening`.)
         self._at_once: dict[str, tuple[set[str], asyncio.Event]] = {}
@@ -4112,7 +4113,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             ran = True
         finally:
             if held is not None:
-                stand = self._written_since(ctx, at, since) if over is not None else set()
+                stand = self._written_since(ctx, at, since) if over is not None else None
                 await self._own_command_looked(ctx, own, command, held, since, ran and not (
                     over is not None and over()), ask or asks, stand)
         if own != call_id:

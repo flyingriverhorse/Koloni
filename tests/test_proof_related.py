@@ -92,6 +92,10 @@ def test_pytest_runs_the_changed_test_files_and_those_named_for_a_changed_module
     # (what the user left out stays out: a file on the command line would bypass it)
     "pytest --ignore=tests/live", "pytest --ignore tests/live", "pytest --ignore-glob=*live*",
     "pytest --deselect tests/test_greet.py::test_slow",
+    # (a config it picks or overrides is not the one read here: review round 2)
+    "pytest -c ci.ini", "pytest -cci.ini", "pytest --config-file=ci.ini",
+    "pytest -o addopts=--ignore=live", "pytest --override-ini=norecursedirs=live",
+    "pytest --rootdir=sub", "pytest -p no:cacheprovider",
 ])
 def test_a_command_it_cannot_read_gives_none(tmp_path, command):
     made(tmp_path, "tests/test_greet.py")
@@ -100,8 +104,22 @@ def test_a_command_it_cannot_read_gives_none(tmp_path, command):
 
 def test_pytest_keeps_its_options_with_their_values(tmp_path):
     made(tmp_path, "tests/test_greet.py")
-    assert narrowed(tmp_path, "pytest -n 4 -p no:cacheprovider -q", ["tests/test_greet.py"]) == (
-        "pytest -n 4 -p no:cacheprovider -q tests/test_greet.py")
+    assert narrowed(tmp_path, "pytest -n 4 -m unit -q", ["tests/test_greet.py"]) == (
+        "pytest -n 4 -m unit -q tests/test_greet.py")
+
+
+def test_pytest_addopts_in_the_environment_leaves_no_related_step(tmp_path, monkeypatch):
+    # (KOLONİ's runs get its environment: what PYTEST_ADDOPTS leaves out a named file bypasses.)
+    made(tmp_path, "tests/test_greet.py")
+    monkeypatch.setenv("PYTEST_ADDOPTS", "--ignore=tests/live")
+    assert narrowed(tmp_path, "pytest", ["tests/test_greet.py"]) is None
+
+
+@pytest.mark.parametrize("name", ["build/test_gen.py", "dist/test_x.py", "pkg.egg/test_x.py",
+                                  "CVS/test_x.py", "_darcs/test_x.py", "venv/test_x.py"])
+def test_a_test_file_under_pytests_default_norecursedirs_is_not_named(tmp_path, name):
+    made(tmp_path, name)
+    assert narrowed(tmp_path, "pytest", [name]) is None
 
 
 @pytest.mark.parametrize("paths", [

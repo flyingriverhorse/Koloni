@@ -10,7 +10,7 @@ import os
 import re
 import time
 import uuid
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -123,8 +123,13 @@ class ObserveMixin:
         apart from. Nor are they of a native agent at work in the project, which is looked at
         first for a standing file written unnamed (`_standing_look`): they stand. (Nor of a
         test run of KOLONİ's already under way, S6: `_seen_writes`.)"""
-        when, folder = time.monotonic(), str(Path(root).resolve())
-        self._seen_writes.update({(folder, rel): when for rel in paths})
+        when, folder = time.monotonic(), Path(root).resolve()
+        for rel in paths:  # (with what it holds now: it stands only while it holds that)
+            try:
+                held = hashlib.sha256((folder / rel).read_bytes()).hexdigest()
+            except OSError:
+                held = None
+            self._seen_writes[(str(folder), rel)] = (when, held)
         for watch in self._watches_in(root):
             if watch.ctx is not None and watch.transcript is not None:
                 await self._standing_look(watch.ctx, watch.transcript, watch, but=paths)
@@ -191,20 +196,21 @@ class ObserveMixin:
     async def _own_command_looked(
         self: "AgentRunner", ctx: Ctx, call_id: str, command: str, before: dict[str, bytes],
         since: float,
-        ended: bool, approved: bool, stand: Collection[str] = (),
+        ended: bool, approved: bool, stand: Mapping[str, Collection[str | None]] | None = None,
     ) -> None:
         """K-yazma-denetimi for a command KOLONİ ran itself (`run_command`): what it wrote of the
         project's standing files (`before`: as they were when it started, at `since`) is put
         back but for what it names where it was `approved` (`_command_names`: its card showed
         it; not a skill's script run unasked) - and the agent goes on once the user has said
         whether to keep it. Not `ended` (stopped, or it did not start, or its turn is over):
-        put back all the same, with no card and nothing waited for. `stand`: paths others wrote
-        meanwhile, on record (S6: a test run that outlives its turn) - not its to put back."""
+        put back all the same, with no card and nothing waited for. `stand`: what others wrote
+        meanwhile, on record, by path and the digests it left (S6: a test run that outlives its
+        turn) - not its to put back while it holds that (`_put_back`)."""
         paths, names = _command_names(
             command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx))
-        paths |= {rel.casefold() for rel in stand}
         taken, let = await asyncio.shield(asyncio.to_thread(
-            _put_back, Path(ctx.folder), before, paths, names, since, self._taken_folder(ctx)))
+            _put_back, Path(ctx.folder), before, paths, names, since, self._taken_folder(ctx),
+            stand))
         kept = [rel for rel in let if "*.pth" in names and rel.endswith(".pth")]
         cards: list[asyncio.Task] = []
         if taken or kept:

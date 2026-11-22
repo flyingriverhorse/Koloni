@@ -321,6 +321,50 @@ def test_a_later_turns_standing_write_survives_the_run_ending_after_it(
 
 
 @pytest.mark.usefixtures("soon")
+def test_the_tests_own_later_write_over_another_turns_is_still_taken_back(
+        make_client, wait_run, project_dir, gate):
+    # (Review round 2, probe D: what another turn wrote stands only while its bytes are there -
+    # by path alone, a planted test's own write over it stood: `.git/config` with a hooksPath.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write(SETTINGS, '{"a": 1}\n', "w2"), text("more")],
+                                 executor=ScriptedExecutor([held(gate, "4 passed\n")]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    pid = client.get(f"/api/conversations/{cid}").json()["conversation"]["project_id"]
+    client.patch(f"/api/projects/{pid}", json={"after_change": "nothing"}, headers=OWN)
+    later = client.post(f"/api/conversations/{cid}/messages", json={"content": "and"}).json()
+    approve_write(client, cid, SETTINGS)
+    wait_run(client, cid, later["run"]["id"])
+    (project_dir / SETTINGS).write_text('{"evil": 1}\n', encoding="utf-8")  # (as the suite would)
+    gate.release()
+    until(lambda: [one for one in rows_of(client, cid, run_id) if one["state"] != "running"])
+    snap = client.get(f"/api/conversations/{cid}").json()
+    taken = [c for c in snap["tool_calls"] if c["name"] == "write_file"
+             and SETTINGS in (c["result"] or "") and "taken back" in c["result"]]
+    left = (project_dir / SETTINGS).read_text(encoding="utf-8") if (
+        project_dir / SETTINGS).exists() else None
+    assert taken and left != '{"evil": 1}\n', (taken, left)
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_hook_the_suite_writes_on_no_record_is_taken_back(
+        make_client, wait_run, project_dir, gate):
+    # (Review round 2, probe E: nothing on record wrote it - it is the tests'.)
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")],
+                                 executor=ScriptedExecutor([held(gate, "4 passed\n")]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    hooks = project_dir / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    (hooks / "pre-commit").write_text("#!/bin/sh\necho planted\n", encoding="utf-8")
+    gate.release()
+    until(lambda: [one for one in rows_of(client, cid, run_id) if one["state"] != "running"])
+    assert not (hooks / "pre-commit").exists()
+
+
+@pytest.mark.usefixtures("soon")
 def test_a_command_of_a_later_turn_beneath_the_run_says_the_project_changed(
         make_client, wait_run, project_dir, gate):
     # (Review item 1: no file on record - a formatter, a codegen - yet the project changed.)

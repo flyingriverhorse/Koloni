@@ -111,8 +111,11 @@ itself, the end works like a pull request's CI:
     A test file named on the command line would get past what you left out of your tests, so
     where you left tests out there is no related step, only the whole suite: for pytest, an
     `--ignore`, `--ignore-glob` or `--deselect` (in the command or in `addopts`), a
-    `norecursedirs`, or a `conftest.py` with `collect_ignore` or `pytest_ignore_collect`; for
-    jest, a `testPathIgnorePatterns`. pytest's `testpaths` are kept: only test files under them
+    `norecursedirs`, or a `conftest.py` with `collect_ignore` or `pytest_ignore_collect`, and a
+    command that picks or overrides pytest's config (`-c`, `--config-file`, `-o`, `--rootdir`,
+    `-p`) or a `PYTEST_ADDOPTS` in the environment; for jest, a `testPathIgnorePatterns`. Test
+    files under pytest's default `norecursedirs` (`build`, `dist`, `venv`, `node_modules`, a dot
+    folder) are never named. pytest's `testpaths` are kept: only test files under them
     are named. vitest's `related` keeps the config's `exclude` itself. An `npm test` with a
     `pretest` script gets no vitest related step (it would skip the `pretest`).
 

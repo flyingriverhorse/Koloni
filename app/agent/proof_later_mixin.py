@@ -177,18 +177,25 @@ class ProofLaterMixin:
         self._test_slot.limit = runs
         return self._test_slot
 
-    def _written_since(self: "AgentRunner", ctx: Ctx, at: datetime, since: float) -> set[str]:
+    def _written_since(self: "AgentRunner", ctx: Ctx, at: datetime,
+                       since: float) -> dict[str, set[str | None]]:
         """What others wrote in the project after a test run of KOLONİ's started there (`at`;
-        `since`, monotonic): recorded changes of any turn (written, taken in, taken back) and
-        KOLONİ's own writes (`seen_in_project`) - never that run's to take back (review B1).
+        `since`, monotonic) - recorded changes of any turn (written, taken in, taken back) and
+        KOLONİ's own writes (`seen_in_project`) - by path (casefolded), with the digests of what
+        they left: never that run's to take back while a path holds one (review B1; by the
+        bytes - the tests' own later write over it is theirs, round 2).
         shortcut: a file the user edits by hand meanwhile is on no record: taken back, kept
         aside (`_keep_aside`); look at the files' times if that is ever met."""
-        folder = str(Path(ctx.folder).resolve())
-        kept = {rel for (where, rel), when in self._seen_writes.items()
-                if where == folder and when >= since}
+        folder, stand = str(Path(ctx.folder).resolve()), {}
+        for (where, rel), (when, held) in self._seen_writes.items():
+            if where == folder and when >= since:
+                stand.setdefault(rel.casefold(), set()).add(held)
         with self._factory() as session:
             project = self._project(session, ctx.cid)
-            return kept | (proof.written_since(session, project.id, at) if project else set())
+            for rel, left in (proof.written_since(session, project.id, at) if project
+                              else {}).items():
+                stand.setdefault(rel.casefold(), set()).update(left)
+        return stand
 
     def checks_in(self: "AgentRunner", project_id: str) -> str | None:
         """Why a project is not deleted now: a test run of KOLONİ's in it runs, or waits for the
