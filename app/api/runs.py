@@ -13,6 +13,7 @@ from app.db.models import Conversation, Message, Run, now, project_of
 from app.schemas import (
     BoardPostIn,
     BoardPostOut,
+    CiApproveIn,
     PlanApproveIn,
     PlanRejectIn,
     PostMessageOut,
@@ -36,20 +37,27 @@ async def cancel_run(run_id: str, request: Request, session: Session = Depends(g
 
 
 @router.post("/{run_id}/ci/approve", dependencies=[Depends(require_own_origin)])
-def approve_ci(run_id: str, session: Session = Depends(get_session)):
-    """S8 (decision 3) "Run these": the CI lines this turn's project offered are approved -
-    exactly those, the user's own approval from the app's page; the end check runs them from the
-    next change on. Not where a workflow changed since they were offered (409: asked again)."""
+def approve_ci(run_id: str, body: CiApproveIn, session: Session = Depends(get_session)):
+    """S8 (decision 3) "Run these": the CI lines this turn's row showed are approved - exactly
+    those, the user's own approval from the app's page; the end check runs them from the next
+    change on. The offer goes by its name (`ci_commands.offer_id`, the row's `offer`): it must be
+    on this turn's row, be the project's offer still, and its workflow files be as they are now -
+    else 409, offered again after the next change (another turn may have offered other lines)."""
     run = session.get(Run, run_id)
     project = project_of(session, session.get_one(Conversation, run.conversation_id)) if run else (
         None)
     if project is None:
         raise HTTPException(404, "run not found")
+    note = session.scalar(select(Message).where(Message.run_id == run_id,
+                                                Message.role == "checked"))
+    shown = any(row.get("kind") == "ci_offer" and row.get("offer") == body.offer
+                for row in ((note.blocks or {}).get("rows") or [] if note else []))
     known = dict(project.ci_commands or {})
-    offered = known.get("offered")
-    if not offered or offered.get("hash") != ci_commands.fingerprint(Path(project.root_path)):
-        raise HTTPException(409, "the CI files changed since: they are offered again after the "
-                                 "next change")
+    offered = known.get("offered") or {}
+    if not shown or offered.get("offer") != body.offer or offered.get(
+            "hash") != ci_commands.fingerprint(Path(project.root_path)):
+        raise HTTPException(409, "the CI commands changed since this turn offered them: they are "
+                                 "offered again after the next change")
     project.ci_commands = {**known, "approved": offered}
     session.commit()
     return {"approved": len(offered.get("commands") or [])}

@@ -71,7 +71,7 @@ class FoundMixin:
             rules = [rule.prefix for rule in session.scalars(rules_here(
                 session.get_one(Conversation, ctx.cid)))]
 
-        if ci := self._ci_runs(ctx, held, root):  # (S8: the project's CI, as approved once)
+        if ci := await self._ci_runs(ctx, held, root):  # (S8: the project's CI, approved once)
             return ci
 
         def kept(folder: str, one: dict) -> TestRun:
@@ -90,43 +90,73 @@ class FoundMixin:
             runs = await self._look_for_tests(ctx, held, root, found)
         return runs
 
-    def _ci_runs(self: "AgentRunner", ctx: Ctx, held: "Proof", root: str) -> list[TestRun]:
+    async def _ci_runs(self: "AgentRunner", ctx: Ctx, held: "Proof",
+                       root: str) -> list[TestRun]:
         """S8 (decision 3): the lint, typecheck and test lines of the project's CI workflows,
         where the user approved exactly these once (Run these) and no workflow changed since -
         nor in this turn; their e2e steps said not run. Else none, and the found lines offered
-        under the answer (its card: not run until approved, at Full auto and away too)."""
-        found, said = ci_commands.ci_runs(Path(root))
-        if not found:
+        under the answer with the offer's own name (its card: not run until approved, at Full
+        auto and away too). The files are hashed first and read again only when they changed
+        (`ci_commands.found`, in a thread: repository text, bounded) - lines and hash of the
+        same bytes."""
+        place = Path(root)
+        mark = await asyncio.to_thread(ci_commands.fingerprint, place)
+        if mark == ci_commands.NONE:
             return []
-        if any(one.path.replace("\\", "/").startswith(f"{ci_commands.WORKFLOWS}/")
-               for one in held.changes):
-            self._ci_said(held, "ci", CI_CHANGED)
-            return []
-        mark = ci_commands.fingerprint(Path(root))
-        listed = [one._asdict() for one in found]
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             if project is None:
                 return []
             known = dict(project.ci_commands or {})
-            approved = known.get("approved")
-            if not (approved and approved.get("hash") == mark):
-                project.ci_commands = {**known, "offered": {"hash": mark, "commands": listed}}
-                session.commit()
-                approved = None
-        if approved is None:
-            self._ci_said(held, "ci_offer", CI_OFFERED.format(
-                lines=", ".join(one.command for one in found)))
+        approved, offered = known.get("approved"), known.get("offered")
+        if not ((approved or {}).get("hash") == mark or (offered or {}).get("hash") == mark and (
+                offered or {}).get("offer")):
+            got = await asyncio.to_thread(ci_commands.found, place)
+            mark = got.mark
+            listed = [one._asdict() for one in got.runs]
+            offered: dict[str, Any] | None = {
+                "hash": mark, "offer": ci_commands.offer_id(mark, listed), "commands": listed,
+                "said": got.said}
+            self._ci_offered(ctx, offered)
+        if (approved or {}).get("hash") != mark:
+            approved = None
+        if not ((approved or offered or {}).get("commands")):
             return []
-        for one in said:
+        if any(one.path.replace("\\", "/").startswith(f"{ci_commands.WORKFLOWS}/")
+               for one in held.changes):
+            self._ci_said(held, "ci", CI_CHANGED)
+            return []
+        if approved is None:
+            shown = offered or {}
+            self._ci_said(held, "ci_offer", CI_OFFERED.format(lines=", ".join(
+                one["command"] for one in shown["commands"])), shown.get("offer"))
+            return []
+        for one in approved.get("said") or []:
             if one.startswith("e2e"):
                 self._ci_said(held, "ci", one)
-        return [TestRun(one["command"], one["cwd"], True, ci=True) for one in approved["commands"]]
+        # (an approval stored before a stricter reading is held to it: one plain command each)
+        return [TestRun(one["command"], one["cwd"], True, ci=True)
+                for one in approved["commands"] if ci_commands.kept(one["command"])]
+
+    def _ci_offered(self: "AgentRunner", ctx: Ctx, offered: dict) -> None:
+        """The project's offer, now: what Run these may approve - only by its own name."""
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+            if project is not None:
+                project.ci_commands = {**(project.ci_commands or {}), "offered": offered}
+                session.commit()
 
     @staticmethod
-    def _ci_said(held: "Proof", kind: str, text: str) -> None:
+    def _ci_said(held: "Proof", kind: str, text: str, offer: str | None = None) -> None:
+        """A CI row, once; an offer replaces an earlier one (its lines may be the same, its
+        files not: Run these approves the offer by its name)."""
+        if kind == "ci_offer":
+            held.rows = [one for one in held.rows if one["kind"] != "ci_offer"]
         if all(one["text"] != text for one in held.rows):
-            held.rows.append(proof.row(kind, "note", text))
+            made = proof.row(kind, "note", text)
+            if offer:
+                made["offer"] = offer
+            held.rows.append(made)
 
     @staticmethod
     def _parts_guessed(root: str, found: dict | None, ran: set[str]) -> list[TestRun]:

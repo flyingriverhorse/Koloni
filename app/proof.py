@@ -7,7 +7,7 @@ import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import NamedTuple, TypedDict
+from typing import NamedTuple, NotRequired, TypedDict
 
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
@@ -392,6 +392,8 @@ class Row(TypedDict):
     # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None:
     # no count known (never made up).
     counts: dict | None
+    # S8: a "ci_offer" row's offer, by its name (`ci_commands.offer_id`): Run these approves it.
+    offer: NotRequired[str]
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
 
 PASSED_ROW = "Tests passed: {command}{guessed} - {summary}"

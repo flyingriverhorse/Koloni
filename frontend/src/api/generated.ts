@@ -4070,9 +4070,11 @@ export interface paths {
         put?: never;
         /**
          * Approve Ci
-         * @description S8 (decision 3) "Run these": the CI lines this turn's project offered are approved -
-         *     exactly those, the user's own approval from the app's page; the end check runs them from the
-         *     next change on. Not where a workflow changed since they were offered (409: asked again).
+         * @description S8 (decision 3) "Run these": the CI lines this turn's row showed are approved - exactly
+         *     those, the user's own approval from the app's page; the end check runs them from the next
+         *     change on. The offer goes by its name (`ci_commands.offer_id`, the row's `offer`): it must be
+         *     on this turn's row, be the project's offer still, and its workflow files be as they are now -
+         *     else 409, offered again after the next change (another turn may have offered other lines).
          */
         post: operations["approve_ci_api_runs__run_id__ci_approve_post"];
         delete?: never;
@@ -5887,6 +5889,8 @@ export interface components {
             guessed: boolean;
             /** Kind */
             kind: string;
+            /** Offer */
+            offer?: string | null;
             /** Started At */
             started_at: string | null;
             /**
@@ -5896,6 +5900,11 @@ export interface components {
             state: "passed" | "failed" | "running" | "not_run" | "timed_out" | "note";
             /** Text */
             text: string;
+        };
+        /** CiApproveIn */
+        CiApproveIn: {
+            /** Offer */
+            offer: string;
         };
         /**
          * ClaimOut
@@ -19079,7 +19088,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CiApproveIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

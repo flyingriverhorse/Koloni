@@ -92,17 +92,25 @@ command: nothing was run"; after the look found no tests at all, "No tests in th
 
 Where the project has GitHub Actions workflows (`.github/workflows/*.yml`), KOLONİ reads their
 lint, typecheck and test lines - `ruff`, `eslint`, `mypy`, `ty check`, `tsc`, `pytest`, `vitest` and
-the like, each in its step's `working-directory`. It never takes an e2e step ("e2e not run: …"),
-nor a step with a `${{ … }}` expression, a secret or an install in it.
+the like, each in its step's `working-directory` (or the job's or workflow's `defaults.run`). Each
+line must be one plain command: a line that chains, pipes, redirects or substitutes (`pytest;
+curl …`, `npm test && …`, `pytest $(…)`) is not taken, and the step says "not a plain command".
+It never takes an e2e step ("e2e not run: …"), nor a step with a `${{ … }}` expression, a secret or
+an install in it, one whose `shell:` is another language, or one whose folder is outside the
+project. The workflow files are read with limits - at most 50 files, 256 KB each and 1 MB in all,
+no links, no YAML aliases; a file past them is said, not read.
 
 It asks once a project: the section lists them - "CI commands found: ruff check app, python -m
 pytest -q - not run until you approve them once (Run these)" - and **Run these** approves exactly
-those lines. From the next change on they are the turn's test run, one line each, said "(from
+the lines that row shows. If the workflow files changed since, or another turn offered other lines,
+nothing is approved and they are offered again after the next change. From the next change on they are the turn's test run, one line each, said "(from
 CI)". Until you approve them they are not run - at **Full auto** and while you're away too. A
 change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
 commands not used: a workflow changed in this turn"). Your own **Test before adding** command wins
 over them. Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
-level says.
+level says. An approved line runs as your own command does: `make test`, `npm test` or `tox` run
+the project's own Makefile, package scripts or tox file, whatever they hold. A trigger's turn runs
+one only with the trigger's own leave for that line.
 
 ### Saved by KOLONİ
 
