@@ -5,6 +5,7 @@ line, the row written again when it ends. A failure then offers Fix it; nothing 
 Turns nobody watches, and work in a copy, wait as before. KOLONİ's own runs at once and the test
 processes each may start are Settings › The app's; the user can stop a running check."""
 
+import asyncio
 import time
 
 import pytest
@@ -671,3 +672,59 @@ def test_a_guessed_suite_stopped_after_the_answer_saves_nothing(
     (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
                             if one["state"] != "running"])
     assert row["state"] == "not_run" and found_of(client, project_dir) == {}, row
+
+
+@pytest.mark.usefixtures("soon")
+def test_a_save_that_breaks_still_says_how_the_suite_ended(make_client, wait_run, project_dir,
+                                                           gate, monkeypatch):
+    # (Review of the integration: the row stayed "running", and Stop this check then said 409.)
+    from app.agent import found_mixin
+
+    def broken(*_args, **_kw):
+        raise RuntimeError("database is locked")
+    monkeypatch.setattr(found_mixin.FoundMixin, "_found_saved", broken)
+    guess(monkeypatch, PYTEST)
+    executor = ScriptedExecutor([held(gate, "....\n", "===== 4 passed in 9s =====\n")])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir)
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    gate.release()
+    rows = until(lambda: (r := rows_of(client, cid, run_id)) and r[0]["state"] != "running" and r)
+    assert [(row["state"], row["text"]) for row in rows] == [
+        ("passed", f"Tests passed: {PYTEST} (guessed) - 4 passed in 9s")], rows
+    assert found_of(client, project_dir) == {}
+
+
+class Yielding(ScriptedExecutor):
+    """As a real executor: starting a process yields to the loop once."""
+
+    async def start(self, *args, **kwargs):
+        await asyncio.sleep(0)
+        return await super().start(*args, **kwargs)
+
+
+@pytest.mark.usefixtures("soon")
+@pytest.mark.parametrize(("at_once", "executor_of"), [
+    (1, ScriptedExecutor), (2, ScriptedExecutor), (1, Yielding), (2, Yielding)])
+def test_two_suites_of_one_turn_do_not_unmake_each_others_pass(make_client, wait_run, project_dir,
+                                                              gate, at_once, executor_of):
+    # (Another of KOLONİ's own test runs is no change beneath a run: it said "the project changed
+    # while they ran" of the first suite's pass every time.)
+    (project_dir / "web").mkdir()
+    (project_dir / "web" / "package.json").write_text('{"name": "web"}', encoding="utf-8")
+    (project_dir / "api").mkdir()
+    (project_dir / "api" / "pom.xml").write_text("<project/>", encoding="utf-8")
+    executor = executor_of([held(gate, "4 passed\n"), held(gate, "4 passed\n")])
+    client, _model = make_client([write("web/a.js", "x\n"), write("api/A.java", "class A {}\n",
+                                                                  "w2"), text("done")],
+                                 executor=executor)
+    assert client.put("/api/test-load", json={"runs_at_once": at_once},
+                      headers=OWN).status_code == 200
+    cid, run_id = begin(client, project_dir, parts={"web/": "python w.py", "api/": "python a.py"})
+    wait_run(client, cid, run_id)
+    until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    gate.release()
+    rows = until(lambda: (r := rows_of(client, cid, run_id)) and len(
+        [one for one in r if one["kind"] == "tests" and one["state"] != "running"]) == 2 and r)
+    assert [row["state"] for row in rows] == ["passed", "passed"], rows

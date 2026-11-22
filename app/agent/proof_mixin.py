@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 # _history_calls`) - a call added to an answer after the fact would have Anthropic's replay drop
 # that answer's signed thinking. The Lead hears the result in the nudge; a later turn, from the
 # record (`ledger.of_turn`'s "last tests": the Command is the Lead's).
-PROOF_CALL = "koloni_proof_"
+PROOF_CALL = proof.PROOF_CALL
 # S1, until a run can go on in the background (S6): a turn the user watches waits at most this
 # long for the tests at its end - all its test commands, and another turn's run before them; past
 # it they are stopped and said not waited for. An Away job, a To-do task's and a trigger's turn

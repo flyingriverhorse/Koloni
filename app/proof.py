@@ -14,9 +14,12 @@ from sqlalchemy.orm import Session
 
 from app import finish_tests, ledger, project_map, test_found
 from app.commands import only_reads
-from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run
+from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run, ToolCall
 from app.tools import MAX_TIMEOUT
 from app.workspace import in_scratch, unified_diff
+
+# KOLONİ's own end-of-turn test run: its call's id starts so (`ProofMixin`).
+PROOF_CALL = "koloni_proof_"
 
 # Project.after_change: Check it, Tests only, Nothing.
 AFTER_CHANGE = ("check", "tests", "nothing")
@@ -429,12 +432,16 @@ def changed_since(session: Session, project_id: str, since: datetime,
         return True
     if ran is None or ran.started_at is None:
         return False
+    # (Not KOLONİ's own test runs - another suite of the same turn, say: they change nothing the
+    # tests read, and a standing file they write is put back as they end.)
+    proofs = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
     agents: dict[str, set[str]] = {}
     for run_id, agent_id in session.execute(
             select(Command.run_id, Command.agent_id).join(Run, Run.id == Command.run_id)
             .join(Conversation, Conversation.id == Run.conversation_id)
             .where(Conversation.project_id == project_id, Command.id != ran.id,
-                   Command.started_at.is_not(None), Command.started_at >= since)):
+                   Command.started_at.is_not(None), Command.started_at >= since,
+                   or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(proofs)))):
         agents.setdefault(run_id, set()).add(agent_id)
     return any(_rewritten_after(session, run_id, by, ran, _folded(ran.command))
                for run_id, by in agents.items())

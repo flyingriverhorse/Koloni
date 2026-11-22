@@ -287,9 +287,13 @@ class ProofLaterMixin:
         closing: nothing here - the next start says so (`proof.settle_running`)."""
         if done.cancelled() and self._closing:
             return
+        saved: list[Row] = []
+        if not done.cancelled() and done.exception() is None:
+            try:
+                saved = self._save_found(ctx, held, run, *done.result())
+            except Exception as exc:  # (a save that broke saves nothing: the row is said)
+                log.warning("run %s: the guess gone on after it not saved: %r", check.run_id, exc)
         try:
-            saved = [] if done.cancelled() or done.exception() is not None else (
-                self._save_found(ctx, held, run, *done.result()))
             held.rows.extend(saved)  # (its Checked section not yet written: there with the rest)
             self._checked_update(check, made, self._later_row(check, made, done), *saved)
         except Exception as exc:  # (a row of KOLONİ's fails nothing)
