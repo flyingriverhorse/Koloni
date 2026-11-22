@@ -261,6 +261,12 @@
   white-space: nowrap;
 }
 
+/* A merge card's notes name paths with no spaces to break at (what is in the way, where it started,
+   what it left out): they break anywhere rather than run past the card in a narrow chat. */
+.merge-note {
+  overflow-wrap: anywhere;
+}
+
 /* One card for what an agent changed in its working copy: its files, each with a diff to open. */
 .merge-files {
   display: flex;

@@ -66,6 +66,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Workspace**: a branch's working copy kept over a restart merges a file you changed too line by line, from what the branch was made of, where it showed both files whole; and its **Discard** deletes its branch and git's record of its worktree, which stayed behind ([docs](use/workspace.md#when-an-agent-stops)).
 - **Workspace**: on Linux and macOS, a branch whose agent ran `git add -A` in its worktree no longer brings KOLONİ's own `.venv` or `node_modules` link with it: its merge card no longer waits on `.venv` as in the way, and neither the merge nor a pull request carries it ([docs](use/workspace.md#branches)).
 - **Chat**: on Windows, a disposable delete written the way sh writes it (`rm -rf build`) no longer goes without a card: KOLONİ's own commands run in PowerShell there, which answers it with an error and deletes nothing, yet the row said it went. Only the shell's own form counts (`Remove-Item -Recurse` in PowerShell, `rm -r` in sh and in Claude Code's Bash tool); where the shell is not known (Codex, agy) a folder's delete keeps its card. A disposable delete that then fails says so ("… and failed: exit 1").
+- **Chat**: at 340 px, a task's name in the ☾ Away panel takes its row's width (it was squeezed to a word a line; its tag and buttons now go under it), and a long path on a branch's merge card - what is in the way, where it started, what it left out - breaks instead of running past the card's edge.
 
 ### Security
 
