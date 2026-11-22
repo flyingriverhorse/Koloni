@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app import copies, mcp_client
+from app import copies, disposable, mcp_client
 from app.agent.cards import _glob_could_take, _shared
 from app.agent.ctx import Ctx, _NobodyToAsk, _Transcript, _Watch
 from app.agent.merge import _planned_edit
@@ -380,9 +380,11 @@ class ApprovalsMixin:
         # by its model's word; never GitHub Copilot CLI's, which may report a folder for a shell
         # it keeps, with no sandbox: a link a script makes after this look is followed (as a
         # delete in the scratch from its new shell is not let go: `scratch_of`).
-        found = await self._disposable(ctx, command, root, None if claimed or getattr(
-            ctx.model, "command", "") == "copilot" else (
-            where if isinstance(cwd, str) and cwd else unnamed), copy is not None)
+        cli = getattr(ctx.model, "command", "")
+        found = await self._disposable(
+            ctx, command, root, None if claimed or cli == "copilot" else (
+                where if isinstance(cwd, str) and cwd else unnamed), copy is not None,
+            disposable.cli_shell(cli, tool))
         free = bool(found and found["allowed"])
         before = web_off or reason or searched or (
             self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where)

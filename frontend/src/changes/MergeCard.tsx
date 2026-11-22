@@ -42,7 +42,7 @@ function FileRow({ file }: { file: MergeFile }) {
     <>
       {/* Asked about again: why it is not in the project yet. */}
       {file.note && (
-        <div className="muted cmd-approval-note">
+        <div className="muted cmd-approval-note merge-note">
           <span className="mono">{file.path}</span> — {file.note}
         </div>
       )}
@@ -321,7 +321,7 @@ function kickerOf(name: string, kept: boolean, branch: Branch | null, pr: boolea
 /** What a branch's merge waits for: conflicts, your changes in the way, git's note, and who may resolve them. */
 function notMergedYet(branch: Branch, pr: boolean, name: string) {
   return (
-    <div className="muted cmd-approval-note" role="note" aria-label="Not merged yet">
+    <div className="muted cmd-approval-note merge-note" role="note" aria-label="Not merged yet">
       {branch.conflicts.length > 0 && (
         <div>
           Changed on both sides, and git does not put them together:{' '}
@@ -534,18 +534,18 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
       )}
       {also && <div className="muted cmd-approval-note">{also}</div>}
       {branch?.started && (
-        <div className="muted cmd-approval-note" role="note" aria-label="Where it started">
+        <div className="muted cmd-approval-note merge-note" role="note" aria-label="Where it started">
           {branch.started}
         </div>
       )}
       {branch?.not_taken && (
-        <div className="muted cmd-approval-note" role="note" aria-label="Not in its branch">
+        <div className="muted cmd-approval-note merge-note" role="note" aria-label="Not in its branch">
           {branch.not_taken}
         </div>
       )}
       {branch && inTheWay > 0 && notMergedYet(branch, pr, name)}
       {look.length > 0 && (
-        <div className="muted cmd-approval-note" role="note" aria-label="Worth a look">
+        <div className="muted cmd-approval-note merge-note" role="note" aria-label="Worth a look">
           <span className="tag tag-warn">Worth a look</span>{' '}
           {look.map(({ why, paths }, i) => (
             <span key={why}>

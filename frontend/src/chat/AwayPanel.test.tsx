@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -47,6 +48,20 @@ test('☾ Away opens its panel: the new tasks from this chat ticked, the older o
   expect(rows().map(([title]) => title)).toEqual(['Task t2', 'Task t1', 'README links'])
   await userEvent.click(within(panel).getByRole('button', { name: 'Go away' }))
   expect(goAway).toHaveBeenCalledWith('c', { task_ids: ['t2', 't1'], order: ['t2', 't1', 'old'], until: null, money: null, kept_out: [] })
+})
+
+test('in a narrow chat a task’s name takes the row’s free width; its tag and buttons go under it (340 px: one word a line)', async () => {
+  const style = document.createElement('style')
+  style.textContent = readFileSync('src/theme/memory.css', 'utf8') // (run from frontend/)
+  document.head.append(style)
+  useApp.setState({ backlog: [task('t1', { title: 'Add a bye line, 106' })] })
+  render(<ComposerStatus {...at} conv={chat} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Away' }))
+  const name = screen.getByRole('checkbox', { name: 'Add a bye line, 106' }).closest('label')!
+  expect(name).toHaveClass('away-task-name')
+  expect([getComputedStyle(name).flexGrow, getComputedStyle(name).minWidth]).toEqual(['1', '0px'])
+  expect(getComputedStyle(name.closest('li')!).flexWrap).toBe('wrap')
+  style.remove()
 })
 
 test('with nothing open on To-do the panel has no task section; Esc closes it, the focus back on the chip', async () => {

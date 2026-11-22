@@ -622,6 +622,19 @@ a.btn {
   padding: 7px 10px;
   background: var(--panel);
 }
+/* A task's name takes the row's free width; at a narrow chat (340 px) its tag and buttons go under
+   it, never squeezing it to a word a line. */
+.away-task {
+  flex-wrap: wrap;
+}
+.away-task-name {
+  flex: 1 1 160px;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
 .away-mark {
   min-width: 20px;
   height: 20px;

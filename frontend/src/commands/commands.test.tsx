@@ -281,3 +281,16 @@ test('a delete that ran with no card as disposable says so on its row', () => {
   render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: { what: 'build folder build', unasked: false } })} />)
   expect(screen.queryByText(/Ran without asking/)).not.toBeInTheDocument()
 })
+
+test('a delete that ran with no card as disposable and failed says it failed, not that it deleted', () => {
+  const free = { what: 'build folder build', unasked: true }
+  const { unmount } = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, exit_code: 1 })} />)
+  expect(screen.getByText('Ran without asking as disposable (build folder build) and failed: exit 1')).toBeInTheDocument()
+  unmount()
+  const view = render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, status: 'failed_to_start', exit_code: null })} />)
+  expect(screen.getByText('Ran without asking as disposable (build folder build) and did not start')).toBeInTheDocument()
+  view.unmount()
+  // (a CLI's that did not report its exit code: not said to have failed)
+  render(<CommandRow command={command('k', 'r', { command: 'rm -rf build', disposable: free, origin: 'cli', exit_code: null })} />)
+  expect(screen.getByText('Ran without asking · disposable: build folder build')).toBeInTheDocument()
+})

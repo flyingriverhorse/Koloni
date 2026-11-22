@@ -3721,21 +3721,37 @@ def web_off_reason(command: str, off: Iterable[str]) -> str:
 DISPOSABLE_NAMES = frozenset({"build", "dist", "__pycache__", ".pytest_cache", ".ruff_cache",
                               ".mypy_cache", "coverage", ".next", ".turbo", "target"})
 _DISPOSABLE_LINE = re.compile(r"[A-Za-z0-9_./-]+(?: [A-Za-z0-9_./-]+)*")
-_FORCES = frozenset({"-f", "-rf", "-fr", "--force", "-force", "-fo"})
+# The shells a folder's delete is read for (`disposable_targets`' `shell`): KOLONİ's own command
+# runs in PowerShell on Windows and in sh elsewhere and in Docker (`executors.host.shell_argv`); a
+# CLI's, in the one it says (`disposable.cli_shell`). Each its own forms, as each reads them -
+# measured in Windows PowerShell 5.1 (22 Nov 2026): Remove-Item and its aliases, `-r` its
+# -Recurse, `-fo` its -Force, one path (`-rf`, `-f` and a second path are errors, nothing
+# deleted); sh's rm by its own name and options, as many paths as it is given.
+POWERSHELL, POSIX = "powershell", "posix"
+_DELETE_FORMS = {  # (its deleters, its recursions, its other flags, its forcings, most paths)
+    POWERSHELL: (frozenset({"remove-item", "ri", "rm", "del", "erase"}),
+                 frozenset({"-recurse", "-r"}),
+                 frozenset({"-force", "-fo", "-path", "-literalpath"}),
+                 frozenset({"-force", "-fo"}), 1),
+    POSIX: (frozenset({"rm"}), frozenset({"-r", "-R", "-rf", "-fr", "-Rf", "-fR"}),
+            frozenset({"-f", "--force"}), frozenset({"-f", "--force", "-rf", "-fr", "-Rf", "-fR"}),
+            None),
+}
 
 
-def disposable_targets(command: str) -> list[tuple[str, str, bool]] | None:
+def disposable_targets(command: str, shell: str | None) -> list[tuple[str, str, bool]] | None:
     """What a line deletes where it is nothing but a delete KOLONİ can check: ("folder", its
-    path, forced) for each build or cache folder of `rm -r` / `Remove-Item -Recurse`;
-    ("worktree", its path, False) for `git worktree remove <path>`; ("branch", its name,
-    forced) for each of `git branch -d|-D`. None for any other line. What it names only: whether
+    path, forced) for each build or cache folder of the `shell`'s own recursive delete (`rm -r`
+    in sh, `Remove-Item -Recurse` in PowerShell; a shell not known: none); ("worktree", its path,
+    False) for `git worktree remove <path>`; ("branch", its name, forced) for each of `git branch
+    -d|-D` (git's, every shell's alike). None for any other line. What it names only: whether
     each is disposable is for the checks of its folder."""
     if not _DISPOSABLE_LINE.fullmatch(command):
         return None
     words = command.split(" ")
     if words[0] == "git":
         return _worktree_target(words[1:]) or _branch_targets(words[1:])
-    return _folder_targets(words)
+    return _folder_targets(words, shell)
 
 
 def _plain_name(part: str) -> bool:
@@ -3744,20 +3760,25 @@ def _plain_name(part: str) -> bool:
     return bool(part) and not part.startswith(".") and not part.endswith(".")
 
 
-def _folder_targets(words: list[str]) -> list[tuple[str, str, bool]] | None:
-    """A bare deleter's recursive delete of build or cache folders below where it runs (no
-    trailing slash: `build/` is where a link named build leads)."""
-    flags = {word.casefold() for word in words[1:] if word.startswith("-")}
+def _folder_targets(words: list[str], shell: str | None) -> list[tuple[str, str, bool]] | None:
+    """A bare deleter's recursive delete of build or cache folders below where it runs, in the
+    shell's own form (PowerShell's names and options in any case, sh's as spelt; no trailing
+    slash: `build/` is where a link named build leads)."""
+    if shell not in _DELETE_FORMS:
+        return None
+    deleters, recursions, others, forcings, most = _DELETE_FORMS[shell]
+    read = str.casefold if shell == POWERSHELL else str
+    flags = {read(word) for word in words[1:] if word.startswith("-")}
     paths = [word for word in words[1:] if not word.startswith("-")]
-    if (words[0].casefold() not in _SCRATCH_DELETERS or not paths or not flags & _RECURSES
-            or not flags <= _SCRATCH_FLAGS):
+    if (read(words[0]) not in deleters or not paths or not flags & recursions
+            or not flags <= recursions | others or most is not None and len(paths) > most):
         return None
     for path in paths:
         *above, name = path.split("/")
         if name not in DISPOSABLE_NAMES or not all(
                 _plain_name(part) and part.casefold() not in LINKED for part in above):
             return None
-    return [("folder", path, bool(flags & _FORCES)) for path in paths]
+    return [("folder", path, bool(flags & forcings)) for path in paths]
 
 
 def _worktree_target(rest: list[str]) -> list[tuple[str, str, bool]] | None:
