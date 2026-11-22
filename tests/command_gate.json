@@ -1,5 +1,5 @@
 {
-"about": "K-koordinasyon's command gate (review rounds 3-4): each line's verdict as 650e22a gave it - harm_class (0 none, 1 soft, 2 always), copy_reason in a copy with links (the sentence's family, '' no card), installs(), web_off_reason with http_request off - which HEAD must give at least. <x> is a path the test makes; win32: Windows' own spellings, checked there alone. `allow`: the lines meant to go down, each with why. `xfail`: known regressions still open. `up`: lines meant to go up (harm at least soft). `shared` (k-okuyucu-3): lines that in a branch's worktree reaches_shared_git must ask, each with why. `unruled` (k-okuyucu-3 round 3): lines an Always rule (its value) never covers - a shell or program a runner is handed.",
+"about": "K-koordinasyon's command gate (review rounds 3-4): each line's verdict as 650e22a gave it - harm_class (0 none, 1 soft, 2 always), copy_reason in a copy with links (the sentence's family, '' no card), installs(), web_off_reason with http_request off - which HEAD must give at least. <x> is a path the test makes; win32: Windows' own spellings, checked there alone. `allow`: the lines meant to go down, each with why. `xfail`: known regressions still open. `up`: lines meant to go up (harm at least soft). `shared` (k-okuyucu-3): lines that in a branch's worktree reaches_shared_git must ask, each with why. `unruled` (k-okuyucu-3 round 3): lines an Always rule (its value) never covers - a shell or program a runner is handed. `ruled` (k-okuyucu-3 round 4): lines their offered rule (its value) must still cover - a runner's program's own words are no program.",
 "lines": [
 [
 "",
@@ -11226,6 +11226,14 @@ true,
 false
 ],
 [
+"New-Item env:TEMP -Value x; Copy-Item g \"$env:TEMP\\f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "New-Item node_modules/x -ItemType File -Force",
 0,
 "",
@@ -15379,6 +15387,22 @@ false
 ],
 [
 "TMPDIR=$(git rev-parse --git-dir); echo x > \"$TMPDIR/f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"TMPDIR=../x sh -c 'echo x > \"$TMPDIR/f\"'",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"TMPDIR=x bash -c \"cp a $TMPDIR/f\"",
 0,
 "",
 false,
@@ -20755,6 +20779,14 @@ false
 ],
 [
 "cargo run -- rm -rf src",
+1,
+"",
+false,
+false,
+false
+],
+[
+"cargo run -- rm x",
 1,
 "",
 false,
@@ -26891,6 +26923,14 @@ false
 ],
 [
 "conda run -n env pip install x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"conda run -n env python x.py",
 0,
 "",
 false,
@@ -34882,6 +34922,14 @@ false,
 false
 ],
 [
+"env TMPDIR=$(git rev-parse --git-dir) sh -c 'echo x > \"$TMPDIR/f\"'",
+0,
+"",
+false,
+false,
+false
+],
+[
 "env X=1 \tcp a.js node_modules/x",
 0,
 "write",
@@ -39258,6 +39306,14 @@ true,
 false
 ],
 [
+"for TMPDIR in a; do echo y > \"$TMPDIR/f\"; done",
+0,
+"",
+false,
+false,
+false
+],
+[
 "for d in a b; do cp x.js node_modules/$d; done",
 0,
 "",
@@ -39267,6 +39323,14 @@ false
 ],
 [
 "for f in $(ls ..); do echo x > \"$f/gitdir\"; done",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"for f in *.py; do :; done; for f in $(ls ..); do echo y > \"$f\"; done",
 0,
 "out",
 false,
@@ -40819,6 +40883,14 @@ false
 ],
 [
 "gdb -batch -ex 'shell pkill uvicorn'",
+0,
+"",
+false,
+false,
+false
+],
+[
+"getopts ab TMPDIR; echo y > \"$TMPDIR/f\"",
 0,
 "",
 false,
@@ -54874,6 +54946,14 @@ false,
 false
 ],
 [
+"ni Env:\\TEMP -Value x; Copy-Item g \"$env:TEMP\\f\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "ni x",
 0,
 "",
@@ -56858,6 +56938,14 @@ false,
 false
 ],
 [
+"npm exec -- eslint .",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npm exec -- kill-port 3000",
 0,
 "",
@@ -58106,6 +58194,14 @@ false,
 false
 ],
 [
+"npx eslint . --fix",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npx eslint src",
 0,
 "",
@@ -58178,6 +58274,14 @@ false,
 false
 ],
 [
+"npx prettier --write .",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npx tsc --noEmit",
 0,
 "",
@@ -58211,6 +58315,14 @@ false
 ],
 [
 "npx vitest run -p 2",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npx vitest run kill",
 0,
 "",
 false,
@@ -59986,6 +60098,14 @@ false,
 false
 ],
 [
+"pnpm exec tsc -p .",
+0,
+"",
+false,
+false,
+false
+],
+[
 "pnpm fetch",
 0,
 "",
@@ -60195,6 +60315,14 @@ true
 ],
 [
 "poetry run python -m pip install x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"poetry run ruff format",
 0,
 "",
 false,
@@ -61692,6 +61820,14 @@ false
 [
 "printf 'x\\n' | dd of=\"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"",
 2,
+"",
+false,
+false,
+false
+],
+[
+"printf -v TMPDIR '%s' x; echo y > \"$TMPDIR/f\"",
+0,
 "",
 false,
 false,
@@ -70691,6 +70827,14 @@ false
 ],
 [
 "select * from Win32_Process -MethodName Terminate",
+0,
+"",
+false,
+false,
+false
+],
+[
+"select PWD in a b; do echo y > \"$PWD/f\"; done",
 0,
 "",
 false,
@@ -80354,6 +80498,14 @@ false,
 true
 ],
 [
+"uv run mypy .",
+0,
+"",
+false,
+false,
+false
+],
+[
 "uv run npm ci",
 0,
 "",
@@ -80381,6 +80533,14 @@ false
 "uv run pytest --basetemp=../../b/tree",
 2,
 "out",
+false,
+false,
+false
+],
+[
+"uv run pytest -k kill",
+0,
+"",
 false,
 false,
 false
@@ -80442,8 +80602,24 @@ false,
 false
 ],
 [
+"uv run rm -rf build",
+1,
+"delete",
+false,
+false,
+false
+],
+[
 "uv run rm -rf src",
 1,
+"",
+false,
+false,
+false
+],
+[
+"uv run ruff check --fix .",
+0,
 "",
 false,
 false,
@@ -80459,6 +80635,22 @@ false
 ],
 [
 "uv run ruff check app",
+0,
+"",
+false,
+false,
+false
+],
+[
+"uv run ruff format .",
+0,
+"",
+false,
+false,
+false
+],
+[
+"uv run ruff format app",
 0,
 "",
 false,
@@ -84205,6 +84397,7 @@ false
 "New-Item -ItemType Junction -Path g -Target (Split-Path (git rev-parse --git-dir))": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "New-Item -ItemType SymbolicLink -Path g -Value $d": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "New-Item -Path (Split-Path (git rev-parse --git-dir)) -Name users-wt/gitdir -Value x -Force": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"New-Item env:TEMP -Value x; Copy-Item g \"$env:TEMP\\f\"": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
 "New-Object IO.StreamWriter \"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "Out-File -FilePath (git rev-parse --git-dir)/x -InputObject y": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "PWD=$(git rev-parse --git-dir); echo x > \"$PWD/x\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
@@ -84219,6 +84412,8 @@ false
 "Set-Variable PWD x; Set-Content \"$PWD\\x\" y": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "TMP+=/x; echo y > \"$TMP/f\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "TMPDIR=$(git rev-parse --git-dir); echo x > \"$TMPDIR/f\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"TMPDIR=../x sh -c 'echo x > \"$TMPDIR/f\"'": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
+"TMPDIR=x bash -c \"cp a $TMPDIR/f\"": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
 "[Environment]::SetEnvironmentVariable('TEMP', 'x'); Copy-Item g \"$env:TEMP\\f\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "[IO.File]::Copy(\"$PWD/g.txt\", (Join-Path (Split-Path (git rev-parse --git-dir)) 'users-wt/gitdir'), $true)": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "[IO.File]::Copy('x', \"$(git rev-parse --git-dir)/x\", $true)": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
@@ -84271,6 +84466,7 @@ false
 "echo x | awk '{print > \"'\"$(dirname \"$(git rev-parse --git-dir)\")\"'/users-wt/gitdir\"}'": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo x | tee >(cat > \"$(git rev-parse --git-dir)/x\")": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "echo x>\"$(git rev-parse --git-dir)/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"env TMPDIR=$(git rev-parse --git-dir) sh -c 'echo x > \"$TMPDIR/f\"'": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
 "exec 3>\"$(git rev-parse --git-dir)/x\"; echo x >&3": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "export D=$(git rev-parse --git-dir)": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
 "export TMP=../../proj/.git; echo x > $TMP/f": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
@@ -84279,9 +84475,11 @@ false
 "for /f %i in ('git rev-parse --git-dir') do echo x > %i\\..\\users-wt\\gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "for /f %i in ('type .git') do echo x > %i\\..\\users-wt\\gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "for f in $(ls ..); do echo x > \"$f/gitdir\"; done": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"for f in *.py; do :; done; for f in $(ls ..); do echo y > \"$f\"; done": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
 "for f in *.py; do f=../x; echo y > \"$f\"; done": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
 "for f in ../*; do echo x > \"$f\"; done": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "for f in a b; do echo y > \"$f/../users-wt/gitdir\"; done": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
+"getopts ab TMPDIR; echo y > \"$TMPDIR/f\"": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
 "git config --file \"$(git rev-parse --git-dir)/../users-wt/config.worktree\" core.worktree x": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "git rev-parse --absolute-git-dir": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
 "git rev-parse --git-dir": "computes the shared git's path in a branch's worktree (git rev-parse --git-dir, a cd or a variable there): a read too is asked there, as it finds what to rewrite - k-okuyucu-3 review / CL-311",
@@ -84307,9 +84505,11 @@ false
 "ls | xargs -I{} cp x {}/gitdir": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "mklink /J g %D%": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "mv x \"$(git rev-parse --git-common-dir)/refs/remotes/origin/x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"ni Env:\\TEMP -Value x; Copy-Item g \"$env:TEMP\\f\"": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
 "perl -pi -e \"s#.*#$(pwd -W)/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "perl -pi -e 's#.*#/x#' \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "printf 'x\\n' | dd of=\"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"printf -v TMPDIR '%s' x; echo y > \"$TMPDIR/f\"": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
 "python -c \"import subprocess,os;d=subprocess.check_output(['git','rev-parse','--git-dir'],text=True).strip();open(os.path.join(os.path.dirname(d),'users-wt','gitdir'),'w').write('x')\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "python -c \"open(__import__('os').path.dirname(r'$(git rev-parse --git-dir)')+'/users-wt/gitdir','w').write('x')\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "read -r _ PWD < .git; echo x > \"$PWD/gitdir\"": "k-okuyucu-3 round 3: a cure (temp folder, date, loop, $PWD) pushed below by `..`, a setter on the line or a format that holds a path",
@@ -84320,6 +84520,7 @@ false
 "sed -i \"s#.*#$(pwd -W)/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "sed -i \"s#.*#$PWD/x#\" \"$(dirname \"$(git rev-parse --git-dir)\")/users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "sed -i 's#.*#C:/x/.git#' \"$(git rev-parse --git-dir)/../users-wt/gitdir\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
+"select PWD in a b; do echo y > \"$PWD/f\"; done": "k-okuyucu-3 round 4: a name given a value by the line that hands this one on, `New-Item env:`, `printf -v`, `getopts`, `select`, or another loop over what is not written out",
 "tar -C \"$(dirname \"$(git rev-parse --git-dir)\")\" -xf evil.tar": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "type x > \"%G%\\x\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
 "unzip -o evil.zip -d \"$(dirname \"$(git rev-parse --git-dir)\")\"": "writes to a place built at run time in a branch's worktree - it may be the user's shared .git (another worktree's link, HEAD or history, a ref of origin's): k-okuyucu-3 review",
@@ -84331,5 +84532,18 @@ false
 "poetry run cmd /c rd /s /q src": "poetry",
 "uv run \"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -c x": "uv run",
 "uv run C:\\Windows\\System32\\cmd.exe /c x": "uv run"
+},
+"ruled": {
+"conda run -n env python x.py": "conda",
+"npx eslint . --fix": "npx eslint",
+"npx prettier --write .": "npx prettier",
+"npx vitest run kill": "npx vitest",
+"pnpm exec tsc -p .": "pnpm exec tsc",
+"poetry run ruff format": "poetry",
+"uv run mypy .": "uv run mypy",
+"uv run pytest -k kill": "uv run pytest",
+"uv run ruff check --fix .": "uv run ruff",
+"uv run ruff format .": "uv run ruff",
+"uv run ruff format app": "uv run ruff"
 }
 }

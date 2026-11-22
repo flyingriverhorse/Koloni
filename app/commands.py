@@ -218,9 +218,10 @@ _RUNS_AFTER_DASHES = frozenset({("cargo", "run"), ("dotnet", "run")})
 
 
 def _runner_lines(words: list[str]) -> list[str]:
-    """What a runner runs (`_RUNS_PROGRAM`, `npx` and its kin, `cargo run --`), as lines: from each
-    of its first three words that is no option - an option's value read as the program too, which
-    fails closed."""
+    """What a runner runs (`_RUNS_PROGRAM`, `npx` and its kin, `cargo run --`), as lines: from its
+    first word that is no option - its own options' values skipped (`_RUNNER_VALUES`); after one
+    it does not know, with no `=`, from the word after that one too (fails closed: `uv run --x 1
+    rm -rf y`). What follows is the program's own (`uv run ruff format .`: ruff's words)."""
     program = _program(words[0])
     rest: list[str] = words[1:] if program in _RUNNER_PROGRAMS else []
     for name, verb in [] if rest else _verbs(words):
@@ -230,10 +231,29 @@ def _runner_lines(words: list[str]) -> list[str]:
             return [" ".join(_quoted_word(word) for word in words[dashes + 1:])][
                 :1 if dashes + 1 < len(words) else 0]
         if at > 0 and pair in _RUNS_PROGRAM:
-            rest = words[at + 1:]
+            rest, program = words[at + 1:], name
             break
-    starts = [at for at, word in enumerate(rest) if not word.startswith("-")][:3]
-    return [" ".join(_quoted_word(word) for word in rest[at:]) for at in starts]
+    values, at, unknown = _RUNNER_VALUES.get(program, frozenset()), 0, False
+    while at < len(rest) and rest[at].startswith("-"):
+        unknown = rest[at] not in values and "=" not in rest[at] and rest[at] != "--"
+        at += 2 if rest[at] in values else 1
+    starts = [at, at + 1] if unknown and at + 1 < len(rest) and not rest[at + 1].startswith(
+        "-") else [at]
+    return [" ".join(_quoted_word(word) for word in rest[one:])
+            for one in starts if one < len(rest)]
+
+
+# The runners' own options that take the next word for their value (`conda run -n env python`).
+_RUNNER_VALUES = {program: frozenset(options.split()) for program, options in {
+    "uv": "-p --python -w --with --with-editable --with-requirements --package --directory "
+          "--project --env-file --extra --group --index --index-url --from",
+    "conda": "-n --name -p --prefix", "poetry": "-C --directory -P --project",
+    "pdm": "-p --project", "hatch": "-e --env", "pnpm": "-C --dir --filter -F",
+    "yarn": "--cwd", "npm": "--package -w --workspace --prefix -C",
+    **dict.fromkeys(("npx", "pnpx", "bunx"), "-p --package -c --call -w --workspace --cache "
+                    "--registry --prefix --userconfig --node-options --loglevel"),
+    "uvx": "-p --python -w --with --from --index --index-url",
+}.items()}
 
 
 def _quoted_word(word: str) -> str:
@@ -1389,35 +1409,42 @@ _FOR_LIST = re.compile(r"(?:^|[\s;&|(])for\s+(\w+)\s+in\s+([^;\n]*)")
 
 
 _GIVES = frozenset({"read", "export", "declare", "typeset", "local", "readonly", "set",
-                    "set-variable", "new-variable", "sv", "nv", "set-item", "si"})
+                    "set-variable", "new-variable", "sv", "nv", "set-item", "si", "new-item", "ni",
+                    "printf", "getopts"})
+_LOOPS = re.compile(r"(?i)(?:^|[\s;&|(])(for|select)\s+(\w+)\s+in\b")
 
 
 def _assigned(line: str) -> set[str]:
     """The names a line gives a value, in lower case: `x=`, `x+=`, `$env:x =`; any name after
-    `read` / `export` / `declare` / `typeset` / `local` / `readonly` / `set` / `Set-Variable` /
-    `New-Variable` / `Set-Item env:` in its part; `SetEnvironmentVariable('x'`. Linear: each part
-    read once."""
+    `read` / `export` / `declare` / `typeset` / `local` / `readonly` / `set` / `printf -v` /
+    `getopts` / `Set-Variable` / `New-Variable` / `Set-Item env:` / `New-Item env:` in its part;
+    `SetEnvironmentVariable('x'`; a `for` or `select` loop's name. Linear: each part read once."""
     names = {found[1].casefold() for found in re.finditer(
         r"(?<![\w$.-])(?:\$env:)?([A-Za-z_]\w*)\s*\+?=", line)}
     names |= {found[1].casefold() for found in re.finditer(
         r"(?i)setenvironmentvariable\(\s*['\"](\w+)", line)}
+    names |= {found[2].casefold() for found in _LOOPS.finditer(line)}
     for part in re.split(r"[;&|\n]", line):
-        words = [re.sub(r"(?i)^(?:env:|-\w+:)", "", word.strip("'\"$")).split("=")[0].casefold()
-                 for word in part.split()]
+        words = [re.sub(r"(?i)^(?:env:[\\/]?|-\w+:)", "", word.strip("'\"$")).split("=")[
+            0].casefold() for word in part.split()]
         given = next((at for at, word in enumerate(words) if word in _GIVES), None)
         names |= set(words[given + 1:]) if given is not None else set()
     return names
 
 
-def _curing(line: str) -> Callable[[str], str]:
-    """`_writes_built`'s cure for `line`, read once: a write's target as `_BUILT` judges it."""
-    assigned = _assigned(line)
+def _curing(line: str, outer: frozenset[str] = frozenset()) -> Callable[[str], str]:
+    """`_writes_built`'s cure for `line`, read once: a write's target as `_BUILT` judges it.
+    `outer`: the names the line that hands this one on gives a value (`TMPDIR=x sh -c '...'`)."""
+    assigned = _assigned(line) | outer
     temp, here = not assigned & {"tmpdir", "tmp", "temp"}, "pwd" not in assigned
-    names = {found[1] for found in _FOR_LIST.finditer(line)
-             if not re.search(r"[$`(]|\.\.", found[2]) and found[1].casefold() not in assigned
-             and not any(_full(item.strip("'\"")) for item in found[2].split())}
+    loops = [(found[1], found[2]) for found in _FOR_LIST.finditer(line)]
+    # (a loop's own name is no setter of it - but another loop, or any other setter, is)
+    others = _assigned(_FOR_LIST.sub(" ", line)) | outer
+    literal = {name: not re.search(r"[$`(]|\.\.", items) and not any(
+        _full(item.strip("'\"")) for item in items.split()) for name, items in loops}
+    names = {name for name, items in loops if literal[name] and name.casefold() not in others}
     either = "|".join(sorted(names))
-    loops = re.compile(rf"\$(?:\{{(?:{either})\}}|(?:{either})\b)") if names else None
+    pattern = re.compile(rf"\$(?:\{{(?:{either})\}}|(?:{either})\b)") if names else None
 
     def cured(target: str) -> str:
         if ".." in target:
@@ -1425,7 +1452,7 @@ def _curing(line: str) -> Callable[[str], str]:
         target = _TEMP_VAR.sub(r"\1x", target) if temp else target
         target = _JOIN_PWD.sub("x", _PWD_START.sub(r"\1x", target)) if here else target
         target = _DATE_NAME.sub("x", target)
-        return loops.sub("x", target) if loops else target
+        return pattern.sub("x", target) if pattern else target
     return cured
 
 
@@ -1472,7 +1499,7 @@ def _holding(char: str, before: str, held: list[str]) -> bool:
     return bool(held)
 
 
-def _writes_built(line: str, depth: int = 0) -> bool:
+def _writes_built(line: str, depth: int = 0, outer: frozenset[str] = frozenset()) -> bool:
     """Whether a line writes to a place built at run time (`_BUILT`): a redirect's target (`>`,
     `>>`, `2>`; not `2>&1`, nor `$null`, `/dev/null`, `NUL`), a copy's, move's, install's or link's
     (`_WRITES_TO_LAST`), what `tee` writes, a PowerShell writer's path (`_ps_targets`),
@@ -1491,12 +1518,13 @@ def _writes_built(line: str, depth: int = 0) -> bool:
         first = _shell_words(line[found.end():])[:1]
         if first and _BUILT.search(first[0]):
             return True
-    moved, part, cured = False, [], _curing(line)
+    given = outer | _assigned(line)  # (what a line it hands a shell is read with)
+    moved, part, cured = False, [], _curing(line, outer)
     for word in [*_shell_words(line), ";"]:
         if word not in (";", "&", "|", "\n"):
             part.append(word)
             continue
-        targets, went = _part_targets(part, depth) if part else ([], False)
+        targets, went = _part_targets(part, depth, given) if part else ([], False)
         if UNREAD in targets or any(_BUILT.search(cured(one)) for one in targets) or (
                 moved and targets):
             return True
@@ -1504,7 +1532,8 @@ def _writes_built(line: str, depth: int = 0) -> bool:
     return False
 
 
-def _part_targets(words: list[str], depth: int) -> tuple[list[str], bool]:
+def _part_targets(words: list[str], depth: int, given: frozenset[str] = frozenset()
+                  ) -> tuple[list[str], bool]:
     """What one part of a line writes (`_writes_built`) - UNREAD where a line it hands a shell
     writes to a place built at run time, or is not read - and whether it is a `cd` to such a
     place."""
@@ -1532,7 +1561,7 @@ def _part_targets(words: list[str], depth: int) -> tuple[list[str], bool]:
         word = one[0] if len(one) == 1 else ""
         handed = len(word) > 1 and word[0] in "'\"" and word[-1] == word[0] and any(
             map(str.isspace, word))
-        if one == [UNREAD] or handed and _writes_built(word[1:-1], depth + 1):
+        if one == [UNREAD] or handed and _writes_built(word[1:-1], depth + 1, given):
             return [*targets, UNREAD], False  # (a line handed a shell or a wrapper, quoted)
         if one:
             written, moved = _command_targets(one)
