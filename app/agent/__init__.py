@@ -925,6 +925,14 @@ PR_NOTES = 4000
 PR_CONFIG = (".git/config changed during this turn - a push runs what it names (an address, a "
              "credential helper, an ssh command): look at it, then Open pull request")
 PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your click"
+# ... and where the user's own branches hold commits origin does not: what an agent copied of them
+# into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
+PR_UNPUSHED = ("you have {commits} not on GitHub yet: before a pull request, check its files are "
+               "the agent's work")
+# ... and where the branch began from the user's folder with work not committed (W-1's snapshot): an
+# agent's copy of a file of it, under another name, is its own work to git.
+PR_SNAPSHOT = ("it began from your folder with work not committed: before a pull request, check "
+               "its files are the agent's work")
 PR_OPENED = ("{name}'s changes on branch {branch} were pushed to origin and a pull request was "
              "opened: {url}. Nothing is merged into the project here: do not go on as if they "
              "were in it.")
@@ -3189,6 +3197,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                                 copy.project)["config"] if way == "pull_request" else None
             config_moved = config is not None and config != (
                 self._git_at_start.get(ctx.run_id) or {}).get("config")
+            # (A pull request while the user's branches hold commits origin does not: asked.)
+            pr_asks = await self._pr_asks(copy) if way == "pull_request" or ask_way else None
             async with lock:  # (looked at again right before: two teams finish at once)
                 look = await self._branch_look(copy)
                 # W-1: what is scanned and merged - of a branch that began from the user's folder,
@@ -3214,7 +3224,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 over = BRANCH_OVER_YOURS.format(files=_few(look["over"])) if (
                     look.get("over")) else None
                 state = {**{key: look[key] for key in ("name", "into", "conflicts", "dirty")},
-                         "note": failed or blocked or yours or look["drift"] or special or over,
+                         "note": failed or blocked or yours or look["drift"] or special or over
+                         or pr_asks,
                          "resolve": bool(look["conflicts"]) and way == "merge" and ctx.depth > 0,
                          "way": "pull_request" if way == "pull_request" else None,
                          "ask_way": ask_way, "pr_off": pr_off, **said_too}
@@ -3237,6 +3248,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         state["note"] = pr_blocked
                     elif named and merge_id is None:
                         state["note"] = PR_NAMED_SECRET.format(files=_few(named))
+                    elif pr_asks and merge_id is None:  # (pushed on a click with this said)
+                        state["note"] = pr_asks
                     elif config_moved and (merge_id is None or config != config_shown):
                         state["note"] = PR_CONFIG  # (pushed on a click with this said)
                     elif not asks:
@@ -3496,7 +3509,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 git.push_one, copy.project, await self._sent(copy, look), branch,
                 look["into"] or "", copy.start[1],
                 f"{title}\n\nKoloni-Agent: {ctx.name}", self.settings.runtime_root / "no-hooks",
-                look["tip"])
+                look["tip"], copy.snapshot_sha)
             sent.update(tip=look["tip"], sha=sha)
         try:
             url = await asyncio.to_thread(
@@ -3506,6 +3519,20 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise git.Refused(f"{branch} was pushed to origin, but {exc}") from None
         return {"state": "pull_request", "message": title, "sha": sha, "url": url,
                 "pushed": f"origin/{branch}"}
+
+    async def _pr_asks(self, copy: copies.Copy) -> str | None:
+        """Why a pull request of this branch is asked about at every level, Full auto too - what an
+        agent copied of the user's work into a commit of its own its history does not show: the
+        user has commits origin does not (`git.unpushed_count`: `PR_UNPUSHED`; where git does not
+        say, one), or the branch began from their uncommitted work (`PR_SNAPSHOT`). None where
+        neither."""
+        try:
+            count = await asyncio.to_thread(git.unpushed_count, copy.project)
+        except git.Refused:
+            count = 1
+        if count:
+            return PR_UNPUSHED.format(commits=f"{count} commit" + ("s" if count != 1 else ""))
+        return PR_SNAPSHOT if copy.snapshot_sha else None
 
     async def _sent(self, copy: copies.Copy, look: dict) -> str:
         """What a branch's pull request pushes (`git.push_one`): its tip - or, of a branch that
