@@ -219,10 +219,14 @@ also what does not fit in the diff the Reviewer is shown.
 
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
-  the project they open. They do not run commands: KOLONİ's test lines are what they know of the
-  tests. They get read tools only and no MCP server, whatever their role is
-  given: they change nothing. One whose model is a CLI that works with tools of its own is not
-  opened ("Review not run: …"), as KOLONİ could not hold it to reading.
+  the project they open. They get read tools only and no MCP server, whatever their role is
+  given: they change nothing. They may run two kinds of command, never asked about: one that only
+  reads (`git diff`, `cat a.py`, `ls src`), and the project's approved test command exactly as it
+  is set, in its folder - your check command or a part's test command, a saved one an **Always**
+  rule covers, or a CI line you approved with **Run these**. Any other (`rm`, `pip install`, the
+  test command with an option added) is refused, and they are told which test commands they may
+  run; no card is ever opened for a Reviewer's command. One whose model is a CLI that works with
+  tools of its own is not opened ("Review not run: …"), as KOLONİ could not hold it to reading.
 - For a change a user sees (a screen's file, a command's option) in a project with `docs/`, a
   README or a CHANGELOG, they also check the docs: "Docs not updated for: …" is a suggestion,
   blocking only where the project's own rules say docs must change with it.

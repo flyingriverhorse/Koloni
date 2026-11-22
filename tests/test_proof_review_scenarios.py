@@ -50,7 +50,9 @@ def test_a_big_change_is_looked_over_once_and_said(make_client, wait_run, projec
     assert texts(snap) == ["Tests passed: python check.py - 4 passed in 0.1s",
                            f"Review: Reviewer ({SIGN}) - MERGE, no findings"]
     (looked,) = reviewers(snap)
-    assert looked["depth"] == 1 and set(looked["tools"]) <= set(review_mixin.READ), looked["tools"]
+    # (its role's read tools, and run_command held to reads and the approved tests: decision 6)
+    assert looked["depth"] == 1 and set(looked["tools"]) <= {
+        *review_mixin.READ, "run_command"}, looked["tools"]
     asked = calls_of(model, "Reviewer")[0]
     assert "Verdict: MERGE" in asked and "x89 = 89" in asked and "Tests passed" in asked
 
@@ -188,7 +190,7 @@ def test_the_reviewer_cannot_write_whatever_its_role_was_given(make_client, wait
     cid, run_id = begin(client, project_dir, check_command=CHECK)
     snap = wait_run(client, cid, run_id)
     (looked,) = reviewers(snap)
-    assert "write_file" not in looked["tools"] and "run_command" not in looked["tools"]
+    assert "write_file" not in looked["tools"] and "edit_file" not in looked["tools"]
     assert (project_dir / "a.py").read_text(encoding="utf-8") == BIG
     refused = [c for c in snap["tool_calls"] if c["agent_id"] == looked["id"]
                and c["name"] == "write_file"]
@@ -559,3 +561,40 @@ def test_a_small_change_that_deletes_a_test_is_looked_over_and_the_reviewer_judg
     assert [a["role_name"] for a in reviewers(snap)] == ["Reviewer"], texts(snap)
     asked = calls_of(model, "Reviewer")[0]
     assert "a test deleted: tests/test_old.py" in asked and "Tests the change deleted" in asked
+
+
+# --- decision 6: the Reviewer runs what only reads, and the approved test command -----------
+
+TESTS = "python -m pytest -q"
+
+
+def test_the_reviewer_runs_a_read_and_the_approved_tests_and_nothing_else_never_on_a_card(
+        make_client, wait_run, project_dir):
+    from tests.test_proof_background_scenarios import approve_write
+
+    runs = [("cat a.py", "r1"), ("rm -rf .", "r2"), ("pip install requests", "r3"),
+            (f"{TESTS} -k greeting", "r4"), (TESTS, "r5")]
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, model = make_client({
+        "Lead": [write("a.py", BIG), text("done")],
+        "Reviewer": [step(*(call("run_command", {"command": line}, i) for line, i in runs)),
+                     MERGE]}, executor=executor)
+    # (At Ask: every command not covered would be a card - none of the Reviewer's is.)
+    cid, run_id = begin(client, project_dir, mode="ask", check_command=TESTS)
+    approve_write(client, cid, "a.py")
+    snap = wait_run(client, cid, run_id)
+    assert f"Review: Reviewer ({SIGN}) - MERGE, no findings" in texts(snap), texts(snap)
+    (looked,) = reviewers(snap)
+    assert looked["status"] == "completed" and "run_command" in looked["tools"], looked
+    assert sorted(line for line, _cwd in executor.started) == ["cat a.py", TESTS, TESTS]
+    said = {json.loads(c["arguments"])["command"]: (c["status"], c["result"] or "")
+            for c in snap["tool_calls"] if c["agent_id"] == looked["id"]}
+    assert [said[line][0] for line, _i in runs] == [
+        "succeeded", "failed", "failed", "failed", "succeeded"], said
+    for line, _i in runs[1:4]:  # (each refusal said to it, the approved line named)
+        assert "is not available: KOLONİ's Reviewer runs only" in said[line][1], said[line]
+        assert f'"{TESTS}" in .' in said[line][1], said[line]
+    assert not [c for c in snap["commands"] if c["status"] in ("proposed", "rejected")], (
+        snap["commands"])
+    assert (project_dir / "a.py").read_text(encoding="utf-8") == BIG
+    assert "run_skill_script" not in offered_to(model, "Reviewer")

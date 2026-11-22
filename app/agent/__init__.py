@@ -4971,9 +4971,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if request.name == "run_skill_script":
             args, unasked = self._skill_script(ctx, args)
         refused = None
+        # Decision 6: KOLONİ's Reviewer runs where it reads - no working copy made for it.
+        review = ctx.agent_id in self._read_only_agents
         # Where it runs in a working copy, why it is asked at every level there
         # (`_in_copy_asks`) - for one this command makes, with the links it will have.
-        owner = self._works_in(ctx)
+        owner = None if review else self._works_in(ctx)
         made = self._copies.get(owner) if owner else None
         linked = self._copy_linked(ctx, owner)
         planned = plan_command(ws, args)
@@ -4983,6 +4985,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 ctx, path=planned.cwd_rel if planned.cwd_rel != "." else None,
                 what=f"run {planned.command} in {planned.cwd_rel}"):
             raise ToolError(kept)
+        # (KOLONİ's Reviewer: only what reads, or the approved tests, unasked - else refused)
+        unasked = await self._review_runs(ctx, ws.root, planned) if review else unasked
         # (Web off first: its card offers no rule, which would not cover it.)
         web_off = web_off_reason(planned.command, self._off())
         # Coordination §4: a disposable delete the user allowed is asked neither for the copy's
@@ -5001,6 +5005,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         night, judged = (night, None) if unasked else await self._judged(
             ctx, planned.command, planned.cwd_rel, night)
         in_a_copy = in_a_copy or night
+        self._never_asked(review, planned.command, in_a_copy)
         if not self._watched(run_id) and not unasked:
             # Before anything is put on record as a command: it is not one that
             # waits for a decision, it is one that is not run.
@@ -5064,7 +5069,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # by the VM's clock); a server (keep_running) is looked at once it is up.
         # Snapshot per command if any of it is seen.
         made_in = self._copies.get(owner) if owner else None
-        if ran and status != "denied" and (made_in is not None or not owner):
+        if ran and status != "denied" and not review and (made_in is not None or not owner):
             root = made_in.root if made_in else ws.root
             await self._record_made(ctx, root, await asyncio.to_thread(
                 views.made_since, root, started_ns), made_in)
