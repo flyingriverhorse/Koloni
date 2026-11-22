@@ -8,9 +8,12 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Fixed
 
+- **Chat**: a heredoc written to a file or handed to git as a message (`cat > notes.md <<'EOF'` with `1) first` in it), a comment (`echo done # 1) first step`), sh's `case … esac` patterns and a group only printed in quotes (`echo "(npm ci)"`, `git commit -m "run (npm ci) first"`) are no longer asked at every level as brackets that do not pair, nor read as an install ([docs](use/permissions.md)).
 
 ### Security
 
+- **Chat**: a line a launcher hands to a shell is read as the command it is - `Start-Process powershell -ArgumentList '-Command','taskkill …'`, `Start-Process cmd -ArgumentList '/c …'`, `npx -c '…'`, `[scriptblock]::Create('…')`, `schtasks /tr "…"` - and a command PowerShell is handed encoded (`-EncodedCommand`) is asked at every level ([docs](use/permissions.md)).
+- **Chat**: an install in a `$( … )` (`out=$(npm ci)`), a stop in code an interpreter reads on stdin (`echo "…" | python`, `python - <<'EOF'`) or is handed by `php -r`, `lua -e`, `R -e` or `julia -e` is asked; a branch switch and a patch are read behind a wrapper (`time git switch main`, `bash -c '…'`), and cmd's `^` at a line's end continues it ([docs](use/permissions.md)).
 - **Chat**: what an agent's command runs inside a group is read as a command of its own - `(cd web && npm ci)`, `{ npm ci; }`, `if exist x (npm ci) else (npm i)`, `for %a in (*) do (npm ci)` and PowerShell's script blocks (`if ($true) { npm ci }`, `ForEach-Object { … }`, `& { … }`, `Invoke-Command -ScriptBlock { … }`): an install, a rebuild, a write through a working copy's linked folders, a stop, a delete or a send there is asked as it is on a line of its own, with web off too; a group whose brackets do not pair is always asked ([docs](use/permissions.md)).
 - **Chat**: cmd's `if "%a%"=="x" …`, `trap -- '…' EXIT` and `npx --call="…"` are read to the command they run, and a branch switch, inline code, a patch and a git command that rewrites `.git/config` are read in a continued line too (`git `⏎`switch main`) ([docs](use/permissions.md)).
 - **Workspace**: a pull request of a branch never sends a commit of yours that origin does not have when it came onto the branch without a merge commit of the agent's - a fast-forward to your branch, a rebase onto it or a cherry-pick - also once you amended, rebased or dropped it: only what the branch's own history says was committed on it counts as the agent's ([docs](use/workspace.md#branches)).
