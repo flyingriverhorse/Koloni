@@ -38,7 +38,7 @@ _JOB_SOFT = re.compile(r"(?:Deletes|Empties|Throws away)\b(?!.*\b(?:remote|Docke
 # ...and, failing closed, never a command of more than one line, or one continued: a line break of
 # any kind, or a backtick or a backslash at a line's end (PowerShell's and a shell's going on - in
 # a comment, inside a word, between bash's backticks, each shell reads them its own way).
-_MORE_LINES = re.compile(r"[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]|[`\\][ \t]*$")
+_MORE_LINES = re.compile(r"(?:[\n\r\v\f\x1c-\x1e\x85\u2028\u2029])|(?:[`\\][ \t]*$)")
 
 
 def only_deletes(line: str) -> bool:
