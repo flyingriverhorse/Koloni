@@ -18,6 +18,8 @@ from pathlib import Path
 from app import commands, git
 from app.commands import (
     DISPOSABLE_NAMES,
+    POSIX,
+    POWERSHELL,
     _holds_link,
     _plain_name,
     disposable_targets,
@@ -36,13 +38,14 @@ NEVER = ("main", "master")
 
 
 def what(command: str, project: Path, root: Path, cwd: str | None, *, in_copy: bool,
-         copies_at: list[Path], keep: str | None) -> str | None:
+         copies_at: list[Path], keep: str | None, shell: str | None) -> str | None:
     """What a delete deletes, said as its row says it ("build folder dist; branch old"), where
     each thing it names is disposable; None where any is not, or it is no such delete. `root`:
     where it runs - the project, or a copy's tree (`in_copy`: a build folder there only); `cwd`:
     where in it (None: not known - nothing is disposable); `copies_at`: KOLONİ's copies folders
-    (`copies.folders`); `keep`: the branch the turn began on."""
-    targets = disposable_targets(command)
+    (`copies.folders`); `keep`: the branch the turn began on; `shell`: the one it runs in
+    (`commands.POWERSHELL`, `POSIX`; None: not known - no folder's delete is read)."""
+    targets = disposable_targets(command, shell)
     if targets is None or cwd is None:
         return None
     gits = {kind for kind, _target, _force in targets if kind != "folder"}
@@ -60,6 +63,14 @@ def what(command: str, project: Path, root: Path, cwd: str | None, *, in_copy: b
                 and _branch(project, target, force, seen, keep, default)):
             return None
     return "; ".join(f"{NAMES[kind]} {target}" for kind, target, _force in targets)
+
+
+def cli_shell(cli: str, tool: str) -> str | None:
+    """The shell a CLI's own command runs in, where KOLONİ knows it: Claude Code's Bash tool's
+    bash (Git Bash on Windows), its PowerShell tool's PowerShell. None for any other: Codex, agy
+    and Qoder send a command with no shell said (each reaches KOLONİ named "Bash"), and Claude
+    Code's Monitor is not measured."""
+    return {"Bash": POSIX, "PowerShell": POWERSHELL}.get(tool) if cli == "claude" else None
 
 
 def _the_projects_git(root: Path, here: str) -> bool:

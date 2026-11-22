@@ -43,6 +43,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 import threading
 import time
 import uuid
@@ -323,6 +324,8 @@ from app.command_runner import REJECTED as REJECTED
 from app.command_runner import CommandRunner, port_of
 from app.commands import (
     CANARY,
+    POSIX,
+    POWERSHELL,
     OutputMask,
     copy_reason,
     disposable_targets,
@@ -428,6 +431,8 @@ from app.workspace import (
 )
 
 log = logging.getLogger(__name__)
+# (`_disposable`'s shell where the command is KOLONİ's own: `_own_shell` says which.)
+OWN_SHELL = "own"
 
 # B-376 (live): a Copilot Lead gave its last answer while a team's "All at once" group had just
 # opened its Tester: the turn ended, the Tester was cancelled and the rule was broken. Its answer
@@ -4783,21 +4788,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                            [one["path"] for one in seen.get("worktrees") or []])
 
     async def _disposable(self, ctx: Ctx, command: str, root: Path | None, cwd: str | None,
-                          in_copy: bool) -> dict | None:
+                          in_copy: bool, shell: str | None = OWN_SHELL) -> dict | None:
         """Coordination §4: what of a delete is disposable (`disposable.what`) - run in `cwd` of
-        `root` (the project, or the tree of the copy it works in: `in_copy`) - and whether it goes
-        without a card (`allowed`): the project allows such deletes, the chat is at Auto-edit or
-        Full auto, and the user watches the turn - not a side of a comparison, a To-do task's, a
-        job while they are away. None for no such delete, or where it runs is not known (either
-        None: a copy not made yet, a CLI's folder not known or its model's word)."""
-        if root is None or cwd is None or ctx.root is None or disposable_targets(command) is None:
+        `root` (the project, or the tree of the copy it works in: `in_copy`), in `shell` (KOLONİ's
+        own command's by default, `_own_shell`; a CLI's as `disposable.cli_shell` knows it) - and
+        whether it goes without a card (`allowed`): the project allows such deletes, the chat is
+        at Auto-edit or Full auto, and the user watches the turn - not a side of a comparison, a
+        To-do task's, a job while they are away. None for no such delete, or where it runs is not
+        known (either None: a copy not made yet, a CLI's folder not known or its model's word)."""
+        if root is None or cwd is None or ctx.root is None or not any(
+                disposable_targets(command, one) for one in (POSIX, POWERSHELL)):
             return None
         seen = self._git_at.get(ctx.run_id) or {}
         try:
             what = await asyncio.to_thread(
                 disposable.what, command, Path(ctx.root), root, cwd, in_copy=in_copy,
                 copies_at=copies.folders(self.settings.runtime_root),
-                keep=seen.get("branch") or None)
+                keep=seen.get("branch") or None,
+                shell=self._own_shell(ctx) if shell == OWN_SHELL else shell)
         except Exception:  # (a look that fails is no disposable delete: its card, as before)
             log.warning("run %s: the look at a disposable delete failed", ctx.run_id,
                         exc_info=True)
@@ -4812,6 +4820,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                    and not {ctx.run_id} & ({*self._sides} | self._backlog_turns
                                            | {*self._away_jobs}))
         return {"what": what, "allowed": allowed}
+
+    def _own_shell(self, ctx: Ctx) -> str:
+        """The shell KOLONİ's own command runs in (`executors.host.shell_argv`): PowerShell on
+        this machine where it is Windows, sh elsewhere and in a project's Docker container."""
+        with self._factory() as session:
+            project = self._project(session, ctx.cid)
+        docker = project is not None and project.exec_location == "docker"
+        return POWERSHELL if sys.platform == "win32" and not docker else POSIX
 
     async def _looked_again(self, ctx: Ctx, call_id: str, command: str, root: Path | None,
                             cwd: str | None, in_copy: bool, found: dict | None,
