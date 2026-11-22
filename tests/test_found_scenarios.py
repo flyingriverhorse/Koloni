@@ -12,7 +12,7 @@ from app.model_client import StepResult
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
-from tests.test_proof_end_scenarios import OWN, PASS, begin, guess, run, texts
+from tests.test_proof_end_scenarios import OWN, PASS, begin, checked, guess, run, texts
 
 pytestmark = pytest.mark.no_po  # (the PO's own request would take a scripted step)
 
@@ -181,3 +181,35 @@ def test_what_koloni_found_can_be_forgotten_from_the_apps_own_page(client, proje
                         headers=OWN).status_code == 200
     seen = next(p for p in client.get("/api/projects").json() if p["id"] == pid)
     assert (seen["tests_found"], seen["tests_look"]) == ({}, None)
+
+
+def test_a_saved_command_runs_unasked_at_ask_as_the_projects_but_never_in_a_trigger_turn(
+        make_client, wait_run, project_dir, monkeypatch):
+    # (What a save grants: the end check runs it as the project's own in a turn you are there
+    # for - no level card at Ask; a trigger's turn still needs its leave for that very command.)
+    from tests.test_triggers import leave, run_now, trigger
+
+    executor = ScriptedExecutor([PASS])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done"),
+                                  write("a.py", "x = 2\n", "w2"), text("done")], executor=executor)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    with client.app.state.session_factory() as session:
+        found = session.get(Project, pid)
+        found.tests_found = {".": {"command": "python -m pytest -q", "from": "guess", "at": "x"}}
+        session.commit()
+    cid, run_id = begin(client, project_dir, mode="ask")
+    # (At Ask the write itself waits on its card: approve it; the saved command asks nothing.)
+    from tests.test_agent_writes import wait_status
+    snap = wait_status(client, cid, "waiting_approval")
+    (change,) = [c for c in snap["file_changes"] if c["status"] == "proposed"]
+    assert client.post(f"/api/file-changes/{change['id']}/approve", headers=OWN).status_code == 200
+    rows = checked(wait_run(client, cid, run_id))
+    assert rows[0]["state"] == "passed" and len(executor.started) == 1
+    client.headers["Origin"] = OWN["Origin"]
+    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
+    made = trigger(client, pid, cid, permissions=leave(write=True))
+    second = run_now(client, made["id"])
+    snap = wait_run(client, cid, second)
+    (rows,) = [m["checked"] for m in snap["messages"] if m["role"] == "checked"
+               and m["run_id"] == second]
+    assert rows[0]["state"] == "not_run" and len(executor.started) == 1, rows
