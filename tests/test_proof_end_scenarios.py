@@ -851,3 +851,40 @@ def test_a_to_do_turn_with_nobody_away_runs_a_guess_as_any_turn(
     run_id = client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"]
     row = checked(wait_run(client, cid, run_id))[0]
     assert (row["state"], row["guessed"]) == ("passed", True), row
+
+
+# --- re-check of 6b3ec0b: a test tool on a chained line is no exemption -------------------------
+
+def test_a_formatter_chained_before_the_tests_runs_them_again(make_client, wait_run, project_dir):
+    # (The probe: `python fmt.py && python -m pytest -q -x` rewrote a.py and its tests failed -
+    # the earlier pass of the check command does not stand.)
+    executor = ScriptedExecutor([PASS, failing(), failing()])
+    client, _model = make_client([
+        write("a.py", "x = 1\n"), run("python -m pytest -q"),
+        run("python fmt.py && python -m pytest -q -x", "r2"), text("done"), text("I cannot")],
+        executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python -m pytest -q")
+    snap = wait_run(client, cid, run_id)
+    assert len(executor.started) == 3 and len(proof_calls(snap)) == 1
+    assert checked(snap)[0]["state"] == "failed"
+
+
+def test_a_snapshot_update_after_the_pass_runs_the_tests_again(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, _model = make_client([
+        write("a.py", "x = 1\n"), run("python -m pytest -q"),
+        run("python -m pytest -q --snapshot-update", "r2"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python -m pytest -q")
+    snap = wait_run(client, cid, run_id)
+    assert len(executor.started) == 3 and len(proof_calls(snap)) == 1
+
+
+def test_a_newer_failing_rerun_of_the_same_command_decides(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([PASS, failing()])
+    client, model = make_client([
+        write("a.py", "x = 1\n"), run("python -m pytest -q"), run("python -m pytest -q", "r2"),
+        text("done"), text("I cannot")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python -m pytest -q")
+    snap = wait_run(client, cid, run_id)
+    assert len(executor.started) == 2 and proof_calls(snap) == []
+    assert checked(snap)[0]["state"] == "failed" and told(model) == 1
