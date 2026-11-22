@@ -208,6 +208,14 @@ def failed_tests(session: Session, agent_id: str) -> Command | None:
     return None
 
 
+def ran_any(session: Session, agent_id: str) -> bool:
+    """Whether an agent, or an agent it opened, ran a command (`RAN`: asked and not run is not)."""
+    run_id, ids = _family(session, agent_id)
+    return session.scalar(select(Command.id).where(
+        Command.run_id == run_id, Command.agent_id.in_(ids), Command.status.in_(RAN)).limit(1)
+    ) is not None
+
+
 def failed_line(one: Command) -> str:
     """A failed test run as a finding: its command with its keys hidden, then cut."""
     how = "timed out" if one.status == "timed_out" else _exit(one)

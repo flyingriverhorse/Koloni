@@ -21,6 +21,7 @@ from tests.test_recipe_run_scenarios import (
     answer,
     asked,
     by_call,
+    checked,
     recipe_named,
     row,
     strip,
@@ -221,7 +222,7 @@ def test_quality_check_whose_tester_finds_a_problem_debugs_and_tests_again(make_
                  step(call("spawn_agent", {"role": "Debugger", "task": "fix it", "findings_from": "Tester"}, "d1")),
                  spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
         "Tester": [text(FOUND)], "Debugger": [step(write("calc.py", "x = 1\n")), text("fixed")],
-        "Tester 2": [text(NONE)], **{role: [text(NONE)] for role in REVIEWERS}})
+        "Tester 2": checked(), **{role: [text(NONE)] for role in REVIEWERS}})
     cid, run_id = quality_run(client, project_dir)
     # B-178: the fix is the user's Take in, at Ready for you - not a kept copy's card.
     snap = until(client, cid, lambda s: asked(s) and "Ready for you" in asked(s)["question"])
@@ -261,7 +262,7 @@ def test_a_tester_report_that_is_no_pass_runs_the_debugger(make_client, wait_run
         "Lead": [spawn("Tester", "run the tests", "t1"), step(call("spawn_agent", fix, "d1")),
                  spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
         "Tester": [text(report)], "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
-        "Tester 2": [text(NONE)], **{role: [text(NONE)] for role in REVIEWERS}})
+        "Tester 2": checked(), **{role: [text(NONE)] for role in REVIEWERS}})
     cid, run_id = quality_run(client, project_dir)
     answer(client, asked(until(client, cid, asked)), "Take in")  # (B-178: the fix's)
     snap = wait_run(client, cid, run_id)
@@ -277,14 +278,14 @@ def test_a_tester_report_that_is_no_pass_runs_the_debugger(make_client, wait_run
 
 def test_a_failing_test_run_runs_the_debugger_whatever_the_tester_reports(make_client, wait_run, project_dir):
     # (Code review, 14 Nov: pytest exited 1 under "Findings: none" and the fix was skipped.)
-    executor = ScriptedExecutor([Script(["2 failed, 3 passed\n"], exit_code=1)])
+    executor = ScriptedExecutor([Script(["2 failed, 3 passed\n"], exit_code=1), Script([])])
     client, _model = make_client({
         "Lead": [spawn("Tester", "run the tests", "t1"),
                  step(call("spawn_agent", {"role": "Debugger", "task": "fix it", "findings_from": "Tester"}, "d1")),
                  spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
         "Tester": [cmd("python -m pytest -q"), text(NONE)],
         "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
-        "Tester 2": [text(NONE)], **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+        "Tester 2": checked(), **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
     cid, run_id = quality_run(client, project_dir, mode="full_auto")  # (its command not asked)
     snap = wait_run(client, cid, run_id)
     assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
@@ -348,7 +349,7 @@ def test_suggestions_alone_send_no_work_back_and_the_card_says_them(make_client,
     # B-192 (live): every small note looped the recipe; a suggestion is the user's, on the card.
     client, _model = make_client({
         "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
-        "Tester": [text(SUGGESTS)], **{role: [text(NONE)] for role in REVIEWERS}})
+        "Tester": checked(SUGGESTS), **{role: [text(NONE)] for role in REVIEWERS}})
     cid, run_id = quality_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)

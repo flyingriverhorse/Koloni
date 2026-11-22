@@ -50,6 +50,12 @@ FOUND = "Found one.\n\n## Findings\n- greet says Helo | kind: code | role: Coder
 NONE = "Fine.\n\nChecked: read greet.py\n\nFindings: none"
 
 
+def checked(report=NONE, id="ls1"):
+    """A recipe's check that may run commands (a Tester) and passes: kanıtlı bitiş R3 holds one that
+    ran none, so it runs one first - `ls`, which only reads, unasked at every level (K-ask-okuma)."""
+    return [step(call("run_command", {"command": "ls"}, id)), text(report)]
+
+
 def made(client, name, drawn):
     saved = client.post("/api/recipes", json={"name": name, "graph": drawn}, headers=OWN)
     assert saved.status_code == 201, saved.text
@@ -608,7 +614,7 @@ def test_the_ready_feature_recipe_runs_to_its_end_on_a_default_chat(make_client,
         "Coder": [step(write("greet.py", "print('Helo')\n")), text("built")],
         "Coder 2": [step(write("greet.py", "print('Hello')\n", id="w2")), text("fixed")],
         "Reviewer": [text(FOUND)], "Reviewer 2": [text(NONE)],
-        **{f"{role}{n}": [text(NONE)] for role in REVIEWS[1:] for n in ("", " 2")},
+        **{f"{role}{n}": checked() if role == "Tester" else [text(NONE)] for role in REVIEWS[1:] for n in ("", " 2")},
     })
     web, feature = teams_of(client)["Web app"], recipe_named(client, "Feature")
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never", teams_mode="manual",
@@ -630,7 +636,7 @@ def test_one_step_opens_what_it_draws_whatever_the_chats_limit(make_client, wait
     client, _model = make_client({
         "Lead": [step(call("spawn_agent", {"role": "Reviewer", "task": "review"}, "r1"),
                       call("spawn_agent", {"role": "Tester", "task": "test"}, "t1")), text("stopped")],
-        "Reviewer": [text(NONE)], "Tester": [text(NONE)],
+        "Reviewer": [text(NONE)], "Tester": checked(),
     })
     web = teams_of(client)["Web app"]
     both = made(client, "Two at once", graph(
@@ -1066,7 +1072,7 @@ def test_the_ready_quality_check_recipe_runs_the_tests_then_two_reviews_at_once_
         "Lead": [spawn("Tester", "run the tests", "t1"),
                  step(*(call("spawn_agent", {"role": role, "task": "review"}, f"r{at}") for at, role in enumerate(reviewers))),
                  text("all checked")],
-        "Tester": [text(NONE)], **{role: [text(NONE)] for role in reviewers}})
+        "Tester": checked(), **{role: [text(NONE)] for role in reviewers}})
     quality = teams_of(client)["Quality"]
     assert quality["default_recipe_id"] == recipe_named(client, "Quality check")["id"]
     cid, run_id = begin(client, project_dir, mode="auto_edit", spawn_approval="never", teams_mode="manual",

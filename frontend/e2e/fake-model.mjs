@@ -275,7 +275,10 @@ function nextStep(all, tools = [], model = '') {
     return say('It prints hi.')
   }
   if (String(messages[0].content).includes('You are in a room with')) return roomStep(messages, tools)
-  if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content)) && /, qc\b/.test(String(messages[1]?.content))) return say(NOTHING_QC)
+  // (Kanıtlı bitiş R3: a recipe's check that may run commands runs one first - one that ran none does not pass.)
+  const ranFirst = (id, report) =>
+    tools.some(tool => tool.function?.name === 'run_command') && !messages.some(m => m.tool_calls?.length) ? toolCall(id, 'run_command', { command: 'python check.py' }) : say(report)
+  if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content)) && /, qc\b/.test(String(messages[1]?.content))) return ranFirst('cqcr', NOTHING_QC)
   // K-evrim on the canvas (5 Nov): an Evolve of two rounds - the Lead opens two Coders a round, each writes its ev2.py.
   if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content)) && /, ev2\b/.test(String(messages[1]?.content))) {
     return last.role === 'user' ? toolCall(`cev2w${messages.length}`, 'write_file', { path: 'ev2.py', content: 'x'.repeat(messages.length) }) : say('Wrote ev2.py.')
@@ -337,7 +340,7 @@ function nextStep(all, tools = [], model = '') {
   // K-takim-duzen: the ML team's Model change - the Lead opens each step's roles as the one before finishes (its experts'
   // step is passed: none has learned), and each of them reports at once, finding nothing.
   if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content))) {
-    if (/, mc$/.test(String(messages[1]?.content))) return say('Done.\n\nChecked: ran it\n\nFindings: none')
+    if (/, mc$/.test(String(messages[1]?.content))) return ranFirst('cmcr', 'Done.\n\nChecked: ran it\n\nFindings: none')
   } else if (messages.some(m => m.role === 'user' && /model change it, mc/i.test(String(m.content)))) {
     const checks = [['Reviewer', 'Review it, mc']]
     const next = {

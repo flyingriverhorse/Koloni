@@ -14,7 +14,7 @@ from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import teams_of
 from tests.test_claim_scenarios import write
 from tests.test_parallel import until
-from tests.test_recipe_run_scenarios import FOUND, NONE, asked, by_call, row, strip
+from tests.test_recipe_run_scenarios import FOUND, NONE, asked, by_call, checked, row, strip
 from tests.test_spawn import begin, call, spawn, step
 
 # K-takim-duzen's: the team, its new default, and the roles any recipe may call.
@@ -171,8 +171,8 @@ def test_model_change_plans_has_the_learned_expert_review_builds_checks_twice_an
         spawn("Reviewer", "review it", "r")], {
         "Data scientist": [text("Hypothesis: a smaller learning rate; metric: AUC.")],
         "MLflow expert": [text(NONE)], "ML engineer": [step(write("made.txt", "x")), text("built")],
-        "Tester": [text(NONE)], "Model evaluator": [text(FOUND)], "ML engineer 2": [text("fixed")],
-        "Tester 2": [text(NONE)], "Model evaluator 2": [text(NONE)], "Reviewer": [text(NONE)]})
+        "Tester": checked(), "Model evaluator": [text(FOUND)], "ML engineer 2": [text("fixed")],
+        "Tester 2": checked(), "Model evaluator 2": checked(), "Reviewer": [text(NONE)]})
     assert in_waves(opened(snap), 1, 1, 1, 2, 1, 2) == in_waves(
         ["Data scientist", "MLflow expert", "ML engineer", "Tester", "Model evaluator",
          "ML engineer", "Tester", "Model evaluator", "Reviewer"], 1, 1, 1, 2, 1, 2)
@@ -188,11 +188,14 @@ def test_model_change_plans_has_the_learned_expert_review_builds_checks_twice_an
 def test_a_change_is_checked_by_two_at_once_fixed_once_and_reviewed(
     make_client, project_dir, team, writer, first, second
 ):
+    def checks(role):  # (kanıtlı bitiş R3: one that may run commands runs one; a Security reviewer has none)
+        return checked() if role == "Tester" else [text(NONE)]
+
     snap = ran(make_client, project_dir, team, [
         spawn(writer, "change it", "b"), both(first, second, "c"), fix(writer, second, "f"),
         both(first, second, "d"), spawn("Reviewer", "review it", "r")], {
-        writer: [step(write("made.txt", "x")), text("changed")], first: [text(NONE)], second: [text(FOUND)],
-        f"{writer} 2": [text("fixed")], f"{first} 2": [text(NONE)], f"{second} 2": [text(NONE)],
+        writer: [step(write("made.txt", "x")), text("changed")], first: checks(first), second: [text(FOUND)],
+        f"{writer} 2": [text("fixed")], f"{first} 2": checks(first), f"{second} 2": checked(),
         "Reviewer": [text(NONE)]})
     assert in_waves(opened(snap), 1, 2, 1, 2) == in_waves(
         [writer, first, second, writer, first, second, "Reviewer"], 1, 2, 1, 2)
@@ -229,7 +232,7 @@ def test_upkeep_updates_tests_debugs_only_when_they_fail_and_tests_again(make_cl
         spawn("Dependency keeper", "update them", "u"), spawn("Tester", "run the tests", "t"),
         fix("Debugger", "Tester", "d"), spawn("Tester", "run them again", "s")], {
         "Dependency keeper": [step(write("made.txt", "x")), text("updated")], "Tester": [text(FOUND)],
-        "Debugger": [text("fixed")], "Tester 2": [text(NONE)]})
+        "Debugger": [text("fixed")], "Tester 2": checked()})
     assert opened(snap) == ["Dependency keeper", "Tester", "Debugger", "Tester"]
     # B-177: the fix ran in round 1, then the tests passed: it shows done, not skipped.
     assert strip(row(snap)) == [("update", "done", 0), ("test", "done", 1), ("fix", "done", 1),

@@ -1765,6 +1765,7 @@ class SpawnMixin:
             task += f"\n\n{FINDINGS_DISPUTED}\n" + "\n".join(self._disputed[ctx.run_id])
         if review and (copy := self._copies.get(self._recipe_copy.get(ctx.run_id, ""))):
             task += await self._diff_for_review(copy)
+        task += self._step_says(ctx, role)
         if self._gives_slots(ctx):
             with self._factory() as session:
                 words = next((said for row, _t in self._runs(session, ctx) if (

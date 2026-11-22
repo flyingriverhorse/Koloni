@@ -65,6 +65,7 @@ from app import (
     disposable,
     evolve,
     git,
+    handoff,
     injection,
     knowledge,
     knows,
@@ -301,7 +302,9 @@ from app.agent.words import (
     OPEN,
     OUTRUN,
     OUTRUN_TOLD,
+    RAN_NOTHING,
     RECONNECT,
+    REPRODUCE_FIRST,
     RUN_THERE,
     SAME_MESSAGE,
     SECRET_IN_COPY,
@@ -6026,6 +6029,24 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return f"the {at[0]} step is a room: open it with open_room, with {', '.join(at[1])}" if (
             at and role.casefold() in {one.casefold() for one in at[1]}) else None
 
+    def _step_says(self, ctx: Ctx, role: Role) -> str:
+        """Kanıtlı bitiş R4: what the step an agent of `role` is opened for tells it under its
+        task - `REPRODUCE_FIRST` at a step with the id "reproduce" (the ready Bugfix's first); ""
+        anywhere else, and for a helper a step's agent opens.
+        shortcut: keyed by the ready Bugfix's step id; give recipe steps a note field in the editor
+        if users' own recipes want the same."""
+        if not self._gives_slots(ctx):
+            return ""
+        mine = role.name.casefold()
+        with self._factory() as session:
+            for row, _team in self._runs(session, ctx):
+                state = self._live_state(row, ctx.run_id)
+                if state and mine in recipe_run.allowed(state) and any(
+                        step == "reproduce" and mine in {one.casefold() for one in roles}
+                        for step, roles in state["slots"].get(state["at"], [])):
+                    return "\n\n" + REPRODUCE_FIRST
+        return ""
+
     def _tells_findings(self, session, ctx: Ctx) -> bool:
         """Whether a sub-agent is told to end its report with findings (`FINDINGS_PROMPT`; on
         Claude Code, to hand it back in REPORT_SCHEMA): of a check role or a recipe's review
@@ -6049,6 +6070,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 found, checked, before = _handed_findings(given, roles, agents) if given \
                     is not None else (_findings(report or "", roles, agents),
                                       _checked(report or ""), _failing_before(report or ""))
+                held = self._on_record(session, child, found, before)
                 # G1.5: a recipe's review with nothing found (suggestions at most) and nothing
                 # checked is no pass.
                 if found is not None and not _blocking(found) and (
@@ -6063,8 +6085,28 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         ran := ledger.failed_tests(session, child.agent_id)):
                     failing.append({"what": ledger.failed_line(ran), "kind": "test",
                                     "role": None, "blocking": True})
+                failing += held
                 return [*(found or []), *failing] if failing else found
         return None
+
+    def _on_record(self, session, child: Ctx, found: list | None, before: list[str]) -> list[dict]:
+        """`_found`, kanıtlı bitiş R2 / R3: what KOLONİ's record holds against a check whose
+        report gave no blocking finding. R2: a test run of its own that failed (the last of each
+        command: `ledger.failed_tests`), where it said nothing was failing before - before a step
+        that fixes, every failing run is handed on already. R3: a recipe's check that could run
+        commands and ran none (`RAN_NOTHING`) - not where its CLI's work is not seen
+        (`handoff.counted_on`), so a command it ran may not be on record."""
+        if _blocking(found):
+            return []
+        held = []
+        if child.agent_id not in self._before_fix and not before and (
+                ran := ledger.failed_tests(session, child.agent_id)):
+            held.append({"what": ledger.failed_line(ran), "kind": "test", "role": None,
+                         "blocking": True})
+        if found is not None and child.agent_id in self._reviews and "run_command" in child.tools \
+                and handoff.counted_on(child.model) and not ledger.ran_any(session, child.agent_id):
+            held.append(RAN_NOTHING)
+        return held
 
     def _level(self, ctx: Ctx) -> int:
         """How many levels below its Lead an agent is, for the chat's limit on them: in work of

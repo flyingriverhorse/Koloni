@@ -21,6 +21,7 @@ from tests.test_recipe_run_scenarios import (
     answer,
     asked,
     by_call,
+    checked,
     made,
     manual,
     row,
@@ -188,7 +189,7 @@ def test_one_more_of_a_role_is_not_the_groups_missing_role(make_client, wait_run
         "Lead": [step(call("spawn_agent", {"role": "Reviewer", "task": "review"}, "r1"),
                       call("spawn_agent", {"role": "Reviewer", "task": "review again"}, "r2"),
                       call("spawn_agent", {"role": "Tester", "task": "test"}, "t1")), text("done")],
-        "Reviewer": [text(NONE)], "Reviewer 2": [text(NONE)], "Tester": [text(NONE)],
+        "Reviewer": [text(NONE)], "Reviewer 2": [text(NONE)], "Tester": checked(),
     })
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], reviews_at_once(client)))
     snap = wait_run(client, cid, run_id)  # (K-r144: reviews change no file - no Take in card)
@@ -203,7 +204,7 @@ def test_an_all_at_once_groups_other_roles_are_opened_with_the_first(make_client
     # Live (PLAN-84B-05, B-87): the group's reviews were opened one by one, each waiting for the last.
     client, _model = make_client({
         "Lead": [spawn("Reviewer", "review greet.py", "r1"), text("done")],
-        "Reviewer": [gate.step(text(NONE))], "Tester": [text(NONE)],
+        "Reviewer": [gate.step(text(NONE))], "Tester": checked(),
     })
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], reviews_at_once(client)))
     gate.wait_partial()
@@ -1100,7 +1101,7 @@ def words_left(make_client, wait_run, project_dir):
                  spawn("Coder", "fix", "c3"), *[text("stopped")] * 2],
         # (an agent's name is its turn's: each script's second step is the next turn's)
         "Spec writer": [text("the spec")] * 2, "Coder": [step(write("greet.py", "print('Helo')\n")), text("built"), text("built")],
-        "Reviewer": [text(NONE), text(FOUND)], "Tester": [text(NONE)] * 2, "Coder 2": [text("fixed")],
+        "Reviewer": [text(NONE), text(FOUND)], "Tester": [*checked(), *checked(id="ls2")], "Coder 2": [text("fixed")],
     })
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], small_feature(client)))
     answer(client, asked(until(client, cid, asked)), "Go on")
@@ -1322,6 +1323,8 @@ def test_an_all_at_once_group_a_cli_lead_opens_one_call_at_a_time_works_together
                 await on_text("Fine.\n\nChecked: read greet.py\n\nFindings: none")
             elif "Your name here is Tester" in said:
                 self.tester.set()
+                # (Kanıtlı bitiş R3: a check that may run commands runs one - `ls` only reads.)
+                await call_tool("run_command", json.dumps({"command": "ls"}))
                 await on_text("Fine.\n\nChecked: ran it\n\nFindings: none")
             else:
                 await call_tool("spawn_agent", json.dumps({"role": "Reviewer", "task": "review greet.py"}))
@@ -1529,7 +1532,7 @@ def test_the_users_words_at_ready_for_you_are_a_fact_on_the_file_and_the_next_co
         "Spec writer": [text("the spec")] * 2,
         "Coder": [step(write("greet.py", "print('Helo')\n")), text("built"),
                   step(write("greet.py", "print('Hello')\n", id="w2")), text("fixed")],
-        "Reviewer": [text(NONE)] * 2, "Tester": [text(NONE)] * 2,
+        "Reviewer": [text(NONE)] * 2, "Tester": [*checked(), *checked(id="ls2")],
     })
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], small_feature(client)))
     answer(client, asked(until(client, cid, asked)), "Go on")
