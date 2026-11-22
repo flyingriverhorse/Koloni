@@ -1419,7 +1419,7 @@ def _snapshot_of(
     _left_staged(call, head, takes)
     tree = call("write-tree", None, "write-tree").decode("ascii").strip()
     if tree == call("rev-parse", None, "rev-parse", f"{head}^{{tree}}").decode("ascii").strip():
-        return None, None, []
+        return None, None, sorted(left)  # (what was left out is all there was: said)
     if not merge_base_known(git):
         return None, OLD_GIT.format(version=_version(git)[0]), []
     return call("commit-tree", None, "-c", "commit.gpgsign=false", "commit-tree", tree, "-p",
@@ -2468,15 +2468,47 @@ def issue(project: Path, ref: str) -> dict:
     return {"number": found["number"], "url": url, "text": text}
 
 
+# Why a pull request is not pushed: the branch took in commits not on origin (`_taken_in_unpushed`).
+TAKEN_IN_UNPUSHED = ("the branch took in commits of yours not on origin ({commits}): push them "
+                     "first - a pull request never sends them")
+NAMED_COMMITS = 3
+
+
+def _taken_in_unpushed(project: Path, git: str, source: str, start: str) -> list[str]:
+    """Of what a branch took in since it was made - each parent of a merge on it but its first (the
+    user's branch merged in, by D2 or by its agent's own merge, or any other branch) - the commits
+    no branch of origin's holds, as git last fetched it: their short ids. Refused where git does
+    not say (fails closed).
+    shortcut: what came in another way - an agent's own rebase or cherry-pick, asked at every
+    level - looks like its own work; walk the branch's reflog if that is ever allowed by a rule."""
+    code, out, said = _in(project, git, *UNASKED, "rev-list", "--parents", "--min-parents=2",
+                          source, f"^{start}", seconds=SHORT_SECONDS, **UNASKED_ENV)
+    if code != 0:
+        raise Refused(f"git rev-list failed: {_text(out, said)[-TAIL:]}")
+    found: list[str] = []
+    for line in out.decode("ascii", "replace").splitlines():
+        for parent in line.split()[2:]:
+            code, out, _said = _in(project, git, *UNASKED, "for-each-ref", "--count=1",
+                                   "--format=%(refname)", f"--contains={parent}",
+                                   "refs/remotes/origin/", seconds=SHORT_SECONDS, **UNASKED_ENV)
+            if (code != 0 or not out.strip()) and parent[:10] not in found:
+                found.append(parent[:10])
+    return found
+
+
 def push_one(
-    project: Path, tip: str, branch: str, into: str, start: str, message: str, no_hooks: Path
+    project: Path, tip: str, branch: str, into: str, start: str, message: str, no_hooks: Path,
+    source: str | None = None,
 ) -> str:
     """Push the branch's commit `tip` to the remote "origin", as `branch` there, as ONE commit
     by KOLONİ - its tree, on where it left the project's branch `into`: what `merge_branch`
     would bring in, not the agents' own steps (a secret committed and taken out). Only where
     origin has that place already (`refs/remotes/origin/<into>` holds it): the user's own
     commits not pushed yet do not go up under it - nor, `start`, the commit the branch was made
-    from (a local branch of theirs it left since). Never forced: a branch of that name there
+    from (a local branch of theirs it left since) - nor what the branch took in that origin does not
+    hold (`_taken_in_unpushed`, of `source`: the branch's own tip, where `tip` is its share - W-1):
+    once the user rewrote or dropped such a commit, where the branch left theirs is its start,
+    and the commit's content would go up under it. Never forced: a branch of that name there
     already refuses it. No hook, tag or signing of the repository's; git's own receive-pack.
     Returns the commit pushed. Refused, with why."""
     if not branch.startswith(BRANCH_PREFIX):
@@ -2491,6 +2523,10 @@ def push_one(
            for one in (base, start)):
         raise Refused(f"push {into} first: commits of yours not on origin yet would go up with "
                       "the pull request")
+    if taken := _taken_in_unpushed(project, git, source or tip, start):
+        more = len(taken) - NAMED_COMMITS
+        raise Refused(TAKEN_IN_UNPUSHED.format(commits=", ".join(taken[:NAMED_COMMITS]) + (
+            f" and {more} more" if more > 0 else "")))
     code, out, said = _in(project, git, *UNASKED, "-c", "commit.gpgsign=false", "commit-tree",
                           f"{tip}^{{tree}}", "-p", base, "-m", message,
                           seconds=SHORT_SECONDS, **UNASKED_ENV, **KOLONI_ID)

@@ -58,6 +58,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Security
 
+- **Workspace**: a pull request of a branch that took in commits of yours not on origin - your branch merged into it to resolve a conflict, or by the agent, or another branch of yours - is not pushed until you push them, also once you amended, rebased or dropped them: before, after such a rewrite their earlier content went up with it, at Full auto unasked ([docs](use/workspace.md#branches)).
 - **Workspace**: your repository's git hooks (pre-commit, commit-msg, post-commit, also from a core.hooksPath such as husky's) no longer run for an agent's own git commands in its copy, nor for an MCP server's it starts there, and git's fsmonitor and commit signing are off for them ([docs](use/workspace.md#branches)).
 - **Agents**: on a branch, an agent's command that clears or sets git's own environment (`unset GIT_…`, `env -i`, `$env:GIT_… =`, `Remove-Item Env:\GIT_…`), or runs one of git's own programs by its name (`git-push`), is asked at every level, Full auto too: it would bring your repository's hooks back ([docs](use/workspace.md#branches)).
 - **CLIs**: with GitHub Copilot CLI on its newer protocol, a tool of Copilot's own that ran without KOLONİ being asked stops the turn, and the run says so ([docs](security/model.md)).

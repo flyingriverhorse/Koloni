@@ -4,6 +4,7 @@ is asked about, and where a snapshot that cannot be made leaves the branch start
 
 import asyncio
 import os
+import subprocess
 import sys
 import threading
 from types import SimpleNamespace
@@ -424,3 +425,116 @@ def test_a_clash_over_what_you_committed_since_is_a_conflict_not_yours(repo, run
     run(repo, "commit", "-qam", "mine, otherwise")  # (nothing left to commit: theirs is in)
     look = git.branch_look(repo, copy.branch, copy.start, copy.snapshot_sha)
     assert (look["conflicts"], look["yours"], look["dirty"]) == (["nine.txt"], [], [])
+
+
+# --- 1 (again): what the branch took in from the user's unpushed commits never goes up ------------
+
+
+def origin_case(repo, runtime, dirty=True):
+    """A project whose main is on a bare origin, a branch from it (a snapshot of an uncommitted
+    edit where `dirty`), and the agent's commit on it: the copy and the origin."""
+    origin = runtime.parent / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+    run(repo, "remote", "add", "origin", str(origin))
+    run(repo, "push", "-q", "origin", "main")
+    if dirty:
+        (repo / "a.txt").write_text("one\ntwo\nUSER-UNCOMMITTED\n")
+    copy = copies.make_branch(repo, runtime, "agent1", "x")
+    (copy.root / "agent.txt").write_text("agent\n")
+    assert git.commit_branch(copy.root, copy.branch, ["agent.txt"], "agent", runtime / "no-hooks")
+    return copy, origin
+
+
+def private(repo, name="private.txt"):
+    (repo / name).write_text("PRIVATE, NOT PUSHED\n")
+    run(repo, "add", name)
+    run(repo, "commit", "-qm", f"{name}, not pushed")
+
+
+def push_pr(repo, runtime, copy):
+    """What `_pull_request` pushes, as it pushes it: the share (onto where the branch left main)
+    or the tip, held to the branch's real tip."""
+    tip = run(repo, "rev-parse", copy.branch)
+    sent = tip
+    if copy.snapshot_sha:
+        onto = git.merge_base(repo, "refs/heads/main", tip)
+        sent = git.agents_share(repo, copy.snapshot_sha, tip, onto, copy.branch)[0]
+    return git.push_one(repo, sent, copy.branch, "main", copy.start[1], "m", runtime / "no-hooks",
+                        source=tip)
+
+
+def agent_merges(copy, ref="main"):
+    run(copy.root, "-c", "core.hooksPath=", "merge", "-q", "--no-edit", ref)  # (its own, allowed)
+
+
+def rebased(repo):
+    """The user's unpushed commit made anew (another time: another commit)."""
+    subprocess.run(["git", "rebase", "-q", "--autostash", "--force-rebase", "origin/main"],
+                   cwd=repo, check=True, capture_output=True,
+                   env={**os.environ, "GIT_COMMITTER_DATE": "2001-01-01T00:00:00"})
+    assert run(repo, "log", "-1", "--format=%cd", "--date=format:%Y") == "2001"
+
+
+AFTER = {
+    "kept": lambda repo: None,
+    "amended": lambda repo: run(repo, "commit", "-q", "--amend", "-m", "amended"),
+    "rebased": lambda repo: rebased(repo),
+    "reset": lambda repo: run(repo, "reset", "-q", "--keep", "origin/main"),
+}
+
+
+@needs_merge_base
+@pytest.mark.parametrize("dirty", [True, False])
+@pytest.mark.parametrize("after", list(AFTER))
+def test_a_pull_request_never_sends_unpushed_commits_the_branch_took_in(
+    repo, runtime, dirty, after
+):
+    copy, origin = origin_case(repo, runtime, dirty)
+    private(repo)
+    agent_merges(copy)  # (or D2's merge_in: the user's branch into the branch)
+    AFTER[after](repo)  # (and the user rewrites, or drops, what was not pushed)
+    with pytest.raises(git.Refused, match="not on origin"):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@needs_merge_base
+def test_a_pull_request_never_sends_what_was_not_pushed_of_main_after_what_was(repo, runtime):
+    copy, origin = origin_case(repo, runtime)
+    private(repo, "u1.txt")
+    run(repo, "push", "-q", "origin", "main")
+    private(repo, "u2.txt")
+    git.merge_in(copy.root, copy.branch, "main", runtime / "no-hooks")
+    with pytest.raises(git.Refused, match="not on origin"):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@needs_merge_base
+def test_a_pull_request_never_sends_another_local_branch_the_agent_merged(repo, runtime):
+    copy, origin = origin_case(repo, runtime)
+    run(repo, "switch", "-q", "-c", "feat")
+    private(repo, "feat.txt")
+    run(repo, "switch", "-q", "main")
+    agent_merges(copy, "feat")
+    with pytest.raises(git.Refused, match="not on origin"):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@needs_merge_base
+@pytest.mark.parametrize("merged", [False, True])
+def test_a_pull_request_of_the_agents_work_and_what_is_on_origin_goes(repo, runtime, merged):
+    copy, origin = origin_case(repo, runtime)
+    if merged:  # (main moved on origin, and the branch took it in)
+        private(repo, "pushed.txt")
+        run(repo, "push", "-q", "origin", "main")
+        agent_merges(copy)
+    sha = push_pr(repo, runtime, copy)
+    assert run(origin, "diff", "--name-only", f"{sha}^", sha).split() == ["agent.txt"]
+
+
+def test_a_folder_whose_only_change_is_left_out_starts_from_head_and_names_it(repo, runtime):
+    (repo / ".env").write_text("KEY=1\n")  # (not ignored here: its only change, a secret)
+    snapshot, why, left = left_of(repo, runtime)
+    assert (snapshot, why, left) == (None, None, [".env"])

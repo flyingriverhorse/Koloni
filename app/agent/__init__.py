@@ -3479,10 +3479,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                                   "the card again")
             if copy.start is None:
                 raise git.Refused("what the branch was made from is not known")
+            # (Held to the branch's own tip too: what it took in that origin does not hold.)
             sha = await asyncio.to_thread(
                 git.push_one, copy.project, await self._sent(copy, look), branch,
                 look["into"] or "", copy.start[1],
-                f"{title}\n\nKoloni-Agent: {ctx.name}", self.settings.runtime_root / "no-hooks")
+                f"{title}\n\nKoloni-Agent: {ctx.name}", self.settings.runtime_root / "no-hooks",
+                look["tip"])
             sent.update(tip=look["tip"], sha=sha)
         try:
             url = await asyncio.to_thread(
