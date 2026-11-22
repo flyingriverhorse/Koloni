@@ -16,6 +16,7 @@ from pydantic import (
 from app import copies
 from app.commands import held_back
 from app.raw import MIN_SECRET
+from app.roles import CORE
 from app.skills import GROUPS as SKILL_GROUPS
 from app.skills import MAX_ENCODED, MAX_FILES, MAX_ZIP_ENCODED
 from app.skills import front as skill_front
@@ -2667,6 +2668,13 @@ class RoleOut(Out):
     tools: list[str]
     builtin: bool
     created_by_agent: bool
+
+    @computed_field
+    @property
+    def locked_tools(self) -> list[str]:
+        """Karar 5: the tools it keeps whatever the user takes away, as `app.roles.locked_tools`
+        gives them (a core role's: never off either); [] for any other."""
+        return list(CORE.get(self.name, ())) if self.builtin else []
     provider_id: str | None
     model_id: str | None
     # K-rol-model-sirasi: the models its agents are tried on first, in this order - one not

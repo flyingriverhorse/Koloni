@@ -167,8 +167,8 @@ def test_invalid_roles_are_refused_with_a_reason(client, body, status, message):
 def test_built_in_roles_can_be_edited_and_reset_but_not_renamed_or_deleted(client):
     reviewer = roles(client)["Reviewer"]
     edited = client.patch(f"/api/roles/{reviewer['id']}", json={
-        "tools": ["read_file", "run_command"], "instructions": "Be strict."})
-    assert edited.json()["tools"] == ["read_file", "run_command"]
+        "tools": [*READ, "run_command"], "instructions": "Be strict."})
+    assert edited.json()["tools"] == [*READ, "run_command"]
 
     renamed = client.patch(f"/api/roles/{reviewer['id']}", json={"name": "Critic"})
     assert renamed.status_code == 422 and "built-in roles keep their name" in renamed.json()["detail"]
@@ -224,6 +224,87 @@ def test_two_old_names_that_read_alike_open_neither_in_the_others_place(tmp_path
         session.commit()
         assert find_role(session, "Co der") is None
 
+
+
+CORE_ROLES = ("Coder", "Tester", "Reviewer", "Debugger", "Security reviewer")
+
+
+def test_core_roles_lock_tools_their_built_in_role_has():
+    from app.roles import CORE
+
+    # (Reset gives a built-in role its spec's tools: they must hold what is locked.)
+    assert tuple(CORE) == CORE_ROLES
+    assert all(set(CORE[name]) <= set(BUILTIN_ROLES[name].tools) for name in CORE)
+    assert CORE["Tester"] == (*READ, "run_command") and CORE["Reviewer"] == tuple(READ)
+
+
+def test_a_core_roles_locked_tool_cannot_be_taken_away(client):
+    from tests.test_chat_teams_scenarios import OWN
+
+    tester = roles(client)["Tester"]
+    assert tester["locked_tools"] == [*READ, "run_command"]
+    kept = [one for one in tester["tools"] if one != "run_command"]
+    refused = client.patch(f"/api/roles/{tester['id']}", json={"tools": kept}, headers=OWN)
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == (
+        "the Tester keeps run_command: KOLONİ's checks and recipes need them")
+    assert roles(client)["Tester"]["tools"] == tester["tools"]
+    # Its other tools are the user's: one taken away, one given.
+    browser_off = [one for one in tester["tools"] if one not in BROWSER] + ["web_search"]
+    changed = client.patch(f"/api/roles/{tester['id']}", json={"tools": browser_off}, headers=OWN)
+    assert changed.status_code == 200, changed.text
+    assert "web_search" in changed.json()["tools"] and "browser_open" not in changed.json()["tools"]
+    coder = roles(client)["Coder"]
+    refused = client.patch(f"/api/roles/{coder['id']}", json={"tools": ["read_file"]}, headers=OWN)
+    assert refused.json()["detail"] == (
+        "the Coder keeps list_dir, search, view_image, write_file, edit_file, run_command: "
+        "KOLONİ's checks and recipes need them")
+
+
+def test_a_core_role_cannot_be_switched_off(client):
+    from tests.test_chat_teams_scenarios import OWN
+
+    for name in CORE_ROLES:
+        role = roles(client)[name]
+        assert role["enabled"] is True
+        off = client.patch(f"/api/roles/{role['id']}", json={"enabled": False}, headers=OWN)
+        assert off.status_code == 422, off.text
+        assert off.json()["detail"] == (
+            f"the {name} role is always on: KOLONİ's checks and recipes use it")
+        assert roles(client)[name]["enabled"] is True
+    # (On, as it is: no change, no refusal - the page's form sends it unchanged.)
+    reviewer = roles(client)["Reviewer"]
+    assert client.patch(f"/api/roles/{reviewer['id']}", json={"enabled": True, "instructions": "Be strict."},
+                        headers=OWN).status_code == 200
+
+
+def test_reset_of_a_core_role_still_works(client):
+    from tests.test_chat_teams_scenarios import OWN
+
+    debugger = roles(client)["Debugger"]
+    client.patch(f"/api/roles/{debugger['id']}", json={"instructions": "Mine."}, headers=OWN)
+    reset = client.post(f"/api/roles/{debugger['id']}/reset", headers=OWN)
+    assert reset.status_code == 200, reset.text
+    assert reset.json()["tools"] == list(BUILTIN_ROLES["Debugger"].tools)
+    assert reset.json()["locked_tools"] == [*READ, "write_file", "edit_file", "run_command"]
+
+
+def test_a_users_role_is_never_locked(client):
+    from tests.test_chat_teams_scenarios import OWN
+
+    mine = client.post("/api/roles", json={
+        "name": "Checker", "description": "d", "instructions": "", "tools": ["read_file", "run_command"]},
+        headers=OWN).json()
+    assert mine["locked_tools"] == []
+    assert client.patch(f"/api/roles/{mine['id']}", json={"tools": ["read_file"]},
+                        headers=OWN).status_code == 200
+    assert client.patch(f"/api/roles/{mine['id']}", json={"enabled": False},
+                        headers=OWN).status_code == 200
+    # Nor is a built-in role that is no core one: the Data analyst's switch and tools are the user's.
+    analyst = roles(client)["Data analyst"]
+    assert analyst["locked_tools"] == []
+    assert client.patch(f"/api/roles/{analyst['id']}", json={"enabled": False},
+                        headers=OWN).status_code == 200
 
 
 def test_title_of_names_the_lead_and_a_teams_lead_for_people_only():
