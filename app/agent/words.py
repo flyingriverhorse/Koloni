@@ -165,8 +165,8 @@ NATIVE_NEEDS_A_FOLDER = (
 # may be the CLI's, or the user's or another agent's (K-70-kimin; Undo this turn skips it).
 IN_THE_PROJECT = observer.IN_THE_PROJECT  # (which the Observer's record leaves out)
 
-# 89m, "Finish only when the tests pass" (`_tests_at_stop`): how often an agent is sent back,
-# how much of the end of the tests' output it is sent back with, and what is said.
+# How often failing tests send work back in a turn (the Take-in check's own, the end check's -
+# `ProofMixin`), and how much of the end of their output goes with it.
 MAX_SENT_BACK = 2
 TESTS_TAIL_LINES = 40
 

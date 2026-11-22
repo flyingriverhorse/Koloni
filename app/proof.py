@@ -144,7 +144,7 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun,
                                   Command.cwd == run.cwd, Command.ended_at.is_not(None))
             .order_by(Command.ended_at.desc(), literal_column("commands.rowid").desc())):
         if _folded(one.command) == wanted:
-            return one if since is None or one.ended_at > since else None
+            return one if since is None or (one.ended_at or since) > since else None
     return None
 
 
@@ -160,7 +160,7 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
                    Command.status.in_(("exited", "timed_out")),
                    Command.started_at.is_not(None), Command.ended_at.is_not(None))
             .order_by(Command.ended_at.desc(), literal_column("commands.rowid").desc())):
-        if _folded(one.command) != wanted:
+        if _folded(one.command) != wanted or one.ended_at is None or one.started_at is None:
             continue
         took = (one.ended_at - one.started_at).total_seconds()
         if one.status == "timed_out" and one.timeout_seconds >= seconds or took > seconds:
@@ -169,8 +169,13 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
     return None
 
 
-Row = TypedDict("Row", {"kind": str, "state": str, "text": str, "command": str | None,
-                        "guessed": bool, "started_at": str | None})
+class Row(TypedDict):
+    kind: str
+    state: str
+    text: str
+    command: str | None
+    guessed: bool
+    started_at: str | None
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
 
 PASSED_ROW = "Tests passed: {command}{guessed} - {summary}"
@@ -192,7 +197,7 @@ STILL_FAILING = "Still failing after {most} fix rounds: you decide (Fix it)"
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
-LAST_RUN = "{who} ran {command} {when} the last change: {how}"
+LAST_RUN = "An agent ran {command} {when} the last change: {how}"
 
 
 def row(kind: str, state: str, text: str, command: str | None = None,

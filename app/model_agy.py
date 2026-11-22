@@ -537,7 +537,6 @@ class AgyClient(CodexNativeClient):
         skills: dict[str, str] | None = None,
         skills_told: str = "",
         on_live: object = None,  # (agy has no door into its turn: never called, 89d)
-        tests_at_stop: bool = False,  # (nor a hook at its end: Claude Code's, 89m)
         # shortcut: 89g's roles as its own sub-agents (`--agent`) are Claude Code's only; offer
         # them to agy once measured.
         inside: dict[str, dict] | None = None,
