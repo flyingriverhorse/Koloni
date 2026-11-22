@@ -16,7 +16,7 @@ from app import finish_tests, ledger, project_map
 from app.commands import only_reads
 from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run
 from app.tools import MAX_TIMEOUT
-from app.workspace import in_scratch, sha256_text, unified_diff
+from app.workspace import in_scratch, unified_diff
 
 # Project.after_change: Check it, Tests only, Nothing.
 AFTER_CHANGE = ("check", "tests", "nothing")
@@ -357,11 +357,11 @@ def load_of(session: Session) -> tuple[int, int]:
 
 
 def written_since(session: Session, project_id: str,
-                  since: datetime) -> dict[str, set[str | None]]:
+                  since: datetime) -> dict[str, list[tuple[datetime, str | None]]]:
     """The project's paths a recorded change wrote after `since` - written there, taken in from a
-    copy, or taken back (Undo), by any chat's turn - each with the digests (`sha256_text`) of
-    what those changes left there (None: no file)."""
-    left: dict[str, set[str | None]] = {}
+    copy, or taken back (Undo), by any chat's turn - each with when, and what those changes
+    left there (None: no file)."""
+    left: dict[str, list[tuple[datetime, str | None]]] = {}
     for change in session.scalars(
             select(FileChange).join(Run, Run.id == FileChange.run_id)
             .join(Conversation, Conversation.id == Run.conversation_id)
@@ -372,7 +372,7 @@ def written_since(session: Session, project_id: str,
         held = (None if change.kind == "create" else change.before_content or "") if (
             change.status == "reverted") else (
             None if change.kind == "delete" else change.after_content)
-        left.setdefault(change.path, set()).add(sha256_text(held))
+        left.setdefault(change.path, []).append((change.decided_at or change.created_at, held))
     return left
 
 

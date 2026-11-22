@@ -19,7 +19,7 @@ import uuid
 from collections.abc import Callable, Collection, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from sqlalchemy import and_, func, literal_column, or_, select
 from sqlalchemy.orm import object_session
@@ -883,7 +883,7 @@ def _command_names(
 def _put_back(
     root: Path, before: dict[str, bytes], paths: set[str], names: frozenset[str] = frozenset(),
     since: float = 0.0, keep_in: Path | None = None,
-    stand: Mapping[str, Collection[str | None]] | None = None,
+    stand: "Mapping[str, Written] | None" = None,
 ) -> tuple[list[Taken], set[str]]:
     """K-yazma-denetimi: the project's standing files (`standing_files`) that differ from
     `before` are put back as they were - deleted, where there was none; and where there was a
@@ -891,9 +891,10 @@ def _put_back(
     user's yes named: `paths` (casefolded), and for this one look `names` (of
     `NOT_WRITTEN_UNATTENDED`, anywhere in a path; "*.pth": an install's), and what KOLONİ itself
     wrote in `.koloni/` since `since`; and a path of `stand` (casefolded) while it holds what
-    others' recorded writes left there - one of its digests, None for no file (S6: a test run
-    outliving its turn; by the bytes, never the path alone). What an agent - or the user, by
-    hand - wrote there is
+    others' recorded writes left there - by the bytes, never the path alone (S6: a test run
+    outliving its turn) - and, written over, put back to what the last of those left where that
+    is known (else to before the run, as any other). What an agent - or the user, by hand -
+    wrote there is
     kept in `keep_in` first, where it can be (`_keep_aside`). Returns what was put back - its
     path, what it held (None: it was deleted), why it could not be (then it stands as it is),
     what is said of it - and the paths let stand; `before` is what is on disk now."""
@@ -918,15 +919,14 @@ def _put_back(
             let.add(rel)
             failed: str | None = "named"
         else:
-            said = [_keep_aside(keep_in, rel, theirs)] if theirs is not None and keep_in else []
-            link = was is not None and was.startswith(STANDING_LINK)
-            if link:
-                said.append(f"this was a link to {os.fsdecode(was[len(STANDING_LINK):])}; KOLONİ "
-                            "does not make links: make it again yourself")
-            failed = _restore(root, rel, None if link else was)
-            taken.append((rel, theirs, failed, "; ".join(said) or None))
-            if not failed and link:
-                before.pop(rel, None)  # (what is on disk: nothing there now)
+            failed, said, back = _take_back(root, rel, was, theirs, keep_in,
+                                            (stand or {}).get(rel.casefold()))
+            taken.append((rel, theirs, failed, said))
+            if not failed:  # (what is on disk now)
+                if back is None:
+                    before.pop(rel, None)
+                else:
+                    before[rel] = back
         if failed:
             if theirs is None:
                 before.pop(rel, None)
@@ -935,11 +935,42 @@ def _put_back(
     return taken, let
 
 
-def _left_there(stand: Mapping[str, Collection[str | None]] | None, rel: str,
-                theirs: bytes | None) -> bool:
+class Written(NamedTuple):
+    """What others' recorded writes left at a path while a test run went on (S6, `_put_back`'s
+    `stand`): the digest of each (None: no file); and what the last of them left - its bytes
+    (None: no file) where `known`."""
+    left: frozenset[str | None]
+    last: bytes | None
+    known: bool
+
+
+def _digest(data: bytes | None) -> str | None:
+    return None if data is None else hashlib.sha256(data).hexdigest()
+
+
+def _left_there(stand: Mapping[str, Written] | None, rel: str, theirs: bytes | None) -> bool:
     """Whether `rel` holds what a recorded write of another's left (`_put_back`'s `stand`)."""
-    digest = None if theirs is None else hashlib.sha256(theirs).hexdigest()
-    return stand is not None and digest in stand.get(rel.casefold(), ())
+    found = stand.get(rel.casefold()) if stand is not None else None
+    return found is not None and _digest(theirs) in found.left
+
+
+def _take_back(root: Path, rel: str, was: bytes | None, theirs: bytes | None,
+               keep_in: Path | None, other: Written | None
+               ) -> tuple[str | None, str | None, bytes | None]:
+    """Put `rel` back: to `was` (before the command) - or, written over a recorded write of
+    another's (`other`), to what that left where known. Why it could not be (None: it is), what
+    is said of it, and what it holds now."""
+    said = [_keep_aside(keep_in, rel, theirs)] if theirs is not None and keep_in else []
+    link = was is not None and was.startswith(STANDING_LINK)
+    if link and was is not None:
+        said.append(f"this was a link to {os.fsdecode(was[len(STANDING_LINK):])}; KOLONİ "
+                    "does not make links: make it again yourself")
+    back = None if link else was
+    if other is not None:
+        back = other.last if other.known else back
+        said.append("put back to what the last recorded change left there" if other.known
+                    else "put back to before the run")
+    return _restore(root, rel, back), "; ".join(said) or None, back
 
 
 def _keep_aside(keep_in: Path, rel: str, data: bytes) -> str:

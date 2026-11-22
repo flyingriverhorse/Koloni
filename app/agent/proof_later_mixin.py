@@ -24,6 +24,7 @@ from sqlalchemy import select
 
 from app import proof, proof_related
 from app.agent.ctx import Ctx
+from app.agent.merge import Written, _digest
 from app.db.models import Command, Message, now
 from app.proof import Row, TestRun
 from app.serialize import message_out
@@ -178,24 +179,29 @@ class ProofLaterMixin:
         return self._test_slot
 
     def _written_since(self: "AgentRunner", ctx: Ctx, at: datetime,
-                       since: float) -> dict[str, set[str | None]]:
+                       since: float) -> dict[str, Written]:
         """What others wrote in the project after a test run of KOLONİ's started there (`at`;
         `since`, monotonic) - recorded changes of any turn (written, taken in, taken back) and
-        KOLONİ's own writes (`seen_in_project`) - by path (casefolded), with the digests of what
-        they left: never that run's to take back while a path holds one (review B1; by the
-        bytes - the tests' own later write over it is theirs, round 2).
+        KOLONİ's own writes (`seen_in_project`) - by path (casefolded): never that run's to take
+        back while a path holds what one left (review B1; by the bytes, round 2); written over
+        by the tests, put back to what the last of them left (round 3).
         shortcut: a file the user edits by hand meanwhile is on no record: taken back, kept
         aside (`_keep_aside`); look at the files' times if that is ever met."""
-        folder, stand = str(Path(ctx.folder).resolve()), {}
-        for (where, rel), (when, held) in self._seen_writes.items():
+        folder = str(Path(ctx.folder).resolve())
+        found: dict[str, list[tuple[datetime, bytes | None, bool]]] = {}
+        for (where, rel), (when, made, held, known) in self._seen_writes.items():
             if where == folder and when >= since:
-                stand.setdefault(rel.casefold(), set()).add(held)
+                found.setdefault(rel.casefold(), []).append((made, held, known))
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             for rel, left in (proof.written_since(session, project.id, at) if project
                               else {}).items():
-                stand.setdefault(rel.casefold(), set()).update(left)
-        return stand
+                found.setdefault(rel.casefold(), []).extend(
+                    (made, None if text is None else text.encode("utf-8"), True)
+                    for made, text in left)
+        return {rel: Written(frozenset(_digest(held) for _made, held, known in writes if known),
+                             *max(writes, key=lambda one: one[0])[1:])
+                for rel, writes in found.items()}
 
     def checks_in(self: "AgentRunner", project_id: str) -> str | None:
         """Why a project is not deleted now: a test run of KOLONİ's in it runs, or waits for the

@@ -1400,11 +1400,12 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._test_slot = Slots()  # (S6: as many at once as Settings say)
         # S6: each of KOLONİ's test runs while it runs - in its turn, or gone on after it.
         self._checks: dict[asyncio.Future, Check] = {}
-        # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic)
-        # and the digest of what it held then (None: no file): a test run that started before
-        # does not take it back while it holds that (`_written_since`).
-        # shortcut: never dropped, one small entry a path; prune old ones if it is ever felt.
-        self._seen_writes: dict[tuple[str, str], tuple[float, str | None]] = {}
+        # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic
+        # and wall clock), what it held then (None: no file) and whether that was read: a test
+        # run that started before does not take it back while it holds that, and puts it back
+        # there if the tests write over it (`_written_since`).
+        # shortcut: never dropped, one small file's bytes a path; prune old ones if it is felt.
+        self._seen_writes: dict[tuple[str, str], tuple[float, datetime, bytes | None, bool]] = {}
         # K-rol-cogul. a spawn call of a reply's several -> the reply's calls not opened yet, and
         # the event their agents start on (`_run_tools`, `_arrive`). (Not K-paralel's `_opening`.)
         self._at_once: dict[str, tuple[set[str], asyncio.Event]] = {}

@@ -340,11 +340,11 @@ def test_the_tests_own_later_write_over_another_turns_is_still_taken_back(
     gate.release()
     until(lambda: [one for one in rows_of(client, cid, run_id) if one["state"] != "running"])
     snap = client.get(f"/api/conversations/{cid}").json()
-    taken = [c for c in snap["tool_calls"] if c["name"] == "write_file"
-             and SETTINGS in (c["result"] or "") and "taken back" in c["result"]]
-    left = (project_dir / SETTINGS).read_text(encoding="utf-8") if (
-        project_dir / SETTINGS).exists() else None
-    assert taken and left != '{"evil": 1}\n', (taken, left)
+    (taken,) = [c for c in snap["tool_calls"] if c["name"] == "write_file"
+                and SETTINGS in (c["result"] or "") and "taken back" in c["result"]]
+    # (Round 3: back to what the record left - the approved file - not to before the run.)
+    assert (project_dir / SETTINGS).read_text(encoding="utf-8") == '{"a": 1}\n'
+    assert "put back to what the last recorded change left there" in taken["result"], taken
 
 
 @pytest.mark.usefixtures("soon")
