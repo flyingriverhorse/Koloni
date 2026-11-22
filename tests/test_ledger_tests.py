@@ -394,6 +394,9 @@ def ran_one(s, command, code=0, output=""):
     ("npm test -- --passWithNoTests", 0, "No tests found, exiting with code 0"),
     ('python -c "print(1+1)"', 0, "2"), ("node -v", 0, "v22.0.0"), ("sleep 1", 0, ""),
     ("whoami", 0, "me"), ('python -c "0"', 0, ""),
+    # (A test run that never started: its program, or pytest, not there.)
+    ("python -m pytest -q", 1, "/usr/bin/python: No module named pytest"),
+    ("pytest -q", 127, "bash: pytest: command not found"),
 ])
 def test_a_command_that_checks_nothing_is_no_check(factory, command, code, output):
     with factory() as s:
@@ -408,6 +411,8 @@ def test_a_command_that_checks_nothing_is_no_check(factory, command, code, outpu
     ("python check.py", 0, "all good", False), ("node -e \"require('./calc')\"", 0, "", False),
     ("pytest -q", 0, "3 passed in 0.1s", True), ("pytest -q", 1, "1 failed, 2 passed", True),
     ("pytest -k nothing_matches", 5, "3 deselected in 0.01s", False),
+    ("python -m pytest -q", 1, "/usr/bin/python: No module named pytest", False),
+    ("make check", 127, "bash: make: command not found", False),
     ("cargo test", 0, "running...", True), ("cargo test", 0, "", False),
     ("make check", 0, "", True),
 ])

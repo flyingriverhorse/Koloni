@@ -438,12 +438,13 @@ _NONE_RAN = re.compile(r"\bno test(?:s| files) (?:found|ran)\b", re.IGNORECASE)
 
 
 def _ran_none(one: Command, test: _Test) -> bool:
-    """Whether a test run ran no test: by its words (`_runs_none`); pytest's exit 4 (no such file
-    or option) or 5 (none collected or all deselected); its runner's summary counting none passed
-    and none failed (`test_found.counts`), or, with none, saying it ran none (`_NONE_RAN`)."""
+    """Whether a test run ran no test: by its words (`_runs_none`); it never started (its program
+    not found, `finish_tests.did_not_start`); pytest's exit 4 (no such file or option) or 5 (none
+    collected or all deselected); its runner's summary counting none passed and none failed
+    (`test_found.counts`), or, with none, saying it ran none (`_NONE_RAN`)."""
     from app.test_found import counts  # (here: test_found imports this module)
     counted = counts(one.output, one.command)
-    return _runs_none(test.tool, test.args) or (
+    return _runs_none(test.tool, test.args) or did_not_start(one.exit_code, one.output) or (
         test.tool == "pytest" and one.exit_code in (4, 5)) or (
         not counted.ran if counted is not None else bool(_NONE_RAN.search(one.output[-4000:])))
 
@@ -654,11 +655,13 @@ def _checks_nothing(command: str, ran_none: bool = False) -> bool:
 def _ran_tests(one: Command, own: Collection[str]) -> bool:
     """R3 on code: whether a command is a test run - a test tool's, or the project's own line - that
     really ran tests: its runner counted some passed or failed; with no count known, an exit code
-    and output (the project's own line: its exit code alone) - never one that ran none."""
+    and output (the project's own line: its exit code alone) - never one that ran none or never
+    started (`did_not_start`)."""
     from app.test_found import counts  # (here: test_found imports this module)
     test = _test_of(one.command)
     mine = " ".join(one.command.split()) in own
-    if (test is None and not mine) or (test is not None and _ran_none(one, test)):
+    if (test is None and not mine) or (test is not None and _ran_none(one, test)) or (
+            did_not_start(one.exit_code, one.output)):
         return False
     counted = counts(one.output, one.command)
     if counted is not None:
