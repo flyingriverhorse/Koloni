@@ -426,6 +426,14 @@ false,
 false
 ],
 [
+"! time pkill -f uvicorn",
+0,
+"",
+false,
+false,
+false
+],
+[
 "\"",
 0,
 "",
@@ -474,6 +482,14 @@ true,
 false
 ],
 [
+"\"C:\\Windows\\System32\\taskkill.exe\" /F /IM python.exe",
+2,
+"kill",
+false,
+true,
+false
+],
+[
 "\"CLAUDE.md\" — \"Only for Claude.\"",
 2,
 "",
@@ -485,6 +501,14 @@ false
 "\"Get-Location",
 0,
 "",
+false,
+false,
+false
+],
+[
+"\"Stop-Process\" -Name python",
+2,
+"kill",
 false,
 false,
 false
@@ -546,12 +570,28 @@ false,
 false
 ],
 [
+"\"kill\" -9 -1",
+0,
+"",
+false,
+false,
+false
+],
+[
 "\"pip install\" evilpkg",
 0,
 "",
 false,
 false,
 true
+],
+[
+"\"x; taskkill /F /IM python.exe\" | cmd",
+2,
+"kill",
+false,
+false,
+false
 ],
 [
 "# kill -9 -1",
@@ -579,6 +619,14 @@ false
 ],
 [
 "$",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$(npm ci)",
 0,
 "",
 false,
@@ -1170,6 +1218,14 @@ false,
 false
 ],
 [
+"$p = Start-Process cmd -PassThru; taskkill /F /T /PID $p.Id",
+0,
+"",
+false,
+false,
+false
+],
+[
 "$p = Start-Process node -PassThru -NoNewWindow",
 0,
 "",
@@ -1218,6 +1274,14 @@ false,
 false
 ],
 [
+"$p = Start-Process python -PassThru -ArgumentList (gps node).Id; Stop-Process -Id $p.Id",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "$p = Start-Process python -PassThru -ArgumentList -c pass",
 0,
 "",
@@ -1226,9 +1290,41 @@ false,
 false
 ],
 [
+"$p = Start-Process python -PassThru | % { Get-Process node }; Stop-Process -Id $p.Id",
+2,
+"kill",
+false,
+true,
+false
+],
+[
+"$p = Start-Process python -PassThru | ForEach-Object { Get-Process -Name node }; Stop-Process -Id $p.Id",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru | Select-Object @{n='Id';e={(Get-Process node).Id}}; Stop-Process -Id $p.Id",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "$p = Start-Process python -PassThru; $p = gps python; Stop-Process -Id $p.Id",
 2,
 "kill",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru; $p | Add-Member -Force -NotePropertyName Id -NotePropertyValue 1234; Stop-Process -Id $p.Id",
+0,
+"",
 false,
 false,
 false
@@ -1314,7 +1410,31 @@ false,
 false
 ],
 [
+"$p = Start-Process python -PassThru; Stop-Process ($p.Id - 1)",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru; Stop-Process -Id \"$($p.Id)0\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "$p = Start-Process python -PassThru; Stop-Process -Id $p.Id",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru; Stop-Process -Id $p.Id, $PID",
 0,
 "",
 false,
@@ -1338,6 +1458,38 @@ false,
 false
 ],
 [
+"$p = Start-Process python -PassThru; Stop-Process -Id $p.Id; Stop-Process -Id $p.Parent.Id",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru; Stop-Process -Id $p.Parent.Id",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru; Stop-Process -Id ($p.Id + 1)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru; Stop-Process -Id ($p.Id - 1)",
+0,
+"",
+false,
+false,
+false
+],
+[
 "$p = Start-Process python -PassThru; Stop-Process -Id ($p.Id)",
 0,
 "",
@@ -1346,9 +1498,33 @@ false,
 false
 ],
 [
+"$p = Start-Process python -PassThru; Stop-Process -Id 1$($p.Id)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru; Stop-Process -InputObject $p.Parent",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "$p = Start-Process python -PassThru; gps python | Tee-Object -Variable p; Stop-Process -Id $p.Id",
 2,
 "kill",
+false,
+false,
+false
+],
+[
+"$p = Start-Process python -PassThru; kill ($p.Id - 1)",
+0,
+"",
 false,
 false,
 false
@@ -1525,6 +1701,30 @@ false
 "$q = Get-Process node",
 0,
 "",
+false,
+false,
+false
+],
+[
+"$s = \"Get-Date`nStop-Process -Name python\"; iex $s",
+0,
+"",
+false,
+false,
+false
+],
+[
+"$s = @'\nGet-Date\nStop-Process -Name python\n'@; iex $s",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"$sb = { Get-Date; Stop-Process -Name python }; & $sb",
+2,
+"kill",
 false,
 false,
 false
@@ -1754,7 +1954,31 @@ true,
 false
 ],
 [
+"& \"taskkill\" /F /IM python.exe",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"& ([scriptblock]::Create('Get-Date; Stop-Process -Name python'))",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "& (gcm cmd) /c x.bat",
+0,
+"",
+false,
+false,
+false
+],
+[
+"& { npm ci }",
 0,
 "",
 false,
@@ -1778,9 +2002,33 @@ false,
 false
 ],
 [
+"'Get-Date; Stop-Process -Name python' | iex",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"'pkill' python",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "'rm' -rf .koloni/tmp/a",
 1,
 "delete",
+false,
+false,
+false
+],
+[
+"( npm ci )",
+0,
+"",
 false,
 false,
 false
@@ -1866,6 +2114,70 @@ false,
 false
 ],
 [
+"(cd frontend && npm ci && npm run build)",
+0,
+"rebuild",
+true,
+false,
+true
+],
+[
+"(cd frontend; npm ci)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(cd web && cp a.js node_modules/x)",
+0,
+"write",
+false,
+false,
+false
+],
+[
+"(cd web && npm ci)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(cd web && npm install x)",
+0,
+"",
+true,
+false,
+true
+],
+[
+"(cd web && rm -rf node_modules)",
+1,
+"delete",
+false,
+false,
+false
+],
+[
+"(cd web; npm ci)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(cp a.js node_modules/x)",
+0,
+"",
+false,
+false,
+false
+],
+[
 "(gps node).Kill()",
 2,
 "kill",
@@ -1898,8 +2210,40 @@ false,
 false
 ],
 [
+"(npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(npm ci)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(rm -rf node_modules)",
+1,
+"",
+false,
+false,
+false
+],
+[
 "(rm x)",
 1,
+"",
+false,
+false,
+false
+],
+[
+"(uv sync)",
+0,
 "",
 false,
 false,
@@ -2450,6 +2794,14 @@ false,
 true
 ],
 [
+"/usr/bin/kill -9 -1",
+0,
+"",
+false,
+false,
+false
+],
+[
 "/x",
 0,
 "",
@@ -2511,6 +2863,14 @@ false
 "",
 false,
 false,
+false
+],
+[
+"1..3 | % { Stop-Process -Name python }",
+2,
+"kill",
+false,
+true,
 false
 ],
 [
@@ -2880,6 +3240,14 @@ false
 false,
 true,
 true
+],
+[
+"C:\\Windows\\System32\\taskkill.exe /F /IM python.exe",
+2,
+"kill",
+false,
+true,
+false
 ],
 [
 "C:\\Windows\\System32\\taskkill.exe /im node.exe",
@@ -4586,6 +4954,14 @@ true,
 false
 ],
 [
+"Invoke-Expression -Command \"Get-Date; Stop-Process -Name python\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "Invoke-Item evil.bat",
 0,
 "",
@@ -6098,6 +6474,14 @@ false,
 false
 ],
 [
+"Select-String -Encoding utf8 ../../b/tree/secret",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "Select-String -Encoding utf8 x ../../b/tree/secret",
 0,
 "out",
@@ -6141,6 +6525,14 @@ false
 "Select-String -LiteralPath tests/a.py,tests/b.py KEY",
 0,
 "",
+false,
+false,
+false
+],
+[
+"Select-String -NotMatch x -Path ../../b/tree/secret",
+0,
+"out",
 false,
 false,
 false
@@ -6403,6 +6795,22 @@ false
 ],
 [
 "Select-String -Pattern:x ../../b/tree/secret && echo ok",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"Select-String -Raw ../../b",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"Select-String -SimpleMatch ../../b/tree/secret x.txt",
 0,
 "out",
 false,
@@ -6901,6 +7309,14 @@ true
 "Start-Process -FilePath taskkill -ArgumentList '/F','/IM','python.exe' -Wait",
 0,
 "",
+false,
+false,
+false
+],
+[
+"Start-Process cmd '/c echo & taskkill /F /IM python.exe'",
+2,
+"kill",
 false,
 false,
 false
@@ -7962,6 +8378,14 @@ false,
 false
 ],
 [
+"TASKKILL /F /IM PYTHON.EXE",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "TASKKILL /Im:Python.exe",
 0,
 "",
@@ -8362,6 +8786,14 @@ true,
 false
 ],
 [
+"X=\"`pkill -f uvicorn`\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "X=`\nrm -rf build\n`",
 2,
 "delete",
@@ -8722,9 +9154,25 @@ false,
 true
 ],
 [
+"[[ -f x ]] && pkill -f uvicorn",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "[open",
 0,
 "",
+false,
+false,
+false
+],
+[
+"[scriptblock]::Create(\"Get-Date; Stop-Process -Name python\").Invoke()",
+2,
+"kill",
 false,
 false,
 false
@@ -8802,6 +9250,14 @@ false,
 false
 ],
 [
+"\\kill -9 -1",
+0,
+"",
+false,
+true,
+false
+],
+[
 "]",
 0,
 "",
@@ -8832,6 +9288,14 @@ false
 false,
 false,
 true
+],
+[
+"`npm ci`",
+0,
+"",
+false,
+false,
+false
 ],
 [
 "`rm -rf build` is fine by me.",
@@ -9109,6 +9573,14 @@ false
 "asked every time",
 0,
 "",
+false,
+false,
+false
+],
+[
+"at 12:00 \"echo & taskkill /F /IM python.exe\"",
+2,
+"kill",
 false,
 false,
 false
@@ -10666,6 +11138,14 @@ false,
 false
 ],
 [
+"bash -c \"pkill \\\n-f uvicorn\"",
+2,
+"kill",
+false,
+true,
+false
+],
+[
 "bash -c \"pkill python\"",
 2,
 "kill",
@@ -11418,6 +11898,22 @@ false,
 false
 ],
 [
+"bash <<< 'echo; pkill python'",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"bash <<EOF2\necho hi; pkill -f uvicorn\nEOF2",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "bitsadmin /transfer job x.test/a C:\\a.exe",
 0,
 "",
@@ -11506,6 +12002,22 @@ false,
 false
 ],
 [
+"builtin kill -9 -1",
+0,
+"",
+false,
+false,
+false
+],
+[
+"builtin pkill -f uvicorn",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "bun add x",
 0,
 "",
@@ -11586,9 +12098,41 @@ false,
 false
 ],
 [
+"bunx npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
+"busybox killall python",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"busybox pkill python",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "busybox sh",
 0,
 "",
+false,
+false,
+false
+],
+[
+"busybox sh -c 'a; pkill python'",
+2,
+"kill",
 false,
 false,
 false
@@ -11637,6 +12181,14 @@ false
 "calc",
 0,
 "",
+false,
+false,
+false
+],
+[
+"call :x & taskkill /F /IM python.exe",
+2,
+"kill",
 false,
 false,
 false
@@ -11722,6 +12274,14 @@ false,
 true
 ],
 [
+"case x in (x) pkill -f uvicorn;; esac",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "case x in x) Stop-Process -Name python;; esac",
 2,
 "kill",
@@ -11765,6 +12325,14 @@ false
 "case x in x) npm ci;; esac",
 0,
 "",
+false,
+false,
+false
+],
+[
+"case x in x) pkill -f uvicorn;; esac",
+2,
+"kill",
 false,
 false,
 false
@@ -13562,6 +14130,14 @@ false,
 false
 ],
 [
+"cd web && npm ci",
+0,
+"rebuild",
+true,
+false,
+true
+],
+[
 "cd x",
 0,
 "",
@@ -14922,6 +15498,22 @@ false,
 false
 ],
 [
+"cmd /c \"if exist x npm ci\"",
+0,
+"rebuild",
+false,
+false,
+false
+],
+[
+"cmd /c \"if exist x taskkill /F /IM python.exe\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "cmd /c \"install -D a.js node_modules/x/a.js\"",
 0,
 "",
@@ -15005,6 +15597,14 @@ false
 "cmd /c \"npm --prefix ../../b/tree run build\"",
 0,
 "out",
+false,
+false,
+false
+],
+[
+"cmd /c \"npm `\nci\"",
+0,
+"",
 false,
 false,
 false
@@ -15714,6 +16314,14 @@ false,
 false
 ],
 [
+"cmd /c \"taskkill\" /F /IM python.exe",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "cmd /c \"tee node_modules/x < a\"",
 0,
 "write",
@@ -15890,6 +16498,14 @@ false,
 false
 ],
 [
+"cmd /c if exist x taskkill /F /IM python.exe",
+0,
+"",
+false,
+false,
+false
+],
+[
 "cmd /c kill -9 $(pgrep python)",
 2,
 "kill",
@@ -16050,6 +16666,14 @@ false,
 false
 ],
 [
+"cmd /k \"echo & taskkill /F /IM python.exe\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "cmd /k del x",
 2,
 "",
@@ -16080,6 +16704,30 @@ false
 false,
 false,
 false
+],
+[
+"cmd.exe /s /c \"echo hi && taskkill /F /IM python.exe\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"command kill -9 -1",
+0,
+"",
+false,
+false,
+false
+],
+[
+"command npm ci",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "command, named",
@@ -16154,6 +16802,30 @@ false,
 false
 ],
 [
+"conda run --no-capture-output pip install x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"conda run -n env npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
+"conda run -n env pip install x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "conda run pip install x",
 0,
 "",
@@ -16173,6 +16845,22 @@ false
 "conhost calc",
 0,
 "",
+false,
+false,
+false
+],
+[
+"coproc NAME pkill -f uvicorn",
+0,
+"",
+false,
+false,
+false
+],
+[
+"coproc NAME { pkill -f uvicorn; }",
+2,
+"kill",
 false,
 false,
 false
@@ -18898,6 +19586,14 @@ false,
 false
 ],
 [
+"do { Stop-Process -Name python } while ($false)",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "doas x",
 0,
 "",
@@ -19378,6 +20074,14 @@ false,
 false
 ],
 [
+"echo \"Get-Date; Stop-Process -Name python\" | pwsh -Command -",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "echo \"`cat ../../b/tree/secret`\"",
 0,
 "",
@@ -19395,6 +20099,14 @@ false
 ],
 [
 "echo \"`cp a ../x`\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo \"`pkill python`\"",
 0,
 "",
 false,
@@ -19434,9 +20146,25 @@ false,
 false
 ],
 [
+"echo \"a\"; kill 1234",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo \"a; kill\"",
 0,
 "",
+false,
+false,
+false
+],
+[
+"echo \"echo; pkill python\" | bash",
+2,
+"kill",
 false,
 false,
 false
@@ -19490,6 +20218,14 @@ false,
 false
 ],
 [
+"echo $(npm ci)",
+0,
+"",
+false,
+false,
+false
+],
+[
 "echo $(rm x)",
 2,
 "",
@@ -19535,6 +20271,22 @@ false
 "",
 false,
 true,
+false
+],
+[
+"echo 'Stop-Process -Name python' | powershell -",
+0,
+"",
+false,
+false,
+false
+],
+[
+"echo 'kill' ; kill 1234",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -19664,6 +20416,14 @@ false
 false,
 false,
 false
+],
+[
+"echo a \n\nnpm publish",
+1,
+"",
+false,
+false,
+true
 ],
 [
 "echo ci | xargs npm",
@@ -21274,6 +22034,22 @@ false,
 false
 ],
 [
+"egrep -v '^#' ../../b/tree/secret",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"else pkill -f uvicorn",
+0,
+"",
+false,
+false,
+false
+],
+[
 "env",
 0,
 "",
@@ -21301,6 +22077,14 @@ false
 "env --split-string='rm -rf x'",
 2,
 "",
+false,
+false,
+false
+],
+[
+"env -S \"sh -c 'a; pkill python'\"",
+2,
+"kill",
 false,
 false,
 false
@@ -23386,6 +24170,22 @@ false,
 false
 ],
 [
+"eval \"echo; pkill python\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"eval 'echo; kill -9 -1'",
+0,
+"",
+false,
+false,
+false
+],
+[
 "evening reply",
 0,
 "",
@@ -23408,6 +24208,22 @@ false
 false,
 false,
 false
+],
+[
+"exec kill -9 -1",
+0,
+"",
+false,
+false,
+false
+],
+[
+"exec npm ci",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "exec pkill python",
@@ -23834,6 +24650,14 @@ false,
 false
 ],
 [
+"findstr /g:../../b/tree/x y",
+0,
+"",
+false,
+false,
+false
+],
+[
 "findstr /g:pats ../../b/tree/secret",
 0,
 "out",
@@ -23859,6 +24683,22 @@ false
 ],
 [
 "findstr /i x ../../b/tree/secret && echo ok",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"findstr /m ../../b/tree/x",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"findstr /m x ../../b/tree/x",
 0,
 "out",
 false,
@@ -24002,6 +24842,22 @@ false,
 false
 ],
 [
+"for %a in (1 2) do if exist x taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
+"for %a in (1) do (npm ci)",
+0,
+"",
+false,
+true,
+false
+],
+[
 "for %a in (1) do Stop-Process -Name python",
 0,
 "",
@@ -24082,6 +24938,22 @@ true,
 false
 ],
 [
+"for /d %d in (*) do rd /s /q %d",
+0,
+"",
+false,
+true,
+false
+],
+[
+"for /f \"delims=\" %a in ('npm ci') do echo %a",
+0,
+"",
+false,
+true,
+false
+],
+[
 "for /f \"tokens=5\" %a in ('netstat -ano ^| findstr :8790') do taskkill /F /PID %a",
 2,
 "kill",
@@ -24101,6 +24973,22 @@ false
 "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :8790') do taskkill /F /PID %a",
 2,
 "kill",
+false,
+true,
+false
+],
+[
+"for /f \"usebackq\" %a in (`npm ci`) do echo %a",
+0,
+"",
+false,
+true,
+false
+],
+[
+"for /f %a in (\"x\") do npm ci",
+0,
+"",
 false,
 true,
 false
@@ -24139,6 +25027,22 @@ false
 ],
 [
 "for /f tokens=5 %a in",
+0,
+"",
+false,
+true,
+false
+],
+[
+"for /l %i in (1,1,3) do taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
+"for /r %f in (*.pyc) do del %f",
 0,
 "",
 false,
@@ -24266,6 +25170,14 @@ false,
 false
 ],
 [
+"foreach ($d in 1) { npm ci }",
+0,
+"",
+false,
+false,
+false
+],
+[
 "foreach ($p in (Get-Process node)) { Stop-Process -Id $p.Id }",
 2,
 "kill",
@@ -24275,6 +25187,14 @@ false
 ],
 [
 "foreach ($p in Get-Process node) { $p.Kill() }",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"foreach ($x in 1) { Stop-Process -Name python }",
 2,
 "kill",
 false,
@@ -25978,9 +26898,25 @@ false,
 false
 ],
 [
+"git commit -m \"`cp a ../../b/tree/x`\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "git commit -m \"`kill -9 $(pgrep python)`\"",
 2,
 "kill",
+false,
+false,
+false
+],
+[
+"git commit -m \"`npm ci`\"",
+0,
+"",
 false,
 false,
 false
@@ -26043,6 +26979,14 @@ false
 ],
 [
 "git commit -m \"docs: pkill | killall\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"git commit -m \"docs: run `kill -9 $(pgrep python)` to stop it\"",
 2,
 "kill",
 false,
@@ -26162,6 +27106,14 @@ false,
 false
 ],
 [
+"git commit -m \"fix: use `npm ci` in CI\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "git commit -m \"gps; Stop-Process -Name python\"",
 2,
 "kill",
@@ -26242,9 +27194,33 @@ false,
 false
 ],
 [
+"git commit -m \"x $(pkill python) y\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"git commit -m \"x $(taskkill /F /IM python.exe) y\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "git commit -m \"x (kill)\" && gps python | Stop-Process",
 2,
 "kill",
+false,
+false,
+false
+],
+[
+"git commit -m \"x ``pkill python`` y\"",
+0,
+"",
 false,
 false,
 false
@@ -26258,7 +27234,39 @@ false,
 false
 ],
 [
+"git commit -m \"x `pkill python` y\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git commit -m \"x `rm -rf build` y\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "git commit -m \"x | kill\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git commit -m \"x\" \n&& git push --force origin main",
+1,
+"",
+false,
+false,
+true
+],
+[
+"git commit -m \"x\" ; echo 'a' ; kill -9 1234",
 0,
 "",
 false,
@@ -26307,6 +27315,14 @@ false
 ],
 [
 "git commit -m 'test: taskkill /IM (never python)'",
+0,
+"",
+false,
+false,
+false
+],
+[
+"git commit -m 'x `pkill python` y'",
 0,
 "",
 false,
@@ -27111,6 +28127,14 @@ false
 "",
 false,
 false,
+false
+],
+[
+"git log --format=\"%H `pkill python`\"",
+0,
+"",
+false,
+true,
 false
 ],
 [
@@ -28554,7 +29578,23 @@ false,
 false
 ],
 [
+"grep '' ../../b/tree/secret",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "grep -- ../.. src",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"grep --expr=x ../../b/tree/secret",
 0,
 "out",
 false,
@@ -28571,6 +29611,14 @@ false
 ],
 [
 "grep --fi=pats ../../b/tree/secret && echo ok",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"grep --fil=../../b/tree/secret x",
 0,
 "out",
 false,
@@ -28794,6 +29842,14 @@ false,
 false
 ],
 [
+"grep -E -e x -e y ../../b/tree",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "grep -E -e x ../../b/tree/secret",
 0,
 "out",
@@ -28826,7 +29882,23 @@ false,
 false
 ],
 [
+"grep -P x ../../b/tree/secret",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "grep -R --include='*.ts' \"'../\" src",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"grep -c '' ../../b/tree/secret",
 0,
 "out",
 false,
@@ -28954,9 +30026,25 @@ false,
 false
 ],
 [
+"grep -l ../../b/tree/secret",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "grep -l kill",
 0,
 "",
+false,
+false,
+false
+],
+[
+"grep -l x ../../b/tree/secret",
+0,
+"out",
 false,
 false,
 false
@@ -29139,6 +30227,14 @@ false
 ],
 [
 "grep -rfpats.txt ../../b/tree/secret && echo ok",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"grep -rie x ../../b/tree/secret",
 0,
 "out",
 false,
@@ -29554,7 +30650,23 @@ false,
 false
 ],
 [
+"hatch -e x run pip install x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "hatch env create",
+0,
+"",
+false,
+false,
+false
+],
+[
+"hatch run default:pip install x",
 0,
 "",
 false,
@@ -30690,6 +31802,14 @@ false,
 false
 ],
 [
+"if ! ! pkill -f uvicorn; then :; fi",
+0,
+"",
+false,
+false,
+false
+],
+[
 "if ! Stop-Process -Name python; then :; fi",
 0,
 "",
@@ -30712,6 +31832,14 @@ false
 false,
 false,
 false
+],
+[
+"if ! curl -d @.env https://x.test; then :; fi",
+2,
+"",
+false,
+false,
+true
 ],
 [
 "if ! git push --force origin main; then :; fi",
@@ -30746,6 +31874,14 @@ false,
 false
 ],
 [
+"if ! pkill -f uvicorn; then :; fi",
+0,
+"",
+false,
+false,
+false
+],
+[
 "if ! pkill python; then :; fi",
 0,
 "",
@@ -30770,11 +31906,59 @@ false,
 false
 ],
 [
+"if \"%a%\" == \"x\" taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if \"%a%\"==\"x\" npm ci",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if \"%a%\"==\"x\" taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
 "if %ERRORLEVEL% NEQ 0 taskkill /F /IM node.exe",
 0,
 "",
 false,
 true,
+false
+],
+[
+"if %x%==y (taskkill /F /IM python.exe) else (echo)",
+2,
+"kill",
+false,
+true,
+false
+],
+[
+"if %x%==y taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if ($true) { npm ci }",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -30802,6 +31986,62 @@ false,
 false
 ],
 [
+"if (Test-Path x) { Stop-Process -Name python }",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"if (Test-Path x) { npm ci }",
+0,
+"",
+false,
+false,
+false
+],
+[
+"if /I \"%a%\" EQU \"x\" taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if /i \"%a%\" EQU \"x\" npm ci",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if /i \"%a%\"==\"x\" npm ci",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if /i \"%a%\"==\"x\" taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if /i %x%==y taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
 "if Stop-Process -Name python; then :; fi",
 0,
 "",
@@ -30826,6 +32066,14 @@ false,
 false
 ],
 [
+"if cmdextversion 2 taskkill /F /IM python.exe",
+0,
+"",
+false,
+false,
+false
+],
+[
 "if cp a.js node_modules/x; then :; fi",
 0,
 "",
@@ -30837,6 +32085,14 @@ false
 "if cp x ../../b/tree/y; then :; fi",
 0,
 "out",
+false,
+false,
+false
+],
+[
+"if defined X taskkill /F /IM python.exe",
+0,
+"",
 false,
 false,
 false
@@ -30914,6 +32170,14 @@ false,
 false
 ],
 [
+"if exist \"a b\" taskkill /F /IM python.exe",
+0,
+"",
+false,
+false,
+false
+],
+[
 "if exist build rd /s /q build",
 0,
 "",
@@ -30932,6 +32196,38 @@ false
 [
 "if exist server.pid taskkill /F /IM python.exe",
 0,
+"",
+false,
+false,
+false
+],
+[
+"if exist x (copy a node_modules\\x)",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if exist x (npm ci)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"if exist x (npm ci) else (echo no)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"if exist x (rd /s /q build)",
+2,
 "",
 false,
 false,
@@ -30978,6 +32274,22 @@ false,
 true
 ],
 [
+"if exist x if exist y taskkill /F /IM python.exe",
+0,
+"",
+false,
+false,
+false
+],
+[
+"if exist x if not exist y npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
 "if exist x kill -9 $(pgrep python)",
 2,
 "kill",
@@ -31002,6 +32314,14 @@ false,
 false
 ],
 [
+"if exist x rd /s /q build",
+0,
+"",
+false,
+false,
+false
+],
+[
 "if exist x rm -rf build",
 0,
 "",
@@ -31018,6 +32338,14 @@ false,
 false
 ],
 [
+"if exist x\\ taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
 "if git push --force origin main; then :; fi",
 1,
 "",
@@ -31031,6 +32359,38 @@ true
 "kill",
 false,
 false,
+false
+],
+[
+"if not \"%a%\"==\"\" npm ci",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if not \"%a%\"==\"\" taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if not errorlevel 1 taskkill /F /IM python.exe",
+0,
+"",
+false,
+false,
+false
+],
+[
+"if not exist \"a b\\c\" taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
 false
 ],
 [
@@ -31219,6 +32579,22 @@ false
 ],
 [
 "if true; then :; elif taskkill /F /IM python.exe; then :; fi",
+0,
+"",
+false,
+false,
+false
+],
+[
+"if true; then cp x ../../b/tree/y; fi",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"if true; then if true; then pkill -f uvicorn; fi; fi",
 0,
 "",
 false,
@@ -31554,6 +32930,14 @@ false,
 false
 ],
 [
+"k\\ill -9 -1",
+0,
+"",
+false,
+true,
+false
+],
+[
 "kept from before",
 0,
 "",
@@ -31850,6 +33234,14 @@ false,
 false
 ],
 [
+"kill -9 -- -1",
+0,
+"",
+false,
+false,
+false
+],
+[
 "kill -9 -- 1234",
 0,
 "",
@@ -31930,6 +33322,14 @@ false,
 false
 ],
 [
+"kill -KILL 1 2 3 -1",
+0,
+"",
+false,
+false,
+false
+],
+[
 "kill -Name java",
 1,
 "kill",
@@ -31997,6 +33397,14 @@ false
 "kill -name:vim",
 1,
 "kill",
+false,
+false,
+false
+],
+[
+"kill -s 9 -1",
+0,
+"",
 false,
 false,
 false
@@ -32754,6 +34162,14 @@ false,
 false
 ],
 [
+"make stop KILL=\"pkill python\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "mamba install x",
 0,
 "",
@@ -33151,6 +34567,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"nice -n 5 sh -c \"a; pkill python\"",
+2,
+"kill",
+false,
+false,
 false
 ],
 [
@@ -33994,6 +35418,22 @@ false,
 true
 ],
 [
+"npm -- ci",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm -- install",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm --audit false ci",
 0,
 "",
@@ -34011,6 +35451,14 @@ true
 ],
 [
 "npm --foo ci",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm --foo run install",
 0,
 "",
 true,
@@ -34138,6 +35586,14 @@ false,
 false
 ],
 [
+"npm --prefix run install",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm --prefix web ci",
 0,
 "",
@@ -34162,7 +35618,39 @@ false,
 true
 ],
 [
+"npm --prefix=web run install",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm --silent -- ci",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm --userconfig run ci",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm --userconfig x ci",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm --workspace run install",
 0,
 "",
 true,
@@ -34178,12 +35666,28 @@ false,
 true
 ],
 [
+"npm --yes exec -- npm ci",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm --yes exec kill-port 3000",
 0,
 "",
 false,
 false,
 false
+],
+[
+"npm -C run ci",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "npm -C web ci",
@@ -34242,6 +35746,22 @@ false,
 true
 ],
 [
+"npm -w run install",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm -x run ci",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm \\\nci",
 0,
 "",
@@ -34255,6 +35775,14 @@ false
 "",
 false,
 false,
+false
+],
+[
+"npm \\\r\nci",
+0,
+"",
+false,
+true,
 false
 ],
 [
@@ -34354,7 +35882,23 @@ false,
 true
 ],
 [
+"npm audit",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npm ci",
+0,
+"rebuild",
+true,
+false,
+true
+],
+[
+"npm ci # --dry-run",
 0,
 "rebuild",
 true,
@@ -34392,6 +35936,14 @@ true
 true,
 false,
 true
+],
+[
+"npm ci)",
+0,
+"",
+false,
+false,
+false
 ],
 [
 "npm cit",
@@ -34450,6 +36002,14 @@ false,
 false
 ],
 [
+"npm exec -- npm ci",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm exec -- npm i x",
 0,
 "",
@@ -34466,12 +36026,44 @@ false,
 true
 ],
 [
+"npm exec --call=\"npm ci\"",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm exec --call='npm install x'",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm exec --package x -- npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npm exec --package=kill-port -- kill-port 3000",
 0,
 "",
 false,
 false,
 false
+],
+[
+"npm exec --package=x -- npm ci",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "npm exec --yes -- npm ci",
@@ -34498,7 +36090,31 @@ false,
 true
 ],
 [
+"npm exec -c 'npm ci'",
+0,
+"",
+false,
+false,
+true
+],
+[
+"npm exec -c=\"npm ci\"",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm exec -p kill-port kill-port 3000",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npm exec -w web -- npm ci",
 0,
 "",
 false,
@@ -34658,6 +36274,14 @@ false,
 true
 ],
 [
+"npm install x # --dry-run",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm install-ci-test",
 0,
 "",
@@ -34786,6 +36410,14 @@ false,
 true
 ],
 [
+"npm r install",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm r x",
 0,
 "",
@@ -34826,6 +36458,22 @@ false,
 false
 ],
 [
+"npm rum install",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm run",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npm run \"install\"",
 0,
 "",
@@ -34834,7 +36482,39 @@ false,
 true
 ],
 [
+"npm run \"install\" -- && npm ci",
+0,
+"rebuild",
+true,
+false,
+true
+],
+[
+"npm run 'ci'",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm run -- ci",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm run --if-present install",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm run -w web install",
 0,
 "",
 true,
@@ -34851,6 +36531,14 @@ false
 ],
 [
 "npm run build -- && npm i x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm run ci --foreground-scripts",
 0,
 "",
 true,
@@ -34890,6 +36578,14 @@ false,
 true
 ],
 [
+"npm run install && npm ci",
+0,
+"rebuild",
+true,
+false,
+true
+],
+[
 "npm run install && npm install x",
 0,
 "",
@@ -34904,6 +36600,14 @@ true
 false,
 false,
 false
+],
+[
+"npm run install; npm i",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "npm run kill",
@@ -34925,6 +36629,14 @@ false
 "npm run lint -- --fix",
 0,
 "",
+false,
+false,
+false
+],
+[
+"npm run stop -- \"x; pkill python\"",
+2,
+"kill",
 false,
 false,
 false
@@ -34952,6 +36664,30 @@ false
 false,
 false,
 false
+],
+[
+"npm run-script",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npm run-script \"ci\"",
+0,
+"",
+true,
+false,
+true
+],
+[
+"npm run-script ci",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "npm run-script install",
@@ -35074,6 +36810,14 @@ false,
 false
 ],
 [
+"npm urn install",
+0,
+"",
+true,
+false,
+true
+],
+[
 "npm view react version",
 0,
 "",
@@ -35146,6 +36890,22 @@ false,
 false
 ],
 [
+"npx --call=\"npm ci\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npx --yes -- npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npx --yes fkill-cli node",
 2,
 "kill",
@@ -35181,6 +36941,14 @@ false
 "npx -y kill-port 8790",
 2,
 "kill",
+false,
+false,
+false
+],
+[
+"npx -y npm ci",
+0,
+"",
 false,
 false,
 false
@@ -35251,6 +37019,14 @@ false
 ],
 [
 "npx npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
+"npx npm@10 ci",
 0,
 "",
 false,
@@ -35451,6 +37227,22 @@ false
 ],
 [
 "pdm install",
+0,
+"",
+false,
+false,
+false
+],
+[
+"pdm run --venv x pip install x",
+0,
+"",
+false,
+false,
+false
+],
+[
+"pdm run -v pip install x",
 0,
 "",
 false,
@@ -35858,7 +37650,23 @@ false,
 false
 ],
 [
+"pip index versions x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "pip install \"--dry-run\" x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"pip install --dry-run -r requirements.txt",
 0,
 "",
 true,
@@ -36098,6 +37906,14 @@ false,
 true
 ],
 [
+"pipenv run python -m pip install x",
+0,
+"",
+false,
+false,
+false
+],
+[
 "pipenv sync",
 0,
 "",
@@ -36114,7 +37930,23 @@ false,
 true
 ],
 [
+"pipx run pip install x",
+0,
+"",
+true,
+false,
+true
+],
+[
 "pipx run virtualenv .venv",
+0,
+"",
+false,
+false,
+false
+],
+[
+"pk\nill -f uvicorn",
 0,
 "",
 false,
@@ -36586,6 +38418,14 @@ false,
 false
 ],
 [
+"pkill.exe python",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "platform, line, secret",
 0,
 "",
@@ -36682,12 +38522,28 @@ false,
 false
 ],
 [
+"pnpm dlx npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
 "pnpm dlx x",
 0,
 "",
 false,
 false,
 false
+],
+[
+"pnpm exec -- pip install x",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "pnpm exec kill-port 3000",
@@ -36834,6 +38690,14 @@ false,
 false
 ],
 [
+"poetry -C web run npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
 "poetry add x",
 0,
 "",
@@ -36850,6 +38714,14 @@ false,
 true
 ],
 [
+"poetry lock",
+0,
+"",
+false,
+false,
+false
+],
+[
 "poetry remove x",
 0,
 "",
@@ -36858,12 +38730,28 @@ false,
 true
 ],
 [
+"poetry run -- npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
 "poetry run pip install x",
 0,
 "",
 true,
 false,
 true
+],
+[
+"poetry run python -m pip install x",
+0,
+"",
+false,
+false,
+false
 ],
 [
 "poetry sync",
@@ -37810,6 +39698,14 @@ false,
 false
 ],
 [
+"printf 'echo\npkill python\n' | sh",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "printf 'kill\\n'",
 0,
 "",
@@ -37944,6 +39840,14 @@ false
 false,
 false,
 false
+],
+[
+"pushd web && npm ci && popd",
+0,
+"rebuild",
+true,
+false,
+true
 ],
 [
 "pushed a branch",
@@ -41954,6 +43858,14 @@ false,
 false
 ],
 [
+"rg '' ../../b/tree/secret",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "rg '../utils' src",
 0,
 "out",
@@ -42130,6 +44042,14 @@ false,
 false
 ],
 [
+"rg --files-with-matches x ../../b/tree",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "rg --hidden --color never KEY",
 0,
 "",
@@ -42258,6 +44178,22 @@ false,
 false
 ],
 [
+"rg --ignore x ../../b/tree",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"rg --ignore-case ../../b",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "rg --ignore-file ../../b/tree/secret x src",
 0,
 "out",
@@ -42291,6 +44227,14 @@ false
 ],
 [
 "rg --max-depth 2 x ../../b/tree/secret && echo ok",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"rg --no-ignore-dot ../../b",
 0,
 "out",
 false,
@@ -42491,6 +44435,14 @@ false
 ],
 [
 "rg -M 100 x ../../b/tree/secret && echo ok",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"rg -N '' ../../b/tree/secret",
 0,
 "out",
 false,
@@ -42779,6 +44731,14 @@ false
 ],
 [
 "rg -j 4 x ../../b/tree/secret && echo ok",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"rg -l ../../b/tree/secret",
 0,
 "out",
 false,
@@ -43125,6 +45085,14 @@ false
 "rg -uu -g **/sub/** KEY",
 0,
 "",
+false,
+false,
+false
+],
+[
+"rg -uuu ../../b",
+0,
+"out",
 false,
 false,
 false
@@ -43978,6 +45946,14 @@ false,
 false
 ],
 [
+"rm -rf build # done \nnpm publish",
+1,
+"delete",
+false,
+false,
+true
+],
+[
 "rm -rf build # done `\nnpm publish",
 1,
 "other",
@@ -44490,6 +46466,14 @@ false,
 false
 ],
 [
+"rm x # `\nnpm publish",
+1,
+"",
+false,
+false,
+true
+],
+[
 "rmdir .koloni/tmp/empty",
 1,
 "",
@@ -44730,6 +46714,14 @@ false,
 false
 ],
 [
+"schtasks /create /tn x /tr \"cmd /c echo & taskkill /F /IM python.exe\" /sc once /st 00:00",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "schtasks /create /tr calc",
 0,
 "",
@@ -44768,6 +46760,30 @@ true
 false,
 false,
 true
+],
+[
+"screen -dm sh -c 'sleep 1; pkill python'",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"script -c 'echo; pkill python' /dev/null",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"script -qc \"sleep 1; taskkill /F /IM python.exe\" NUL",
+2,
+"kill",
+false,
+false,
+false
 ],
 [
 "search_order : cli",
@@ -44810,6 +46826,14 @@ false,
 false
 ],
 [
+"sed --expression=p ../../b/tree/x",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "sed --expression=s/a/b/ -i ../../b/tree/x",
 0,
 "out",
@@ -44843,6 +46867,14 @@ false
 ],
 [
 "sed -E -i s/a/b/ ../../b/tree/x",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"sed -E s/a/b/ ../../b/tree/x",
 0,
 "out",
 false,
@@ -45354,6 +47386,14 @@ false,
 false
 ],
 [
+"sed -n -e p ../../b/tree/x",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "sed -n 1,20p README.md",
 0,
 "",
@@ -45379,6 +47419,14 @@ false
 ],
 [
 "sed -nes/a/b/p ../../b/tree/secret && echo ok",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"sed -nes/a/b/p ../../b/tree/x",
 0,
 "out",
 false,
@@ -45419,6 +47467,14 @@ false
 ],
 [
 "select * from Win32_Process -MethodName Terminate",
+0,
+"",
+false,
+false,
+false
+],
+[
+"select x in a; do pkill -f uvicorn; done",
 0,
 "",
 false,
@@ -46514,6 +48570,14 @@ true,
 false
 ],
 [
+"sh <<EOF2\necho\npkill python\nEOF2",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "ship it",
 0,
 "",
@@ -46602,6 +48666,14 @@ false,
 false
 ],
 [
+"sleep 9 & P=$!; kill $P $PPID",
+0,
+"",
+false,
+false,
+false
+],
+[
 "sleep 9 & PID=$!; for PID in $(pgrep python); do kill $PID; done",
 2,
 "kill",
@@ -46610,7 +48682,103 @@ false,
 false
 ],
 [
+"sleep 9 & PID=$!; kill $(( PID - 1 ))",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & PID=$!; kill $((PID-1))",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & PID=$!; kill $PID$PID",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & PID=$!; kill $PPID",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & PID=$!; kill ${PID%?}",
+0,
+"",
+false,
+true,
+false
+],
+[
+"sleep 9 & PID=$!; kill ${PID}0",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & PID=$!; kill -- -$PID",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & PID=$!; kill -9 -$PID",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & PID=$!; kill 1$PID",
+0,
+"",
+false,
+false,
+false
+],
+[
 "sleep 9 & PPID=$!; kill -9 $PPID",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & kill $!",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & kill $!0",
+0,
+"",
+false,
+false,
+false
+],
+[
+"sleep 9 & kill -9 -$!",
 0,
 "",
 false,
@@ -46834,6 +49002,14 @@ false,
 false
 ],
 [
+"source <(echo 'pkill python')",
+0,
+"",
+false,
+false,
+false
+],
+[
 "source env.sh",
 0,
 "",
@@ -46970,6 +49146,14 @@ false,
 true
 ],
 [
+"start \"\" cmd /c \"echo & taskkill /F /IM python.exe\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "start /b ",
 0,
 "",
@@ -46979,6 +49163,14 @@ false
 ],
 [
 "start /b Stop-Process -Name python",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"start /b cmd /c \"echo & taskkill /F /IM python.exe\"",
 2,
 "kill",
 false,
@@ -49154,6 +51346,14 @@ true,
 false
 ],
 [
+"switch (1) { 1 { Stop-Process -Name python } }",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "switches the branch under Coder's work",
 0,
 "",
@@ -49778,6 +51978,14 @@ false,
 false
 ],
 [
+"taskkill.exe /F /IM python.exe",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "taskkill.exe /im node.exe",
 2,
 "kill",
@@ -50026,6 +52234,14 @@ false,
 false
 ],
 [
+"then pkill -f uvicorn",
+0,
+"",
+false,
+false,
+false
+],
+[
 "this command reaches the internet: curl",
 0,
 "",
@@ -50066,9 +52282,25 @@ false,
 false
 ],
 [
+"time ! pkill -f uvicorn",
+0,
+"",
+false,
+false,
+false
+],
+[
 "time $d='node_modules'; cp a.js $d/x",
 0,
 "",
+false,
+false,
+false
+],
+[
+"time -p pkill -f uvicorn",
+2,
+"kill",
 false,
 false,
 false
@@ -51234,6 +53466,22 @@ false,
 true
 ],
 [
+"tmux new -d 'sleep 1; pkill python'",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"tmux new-session -d \"sleep 1; pkill -f uvicorn\"",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "too deep",
 0,
 "",
@@ -51251,6 +53499,14 @@ false
 ],
 [
 "touch node_modules/x && echo ok",
+0,
+"",
+false,
+false,
+false
+],
+[
+"trap \"rm -rf build\" EXIT",
 0,
 "",
 false,
@@ -51306,6 +53562,14 @@ false,
 false
 ],
 [
+"trap 'pkill -f uvicorn' EXIT",
+0,
+"",
+false,
+false,
+false
+],
+[
 "trap 'pkill python' EXIT",
 0,
 "",
@@ -51330,6 +53594,22 @@ false,
 false
 ],
 [
+"trap -- 'pkill -f uvicorn' EXIT",
+0,
+"",
+false,
+false,
+false
+],
+[
+"trap { Stop-Process -Name python }",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "tried again",
 0,
 "",
@@ -51341,6 +53621,14 @@ false
 "true",
 0,
 "",
+false,
+false,
+false
+],
+[
+"try { Stop-Process -Name python } catch {}",
+2,
+"kill",
 false,
 false,
 false
@@ -51642,6 +53930,14 @@ false,
 false
 ],
 [
+"until false; do rm -rf build; done",
+0,
+"",
+false,
+false,
+false
+],
+[
 "until git push --force origin main; do :; done",
 1,
 "",
@@ -51738,7 +54034,23 @@ false,
 true
 ],
 [
+"uv --directory web run npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
 "uv --directory=x sync",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv --foo pip compile r.in",
 0,
 "",
 true,
@@ -51874,7 +54186,55 @@ false,
 true
 ],
 [
+"uv pip --foo compile r.in",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv pip compile --upgrade r.in",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv pip compile -o node_modules/x r.in",
+0,
+"",
+true,
+false,
+true
+],
+[
 "uv pip compile r.in",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv pip compile r.in && uv pip install x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv pip compile r.in -o .venv/x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv pip compile r.in -o r.txt",
 0,
 "",
 true,
@@ -51891,6 +54251,14 @@ true
 ],
 [
 "uv pip freeze | uv pip install -r /dev/stdin",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv pip install --dry-run x",
 0,
 "",
 true,
@@ -51954,12 +54322,52 @@ false,
 false
 ],
 [
+"uv run -- pip install x",
+0,
+"",
+true,
+false,
+true
+],
+[
 "uv run --frozen pytest",
 0,
 "",
 false,
 false,
 false
+],
+[
+"uv run --no-project pip install x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv run --python 3.12 pip install x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv run -m pip install x",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv run -p 3.12 pip install x",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "uv run npm ci",
@@ -51992,6 +54400,14 @@ false
 true,
 false,
 true
+],
+[
+"uv run python -X utf8 -m pip install x",
+0,
+"",
+false,
+false,
+false
 ],
 [
 "uv run python -m pip install x",
@@ -52082,6 +54498,14 @@ false,
 true
 ],
 [
+"uv sync # --dry-run",
+0,
+"rebuild",
+true,
+false,
+true
+],
+[
 "uv sync && echo ok",
 0,
 "rebuild",
@@ -52112,6 +54536,14 @@ false
 false,
 false,
 false
+],
+[
+"uv tool run pip install x",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "uv tool run ruff",
@@ -52187,6 +54619,14 @@ false
 ],
 [
 "uvicorn app:app & pid=$!; sleep 2; kill -9 $pid",
+0,
+"",
+false,
+false,
+false
+],
+[
+"uvx pip install x",
 0,
 "",
 false,
@@ -52626,6 +55066,14 @@ false,
 false
 ],
 [
+"while :; do npm ci; done",
+0,
+"",
+false,
+false,
+false
+],
+[
 "while Stop-Process -Name python; do :; done",
 0,
 "",
@@ -52698,6 +55146,14 @@ false,
 false
 ],
 [
+"while read l; do cp $l node_modules/; done < list",
+0,
+"",
+false,
+false,
+false
+],
+[
 "while read p; do kill -9 $p; done < pids.txt",
 0,
 "",
@@ -52715,6 +55171,14 @@ false
 ],
 [
 "while taskkill /F /IM python.exe; do :; done",
+0,
+"",
+false,
+false,
+false
+],
+[
+"while true; do pkill -f uvicorn; done",
 0,
 "",
 false,
@@ -52837,6 +55301,14 @@ false
 "wscript x.js",
 0,
 "",
+false,
+false,
+false
+],
+[
+"wt.exe -w 0 cmd /c \"echo; taskkill /F /IM python.exe\"",
+2,
+"kill",
 false,
 false,
 false
@@ -53562,6 +56034,14 @@ true,
 false
 ],
 [
+"xterm -e 'sleep 1; pkill python'",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "y",
 0,
 "",
@@ -53626,6 +56106,14 @@ false,
 false
 ],
 [
+"yarn exec npm ci",
+0,
+"",
+false,
+false,
+false
+],
+[
 "yarn exec npm i",
 0,
 "",
@@ -53648,6 +56136,14 @@ true
 true,
 false,
 true
+],
+[
+"yarn run npm ci",
+0,
+"",
+false,
+false,
+false
 ],
 [
 "yarn test",
@@ -53707,6 +56203,14 @@ true
 ],
 [
 "zombie",
+0,
+"",
+false,
+false,
+false
+],
+[
+"{ npm ci; }",
 0,
 "",
 false,
@@ -53925,7 +56429,55 @@ false
 "npm run-script install": "OA3: a script's name is no verb (web-off still asks it: any install word reaches)",
 "uv pip compile r.in": "OA3: uv pip compile writes a lock file and installs nothing (web-off still asks it)"
 },
-"xfail": [],
+"xfail": [
+"$p = Start-Process python -PassThru -ArgumentList (gps node).Id; Stop-Process -Id $p.Id",
+"$p = Start-Process python -PassThru | % { Get-Process node }; Stop-Process -Id $p.Id",
+"$p = Start-Process python -PassThru | ForEach-Object { Get-Process -Name node }; Stop-Process -Id $p.Id",
+"$p = Start-Process python -PassThru | Select-Object @{n='Id';e={(Get-Process node).Id}}; Stop-Process -Id $p.Id",
+"Select-String -Encoding utf8 ../../b/tree/secret",
+"Select-String -Raw ../../b",
+"Select-String -SimpleMatch ../../b/tree/secret x.txt",
+"at 12:00 \"echo & taskkill /F /IM python.exe\"",
+"bash <<< 'echo; pkill python'",
+"echo \"Get-Date; Stop-Process -Name python\" | pwsh -Command -",
+"echo \"echo; pkill python\" | bash",
+"findstr /m ../../b/tree/x",
+"grep -l ../../b/tree/secret",
+"npm --prefix=web run install",
+"npm exec --call=\"npm ci\"",
+"npm exec --call='npm install x'",
+"npm exec -c=\"npm ci\"",
+"npm rum install",
+"npm run 'ci'",
+"npm run --if-present install",
+"npm run -w web install",
+"npm run ci --foreground-scripts",
+"npm run stop -- \"x; pkill python\"",
+"npm run-script \"ci\"",
+"npm run-script ci",
+"npm urn install",
+"pipx run pip install x",
+"printf 'echo\npkill python\n' | sh",
+"rg --ignore-case ../../b",
+"rg -l ../../b/tree/secret",
+"rg -uuu ../../b",
+"schtasks /create /tn x /tr \"cmd /c echo & taskkill /F /IM python.exe\" /sc once /st 00:00",
+"screen -dm sh -c 'sleep 1; pkill python'",
+"script -c 'echo; pkill python' /dev/null",
+"script -qc \"sleep 1; taskkill /F /IM python.exe\" NUL",
+"start \"\" cmd /c \"echo & taskkill /F /IM python.exe\"",
+"tmux new -d 'sleep 1; pkill python'",
+"tmux new-session -d \"sleep 1; pkill -f uvicorn\"",
+"uv --foo pip compile r.in",
+"uv pip --foo compile r.in",
+"uv pip compile --upgrade r.in",
+"uv pip compile -o node_modules/x r.in",
+"uv pip compile r.in -o .venv/x",
+"uv pip compile r.in -o r.txt",
+"uv tool run pip install x",
+"wt.exe -w 0 cmd /c \"echo; taskkill /F /IM python.exe\"",
+"xterm -e 'sleep 1; pkill python'"
+],
 "up": {
 "git `\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
 "git \\\npush --force origin main": "a continued line is read as the shell reads it: at least its harm",
