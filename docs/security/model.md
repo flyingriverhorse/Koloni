@@ -164,9 +164,10 @@ What is not framed:
   ([Working copies](../use/workspace.md#working-copies)).
 - **An agent's git on a branch** runs none of your repository's hooks (pre-commit, commit-msg, a
   `core.hooksPath` such as husky's), nor your fsmonitor, and signs nothing; a command that clears or
-  sets git's own environment, or writes to a place built when it runs (`$(git rev-parse --git-dir)`,
-  a variable, `Join-Path`) - which may be your repository's own `.git` - is asked at every level. A
-  pull request never pushes commits of yours that origin does not have, in any worktree of yours
+  sets git's own environment, finds your repository's own path (`git rev-parse --git-dir`), or
+  writes to a place built when it runs (`$D/…`, a variable, `Join-Path`) or links to one - which may
+  be your repository's own `.git` - is asked at every level. A pull request never pushes commits of
+  yours that origin does not have, in any worktree of yours
   ([Branches](../use/workspace.md#branches)).
 - **Commands in Docker** (Settings › This project › Commands and secrets): a fresh container for each command, with only
   the folder mounted and the network off unless you allow it.

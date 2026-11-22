@@ -108,8 +108,9 @@ you can check its files are the agent's work. Where such a commit is in another 
 card names that worktree's folder; if you deleted that folder by hand, git still keeps the worktree and
 its commit, and `git worktree prune` lets git drop it. A worktree of yours where you look at the agent's
 branch (`git worktree add --detach <folder> koloni/…`) does not make its commits yours, nor does a
-worktree of another KOLONİ on its own `koloni/…` branch; a worktree of yours whose branch you deleted
-still holds your commits.
+worktree of another KOLONİ on its own `koloni/…` branch - but a commit you made there before it went
+onto such a branch, or one a branch, tag or other remote of yours holds too, stays yours; a worktree
+of yours whose branch you deleted still holds your commits.
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").
