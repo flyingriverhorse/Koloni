@@ -45,6 +45,11 @@ How to write an entry (every release looks the same):
 
 ### Fixed
 
+- **Settings**: the line under **After a change** names the test command you set for a part on the project map, before what KOLONİ saved for another folder, and changes as you save one there ([docs](docs/use/checked.md)).
+- **To-do**: **Write it with the Product owner** asks the next model when one does not answer - your next fast model, then the Orchestrator's - as **Or write it** does, instead of stopping at the first ([docs](docs/automation/todo.md)).
+- **Chat**: the Reviewer that looks over a big change can now run a command that only reads and the project's approved test command exactly as it is set (your check or part test command, a saved one an Always rule covers, a CI line you approved) - anything else is refused and it is told why, and a Reviewer's command never opens a card ([docs](docs/use/checked.md)).
+- **Install**: closing KOLONİ with the page open no longer waits five seconds nor prints "Cancel N running task(s)": the page's stream ends on Ctrl+C ([docs](docs/getting-started/install.md)).
+- **Memory**: a fast model's notes on a turn that hold a long run of space inside their code fence are read at once - 100 000 spaces took a minute on KOLONİ's own loop.
 - **Agents**: **Or write it** on the Recipes tab no longer fails with "Local isn't answering" while your local model server is not running: it passes over a model whose server looked down, asks the next model of the tier and then the Orchestrator's own, names every one it tried when none answers, and the note under it says which model it will ask ([docs](docs/agents/recipes.md)).
 - **Agents**: a Candidates step with a loop (the ready **Evolve** recipe) runs one round only when the project has no measure command - with no score nothing reaches the target, so its other rounds opened up to 9 more Coders for nothing; the candidates' card says why ([docs](docs/agents/recipes.md#candidates)).
 - **Chat**: a heredoc written to a file or handed to git as a message (`cat > notes.md <<'EOF'` with `1) first` in it), a comment (`echo done # 1) first step`), sh's `case … esac` patterns and a group only printed in quotes (`echo "(npm ci)"`, `git commit -m "run (npm ci) first"`) are no longer asked at every level as brackets that do not pair, nor read as an install ([docs](docs/use/permissions.md)).

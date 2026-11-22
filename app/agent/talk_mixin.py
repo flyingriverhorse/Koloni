@@ -229,7 +229,8 @@ class TalkMixin:
             schemas = [*schemas, RECALL_OUTPUT_SCHEMA]
         return schemas + between + [
             mcp_client.schema(server.name, tool) for server, tool in self._mcp(ctx).values()
-        ] + skill_schemas(known, "run_command" in tools) + pick
+        ] + skill_schemas(known, "run_command" in tools and ctx.agent_id not in (
+            self._read_only_agents)) + pick  # (a skill's script: not for KOLONİ's Reviewer)
 
     def _offered_step(self: "AgentRunner", ctx: Ctx, schemas: list[dict],
                       step: tuple[frozenset[str], str], running: bool) -> None:
