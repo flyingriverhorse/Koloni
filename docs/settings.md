@@ -59,10 +59,6 @@ defaults: ask when it matters, 2 at the same time, 2 levels, 6 per request.
 
 The sections are listed on the left, in this order.
 
-![Settings, This project: the sections on the left, and Asking and away on the right with Opening a sub-agent, When you're away, A harmful-looking command at Full auto and Agents may delete what is disposable without asking](images/settings-project.png)
-
-*Settings › This project, at **Asking and away**.*
-
 ### Agents
 
 "Every chat of this project follows these, the ones made before too."
@@ -75,6 +71,10 @@ The sections are listed on the left, in this order.
 | **Suggest follow-up tasks after each turn** | On by default. After a turn that did something, the Assistant PO proposes at most three [follow-up tasks](automation/todo.md#follow-up-tasks) for the To-do list; they wait for your **Add**, **Edit** or **Reject**. One small model request per such turn, made once the turn is over, and at Full auto in a turn you started one more for the Orchestrator's decision. **Follow-up tasks from** picks the tier: **Fast tier** (the default), **Balanced tier** or **Strongest tier**. |
 
 ### Asking and away
+
+![Settings, This project: the sections on the left, and Asking and away on the right with Opening a sub-agent, When you're away, A harmful-looking command at Full auto and Agents may delete what is disposable without asking](images/settings-project.png)
+
+*Settings › This project, at **Asking and away**.*
 
 | Setting | What it does |
 |---|---|

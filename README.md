@@ -39,7 +39,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 <td width="50%"><img src="docs/images/take-in.png" alt="The Ready for you panel asks: take the work into the project?"><br><sub><b>The card.</b> A team's work stays in its copy until you say Take in, or Ask for changes in your own words.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="pages/assets/ways/room.png" alt="A room where a Coder and a Reviewer look at the greeting together, with their posts and reports"><br><sub><b>A room.</b> Two to six agents on one goal, in rounds, with a token budget and a clock.</sub></td>
+<td width="50%"><img src="docs/images/away-panel.png" alt="The Away panel over the message box: two To-do tasks ticked, what the Orchestrator decides for you and what always waits, a stop time and a spend limit"><br><sub><b>☾ Away.</b> Your To-do tasks worked through one at a time, each in its own copy, until you are back.</sub></td>
 <td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them; nothing invented.</sub></td>
 </tr>
 </table>
@@ -95,7 +95,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 |---|---|---|
 | Claude Code | session (KOLONİ's tools over MCP) or native | `claude auth login` |
 | Codex | session (KOLONİ's tools over MCP), step, or native | `codex login` |
-| GitHub Copilot CLI | session or native (1.0.114 on, through KOLONİ's hook); `auto` and `fusion` pick the model, with a routing | `gh auth login` |
+| GitHub Copilot CLI | session or native (asks before its tools; from 1.0.114 on through KOLONİ's own hook); `auto` and `fusion` pick the model, with a routing | `gh auth login` |
 | agy | reads (its default) or native | agy's own sign-in |
 | Qoder | session | Qoder's own sign-in |
 | llama.cpp `llama-server` | OpenAI-compatible, started with `--jinja`; the Server tab starts and stops it | — |
