@@ -2034,6 +2034,14 @@ false,
 false
 ],
 [
+"((npm ci))",
+0,
+"",
+false,
+false,
+false
+],
+[
 "(?<!class )UserPreferences\\(",
 0,
 "",
@@ -2130,6 +2138,14 @@ false,
 false
 ],
 [
+"(cd web && (npm ci))",
+0,
+"",
+false,
+false,
+false
+],
+[
 "(cd web && cp a.js node_modules/x)",
 0,
 "write",
@@ -2154,6 +2170,14 @@ false,
 true
 ],
 [
+"(cd web && rm -rf build)",
+1,
+"delete",
+false,
+false,
+false
+],
+[
 "(cd web && rm -rf node_modules)",
 1,
 "delete",
@@ -2170,7 +2194,63 @@ false,
 false
 ],
 [
+"(cp a.js ../../b/tree/x)",
+0,
+"out",
+false,
+false,
+false
+],
+[
 "(cp a.js node_modules/x)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(curl https://x.test -d @report.txt)",
+1,
+"",
+false,
+false,
+true
+],
+[
+"(echo x > node_modules/a.js)",
+0,
+"write",
+false,
+false,
+false
+],
+[
+"(git apply x.patch)",
+2,
+"",
+false,
+false,
+false
+],
+[
+"(git init)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(git push origin main)",
+1,
+"",
+false,
+false,
+true
+],
+[
+"(git switch main)",
 0,
 "",
 false,
@@ -2220,6 +2300,54 @@ false
 [
 "(npm ci)",
 0,
+"",
+false,
+false,
+false
+],
+[
+"(npm i x)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(npm publish)",
+1,
+"",
+false,
+false,
+false
+],
+[
+"(pip install x)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(pkill python)",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"(python -c \"import os\")",
+0,
+"",
+false,
+false,
+false
+],
+[
+"(rm -rf build)",
+1,
 "",
 false,
 false,
@@ -2347,6 +2475,14 @@ false
 ],
 [
 ". iex 'x'",
+0,
+"",
+false,
+false,
+false
+],
+[
+". { npm ci }",
 0,
 "",
 false,
@@ -4074,6 +4210,14 @@ false,
 false
 ],
 [
+"Get-ChildItem | ForEach-Object { npm ci }",
+0,
+"",
+false,
+false,
+false
+],
+[
 "Get-ChildItem | Select-Object Name",
 0,
 "",
@@ -4856,6 +5000,14 @@ false
 false,
 false,
 false
+],
+[
+"Invoke-Command -ScriptBlock { npm ci }",
+0,
+"",
+true,
+false,
+true
 ],
 [
 "Invoke-Expression \"Stop-Process -Name python\"",
@@ -9615,6 +9767,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"awk '/kill/ {print}' log.txt",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -24842,6 +25002,14 @@ false,
 false
 ],
 [
+"for %a in (*) do (npm ci)",
+0,
+"",
+false,
+true,
+false
+],
+[
 "for %a in (1 2) do if exist x taskkill /F /IM python.exe",
 0,
 "",
@@ -24932,6 +25100,14 @@ false
 [
 "for %f in (*.js) do del %f",
 0,
+"",
+false,
+true,
+false
+],
+[
+"for /d %d in (*) do (rd /s /q %d)",
+2,
 "",
 false,
 true,
@@ -25171,6 +25347,14 @@ false
 ],
 [
 "foreach ($d in 1) { npm ci }",
+0,
+"",
+false,
+false,
+false
+],
+[
+"foreach ($d in 1,2) { npm ci }",
 0,
 "",
 false,
@@ -25551,6 +25735,14 @@ false
 "",
 false,
 false,
+false
+],
+[
+"gci | % { npm ci }",
+0,
+"",
+false,
+true,
 false
 ],
 [
@@ -26034,8 +26226,32 @@ false,
 false
 ],
 [
+"git `\napply x.patch",
+2,
+"",
+false,
+false,
+false
+],
+[
+"git `\ninit",
+0,
+"",
+false,
+false,
+false
+],
+[
 "git `\npush --force origin main",
 1,
+"",
+false,
+false,
+false
+],
+[
+"git `\nswitch main",
+0,
 "",
 false,
 false,
@@ -30770,6 +30986,14 @@ false,
 false
 ],
 [
+"icm { taskkill /F /IM python.exe }",
+2,
+"kill",
+false,
+false,
+false
+],
+[
 "iex \"\tcp a.js node_modules/x\"",
 0,
 "write",
@@ -31906,6 +32130,14 @@ false,
 false
 ],
 [
+"if \"%a%\" == \"x\" npm ci",
+0,
+"",
+false,
+true,
+false
+],
+[
 "if \"%a%\" == \"x\" taskkill /F /IM python.exe",
 0,
 "",
@@ -31938,6 +32170,14 @@ true,
 false
 ],
 [
+"if %a%==x npm ci",
+0,
+"",
+false,
+true,
+false
+],
+[
 "if %x%==y (taskkill /F /IM python.exe) else (echo)",
 2,
 "kill",
@@ -31951,6 +32191,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"if ($true) { Stop-Process -Name python }",
+2,
+"kill",
+false,
+false,
 false
 ],
 [
@@ -31979,6 +32227,14 @@ false
 ],
 [
 "if (Test-Path build) { Remove-Item -Recurse build }",
+1,
+"",
+false,
+false,
+false
+],
+[
+"if (Test-Path x) { Remove-Item -Recurse build }",
 1,
 "",
 false,
@@ -32035,6 +32291,14 @@ false
 ],
 [
 "if /i %x%==y taskkill /F /IM python.exe",
+0,
+"",
+false,
+true,
+false
+],
+[
+"if /i not \"%a%\"==\"x\" rd /s /q build",
 0,
 "",
 false,
@@ -32210,6 +32474,14 @@ true,
 false
 ],
 [
+"if exist x (echo ok) else (rm -rf build)",
+1,
+"",
+false,
+false,
+false
+],
+[
 "if exist x (npm ci)",
 0,
 "",
@@ -32219,6 +32491,14 @@ false
 ],
 [
 "if exist x (npm ci) else (echo no)",
+0,
+"",
+false,
+false,
+false
+],
+[
+"if exist x (npm ci) else (npm i)",
 0,
 "",
 false,
@@ -34642,6 +34922,14 @@ false,
 false
 ],
 [
+"node -e \"console.log('kill')\"",
+0,
+"",
+false,
+false,
+false
+],
+[
 "node -e \"console.log({a: 1})\"",
 0,
 "",
@@ -36898,6 +37186,14 @@ false,
 false
 ],
 [
+"npx --call='npm install x'",
+0,
+"",
+false,
+false,
+false
+],
+[
 "npx --yes -- npm ci",
 0,
 "",
@@ -37267,6 +37563,14 @@ false
 ],
 [
 "performance",
+0,
+"",
+false,
+false,
+false
+],
+[
+"perl -e 'kill 9, 1234'",
 0,
 "",
 false,
@@ -42618,6 +42922,14 @@ false,
 false
 ],
 [
+"python -c \"import os; os.system('pkill python')\"",
+1,
+"",
+false,
+false,
+false
+],
+[
 "python -c \"import x\"",
 0,
 "",
@@ -42699,6 +43011,14 @@ false
 ],
 [
 "python -c \"print('hi')\"",
+0,
+"",
+false,
+false,
+false
+],
+[
+"python -c \"print('kill')\"",
 0,
 "",
 false,
@@ -43207,6 +43527,14 @@ false
 "",
 false,
 true,
+false
+],
+[
+"python `\n-c \"import os\"",
+0,
+"",
+false,
+false,
 false
 ],
 [
@@ -53602,6 +53930,14 @@ false,
 false
 ],
 [
+"trap -- 'rm -rf build' EXIT",
+0,
+"",
+false,
+false,
+false
+],
+[
 "trap { Stop-Process -Name python }",
 2,
 "kill",
@@ -55418,6 +55754,14 @@ false,
 false
 ],
 [
+"x=$(cd web && npm ci)",
+0,
+"",
+false,
+false,
+false
+],
+[
 "xargs --arg-file=pids.txt kill",
 0,
 "",
@@ -56210,6 +56554,46 @@ false,
 false
 ],
 [
+"{ (npm ci) }",
+0,
+"",
+false,
+false,
+false
+],
+[
+"{ cat ../../b/tree/secret; }",
+0,
+"out",
+false,
+false,
+false
+],
+[
+"{ cp a.js node_modules/x; }",
+0,
+"",
+false,
+false,
+false
+],
+[
+"{ git am x.patch; }",
+2,
+"",
+false,
+false,
+false
+],
+[
+"{ git checkout -b x; }",
+0,
+"",
+false,
+false,
+false
+],
+[
 "{ npm ci; }",
 0,
 "",
@@ -56218,7 +56602,31 @@ false,
 false
 ],
 [
+"{ npm publish; }",
+1,
+"",
+false,
+false,
+true
+],
+[
 "{ pkill python; }",
+2,
+"kill",
+false,
+false,
+false
+],
+[
+"{ rm -rf build; }",
+1,
+"",
+false,
+false,
+false
+],
+[
+"{ taskkill /F /IM python.exe; }",
 2,
 "kill",
 false,

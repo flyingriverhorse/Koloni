@@ -545,6 +545,13 @@ _HANDS_WORDS = re.compile(r"(?i)(?<![\w-])(?:xargs|parallel)(?![\w-])")
 _AWK = re.compile(r"(?i)(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?[gmn]?awk(?:\.exe)?\s")
 _CODE_STOPS = re.compile(r"(?i)(?<![\w-])(?:taskkill|tskill|pkill|killall|kill|stop-process|spps)"
                          r"(?![\w-])|\.(?:kill|terminate)\s*\(|\bsignal\.SIG")
+# ...where the code calls a process's own way to run or end one (k-okuyucu): a stop's name in a
+# string alone (`print('kill')`, `awk '/kill/'`) runs nothing.
+_PROCESS_API = re.compile(
+    r"(?i)\b(?:system|subprocess|child_process|popen\w*|spawn\w*|exec\w*|eval|shell_exec|"
+    r"passthru|proc_open|runtime|processbuilder|start-process|invoke-expression|iex|"
+    r"shellexecute\w*|os\.kill|process\.kill|signal\.sig\w*|qx)\b|\.(?:kill|terminate)\s*\(|`"
+    r"|\bkill\s*[(\d$-]|\bkill\s+['\"]")
 # A line's words as its shell splits them - by its quotes, glued ones too (`--grep="x|kill"`) -
 # and what joins its commands (`_stands`).
 _SHELL_WORDS = re.compile(r"""(?:[^\s'";&|(){}]|"[^"]*"|'[^']*')+|[;&|(){}]+""")
@@ -875,7 +882,7 @@ def _stop_kind_of(command: str) -> str:
                for words in _parts(stage, _BLOCKS) if words)
     if _WMI_STOPS.search(command) or stands and _HANDS_WORDS.search(command) or ends and (
             _stands(command, _STOP_METHODS)) or _CODE_STOPS.search(command) and (
-            _INLINE.search(command) or _AWK.search(command)):
+            _PROCESS_API.search(command)) and (_INLINE.search(command) or _AWK.search(command)):
         return "koloni"
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 
@@ -1009,9 +1016,14 @@ def _outside_here(path: str) -> bool:
 
 def switches_branch(command: str) -> bool:
     """K-dallar: whether a part of a command moves the project onto another branch - `git
-    switch`, `git checkout <branch>` (not `-- <path>`, nor `.`, which `danger` asks about).
+    switch`, `git checkout <branch>` (not `-- <path>`, nor `.`, which `danger` asks about) - in
+    any reading (`_readings`: `git `⏎`switch x` too, k-okuyucu).
     shortcut: `git checkout file.py` with no `--` reads as a switch too - git itself tells them
     apart by what the word names; it is asked about only while another's work is held."""
+    return any(map(_switches_branch, _readings(command)))
+
+
+def _switches_branch(command: str) -> bool:
     for words in _parts(command):
         sub, rest = _git_sub(words)
         if not rest or {"-h", "--help"} & set(rest):
@@ -1171,7 +1183,8 @@ def reaches_shared_git(command: str, own: str | None = None) -> str:
         return SHARED_GIT
     read = 0
     for words in (words for words in _commands_in(command) if words):
-        if words == [UNREAD]:
+        if words == [UNREAD] or _program(words[0]) != "git" and _program(
+                words[0].strip("(){}")) == "git":  # (git glued to a bracket: `(git) stash pop`)
             return SHARED_GIT
         if _program(words[0]) == "git":
             read += 1
@@ -1348,7 +1361,8 @@ def _verbs(words: list[str], left: list[int] | None = None) -> list[tuple[str, s
             verbs += _verbs(["pip", *rest[at + 1:]], left)
         elif program in _RUNNERS_OF or verb in _RUNS_PACKAGE.get(program, ()) or (
                 verb in ("run", "tool") and program in _ENV_RUNNERS):
-            inner = rest[at:] if program in _RUNNERS_OF else rest[at + 1:]
+            # (a runner's own options too: `npx --call="npm ci"`, `npx -c "npm ci"`)
+            inner = rest if program in _RUNNERS_OF else rest[at + 1:]
             for start, word in enumerate(inner):
                 # (a command glued to its option, its quotes split by the line's words:
                 # `npm exec --call="npm ci"`, `-c='npm i x'`)
@@ -2217,13 +2231,47 @@ def _git_sub(words: list[str]) -> tuple[str | None, list[str]]:
 
 
 def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
+    """A line's parts, split `at`, each past what leads into it (`_led`) - and what its groups
+    hold, split so too (`_groups`: `(cd web && npm ci)`, `{ npm ci; }`, `if ($true) { npm ci }`);
+    a group that does not pair, or past MAX_OTHER_READINGS of them, is [UNREAD]: what runs
+    there is not read (an "always" harm, `_danger_of`)."""
     # (cmd's `for /f %a in ('del x') do y` runs its set's command too: a part of its own - in
     # any split, as `_BLOCKS` cuts at its brackets - as `_led` reads past the loop to `y`)
     sets = re.findall(r"(?i)(?:^|[\s;&|(@])for\s[^;&|]*?\bin\s*\(\s*(['`\"])(.*?)\1\s*\)",
                       command)
+    groups, paired = _groups(command)
     return [*([word.strip("'\"") for word in _words(inner)] for _quote, inner in sets),
             *([word.strip("'\"") for word in _led(_words(part.strip()))]
-              for part in at.split(command))]
+              for text in (command, *groups) for part in at.split(text)),
+            *([] if paired else [[UNREAD]])]
+
+
+def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
+    """What a line's brackets hold, outside its quotes - `( ... )`, `{ ... }`, `@( ... )`, a
+    script block, cmd's `if x ( ... ) else ( ... )` - but a `$( ... )` / `${...}`, read as a
+    substitution (`_substituted`, `_BLOCKS`); and whether they pair, within MAX_OTHER_READINGS
+    of them (k-okuyucu). Quotes that do not pair are no quotes."""
+    found: list[str] = []
+    opened: list[tuple[str, int]] = []
+    quote = ""
+    for mark in re.finditer(r"""[(){}'"]""" if quotes else r"[(){}]", command):
+        char, at = mark[0], mark.start()
+        if quote:
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            quote = char
+        elif char in "({":
+            opened.append((char, at))
+        elif not opened or opened[-1][0] != ("(" if char == ")" else "{"):
+            return found, False
+        else:
+            start = opened.pop()[1]
+            if command[start - 1:start] == "$":
+                continue
+            if len(found) >= MAX_OTHER_READINGS:
+                return found, False
+            found.append(command[start + 1:at])
+    return _groups(command, quotes=False) if quote else (found, not opened)
 
 
 # What leads into a part's command without being it (review round 4), for every rule: sh's `!`,
@@ -2239,25 +2287,24 @@ def _led(words: list[str]) -> list[str]:
     """A part's command past what leads into it (`_LEADS`): `if pkill -f x` is pkill's, `if not
     exist x.pid taskkill /IM python.exe` taskkill's, `$p = Get-Process x` Get-Process's - but
     `$g = 'git'` sets a word, runs nothing (its quotes are read: `_parts` hands the words as
-    written).
-    shortcut: cmd's quoted comparison (`if "%a%"=="x" npm ci`), a group run as one (`(cd web &&
-    npm ci)`, `{ npm ci; }`, `if exist x (npm ci)`, `if ($true) { npm ci }`: the quote-blind
-    split reads its inside where it is a part of its own only) and `trap -- '...' EXIT` are not
-    read past; 0.1.6 (review round 5)."""
+    written). cmd's quoted comparison too, however its quotes split it (`if "%a%"=="x" npm ci`),
+    and trap's `--`; what a group holds is `_groups`'."""
     while words:
         first = words[0].casefold()
         if first in _LEADS:
             words = words[1:]
             while first == "if" and words and words[0].casefold() in ("/i", "not"):
                 words = words[1:]
-            if first == "if" and words:  # (cmd's test or comparison before its command)
+            if first == "if" and words:  # (cmd's test or comparison before its command -
+                # `"%a%"=="x"` splits at its quotes into `"%a%"` and `=="x"`)
                 words = words[2:] if words[0].casefold() in _CMD_TESTS else words[3:] if len(
-                    words) > 2 and words[1].casefold() in _CMD_COMPARES else words[
+                    words) > 2 and words[1].casefold() in _CMD_COMPARES else words[2:] if len(
+                    words) > 1 and words[1].startswith("==") else words[
                     1:] if "==" in words[0] else words
         elif first == "for" and "do" in (low := [word.casefold() for word in words]):
             words = words[low.index("do") + 1:]
-        elif first == "trap" and len(words) > 1:
-            return ["eval", words[1]]
+        elif first == "trap" and len(words) > 1 and len(words) > 1 + (words[1] == "--"):
+            return ["eval", words[1 + (words[1] == "--")]]  # (`trap -- 'x' EXIT`)
         elif first.startswith("@") and len(first) > 1:
             words = [words[0][1:], *words[1:]]
         elif len(words) > 2 and re.fullmatch(r"\$[\w:]+", words[0]) and words[1] == "=" and (
@@ -2305,7 +2352,13 @@ def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:
 def writes_git_config(command: str) -> bool:
     """Whether a command is git's own alone (`_git_alone`) and one of its parts rewrites
     `.git/config` as it works (`git init`, `git remote add`, `git push -u`, `git checkout
-    --track`, `git config` not `--global`)."""
+    --track`, `git config` not `--global`) - in every reading (`_readings`, k-okuyucu): what
+    it lets stand is the least any reading lets (`git init # `⏎`rm .git/config` is not git's
+    own alone as written)."""
+    return all(map(_writes_git_config, _readings(command)))
+
+
+def _writes_git_config(command: str) -> bool:
     return any(sub in _CONFIG_WRITERS
                or sub == "push" and bool({"-u", "--set-upstream"} & set(rest))
                or sub == "config" and not {"--global", "--system"} & set(rest)
@@ -2320,7 +2373,12 @@ _ONLY_LOOKS = ("--check", "--stat", "--numstat", "--summary", "--dry-run",
 def applies_patch(command: str) -> bool:
     """Whether a part of a command applies a patch (`git apply`, `git am`, `patch`): it writes
     whatever files the patch names - `.github/workflows` too - without the line naming them.
-    Not one that only looks at it (`--check`, `--stat`, `--dry-run`)."""
+    Not one that only looks at it (`--check`, `--stat`, `--dry-run`). In any reading
+    (`_readings`, k-okuyucu)."""
+    return any(map(_applies_patch, _readings(command)))
+
+
+def _applies_patch(command: str) -> bool:
     for words in _parts(command):
         sub, rest = _git_sub(words)
         applies = sub in ("apply", "am") or bool(words) and _program(words[0]) == "patch"
@@ -2347,9 +2405,7 @@ def joined(line: str) -> str:
 
 def readings(line: str) -> list[str]:
     """Every way KOLONİ reads a command line (`_readings`): joined, as written and what its
-    backtick pairs hold - a caller outside this module judges each (review round 4).
-    shortcut: `switches_branch`, `runs_inline`, `writes_git_config` and `applies_patch` read the
-    line as written only, not each reading; 0.1.6."""
+    backtick pairs hold - a caller outside this module judges each (review round 4)."""
     return _readings(line)
 
 
@@ -3581,9 +3637,10 @@ _INLINE = re.compile(
 
 
 def runs_inline(command: str) -> str:
-    """Why a command runs code written on its line (`_INLINE`), in one sentence; "" for none."""
+    """Why a command runs code written on its line (`_INLINE`), in one sentence; "" for none -
+    in any reading (`_readings`: `python `⏎`-c "x"` too, k-okuyucu)."""
     return ("It runs code written on the line: what it does is not seen."
-            if _INLINE.search(command) else "")
+            if any(map(_INLINE.search, _readings(command))) else "")
 
 
 def _module_run(words: list[str]) -> list[str]:

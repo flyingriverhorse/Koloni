@@ -6,6 +6,15 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Chat**: an agent's command whose inline code only prints a stop's name (`python -c "print('kill')"`, `awk '/kill/ {print}' log.txt`) no longer asks as a stop of KOLONİ itself; one whose code runs or ends a process (`os.system('pkill x')`, `execSync(...)`, `system(...)`, `os.kill(...)`) still does ([docs](use/permissions.md)).
+
+### Security
+
+- **Chat**: what an agent's command runs inside a group is read as a command of its own - `(cd web && npm ci)`, `{ npm ci; }`, `if exist x (npm ci) else (npm i)`, `for %a in (*) do (npm ci)` and PowerShell's script blocks (`if ($true) { npm ci }`, `ForEach-Object { … }`, `& { … }`, `Invoke-Command -ScriptBlock { … }`): an install, a rebuild, a write through a working copy's linked folders, a stop, a delete or a send there is asked as it is on a line of its own, with web off too; a group whose brackets do not pair is always asked ([docs](use/permissions.md)).
+- **Chat**: cmd's `if "%a%"=="x" …`, `trap -- '…' EXIT` and `npx --call="…"` are read to the command they run, and a branch switch, inline code, a patch and a git command that rewrites `.git/config` are read in a continued line too (`git `⏎`switch main`) ([docs](use/permissions.md)).
+
 ## [0.1.5] - 2026-11-22
 
 ### Added

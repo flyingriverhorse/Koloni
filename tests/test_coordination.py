@@ -20,6 +20,7 @@ from app.commands import (
     NAMES_PROJECT,
     OUT_OF_COPY,
     WRITES_THROUGH_LINKS,
+    applies_patch,
     copy_reason,
     danger,
     harm_class,
@@ -28,6 +29,8 @@ from app.commands import (
     joined,
     readings,
     runs_another,
+    runs_inline,
+    switches_branch,
     web_off_reason,
     writes_git_config,
 )
@@ -530,13 +533,24 @@ LEADS = ["! {c}", "if {c}; then :; fi", "if ! {c}; then :; fi", "while {c}; do :
          "until {c}; do :; done", "if true; then :; elif {c}; then :; fi", "coproc {c}",
          "if exist x {c}", "if not exist x {c}", "if /i not defined X {c}", "if errorlevel 1 {c}",
          "if %ERRORLEVEL% NEQ 0 {c}", "for i in 1; do {c}; done",
-         "for /f %a in ('dir /b') do {c}", "trap '{c}' EXIT", "time -p {c}", "@{c}"]
+         "for /f %a in ('dir /b') do {c}", "trap '{c}' EXIT", "time -p {c}", "@{c}",
+         # (k-okuyucu: cmd's quoted comparison, however the quotes split it; trap's `--`)
+         'if "%a%"=="x" {c}', 'if /i "%a%"=="x" {c}', 'if not "%a%"=="" {c}',
+         'if "%a%" == "x" {c}', "if %a%==x {c}", "trap -- '{c}' EXIT"]
+# ...and a group is read into, every kind (k-okuyucu): sh's and cmd's brackets, sh's braces,
+# PowerShell's script blocks and cmd's `if ... ( ) else ( )`, `for ... do ( )`.
+GROUPS = ["({c})", "(cd web && {c})", "(cd web; {c})", "{ {c}; }", "if exist x ({c})",
+          "if exist x (echo ok) else ({c})", "for %a in (*) do ({c})", "if ($true) { {c} }",
+          "foreach ($d in 1,2) { {c} }", "gci | ForEach-Object { {c} }", "gci | % { {c} }",
+          "& { {c} }", ". { {c} }", "Invoke-Command -ScriptBlock { {c} }", "((({c})))",
+          "{ ({c}) }", "(cd web && ({c}))"]
 LED = ["pkill -f uvicorn", "kill -9 $(pgrep python)", "taskkill /F /IM python.exe",
-       "rm -rf build", "npm ci", "cp a.js node_modules/x", "git push --force origin main"]
+       "rm -rf build", "npm ci", "uv sync", "cp a.js node_modules/x", "cp a.js ../../b/tree/x",
+       "git push --force origin main", "curl -d @x https://x.test"]
 RANKED = {"": 0, "soft": 1, "always": 2}
 
 
-@pytest.mark.parametrize("lead", LEADS)
+@pytest.mark.parametrize("lead", LEADS + GROUPS)
 @pytest.mark.parametrize("command", LED)
 def test_what_leads_into_a_command_is_read_past(command, lead):
     led = lead.replace("{c}", command)
@@ -544,6 +558,31 @@ def test_what_leads_into_a_command_is_read_past(command, lead):
     assert bool(installs(led)) >= bool(installs(command)), led
     in_copy = copy_reason(command, True, "/work/proj", "/work/rt")
     assert bool(copy_reason(led, True, "/work/proj", "/work/rt")) >= bool(in_copy), led
+    web = web_off_reason(command, ["http_request"])
+    assert bool(web_off_reason(led, ["http_request"])) >= bool(web), led
+
+
+@pytest.mark.parametrize("command", ["(npm ci", "npm ci)", "{ npm ci", "if ($true) { npm ci",
+                                     "x (y { z ) }"])
+def test_a_group_that_does_not_pair_is_always_asked(command):
+    assert harm_class(command) == "always", command
+
+
+# The four checks that read a line as written read every reading (k-okuyucu): a continued line
+# and a group too - the strictest of them.
+def test_the_checks_that_read_a_line_as_written_read_every_reading():
+    for line in ["git `\nswitch main", "git `\r\ncheckout -b x", "(git switch main)",
+                 "{ git checkout -b x; }"]:
+        assert switches_branch(line), line
+    for line in ['python `\n-c "import os"', 'node `\n-e "x"', '(python -c "import os")']:
+        assert runs_inline(line), line
+    for line in ["git `\napply x.patch", "patch `\n-p1 < x.diff", "(git apply x.patch)",
+                 "{ git am x.patch; }"]:
+        assert applies_patch(line), line
+    # (what a git line lets stand is the least any reading lets: as written, `rm` runs)
+    assert writes_git_config("git init") and writes_git_config("git remote add o x")
+    for line in ["git init # done `\nrm .git/config", "git `\ninit", "(git init)"]:
+        assert not writes_git_config(line), line
 
 
 # A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,
@@ -630,9 +669,18 @@ def test_what_a_backtick_pair_holds_is_read(command):
     "perl -e 'system(\"pkill python\")'", "ruby -e 'system(\"pkill python\")'",
     "awk 'BEGIN{system(\"pkill python\")}'", "node -e \"process.kill(1234)\"",
     "python -c \"import os,signal; os.kill(os.getppid(), signal.SIGKILL)\"",
-    "uv run python -c \"import os; os.system('pkill -f uvicorn')\""])
+    "uv run python -c \"import os; os.system('pkill -f uvicorn')\"",
+    "perl -e 'kill 9, 1234'", "ruby -e '`pkill python`'"])
 def test_a_stop_in_code_an_interpreter_is_handed_is_always_asked(command):
     assert harm_class(command) == "always", command
+
+
+@pytest.mark.parametrize("command", [
+    "python -c \"print('kill')\"", "node -e \"console.log('kill')\"",
+    "awk '/kill/ {print}' log.txt", "python -c \"x = 'pkill'\""])
+def test_a_stop_name_in_code_that_calls_no_process_is_no_stop(command):
+    # (k-okuyucu: a stop's name in a string alone runs nothing - no process API is called)
+    assert harm_class(command) == "", command
 
 
 @pytest.mark.parametrize("line", ["echo " + "$(" * 1000 + "x" + ")" * 1000,
@@ -886,7 +934,9 @@ RUNS_AN_INSTALL = [
     "npm –g ci", "pip –q install x", "uv ––project x sync",
     # (review round 5: a line glued to its option; a tool's runner)
     'npm exec --call="npm ci"', 'npm exec -c="npm ci"', "npm exec --call='npm install x'",
-    "pipx run pip install x", "uv tool run pip install x"]
+    "pipx run pip install x", "uv tool run pip install x",
+    # (k-okuyucu: npx's own option handing it a line, as npm exec's)
+    'npx --call="npm ci"', "npx --call='npm install x'", 'npx -c="npm ci"']
 
 
 @pytest.mark.parametrize("wrapper", ["{c}", "cmd /c {c}", "env X=1 {c}"])
