@@ -2959,8 +2959,10 @@ class RecipeOut(BaseModel):
 
 
 class RecipeWriter(BaseModel):
-    # Why "Or write it" cannot ask the Lead's model now; None: it can.
+    # Why "Or write it" cannot ask a model now; None: it can.
     why: str | None
+    # Whom it asks first ("Balanced: Local · qwen3"); None where it cannot ask.
+    asks: str | None = None
 
 
 class RecipesOut(BaseModel):

@@ -40,6 +40,7 @@ How to write an entry (every release looks the same):
 
 ### Fixed
 
+- **Agents**: **Or write it** on the Recipes tab no longer fails with "Local isn't answering" while your local model server is not running: it passes over a model whose server looked down, asks the next model of the tier and then the Orchestrator's own, names every one it tried when none answers, and the note under it says which model it will ask ([docs](docs/agents/recipes.md)).
 - **Chat**: a heredoc written to a file or handed to git as a message (`cat > notes.md <<'EOF'` with `1) first` in it), a comment (`echo done # 1) first step`), sh's `case … esac` patterns and a group only printed in quotes (`echo "(npm ci)"`, `git commit -m "run (npm ci) first"`) are no longer asked at every level as brackets that do not pair, nor read as an install ([docs](docs/use/permissions.md)).
 - **Agents**: the ready Bugfix recipe sends a failing test back to Fix it and starts with a failing test; a Tester or reviewer that reports nothing wrong while a test run on record failed no longer passes - unless its "Already failing before" lines name every test that failed - nor does a Tester that ran no command but reads; a check whose command you declined stops at Ready for you, not checked ([docs](docs/agents/recipes.md)).
 - **Agents**: KOLONİ no longer freezes for seconds when a tool's output holds a long run of digits (a command that prints a big number, a file of numbers read), when the fast model's notes on a turn start with many blank lines, or when a fixer's report holds a long line of spaces.

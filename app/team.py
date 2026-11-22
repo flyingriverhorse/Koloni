@@ -3,7 +3,7 @@ them. What an agent is shown and what is accepted from it are both made from the
 entries, and an entry holds nothing an agent must not see (no address, no key)."""
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field, replace
 from math import inf
 from typing import Any
@@ -612,12 +612,23 @@ def asked_how_hard(
 ) -> tuple[Entry, str] | None:
     """Whom a lead whose model follows the message asks how hard it is: the first fast
     model that may be picked for the Lead (`would`) now and that can answer with every
-    tool off. None: nobody is asked. What `AgentRunner._by_how_hard` acts on, and what
-    the table of who uses what says. `tier`: another tier's first, for another request
+    tool off (`askable`). None: nobody is asked. What `AgentRunner._by_how_hard` acts on, and
+    what the table of who uses what says. `tier`: another tier's first, for another request
     of KOLONİ's own (a recipe drawn: balanced)."""
+    return next(askable(session, would, clients, tier), None)
+
+
+def askable(
+    session: Session, would: Would, clients: Providers, tier: str = TIERS[0]
+) -> Iterator[tuple[Entry, str]]:
+    """The models of `tier` that may be picked for the Lead (`would`) now and can answer with
+    every tool off, in the tier's order: not one whose provider looked down when last read
+    (`Would.down`: a local model server not running, as `Would.pick` passes it over)."""
     # shortcut: a fast model past its provider's limit of spend (81c) is still asked this one
     # short question; pass it over as `Would.pick` does if such a question is ever counted.
     for fast in would.tried(tier):  # in the tier's order, as the user set it
+        if fast[0].name in would.down:
+            continue
         client: Any = clients.client(session.get_one(Provider, fast[0].provider_id), fast[1])
         # As `ask_once` asks: a CLI at work with its own tools speaks with them off. One
         # that still has them then (agy reads where it likes however it is started) is
@@ -625,8 +636,7 @@ def asked_how_hard(
         if getattr(client, "native", False):
             client = client.talker()
         if not getattr(client, "native", False):
-            return fast
-    return None
+            yield fast
 
 
 def is_named(provider: Provider, name: str) -> bool:
