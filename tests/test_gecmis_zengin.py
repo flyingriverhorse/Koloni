@@ -81,13 +81,17 @@ def test_a_turns_record_follows_it_and_is_said_the_same_at_every_later_turn(
                   "w1")),
         step(call("run_command", {"command": "python -m pytest -q"}, "t1")),
         step(call("run_command", {"command": "git status"}, "g1")),
-        text("first answer"), text("second answer"), text("third answer")],
+        # (Since S1b the end check takes the Lead's own failing pytest - it ran tests - as the
+        # project's and sends it back once: its answer to that round is still the first turn's.)
+        text("first answer"), text("first answer, after the fix round"),
+        text("second answer"), text("third answer")],
         executor=executor)
     cid, run_id = begin(client, project_dir, mode="full_auto", lead_hands_code=False)
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     for words in ("and now?", "and then?"):
-        posted = client.post(f"/api/conversations/{cid}/messages", json={"content": words})
-        wait_run(client, cid, posted.json()["run"]["id"])
+        later = client.post(f"/api/conversations/{cid}/messages", json={"content": words}).json()
+        snap = wait_run(client, cid, later["run"]["id"])
+        assert next(r["status"] for r in snap["runs"] if r["id"] == later["run"]["id"]) == "completed"
     second, third = model.calls[-2], model.calls[-1]
     expected = "\n".join([
         ledger.HEAD,
@@ -100,7 +104,9 @@ def test_a_turns_record_follows_it_and_is_said_the_same_at_every_later_turn(
     # nothing of the kind): the cache keeps what is before them
     assert said(third) == [expected]
     at = [m["content"] for m in second].index(expected)
-    assert second[at - 1]["content"] == "first answer"  # (right after the turn it is of)
+    # (Right after the turn it is of: after its last answer, the fix round's.)
+    assert [m["content"] for m in second[at - 2:at]] == [
+        "first answer", "first answer, after the fix round"]
     assert third[:at + 1] == second[:at + 1]
 
 
