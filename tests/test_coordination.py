@@ -601,6 +601,30 @@ def test_an_install_past_a_heredoc_a_comment_or_a_case_is_one(command):
     assert installs(command), command
 
 
+# A line a launcher hands a shell, a package runner's `-c` / `--call`, a script block made of a
+# string and PowerShell's encoded command are read - or, encoded, asked (k-okuyucu-2).
+@pytest.mark.parametrize("command", [
+    "Start-Process powershell -WindowStyle Hidden -Wait -ArgumentList "
+    "'-Command','taskkill /IM python.exe /F'",
+    "Start-Process -FilePath pwsh -ArgumentList '-c','Stop-Process -Name python'",
+    "Start-Process cmd -ArgumentList '/c taskkill /F /IM python.exe'",
+    "Start-Process bash -Args '-c','pkill python'", "Start-Process wsl -ArgumentList 'pkill','python'",
+    'saps powershell "-Command taskkill /IM python.exe /F"',
+    "Start-Process powershell -ArgumentList '-EncodedCommand','ZQBjAGgAbwA='",
+    "powershell -EncodedCommand ZQBjAGgAbwA=", "pwsh -NoProfile -enc ZQBjAGgAbwA=",
+    "npx -c 'taskkill /IM python.exe /F'", "npx --call 'pkill python'", "npm exec -c 'pkill python'",
+    "[scriptblock]::Create('taskkill /IM python.exe /F').Invoke()",
+    "&([scriptblock]::Create('taskkill /IM python.exe /F'))"])
+def test_a_line_a_launcher_hands_on_is_read(command):
+    assert harm_class(command) == "always", command
+
+
+def test_an_install_a_launcher_hands_a_shell_is_one():
+    assert installs("Start-Process cmd -ArgumentList '/c npm ci' -Wait")
+    assert installs("Start-Process powershell -ArgumentList '-Command','npm ci'")
+    assert harm_class("Start-Process notepad -ArgumentList 'x.txt'") == ""
+
+
 # The four checks that read a line as written read every reading (k-okuyucu): a continued line
 # and a group too - the strictest of them.
 def test_the_checks_that_read_a_line_as_written_read_every_reading():

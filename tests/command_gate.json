@@ -80503,12 +80503,8 @@ false
 "rg -uuu ../../b": "round 5: the first word past options known to take no path is the search's pattern, no path"
 },
 "xfail": [
-"&([scriptblock]::Create('taskkill /IM python.exe /F'))",
-"Invoke-Expression 'python -c \"import shutil; shutil.rmtree(\\\"..\\\")\"'",
 "R -e 'system(\"pkill uvicorn\")'",
 "Rscript -e 'system(\"pkill python\")'",
-"Start-Process powershell -ArgumentList '-Command','python -c \"import shutil; shutil.rmtree(\\\"..\\\")\"'",
-"[scriptblock]::Create('taskkill /IM python.exe /F').Invoke()",
 "echo \"import os; os.system('pkill python')\" | python",
 "lua -e 'os.execute(\"pkill python\")'",
 "lua -e 'os.execute(\"pkill uvicorn\")'",

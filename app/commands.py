@@ -2428,7 +2428,44 @@ def _readings(line: str) -> list[str]:
     escapes (`` `t ``) read as pairs are not parsed as bash does; do so in 0.1.6."""
     line = _uncased(_without_data_heredocs(line))
     insides = re.findall(r"`([^`]*)`", line)
-    return list(dict.fromkeys((joined(line), line, *(["\n".join(insides)] if insides else []))))
+    return list(dict.fromkeys((joined(line), line, *(["\n".join(insides)] if insides else []),
+                               *_handed(line))))
+
+
+# Lines a command hands on that its parts do not split out (k-okuyucu-2): Start-Process's argument
+# list to a shell (`Start-Process powershell -ArgumentList '-Command','taskkill ...'`), a package
+# runner's `-c` / `--call` (`npx -c 'taskkill ...'`), `[scriptblock]::Create('...')`.
+_START_PROCESS = re.compile(
+    r"(?i)(?:^|(?<=[\s;&|(]))(?:start-process|saps|start)\s+(?:-filepath[:\s]\s*|-f\s+)?(['\"]?)"
+    r"((?:\S*[\\/])?(?:powershell|pwsh|cmd|bash|sh|zsh|wsl)(?:\.exe)?)\1(?=\s|$)([^;\n|]*)")
+_RUNNER_CALL = re.compile(r"(?i)\b(?:npx|npm\s+(?:exec|x)|pnpm\s+(?:dlx|exec)|yarn\s+(?:dlx|exec))"
+                          r"\b[^;&|\n]*?\s(?:-c|--call)(?:=|\s+)(['\"])(.*?)\1")
+_SCRIPTBLOCK = re.compile(r"(?i)\[scriptblock\]::create\(\s*(['\"])(.*?)\1\s*\)")
+# Start-Process's own options with a value, and its switches: no part of what it hands on.
+_SP_VALUES = frozenset({"-windowstyle", "-workingdirectory", "-verb", "-credential", "-environment",
+                        "-redirectstandardoutput", "-redirectstandarderror",
+                        "-redirectstandardinput"})
+_SP_SWITCHES = frozenset({"-wait", "-nonewwindow", "-passthru", "-usenewenvironment",
+                          "-loaduserprofile", "-argumentlist", "-args", "-a", ","})
+_SP_TOKENS = re.compile(r"""'[^']*'|"[^"]*"|,|[^\s,'"]+""")
+
+
+def _handed(line: str) -> list[str]:
+    """The lines a line hands on as `_START_PROCESS`, `_RUNNER_CALL` and `_SCRIPTBLOCK` find them,
+    each as the program handed it reads it (`powershell -Command "taskkill ..."`)."""
+    found = [inner for _quote, inner in _RUNNER_CALL.findall(line)]
+    found += [inner for _quote, inner in _SCRIPTBLOCK.findall(line)]
+    for _quote, shell, rest in _START_PROCESS.findall(line):
+        tokens, items, at = _SP_TOKENS.findall(rest), [], 0
+        while at < len(tokens):
+            name = tokens[at].casefold().partition(":")[0]
+            at += 2 if name in _SP_VALUES else 1
+            if name not in _SP_VALUES and name not in _SP_SWITCHES:
+                items.append(tokens[at - 1].strip("'\""))
+        found.append(" ".join([shell, *items]) if len(items) < 2 else " ".join(
+            [shell, *(f"'{item}'" if '"' in item else f'"{item}"' if re.search(r"\s", item)
+                      else item for item in items)]))
+    return found
 
 
 # A heredoc's body (`<<EOF`, `<<-'EOF'`, `<<"EOF"`) is data to what only reads it - a file it
@@ -2515,6 +2552,11 @@ def standing_asked(command: str, instructions: bool = True) -> str:
     return "" if standing in INSTRUCTION_FILES and not instructions else standing
 
 
+# PowerShell handed its command encoded (`-EncodedCommand`, `-enc`, `-ec`, `-e`).
+_ENCODED = re.compile(r"(?i)(?:^|(?<=[\s;&|(\"',]))(?:\S*[\\/])?(?:powershell|pwsh)(?:\.exe)?['\"]?"
+                      r"[\s,](?:[^;&|\n]*[\s,'\"])?-e(?:c|n[a-z]*)?(?=[\s:'\",]|$)")
+
+
 def _harm(command: str) -> str:
     """`danger` but for a file that steers later turns: what `only_reads` cannot have. What a
     shell is handed is looked at too (`_commands_in`): B-339's `cmd /c mklink /J .koloni\\tmp\\x
@@ -2522,6 +2564,8 @@ def _harm(command: str) -> str:
     for words in _commands_in(command, at=_BLOCKS):
         if words and (said := _danger_of(words)):
             return said
+    if _ENCODED.search(command):  # (what it runs is not read: k-okuyucu-2)
+        return _danger_of([UNREAD])
     if _stops_by_name(command):  # (by a name, or an id the line does not know: `_stop_kind`)
         return KILLS_BY_NAME
     if _DOTNET_DELETE.search(command):
@@ -3680,7 +3724,7 @@ def runs_another(command: str) -> str:
 # `runs_another`'s. shortcut: a script the agent itself wrote runs unasked in a backlog turn;
 # card interpreters running a just-written file if that is seen live.
 _INLINE = re.compile(
-    r"""(?i)(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?(?:(?:python|py|node|ruby|perl|php|bun)[\d.]*w?"""
+    r"""(?i)(?:^|(?<=[\s;&|('"]))(?:\S*[\\/])?(?:(?:python|py|node|ruby|perl|php|bun)[\d.]*w?"""
     r"""(?:\.exe)?\s+(?:-\w+\s+)*?(?:-c|-e|-p|--eval|--print)|deno(?:\.exe)?\s+eval)"""
     r"""(?=\s|$)""")
 
