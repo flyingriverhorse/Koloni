@@ -1574,7 +1574,7 @@ def test_a_push_carries_no_tag_nor_unpushed_commit_and_runs_gits_own_receive_pac
     (copy.root / "b.txt").write_text("agent\n")
     git.commit_branch(copy.root, copy.branch, ["b.txt"], "m", runtime / "no-hooks")
     sha = git.push_one(repo, tip(repo, copy), copy.branch, "main", copy.start[1], "m",
-                       runtime / "no-hooks")
+                       runtime / "no-hooks", under=copies.folders(runtime))
     assert not marker.exists() and run(bare, "tag") == ""
     assert run(bare, "rev-parse", "refs/heads/koloni/x") == sha
     # A commit of the user's not on origin yet: nothing goes up.
@@ -1586,7 +1586,7 @@ def test_a_push_carries_no_tag_nor_unpushed_commit_and_runs_gits_own_receive_pac
     git.commit_branch(other.root, other.branch, ["c.txt"], "m", runtime / "no-hooks")
     with pytest.raises(git.Refused, match="push main first"):
         git.push_one(repo, tip(repo, other), other.branch, "main", other.start[1], "m",
-                     runtime / "no-hooks")
+                     runtime / "no-hooks", under=copies.folders(runtime))
     assert run(bare, "branch", "--list", "koloni/y") == ""
 
 
@@ -1670,7 +1670,7 @@ def test_no_push_of_a_branch_made_from_a_local_branch_the_user_left(repo, runtim
     run(repo, "switch", "-q", "main")
     with pytest.raises(git.Refused, match="push main first"):
         git.push_one(repo, tip(repo, copy), copy.branch, "main", copy.start[1], "m",
-                     runtime / "no-hooks")
+                     runtime / "no-hooks", under=copies.folders(runtime))
     assert run(bare, "branch", "--list", "koloni/*") == ""
 
 

@@ -929,7 +929,7 @@ PR_NOTES = 4000
 PR_CONFIG = (".git/config changed during this turn - a push runs what it names (an address, a "
              "credential helper, an ssh command): look at it, then Open pull request")
 PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your click"
-# ... and where the user's own branches hold commits origin does not: what an agent copied of them
+# ... and where the user holds commits origin does not, or a stash: what an agent copied of them
 # into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
 PR_UNPUSHED = ("you have {commits} not on GitHub yet: before a pull request, check its files are "
                "the agent's work")
@@ -3530,7 +3530,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 git.push_one, copy.project, await self._sent(copy, look), branch,
                 look["into"] or "", copy.start[1],
                 f"{title}\n\nKoloni-Agent: {ctx.name}", self.settings.runtime_root / "no-hooks",
-                look["tip"], copy.snapshot_sha)
+                look["tip"], copy.snapshot_sha, under=copies.folders(self.settings.runtime_root))
             sent.update(tip=look["tip"], sha=sha)
         try:
             url = await asyncio.to_thread(
@@ -3544,15 +3544,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     async def _pr_asks(self, copy: copies.Copy) -> str | None:
         """Why a pull request of this branch is asked about at every level, Full auto too - what an
         agent copied of the user's work into a commit of its own its history does not show: the
-        user has commits origin does not (`git.unpushed_count`: `PR_UNPUSHED`; where git does not
-        say, one), or the branch began from their uncommitted work (`PR_SNAPSHOT`). None where
-        neither."""
+        user has commits origin does not, or a stash (`git.unpushed_count`: `PR_UNPUSHED`; where
+        git does not say, one commit), or the branch began from their uncommitted work
+        (`PR_SNAPSHOT`). None where neither."""
         try:
-            count = await asyncio.to_thread(git.unpushed_count, copy.project)
+            commits, stashes = await asyncio.to_thread(
+                git.unpushed_count, copy.project, copies.folders(self.settings.runtime_root))
         except git.Refused:
-            count = 1
-        if count:
-            return PR_UNPUSHED.format(commits=f"{count} commit" + ("s" if count != 1 else ""))
+            commits, stashes = 1, 0
+        said = [f"{commits} commit" + ("s" if commits != 1 else "")] if commits else []
+        said += ["a stash" if stashes == 1 else f"{stashes} stashes"] if stashes else []
+        if said:
+            return PR_UNPUSHED.format(commits=" and ".join(said))
         return PR_SNAPSHOT if copy.snapshot_sha else None
 
     async def _sent(self, copy: copies.Copy, look: dict) -> str:

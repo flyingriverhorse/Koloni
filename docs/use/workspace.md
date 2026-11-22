@@ -94,12 +94,17 @@ project's `origin` must be the GitHub repository gh sees. Until then the card sa
 A branch that holds commits of yours that origin does not have - your branch or another merged into it,
 fast-forwarded to, rebased onto or cherry-picked - is not pushed until you push them, also after you
 amended, rebased or dropped them; the card names them. What counts as the agent's own is what its branch's
-history says was committed on it. Nor is a file that holds exactly what a commit of yours not pushed yet
-put there (an agent's squash, pick or amend of it, or a copy of a stashed file, of a commit on a detached
-HEAD, or of a file you had not committed when the branch began). And while you have any commit not on
-GitHub - on a branch, in a stash, on a detached HEAD - or the branch began from your uncommitted work, a
-pull request waits for your click at every level, Full auto too: the card says why, so you can check its
-files are the agent's work.
+history says was committed on it. A commit not on origin that this history does not show and no branch of
+yours holds - an agent's cherry-pick of yours (a new commit), or the agent's own once that history is gone
+(`git reflog expire`, or git's cleanup of an old branch) - is not pushed either: the card says KOLONİ cannot
+attribute it, rather than calling it yours. Nor is a file that holds exactly what a commit of yours not
+pushed yet put there (an agent's squash, pick or amend of it, or a copy of a stashed file, of a commit on a
+detached HEAD - in this folder or in another worktree of yours -, or of a file you had not committed when
+the branch began). And while you have any commit or
+stash not on GitHub - on a branch, in a stash, on a detached HEAD, in any worktree of yours - or the
+branch began from your uncommitted work, a pull request waits for your click at every level, Full auto
+too: the card says why ("you have 2 commits not on GitHub yet", "you have a stash not on GitHub yet"), so
+you can check its files are the agent's work.
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").
