@@ -42,6 +42,7 @@ How to write an entry (every release looks the same):
 
 ### Fixed
 
+- **Install**: closing KOLONİ with the page open no longer waits five seconds nor prints "Cancel N running task(s)": the page's stream ends on Ctrl+C ([docs](docs/getting-started/install.md)).
 - **Memory**: a fast model's notes on a turn that hold a long run of space inside their code fence are read at once - 100 000 spaces took a minute on KOLONİ's own loop.
 - **Agents**: **Or write it** on the Recipes tab no longer fails with "Local isn't answering" while your local model server is not running: it passes over a model whose server looked down, asks the next model of the tier and then the Orchestrator's own, names every one it tried when none answers, and the note under it says which model it will ask ([docs](docs/agents/recipes.md)).
 - **Agents**: a Candidates step with a loop (the ready **Evolve** recipe) runs one round only when the project has no measure command - with no score nothing reaches the target, so its other rounds opened up to 9 more Coders for nothing; the candidates' card says why ([docs](docs/agents/recipes.md#candidates)).
