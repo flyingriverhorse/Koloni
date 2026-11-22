@@ -65,7 +65,7 @@ and the Pages workflow before it publishes the guide.
 
 The guide's screenshots in `docs/images/` and its short videos in `docs/videos/` are taken from the
 real app by `frontend/e2e/guide-shots.spec.ts`, with the scripted model, in the light theme: pictures at
-1280×800, videos at 1280×720. A video is Playwright's own WebM recording, with a JPEG poster beside
+1280×800 (the Away panel's at 1280×900, so it shows whole), videos at 1280×720. A video is Playwright's own WebM recording, with a JPEG poster beside
 it; a page shows it with a `<video>` tag. The spec is skipped in an ordinary run. To take them again, build first, then from `frontend/`:
 
 ```powershell

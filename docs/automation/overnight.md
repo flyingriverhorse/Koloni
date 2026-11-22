@@ -16,7 +16,8 @@ in.
 chat with no turn yet it waits: "Write to the Orchestrator first: Away finishes this chat's turn").
 It opens the Away panel:
 
-- "The Orchestrator finishes this chat, then works through To-do in order."
+- "The Orchestrator finishes this chat, then works through To-do in order.", and the level the tasks
+  run at: "the lower of this chat's level and the To-do page's".
 - **Then from To-do, in this order**: the project's open tasks (proposed or to do). The tasks
   proposed in this chat are ticked already ("new · from this chat"); older ones are not ("on To-do
   since Mon"). Tick up to 10; **Move up** and **Move down** change the order, which is saved to
@@ -26,6 +27,10 @@ It opens the Away panel:
   monthly budget, the work spends at most what is left of it. Name a file or folder of the project
   to keep out (up to 20): a pattern such as `src/*` or a place outside the project is refused.
 - **Go away**, or **Cancel**. **How it works** says the rest.
+
+![The Away panel over the message box: the two tasks this chat put on To-do ticked, what the Orchestrator decides for you and what always waits, Until 08:00, spend at most 2 USD, and Go away](../images/away-panel.png)
+
+*The Away panel, opened from **☾ Away** on the chat's status line.*
 
 Go away is refused while **Stop everything** holds (press **Resume** first), while a To-do task is
 at work, and from a chat with no turn.
@@ -167,6 +172,10 @@ The chat you went away from has one summary: "While you were away (23:10 – 07:
 done · 3 decided for you · 1 waits · 0.84 USD", what was done (waiting in Ready to take in), what was
 decided for you, what waits (with **Allow and go on** / **Refuse**), **Review and take in** and **On the
 canvas**. KOLONİ opens on the report on the canvas until you have seen it.
+
+![Back from Away: the chat's summary, While you were away, 2 of 2 To-do done, with Review and take in and On the canvas; on the canvas the two jobs and their report](../images/away-summary.png)
+
+*Back: the summary in the chat you went away from, and the report on the canvas.*
 
 The report shows when the jobs ran, what they spent and why they ended; nothing of it is in your
 project before you take it in. Its sections are **Done**, **Waits for your word**, **Could not be

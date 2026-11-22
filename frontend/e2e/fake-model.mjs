@@ -492,6 +492,14 @@ function nextStep(all, tools = [], model = '') {
     // Slice 52: a task Run the backlog started is done at once; asked to keep the backlog,
     // the Lead proposes a task, which waits for the user's word.
     if (/\(A task of the project's To-do list to work on/.test(last.content)) return say('Worked on the task.')
+    // The guide's pictures of ☾ Away (guide-shots): as slice 106, in a person's words, with a stop time and a spend limit.
+    if (/going away for the night, guide/i.test(last.content)) {
+      return toolCalls([
+        ['cg1', 'add_task', { title: 'Add a bye line', criteria: 'it prints bye' }],
+        ['cg2', 'add_task', { title: 'Say hello twice' }],
+        ['cg3', 'offer_away', { until: '08:00', money: 2 }],
+      ])
+    }
     // Slice 106, ☾ Away: told the user goes to sleep, the Lead puts the work on To-do and offers to go away; nothing starts.
     if (/going to sleep, 106/i.test(last.content)) {
       return toolCalls([

@@ -6,7 +6,7 @@ import { LINK, OWN, e2eProject, openFreshConversation, rail, say, setProject, se
 import { APP_URL, REPO_ROOT } from './paths.mjs'
 
 // The guide's pictures (docs/images) and short videos (docs/videos), taken from the real app with the fake model, light,
-// at 1280×800 and 1280×720. Taken on request (KOLONI_SHOTS=1), after `npm run build`: an ordinary run leaves them alone.
+// at 1280×800 (the Away panel at 1280×900) and 1280×720. Taken on request (KOLONI_SHOTS=1), after `npm run build`: an ordinary run leaves them alone.
 test.skip(!process.env.KOLONI_SHOTS, 'the guide’s pictures are taken with KOLONI_SHOTS=1')
 test.use({ viewport: { width: 1280, height: 800 } })
 test.beforeEach(({ page }) => page.addInitScript(() => localStorage.setItem('koloni-theme', 'light')))
@@ -128,7 +128,10 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await expect(page.getByRole('heading', { name: 'Models' })).toBeVisible()
   await picture(page, 'models')
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
-  await expect(page.getByRole('form', { name: 'Project settings' })).toBeVisible()
+  const settings = page.getByRole('form', { name: 'Project settings' })
+  // (At Asking and away: when you're away, Full auto's check of your words, disposable deletes - 0.1.5.)
+  await settings.getByRole('button', { name: /^Asking and away/ }).click()
+  await expect(settings.getByText('A harmful-looking command at Full auto')).toBeVisible()
   await picture(page, 'settings-project')
   await page.getByRole('button', { name: 'Close settings' }).click()
   await page.getByRole('button', { name: 'Knowledge', exact: true }).click()
@@ -270,4 +273,31 @@ test.describe('the guide’s videos', () => {
       await expect(chat.getByText('The tests pass.')).toBeVisible({ timeout: 15_000 })
     })
   })
+})
+
+// Last: its two To-do tasks would wait in Ready for you in the videos above.
+test('☾ Away: the Away panel, and the summary when you are back', async ({ page }) => {
+  test.setTimeout(90_000)
+  // (A little taller than the others: the panel whole, with its Go away.)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await openFreshConversation(page)
+  await say(page, "I'm going away for the night, guide: add a bye line and say hello twice", 'Two tasks are on your To-do: press Go away when you go.')
+  const chat = page.getByRole('region', { name: 'Chat' })
+  await expect(chat.getByRole('group', { name: 'Go away now?' })).toBeVisible()
+  // (From ☾ Away on the status line: the panel whole, over the message box.)
+  await page.locator('.away-chip').click()
+  const panel = page.getByRole('dialog', { name: 'Away' })
+  await expect(panel.getByRole('checkbox', { name: 'Say hello twice' })).toBeChecked()
+  await panel.getByLabel('Until').fill('08:00')
+  await panel.getByLabel(/spend at most/).fill('2')
+  await picture(page, 'away-panel')
+  await panel.getByRole('button', { name: 'Go away' }).click()
+  await expect(page.locator('.composer-status')).toContainText('Away · To-do 2 of 2 looked at', { timeout: 30_000 })
+  await page.getByRole('button', { name: 'I’m back' }).first().click()
+  const summary = chat.getByRole('region', { name: 'While you were away' })
+  await expect(summary).toContainText('2 of 2 To-do done', { timeout: 10_000 })
+  await picture(page, 'away-summary')
+  // (Seen: KOLONİ goes to the report once, and not again in the tests after this one.)
+  await summary.getByRole('button', { name: 'On the canvas' }).click()
+  await expect(page.locator('.away-node')).toBeVisible()
 })
