@@ -93,6 +93,7 @@ from app.agent.approvals_mixin import ApprovalsMixin
 from app.agent.attachments_mixin import AttachmentsMixin
 from app.agent.away_mixin import AwayMixin
 from app.agent.away_mixin import branch_held as branch_held
+from app.agent.before_mixin import BeforeMixin
 from app.agent.browser_mixin import BrowserMixin
 from app.agent.cards import UNASKED_BY_CLI as UNASKED_BY_CLI
 from app.agent.cards import (
@@ -300,6 +301,7 @@ from app.agent.words import (
     NOT_IN_A_COPY,
     NOT_IN_THE_PART,
     NOT_ON_BRANCH_AGAIN,
+    NOT_REPRODUCED,
     NOT_WORK,
     OPEN,
     OUTRUN,
@@ -1021,7 +1023,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
-                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin):
+                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, BeforeMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -6170,7 +6172,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return None
         with self._factory() as session:
             kind_of = find_role(session, child.role)
-            if kind_of is not None and kind_of.kind == "check" or child.agent_id in self._reviews:
+            # (R4: a reproduce step's agent too, `_reproduce_held`)
+            if kind_of is not None and kind_of.kind == "check" or (
+                    child.agent_id in self._reviews) or self._in_step(session, child, "reproduce"):
                 roles = self._open_roles(session, child)
                 agents = {agent.name.casefold(): shown_name(agent.role_name) for agent in
                           session.scalars(select(Agent).where(Agent.run_id == child.run_id))}
@@ -6201,7 +6205,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         report gave no blocking finding (`_failing_held`, `_ran_held`)."""
         if _blocking(found):
             return []
-        return [*self._failing_held(session, child, before), *self._ran_held(session, child, found)]
+        return [*self._failing_held(session, child, before), *self._ran_held(session, child, found),
+                *self._reproduce_held(session, child)]
 
     def _failing_held(self, session, child: Ctx, before: list[str]) -> list[dict]:
         """R2: a test run of its own that failed (and no later pass of that line or whole run of
@@ -6219,6 +6224,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return [{"what": f"fails as it should: {ledger.failing_shown(ran)}", "kind": "test",
                      "role": None, "blocking": False}]
         return [{"what": ledger.failed_line(ran), "kind": "test", "role": None, "blocking": True}]
+
+    def _reproduce_held(self, session, child: Ctx) -> list[dict]:
+        """R4 (S7): the agent of a recipe's reproduce step that left on record no test run of
+        its own that failed (`ledger.failed_tests`: one that really ran tests) did not show the
+        bug - held, as R3 holds a check that ran nothing. Not where its CLI's work is not seen
+        (`handoff.counted_on`).
+        shortcut: any failing test run of its own counts - not checked to be of a test it wrote;
+        hold to its written test files if a step is seen passing on an old failure."""
+        if not self._in_step(session, child, "reproduce") or not handoff.counted_on(
+                child.model) or ledger.failed_tests(session, child.agent_id) is not None:
+            return []
+        return [NOT_REPRODUCED]
 
     def _ran_held(self, session, child: Ctx, found: list | None) -> list[dict]:
         """R3: a recipe's check whose job is running checks (`_held_to_run`) that ran no command

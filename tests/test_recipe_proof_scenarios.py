@@ -321,3 +321,24 @@ def test_the_reproduce_step_is_told_to_write_a_failing_test_only(make_client, wa
     assert REPRODUCE_FIRST in agent(snap, "Debugger")["task"]
     assert all(REPRODUCE_FIRST not in agent(snap, name)["task"] for name in ("Coder", "Tester", "Reviewer"))
     assert [s["name"] for s in row(snap)["steps"]][0] == "Reproduce it with a failing test"
+
+
+def test_a_reproduce_step_that_shows_no_failing_test_is_held(make_client, wait_run, project_dir):
+    # R4 (S7): Reproduce it must leave a failing test run on record - words alone are no bug shown.
+    from app.agent.words import NOT_REPRODUCED
+    client, _model = make_client(scripts(ran_tests()), executor=ScriptedExecutor([PASSED]))
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    held = agent(snap, "Debugger")["findings"] or []
+    assert (NOT_REPRODUCED["what"], True) in [(f["what"], f["blocking"]) for f in held], held
+
+
+def test_a_reproduce_step_whose_test_failed_is_not_held(make_client, wait_run, project_dir):
+    from app.agent.words import NOT_REPRODUCED
+    shown = scripts(ran_tests())
+    shown["Debugger"] = [cmd(PYTEST, "dd1"), text("Reproduced: calc(2) crashes.")]
+    client, _model = make_client(shown, executor=ScriptedExecutor([FAILED, PASSED]))
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    held = agent(snap, "Debugger")["findings"] or []
+    assert NOT_REPRODUCED["what"] not in [f["what"] for f in held], held

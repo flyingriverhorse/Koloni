@@ -218,6 +218,9 @@ class Project(Base):
     # S3 (0165, plan decisions 14a and 19): how often the end check sends work back - failing
     # tests and a Reviewer's blocking findings, one count a turn - 1 to 5.
     fix_rounds: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    # S7 (0166, decision 14b): the project's last green state, by "<folder> <command>": what its
+    # last whole suite KOLONİ ran that passed counted - {"ran", "skipped", "at"}.
+    tests_green: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
     # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
     # never the user's own (their check command and part tests win, and keep their leave).

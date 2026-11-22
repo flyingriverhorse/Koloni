@@ -194,6 +194,9 @@ LOOK_ON = {"test_found_scenarios"}
 # S3: a big or security-touching change is looked over at a turn's end by a Reviewer agent - in a
 # test, a scripted agent more (and its row) in every turn that writes much. On only where tested.
 REVIEW_ON = {"test_proof_review_scenarios"}
+# S7: a failing run is run again alone and on the old code, and a pass is held to the last green
+# state - in a test, runs of the scripted executor more. On only where tested.
+BEFORE_ON = {"test_proof_before_scenarios"}
 
 
 @pytest.fixture(autouse=True)
@@ -206,6 +209,17 @@ def end_check_where_it_fits(request, monkeypatch):
             return []
 
         monkeypatch.setattr(FoundMixin, "_look_for_tests", no_look)
+    if module not in BEFORE_ON:
+        from app.agent.before_mixin import BeforeMixin
+
+        async def as_it_was(_self, _ctx, _held, failed):
+            return failed
+
+        async def no_after(_self, _ctx, _held, _runs):
+            return None
+
+        monkeypatch.setattr(BeforeMixin, "_proof_before", as_it_was)
+        monkeypatch.setattr(BeforeMixin, "_after_pass", no_after)
     if module not in REVIEW_ON:
         from app.agent.review_mixin import ReviewMixin
 

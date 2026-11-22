@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Literal
 from sqlalchemy import literal_column, select
 
 from app import away, injection, ledger, proof, recipe_run
+from app.agent.before_mixin import NOT_YOURS
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
@@ -79,6 +80,10 @@ class Proof:
     # findings").
     most: int = MAX_SENT_BACK
     sent: list[str] = field(default_factory=list)
+    # S7 (`BeforeMixin`): where a run of KOLONİ's goes instead of the Lead's work (the old code's
+    # throwaway copy; None: the work); and the failing tests that were failing before the turn.
+    place: Workspace | None = None
+    before_ids: list[str] = field(default_factory=list)
     # The commands said yes to on a card, by the folder they ran in: a yes covers that text in
     # that folder only - never another part's command of the same text.
     yes: dict[str, set[str]] = field(default_factory=dict)
@@ -196,7 +201,10 @@ class ProofMixin:
             held.rows.append(self._no_runs_row(held))
             return None
         failed = await self._all_tests(ctx, held, runs)  # (S6: related first, the rest later)
-        if not failed or held.rounds >= held.most or held.recipe_spent:
+        failed = await self._proof_before(ctx, held, failed) if failed else failed  # (S7)
+        if not failed:
+            return await self._after_pass(ctx, held, runs)  # (S7: green state, a bug fix)
+        if held.rounds >= held.most or held.recipe_spent:
             return None
         held.rounds += 1
         held.sent.append("tests fail")
@@ -204,7 +212,8 @@ class ProofMixin:
                            for _run, output in failed).replace("```", "'''")[-TESTS_TAIL_CHARS:]
         return TESTS_FAILED_LEAD.format(
             command=", ".join(quoted(run.command) for run, _output in failed),
-            rounds=held.most, output=injection.noted(tail, "agent"))
+            rounds=held.most, output=injection.noted(tail, "agent")) + (NOT_YOURS.format(
+                ids=", ".join(held.before_ids)) if held.before_ids else "")
 
     def _fresh_of(self: "AgentRunner", ctx: Ctx, run: TestRun) -> tuple[Row, str] | None:
         """A fresh run on record that stands for `run`: its row and output; None: run it."""
@@ -324,7 +333,9 @@ class ProofMixin:
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         check.call_id = call_id
         self._set_call(ctx.cid, call_id, status="running", started_at=now())
-        ws, taken, given, (slot, workers) = self._ws(ctx), [], {"seconds": seconds}, load
+        # (S7: on the old code's throwaway copy where it is that run)
+        ws, taken, given, (slot, workers) = held.place or self._ws(ctx), [], {
+            "seconds": seconds}, load
 
         def left() -> int | None:
             return None if check.until is None else math.ceil(check.until - time.monotonic())

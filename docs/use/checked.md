@@ -156,6 +156,46 @@ after the recipe's fix rounds: you decide (Fix it)".
 The check before a sub-agent's work is taken in (**Test before adding**) is a separate check with
 its own two rounds. A turn can have both.
 
+### Not this turn's: flaky tests and failures from before
+
+Before a failure goes back, KOLONİ tells what is not this turn's:
+
+- **Flaky.** The failing tests run once more, alone. One that passes then failed in the full run
+  and passed alone: "Flaky: `test` failed in the full run and passed alone (noted in this
+  project's memory)". It is not sent back. The project's memory gets a note on it, "Failed in a
+  full run and passed alone (date); seen 2 times", counting each time.
+- **Failing before.** What still fails runs on the code as it was before the turn: a throwaway
+  copy of the work with each file the turn changed written back as it was. Tests that fail there
+  too were failing before: "1 were failing before this turn, 1 new". Only the new ones go back,
+  and the Orchestrator is told the others are not its to fix. The copy is deleted after, its
+  linked folders (`.venv`, `node_modules`) let go of first, never emptied.
+- Where a command of the turn may have changed the project (one that is not a test run and not a
+  mere read), what it changed is not on record: "Not checked against the old code: a command
+  changed the project this turn …", and every failure counts as new.
+- A run that would ask its card again is not run again: "… not re-run alone or on the old code:
+  it would ask again".
+- A command whose last run by KOLONİ, in an earlier turn, failed and passes now: "1 were failing
+  at the last run (date), 0 now".
+
+### The last green state
+
+When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped ones
+- as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
+failure unless the Orchestrator's answer says why (removed, deleted, skipped): "Tests went from
+214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a failing test. A test that
+fails where the suite was green before, in a file the turn did not add, is named: "Regression:
+`test` passed at the last green run and fails now".
+
+### A bug fix
+
+In a turn that fixes a bug (the request says fix, bug, broken, crash, error, hata, düzelt …) and
+adds a test beside a change of the code, the new test runs alone on the old code (a throwaway copy
+that keeps the new test). It must fail there: "The new test fails on the old code ✓"; one that
+passes there too is said - "The new test passes on the old code too: it may not catch the bug".
+
+In a recipe, the **Reproduce it** step must leave a test run of its own that failed: one that did
+not is held - "Reproduce did not show a failing test".
+
 ## The review
 
 Under **Test and review**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
