@@ -24,14 +24,14 @@ export function useCheckKinds(project: Project) {
   const patch = changed.length ? { check_kinds: Object.fromEntries(changed) as Record<string, boolean> } : {}
   const view = (
     <Row label="Check by kind of work" doc={GUIDE.checked} warn={<span id="check-kinds-note" className="choice-note">{CHECK_KINDS_NOTE}</span>}>
-      <span role="group" aria-label="Check by kind of work" aria-describedby="check-kinds-note" className="kinds">
+      {/* (As the branch's way below: the boxes side by side, each label whole, wrapping where they do not fit.) */}
+      <fieldset className="choice" aria-label="Check by kind of work" aria-describedby="check-kinds-note">
         {CHECK_KINDS.map(([kind, label]) => (
-          <label key={kind} className="choice">
-            <input type="checkbox" checked={on(kind, kinds)} onChange={e => setKinds(was => ({ ...was, [kind]: e.target.checked }))} />
-            <span>{label}</span>
+          <label key={kind}>
+            <input type="checkbox" checked={on(kind, kinds)} onChange={e => setKinds(was => ({ ...was, [kind]: e.target.checked }))} /> <span>{label}</span>
           </label>
         ))}
-      </span>
+      </fieldset>
     </Row>
   )
   return { patch, view }

@@ -166,16 +166,19 @@ They come after the tests and before the review. A turn that wrote only such fil
 
 | Kind | Checked | Said, not failed |
 |---|---|---|
-| Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file; a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
-| Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; a Mermaid file whose first line names no diagram type; PlantUML without `@startuml` … `@enduml` | labelled shapes on one box, shapes not connected where the page has edges, "drawn: not checked" for Mermaid |
+| Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
+| Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
 | Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
 
-A checked problem goes back to the Orchestrator as a fix round, with the lines that failed: one
+A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
+when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
+round, with the lines that failed (at most 20 named): one
 count with failing tests and the Reviewer's findings (**Fix rounds**), "(1 problem in what it
 wrote)" beside the round. A problem the file had before the turn is said, not sent back: the turn
 did not make it. A file KOLONİ cannot read (over 8 MB, outside the project, an XML file that
-declares a DTD) is said as not checked. Each kind can be switched off in **Settings › This project
+declares a DTD, a CSV field over the reader's limit) is said as not checked; one file gives at most
+12 lines. Each kind can be switched off in **Settings › This project
 › Checks and git › Check by kind of work**; then its line says "Not checked: slides switched off
 for this project". Where the turn ended before the check, or changed such a file after it, the
 section says so instead of an old result. On the canvas, the Checks node shows each kind as one

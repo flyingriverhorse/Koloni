@@ -21,7 +21,7 @@ import zipfile
 import zlib
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from urllib.parse import unquote
 from xml.etree import ElementTree
 
@@ -43,6 +43,7 @@ MOST_BYTES = 8 * 2**20  # of a file, a zip's member, or a diagram once inflated
 MOST_ROWS = 100_000  # of a CSV read
 MOST_NAMED = 5  # rows, links or items named in one line, then "+N more"
 MOST_SAID = 120  # characters of a link's target or a list item quoted
+MOST_ROWS_A_FILE = 12  # lines one file gives, then "+N more lines"
 
 
 def _said(text: str) -> str:
@@ -91,23 +92,32 @@ def _xml(data: bytes) -> ElementTree.Element:
 
 def _each(ws: Workspace, paths: Iterable[str], kind: str, check: Callable[[bytes, str], list[Row]],
           before: Mapping[str, str | None]) -> list[Row]:
-    """`check` on each file (its bytes, its path): one that cannot be read is said, never failed;
-    a failure the file's text had before the turn is a note."""
+    """`check` on each file (its bytes, its path): one that cannot be read, or that its check
+    breaks on (a zip member's broken deflate), is said, never failed; a failure the file's text
+    had before the turn is a note. At most MOST_ROWS_A_FILE lines a file, the rest counted."""
     rows: list[Row] = []
     for rel in paths:
         try:
             now = check(_bytes(ws, rel), rel)
-            was = before.get(rel)
-            old = {one["text"] for one in check(was.encode("utf-8"), rel)
-                   if one["state"] == "failed"} if was else set()
         except Outside:
             rows.append(row(kind, "note", OUTSIDE.format(path=rel)))
             continue
-        except (WorkspaceError, OSError, ValueError, RecursionError, zipfile.BadZipFile) as exc:
-            rows.append(row(kind, "note", NOT_CHECKED_FILE.format(path=rel, why=_said(str(exc)))))
+        except Exception as exc:  # (untrusted bytes: whatever a reader raises is "not checked")
+            rows.append(row(kind, "note", NOT_CHECKED_FILE.format(
+                path=rel, why=_said(str(exc) or type(exc).__name__))))
             continue
-        rows += [{**one, "state": "note", "text": one["text"] + BEFORE}
-                 if one["state"] == "failed" and one["text"] in old else one for one in now]
+        try:  # (an old version it cannot read hides nothing of the new)
+            was = before.get(rel)
+            old = {one["text"] for one in check(was.encode("utf-8"), rel)
+                   if one["state"] == "failed"} if was else set()
+        except Exception:
+            old = set()
+        said = [{**one, "state": "note", "text": one["text"] + BEFORE}
+                if one["state"] == "failed" and one["text"] in old else one for one in now]
+        if len(said) > MOST_ROWS_A_FILE:
+            left = len(said) - MOST_ROWS_A_FILE
+            said = [*said[:MOST_ROWS_A_FILE], row(kind, "note", f"{rel}: +{left} more lines")]
+        rows += said
     return rows
 
 
@@ -121,6 +131,7 @@ _LINK = re.compile(r"!?\[[^\]\n]{0,500}\]\([ \t]{0,20}<?([^)\s>]{1,2000})>?"
 _SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]{0,30}:")
 _ITEM = re.compile(r"^[ \t]{0,8}(?:[-*+]|\d{1,3}[.)])[ \t]+(\S.{0,300})$")
 _WORD = re.compile(r"\w+")
+_CODE = re.compile(r"`[^`\n]{0,2000}`")  # (inline code: a link written there is no link)
 
 
 def _lines(text: str) -> list[tuple[int, str]]:
@@ -149,14 +160,43 @@ def slug(title: str) -> str:
     return re.sub(r"[ \t]", "-", re.sub(r"[^\w\- \t]", "", title.casefold()))
 
 
+# A site's way of naming a page: `guide` for `guide.md`, `guide/` for `guide/index.md`.
+PAGES = ("", ".md", ".markdown", "/index.md", ".html")
+
+
+def _target(ws: Workspace, at: str) -> Path | str | None:
+    """Where a link of the project leads: the file (a site's page name too), "outside" (out of
+    the project, never looked at there), None: nowhere."""
+    for way in PAGES:
+        try:
+            there = ws.resolve(at.rstrip("/") + way if way else at)
+        except WorkspaceError:
+            return "outside"
+        if not ws.is_own(there):
+            return "outside"
+        if there.exists():
+            return there
+    return None
+
+
+def _titles(there: Path, known: dict[Path, set[str]]) -> set[str]:
+    """A Markdown file's anchors, read once a check (`known`)."""
+    if there not in known:
+        known[there] = {slug(title) for _level, title in _headings(
+            there.read_bytes().decode("utf-8-sig", errors="replace"))} if (
+            there.is_file() and there.stat().st_size <= MOST_BYTES) else set()
+    return known[there]
+
+
 def _link_rows(ws: Workspace, rel: str, text: str) -> tuple[int, list[Row], list[Row]]:
     """A document's relative links: how many were looked at, the failed (a file not there) and
-    the notes (an anchor not found, one that leads out of the project)."""
+    the notes (an anchor not found, one that leads out of the project). Not one in a code fence
+    or in inline code."""
     folder = posixpath.dirname(rel)
     own = {slug(title) for _level, title in _headings(text)}
-    seen, failed, notes = 0, [], []
+    seen, failed, notes, known = 0, [], [], {}
     for _number, line in _lines(text):
-        for found in _LINK.finditer(line):
+        for found in _LINK.finditer(_CODE.sub("", line)):
             target = found.group(1)
             if _SCHEME.match(target) or target.startswith(("//", "/")):
                 continue  # (another site, or the site's root: not a file here)
@@ -167,25 +207,15 @@ def _link_rows(ws: Workspace, rel: str, text: str) -> tuple[int, list[Row], list
                     notes.append(row("docs", "note", f"{rel}: anchor #{_said(anchor)} not found"))
                 continue
             at = posixpath.normpath(posixpath.join(folder, path))
-            if at == ".." or at.startswith("../"):
+            there = "outside" if at == ".." or at.startswith("../") else _target(ws, at)
+            if there == "outside":
                 notes.append(row("docs", "note", f"{rel}: link to {_said(target)} leads outside "
                                                  "the project"))
-                continue
-            try:
-                there = ws.resolve(at)
-            except WorkspaceError:
-                notes.append(row("docs", "note", f"{rel}: link to {_said(target)} leads outside "
-                                                 "the project"))
-                continue
-            if not ws.is_own(there):
-                notes.append(row("docs", "note", f"{rel}: link to {_said(target)} leads outside "
-                                                 "the project"))
-            elif not there.exists():
+            elif there is None:
                 failed.append(row("docs", "failed", f"{rel}: link to {_said(target)} not found"))
-            elif anchor and at.endswith((".md", ".markdown")) and there.is_file() and (
-                    there.stat().st_size <= MOST_BYTES):
-                titles = {slug(title) for _level, title in _headings(
-                    there.read_bytes().decode("utf-8-sig", errors="replace"))}
+            elif anchor and isinstance(there, Path) and there.suffix.casefold() in (
+                    ".md", ".markdown"):
+                titles = _titles(there, known)
                 if slug(anchor) not in titles and anchor.casefold() not in titles:
                     notes.append(row("docs", "note", f"{rel}: anchor #{_said(anchor)} not found "
                                                      f"in {_said(path)}"))
@@ -267,8 +297,14 @@ def check_docs(root: Path | Workspace, paths: list[str], asked: str = "",
 
 # --- diagrams ----------------------------------------------------------------------------------
 
+# Mermaid's diagram types, as its first word names them ("stateDiagram-v2", "sankey-beta" too).
+# shortcut: Mermaid adds types; one not here is said, never failed - add it when met.
 MERMAID = ("graph", "flowchart", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram",
-           "gantt", "pie", "journey", "mindmap", "timeline", "gitGraph")
+           "gantt", "pie", "journey", "mindmap", "timeline", "gitGraph", "quadrantChart",
+           "requirementDiagram", "C4Context", "C4Container", "C4Component", "C4Dynamic",
+           "C4Deployment", "sankey", "xychart", "block", "packet", "architecture", "kanban",
+           "radar", "treemap", "zenuml")
+_PLANT = re.compile(r"@start(\w{1,30})")
 
 
 def _inflated(packed: str) -> bytes:
@@ -335,15 +371,33 @@ def _drawio(data: bytes, rel: str) -> list[Row]:
 
 
 def _mermaid(data: bytes, rel: str) -> list[Row]:
-    first = next((line.strip() for line in _text(data).splitlines()
-                  if line.strip() and not line.strip().startswith("%%")), "")
-    word = first.split()[0] if first else ""
+    """Its first line past front matter (`---` … `---`) and comments (`%%`) names a type."""
+    lines, matter = [], False
+    for line in (one.strip() for one in _text(data).splitlines()):
+        if line == "---":
+            matter = not matter
+        elif line and not matter and not line.startswith("%%"):
+            lines.append(line)
+    word = lines[0].split()[0] if lines else ""
     kind = next((one for one in MERMAID if word == one or word.startswith(one + "-")
                  or (one != "graph" and word.startswith(one))), None)
+    drawn = row("diagram", "note", f"{rel}: drawn: not checked (Mermaid draws in the app only)")
     if kind is None:
-        return [row("diagram", "failed", f"{rel}: the first line names no Mermaid diagram type")]
-    return [row("diagram", "passed", f"{rel}: a {kind} diagram"),
-            row("diagram", "note", f"{rel}: drawn: not checked (Mermaid draws in the app only)")]
+        return [row("diagram", "note", f"{rel}: the first line names no Mermaid diagram type "
+                                       "KOLONİ knows"), drawn]
+    return [row("diagram", "passed", f"{rel}: a {kind} diagram"), drawn]
+
+
+def _plantuml(data: bytes, rel: str) -> list[Row]:
+    """`@startuml` … `@enduml` - or another of PlantUML's (`@startmindmap` … `@endmindmap`)."""
+    text = _text(data).strip()
+    start = _PLANT.match(text)
+    if start is None:
+        return [row("diagram", "failed", f"{rel}: no @startuml … @enduml")]
+    kind = start.group(1)
+    if f"@end{kind}" not in text:
+        return [row("diagram", "failed", f"{rel}: @start{kind} has no @end{kind}")]
+    return [row("diagram", "passed", f"{rel}: @start{kind} … @end{kind}")]
 
 
 def check_diagrams(root: Path | Workspace, paths: list[str],
@@ -366,10 +420,7 @@ def check_diagrams(root: Path | Workspace, paths: list[str],
         if name.endswith((".mmd", ".mermaid")):
             return _mermaid(data, rel)
         if name.endswith((".puml", ".plantuml")):
-            text = _text(data).strip()
-            return [row("diagram", "passed", f"{rel}: @startuml … @enduml")] if text.startswith(
-                "@startuml") and "@enduml" in text else [
-                row("diagram", "failed", f"{rel}: no @startuml … @enduml")]
+            return _plantuml(data, rel)
         return [row("diagram", "note", NOT_CHECKED_FILE.format(
             path=rel, why="no reader of this diagram here"))]
     return _each(ws, paths, "diagram", one, before or {})
@@ -395,6 +446,9 @@ def _table(data: bytes, rel: str) -> list[Row]:
             if rows >= MOST_ROWS:
                 break
     except csv.Error as exc:
+        if "field limit" in str(exc):  # (the reader's limit, not a broken file)
+            return [row("data", "note", NOT_CHECKED_FILE.format(
+                path=rel, why="a field is over the CSV reader's limit"))]
         return [row("data", "failed", f"{rel}: does not parse ({_said(str(exc))})")]
     if header is None:
         return [row("data", "failed", f"{rel}: empty")]
@@ -456,7 +510,10 @@ def check_data(root: Path | Workspace, paths: list[str],
 _SLIDE = re.compile(r"ppt/slides/slide(\d{1,5})\.xml")
 _NOTES = re.compile(r"ppt/notesSlides/notesSlide\d{1,5}\.xml")
 _SAID = re.compile(rb"<a:t(?:\s[^>]{0,200})?>[^<]{0,10000}?[^<\s]")
-_PICTURE = re.compile(rb"<p:pic[\s>]")
+# A slide holds something where it has a picture, a chart or SmartArt (a graphic frame), a
+# connector, or a shape drawn with a geometry (a placeholder left empty has none).
+_PICTURE = re.compile(rb"<p:pic[\s>]|<p:graphicFrame[\s>]|<p:cxnSp[\s>]|<a:prstGeom[\s>]|"
+                      rb"<a:custGeom[\s>]")
 
 
 def _pptx(data: bytes, rel: str) -> list[Row]:
@@ -499,12 +556,3 @@ def check_slides(root: Path | Workspace, paths: list[str],
 
 CHECKS: dict[str, Callable[..., list[Row]]] = {
     "docs": check_docs, "diagram": check_diagrams, "data": check_data, "slides": check_slides}
-
-
-def kind_paths(paths: Iterable[str], kind_of: Callable[[str], str]) -> dict[str, list[str]]:
-    """The changed paths of each kind checked here, in their order."""
-    found: dict[str, list[str]] = {}
-    for path in paths:
-        if (kind := kind_of(path)) in KINDS:
-            found.setdefault(kind, []).append(PurePosixPath(path.replace("\\", "/")).as_posix())
-    return found

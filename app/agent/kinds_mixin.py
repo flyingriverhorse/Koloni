@@ -6,13 +6,14 @@ project's Fix rounds). `KindsMixin._proof_kinds` is the gate's step after the te
 review: a turn of documents alone runs no test and gets these checks."""
 
 import asyncio
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
 from app import injection, proof, proof_kinds
 from app.agent.ctx import Ctx
-from app.db.models import Conversation, Message, Run
+from app.db.models import Agent, Conversation, Message, Run, ShownFile
 from app.proof import Change, Row
 
 if TYPE_CHECKING:
@@ -22,14 +23,19 @@ if TYPE_CHECKING:
 # What Checked says where the kinds' last look does not stand for the work.
 NOT_REACHED = "Not checked: {kinds} - the turn ended before KOLONİ's check"
 NOT_AGAIN = "Not checked on the last change: {kinds}"
+MOST_TOLD = 20  # problems told the Orchestrator in one nudge, then "+N more"
 
 
-def _written(changes: list[Change]) -> dict[str, list[str]]:
-    """The turn's files in the project of each kind checked here, in their order."""
+def _written(changes: list[Change], made: Sequence[str] = ()) -> dict[str, list[str]]:
+    """The turn's files in the project of each kind checked here, in their order - and the files
+    its commands made that no change record holds (`made`: a deck or a Word file a script wrote,
+    `ShownFile`), after them."""
     found: dict[str, list[str]] = {}
-    for one in changes:
-        if one.in_project and not one.deleted and one.kind in proof_kinds.KINDS:
-            found.setdefault(one.kind, []).append(one.path)
+    for path, kind in [*((one.path, one.kind) for one in changes
+                         if one.in_project and not one.deleted),
+                       *((path, proof.kind_of(path)) for path in made)]:
+        if kind in proof_kinds.KINDS and path not in found.get(kind, []):
+            found.setdefault(kind, []).append(path)
     return found
 
 
@@ -42,8 +48,9 @@ class KindsMixin:
         """Each kind of work the turn wrote, checked where the work is (`_ws`) - its rows replace
         the last pass's; a failed one is a fix round while Fix rounds are left."""
         held.rows = [one for one in held.rows if one["kind"] not in proof_kinds.KINDS]
-        written = _written(held.changes)
         with self._factory() as session:
+            made = list(session.scalars(select(ShownFile.path).join(
+                Agent, Agent.id == ShownFile.agent_id).where(Agent.run_id == ctx.run_id)))
             setting = proof.after_change_of(session, session.get_one(Conversation, ctx.cid),
                                             session.get(Run, ctx.run_id))
             project = self._project(session, ctx.cid)
@@ -53,6 +60,7 @@ class KindsMixin:
                 Message.created_at, literal_column("messages.rowid")).limit(1)) or ""
             before = proof.before_of(session, ctx.run_id)
             held.kinds_seen = proof.last_change(session, ctx.run_id)
+        written = _written(held.changes, made)
         if setting != "check" or not written:  # (Tests only: tests only)
             return None
         ws, rows = self._ws(ctx), []
@@ -71,8 +79,9 @@ class KindsMixin:
         held.rounds += 1
         held.sent.append(f"{len(failed)} problem" + ("s" if len(failed) > 1 else "")
                          + " in what it wrote")
+        more = f"\n+{len(failed) - MOST_TOLD} more" if len(failed) > MOST_TOLD else ""
         return proof_kinds.KINDS_TO_FIX.format(problems=injection.noted(
-            "\n".join(f"- {one}" for one in failed), "agent"))
+            "\n".join(f"- {one}" for one in failed[:MOST_TOLD]) + more, "agent"))
 
     def _kinds_left(self: "AgentRunner", session, run_id: str, cid: str, found: list[Change],
                     held: "Proof") -> list[Row]:

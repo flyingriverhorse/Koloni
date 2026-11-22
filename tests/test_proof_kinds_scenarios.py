@@ -121,3 +121,15 @@ def test_a_kind_the_turn_ended_before_is_said_not_checked(make_client, wait_run,
     cid, run_id = begin(client, guide, check_command="python check.py")
     said = texts(wait_run(client, cid, run_id))
     assert "Not checked: documents - the turn ended before KOLONİ's check" in said, said
+
+
+def test_a_link_broken_before_the_turn_is_said_and_not_sent_back(make_client, wait_run, guide):
+    # (A README the turn only added to: its old broken link is not the turn's to fix.)
+    (guide / "README.md").write_text("# Readme\n\n[old](docs/gone.md)\n", encoding="utf-8")
+    client, model = make_client([
+        write("README.md", "# Readme\n\n[old](docs/gone.md)\n\nSee [the guide](docs/guide.md).\n"),
+        text("done")], executor=ScriptedExecutor([]))
+    cid, run_id = begin(client, guide)
+    rows = [(row["state"], row["text"]) for row in checked(wait_run(client, cid, run_id))]
+    assert told(model) == 0
+    assert ("note", "README.md: link to docs/gone.md not found - so before this turn") in rows, rows

@@ -914,7 +914,7 @@ test('Check by kind of work: all on by default; unticking Slides saves check_kin
   await choose(/^Checks/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
   expect(within(group).getAllByRole('checkbox').map(box => (box as HTMLInputElement).checked)).toEqual([true, true, true, true])
-  expect(within(group).getAllByRole('checkbox').map(box => box.closest('label')?.textContent)).toEqual(['Documents', 'Slides', 'Diagrams', 'Data'])
+  expect(within(group).getAllByRole('checkbox').map(box => box.closest('label')?.textContent?.trim())).toEqual(['Documents', 'Slides', 'Diagrams', 'Data'])
   expect(group).toHaveAccessibleDescription(/without a model/)
   await userEvent.click(within(group).getByRole('checkbox', { name: 'Slides' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))

@@ -115,7 +115,7 @@ def test_svg_and_mermaid(tmp_path):
     assert ("passed", "a.svg: parses") in rows and rows[1][0] == "failed"
     assert ("passed", "c.mmd: a flowchart diagram") in rows
     assert ("note", "c.mmd: drawn: not checked (Mermaid draws in the app only)") in rows
-    assert ("failed", "d.mmd: the first line names no Mermaid diagram type") in rows
+    assert ("note", "d.mmd: the first line names no Mermaid diagram type KOLONİ knows") in rows
     assert ("passed", "e.puml: @startuml … @enduml") in rows
 
 
@@ -211,3 +211,62 @@ def test_a_zip_member_too_big_is_not_read(tmp_path, monkeypatch):
     rel = put(tmp_path, "big.pptx", pptx("<a:t>" + "x" * 500 + "</a:t>"))
     rows = said(check_slides(tmp_path, [rel]))
     assert rows[0][0] == "note" and "not checked" in rows[0][1], rows
+
+
+def test_valid_files_a_reader_may_take_otherwise_are_not_failed(tmp_path):
+    # (Review: each of these spent a fix round on valid work.)
+    put(tmp_path, "chart.pptx", pptx("<p:graphicFrame>chart</p:graphicFrame>",
+                                     "<p:sp><p:spPr><a:prstGeom prst='rect'/></p:spPr></p:sp>"))
+    put(tmp_path, "front.mmd", "---\ntitle: Flow\n---\nflowchart LR\n  A --> B\n")
+    put(tmp_path, "new.mmd", "quadrantChart\n  title Reach\n")
+    put(tmp_path, "odd.mmd", "someNewChart\n")
+    put(tmp_path, "mind.puml", "@startmindmap\n* root\n@endmindmap\n")
+    put(tmp_path, "docs/guide.md", "# Guide\n")
+    put(tmp_path, "docs/api/index.md", "# API\n")
+    put(tmp_path, "site.md", "# Site\n\n[g](docs/guide) [a](docs/api/) and `[code](nowhere.md)`\n")
+    put(tmp_path, "wide.csv", "a,b\n" + "x" * 200_000 + ",1\n")
+    rows = said(check_slides(tmp_path, ["chart.pptx"]) + check_diagrams(
+        tmp_path, ["front.mmd", "new.mmd", "odd.mmd", "mind.puml"]) + check_docs(
+        tmp_path, ["site.md"]) + check_data(tmp_path, ["wide.csv"]))
+    assert not [one for one in rows if one[0] == "failed"], rows
+    assert ("passed", "chart.pptx: 2 slides, 0 with notes") in rows
+    assert ("passed", "front.mmd: a flowchart diagram") in rows
+    assert ("passed", "new.mmd: a quadrantChart diagram") in rows
+    assert ("note", "odd.mmd: the first line names no Mermaid diagram type KOLONİ knows") in rows
+    assert ("passed", "mind.puml: @startmindmap … @endmindmap") in rows
+    assert ("passed", "site.md: 2 links, all found") in rows
+    assert ("note", "wide.csv: not checked: a field is over the CSV reader's limit") in rows
+
+
+def test_a_zip_member_that_breaks_its_reader_is_said_not_checked(tmp_path):
+    deck = bytearray(pptx("<a:t>" + "word " * 200 + "</a:t>"))
+    at = deck.find(b"word")  # (stored: no compression - corrupt the member's own deflate instead)
+    made = io.BytesIO()
+    with zipfile.ZipFile(made, "w", compression=zipfile.ZIP_DEFLATED) as broken:
+        broken.writestr("ppt/slides/slide1.xml", "<p:sld><a:t>" + "word " * 200 + "</a:t></p:sld>")
+    data = bytearray(made.getvalue())
+    start = data.find(b"ppt/slides/slide1.xml") + len("ppt/slides/slide1.xml")
+    data[start + 5:start + 25] = b"\xff" * 20  # (inside the compressed stream)
+    rel = put(tmp_path, "broken.pptx", bytes(data))
+    rows = said(check_slides(tmp_path, [rel]))
+    # (One line for the file - however its reader breaks - never the whole check broken.)
+    assert at >= 0 and len(rows) == 1 and rows[0] in (
+        ("failed", "broken.pptx: does not open as a PowerPoint file"),) or rows[0][1].startswith(
+        "broken.pptx: not checked"), rows
+
+
+def test_a_file_gives_at_most_a_dozen_lines(tmp_path):
+    rel = put(tmp_path, "many.md", "".join(f"[x{i}](gone{i}.md)\n" for i in range(30)))
+    rows = said(check_docs(tmp_path, [rel]))
+    mine = [one for one in rows if one[1].startswith("many.md")]
+    assert len(mine) == proof_kinds.MOST_ROWS_A_FILE + 1
+    assert mine[-1] == ("note", "many.md: +18 more lines")
+
+
+def test_a_reader_that_breaks_any_way_is_one_line_not_a_broken_check(tmp_path, monkeypatch):
+    def broke(_data, _rel):
+        raise RuntimeError("zipfile: a member of an unknown compression")
+    monkeypatch.setattr(proof_kinds, "_pptx", broke)
+    rel = put(tmp_path, "a.pptx", pptx("<a:t>x</a:t>"))
+    assert said(check_slides(tmp_path, [rel])) == [
+        ("note", "a.pptx: not checked: zipfile: a member of an unknown compression")]
