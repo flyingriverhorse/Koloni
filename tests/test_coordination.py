@@ -568,6 +568,39 @@ def test_a_group_that_does_not_pair_is_always_asked(command):
     assert harm_class(command) == "always", command
 
 
+# Brackets that are no group (k-okuyucu-2): a heredoc's body handed to what only reads it as data,
+# a comment, a case pattern, a group only printed - asked no more than a plain line.
+@pytest.mark.parametrize("command", [
+    "cat > notes.md <<'EOF'\n1) first\n2) second\nEOF", "cat <<EOF > a.txt\nsmile :)\nEOF",
+    "tee x.md <<'EOF'\na) one\nb) two\nEOF", "git commit -F - <<'EOF'\nfix: close paren)\nEOF",
+    "cat > x.py <<'EOF'\nprint(\"a\")\nfoo(\nEOF", "cat > setup.sh <<'EOF'\n(cd web && npm ci)\nEOF",
+    "cat > notes.md <<-EOF\n\t1) first\n\tEOF", "cat > a.md <<'EOF'\r\n1) first\r\nEOF\r\n",
+    "echo done # 1) first step", "ls -la # see (notes", "npm test # } end of block",
+    "REM (a cmd remark\ndir", ":: (another remark\ndir", "echo ok & rem )",
+    "case \"$1\" in\n  start) echo s ;;\n  stop) echo t ;;\nesac",
+    "case $x in a|b) ls ;; *) pwd ;; esac", "echo \"(npm ci)\"",
+    "git commit -m \"run (npm ci) first\""])
+def test_brackets_that_are_no_group_ask_nothing(command):
+    assert harm_class(command) == "" and not installs(command), command
+    assert not web_off_reason(command, ["http_request"]), command
+    assert not copy_reason(command, True, "/work/proj", "/work/rt"), command
+
+
+@pytest.mark.parametrize("command", [
+    "bash <<EOF\npkill python\nEOF", "sh -s <<EOF\ncd web\npkill python\nEOF",
+    "cat <<EOF | bash\npkill python\nEOF", "case \"$1\" in stop) pkill python ;; esac",
+    "pkill python # )", "(pkill python) # (", "echo x; rem\npkill python"])
+def test_what_a_shell_is_handed_past_a_heredoc_a_comment_or_a_case_still_stops(command):
+    assert harm_class(command) == "always", command
+
+
+@pytest.mark.parametrize("command", [
+    "sh -s <<EOF\ncd web\nnpm ci\nEOF", "case \"$1\" in start) npm ci ;; esac",
+    "case \"$1\" in\n  start)\n    npm ci\n    ;;\nesac", "npm ci # )"])
+def test_an_install_past_a_heredoc_a_comment_or_a_case_is_one(command):
+    assert installs(command), command
+
+
 # The four checks that read a line as written read every reading (k-okuyucu): a continued line
 # and a group too - the strictest of them.
 def test_the_checks_that_read_a_line_as_written_read_every_reading():

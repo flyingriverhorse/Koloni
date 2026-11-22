@@ -165,7 +165,7 @@ _TAKES_VALUE = {program: frozenset(options.split()) for program, options in {
 }.items()}
 _TAKES_LINE = {program: frozenset(options.split()) for program, options in {
     "env": "-S --split-string", "flock": "-c --command", "su": "-c --command",
-    "sh": "-c", "bash": "-c", "zsh": "-c",
+    "sh": "-c", "bash": "-c", "zsh": "-c", "schtasks": "/tr /TR /Tr -tr",
 }.items()}
 _TAKES_NONE = {program: frozenset(options.split()) for program, options in {
     "timeout": "--preserve-status --foreground -v --verbose",
@@ -2247,6 +2247,7 @@ def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
     found: list[str] = []
     opened: list[tuple[str, int]] = []
     quote = ""
+    command = _uncommented(command)
     for mark in re.finditer(r"""[(){}'"]""" if quotes else r"[(){}]", command):
         char, at = mark[0], mark.start()
         if quote:
@@ -2265,6 +2266,17 @@ def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
                 return found, False
             found.append(command[start + 1:at])
     return _groups(command, quotes=False) if quote else (found, not opened)
+
+
+# A comment as each shell reads it (k-okuyucu-2): sh's and PowerShell's `#` at a word's start
+# outside quotes (not `${#x}`, `$#`), PowerShell's `<# ... #>`, cmd's `rem` / `::` at a command's
+# start - what precedes it is read; its brackets pair nothing (`echo done # 1) first`).
+_COMMENT = re.compile(r"""'[^']*'|"[^"]*"|<#.*?#>|(?:^|(?<=[\s;&|(]))#[^\n]*"""
+                      r"""|(?:^|(?<=[\n&|(]))[ \t]*(?:(?i:rem)(?=\s|$)|::)[^\n]*""", re.S)
+
+
+def _uncommented(command: str) -> str:
+    return _COMMENT.sub(lambda found: found[0] if found[0][:1] in "'\"" else " ", command)
 
 
 # What leads into a part's command without being it (review round 4), for every rule: sh's `!`,
@@ -2296,6 +2308,8 @@ def _led(words: list[str]) -> list[str]:
                     1:] if "==" in words[0] else words
         elif first == "for" and "do" in (low := [word.casefold() for word in words]):
             words = words[low.index("do") + 1:]
+        elif first == "case" and "in" in words[2:3]:  # (its patterns out: `_uncased`)
+            words = words[3:]
         elif first == "trap" and len(words) > 1 and len(words) > 1 + (words[1] == "--"):
             return ["eval", words[1 + (words[1] == "--")]]  # (`trap -- 'x' EXIT`)
         elif first.startswith("@") and len(first) > 1:
@@ -2412,8 +2426,50 @@ def _readings(line: str) -> list[str]:
     "`kill -9 $(pgrep x)`"`).
     shortcut: pairs taken in order - nested substitutions (`` `a \\`b\\`` ``) and PowerShell's own
     escapes (`` `t ``) read as pairs are not parsed as bash does; do so in 0.1.6."""
+    line = _uncased(_without_data_heredocs(line))
     insides = re.findall(r"`([^`]*)`", line)
     return list(dict.fromkeys((joined(line), line, *(["\n".join(insides)] if insides else []))))
+
+
+# A heredoc's body (`<<EOF`, `<<-'EOF'`, `<<"EOF"`) is data to what only reads it - a file it
+# writes, a message, a count (k-okuyucu-2): `1) first` in it is no command. Handed to anything
+# else (`bash <<EOF`, `python - <<'EOF'`, `make -f -`, a pipe on its line) it stays, read as the
+# line it is (an interpreter's code: `_STDIN_CODE`).
+_HEREDOC = re.compile(r"(?<!<)<<(-?)[ \t]*(['\"]?)([\w.-]+)\2")
+_DATA_READERS = frozenset({
+    "cat", "tee", "git", "gh", "wc", "sort", "uniq", "head", "tail", "grep", "egrep", "fgrep",
+    "rg", "jq", "yq", "base64", "diff", "cmp", "less", "more", "nl", "tr", "cut", "column",
+    "fold", "iconv", "xxd", "od", "md5sum", "sha256sum", "shasum", "curl", "echo", "printf"})
+
+
+def _without_data_heredocs(line: str) -> str:
+    """A line with the bodies of its heredocs taken out where the command on the heredoc's line
+    is one that only reads it as data (`_DATA_READERS`, alone on its line: no pipe, no chain)."""
+    at = 0
+    while found := _HEREDOC.search(line, at):
+        start, end = line.rfind("\n", 0, found.start()) + 1, line.find("\n", found.end())
+        head = line[start:] if end < 0 else line[start:end]
+        words = _words(head.strip())
+        at = found.end()
+        if end < 0 or re.search(r"[|;&]", re.sub(r"\d?>&\d|&>", "", head)) or not words or (
+                _program(words[0]) not in _DATA_READERS):
+            continue
+        tabs = r"\t*" if found[1] else ""
+        close = re.compile(rf"^{tabs}{re.escape(found[3])}[ \t\r]*$", re.M).search(line, end + 1)
+        line = line[:end] + line[close.end() if close else len(line):]
+    return line
+
+
+# sh's `case x in a|b) cmd ;; esac`: its patterns are no command, only its branches are.
+_CASE_BRANCH = re.compile(r"(\bin\b|;;&?|;&)(\s*\(?[^()\n;|&]+(?:\|[^()\n;|&]+)*\))")
+
+
+def _uncased(line: str) -> str:
+    """A line with the patterns of its `case ... esac` taken out (k-okuyucu-2): `start) npm ci`
+    is `npm ci`, and a pattern's `)` pairs nothing."""
+    if not (re.search(r"\bcase\b", line) and re.search(r"\besac\b", line)):
+        return line
+    return _CASE_BRANCH.sub(lambda found: f"{found[1]} ", line)
 
 
 def danger(command: str, instructions: bool = True) -> str:
@@ -3660,13 +3716,17 @@ def installs(command: str) -> str:
     `$(...)` gives (`npm $(echo ci)`) or an install word `_INSTALLERS` does not list (`pnpm
     import`, `pnpm fetch`, `poetry sync`, `pdm add`, `conda install`); 0.1.6 (review round 4)."""
     for words in (words for line in _readings(command) for words in _commands_in(line) if words):
-        if words == ["yarn"] or any(
-                verb == UNREAD or verb.casefold() in (_INSTALLERS["pip"] if program.startswith(
-                    "pip") else _INSTALLERS.get(program, set()))
-                for program, verb in _verbs(words)):
+        if _installs_part(words):
             return ("It installs or removes packages: in a working copy its dependency folders "
                     "are the project's own, linked in.")
     return ""
+
+
+def _installs_part(words: list[str]) -> bool:
+    """`installs` of one part's words."""
+    return words == ["yarn"] or any(
+        verb == UNREAD or verb.casefold() in (_INSTALLERS["pip"] if program.startswith(
+            "pip") else _INSTALLERS.get(program, set())) for program, verb in _verbs(words))
 
 
 # What reaches the internet from a command (K-web-komut): `_SENDING_PROGRAMS` and these, as
@@ -3746,8 +3806,12 @@ def _reaches_of(command: str) -> str:
             return program
         if sub in _GIT_REACHES:
             return f"git {sub}"
-        if installs(" ".join(words)) or _reaches_by_word(words) or program in (
-                "pip", "pip3") and "download" in said:
+        # (an install of the part as a line - its quoted words kept: `git commit -m "run (npm
+        # ci) first"` - and of its words split at their spaces: `"pip install" x`)
+        quoted = " ".join(f'"{word}"' if re.search(r"\s", word) else word for word in words)
+        split = " ".join(words).split()
+        if installs(quoted) or split and _installs_part(split) or _reaches_by_word(
+                words) or program in ("pip", "pip3") and "download" in said:
             return "a package install"
         if (sending := _SENDING_WORDS & said) and sub != "stash":  # (`git stash push` stays)
             return f"{program} {sorted(sending)[0]}"
