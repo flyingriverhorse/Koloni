@@ -625,6 +625,15 @@ def test_an_install_a_launcher_hands_a_shell_is_one():
     assert harm_class("Start-Process notepad -ArgumentList 'x.txt'") == ""
 
 
+# What a `$( ... )` runs installs as the line it is (k-okuyucu-2), sh's and PowerShell's.
+@pytest.mark.parametrize("command", [
+    "out=$(npm ci)", "output=$(npm install 2>&1)", 'echo "$(npm ci)"', "result=$(cd web && npm ci)",
+    "v=$(pip install -r requirements.txt) && echo $v", "$r = $(npm ci)", "Write-Host $(npm ci)"])
+def test_an_install_a_substitution_runs_is_one(command):
+    assert installs(command), command
+    assert web_off_reason(command, ["http_request"]), command
+
+
 # The four checks that read a line as written read every reading (k-okuyucu): a continued line
 # and a group too - the strictest of them.
 def test_the_checks_that_read_a_line_as_written_read_every_reading():

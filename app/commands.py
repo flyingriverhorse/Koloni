@@ -2233,10 +2233,14 @@ def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
     sets = re.findall(r"(?i)(?:^|[\s;&|(@])for\s[^;&|]*?\bin\s*\(\s*(['`\"])(.*?)\1\s*\)",
                       command)
     groups, paired = _groups(command)
+    # (and what a `$( ... )` runs, in double quotes too: `out=$(npm ci)` - k-okuyucu-2; `_BLOCKS`
+    # cuts at its brackets already; past MAX_OTHER_READINGS of them, not read: `_too_deep`)
+    deep = _too_deep(command)
+    subs = _substituted(command) if at is _PARTS and not deep else []
     return [*([word.strip("'\"") for word in _words(inner)] for _quote, inner in sets),
             *([word.strip("'\"") for word in _led(_words(part.strip()))]
-              for text in (command, *groups) for part in at.split(text)),
-            *([] if paired else [[UNREAD]])]
+              for text in (command, *groups, *subs) for part in at.split(text)),
+            *([] if paired and not deep else [[UNREAD]])]
 
 
 def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
