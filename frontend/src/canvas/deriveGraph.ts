@@ -18,6 +18,7 @@ import { shown } from '../chat/attachments'
 import { decidedOf, waitingOf, waitingSummary } from '../chat/waiting'
 import { firstLine } from '../chat/chatLine'
 import { outputCards } from './outputs'
+import { type ChecksData, checksNode } from './checksNode'
 import { liveKind } from '../agents/liveLine'
 import { type SharedData, sharedColumn } from './sharedColumn'
 
@@ -43,6 +44,8 @@ export type NodeKind =
   | 'round'
   // The Assistant PO, asked once the turn ended (the user's, 7 Nov): under its Lead, only where it was asked.
   | 'po'
+  // Kanıtlı bitiş (plan decision 12): KOLONİ's own checks after the Orchestrator's work (`checksNode`).
+  | 'checks'
 
 /** The Assistant PO's request after a turn, as it was recorded (`Run.po`). */
 export type PoData = NonNullable<Run['po']>
@@ -85,6 +88,8 @@ export interface RequestData {
  * in the side panel and its window, from its record.
  */
 export interface AgentData extends GroupData {
+  /** The Orchestrator's one line of what KOLONİ checked ("✓ checked · 1 round", "not checked"); none before. */
+  checked?: string | null
   role: string
   /** What the agent is called in its turn: its role, numbered when there are several. */
   name: string
@@ -250,6 +255,7 @@ export interface GraphNode {
     | Record<string, never>
     | PlanData
     | PoData
+    | ChecksData
     | TeamData
     | ReadyData
     | AwayJobData
@@ -298,6 +304,8 @@ export interface GraphEdge {
   plan?: boolean
   /** With `plan`: from the Lead down to the Assistant PO asked as its turn ended - the same line, dashed its own way. */
   po?: boolean
+  /** Kanıtlı bitiş: from the Checks node back to the Orchestrator, a fix round - its words ("round 1 of 2: tests fail"). */
+  round?: string
 }
 
 /**
@@ -750,6 +758,7 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
     // A turn still queued has no agent yet: only its request is shown.
     for (const agent of state.agents.filter(a => a.run_id === run.id))
       agentNodes(state, run, agent, nodes, link, { teams, opened, frameOf, request, requestId })
+    checksNode(state, run, nodes, edges)
 
     // K-canvas-dili (W): the agent that opens a team's agents - the Lead - reaches them at their frame's door, and in the
     // frame the work goes left to right in its recipe's order: one fork into each pass of a step, one join out of it,

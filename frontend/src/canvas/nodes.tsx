@@ -13,6 +13,7 @@ import { AwayReport } from '../backlog/Away'
 import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
 import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
+import { type ChecksData, toolOf } from './checksNode'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
 type Tone = 'idle' | 'running' | 'approval'
@@ -233,6 +234,51 @@ export function PoNode({ data, selected }: NodeProps<Node<PoData & Record<string
   )
 }
 
+/** The Orchestrator's one line of what KOLONİ checked at its turn's end (plan decision 12); nothing before it. */
+function CheckedStrip({ line }: { line?: string | null }) {
+  if (!line) return null
+  return <div className={`node-strip${line.startsWith('✗') ? ' node-strip-bad' : ''}`}>{line}</div>
+}
+
+const MARK: Record<string, string> = { passed: '✓', failed: '✗', running: '●' }
+
+/**
+ * KOLONİ's Checks after the Orchestrator's work (plan decision 12): the test run at work now with how long it has run - no
+ * time made up before it starts -, then each line of what came of it; a row still running in the background (S6) as it
+ * is. Its window is the Orchestrator's, whose record holds the runs.
+ */
+export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
+  const now = useNow(1000)
+  const running = data.running
+  return (
+    <div className={`node node-checks${selected ? ' node-selected' : ''}`}>
+      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <div className="node-head">
+        <span className="node-icon">
+          <ListChecks size={13} />
+        </span>
+        <span className="node-title">Checks</span>
+        <span className="node-label mono">{data.recipe ? 'KOLONİ · end of the recipe' : 'KOLONİ'}</span>
+        <OpenWindow id={data.leadId} name="the Orchestrator" />
+      </div>
+      <div className="node-body">
+        {running && (
+          <div className="node-line node-checks-running">
+            ● {[toolOf(running.command), ...liveFactList(now, running.since, null, null)].join(' · ')}
+          </div>
+        )}
+        {data.lines.map((line, index) => (
+          <div key={index} className="node-line" data-state={line.state}>
+            {MARK[line.state] ?? '–'} {line.text}
+          </div>
+        ))}
+      </div>
+      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Ends />
+    </div>
+  )
+}
+
 type AgentProps = NodeProps<Node<AgentData & Record<string, unknown>>>
 
 /** A finished agent of a step's newest round, the step having had rounds before (the user's, 4 Nov): one line. */
@@ -380,6 +426,7 @@ function AgentCard({ id, data, selected }: AgentProps) {
             under the pointer. */}
         <StateLine id={id} data={data} said={said} />
         {(data.summary || data.spent) && <div className="node-meta mono">{[data.summary, data.spent].filter(Boolean).join(' · ')}</div>}
+        <CheckedStrip line={data.checked} />
       </div>
       <Handle type="source" position={Position.Right} isConnectable={false} />
       <Ends />

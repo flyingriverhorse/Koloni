@@ -4956,6 +4956,36 @@ fieldset.choice > label .choice-note,
   color: var(--del);
 }
 
+/* Plan decision 12: KOLONİ's Checks node on the canvas, and the Orchestrator's one line of it. */
+.node-checks {
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+}
+
+.node-checks .node-line[data-state='passed'] {
+  color: var(--ok);
+}
+
+.node-checks .node-line[data-state='failed'] {
+  color: var(--del);
+}
+
+.node-checks .node-line[data-state='running'],
+.node-checks-running {
+  color: var(--accent);
+}
+
+.node-strip {
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px dashed var(--border);
+  color: var(--ok);
+  font-size: var(--text-meta);
+}
+
+.node-strip-bad {
+  color: var(--del);
+}
+
 .checked-fix {
   display: inline-flex;
   align-items: baseline;
