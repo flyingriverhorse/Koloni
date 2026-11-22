@@ -46,6 +46,7 @@ export const GUIDE = {
   planMeters: 'money/usage/#plan-meters',
   prices: 'money/usage/#where-the-money-comes-from',
   roomWindow: 'agents/rooms/#the-room-window',
+  checked: 'use/checked/',
 } as const
 
 export type GuidePlace = (typeof GUIDE)[keyof typeof GUIDE]

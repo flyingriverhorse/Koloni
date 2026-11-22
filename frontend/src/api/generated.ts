@@ -5798,6 +5798,27 @@ export interface components {
             why?: string | null;
         };
         /**
+         * CheckedRow
+         * @description One line of a turn's Checked section (`app.proof.Row`).
+         */
+        CheckedRow: {
+            /** Command */
+            command: string | null;
+            /** Guessed */
+            guessed: boolean;
+            /** Kind */
+            kind: string;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "passed" | "failed" | "running" | "not_run" | "timed_out" | "note";
+            /** Text */
+            text: string;
+        };
+        /**
          * ClaimOut
          * @description A file of the project that an agent of a running turn holds until its work is
          *     done. The holder may be an agent of another conversation of the project.
@@ -6665,18 +6686,6 @@ export interface components {
             role: string | null;
             /** What */
             what: string;
-        };
-        /**
-         * FinishTestsAuto
-         * @description 89m: "Finish only when the tests pass" where the user has not said (`finish_tests`).
-         */
-        FinishTestsAuto: {
-            /** Command */
-            command: string | null;
-            /** On */
-            on: boolean;
-            /** Reason */
-            reason: string;
         };
         /** FolderBrowseIn */
         FolderBrowseIn: {
@@ -8075,6 +8084,8 @@ export interface components {
             agent_id: string | null;
             /** Board Post Id */
             board_post_id: string | null;
+            /** Checked */
+            checked?: components["schemas"]["CheckedRow"][] | null;
             /** Content */
             content: string;
             /** Conversation Id */
@@ -8096,7 +8107,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "user" | "assistant" | "agent" | "memory" | "trigger" | "away" | "git" | "koloni" | "landed";
+            role: "user" | "assistant" | "agent" | "memory" | "trigger" | "away" | "git" | "koloni" | "landed" | "checked";
             /** Room Post Id */
             room_post_id: string | null;
             /** Run Id */
@@ -8756,6 +8767,13 @@ export interface components {
         };
         /** ProjectOut */
         ProjectOut: {
+            /**
+             * After Change
+             * @enum {string}
+             */
+            after_change: "check" | "tests" | "nothing";
+            /** After Change From Off */
+            after_change_from_off: boolean;
             /** Also In */
             also_in: string[];
             /** Auto Notes */
@@ -8792,9 +8810,6 @@ export interface components {
              * @enum {string}
              */
             exec_location: "host" | "docker";
-            /** Finish Tests */
-            finish_tests: boolean | null;
-            finish_tests_auto: components["schemas"]["FinishTestsAuto"];
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
             /**
@@ -8922,6 +8937,8 @@ export interface components {
         };
         /** ProjectPatch */
         ProjectPatch: {
+            /** After Change */
+            after_change?: ("check" | "tests" | "nothing") | null;
             /** Also In */
             also_in?: string[] | null;
             /** Auto Notes */
@@ -8950,8 +8967,6 @@ export interface components {
             embedding_provider_id?: string | null;
             /** Exec Location */
             exec_location?: ("host" | "docker") | null;
-            /** Finish Tests */
-            finish_tests?: boolean | null;
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
             /** Full Auto Check */

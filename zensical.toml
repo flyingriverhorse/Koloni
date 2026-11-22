@@ -25,6 +25,7 @@ nav = [
     { "Permission levels" = "use/permissions.md" },
     { "Ready and approval cards" = "use/ready.md" },
     { "Working copies and Take in" = "use/workspace.md" },
+    { "Checked" = "use/checked.md" },
     { "Plan first" = "use/plan-first.md" },
     { "Compare" = "use/compare.md" },
     { "Attachments" = "use/attachments.md" },

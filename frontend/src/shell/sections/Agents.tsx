@@ -50,30 +50,16 @@ const SUGGEST_TIERS: [value: Project['suggest_tier'], label: string][] = [
   ['strongest', 'Strongest tier'],
 ]
 
-/** 89m: whether its agents finish only when the tests pass - as the user set it, else as it is by itself. */
-const finishing = (project: Project) => project.finish_tests ?? project.finish_tests_auto?.on ?? false
-
-/** Why, under the switch: what it is by itself, and why. */
-function finishNote(project: Project): string {
-  const auto = project.finish_tests_auto
-  if (!auto) return ''
-  const by = `${auto.on ? 'on' : 'off'}: ${auto.reason}.`
-  return project.finish_tests == null ? `By default ${by}` : `You set this; by default it would be ${by}`
-}
-
 /** This project › Agents: who changes the files, and what is checked of their work. */
 export function useAgents(project: Project) {
   // (A server older than the page has no such field yet: a chat's default.)
   const savedWork = project.lead_work ?? 'delegates'
   const [leadWork, setLeadWork] = useState(savedWork)
-  const [finishTests, setFinishTests] = useState(finishing(project))
   const [observe, setObserve] = useState(project.observe_reports)
   const [suggest, setSuggest] = useState(project.suggest_tasks)
   const [suggestTier, setSuggestTier] = useState(project.suggest_tier)
   const patch = {
     ...(leadWork !== savedWork && { lead_work: leadWork }),
-    // (Chosen as it would be by itself: automatic again, so that it follows the tests' time.)
-    ...(finishTests !== finishing(project) && { finish_tests: finishTests === project.finish_tests_auto?.on ? null : finishTests }),
     ...(observe !== project.observe_reports && { observe_reports: observe }),
     ...(suggest !== project.suggest_tasks && { suggest_tasks: suggest }),
     ...(suggestTier !== project.suggest_tier && { suggest_tier: suggestTier }),
@@ -93,18 +79,6 @@ export function useAgents(project: Project) {
           ))}
         </select>
       </Row>
-      <label className="choice">
-        <input type="checkbox" checked={finishTests} onChange={e => setFinishTests(e.target.checked)} />
-        <span>
-          Finish only when the tests pass
-          <span className="choice-note">
-            An agent (the Orchestrator or a sub-agent) on Claude Code that changed files is sent back to work, at most twice, while
-            {project.finish_tests_auto?.command ? <> <code>{project.finish_tests_auto.command}</code> fails.</> : ' the tests fail.'}{' '}
-            KOLONİ runs them where this project’s commands run, by itself only in Full auto or under an Always run rule.
-          </span>
-          <span className="choice-note" data-testid="finish-tests-why">{finishNote(project)}</span>
-        </span>
-      </label>
       <label className="choice">
         {/* Named by all of its note, as the commit box is: a browser leaves a closed hint out of a name. */}
         <input type="checkbox" aria-label={`Have a model look over each sub-agent’s report ${OBSERVE_SHOWN} ${OBSERVE_REST}`} checked={observe} onChange={e => setObserve(e.target.checked)} />

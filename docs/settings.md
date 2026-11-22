@@ -66,7 +66,6 @@ The sections are listed on the left, in this order.
 | Setting | What it does |
 |---|---|
 | **Who changes the files** | **Orchestrator delegates the work**: it plans, asks and checks; sub-agents change the files. **Orchestrator decides**: a small change (one or two files, a few lines) it makes itself, bigger work goes to a sub-agent. **Orchestrator does it itself**: it changes the files itself, and may still hand a part to a sub-agent. |
-| **Finish only when the tests pass** | An agent on Claude Code that changed files is sent back to work, at most twice, while the tests fail. KOLONİ runs the tests where this project's commands run, by itself only in Full auto or under an Always run rule. |
 | **Have a model look over each sub-agent's report** | The Observer role's model reads each sub-agent's report, the diffs and the test output, and says what the record shows. One more model request per report. The Orchestrator takes its words as an opinion, not a fact. |
 | **Suggest follow-up tasks after each turn** | On by default. After a turn that did something, the Assistant PO proposes at most three [follow-up tasks](automation/todo.md#follow-up-tasks) for the To-do list; they wait for your **Add**, **Edit** or **Reject**. One small model request per such turn, made once the turn is over, and at Full auto in a turn you started one more for the Orchestrator's decision. **Follow-up tasks from** picks the tier: **Fast tier** (the default), **Balanced tier** or **Strongest tier**. |
 
@@ -138,6 +137,12 @@ Heading: "Run commands on".
 See [Permission levels](use/permissions.md) for what a rule can and cannot cover.
 
 ### Checks and git
+
+Heading: "After a turn that changed code".
+
+| Setting | What it does |
+|---|---|
+| **After a change** | **Check it** (the default) or **Tests only**: after a turn that changed code, KOLONİ runs this project's tests once on the work as it now stands and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice. In a turn you watch it waits at most 2 minutes for them. **Nothing** runs nothing, and the [Checked](use/checked.md) lines still say so. A project that had turned off the old **Finish only when the tests pass** switch is on Nothing, and says so here. |
 
 Heading: "When a sub-agent's work is added".
 

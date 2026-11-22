@@ -4906,6 +4906,62 @@ fieldset.choice > label .choice-note,
   font-weight: 600;
 }
 
+/* Kanıtlı bitiş: under a turn's answer, what KOLONİ checked at its end - one quiet line a row, its mark coloured by how
+   it went (passed, failed; the rest muted). */
+.checked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 2px 0 4px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  overflow-wrap: anywhere; /* (a long command wraps, not past the chat's edge) */
+}
+
+.checked-head {
+  font-weight: 600;
+}
+
+.checked-rows {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checked-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.checked-mark {
+  flex: none;
+  width: 1em;
+  text-align: center;
+}
+
+.checked-row[data-state='passed'] .checked-mark {
+  color: var(--ok);
+}
+
+.checked-row[data-state='failed'] {
+  color: var(--text);
+}
+
+.checked-row[data-state='failed'] .checked-mark {
+  color: var(--del);
+}
+
+.checked-fix {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 /* "Working copy: 3 files changed +40 −12 · See changes · Open folder". */
 .working-copy {
   display: flex;

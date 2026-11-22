@@ -21,6 +21,14 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Added
+
+- **Chat**: after a turn that changed code, KOLONİ runs the project's tests once and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice ([docs](docs/use/checked.md)).
+
+### Changed
+
+- **Settings**: **Finish only when the tests pass** is now **After a change** (Check it / Tests only / Nothing) in Settings › This project › Checks and git, for every model, not only Claude Code; a project that had turned it off gets Nothing (and Settings says so), the rest Check it.
+
 ### Fixed
 
 - **Chat**: an agent's command whose inline code only prints a stop's name (`python -c "print('kill')"`, `awk '/kill/ {print}' log.txt`) no longer asks as a stop of KOLONİ itself; one whose code runs or ends a process (`os.system('pkill x')`, `execSync(...)`, `system(...)`, `os.kill(...)`) still does ([docs](docs/use/permissions.md)).
