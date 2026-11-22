@@ -1788,12 +1788,13 @@ def test_another_branch_of_the_same_name_since_is_not_opened_again(repo, runtime
     assert copy.branch == "koloni/x"
 
 
-def test_a_branch_whose_worktree_folder_was_deleted_by_hand_is_opened_again(
-    repo, runtime, tmp_path
-):
+def test_a_branch_whose_worktree_folder_was_deleted_by_hand_is_opened_again(repo, runtime):
     first = stopped_on(repo, runtime)
-    run(repo, "worktree", "add", str(tmp_path / "elsewhere"), "koloni/x")
-    shutil.rmtree(tmp_path / "elsewhere")  # (git's record of it stays)
+    # (In KOLONİ's copies folder: a record of one elsewhere is the user's, never removed for it -
+    # test_coordination.)
+    gone = copies.folders(runtime)[0] / "gone" / "tree"
+    run(repo, "worktree", "add", str(gone), "koloni/x")
+    shutil.rmtree(gone.parent)  # (git's record of it stays)
     copy = copies.make_branch(repo, runtime, "agent1", "koloni/x", start=first.start)
     assert (copy.root / "a.txt").read_text() == "one\nTWO\n" and len(worktrees(repo)) == 2
 

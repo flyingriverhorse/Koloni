@@ -131,6 +131,10 @@ What is not framed:
   Claude Code or Qoder run **Native** there are not sandboxed: at Full auto, one that reaches the project by a path it does not
   spell out changes it directly, and KOLONİ records that change at the end of the turn
   ([Known limits](../reference/known-limits.md#clis)).
+- **Agents beside each other**: a sub-agent's command that names another agent's copy, a worktree or a
+  place above its copy, writes in or installs into the linked dependency folders, or stops programs
+  by their name is asked at every level; KOLONİ's worktrees are locked while their agents work
+  ([Working copies](../use/workspace.md#working-copies)).
 - **Commands in Docker** (Settings › This project › Commands and secrets): a fresh container for each command, with only
   the folder mounted and the network off unless you allow it.
 - **Turns nobody watches** (triggers) may do only what the trigger allows.

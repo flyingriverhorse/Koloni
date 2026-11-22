@@ -11,10 +11,15 @@ from tests.test_full_auto_harm import ASKED
 
 
 @pytest.mark.parametrize("command", ASKED + ["git reset --hard", "git branch -D x",
-                                             "[IO.File]::Delete('a')",
-                                             "Remove-Item -Recurse `\nbuild"])  # (one line to it)
+                                             "[IO.File]::Delete('a')"])
 def test_a_delete_or_a_send_alone_is_soft(command):
     assert harm_class(command, False) == "soft"
+
+
+def test_a_continued_delete_is_read_as_written_too():
+    # (review round 4: joined it is one soft delete; as written, `Remove-Item -Recurse` names no
+    # target - a continuation that continues nothing in bash - so it is never less than soft)
+    assert harm_class("Remove-Item -Recurse `\nbuild", False) in ("soft", "always")
 
 
 @pytest.mark.parametrize("command", [

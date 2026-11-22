@@ -52,7 +52,7 @@ def test_status_says_the_branch_and_how_many_files_are_not_committed(repo):
     seen = git.look(repo)
     assert (seen["branch"], seen["changed"], seen["branches"]) == ("main", 0, [])
     assert seen["worktrees"] == [{"path": seen["worktrees"][0]["path"], "branch": "main",
-                                  "here": True}]
+                                  "locked": False, "here": True}]
     (repo / "a.txt").write_text("changed\n")
     (repo / "new.txt").write_text("new\n")
     assert git.look(repo)["changed"] == 2
