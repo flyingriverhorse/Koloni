@@ -27,6 +27,7 @@ import type { Second } from './Compare'
 import { Composer, type ComposerTopic } from './Composer'
 import { MessageList, type RequestHandlers } from './MessageList'
 import { toFront } from '../shell/move'
+import { testsRun } from '../shell/sections/afterChangeWords'
 import { FilesWindow } from '../views/FilesWindow'
 import { keyOf, useViews } from '../views/views'
 
@@ -597,7 +598,11 @@ export function ChatPanel() {
         onPlanFirst={on => void useApp.getState().setPlanFirst(on)}
         checkFirst={project?.full_auto_check === 'judge'}
         onCheckFirst={conv?.conversation.project_id ? on => void useApp.getState().saveProjectSettings({ full_auto_check: on ? 'judge' : 'ask' }) : undefined}
-        checks={conv && project ? { chat: conv.conversation.after_change, project: project.after_change, onChange: value => void useApp.getState().setAfterChange(value) } : undefined}
+        checks={
+          conv && project
+            ? { chat: conv.conversation.after_change, project: project.after_change, command: testsRun(project, false), rounds: project.fix_rounds, onChange: value => void useApp.getState().setAfterChange(value) }
+            : undefined
+        }
         location={location}
         // This chat's own settings; what it takes from its project is the project's, in Settings (tek-ev).
         sheet={conv && <ChatSheet sheet />}

@@ -397,3 +397,11 @@ def test_turn_diff_is_cut_names_what_is_left_out_and_shows_no_secret(factory):
 def test_security_path_words_are_whole_words(path, touches):
     # (Review of S3: "author", "tokenizer", "aclocal" are no sign-in, token or ACL code.)
     assert bool(proof.review_reasons([_change(path, 1)], "").security) is touches
+
+
+
+def test_the_projects_page_says_the_reviewers_size_as_the_gate_reads_it():
+    from app.schemas import ProjectOut
+    fields = ProjectOut.model_fields
+    assert (fields["review_lines"].default, fields["review_files"].default) == (
+        proof.BIG_LINES, proof.BIG_FILES)

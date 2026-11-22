@@ -25,18 +25,26 @@ It works the same for every model and CLI.
 **Settings › This project › Checks and git › After a change** turns it on or off for the
 project:
 
-- **Check it** (the default) runs the tests, and has a big or security-touching change looked
-  over by a read-only Reviewer (see [The review](#the-review)).
+- **Test and review** (the default) runs the tests, and has a big or security-touching change
+  looked over by a read-only Reviewer (see [The review](#the-review)).
 - **Tests only** runs the tests and nothing more.
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
+The line under the choice says what it does in this project now, from its real state - for
+example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
+the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
+is read by a Reviewer (one more model request). Failing work goes back up to 2 times." Before a
+test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
+
 ### For one chat
 
-**Check after a change**, in the permission level's menu beside **Plan first**, turns it on or
-off for this chat only. Its line says what the project's setting is: "As the project: Check it",
-"Off for this chat · the project's is Check it", or "On for this chat · the project's is Nothing"
-(on in a project at Nothing checks this chat's changes as Check it). Off, the level's button
+**Test and review changes**, in the permission level's menu beside **Plan first**, turns it on
+or off for this chat only. Its line says what this chat's changes get: "As the project: runs
+python -m pytest -q after each change, then a Reviewer reads big or security changes. Failing work
+goes back to be fixed, up to 2 times.", "Off for this chat: nothing is tested or reviewed; each
+answer says “Not checked”.", or "On for this chat · the project's is Nothing: runs …" (on in a
+project at Nothing is Test and review for this chat). Its ⓘ leads here. Off, the level's button
 says "· no checks", no Checks node is drawn for its turns, the Checked section says "Not checked:
 off for this chat" and the Orchestrator's box "not checked · off for this chat". Other chats go
 on with the project's setting.
@@ -141,7 +149,7 @@ its own two rounds. A turn can have both.
 
 ## The review
 
-Under **Check it**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
+Under **Test and review**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
 config or screens - or one that touches security - is looked over by the **Reviewer**, an agent
 KOLONİ opens itself. A security touch is a path with a word like auth, login, session, token,
 secret, password, permission, crypto, cookie or cors as a whole word of a name in it (`auth.py`,
@@ -286,7 +294,7 @@ not run), "✗ still failing" or "not checked". In a recipe's turn the node says
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
-chat** (the level menu's **Check after a change**, for the chat open now) and **Open its log**,
+chat** (the level menu's **Test and review changes**, for the chat open now) and **Open its log**,
 the Orchestrator's window, whose record holds the runs.
 
 ## What each line means
@@ -323,4 +331,4 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
-| – Not checked: off for this chat | This chat's **Check after a change** is off. |
+| – Not checked: off for this chat | This chat's **Test and review changes** is off. |

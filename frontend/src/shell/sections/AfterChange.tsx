@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
+import { afterChangeSaid } from './afterChangeWords'
 import { FoundTests } from './FoundTests'
 import { Row } from './part'
 
 /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code, in this project. */
 export const AFTER_CHANGE: [value: Project['after_change'], label: string][] = [
-  ['check', 'Check it'],
+  ['check', 'Test and review'],
   ['tests', 'Tests only'],
   ['nothing', 'Nothing'],
 ]
-/** What it runs and how long a turn waits for it, in sight under the control. */
-export const AFTER_CHANGE_NOTE =
-  'After a turn that changed code KOLONİ runs this project’s tests once on the work as it now stands and says under the answer what was checked and what was not; under Check it, a big or security-touching change is looked over by a read-only Reviewer too. Failing tests and blocking findings go back to the Orchestrator for at most the Fix rounds below. In a turn you watch it waits at most 2 minutes for the tests. Nothing runs nothing; the Checked lines still say so.'
+/** Behind ⓘ: what a turn's answer then says, and where the guide says the rest. */
+export const AFTER_CHANGE_WHY = 'After a turn that changed code KOLONİ tests the work as it now stands - and, under Test and review, a Reviewer reads a big or security-touching change - then says under the answer what was checked and what was not.'
 /** S3 (decisions 14a, 19): how often work goes back - failing tests and the Reviewer's findings, one count a turn. */
 export const FIX_ROUNDS_NOTE = 'How often a turn’s failing tests or the Reviewer’s blocking findings go back to the Orchestrator, 1 to 5; then you decide (Fix it).'
 /** 0162: a project that had turned 89m's switch off is Nothing - said, never silently. */
@@ -32,10 +32,11 @@ export function useAfterChange(project: Project) {
       <Row
         label="After a change"
         htmlFor="after-change"
+        why={AFTER_CHANGE_WHY}
         doc={GUIDE.checked}
         warn={
           <span id="after-change-note" className="choice-note">
-            {AFTER_CHANGE_NOTE}
+            {afterChangeSaid(project, after, fix)}
             {project.after_change_from_off && after === 'nothing' && <span data-testid="after-change-from-off"> {FROM_OFF}</span>}
           </span>
         }

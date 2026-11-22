@@ -39,7 +39,7 @@ reads at most**, **KOLONİ's test runs at once** and **Test processes per run** 
 On the line over the box: the model button (**Provider**, **Model name**, **Thinking**, on GitHub
 Copilot's `auto` and `fusion` **Routing**, **Orchestrator model: automatic**) and **☾ Away** (a chat with
 a folder). Under the message: **Attach**, the permission level (its menu holds **Plan first**, **Check
-what I said first** and **Check after a change**), **Auto-read**, **Dictate** and **Send**. Under the box: **Workspace**, **New
+what I said first** and **Test and review changes**), **Auto-read**, **Dictate** and **Send**. Under the box: **Workspace**, **New
 topic**, **Chat settings** (this chat's sheet) and **More** (**Work together…**, **Compare…**). See
 [Chat and canvas](../use/chat-and-canvas.md).
 

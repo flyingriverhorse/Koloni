@@ -543,10 +543,10 @@ test('Plan first is set in the level’s menu only: the row has no button for it
 
 test('the level in the row says " · no checks" where this chat’s changes are not checked (S10)', async () => {
   const onChange = vi.fn()
-  render(<Composer {...props} checks={{ chat: 'off', project: 'check', onChange }} />)
+  render(<Composer {...props} checks={{ command: 'pytest', rounds: 2, chat: 'off', project: 'check', onChange }} />)
   expect(screen.getByRole('button', { name: 'Permission level: Ask before changes, no checks' })).toHaveTextContent(/^Ask · no checks$/)
   await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('switch', { name: 'Check after a change' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('switch', { name: 'Test and review changes' }))
   expect(onChange).toHaveBeenLastCalledWith(null)
 })
 
