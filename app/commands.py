@@ -1278,9 +1278,9 @@ _PM_OPTIONS = {
 }
 # The runners whose first word is the package they run (`npx x`): what they hand on.
 _RUNNERS_OF = frozenset(name for name, words in _RUNS_PACKAGE.items() if not words)
-# ...and those whose `run` runs a program in the project's own environment (`uv run pip install
-# x`, `poetry run npm ci`) - review round 4.
-_ENV_RUNNERS = frozenset({"uv", "poetry", "pipenv", "pdm", "hatch", "conda"})
+# ...and those whose `run` runs a program in an environment (`uv run pip install x`, `poetry run
+# npm ci`, `uv tool run`, `pipx run`) - review rounds 4-5.
+_ENV_RUNNERS = frozenset({"uv", "poetry", "pipenv", "pdm", "hatch", "conda", "pipx"})
 # An option's first mark, and the dashes a phone or an editor types for it (`npm –g ci`): an
 # option not known, read both ways.
 _DASHES = ("-", "\u2013", "\u2014", "\u2212")
@@ -1325,9 +1325,12 @@ def _verbs(words: list[str], left: list[int] | None = None) -> list[tuple[str, s
         if program == "uv" and verb == "pip":
             verbs += _verbs(["pip", *rest[at + 1:]], left)
         elif program in _RUNNERS_OF or verb in _RUNS_PACKAGE.get(program, ()) or (
-                verb == "run" and program in _ENV_RUNNERS):
+                verb in ("run", "tool") and program in _ENV_RUNNERS):
             inner = rest[at:] if program in _RUNNERS_OF else rest[at + 1:]
             for start, word in enumerate(inner):
+                # (a command glued to its option, its quotes split by the line's words:
+                # `npm exec --call="npm ci"`, `-c='npm i x'`)
+                word = re.sub(r"^-[\w-]*=", "", word)
                 runs = _program(word)
                 line = bool(re.search(r"\s", word))
                 if not (line or runs in _INSTALLERS or runs.startswith(("pip", "python"))
@@ -1337,7 +1340,7 @@ def _verbs(words: list[str], left: list[int] | None = None) -> list[tuple[str, s
                     return [*verbs, (program, UNREAD)]
                 left[0] -= 1
                 verbs += [one for part in _parts(word) if part for one in _verbs(part, left)] if (
-                    line) else _verbs(inner[start:], left)
+                    line) else _verbs([word.strip("'\""), *inner[start + 1:]], left)
     return verbs
 
 
