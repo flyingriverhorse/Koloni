@@ -82,9 +82,40 @@ def test_ranges():
 
 
 def test_a_line_with_kolonis_flags_is_known_by_its_command():
-    out = "/p/.koloni/tmp/coverage-ab12"
-    for command, tool in [("python -m pytest -q", "pytest-cov"), ("npm test -- --run", "vitest"),
-                          ("npx vitest run", "vitest"), ("npm test", "c8")]:
-        assert coverage.unflagged(coverage.with_coverage(command, tool, out)) == command
-    assert coverage.unflagged("pytest --cov=. --cov-report=json:out.json") == (
-        "pytest --cov=. --cov-report=json:out.json")  # (an agent's own flags: its own command)
+    for out in (".koloni/tmp/coverage-0123456789ab", "/p/q/.koloni/tmp/coverage-0123456789ab",
+                "C:/p/.koloni/tmp/coverage-0123456789ab"):
+        for command, tool in [("python -m pytest -q", "pytest-cov"),
+                              ("npm test -- --run", "vitest"), ("npx vitest run", "vitest"),
+                              ("npm test", "c8")]:
+            assert coverage.unflagged(coverage.with_coverage(command, tool, out)) == command
+    # (review, 22 Nov: KOLONİ's exact form only - shell syntax, `..`, another folder stay)
+    for line in ["pytest --cov=. --cov-report=json:out.json",
+                 "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-x>o.txt;true",
+                 "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-x||true",
+                 "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-x/../../../x;exit",
+                 "pytest -q --cov=. --cov-report=json:.koloni/tmp/coverage-0123456789ab/"
+                 "coverage.json;true",
+                 "pytest -q --cov=. --cov-report=json:/a/../.koloni/tmp/coverage-0123456789ab/"
+                 "coverage.json",
+                 "pytest -q --cov=. --cov-report=json:$(x)/.koloni/tmp/coverage-0123456789ab/"
+                 "coverage.json"]:
+        assert coverage.unflagged(line) == line, line
+
+
+def test_a_report_that_breaks_the_reader_is_none(tmp_path):
+    inside = tmp_path / ".koloni" / "tmp" / "coverage-1"
+    inside.mkdir(parents=True)
+    (inside / "coverage.json").write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
+    assert coverage.report(tmp_path, inside, "pytest-cov") is None  # (RecursionError: not read)
+    odd = {"files": {"a.py": {"executed_lines": [[1], "x", 2], "missing_lines": 3}, "b.py": 4}}
+    assert coverage.changed_lines_covered(tmp_path, odd, "pytest-cov", {"a.py": [2]}) == (
+        coverage.Covered(100, {}))
+    odd = {"x": {"statementMap": {"0": 5, "1": {"start": 6}}, "s": [], "path": 7}}
+    assert coverage.changed_lines_covered(tmp_path, odd, "vitest", {"x": [1]}) == (
+        coverage.Covered(None, {}))
+
+
+def test_the_coverage_settings_mark_changes_with_them(tmp_path):
+    before = coverage.config_mark(tmp_path)
+    (tmp_path / ".coveragerc").write_text("[report]\nfail_under = 90\n", encoding="utf-8")
+    assert coverage.config_mark(tmp_path) != before

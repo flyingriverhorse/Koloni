@@ -6,8 +6,11 @@ its own leave and its own name (rows, reuse and the green state know it by its c
 the flags); flags its runner does not know are dropped and the run runs once more without them.
 `CoverageMixin`."""
 
+import asyncio
 import hashlib
+import logging
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,7 +27,11 @@ if TYPE_CHECKING:
 MEASURED = "Coverage: {p}% of the changed lines are run by tests ({tool})"
 NOT_MEASURED = "Coverage: not measured ({why})"
 FLAGS_FAILED = "the flags failed"
+FAILED_BEFORE = "the flags failed before; tried again once the coverage settings change"
 NO_REPORT = "no report"
+BAD_REPORT = "its report could not be read"
+
+log = logging.getLogger(__name__)
 UNRUN = "New lines no test runs: {path} {ranges}"
 
 
@@ -45,6 +52,11 @@ class CoverageMixin:
                 held.covered[key] = rows
                 held.uncovered.update(unrun)
             return await self._tests_of(ctx, run, held, until)
+        off, config = (self._project_id(ctx), *key), coverage.config_mark(place / run.cwd)
+        if self._coverage_off.get(off) == config:  # (they failed it before: once is enough)
+            held.covered[key] = [proof.row("coverage", "note", NOT_MEASURED.format(
+                why=FAILED_BEFORE), run.command)]
+            return await self._tests_of(ctx, run, held, until)
         # (the same folder each pass of the turn: a run again is the same line on the canvas)
         out = place / SCRATCH / f"coverage-{hashlib.sha256(
             f'{ctx.run_id}|{run.cwd}|{run.command}'.encode()).hexdigest()[:12]}"
@@ -62,6 +74,7 @@ class CoverageMixin:
             held.lines.pop((run.command, run.cwd), None)
         if self._flags_to_blame(made, output):
             shutil.rmtree(out, ignore_errors=True)
+            self._coverage_off[off] = config
             made, output = await self._tests_of(ctx, run, held, until, fresh=False)
             if made["state"] != "not_run":
                 held.covered[key] = [proof.row("coverage", "note", NOT_MEASURED.format(
@@ -71,7 +84,7 @@ class CoverageMixin:
         elif made["state"] == "not_run":
             shutil.rmtree(out, ignore_errors=True)  # (declined, stopped: nothing to say)
         else:
-            held.covered[key] = self._coverage_read(ctx, held, run, tool, out)
+            held.covered[key] = await self._coverage_read(ctx, held, run, tool, out)
         return made, output
 
     @staticmethod
@@ -88,26 +101,46 @@ class CoverageMixin:
     def _coverage_rows(self: "AgentRunner", held: "Proof", run: TestRun) -> list[Row]:
         return held.covered.pop((run.command, run.cwd), [])
 
-    def _coverage_later(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun) -> list[Row]:
-        """A whole suite gone on after the answer has ended: its report, read now."""
+    def _coverage_later(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
+                        then: Callable[[list[Row]], None]) -> bool:
+        """A whole suite gone on after the answer has ended: its report read now, off the loop,
+        and `then` given its rows; False: none to read (`then` is not called)."""
         found = held.covering.pop((run.command, run.cwd), None)
-        return self._coverage_read(ctx, held, run, *found) if found else []
+        if found is None:
+            return False
+        task = asyncio.ensure_future(self._coverage_read(ctx, held, run, *found))
+        self._telling.add(task)  # (kept till it ends; KOLONİ closing ends it)
+        task.add_done_callback(self._telling.discard)
 
-    def _coverage_read(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, tool: str,
-                       out: Path) -> list[Row]:
+        def read(done: asyncio.Future) -> None:
+            if not done.cancelled() and done.exception() is not None:
+                log.warning("run %s: its coverage not read: %r", ctx.run_id, done.exception())
+            then(done.result() if not done.cancelled() and done.exception() is None else [])
+        task.add_done_callback(read)
+        return True
+
+    async def _coverage_read(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
+                             tool: str, out: Path) -> list[Row]:
         """The report's word on the turn's added lines: the share run, its row; the new lines
         none ran, kept for the Reviewer (`held.uncovered`). The report is read only under the
-        scratch, size-capped (`coverage.report`), and deleted after.
-        shortcut: read and matched on the event loop (a report up to 20 MB, the turn's diffs) -
-        hand it to a thread if a big project's answer is felt to stall."""
-        place = Path(self._ws(ctx).root)
-        data = coverage.report(place, out, tool)
-        shutil.rmtree(out, ignore_errors=True)
-        if data is None:
-            return [proof.row("coverage", "note", NOT_MEASURED.format(why=NO_REPORT), run.command)]
-        with self._factory() as session:
-            added = proof.added_lines(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
-        said = coverage.changed_lines_covered(place, data, tool, added, run.cwd)
+        scratch, size-capped (`coverage.report`), in a thread (a report up to 20 MB, the turn's
+        diffs), and deleted after."""
+        place, sharing = Path(self._ws(ctx).root), self._sharing(ctx)
+
+        def read() -> coverage.Covered | str:
+            data = coverage.report(place, out, tool)
+            shutil.rmtree(out, ignore_errors=True)
+            if data is None:
+                return NO_REPORT
+            with self._factory() as session:
+                added = proof.added_lines(session, ctx.run_id, ctx.agent_id, sharing)
+            try:
+                return coverage.changed_lines_covered(place, data, tool, added, run.cwd)
+            except (ValueError, TypeError, AttributeError, RecursionError, MemoryError):
+                return BAD_REPORT
+        said = await asyncio.to_thread(read)
+        if isinstance(said, str):
+            return [proof.row("coverage", "note", NOT_MEASURED.format(why=said), run.command)]
         held.uncovered.update(said.uncovered)
         rows = [] if said.percent is None else [proof.row("coverage", "note", MEASURED.format(
             p=said.percent, tool=tool), run.command)]

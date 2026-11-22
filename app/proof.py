@@ -314,8 +314,20 @@ def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
 
 
 def _folded(command: str) -> str:
-    # (S9: a run with KOLONİ's coverage flags is the same command)
-    return coverage.unflagged(" ".join(command.split()))
+    return " ".join(command.split())
+
+
+def _known_as(session: Session, one: Command) -> str:
+    """The command a run on record is known by, folded: S9 - KOLONİ's own end-check run (its call
+    `PROOF_CALL…`) without the coverage report flags it added; never an agent's line, however
+    like them it looks (`pytest -q --cov=. --cov-report=json:….koloni/tmp/coverage-x;true` is
+    not `pytest -q`)."""
+    folded = _folded(one.command)
+    if "coverage-" not in folded or one.tool_call_id is None:
+        return folded
+    call = session.scalar(select(ToolCall.provider_call_id).where(
+        ToolCall.id == one.tool_call_id))
+    return coverage.unflagged(folded) if (call or "").startswith(PROOF_CALL) else folded
 
 
 def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: datetime | None,
@@ -338,7 +350,7 @@ def fresh(session: Session, run_id: str, lead_id: str, run: TestRun, since: date
                                   Command.cwd == run.cwd, Command.started_at.is_not(None))
             .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
         mine = one.agent_id == lead_id  # (the newest of each place's runs is its word)
-        if _folded(one.command) != wanted or mine in looked:
+        if _known_as(session, one) != wanted or mine in looked:
             continue
         looked.add(mine)
         after = since if mine else made
@@ -356,7 +368,7 @@ def _rewritten_after(session: Session, run_id: str, by: Collection[str], ran: Co
     tested - `fmt && pytest`, `jest -u`, `--snapshot-update` write. Re-running is the safe way."""
     return any(
         not only_reads(one.command) and not (
-            _folded(one.command) == wanted and one.status == "exited" and one.exit_code == 0)
+            _known_as(session, one) == wanted and one.status == "exited" and one.exit_code == 0)
         for one in session.scalars(select(Command).where(
             Command.run_id == run_id, Command.agent_id.in_(by), Command.id != ran.id,
             # (`>=`: a later line in the same tick of Windows' clock is no proof it came first)
@@ -393,7 +405,7 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
                    Command.status.in_(("exited", "timed_out")),
                    Command.started_at.is_not(None), Command.ended_at.is_not(None))
             .order_by(Command.ended_at.desc(), literal_column("commands.rowid").desc())):
-        if _folded(one.command) != wanted or one.ended_at is None or one.started_at is None:
+        if _known_as(session, one) != wanted or one.ended_at is None or one.started_at is None:
             continue
         took = (one.ended_at - one.started_at).total_seconds()
         if took > seconds or one.status == "timed_out" and one.timeout_seconds >= seconds and (
@@ -628,7 +640,7 @@ def changed_since(session: Session, project_id: str, since: datetime,
                    Command.started_at.is_not(None), Command.started_at >= since,
                    or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(proofs)))):
         agents.setdefault(run_id, set()).add(agent_id)
-    return any(_rewritten_after(session, run_id, by, ran, _folded(ran.command))
+    return any(_rewritten_after(session, run_id, by, ran, _known_as(session, ran))
                for run_id, by in agents.items())
 
 

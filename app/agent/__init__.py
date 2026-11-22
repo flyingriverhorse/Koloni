@@ -1420,6 +1420,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._test_slot = Slots()  # (S6: as many at once as Settings say)
         # S6: each of KOLONİ's test runs while it runs - in its turn, or gone on after it.
         self._checks: dict[asyncio.Future, Check] = {}
+        # S9: where the coverage flags failed a whole suite - (project, folder, command) -> its
+        # coverage settings then (`coverage.config_mark`): not tried again till they change, or
+        # KOLONİ starts again (it was run twice each turn).
+        self._coverage_off: dict[tuple[str, str, str], str] = {}
         # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic
         # and wall clock), what it held then (None: no file) and whether that was read: a test
         # run that started before does not take it back while it holds that, and puts it back

@@ -3,6 +3,7 @@ Vitest's coverage, c8), the report flags its whole-suite run gets - nothing inst
 report flags added, the report written under the project's scratch - and what share of the turn's
 changed lines that report says the tests ran. The runner's part: `CoverageMixin`."""
 
+import hashlib
 import json
 import re
 import shlex
@@ -80,6 +81,22 @@ def tool_of(folder: Path, command: str) -> str | None:
     return None
 
 
+# The files a folder's coverage settings live in: thresholds, the plugin named, the config.
+CONFIGS = ("pyproject.toml", "setup.cfg", "tox.ini", ".coveragerc", "pytest.ini", "package.json")
+CONFIG_GLOBS = ("requirements*.txt", "vitest.config.*", "vite.config.*", ".c8rc*", ".nycrc*")
+
+
+def config_mark(folder: Path) -> str:
+    """A folder's coverage settings as they are now: where the flags failed, a change to them
+    tries the flags again."""
+    digest = hashlib.sha256()
+    names = [*CONFIGS, *sorted({one.name for pattern in CONFIG_GLOBS
+                                for one in folder.glob(pattern)})]
+    for name in names:
+        digest.update(name.encode() + b"\0" + _text(folder / name).encode() + b"\0")
+    return digest.hexdigest()
+
+
 def _quoted(path: str) -> str:
     return f'"{path}"' if sys.platform == "win32" else shlex.quote(path)
 
@@ -102,19 +119,25 @@ def with_coverage(command: str, tool: str, out: str) -> str:
     return f"npx --no c8 --reporter=json --report-dir {where} {command}"
 
 
-# KOLONİ's own report flags (`with_coverage`), told by their folder in the project's scratch.
-_OUT = r"(?:\"[^\"]*\"|'[^']*'|\S+)"
-_AT = r"(?=\"[^\"]*coverage-|'[^']*coverage-|\S*coverage-)"
-_ADDED = re.compile(
-    rf"^npx --no c8 --reporter=json --report-dir {_AT}{_OUT} "
-    rf"| --cov=\. --cov-report=json:{_AT}{_OUT}"
-    rf"|(?: --)? --coverage --coverage\.reporter=json --coverage\.reportsDirectory={_AT}{_OUT}")
+# KOLONİ's own report flags (`with_coverage`) exactly as it writes them: its folder in the
+# project's scratch (`coverage-` and 12 hex: `CoverageMixin`), relative at the root or whole in a
+# part - no `..`, no shell syntax, no space in it - at the line's end (c8's: at its start).
+_PATH = (r"(?:(?:[A-Za-z]:)?/(?:(?!\.\.?/)[^\s\"'`$;&|<>()/\\]+/)*)?"
+         r"\.koloni/tmp/coverage-[0-9a-f]{12}")
+_ADDED = (
+    re.compile(rf" --cov=\. --cov-report=json:([\"']?){_PATH}/coverage\.json\1$"),
+    re.compile(rf"(?: --)? --coverage --coverage\.reporter=json --coverage\.reportsDirectory="
+               rf"([\"']?){_PATH}\1$"),
+    re.compile(rf"^npx --no c8 --reporter=json --report-dir ([\"']?){_PATH}\1 (?=\S)"))
 
 
 def unflagged(line: str) -> str:
-    """A run's line without the report flags KOLONİ added: the command it is known by (reuse,
-    the green state, how long it takes)."""
-    return _ADDED.sub("", line) if ".koloni" in line and "coverage-" in line else line
+    """A line of KOLONİ's own run without the report flags it added: the command it is known by
+    (reuse, the green state, how long it takes). Only KOLONİ's runs are read so
+    (`proof._known_as`): an agent's line that looks like one is its own."""
+    for flags in _ADDED:
+        line = flags.sub("", line, count=1)
+    return line
 
 
 def report(root: Path, out: Path, tool: str) -> dict | None:
@@ -127,9 +150,10 @@ def report(root: Path, out: Path, tool: str) -> dict | None:
     if place.stat().st_size > MOST_REPORT:
         return None
     try:
-        return json.loads(place.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = json.loads(place.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError, MemoryError):  # (a deep one: not read)
         return None
+    return data if isinstance(data, dict) else None
 
 
 def _rel(root: Path, cwd: str, name: str) -> str:
@@ -146,22 +170,31 @@ def _lines(root: Path, data: dict, tool: str,
     """By project path: the lines a test could run, and those it ran."""
     out: dict[str, tuple[set[int], set[int]]] = {}
     if tool == "pytest-cov":
-        for name, one in (data.get("files") or {}).items():
-            ran = set(one.get("executed_lines") or [])
-            out[_rel(root, cwd, name)] = (ran | set(one.get("missing_lines") or []), ran)
+        files = data.get("files")
+        for name, one in files.items() if isinstance(files, dict) else ():
+            if isinstance(one, dict):
+                ran = _numbers(one.get("executed_lines"))
+                out[_rel(root, cwd, name)] = (ran | _numbers(one.get("missing_lines")), ran)
         return out
     for name, one in data.items():
         if not isinstance(one, dict):
             continue
         could, ran = set(), set()
-        for key, span in (one.get("statementMap") or {}).items():
-            line = (span.get("start") or {}).get("line")
+        spans, hits = one.get("statementMap"), one.get("s")
+        for key, span in spans.items() if isinstance(spans, dict) else ():
+            start = span.get("start") if isinstance(span, dict) else None
+            line = start.get("line") if isinstance(start, dict) else None
             if isinstance(line, int):
                 could.add(line)
-                if (one.get("s") or {}).get(key):
+                if isinstance(hits, dict) and hits.get(key):
                     ran.add(line)
-        out[_rel(root, cwd, one.get("path") or name)] = (could, ran)
+        path = one.get("path")
+        out[_rel(root, cwd, path if isinstance(path, str) else name)] = (could, ran)
     return out
+
+
+def _numbers(given: object) -> set[int]:
+    return {one for one in given if isinstance(one, int)} if isinstance(given, list) else set()
 
 
 def changed_lines_covered(root: Path, data: dict, tool: str, added: dict[str, list[int]],

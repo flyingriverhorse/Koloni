@@ -159,3 +159,33 @@ def test_a_part_is_measured_from_its_own_folder(make_client, wait_run, project_d
     (line, _cwd), = executor.started
     assert "/.koloni/tmp/coverage-" in line and "../" not in line, line  # (never ../.koloni)
     assert coverage_mixin.MEASURED.format(p=67, tool="pytest-cov") in rows, rows
+
+
+
+def test_flags_that_failed_are_not_tried_each_turn_till_the_settings_change(make_client, wait_run,
+                                                                            project_dir):
+    # (S9 review: a threshold the flags turned on ran the whole suite twice every turn)
+    with_cov(project_dir)
+    below = Script(["....\n4 passed\nFAIL Required test coverage of 90% not reached. "
+                    "Total coverage: 67.00%\n"], exit_code=1)
+    executor = ScriptedExecutor([below, PASS, PASS, PASS, PASS])
+    client, _model = make_client([write("a.py", THREE), text("done"),
+                                  write("a.py", "x = 2\n", "w2"), text("done"),
+                                  write("a.py", "x = 3\n", "w3"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    wait_run(client, cid, run_id)
+    assert [one for one, _cwd in executor.started][1:] == [PYTEST]  # (once again, without)
+
+    def turn():
+        from tests.test_proof_background_scenarios import rows_of
+        posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"})
+        made = posted.json()["run"]["id"]
+        wait_run(client, cid, made)
+        return [one["text"] for one in rows_of(client, cid, made)]
+    rows = turn()
+    assert [one for one, _cwd in executor.started][2:] == [PYTEST], executor.started
+    assert coverage_mixin.NOT_MEASURED.format(why=coverage_mixin.FAILED_BEFORE) in rows, rows
+    with_cov(project_dir)  # (the same settings: still not tried)
+    (project_dir / ".coveragerc").write_text("[report]\nfail_under = 0\n", encoding="utf-8")
+    turn()
+    assert "--cov" in executor.started[3][0], executor.started  # (they changed: tried again)

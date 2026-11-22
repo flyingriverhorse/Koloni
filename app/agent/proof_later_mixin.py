@@ -310,12 +310,16 @@ class ProofLaterMixin:
                 saved = self._save_found(ctx, held, run, *done.result())
             except Exception as exc:  # (a save that broke saves nothing: the row is said)
                 log.warning("run %s: the guess gone on after it not saved: %r", check.run_id, exc)
-        try:
-            saved += self._coverage_later(ctx, held, run)  # (S9: its report, read as it ends)
-            held.rows.extend(saved)  # (its Checked section not yet written: there with the rest)
-            self._checked_update(check, made, self._later_row(check, made, done), *saved)
-        except Exception as exc:  # (a row of KOLONİ's fails nothing)
-            log.warning("run %s: the tests gone on after it not said: %r", check.run_id, exc)
+        def said(more: list[Row]) -> None:
+            try:
+                held.rows.extend([*saved, *more])  # (its Checked section not yet written: there)
+                self._checked_update(check, made, self._later_row(check, made, done), *saved,
+                                     *more)
+            except Exception as exc:  # (a row of KOLONİ's fails nothing)
+                log.warning("run %s: the tests gone on after it not said: %r", check.run_id, exc)
+        # (S9: its coverage report, read as it ends - off the loop, said with it)
+        if not self._coverage_later(ctx, held, run, said):
+            said([])
 
     def _later_row(self: "AgentRunner", check: Check, made: Row, done: asyncio.Future) -> Row:
         if done.cancelled():

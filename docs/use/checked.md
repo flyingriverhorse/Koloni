@@ -198,7 +198,10 @@ the report is written under the project's scratch folder (`.koloni/tmp/`), read 
 on your card (an approved command is approved with the flags too) and whether an earlier run of it
 still stands. Where the flags fail (the runner does not know them, a coverage threshold of the
 project's fails once coverage is on, or the run did not go for another reason than your no or your
-Stop), KOLONİ runs it again without them and says "Coverage: not measured (the flags failed)". A
+Stop), KOLONİ runs it again without them and says "Coverage: not measured (the flags failed)".
+Then it does not try them on that command again - "not measured (the flags failed before …)" -
+until the folder's coverage settings change (`pyproject.toml`, `setup.cfg`, `.coveragerc`,
+`package.json`, the Vitest config, ...) or KOLONİ starts again. A
 run that stood from earlier is not measured again; where it was KOLONİ's own measured run on the
 same work, its share is said again.
 
@@ -392,7 +395,7 @@ the Orchestrator's window, whose record holds the runs.
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
 | – Coverage: 72% of the changed lines are run by tests (`tool`) | Of the turn's changed lines a test could run, the share the whole suite ran, by the project's own coverage tool. |
-| – Coverage: not measured (`why`) | The flags failed (the run went again without them) or no report was written. |
+| – Coverage: not measured (`why`) | The flags failed (the run went again without them; not tried again till the coverage settings change), or no report was written or it could not be read. |
 | – New tests: `files` | The test files the turn added or changed. |
 | – No new test: the Orchestrator said “`line`” | It was asked for a test and gave this reason instead (its first line). |
 | ✗ Test removed: `path` | The turn deleted a test file that was there before it. |
