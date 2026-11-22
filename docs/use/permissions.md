@@ -28,7 +28,7 @@ and commands run; only harmful or risky actions ask" - and **Plan first**. Each 
 | A command that only reads, such as `cat`, `ls` or `git status` | Runs | Runs | Runs |
 | Any other command | Card, unless a rule covers it | Card, unless a rule covers it | Runs |
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
-| A command that deletes, cannot be undone, or sends data off the machine (`rm -rf`, `git reset --hard`, `git push --force`, `scp`, a `curl` that posts data, …) | Card | Card | Card |
+| A command that deletes, cannot be undone, or sends data off the machine (`rm -rf`, `git reset --hard`, `git push --force`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |
 | A delete KOLONİ checks is disposable - a build folder git ignores, a clean worktree of yours, a merged branch - where you allowed [such deletes](#disposable-deletes) | Card | Runs | Runs |
 | A command handed to a shell (`cmd /c`, `powershell -c`, `sh -c`) | Card, every time | Card, every time | Runs, unless what it runs is harmful |
 | Reading a secret file (`.env`, keys, …) | Card | Card | Card |
@@ -148,7 +148,33 @@ the sub-agent can change things), **Always ask** or **Never ask**.
 In the level menu, under the levels, **Check what I said first** is the project's switch (Settings
 › This project › Asking and away › **A harmful-looking command at Full auto**): "Before a
 harmful-looking command waits for you at Full auto or while you're away, your own words are read
-first; it runs without a card only where a line of yours names it." While you're away it holds in a
+first; it runs without a card only where a line of yours names it." It is off (**Ask me**) until you
+turn it on.
+
+At Full auto, in a chat you started, a command that deletes, overwrites or sends something off this
+machine would wait for you on a card. With the switch on, the first model of your Fast tier first reads
+your preferences, this project's rules as saved on the [Memory](../memory.md) page and your own
+messages in the chat - never anything an agent wrote - and then:
+
+- A whole line of yours that names the command and what it touches ("You may delete build/ and
+  dist/."), and forbids nothing and sets no condition: the command runs without a card. Its row says
+  "Ran without asking · your rule: …" with where the line is (Your preferences, This project's rules
+  or your message).
+- A whole sentence of yours that forbids it ("Never push to main."): it is not run and opens no card.
+  The agent is told that sentence (for a sentence in a message of yours, only that one of yours
+  forbids it - the sentence stays with you), and not to run it or anything that does the same again,
+  and goes on with the rest of its task. Its row says "Not run · your rule: …".
+- A sentence that sets a condition or asks to be asked ("unless", "ask me before"), or nothing of
+  yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
+
+A command that ran or was not run this way also waits under **Decided for you** until you press
+**OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of
+that turn asks you on a card. Secret files, `.koloni`, files that steer later turns, paths outside the
+folder, a delete or a send of the whole folder, and a CLI's command whose folder KOLONİ does not know
+are always asked; anything that goes wrong (no Fast model, over the budget, a slow or unreadable
+answer) opens the card as before. Each such command is one request of your Fast tier's first model.
+
+While you're away it holds in a
 To-do task's chat at Full auto too, reading the chat you went away from - never the task's words -
 for a one-line delete in the task's copy only: a command of more than one line or continued, a send,
 a git remote's branch, Docker's prune or volumes, a file that steers agents and a command that runs

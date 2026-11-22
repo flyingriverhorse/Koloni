@@ -14,7 +14,7 @@ smallest that fits: every extra agent is more model calls, so more tokens, money
 | agents to think a question through, with nothing changed | **a discussion** | agents talk in rounds and nobody writes anything | each speaker's whole work so far is sent again at each step, so tokens grow faster than the talk |
 | the best of several attempts | **Evolve**, or another recipe with **Candidates** | 2 to 5 agents try the same job, each is scored by your measure command, and the best goes on | each candidate in each round, plus the measure runs |
 | two models' answers side by side | **Compare** | one message goes to two models, and you keep one's work | two runs of the message |
-| several jobs done while you are away | **work while you're away** | each job runs in its own copy, and you decide when you're back what comes in | each job, within the card's money limit |
+| several jobs done while you are away | **☾ Away** | your To-do tasks run one at a time, each in its own copy, and you decide when you're back what comes in | each job, within the spend limit you set, if any |
 | the same job by the clock, or when files change | **a trigger** | it starts a turn by itself, with only the permissions you ticked | each run, within the trigger's budget |
 | a list of tasks worked through in order | **To-do** | each task runs in a chat of its own, one after another | each task's turn |
 
@@ -58,9 +58,11 @@ failed". It may only do what you tick. A recipe does not run in a trigger's turn
 starts a CLI that works with its own tools. See [Triggers](../automation/triggers.md).
 
 **"While I'm away tonight: update the dependencies, tidy the docs, and add tests to the parser."**
-Work while you're away. Ask the Orchestrator to plan the jobs; it proposes the jobs on a **While you're away**
-card, with a money limit and, if you want one, a stop time. Leave KOLONİ running: closing it ends
-the jobs. See [A job while you're away](../examples/overnight-job.md).
+Work while you're away. The Orchestrator puts each piece on To-do and offers one line under its answer,
+"☾ Go away now?", with **Go away** and **Change** (or press **☾ Away** on the chat's status line). Tick
+the tasks, set a stop time or a spend limit if you want one, and go: the tasks are worked through one
+at a time, each in its own copy, until you are back. Leave KOLONİ running: closing it ends the jobs. See
+[A job while you're away](../examples/overnight-job.md).
 
 ## The ready recipes
 

@@ -47,7 +47,9 @@ unread and how many things wait for you.
   model (choose the model there; on GitHub Copilot's `auto` or `fusion` it names the model Copilot picked
   last, "fusion → gpt-6-luna", with Copilot's reason in its tooltip); while a turn runs, what it does now,
   for how long, the tokens written and the tier or model, with **Stop** and how many messages are queued;
-  "waits for your answer" while it asks.
+  "waits for your answer" while it asks. In a chat with a folder the line also has **☾ Away**, before the
+  model, which opens the Away panel ([Work while you're away](../automation/overnight.md)); while you are away it
+  reads **I'm back**.
   What is not known is left out: a CLI that does not tell its tokens shows none. Where the line is narrow, the
   tier goes first, then the tokens, then the time, then the model's name (down to its icon); what it does is cut last.
 - Under the message, one row: **Attach**, the permission level as three comb cells and its name (a click

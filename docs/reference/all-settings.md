@@ -5,14 +5,14 @@ Where each setting is. Follow the links for what each does.
 ## Settings › This chat
 
 **Teams** and **Folders** (each set in its own panel), **Page scripts**, and, in a chat with no
-folder, **Runs without asking**. The same rows are in the sheet under **Chat**, at the end of the
-model's line under the message box. See [Settings](../settings.md#this-chat).
+folder, **Runs without asking**. The same rows are in the sheet **Chat settings** opens, under the
+message box. See [Settings](../settings.md#this-chat).
 
 ## Settings › This project
 
 | Section | Settings |
 |---|---|
-| **Agents** | Who changes the files · Finish only when the tests pass · Have a model look over each sub-agent's report |
+| **Agents** | Who changes the files · Finish only when the tests pass · Have a model look over each sub-agent's report · Suggest follow-up tasks after each turn · Follow-up tasks from |
 | **Asking and away** | Opening a sub-agent · When you're away · A harmful-looking command at Full auto · Agents may delete what is disposable without asking |
 | **New chats start with** | New chats' teams · Other folders · Posts, at most · Minutes, at most · Tokens, at most · Tokens, at least |
 | **Limits and money** | At most this many agents at work in this project · Agents at the same time · Sub-agent levels · Sub-agents per request · Continue gives this many more steps · Stop the work on a message over this many tokens · A discussion's tokens, at most · Monthly budget |
@@ -36,13 +36,17 @@ reads at most** (Agents),
 
 ## Next to the message box
 
-The permission level (its menu holds **Plan first**), the model button (**Provider**, **Model name**, **Thinking**,
-**Orchestrator model: automatic**), **New topic**, **Chat** (this chat's sheet), and **More**
-(**Work together…**, **Compare…**). See [Chat and canvas](../use/chat-and-canvas.md).
+On the line over the box: the model button (**Provider**, **Model name**, **Thinking**, on GitHub
+Copilot's `auto` and `fusion` **Routing**, **Orchestrator model: automatic**) and **☾ Away** (a chat with
+a folder). Under the message: **Attach**, the permission level (its menu holds **Plan first** and **Check
+what I said first**), **Auto-read**, **Dictate** and **Send**. Under the box: **Workspace**, **New
+topic**, **Chat settings** (this chat's sheet) and **More** (**Work together…**, **Compare…**). See
+[Chat and canvas](../use/chat-and-canvas.md).
 
 ## Models page
 
-- Each provider: on / off; tabs **Models** (each model's Tier, Agents may use, On, note), **Connection**,
+- Each provider: on / off; tabs **Models** (each model's Tier, Agents may use, On, note; on GitHub Copilot
+  CLI also Context, and Routing on `auto` and `fusion`), **Connection**,
   **Limits**, and **Server** for a model server on this machine. See [Providers](../models/providers.md).
 - The page: **Update catalogue**, **Keep the catalogue fresh**, **Fill tiers**, the tier lists.
 

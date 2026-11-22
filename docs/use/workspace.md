@@ -107,7 +107,8 @@ files named as secrets (`.env.local`, a key file, `credentials.json`, `token.jso
 `.venv` and `venv` (linked in instead), a git repository inside your folder, KOLONİ's own `.koloni`
 folder, and every link or junction with what it leads to. Code named like a secret (`credentials.py`,
 `.env.example`) is taken as any file. The card says in one line which of your files were left out as a
-secret or a link.
+secret or a link: "Not in its branch: 2 of your files (.env, token.json) - a secret by its name, or
+through a link".
 
 The card, the merge and a pull request carry the agent's work alone, measured from that commit - never
 your uncommitted files. A merge waits for your commit:
@@ -164,7 +165,9 @@ branch:
 ### When an agent stops
 
 An agent on a branch that stops before it finishes leaves its work committed on the branch. That holds
-also when you press **Stop** or **Stop everything** while it works; the chat says so.
+also when you press **Stop** or **Stop everything** while it works; the chat says so. A **Stop** while
+KOLONİ merges a finished branch by itself (at Full auto) waits for git to finish: the merge is on its
+card, and the branch's worktree goes.
 
 Told to go on (by the Orchestrator, in this turn or a later one you watch), it goes on on the same
 branch: its earlier commits are there, and new work goes on top. Its merge is still held to where the

@@ -100,7 +100,8 @@ Each push and pull request to `main` runs the same checks once, on Ubuntu with P
 typecheck, complexity, unit tests and build, and the guide's checks. A change to the guide or the
 plans alone runs only the guide's checks, or nothing.
 
-End-to-end tests, the backend on Windows and on Python 3.13 and 3.14, and the
-Docker image run in `heavy.yml`, by hand from the Actions tab, or weekly once the repository
-variable `HEAVY_WEEKLY` is `true`. The repository is private and its Actions minutes are counted;
-`.github/CI.md` has the table and the reasons.
+End-to-end tests and the backend on Windows and on Python 3.13 and 3.14 run in `heavy.yml`, on each
+pull request to `main` beside PR Check, by hand from the Actions tab, or weekly once the repository
+variable `HEAVY_WEEKLY` is `true`; the Docker image only by hand. `full.yml` runs both on a branch with
+no pull request (`gh workflow run full.yml --ref <branch>`). The repository is public, so GitHub's
+standard runners cost nothing; `.github/CI.md` has the table and the reasons.

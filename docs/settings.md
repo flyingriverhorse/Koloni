@@ -40,7 +40,7 @@ the whole section and save each row on its own: **Runs without asking**, **Slash
 
 ## This chat
 
-The same rows as the sheet under **Chat** under the message box:
+The same rows as the sheet **Chat settings** opens under the message box:
 
 | Setting | What it does |
 |---|---|

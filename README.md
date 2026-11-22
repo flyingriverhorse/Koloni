@@ -28,8 +28,8 @@ with the diff and your tests, and you take it in or discard it. Stop never loses
 Secrets go only into the command that needs them.
 
 It runs on your machine, listens on `127.0.0.1` only, and sends no telemetry. Each CLI still sends
-your code to its own service, as it always did. Version 0.1.0 is the first release, an alpha:
-expect rough edges and read [Known limits](docs/reference/known-limits.md).
+your code to its own service, as it always did. KOLONİ is an alpha: expect rough edges and read
+[Known limits](docs/reference/known-limits.md).
 
 ## See it
 
@@ -49,7 +49,7 @@ expect rough edges and read [Known limits](docs/reference/known-limits.md).
 ## How it works
 
 1. **Add a provider** on the Models page: a CLI you are signed in to, your llama.cpp server, or an
-   API key. Each role can run on a different one; a role on Copilot can take `auto`.
+   API key. Each role can run on a different one; a role on Copilot can take `auto` or `fusion`.
 2. **Open a folder** and write what you want, at one of three levels: **Ask before changes**,
    **Auto-edit files** or **Full auto**. **Plan first** adds a plan to approve before anything moves.
 3. **The Orchestrator works or delegates.** 29 built-in roles (Coder, Reviewer, Tester, Researcher,
@@ -66,17 +66,24 @@ expect rough edges and read [Known limits](docs/reference/known-limits.md).
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.
   [Chat and canvas](docs/use/chat-and-canvas.md) · [Working copies](docs/use/workspace.md)
-- **Control**: cards for changes, commands, web and HTTP; delete and shell-wrapped commands always
-  ask; secret files open only on your word; a key an agent needs comes through `ask_secret` on a
-  hidden card and reaches only that command. [Permissions](docs/use/permissions.md) · [Security model](docs/security/model.md)
+- **Control**: cards for changes, commands, web and HTTP; a delete or a send off the machine asks at
+  every level, unless at Full auto **Check what I said first** finds a line of yours that allows it, or
+  you let agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); secret
+  files open only on your word; a key an agent needs comes through `ask_secret` on a hidden card and
+  reaches only that command. [Permissions](docs/use/permissions.md) · [Security model](docs/security/model.md)
+- **Agents side by side**: each sub-agent in its own copy; a command that reaches another agent's copy,
+  your linked `node_modules` or `.venv`, or stops programs by name asks at every level.
+  [Working copies](docs/use/workspace.md#working-copies)
 - **Knowledge and memory**: experts learn from docs, a public GitHub repository or a folder on
   this machine (code kept as text, a free symbol map, answers with file:line); notes agents keep
   and you approve. [Knowledge](docs/knowledge.md) · [Memory](docs/memory.md)
 - **Work over time**: a To-do list with suggested tasks, triggers (clock, files, webhook), and
-  jobs that run while you're away and wait for you on a card.
-  [To-do](docs/automation/todo.md) · [Triggers](docs/automation/triggers.md) · [While you're away](docs/automation/overnight.md)
-- **Git and GitHub**: a branch per team, merged or sent as a pull request from the card; a chat
-  started from a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
+  **☾ Away**: your To-do tasks worked through one at a time, each in its own copy, until you are back,
+  then one summary of what is done, decided and waiting.
+  [To-do](docs/automation/todo.md) · [Triggers](docs/automation/triggers.md) · [☾ Away](docs/automation/overnight.md)
+- **Git and GitHub**: a branch per team, started from your folder as it is (uncommitted work too) and
+  merged or sent as a pull request from the card, carrying the agent's work alone; a chat started from
+  a GitHub issue with your own `gh`. [Branches](docs/use/workspace.md#branches)
 - **Money**: tokens and credits per run, plan meters for each CLI, a monthly budget per project.
   [Usage and budgets](docs/money/usage.md)
 - **More tools**: MCP servers (each asks before it runs unless you say otherwise) and skills from a
@@ -88,8 +95,8 @@ expect rough edges and read [Known limits](docs/reference/known-limits.md).
 |---|---|---|
 | Claude Code | session (KOLONİ's tools over MCP) or native | `claude auth login` |
 | Codex | session (KOLONİ's tools over MCP), step, or native | `codex login` |
-| GitHub Copilot CLI | session or native; `auto` picks the model | `gh auth login` |
-| agy | reads (its default) | agy's own sign-in |
+| GitHub Copilot CLI | session or native (1.0.114 on, through KOLONİ's hook); `auto` and `fusion` pick the model, with a routing | `gh auth login` |
+| agy | reads (its default) or native | agy's own sign-in |
 | Qoder | session | Qoder's own sign-in |
 | llama.cpp `llama-server` | OpenAI-compatible, started with `--jinja`; the Server tab starts and stops it | — |
 | Anthropic API, any OpenAI-compatible API | per token | your key |
@@ -146,6 +153,8 @@ The Docker image was built and run once. macOS: not yet. Details: [Install](docs
   CLIs run with their own tools ([Known limits](docs/reference/known-limits.md#secrets)).
 - A secret given on a card goes only into that command's environment, never into the chat, the
   record or the model. A branch holding that turn's secret is deleted, not merged.
+- An agent's git on its branch runs none of your repository's hooks, and a pull request never pushes
+  commits of yours that origin does not have.
 - Keys are stored in plain text in `runtime/data/koloni.db`; keep `runtime/` private. What leaves
   your machine (model providers, web searches, the catalogue): [Data and privacy](docs/security/privacy.md).
 - Report a security problem privately: [SECURITY.md](SECURITY.md). Where the walls end:
