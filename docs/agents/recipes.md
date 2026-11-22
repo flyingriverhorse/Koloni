@@ -38,9 +38,18 @@ A step can also have **Done when**, **Only if the step before found a problem**,
 
 Before a step that runs only if a problem was found, a test run that failed is a problem, whatever
 the agent's report says. At any other review step it is one too where the report says nothing is wrong,
-unless it says the test was **Already failing before**. And a review step's agent that may run commands
-(a Tester, say) but ran none does not pass: "it is a check that ran no command on record". (Where its CLI's
-own commands are not on KOLONİ's record, its report is taken as it is.)
+unless its **Already failing before** lines name every test that run says failed. Only the last run of
+each test tool counts (`pytest` and `python -m pytest` are one), and a run that never started its tests
+(the tool not found) or whose exit is hidden (`; true`, `|| true`, a pipe after it) is no verdict either
+way. In a step with the id `reproduce` (Bugfix's first) the failing test is the work: the agent's report
+says it "fails as it should".
+
+A Tester at a review step, or any agent of a step with the id `test` or `tests`, passes only on a command
+it ran that is no mere read (`ls`, `cat` and `git status` check nothing): its task says so, and one that
+ran none does not pass - "it is a check that ran no command on record". Where you declined its command,
+the recipe stops at **Teams' work is ready**, "Not checked: you declined …", rather than sending the work
+back. A reviewer that only reads (a Data analyst, a Performance engineer) passes on its report. (Where an
+agent's CLI keeps its own commands off KOLONİ's record, its report is taken as it is.)
 
 **All at once** runs steps side by side. It waits for **all branches** or for **the first one done**.
 

@@ -34,7 +34,8 @@ Click a role to open its panel. It has four tabs:
   Reviewer, Debugger and Security reviewer keep the tools their job needs: reading files for all five,
   writing files for the Coder and the Debugger, **Run commands** for the Coder, the Tester and the
   Debugger. Those tiles stay on, greyed: "Kept: KOLONİ's checks and recipes need it". Their other tools
-  are yours to change, and **Reset to default** still works. Tools marked
+  are yours to change, and **Reset to default** still works. A sub-agent never has a tool its opener
+  may not hand on: an Orchestrator without **Run commands** gives no Tester one. Tools marked
   "asks" wait for your yes, as the chat's permission level says. Below, the MCP servers and skills the
   role has; you change those on the Tools page.
 - **Knowledge**: a switch for each Knowledge topic. On, choose **Full** ("its whole guide at each

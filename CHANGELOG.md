@@ -27,7 +27,7 @@ How to write an entry (every release looks the same):
 
 ### Fixed
 
-- **Agents**: the ready Bugfix recipe sends a failing test back to Fix it and starts with a failing test; a Tester or reviewer that reports nothing wrong while a test run on record failed no longer passes, nor does a recipe's check that could run commands and ran none ([docs](docs/agents/recipe-cookbook.md)).
+- **Agents**: the ready Bugfix recipe sends a failing test back to Fix it and starts with a failing test; a Tester or reviewer that reports nothing wrong while a test run on record failed no longer passes - unless its "Already failing before" lines name every test that failed - nor does a Tester that ran no command but reads; a check whose command you declined stops at Ready for you, not checked ([docs](docs/agents/recipes.md)).
 - **Chat**: an agent's command whose inline code only prints a stop's name (`python -c "print('kill')"`, `awk '/kill/ {print}' log.txt`) no longer asks as a stop of KOLONİ itself; one whose code runs or ends a process (`os.system('pkill x')`, `execSync(...)`, `system(...)`, `os.kill(...)`) still does ([docs](docs/use/permissions.md)).
 
 ### Security
