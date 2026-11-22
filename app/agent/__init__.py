@@ -550,7 +550,7 @@ IN_A_CANDIDATE = ("it is yours alone: KOLONİ measures your work there when you 
 # still gets a card; put it in the candidate's task if that is seen.
 MEASURE_AS_IS = (". To measure it yourself, run the project's measure command exactly as "
                  "written, adding no flags: `{command}`")
-NO_MEASURE = "no measure command"
+NO_MEASURE = recipe_run.NO_MEASURE  # (and so one round only: `recipe_run.ONE_ROUND`)
 CANDIDATE_KEPT = "a candidate's work its turn ended before a pick"
 CANDIDATES_WATCHED = ("{step}: candidates need the user watching and the recipe's own copy - "
                       "not in a job while the user is away, a turn on a branch of its own, or a "
@@ -6669,6 +6669,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             text += " " + BEST_SO_FAR.format(
                 score="no score" if top["score"] is None else f"{top['score']:g}",
                 name=top["name"])
+        if NO_MEASURE in why.values() and recipe_run.goes_round(state):  # (K-evolve-tek)
+            text += " " + recipe_run.ONE_ROUND
         return (text, scored[:1]) if full and scored else (text, [*(scored or ranked), "Stop"])
 
     async def _pick(self, ctx: Ctx, winner: str, candidates: list[str]) -> str:
