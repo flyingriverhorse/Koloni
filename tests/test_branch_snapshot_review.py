@@ -86,7 +86,8 @@ def test_a_pull_request_after_your_branch_came_in_never_carries_your_unpushed_co
     client, _model = make_client([text("hi")])
     pushed = asyncio.run(client.app.state.runner._sent(copy, look))
     assert run(repo, "diff", "--name-only", f"{pushed}^", pushed).split() == ["agent.txt"]
-    held = {"source": look["tip"], "snapshot": copy.snapshot_sha}  # (as `_pull_request` holds it)
+    held = {"source": look["tip"], "snapshot": copy.snapshot_sha,  # (as `_pull_request` holds it)
+            "under": copies.folders(runtime)}
     with pytest.raises(git.Refused, match="push main first"):
         git.push_one(repo, pushed, copy.branch, "main", copy.start[1], "m", runtime / "no-hooks",
                      **held)
@@ -475,7 +476,7 @@ def push_pr(repo, runtime, copy):
         onto = git.merge_base(repo, "refs/heads/main", tip)
         sent = git.agents_share(repo, copy.snapshot_sha, tip, onto, copy.branch)[0]
     return git.push_one(repo, sent, copy.branch, "main", copy.start[1], "m", runtime / "no-hooks",
-                        source=tip, snapshot=copy.snapshot_sha)
+                        source=tip, snapshot=copy.snapshot_sha, under=copies.folders(runtime))
 
 
 def agent_merges(copy, ref="main"):
@@ -532,7 +533,7 @@ def test_a_pull_request_never_sends_another_local_branch_the_agent_merged(repo, 
     private(repo, "feat.txt")
     run(repo, "switch", "-q", "main")
     agent_merges(copy, "feat")
-    with pytest.raises(git.Refused, match="not on origin"):
+    with pytest.raises(git.Refused, match="commits of yours not on origin"):  # (feat holds it)
         push_pr(repo, runtime, copy)
     assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
 
@@ -679,12 +680,70 @@ def test_your_unpushed_work_copied_into_the_agents_own_commit_never_goes_up(
 
 
 @needs_merge_base
-def test_how_many_commits_of_yours_are_not_on_origin(repo, runtime):
+def test_how_many_commits_and_stashes_of_yours_are_not_on_origin(repo, runtime):
     copy, _origin = origin_case(repo, runtime)
-    assert git.unpushed_count(repo) == 0  # (KOLONİ's branch is not the user's)
+    under = copies.folders(runtime)
+    assert git.unpushed_count(repo, under) == (0, 0)  # (KOLONİ's branch is not the user's)
     private(repo)
     private(repo, "private2.txt")
-    assert git.unpushed_count(repo) == 2
+    assert git.unpushed_count(repo, under) == (2, 0)
+    run(repo, "stash", "-q")  # (its work and its index: one stash, not two commits)
+    (repo / "new.txt").write_text("new\n")
+    run(repo, "stash", "-q", "-u")  # (and its untracked files: one more, not three commits)
+    assert git.unpushed_count(repo, under) == (2, 2)
+
+
+# --- a second worktree of the user's own: what its HEAD holds is theirs too ----------------------
+
+
+@needs_merge_base
+def test_a_commit_on_your_other_worktrees_detached_head_is_yours(repo, runtime, tmp_path):
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=True)
+    for twin in ("a", "b"):  # (two folders of one name: git's ids for them are not their names)
+        run(repo, "worktree", "add", "-q", "--detach", str(tmp_path / twin / "users-wt"))
+    assert (repo / ".git" / "worktrees" / "users-wt1").is_dir()
+    mine = tmp_path / "b" / "users-wt"
+    private(mine)  # (on no branch, not on origin)
+    a4_picked(copy, run(mine, "rev-parse", "HEAD"))  # (the agent's pick of it, as its own)
+    assert git.unpushed_count(repo, copies.folders(runtime)) == (1, 0)
+    with pytest.raises(git.Refused, match="private.txt in it is your work not pushed yet"):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+def test_a_project_that_is_a_linked_worktree_counts_the_main_ones_detached_commit(
+    repo, runtime, tmp_path
+):
+    linked, under = tmp_path / "linked", copies.folders(runtime)
+    run(repo, "worktree", "add", "-q", "-b", "side", str(linked))
+    commits, _stashes = git.unpushed_count(linked, under)  # (no origin: all of theirs)
+    run(repo, "checkout", "-q", "--detach")
+    private(repo)  # (on the main worktree's HEAD alone)
+    assert git.unpushed_count(linked, under) == (commits + 1, 0)
+
+
+@needs_merge_base
+def test_a_commit_on_a_detached_head_in_kolonis_own_worktree_is_not_yours(repo, runtime):
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=True)
+    other = copies.make_branch(repo, runtime, "agent2", "y")
+    agent_git(other, "checkout", "-q", "--detach")  # (KOLONİ's by its folder, on no branch of its)
+    own_commit(other, "other.txt")
+    assert git.unpushed_count(repo, copies.folders(runtime)) == (0, 0)
+    sha = push_pr(repo, runtime, copy)
+    assert run(origin, "diff", "--name-only", f"{sha}^", sha).split() == ["agent.txt"]
+
+
+@needs_merge_base
+def test_with_your_reflogs_expired_the_agents_own_commit_is_held_and_not_called_yours(
+    repo, runtime
+):
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=True)
+    own_commit(copy)
+    run(repo, "reflog", "expire", "--expire=now", "--all")  # (the user's housekeeping, or gc's)
+    with pytest.raises(git.Refused, match="not on origin that KOLONİ cannot attribute") as said:
+        push_pr(repo, runtime, copy)
+    assert "of yours" not in str(said.value)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
 
 
 @needs_merge_base
@@ -760,15 +819,26 @@ def detached(repo):
     copied_in(repo, f"{made}:private.txt")
 
 
+def other_worktree(repo):  # (a second worktree of the user's own, its HEAD on no branch)
+    pushed_main(repo)
+    mine = repo.parent / "users-wt"
+    run(repo, "worktree", "add", "-q", "--detach", str(mine))
+    private(mine)
+    copied_in(repo, f"{run(mine, 'rev-parse', 'HEAD')}:private.txt")
+
+
 @needs_merge_base
-@pytest.mark.parametrize("how", [stashed, detached])
+@pytest.mark.parametrize(("how", "yours"), [
+    (stashed, "a stash"), (detached, "1 commit"), (other_worktree, "1 commit")],
+    ids=["stash", "detached", "other-worktree"])
 def test_a_stash_or_a_detached_commit_copied_onto_the_branch_is_asked_and_never_sent(
-    make_client, wait_run, repo, github, how
+    make_client, wait_run, repo, github, how, yours
 ):
     bare, _log = github
     client, cid, _run_id = pr_run(make_client, repo, lambda: how(repo))
-    merge = pr_card(client, cid)  # (Full auto: asked, the user has commits not on GitHub)
-    assert merge["branch"]["note"].startswith("you have") and merge["status"] == "pending"
+    merge = pr_card(client, cid)  # (Full auto: asked, the user has work not on GitHub)
+    assert merge["branch"]["note"] == PR_UNPUSHED.format(commits=yours)
+    assert merge["status"] == "pending"
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
     merge = until(client, cid, lambda s: "not pushed yet" in (
         (s["merges"][0].get("branch") or {}).get("note") or ""), timeout=LONG)["merges"][0]
