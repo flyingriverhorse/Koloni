@@ -34,11 +34,42 @@ A project that had turned off the old **Finish only when the tests pass** switch
 1. The project's own **Test before adding** command, if it has one.
 2. Otherwise each part's test command from the project map (yours, or the map's guess), run in
    that part's folder.
-3. Otherwise a command KOLONİ guesses from the folder's files: `python -m pytest -q` for a
-   Python project, `npm test` for one whose `package.json` has a test script.
+3. Otherwise the test command KOLONİ saved before (below).
+4. Otherwise a command KOLONİ guesses from each part's files, in any language: `python -m pytest
+   -q` (a `pyproject.toml`, `pytest.ini` or `tests/`), `npm test` (a test script in
+   `package.json`), `go test ./...` (`go.mod`), `cargo test` (`Cargo.toml`), `mvn -q test`
+   (`pom.xml`), `./gradlew test` or `gradle test` (`build.gradle`), `dotnet test` (a `.sln` or
+   `.csproj`), `bundle exec rspec` (a `Gemfile` and `spec/`), `composer test` or
+   `vendor/bin/phpunit` (`composer.json`), `mix test` (`mix.exs`), `swift test`
+   (`Package.swift`), `ctest --test-dir build` (`CMakeLists.txt`), `make test` (a `test:` target
+   in the `Makefile`).
+5. Otherwise a test command an agent ran in this turn that really ran tests.
+6. Otherwise KOLONİ asks the project's **Fast** tier's model once, in a turn you are there for,
+   where its tests are. KOLONİ shows it the project's parts and languages, its test files and the
+   start of its README, CONTRIBUTING and Makefile (never a secret file), with no tool. It answers
+   with command lines, which are read as data: only a single plain test command in a folder of
+   the project is tried. The request shows in Usage. It is asked again only when the project's
+   parts change. With no Fast-tier model the section says so.
 
-A guessed command is tagged **guessed**. If nothing can be guessed, the section says
-"No test command: nothing was run".
+A guessed command is tagged **guessed**. If nothing can be found, the section says "No test
+command: nothing was run"; after the look found nothing, "No tests in this project".
+
+### Saved by KOLONİ
+
+The first time a guessed command really runs tests (its runner counted some that passed or
+failed), KOLONİ saves it as this project's test command for that folder, with no question. The
+section says "Saved as this project's test command - change it in Settings". A guess that ran no
+test, or no test tool, is never saved, and a command of yours is never replaced.
+
+Settings › This project › Checks and git shows each saved command under **Found by KOLONİ**, where
+it came from and when. **Forget it** clears them; they are found again at the next change. A
+saved command runs as the project's for this check only. It is not your **Test before adding**:
+it does not check a sub-agent's work before it is taken in, and agents and triggers do not get to
+run it unasked. To make it yours, set it there.
+
+Where KOLONİ reads a count from the runner's summary (pytest, jest, vitest, go, cargo, dotnet,
+Maven, Gradle, RSpec, PHPUnit), the line gives it. Any other runner is judged by its exit code
+alone, and the line says so: "Tests passed (by exit code, no count)".
 
 A turn whose changes are all documents, slides, diagrams or data runs no tests and says so.
 A change to a configuration file (`requirements.txt`, `package.json`, a CI workflow, a
@@ -93,6 +124,15 @@ its own two rounds. A turn can have both.
   limit of 10 minutes. Past it the section says "Tests timed out after 10 min".
 - **Stop** during the run ends the turn as Stopped. The section says "Tests not finished:
   stopped".
+
+## On the canvas
+
+A checked turn has a **Checks** node under its Orchestrator. While KOLONİ's test run works, it
+shows the tool and how long it has run; once the turn is over, each line of the Checked section,
+with the runner's counts ("pytest · 214 ✓ · 2 ✗"). Each fix round is a line back to the
+Orchestrator, "round 1 of 2: tests fail". The Orchestrator's own box gets one line: "✓ checked ·
+1 round", "✗ still failing" or "not checked". The node's window button opens the Orchestrator's
+window, whose record holds the runs. In a recipe's turn the node says "end of the recipe".
 
 ## What each line means
 

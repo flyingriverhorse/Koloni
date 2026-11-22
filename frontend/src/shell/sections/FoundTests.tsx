@@ -1,3 +1,5 @@
+import { Row } from './part'
+
 /** Where KOLONİ's saved command came from, in words. */
 const WHENCE: Record<string, string> = { guess: 'from the project’s files', agent: 'an agent ran it', look: 'its look at the code found it' }
 
@@ -9,9 +11,8 @@ export function FoundTests({ found, forget, setForget }: { found: Record<string,
   const folders = Object.keys(found)
   if (!folders.length) return null
   return (
-    <div className="set-row" data-testid="tests-found">
-      <span className="set-name">Found by KOLONİ</span>
-      <span className="set-value">
+    <Row label="Found by KOLONİ">
+      <span data-testid="tests-found">
         {folders.map(folder => (
           <span key={folder} className="choice-note">
             <code>{found[folder].command}</code> in <code>{folder === '.' ? './' : `${folder}/`}</code> - {WHENCE[found[folder].from ?? ''] ?? 'found'}
@@ -26,6 +27,6 @@ export function FoundTests({ found, forget, setForget }: { found: Record<string,
           </span>
         </label>
       </span>
-    </div>
+    </Row>
   )
 }

@@ -143,6 +143,7 @@ Heading: "After a turn that changed code".
 | Setting | What it does |
 |---|---|
 | **After a change** | **Check it** (the default) or **Tests only**: after a turn that changed code, KOLONİ runs this project's tests once on the work as it now stands and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice. In a turn you watch it waits at most 2 minutes for them. **Nothing** runs nothing, and the [Checked](use/checked.md) lines still say so. A project that had turned off the old **Finish only when the tests pass** switch is on Nothing, and says so here. |
+| **Found by KOLONİ** | Shown only where KOLONİ saved a test command itself: each, by folder, with where it came from (the project's files, an agent's run, or its look at the code) and when. **Forget it** clears them, found again at the next change. Yours (Test before adding, or a part's test command) always wins. See [Checked](use/checked.md#saved-by-koloni). |
 
 Heading: "When a sub-agent's work is added".
 

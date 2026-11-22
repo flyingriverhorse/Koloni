@@ -9,6 +9,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Added
 
 - **Chat**: after a turn that changed code, KOLONİ runs the project's tests once and says under the answer what was checked and what was not; failing tests go back to the Orchestrator at most twice; while you're away a guessed test command is not run ([docs](use/checked.md)).
+- **Chat**: with no test command set, KOLONİ finds one by the project's files in any language (Go, Rust, Java, .NET, Ruby, PHP, Elixir, Swift, C/C++, Make, besides Python and Node), by part; failing that, an agent's run of one, or one look by the Fast tier's model at the code; the first that really runs tests is saved as the project's test command, shown in Settings › This project › Checks and git ([docs](use/checked.md)).
+- **Canvas**: a checked turn has a **Checks** node under its Orchestrator - the test run at work, then what came of it with its counts - and each fix round is a line back to the Orchestrator ([docs](use/checked.md#on-the-canvas)).
 
 ### Changed
 
