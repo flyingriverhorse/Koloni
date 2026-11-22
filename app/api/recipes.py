@@ -117,12 +117,6 @@ def askers(session: Session, providers, tier: str) -> list[Asked] | str:
             for provider, model, label in found]
 
 
-def asker(session: Session, providers, tier: str) -> tuple[Provider, str | None] | str:
-    """The first of `askers`, or why nobody is asked."""
-    found = askers(session, providers, tier)
-    return found if isinstance(found, str) else found[0][:2]
-
-
 async def asked_once(request: Request, provider: Provider, model: str | None,
                      messages: list[dict], project_id: str | None = None) -> tuple[str, str]:
     """`messages` asked once, with no tools: what was said, and by which model. ModelUnavailable
@@ -139,13 +133,30 @@ async def asked_once(request: Request, provider: Provider, model: str | None,
     return said, getattr(answer, "model", None) or model
 
 
-async def ask_writer(request: Request, provider: Provider, model: str | None,
-                     messages: list[dict], project_id: str | None = None) -> tuple[str, str]:
-    """`asked_once`; a 502 says why the provider did not answer."""
-    try:
-        return await asked_once(request, provider, model, messages, project_id)
-    except ModelUnavailable as exc:
-        raise HTTPException(502, f"{provider.name} isn't answering ({exc}).") from None
+async def ask_in_turn(request: Request, session: Session, can: list[Asked],
+                      messages: list[dict], project_id: str | None = None,
+                      ) -> tuple[Provider, str, str]:
+    """`messages` asked of `askers`' models in turn (`asked_once`) until one answers: by whom,
+    what it said, and its model. A local server not running is passed over for each of its
+    models, here and by a tier's pick for a while (one started later is asked again); with none
+    answering, a 502 names each one asked and why."""
+    tried: list[str] = []
+    stopped: set[str] = set()
+    for provider, model, _named in can:
+        if provider.id in stopped:
+            continue
+        try:
+            said, model_id = await asked_once(request, provider, model, messages, project_id)
+            return provider, said, model_id
+        except ModelUnavailable as exc:
+            reason = str(exc)
+            if is_local(provider.base_url) and reason.startswith(UNREACHABLE):
+                looked_down(session)[provider.id] = ("not answering",
+                                                     monotonic() + LIST_DOWN_SECONDS)
+                reason = "not running"
+                stopped.add(provider.id)
+            tried.append(f"{provider.name}{f' · {model}' if model else ''} ({reason})")
+    raise HTTPException(502, f"No model answered: {', '.join(tried)}.")
 
 
 @router.get("/api/recipes", response_model=RecipesOut)
@@ -281,31 +292,12 @@ async def draft_recipe(body: RecipeDraftIn, request: Request,
     roles = [role.name for role in agent_roles(session) if not (
         role.builtin and role.name == LEAD)]
     question = recipes.draw_question(session, body.text, roles)
-    tried: list[str] = []
-    stopped: set[str] = set()  # (a server not running is so for each model of it)
-    for provider, model, _named in can:
-        if provider.id in stopped:
-            continue
-        try:
-            said, model_id = await asked_once(request, provider, model, [
-                {"role": "system", "content": recipes.DRAW},
-                # Said again over the sentence, which stands under it as data: a CLI's own rules
-                # tell it to do what the user's turn asks.
-                {"role": "user", "content": question},
-            ])
-            break
-        except ModelUnavailable as exc:
-            reason = str(exc)
-            if is_local(provider.base_url) and reason.startswith(UNREACHABLE):
-                # (its server is not running: passed over a while, here and by a tier's pick -
-                # one started later is asked again)
-                looked_down(session)[provider.id] = ("not answering",
-                                                     monotonic() + LIST_DOWN_SECONDS)
-                reason = "not running"
-                stopped.add(provider.id)
-            tried.append(f"{provider.name}{f' · {model}' if model else ''} ({reason})")
-    else:
-        raise HTTPException(502, f"No model answered: {', '.join(tried)}.")
+    provider, said, model_id = await ask_in_turn(request, session, can, [
+        {"role": "system", "content": recipes.DRAW},
+        # Said again over the sentence, which stands under it as data: a CLI's own rules tell it
+        # to do what the user's turn asks.
+        {"role": "user", "content": question},
+    ])
     try:
         drawn = recipes.drafted(said)
     except ValueError as exc:

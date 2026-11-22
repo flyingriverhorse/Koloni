@@ -102,3 +102,25 @@ def test_with_no_model_or_over_the_budget_it_says_why(make_client, project_dir, 
         f"This project is {over}.")
     assert draft(client, pid).json()["detail"] == f"This project is {over}."
     assert model.calls == []
+
+
+def test_a_fast_model_that_does_not_answer_passes_it_to_the_leads(team, project_dir):  # noqa: F811
+    """As "Or write it" (K-tarif-yaz): the next model is asked in the same press, the Lead's last;
+    with none answering each one asked is named."""
+    from app.model_client import ModelUnavailable
+
+    down = ModelUnavailable("model server returned 500: overloaded")
+    client, default, fast = team([text(json.dumps(TASKS))], [down])
+    tiered(team, client)  # fast: Fast · quick, then the Lead's: Local
+    pid, _ = setup(client, project_dir)
+    drawn = draft(client, pid)
+    assert drawn.status_code == 200, drawn.text
+    assert drawn.json()["by"].startswith("Local (") and len(drawn.json()["tasks"]) == 2
+    assert len(fast.calls) == 1 and len(default.calls) == 1
+    client, default, fast = team([down], [down])
+    tiered(team, client)
+    pid, _ = setup(client, project_dir)
+    drawn = draft(client, pid)
+    assert drawn.status_code == 502, drawn.text
+    assert drawn.json()["detail"].startswith("No model answered: Fast · quick (model server "
+                                             "returned 500: overloaded), Local"), drawn.text
