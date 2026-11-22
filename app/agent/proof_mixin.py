@@ -481,10 +481,12 @@ class ProofMixin:
             # (Off for this chat: its own kind - the canvas draws no Checks node for it.)
             said = proof.row("chat_off", "note", proof.OFF_FOR_CHAT) if setting == "off" else (
                 proof.row("not_checked", "note", proof.NOT_CHECKED))
-            return [said, *self._last_run_rows(session, run_id), *waiting]
+            return [said, *self._last_run_rows(session, run_id), *waiting,
+                    *self._not_taken_row(session, run_id, held)]
         if held is None or not held.rows:
             return [proof.row("tests", "not_run", proof.NOT_RUN.format(
-                why=NOT_REACHED.get(status, ENDED_FIRST))), *waiting]
+                why=NOT_REACHED.get(status, ENDED_FIRST))), *waiting,
+                    *self._not_taken_row(session, run_id, held)]
         rounds = []
         if held.rounds:
             # (Why each went back, where a review's findings did: the canvas's round lines.)

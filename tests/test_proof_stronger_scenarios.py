@@ -29,13 +29,14 @@ def rows_of(snap, run_id):
             if m["role"] == "checked" and m["run_id"] == run_id for r in m["checked"]]
 
 
-def started(team, project_dir, lead, fast, executor, **project):  # noqa: F811
+def started(team, project_dir, lead, fast, executor, approval="never", **project):  # noqa: F811
     client, _default, _quick = team(lead, fast, executor=executor)
     tiered(team, client)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     assert client.patch(f"/api/projects/{pid}", json={
         "check_command": CHECK, "fix_rounds": 1, **project}, headers=OWN).status_code == 200
-    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
+    cid, run_id = begin(client, project_dir, mode="full_auto",
+                        **({"spawn_approval": approval} if approval else {}))
     return client, cid, run_id
 
 
@@ -146,3 +147,17 @@ def test_an_away_job_whose_tests_still_fail_ends_not_taken_in(make_client, proje
     assert held and held[0]["text"].startswith("Not taken in"), rows
     assert any(one.startswith("Not taken in") for one in job["checks"]), job
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"  # (never taken in)
+
+
+
+def test_with_the_default_spawn_approval_the_hand_off_asks_nothing(team, wait_run,  # noqa: F811
+                                                                   project_dir):
+    # (KOLONİ's own hand-off is no pick of an agent's: no card at Full auto)
+    executor = ScriptedExecutor([PASS, failing(), PASS, PASS])
+    client, cid, run_id = started(team, project_dir, {
+        "Lead": ONE, "Coder 2": [said(s11.FIX_INCOMPLETE)],
+        "Coder 3": [step(write("a.py", "x = 3\n").tool_calls[0]), text("fixed")]}, WORK,
+        executor, approval=None)
+    snap = wait_run(client, cid, run_id, timeout=60)
+    texts = [one[2] for one in rows_of(snap, run_id)]
+    assert "Tests passed: python check.py - 4 passed in 0.1s" in texts, (texts, snap["agents"])

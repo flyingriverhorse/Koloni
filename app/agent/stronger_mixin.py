@@ -15,9 +15,9 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import injection, ledger, proof, proof_before
+from app import injection, proof, proof_before
 from app.agent.ctx import Ctx
-from app.db.models import Agent, Command, Conversation, FileChange, Merge, Message, Provider
+from app.db.models import Agent, Conversation, FileChange, Merge, Message, Provider
 from app.model_client import ToolCallRequest
 from app.proof import Row
 from app.roles import effective_tools, find_role
@@ -42,6 +42,7 @@ NOT_QUOTED = "{model} said test-wrong without the request's words: it goes on as
 IN_PROJECT = ("approach-wrong, but the work is in the project, not a copy of its own: it goes on "
               "from the work as it is")
 TEST_CHANGED = "Test changed: {why}"
+NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
 REDO_SAID = "approach-wrong: it does the work again another way, from the work as it is"
 NOT_HANDED = "Not handed to {model}: {why}"
 STILL_HANDED = "Still failing after rounds by {by}: you decide (Fix it)"
@@ -170,7 +171,9 @@ class StrongerMixin:
         """A fixer KOLONİ opened in a turn whose recipe's copy holds the work: one of the
         recipe's agents, so it works in that copy (`_copy_owner`) and its work stays there
         for the check - never kept beside the recipe."""
-        if call_id in self._joins_copy:
+        known = self._ctxs.get(agent_id)
+        if call_id in self._joins_copy and known is not None and (
+                known.run_id in self._recipe_copy):
             self._in_recipe.add(agent_id)
 
     def _first_model(self: "AgentRunner", session, ctx: Ctx) -> tuple[str, str, str, str | None]:
@@ -222,10 +225,10 @@ class StrongerMixin:
         held.rows.append(proof.row("stronger", "note", HANDED.format(
             model=model, tier=TIER_NAMES[tier], n=rounds_said(held.rounds), by=by)))
         held.handed.append(model)
-        kind, why = await self._diagnose(ctx, held, role, provider, model, by)
+        kind, why = await self._diagnose(ctx, held, role, tier, model, by)
         for _round in range(held.most):
             status, said = await self._koloni_agent(ctx, "fix", {
-                "role": role, "provider": provider, "model": model,
+                "role": role, "tier": tier,
                 "why": f"KOLONİ hands it the fix: the tests still fail after rounds by {by}",
                 "task": FIX_TASK.format(n=held.rounds, by=by, how=HOW[kind],
                                         why=injection.noted(why, "agent"),
@@ -236,11 +239,18 @@ class StrongerMixin:
                     model=model, why=(said.removeprefix("error: ").strip().splitlines()
                                       or [status])[0][:MOST_SAID])))
                 return
+            wanted = list(held.left_failing)
             await self._recheck(ctx, held)
-            if not held.left_failing or held.stopped:
-                return
+            if held.stopped or held.left_failing:
+                continue
+            if not self._handed_passed(held, wanted):
+                # (not run, timed out, still running: no verdict - it still counts as failing)
+                held.left_failing = wanted
+                held.rows.append(proof.row("stronger", "not_run", NO_VERDICT))
+                held.stopped = True  # (no tier more: the next would stand on no verdict too)
+            return
 
-    async def _diagnose(self: "AgentRunner", ctx: Ctx, held: "Proof", role: str, provider: str,
+    async def _diagnose(self: "AgentRunner", ctx: Ctx, held: "Proof", role: str, tier: str,
                         model: str, by: str) -> tuple[str, str]:
         """The stronger model's first answer: a verdict, read-only - read by its own line, never
         from what it quotes. No verdict, two, or a test-wrong without the request's words: the
@@ -251,8 +261,10 @@ class StrongerMixin:
                 Message.created_at, literal_column("messages.rowid")).limit(1)) or ""
             diff, _whole, _left = proof.turn_diff(session, ctx.run_id, ctx.agent_id, 12000,
                                                   self._sharing(ctx))
+        # (a tier, not a model named: KOLONİ's own hand-off within the user's rule - no card;
+        # `_stronger_tiers` read the same pick)
         status, report = await self._koloni_agent(ctx, "diagnose", {
-            "role": role, "provider": provider, "model": model,
+            "role": role, "tier": tier,
             "why": "KOLONİ asks it what is wrong before it changes anything",
             "task": DIAGNOSE_TASK.format(
                 n=held.rounds, by=by, request=injection.noted(asked, "agent"),
@@ -336,6 +348,14 @@ class StrongerMixin:
         return (status, report or said) if status == "succeeded" else (status, said)
 
     @staticmethod
+    def _handed_passed(held: "Proof", wanted: list) -> bool:
+        """Whether every run that failed has a passed row now (decision 18: a pass, not a lack of
+        a failure - a run not run, timed out or still running is none)."""
+        passed = {one["command"] for one in held.rows
+                  if one["kind"] == "tests" and one["state"] == "passed"}
+        return all(run.command in passed for run, _output in wanted)
+
+    @staticmethod
     def _failing_tail(held: "Proof") -> str:
         tail = "\n\n".join("\n".join(output.rstrip().splitlines()[-40:])
                            for _run, output in held.left_failing)
@@ -351,16 +371,10 @@ class StrongerMixin:
         in then, nor carded; None: it may go in.
         shortcut: a check that ran nothing (R3, R4's unshown bug) still waits on its Ready for you
         card - never taken in unasked either; fold it into this row if the card is felt."""
-        if not self._recipe_spent(ctx):
-            return None
-        with self._factory() as session:
-            for command, code in session.execute(select(Command.command, Command.exit_code).where(
-                    Command.run_id == ctx.run_id, Command.status == "exited",
-                    Command.exit_code.is_not(None)).order_by(
-                    Command.started_at.desc(), literal_column("commands.rowid").desc())):
-                if ledger.read_test(command):
-                    return RECIPE_FAILING if code != 0 else None
-        return None
+        from app.agent import FINDINGS_LEFT  # (where S4 keeps it; this module is imported first)
+
+        left = any((state.get("why") or "").startswith(FINDINGS_LEFT) for _team, state in rows)
+        return RECIPE_FAILING if left and self._recipe_spent(ctx) else None
 
     def _not_taken_row(self: "AgentRunner", session, run_id: str,
                        held: "Proof | None") -> list[Row]:
@@ -369,9 +383,10 @@ class StrongerMixin:
         why = self._held_back.get(run_id)
         if why is None:
             return []
+        lead = session.scalar(select(Agent.id).where(Agent.run_id == run_id, Agent.depth == 0))
         merge_id = session.scalar(select(Merge.id).where(
-            Merge.run_id == run_id, Merge.kept_in.is_not(None)).order_by(
-            Merge.created_at.desc()).limit(1))
+            Merge.run_id == run_id, Merge.agent_id == lead, Merge.kept_in.is_not(None),
+            Merge.status == "interrupted").order_by(Merge.created_at.desc()).limit(1))
         ids = [one for run, output in (held.left_failing if held else [])
                for one in proof_before.failed_ids(run.command, output)]
         by = " and ".join(filter(None, [held.first_by if held else "", *(

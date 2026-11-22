@@ -267,7 +267,9 @@ Failing work is never taken in, at any level - Full auto and while you're away t
 passes after the strongest tier (or none is set, or the switch is off), the work stays in its
 copy and the section says "Not taken in: 2 tests still fail after rounds by `A` and `B`", with
 what the stronger model found as one question to you, and two buttons on that line: **Take in
-anyway** and **Fix it** (your answer to the question goes to the Orchestrator). An Away job ends
+anyway** and **Fix it** (your answer to the question goes to the Orchestrator as a new message;
+that turn starts from the project, so take the kept work in first if the fix should go on from
+it). An Away job ends
 there, and its report lists it. Work that is already in the project (no copy) gets the stronger
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
 own check ran nothing still waits on its Ready for you card, as before - never taken in unasked.
