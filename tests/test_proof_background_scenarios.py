@@ -759,6 +759,6 @@ def test_the_settings_note_says_the_waits_the_server_keeps():
     from pathlib import Path
 
     from app.agent import proof_mixin
-    note = Path(__file__).parent.parent / "frontend/src/shell/sections/AfterChange.tsx"
+    note = Path(__file__).parent.parent / "frontend/src/shell/sections/afterChangeWords.ts"
     assert (f"WAITS = {{ detach: {proof_later_mixin.DETACH_SECONDS}, "
             f"copy: {proof_mixin.END_WAIT_SECONDS} }}") in note.read_text(encoding="utf-8")

@@ -212,9 +212,12 @@ class Project(Base):
     # 89m, "Finish only when the tests pass", as the user last set it (None: never said). Kept
     # (0162), read only for `after_change_from_off`: `after_change` holds the setting now.
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
-    # Kanıtlı bitiş: after a turn that changed code, "check" (Check it: the tests, and a look at
-    # a big or security-touching change), "tests" (Tests only) or "nothing" (`app.proof`).
+    # Kanıtlı bitiş: after a turn that changed code, "check" (Test and review: the tests, and a
+    # look at a big or security-touching change), "tests" (Tests only) or "nothing" (`app.proof`).
     after_change: Mapped[str] = mapped_column(String(7), default="check", server_default="check")
+    # S3 (0165, plan decisions 14a and 19): how often the end check sends work back - failing
+    # tests and a Reviewer's blocking findings, one count a turn - 1 to 5.
+    fix_rounds: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
     # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
     # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
     # never the user's own (their check command and part tests win, and keep their leave).
@@ -273,8 +276,8 @@ class Conversation(Base):
     # Each new message of the user's starts a plan turn first (slice 49): the Lead only reads,
     # and what it answers is a plan the user approves, edits or turns down.
     plan_first: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # Kanıtlı bitiş S10 (plan decision 17): Check after a change for this chat - None the
-    # project's After a change, "off" none, "on" checked (Check it where the project's is
+    # Kanıtlı bitiş S10 (plan decision 17): Test and review changes, for this chat - None the
+    # project's After a change, "off" none, "on" checked (Test and review where the project's is
     # Nothing). A recipe's turn follows the recipe (`proof.after_change_of`).
     after_change: Mapped[str | None] = mapped_column(String(3), default=None)
     # K-39-betik: a page of this chat shown in the Workspace runs its scripts without asking -

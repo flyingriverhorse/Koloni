@@ -25,16 +25,26 @@ It works the same for every model and CLI.
 **Settings › This project › Checks and git › After a change** turns it on or off for the
 project:
 
-- **Check it** (the default) and **Tests only** both run the tests.
+- **Test and review** (the default) runs the tests, and has a big or security-touching change
+  looked over by a read-only Reviewer (see [The review](#the-review)).
+- **Tests only** runs the tests and nothing more.
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
+The line under the choice says what it does in this project now, from its real state - for
+example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
+the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
+is read by a Reviewer (one more model request). Failing work goes back up to 2 times." Before a
+test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
+
 ### For one chat
 
-**Check after a change**, in the permission level's menu beside **Plan first**, turns it on or
-off for this chat only. Its line says what the project's setting is: "As the project: Check it",
-"Off for this chat · the project's is Check it", or "On for this chat · the project's is Nothing"
-(on in a project at Nothing checks this chat's changes as Check it). Off, the level's button
+**Test and review changes**, in the permission level's menu beside **Plan first**, turns it on
+or off for this chat only. Its line says what this chat's changes get: "As the project: runs
+python -m pytest -q after each change, then a Reviewer reads big or security changes. Failing work
+goes back to be fixed, up to 2 times.", "Off for this chat: nothing is tested or reviewed; each
+answer says “Not checked”.", or "On for this chat · the project's is Nothing: runs …" (on in a
+project at Nothing is Test and review for this chat). Its ⓘ leads here. Off, the level's button
 says "· no checks", no Checks node is drawn for its turns, the Checked section says "Not checked:
 off for this chat" and the Orchestrator's box "not checked · off for this chat". Other chats go
 on with the project's setting.
@@ -133,8 +143,9 @@ The Orchestrator is told that the tests failed, with the end of their output, an
 what fails, by itself or with an agent that writes code. It is told never to delete or skip a
 test to make it pass. Then KOLONİ runs the tests again.
 
-It is sent back at most **two** times a turn. After that the turn ends, and the section says
-"Still failing after 2 fix rounds: you decide (Fix it)". **Fix it**, on the newest turn, sends a
+It is sent back at most **Fix rounds** times a turn (**Settings › This project › Checks and git ›
+Fix rounds**, 1 to 5, 2 unless you change it) - one count with the Reviewer's findings. After that
+the turn ends, and the section says "Still failing after 2 fix rounds: you decide (Fix it)". **Fix it**, on the newest turn, sends a
 new message that asks for the fix. Nothing starts until you click it.
 
 Rounds never stack: where a recipe of the turn has already run its own test-and-fix rounds to
@@ -144,6 +155,51 @@ after the recipe's fix rounds: you decide (Fix it)".
 
 The check before a sub-agent's work is taken in (**Test before adding**) is a separate check with
 its own two rounds. A turn can have both.
+
+## The review
+
+Under **Test and review**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
+config or screens - or one that touches security - is looked over by the **Reviewer**, an agent
+KOLONİ opens itself. A security touch is a path with a word like auth, login, session, token,
+secret, password, permission, crypto, cookie or cors as a whole word of a name in it (`auth.py`,
+`oauth2/`, `tokens.ts` - not `author.py` or `tokenizer.py`), a `.env`, `.pem` or `.key` file, a
+Dockerfile or a CI workflow, or an added line that runs a command (`subprocess`, `shell=True`,
+`os.system`, `child_process`), runs or loads code (`eval(`, `exec(`, `pickle.load`, `yaml.load(`),
+reaches the network (`fetch(`, `requests.`, `httpx.`, `socket.`), puts HTML in a page
+(`dangerouslySetInnerHTML`, `.innerHTML =`), or loosens a check or a file's rights
+(`verify=False`, `chmod`, `setuid`). Then the **Security reviewer** looks too, told to try to
+refute that the change is safe. Both may look at once. The whole change is read for these,
+also what does not fit in the diff the Reviewer is shown.
+
+- They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
+  left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
+  the project they open. They do not run commands: KOLONİ's test lines are what they know of the
+  tests. They get read tools only and no MCP server, whatever their role is
+  given: they change nothing. One whose model is a CLI that works with tools of its own is not
+  opened ("Review not run: …"), as KOLONİ could not hold it to reading.
+- For a change a user sees (a screen's file, a command's option) in a project with `docs/`, a
+  README or a CHANGELOG, they also check the docs: "Docs not updated for: …" is a suggestion,
+  blocking only where the project's own rules say docs must change with it.
+- Each ends with **MERGE** (it may stand) or **HOLD** (it must change first) and its findings,
+  each blocking or a suggestion. Blocking findings go back to the Orchestrator as a fix round,
+  as failing tests do; KOLONİ runs the tests again, and the Reviewer looks again at the new
+  change - until MERGE with the tests passing, or the **Fix rounds** are spent. Then the section
+  lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
+  sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
+  as data, never as your words.
+- Each look is an agent's work on its model: on the canvas, in its window and in Usage.
+- In a chat with teams the look is KOLONİ's, not a team's: no team's lead or door holds it, and
+  it gets no team's tools (their shared folder, a request for another team's work).
+- The Orchestrator may answer the findings without changing anything: the turn ends there, and
+  the section says "Still on hold after round 1: not settled by the last look - you decide (Fix
+  it)" ("nothing changed" where KOLONİ checked again and found no change).
+- A HOLD is a hold: one that marks no finding blocking, or writes its findings as prose, goes
+  back with its own words as the finding. The verdict is a line `Verdict: MERGE` or `Verdict:
+  HOLD` of its own (not one quoted or in a code block); any HOLD wins.
+- **Stop this check** ends a look that runs now too: "Review stopped by you - not checked".
+- No look: a small change, **Tests only**, tests that still fail (they are fixed first), a turn
+  over its token limit, or a recipe whose own Review step looked already - rounds never stack.
+  A recipe without a Review step gets this review at its end.
 
 ## How long it waits
 
@@ -243,13 +299,15 @@ with the runner's counts ("pytest · 214 ✓ · 2 ✗"), the related step's ("re
 passed"), and a whole suite running after the answer with its clock from its own start ("full
 tests · 2:14 …"), or "full tests · waiting for another test run to end", then its result or
 "full tests · stopped by you at 1:02 - not checked". Each fix round is a line back to the
-Orchestrator, "round 1 of 2: tests fail". The Orchestrator's own box gets one line: "● checking…"
+Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2: 1 blocking
+finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
+Orchestrator's own box gets one line: "● checking…"
 while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
 not run), "✗ still failing" or "not checked". In a recipe's turn the node says "end of the recipe".
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
-chat** (the level menu's **Check after a change**, for the chat open now) and **Open its log**,
+chat** (the level menu's **Test and review changes**, for the chat open now) and **Open its log**,
 the Orchestrator's window, whose record holds the runs.
 
 ## What each line means
@@ -275,7 +333,15 @@ the Orchestrator's window, whose record holds the runs.
 | – `…` - the project changed while they ran | The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed. |
 | – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |
 | – No test command | There was nothing to run. |
-| – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn. |
+| – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back. |
+| ✓ Review: Reviewer (`provider · model`) - MERGE, no findings | The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first). |
+| ✗ Review: Reviewer (`provider · model`) - HOLD, 2 findings, 1 blocking | It held the change; each finding follows as "Blocking: …" or "Suggestion: …". |
+| – Review: … in the part it saw (3000 of 15000 characters; not shown: …) | The diff was cut: what it said is of that part only, never a pass. |
+| – Review gave no findings section: not counted | Its report had no findings section: nothing was sent back. |
+| – Review not run: `why` | It could not look: it failed, it was refused, or the turn's token limit was reached. |
+| – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
+| – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
+| ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
-| – Not checked: off for this chat | This chat's **Check after a change** is off. |
+| – Not checked: off for this chat | This chat's **Test and review changes** is off. |

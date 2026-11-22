@@ -778,7 +778,7 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
     saveRecipe: vi.fn(async (_recipe, body) => ({ id: 'f2', ready: false, project_id: 'p', file: 'copy.json', ...body })),
     draftRecipe: vi.fn(() => new Promise<RecipeDraft>(done => (answer = done))),
   })
-  render(<RecipesTab roles={roles} teams={teams} list={{ recipes: [FEATURE, mine, folder], broken: ['bad.json: not a recipe'], writer: { why: null } }} projectId="p" actions={given} reload={vi.fn()} />)
+  render(<RecipesTab roles={roles} teams={teams} list={{ recipes: [FEATURE, mine, folder], broken: ['bad.json: not a recipe'], writer: { why: null, asks: 'Balanced: Fast · deep' } }} projectId="p" actions={given} reload={vi.fn()} />)
   expect(screen.getByRole('alert')).toHaveTextContent(/^bad\.json: not a recipe$/)
   const item = (name: RegExp) => screen.getByRole('button', { name })
   expect(item(/^Feature/)).toHaveTextContent(/ · ready$/)
@@ -787,7 +787,8 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
   expect(item(/^Feature/).className).toBe('recipe-item recipe-item-chosen')
   expect(item(/^Mine/).className).toBe('recipe-item')
   expect(item(/^Mine/)).toHaveAttribute('aria-pressed', 'false')
-  expect(screen.getByText('The Orchestrator’s model draws it on the board; nothing is saved until you save it.')).toHaveClass('muted', 'recipe-note')
+  // (k-tarif-yaz: whom it asks, before the press - not Local's model whose server is not running)
+  expect(screen.getByText('Asks Balanced: Fast · deep. It draws the recipe on the board; nothing is saved until you save it.')).toHaveClass('muted', 'recipe-note')
   expect(screen.getByRole('status')).toHaveTextContent(/^A ready recipe: copy it to change it\.$/)
   expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
   expect(screen.queryByLabelText('Where it is kept')).toBeNull()
@@ -808,7 +809,7 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
   expect(screen.getByText(/^Delete Feature copy\? Its file in \.koloni\/recipes goes too\.$/)).toBeVisible()
   fireEvent.change(screen.getByLabelText('The recipe in words'), { target: { value: 'spec, then code' } })
   fireEvent.click(screen.getByRole('button', { name: 'Make it a recipe' }))
-  expect(screen.getByRole('button', { name: 'Asking the Orchestrator’s model…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Asking the model…' })).toBeDisabled()
   answer({ name: 'Spec first', graph: FEATURE.graph, provider_name: 'Local', model_id: null })
   await waitFor(() => expect(screen.getByLabelText('Recipe’s name')).toHaveValue('Spec first'))
   expect(screen.getByRole('status')).toHaveTextContent(/^Drawn by Local: change it as you like, then save it\. Nothing is saved yet\.$/)

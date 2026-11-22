@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, after_change: 'check', after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -130,8 +130,11 @@ test('After a change saves after_change', async () => {
   await choose(/^Checks/)
   const box = screen.getByLabelText('After a change')
   expect(box).toHaveValue('check')
-  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Check it', 'Tests only', 'Nothing'])
-  expect(box).toHaveAccessibleDescription(/runs this project’s tests once on the work as it now stands.*at most 1 minute for the whole suite.*at most 2 minutes for them all/)
+  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Test and review', 'Tests only', 'Nothing'])
+  // (One line, live: what it runs now, when the Reviewer reads, the Fix rounds.)
+  expect(box).toHaveAccessibleDescription(
+    'Runs the test command KOLONİ finds (it asks you once), related tests first, the whole suite in the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request). A turn you watch waits for the related tests (with none, at most 1 minute for the whole suite; in its own working copy, at most 2 minutes for them all). Failing work goes back up to 2 times.',
+  )
   await userEvent.selectOptions(box, 'tests')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ after_change: 'tests' })
@@ -888,4 +891,18 @@ test('with nothing found, nothing of it is shown', async () => {
   render(<ProjectSettings {...base} onSave={vi.fn()} />)
   await choose(/^Checks/)
   expect(screen.queryByTestId('tests-found')).toBeNull()
+})
+
+test('Fix rounds: 1 to 5 beside After a change, saved as fix_rounds', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const box = screen.getByLabelText('Fix rounds')
+  expect(box).toHaveValue('2')
+  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['1', '2', '3', '4', '5'])
+  expect(box).toHaveAccessibleDescription(/failing tests or the Reviewer’s blocking findings go back/)
+  await userEvent.selectOptions(box, '4')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ fix_rounds: 4 })
 })

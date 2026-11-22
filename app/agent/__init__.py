@@ -233,6 +233,7 @@ from app.agent.questions_mixin import USER_CHANGED as USER_CHANGED
 from app.agent.questions_mixin import USER_TOLD as USER_TOLD
 from app.agent.questions_mixin import QuestionsMixin
 from app.agent.record_mixin import RecordMixin
+from app.agent.review_mixin import ReviewMixin
 from app.agent.rooms_mixin import CODEX_NATIVE_NO_RECIPE as CODEX_NATIVE_NO_RECIPE
 from app.agent.rooms_mixin import RoomsMixin
 from app.agent.skills_mixin import SkillsMixin
@@ -549,7 +550,7 @@ IN_A_CANDIDATE = ("it is yours alone: KOLONİ measures your work there when you 
 # still gets a card; put it in the candidate's task if that is seen.
 MEASURE_AS_IS = (". To measure it yourself, run the project's measure command exactly as "
                  "written, adding no flags: `{command}`")
-NO_MEASURE = "no measure command"
+NO_MEASURE = recipe_run.NO_MEASURE  # (and so one round only: `recipe_run.ONE_ROUND`)
 CANDIDATE_KEPT = "a candidate's work its turn ended before a pick"
 CANDIDATES_WATCHED = ("{step}: candidates need the user watching and the recipe's own copy - "
                       "not in a job while the user is away, a turn on a branch of its own, or a "
@@ -934,6 +935,11 @@ PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your c
 # into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
 PR_UNPUSHED = ("you have {commits} not on GitHub yet: before a pull request, check its files are "
                "the agent's work")
+# ... said with its commits where another worktree of the user's holds one (`git.unpushed_places`):
+# by its folder, and one deleted by hand is still git's until it is pruned.
+PR_HELD_IN = "in your worktree {folder}"
+PR_HELD_GONE = ("in your worktree {folder}, a folder that is gone: `git worktree prune` lets git "
+                "drop it")
 # ... and where the branch began from the user's folder with work not committed (W-1's snapshot): an
 # agent's copy of a file of it, under another name, is its own work to git.
 PR_SNAPSHOT = ("it began from your folder with work not committed: before a pull request, check "
@@ -1015,7 +1021,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
-                  ProofMixin, FoundMixin, ProofLaterMixin):
+                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1376,6 +1382,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._recipe_copy: dict[str, str] = {}
         # The agents opened for a step of a recipe, or to run one (a team's lead): in that copy.
         self._in_recipe: set[str] = set()
+        # S3: the spawn calls of KOLONİ's end-of-turn Reviewers - read tools only, no recipe
+        # started by them (`ReviewMixin._look`).
+        self._read_only_calls: set[str] = set()
+        # ...their agents (`_review_refuses`), a recipe step's Reviewers by run, and the looks
+        # running now (Stop this check ends them).
+        self._read_only_agents: set[str] = set()
+        self._recipe_reviewers: dict[str, set[str]] = {}
+        self._looks: dict[str, set[asyncio.Future]] = {}
         # K-evrim: the agents opened as a step's candidates - each in a copy of its own until one
         # is picked (`_pick`); what its measure gave, till its step hears of its end; and, by run,
         # a pick card's candidates (name -> agent id) while it waits for its word.
@@ -3561,15 +3575,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
     async def _pr_asks(self, copy: copies.Copy) -> str | None:
         """Why a pull request of this branch is asked about at every level, Full auto too - what an
         agent copied of the user's work into a commit of its own its history does not show: the
-        user has commits origin does not, or a stash (`git.unpushed_count`: `PR_UNPUSHED`; where
-        git does not say, one commit), or the branch began from their uncommitted work
-        (`PR_SNAPSHOT`). None where neither."""
+        user has commits origin does not, or a stash (`git.unpushed_count`: `PR_UNPUSHED`, with
+        the other worktree of theirs that holds one, `PR_HELD_IN`; where git does not say, one
+        commit) - not the agent's own commits a worktree of theirs holds as they look at its branch
+        -, or the branch began from their uncommitted work (`PR_SNAPSHOT`). None where neither."""
+        under = copies.folders(self.settings.runtime_root)
         try:
             commits, stashes = await asyncio.to_thread(
-                git.unpushed_count, copy.project, copies.folders(self.settings.runtime_root))
+                git.unpushed_count, copy.project, under, copy.branch)
+            places = await asyncio.to_thread(
+                git.unpushed_places, copy.project, under, copy.branch) if commits else []
         except git.Refused:
-            commits, stashes = 1, 0
-        said = [f"{commits} commit" + ("s" if commits != 1 else "")] if commits else []
+            commits, stashes, places = 1, 0, []
+        held = "; ".join((PR_HELD_IN if there else PR_HELD_GONE).format(folder=folder)
+                         for folder, there in places)
+        said = [f"{commits} commit" + ("s" if commits != 1 else "") + (
+            f" ({held})" if held else "")] if commits else []
         said += ["a stash" if stashes == 1 else f"{stashes} stashes"] if stashes else []
         if said:
             return PR_UNPUSHED.format(commits=" and ".join(said))
@@ -5176,6 +5197,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 "it again, in smaller parts if it was long"
             )
         args = parse_arguments(request.arguments)
+        self._review_refuses(ctx, request.name)  # (S3: KOLONİ's Reviewer only reads)
         # 101: before anything is asked or run. (Its output is not looked at: reading the
         # environment is no sending out, and the key is hidden there as any secret is.)
         if (canary := self._canaries.get(run_id)) and (
@@ -6397,6 +6419,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             else:
                 return False
             self._in_recipe.add(child.agent_id)
+            self._recipe_reviewer(ctx, child, role.name)
             return True
 
         def apart(row: ConversationTeam, team: Team, lead: Role,
@@ -6646,6 +6669,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             text += " " + BEST_SO_FAR.format(
                 score="no score" if top["score"] is None else f"{top['score']:g}",
                 name=top["name"])
+        if NO_MEASURE in why.values() and recipe_run.goes_round(state):  # (K-evolve-tek)
+            text += " " + recipe_run.ONE_ROUND
         return (text, scored[:1]) if full and scored else (text, [*(scored or ranked), "Stop"])
 
     async def _pick(self, ctx: Ctx, winner: str, candidates: list[str]) -> str:

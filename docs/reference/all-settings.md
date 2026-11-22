@@ -18,7 +18,7 @@ message box. See [Settings](../settings.md#this-chat).
 | **Limits and money** | At most this many agents at work in this project · Agents at the same time · Sub-agent levels · Sub-agents per request · Continue gives this many more steps · Stop the work on a message over this many tokens · A discussion's tokens, at most · Monthly budget |
 | **Commands and secrets** | This machine / Docker container · Image · Allow network access · Hide secret files from commands · Secret variables commands may see · Planted test key (canary) |
 | **Runs without asking** | Sites agents open · Commands and requests, by chat |
-| **Checks and git** | After a change · Found by KOLONİ · Test before adding · Measure command · Save each sub-agent's work as a git commit · How a team's finished branch reaches yours |
+| **Checks and git** | After a change · Fix rounds · Found by KOLONİ · Test before adding · Measure command · Save each sub-agent's work as a git commit · How a team's finished branch reaches yours |
 | **Memory and web** | Note what the work found, by itself · Search by meaning with · Also look in the memory of · Search address (SearXNG) · Otherwise search with · Let agy search too |
 | **Notifications** | Notification address · Post it as · Show a desktop notification · Send the day's summary at |
 | **Slash commands** | Name · What it does · Text it puts in the box · Hand it to a role · In every project |
@@ -39,7 +39,7 @@ reads at most**, **KOLONİ's test runs at once** and **Test processes per run** 
 On the line over the box: the model button (**Provider**, **Model name**, **Thinking**, on GitHub
 Copilot's `auto` and `fusion` **Routing**, **Orchestrator model: automatic**) and **☾ Away** (a chat with
 a folder). Under the message: **Attach**, the permission level (its menu holds **Plan first**, **Check
-what I said first** and **Check after a change**), **Auto-read**, **Dictate** and **Send**. Under the box: **Workspace**, **New
+what I said first** and **Test and review changes**), **Auto-read**, **Dictate** and **Send**. Under the box: **Workspace**, **New
 topic**, **Chat settings** (this chat's sheet) and **More** (**Work together…**, **Compare…**). See
 [Chat and canvas](../use/chat-and-canvas.md).
 

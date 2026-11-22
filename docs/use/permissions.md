@@ -4,8 +4,8 @@ The permission level decides what agents may do without asking you first. It sta
 row as three comb cells and its name (**Ask** one cell, **Auto-edit** two, **Full auto** three): a click
 lists the levels, each with a line on what it does - Ask before changes: "Each file change and command waits
 for your card"; Auto-edit files: "Writes files at once (revertible); commands still ask"; Full auto: "Changes
-and commands run; only harmful or risky actions ask" - **Plan first**, and in a project's chat **Check after
-a change** ([what KOLONİ checks after a change](checked.md#for-one-chat), on or off for this chat; off, the
+and commands run; only harmful or risky actions ask" - **Plan first**, and in a project's chat **Test and
+review changes** ([what KOLONİ checks after a change](checked.md#for-one-chat), on or off for this chat; off, the
 level says "· no checks"). Each chat has its own level.
 
 | Level | In short |
@@ -47,6 +47,7 @@ level says "· no checks"). Each chat has its own level.
 | A change in a folder added to the chat for reading only | Card | Card | Card |
 | A command that stops programs by their name (`taskkill /IM`, `pkill`, `killall`, `Stop-Process -Name`), or looks a process up and stops it | Card | Card | Card (in the project, **Check what I said first** may let it run, but never for python, node, uvicorn, an agent's CLI, a filter, a wildcard, `kill -1` or a process looked up) |
 | A sub-agent's command in its copy that names another agent's copy, a worktree of the project or a place above its copy (`../..`), or writes in or installs into the linked `node_modules`, `.venv` or `venv` | Card | Card | Card |
+| A sub-agent's command in a branch's worktree that finds your repository's own path (`git rev-parse --git-dir`), or writes to a place built when it runs (`> "$D/…"`, `cp x "$D/…"`, `Set-Content (Join-Path …)`) or links to one - it may be your repository's own `.git` | Card | Card | Card |
 
 A plain `git` command counts as read-only only when it runs at the top of the project and the
 project holds no secret file.
@@ -88,9 +89,67 @@ You can see and remove the rules you made under Settings › This project › **
 
 - a command that is chained, piped or redirected, or handed to a shell or another program;
 - a command that deletes or cannot be undone;
-- a command that names a secret file, `.koloni/`, or a file that steers agents.
+- a command that names a secret file, `.koloni/`, or a file that steers agents;
+- an option after the rule's words that makes the program run another program, fetch code or
+  write outside the folder, alone or in a bundle (`pytest -qo …`): pytest's `--basetemp`, `-p`,
+  `--rootdir`, `--confcutdir`, `-o`, `-c`, and `--junitxml` outside the folder; go's `-exec`,
+  `-toolexec` and `-C`; cargo's `--config` and `--manifest-path`; gradle's `-I`, `-p` and `-b`;
+  npm's `--script-shell`, `--prefix`, `--package`, `--userconfig` and `--node-options`; make's
+  `SHELL=` and `-f`; tox's `-c`; maven's `-Dmaven.ext…`; uv's and pipx's `--with`, `-w`, `--from`,
+  `--spec`; a shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
+  `python -m pytest -q tests`, `-p no:cacheprovider` (a plugin turned off) and `-o log_cli=true`,
+  but not `python -m pytest -p plugin`. Words after `--` are the script's own (`npm test --
+  --prefix x` is covered), and past a rule that names a runner's package (`npx tsc`) the words are
+  that tool's (`npx tsc -p tsconfig.json` is covered).
 
 Below Full auto, a command that keeps running (a server) asks every time, even with a rule.
+
+## How a command is read
+
+KOLONİ reads an agent's command line the way its shell will run it, and judges every command it
+finds, not only the first word. A harm, an install or a write it finds anywhere is asked as it would
+be on a line of its own:
+
+- **Groups**: `(cd web && npm ci)`, `{ npm ci; }`, `if exist x (npm ci)`, `for %a in (*) do (…)` and
+  PowerShell's script blocks (`ForEach-Object { … }`, `& { … }`). A group whose brackets do not pair
+  is always asked.
+- **Heredocs and comments**: what a heredoc writes to a file and a comment run nothing; a stop in
+  code a heredoc or a pipe hands an interpreter (`python - <<'EOF'`, `echo "…" | python`) is asked.
+- **Launchers**: what `Start-Process … -ArgumentList`, `npx -c` / `--call`, `schtasks /tr`,
+  `[scriptblock]::Create(…)`, `cmd /c` and `bash -c` hand on is read as the command it is; a command
+  PowerShell is handed encoded (`-EncodedCommand`) is asked at every level.
+- **Runners**: what `poetry run`, `uv run`, `pipenv run`, `pdm run`, `hatch run`, `rye run`,
+  `conda run`, `npx`, `pnpm exec`, `yarn exec` / `run`, `bun x` and `cargo run --` / `dotnet run
+  --` run is read as a line of its own: `poetry run cmd /c rd /s /q src` is a delete, and a shell
+  it is handed is a line handed to another program, its path spelt out too
+  (`C:\Windows\System32\cmd.exe`).
+- **Substitutions**: an install inside `$( … )` (`out=$(npm ci)`) counts.
+- **Continued lines**: a line continued with a backtick, `\` or `^` is read joined as well.
+- **Writes to a place built at run time**: in a branch's worktree, a redirect (`>`, `>>`, `>|`,
+  `2>`), `cp`, `mv`, `install`, `tee`, `Set-Content`, `Out-File`, `New-Item`, `Copy-Item` or
+  `[IO.File]::Write…` whose target is made when the command runs - `$( … )`, a variable, cmd's
+  `%x%` and a `for` loop's `%i`, `Join-Path` / `Split-Path`, `git rev-parse` - a link made to such a
+  place (`ln -s`, `mklink /J`, `New-Item -ItemType Junction`), or any write after a `cd` to one, is
+  asked at every level: it may be your repository's `.git` (another worktree's link, HEAD or
+  history, a ref of origin's). Finding that place is asked there too: `git rev-parse --git-dir`,
+  `--git-common-dir`, `--absolute-git-dir` and `--git-path`, a read included (`ls "$(git rev-parse
+  --git-dir)/.."`), so a writer KOLONİ does not list (`sed -i`, `tar -C`, `robocopy`) cannot reach it
+  unasked. A path written out runs as before, and so do a few built places that cannot be `.git`:
+  the temp folder by its variable (`"$TMPDIR/f"`, `$env:TEMP\a`), the folder the command runs in at
+  the start of the place (`"$PWD/out.txt"`, `$(pwd)/x`, `(Join-Path $PWD out.txt)`), a date in a
+  file's own name (`build-$(date +%s).log`, its format holding no `/`, `.` or quote), a `for`
+  loop's name over a glob or names written out (`for f in *.py`) - but never where the place climbs
+  (`..`) or the line gives that name a value (`TMPDIR=…`, `read … PWD`, `Set-Item env:TEMP`).
+- **Package runners**: `npx -p` / `--package` (before what npx runs), `npm exec --package`, `uv
+  run --with` / `-w`, `uvx`, `pipx run`, `bunx`, `pnpm dlx`, `yarn dlx`, `npm create` / `npm init
+  <x>` and `yarn` / `pnpm` / `bun create`, `deno run npm:…` / `jsr:…`, `go run <module>@<version>`
+  and `corepack pnpm dlx` download a package and run it, so they count as installs: asked with web
+  off, and in a working copy whose dependency folders are linked to yours. A plain `npx <tool>` (and
+  `npx tsc -p tsconfig.json`: that `-p` is tsc's) runs the project's own tool and is read as before.
+- **pytest's `--basetemp`** is a delete - pytest empties that folder first - on its line, in
+  `-o addopts=…` or in `PYTEST_ADDOPTS`; but a folder in the agents' scratch (`.koloni/tmp/…`). One a
+  config file names (`-c x.ini`) is not read: a rule does not cover `-c`.
+- **Always rules** never cover the options listed in [What a rule never covers](#what-a-rule-never-covers).
 
 ## Disposable deletes
 

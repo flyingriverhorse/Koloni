@@ -81,9 +81,9 @@ WhenAway = Literal["waits", "lead"]
 # K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
 # against what they wrote.
 FullAutoCheck = Literal["ask", "judge"]
-# Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): Check it, Tests only, Nothing.
+# Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): shown as Test and review, Tests only, Nothing.
 AfterChange = Literal["check", "tests", "nothing"]
-# S10: Check after a change for one chat; None (not sent as such) the project's.
+# S10: Test and review changes, for one chat; None (not sent as such) the project's.
 ChatAfterChange = Literal["off", "on"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
@@ -267,6 +267,13 @@ class ProjectOut(Out):
     room_min_tokens: int | None
     # Kanıtlı bitiş: what KOLONİ checks after a turn that changed code (`app.proof`).
     after_change: AfterChange
+    # S3: how often the end check sends work back a turn - tests and the Reviewer's findings.
+    fix_rounds: int
+    # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
+    # config and screens) - `proof.BIG_LINES` / `BIG_FILES` (app.proof imports what imports this
+    # module: the same numbers, held equal by a test), said where After a change is chosen.
+    review_lines: int = 80
+    review_files: int = 3
     # 0162: Nothing because the user had turned "Finish only when the tests pass" off: said.
     after_change_from_off: bool
     # S1b: the test command(s) KOLONİ saved itself, by folder - {"command", "from", "at"}; and its
@@ -365,6 +372,7 @@ class ProjectPatch(BaseModel):
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
+    fix_rounds: int | None = Field(default=None, ge=1, le=5, strict=True)
     # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
     forget_tests_found: bool | None = None
     full_auto_check: FullAutoCheck | None = None
@@ -481,7 +489,7 @@ class ConversationOut(Out):
     lead_auto: bool
     # Each new message starts with a plan turn the user approves first (slice 49).
     plan_first: bool
-    # S10: Check after a change for this chat; None: the project's After a change.
+    # S10: Test and review changes, for this chat; None: the project's After a change.
     after_change: ChatAfterChange | None
     # K-39-betik: a page shown in the Workspace runs its scripts without asking ("Always run in
     # this chat"); off, each page asks.
@@ -2951,8 +2959,10 @@ class RecipeOut(BaseModel):
 
 
 class RecipeWriter(BaseModel):
-    # Why "Or write it" cannot ask the Lead's model now; None: it can.
+    # Why "Or write it" cannot ask a model now; None: it can.
     why: str | None
+    # Whom it asks first ("Balanced: Local · qwen3"); None where it cannot ask.
+    asks: str | None = None
 
 
 class RecipesOut(BaseModel):

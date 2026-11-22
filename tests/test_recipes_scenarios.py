@@ -34,6 +34,8 @@ import pytest
 from sqlalchemy import delete
 
 from app.db import models
+from app.model_client import ModelUnavailable
+from app.providers import looked_down
 
 if not hasattr(models, "Recipe"):  # written before the code: skipped until it exists
     pytest.skip("slice 84a is not built yet", allow_module_level=True)
@@ -447,6 +449,56 @@ def test_or_write_it_asks_the_first_balanced_model_and_keeps_the_loops_named(tea
     assert (drawn.json()["provider_name"], drawn.json()["model_id"]) == ("Fast", "deep")
     assert default.calls == [] and len(fast.calls) == 1
     assert "each loop the sentence names" in str(fast.calls[0])
+
+
+def local_first(team, client):  # noqa: F811
+    """Balanced: Local · big-model (its server on this machine) first, then Fast · deep."""
+    local, _fast = tiered(team, client)
+    assert client.patch(f"/api/providers/{local['id']}", json={
+        "models": [{"name": "big-model", "tier": "balanced"}]}).status_code == 200
+    return local
+
+
+UNREACHABLE = ModelUnavailable("model server unreachable: All connection attempts failed")
+
+
+def test_or_write_it_passes_over_a_local_server_not_running_and_says_whom_it_asks(
+    team  # noqa: F811
+):
+    """K-tarif-yaz (the user's report): Local's server looked down when last read - the next
+    balanced model is asked, and the note under "Or write it" names it before the press."""
+    client, default, fast = team([], [text(json.dumps(DRAWN))])
+    local = local_first(team, client)
+    assert listed(client)["writer"]["asks"] == "Balanced: Local · big-model"
+    with client.app.state.session_factory() as session:
+        looked_down(session)[local["id"]] = ("not answering", None)
+    assert listed(client)["writer"] == {"why": None, "asks": "Balanced: Fast · deep"}
+    drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer"}, headers=OWN)
+    assert drawn.status_code == 200, drawn.text
+    assert (drawn.json()["provider_name"], drawn.json()["model_id"]) == ("Fast", "deep")
+    assert default.calls == [] and len(fast.calls) == 1
+
+
+def test_or_write_it_asks_the_next_model_when_one_does_not_answer(team):  # noqa: F811
+    """Local's server is down unknown to KOLONİ: it is asked, does not answer, and the next is
+    asked in the same press - Local is passed over a while after (the note says so)."""
+    client, default, fast = team([UNREACHABLE], [text(json.dumps(DRAWN))])
+    local_first(team, client)
+    drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer"}, headers=OWN)
+    assert drawn.status_code == 200, drawn.text
+    assert drawn.json()["provider_name"] == "Fast" and len(fast.calls) == 1
+    assert listed(client)["writer"]["asks"] == "Balanced: Fast · deep"
+
+
+def test_or_write_it_with_every_model_down_names_each_one_it_asked(team):  # noqa: F811
+    client, default, fast = team([UNREACHABLE], [
+        ModelUnavailable("model server returned 500: overloaded")])
+    local_first(team, client)
+    drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer"}, headers=OWN)
+    assert drawn.status_code == 502
+    assert drawn.json()["detail"] == (
+        "No model answered: Local · big-model (not running), Fast · deep (model server returned "
+        "500: overloaded).")
 
 
 def test_or_write_it_may_draw_a_role_step_of_more_than_one(make_client):

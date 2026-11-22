@@ -8875,6 +8875,8 @@ export interface components {
             exec_location: "host" | "docker";
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
+            /** Fix Rounds */
+            fix_rounds: number;
             /**
              * Full Auto Check
              * @enum {string}
@@ -8924,6 +8926,16 @@ export interface components {
             pass_env: string | null;
             /** Read In */
             read_in: string[];
+            /**
+             * Review Files
+             * @default 3
+             */
+            review_files: number;
+            /**
+             * Review Lines
+             * @default 80
+             */
+            review_lines: number;
             /** Room Min Tokens */
             room_min_tokens: number | null;
             /** Room Minutes */
@@ -9042,6 +9054,8 @@ export interface components {
             exec_location?: ("host" | "docker") | null;
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
+            /** Fix Rounds */
+            fix_rounds?: number | null;
             /** Forget Tests Found */
             forget_tests_found?: boolean | null;
             /** Full Auto Check */
@@ -9611,6 +9625,8 @@ export interface components {
         };
         /** RecipeWriter */
         RecipeWriter: {
+            /** Asks */
+            asks?: string | null;
             /** Why */
             why: string | null;
         };

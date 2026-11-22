@@ -372,7 +372,7 @@ class ProofLaterMixin:
         stopped = self._end_checks(lambda one: one.run_id == run_id, BY_YOU)
         if stopped and (held := self._proofs.get(run_id)) is not None:
             held.stopped = True
-        return stopped
+        return self._stop_looks(run_id) or stopped  # (S3: KOLONİ's looks that run now too)
 
     def stop_later(self: "AgentRunner", cid: str | None = None) -> None:
         """The test runs gone on after their turns - of chat `cid`, or every one: Stop

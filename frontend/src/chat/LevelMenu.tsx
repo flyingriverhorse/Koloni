@@ -1,6 +1,8 @@
 import { Check } from '@phosphor-icons/react'
 import { type KeyboardEvent, useId } from 'react'
 import type { PermissionMode } from '../api/types'
+import { GUIDE } from '../shell/guide'
+import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
 import { type Checks, checksOn, checksSaid, checksValue, LEVELS, NO_CHECKS_AT_FULL_AUTO, PLAN_FIRST } from './levels'
 
@@ -64,12 +66,18 @@ function SwitchRow({ id, name, says, on, onChange }: { id: string; name: string;
   )
 }
 
-/** S10: Check after a change, beside Plan first - and at Full auto with it off, one line on what that leaves (never locked). */
+/** Behind the switch's ⓘ: the guide's Checked page says the rest. */
+const CHECKS_WHY = 'What KOLONİ tests and reviews after a turn that changed code, and what each line under the answer means.'
+
+/** S10: Test and review changes, beside Plan first - its ⓘ the guide's Checked page; at Full auto with it off, one line on what that leaves (never locked). */
 function ChecksRow({ id, mode, checks }: { id: string; mode: PermissionMode; checks: Checks }) {
   const on = checksOn(checks)
   return (
     <>
-      <SwitchRow id={`${id}-checks`} name="Check after a change" says={checksSaid(checks)} on={on} onChange={next => checks.onChange(checksValue(next, checks.project))} />
+      <div className="level-row-hint">
+        <SwitchRow id={`${id}-checks`} name="Test and review changes" says={checksSaid(checks)} on={on} onChange={next => checks.onChange(checksValue(next, checks.project))} />
+        <Hint doc={GUIDE.checked}>{CHECKS_WHY}</Hint>
+      </div>
       {mode === 'full_auto' && !on && <p className="level-says level-warn">{NO_CHECKS_AT_FULL_AUTO}</p>}
     </>
   )

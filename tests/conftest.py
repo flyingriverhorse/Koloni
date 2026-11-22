@@ -191,6 +191,9 @@ NOTHING_AFTER = {"test_copy_part"}
 # its tests are (`FoundMixin._look_for_tests`) - in a test, a step of the scripted model more in
 # every turn that changes code. On only where it is tested.
 LOOK_ON = {"test_found_scenarios"}
+# S3: a big or security-touching change is looked over at a turn's end by a Reviewer agent - in a
+# test, a scripted agent more (and its row) in every turn that writes much. On only where tested.
+REVIEW_ON = {"test_proof_review_scenarios"}
 
 
 @pytest.fixture(autouse=True)
@@ -203,6 +206,13 @@ def end_check_where_it_fits(request, monkeypatch):
             return []
 
         monkeypatch.setattr(FoundMixin, "_look_for_tests", no_look)
+    if module not in REVIEW_ON:
+        from app.agent.review_mixin import ReviewMixin
+
+        async def no_review(_self, _ctx, _held):
+            return None
+
+        monkeypatch.setattr(ReviewMixin, "_proof_review", no_review)
     if module in END_CHECK_OFF:
         from app.agent.proof_mixin import ProofMixin
 

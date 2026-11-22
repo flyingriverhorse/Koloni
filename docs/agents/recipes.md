@@ -13,8 +13,11 @@ Recipes are on the Agents page, tab **Recipes**.
 - **+ Draw a new recipe** starts an empty one.
 - Pick a ready recipe and press **Copy it**. Ready recipes cannot be changed: "A ready recipe: copy it
   to change it."
-- **Or write it**: describe the recipe in a sentence and press **Make it a recipe**. "The
-  Orchestrator's model draws it on the board; nothing is saved until you save it."
+- **Or write it**: describe the recipe in a sentence and press **Make it a recipe**. The note
+  under it says which model it asks - the first of the balanced tier ("Asks Balanced: Local ·
+  qwen3"), passing over one whose server is not running, else the Orchestrator's own - and if
+  that one does not answer, the next is asked. The model draws the recipe on the board; nothing
+  is saved until you save it.
 
 The ready recipes include Feature, Bugfix, Review only, Integration, Quality check, Model change,
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.
@@ -101,4 +104,5 @@ which candidate's work goes on. At Full auto the best score goes on by itself.
 
 With a **Target** (0 to 100) and a loop, the step is tried again while the best score is below the
 target, and a new result replaces the kept one only if it scores higher. The ready recipe **Evolve**
-works this way: three Coders try the job, each their own way.
+works this way: three Coders try the job, each their own way. With no measure command there is no
+score to compare, so the step runs one round only, and its card says so.

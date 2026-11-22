@@ -3,6 +3,18 @@ import type { ConvState } from '../state/applyEvent'
 
 /** What Fix it sends: a new message of the user's, by their click - nothing starts by itself. */
 export const FIX_IT = (command: string) => `The tests KOLONİ ran at the end of the last turn failed: \`${command}\`. Fix what fails.`
+/** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds: words of the user's own - the findings reach the Orchestrator as data (`review_held`), never as theirs. */
+export const FIX_REVIEW = 'The Reviewer KOLONİ opened at the end of the last turn still held its change. Fix its blocking findings.'
+
+type Row = NonNullable<Message['checked']>[number]
+
+/** What Fix it asks for under a turn's Checked section: a failing test run first, else a Reviewer's hold; null: nothing to fix. */
+export function fixOf(rows: Row[]): string | null {
+  const failed = rows.find(row => row.kind === 'tests' && row.state === 'failed' && row.command)
+  if (failed?.command) return FIX_IT(failed.command)
+  const held = rows.some(row => row.kind === 'review' && row.text.startsWith('Still on hold'))
+  return held && rows.some(row => row.kind === 'finding' && row.text.startsWith('Blocking: ')) ? FIX_REVIEW : null
+}
 
 /** A turn's "checked" message: what KOLONİ checked at its end (kanıtlı bitiş), drawn by `CheckedSection`. */
 export const checkedOf = (state: ConvState, runId: string): Message | undefined => state.messages.find(m => m.run_id === runId && m.role === 'checked')

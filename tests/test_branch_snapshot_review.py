@@ -834,7 +834,8 @@ def other_worktree(repo):  # (a second worktree of the user's own, its HEAD on n
 
 @needs_merge_base
 @pytest.mark.parametrize(("how", "yours"), [
-    (stashed, "a stash"), (detached, "1 commit"), (other_worktree, "1 commit")],
+    (stashed, "a stash"), (detached, "1 commit"),
+    (other_worktree, "1 commit (in your worktree {wt})")],  # (k-okuyucu-3: which one)
     ids=["stash", "detached", "other-worktree"])
 def test_a_stash_or_a_detached_commit_copied_onto_the_branch_is_asked_and_never_sent(
     make_client, wait_run, repo, github, how, yours
@@ -842,7 +843,10 @@ def test_a_stash_or_a_detached_commit_copied_onto_the_branch_is_asked_and_never_
     bare, _log = github
     client, cid, _run_id = pr_run(make_client, repo, lambda: how(repo))
     merge = pr_card(client, cid)  # (Full auto: asked, the user has work not on GitHub)
-    assert merge["branch"]["note"] == PR_UNPUSHED.format(commits=yours)
+    said = PR_UNPUSHED.format(commits=yours).split("{wt}")  # (the folder as git keeps it)
+    note = merge["branch"]["note"]
+    assert note.startswith(said[0]) and note.endswith(said[-1]) and (
+        len(said) == 1 or "users-wt" in note), note
     assert merge["status"] == "pending"
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
     merge = until(client, cid, lambda s: "not pushed yet" in (
@@ -895,3 +899,199 @@ def test_at_ask_the_pull_requests_card_says_you_have_commits_not_on_github(
     merge = pr_card(client, cid)
     assert merge["branch"]["note"] == PR_UNPUSHED.format(commits="1 commit")
 
+
+
+# --- k-okuyucu-3: whose a worktree's commits are (the k-pr-wt review's non-blocking items) --------
+
+
+def users_wt(repo, tmp_path, name="users-wt"):
+    """A second worktree of the user's, on no branch, with a commit of theirs not on origin."""
+    mine = tmp_path / name
+    run(repo, "worktree", "add", "-q", "--detach", str(mine))
+    private(mine)
+    return mine
+
+
+@needs_merge_base
+@pytest.mark.parametrize("where", ["other-wt", "other-wt-left", "project", "project-left"])
+def test_your_look_at_the_agents_branch_does_not_make_its_commits_yours(
+    repo, runtime, tmp_path, where
+):
+    """(a) The user checks the agent's work out (detached: git refuses a second checkout of the
+    branch) - its commits on their HEAD, or its reflog, are still the agent's."""
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=True)
+    look = tmp_path / "look"
+    if where.startswith("other-wt"):
+        run(repo, "worktree", "add", "-q", "--detach", str(look), copy.branch)
+    else:
+        run(repo, "checkout", "-q", "--detach", copy.branch)
+    if where.endswith("left"):
+        run(look if where.startswith("other-wt") else repo, "checkout", "-q", "--detach", "main")
+    assert git.unpushed_count(repo, copies.folders(runtime), copy.branch) == (0, 0)
+    sha = push_pr(repo, runtime, copy)
+    assert run(origin, "diff", "--name-only", f"{sha}^", sha).split() == ["agent.txt"]
+
+
+@needs_merge_base
+def test_a_commit_of_yours_the_agent_made_again_on_its_branch_stays_yours(repo, runtime, tmp_path):
+    """(a) What the user's own reflog says they made stays theirs, though the branch's says it was
+    made there too (a fast-forward taken back softly and committed again: the very commit, made in
+    the same second)."""
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=False)
+    made = run(users_wt(repo, tmp_path), "rev-parse", "HEAD")
+    agent_git(copy, "merge", "-q", "--ff-only", made)
+    agent_git(copy, "reset", "-q", "--soft", "HEAD~1")
+    agent_git(copy, "commit", "-q", "-C", "ORIG_HEAD")
+    with pytest.raises(git.Refused, match="not on origin|not pushed yet"):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@needs_merge_base
+@pytest.mark.parametrize("same", [False, True])
+def test_another_kolonis_worktree_on_its_own_branch_is_not_yours(repo, runtime, tmp_path, same):
+    """(b) Another KOLONİ runtime's worktree, outside this one's copies folders, on a branch of
+    KOLONİ's: its commits are not the user's - not when its agent wrote the very file ours did."""
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=True)
+    second = tmp_path / "runtime2"
+    other = copies.make_branch(repo, second, "agentZ", "z")
+    if same:
+        (other.root / "agent.txt").write_text("agent\n")
+        assert git.commit_branch(other.root, other.branch, ["agent.txt"], "a", second / "no-hooks")
+    else:
+        own_commit(other, "z.txt")
+    assert git.unpushed_count(repo, copies.folders(runtime)) == (0, 0)
+    sha = push_pr(repo, runtime, copy)
+    assert run(origin, "diff", "--name-only", f"{sha}^", sha).split() == ["agent.txt"]
+
+
+@needs_merge_base
+def test_a_commit_on_your_worktree_whose_branch_was_deleted_is_still_yours(repo, runtime, tmp_path):
+    """(c) Its HEAD names a branch no more (git calls it dangling and gives no reflog of it): the
+    reflog file is read all the same."""
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=True)
+    mine = tmp_path / "side-wt"
+    run(repo, "worktree", "add", "-q", "-b", "side", str(mine))
+    private(mine)
+    made = run(mine, "rev-parse", "HEAD")
+    run(repo, "update-ref", "-d", "refs/heads/side")
+    a4_picked(copy, made)
+    assert git.unpushed_count(repo, copies.folders(runtime)) == (1, 0)
+    with pytest.raises(git.Refused, match="private.txt in it is your work not pushed yet"):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@needs_merge_base
+def test_the_worktree_that_holds_your_unpushed_commit_is_named_and_a_gone_one_too(
+    repo, runtime, tmp_path
+):
+    """(d) What the pull request's card says (`PR_HELD_IN`): by its folder - one deleted by hand
+    is git's until `git worktree prune`. A commit a branch of theirs holds too is not on it."""
+    import shutil
+
+    from app.agent import PR_HELD_GONE, PR_HELD_IN
+
+    origin_case(repo, runtime, dirty=False, agent=True)
+    under = copies.folders(runtime)
+    assert git.unpushed_places(repo, under) == []
+    mine = users_wt(repo, tmp_path)
+    run(repo, "worktree", "add", "-q", "--detach", str(tmp_path / "clean-wt"))  # (nothing of its)
+    ((there, kept),) = git.unpushed_places(repo, under)
+    assert os.path.samefile(there, mine) and kept
+    assert PR_HELD_IN.format(folder=there) == f"in your worktree {there}"
+    run(repo, "branch", "keep", run(mine, "rev-parse", "HEAD"))  # (a branch of theirs holds it)
+    assert git.unpushed_places(repo, under) == []
+    run(repo, "branch", "-D", "keep")
+    shutil.rmtree(mine)  # (deleted by hand, never pruned)
+    ((there, kept),) = git.unpushed_places(repo, under)
+    assert there.name == "users-wt" and not kept
+    assert "git worktree prune" in PR_HELD_GONE.format(folder=there)
+
+
+# The lines that defeated the pull request's protection, each in the user's worktree `users-wt`:
+# the k-pr-wt review's, the k-okuyucu-3 review's (another writer, `>|`) and CL-311's (another
+# worktree's link and HEAD - the user's commit left unreferenced).
+SHARED_LINES = {
+    "gitdir": 'echo "$(pwd -W)/x" > "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+    "sed-i": 'sed -i "s#.*#$(pwd -W)/x#" "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+    "perl-pi": ('perl -pi -e "s#.*#$(pwd -W)/x#" "$(dirname "$(git rev-parse --git-dir)")'
+                '/users-wt/gitdir"'),
+    "ps-iofile-copy": ("[IO.File]::Copy(\"$PWD/g.txt\", (Join-Path (Split-Path (git rev-parse "
+                       "--git-dir)) 'users-wt/gitdir'), $true)"),
+    "clobber-ref": ('git rev-parse HEAD >| "$(dirname "$(dirname "$(git rev-parse --git-dir)")")'
+                    '/refs/remotes/origin/x"'),
+    "cl311-gitdir": 'echo "$(dirname "$PWD")/zz/x" > "$(git rev-parse --git-dir)/../users-wt/gitdir"',
+    "cl311-head": ('git rev-parse HEAD > "$(git rev-parse --git-dir)/../users-wt/HEAD" && : > '
+                   '"$(git rev-parse --git-dir)/../users-wt/logs/HEAD"'),
+}
+
+
+@needs_merge_base
+@pytest.mark.parametrize("how", list(SHARED_LINES))
+def test_at_full_auto_a_write_into_your_shared_git_by_a_built_path_waits_and_the_card_stays(
+    make_client, wait_run, repo, github, how
+):
+    """K-okuyucu-3 (the reviews' probes): the agent's one unasked line would point the user's other
+    worktree into its own folder, rewrite its HEAD, or forge a ref of origin's - KOLONİ would take
+    that worktree for its own, and its unpushed commit would go out with the pull request, no card.
+    Asked at Full auto: with the shared git's path built (BUILT_TARGET), or computed by a writer
+    the reader does not list (`git rev-parse --git-dir`: SHARED_GIT)."""
+    from app.commands import BUILT_TARGET, SHARED_GIT
+    from tests.test_agent_writes import wait_status
+    from tests.test_full_auto_harm import why_asked
+    from tests.test_spawn import call
+
+    bare, _log = github
+    held = Gate()
+    client, cid, _run_id = on_branch(
+        make_client, repo, [step(edit("two", "TWO-agent")),
+                            held.step(step(call("run_command", {"command": SHARED_LINES[how]},
+                                                "c"))),
+                            text("A done")],
+        project={"finish_way": "pull_request", "check_command": "python check.py TWO-agent"})
+    held.wait_partial()
+    pushed_main(repo)
+    users_wt(repo, repo.parent)
+    admin = repo / ".git" / "worktrees" / "users-wt"
+    before = [(admin / name).read_bytes() for name in ("gitdir", "HEAD", "logs/HEAD")]
+    held.release()
+    snap = wait_status(client, cid, "waiting_approval")
+    (asked,) = snap["commands"]
+    assert why_asked(snap, asked) in (BUILT_TARGET, SHARED_GIT)  # (Full auto: asked)
+    assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
+    merge = pr_card(client, cid)
+    note = merge["branch"]["note"]
+    assert note.startswith("you have 1 commit (in your worktree ") and "users-wt)" in note, note
+    assert merge["status"] == "pending"
+    assert [(admin / name).read_bytes() for name in ("gitdir", "HEAD", "logs/HEAD")] == before
+    assert run(bare, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@needs_merge_base
+def test_your_worktree_later_on_a_branch_of_kolonis_still_holds_your_commit(repo, runtime, tmp_path):
+    """K-okuyucu-3 review (B2): the user's second worktree made a commit on no branch, then went onto
+    an earlier agent's `koloni/` branch to try that work: its reflog still holds the commit - only
+    what that branch's own reflog says was made on it is the agents'."""
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=True)
+    mine = users_wt(repo, tmp_path)
+    made = run(mine, "rev-parse", "HEAD")
+    run(repo, "branch", "koloni/old", "main")
+    run(mine, "switch", "-q", "koloni/old")
+    a4_picked(copy, made)
+    assert git.unpushed_count(repo, copies.folders(runtime), copy.branch) == (1, 0)
+    with pytest.raises(git.Refused, match="private.txt in it is your work not pushed yet"):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
+
+
+@needs_merge_base
+def test_an_agents_commit_a_branch_of_yours_holds_too_stays_yours(repo, runtime):
+    """K-okuyucu-3 review (N7): what the branch's reflog says was made on it is never taken out of
+    your work where a branch, tag or other remote of yours holds it too."""
+    copy, origin = origin_case(repo, runtime, dirty=False, agent=True)
+    run(repo, "branch", "keep", copy.branch)  # (the user's own branch on the agent's commit)
+    assert git.unpushed_count(repo, copies.folders(runtime), copy.branch) == (1, 0)
+    with pytest.raises(git.Refused, match="agent.txt in it is your work not pushed yet"):
+        push_pr(repo, runtime, copy)
+    assert run(origin, "for-each-ref", "refs/heads/koloni/") == ""
