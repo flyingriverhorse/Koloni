@@ -1171,7 +1171,8 @@ def reaches_shared_git(command: str, own: str | None = None) -> str:
         return SHARED_GIT
     read = 0
     for words in (words for words in _commands_in(command) if words):
-        if words == [UNREAD]:
+        if words == [UNREAD] or _program(words[0]) != "git" and _program(
+                words[0].strip("(){}")) == "git":  # (git glued to a bracket: `(git) stash pop`)
             return SHARED_GIT
         if _program(words[0]) == "git":
             read += 1
@@ -2217,13 +2218,47 @@ def _git_sub(words: list[str]) -> tuple[str | None, list[str]]:
 
 
 def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
+    """A line's parts, split `at`, each past what leads into it (`_led`) - and what its groups
+    hold, split so too (`_groups`: `(cd web && npm ci)`, `{ npm ci; }`, `if ($true) { npm ci }`);
+    a group that does not pair, or past MAX_OTHER_READINGS of them, is [UNREAD]: what runs
+    there is not read (an "always" harm, `_danger_of`)."""
     # (cmd's `for /f %a in ('del x') do y` runs its set's command too: a part of its own - in
     # any split, as `_BLOCKS` cuts at its brackets - as `_led` reads past the loop to `y`)
     sets = re.findall(r"(?i)(?:^|[\s;&|(@])for\s[^;&|]*?\bin\s*\(\s*(['`\"])(.*?)\1\s*\)",
                       command)
+    groups, paired = _groups(command)
     return [*([word.strip("'\"") for word in _words(inner)] for _quote, inner in sets),
             *([word.strip("'\"") for word in _led(_words(part.strip()))]
-              for part in at.split(command))]
+              for text in (command, *groups) for part in at.split(text)),
+            *([] if paired else [[UNREAD]])]
+
+
+def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
+    """What a line's brackets hold, outside its quotes - `( ... )`, `{ ... }`, `@( ... )`, a
+    script block, cmd's `if x ( ... ) else ( ... )` - but a `$( ... )` / `${...}`, read as a
+    substitution (`_substituted`, `_BLOCKS`); and whether they pair, within MAX_OTHER_READINGS
+    of them (k-okuyucu). Quotes that do not pair are no quotes."""
+    found: list[str] = []
+    opened: list[tuple[str, int]] = []
+    quote = ""
+    for mark in re.finditer(r"""[(){}'"]""" if quotes else r"[(){}]", command):
+        char, at = mark[0], mark.start()
+        if quote:
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            quote = char
+        elif char in "({":
+            opened.append((char, at))
+        elif not opened or opened[-1][0] != ("(" if char == ")" else "{"):
+            return found, False
+        else:
+            start = opened.pop()[1]
+            if command[start - 1:start] == "$":
+                continue
+            if len(found) >= MAX_OTHER_READINGS:
+                return found, False
+            found.append(command[start + 1:at])
+    return _groups(command, quotes=False) if quote else (found, not opened)
 
 
 # What leads into a part's command without being it (review round 4), for every rule: sh's `!`,
@@ -2250,14 +2285,16 @@ def _led(words: list[str]) -> list[str]:
             words = words[1:]
             while first == "if" and words and words[0].casefold() in ("/i", "not"):
                 words = words[1:]
-            if first == "if" and words:  # (cmd's test or comparison before its command)
+            if first == "if" and words:  # (cmd's test or comparison before its command -
+                # `"%a%"=="x"` splits at its quotes into `"%a%"` and `=="x"`)
                 words = words[2:] if words[0].casefold() in _CMD_TESTS else words[3:] if len(
-                    words) > 2 and words[1].casefold() in _CMD_COMPARES else words[
+                    words) > 2 and words[1].casefold() in _CMD_COMPARES else words[2:] if len(
+                    words) > 1 and words[1].startswith("==") else words[
                     1:] if "==" in words[0] else words
         elif first == "for" and "do" in (low := [word.casefold() for word in words]):
             words = words[low.index("do") + 1:]
-        elif first == "trap" and len(words) > 1:
-            return ["eval", words[1]]
+        elif first == "trap" and len(words) > 1 and len(words) > 1 + (words[1] == "--"):
+            return ["eval", words[1 + (words[1] == "--")]]  # (`trap -- 'x' EXIT`)
         elif first.startswith("@") and len(first) > 1:
             words = [words[0][1:], *words[1:]]
         elif len(words) > 2 and re.fullmatch(r"\$[\w:]+", words[0]) and words[1] == "=" and (

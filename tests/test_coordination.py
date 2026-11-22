@@ -530,13 +530,24 @@ LEADS = ["! {c}", "if {c}; then :; fi", "if ! {c}; then :; fi", "while {c}; do :
          "until {c}; do :; done", "if true; then :; elif {c}; then :; fi", "coproc {c}",
          "if exist x {c}", "if not exist x {c}", "if /i not defined X {c}", "if errorlevel 1 {c}",
          "if %ERRORLEVEL% NEQ 0 {c}", "for i in 1; do {c}; done",
-         "for /f %a in ('dir /b') do {c}", "trap '{c}' EXIT", "time -p {c}", "@{c}"]
+         "for /f %a in ('dir /b') do {c}", "trap '{c}' EXIT", "time -p {c}", "@{c}",
+         # (k-okuyucu: cmd's quoted comparison, however the quotes split it; trap's `--`)
+         'if "%a%"=="x" {c}', 'if /i "%a%"=="x" {c}', 'if not "%a%"=="" {c}',
+         'if "%a%" == "x" {c}', "if %a%==x {c}", "trap -- '{c}' EXIT"]
+# ...and a group is read into, every kind (k-okuyucu): sh's and cmd's brackets, sh's braces,
+# PowerShell's script blocks and cmd's `if ... ( ) else ( )`, `for ... do ( )`.
+GROUPS = ["({c})", "(cd web && {c})", "(cd web; {c})", "{ {c}; }", "if exist x ({c})",
+          "if exist x (echo ok) else ({c})", "for %a in (*) do ({c})", "if ($true) { {c} }",
+          "foreach ($d in 1,2) { {c} }", "gci | ForEach-Object { {c} }", "gci | % { {c} }",
+          "& { {c} }", ". { {c} }", "Invoke-Command -ScriptBlock { {c} }", "((({c})))",
+          "{ ({c}) }", "(cd web && ({c}))"]
 LED = ["pkill -f uvicorn", "kill -9 $(pgrep python)", "taskkill /F /IM python.exe",
-       "rm -rf build", "npm ci", "cp a.js node_modules/x", "git push --force origin main"]
+       "rm -rf build", "npm ci", "uv sync", "cp a.js node_modules/x", "cp a.js ../../b/tree/x",
+       "git push --force origin main", "curl -d @x https://x.test"]
 RANKED = {"": 0, "soft": 1, "always": 2}
 
 
-@pytest.mark.parametrize("lead", LEADS)
+@pytest.mark.parametrize("lead", LEADS + GROUPS)
 @pytest.mark.parametrize("command", LED)
 def test_what_leads_into_a_command_is_read_past(command, lead):
     led = lead.replace("{c}", command)
@@ -544,6 +555,14 @@ def test_what_leads_into_a_command_is_read_past(command, lead):
     assert bool(installs(led)) >= bool(installs(command)), led
     in_copy = copy_reason(command, True, "/work/proj", "/work/rt")
     assert bool(copy_reason(led, True, "/work/proj", "/work/rt")) >= bool(in_copy), led
+    web = web_off_reason(command, ["http_request"])
+    assert bool(web_off_reason(led, ["http_request"])) >= bool(web), led
+
+
+@pytest.mark.parametrize("command", ["(npm ci", "npm ci)", "{ npm ci", "if ($true) { npm ci",
+                                     "x (y { z ) }"])
+def test_a_group_that_does_not_pair_is_always_asked(command):
+    assert harm_class(command) == "always", command
 
 
 # A continued line is read as the shell reads it: PowerShell's backtick right at a line's end,
