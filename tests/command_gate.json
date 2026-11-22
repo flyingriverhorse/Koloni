@@ -78882,6 +78882,22 @@ false,
 true
 ],
 [
+"uv run -w requests python x.py",
+0,
+"",
+true,
+false,
+true
+],
+[
+"uv run -wrequests pytest",
+0,
+"",
+true,
+false,
+true
+],
+[
 "uv run npm ci",
 0,
 "",

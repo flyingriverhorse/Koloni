@@ -1048,7 +1048,8 @@ def test_an_install_however_it_is_written_is_one(command):
     "uv pip list", "uv pip show x", "uv pip freeze", "uv pip compile r.in",
     # (k-okuyucu-3: a bare runner runs the project's own bin, as before)
     "npx eslint src", "npx tsc --noEmit", "npm exec eslint", "pnpm exec vitest", "yarn exec x",
-    "uv run pytest",
+    "uv run pytest", "npx tsc -p tsconfig.json", "npx -- cowsay -p x", "uv run pytest -W error",
+    "uv run ruff check -w", "npm exec eslint -- -p x",
 ])
 def test_what_installs_nothing_is_none(command):
     assert installs(command) == "", command
@@ -1059,7 +1060,9 @@ def test_what_installs_nothing_is_none(command):
     "npm x --package=cowsay cowsay", "uv run --with requests python x.py", "uvx ruff check",
     "uv tool run ruff check", "pipx run black .", "bunx cowsay", "bun x cowsay", "pnpx cowsay",
     "pnpm dlx create-vite", "yarn dlx cowsay", 'cmd /c "uvx ruff check"',
-    "python -m uv run --with x pytest",
+    "python -m uv run --with x pytest", "uv run -w requests python x.py", "uv run -wx pytest",
+    "npx --yes -p cowsay cowsay", "npm --prefix web exec --package x y",
+    "uv --directory x run --python 3.12 --with y pytest",
 ])
 def test_a_runner_that_downloads_a_package_to_run_it_is_an_install(command):
     """K-okuyucu-3: a card in a copy with links, asked with web off - what runs is the internet's."""

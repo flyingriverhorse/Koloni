@@ -330,7 +330,7 @@ def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, cover
     ("gradle build -I x.gradle", "gradle build", False),
     ("gradle build -Ix.gradle", "gradle build", False),
     ("npm test --script-shell=x", "npm test", False), ("npm test --prefix ../x", "npm test", False),
-    ("npx eslint -p x src", "npx eslint", False), ("npx eslint --call x", "npx eslint", False),
+    ("npx eslint -p x src", "npx eslint", False),
     ("uv run pytest --with x", "uv run pytest", False),
     ("npm run x -- bash -c y", "npm run x", False),
     # (as before: what changes nothing of what runs)
@@ -339,6 +339,7 @@ def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, cover
     ("python -m pytest --cov=app -n 2", "python -m pytest", True),
     ("go test ./... -run X", "go test", True), ("npm test -- --watch", "npm test", True),
     ("npx eslint src", "npx eslint", True), ("uv run pytest -q", "uv run pytest", True),
+    ("uv run pytest -W error", "uv run pytest", True), ("npx eslint -c cfg src", "npx eslint", True),
     ("git log -p", "git log", True), ("git switch -c x", "git switch", True),
     ("python -m pytest -p no:cacheprovider", "python -m pytest -p no:cacheprovider", True),
 ])
@@ -346,6 +347,16 @@ def test_a_rule_never_covers_an_option_past_it_that_runs_fetches_or_writes_outsi
     command, rule, covered
 ):
     assert is_allowed(command, [rule]) is covered
+
+
+@pytest.mark.parametrize("command, offered", [
+    ("python -m pytest -p x", ""), ("python -m pytest --basetemp=.koloni/tmp/x", ""),
+    ("go test ./... -exec x", ""), ("python -m pytest -q", "python -m pytest"),
+    ("npx eslint src", "npx eslint"),
+])
+def test_no_rule_is_offered_that_would_not_cover_its_own_line(command, offered):
+    assert suggest_prefix(command) == offered
+    assert matches(command, offered) is bool(offered)
 
 
 @pytest.mark.parametrize("command", [

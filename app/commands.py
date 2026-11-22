@@ -82,7 +82,17 @@ def _program(word: str) -> str:
     return name.removesuffix(".exe").removesuffix(".cmd").removesuffix(".bat")
 
 
-def suggest_prefix(command: str) -> str:  # noqa: C901
+def suggest_prefix(command: str) -> str:
+    """The allow-list rule to offer for a command, or "" when none should be offered (`_offer`) -
+    nor where the command's words past it hold an option no rule covers (`_past_the_rule`: the
+    rule would not cover the very line it was offered for)."""
+    offered = _offer(command)
+    normal = " ".join(command.split())
+    extra = normal[len(offered):].split() if normal.startswith(offered) else normal.split()
+    return "" if offered and _past_the_rule(normal.split(), extra) else offered
+
+
+def _offer(command: str) -> str:  # noqa: C901
     """The allow-list rule to offer for a command, or "" when none should be offered.
 
     A rule names one program and one task. Nothing is offered where the shortest
@@ -379,7 +389,7 @@ def matches(command: str, prefix: str) -> bool:
             or _fetch_writes(command)):
         return False
     if _hands_on(command):
-        offered = suggest_prefix(command)
+        offered = _offer(command)
         if not offered or len(prefix.split()) < len(offered.split()):
             return False
     normal = " ".join(command.split())
@@ -401,8 +411,11 @@ _PAST_A_RULE = {
     **dict.fromkeys(("gradle", "gradlew"), ("-I", "--init-script")),  # (code run before the build)
     # scripts run by another program; another folder's package.json; a package fetched
     "npm": ("--script-shell", "--prefix", "-C", "--package"),
-    # runners: a package fetched to run (`_fetches_to_run`), or a shell line
-    "npx": ("-p", "--package", "-c", "--call"), "pnpm": ("--package",), "yarn": ("-p", "--package"),
+    # runners: a package fetched to run (`_fetches_to_run`)
+    # shortcut: past a rule (`npx tsc`, `uv run pytest`) these words are the tool's own - npx and
+    # uv read their options before it - so `npx tsc -p x` asks though tsc's `-p` fetches nothing;
+    # leave these out if that card is met often.
+    "npx": ("-p", "--package"), "pnpm": ("--package",), "yarn": ("-p", "--package"),
     "bunx": ("-p", "--package"), "uv": ("--with", "--from"), "uvx": ("--with", "--from"),
     "pipx": ("--spec",),
 }
@@ -972,6 +985,8 @@ def _danger_of(words: list[str]) -> str:  # noqa: C901
         return "Makes a link, which can point anywhere."
     if program == "find" and "-delete" in rest:
         return "Deletes files (find -delete)."
+    # shortcut: "outside" by how the path is spelt (`_outside`): the folder's own full path counts
+    # as outside too, an over-ask; read it from where the command runs if agents write one so.
     if "pytest" in map(_program, words) and any(  # (`python -m pytest`, `uv run pytest`)
             (temp := _option_value(rest, at, ("--basetemp",))) is not None and (
                 _outside(temp.strip("'\"")) or re.search(r"[$%~]", temp))
@@ -4114,11 +4129,35 @@ def _fetches_to_run(words: list[str]) -> bool:
     words = _module_run(words) or words
     program, said = _program(words[0]), [word.casefold() for word in words[1:]]
     verbs = {(name, verb.casefold()) for name, verb in _verbs(words)}
-    package = any(word in ("-p", "--package") or word.startswith("--package=") for word in said)
-    return (program in _FETCH_RUNNERS and bool(said) or bool(verbs & _FETCH_VERBS)
-            or ("uv", "tool") in verbs and "run" in said
-            or package and (program == "npx" or bool(verbs & {("npm", "exec"), ("npm", "x")}))
-            or ("uv", "run") in verbs and any(word.startswith("--with") for word in said))
+    if program in _FETCH_RUNNERS and said or verbs & _FETCH_VERBS or ("uv", "tool") in verbs and (
+            "run" in said):
+        return True
+    # (`-p` / `--with` among the runner's own options: past what it runs they are the tool's -
+    # `npx tsc -p tsconfig.json`, `uv run pytest -W error`; after any word that may be its verb)
+    def options(*names: str) -> list[str]:
+        return [option for at, word in enumerate(said) if word in names
+                for option in _runner_options(words[at + 2:])]
+
+    package = (_runner_options(words[1:]) if program == "npx" else options("exec", "x") if (
+        verbs & {("npm", "exec"), ("npm", "x")}) else [])
+    with_ = options("run") if ("uv", "run") in verbs else []
+    return any(word in ("-p", "--package") or word.startswith("--package=")
+               for word in package) or any(word.startswith(("--with", "-w")) for word in with_)
+
+
+def _runner_options(rest: list[str]) -> list[str]:
+    """A runner's own options - its words before what it runs, where npx, npm exec and uv run read
+    theirs: a word after an option with no `=` may be its value, so it reads on past it (fails
+    closed); `--` ends them."""
+    found = []
+    for at, word in enumerate(rest):
+        if word == "--":
+            break
+        if word.startswith("-"):
+            found.append(word)
+        elif not (at and rest[at - 1].startswith("-") and "=" not in rest[at - 1]):
+            break
+    return found
 
 
 # What reaches the internet from a command (K-web-komut): `_SENDING_PROGRAMS` and these, as
