@@ -215,6 +215,13 @@ class Project(Base):
     # Kanıtlı bitiş: after a turn that changed code, "check" (Check it: the tests, and a look at
     # a big or security-touching change), "tests" (Tests only) or "nothing" (`app.proof`).
     after_change: Mapped[str] = mapped_column(String(7), default="check", server_default="check")
+    # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
+    # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
+    # never the user's own (their check command and part tests win, and keep their leave).
+    tests_found: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # ... and the one read-only look for one by the project's Fast-tier model ({"at", "map",
+    # "said"}); None: not yet. Looked again only where the project's marker files changed.
+    tests_look: Mapped[dict | None] = mapped_column(JSON, default=None)
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge", `JudgeMixin._judged`). The user's own setting.
     full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
