@@ -511,27 +511,37 @@ def test_bugfix_failing_test_goes_back_to_fix_twice_then_stops(make_client, wait
 def test_the_reproduce_step_is_told_to_write_a_failing_test_only(
     make_client, wait_run, project_dir
 ):
-    # R4: Reproduce it writes the failing test; Fix it makes it pass.
-    executor = ScriptedExecutor([REPRO, PASSED])
-    client, _model = make_client(scripts(ran_tests()), executor=executor)
-    cid, run_id = bugfix_run(client, project_dir)
+    # R4: Reproduce it writes the failing test; Fix it makes it pass - the ready Bugfix's.
+    from tests.test_recipe_cost_scenarios import THIN, fixed
+
+    executor = ScriptedExecutor([REPRO, PASSED, PASSED])
+    client, _model = make_client(
+        {"Lead": THIN, "Debugger": list(REPRODUCES), "Coder": fixed()}, executor=executor
+    )
+    cid, run_id = bugfix_run(client, project_dir, ready=True)
     snap = wait_run(client, cid, run_id)
     assert REPRODUCE_FIRST in agent(snap, "Debugger")["task"]
-    assert all(
-        REPRODUCE_FIRST not in agent(snap, name)["task"] for name in ("Coder", "Tester", "Reviewer")
-    )
-    assert [s["name"] for s in row(snap)["steps"]][0] == "Reproduce it with a failing test"
+    assert "open no other agent" in agent(snap, "Debugger")["task"]
+    assert REPRODUCE_FIRST not in agent(snap, "Coder")["task"]
+    assert [s["name"] for s in row(snap)["steps"]][:2] == [
+        "Reproduce it with a failing test",
+        "Fix it",
+    ]
 
 
 def test_a_reproduce_step_that_shows_no_failing_test_is_held(make_client, wait_run, project_dir):
     # R4 (S7): Reproduce it must leave a failing test run on record - words alone are no bug
     # shown: held, and the recipe stops at Ready for you, as R3's declined check does.
     from app.agent.words import NOT_REPRODUCED
+    from tests.test_recipe_cost_scenarios import THIN, fixed
 
-    shown = scripts(ran_tests())
-    shown["Debugger"] = [text("Reproduced: calc(2) crashes.")]  # (words, no test run)
+    shown = {
+        "Lead": [*THIN, text("done again")],
+        "Debugger": [text("Reproduced: calc(2) crashes.")],  # (words, no test run)
+        "Coder": fixed(),
+    }
     client, _model = make_client(shown, executor=ScriptedExecutor([PASSED]))
-    cid, _run_id = bugfix_run(client, project_dir)
+    cid, _run_id = bugfix_run(client, project_dir, ready=True)  # (the ready Bugfix's R4)
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
     held = agent(snap, "Debugger")["findings"] or []
     assert (NOT_REPRODUCED["what"], True) in [(f["what"], f["blocking"]) for f in held], held

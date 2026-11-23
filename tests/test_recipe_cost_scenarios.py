@@ -252,3 +252,69 @@ def test_the_users_ask_for_changes_goes_back_to_fix_it(make_client, wait_run, pr
     assert opened(snap) == ["Debugger", "Coder", "Coder"], by_call(snap)
     assert "Backend / API goes on from Fix it" in by_call(snap)[1][1], by_call(snap)
     assert (project_dir / "calc.py").read_text() == "x = 0\n" and row(snap)["status"] == "in"
+
+
+# --- KOLONİ's own look at the thin Bugfix's end (review of T1: once, as PR #24 has it) ---------
+
+BIG = "".join(f"x{i} = {i}\n" for i in range(90))
+BIG2 = "".join(f"y{i} = {i}\n" for i in range(90))
+
+
+@pytest.mark.no_po
+def test_a_big_fix_through_bugfix_gets_one_kolonis_reviewer_and_goes_in(
+    make_client, project_dir, monkeypatch
+):
+    from tests.test_proof_review_scenarios import MERGE, reviewers
+    from tests.test_recipe_review_once_scenarios import ended
+
+    guess(monkeypatch, PYTEST)
+    client, model = make_client(
+        {
+            "Lead": [*THIN, text("done again")],
+            "Debugger": list(REPRODUCES),
+            "Coder": fixed(BIG),
+            "Reviewer": [MERGE],
+            "Reviewer 2": [MERGE],  # (one more would be counted, not failed)
+        },
+        executor=ScriptedExecutor([REPRO, *[PASSED] * 6]),
+    )
+    cid, run_id = bugfix_run(client, project_dir, ready=True)
+    snap = ended(client, cid, run_id, 1)
+    assert [a["name"] for a in reviewers(snap)] == ["Reviewer"], texts(snap)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert row(snap)["status"] == "in", row(snap)
+    assert (project_dir / "calc.py").read_text(encoding="utf-8") == BIG
+
+
+@pytest.mark.no_po
+def test_a_hold_on_the_bugfix_goes_back_to_fix_it_and_its_fix_is_looked_at_once(
+    make_client, project_dir, monkeypatch
+):
+    from tests.test_proof_review_scenarios import MERGE, hold, reviewers
+    from tests.test_recipe_review_once_scenarios import ended
+
+    guess(monkeypatch, PYTEST)
+    client, model = make_client(
+        {
+            "Lead": [*THIN[:2], spawn("Coder", "fix the findings", "c1"), text("done")],
+            "Debugger": list(REPRODUCES),
+            "Coder": fixed(BIG),
+            "Coder 2": fixed(BIG2),
+            "Reviewer": [hold("calc.py: the names are wrong")],
+            "Reviewer 2": [MERGE],
+            "Reviewer 3": [MERGE],  # (one more would be counted, not failed)
+        },
+        executor=ScriptedExecutor([REPRO, *[PASSED] * 8]),
+    )
+    cid, run_id = bugfix_run(client, project_dir, ready=True)
+    snap = ended(client, cid, run_id, 2)
+    assert [a["name"] for a in reviewers(snap)] == ["Reviewer", "Reviewer 2"], texts(snap)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert "goes on from Fix it" in by_call(snap)[1][1], by_call(snap)
+    # (Coder 2 at Fix it: Reproduce it ran once.)
+    assert [(p["part"], len(p["agents"])) for p in row(snap)["passes"]] == [
+        ("reproduce", 1),
+        ("fix", 2),
+    ], row(snap)
+    assert row(snap)["status"] == "in", row(snap)
+    assert (project_dir / "calc.py").read_text(encoding="utf-8") == BIG2
