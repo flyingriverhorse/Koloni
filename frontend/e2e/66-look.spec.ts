@@ -24,13 +24,19 @@ for (const theme of ['light', 'dark'] as const)
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(page.locator('.ready-pill')).toHaveText(/^\d+ waits?$/)
     await expect(nav.locator('.rail-badge')).toBeVisible()
-    // Two digits still fit on the button, inside the rail.
-    const badge = await nav.locator('.rail-badge').evaluate(el => {
-      el.textContent = '12'
-      const [b, r] = [el.getBoundingClientRect(), el.closest('.rail')!.getBoundingClientRect()]
-      return b.left >= r.left && b.right <= r.right && b.top >= r.top
-    })
-    expect(badge).toBe(true)
+    // Two digits still fit on the button, inside the rail. (Polled, and found from the rail in the one measure: the
+    // badge is drawn again as the count comes in - a badge found first was once gone from the page when measured.)
+    await expect
+      .poll(() =>
+        nav.evaluate(rail => {
+          const el = rail.querySelector('.rail-badge')
+          if (!el || !rail.isConnected) return null
+          el.textContent = '12'
+          const [b, r] = [el.getBoundingClientRect(), rail.getBoundingClientRect()]
+          return b.left >= r.left && b.right <= r.right && b.top >= r.top
+        }),
+      )
+      .toBe(true)
     try {
       await settled(page)
       if (process.env.KOLONI_SHOTS) await shot(page, `66-main-${theme}`)
