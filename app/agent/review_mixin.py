@@ -22,6 +22,7 @@ from app import ci_commands, injection, project_map, proof, test_found
 from app.agent.context_mixin import FINDINGS_PROMPT
 from app.agent.ctx import Ctx
 from app.agent.spawn_mixin import BEFORE_THE_WORK, CUT_SHORT, MAX_REVIEW_DIFF
+from app.agent.stronger_mixin import _cancelled_outside
 from app.agent.summary import _blocking, _findings
 from app.commands import (
     is_allowed,
@@ -121,7 +122,8 @@ FINDING = "{mark}: {what}"
 # A verdict's line ("Verdict: HOLD", "### Verdict - HOLD", "- Verdict — MERGE", "Verdict: **HOLD**";
 # CL-321 Bulgu E: numbered, "1. Verdict: HOLD", and up to two words before it, "Final verdict:",
 # "My verdict:"); what it says is read from the rest of it (`_verdict_said`).
-VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?(?:\d{1,3}[.)]\s+)?\**\s*(?:[A-Za-z]+\s+){0,2}"
+# (possessive spaces and stars: one run of spaces was tried split between each `\s*`)
+VERDICT = re.compile(r"^\s*+(?:#+\s*+|[-*]\s++)?(?:\d{1,3}[.)]\s++)?\**+\s*+(?:[A-Za-z]+\s+){0,2}"
                      r"Verdict\b(?P<rest>.*)$", re.IGNORECASE)
 # A verdict's words (review of CL-321 E): the first of MERGE and what holds - HOLD, a change asked
 # for, a rejection, a block - decides; a hold word negated ("I'd not block", "no need to reject")
@@ -434,8 +436,8 @@ class ReviewMixin:
         try:
             status, said = await going
         except asyncio.CancelledError:
-            if not going.cancelled() or self._turn_stopping():
-                raise  # (the turn's own Stop)
+            if not going.cancelled() or self._turn_stopping() or _cancelled_outside():
+                raise  # (the turn's own Stop; KOLONİ closing: the task's own cancel)
             self._look_stopped(ctx, call_id)  # (Stop this check: `stop_check`)
             return Look(role, "", None, None, STOPPED_LOOK)
         except Exception as exc:  # (a look that broke is said, never "Tests could not start")

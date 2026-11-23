@@ -1421,7 +1421,9 @@ _TEMP_VAR = re.compile(r"(?i)^(['\"]?)\$(?:\{(?:tmpdir|tmp|temp)\}|(?:tmpdir|tmp
                        r"env:(?:temp|tmp)\b)")
 _PWD_START = re.compile(r"(?i)^(['\"]?)(?:\$\{pwd\}|\$pwd\b|\$\(pwd(?:\s+-W)?\))(?=[\\/'\"]|$)")
 _JOIN_PWD = re.compile(r"(?i)\(\s*join-path\s+\$pwd\s+['\"]?[^()$`'\"\s]+['\"]?\s*\)")
-_DATE_NAME = re.compile(r"\$\(date(?:\s+[^()`$/.'\"\\\s]*)*\)(?=[^\\/]*$)")
+# (each repeat takes a character that is no space: `(?:\s+x*)*` tried every split of a run of
+# spaces - exponential, and the line is the model's)
+_DATE_NAME = re.compile(r"\$\(date(?:\s+[^()`$/.'\"\\\s]+)*\s*\)(?=[^\\/]*$)")
 _FOR_LIST = re.compile(r"(?:^|[\s;&|(])for\s+(\w+)\s+in\s+([^;\n]*)")
 
 
@@ -3028,7 +3030,8 @@ def _unliteral(line: str) -> str:
 
 
 # sh's `case x in a|b) cmd ;; esac`: its patterns are no command, only its branches are.
-_CASE_BRANCH = re.compile(r"(\bin\b|;;&?|;&)(\s*\(?[^()\n;|&]+(?:\|[^()\n;|&]+)*\))")
+# (possessive: the pattern's class holds spaces too - `\s*` and it split a run of them every way)
+_CASE_BRANCH = re.compile(r"(\bin\b|;;&?|;&)(\s*+\(?[^()\n;|&]+(?:\|[^()\n;|&]+)*\))")
 
 
 def _uncased(line: str) -> str:
