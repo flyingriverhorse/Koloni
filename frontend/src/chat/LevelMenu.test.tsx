@@ -119,6 +119,8 @@ test('the switch’s line: Tests only runs with no review, Nothing as the projec
   const { rerender } = render(<LevelMenu mode="ask" onMode={vi.fn()} planFirst={false} onPlanFirst={vi.fn()} checks={{ command: 'npm test', rounds: 1, chat: null, project: 'tests', onChange }} />)
   await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
   expect(screen.getByRole('switch', { name: 'Test and review changes' })).toHaveAccessibleDescription('As the project: runs npm test after each change. Failing work goes back to be fixed, up to 1 time.')
+  rerender(<LevelMenu mode="ask" onMode={vi.fn()} planFirst={false} onPlanFirst={vi.fn()} checks={{ command: 'npm test', rounds: null, chat: null, project: 'tests', onChange }} />)
+  expect(screen.getByRole('switch', { name: 'Test and review changes' })).toHaveAccessibleDescription('As the project: runs npm test after each change. Failing work goes back to be fixed, until it passes, while each round makes progress.')
   rerender(<LevelMenu mode="ask" onMode={vi.fn()} planFirst={false} onPlanFirst={vi.fn()} checks={{ command: 'npm test', rounds: 1, chat: null, project: 'nothing', onChange }} />)
   expect(screen.getByRole('switch', { name: 'Test and review changes' })).toHaveAccessibleDescription('As the project: nothing is tested or reviewed; each answer says “Not checked”.')
   await userEvent.click(screen.getByRole('button', { name: /more about|ⓘ|about this/i }))

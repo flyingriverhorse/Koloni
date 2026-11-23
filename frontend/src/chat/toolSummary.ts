@@ -1,4 +1,5 @@
 import type { ToolCall } from '../api/types'
+import { PROOF_CALL } from '../canvas/checksNode'
 
 /**
  * How a web call was answered, from the first line of its result (app/web.py writes it):
@@ -42,14 +43,14 @@ export function toolName(call: Named): string {
   return mcp ? `${mcp[1]} · ${mcp[2]}` : call.name
 }
 
-type Summed = Named & Pick<ToolCall, 'arguments'> & Partial<Pick<ToolCall, 'status'>>
+type Summed = Named & Pick<ToolCall, 'arguments'> & Partial<Pick<ToolCall, 'status' | 'provider_call_id'>>
 
 /** One line naming a tool call and its target, e.g. `read_file src/a.py`. */
 export function toolSummary(call: Summed): string {
   const name = toolName(call)
   const args = argsOf(call.arguments)
   if (!args) return name
-  const said = notAsked(call, args) ?? agentCall(call.name, args) ?? lookupCall(call.name, args) ?? browserCall(call.name, args)
+  const said = ownOrNotAsked(call, args) ?? agentCall(call.name, args) ?? lookupCall(call.name, args) ?? browserCall(call.name, args)
   if (said !== null) return said
   // A note is named by its subject; its words are in the call itself.
   if (call.name === 'remember') return typeof args.about === 'string' && args.about ? 'remember ' + args.about : 'remember'
@@ -59,6 +60,13 @@ export function toolSummary(call: Summed): string {
 }
 
 type Args = Record<string, unknown>
+
+/** k-canli-016: a look KOLONİ opened at a turn's end (`PROOF_CALL`) - its, not the Orchestrator's spawn: "KOLONİ's look: Reviewer". */
+const kolonisLook = (call: Summed, args: Args): string | null =>
+  call.name === 'spawn_agent' && call.provider_call_id?.startsWith(PROOF_CALL) && typeof args.role === 'string' ? `KOLONİ’s look: ${args.role}` : null
+
+/** KOLONİ's own look, else a question not asked. */
+const ownOrNotAsked = (call: Summed, args: Args): string | null => kolonisLook(call, args) ?? notAsked(call, args)
 
 /** A call's arguments; null where they are not an object. */
 function argsOf(given: string): Args | null {

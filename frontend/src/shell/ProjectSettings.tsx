@@ -50,8 +50,8 @@ export interface ProjectSettingsValues {
   measure_command?: string
   /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code - Test and review, Tests only or Nothing. Sent only when changed. */
   after_change?: Project['after_change']
-  /** S3: how often failing tests and the Reviewer's blocking findings go back, 1 to 5. Sent only when changed. */
-  fix_rounds?: number
+  /** S3: how often failing tests and the Reviewer's blocking findings go back - 1 to 10, or "until" it passes (k-canli-016). Sent only when changed. */
+  fix_rounds?: number | 'until'
   /** S5a: Check by kind of work - the kinds switched, merged into the project's. Sent only when changed. */
   check_kinds?: Record<string, boolean>
   /** S1b: forget the test command KOLONİ found and saved, and its look; found again at the next change. */

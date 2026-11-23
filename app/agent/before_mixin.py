@@ -141,10 +141,9 @@ class BeforeMixin:
                 self._at_last_run(ctx, held, run)
                 said += self._green(ctx, held, run, dict(row["counts"] or {}))
         await self._bugfix_check(ctx, held, runs)
-        if not said or held.rounds >= held.most or held.recipe_spent:
+        if not said or not self._round_left(ctx, held, "green", frozenset(said),
+                                            "tests removed or skipped"):
             return None
-        held.rounds += 1
-        held.sent.append("tests removed or skipped")
         return GREEN_LEAD.format(said="; ".join(said))
 
     def _green(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,

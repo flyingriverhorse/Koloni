@@ -76,11 +76,10 @@ class KindsMixin:
                                             **more)
         held.rows += rows
         failed = [one["text"] for one in rows if one["state"] == "failed"]
-        if not failed or held.rounds >= held.most or held.recipe_spent:
+        if not failed or not self._round_left(
+                ctx, held, "kinds", frozenset(failed),
+                f"{len(failed)} problem" + ("s" if len(failed) > 1 else "") + " in what it wrote"):
             return None
-        held.rounds += 1
-        held.sent.append(f"{len(failed)} problem" + ("s" if len(failed) > 1 else "")
-                         + " in what it wrote")
         more = f"\n+{len(failed) - MOST_TOLD} more" if len(failed) > MOST_TOLD else ""
         return proof_kinds.KINDS_TO_FIX.format(problems=injection.noted(
             "\n".join(f"- {one}" for one in failed[:MOST_TOLD]) + more, "agent"))
