@@ -66,16 +66,16 @@ class Found(NamedTuple):
     mark: str
 
 
-class _Alias(yaml.YAMLError):
+class Alias(yaml.YAMLError):
     pass
 
 
-class _NoAliases(yaml.SafeLoader):
+class NoAliases(yaml.SafeLoader):
     """YAML without aliases: one alias may stand for millions of nodes (a billion laughs)."""
 
     def compose_node(self, parent, index):
         if self.check_event(yaml.AliasEvent):
-            raise _Alias("aliases are not read")
+            raise Alias("aliases are not read")
         return super().compose_node(parent, index)
 
 
@@ -358,8 +358,8 @@ def _read_one(
     root: Path | None = None,
 ) -> None:
     try:
-        parsed = yaml.load(data.decode("utf-8"), Loader=_NoAliases)  # noqa: S506 (SafeLoader's)
-    except _Alias:
+        parsed = yaml.load(data.decode("utf-8"), Loader=NoAliases)  # noqa: S506 (SafeLoader's)
+    except Alias:
         said.append(f"CI file not read: {name} - it uses YAML aliases, which are not read")
         return
     except (ValueError, yaml.YAMLError, RecursionError, MemoryError):

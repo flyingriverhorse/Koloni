@@ -235,7 +235,9 @@ class Project(Base):
     # workflow file (its hash) asks again. None: none found yet.
     ci_commands: Mapped[dict | None] = mapped_column(JSON, default=None)
     # S5a (0167): which kinds of work KOLONİ checks after a turn wrote them - {kind: on} for
-    # "docs", "slides", "diagram", "data" (`app.proof_kinds.KINDS`); a kind left out is on.
+    # "docs", "slides", "diagram", "data", "config", "scripts" (`app.proof_kinds.KINDS`), S5b's
+    # "ui"; a kind left out is on - so a kind added later is on in every project, with no
+    # migration.
     check_kinds: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
     # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
@@ -656,6 +658,12 @@ class Command(Base):
     # Coordination §4: what of it KOLONİ found disposable, {"what", "unasked"} (`schemas.
     # DisposableOut`); None: nothing. Set by KOLONİ, never from a CLI's own words.
     disposable: Mapped[dict | None] = mapped_column(JSON, default=None)
+    # 0173 (cards measured): the family of why its card was asked, as the gate saw it then
+    # (`app.cards.card_reason`); None: no card. Set by KOLONİ, never from an agent's words.
+    asked_reason: Mapped[str | None] = mapped_column(String(16), default=None)
+    # When the user answered its card from the app's own page; None: no answer (none asked, or the
+    # turn ended with it open).
+    decided_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     ended_at: Mapped[datetime | None] = mapped_column(default=None)

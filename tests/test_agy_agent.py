@@ -18,6 +18,7 @@ from app.config import load_settings
 from app.db.models import Provider
 from app.main import create_app
 from app.model_agy import AgyClient
+from tests.conftest import scaled
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_agent_talk import message
@@ -33,6 +34,19 @@ KNOWN = [row["name"] for row in models_for("agy_cli")]
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_agy_cli.py"))]
 SKIP = "--dangerously-skip-permissions"
+
+
+def read_record(record: Path) -> dict:
+    """What the fake agy put on record. On Windows a record it is replacing just then cannot be
+    opened (`PermissionError`, Windows CI 23 Nov): read again."""
+    deadline = time.monotonic() + scaled(5)
+    while True:
+        try:
+            return json.loads(record.read_text(encoding="utf-8"))
+        except PermissionError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.02)
 
 
 def told_of_kolonis(prompt):
@@ -800,7 +814,7 @@ def agy_app(settings_env, tmp_path):
         return client, made.json(), default
 
     make.rescript = write_plan
-    make.record = lambda: json.loads(record.read_text(encoding="utf-8"))
+    make.record = lambda: read_record(record)
     make.ran = record.exists
     yield make
     for client in opened:

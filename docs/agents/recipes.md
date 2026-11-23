@@ -27,10 +27,12 @@ The ready recipes include Feature, Bugfix, Review only, Integration, Quality che
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.
 
 Each recipe in the list, and in the chat's recipe picker, says how many agents a run of it opens,
-counted from its drawing: "Bugfix · 4–14 agents" - the fewest where no review finds a problem (a
+counted from its drawing: "Feature · 6–16 agents" - the fewest where no review finds a problem (a
 step that runs only on a problem left out), the most where every loop goes back all its rounds. A
 team's experts or stages count as one agent there, and the helpers a step's agents open are not
-counted.
+counted. The number is the recipe's alone: the Orchestrator, each team's lead and what KOLONİ's
+own checks at the end of the turn open (a reviewer, the agent of a fix round) come on top of it - a
+one-step recipe says "1 agent", and a turn of it may open several more.
 
 ## The parts of a recipe
 
@@ -63,7 +65,10 @@ never started its tests (the tool not found), one that runs none (`-h`, `--help`
 `--collect-only`, a list of the tests, no tests found, or a summary that counts 0 passed and 0 failed)
 and one whose exit is hidden (`; true`, `|| true`, a pipe after it) gives no verdict either way. In a step
 with the id `reproduce` (Bugfix's first) the failing test is the work: the agent's report says it "fails
-as it should".
+as it should". It is told to write and run that test itself and to open no other agent. In a recipe with no loop,
+**Ask for changes** - and a fix round of KOLONİ's checks - goes back to the step after such a step
+once it is done: the failing test it showed stays, and the fix goes again. Any other recipe with no
+loop goes back to its first step.
 
 A Tester at a review step, or any agent of a step with the id `test` or `tests`, passes only on a command
 it ran that checks something. Where the project has a test command (yours, one KOLONİ saved, or one its
@@ -94,15 +99,16 @@ removed or dragged. KOLONİ runs its checks first, on the work in the recipe's c
 **Ready for you**: a fix round sends the recipe back to work, and work whose tests still fail after
 the rounds is never offered nor taken in.
 
-![The Bugfix recipe in the editor: the locked Checks step between its last step and the end, and its panel offering Follow the project or Set for this recipe with Tests, Review, Docs, Diagrams, Data, Slides and Pages, and Fix rounds - the project's, Until it passes, 0 - check only, or 1 to 10](../images/recipe-checks-step.png)
+![The ready Bugfix in the editor - Reproduce it with a failing test, then Fix it - its locked Checks step between its last step and the end, and its panel set for the recipe with Tests, Review and Config ticked of Tests, Review, Docs, Diagrams, Data, Slides, Pages and Config](../images/recipe-checks-step.png)
 
 Click it to choose:
 
 - **Follow the project** (the default): the project's **After a change** - Test and review, Tests
   only or Nothing - with its **Check by kind of work** and **Fix rounds**.
-- **Set for this recipe**: **Tests**, **Review**, **Docs**, **Diagrams**, **Data**, **Slides** and
-  **Pages** (a changed page in KOLONİ's own browser at phone, tablet and desktop widths), each on or
-  off, and **Fix rounds** - the project's, until it passes, 1 to 10, or **0 - check only** (a problem is said,
+- **Set for this recipe**: **Tests**, **Review**, **Docs**, **Diagrams**, **Data**, **Slides**,
+  **Pages** (a changed page in KOLONİ's own browser at phone, tablet and desktop widths) and
+  **Config** (JSON, YAML and TOML files parse; on unless you untick it), each on or off, and
+  **Fix rounds** - the project's, until it passes, 1 to 10, or **0 - check only** (a problem is said,
   nothing goes back to be fixed). With **Review** on, a big change of screens is also tried by the
   Tester ([the live try](../use/checked.md#the-live-try)).
 

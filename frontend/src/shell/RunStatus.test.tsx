@@ -154,7 +154,9 @@ describe('the context in the top bar opens each agent’s', () => {
     expect(button).toHaveAccessibleDescription(/It is at work: it is compacted at its next step/)
     await userEvent.click(button)
     expect(within(row('Lead')).getByRole('status')).toHaveTextContent(/Compact it once its work is over/)
-    expect(asked).not.toHaveBeenCalled()
+    // (Compact's own request only: files share their modules, `isolate: false` - on CI another file's timer fetched
+    // here once, a DELETE of /api/attachments/long.)
+    expect(asked.mock.calls.filter(([url]) => String(url).endsWith('/compact'))).toEqual([])
   })
 
   test('Esc and a click outside close it, the focus back on its button', async () => {

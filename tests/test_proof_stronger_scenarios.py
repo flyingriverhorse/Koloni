@@ -371,6 +371,8 @@ def test_a_round_that_loosens_the_test_without_leave_is_no_pass(
         if r["kind"] in ("stronger", "rounds") and r["state"] == "failed"
     ]
     assert rows and all(r["command"] == CHECK for r in rows), rows
+    # (and why, as a code of KOLONİ's: Fix it's sentence goes by it, never by the row's words)
+    assert [r["reason"] for r in rows] == ["touched", "still"], rows
 
 
 def test_a_test_wrong_round_is_read_by_the_reviewer(
@@ -405,6 +407,14 @@ def test_a_test_wrong_round_is_read_by_the_reviewer(
     )
     assert (1, True) in seen, (seen, texts)
     assert s11.TEST_HELD.format(model="big-model") in texts, texts
+    reasons = [
+        r["reason"]
+        for m in _snap["messages"]
+        if m["role"] == "checked"
+        for r in m["checked"]
+        if r["kind"] == "stronger" and r["state"] == "failed"
+    ]
+    assert reasons == ["held"], reasons
 
 
 def test_s7s_failed_row_is_no_stronger_pass():
@@ -711,3 +721,45 @@ def test_a_fix_that_fails_take_ins_check_is_said_in_checked_and_stays_out(
     assert s11.FIX_KEPT_OUT.format(model="big-model") in texts, texts
     assert not any(one.startswith("Tests not run") for one in texts), texts
     assert (project_dir / "a.py").read_text(encoding="utf-8") == "x = 1\n"  # (never taken in)
+
+
+def test_work_a_stronger_model_made_pass_is_looked_over_once(
+    team,
+    wait_run,  # noqa: F811
+    project_dir,
+    monkeypatch,
+):
+    # (k-bakis-yeri O: the first pass's "No review: the tests still fail" stood for work that
+    # passes now - a big change's look, once, on the work as the stronger model left it)
+    from app.agent.review_mixin import TESTS_FAIL, Look, ReviewMixin
+
+    monkeypatch.setattr(ReviewMixin, "_proof_review", REVIEW)
+    looked = []
+
+    async def merges(_self, _ctx, role, _task):
+        looked.append(role)
+        return Look(role, "x · y", "MERGE", [], None)
+
+    monkeypatch.setattr(ReviewMixin, "_review_look", merges)
+    big = "".join(f"x{i} = {i}\n" for i in range(90))
+    executor = ScriptedExecutor([PASS, failing(), failing(), PASS, PASS])
+    # (its round's answer changes a file: the second pass fails with no round left - "No review:
+    # the tests still fail" - and the stronger model is handed it)
+    lead = [*ONE[:2], step(write("c.py", "z = 1\n", "w9").tool_calls[0]), text("tried")]
+    client, cid, run_id = started(
+        team,
+        project_dir,
+        {
+            "Lead": lead,
+            "Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [step(write("b.py", "y = 2\n").tool_calls[0]), text("fixed")],
+        },
+        {"Coder": [step(write("a.py", big).tool_calls[0]), text("wrote it")]},
+        executor,
+    )
+    snap = wait_run(client, cid, run_id, timeout=60)
+    texts = [one[2] for one in rows_of(snap, run_id)]
+    assert looked == ["Reviewer"], (looked, texts)
+    assert "Review: Reviewer (x · y) - MERGE, no findings" in texts, texts
+    assert TESTS_FAIL not in texts, texts
+    assert "Tests passed: python check.py - 4 passed in 0.1s" in texts, texts

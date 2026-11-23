@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import away, backlog, ci_commands
 from app.agent import TERMINAL
-from app.agent.stronger_mixin import FIX_HELD
+from app.agent.stronger_mixin import FIX_HELD, HELD_WHY, HELD_WHY_TESTS
 from app.api.conversations import new_turn, queue_or_start
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.api.usage import over_budget
@@ -288,7 +288,9 @@ async def fix_held(
         run.conversation_id,
         run.topic_id,
         FIX_HELD.format(
-            question=(row or {}).get("question") or "", reply=" ".join(body.reply.split())
+            why=HELD_WHY.get((row or {}).get("reason") or "", HELD_WHY_TESTS),
+            question=(row or {}).get("question") or "",
+            reply=" ".join(body.reply.split()),
         ),
     )
     runner.resume_on(work.id, body.merge_id)

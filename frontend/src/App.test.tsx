@@ -311,7 +311,7 @@ test('while the default does not answer, First steps offers another provider for
 /** A server whose pages read nothing yet: what is not a list is not there, the usage and the day are refused. */
 const emptyPages = (over: Record<string, unknown> = {}) => {
   const none = ['/api/recipes', '/api/tiers', '/api/projects/p/away', '/api/projects/p/budget', '/api/projects/p/memory']
-  const refused = ['/api/usage', '/api/projects/p/day']
+  const refused = ['/api/usage', '/api/cards', '/api/projects/p/day']
   return vi.fn(async (url: string) => {
     const path = url.split('?')[0]
     if (none.includes(path)) return new Response('null', { status: 200 })

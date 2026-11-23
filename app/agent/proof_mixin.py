@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from sqlalchemy import literal_column, or_, select
 
 from app import away, injection, ledger, proof, proof_before, recipe_run
+from app.agent import merge
 from app.agent.before_mixin import NOT_YOURS
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
@@ -38,6 +39,7 @@ from app.tools import MAX_TIMEOUT, ToolError
 from app.workspace import Workspace, is_secret, secret_in_project
 
 if TYPE_CHECKING:
+    from app import copies
     from app.agent import AgentRunner
 
 log = logging.getLogger(__name__)
@@ -235,9 +237,14 @@ class ProofMixin:
             return None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
-            checks = proof.checks_of(
-                session, session.get_one(Conversation, ctx.cid), session.get(Run, ctx.run_id)
-            )
+            conversation = session.get_one(Conversation, ctx.cid)
+            checks = proof.checks_of(session, conversation, session.get(Run, ctx.run_id))
+            if self._kept_work(ctx) is not None and (was := self._resumed_from.get(ctx.run_id)):
+                # (Fix it on held work: the held turn's checks - never fewer than the tests and
+                # the review, whatever this chat's switch or the project's After a change say)
+                checks = proof.with_held(
+                    checks, proof.checks_of(session, conversation, session.get(Run, was))
+                )
             if project is None or not checks.on:  # (S5c: a recipe's Checks step may turn all off)
                 return None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
@@ -248,6 +255,10 @@ class ProofMixin:
         unrecorded, gone = (
             await self._what_it_touched(ctx, ran, found) if ran is not None else (None, [])
         )
+        if (copy := self._kept_work(ctx)) is not None:  # (Fix it: the whole kept work)
+            found = [
+                one for one, _diff in await asyncio.to_thread(merge.kept_work, copy, ctx.agent_id)
+            ]
         if not any(one.in_project for one in found) and unrecorded is None:
             return None
         until = checks.rounds is None  # (k-canli-016: until it passes, to its ceiling)
@@ -275,7 +286,32 @@ class ProofMixin:
             await self._stronger(ctx, held)
         except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
             log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
+        await self._on_hold(ctx, held)  # (P: a hold that stands keeps the work out)
         return None
+
+    def _copy_lock(self: "AgentRunner", copy: "copies.Copy") -> asyncio.Lock:
+        """One window of snapshot, run and put back at a time in a copy - the end gate's own run
+        and each command of KOLONİ's looks: two that overlapped would each put back, or keep as
+        work, what the other wrote. (A look's command waits for a run still going there.)
+        shortcut: a lock a copy, kept for the app's life (a few bytes); drop it with its copy if
+        that is ever felt."""
+        return self._copy_locks.setdefault(str(copy.root), asyncio.Lock())
+
+    @contextlib.asynccontextmanager
+    async def _copy_held(self: "AgentRunner", copy: "copies.Copy | None"):
+        """`_copy_lock`'s window, where there is a copy; nothing to hold in the project."""
+        if copy is None:
+            yield
+            return
+        async with self._copy_lock(copy):
+            yield
+
+    def _kept_work(self: "AgentRunner", ctx: Ctx) -> "copies.Copy | None":
+        """Fix it on a "Not taken in" row: the kept copy this turn's Lead goes on in - its end check
+        covers the whole of it as Take in would bring it, the held work and the fix
+        (`merge.kept_work`), never the fix alone; None: a turn of its own."""
+        owner = self._resumed.get(ctx.run_id)
+        return self._copies.get(owner) if owner is not None and owner == ctx.agent_id else None
 
     def _mark_ready(self: "AgentRunner", ctx: Ctx, held: Proof) -> None:
         """k-sira-016: what Ready for you's pass checked (`Proof.ready_*`, `_checked_at_ready`)."""
@@ -465,8 +501,12 @@ class ProofMixin:
         if not runs:
             held.rows.append(self._no_runs_row(held))
             return None
-        failed = await self._all_tests(ctx, held, runs)  # (S6: related first, the rest later)
-        failed = await self._proof_before(ctx, held, failed) if failed else failed  # (S7)
+        failing = await self._all_tests(ctx, held, runs)  # (S6: related first, the rest later)
+        failed = await self._proof_before(ctx, held, failing) if failing else failing  # (S7)
+        excused = {run.command for run, _output in failing} - {run.command for run, _o in failed}
+        for one in held.rows:  # (N: failing before this turn - said, not sent back)
+            if one["kind"] == "tests" and one["state"] == "failed" and one["command"] in excused:
+                one["before"] = True
         held.left_failing = list(failed)  # (S11: the pass's own failures)
         if failed:
             held.attempts.append(
@@ -785,47 +825,50 @@ class ProofMixin:
             return ws
 
         copy = self._copies.get(self._works_in(ctx) or "")
-        was, kept = (
-            await asyncio.to_thread(
-                lambda: copy.snapshot([path for path, _kind, _state in copy.changes()])
+        # (one snapshot - run - put back at a time in a copy: two looks' runs, a look's and this
+        # one, would each put back - or keep - the other's report as work: `_copy_lock`)
+        async with self._copy_held(copy):
+            was, kept = (
+                await asyncio.to_thread(
+                    lambda: copy.snapshot([path for path, _kind, _state in copy.changes()])
+                )
+                if copy
+                else ({}, {})
             )
-            if copy
-            else ({}, {})
-        )
-        look: dict = {}  # (CL-329: the project as the run starts - taken once it has its slot)
-        try:
-            code, output, said, ended = await self._run_in_copy(
-                ctx,
-                ws,
-                line,
-                call_id,
-                ask=how == "ask",
-                once=held.yes.setdefault(run.cwd, set()),
-                cwd=run.cwd,
-                seconds=seconds,
-                where=in_slot,
-                env={WORKERS_ENV: str(workers)},
-                over=lambda: check.later,
-            )
-        except _GateRefused as exc:
-            self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
-            return proof.row(
-                "tests", "not_run", proof.NOT_RUN.format(why=exc), run.command, run.guessed
-            ), ""
-        except ToolError as exc:
-            code, output, said, ended = None, "", f"error: {exc}", None
-        except asyncio.CancelledError:
-            # (Stopped - the turn, or the check alone, maybe after its turn: nothing of it is
-            # left open - a card turned down, its call over.)
-            self.commands.close_open(ctx.run_id, ctx.cid, calls=[call_id])
-            self._set_call(
-                ctx.cid, call_id, status="interrupted", result=proof.STOPPED, ended_at=now()
-            )
-            raise
-        finally:
-            if True in taken:
-                slot.release()
-        await self._tests_put_back(copy, was, kept)
+            look: dict = {}  # (CL-329: the project as the run starts - taken once it has its slot)
+            try:
+                code, output, said, ended = await self._run_in_copy(
+                    ctx,
+                    ws,
+                    line,
+                    call_id,
+                    ask=how == "ask",
+                    once=held.yes.setdefault(run.cwd, set()),
+                    cwd=run.cwd,
+                    seconds=seconds,
+                    where=in_slot,
+                    env={WORKERS_ENV: str(workers)},
+                    over=lambda: check.later,
+                )
+            except _GateRefused as exc:
+                self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
+                return proof.row(
+                    "tests", "not_run", proof.NOT_RUN.format(why=exc), run.command, run.guessed
+                ), ""
+            except ToolError as exc:
+                code, output, said, ended = None, "", f"error: {exc}", None
+            except asyncio.CancelledError:
+                # (Stopped - the turn, or the check alone, maybe after its turn: nothing of it is
+                # left open - a card turned down, its call over.)
+                self.commands.close_open(ctx.run_id, ctx.cid, calls=[call_id])
+                self._set_call(
+                    ctx.cid, call_id, status="interrupted", result=proof.STOPPED, ended_at=now()
+                )
+                raise
+            finally:
+                if True in taken:
+                    slot.release()
+            await self._tests_put_back(copy, was, kept)
         await self._changed_said(ctx, held, run, look.get("at"), check)
         self._set_call(
             ctx.cid,
@@ -1065,6 +1108,9 @@ class ProofMixin:
         found = (
             []
             if lead is None or project is None
+            # (Fix it on held work: what its gate checked - the whole kept work, `_kept_work`)
+            else held.changes
+            if held is not None and run_id in self._resumed
             else proof.changes(session, run_id, lead.agent_id, self._sharing(lead))
         )
         # (Work that only waits in Ready for you: nothing was checked - the "landed" line says

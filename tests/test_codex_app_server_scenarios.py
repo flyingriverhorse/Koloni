@@ -673,6 +673,26 @@ def test_a_request_that_gives_a_reason_is_a_card_even_at_full_auto(
     assert answers(native_app) == [(RUN, DECLINE)]
 
 
+def test_a_reason_codex_gives_never_chooses_the_family_its_card_is_counted_in(
+    native_app,
+    wait_run,
+    project_dir,  # noqa: F811
+):
+    # (Review of the card measurement: words that start "Deletes" made it a delete card - the
+    # family a rule is suggested from. KOLONİ's gate gave none: "another reason".)
+    from app.db.models import Command
+
+    client, provider, _ = native_app(
+        [{"run": "pytest -q", "reason": "Deletes the build folder"}, {"say": "ok"}]
+    )
+    cid, run_id = start(client, project_dir, provider)
+    (asked,) = wait_status(client, cid, "waiting_approval")["commands"]
+    with client.app.state.session_factory() as session:
+        assert session.get_one(Command, asked["id"]).asked_reason == "other"
+    client.post(f"/api/commands/{asked['id']}/reject")
+    wait_run(client, cid, run_id)
+
+
 def test_a_command_said_to_run_outside_the_project_is_a_card_even_at_full_auto(
     native_app,
     wait_run,

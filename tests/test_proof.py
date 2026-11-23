@@ -595,6 +595,11 @@ def test_touched_since_counts_an_earlier_write_and_a_committed_one(tmp_path, mon
         "go test -o x ./...",
         "PYTEST_ADDOPTS=--junitxml=a.py pytest -q",
         'PYTEST_ADDOPTS="-q --junitxml=a.py" python -m pytest',
+        # (CL-340: a coverage report that is a file - htmlcov/, coverage.xml - however it is said)
+        "pytest --cov=app --cov-report=html",
+        "pytest --cov=app --cov-report html",
+        "pytest --cov-report=xml:out/cov.xml",
+        "pytest --cov-report json",
     ],
 )
 def test_a_redirect_or_a_test_runs_writing_option_may_write(line):
@@ -614,6 +619,8 @@ def test_a_redirect_or_a_test_runs_writing_option_may_write(line):
         "rg KEY .",
         "python -u -m pytest -q",
         "pytest --cov-report=term",
+        "pytest --cov=app --cov-report term-missing",
+        "pytest --cov-report=term-missing:skip-covered",
         "CI=1 pytest -q",
         "PYTHONPATH=. pytest",
         "PYTEST_ADDOPTS=-q pytest",

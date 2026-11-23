@@ -1385,6 +1385,8 @@ class AgentRunner(
         # its first step - its task does not change, and its brief stays the same for the cache
         self._about: dict[str, str] = {}
         self._watches: dict[str, list[_Watch]] = {}
+        # ...and those taken out of it, still at their last look (`_native_work_last_look`).
+        self._last_looks: list[_Watch] = []
         # K-yazma-denetimi: project folder -> path -> the open card "keep it?" of a standing file
         # taken back there, with what the agent wrote (`_taken_back`); while one is open no
         # approval there is answered (`_approve`).
@@ -1573,6 +1575,10 @@ class AgentRunner(
         # and, once its Lead took it up, the run whose agents all work in that copy.
         self._resume_in: dict[str, str] = {}
         self._resumed: dict[str, str] = {}
+        # (k-bakis-yeri: and the run whose work it holds - its checks are the turn's too)
+        self._resumed_from: dict[str, str] = {}
+        # (k-bakis-yeri: one snapshot - run - put back at a time in a copy, by root: `_copy_lock`)
+        self._copy_locks: dict[str, asyncio.Lock] = {}
         # S9: where the coverage flags failed a whole suite - (project, folder, command) -> its
         # coverage settings then (`coverage.config_mark`): not tried again till they change, or
         # KOLONİ starts again (it was run twice each turn).
@@ -2320,6 +2326,7 @@ class AgentRunner(
         self._held_back.pop(run_id, None)
         self._resume_in.pop(run_id, None)
         self._resumed.pop(run_id, None)
+        self._resumed_from.pop(run_id, None)
         self._disputed.pop(run_id, None)
         # (After its copy is gone: until then its members' changes are that copy's.)
         room = self._rooms.pop(run_id, None)
@@ -2403,6 +2410,11 @@ class AgentRunner(
         of its line once there is one (`_works_in`), the project until then - and, answering a
         message (B-102), the copy its line's work was kept in, set aside: what its team did is
         there."""
+        opener = self._ctxs.get(ctx.parent_id or "")
+        if ctx.agent_id in self._read_only_agents and opener is not None:
+            # (P: KOLONİ's look reads and runs where the work it looks at is - its opener's place,
+            # where the end gate's tests ran: a recipe's copy, not the project)
+            return self._ws(opener)
         copy = self._copies.get(self._works_in(ctx) or "")
         if copy is not None:
             return copy.workspace()
@@ -3085,7 +3097,7 @@ class AgentRunner(
     ) -> None:
         """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none."""
         taken = None
-        async with self._way_in(copy.project):
+        async with self._way_in(copy.project), self._looks_held(copy.project):
             # What a merge comes to is kept in memory alone, and this may be another
             # process than the one that showed the card: made again, off the event loop.
             await asyncio.to_thread(_look_again, copy, files, times, choices)
@@ -4469,7 +4481,7 @@ class AgentRunner(
                     return said
                 unasked = unasked and passed
             if merge_id is None and unasked and not fault:
-                async with self._way_in(copy.project):
+                async with self._way_in(copy.project), self._looks_held(copy.project):
                     self._join(copy, files, {})
                     taken = self._apply(ctx, copy, files, False, unattended=not watched)
                 await self._seen_by_watchers(ctx, taken)
@@ -4499,7 +4511,7 @@ class AgentRunner(
                 if check and not unchosen(list(files.values()), choices):
                     await self._check(ctx, copy, files, check, choices, merge_id, leave=True)
                 continue
-            async with self._way_in(copy.project):
+            async with self._way_in(copy.project), self._looks_held(copy.project):
                 if await asyncio.to_thread(_moved, copy, files, choices):
                     # All of the card or none of it: a file is not as it was shown, and the
                     # card is shown again as it is now (the API says why).
@@ -6059,7 +6071,9 @@ class AgentRunner(
             async with (
                 self._measure_once(ctx, planned.command, moved)
                 if (moved is not None)
-                else contextlib.nullcontext() as once
+                else contextlib.nullcontext() as once,
+                # (P: a look's own command in the copy of the work it looks at - put back after)
+                self._look_kept(ctx, review) as left,
             ):
                 status, output = await self.commands.run(
                     run_id,
@@ -6082,6 +6096,7 @@ class AgentRunner(
                 await self._own_command_looked(
                     ctx, call_id, planned.command, held, since, ran, not unasked
                 )
+        output += "".join(left)
         # R161: what it made (where it ran: its line's copy, made by this very command
         # maybe). shortcut: by when files were written - in the project, another agent's
         # command or a Take in at the same moment is put down to it too (and in Docker,
@@ -7053,6 +7068,16 @@ class AgentRunner(
             for row, team, lead in self._rows(session, ctx.cid)
             if self._runs_it(ctx, lead, self._live_state(row, ctx.run_id))
         ]
+
+    def _recipe_at_work(self, ctx: Ctx) -> bool:
+        """Whether a recipe row it runs in this turn is still at work (`_left_to_do` tells its
+        next step) - its own end, its Checks step at Ready for you, checks its work."""
+        with self._factory() as session:
+            return any(
+                (state := self._live_state(row, ctx.run_id)) is not None
+                and state["status"] == recipe_run.RUNNING
+                for row, _team in self._runs(session, ctx)
+            )
 
     @staticmethod
     def _where(team: str, state: dict, cli: bool = False) -> str:
@@ -9354,7 +9379,12 @@ class AgentRunner(
         also += "".join(f" {name} failed: its work is not finished." for name in failed)
         # (k-sira-016: KOLONİ's checks first, on the work in the recipe's copy - Ready for you
         # after them; never for work they left failing, S11)
-        if (not_yet := await self._not_yet_ready(ctx, rows)) is not None:
+        self._readying.add(ctx.run_id)  # (KOLONİ's Reviewer is a spawn: its end opens no more)
+        try:
+            not_yet = await self._not_yet_ready(ctx, rows)
+        finally:
+            self._readying.discard(ctx.run_id)
+        if not_yet is not None:
             return not_yet
         self._readying.add(ctx.run_id)
         # K-fullauto-sorma: at Full auto the work is taken in by itself, as work outside a

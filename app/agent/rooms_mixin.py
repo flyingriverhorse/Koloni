@@ -1164,6 +1164,11 @@ class RoomsMixin:
                 "The room's changes are in the recipe's copy: they go into the project "
                 "only with the user's Take in, at the recipe's end."
             )
+        elif lead.run_id in self._resumed:  # (k-bakis-yeri: Fix it on held work - its end check)
+            not_taken = (
+                "The room's changes are in the kept work's copy: they go into the project "
+                "only after KOLONİ's checks at this turn's end."
+            )
         elif copy is not None and lead.depth == 0:
             not_taken = await self._into_project(
                 replace(lead, name="the room"),

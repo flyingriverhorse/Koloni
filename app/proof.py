@@ -12,7 +12,7 @@ import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import NamedTuple, NotRequired, TypedDict
+from typing import Literal, NamedTuple, NotRequired, TypedDict
 
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
@@ -455,6 +455,12 @@ def turn_diff(
             made[0].before_content, last.after_content or "", path
         )
         parts.append((path, diff if diff.endswith("\n") or not diff else f"{diff}\n"))
+    return cut(parts, most)
+
+
+def cut(parts: list[tuple[str, str]], most: int) -> tuple[str, str, list[str]]:
+    """Each file's diff, (path, text), as one diff cut at `most` characters: the text, the whole
+    of it, and the files left out."""
     whole = "".join(text for _path, text in parts)
     shown, left = "", []
     for path, text in parts:
@@ -800,8 +806,11 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
 
 
 # S5c (plan decision 16): what the end gate checks, part by part - the project's tests, the
-# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui").
-PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui")
+# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui";
+# 0.1.7's config files and shell scripts, "config" and "scripts").
+PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config", "scripts")
+# (On in a recipe's Checks step unless unticked: a row's graph from before has no such key.)
+ON_UNLESS_UNTICKED = ("config", "scripts")
 
 
 class Checks(NamedTuple):
@@ -876,7 +885,7 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     on: set[str] = set()
     most: int | None = 0
     for one, who in recipes:
-        parts = set() if one is None else {part for part in PARTS if one.get(part)}
+        parts = set() if one is None else {p for p in PARTS if one.get(p, p in ON_UNLESS_UNTICKED)}
         asked = None if one is None else one.get("fix_rounds")
         # (Review of S5c: only a recipe the user picked may lower the project's checks - one the
         # Orchestrator picked only adds to them, or it would switch its own checks off.)
@@ -885,6 +894,14 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
         else:
             on, most = on | parts | theirs, _more(most, rounds, _asked(asked, rounds))
     return Checks(frozenset(on), most, setting, True)
+
+
+def with_held(turn: Checks, held: Checks) -> Checks:
+    """k-bakis-yeri: the checks of a turn Fix it started on held work (its kept copy) - the held
+    turn's own and never fewer than the tests and the review, whatever the chat's switch or the
+    project's After a change say now: the work goes in by this turn's end check alone. Its Fix
+    rounds are the turn's."""
+    return Checks(turn.on | held.on | {"tests", "review"}, turn.rounds, "check", False)
 
 
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:
@@ -921,6 +938,11 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
     return None
 
 
+# S11: why a stronger model's rounds were no pass - a test changed without leave, the Reviewer
+# held or did not read the test change, the tests gave no verdict, or they still fail.
+Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold"]
+
+
 class Row(TypedDict):
     kind: str
     state: str
@@ -937,6 +959,12 @@ class Row(TypedDict):
     question: NotRequired[str]
     # S8: a "ci_offer" row's offer, by its name (`ci_commands.offer_id`): Run these approves it.
     offer: NotRequired[str]
+    # S11: why a stronger model's rounds were no pass (`Reason`): Fix it's fixed sentence goes by
+    # it, never by the row's text, which names what a model chose.
+    reason: NotRequired[Reason]
+    # N: a failed "tests" row whose every failure was failing before this turn, or flaky (S7, a
+    # lint's CL-336 M) - said, not sent back: no gate waits on it (`still_failing`).
+    before: NotRequired[bool]
 
 
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
@@ -1007,8 +1035,15 @@ NO_NEW_TEST = "No new test: the Orchestrator said “{line}”"
 TEST_REMOVED = "Test removed: {path}"
 
 
-def row(kind: str, state: str, text: str, command: str | None = None, guessed: bool = False) -> Row:
-    return {
+def row(
+    kind: str,
+    state: str,
+    text: str,
+    command: str | None = None,
+    guessed: bool = False,
+    reason: "Reason | None" = None,
+) -> Row:
+    made: Row = {
         "kind": kind,
         "state": state,
         "text": text,
@@ -1017,6 +1052,18 @@ def row(kind: str, state: str, text: str, command: str | None = None, guessed: b
         "started_at": None,
         "counts": None,
     }
+    if reason is not None:
+        made["reason"] = reason
+    return made
+
+
+def still_failing(rows: list[Row]) -> bool:
+    """Whether a test run of the turn failed that is the turn's own: a failed "tests" row not
+    excused as failing before it (N: the review and the live try wait on these alone)."""
+    return any(
+        one["kind"] == "tests" and one["state"] == "failed" and not one.get("before")
+        for one in rows
+    )
 
 
 def clock(seconds: int) -> str:

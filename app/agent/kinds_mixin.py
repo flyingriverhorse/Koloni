@@ -1,9 +1,10 @@
-"""Kanıtlı bitiş S5a: after a turn that wrote documents, diagrams, data or slides, KOLONİ checks
-with no model (`app.proof_kinds`) - under Test and review, each kind the project has on (Settings ›
-This project › Checks and git › Check by kind of work). A sure problem goes back to the
-Orchestrator as a fix round, one count with failing tests and the Reviewer's findings (the
-project's Fix rounds). `KindsMixin._proof_kinds` is the gate's step after the tests and before the
-review: a turn of documents alone runs no test and gets these checks."""
+"""Kanıtlı bitiş S5a: after a turn that wrote documents, diagrams, data, slides, config files or
+shell scripts (0.1.7), KOLONİ checks with no model (`app.proof_kinds`) - under Test and review,
+each kind the project has on (Settings › This project › Checks and git › Check by kind of work). A
+sure problem goes back to the Orchestrator as a fix round, one count with failing tests and the
+Reviewer's findings (the project's Fix rounds). `KindsMixin._proof_kinds` is the gate's step
+after the tests and before the review: a turn of documents alone runs no test and gets these
+checks."""
 
 import asyncio
 from collections.abc import Sequence
@@ -37,6 +38,12 @@ def _written(changes: list[Change], made: Sequence[str] = ()) -> dict[str, list[
         *((one.path, one.kind) for one in changes if one.in_project and not one.deleted),
         *((path, proof.kind_of(path)) for path in made),
     ]:
+        # (Config's by the file's ending alone: a Makefile or a lock file is no file it reads.)
+        if kind == "config" and not path.casefold().endswith(proof_kinds.CONFIG_FILES):
+            continue
+        # (0.1.7's scripts: code still - its tests and review stand - read here by their ending.)
+        if kind == "code" and path.casefold().endswith(proof_kinds.SCRIPT_FILES):
+            kind = "scripts"
         if kind in proof_kinds.WRITTEN and path not in found.get(kind, []):
             found.setdefault(kind, []).append(path)
     return found

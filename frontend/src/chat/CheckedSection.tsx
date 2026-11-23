@@ -60,7 +60,9 @@ function CheckedRow({ row, runId }: { row: Row; runId: string | null }) {
   )
 }
 
-/** CL-329: files that changed while KOLONİ's own run went on - Put back is the user's click (never KOLONİ's by itself): each as it was before the run, where it is still as the run left it. */
+/** CL-329: files that changed while KOLONİ's own run went on - Put back is the user's click (never KOLONİ's by itself): each as it was before the run, where it is still as the run left it. Each turn's button is its own run's (CL-340: an older turn's too - a file changed since is refused, said). */
+const PUT_BACK_TITLE = 'Puts back the files this line names, as they were before this turn’s run - not one changed since'
+
 function PutBack({ runId }: { runId: string }) {
   const [said, setSaid] = useState<string | null>(null)
   const put = () =>
@@ -70,7 +72,7 @@ function PutBack({ runId }: { runId: string }) {
     )
   return (
     <span className="checked-fix">
-      <button type="button" className="btn btn-small" onClick={() => void put()}>
+      <button type="button" className="btn btn-small" title={PUT_BACK_TITLE} onClick={() => void put()}>
         Put back
       </button>
       {said && <span role="status">{said}</span>}
@@ -103,23 +105,28 @@ function NotTaken({ row, runId }: { row: Row; runId: string | null }) {
   return (
     <span className="checked-fix">
       {row.merge_id && (
-        <button type="button" className="btn btn-small" onClick={() => api.post(`/merges/${row.merge_id}/approve`).then(() => setSaid('Taken in.'), err => setSaid(errorText(err)))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          title="Takes the kept work in as it is, at your word - no Reviewer looks at it first"
+          onClick={() => api.post(`/merges/${row.merge_id}/approve`).then(() => setSaid('Taken in.'), err => setSaid(errorText(err)))}
+        >
           Take in anyway
         </button>
       )}
       <button type="button" className="btn btn-small" onClick={() => setAnswering(true)}>
         Fix it
       </button>
-      {answering && <Answer question={question} onError={setSaid} held={runId && row.merge_id ? { runId, mergeId: row.merge_id } : null} />}
+      {answering && <Answer question={question} reason={row.reason} onError={setSaid} held={runId && row.merge_id ? { runId, mergeId: row.merge_id } : null} />}
       {said && <span role="status">{said}</span>}
     </span>
   )
 }
 
 /** Fix it's answer to the question: a turn that goes on in the kept work's copy where there is one (else a new message of the user's). */
-function Answer({ question, onError, held }: { question: string; onError: (said: string) => void; held: { runId: string; mergeId: string } | null }) {
+function Answer({ question, reason, onError, held }: { question: string; reason?: Row['reason']; onError: (said: string) => void; held: { runId: string; mergeId: string } | null }) {
   const [reply, setReply] = useState('')
-  const sent = () => (held ? api.post(`/runs/${held.runId}/held/fix`, { merge_id: held.mergeId, reply }) : useApp.getState().send(FIX_HELD(question, reply)))
+  const sent = () => (held ? api.post(`/runs/${held.runId}/held/fix`, { merge_id: held.mergeId, reply }) : useApp.getState().send(FIX_HELD(question, reply, reason)))
   return (
     <form
       className="checked-answer"

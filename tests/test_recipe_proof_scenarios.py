@@ -1,5 +1,6 @@
-"""Kanıtlı bitiş S4 - the recipes' own proof (R1-R4), with the fake model and the ready Bugfix:
-a failing test goes back to Fix it (R1); a check that reports nothing wrong while a test run on
+"""Kanıtlı bitiş S4 - the recipes' own proof (R1-R4), with the fake model and a Bugfix with Test it
+and Review it, as the ready one was drawn before T1 thinned it (`TESTED`; the rules hold for such
+a recipe of the user's): a failing test goes back to Fix it (R1); a check that reports nothing wrong while a test run on
 record failed is blocked (R2) - a later help, list or narrower run of the tool hides none; a
 Tester that ran no command but reads or ones that check nothing (`python -c "pass"`) does not pass
 (R3); Reproduce it writes a failing test and fixes nothing (R4)."""
@@ -23,17 +24,40 @@ FAILED = Script(["1 failed, 3 passed\n"], exit_code=1)
 PASSED = Script(["4 passed\n"], exit_code=0)
 
 
-def bugfix_run(client, project_dir, mode="full_auto"):
-    """The Backend / API team by its ready recipe, Bugfix; at Full auto its commands run unasked."""
+# The ready Bugfix as 0161 and 0170 drew it: Reproduce it, Fix it, Test it, Review it, each review
+# looping back to Fix it twice; its Checks step tests and a review.
+TESTED = {
+    **graph(
+        [
+            part("reproduce", "Reproduce it with a failing test", {"role": "Debugger"}),
+            part("fix", "Fix it", {"role": "Coder"}),
+            part("test", "Test it", {"role": "Tester"}, done_when="no_findings"),
+            part("review", "Review it", {"role": "Reviewer"}, done_when="no_findings"),
+        ],
+        [("start", "reproduce"), ("reproduce", "fix"), ("fix", "test"), ("test", "review")]
+        + [("review", "end")],
+        loops=[
+            {"from": "review", "to": "fix", "rounds": 2},
+            {"from": "test", "to": "fix", "rounds": 2},
+        ],
+    ),
+    "checks": {"tests": True, "review": True},
+}
+
+
+def bugfix_run(client, project_dir, mode="full_auto", ready=False):
+    """The Backend / API team by a Bugfix drawn as `TESTED` - or, `ready`, by its default: the
+    ready Bugfix; at Full auto its commands run unasked."""
     backend = teams_of(client)["Backend / API"]
     assert backend["default_recipe_id"] == recipe_named(client, "Bugfix")["id"]
+    drawn = None if ready else made(client, "Bugfix with tests", TESTED)["id"]
     return begin(
         client,
         project_dir,
         mode=mode,
         spawn_approval="never",
         teams_mode="manual",
-        teams=[{"team_id": backend["id"], "recipe_id": None}],
+        teams=[{"team_id": backend["id"], "recipe_id": drawn}],
     )
 
 
@@ -487,27 +511,37 @@ def test_bugfix_failing_test_goes_back_to_fix_twice_then_stops(make_client, wait
 def test_the_reproduce_step_is_told_to_write_a_failing_test_only(
     make_client, wait_run, project_dir
 ):
-    # R4: Reproduce it writes the failing test; Fix it makes it pass.
-    executor = ScriptedExecutor([REPRO, PASSED])
-    client, _model = make_client(scripts(ran_tests()), executor=executor)
-    cid, run_id = bugfix_run(client, project_dir)
+    # R4: Reproduce it writes the failing test; Fix it makes it pass - the ready Bugfix's.
+    from tests.test_recipe_cost_scenarios import THIN, fixed
+
+    executor = ScriptedExecutor([REPRO, PASSED, PASSED])
+    client, _model = make_client(
+        {"Lead": THIN, "Debugger": list(REPRODUCES), "Coder": fixed()}, executor=executor
+    )
+    cid, run_id = bugfix_run(client, project_dir, ready=True)
     snap = wait_run(client, cid, run_id)
     assert REPRODUCE_FIRST in agent(snap, "Debugger")["task"]
-    assert all(
-        REPRODUCE_FIRST not in agent(snap, name)["task"] for name in ("Coder", "Tester", "Reviewer")
-    )
-    assert [s["name"] for s in row(snap)["steps"]][0] == "Reproduce it with a failing test"
+    assert "open no other agent" in agent(snap, "Debugger")["task"]
+    assert REPRODUCE_FIRST not in agent(snap, "Coder")["task"]
+    assert [s["name"] for s in row(snap)["steps"]][:2] == [
+        "Reproduce it with a failing test",
+        "Fix it",
+    ]
 
 
 def test_a_reproduce_step_that_shows_no_failing_test_is_held(make_client, wait_run, project_dir):
     # R4 (S7): Reproduce it must leave a failing test run on record - words alone are no bug
     # shown: held, and the recipe stops at Ready for you, as R3's declined check does.
     from app.agent.words import NOT_REPRODUCED
+    from tests.test_recipe_cost_scenarios import THIN, fixed
 
-    shown = scripts(ran_tests())
-    shown["Debugger"] = [text("Reproduced: calc(2) crashes.")]  # (words, no test run)
+    shown = {
+        "Lead": [*THIN, text("done again")],
+        "Debugger": [text("Reproduced: calc(2) crashes.")],  # (words, no test run)
+        "Coder": fixed(),
+    }
     client, _model = make_client(shown, executor=ScriptedExecutor([PASSED]))
-    cid, _run_id = bugfix_run(client, project_dir)
+    cid, _run_id = bugfix_run(client, project_dir, ready=True)  # (the ready Bugfix's R4)
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
     held = agent(snap, "Debugger")["findings"] or []
     assert (NOT_REPRODUCED["what"], True) in [(f["what"], f["blocking"]) for f in held], held

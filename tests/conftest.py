@@ -202,10 +202,13 @@ REVIEW_ON = {
     "test_recipe_cost_scenarios",
     "test_small_work_scenarios",
     "test_proof_until_scenarios",
+    "test_recipe_review_once_scenarios",
+    "test_look_where_scenarios",
+    "test_before_gates_scenarios",
 }
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.
-BEFORE_ON = {"test_proof_before_scenarios"}
+BEFORE_ON = {"test_proof_before_scenarios", "test_before_gates_scenarios"}
 # S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
 # the scripted Lead more in every such turn; its rows too. On only where tested.
 ASK_ON = {
@@ -217,7 +220,13 @@ ASK_ON = {
 # S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
 # their rows in every such turn, and a step of the scripted Lead more where one fails. On only
 # where tested.
-KINDS_ON = {"test_proof_kinds_scenarios", "test_recipe_end_checks_scenarios", "test_proof_pages"}
+KINDS_ON = {
+    "test_proof_kinds_scenarios",
+    "test_recipe_end_checks_scenarios",
+    "test_proof_pages",
+    "test_proof_config",
+    "test_proof_scripts",
+}
 # S5b: a turn that wrote a page or a component is looked at in KOLONİ's own browser - in a test, a
 # browser started (a real one where no stand-in is named) and rows. On only where tested.
 PAGES_ON = {"test_proof_pages"}

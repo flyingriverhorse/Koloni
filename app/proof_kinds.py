@@ -8,16 +8,27 @@ the turn is a note too: the turn did not make it.
 
 Each check reads only inside the project, through `Workspace` - a link that leads out of it is
 never looked at - with what it reads capped: the files are the project's, untrusted input.
-`check_docs`, `check_diagrams`, `check_data` and `check_slides` hold no state of a turn: S5c's
-recipe Checks step runs them too."""
+`check_docs`, `check_diagrams`, `check_data`, `check_slides`, `check_config` (0.1.7: a JSON,
+YAML or TOML file parses, a well-known one keeps its shape) and `check_scripts` (0.1.7: a shell
+script parses, read by its own shell, never run) hold no state of a turn: S5c's recipe Checks
+step runs them too."""
 
 import asyncio
 import base64
 import csv
 import io
 import json
+import math
+import os
 import posixpath
 import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+import tomllib
 import zipfile
 import zlib
 from collections import Counter
@@ -28,13 +39,17 @@ from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 from xml.parsers import expat
 
-from app import browser
+import yaml
+import yaml.reader
+
+from app import browser, ci_commands
+from app.executors.host import _pwsh
 from app.proof import Row, row
-from app.workspace import Outside, Workspace, WorkspaceError
+from app.workspace import Outside, Workspace, WorkspaceError, secret_in_project, secret_named
 
 # The kinds a project switches (`Project.check_kinds`) checked with no browser, each as Settings
 # says it; and S5b's pages (`check_pages`, "ui"), which need KOLONİ's own browser.
-KINDS = ("docs", "slides", "diagram", "data")
+KINDS = ("docs", "slides", "diagram", "data", "config", "scripts")
 UI = "ui"
 WRITTEN = (*KINDS, UI)
 SHOWN = {
@@ -42,6 +57,8 @@ SHOWN = {
     "slides": "slides",
     "diagram": "diagrams",
     "data": "data",
+    "config": "config files",
+    "scripts": "scripts",
     UI: "pages",
 }
 KINDS_TO_FIX = (
@@ -161,7 +178,8 @@ def _each(
     rows: list[Row] = []
     for rel in paths:
         try:
-            now = check(_bytes(ws, rel), rel)
+            data = _bytes(ws, rel)
+            now = check(data, rel)
         except Outside:
             rows.append(row(kind, "note", OUTSIDE.format(path=rel)))
             continue
@@ -174,18 +192,11 @@ def _each(
                 )
             )
             continue
-        try:  # (an old version it cannot read hides nothing of the new)
-            was = before.get(rel)
-            old = (
-                {one["text"] for one in check(was.encode("utf-8"), rel) if one["state"] == "failed"}
-                if was
-                else set()
-            )
-        except Exception:
-            old = set()
+        old = _old_problems(check, rel, before.get(rel))
+        lines = data.decode("utf-8-sig", "replace").split("\n") if old else []
         said = [
             {**one, "state": "note", "text": one["text"] + BEFORE}
-            if one["state"] == "failed" and one["text"] in old
+            if one["state"] == "failed" and _problem(one["text"], rel, lines) in old
             else one
             for one in now
         ]
@@ -194,6 +205,33 @@ def _each(
             said = [*said[:MOST_ROWS_A_FILE], row(kind, "note", f"{rel}: +{left} more lines")]
         rows += said
     return rows
+
+
+def _problem(text: str, rel: str, lines: list[str]) -> tuple[str, str]:
+    """A failed line as compared with the file's before the turn: its words without the number
+    of the line it is on, and that line's text - so a problem a line added above moved is the
+    old one still, and the same complaint on a line the turn wrote is the turn's (Q2 of 0.1.7)."""
+    at = re.match(rf"{re.escape(rel)}:(\d+): ", text)
+    if at is None:
+        return text, ""
+    n = int(at[1])
+    return f"{rel}: {text[at.end() :]}", lines[n - 1].strip() if 0 < n <= len(lines) else ""
+
+
+def _old_problems(
+    check: Callable[[bytes, str], list[Row]], rel: str, was: str | None
+) -> set[tuple[str, str]]:
+    """The failed lines of the file's text before the turn (`_problem`) - none where there was
+    none, or it is past what a read takes (MOST_BYTES), or its check breaks: an old version it
+    cannot read hides nothing of the new."""
+    if not was or len(was) > MOST_BYTES or len(data := was.encode("utf-8")) > MOST_BYTES:
+        return set()
+    try:
+        failed = [one["text"] for one in check(data, rel) if one["state"] == "failed"]
+    except Exception:
+        return set()
+    lines = was.removeprefix("﻿").split("\n")
+    return {_problem(one, rel, lines) for one in failed}
 
 
 # --- documents ---------------------------------------------------------------------------------
@@ -771,11 +809,585 @@ def check_slides(
     return _each(ws, paths, "slides", one, before or {})
 
 
+# --- config (0.1.7): JSON, YAML and TOML parse; a few well-known files keep their shape ---------
+
+# The files Config reads, by their ending (the user's rule: a kind by its file's ending) - other
+# files `proof.kind_of` calls config (a Makefile, a lock file) are not its (`kinds_mixin._written`).
+CONFIG_FILES = (".json", ".yaml", ".yml", ".toml")
+# How deep a config file nests, at most, to be read - a parser recurses: a deeper one is no
+# config anyone writes. YAML and TOML are read in Python, slowly - TOML's dotted keys in time and
+# memory squared (review of Config): a bigger file is not read, nor more YAML in all a turn than
+# S8 reads of the CI's files.
+MOST_DEPTH = 100
+MOST_READ = ci_commands.MOST_BYTES
+MOST_YAML_ALL = ci_commands.MOST_ALL
+TOO_DEEP = f"it nests over {MOST_DEPTH} deep"
+SECRET = "a secret file is never read"
+# (Not secrets by name elsewhere - an agent may read them - but they often hold one.)
+MAY_HOLD = "it may hold a secret"
+_MAY_HOLD = re.compile(r"credentials\.json|token\.json|kubeconfig[^/]*|client_secret[^/]*\.json")
+NO_PARSE = "does not parse - "
+_BRACKET = re.compile(r"[\[\]{}]")
+# (Each one unended - a lone backslash before the end too - runs to the end of its line, or of the
+# file for a comment or a long string, in one match: never read again from each later quote,
+# which takes time squared. `re` holds the GIL: a slow one stops the whole server. Each repeat
+# is possessive: one that may give back keeps ~140 B of the matcher's stack a character - an
+# 8 MB string was a GB for a moment - review of k-config-q.)
+_QUOTED = r'"(?:[^"\\\n]|\\.)*+(?:"|\\?(?:\n|\Z))'
+_JSON_STRING = re.compile(_QUOTED)
+# (A multi-line string ends as TOML ends it: its escaped quotes are its own, and it closes on its
+# LAST quote - up to two more are its text, `"""x""""` is `x"` - or the scan loses step with it.)
+_TOML_SKIP = re.compile(
+    r'"""(?:[^"\\]|\\[\s\S]|"(?!""))*+(?:"{3,5}|\\?\Z)'
+    r"|'''(?:[^']|'(?!''))*+(?:'{3,5}|\Z)"
+    rf"|{_QUOTED}"
+    r"|'[^'\n]*(?:'|\n|\Z)"
+    r"|#.*"
+)
+# A TOML key of over MOST_DEPTH dotted parts - each part a table deeper; looked for in the text as
+# it is too, so no string the scan misreads hides one (a string of as many dots is not read).
+_DOTTED = re.compile(rf"(?:\.[^.=\n\[\]{{}},]*){{{MOST_DEPTH}}}")
+# JSON with comments (tsconfig.json, VS Code's): its comments left out, then its trailing commas -
+# a comment between one and its bracket too - its lines kept where they were, its strings as
+# they are.
+_JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)")
+_TRAILING = re.compile(rf"({_QUOTED})|,(?=\s*[}}\]])")
+# (Python reads them; JSON has none, and a strict reader - npm's, JSON.parse - breaks on them.)
+_CONSTANT = re.compile(r"-?\b(?:NaN|Infinity)\b")
+# The JSON files their tools read with comments and trailing commas (TypeScript's, VS Code's, a dev
+# container's, ESLint's) - every other .json is strict: its reader breaks on them.
+# shortcut: by name; add one here when its tool is seen to read comments.
+_COMMENTED = re.compile(
+    r"/(tsconfig[^/]*|jsconfig[^/]*|\.eslintrc|\.?devcontainer)\.json$|/\.vscode/[^/]+\.json$"
+)
+_TOML_AT = re.compile(r" \(at line (\d+), column \d+\)$")  # (one space: never a run of them)
+_TOML_END = " (at end of document)"
+_COMPOSE = re.compile(r"(docker-)?compose([.-][\w.-]*)?\.ya?ml")
+
+
+class _Deep(Exception):
+    pass
+
+
+class _Nested(ci_commands.NoAliases):
+    """S8's YAML with no aliases, its nesting capped as it is composed (`MOST_DEPTH`); a tag it
+    does not know (mkdocs' `!!python/name:`, Compose's `!reset`) read as the plain value under
+    it - never constructed, and never said back (a verbatim tag is any text)."""
+
+    depth = 0
+
+    def compose_node(self, parent, index):
+        self.depth += 1
+        try:
+            if self.depth > MOST_DEPTH:
+                raise _Deep
+            return super().compose_node(parent, index)
+        finally:
+            self.depth -= 1
+
+
+def _untagged(loader: yaml.SafeLoader, _tag: str, node: yaml.Node) -> object:
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node, deep=True)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    return loader.construct_scalar(node)  # type: ignore[arg-type]
+
+
+_Nested.add_multi_constructor("", _untagged)
+
+
+def _deep(bare: str) -> bool:
+    """Whether its brackets - its strings left out - nest over MOST_DEPTH."""
+    depth = 0
+    for found in _BRACKET.finditer(bare):
+        depth += 1 if found.group() in "[{" else -1
+        if depth > MOST_DEPTH:
+            return True
+    return False
+
+
+def _toml(text: str, rel: str) -> tuple[object, str | None]:
+    if len(text) > MOST_READ:
+        raise WorkspaceError(f"it is over {MOST_READ // 1024} KB of TOML")
+    bare = _TOML_SKIP.sub("", text)
+    if _deep(bare) or _DOTTED.search(bare) or _DOTTED.search(text):
+        raise WorkspaceError(TOO_DEEP)
+    try:
+        return tomllib.loads(text), None
+    except RecursionError:
+        raise WorkspaceError(TOO_DEEP) from None
+    except tomllib.TOMLDecodeError as exc:
+        said, line = str(exc), 1
+        if at := _TOML_AT.search(said):
+            said, line = said[: at.start()], int(at.group(1))
+        elif said.endswith(_TOML_END):
+            said, line = said.removesuffix(_TOML_END), text.count("\n") + 1
+        return None, f"{rel}:{line}: {NO_PARSE}{_said(said)}"
+
+
+def _yaml(text: str, rel: str) -> tuple[object, str | None]:
+    """Its first document (each parses), and its parser's first complaint."""
+    if len(text) > MOST_READ:
+        raise WorkspaceError(f"it is over {MOST_READ // 1024} KB of YAML")
+    try:
+        docs = list(yaml.load_all(text, Loader=_Nested))  # noqa: S506 (SafeLoader's)
+    except ci_commands.Alias:
+        raise WorkspaceError("it uses YAML aliases, which are not read") from None
+    except (_Deep, RecursionError):
+        raise WorkspaceError(TOO_DEEP) from None
+    except yaml.MarkedYAMLError as exc:
+        line = exc.problem_mark.line + 1 if exc.problem_mark else 1
+        return None, f"{rel}:{line}: {NO_PARSE}{_key(exc.problem or 'not YAML')}"
+    except yaml.reader.ReaderError as exc:  # (a control character: its line, not its offset)
+        line = text.count("\n", 0, exc.position) + 1
+        return None, f"{rel}:{line}: {NO_PARSE}{_key(exc.reason)}"
+    except yaml.YAMLError as exc:
+        return None, f"{rel}: {NO_PARSE}{_key(str(exc))}"
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        # (A tagged value its tag cannot read - `!!int "sk-…"`: what failed, never the value.)
+        raise WorkspaceError(f"a value in it is not read ({type(exc).__name__})") from None
+    return docs[0] if docs else None, None
+
+
+def _json(text: str, rel: str) -> tuple[object, str | None]:
+    """Strict JSON - or, for a file its tool reads with comments and trailing commas
+    (`_COMMENTED`), JSON with them."""
+    if _deep(_JSON_STRING.sub("", text)):
+        raise WorkspaceError(TOO_DEEP)
+    if _COMMENTED.search("/" + rel.replace("\\", "/").casefold()):
+        # (A block comment within a line is a space: `1/**/2` is no 12.)
+        text = _JSONC.sub(lambda m: m.group(1) or "\n" * m.group(0).count("\n") or " ", text)
+        text = _TRAILING.sub(lambda m: m.group(1) or "", text)
+    try:
+        return json.loads(text, parse_constant=_no_constant), None
+    except json.JSONDecodeError as exc:
+        return None, f"{rel}:{exc.lineno}: {NO_PARSE}{exc.msg}"
+    except _Constant as exc:
+        bare = _JSON_STRING.sub('""', text)
+        found = _CONSTANT.search(bare)
+        line = bare.count("\n", 0, found.start()) + 1 if found else 1
+        return None, f"{rel}:{line}: {NO_PARSE}{exc} is not JSON"
+    except RecursionError:
+        raise WorkspaceError(TOO_DEEP) from None
+
+
+class _Constant(Exception):
+    pass
+
+
+def _no_constant(name: str) -> object:
+    raise _Constant(name)
+
+
+def _package(value: object) -> list[str]:
+    if not isinstance(value, dict):
+        return ["not a JSON object"]
+    found = [f"{key} is not a string" for key in ("name", "version") if not _string(value, key)]
+    scripts = value.get("scripts", {})
+    if not isinstance(scripts, dict):
+        return [*found, "scripts is not an object"]
+    return found + [
+        f"scripts.{_key(key)} is not a string" for key in scripts if not _string(scripts, key)
+    ]
+
+
+def _key(key: object) -> str:
+    """A key of the file, said on one line (a JSON key may hold a newline)."""
+    return _said(" ".join(str(key).split()))
+
+
+def _string(value: dict, key: str) -> bool:
+    return key not in value or isinstance(value[key], str)
+
+
+def _pyproject(value: object) -> list[str]:
+    if not isinstance(value, dict):  # (TOML is a table: never, but said)
+        return ["not a table"]
+    found, project, tools = [], value.get("project"), value.get("tool")
+    if project is not None and not isinstance(project, dict):
+        found.append("project is not a table")
+    elif isinstance(project, dict) and not isinstance(project.get("name"), str):
+        found.append("[project] has no name")
+    if tools is not None and not isinstance(tools, dict):
+        found.append("tool is not a table")
+    elif isinstance(tools, dict):
+        found += [
+            f"tool.{_key(key)} is not a table"
+            for key, one in tools.items()
+            if not isinstance(one, dict)
+        ]
+    return found
+
+
+def _workflow(value: object) -> list[str]:
+    if not isinstance(value, dict):
+        return ["not a mapping"]
+    # (YAML 1.1 reads a bare `on` as true: its key is True there)
+    found = [] if "on" in value or True in value else ["has no on: (what starts it)"]
+    jobs = value.get("jobs")
+    if not isinstance(jobs, dict) or not jobs:
+        return [*found, "has no jobs" if jobs is None else "jobs is not a mapping of jobs"]
+    for name, job in jobs.items():
+        said = _key(name)
+        if not isinstance(job, dict):
+            found.append(f"job {said} is not a mapping")
+        elif "uses" not in job and "runs-on" not in job:
+            found.append(f"job {said} has no runs-on or uses")
+        elif "uses" not in job and not isinstance(job.get("steps"), list):
+            found.append(f"job {said} has no list of steps")
+    return found
+
+
+def _compose(value: object) -> list[str]:
+    if not isinstance(value, dict):
+        return ["not a mapping"]
+    # (An override file may hold only volumes or networks.)
+    return [] if isinstance(value.get("services", {}), dict) else ["services is not a mapping"]
+
+
+def _shape(rel: str) -> tuple[str, Callable[[object], list[str]]] | None:
+    """A well-known file's shape check, and what it is checked as; None: no such file."""
+    name = rel.replace("\\", "/").casefold()
+    base = name.rsplit("/", 1)[-1]
+    if base == "package.json":
+        return "a package.json", _package
+    if base == "pyproject.toml":
+        return "a pyproject.toml", _pyproject
+    if "/.github/workflows/" in f"/{name}" and base.endswith((".yml", ".yaml")):
+        return "a GitHub workflow", _workflow
+    if _COMPOSE.fullmatch(base):
+        return "a Compose file", _compose
+    return None
+
+
+def _config(data: bytes, rel: str) -> list[Row]:
+    name = rel.casefold()
+    if not name.endswith(CONFIG_FILES):
+        why = "only JSON, YAML and TOML are read"
+        return [row("config", "note", NOT_CHECKED_FILE.format(path=rel, why=why))]
+    read = _toml if name.endswith(".toml") else _yaml if name.endswith(("yml", "yaml")) else _json
+    value, failed = read(_text(data), rel)
+    if failed is not None:
+        return [row("config", "failed", failed)]
+    if (shape := _shape(rel)) is None:
+        return [row("config", "passed", f"{rel}: parses")]
+    what, check = shape
+    problems = check(value)
+    return [row("config", "failed", f"{rel}: {one}") for one in problems] or [
+        row("config", "passed", f"{rel}: parses, as {what} should")
+    ]
+
+
+def check_config(
+    root: Path | Workspace, paths: list[str], before: Mapping[str, str | None] | None = None
+) -> list[Row]:
+    """Config: a JSON, YAML or TOML file parses - else failed, with its parser's first complaint
+    and its line - and a package.json, a pyproject.toml, a GitHub workflow or a Compose file has
+    the shape its tool reads; a secret file is never read, nor one whose name often holds a
+    secret (credentials.json), one that nests too deep, YAML with aliases, nor a file past its
+    size (`MOST_READ`, and `MOST_YAML_ALL` of YAML in all)."""
+    ws, left, counted = _workspace(root), MOST_YAML_ALL, set()
+
+    def kept_out(rel: str) -> str | None:
+        """Why it is not read: a secret, or a name that often holds one; None: it is read."""
+        name = rel.replace("\\", "/").rsplit("/", 1)[-1].casefold()
+        return SECRET if _secret(ws, rel) else MAY_HOLD if _MAY_HOLD.fullmatch(name) else None
+
+    def one(data: bytes, rel: str) -> list[Row]:
+        nonlocal left
+        # (Its text now only: the one before - `_each` reads it after - is its own file again, and
+        # a budget spent there would read an old problem as the turn's.)
+        name = rel.casefold()
+        if name.endswith(("yml", "yaml")) and len(data) <= MOST_READ and rel not in counted:
+            counted.add(rel)
+            if len(data) > left:
+                raise WorkspaceError(f"past {MOST_YAML_ALL // 1024} KB of YAML in all")
+            left -= len(data)
+        return _config(data, rel)
+
+    out = {rel: why for rel in paths if (why := kept_out(rel)) is not None}
+    return [
+        *(
+            row("config", "note", NOT_CHECKED_FILE.format(path=rel, why=why))
+            for rel, why in out.items()
+        ),
+        *_each(ws, [rel for rel in paths if rel not in out], "config", one, before or {}),
+    ]
+
+
+def _secret(ws: Workspace, rel: str) -> bool:
+    try:  # (by its name, and by where a link of that name leads in the project)
+        return secret_named(rel, ws.rel(ws.resolve(rel)))
+    except Exception:  # (a link loop: RuntimeError on 3.12 - the read says so, in `_each`)
+        return secret_in_project(rel)
+
+
+# --- scripts (0.1.7): a shell script parses - read by its own shell, never run --------------------
+
+SCRIPT_FILES = (".sh", ".bash", ".ps1", ".psm1")
+MOST_SCRIPTS = 20  # a turn
+MOST_SCRIPT = 2**20  # bytes of a script
+BASH_SECONDS, POWERSHELL_SECONDS = 10, 20
+MOST_HEARD = 64 * 1024  # of what a shell prints, each stream - the rest read and dropped
+SCRIPTS_MORE = "Scripts not checked: {named} - at most {most} a turn"
+LOADS = "it loads a module or an assembly"
+CRLF = "{path}: Windows line endings (CR LF) - bash on Linux will not run it as it is"
+NEEDS_7 = "it needs PowerShell 7"
+TYPE_UNREAD = "it uses a type of a module KOLONİ does not load"
+# What a shell is started with: none of the user's variables (a BASH_ENV, say: `bash -n` does not
+# run its file - measured, Git's bash 5.2 - and it is not given one), and C, so that its
+# complaint says "line N:" as read here; in an empty folder of its own, deleted after - nothing
+# of the project's is beside it (a powershell.config.json, a command named as one of its own).
+_KEPT = {"PATH", "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "TEMP", "TMP", "HOME", "USERPROFILE"}
+_BASH_SAID = re.compile(r": line (\d+): (.+)")
+# PowerShell's own parser on the script's text, read from stdin: nothing of the file is in a
+# command line or in this script. Parsing runs nothing - measured 23 Nov 2026, pwsh 7.5 and 5.1:
+# a `using module`, `#requires`, a class's static member, a BEGIN block, `[ScriptBlock]::Create`
+# are not run - but its parser looks things up as it reads them: a `using assembly` DLL, and
+# (pwsh 7, review of k-scripts) an `Import-DscResource` module's files at any path. So it is
+# never asked to find anything: each `using assembly` / `using module` statement (at a line's
+# start, or after a `;`, to the next `;`) is taken out, and each `#requires` line that names
+# modules or assemblies - the lines kept where they were, a lone CR a line's end as PowerShell
+# reads it; then a text with a `using` left in it anywhere (a comment between its words, a
+# backtick's next line, a space of another kind) but `using namespace`, or an
+# `Import-DscResource`, is not given to it at all (`LOADS`). Fail closed: an English "using" in a
+# comment leaves a script unread, never a lookup made.
+_LINES = re.compile(r"\r\n|\r|\n")
+_RESOLVED = re.compile(
+    r"(?i)(?:^|(?<=;))[ \t]*"
+    r"(?:using[ \t]+(?:assembly|module)\b[^;]*|#requires\b.*-(?:assembly|modules?)\b.*)"
+)
+# (Read with its backticks out: `Import-Dsc`Resource` is the keyword to pwsh 7; `$using:x` is a
+# variable, no statement.)
+_LOOKED_UP = re.compile(r"(?i)\busing\b(?!:)(?![ \t]+namespace\b)|import-dscresource")
+_CONFIGURATION = re.compile(r"(?im)^[ \t]*configuration[ \t]+\w")
+# What Windows PowerShell 5.1 says of PowerShell 7's own syntax (`??`, `?.`, `&&`, `||`, `? :`).
+_ONLY_7 = re.compile(r"'(?:\?\?=?|\?\.|\?|&&|\|\|)'|not a valid statement separator")
+_PARSE_PS = r"""
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$text = [Console]::In.ReadToEnd()
+$errors = $null
+$null = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$null, [ref]$errors)
+ConvertTo-Json -Compress -InputObject @($errors |
+  Select-Object -First 1 |
+  ForEach-Object { @{ line = $_.Extent.StartLineNumber; message = $_.Message; id = $_.ErrorId } })
+"""
+_PARSE_PS_ENCODED = base64.b64encode(_PARSE_PS.encode("utf-16-le")).decode("ascii")
+_WSL = re.compile(r"\\(windows\\system32|windowsapps)\\")
+
+
+def _bash() -> list[str] | None:
+    """The bash a script is read with: on Windows Git's, next to git - never System32's or the
+    Store's (WindowsApps) bash.exe, which start a Linux (WSL); None: no bash here."""
+    if sys.platform == "win32" and (git := shutil.which("git")):
+        for up in list(Path(git).parents)[:3]:
+            for one in (up / "usr" / "bin" / "bash.exe", up / "bin" / "bash.exe"):
+                if one.is_file():
+                    return [str(one)]
+    found = shutil.which("bash")
+    if not found or sys.platform == "win32" and _WSL.search(found.casefold()):
+        return None
+    return [found]
+
+
+def _powershell() -> list[str] | None:
+    """PowerShell 7 where it is (not the Store's: `_pwsh`), else Windows PowerShell; None: none."""
+    found = (_pwsh() or shutil.which("powershell.exe")) if sys.platform == "win32" else None
+    found = found or shutil.which("pwsh")
+    return [found] if found else None
+
+
+def _kill_tree(process: subprocess.Popen) -> None:
+    """The shell and all it started (review: a child holding its pipes kept a 2 s read for 25 s)."""
+    if sys.platform == "win32":
+        subprocess.run(  # noqa: S603, S607 (taskkill: Windows' own)
+            ["taskkill", "/T", "/F", "/PID", str(process.pid)],
+            capture_output=True,
+            timeout=10,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    else:
+        with suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, signal.SIGKILL)
+    with suppress(subprocess.TimeoutExpired):
+        process.wait(5)
+
+
+def _drain(pipe, into: bytearray) -> None:
+    """A stream read to its end, at most MOST_HEARD of it kept."""
+    with suppress(OSError, ValueError):
+        while chunk := pipe.read(8192):
+            into += chunk[: max(0, MOST_HEARD - len(into))]
+
+
+def _feed(pipe, data: bytes) -> None:
+    with suppress(OSError, ValueError):
+        pipe.write(data)
+        pipe.close()
+
+
+def _read_by(argv: list[str], text: str, seconds: int) -> tuple[int, str, str]:
+    """`argv` given `text` on stdin, in an empty folder of its own, with no more than `_KEPT` of
+    this machine's variables: its exit code and what it printed (each at most MOST_HEARD). A run
+    past `seconds` - the whole tree killed - or one that cannot start, is said (not checked)."""
+    env = {k: v for k, v in os.environ.items() if k.upper() in _KEPT}
+    out, err = bytearray(), bytearray()
+    with tempfile.TemporaryDirectory(prefix="koloni-script-", ignore_cleanup_errors=True) as cwd:
+        try:
+            process = subprocess.Popen(  # noqa: S603 (an argument list: nothing of the file is in it)
+                argv,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=cwd,
+                env={**env, "LC_ALL": "C", "LANG": "C"},
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                start_new_session=sys.platform != "win32",
+            )
+        except OSError as exc:
+            raise WorkspaceError(f"its shell did not start ({type(exc).__name__})") from None
+        threads = [
+            threading.Thread(target=_feed, args=(process.stdin, text.encode("utf-8")), daemon=True),
+            threading.Thread(target=_drain, args=(process.stdout, out), daemon=True),
+            threading.Thread(target=_drain, args=(process.stderr, err), daemon=True),
+        ]
+        for one in threads:
+            one.start()
+        try:
+            process.wait(seconds)
+        except subprocess.TimeoutExpired:
+            _kill_tree(process)
+            raise WorkspaceError(f"reading it took over {seconds} s") from None
+        finally:
+            if sys.platform != "win32":  # (what it left behind, in its own group, goes with it)
+                with suppress(ProcessLookupError, PermissionError):
+                    os.killpg(process.pid, signal.SIGKILL)
+            for one in threads:
+                one.join(2)  # (a pipe a grandchild still holds: not waited for longer)
+        return process.returncode, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
+
+
+def _unresolved(text: str) -> tuple[str, bool]:
+    """The script's text as PowerShell is given it (`_RESOLVED` out, lines kept, each ended with a
+    LF), and whether anything was taken out. Raises where it would still look something up, or
+    where taking out a statement would change the rest (a quote or a comment's end in it)."""
+    taken: list[str] = []
+    lines = [
+        _RESOLVED.sub(lambda m: taken.append(m.group()) or "", one) for one in _LINES.split(text)
+    ]
+    kept = "\n".join(lines)
+    if (
+        _LOOKED_UP.search(kept.replace("`", ""))
+        or any("#>" in one or "<#" in one for one in taken)
+        or any(one.count('"') % 2 or one.count("'") % 2 for one in taken)
+    ):
+        raise WorkspaceError(LOADS)
+    return kept, bool(taken)
+
+
+def _powershell_said(shell: list[str], text: str) -> list[tuple[object, object]]:
+    windows_51 = Path(shell[0]).name.casefold() == "powershell.exe"
+    if windows_51 and _CONFIGURATION.search(
+        text.replace("`", "")
+    ):  # (5.1 loads DSC's module for one)
+        raise WorkspaceError(NEEDS_7)
+    kept, blanked = _unresolved(text)
+    code, out, _err = _read_by(
+        [*shell, "-NoProfile", "-NonInteractive", "-EncodedCommand", _PARSE_PS_ENCODED],
+        kept,
+        POWERSHELL_SECONDS,
+    )
+    try:
+        said = json.loads(out or "null")
+    except ValueError:
+        said = None
+    if code or not isinstance(said, list):
+        raise WorkspaceError("PowerShell's parser gave no answer")
+    found = [one for one in said if isinstance(one, dict)]
+    if found and blanked and found[0].get("id") == "TypeNotFound":
+        raise WorkspaceError(TYPE_UNREAD)
+    if found and windows_51 and _ONLY_7.search(str(found[0].get("message"))):
+        raise WorkspaceError(NEEDS_7)
+    return [(one.get("line"), one.get("message")) for one in found]
+
+
+def _bash_said(shell: list[str], text: str) -> list[tuple[object, object]]:
+    # (extglob on: `@(a|b)` and `!(x)` are a script's own after its `shopt -s extglob`)
+    code, _out, err = _read_by(
+        [*shell, "--norc", "--noprofile", "-O", "extglob", "-n"], text, BASH_SECONDS
+    )
+    if code not in (0, 1, 2):
+        raise WorkspaceError(f"bash ended with {code}")
+    lines = err.splitlines()
+    found: list[tuple[object, object]] = [
+        (int(m[1]), m[2]) for one in lines if (m := _BASH_SAID.search(one))
+    ]
+    if code and not found:
+        found = [(None, next((one for one in lines if one.strip()), "a syntax error"))]
+    return found
+
+
+def _script(data: bytes, rel: str) -> list[Row]:
+    """A script read by its own shell (`bash -n`, PowerShell's parser) - never run: its first
+    complaint and line, or that it parses."""
+    if len(data) > MOST_SCRIPT:
+        raise WorkspaceError(f"it is over {MOST_SCRIPT // 2**20} MB")
+    text, powershell = _text(data), rel.casefold().endswith((".ps1", ".psm1"))
+    shell = _powershell() if powershell else _bash()
+    if shell is None:
+        raise WorkspaceError("no PowerShell here" if powershell else "no bash here")
+    # (A CR LF script is read as Git's bash on Windows reads it - the CR taken - and said.)
+    crlf = [] if powershell or "\r" not in text else [row("scripts", "note", CRLF.format(path=rel))]
+    found = (_powershell_said if powershell else _bash_said)(shell, _LINES.sub("\n", text))
+    if not found:
+        return [row("scripts", "passed", f"{rel}: parses"), *crlf]
+    line, message = found[0]
+    at = f"{rel}:{line}" if isinstance(line, int) else rel
+    return [row("scripts", "failed", f"{at}: {NO_PARSE}{_key(message)}"), *crlf]
+
+
+def check_scripts(
+    root: Path | Workspace, paths: list[str], before: Mapping[str, str | None] | None = None
+) -> list[Row]:
+    """Scripts: a `.sh` or `.bash` file read by `bash -n`, a `.ps1` or `.psm1` by PowerShell's
+    parser - never run - parses, else failed with its shell's first complaint and line. A secret
+    file is never read, nor one outside the project, nor one over MOST_SCRIPT; at most
+    MOST_SCRIPTS a turn."""
+    ws, passed = _workspace(root), set()
+
+    def one(data: bytes, rel: str) -> list[Row]:
+        # (`_each` reads the text before the turn after this one: only a failure needs it.)
+        if rel in passed:
+            return []
+        rows = _script(data, rel)
+        if rows[0]["state"] == "passed":
+            passed.add(rel)
+        return rows
+
+    out = [rel for rel in paths if _secret(ws, rel)]
+    read = [rel for rel in paths if rel not in out]
+    more = read[MOST_SCRIPTS:]
+    return [
+        *(row("scripts", "note", NOT_CHECKED_FILE.format(path=rel, why=SECRET)) for rel in out),
+        *_each(ws, read[:MOST_SCRIPTS], "scripts", one, before or {}),
+        *(
+            [row("scripts", "note", SCRIPTS_MORE.format(named=_named(more), most=MOST_SCRIPTS))]
+            if more
+            else []
+        ),
+    ]
+
+
 CHECKS: dict[str, Callable[..., list[Row]]] = {
     "docs": check_docs,
     "diagram": check_diagrams,
     "data": check_data,
     "slides": check_slides,
+    "config": check_config,
+    "scripts": check_scripts,
 }
 
 
@@ -799,6 +1411,42 @@ OUTSIDE_ERRORS = (
     "machine, which KOLONİ's browser never opens: {first}"
 )
 WIDE = "{path}: wider than the screen at {widths} px"
+# Pages accessibility (0.1.7): the page as it loaded at each width, read by KOLONİ's browser
+# (`Browser.access`) - an image with no text for it, a button, link or field with no name, a
+# text below WCAG 2's contrast for it: 4.5:1, 3:1 for large text (LARGE_PX, or LARGE_BOLD_PX at
+# BOLD) - its colour over the backgrounds under it up to the first opaque one (none: the white
+# of the page's canvas). Failed, as a console error is - but contrast: a warning, its ratio said,
+# never a fix round (the main session's decision: a colour is the page's design, its reading is
+# not sure enough to send work back for); text over an image or a gradient is not checked, and
+# said. Its words, an image's file name, a control's tag and id are the page's own: each cut to
+# MOST_SNIPPET, and sent back as data (`KINDS_TO_FIX`).
+NO_ALT = "{path}: {n} images without alt text at {widths} px - {named}"
+NO_NAME = "{path}: {n} buttons, links or fields with no name at {widths} px - {named}"
+LOW_CONTRAST = "{path}: {n} texts below the contrast they need at {widths} px - {named}"
+HIDDEN_PAGE = "{path}: the whole page is hidden from screen readers (aria-hidden) at {widths} px"
+HIDDEN_FOCUS = "{path}: {n} controls one can tab to inside aria-hidden at {widths} px - {named}"
+OVER_IMAGE = (
+    "{path}: contrast not checked at {widths} px on {n} texts with something drawn under them "
+    "(an image, a gradient, a layer) - {named}"
+)
+DARK_ONLY = "{path}: contrast not checked at {widths} px - the page's colour scheme is dark only"
+UNREAD_INSIDE = "{path}: accessibility not read inside {n} frames or shadow roots at {widths} px"
+A11Y_CUT = "{path}: accessibility checked only in part at {widths} px - {named}"
+# Why, each cap the read met (`_A11Y`'s keys - KOLONİ's script's, never the page's words).
+CUT_WHY = {
+    "elements": "only its first {most} elements are read",
+    "time": "it is read for {s} s at most",
+    "painted": "only its first {painted} drawn elements are compared",
+    "compare": "a text has more than {compare} drawn elements over it",
+    "pairs": "a text's lines meet more than {pairs} line boxes of drawn elements",
+    "depth": "a text's background is more than {depth} elements up",
+    "styles": "more than {styles} kinds of text",
+}
+A11Y_UNREAD = "{path}: accessibility not read at {widths} px"
+NO_BODY = "{path}: accessibility not read at {widths} px - the page has no body"
+NEEDS, NEEDS_LARGE = 4.5, 3.0
+LARGE_PX, LARGE_BOLD_PX, BOLD = 24.0, 18.66, 700
+MOST_SNIPPET = 40
 OUTSIDE_LOADS = (
     "{path}: checked without what it loads from outside this machine, which "
     "KOLONİ's browser never opens: {named}"
@@ -821,8 +1469,9 @@ async def check_pages(
     """The turn's pages in KOLONİ's own browser (`start`: one started, fenced to this machine's
     previews and the project's files as the agents' is; None: no Chrome or Edge here) - each
     `.html` page as a file of the project, and the chat's `preview` where a component or a
-    style changed - at WIDTHS: console errors and a page wider than the screen are failed; a
-    page that loads from outside this machine (refused) is a note. At most MOST_PAGES pages,
+    style changed - at WIDTHS: console errors, a page wider than the screen and what its
+    accessibility read finds (`_access_rows`) are failed; a page that loads from outside this
+    machine (refused) is a note. At most MOST_PAGES pages,
     PAGES_SECONDS in all. Screenshots go to `shots` (the project's scratch) for the user only;
     nothing of a page reaches a model but these lines."""
     ws = _workspace(root)
@@ -875,9 +1524,10 @@ async def _look(
     screenshot. Errors where it loads a script from outside this machine are a note: KOLONİ's
     browser never goes out, and what fails after such a load may be its doing."""
     errors: dict[int, list[str]] = {}
-    outside, wide, away = False, [], set()
+    outside, wide, away, read = False, [], set(), {}
     try:
         url = browser.allowed(at, ws, one.closed)
+        await one.light()  # (the colour scheme the read judges by, before the page first loads)
         for width in WIDTHS:
             await one.width(width)
             one.console()  # (what the last width's page said is not this one's)
@@ -891,6 +1541,7 @@ async def _look(
                 errors[width] = said
             if await one.wider():
                 wide.append(width)
+            read[width] = await _accessed(one)
             data, _listed = await one.screenshot()
             shots.mkdir(parents=True, exist_ok=True)
             named = slug(re.sub(r"[./:]+", "-", name))[:60] or "page"
@@ -915,7 +1566,10 @@ async def _look(
     ]
     if wide:
         rows.append(row(UI, "failed", WIDE.format(path=name, widths=_widths(wide))))
+    failed, noted = _access_rows(name, read)
+    # (no console error is said so whatever the accessibility read finds)
     rows = rows or [row(UI, "passed", CLEAN.format(path=name, widths=_widths(WIDTHS)))]
+    rows += [*failed, *noted]
     if away:  # (what it was checked without)
         rows.append(
             row(
@@ -961,3 +1615,196 @@ def _by_count(errors: dict[int, list[str]]) -> list[tuple[list[str], list[int]]]
     for width, said in errors.items():
         found.setdefault(len(said), (said, []))[1].append(width)
     return list(found.values())
+
+
+# --- pages accessibility (0.1.7) ----------------------------------------------------------------
+
+# What one rule found at a width: how many, the first named, and of how many names those are.
+Found = tuple[int, tuple[str, ...], int]
+_FAILED = (
+    ("hidden", HIDDEN_PAGE),
+    ("alt", NO_ALT),
+    ("name", NO_NAME),
+    ("focus", HIDDEN_FOCUS),
+)
+_NOTED = (
+    ("contrast", LOW_CONTRAST),  # (a warning: never a fix round)
+    ("over", OVER_IMAGE),
+    ("dark", DARK_ONLY),
+    ("inside", UNREAD_INSIDE),
+    ("cut", A11Y_CUT),
+    ("unread", A11Y_UNREAD),
+    ("nobody", NO_BODY),
+)
+_ONCE = (1, (), 0)  # (what a rule found that is said once, with no names)
+
+
+async def _accessed(one: "browser.Browser") -> dict | None:
+    """What the page says of its images, controls and texts (`Browser.access`); None where the
+    read threw or was not answered (a script of the page's that keeps it busy) - said; the page's
+    other lines stand."""
+    try:
+        return await one.access()
+    except browser.BrowserError:
+        return None
+
+
+def _snippet(text: object) -> str:
+    said = " ".join(str(text).split())
+    return said if len(said) <= MOST_SNIPPET else said[: MOST_SNIPPET - 1] + "…"
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        return None
+    return float(value)
+
+
+def _rgba(value: object) -> tuple[float, float, float, float] | None:
+    """A colour as the page's read gives it, [r, g, b, alpha]; None for anything else."""
+    if not isinstance(value, list) or len(value) != 4:
+        return None
+    parts = [_number(one) for one in value]
+    if None in parts:
+        return None
+    r, g, b, a = (
+        min(max(one or 0.0, 0.0), top) for one, top in zip(parts, (255, 255, 255, 1), strict=True)
+    )
+    return r, g, b, a
+
+
+def _luminance(rgb: Iterable[float]) -> float:
+    """WCAG 2's relative luminance of an sRGB colour."""
+    r, g, b = (
+        c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+        for c in (one / 255 for one in rgb)
+    )
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(colour: object, under: object) -> float | None:
+    """WCAG 2's contrast of a text of `colour` over the backgrounds `under` it - the nearest
+    first, each laid over the next; under them all the white of the page's canvas - None for
+    what is no colour."""
+    fg = _rgba(colour)
+    layers = []
+    for one in under[: browser.A11Y_LAYERS + 1] if isinstance(under, list) else [None]:
+        if (layer := _rgba(one)) is None:
+            return None
+        layers.append(layer)
+    if fg is None:
+        return None
+    bg = (255.0, 255.0, 255.0)
+    for *rgb, a in reversed(layers):
+        bg = tuple(c * a + below * (1 - a) for c, below in zip(rgb, bg, strict=True))
+    shown = [c * fg[3] + below * (1 - fg[3]) for c, below in zip(fg[:3], bg, strict=True)]
+    light, dark = sorted((_luminance(shown), _luminance(bg)), reverse=True)
+    return (light + 0.05) / (dark + 0.05)
+
+
+def _needs(text: dict) -> float:
+    """The contrast a text needs: 3:1 where it is large - LARGE_PX, or LARGE_BOLD_PX in BOLD."""
+    px, weight = _number(text.get("px")) or 0.0, _number(text.get("weight")) or 400.0
+    return NEEDS_LARGE if px >= LARGE_PX or px >= LARGE_BOLD_PX and weight >= BOLD else NEEDS
+
+
+def _texts(texts: object) -> dict[str, Found]:
+    """The page's texts - each of a colour, background, size and weight once, with how many
+    there are - below the contrast they need (the lowest first), and those over an image."""
+    low: list[tuple[float, str, int]] = []
+    over: list[tuple[str, int]] = []
+    for one in texts[: browser.A11Y_STYLES] if isinstance(texts, list) else []:
+        if not isinstance(one, dict):
+            continue
+        n, words = max(int(_number(one.get("n")) or 1), 1), _snippet(one.get("words", ""))
+        if one.get("under") is None:
+            over.append((f"“{words}”", n))
+        elif (ratio := contrast(one.get("color"), one.get("under"))) is not None and ratio < (
+            need := _needs(one)
+        ):
+            low.append(
+                (ratio, f"“{words}” {math.floor(ratio * 100) / 100:.2f}:1 (needs {need:g}:1)", n)
+            )
+    low.sort(key=lambda one: one[0])
+    found: dict[str, Found] = {}
+    if low:
+        found["contrast"] = (sum(n for *_, n in low), tuple(said for _r, said, _n in low), len(low))
+    if over:
+        found["over"] = (sum(n for _said, n in over), tuple(said for said, _n in over), len(over))
+    return found
+
+
+def _findings(read: dict | None) -> dict[str, Found]:
+    """One width's read (`Browser.access`) as what each rule found."""
+    if read is None:
+        return {"unread": _ONCE}
+    if read.get("nobody") is True:
+        return {"nobody": _ONCE}
+    found: dict[str, Found] = {"hidden": _ONCE} if read.get("hidden") is True else {}
+    for kind, listed, counted in (
+        ("alt", "images", "imagesN"),
+        ("name", "controls", "controlsN"),
+        ("focus", "focus", "focusN"),
+    ):
+        named = read.get(listed)
+        named = (
+            tuple(_snippet(one) for one in named[: browser.A11Y_LISTED] if isinstance(one, str))
+            if isinstance(named, list)
+            else ()
+        )
+        n = max(int(_number(read.get(counted)) or 0), len(named))
+        if n:
+            found[kind] = (n, named, n)
+    found.update(_texts(read.get("texts")))
+    if read.get("scheme") == "dark":
+        found["dark"] = _ONCE
+    if (frames := int(_number(read.get("frames")) or 0)) > 0:
+        found["inside"] = (frames, (), 0)
+    if why := _cut_why(read.get("cut")):
+        found["cut"] = (1, why, 0)
+    return found
+
+
+def _cut_why(cut: object) -> tuple[str, ...]:
+    """Why the read was cut, in words, each cap once - the bounds as they are now."""
+    if not isinstance(cut, list):
+        return ()
+    bounds = {
+        "most": browser.MOST_A11Y,
+        "s": f"{browser.A11Y_MS / 1000:g}",
+        "painted": browser.A11Y_PAINTED,
+        "compare": browser.A11Y_COMPARED,
+        "pairs": browser.A11Y_PAIRS,
+        "depth": browser.A11Y_DEPTH,
+        "styles": browser.A11Y_STYLES,
+    }
+    keys = dict.fromkeys(one for one in cut if isinstance(one, str) and one in CUT_WHY)
+    return tuple(CUT_WHY[one].format(**bounds) for one in keys)
+
+
+def _access_rows(name: str, read: dict[int, dict | None]) -> tuple[list[Row], list[Row]]:
+    """The page's accessibility at each width as lines - failed ones, and notes - a width with
+    the same findings as another said in one line with it."""
+    found = {width: _findings(one) for width, one in read.items()}
+    lines: tuple[list[Row], list[Row]] = ([], [])
+    for kinds, said, state in ((_FAILED, lines[0], "failed"), (_NOTED, lines[1], "note")):
+        for kind, text in kinds:
+            together: dict[Found, list[int]] = {}
+            for width, each in found.items():
+                if kind in each:
+                    together.setdefault(each[kind], []).append(width)
+            for (n, named, of), widths in together.items():
+                more = f" +{of - MOST_NAMED} more" if of > MOST_NAMED else ""
+                said.append(
+                    row(
+                        UI,
+                        state,
+                        text.format(
+                            path=name,
+                            n=n,
+                            widths=_widths(widths),
+                            named=", ".join(named[:MOST_NAMED]) + more,
+                        ),
+                    )
+                )
+    return lines

@@ -284,7 +284,7 @@ export function summary(graph: RecipeGraph): string {
   return words.join(' → ') || 'nothing drawn yet'
 }
 
-/** How many agents a run of it opens, as the server counts its drawing: " · 4–14 agents" - the fewest where no review finds a problem, the most
+/** How many agents a run of it opens, as the server counts its drawing: " · 6–16 agents" - the fewest where no review finds a problem, the most
  * where every loop goes back all its rounds; " · 2 agents" where they are the same; nothing where it could not count (a folder's that leads nowhere). */
 export function agentsLine(recipe: Recipe): string {
   if (!recipe.agents) return ''
@@ -454,9 +454,11 @@ export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: stri
   ['data', 'Data', 'CSV rows, notebook cells'],
   ['slides', 'Slides', 'empty slides, notes'],
   ['ui', 'Pages', 'a changed page at phone, tablet and desktop widths, in KOLONİ’s browser'],
+  ['config', 'Config', 'JSON, YAML and TOML parse; package.json, pyproject.toml, workflows, Compose'],
+  ['scripts', 'Scripts', 'shell and PowerShell scripts parse - read, never run'],
 ]
 /** "Set for this recipe" as it starts: the project's usual Test and review for code. */
-export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, ui: false, fix_rounds: null })
+export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, ui: false, config: true, scripts: true, fix_rounds: null })
 
 /** The Checks step's choice: set for the recipe, or - null - following the project (no `checks` kept, as the server keeps it). */
 export function setChecks(graph: RecipeGraph, checks: Checks | null): RecipeGraph {

@@ -111,7 +111,9 @@ def test_a_recipe_whose_checks_step_checks_nothing_says_so(make_client, wait_run
         },
         executor=executor,
     )
-    cid, run_id = run_it(client, project_dir, docs_recipe(client, docs=False))
+    cid, run_id = run_it(
+        client, project_dir, docs_recipe(client, docs=False, config=False, scripts=False)
+    )
     snap = wait_run(client, cid, run_id)
     assert texts(snap)[0] == proof.RECIPE_OFF and executor.started == [], texts(snap)
 
@@ -119,7 +121,14 @@ def test_a_recipe_whose_checks_step_checks_nothing_says_so(make_client, wait_run
 def test_the_ready_bugfix_checks_its_tests_and_a_review(make_client):
     client, _model = make_client([])
     checks = recipe_named(client, "Bugfix")["graph"]["checks"]
-    assert {part for part, on in checks.items() if on is True} == {"tests", "review"}
+    # (and Config and Scripts: model-free and cheap, on unless unticked - a Checks step from
+    # before reads so)
+    assert {part for part, on in checks.items() if on is True} == {
+        "tests",
+        "review",
+        "config",
+        "scripts",
+    }
     assert "checks" not in recipe_named(client, "Research")["graph"]  # (it follows the project)
 
 
@@ -143,7 +152,8 @@ def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(
         "slides": False,
         "ui": False,
         "fix_rounds": 0,
-    }
+    }  # (written before 0.1.7: no Config - it reads as on, and is written back so)
+    read_as = {**checks, "config": True, "scripts": True}
     (folder / "report.json").write_text(
         json.dumps({"name": "Report", "graph": {**SMALL, "checks": checks}}), encoding="utf-8"
     )
@@ -153,7 +163,7 @@ def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(
         )
     read = listed(client, project_id=pid)
     (mine,) = [r for r in read["recipes"] if r["project_id"]]
-    assert mine["graph"]["checks"] == checks and len(read["broken"]) == 2, read["broken"]
+    assert mine["graph"]["checks"] == read_as and len(read["broken"]) == 2, read["broken"]
     # (Written back by the page as it reads: the step's choice kept in the file.)
     saved = client.put(
         f"/api/projects/{pid}/recipes/report",
@@ -163,7 +173,7 @@ def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(
     assert saved.status_code == 200, saved.text
     assert (
         json.loads((folder / "report.json").read_text(encoding="utf-8"))["graph"]["checks"]
-        == checks
+        == read_as
     )
 
 
@@ -184,13 +194,17 @@ def begin_at(client, project_dir, project, chat, content="fix it"):
 def test_a_ready_bugfix_checks_its_tests_in_a_project_at_nothing(
     make_client, wait_run, project_dir, monkeypatch
 ):
-    # (Its own Checks step, not the project's After a change - as the chat's switch never did.)
+    # (Its own Checks step, not the project's After a change - as the chat's switch never did.
+    # T1: no Tester of its own - KOLONİ runs the tests.)
     from tests.test_proof_end_scenarios import guess
-    from tests.test_recipe_proof_scenarios import PASSED, PYTEST, REPRO, ran_tests, scripts
+    from tests.test_recipe_cost_scenarios import THIN, fixed
+    from tests.test_recipe_proof_scenarios import PASSED, PYTEST, REPRO, REPRODUCES
 
     guess(monkeypatch, PYTEST)
     executor = ScriptedExecutor([REPRO, PASSED])
-    client, _model = make_client(scripts(ran_tests()), executor=executor)
+    client, _model = make_client(
+        {"Lead": THIN, "Debugger": list(REPRODUCES), "Coder": fixed()}, executor=executor
+    )
     backend = teams_of(client)["Backend / API"]
     cid, run_id = begin_at(
         client,
@@ -206,7 +220,7 @@ def test_a_ready_bugfix_checks_its_tests_in_a_project_at_nothing(
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     rows = texts(snap)
-    assert f"Tests passed: {PYTEST} - run by Tester after the last change" in rows, rows
+    assert f"Tests passed: {PYTEST} (guessed) - 4 passed" in rows, rows
     assert proof.NOT_CHECKED not in rows
 
 
@@ -329,7 +343,8 @@ def test_the_orchestrators_pick_adds_and_the_users_lowers(make_client, wait_run,
         session.commit()
         by_user = proof.checks_of(session, conversation, run)
     assert by_lead.on >= {"tests", "review", "docs"} and by_lead.rounds == 3, by_lead
-    assert by_user.on == {"docs"} and by_user.rounds == 0, by_user
+    # (A Checks step from before 0.1.7 has no Config nor Scripts: they read as on.)
+    assert by_user.on == {"docs", "config", "scripts"} and by_user.rounds == 0, by_user
 
 
 def select_team():

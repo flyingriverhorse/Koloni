@@ -7,30 +7,33 @@ export const FIX_IT = (command: string) => `The tests KOLONİ ran at the end of 
 /** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds: words of the user's own - the findings reach the Orchestrator as data (`review_held`), never as theirs. */
 export const FIX_REVIEW = 'The Reviewer KOLONİ opened at the end of the last turn still held its change. Fix its blocking findings.'
 
-/** S11 (decision 18): what Fix it sends on a "Not taken in" row - the user's answer to the stronger model's question, their own words. */
-export const FIX_HELD = (question: string, reply: string) => `The last turn's work was not taken in: its tests still fail. ${question} My answer: ${reply.trim()} Fix it.`
-
 type Row = NonNullable<Message['checked']>[number]
+
+/** S11 (decision 18): what Fix it sends on a "Not taken in" row - the user's answer to its question, their own words; why it was held by the row's reason code (P: a look still holding it), never by its text. */
+export const FIX_HELD = (question: string, reply: string, reason?: Row['reason']) =>
+  `The last turn's work was not taken in: ${reason === 'on_hold' ? "a look of KOLONİ's still held it" : 'its tests still fail'}. ${question} My answer: ${reply.trim()} Fix it.`
 
 /**
  * S11: where a stronger model's rounds ended as no pass (its tests may pass), Fix it's words - the command and a fixed sentence by the row's
- * kind. Never the row's own text: it names files and a look's output a model chose, which are no words of the user's (as FIX_REVIEW).
+ * reason code, which KOLONİ sets. Never by the row's own text: it names files and a look's output a model chose, which are no words of the
+ * user's (as FIX_REVIEW), and could steer which sentence is sent. A row kept before it had a code: "still".
  */
-const NOT_DONE: [RegExp, string][] = [
-  [/changed a test without leave/, 'a test, or what says which tests run, was changed without leave'],
-  [/the Reviewer held/, 'the Reviewer held the test change'],
-  [/the Reviewer did not read/, 'the Reviewer did not pass the test change'],
-  [/gave no verdict/, 'the tests gave no verdict after a round'],
-]
-export const FIX_NOT_DONE = (command: string, rowText: string) =>
-  `${FIX_IT(command)} The stronger model's rounds were no pass: ${NOT_DONE.find(([kind]) => kind.test(rowText))?.[1] ?? 'it still fails after the rounds'}.`
+const NOT_DONE: Record<NonNullable<Row['reason']>, string> = {
+  touched: 'a test, or what says which tests run, was changed without leave',
+  held: 'the Reviewer held the test change',
+  unread: 'the Reviewer did not pass the test change',
+  no_verdict: 'the tests gave no verdict after a round',
+  still: 'it still fails after the rounds',
+  on_hold: 'a look still held it',
+}
+export const FIX_NOT_DONE = (command: string, reason: Row['reason']) => `${FIX_IT(command)} The stronger model's rounds were no pass: ${NOT_DONE[reason ?? 'still']}.`
 
 /** What Fix it asks for under a turn's Checked section: a failing test run first, else a stronger model's rounds that were no pass, else a Reviewer's hold; null: nothing to fix. */
 export function fixOf(rows: Row[]): string | null {
   const failed = rows.find(row => row.kind === 'tests' && row.state === 'failed' && row.command)
   if (failed?.command) return FIX_IT(failed.command)
   const notDone = rows.find(row => (row.kind === 'stronger' || row.kind === 'rounds') && row.state === 'failed' && row.command)
-  if (notDone?.command) return FIX_NOT_DONE(notDone.command, notDone.text)
+  if (notDone?.command) return FIX_NOT_DONE(notDone.command, notDone.reason)
   const held = rows.some(row => row.kind === 'review' && row.text.startsWith('Still on hold'))
   return held && rows.some(row => row.kind === 'finding' && row.text.startsWith('Blocking: ')) ? FIX_REVIEW : null
 }
