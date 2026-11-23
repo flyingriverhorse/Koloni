@@ -380,6 +380,9 @@ or a file that steers the tests (a `conftest.py` that leaves one out), without a
 pass: "Not a pass: `model` changed a test without leave (`file`)", and that test is not listed as
 one of the turn's new tests. A round whose work fails the project's own check before Take in stays
 in its copy: "Not taken in: `model`'s round - the project's check failed on it before Take in".
+Work its rounds make pass gets the look the failing tests held back, once, by the same rule (a
+big or security-touching change): its Review line takes the place of "No review: the tests still
+fail"; a hold that stands keeps work in a copy out, as below.
 
 Failing work is never taken in, at any level - Full auto and while you're away too. Where nothing
 passes after the strongest tier (or none is set, or the switch is off), the work stays in its

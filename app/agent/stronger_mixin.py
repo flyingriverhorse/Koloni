@@ -706,6 +706,10 @@ class StrongerMixin:
         if not self._handed_passed(held, wanted):
             return proof.row("stronger", "failed", NO_VERDICT, command, reason="no_verdict")
         if kind != TEST_WRONG:
+            # (O: the look the failing tests held back, once, on the work as it passes now - the
+            # gate's own rule: big or security-touching; an earlier MERGE stands, as in the gate.
+            # A hold that stands keeps work in a copy out: `_on_hold`)
+            await self._proof_review(ctx, held)
             return None
         held.verdict, held.looked_at, held.review_forced = None, None, True  # (a fresh look)
         try:
