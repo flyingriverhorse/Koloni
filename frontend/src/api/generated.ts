@@ -6059,7 +6059,7 @@ export interface components {
             /** Question */
             question?: string | null;
             /** Reason */
-            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still") | null;
+            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still" | "on_hold") | null;
             /** Started At */
             started_at: string | null;
             /**

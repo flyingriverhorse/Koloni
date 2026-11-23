@@ -9,7 +9,7 @@ import json
 import pytest
 
 from app import proof
-from app.proof_kinds import MOST_DEPTH, check_config
+from app.proof_kinds import MOST_DEPTH, _json, check_config
 from tests.fakes import ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
@@ -349,6 +349,169 @@ def test_a_problem_the_file_had_before_the_turn_is_a_note(tmp_path):
     rows = check_config(tmp_path, ["a.json"], before={"a.json": "{"})
     assert [(one["state"], one["text"].endswith(" - so before this turn")) for one in rows] == [
         ("note", True)
+    ]
+
+
+def test_an_old_problem_a_line_above_moved_is_still_the_files_own(tmp_path):
+    # (Q2 of 0.1.7: compared without its line - it was the turn's error once its line moved.)
+    (tmp_path / "a.json").write_text('{\n\n  "a": 1,\n}\n', encoding="utf-8")
+    rows = check_config(tmp_path, ["a.json"], before={"a.json": '{\n  "a": 1,\n}\n'})
+    assert [(one["state"], one["text"]) for one in rows] == [
+        ("note", "a.json:4: does not parse - Expecting property name enclosed in double quotes"
+         " - so before this turn")
+    ]  # fmt: skip
+    # (one that parsed before and does not now is the turn's, whatever its line)
+    rows = check_config(tmp_path, ["a.json"], before={"a.json": '{"a": 1}'})
+    assert [one["state"] for one in rows] == ["failed"]
+    # (and so a package.json's shape, and a new problem beside an old one)
+    (tmp_path / "package.json").write_text('{"name": 1, "version": 2}', encoding="utf-8")
+    rows = check_config(tmp_path, ["package.json"], before={"package.json": '{"name": 1}'})
+    assert [(one["state"], one["text"]) for one in rows] == [
+        ("note", "package.json: name is not a string - so before this turn"),
+        ("failed", "package.json: version is not a string"),
+    ]
+
+
+OLD_COMMA = "{\n" + "".join(f'  "k{n}": {n},\n' for n in range(9)) + "}\n"  # (line 11: "}")
+
+
+@pytest.mark.parametrize(
+    ("rel", "was", "now"),
+    [
+        # (Review of k-config-q: the same complaint on a line the turn wrote is the turn's - its
+        # old trailing comma taken out, a new one written on line 3; the file written anew; a
+        # YAML line of the same fault replaced)
+        (
+            "package.json",
+            OLD_COMMA,
+            OLD_COMMA.replace('"k8": 8,', '"k8": 8').replace('"k1": 1,', '"k1": {"x": 1,},'),
+        ),
+        ("data.json", '{"a": 1,}', '{"q": 2,}'),
+        ("a.yaml", "a: b: c\n", "w: q: r\n"),
+    ],
+)
+def test_the_same_complaint_on_a_line_the_turn_wrote_is_the_turns(tmp_path, rel, was, now):
+    (tmp_path / rel).write_text(now, encoding="utf-8")
+    old = check_config(tmp_path, [rel], before={rel: now})
+    assert [one["state"] for one in old] == ["note"]  # (its own text before: an old problem)
+    ((one,),) = [check_config(tmp_path, [rel], before={rel: was})]
+    assert one["state"] == "failed", one["text"]
+    assert "does not parse" in check_config(tmp_path, [rel], before={rel: was})[0]["text"]
+    assert check_config(tmp_path, [rel])[0]["text"] == one["text"]  # (said as with no before)
+
+
+def test_a_text_before_the_turn_past_a_reads_size_is_not_compared(tmp_path, monkeypatch):
+    from app import proof_kinds
+
+    (tmp_path / "a.json").write_text("{", encoding="utf-8")
+    monkeypatch.setattr(proof_kinds, "MOST_BYTES", 8)
+    (row,) = check_config(tmp_path, ["a.json"], before={"a.json": "{" + " " * 8})
+    assert row["state"] == "failed"  # (an old text past the cap hides nothing of the new)
+    (row,) = check_config(tmp_path, ["a.json"], before={"a.json": "{"})
+    assert row["state"] == "note"
+
+
+GROWTH = """
+import json, tracemalloc
+from app import proof_kinds as p
+out = {}
+for n in (2048, 16 * 1024 - 8):
+    for name, rx, text in (
+        ("json", p._JSON_STRING, '"' + "a" * n + '"'),
+        ("escaped", p._JSON_STRING, '"' + "\\\\x" * (n // 2) + '"'),
+        ("toml", p._TOML_SKIP, '\"\"\"' + "a" * n + '\"\"\"'),
+        ("literal", p._TOML_SKIP, "'''" + "a" * n + "'''"),
+    ):
+        tracemalloc.start()
+        rx.sub("", text)
+        out.setdefault(name, []).append(tracemalloc.get_traced_memory()[1])
+        tracemalloc.stop()
+print(json.dumps(out))
+"""
+
+
+def test_a_long_string_costs_the_scan_no_memory_by_its_length():
+    # (Review of k-config-q: each character of one string kept ~140 B of the matcher's stack -
+    # an 8 MB .json was a GB for a moment. Measured on 2 and 16 KB, in a child process.)
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from tests.conftest import scaled
+
+    done = subprocess.run(
+        [sys.executable, "-c", GROWTH],
+        cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True,
+        text=True,
+        timeout=scaled(30),
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    for name, (small, big) in json.loads(done.stdout).items():
+        assert big < 64 * 1024 and big < small * 2 + 4096, (name, small, big)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        '{\n  "strict": true, /* x */\n}\n',
+        '{\n  "strict": true, // x\n}\n',
+        '{\n  "a": 1,\n  // "b": 2,\n}\n',
+        '{"a": [1, 2, /* three */ ]}',
+        '{"a": 1, /* one\n  two */ }',
+    ],
+)
+def test_json_with_comments_reads_a_comment_after_a_trailing_comma(tmp_path, body):
+    # (Q1 of 0.1.7: the comma was read with the comment still after it)
+    assert said(tmp_path, {"tsconfig.json": body}) == [("passed", "tsconfig.json: parses")]
+
+
+def test_json_with_comments_keeps_its_strings_and_strict_json_stays_strict(tmp_path):
+    rule = '{\n  "a": "x,}",\n  "b": "// not a comment, ]",\n  "c": "/* nor this */",\n}\n'
+    value, failed = _json(rule, ".vscode/settings.json")
+    assert failed is None
+    assert value == {"a": "x,}", "b": "// not a comment, ]", "c": "/* nor this */"}
+    assert _json('{"a": 1/**/}', "tsconfig.json") == ({"a": 1}, None)
+    # (`1/**/2` is two values, not 12)
+    assert _json('{"a": 1/**/2}', "tsconfig.json")[1] == (
+        "tsconfig.json:1: does not parse - Expecting ',' delimiter"
+    )
+    ((state, line),) = said(tmp_path, {"settings.json": '{"a": 1, /* x */}'})
+    assert state == "failed" and line.startswith("settings.json:1: does not parse"), line
+
+
+def test_nan_and_infinity_are_not_json(tmp_path):
+    # (Python reads them; npm's reader, JSON.parse, breaks. A key twice is JSON: the last wins.)
+    rows = said(
+        tmp_path,
+        {
+            "nan.json": '{\n  "s": "NaN, Infinity and a long string before it",\n  "a": NaN\n}',
+            "inf.json": '{"a": -Infinity}',
+            "twice.json": '{"a": 1, "a": 2}',
+        },
+    )
+    assert rows == [
+        ("failed", "nan.json:3: does not parse - NaN is not JSON"),
+        ("failed", "inf.json:1: does not parse - -Infinity is not JSON"),
+        ("passed", "twice.json: parses"),
+    ]
+
+
+def test_a_yaml_complaint_is_one_line_and_a_tagged_value_is_never_said(tmp_path):
+    rows = said(
+        tmp_path,
+        {
+            "ctl.yaml": "a: 1\nb: x\x07y\n",
+            "tag.yaml": 'a: !!int "sk-secret-123"\n',
+            "when.yaml": 'a: !!timestamp "not a time"\n',
+            "yes.yaml": 'a: !!bool "maybe"\n',
+        },
+    )
+    assert rows == [
+        ("failed", "ctl.yaml:2: does not parse - special characters are not allowed"),
+        ("note", "tag.yaml: not checked: a value in it is not read (ValueError)"),
+        ("note", "when.yaml: not checked: a value in it is not read (AttributeError)"),
+        ("note", "yes.yaml: not checked: a value in it is not read (KeyError)"),
     ]
 
 

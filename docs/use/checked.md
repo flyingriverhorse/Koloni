@@ -47,7 +47,7 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
   command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a redirection into one
   - `cat a > b`, `git show HEAD:f > f`, not `2>&1` or `> /dev/null` -, a formatter,
   `black . && pytest -q`, a test run that writes - `jest -u`, `pytest --snapshot-update`,
-  `--junitxml=a.py` -, a line handed to a shell that does) is on no record, so KOLONİ runs the tests all the same and says "A
+  `--junitxml=a.py`, a coverage report that is a file, `--cov-report=html` -, a line handed to a shell that does) is on no record, so KOLONİ runs the tests all the same and says "A
   command of this turn may have changed files KOLONİ did not record: …", with "No review: changes
   made by a command are not recorded". In a git project such commands count only where git lists
   a file written since the first of them began, or one committed during the turn, and the line
@@ -380,6 +380,9 @@ or a file that steers the tests (a `conftest.py` that leaves one out), without a
 pass: "Not a pass: `model` changed a test without leave (`file`)", and that test is not listed as
 one of the turn's new tests. A round whose work fails the project's own check before Take in stays
 in its copy: "Not taken in: `model`'s round - the project's check failed on it before Take in".
+Work its rounds make pass gets the look the failing tests held back, once, by the same rule (a
+big or security-touching change): its Review line takes the place of "No review: the tests still
+fail"; a hold that stands keeps work in a copy out, as below.
 
 Failing work is never taken in, at any level - Full auto and while you're away too. Where nothing
 passes after the strongest tier (or none is set, or the switch is off), the work stays in its
@@ -393,7 +396,20 @@ there, and its report lists it. Work that is already in the project (no copy) ge
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
 own check ran nothing still waits on its Ready for you card, as before - never taken in unasked.
 A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model yet: the user
-decides, as before (Fix it).
+decides (Fix it). Work in a copy - a recipe's, before Ready for you - that a look still holds is
+not taken in by itself either, at any level: no Ready for you card, not even at Auto-edit, and
+not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
+its fix rounds", with **Take in anyway** and **Fix it**. **Fix it** goes on in the kept work's
+copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
+change and the fix, by the same rule (a big or security-touching change gets the look), never
+the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
+That turn keeps the held turn's checks - never fewer than the tests and the review, whatever this
+chat's switch or the project's After a change say since; its old code, for "were failing before",
+is the project's, so the held work's own failure is never excused; and a room its Orchestrator
+opens takes nothing in when it ends. The Reviewer sees the kept work as Take in shows it: what
+Take in leaves out is not in it, and a secret file, one holding a secret you gave on a card, or
+one that is not text is named, never shown.
+**Take in anyway** is your word: the work goes in as it is, with no look first.
 
 The order is always the same: KOLONİ's checks first, on the work where it is (a recipe's copy), then
 **Ready for you**. Its card, or Full auto's own Take in, comes only after the Checked section - never
@@ -416,7 +432,7 @@ They come after the tests and before the review. A turn that wrote only such fil
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
 | Scripts (`.sh`, `.bash`, `.ps1`, `.psm1`) | a script that does not parse, with its shell's first complaint and line ("build.sh:4: does not parse - syntax error near unexpected token `fi'") - read by `bash -n` or PowerShell's own parser, never run | no bash or no PowerShell here; a secret file, one over 1 MB, more than 20 a turn: not read |
 | Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
-| Config (`.json`, `.yaml`, `.yml`, `.toml`) | a file that does not parse, with its parser's first complaint and line ("package.json:3: does not parse - Expecting property name enclosed in double quotes"); a `package.json` that is no object, or whose `name`, `version` or a script is no string; a `pyproject.toml` whose `[project]` has no name or whose `[tool.…]` is no table; a GitHub workflow (`.github/workflows/*.yml`) with no `on:` or no jobs, or a job with neither `runs-on` nor `uses`, or with no list of steps; a Compose file (`compose.yaml`, `docker-compose*.yml`) whose `services` is no mapping | a secret file (`.env.json`, `secrets.yaml`) is never read, nor one whose name often holds a secret (`credentials.json`, `token.json`, `kubeconfig…`, `client_secret….json`); a file nested over 100 deep (a TOML key of over 100 dotted parts too), a YAML or TOML file over 256 KB, YAML past 1 MB in all in a turn, or YAML with aliases is not read; a YAML tag KOLONİ does not know (`!!python/name:`, `!reset`) is read as the value under it; JSON with comments and trailing commas passes where its tool reads them (`tsconfig.json`), never a `package.json` |
+| Config (`.json`, `.yaml`, `.yml`, `.toml`) | a file that does not parse, with its parser's first complaint and line ("package.json:3: does not parse - Expecting property name enclosed in double quotes") - `NaN` or `Infinity` in a `.json` too, which npm's reader and `JSON.parse` break on; a `package.json` that is no object, or whose `name`, `version` or a script is no string; a `pyproject.toml` whose `[project]` has no name or whose `[tool.…]` is no table; a GitHub workflow (`.github/workflows/*.yml`) with no `on:` or no jobs, or a job with neither `runs-on` nor `uses`, or with no list of steps; a Compose file (`compose.yaml`, `docker-compose*.yml`) whose `services` is no mapping | a secret file (`.env.json`, `secrets.yaml`) is never read, nor one whose name often holds a secret (`credentials.json`, `token.json`, `kubeconfig…`, `client_secret….json`); a file nested over 100 deep (a TOML key of over 100 dotted parts too), a YAML or TOML file over 256 KB, YAML past 1 MB in all in a turn, or YAML with aliases is not read; a YAML tag KOLONİ does not know (`!!python/name:`, `!reset`) is read as the value under it; JSON with comments and trailing commas passes where its tool reads them (`tsconfig.json`, `.vscode/*.json`; a comment after the last comma too), never a `package.json`; a key twice in a `.json` passes (JavaScript reads the last); a value a YAML tag cannot read (`!!int "x"`) is not checked, and never said back |
 
 A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
 when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
@@ -532,7 +548,8 @@ also what does not fit in the diff the Reviewer is shown.
 
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
-  the project they open. They get read tools only and no MCP server, whatever their role is
+  the project they open - where the work is: in a recipe's turn, the recipe's copy, as KOLONİ's own
+  tests there; what their commands write there (a report, a cache, a file a test rewrites) is put back, never taken in - so is what KOLONİ's own test runs write there, one run at a time in a copy. What an agent's own command writes there (a Coder's test run) is that agent's work, and goes in with it. They get read tools only and no MCP server, whatever their role is
   given: they change nothing. They may run two kinds of command, never asked about: one that only
   reads (`git diff`, `cat a.py`, `ls src`), and the project's approved test command exactly as it
   is set, in its folder - your check command or a part's test command, a saved one an **Always**
@@ -570,13 +587,14 @@ also what does not fit in the diff the Reviewer is shown.
   REQUEST CHANGES, REJECT and BLOCK hold, unless a "not" or "no" stands just before it ("MERGE -
   no reason to hold this back", "I'd not block: MERGE" merge); a MERGE negated or said not to be
   ("do not MERGE", "MERGE is not possible yet", "MERGE? No - HOLD", "not ready to merge",
-  "MERGE is unsafe") holds, and so does a MERGE on a condition ("MERGE once the SQL injection is
+  "MERGE is unsafe", "MERGE - blocked", "MERGE (blocked)") holds, and so does a MERGE on a condition ("MERGE once the SQL injection is
   fixed", "MERGE only after the fix"); NEEDS CHANGES and FAIL hold, APPROVE and LGTM merge. A negation reaches no
   further than a comma, a full stop or a dash: "No. HOLD until the test is fixed" holds. A
   "Previous verdict" line is not this look's. Any HOLD wins; a report with no verdict is "Review
   gave no verdict: not counted".
 - **Stop this check** ends a look that runs now too: "Review stopped by you - not checked".
-- No look: a small change, **Tests only**, tests that still fail (they are fixed first), a turn
+- No look: a small change, **Tests only**, tests that still fail (they are fixed first - not those
+  that were failing before this turn: said, not sent back, they hold no look back), a turn
   over its token limit, or a recipe whose own Review step looked already - rounds never stack.
   A recipe without a Review step gets this review at its end.
 
@@ -627,7 +645,8 @@ a user would:
   and stops it after the try. Starting it is asked below Full auto, as any server is. A preview
   runs in the project itself only: where the work waits in a working copy, "Not tried: the work
   waits in a working copy…".
-- Not tried, and said: while the tests still fail, in a turn nobody watches (Away, a trigger, a
+- Not tried, and said: while the turn's tests still fail (not those failing before it), in a turn
+  nobody watches (Away, a trigger, a
   To-do task), or where the Tester's role has no browser tools.
 
 On the canvas the Tester is an agent node after the Checks node; KOLONİ's own runs of the try
@@ -802,7 +821,7 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Still on hold: `role` could not look again (`why`) - you decide (Fix it) | A look after a fix round could not be had: the hold stands. |
 | ✓ `file`: 3 links, all found · `file`: 120 rows × 4 columns · `file`: 12 slides, 3 with notes | A document, diagram, data file or deck KOLONİ checked and found right. |
 | ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
-| – `file`: … - so before this turn | A problem the file already had: said, not sent back. |
+| – `file`: … - so before this turn | A problem the file already had - the same complaint on a line of the same text, where a line added above moved it: said, not sent back. The same complaint on a line the turn wrote is the turn's. |
 | – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
 | ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
 | ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |
@@ -830,6 +849,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Started over in a fresh copy: `why` | The stronger model said approach-wrong: the copy's changes were dropped and the work began again from the start state. |
 | – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
+| ✗ Not taken in: on hold - a look's findings still stand after its fix rounds | Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |

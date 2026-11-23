@@ -455,6 +455,12 @@ def turn_diff(
             made[0].before_content, last.after_content or "", path
         )
         parts.append((path, diff if diff.endswith("\n") or not diff else f"{diff}\n"))
+    return cut(parts, most)
+
+
+def cut(parts: list[tuple[str, str]], most: int) -> tuple[str, str, list[str]]:
+    """Each file's diff, (path, text), as one diff cut at `most` characters: the text, the whole
+    of it, and the files left out."""
     whole = "".join(text for _path, text in parts)
     shown, left = "", []
     for path, text in parts:
@@ -890,6 +896,14 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     return Checks(frozenset(on), most, setting, True)
 
 
+def with_held(turn: Checks, held: Checks) -> Checks:
+    """k-bakis-yeri: the checks of a turn Fix it started on held work (its kept copy) - the held
+    turn's own and never fewer than the tests and the review, whatever the chat's switch or the
+    project's After a change say now: the work goes in by this turn's end check alone. Its Fix
+    rounds are the turn's."""
+    return Checks(turn.on | held.on | {"tests", "review"}, turn.rounds, "check", False)
+
+
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:
     """Why `run` is not run where a turn's end waits at most `seconds` for it: the newest run of
     it in the project (any chat's, anyone's) ran longer, or was stopped at a limit of that wait or
@@ -926,7 +940,7 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
 
 # S11: why a stronger model's rounds were no pass - a test changed without leave, the Reviewer
 # held or did not read the test change, the tests gave no verdict, or they still fail.
-Reason = Literal["touched", "held", "unread", "no_verdict", "still"]
+Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold"]
 
 
 class Row(TypedDict):
@@ -948,6 +962,9 @@ class Row(TypedDict):
     # S11: why a stronger model's rounds were no pass (`Reason`): Fix it's fixed sentence goes by
     # it, never by the row's text, which names what a model chose.
     reason: NotRequired[Reason]
+    # N: a failed "tests" row whose every failure was failing before this turn, or flaky (S7, a
+    # lint's CL-336 M) - said, not sent back: no gate waits on it (`still_failing`).
+    before: NotRequired[bool]
 
 
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
@@ -1038,6 +1055,15 @@ def row(
     if reason is not None:
         made["reason"] = reason
     return made
+
+
+def still_failing(rows: list[Row]) -> bool:
+    """Whether a test run of the turn failed that is the turn's own: a failed "tests" row not
+    excused as failing before it (N: the review and the live try wait on these alone)."""
+    return any(
+        one["kind"] == "tests" and one["state"] == "failed" and not one.get("before")
+        for one in rows
+    )
 
 
 def clock(seconds: int) -> str:

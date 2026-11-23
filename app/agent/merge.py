@@ -66,6 +66,7 @@ from app.workspace import (
     _name,
     for_change,
     in_scratch,
+    secret_in_project,
     sha256_text,
     standing_asks,
     stands_over_later_turns,
@@ -518,6 +519,49 @@ def _secret_in(copy: copies.Copy, path: str) -> bool:
     except OSError:
         return False
     return any(form in data for form in forms)
+
+
+def kept_work(copy: copies.Copy, lead_id: str) -> list[tuple[proof.Change, str]]:
+    """k-bakis-yeri: a kept copy's work as Take in would bring it - each file it changes against
+    the project, as its card shows it (`_merge_file`) - for the end check of the turn that goes on
+    in it (Fix it on a "Not taken in" row): its change, where the tests run, and its diff. What
+    Take in leaves out or refuses (`left_out`, a link out) is not in it; a secret file, one whose
+    secret was given on a card (`Copy.secret_held`), one holding a secret of the turn's
+    (`_secret_in`), one not text or over MAX_WRITE_BYTES is named, its content never read into the
+    diff - a look's brief goes to a model. Blocking: it reads the copy and the project."""
+    found = []
+    for path, kind, state in copy.changes():
+        if state in ("left_out", "refused"):
+            continue
+        card = (
+            None
+            if path in copy.secret_held
+            or secret_in_project(path)
+            or not all(_fits(place) for place in (copy.here(path), copy.there(path)))
+            or _secret_in(copy, path)
+            else _merge_file(copy, path)
+        )
+        diff = card["diff"] if card is not None and card["state"] != "refused" else None
+        added, removed = (
+            (card["additions"] or 0, card["deletions"] or 0)
+            if card is not None and diff
+            else (0, 0)
+        )
+        change = proof.Change(
+            path, proof.kind_of(path), added, removed, kind == "deleted", lead_id, True
+        )
+        shown = diff.rstrip("\n") + "\n" if diff else f"{path}: changed, not shown\n"
+        found.append((change._replace(existed=kind != "new"), shown))
+    return found
+
+
+def _fits(place: Path | None) -> bool:
+    """Whether a side of a file may be read for a diff: none there, or a file a change record
+    could hold (MAX_WRITE_BYTES) - its size read, not its bytes."""
+    try:
+        return place is None or not place.is_file() or place.stat().st_size <= MAX_WRITE_BYTES
+    except OSError:
+        return False
 
 
 def _made_in(copy: copies.Copy | None, live: copies.Copy | None = None) -> list:

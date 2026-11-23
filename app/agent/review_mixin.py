@@ -9,6 +9,7 @@ the tests again and the Reviewer looks again, until MERGE or the cap - then the 
 it). `ReviewMixin._proof_review`, the gate's step after the tests."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -19,6 +20,7 @@ from typing import TYPE_CHECKING, NamedTuple
 from sqlalchemy import literal_column, select
 
 from app import ci_commands, injection, project_map, proof, test_found
+from app.agent import merge
 from app.agent.context_mixin import FINDINGS_PROMPT
 from app.agent.ctx import Ctx
 from app.agent.spawn_mixin import BEFORE_THE_WORK, CUT_SHORT, MAX_REVIEW_DIFF
@@ -47,6 +49,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 REVIEWERS = ("Reviewer", "Security reviewer")
+# P: what a look's command wrote in the copy that could not be put back (`_look_untrace`).
+LEFT_IN_COPY = "\n\nKOLONİ could not put back what this command wrote in the copy: {paths}"
 # What the Orchestrator's findings are for, in FINDINGS_PROMPT's words.
 FIXER = "Orchestrator"
 REVIEW_ASK = (
@@ -166,7 +170,10 @@ _KEYWORD = re.compile(
 )
 _MERGES = frozenset({"MERGE", "APPROVE", "APPROVED", "APPROVES", "LGTM"})
 _NEGATION = re.compile(r"^(?:not|no|never|cannot|unable)$|n't$", re.IGNORECASE)
+# (The spaces after MERGE taken once, `\s*+`: each `\s*` X? `\s*` below split a run of them every
+# way - 1.6 s for 8 000 spaces, CL-340's 16 KB bomb.)
 _MERGE_NOT = re.compile(
+    r"\s*+(?:"
     r"\s*(?:is|was|should|would|will)?\s*(?:not|never)\b|\s*isn't\b"
     r"|\s*\?\s*(?:no|not|never)\b"  # ("MERGE? No - HOLD")
     # (CL-329 E: "MERGE - no, HOLD"; "MERGE is unsafe"; a MERGE on a condition
@@ -174,10 +181,13 @@ _MERGE_NOT = re.compile(
     r"|\s*[-–—:]+\s*no\s*[,.;!-]"
     r"|\s*(?:is|would\s+be|seems)\s+(?:unsafe|premature|risky|blocked"
     r"|wrong|a\s+mistake)\b"
-    # (CL-336: "MERGE blocked by the failing test", "MERGE ✗")
-    r"|\s*blocked\b|\s*[✗✘❌]"
+    # (CL-336: "MERGE blocked by the failing test", "MERGE ✗"; CL-340: "MERGE - blocked",
+    # "MERGE (blocked)", "MERGE: blocked until the fix", "MERGE; blocked", "MERGE [blocked]",
+    # "MERGE / blocked" - not "MERGE - not blocked")
+    r"|\s*blocked\b|\s*[-–—:;(\[/]+\s*blocked\b|\s*[✗✘❌]"
     r"|\s*[,–—-]?\s*(?:only\s+)?(?:once|if|when|after|pending|provided|unless"
-    r"|until|as\s+soon\s+as)\b",
+    r"|until|as\s+soon\s+as)\b"
+    r")",
     re.IGNORECASE,
 )
 # Where a negation's reach ends: "no, HOLD" and "No. HOLD until …" hold.
@@ -355,9 +365,12 @@ class ReviewMixin:
             )
             reviewed = self._recipe_reviewed(session, ctx.run_id, seen)
             root = project.root_path if project is not None else None
+        if (copy := self._kept_work(ctx)) is not None:  # (Fix it: the whole kept work is looked at)
+            kept = await asyncio.to_thread(merge.kept_work, copy, ctx.agent_id)
+            diff, whole, left = proof.cut([(one.path, text) for one, text in kept], MAX_REVIEW_DIFF)
         forced = held.review_forced  # (S11: a stronger model changed a test - always read)
         off = REVIEW_OFF if held.checks.own else TESTS_ONLY  # (S5c: the recipe's, or Tests only)
-        failing = any(one["kind"] == "tests" and one["state"] == "failed" for one in held.rows)
+        failing = proof.still_failing(held.rows)  # (N: not one failing before this turn)
         why = (
             None
             if forced
@@ -599,8 +612,9 @@ class ReviewMixin:
             if left
             else ""
         )
+        # (N: with what was failing before this turn, or flaky - a red line there is no finding)
         tests = proof.checked_text(
-            [one for one in held.rows if one["kind"] in ("tests", "coverage", "stronger")]
+            [one for one in held.rows if one["kind"] in ("tests", "coverage", "stronger", "before")]
         ) or ("no test was run")
         facing = [one.path for one in held.changes if one.in_project and one.kind == "ui"] or (
             ["a command's option"]
@@ -633,7 +647,8 @@ class ReviewMixin:
             f"\n\nWhy it is looked over: {why or 'a fix round before'}.\n\n"
             f"The user's request:\n{injection.noted(asked, 'agent')}\n\n"
             f"The change{cut}:\n{injection.noted(diff or '(no text diff)', 'agent')}\n\n"
-            f"KOLONİ's own test run:\n{tests}"
+            # (N: a test's id there is what a run printed - data, as the diff is)
+            f"KOLONİ's own test run:\n{injection.noted(tests, 'agent')}"
             + (
                 f"\n\n{injection.noted(unrun, 'agent')}"
                 if (unrun := self._unrun_lines(held))
@@ -710,6 +725,54 @@ class ReviewMixin:
         return Look(
             role, sign, verdict, _held_in_words(report, found) if verdict == "HOLD" else found, None
         )
+
+    @contextlib.asynccontextmanager
+    async def _look_kept(self: "AgentRunner", ctx: Ctx, review: bool):
+        """Around a command: for KOLONİ's look (`review`) in the copy of the work it looks at (its
+        opener's, `_ws`), what it writes there put back after it - in that copy's one window at a
+        time (`_copy_lock`: another look's command, the end gate's own run); yields the list what
+        could not be is said into. In the project (no copy) what it writes stays, as any agent's
+        command's."""
+        opener = self._ctxs.get(ctx.parent_id or "") if review else None
+        copy = self._copies.get(self._works_in(opener) or "") if opener is not None else None
+        said: list[str] = []
+        async with self._copy_held(copy):
+            trace = await self._look_trace(copy) if copy is not None else None
+            try:
+                yield said
+            finally:
+                if trace is not None:
+                    said.append(await self._look_untrace(ctx, trace))
+
+    @staticmethod
+    async def _look_trace(copy) -> tuple:
+        """P: the copy as it is before a look's command, for `_look_untrace`. A copy that cannot be
+        read first: the command is not run - never one whose writes could not be put back."""
+        try:
+            was, kept = await asyncio.to_thread(
+                lambda: copy.snapshot([path for path, _kind, _state in copy.changes()])
+            )
+        except OSError as exc:
+            raise ToolError(
+                f"not run: KOLONİ could not read the copy it runs in first ({exc})"
+            ) from None
+        return copy, was, kept
+
+    async def _look_untrace(self: "AgentRunner", ctx: Ctx, trace: tuple) -> str:
+        """What that one command wrote in the copy (a report, a cache) is not the work: put back,
+        as the end gate's own run's is - never taken in. What could not be: said ("" none)."""
+        copy, was, kept = trace
+        try:
+            touched = await asyncio.to_thread(copy.moved_since, was)
+            failed = copy.put_back(touched, was, kept)
+            if touched:
+                copy.save()
+        except OSError as exc:
+            failed = [str(exc)]
+        if not failed:
+            return ""
+        log.warning("run %s: a look's command left in the copy: %s", ctx.run_id, failed)
+        return LEFT_IN_COPY.format(paths=", ".join(failed[:5]))
 
     def _review_over(self: "AgentRunner", session, project, run_id: str) -> bool:
         """Whether the turn is past its token limit: a look would cost more of it."""

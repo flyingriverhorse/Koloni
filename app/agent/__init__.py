@@ -1575,6 +1575,10 @@ class AgentRunner(
         # and, once its Lead took it up, the run whose agents all work in that copy.
         self._resume_in: dict[str, str] = {}
         self._resumed: dict[str, str] = {}
+        # (k-bakis-yeri: and the run whose work it holds - its checks are the turn's too)
+        self._resumed_from: dict[str, str] = {}
+        # (k-bakis-yeri: one snapshot - run - put back at a time in a copy, by root: `_copy_lock`)
+        self._copy_locks: dict[str, asyncio.Lock] = {}
         # S9: where the coverage flags failed a whole suite - (project, folder, command) -> its
         # coverage settings then (`coverage.config_mark`): not tried again till they change, or
         # KOLONİ starts again (it was run twice each turn).
@@ -2322,6 +2326,7 @@ class AgentRunner(
         self._held_back.pop(run_id, None)
         self._resume_in.pop(run_id, None)
         self._resumed.pop(run_id, None)
+        self._resumed_from.pop(run_id, None)
         self._disputed.pop(run_id, None)
         # (After its copy is gone: until then its members' changes are that copy's.)
         room = self._rooms.pop(run_id, None)
@@ -2405,6 +2410,11 @@ class AgentRunner(
         of its line once there is one (`_works_in`), the project until then - and, answering a
         message (B-102), the copy its line's work was kept in, set aside: what its team did is
         there."""
+        opener = self._ctxs.get(ctx.parent_id or "")
+        if ctx.agent_id in self._read_only_agents and opener is not None:
+            # (P: KOLONİ's look reads and runs where the work it looks at is - its opener's place,
+            # where the end gate's tests ran: a recipe's copy, not the project)
+            return self._ws(opener)
         copy = self._copies.get(self._works_in(ctx) or "")
         if copy is not None:
             return copy.workspace()
@@ -6061,7 +6071,9 @@ class AgentRunner(
             async with (
                 self._measure_once(ctx, planned.command, moved)
                 if (moved is not None)
-                else contextlib.nullcontext() as once
+                else contextlib.nullcontext() as once,
+                # (P: a look's own command in the copy of the work it looks at - put back after)
+                self._look_kept(ctx, review) as left,
             ):
                 status, output = await self.commands.run(
                     run_id,
@@ -6084,6 +6096,7 @@ class AgentRunner(
                 await self._own_command_looked(
                     ctx, call_id, planned.command, held, since, ran, not unasked
                 )
+        output += "".join(left)
         # R161: what it made (where it ran: its line's copy, made by this very command
         # maybe). shortcut: by when files were written - in the project, another agent's
         # command or a Take in at the same moment is put down to it too (and in Docker,
