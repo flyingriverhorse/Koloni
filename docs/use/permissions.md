@@ -281,8 +281,9 @@ refused in such a turn. See [Triggers](../automation/triggers.md).
 
 KOLONİ's own check of [code style and types](checked.md#documents-diagrams-data-and-slides) runs
 the project's ruff, eslint, tsc or mypy as it runs the test command: at Ask and Auto-edit it asks
-on one card a tool (**Always** keeps it); while you are away, or in a turn nobody watches, it is
-not run, and says so.
+on a card - a yes is that line in that folder for the turn, and **Always** keeps that line, never
+the bare program; while you are away, or in a turn nobody watches without its trigger's leave for
+the line, it is not run, and says so. A program the turn wrote itself is never run.
 
 ## Choosing a level
 

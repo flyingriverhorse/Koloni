@@ -427,7 +427,7 @@ They come after the tests and before the review. A turn that wrote only such fil
 
 | Kind | Checked | Said, not failed |
 |---|---|---|
-| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") | the problems on lines the turn did not change, counted; a tool set up but not installed here; one the project's own check already runs (its CI lines, its test command); eslint's and tsc's warnings |
+| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") | the problems on lines the turn did not change, counted; eslint's and tsc's warnings on its lines, counted; a tool set up but not installed here; one the project's own check ran this turn (its CI lines, its test command); a tsconfig that names no files (a solution's `references`) or is composite - tsc is not run on it |
 | Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
 | Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
@@ -442,10 +442,17 @@ eslint (its config and `node_modules/.bin/eslint`) on the changed scripts, and t
 (`tsconfig.json` and `node_modules/.bin/tsc`) on its project - eslint and tsc from the nearest
 folder up from a file that has them. Running one runs the project's code (an `eslint.config.js`
 is JavaScript), so it goes as the project's test command goes: at Full auto it runs; at Ask and
-Auto-edit it waits on one card a tool a turn (**Always** keeps it for the project, so it never
-asks again); while you are away, or in a turn a trigger started, it is not run and its line says
-"needs your leave once". In a recipe's copy it runs there, and what it writes (a cache, a report)
-is put back - never taken in. At most 50 files a run, 2 minutes for them all. Where the project
+Auto-edit it waits on a card - your yes covers that very line in that folder for the rest of
+the turn, and **Always** keeps that line (the program and its options, never the bare program:
+a line that adds another config, a plugin folder or a report elsewhere asks again); while you are
+away, or in a turn a trigger started without its leave for that line, it is not run and its line
+says "needs your leave once". A program the turn wrote itself - in the folder a tool is installed
+in (`node_modules`, `.venv`), in any case of its name, or through a link - is never run, nor one
+whose real place is outside the project. It waits for KOLONİ's test-run slot (Settings › The
+app), so a type check never runs beside the whole test suite. tsc is told not to build
+incrementally and mypy keeps its cache in the folder: nothing is written outside it. In a
+recipe's copy it runs there, and what it writes (a cache, a report) is put back - never taken
+in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
 sets none of them up, nothing at all is said of it.
 
 A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
