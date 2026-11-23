@@ -214,7 +214,7 @@ const talkOf = (e: GraphEdge, drawn: Partial<Edge>, talkHues: Map<string, string
  * room (talk with no messages: its own colour, not a sub-agent's grey - the user's, 21 Nov), or none of those.
  */
 const edgeColour = (e: GraphEdge, talkHue: string | undefined, talking: boolean): string =>
-  e.shared ? e.shared.colour : e.request ? 'var(--request)' : e.findings !== undefined ? 'var(--warn)' : talkHue ?? (talking ? 'var(--tool-team)' : e.active || e.handed ? 'var(--accent)' : e.talk ? 'var(--member-line)' : 'var(--border-strong)')
+  e.shared ? e.shared.colour : e.request ? 'var(--request)' : e.findings !== undefined ? (e.loopBack ? 'var(--border-strong)' : 'var(--warn)') : talkHue ?? (talking ? 'var(--tool-team)' : e.active || e.handed ? 'var(--accent)' : e.talk ? 'var(--member-line)' : 'var(--border-strong)')
 
 /** A line's classes: it waits, carries findings, hands a file on, and is lit or faded while something is; none, undefined. */
 const edgeClass = (e: GraphEdge, lit: GraphEdge[] | null): string | undefined =>
@@ -703,7 +703,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
     // left in the frame - never under a card (the user, 6 Nov).
     if (arced(e)) {
       const { source, target, turned, band, ring, into } = arcWay(e, graph.nodes, graph.edges, rect, frameOf)
-      return { type: 'arc', source, target, sourceHandle: null, targetHandle: { top: 'found-in', foot: 'up-in', side: null }[into], data: { ...data, findings: e.findings, band, ring, turned } }
+      return { type: 'arc', source, target, sourceHandle: null, targetHandle: { top: 'found-in', foot: 'up-in', side: null }[into], data: { ...data, findings: e.findings, loopBack: e.loopBack, band, ring, turned } }
     }
     if (e.source === from) return { type: 'lane', sourceHandle: 'door-out', data }
     return columnLine(e, s, t, data)
@@ -824,7 +824,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       // (Drawn by its own line where it is one of edges.tsx's.)
       label: drawn.type ? undefined : edgeLabel(e),
       // (a findings label in its line's colour: between two boxes close together, the label is most of the line)
-      labelStyle: { fill: e.findings !== undefined ? 'var(--warn)' : 'var(--muted)', fontSize: 'var(--text-kicker)' },
+      labelStyle: { fill: e.findings !== undefined && !e.loopBack ? 'var(--warn)' : 'var(--muted)', fontSize: 'var(--text-kicker)' },
       // The canvas's own background (there is no --canvas: that drew the label on black).
       labelBgStyle: { fill: 'var(--bg)' },
       // Which way the work, the findings and the talk go, in a team's frame.

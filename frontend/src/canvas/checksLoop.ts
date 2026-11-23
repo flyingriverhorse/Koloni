@@ -1,4 +1,5 @@
 import { AGENT_STATUS, WAITS } from '../agents/agentStatus'
+import { turnTeams } from '../agents/teamRun'
 import type { Agent, Message, Run, ToolCall } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import { type ChecksData, type Line, lineOf, linesOf, PROOF_CALL, roundsSaid, toolOf } from './checksNode'
@@ -100,8 +101,10 @@ const callsById = (state: ConvState, run: Run) => new Map(state.toolCalls.filter
 
 /**
  * Who is in the box: an agent a call of KOLONİ's opened (`PROOF_CALL`: a review, a look again, a try's Tester, a diagnosis - and
- * a stronger model's fixer, `…fix_`); and one the Orchestrator opened after KOLONİ's first check - only work sent back opens one
- * then. Not in a recipe's turn: there its roles fix, in their frame.
+ * a stronger model's fixer, `…fix_`); and one opened after KOLONİ's first check - only work sent back opens one then: the
+ * Orchestrator's, or in a recipe's turn anyone's (its frame keeps the recipe's own steps, KOLONİ's send-back rounds are the box's).
+ * shortcut: in a recipe's turn every agent opened after KOLONİ's first check is a fix of the box - a Tester its send-back reran
+ * too ("Tester · fix"); tell them apart by the recipe's step if that is seen.
  */
 function boxOf(state: ConvState, run: Run, lead: Agent): Box {
   const calls = callsById(state, run)
@@ -109,7 +112,9 @@ function boxOf(state: ConvState, run: Run, lead: Agent): Box {
   const first = Math.min(...own.map(c => c.seq))
   const seqOf = (agent: Agent) => calls.get(agent.tool_call_id ?? '')?.seq ?? Number.MAX_SAFE_INTEGER
   const mine = (agent: Agent) => calls.get(agent.tool_call_id ?? '')?.provider_call_id.startsWith(PROOF_CALL) ?? false
-  const sentBack = (agent: Agent) => !run.teams?.length && agent.parent_agent_id === lead.id && !mine(agent) && seqOf(agent) > first
+  // (In a recipe's turn, only one whose opening call is known: the recipe's own steps are the frame's.)
+  const opener = (agent: Agent) => (run.teams?.length ? agent.depth > 0 && calls.has(agent.tool_call_id ?? '') : agent.parent_agent_id === lead.id)
+  const sentBack = (agent: Agent) => opener(agent) && !mine(agent) && seqOf(agent) > first
   const kolonis = state.agents.filter(a => a.run_id === run.id && a.depth > 0 && mine(a))
   const fixer = (agent: Agent) => calls.get(agent.tool_call_id ?? '')?.provider_call_id.startsWith(`${PROOF_CALL}fix_`) ?? false
   const fixes = [...kolonis.filter(fixer), ...state.agents.filter(a => a.run_id === run.id && sentBack(a))]
@@ -118,25 +123,43 @@ function boxOf(state: ConvState, run: Run, lead: Agent): Box {
   return { looks, fixes, ordered }
 }
 
-/** Its looks and fixes in rounds: a new one after a fix, or where a role looks again (the Orchestrator fixed it itself). */
+/** Its looks and fixes in rounds, each but the last with why it went back (as the Checked section says). */
 function roundsOf(box: Box, state: ConvState, why: string[]): LoopRound[] {
-  const rounds: LoopRound[] = [{ n: 1, looks: [], finding: null, fixed: [], why: null }]
+  const rounds = box.looks.length ? lookedRounds(box, state) : testedRounds(box, state)
+  for (const round of rounds.slice(0, -1)) round.why = why[round.n - 1] ?? null
+  return rounds
+}
+
+const roundOf = (n: number): LoopRound => ({ n, looks: [], finding: null, fixed: [], why: null })
+const fixOf = (state: ConvState, agent: Agent) => ({ agentId: agent.id, name: agent.name, files: filesOf(state, agent.id) })
+
+/** A new round after a fix, or where a role looks again (the Orchestrator fixed it itself). */
+function lookedRounds(box: Box, state: ConvState): LoopRound[] {
+  const rounds = [roundOf(1)]
   const looks = new Set(box.looks.map(a => a.id))
   const roleOf = new Map(box.looks.map(a => [a.id, a.role_name]))
   for (const agent of box.ordered) {
     const now = rounds.at(-1)!
     if (!looks.has(agent.id)) {
-      now.fixed.push({ agentId: agent.id, name: agent.name, files: filesOf(state, agent.id) })
+      now.fixed.push(fixOf(state, agent))
       continue
     }
     const again = now.fixed.length > 0 || now.looks.some(one => roleOf.get(one.agentId) === agent.role_name)
-    if (again) rounds.push({ n: rounds.length + 1, looks: [], finding: null, fixed: [], why: null })
+    if (again) rounds.push(roundOf(rounds.length + 1))
     const into = rounds.at(-1)!
     into.looks.push({ agentId: agent.id, name: agent.name, verdict: verdictOf(agent) })
     into.finding ??= agent.findings?.find(one => one.blocking !== false)?.what ?? null
   }
-  // (A round went back for what the Checked section says - each but the last.)
-  for (const round of rounds.slice(0, -1)) round.why = why[round.n - 1] ?? null
+  return rounds
+}
+
+/**
+ * Where nothing looked (sent back for the tests alone), KOLONİ's test run is each round's look: a round a fix, and the run
+ * after the last one - once that fix is over - the last round.
+ */
+function testedRounds(box: Box, state: ConvState): LoopRound[] {
+  const rounds = box.ordered.map((agent, at) => ({ ...roundOf(at + 1), fixed: [fixOf(state, agent)] }))
+  if (!box.ordered.some(atWork)) rounds.push(roundOf(rounds.length + 1))
   return rounds
 }
 
@@ -171,11 +194,15 @@ function endedSaid(agent: Agent, fix: boolean, state: ConvState): [string, Tone]
   return [verdict ?? 'done', verdict?.startsWith('HOLD') ? 'bad' : verdict === 'MERGE' ? 'ok' : 'note']
 }
 
-/** The box's line: at work "● round 2 · looking…"; over "⟲ 3 looks · 2 fix rounds · on hold" (looks and rounds said where there were). */
-function statusOf(box: Box, rounds: LoopRound[], data: ChecksData, running: number, asking: ReadonlySet<string>): [string, Tone] {
+/**
+ * The box's line: at work "● round 2 · looking…"; over "⟲ 3 looks · 2 fix rounds · on hold" (looks and rounds said where there
+ * were) - "not taken in" where the work stays in its copy for it.
+ */
+function statusOf(box: Box, rounds: LoopRound[], data: ChecksData, running: number, asking: ReadonlySet<string>, rows: Row[]): [string, Tone] {
   if (running) return [`● round ${running} · ${doing(box, asking)}`, 'run']
   const failed = data.lines.some(line => line.state === 'failed')
-  const end = failed ? (data.held ? 'on hold' : 'still failing') : '✓ checked'
+  const kept = rows.some(row => row.kind === 'not_taken' && row.state === 'failed')
+  const end = failed ? (kept ? 'not taken in' : data.held ? 'on hold' : 'still failing') : '✓ checked'
   const looked = rounds.filter(round => round.looks.length).length
   const parts = [looked && plural(looked, 'look'), data.rounds && plural(data.rounds, 'fix round')].filter(Boolean)
   return [`${failed ? '⟲ ' : ''}${[...parts, end].join(' · ')}`, failed ? 'bad' : 'ok']
@@ -187,6 +214,20 @@ function doing(box: Box, asking: ReadonlySet<string>): string {
   if (now.some(a => asking.has(a.id) || a.status === 'proposed')) return WAITS
   const running = now.filter(a => a.status === 'running')
   return running.some(a => box.looks.includes(a)) ? 'looking…' : running.length ? 'fixing…' : now.length ? 'waiting…' : 'testing…'
+}
+
+/** A drop against the last green run, short: "Tests went from 48 to 45 (3 removed)" is "48 → 45 (3 removed)". */
+const DROP = /^Tests went from (\d+) to (\d+) (\(.*?\))/
+
+/**
+ * Where nothing looked and work went back for the tests alone, the loop's left end is the tests (the approved sketch's case 3):
+ * "48 → 45 (3 removed)" where fewer ran, else the failing run as the node says it.
+ */
+function testsCard(rows: Row[], data: ChecksData): LoopCard {
+  const drop = rows.map(row => DROP.exec(row.text)).find(Boolean)
+  const failing = data.lines.find(line => line.state === 'failed')
+  const said = drop ? `${drop[1]} → ${drop[2]} ${drop[3]}` : (failing?.text ?? data.lines.at(-1)?.text ?? 'tests')
+  return { agentId: `tests:${data.runId}`, name: 'Tests', count: 1, said, tone: drop || failing ? 'bad' : 'note' }
 }
 
 /** Why the checks stopped where a round held: the Checked section's own line ("Still on hold after 2 fix rounds: …", "Stopped after round 3: …"). */
@@ -206,14 +247,14 @@ export function loopOf(state: ConvState, run: Run, data: ChecksData, asking: Rea
   const rows = checked?.checked ?? []
   const rounds = roundsOf(box, state, roundsSaid(checked).why)
   const running = passAtWork(state, run, data, box, rounds)
-  const [status, tone] = statusOf(box, rounds, data, running, asking)
+  const [status, tone] = statusOf(box, rounds, data, running, asking, rows)
   const last: Loop['dots'][number] = running ? 'running' : tone === 'ok' ? 'passed' : 'held'
   const passes = Math.max(running, rounds.length)
   return {
     // (A fix agent in it: work went back already - before KOLONİ's next pass counts the round.)
     loop: data.rounds > 0 || rounds.length > 1 || box.fixes.length > 0,
     agents: box.ordered.map(a => a.id),
-    looks: cardsOf(box.looks, false, state, asking),
+    looks: box.looks.length || !box.fixes.length ? cardsOf(box.looks, false, state, asking) : [testsCard(rows, data)],
     fixes: cardsOf(box.fixes, true, state, asking),
     rounds,
     status,
@@ -253,7 +294,21 @@ export function settleChecks(state: ConvState, run: Run, checks: GraphNode, node
   const drop = !checks.team && (data.loop || own.length) ? `agent:${data.leadId}>${checks.id}` : null
   for (let at = edges.length - 1; at >= 0; at--) if (gone.has(edges[at].source) || gone.has(edges[at].target) || edges[at].id === drop) edges.splice(at, 1)
   if (data.loop && !checks.team) edges.push(arrowInto(checks, own, data.loop))
+  if (checks.team) intoFrameBox(state, run, checks, nodes, edges)
   return gone
+}
+
+/**
+ * In a recipe's turn the box is its frame's last part: one arrow into it, from the last agent of the recipe's own steps still
+ * drawn there - never the Orchestrator's straight in (the Orchestrator reaches the frame at its door), nor one gone into the box.
+ */
+function intoFrameBox(state: ConvState, run: Run, checks: GraphNode, nodes: GraphNode[], edges: GraphEdge[]) {
+  for (let at = edges.length - 1; at >= 0; at--) if (edges[at].target === checks.id) edges.splice(at, 1)
+  const team = nodes.find(n => n.id === checks.team)?.refId
+  const passes = turnTeams(state, run.id).find(row => row.team_id === team)?.state.passes ?? []
+  const last = passes.flatMap(pass => pass.agents).findLast(id => nodes.some(n => n.id === `agent:${id}`))
+  const data = checks.data as ChecksData
+  if (last) edges.push({ id: `agent:${last}>${checks.id}`, source: `agent:${last}`, target: checks.id, active: Boolean(data.running) || data.loop?.tone === 'run' })
 }
 
 /** The box right of the Orchestrator's work, an arrow into it from that work: its middle agent, else the Orchestrator. */

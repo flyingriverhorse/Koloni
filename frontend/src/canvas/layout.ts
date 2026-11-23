@@ -259,7 +259,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
 
     let used = 0
     for (const root of roots) used += place(root, NODE_W + COL_GAP, top + used) + ROW_GAP
-    used += checksInFrame(own, edges, positions, sizes)
+    used += checksInFrame(own, positions, sizes)
     // An agent opened by one of a frame laid out by its work line, not in that frame (one the user declined): under the rest.
     for (const agent of agents.filter(a => !positions[a.id])) used += place(agent, NODE_W + COL_GAP, top + used) + ROW_GAP
     for (const node of own) {
@@ -544,19 +544,20 @@ function sized(checks: GraphNode, sizes: Record<string, Size>): Size {
 }
 
 /**
- * S5c: in a recipe's turn its Checks node is the recipe's last step - inside its frame, under all of its agents, in the column of
- * the agent its line comes from (the last pass's: straight down, crossing none), else the last column - before the frame is
- * drawn round them; returns the room it adds under them.
+ * S5c, tuval-kontrol-dongusu (the recipe case): in a recipe's turn its Checks node - the box of KOLONİ's looks and fixes, or its
+ * lines - is the frame's last part: right of the recipe's own steps, inside the frame (drawn round it after), its middle level
+ * with theirs where it is not taller; returns the room it adds under them.
  */
-function checksInFrame(own: GraphNode[], edges: GraphEdge[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
+function checksInFrame(own: GraphNode[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
   const checks = own.find(n => n.kind === 'checks' && n.team)
   const members = checks ? own.filter(n => n.team === checks.team && n.id !== checks.id && positions[n.id]) : []
   if (!checks || !members.length) return 0
-  const from = edges.find(e => e.target === checks.id && members.some(n => n.id === e.source))?.source
-  const x = from ? positions[from].x : Math.max(...members.map(n => positions[n.id].x))
-  const y = Math.max(...members.map(n => positions[n.id].y + (sizes[n.id]?.height ?? NODE_H))) + ROW_GAP
-  positions[checks.id] = { x, y }
-  return sized(checks, sizes).height + ROW_GAP
+  const size = sized(checks, sizes)
+  const boxes = members.map(n => ({ ...positions[n.id], ...(sizes[n.id] ?? { width: NODE_W, height: NODE_H }) }))
+  const [high, low] = [Math.min(...boxes.map(b => b.y)), Math.max(...boxes.map(b => b.y + b.height))]
+  const y = Math.max(high, high + (low - high - size.height) / 2)
+  positions[checks.id] = { x: Math.max(...boxes.map(b => b.x + b.width)) + COL_GAP, y }
+  return Math.max(0, y + size.height - low)
 }
 
 /** A column's nodes in rows: an agent of a round or of steps at once beside the one before it of its round, so many to a row. */

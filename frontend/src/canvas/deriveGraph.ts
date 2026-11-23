@@ -294,6 +294,8 @@ export interface GraphEdge {
   waits?: boolean
   /** From the agent whose report had findings to the one they were handed to: how many. */
   findings?: number
+  /** tuval-kontrol-dongusu (the recipe case): findings handed back inside a recipe's frame - its own loop, drawn grey (KOLONİ's, in its Checks box, red). */
+  loopBack?: boolean
   /** A request between teams (K-takimlar-arasi): one short line from frame to frame, its label; open while it is at work. */
   request?: { label: string; open: boolean; title: string; calls: string[] }
   /** K-shared-bagli: a team's (or an agent's) line to its card, in its colour; a contract's arm from its request's line. */
@@ -794,7 +796,14 @@ export function deriveGraph(state: ConvState, teams: Team[] = [], shared: Shared
   // (Drawn, laid out and picked as the turn they are: a comparison's sides as its first side's.)
   for (const node of nodes) node.runId = laterSides.get(node.runId) ?? node.runId
   const drawn = (e: GraphEdge) => !(e.spawn && unspawned.has(e.target)) && !inChecks.has(e.source) && !inChecks.has(e.target)
+  loopsBack(nodes, edges)
   return { nodes, edges: framed(nodes, edges.filter(drawn)) }
+}
+
+/** Findings handed back inside one recipe's frame: its own loop (`GraphEdge.loopBack`). */
+function loopsBack(nodes: GraphNode[], edges: GraphEdge[]) {
+  const teamOf = new Map(nodes.map(n => [n.id, n.team]))
+  for (const e of edges) if (e.findings !== undefined && teamOf.get(e.source) && teamOf.get(e.source) === teamOf.get(e.target)) e.loopBack = true
 }
 
 /** KOLONİ's checks of a turn (`checksNode`), and the agents drawn in its box (`settleChecks`), put down in `inChecks`. */
@@ -984,7 +993,8 @@ function agentNodes(
 /** A team frame's door and work lines, and how its agents are laid out in it. */
 function workLines(state: ConvState, run: Run, row: RanRow, nodes: GraphNode[], edges: GraphEdge[], unspawned: Set<string>) {
   const frame = `team:${run.id}:${row.team_id}`
-  const mine = new Set(row.state.agents.filter(id => state.agents.some(a => a.id === id && a.run_id === run.id)))
+  // (Not those KOLONİ's Checks box took - its send-back rounds' agents: `settleChecks`.)
+  const mine = new Set(row.state.agents.filter(id => state.agents.some(a => a.id === id && a.run_id === run.id) && nodes.some(n => n.id === `agent:${id}`)))
   const parentOf = (id: string) => state.agents.find(a => a.id === id)?.parent_agent_id ?? ''
   const roots = [...mine].filter(id => !mine.has(parentOf(id)))
   if (roots.length === 0) return

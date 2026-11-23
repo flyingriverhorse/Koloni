@@ -298,7 +298,7 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
     <div className={['node-checks', 'node-checks-box', loop.loop && 'node-checks-loop', selected && 'node-checks-selected'].filter(Boolean).join(' ')}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
       <div className="checks-tag">
-        <span className="checks-tag-title">{data.recipe ? 'Checks · end of the recipe' : 'Checks · KOLONİ'}</span>
+        <span className="checks-tag-title">Checks · KOLONİ</span>
         {loop.loop && (
           <span className="checks-status" data-tone={loop.tone}>
             {loop.status}

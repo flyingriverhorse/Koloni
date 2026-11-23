@@ -4,7 +4,7 @@ import { agent, assistantMessage, command, conversation, convState, note, run, t
 import type { ChecksData } from './checksNode'
 import { type AgentData, type RoundData, type TeamData, deriveGraph } from './deriveGraph'
 import { foldAll, foldGraph, unfold } from './foldGraph'
-import { ARC_ROOM, ARC_STEP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, STRIP_H, TEAM_HEAD, TEAM_OUT, TEAM_PAD, arcPath, arcWay, arced, bendOf, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberFrame, memberLine } from './layout'
+import { ARC_ROOM, ARC_STEP, COL_GAP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, STRIP_H, TEAM_HEAD, TEAM_OUT, TEAM_PAD, arcPath, arcWay, arced, bendOf, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberFrame, memberLine } from './layout'
 import { oneTurn } from './turns'
 
 // K-canvas-dili (mockup W): a team's work line left to right in its recipe's order, one fork into a step and one join
@@ -728,7 +728,7 @@ test('5 Nov: Evolve with its earlier rounds opened: no line of it runs under a c
   expect(out).toEqual([])
 })
 
-test('S5c: in a recipe’s turn the Checks node is the recipe’s last step - inside its frame, straight under its last pass’s agent', () => {
+test('S5c: in a recipe’s turn the Checks node is the frame’s last part - inside it, right of the recipe’s own steps, its arrow from its last pass’s agent', () => {
   const rows = [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null, counts: null }]
   const checked = { id: 'k', conversation_id: 'c', run_id: 'r', agent_id: null, role: 'checked' as const, content: '', created_at: at, checked: rows }
   const state = web({ runs: [{ ...run('r', 'completed'), teams: [row('web', 'Web app', AGENTS, PASSES, STEPS)] }], messages: [checked] } as Parameters<typeof web>[0])
@@ -740,17 +740,14 @@ test('S5c: in a recipe’s turn the Checks node is the recipe’s last step - in
   expect(g.edges.filter(e => e.target === checks?.id).map(e => e.source)).toEqual(['agent:rev2'])
   const { positions, sizes } = layoutGraph(g.nodes, g.edges)
   const frame = { ...positions['team:r:web'], ...sizes['team:r:web'] }
-  const box = positions[checks?.id ?? '']
-  expect(box.x).toBeGreaterThan(frame.x)
-  expect(box.x + NODE_W).toBeLessThan(frame.x + frame.width)
-  expect(box.y + NODE_H).toBeLessThan(frame.y + frame.height)
-  for (const id of AGENTS) expect(box.y).toBeGreaterThan(positions[`agent:${id}`].y)
-  // Its line straight down from rev2 crosses no other agent's box.
-  const from = positions['agent:rev2']
-  expect(box.x).toBe(from.x)
-  const middle = from.x + NODE_W / 2
-  const others = AGENTS.filter(id => id !== 'rev2').map(id => ({ ...positions[`agent:${id}`], ...sizes[`agent:${id}`] }))
-  expect(crosses({ x1: middle, y1: from.y + sizes['agent:rev2'].height, x2: middle, y2: box.y }, others)).toBe(false)
+  const box = { ...positions[checks?.id ?? ''], width: NODE_W, height: NODE_H }
+  const agents = AGENTS.map(id => ({ ...positions[`agent:${id}`], ...sizes[`agent:${id}`] }))
+  // Right of every step, a column's gap past the last; inside the frame, clear of its edges.
+  expect(box.x).toBe(Math.max(...agents.map(one => one.x + one.width)) + COL_GAP)
+  expect(box.x + box.width).toBeLessThan(frame.x + frame.width)
+  expect(box.y).toBeGreaterThan(frame.y)
+  expect(box.y + box.height).toBeLessThan(frame.y + frame.height)
+  for (const one of agents) expect(one.x + one.width <= box.x || box.y + box.height <= one.y || one.y + one.height <= box.y).toBe(true)
   // Folded, the frame holds it: not drawn, its lines go to the frame.
   const folded = foldGraph(deriveGraph(state), { 'team:r:web': false })
   expect(folded.nodes.some(node => node.kind === 'checks')).toBe(false)

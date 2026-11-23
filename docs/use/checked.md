@@ -840,8 +840,14 @@ brings that section into view in the chat.
 The Orchestrator's own box gets one line: "● checking…" while a run goes on, "✓ checked · 1 round",
 "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (the
 tests passed, a Reviewer or the Tester holds) or "not checked". In a recipe's turn the box is the
-recipe's last step, inside its frame, and says "end of the recipe"; there the recipe's roles fix
-what is sent back, in their frame. A turn KOLONİ did not check has no Checks box: off for this
+frame's last part - inside it, right of the recipe's steps; the Orchestrator's line reaches the
+frame at its door only. The frame keeps the recipe's own steps and its own loop (a Tester's
+findings back to the Coder, a grey dashed line - KOLONİ's loop is red); KOLONİ's looks and the
+Coders of its send-back rounds are in the box ("Coder · fix ×2"). Where KOLONİ sent the work back
+for the tests alone, nothing looking, the loop's left end is the tests - "48 → 45 (3 removed)" ⇄
+Coder · fix -, and "⟲ 2 fix rounds · not taken in" where the work stayed in its copy for it. With
+nothing opened the box is plain and says "end of the recipe". A turn KOLONİ did not check has no
+Checks box: off for this
 chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's Checks
 step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
 **Nothing**, it says nothing of it - the Checked section does.
