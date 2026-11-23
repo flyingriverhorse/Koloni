@@ -1098,9 +1098,11 @@ WIDE = "{path}: wider than the screen at {widths} px"
 # (`Browser.access`) - an image with no text for it, a button, link or field with no name, a
 # text below WCAG 2's contrast for it: 4.5:1, 3:1 for large text (LARGE_PX, or LARGE_BOLD_PX at
 # BOLD) - its colour over the backgrounds under it up to the first opaque one (none: the white
-# of the page's canvas). Failed, as a console error is; text over an image or a gradient is not
-# checked, and said. Its words, an image's file name, a control's tag and id are the page's own:
-# each cut to MOST_SNIPPET, and sent back as data (`KINDS_TO_FIX`).
+# of the page's canvas). Failed, as a console error is - but contrast: a warning, its ratio said,
+# never a fix round (the main session's decision: a colour is the page's design, its reading is
+# not sure enough to send work back for); text over an image or a gradient is not checked, and
+# said. Its words, an image's file name, a control's tag and id are the page's own: each cut to
+# MOST_SNIPPET, and sent back as data (`KINDS_TO_FIX`).
 NO_ALT = "{path}: {n} images without alt text at {widths} px - {named}"
 NO_NAME = "{path}: {n} buttons, links or fields with no name at {widths} px - {named}"
 LOW_CONTRAST = "{path}: {n} texts below the contrast they need at {widths} px - {named}"
@@ -1201,6 +1203,7 @@ async def _look(
     outside, wide, away, read = False, [], set(), {}
     try:
         url = browser.allowed(at, ws, one.closed)
+        await one.light()  # (the colour scheme the read judges by, before the page first loads)
         for width in WIDTHS:
             await one.width(width)
             one.console()  # (what the last width's page said is not this one's)
@@ -1299,9 +1302,9 @@ _FAILED = (
     ("alt", NO_ALT),
     ("name", NO_NAME),
     ("focus", HIDDEN_FOCUS),
-    ("contrast", LOW_CONTRAST),
 )
 _NOTED = (
+    ("contrast", LOW_CONTRAST),  # (a warning: never a fix round)
     ("over", OVER_IMAGE),
     ("dark", DARK_ONLY),
     ("inside", UNREAD_INSIDE),

@@ -460,30 +460,38 @@ no model and nothing installed:
 - a button, link or field with no name - no words of its own, `aria-label`, `aria-labelledby`,
   `title`, label, placeholder, a button's value or an image's `alt` in it: "1 buttons, links or
   fields with no name at 375, 768, 1280 px - input[type=email]#email";
-- text below the contrast WCAG 2 asks - 4.5:1, or 3:1 for large text (24 px, or 18.66 px bold) -
-  its colour over the backgrounds under it, up to the first opaque one (the page's white where
-  there is none), any CSS colour: "3 texts below the contrast they need at 375 px - “Muted words”
-  2.84:1 (needs 4.5:1)". Each colour, background, size and weight is named once, the lowest first.
-  Its colour is `-webkit-text-fill-color` where that is set;
 - a page hidden whole from screen readers (`aria-hidden` on `html` or `body`), and a control one
-  can tab to inside `aria-hidden` (a button, a link, a field, `tabindex` 0 or more, not disabled):
-  "2 controls one can tab to inside aria-hidden at 375, 768, 1280 px - button, a[href=/x]".
+  can tab to inside `aria-hidden` (a button, a link, a field, `tabindex` 0 or more, not disabled,
+  not inside `inert`): "2 controls one can tab to inside aria-hidden at 375, 768, 1280 px -
+  button, a[href=/x]".
 
 These are failed and go back as a fix round, the page's words in them as data; the "no console
-errors" line stays with them. Read with the light colour scheme (`prefers-color-scheme: light`),
-whatever this machine's is. What the read cannot judge is said, not sent back, never guessed:
+errors" line stays with them.
 
-- text with something drawn under it - an image, a gradient, or, where no background is found up
-  the page, a picture or a layer of another element over its words (a positioned overlay, a hero
-  image, a fixed backdrop): "contrast not checked … on 2 texts with something drawn under them";
+Contrast is a warning: said with its ratio, never sent back - a colour is the page's design, and a
+reading of it is not sure enough to send work back for. Text below the contrast WCAG 2 asks -
+4.5:1, or 3:1 for large text (24 px, or 18.66 px bold) - its colour over the backgrounds under it,
+up to the first opaque one (the page's white where there is none), any CSS colour: "3 texts below
+the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1)". Each colour, background,
+size and weight is named once, the lowest first. Its colour is `-webkit-text-fill-color` where
+that is set. Read with the light colour scheme (`prefers-color-scheme: light`, set before the page
+first loads), whatever this machine's is. What the read cannot judge is said, not sent back, never
+guessed:
+
+- text with something drawn under it - an image, a gradient, gradient text (its fill
+  see-through), or a picture or a layer of another element over its words, drawn inside the
+  background found under it, or anywhere where none is (a positioned overlay, a hero image under
+  a dark layer, a fixed backdrop): "contrast not checked … on 2 texts with something drawn under
+  them". A fixed header or bottom bar counts only where it is at the page's top; a backdrop that
+  is hidden (`visibility: hidden`, `opacity: 0`), as a closed modal's is, not at all;
 - a page whose colour scheme is dark only (`color-scheme: dark`): "contrast not checked … the
   page's colour scheme is dark only" - its canvas is dark, not the white the rule reads under it;
 - frames and shadow roots: counted, not read ("accessibility not read inside 1 frames or shadow
   roots"); a closed shadow root is not seen at all;
 - a page whose script took its body away: "accessibility not read … the page has no body". One
   that moved its content out of the body is read all the same: the read starts at the page's root;
-- a page's first 2,000 elements are read, for 3 seconds at most a width; past that:
-  "accessibility checked only in part".
+- a page's first 2,000 elements are read, for 3 seconds at most a width, and a text's words are
+  compared with 200 drawn elements at most; past that: "accessibility checked only in part".
 
 The read goes through the browser's own getters, so a field named after one of the page's
 properties (`<input name="parentElement">`) cannot steer it. Hidden and disabled elements are left
@@ -835,7 +843,8 @@ the Orchestrator's window, whose record holds the runs.
 | – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
 | ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
 | ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |
-| ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name · 3 texts below the contrast they need … | The page is hard to see or use with a screen reader: sent back as a fix round. |
+| ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name … | The page is hard to use with a screen reader: sent back as a fix round. |
+| – `page`: 3 texts below the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1) | A warning: hard to read, said with its ratio - never sent back. |
 | ✗ `page`: the whole page is hidden from screen readers (aria-hidden) · 2 controls one can tab to inside aria-hidden … | A screen reader is told nothing of the page, or a control one tabs to is not there for it: sent back as a fix round. |
 | – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body) | What the accessibility read could not judge: said, not sent back. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |

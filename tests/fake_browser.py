@@ -115,7 +115,8 @@ class Read(html.parser.HTMLParser):
             "frames": 0,
             "nobody": False,
         }
-        self.layer = False  # (a positioned layer is drawn: `handle_data`)
+        # (each positioned layer drawn - the open elements it is in, by id: `handle_data`)
+        self.layers: list[set[int]] = []
         self.open: list[dict] = []
         self.fields: list[tuple[int, dict, bool]] = []
         self.labelled: set[str] = set()
@@ -180,13 +181,26 @@ class Read(html.parser.HTMLParser):
         position = style.get("position", "")
         back = style.get("background-color") or style.get("background", "")
         drawn = (under := colour(back)) is not None and under[3] > 0 or "url(" in back
-        if position in ("absolute", "fixed") and (drawn or tag == "img"):
-            self.layer = True
+        hidden = style.get("visibility") == "hidden" or style.get("opacity") in ("0", "0.0")
+        # (a fixed one only as a backdrop - the whole window, or behind the page: a header or a
+        # bar is where it is at the page's top, under no text of these pages)
+        backdrop = style.get("inset") == "0" or style.get("z-index", "").startswith("-")
+        if (
+            (position == "absolute" or position == "fixed" and backdrop)
+            and (drawn or tag == "img")
+            and not hidden
+        ):
+            self.layers.append({id(one) for one in self.open})
         tabbed = tag in ("button", "select", "textarea") or tag == "a" and "href" in attrs
         tabbed = tabbed or tag == "input" and attrs.get("type") != "hidden"
         tabbed = tabbed or not attrs.get("tabindex", "-").startswith("-")
         inside = attrs.get("aria-hidden") == "true" or any(
             one["attrs"].get("aria-hidden") == "true" for one in self.open
+        )
+        inside = (
+            inside
+            and "inert" not in attrs
+            and not any("inert" in one["attrs"] for one in self.open)
         )
         if (
             tabbed
@@ -237,7 +251,7 @@ class Read(html.parser.HTMLParser):
             return
         if any(one["tag"] in _UNREAD or "disabled" in one["attrs"] for one in self.open):
             return
-        top, layers, image = self.open[-1], [], False
+        top, layers, image, stop = self.open[-1], [], False, None
         for one in reversed(self.open):
             back = one["style"].get("background-color") or one["style"].get("background", "")
             if "url(" in back or "gradient(" in back or one["style"].get("background-image"):
@@ -246,8 +260,12 @@ class Read(html.parser.HTMLParser):
             if (under := colour(back)) is not None and under[3] > 0:
                 layers.append(under)
                 if under[3] >= 1:
+                    stop = one
                     break
-        image = image or self.layer and not any(one[3] >= 1 for one in layers)
+        # (a layer drawn inside the opaque background it is over - or anywhere, over none; a
+        # see-through fill: gradient text)
+        image = image or top["colour"][3] == 0
+        image = image or any(stop is None or id(stop) in layer for layer in self.layers)
         if self.out["scheme"]:
             return
         key = json.dumps([top["colour"], layers, image, top["px"], top["weight"]])

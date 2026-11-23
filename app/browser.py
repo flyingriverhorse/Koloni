@@ -512,10 +512,12 @@ _WIDE_JS = _tag("wide") + (
 # image's alt in it), a page hidden whole (aria-hidden on html or body), a control one tabs to
 # inside aria-hidden, and each text shown: its colour (-webkit-text-fill-color where set), the
 # backgrounds under it up to the first opaque one, its size and weight - `under`: null where
-# something is drawn under it (an image, a gradient, more than A11Y_LAYERS see-through layers,
-# or - no opaque one found - a picture or a layer of another element over its box, a positioned
-# overlay). The colours as numbers, [r, g, b, alpha] - any CSS colour, through a canvas
-# (Tailwind's are oklch). With prefers-color-scheme pinned to light (`Browser.access`), a page
+# something is drawn under it (an image, a gradient, gradient text, more than A11Y_LAYERS
+# see-through layers, or a picture or a layer of another element over its words - drawn inside
+# the opaque background found, or anywhere where none is: a positioned overlay, a backdrop; a
+# fixed one compared where it is at the page's top unless it is a backdrop; a hidden one not).
+# The colours as numbers, [r, g, b, alpha] - any CSS colour, through a canvas
+# (Tailwind's are oklch). With prefers-color-scheme pinned to light (`Browser.light`), a page
 # whose colour scheme is dark only says so (`scheme`) and its texts are not judged; a page with
 # no body (`nobody`) is not read. Frames and shadow roots are counted, not read (`frames`).
 # The page's own named elements shadow a DOM property of their form or of the document
@@ -531,6 +533,8 @@ A11Y_LISTED = 20
 A11Y_STYLES = 500
 A11Y_LAYERS = 16
 A11Y_PAINTED = 1000
+A11Y_COMPARED = 200  # (drawn elements a text's words are compared with, then said in part)
+A11Y_PAIRS = 20000  # (...and line boxes compared with theirs, two by two)
 A11Y_DEPTH = 512  # (how far up a text's background is looked for)
 A11Y_NAMED_IDS, A11Y_TEXT = 20, 200  # (aria-labelledby's ids read, the characters of each text)
 _A11Y = r"""(o) => {
@@ -562,8 +566,9 @@ _A11Y = r"""(o) => {
   const tag = (el) => tagOf(el) || '';
   const labels = (el) => {
     const on = labelled[tag(el)];
-    return on ? [...(get(on.prototype, 'labels')(el) || [])] : [];
+    return on && el instanceof on ? [...(get(on.prototype, 'labels')(el) || [])] : [];
   };
+  const field = (el) => el instanceof HTMLInputElement;
   const root = get(D, 'documentElement')(document), body = get(D, 'body')(document);
   if (!root) return out;
   if (!body) { out.nobody = true; return out; }
@@ -615,7 +620,7 @@ _A11Y = r"""(o) => {
     return said;
   };
   const named = (el) => {
-    const t = tag(el), input = t === 'INPUT' ? typeOf(el) : '';
+    const t = tag(el), input = field(el) ? typeOf(el) : '';
     return words([
       attr(el, 'aria-label'), attr(el, 'title'), attr(el, 'placeholder'), ...by(el),
       ...labels(el).map((one) => textOf(one, o.text)),
@@ -626,7 +631,7 @@ _A11Y = r"""(o) => {
   };
   const called = (el) => {
     const t = tag(el).toLowerCase(), id = idOf(el);
-    const how = t === 'input' ? '[type=' + typeOf(el) + ']'
+    const how = field(el) ? '[type=' + typeOf(el) + ']'
       : t === 'a' ? '[href=' + attr(el, 'href') + ']' : '';
     return (t + how + (id ? '#' + id : '')).slice(0, 80);
   };
@@ -634,18 +639,22 @@ _A11Y = r"""(o) => {
   // null: not known - too far up, or out of time)
   const below = (el) => {
     const path = [];
-    let got = {layers: [], image: false, open: true}, at = el, depth = 0;
+    let got = {layers: [], image: false, open: true, stop: null}, at = el, depth = 0;
     for (; at && depth < o.depth; at = parent(at), depth++) {
       if (performance.now() > until) return null;
       const known = under.get(at);
       if (known) { got = known; break; }
       const s = getComputedStyle(at), c = rgba(s.backgroundColor);
       if (s.backgroundImage !== 'none') {
-        got = {layers: [], image: true, open: false};
+        got = {layers: [], image: true, open: false, stop: at};
         under.set(at, got);
         break;
       }
-      if (c[3] >= 1) { got = {layers: [c], image: false, open: false}; under.set(at, got); break; }
+      if (c[3] >= 1) {
+        got = {layers: [c], image: false, open: false, stop: at};
+        under.set(at, got);
+        break;
+      }
       path.push([at, c]);
     }
     if (at && depth >= o.depth) return null;
@@ -653,8 +662,8 @@ _A11Y = r"""(o) => {
       const [one, c] = path[i];
       if (c[3] > 0 && !got.image) {
         got = got.layers.length < o.layers
-          ? {layers: [c, ...got.layers], image: false, open: got.open}
-          : {layers: [], image: true, open: false};
+          ? {layers: [c, ...got.layers], image: false, open: got.open, stop: got.stop}
+          : {layers: [], image: true, open: false, stop: got.stop};
       }
       under.set(one, got);
     }
@@ -663,13 +672,26 @@ _A11Y = r"""(o) => {
   // (what draws: a picture, a gradient or image, a background of any colour)
   const pictures = new Set(['IMG', 'VIDEO', 'CANVAS', 'IFRAME', 'EMBED', 'OBJECT', 'svg']);
   const painted = [];
+  // (not one hidden - visibility: hidden, opacity: 0 - as a closed modal's backdrop is)
   const draws = (el, t) => {
+    if (visible && !visible(el, {visibilityProperty: true, opacityProperty: true,
+      checkVisibilityCSS: true, checkOpacity: true})) return false;
     if (pictures.has(t)) return true;
     const s = getComputedStyle(el);
     return s.backgroundImage !== 'none' || rgba(s.backgroundColor)[3] > 0;
   };
-  // (no opaque background found under it: is another element's picture or layer over its box -
-  // a positioned overlay, a backdrop? Its ancestors' are under it already, what it holds its own)
+  // (a fixed one under every scrolled text: a backdrop - the whole window, or behind the page)
+  const backdrop = (el) => {
+    const s = getComputedStyle(el);
+    if (s.position !== 'fixed') return false;
+    const r = box(el);
+    return parseInt(s.zIndex, 10) < 0 ||
+      r.left <= 0 && r.top <= 0 && r.right >= innerWidth - 1 && r.bottom >= innerHeight - 1;
+  };
+  // (is another element's picture or layer over its words - a positioned overlay, a backdrop? -
+  // drawn inside `within`, the opaque background it is over (none: the whole page). Its
+  // ancestors' are under it already, what it holds its own. A fixed header or bar is compared
+  // where it is at the top of the page. More than `o.compare` to compare, or out of time: null)
   // (its words' own boxes, line by line - an inline element's box spans the lines it wraps)
   const range = D.createRange.call(document);
   const lines = (el) => {
@@ -684,11 +706,27 @@ _A11Y = r"""(o) => {
   // (a pixel's touch at an edge is no overlap)
   const over = (q, r, fixed) => q.left < r.right - 1 && r.left < q.right - 1 &&
     (fixed || q.top < r.bottom - 1 && r.top < q.bottom - 1);
-  const drawn = (el) => {
+  const drawn = (el, within) => {
     const mine = lines(el);
+    if (!mine.length) return false;
+    // (the words' whole box first: a line box each is compared only where the two boxes meet)
+    const all = {left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity};
+    for (const r of mine) {
+      all.left = Math.min(all.left, r.left);
+      all.top = Math.min(all.top, r.top);
+      all.right = Math.max(all.right, r.right);
+      all.bottom = Math.max(all.bottom, r.bottom);
+    }
+    let compared = 0, pairs = 0;
     for (const p of painted) {
       if (p.el === el || contains(p.el, el) || contains(el, p.el)) continue;
-      for (const q of p.rs) for (const r of mine) if (over(q, r, p.fixed)) return true;
+      if (within && !contains(within, p.el)) continue;
+      if (++compared > o.compare || performance.now() > until) return null;
+      if (!over(p.all, all, p.backdrop)) continue;
+      for (const q of p.rs) {
+        if ((pairs += mine.length) > o.pairs) return null;
+        for (const r of mine) if (over(q, r, p.backdrop)) return true;
+      }
     }
     return false;
   };
@@ -712,7 +750,7 @@ _A11Y = r"""(o) => {
     if (shadow(el) || t === 'IFRAME' || t === 'FRAME') out.frames++;
     if ((html || t === 'svg') && el !== root && el !== body && draws(el, t)) {
       if (painted.length >= o.painted) out.cut = true;
-      else painted.push({el, rs: [...rects(el)], fixed: getComputedStyle(el).position === 'fixed'});
+      else painted.push({el, rs: [...rects(el)], all: box(el), backdrop: backdrop(el)});
     }
     if (!html) continue;
     if (t === 'IMG' && !has(el, 'alt') && told(el) && seen(el) &&
@@ -730,7 +768,7 @@ _A11Y = r"""(o) => {
       if (out.controls.length < o.listed) out.controls.push(called(el));
     }
     if (!out.hidden && matches(el, tabbed) && !matches(el, ':disabled, [tabindex^="-"]') &&
-        !told(el) && seen(el)) {
+        !told(el) && !closest(el, '[inert]') && seen(el)) {
       out.focusN++;
       if (out.focus.length < o.listed) out.focus.push(called(el));
     }
@@ -745,10 +783,12 @@ _A11Y = r"""(o) => {
     if (performance.now() > until) { out.cut = true; break; }
     const s = getComputedStyle(el);
     const fg = rgba(s.getPropertyValue('-webkit-text-fill-color') || s.color);
-    if (fg[3] === 0) continue;
+    if (fg[3] === 0 && rgba(s.color)[3] === 0) continue;  // (no words drawn)
     const bg = below(el);
     if (!bg) { out.cut = true; continue; }
-    const over = bg.image || bg.open && drawn(el);
+    // (gradient text - its fill see-through, a background clipped to its words: drawn, said)
+    const over = fg[3] === 0 || bg.image || drawn(el, bg.open ? null : bg.stop);
+    if (over === null) { out.cut = true; continue; }
     const px = parseFloat(s.fontSize) || 0, weight = parseInt(s.fontWeight, 10) || 400;
     const key = JSON.stringify([fg, over ? null : bg.layers, px, weight]);
     let one = styles.get(key);
@@ -775,6 +815,8 @@ def _a11y_js() -> str:
         "styles": A11Y_STYLES,
         "layers": A11Y_LAYERS,
         "painted": A11Y_PAINTED,
+        "compare": A11Y_COMPARED,
+        "pairs": A11Y_PAIRS,
         "depth": A11Y_DEPTH,
         "ids": A11Y_NAMED_IDS,
         "text": A11Y_TEXT,
@@ -1472,15 +1514,20 @@ class Browser:
         KOLONİ's own world (`_world`): the page's scripts cannot change what it calls."""
         return bool(await self._world(_WIDE_JS))
 
+    async def light(self) -> None:
+        """Pages accessibility: prefers-color-scheme light from here on - before a page opens, so
+        a script that reads it as it loads sees what the read judges by."""
+        await self._call(
+            "Emulation.setEmulatedMedia",
+            {"features": [{"name": "prefers-color-scheme", "value": "light"}]},
+        )
+
     async def access(self) -> dict | None:
         """Pages accessibility (0.1.7): what the page as it loaded says of its images, controls
         and texts (`_A11Y`), read in KOLONİ's own world (`_world`) with prefers-color-scheme
         pinned to light - the colours its contrast is judged in, whatever this machine's are;
         None where the read threw."""
-        await self._call(
-            "Emulation.setEmulatedMedia",
-            {"features": [{"name": "prefers-color-scheme", "value": "light"}]},
-        )
+        await self.light()
         found = await self._world(_a11y_js())
         return found if isinstance(found, dict) else None
 
