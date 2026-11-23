@@ -35,6 +35,13 @@ test('a test run at work shows its tool and when it started, and no number it ha
   expect((nodes[0].data as AgentData).checked).toBe('● checking…')
 })
 
+test('S5b: a live try of KOLONİ’s - a tool’s --help, a dev server - is no test run of the turn', () => {
+  const tried = (id: string, line: string) => ({ ...proofCall(id, 'running', '2026-10-05T10:00:03Z', line), provider_call_id: `koloni_proof_try_${id}` })
+  const { data } = drawn(convState({ runs: [run('r')], agents: [agent('r')], toolCalls: [proofCall('p1', 'succeeded'), tried('t1', 'npm run dev'), tried('t2', 'npm run dev')] }))
+  expect(data?.running).toBeNull()
+  expect(data?.rounds).toBe(0)
+})
+
 test('the Checked rows are its lines, with their counts where the runner gave them', () => {
   const rows = [
     row('passed', 'Tests passed: python -m pytest -q - 214 passed', { command: 'python -m pytest -q', counts: { passed: 214, failed: 0, skipped: 0, unit: 'tests' } }),

@@ -86,7 +86,7 @@ AfterChange = Literal["check", "tests", "nothing"]
 # S10: Test and review changes, for one chat; None (not sent as such) the project's.
 ChatAfterChange = Literal["off", "on"]
 # S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`).
-CheckKind = Literal["docs", "slides", "diagram", "data"]
+CheckKind = Literal["docs", "slides", "diagram", "data", "ui"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -2972,6 +2972,7 @@ class RecipeChecks(Shut):
     diagram: bool = False
     data: bool = False
     slides: bool = False
+    ui: bool = False  # (S5b: pages in KOLONİ's own browser - Settings calls them Pages)
     # How often a problem goes back to fix; 0: check only; None: the project's Fix rounds.
     fix_rounds: int | None = Field(None, ge=0, le=5)
 

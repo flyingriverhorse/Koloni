@@ -203,7 +203,15 @@ ASK_ON = {"test_proof_test_ask_scenarios"}
 # S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
 # their rows in every such turn, and a step of the scripted Lead more where one fails. On only
 # where tested.
-KINDS_ON = {"test_proof_kinds_scenarios", "test_recipe_end_checks_scenarios"}
+KINDS_ON = {"test_proof_kinds_scenarios", "test_recipe_end_checks_scenarios",
+            "test_proof_pages"}
+# S5b: a turn that wrote a page or a component is looked at in KOLONİ's own browser - in a test, a
+# browser started (a real one where no stand-in is named) and rows. On only where tested.
+PAGES_ON = {"test_proof_pages"}
+# S5b: the live try - a changed tool run with --help, a big change of screens tried by the Tester
+# on a preview - in a test, runs of the scripted executor and a scripted agent more. On only where
+# tested.
+TRY_ON = {"test_proof_try_scenarios"}
 
 
 async def _none(*_args, **_more):
@@ -246,6 +254,19 @@ def _no_kinds(monkeypatch):
     monkeypatch.setattr(KindsMixin, "_kinds_left", lambda *_args, **_more: [])
 
 
+def _no_pages(monkeypatch):
+    from app.agent.kinds_mixin import KindsMixin
+
+    async def no_pages(*_args, **_more):
+        return []
+    monkeypatch.setattr(KindsMixin, "_pages", no_pages)
+
+
+def _no_try(monkeypatch):
+    from app.agent.try_mixin import TryMixin
+    monkeypatch.setattr(TryMixin, "_proof_try", _none)
+
+
 def _no_gate(monkeypatch):
     from app.agent.proof_mixin import ProofMixin
     monkeypatch.setattr(ProofMixin, "_proof_left", _none)
@@ -254,7 +275,8 @@ def _no_gate(monkeypatch):
 
 # Each switch of the end check: the modules it is on in, and what turns it off elsewhere.
 SWITCHES = ((LOOK_ON, _no_look), (BEFORE_ON, _no_before), (REVIEW_ON, _no_review),
-            (ASK_ON, _no_ask), (KINDS_ON, _no_kinds))
+            (ASK_ON, _no_ask), (KINDS_ON, _no_kinds), (PAGES_ON, _no_pages),
+            (TRY_ON, _no_try))
 
 
 @pytest.fixture(autouse=True)

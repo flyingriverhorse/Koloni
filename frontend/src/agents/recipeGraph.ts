@@ -416,7 +416,7 @@ export function layout(graph: RecipeGraph): Record<string, Place> {
 export type Checks = NonNullable<RecipeGraph['checks']>
 /** S5c (plan decision 16): the recipe's locked Checks step - no part of the graph, drawn after its last step(s), never removed. Its choice is the graph's `checks`. */
 export const CHECKS = 'checks:end'
-/** What the Checks step may check, each with what it means, in the panel's order. (Pages comes with S5b.) */
+/** What the Checks step may check, each with what it means, in the panel's order. */
 export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: string, said: string][] = [
   ['tests', 'Tests', 'the project’s tests on the work'],
   ['review', 'Review', 'a Reviewer reads a big or security-touching change'],
@@ -424,9 +424,10 @@ export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: stri
   ['diagram', 'Diagrams', 'parses, every edge reaches a shape'],
   ['data', 'Data', 'CSV rows, notebook cells'],
   ['slides', 'Slides', 'empty slides, notes'],
+  ['ui', 'Pages', 'a changed page at phone, tablet and desktop widths, in KOLONİ’s browser'],
 ]
 /** "Set for this recipe" as it starts: the project's usual Test and review for code. */
-export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, fix_rounds: null })
+export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, ui: false, fix_rounds: null })
 
 /** The Checks step's choice: set for the recipe, or - null - following the project (no `checks` kept, as the server keeps it). */
 export function setChecks(graph: RecipeGraph, checks: Checks | null): RecipeGraph {

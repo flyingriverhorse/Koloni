@@ -377,6 +377,10 @@ def test_a_command_of_a_later_turn_beneath_the_run_says_the_project_changed(
     cid, run_id = begin(client, project_dir, check_command="python check.py")
     wait_run(client, cid, run_id)
     until(lambda: rows_of(client, cid, run_id)[0]["started_at"])
+    # (The later turn's own check off: since CL-321 Bulgu D a command's change is checked too,
+    # and its run of the suite would take the place of the first.)
+    assert client.patch(f"/api/conversations/{cid}", json={"after_change": "off"},
+                        headers=OWN).status_code == 200
     later = client.post(f"/api/conversations/{cid}/messages", json={"content": "fmt"}).json()
     wait_run(client, cid, later["run"]["id"])
     gate.release()
@@ -762,3 +766,29 @@ def test_the_settings_note_says_the_waits_the_server_keeps():
     note = Path(__file__).parent.parent / "frontend/src/shell/sections/afterChangeWords.ts"
     assert (f"WAITS = {{ detach: {proof_later_mixin.DETACH_SECONDS}, "
             f"copy: {proof_mixin.END_WAIT_SECONDS} }}") in note.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("word", ["Take back", "Keep", "stop"])
+def test_a_late_answer_on_the_suites_card_leaves_the_turn_ended(make_client, wait_run,
+                                                                project_dir, monkeypatch, word):
+    # (CL-325 Bulgu F: answered after the turn had ended, the card of a file the tests wrote put
+    # the turn back to "running" - and it stayed there, with nothing at work.)
+    monkeypatch.setattr(proof_later_mixin, "DETACH_SECONDS", scaled(1.0))
+    executor = ScriptedExecutor([Script(["4 passed\n"], writes={"AGENTS.md": "# anything goes\n"})])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, mode="full_auto", check_command="python check.py")
+    assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
+    (asked,) = until(lambda: [q for q in client.get(f"/api/conversations/{cid}").json()["questions"]
+                              if q["status"] == "pending"])
+    if word == "stop":
+        said = client.post(f"/api/runs/{run_id}/check/stop", headers=OWN)
+    else:
+        said = client.post(f"/api/questions/{asked['id']}/answer", json={"answer": word},
+                           headers=OWN)
+    assert said.status_code in (200, 202), said.text
+    until(lambda: [one for one in rows_of(client, cid, run_id) if one["kind"] == "tests"
+                   and one["state"] != "running"])
+    time.sleep(scaled(0.3))  # (what the answer set off has run)
+    status = client.get(f"/api/conversations/{cid}").json()["runs"][0]["status"]
+    assert status == "completed", status
+    assert (project_dir / "AGENTS.md").exists() is (word == "Keep")

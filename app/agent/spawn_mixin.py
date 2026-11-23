@@ -2101,7 +2101,9 @@ class SpawnMixin:
             # (A team's lead is one of this chat's rows only: `find_role` finds any.)
             lead = any(one is not None and one.id == role.id
                        for _r, _t, one in self._rows(session, ctx.cid))
-            caps = self._caps(ctx)
+            # (S5b: the live try's Tester is KOLONİ's, not the Lead's: its role's browser tools
+            # whatever the Lead has.)
+            caps = None if call_id in self._try_calls else self._caps(ctx)
             tools = self._read_only(call_id, effective_tools(role.tools, caps), caps)
             self._held_to_read(call_id, model, provider)
             # PAID_SWITCH: KOLONİ's move of it onto a provider paid per token (not a pick, not
