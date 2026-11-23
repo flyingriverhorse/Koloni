@@ -471,6 +471,14 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run
     ("**Verdict:** HOLD\nFindings: none", "HOLD"), ("VERDICT: hold", "HOLD"),
     ("Verdict: MERGE.", "MERGE"), ("Verdict — HOLD", "HOLD"), ("Verdict - HOLD", "HOLD"),
     ("Verdict: **HOLD**", "HOLD"), ("Verdict: **MERGE**\nVerdict — HOLD", "HOLD"),
+    # (CL-321 Bulgu E: written other ways, a HOLD was "not counted" and the change went on)
+    ("Final verdict: HOLD", "HOLD"), ("My verdict: HOLD", "HOLD"), ("1. Verdict: HOLD", "HOLD"),
+    ("## Verdict\nHOLD", "HOLD"), ("Verdict:\n\nHOLD", "HOLD"), ("Verdict: do NOT MERGE", "HOLD"),
+    ("Verdict: REQUEST CHANGES", "HOLD"), ("Verdict: REJECT", "HOLD"),
+    ("Verdict: MERGE is not possible", "HOLD"), ("Verdict: MERGE or HOLD? HOLD.", "HOLD"),
+    ("Verdict: I would HOLD this", "HOLD"), ("Overall verdict: MERGE", "MERGE"),
+    ("## Verdict\n\n**MERGE**", "MERGE"), ("Verdict: MERGE - no blocking findings", "MERGE"),
+    ("Verdict: MERGE, no findings", "MERGE"), ("No verdict here, it looks fine.", None),
 ])
 def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
     assert review_mixin.verdict_of(report) == verdict
@@ -694,3 +702,16 @@ def test_the_reviewers_own_test_run_beneath_the_suite_is_no_change_of_the_projec
     (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
                             if one["kind"] == "tests" and one["state"] != "running"])
     assert (row["state"], row["text"]) == ("passed", f"Tests passed: {CHECK} - 4 passed"), row
+
+
+def test_a_change_only_a_command_made_is_not_reviewed_and_says_why(make_client, wait_run,
+                                                                    project_dir):
+    # (CL-321 Bulgu D: with no change on record there is no diff to look over - said, never ✓.)
+    from tests.fakes import Script
+    from tests.test_proof_end_scenarios import WRITES, run
+    executor = ScriptedExecutor([Script(["\n"]), PASS])
+    client, _model = make_client([run(WRITES), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    rows = texts(wait_run(client, cid, run_id))
+    assert proof.UNRECORDED.format(command=WRITES) in rows, rows
+    assert review_mixin.UNRECORDED in rows, rows

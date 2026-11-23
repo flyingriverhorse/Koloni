@@ -211,6 +211,11 @@ class RecordMixin:
                 self._job_waits(run_id, False)
         with self._factory() as session:
             run = session.get(Run, run_id)
+            # (A turn already over keeps its end's status: a wait that ends after it - a card of
+            # a file its whole suite wrote, answered once the turn had ended - never makes it
+            # look at work again, with nothing at work: CL-325 Bulgu F.)
+            if run.status in TERMINAL and fields.get("status") in ("running", "waiting_approval"):
+                return
             for key, value in fields.items():
                 setattr(run, key, value)
             session.commit()

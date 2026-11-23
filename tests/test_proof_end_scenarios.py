@@ -979,3 +979,29 @@ def test_on_for_a_chat_checks_it_in_a_project_at_nothing(make_client, wait_run, 
     rows = checked(wait_run(client, cid, run_id))
     assert executor.started == [("python check.py", str(project_dir))]
     assert rows[0]["state"] == "passed", rows
+
+
+# --- CL-321 Bulgu D: a change only a command made ---------------------------------------------
+
+WRITES = "python -c \"open('a.py', 'w').write('x = 2')\""
+
+
+def test_a_change_only_a_command_made_is_tested_and_said(make_client, wait_run, project_dir):
+    # (No change of it on record: the turn passed for "nothing changed" - no test, no review.)
+    executor = ScriptedExecutor([Script(["\n"]), PASS])
+    client, _model = make_client([run(WRITES), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert [one for one, _cwd in executor.started] == [WRITES, "python check.py"]
+    assert texts(snap) == [proof.UNRECORDED.format(command=WRITES),
+                           "Tests passed: python check.py - 4 passed in 0.1s"], texts(snap)
+
+
+def test_a_turn_that_only_read_or_tested_opens_no_gate(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([Script(["clean\n"]), Script(["file\n"]), PASS])
+    client, _model = make_client([run("git status"), run("ls", "r2"),
+                                  run("python -m pytest -q", "r3"), text("done")],
+                                 executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert len(executor.started) == 3 and checked(snap) is None, (executor.started, texts(snap))

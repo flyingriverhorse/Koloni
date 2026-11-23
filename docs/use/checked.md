@@ -10,7 +10,11 @@ It works the same for every model and CLI.
 ## When it runs
 
 - After a turn in a project folder that changed a file. A turn that changed nothing, a plain
-  chat, a plan, and a side of a comparison get no Checked section.
+  chat, a plan, and a side of a comparison get no Checked section. A change made only by a
+  command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a formatter) is on no
+  record, so KOLONİ runs the tests all the same and says "A command of this turn may have changed
+  files KOLONİ did not record: …", with "No review: changes made by a command are not recorded";
+  a turn whose commands only read or ran tests is still a turn that changed nothing.
 - Where the work now is: in the project, or in the Orchestrator's own working copy (a team's
   branch, or a job while you're away). Work that waits in **Ready for you** is not part of it.
 - Once, after the turn's work is in: the agents run only the tests near their change while

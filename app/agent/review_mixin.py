@@ -99,11 +99,22 @@ TESTS_ONLY = "No review: After a change is Tests only"
 TESTS_FAIL = "No review: the tests still fail"
 RECIPE_DID = "No review: the recipe's own Review step looked it over"
 REVIEW_OFF = "No review: off in this recipe's Checks step"
+# CL-321 Bulgu D: a turn whose only change a command made - its diff is on no record.
+UNRECORDED = "No review: changes made by a command are not recorded"
 OVER_LIMIT = "the turn's token limit is reached"
 CAPPED = "Still on hold after {most} fix rounds: you decide (Fix it)"
 FINDING = "{mark}: {what}"
-# ("Verdict: HOLD", "### Verdict - HOLD", "- Verdict — MERGE", "Verdict: **HOLD**")
-VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?\**\s*Verdict\W*(MERGE|HOLD)\b", re.IGNORECASE)
+# A verdict's line ("Verdict: HOLD", "### Verdict - HOLD", "- Verdict — MERGE", "Verdict: **HOLD**";
+# CL-321 Bulgu E: numbered, "1. Verdict: HOLD", and up to two words before it, "Final verdict:",
+# "My verdict:"); what it says is read from the rest of it (`_verdict_said`).
+VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?(?:\d{1,3}[.)]\s+)?\**\s*(?:[A-Za-z]+\s+){0,2}"
+                     r"Verdict\b(?P<rest>.*)$", re.IGNORECASE)
+# What holds: HOLD, a change asked for, a rejection, a block - or MERGE said not to be.
+_HOLDS = re.compile(r"\b(?:HOLD|REQUEST(?:ED|ING)?\s+CHANGES|REJECT(?:ED)?|BLOCK(?:ED)?)\b",
+                    re.IGNORECASE)
+_NOT_MERGE = re.compile(r"\b(?:not|no|never|cannot|can't|don't|won't|shouldn't)\b[^.]*?\bMERGE\b"
+                        r"|\bMERGE\s+(?:is|was|should|would)?\s*(?:not|never)\b|\bMERGE\s+isn't\b",
+                        re.IGNORECASE)
 NO_VERDICT = "Review gave no verdict: not counted ({role}, {sign})"
 # A change a user sees: a screen's file, or a command's option added.
 USER_FACING = re.compile(r"add_argument\(|click\.option\(|\.option\(|process\.argv|argparse")
@@ -121,16 +132,35 @@ def verdict_of(report: str) -> str | None:
     """A look's verdict: a line `Verdict: MERGE` or `Verdict: HOLD` of its own (a heading's or a
     list item's too) - not one in a fenced block, a quote (`>`) or a diff line (`+`, `-` with no
     space after). Any HOLD wins. None: none said."""
-    found, fenced = set(), False
-    for line in report.splitlines():
+    found, fenced, lines = set(), False, report.splitlines()
+    for at, line in enumerate(lines):
         bare = line.lstrip()
         if bare.startswith("```"):
             fenced = not fenced
         elif not fenced and not bare.startswith((">", "+")) and not (
                 bare.startswith("-") and not bare.startswith("- ")) and (
-                said := VERDICT.match(line)):
-            found.add(said.group(1).upper())
+                head := VERDICT.match(line)):
+            # (A heading, or "Verdict:" alone: what it says is the next line's first word.)
+            rest = head["rest"] if re.search(r"[A-Za-z]", head["rest"]) else _first_word(
+                lines[at + 1:])
+            if said := _verdict_said(rest):
+                found.add(said)
     return "HOLD" if "HOLD" in found else "MERGE" if found else None
+
+
+def _verdict_said(words: str) -> str | None:
+    """What a verdict's words say: HOLD where they hold, ask for changes, reject or block, or
+    say MERGE is not to be (`do NOT MERGE`, `MERGE is not possible`); else MERGE where they
+    name it. None: neither."""
+    if _HOLDS.search(words) or _NOT_MERGE.search(words):
+        return "HOLD"
+    return "MERGE" if re.search(r"\bMERGE\b", words, re.IGNORECASE) else None
+
+
+def _first_word(lines: list[str]) -> str:
+    """The next line with words: its first, past a heading's or a list's marks."""
+    line = next((one for one in lines if one.strip()), "")
+    return next(iter(re.findall(r"[A-Za-z]+", line)), "")
 
 
 def _held_in_words(report: str, findings: list[dict] | None) -> list[dict] | None:
@@ -201,6 +231,9 @@ class ReviewMixin:
                 # decides, Fix it; below the cap.)
                 held.rows.append(proof.row("review", "failed", NOTHING_CHANGED.format(
                     n=held.review_rounds)))
+            return None
+        if held.unrecorded and not any(one.in_project for one in held.changes):
+            held.rows.append(proof.row("review", "note", UNRECORDED))
             return None
         # (B3: every line of the change - not the part of it the Reviewer is shown.)
         reasons = proof.review_reasons(held.changes, whole)

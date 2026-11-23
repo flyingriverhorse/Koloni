@@ -89,6 +89,9 @@ class Proof:
     yes: dict[str, set[str]] = field(default_factory=dict)
     # Plan decision 13: a recipe of the turn ran its own fix loop to its end - rounds never stack.
     recipe_spent: bool = False
+    # CL-321 Bulgu D: the turn's newest command that may have changed files off the record
+    # (`proof.unrecorded`, shortened); None: none.
+    unrecorded: str | None = None
     # S5c: what this pass checks (`proof.checks_of`: the project's, or its recipe's Checks step).
     checks: proof.Checks = proof.Checks(frozenset(proof.PARTS), MAX_SENT_BACK, "check", False)
     changes: list[Change] = field(default_factory=list)
@@ -152,10 +155,13 @@ class ProofMixin:
             if project is None or not checks.on:  # (S5c: a recipe's Checks step may turn all off)
                 return None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
-        if not any(one.in_project for one in found):
+            # (CL-321 Bulgu D: a change a command made is on no record - the gate opens for it.)
+            unrecorded = proof.unrecorded(session, ctx.run_id, {ctx.agent_id, *self._sharing(ctx)})
+        if not any(one.in_project for one in found) and unrecorded is None:
             return None
         held = self._proofs.setdefault(ctx.run_id, Proof(most=checks.rounds))
         held.changes, held.checks, held.most = found, checks, checks.rounds
+        held.unrecorded = unrecorded
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         for name in self.PROOF_STEPS:
             try:
@@ -205,7 +211,9 @@ class ProofMixin:
         if "tests" not in held.checks.on:  # (S5c: off in the recipe's Checks step)
             held.rows.append(proof.row("tests", "note", proof.TESTS_OFF))
             return None
-        if not proof.needs_tests(one.path for one in held.changes if one.in_project):
+        # (A command's change is on no record: what it changed is not known - tested.)
+        if not held.unrecorded and not proof.needs_tests(
+                one.path for one in held.changes if one.in_project):
             held.rows.append(proof.row("tests", "note", proof.NO_TESTS_ROW))
             return None
         with self._factory() as session:
@@ -477,7 +485,8 @@ class ProofMixin:
             session, run_id, lead.agent_id, self._sharing(lead))
         # (Work that only waits in Ready for you: nothing was checked - the "landed" line says
         # where it is.)
-        if project is None or not any(one.in_project for one in found):
+        if project is None or not (any(one.in_project for one in found) or (
+                held is not None and held.unrecorded)):
             return []
         waiting = self._waiting_rows(session, found)
         # (What the gate used where it ran: the recipe's row may have run again since.)
@@ -511,7 +520,12 @@ class ProofMixin:
                 why=NOT_REACHED.get(status, ENDED_FIRST))))
         tested = [*self._test_rows(session, run_id, lead.agent_id if lead else None, found, held),
                   *self._kinds_left(session, run_id, cid, found, held)]  # (S5a)
-        return [*held.rows, *tested, *rounds, *waiting]  # (S2's rows: `TestAskMixin`)
+        # (CL-321 Bulgu D: said where the command is why it was tested - no recorded change, or
+        # only documents: a change of code on record is tested anyway, and says nothing more.)
+        unrecorded = [proof.row("unrecorded", "note", proof.UNRECORDED.format(
+            command=held.unrecorded))] if held.unrecorded and not proof.needs_tests(
+            one.path for one in found if one.in_project) else []
+        return [*unrecorded, *held.rows, *tested, *rounds, *waiting]  # (S2's rows: `TestAskMixin`)
 
     @staticmethod
     def _waiting_rows(session, found: list[Change]) -> list[Row]:

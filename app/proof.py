@@ -319,6 +319,23 @@ def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
     return shown, whole, left
 
 
+def unrecorded(session: Session, run_id: str, by: Collection[str]) -> str | None:
+    """CL-321 Bulgu D: the newest command of `by` (the Lead and the agents working where it
+    does) this turn that may have changed files no change record holds - not a mere read
+    (`only_reads`), not a test run (`ledger.read_test`), not KOLONİ's own: `python -c "open(…)"`,
+    `sed -i`, a heredoc to a file, a formatter. None: none ran."""
+    mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
+    for line in session.scalars(select(Command.command).where(
+            Command.run_id == run_id, Command.agent_id.in_(by),
+            Command.status.in_(("exited", "timed_out")),
+            or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(mine)))
+            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
+        if ledger.read_test(line) is None and not only_reads(line):
+            said = " ".join(line.split())
+            return said if len(said) <= MOST_COMMAND else said[:MOST_COMMAND - 1] + "…"
+    return None
+
+
 def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
                 ) -> datetime | None:
     """When the turn's newest kept change was made or taken in: a test run that started before
@@ -545,6 +562,9 @@ RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
+# CL-321 Bulgu D: a turn whose only change a command made - no change of it on record.
+UNRECORDED = "A command of this turn may have changed files KOLONİ did not record: {command}"
+MOST_COMMAND = 120  # characters of such a command said
 OFF_FOR_CHAT = "Not checked: off for this chat"
 # S5c: a recipe's Checks step set to check nothing; its tests set off; its Fix rounds at 0.
 RECIPE_OFF = "Not checked: this recipe's Checks step checks nothing"
