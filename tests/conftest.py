@@ -196,7 +196,7 @@ LOOK_ON = {"test_found_scenarios"}
 # S3: a big or security-touching change is looked over at a turn's end by a Reviewer agent - in a
 # test, a scripted agent more (and its row) in every turn that writes much. On only where tested.
 REVIEW_ON = {"test_proof_review_scenarios", "test_recipe_end_checks_scenarios",
-             "test_proof_until_scenarios"}
+             "test_proof_until_scenarios", "test_recipe_review_once_scenarios"}
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.
 BEFORE_ON = {"test_proof_before_scenarios"}

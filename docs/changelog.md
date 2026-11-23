@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Agents**: a recipe with no Review step of its own, at Test and review, no longer opens KOLONİ's Reviewer again and again on a big or security-touching change; one look, as the rule says.
+
 ## [0.1.6] - 2026-11-23
 
 ### Added
