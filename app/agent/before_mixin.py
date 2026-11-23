@@ -12,6 +12,7 @@ import logging
 import math
 import posixpath
 import re
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager, suppress
@@ -74,12 +75,14 @@ _SEEN = re.compile(r"seen (\d+) times")
 def _touched(test_id: str, cwd: str, touched: set[str]) -> bool:
     """R: whether a test's file (a pytest node id's part before `::`; a vitest or jest id is its
     file) is one of `touched` - from the run's folder or the project's root, or ending so (a
-    rootdir elsewhere): any doubt, touched."""
-    file = test_id.split("::", 1)[0].replace("\\", "/").removeprefix("./")
-    joined = posixpath.normpath(posixpath.join(cwd, file)) if cwd not in ("", ".") else file
+    rootdir elsewhere), whatever its case where the disk ignores case (Windows, macOS): any
+    doubt, touched."""
+    fold = str.casefold if sys.platform in ("win32", "darwin") else str
+    file = fold(test_id.split("::", 1)[0].replace("\\", "/").removeprefix("./"))
+    joined = posixpath.normpath(posixpath.join(fold(cwd), file)) if cwd not in ("", ".") else file
     return any(
         one in (file, joined) or one.endswith("/" + file) or file.endswith("/" + one)
-        for one in touched
+        for one in map(fold, touched)
     )
 
 
@@ -319,7 +322,8 @@ class BeforeMixin:
         lists what it skipped by id.
         shortcut: a test generated from data the turn changed elsewhere - a parametrize list built
         from the app's data, a flag a skipif reads - lives in a file it did not touch, and its
-        drop reads as outside; read the tests' own imports if that is seen."""
+        drop reads as outside; so does one a test module it touched takes from another module
+        (`import tests.test_more as m; del m.test_7`); read the tests' imports if that is seen."""
         turns = (True, True)
         if held.unrecorded or held.gone_tests or self._wrote_by_command(session, ctx):
             return turns
@@ -344,7 +348,15 @@ class BeforeMixin:
             return turns
         missing = set(green) - set(now)
         touched = {one.path for one in mine}
-        fewer = not missing or any(_touched(one, run.cwd, touched) for one in missing)
+        # (a test file it touched that has tests now and had none at the green run - renamed or made
+        # by hand since - cannot be held to it: its drop may ride on that)
+        unknown = any(
+            any(_touched(one, run.cwd, {path}) for one in now)
+            and not any(_touched(one, run.cwd, {path}) for one in green)
+            for path in touched
+            if proof.is_test(path)
+        )
+        fewer = unknown or not missing or any(_touched(one, run.cwd, touched) for one in missing)
         return fewer, True
 
     def _wrote_by_command(self: "AgentRunner", session, ctx: Ctx) -> bool:

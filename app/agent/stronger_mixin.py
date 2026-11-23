@@ -71,9 +71,10 @@ TEST_CONFIG = re.compile(
     r"(?:vitest|vite|jest|playwright|cypress)\.config\.|vitest\.(?:workspace|projects)\.|"
     r"jest\.setup\.|karma\.conf\.|\.mocharc\.|GNUmakefile$"
 )
-# ...and a Python file in a tests folder not named as a test (`test_*.py`) - its `__init__.py`, a
-# plugin, a helper a conftest loads (pytest_collection_modifyitems, collect_ignore): conservative.
-_IN_TESTS = re.compile(r"(?:^|/)tests?/(?:[^/]+/)*[^/]+\.py$")
+# ...and a file in a tests folder that is no test module itself - its `__init__.py`, a plugin, a
+# helper a conftest loads (pytest_collection_modifyitems, collect_ignore), the data a parametrize
+# reads (`tests/data/cases.json`): conservative.
+_IN_TESTS = re.compile(r"(?:^|/)tests?/(?:[^/]+/)*[^/]+$")
 NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
 # k-onceki-1 (K): its round's work failed Take in's own check - kept out (decision 18).
 FIX_KEPT_OUT = (
@@ -160,8 +161,9 @@ HELD_WHY_TESTS = "its tests still fail"
 
 def steers_tests(path: str) -> bool:
     """Whether a file says which tests run, or how: a conftest anywhere, a test runner's config or
-    setup, a Makefile (`TEST_CONFIGS`, `TEST_CONFIG`), a Python file in a tests folder that is no
-    test (`_IN_TESTS`) - conservative: changed without leave, the work stays held."""
+    setup, a Makefile (`TEST_CONFIGS`, `TEST_CONFIG`), a file in a tests folder that is no test
+    module (`_IN_TESTS`: a helper, a plugin, its data) - conservative: changed without leave, the
+    work stays held."""
     path = path.replace("\\", "/")
     name = path.rsplit("/", 1)[-1]
     return (

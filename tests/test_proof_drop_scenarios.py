@@ -5,6 +5,7 @@ copy too, `git rm && git commit`, `git mv`), a test file edited with a skip or a
 of another turn's whose suite ended after its answer. A fake model and a scripted executor."""
 
 import subprocess
+import sys
 import time
 
 import pytest
@@ -351,3 +352,76 @@ def test_ids_that_do_not_add_up_to_the_count_leave_the_drop_the_turns(
         total=44,
     )
     assert ("Tests went from 48 to 44 (4 removed)", "failed") in rows, rows
+
+
+# R, third look: the id paths that let a turn's own drop through (review probes r3).
+def test_a_tests_data_file_the_turn_shortened_is_the_turns(make_client, wait_run, project_dir):
+    # (tests/data/cases.json feeds test_more.py's parametrize: the missing id lives in an untouched
+    # module - but a file of the tests folder that is no test module steers which tests run)
+    from tests.test_proof_before_scenarios import GREEN
+
+    (project_dir / "tests" / "data").mkdir(parents=True)
+    (project_dir / "tests" / "data" / "cases.json").write_text("[1, 2, 3]\n", encoding="utf-8")
+    now = [one for one in GREEN if one != "tests/test_more.py::test_7"]
+    rows, taken, _m = second_turn(
+        make_client, wait_run, project_dir, "[1, 2]\n", (47,), ids=now, path="tests/data/cases.json"
+    )
+    assert (DROP, "failed") in rows and not taken, rows
+
+
+def test_a_test_file_renamed_by_hand_then_cut_by_the_turn_is_the_turns(
+    make_client, wait_run, project_dir
+):
+    # (test_old.py renamed by hand to test_new.py, then the turn takes test_a out of it: the
+    # missing ids are test_old.py's - untouched - but test_new.py, which it touched, had no test at
+    # the green run: nothing to hold it to)
+    from tests.test_proof_before_scenarios import GREEN
+
+    def rename():
+        three = "def test_a():\n    pass\n\ndef test_b():\n    pass\n\ndef test_c():\n    pass\n"
+        (project_dir / "tests" / "test_new.py").write_text(three, encoding="utf-8")
+        (project_dir / "tests" / "test_old.py").unlink()
+
+    now = [one for one in GREEN if "test_old" not in one] + [
+        "tests/test_new.py::test_b",
+        "tests/test_new.py::test_c",
+    ]
+    rows, taken, _m = second_turn(
+        make_client,
+        wait_run,
+        project_dir,
+        "def test_b():\n    pass\n\ndef test_c():\n    pass\n",
+        (47,),
+        by_hand=rename,
+        ids=now,
+        path="tests/test_new.py",
+    )
+    assert (DROP, "failed") in rows and not taken, rows
+
+
+@pytest.mark.skipif(sys.platform not in ("win32", "darwin"), reason="a disk that ignores case")
+def test_a_test_files_path_in_another_case_is_the_same_file(make_client, wait_run, project_dir):
+    from tests.test_proof_before_scenarios import GREEN
+
+    now = [one for one in GREEN if one != "tests/test_calc.py::test_two"]
+    rows, taken, _m = second_turn(
+        make_client,
+        wait_run,
+        project_dir,
+        "def test_one():\n    pass\n",
+        (47,),
+        ids=now,
+        path="Tests/test_calc.py",
+    )
+    assert (DROP, "failed") in rows and not taken, rows
+
+
+def test_a_test_another_module_deletes_is_a_known_limit(make_client, wait_run, project_dir):
+    # (shortcut, `_could_drop`: a touched module that deletes another's test on import - the
+    # missing id lives in the untouched one, and reads as outside. Kept as it is, said.)
+    from tests.test_proof_before_scenarios import GREEN
+
+    edited = CALC_TESTS + "\nimport tests.test_more as _m\ndel _m.test_7\n"
+    now = [one for one in GREEN if one != "tests/test_more.py::test_7"]
+    rows, _taken, _m = second_turn(make_client, wait_run, project_dir, edited, (47,), ids=now)
+    assert (NOT_OURS, "note") in rows, rows
