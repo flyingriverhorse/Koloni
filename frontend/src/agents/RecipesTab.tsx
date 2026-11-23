@@ -425,7 +425,7 @@ function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOn
   return (
     <aside className="role-panel recipe-panel" aria-label="Recipe part Checks">
       <h3>Checks - the end of this recipe</h3>
-      <div className="muted">What KOLONİ checks before this recipe’s work is done. Always its last step: it can’t be removed.</div>
+      <div className="muted">What KOLONİ checks before this recipe’s work is done. Always the step before the end: it can’t be removed.</div>
       <fieldset className="recipe-rows" disabled={readOnly}>
         <label className="recipe-check">
           <input type="radio" name="recipe-checks" checked={!checks} onChange={() => set(null)} />
