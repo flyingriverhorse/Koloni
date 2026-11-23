@@ -16,7 +16,7 @@ export const AFTER_CHANGE_WHY = 'After a turn that changed code KOLONİ tests th
 /** S3 (decisions 14a, 19): how often work goes back - failing tests and the Reviewer's findings, one count a turn. */
 export const FIX_ROUNDS_NOTE = 'How often a turn’s failing tests or the Reviewer’s blocking findings go back to the Orchestrator, 1 to 5; then you decide (Fix it).'
 /** S11 (decisions 18, 19): the rounds spent and a test still failing, the next stronger tier tries; off, the work waits. */
-export const STRONGER_NOTE = 'The rounds spent with a test still failing or a blocking finding left, the next stronger tier on the Models page tries (it says what is wrong first; its model’s use is said). Failing work is never taken in: you decide.'
+export const STRONGER_NOTE = 'The rounds spent with a test still failing, the next stronger tier on the Models page tries (it says what is wrong first; its model’s use is said). Failing work is never taken in: you decide. A Reviewer’s hold after the rounds waits for you (Fix it).'
 /** 0162: a project that had turned 89m's switch off is Nothing - said, never silently. */
 export const FROM_OFF = 'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.'
 
