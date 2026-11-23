@@ -433,10 +433,6 @@ function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOn
                 </span>
               </label>
             ))}
-            <label className="recipe-check recipe-check-part">
-              <input type="checkbox" checked={false} disabled />
-              <span className="muted">Pages - with the next update</span>
-            </label>
             <label className="recipe-row">
               <span className="muted">Fix rounds</span>
               <select className="input" aria-label="Fix rounds" value={checks.fix_rounds ?? ''} onChange={e => set({ ...checks, fix_rounds: e.target.value === '' ? null : Number(e.target.value) })}>

@@ -940,13 +940,14 @@ test('S5c: the Checks step is drawn after the last step, never dragged nor remov
   fireEvent.click(within(panel()).getByRole('radio', { name: 'Set for this recipe' }))
   fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Tests/ }))
   fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Docs/ }))
-  expect(within(panel()).getByRole('checkbox', { name: /^Pages/ })).toBeDisabled()
+  // (S5b: Pages is a choice too - a changed page in KOLONİ's browser)
+  fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Pages/ }))
   fireEvent.change(within(panel()).getByRole('combobox', { name: 'Fix rounds' }), { target: { value: '0' } })
-  expect(part(/^Checks 🔒/)).toHaveTextContent('Review · Docs · check only')
+  expect(part(/^Checks 🔒/)).toHaveTextContent('Review · Docs · Pages · check only')
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
   await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
   const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
-  expect(body.graph.checks).toEqual({ tests: false, review: true, docs: true, diagram: false, data: false, slides: false, fix_rounds: 0 })
+  expect(body.graph.checks).toEqual({ tests: false, review: true, docs: true, diagram: false, data: false, slides: false, ui: true, fix_rounds: 0 })
 })
 
 test('S5c: a ready recipe’s Checks step is shown, not changed', () => {

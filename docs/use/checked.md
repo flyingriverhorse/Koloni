@@ -313,6 +313,26 @@ for this project". Where the turn ended before the check, or changed such a file
 section says so instead of an old result. On the canvas, the Checks node shows each kind as one
 line: "documents · 2 ✓ · 1 ✗".
 
+### Pages
+
+A changed web page (`.html`) is opened in KOLONİ's own headless Chrome or Edge - the browser the
+agents' browser tools use, on this machine, never out on the internet - at 375, 768 and 1280 px
+(a phone, a tablet, a desktop). Console errors and a page wider than the screen (it scrolls
+sideways) are failed, and go back as a fix round with the first error: "index.html: 2 console
+errors at 375, 768, 1280 px - error: x is not defined", "index.html: wider than the screen at 375
+px". Where it passes: "index.html: no console errors at 375, 768, 1280 px". KOLONİ's browser
+never goes out: a load from outside this machine (a CDN's script, a web font) is no error of the
+page's, and the page is said to be checked without it; where such a script is missing, the page's
+own errors are a note, not sent back (they may come of it). The `favicon.ico` a browser asks every
+site for is not counted either. A missing file of the project's own is an error. A changed component or style (`.tsx`, `.jsx`, `.vue`,
+`.svelte`, `.css`, `.scss`) is looked at on the chat's preview, where one runs that serves the
+work (started from the Preview, or by an agent, where the work is); with none: "Pages not
+checked: no preview running". At most three pages a turn, two minutes in all. With no Chrome or
+Edge here: "Pages not checked: no Chrome or Edge here". Each page's screenshots, one a width, are
+kept for you in the project's `.koloni/tmp/checked/<turn>/` - never shown to a model; what reaches
+the Orchestrator of a page is only these lines, as data. **Pages** is switched off with the other
+kinds.
+
 ## A test for the change
 
 A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
@@ -413,6 +433,59 @@ also what does not fit in the diff the Reviewer is shown.
 - No look: a small change, **Tests only**, tests that still fail (they are fixed first), a turn
   over its token limit, or a recipe whose own Review step looked already - rounds never stack.
   A recipe without a Review step gets this review at its end.
+
+### Documents read against your request
+
+A turn that wrote more than **80 lines** of documents (`.md`, `.rst`, `.txt`, `.docx`...) and no
+code that is looked over has them read once by the Reviewer, against what you asked for: what
+your request asks for that they leave out or contradict - and, where it asks for sources, whether
+they are there. Its line is "Documents read: Reviewer (…) - MERGE, no findings" or "- HOLD, …";
+a blocking finding goes back as a fix round, as a review's does. It is read once a turn: after
+that round, the turn's end says "Still on hold after round 1: not settled by the last look - you
+decide (Fix it)" where the hold stood. Where code is looked over too, the Reviewer's brief takes
+the documents in: one look a turn in all.
+
+## The live try
+
+Under **Test and review**, once a turn, after the tests and the review, KOLONİ tries the change as
+a user would:
+
+- **A command-line tool** the turn changed - a script in `bin/`, a `bin` of `package.json`, a
+  console script of `pyproject.toml` - is asked for its `--help`, and nothing more: KOLONİ never
+  runs it plainly, as a deploy or a sync script would do its work. Only a script that answers
+  `--help` by itself is asked: a Python script that imports argparse, click, typer, docopt, fire
+  or optparse; a Node script that requires or imports commander, yargs, meow or cac; a shell
+  script with its own case for `--help` (`-h|--help)`, `"--help"`) - read outside its comments.
+  Another is "Not tried: … it does not answer --help".
+  Its line is KOLONİ's own command, asked about as an agent's would be (a card below Full auto
+  where one is asked). "Tried python 'bin/tool.py' --help: exit 0, 12 lines" passes; a `--help`
+  that fails (or runs on past 30 s) goes back as a fix round. A file name or a module that is not
+  plain (letters, digits, `_ . / -`, no part starting with `-`, no `..`) is never put on a line:
+  "Not tried: … an unusual name". A console script whose module does not run itself
+  (`if __name__ == "__main__"`) is said as not tried.
+- **A big change of screens** (more than 80 lines or 3 files of `.tsx`, `.jsx`, `.vue`, `.svelte`,
+  `.html`, `.css`...) is tried by the **Tester**, an agent KOLONİ opens itself as it opens the
+  Reviewer: it opens the chat's preview in KOLONİ's own browser, goes through what your request
+  changed - clicks, types, reads, takes screenshots - reads the console, and ends with MERGE or
+  HOLD and its findings: "Tried: Tester (…) on http://127.0.0.1:5173/ - HOLD, 2 findings, 1
+  blocking". A blocking finding goes back as a fix round; the try is not made again that turn. The
+  Tester gets what the Reviewer gets - its role's read tools, and commands that only read or are
+  the project's approved test command exactly, never a card - and its browser tools; it writes
+  nothing, and opens the preview it tries alone (that address, nothing else of this machine, no
+  file - nor do its pages load from elsewhere); its screenshots are shown to its model only where that model takes
+  images (else it is told so, and reads the page's text). Its spawn opens no card at any level.
+- **With no preview running**, KOLONİ starts the project's dev server itself - `npm run dev`
+  (else `npm start`) of the nearest `package.json` above the changed screens - on a free port
+  (`PORT`, for a server that reads it; no browser window of its own), as one of KOLONİ's own runs
+  (**Settings › The app**: with them all busy, "Not tried: KOLONİ's own runs fill the machine"),
+  and stops it after the try. Starting it is asked below Full auto, as any server is. A preview
+  runs in the project itself only: where the work waits in a working copy, "Not tried: the work
+  waits in a working copy…".
+- Not tried, and said: while the tests still fail, in a turn nobody watches (Away, a trigger, a
+  To-do task), or where the Tester's role has no browser tools.
+
+On the canvas the Tester is an agent node after the Checks node; KOLONİ's own runs of the try
+(the `--help`, the dev server) are not counted as test runs there.
 
 ## How long it waits
 
@@ -563,6 +636,9 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
 | – `file`: … - so before this turn | A problem the file already had: said, not sent back. |
 | – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
+| ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
+| ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |
+| – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | – Not checked: `kinds` - the turn ended before KOLONİ's check / Not checked on the last change: `kinds` | The turn ended before these checks, or changed such a file after them. |
 | – Coverage: 72% of the changed lines are run by tests (`tool`) | Of the turn's changed lines a test could run, the share the whole suite ran, by the project's own coverage tool. |
 | – Coverage: not measured (`why`) | The flags failed (the run went again without them; not tried again till the coverage settings change), or no report was written or it could not be read. |

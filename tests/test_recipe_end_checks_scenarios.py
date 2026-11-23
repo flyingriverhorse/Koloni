@@ -104,7 +104,7 @@ def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(mak
     folder = project_dir / ".koloni" / "recipes"
     folder.mkdir(parents=True)
     checks = {"tests": False, "review": True, "docs": True, "diagram": False, "data": False,
-              "slides": False, "fix_rounds": 0}
+              "slides": False, "ui": False, "fix_rounds": 0}
     (folder / "report.json").write_text(json.dumps(
         {"name": "Report", "graph": {**SMALL, "checks": checks}}), encoding="utf-8")
     for name, wrong in (("rounds", {**checks, "fix_rounds": 9}), ("pages", {"pages": True})):

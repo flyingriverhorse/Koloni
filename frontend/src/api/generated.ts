@@ -9540,6 +9540,11 @@ export interface components {
              * @default true
              */
             tests: boolean;
+            /**
+             * Ui
+             * @default false
+             */
+            ui: boolean;
         };
         /** RecipeDraftIn */
         RecipeDraftIn: {
