@@ -800,14 +800,17 @@ _BRACKET = re.compile(r"[\[\]{}]")
 # which takes time squared. `re` holds the GIL: a slow one stops the whole server.)
 _QUOTED = r'"(?:[^"\\\n]|\\.)*(?:"|\\?(?:\n|\Z))'
 _JSON_STRING = re.compile(_QUOTED)
+# (A multi-line string ends as TOML ends it: its escaped quotes are its own, and it closes on its
+# LAST quote - up to two more are its text, `"""x""""` is `x"` - or the scan loses step with it.)
 _TOML_SKIP = re.compile(
-    r'"""(?:[^"\\]|\\[\s\S]|"(?!""))*(?:"""|\\?\Z)'  # (its escaped quotes are its own)
-    r"|'''[\s\S]*?(?:'''|\Z)"
+    r'"""(?:[^"\\]|\\[\s\S]|"(?!""))*(?:"{3,5}|\\?\Z)'
+    r"|'''(?:[^']|'(?!''))*(?:'{3,5}|\Z)"
     rf"|{_QUOTED}"
     r"|'[^'\n]*(?:'|\n|\Z)"
     r"|#.*"
 )
-# A TOML key of over MOST_DEPTH dotted parts, outside its strings: each part a table deeper.
+# A TOML key of over MOST_DEPTH dotted parts - each part a table deeper; looked for in the text as
+# it is too, so no string the scan misreads hides one (a string of as many dots is not read).
 _DOTTED = re.compile(rf"(?:\.[^.=\n\[\]{{}},]*){{{MOST_DEPTH}}}")
 # JSON with comments (tsconfig.json, VS Code's): its comments and trailing commas left out, its
 # lines kept where they were, its strings as they are.
@@ -869,7 +872,7 @@ def _toml(text: str, rel: str) -> tuple[object, str | None]:
     if len(text) > MOST_READ:
         raise WorkspaceError(f"it is over {MOST_READ // 1024} KB of TOML")
     bare = _TOML_SKIP.sub("", text)
-    if _deep(bare) or _DOTTED.search(bare):
+    if _deep(bare) or _DOTTED.search(bare) or _DOTTED.search(text):
         raise WorkspaceError(TOO_DEEP)
     try:
         return tomllib.loads(text), None
@@ -1028,7 +1031,7 @@ def check_config(
     the shape its tool reads; a secret file is never read, nor one whose name often holds a
     secret (credentials.json), one that nests too deep, YAML with aliases, nor a file past its
     size (`MOST_READ`, and `MOST_YAML_ALL` of YAML in all)."""
-    ws, left = _workspace(root), MOST_YAML_ALL
+    ws, left, counted = _workspace(root), MOST_YAML_ALL, set()
 
     def kept_out(rel: str) -> str | None:
         """Why it is not read: a secret, or a name that often holds one; None: it is read."""
@@ -1041,7 +1044,11 @@ def check_config(
 
     def one(data: bytes, rel: str) -> list[Row]:
         nonlocal left
-        if rel.casefold().endswith(("yml", "yaml")) and len(data) <= MOST_READ:
+        # (Its text now only: the one before - `_each` reads it after - is its own file again, and
+        # a budget spent there would read an old problem as the turn's.)
+        name = rel.casefold()
+        if name.endswith(("yml", "yaml")) and len(data) <= MOST_READ and rel not in counted:
+            counted.add(rel)
             if len(data) > left:
                 raise WorkspaceError(f"past {MOST_YAML_ALL // 1024} KB of YAML in all")
             left -= len(data)

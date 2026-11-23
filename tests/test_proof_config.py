@@ -193,6 +193,16 @@ def test_a_bomb_is_not_read(tmp_path):
             "inline.toml": "x = {a" + ".a" * deep + " = 1}\n",
             # (an escaped quote before a closing triple quote is the string's own)
             "escaped.toml": 'a = """x\\""" """\nb = ' + "[" * deep + "]" * deep + "\n",
+            # (Re-check of Config: TOML ends a multi-line string on its LAST quote - a scan that
+            # ended it on its first read the dotted key below as a string, and tomllib took it:
+            # memory x4 a doubling, +244 MB at 16 KB)
+            **{
+                f"last-{name}.toml": f"a = [{q * 3}x{q * 4}, {q * 3}\ny{q * 3}]\n"
+                f"k{'.a' * deep} = 1\nz = {q * 3} {q * 3}\n"
+                for name, q in (("basic", '"'), ("literal", "'"))
+            },
+            # (a string of as many dots is not read either: the key is looked for in it too)
+            "dots.toml": 'a = "' + ".x" * deep + '"\n',
         },
     )
     deep_said = f"not checked: it nests over {MOST_DEPTH} deep"
@@ -206,7 +216,18 @@ def test_a_bomb_is_not_read(tmp_path):
         ("note", f"header.toml: {deep_said}"),
         ("note", f"inline.toml: {deep_said}"),
         ("note", f"escaped.toml: {deep_said}"),
+        ("note", f"last-basic.toml: {deep_said}"),
+        ("note", f"last-literal.toml: {deep_said}"),
+        ("note", f"dots.toml: {deep_said}"),
     ]
+
+
+def test_the_scan_ends_a_multi_line_string_where_toml_does():
+    from app.proof_kinds import _TOML_SKIP
+
+    for one in ('"', "'"):
+        assert _TOML_SKIP.sub("", f"a = {one * 3}x{one * 4}\nb = [1]\n") == "a = \nb = [1]\n"
+        assert _TOML_SKIP.sub("", f"a = {one * 3}x{one * 5}\nb = 1\n") == "a = \nb = 1\n"
 
 
 def test_a_key_of_as_many_parts_as_its_depth_is_read(tmp_path):
@@ -266,6 +287,18 @@ def test_past_its_size_a_file_is_not_read(tmp_path, monkeypatch):
         ("passed", "one.yaml: parses"),
         ("note", "two.yaml: not checked: past 1 KB of YAML in all"),
     ]
+
+
+def test_the_yaml_budget_counts_a_files_text_now_not_before(tmp_path, monkeypatch):
+    # (Re-check of Config: the text before, read after, spent the budget - its old problem then
+    # was not read, and the file's line said failed, not "so before this turn".)
+    from app import proof_kinds
+
+    broken = "a: [1, 2\n" + "b: 1\n" * 40
+    (tmp_path / "a.yaml").write_bytes(broken.encode("utf-8"))
+    monkeypatch.setattr(proof_kinds, "MOST_YAML_ALL", len(broken))  # (just its text now)
+    (one,) = check_config(tmp_path, ["a.yaml"], before={"a.yaml": broken})
+    assert one["state"] == "note" and one["text"].endswith(" - so before this turn"), one
 
 
 def test_a_link_loop_is_said_not_raised(tmp_path, monkeypatch):
