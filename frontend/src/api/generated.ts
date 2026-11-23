@@ -2585,9 +2585,10 @@ export interface paths {
         put?: never;
         /**
          * Add Suggested Rule
-         * @description The user's click on a suggested rule: its line, found again by its key among what this
-         *     project's approvals suggest, at the end of the project's rules - saved as the Memory page
-         *     saves them. Once there, the same click changes nothing.
+         * @description Cards measured (0.1.7): the user's click on a rule the Usage page suggests - by its key
+         *     alone, never text: its line, KOLONİ's, found again among what this project's approvals
+         *     suggest (`cards.suggestions`), at the end of the project's rules, saved as `set_rules` saves
+         *     them. Once there, the same click changes nothing.
          */
         post: operations["add_suggested_rule_api_projects__project_id__card_suggestions__key__post"];
         delete?: never;
@@ -6058,7 +6059,7 @@ export interface components {
             /** Question */
             question?: string | null;
             /** Reason */
-            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still") | null;
+            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still" | "on_hold") | null;
             /** Started At */
             started_at: string | null;
             /**

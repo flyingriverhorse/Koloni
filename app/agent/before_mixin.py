@@ -14,6 +14,7 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, or_, select
@@ -452,9 +453,19 @@ class BeforeMixin:
         root = self.settings.runtime_root
         made = None
         try:
-            made = await asyncio.to_thread(copies.make, self._ws(ctx).root, root, name)
+            # (k-bakis-yeri: Fix it on held work - the old code is the project's, none of the held
+            # work in it: its own failure is never "failing before this turn")
+            held = self._kept_work(ctx) is not None
+            made = await asyncio.to_thread(
+                copies.make, Path(ctx.folder) if held else self._ws(ctx).root, root, name
+            )
             with self._factory() as session:
-                kept = proof._kept(session, ctx.run_id)
+                kept = {} if held else proof._kept(session, ctx.run_id)
+            for path in keep if held else ():  # (a test the bug-fix check runs: the work's)
+                if (place := made.here(path)) is not None:
+                    data = self._ws(ctx).resolve(path).read_bytes()
+                    place.parent.mkdir(parents=True, exist_ok=True)
+                    place.write_bytes(data)
             for path, rows in kept.items():
                 if path in keep or (place := made.here(path)) is None:
                     continue

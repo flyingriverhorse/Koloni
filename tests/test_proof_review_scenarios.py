@@ -675,6 +675,15 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(
         ("Overall verdict: MERGE", "MERGE"),
         ("## Verdict\n\n**MERGE**", "MERGE"),
         ("Verdict: MERGE - no blocking findings", "MERGE"),
+        # (CL-340: a MERGE said blocked holds; one not blocked, or with none blocking, merges)
+        ("Verdict: MERGE - blocked", "HOLD"),
+        ("Verdict: MERGE (blocked)", "HOLD"),
+        ("Verdict: MERGE: blocked until the fix", "HOLD"),
+        ("Verdict: MERGE; blocked", "HOLD"),
+        ("Verdict: MERGE [blocked]", "HOLD"),
+        ("Verdict: MERGE / blocked", "HOLD"),
+        ("Verdict: MERGE - not blocked", "MERGE"),
+        ("Verdict: MERGE, 0 blocking", "MERGE"),
         ("Verdict: MERGE, no findings", "MERGE"),
         ("No verdict here, it looks fine.", None),
         # (its review: the first verdict word decides - a hold word negated is none; an earlier
