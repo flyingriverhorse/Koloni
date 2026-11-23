@@ -164,11 +164,11 @@ KOLONİ's own words, as they appear on screen.
   out first, and each file has one holder. You open one with **Work together…** under **More**.
 
 **Scout**
-: The built-in role that keeps watch on the To-do list: after each turn, one small model request
-  with no tools suggests at most three follow-up tasks, each with the words it came from; it also
-  splits vague tasks, flags duplicates and stale ones, and checks finished tasks against what makes
-  them done. On the canvas it is a small box
-  under the turn. See [Follow-up tasks](../automation/todo.md#follow-up-tasks).
+: The built-in role that keeps watch on the To-do list: it splits vague tasks, asks what is
+  missing, flags duplicates, stale and blocked tasks, and checks finished tasks against what makes
+  them done. After a turn that did something, KOLONİ also makes one small model request with no
+  tools in its name, which suggests at most three follow-up tasks, each with the words it came
+  from; on the canvas that is a small box under the turn. See [Follow-up tasks](../automation/todo.md#follow-up-tasks).
 
 **Skill**
 : A folder with a `SKILL.md` and its files, in the form Claude Code reads. You add skills on the

@@ -56,7 +56,7 @@ def until(check, seconds=10.0):
 
 @pytest.fixture
 def ended(monkeypatch):
-    """Waits for a turn - or `count` of them - to be over, with what follows it after: the PO's
+    """Waits for a turn - or `count` of them - to be over, with what follows it after: the Scout's
     request, which runs once the turn has let go of everything."""
     over: dict[str, object] = {}
     real = agent.AgentRunner.execute
@@ -370,7 +370,7 @@ def test_the_request_waits_for_nothing_of_the_turn(team, project_dir, ended, gat
     )
     tiered(team, client)
     pid, cid, run_id = start(client, project_dir)
-    gate.wait_partial()  # the PO's request is out...
+    gate.wait_partial()  # the Scout's request is out...
     assert idle[0].is_set()  # ...and the compaction was not held for it
     nxt = say(client, cid, "and now?")
     until(

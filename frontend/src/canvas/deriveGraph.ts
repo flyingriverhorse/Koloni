@@ -899,10 +899,10 @@ function assistantPo(state: ConvState, run: Run, nodes: GraphNode[], edges: Grap
   edges.push({ id: `agent:${lead.id}>${id}`, source: `agent:${lead.id}`, target: id, active: false, plan: true, po: true })
 }
 
-/** What came of the Scout's request, counted - "2 proposed · 1 dropped · Orchestrator added 1" - or that it was not heard out. */
 /** What the Scout is, where it shows (its box's hover, its panel): its name does not say it. */
 export const SCOUT_DOES = 'The Scout looks for what is left after each turn and suggests follow-up tasks for the To-do list.'
 
+/** What came of the Scout's request, counted - "2 proposed · 1 dropped · Orchestrator added 1" - or that it was not heard out. */
 export function poSaid(po: PoData): string {
   if (!po.heard) return 'Sent, not heard out'
   const dropped = po.dropped.length + po.dropped_more

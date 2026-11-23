@@ -376,9 +376,7 @@ PO_TOOLS = {
 }
 
 
-def test_a_product_owner_on_agy_reads_the_backlog_through_kolonis_bridge(
-    clis, wait_run, project_dir
-):
+def test_a_hive_keeper_on_agy_reads_the_backlog_through_kolonis_bridge(clis, wait_run, project_dir):
     # B-315 (R106): without it, it searched the files for the To-do list for 17 minutes.
     client, providers = clis(
         [spawn("Hive keeper", "plan the work", "p0"), text("done")],
@@ -397,7 +395,7 @@ def test_a_product_owner_on_agy_reads_the_backlog_through_kolonis_bridge(
     assert ("read_backlog", "succeeded") in [(t["name"], t["status"]) for t in snap["tool_calls"]]
 
 
-def test_a_product_owner_on_an_agy_whose_bridge_never_comes_is_not_left_to_wander(
+def test_a_hive_keeper_on_an_agy_whose_bridge_never_comes_is_not_left_to_wander(
     clis, wait_run, project_dir, monkeypatch
 ):
     import app.model_agy

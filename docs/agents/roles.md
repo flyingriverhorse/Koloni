@@ -17,9 +17,12 @@ SEO specialist, Copywriter, Accessibility reviewer.
 
 Two are named for KOLONİ's hive. The **Hive keeper** keeps the To-do list: it turns a goal into
 tasks, each with what makes it done, and puts them in order. The **Scout** keeps watch on the To-do
-list: after each turn it suggests follow-up tasks, it splits vague tasks, flags duplicates and stale
-ones, and checks finished tasks against what makes them done (see [To-do](../automation/todo.md)). A role of your own that already had one of these names
-keeps it; the built-in one is then "Hive keeper (built-in)" or "Scout (built-in)".
+list: it splits vague tasks, asks what is missing, flags duplicates, stale and blocked tasks, and
+checks finished tasks against what makes them done. After each turn KOLONİ also asks a model, in
+the Scout's name, for follow-up tasks (see [To-do](../automation/todo.md#follow-up-tasks)). A role
+of your own that already had one of these names keeps it; the built-in one is then "Hive keeper
+(built-in)" or "Scout (built-in)". A slash command of yours named `scout` would hide behind the
+role's chip in the message box: it is renamed `scout-command`.
 
 The **Roles** list on the **Teams & roles** tab shows them all. **Filter roles…** searches it, and the
 buttons **All**, **In no team** and **Off** narrow it. Each role has an on / off switch. The

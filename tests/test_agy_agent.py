@@ -1543,7 +1543,7 @@ def test_reading_only_agy_reads_its_own_definition_of_a_kolonis_tool_with_its_ow
     assert (read["name"], read["status"]) == ("agy__view_file", "succeeded"), read
 
 
-def test_a_read_only_product_owner_on_native_agy_reads_the_backlog_through_the_wrapper(
+def test_a_read_only_hive_keeper_on_native_agy_reads_the_backlog_through_the_wrapper(
     agy_app, wait_run, project_dir
 ):
     # B-318: it was refused as "may only use tools that read"

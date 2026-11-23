@@ -17,7 +17,7 @@ from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import OWN, PASS, begin, checked, texts
 from tests.test_spawn import spawn
 
-pytestmark = pytest.mark.no_po  # (the PO's own request would take a scripted step)
+pytestmark = pytest.mark.no_po  # (the Scout's own request would take a scripted step)
 
 ASKED = "Not the end yet: a.py changed and no test did."
 TEST_A = "def test_a():\n    assert True\n"

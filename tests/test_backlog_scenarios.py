@@ -88,7 +88,7 @@ def test_the_user_keeps_the_backlog_in_order_from_the_apps_own_page(make_client,
     )
 
 
-def test_the_product_owners_are_roles_of_their_own(make_client):
+def test_the_hive_keeper_and_the_scout_are_roles_of_their_own(make_client):
     client, _model = make_client([])
     built(client)
     roles = {r["name"]: r for r in client.get("/api/roles").json()}

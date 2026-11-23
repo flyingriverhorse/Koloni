@@ -165,7 +165,7 @@ def lead_writes_before_slice_48(request):
 
 # The Scout asks the fast tier after a turn that did something, on by default (6 Nov). A
 # test marked `no_po` counts the model calls or the clients made for something else, where the
-# PO's own request - made where it may be - is one more: there a new project starts with it off.
+# Scout's own request - made where it may be - is one more: there a new project starts with it off.
 @pytest.fixture(autouse=True)
 def no_po_where_calls_are_counted(request):
     if request.node.get_closest_marker("no_po") is None:

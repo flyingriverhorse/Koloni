@@ -157,3 +157,75 @@ def test_a_built_in_by_its_new_name_after_a_users_role_resets_and_is_listed_in_i
     assert names.index(f"{SCOUT} (built-in)") == list(BUILTIN_ROLES).index(SCOUT), names
     reset = client.post(f"/api/roles/{built_in}/reset", headers=OWN)
     assert reset.status_code == 200 and reset.json()["tools"] == list(BUILTIN_ROLES[SCOUT].tools)
+
+
+def test_a_users_own_role_by_an_old_name_keeps_what_names_it(tmp_path):
+    # (review: the user's own "Product owner" - no built-in was ever added beside it - lost its
+    # recipe step and its saved command to the Hive keeper)
+    db = tmp_path / "r.db"
+    cfg = _config(db)
+    command.upgrade(cfg, "0173")
+    with sqlite3.connect(db) as conn:
+        _role(conn, "Product owner", 0, "MY OWN")
+        _role(conn, "Assistant product owner", 1, OLD["Assistant product owner"])
+        conn.execute(
+            "INSERT INTO recipes (id, name, ready, graph, created_at, updated_at) VALUES ('mine', "
+            "'Mine', 0, ?, '2026-11-23', '2026-11-23')",
+            (
+                json.dumps(
+                    {
+                        "version": 1,
+                        "steps": [{"id": "a", "name": "A", "who": {"role": "Product owner"}}],
+                    }
+                ),
+            ),
+        )
+        conn.execute(
+            "INSERT INTO own_commands (id, name, description, template, role, created_at) "
+            "VALUES ('c', 'groom', '', 'x', 'Product owner', '2026-11-23')"
+        )
+    command.upgrade(cfg, "0174")
+    roles, own, mine, spec, commands = _read(db)
+    assert "Product owner" in own and set(roles) == {SCOUT}
+    assert mine == [{"role": "Product owner"}] and commands == ["Product owner"]
+    assert spec == {"role": "Product owner"}  # (the ready Spec named it too: the user's, now)
+
+
+def test_names_told_apart_as_kolonis_are_and_a_free_name_each(tmp_path):
+    # (review: "Scout " is a Scout to `find_role`; one with both "Scout" and "Scout (built-in)"
+    # got an IntegrityError at start)
+    db = tmp_path / "r.db"
+    cfg = _install(db, "Scout ", "scout (built-in)")
+    command.upgrade(cfg, "0174")
+    roles, *_ = _read(db)
+    assert set(roles) == {HIVE_KEEPER, f"{SCOUT} (built-in 2)"}
+    command.downgrade(cfg, "0173")
+    roles, *_ = _read(db)
+    assert set(roles) == set(OLD)
+
+
+def test_a_saved_command_named_as_the_scout_takes_a_free_name(tmp_path):
+    # (review: a saved /scout would hide behind the Scout's chip in the message box)
+    db = tmp_path / "r.db"
+    cfg = _install(db)
+    with sqlite3.connect(db) as conn:
+        for at, name in enumerate(("scout", "Scout-command", "hive-keeper")):
+            conn.execute(
+                "INSERT INTO own_commands (id, name, description, template, created_at) "
+                "VALUES (?, ?, '', 'x', '2026-11-23')",
+                (f"n{at}", name),
+            )
+    command.upgrade(cfg, "0174")
+    with sqlite3.connect(db) as conn:
+        names = dict(conn.execute("SELECT id, name FROM own_commands WHERE id LIKE 'n%'"))
+    assert names == {"n0": "scout-command-2", "n1": "Scout-command", "n2": "hive-keeper"}
+
+
+def test_an_agent_asking_for_an_old_name_is_told_the_new_one():
+    from app.roles import was_named
+
+    assert was_named("Product owner") == " - Product owner is now the Hive keeper"
+    assert (
+        was_named(" assistant   product owner ") == " - assistant   product owner is now the Scout"
+    )
+    assert was_named("Coder") == ""

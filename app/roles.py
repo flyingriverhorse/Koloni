@@ -119,6 +119,10 @@ OBSERVER = "Observer"
 HIVE_KEEPER = "Hive keeper"
 SCOUT = "Scout"
 BUILT_IN = " (built-in)"
+_BUILT_IN = re.compile(r" \(built-in(?: \d+)?\)$")  # (or "(built-in 2)", where that was taken too)
+# What the two were named before 0.1.7 (case and spaces evened out): an agent reading older turns
+# may ask for one.
+WAS_NAMED = {"product owner": HIVE_KEEPER, "assistant product owner": SCOUT}
 # K-kanit: a checking role's "verified" stands on a run of its own (migration 0131 for installs).
 RAN = (
     'Say "verified" or "works" only of what you ran yourself in this turn, and list each '
@@ -477,9 +481,11 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "plan",
     ),
     SCOUT: RoleSpec(
-        "Keeps watch on the To-do list: after each turn suggests follow-up tasks, splits vague "
-        "tasks, flags duplicates and stale ones, and checks finished tasks against what makes "
-        "them done.",
+        # (What an opened Scout does - the line spawn_agent's list gives: the follow-up tasks
+        # after each turn are KOLONİ's own request in its name, said where they show.)
+        "Keeps watch on the To-do list: splits vague tasks, asks what is missing, flags "
+        "duplicates, stale and blocked tasks, and checks finished tasks against what makes them "
+        "done.",
         "Split a vague task into smaller ones and ask the user what a task leaves open. Flag "
         "tasks written twice, tasks waiting a long time and tasks blocked by unfinished "
         "work. When a task's conversation has ended, compare what was done with what makes it "
@@ -736,7 +742,14 @@ def list_roles(session: Session) -> list[Role]:
 def builtin_name(role: Role) -> str:
     """A role's name as KOLONİ's own list knows it (`BUILTIN_ROLES`): a built-in's without the
     BUILT_IN it bears where a role of the user's own has its name (migration 0174)."""
-    return role.name.removesuffix(BUILT_IN) if role.builtin else role.name
+    return _BUILT_IN.sub("", role.name) if role.builtin else role.name
+
+
+def was_named(name: str) -> str:
+    """Where `name` is what a built-in role was named before 0.1.7: " - <name> is now the <new
+    name>", said with "unknown role"; else ""."""
+    now = WAS_NAMED.get(" ".join(name.split()).casefold())
+    return f" - {name.strip()} is now the {now}" if now else ""
 
 
 def is_observer(role: Role) -> bool:
@@ -913,7 +926,7 @@ def seed_builtin_roles(session: Session) -> None:
     hold it, where they are still there - never a team of the user's own by such a name."""
     # (a built-in that bears BUILT_IN is there too: never added again beside it)
     existing = {
-        (name.removesuffix(BUILT_IN) if builtin else name).casefold()
+        (_BUILT_IN.sub("", name) if builtin else name).casefold()
         for name, builtin in session.execute(select(Role.name, Role.builtin))
     }
     # (Migration 0093's rule: the ready teams are the first ever made, 0103's given their time.)

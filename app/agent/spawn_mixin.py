@@ -129,6 +129,7 @@ from app.roles import (
     stage_order,
     team_roles,
     title_of,
+    was_named,
 )
 from app.schemas import RecipeStep, WhoCandidates
 from app.serialize import question_out
@@ -2063,7 +2064,7 @@ class SpawnMixin:
                         f"{agent.name} is an agent of this turn, not a role: "
                         "message_agent reaches it"
                     )
-            raise ToolError(f"unknown role: {wanted}. Available roles: {known}")
+            raise ToolError(f"unknown role: {wanted}{was_named(wanted)}. Available roles: {known}")
         if shut:
             raise ToolError(f"{shut}. Available roles: {known}")
         # After the role's own rules: a tier it may not be given is said first, so "give why"
@@ -2475,7 +2476,8 @@ class SpawnMixin:
             if role is None:
                 raise ToolError(
                     f"{earlier.name} cannot be gone on with: its role, {earlier.role}, no "
-                    "longer exists. Open a sub-agent in another role with spawn_agent and "
+                    f"longer exists{was_named(earlier.role)}. Open a sub-agent in another role "
+                    "with spawn_agent and "
                     "tell it what it needs to know."
                 )
             conversation = session.get_one(Conversation, ctx.cid)

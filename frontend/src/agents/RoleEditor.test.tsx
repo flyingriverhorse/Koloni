@@ -450,14 +450,14 @@ test('a refused save shows the reason', async () => {
 })
 
 test('a role an agent created says so', async () => {
-  render(<AgentsPage roles={[role({ id: 'r3', name: 'Scout', builtin: false, created_by_agent: true })]} {...handlers()} />)
-  await edit('Scout', 'Instructions')
+  render(<AgentsPage roles={[role({ id: 'r3', name: 'Forager', builtin: false, created_by_agent: true })]} {...handlers()} />)
+  await edit('Forager', 'Instructions')
   expect(screen.getAllByText('Created by an agent').length).toBeGreaterThan(0)
 })
 
 test('a role with a model of its own shows it as that choice, and with no provider there is none to choose', async () => {
   const providers = [provider('p2', 'Claude Code', false)]
-  render(<AgentsPage roles={[role({ provider_id: 'p2', model_id: 'opus' }), role({ id: 'r4', name: 'Scout' })]} providers={providers} {...handlers()} />)
+  render(<AgentsPage roles={[role({ provider_id: 'p2', model_id: 'opus' }), role({ id: 'r4', name: 'Forager' })]} providers={providers} {...handlers()} />)
   await userEvent.click(card('Reviewer'))
   expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent('Which modelClaude Code · opus')
   await edit('Reviewer', 'Edit model')

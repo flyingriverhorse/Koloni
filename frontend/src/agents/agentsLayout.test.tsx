@@ -6,6 +6,7 @@ import { ranOn } from '../shell/modelName'
 import { AgentsPage } from './AgentsPage'
 import type { RecipeActions } from './RecipesTab'
 import { groupsOf, lastLine, mayDo, ruleText } from './chart'
+import { SCOUT_AFTER } from './RolePanel'
 import { ROLE_TOOLS } from './roleTools'
 
 // Slice 81b: a role's lines say its tier rule and where it last ran; a role opens beside. Slice 63a: a team's lead and
@@ -397,7 +398,7 @@ test('a role open beside marks the teams it is in, and says it; the others are f
 
 test('categories: renamed and recoloured, put in order, a new one added; KOLONİ’s four and one with roles are not deleted, an empty one is', async () => {
   const h = handlers()
-  const scout = role({ id: 'x', name: 'Scout', kind: 'k1', builtin: false })
+  const scout = role({ id: 'x', name: 'Forager', kind: 'k1', builtin: false })
   const mineToo = [...categories, { key: 'k1', name: 'Research', colour: 'rose' as const }, { key: 'k2', name: 'Ops', colour: 'teal' as const }]
   render(<AgentsPage roles={[lead, coder, tester, scout]} teams={teams} {...h} categories={mineToo} />)
   const lib = library()
@@ -570,31 +571,31 @@ test('where an agent ran says its tier between its model and its level; with non
 
 test('a stage’s "New role…" makes a role in that team beside the teams, and puts it in that stage', async () => {
   const h = handlers()
-  h.onCreate.mockResolvedValue(role({ id: 's', name: 'Scout', kind: 'build' }))
+  h.onCreate.mockResolvedValue(role({ id: 's', name: 'Forager', kind: 'build' }))
   render(<AgentsPage roles={[lead, coder, tester]} teams={teams} {...h} />)
   await userEvent.click(within(region('Stage 1, Plan', await openTeam('Web app'))).getByRole('button', { name: '+ Add a role' }))
   await userEvent.click(screen.getByRole('option', { name: 'New role…' }))
   const made = screen.getByRole('complementary', { name: 'New role' })
-  await userEvent.type(within(made).getByLabelText('Name'), 'Scout')
+  await userEvent.type(within(made).getByLabelText('Name'), 'Forager')
   await userEvent.selectOptions(within(made).getByLabelText('Category'), 'plan')
   await userEvent.click(within(made).getByRole('switch', { name: 'read_file' }))
   await userEvent.click(within(made).getByRole('button', { name: 'Create role' }))
-  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Scout', teams: ['web'], kind: 'plan' }))
+  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Forager', teams: ['web'], kind: 'plan' }))
   // in the stage it was asked from
   await vi.waitFor(() => expect(h.teamActions.placeRole).toHaveBeenCalledWith('web', 's', 'web-0'))
 })
 
 test('a role panel’s head: on or off, made by an agent, how a team’s lead is shown; a role with no team to go in says so', async () => {
-  const scout = role({ id: 'x', name: 'Scout', kind: 'build', builtin: false, enabled: false, created_by_agent: true })
+  const scout = role({ id: 'x', name: 'Forager', kind: 'build', builtin: false, enabled: false, created_by_agent: true })
   const { unmount } = render(<AgentsPage roles={[lead, scout]} {...handlers()} />)
-  await userEvent.click(within(library()).getByRole('button', { name: /^Scout/ }))
-  let panel = screen.getByRole('complementary', { name: 'Role Scout' })
+  await userEvent.click(within(library()).getByRole('button', { name: /^Forager/ }))
+  let panel = screen.getByRole('complementary', { name: 'Role Forager' })
   expect(panel.querySelector('h2 .tag')).toHaveTextContent(/^off$/)
   expect(panel.querySelector('h2 .tag')?.className).toBe('tag')
   expect(panel.querySelector('.role-panel-head .tag-accent')).toHaveTextContent('Created by an agent')
   expect(panel).not.toHaveTextContent('— shown as')
   expect(panel).toHaveTextContent('In teamsNo team yet')
-  expect(within(panel).queryByRole('combobox', { name: 'Put Scout in a team' })).toBeNull()
+  expect(within(panel).queryByRole('combobox', { name: 'Put Forager in a team' })).toBeNull()
   unmount()
   render(<AgentsPage roles={[lead, coder]} teams={teams} {...handlers()} />)
   await userEvent.click(within(await openTeam('Web app')).getByRole('button', { name: 'Web app lead: Instructions' }))
@@ -659,7 +660,7 @@ test('a copy made from a stage’s "New role…" goes in that team too', async (
 })
 
 test('a category with two roles says to move both before it is deleted', async () => {
-  const scouts = [role({ id: 'x', name: 'Scout', kind: 'k1', builtin: false }), role({ id: 'y', name: 'Ranger', kind: 'k1', builtin: false })]
+  const scouts = [role({ id: 'x', name: 'Forager', kind: 'k1', builtin: false }), role({ id: 'y', name: 'Ranger', kind: 'k1', builtin: false })]
   render(<AgentsPage roles={[lead, coder, tester, ...scouts]} teams={teams} {...handlers()} categories={[...categories, { key: 'k1', name: 'Research', colour: 'rose' as const }]} />)
   const lib = library()
   await userEvent.click(within(lib).getByRole('button', { name: 'Research: more' }))
@@ -684,4 +685,14 @@ test('a lead that is on says when it steps in, and its row is marked once it is 
   await userEvent.click(name)
   expect(name.closest('.team-lead-row')).toHaveClass('team-lead-row', 'team-lead-chosen')
   expect(name).toHaveAttribute('aria-current', 'true')
+})
+
+test('the built-in Scout’s card says what an opened Scout does, and that KOLONİ also asks in its name after each turn', async () => {
+  const scout = role({ id: 'sc', name: 'Scout (built-in)', kind: 'plan', builtin: true, description: 'Keeps watch on the To-do list.' })
+  const mine = role({ id: 'fo', name: 'Forager', kind: 'plan', builtin: false })
+  render(<AgentsPage roles={[lead, scout, mine]} {...handlers()} />)
+  await userEvent.click(within(library()).getByRole('button', { name: /^Scout \(built-in\)/ }))
+  expect(screen.getByRole('complementary', { name: 'Role Scout (built-in)' })).toHaveTextContent(SCOUT_AFTER)
+  await userEvent.click(within(library()).getByRole('button', { name: /^Forager/ }))
+  expect(screen.getByRole('complementary', { name: 'Role Forager' })).not.toHaveTextContent(SCOUT_AFTER)
 })
