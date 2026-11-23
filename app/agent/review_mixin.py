@@ -605,8 +605,9 @@ class ReviewMixin:
             if left
             else ""
         )
+        # (N: with what was failing before this turn, or flaky - a red line there is no finding)
         tests = proof.checked_text(
-            [one for one in held.rows if one["kind"] in ("tests", "coverage", "stronger")]
+            [one for one in held.rows if one["kind"] in ("tests", "coverage", "stronger", "before")]
         ) or ("no test was run")
         facing = [one.path for one in held.changes if one.in_project and one.kind == "ui"] or (
             ["a command's option"]
@@ -722,7 +723,10 @@ class ReviewMixin:
     async def _look_leaves_no_trace(self: "AgentRunner", ctx: Ctx):
         """P: what a look's command writes in the copy of the work it looks at (`_ws`: a report, a
         cache) is not the work - put back as the end gate's own run's is (`_tests_put_back`), never
-        taken in. In the project (no copy) it stays, as any agent's command's."""
+        taken in. In the project (no copy) it stays, as any agent's command's.
+        shortcut: two looks at once (the Reviewer and the Security reviewer) each put back what
+        moved since their own start - the other's report too, maybe while its run still writes
+        it; take one snapshot around both if a look's run is seen missing its own files."""
         copy = self._copies.get(self._works_in(ctx) or "")
         was, kept = ({}, {})
         if copy is not None:

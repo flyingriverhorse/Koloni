@@ -11,7 +11,7 @@ from tests.fakes import ScriptedExecutor
 from tests.test_chat_flow import text
 from tests.test_proof_before_scenarios import ONE, PYTEST, failing
 from tests.test_proof_end_scenarios import begin, texts
-from tests.test_proof_review_scenarios import BIG, MERGE, SIGN, reviewers
+from tests.test_proof_review_scenarios import BIG, MERGE, SIGN, calls_of, reviewers
 from tests.test_spawn import call, step
 
 pytestmark = pytest.mark.no_po
@@ -21,7 +21,7 @@ def test_a_change_whose_failing_tests_were_failing_before_is_still_looked_over(
     make_client, wait_run, project_dir
 ):
     executor = ScriptedExecutor([failing(ONE), failing(ONE), failing(ONE)])
-    client, _model = make_client(
+    client, model = make_client(
         {
             "Lead": [step(call("write_file", {"path": "a.py", "content": BIG}, "w")), text("done")],
             "Reviewer": [MERGE],
@@ -34,6 +34,8 @@ def test_a_change_whose_failing_tests_were_failing_before_is_still_looked_over(
     assert before_mixin.BEFORE.format(n=1, m=0) in rows, rows
     assert f"Review: Reviewer ({SIGN}) - MERGE, no findings" in rows, rows
     assert [a["name"] for a in reviewers(snap)] == ["Reviewer"]
+    # (and the Reviewer is told so: a red line failing before is no finding of the change's)
+    assert before_mixin.BEFORE.format(n=1, m=0) in calls_of(model, "Reviewer")[0]
 
 
 def test_still_failing_reads_past_rows_failing_before():

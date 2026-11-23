@@ -266,6 +266,7 @@ class StrongerMixin:
             await self._stronger(ctx, held)
         except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
             log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
+        await self._on_hold(ctx, held)  # (P: as at the gate's end - O's look may hold)
 
     async def _on_hold(self: "AgentRunner", ctx: Ctx, held: "Proof") -> None:
         """P (decision 18's spirit): work in a copy of the turn's own that a look of KOLONİ's

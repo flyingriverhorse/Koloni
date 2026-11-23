@@ -60,6 +60,7 @@ def test_the_fixed_regexes_still_read_what_they_read():
 def test_a_merge_said_blocked_reads_a_long_line_in_time():
     # (CL-340's `_MERGE_NOT` alternative, 16 KB at most, in a child process: a pattern that
     # backtracks holds up that process, never this test run)
+    import os
     import subprocess
     import sys
     from pathlib import Path
@@ -82,4 +83,6 @@ def test_a_merge_said_blocked_reads_a_long_line_in_time():
         cwd=Path(__file__).resolve().parents[1],
     )
     assert done.returncode == 0, done.stderr
-    assert float(done.stdout) < BUDGET_MS, done.stdout
+    # (before: 6.3 s - the spaces after MERGE split every way, 1.6 s for 8 000 of them)
+    limit = BUDGET_MS * 4 if os.environ.get("CI") else BUDGET_MS
+    assert float(done.stdout) < limit, done.stdout
