@@ -8,7 +8,8 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Fixed
 
-- **CLIs**: a file a sub-agent's work brought into the project is no longer, now and then, put down to the Orchestrator working with its own CLI beside it: KOLONİ's look at the project waits while Take in writes files
+- **Chat**: **Fix it** after a stronger model's rounds that were no pass says why in KOLONİ's own words, chosen by KOLONİ - never by text a model wrote in the Checked row
+- **CLIs**: a file a sub-agent's work brought into the project is no longer, now and then, put down to the Orchestrator working with its own CLI beside it - also at its last look as its turn ends: KOLONİ's looks at the project wait while Take in writes files
 
 ## [0.1.6] - 2026-11-23
 
