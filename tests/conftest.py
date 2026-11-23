@@ -50,6 +50,8 @@ def _upgrade_or_copy(db_path: Path) -> None:
 
 
 app.main.upgrade_db = _upgrade_or_copy
+# (for a test that makes its own database: the run's migrated one, copied)
+migrated_copy = _upgrade_or_copy
 
 
 @pytest.fixture

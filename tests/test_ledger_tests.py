@@ -11,7 +11,8 @@ import pytest
 
 from app import ledger
 from app.db.models import Agent, Command, Conversation, Message, Project, Run, ToolCall
-from app.db.session import make_engine, make_session_factory, upgrade_db
+from app.db.session import make_engine, make_session_factory
+from tests.conftest import migrated_copy
 
 
 @pytest.mark.parametrize("command", [
@@ -55,7 +56,7 @@ def test_a_test_run_is_read_as_its_tool_and_whether_its_exit_is_masked(command, 
 @pytest.fixture
 def factory(tmp_path):
     db = tmp_path / "l.db"
-    upgrade_db(db)
+    migrated_copy(db)  # (one migration a run: 30 s a test on Windows CI)
     factory = make_session_factory(make_engine(db))
     with factory() as s:
         s.add(Project(id="p", name="p", root_path=str(tmp_path)))
