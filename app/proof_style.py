@@ -17,6 +17,8 @@ from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
 from app.proof import Row, row
+from app.proof_kinds import _json
+from app.workspace import WorkspaceError
 
 STYLE = "style"
 PY = (".py", ".pyi")
@@ -28,8 +30,12 @@ STYLE_SECONDS = 120  # the kind's, every command of it
 MOST_SAID = 160  # characters of one problem
 MOST_FAILED = 20  # problems a tool fails the turn with, then counted
 MOST_CONFIG = 256 * 1024  # of a pyproject.toml or setup.cfg read
+# A line of a tool's output is read this far (B2: a regex over a long run of spaces held the GIL).
+MOST_LINE = 2048
 # A path put in a command line as it is - no quoting needed in PowerShell or sh; another is said.
 _PLAIN = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./@+-]*")
+# Colour codes a tool may write all the same (FORCE_COLOR set: NO_COLOR is not enough for ruff).
+_COLOUR = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _ESLINT_CONFIGS = (
     *(f"eslint.config.{one}" for one in ("js", "mjs", "cjs", "ts", "mts", "cts")),
     *(f".eslintrc{one}" for one in ("", ".js", ".cjs", ".json", ".yml", ".yaml")),
@@ -39,6 +45,7 @@ NOT_PLAIN = "Code style not checked: {named} - a name KOLONİ does not put in a 
 TOO_MANY = "{tool}: {n} more files not checked - at most {most} a run"
 CLEAN = "{tool}: no problems on the lines this turn changed ({n} files)"
 ELSEWHERE = "{tool}: {n} problems on lines this turn did not change"
+WARNED = "{tool}: {n} warnings on the lines this turn changed"
 MORE = "{tool}: +{n} more problems on the lines this turn changed"
 UNREAD = "{tool}: not checked - its output was not read ({why})"
 BY_THEIRS = (
@@ -46,7 +53,11 @@ BY_THEIRS = (
 )
 DECLINED = "declined on its card this turn"
 WROTE_IT = "this turn wrote in {folder}: no install of the project's"
+OUTSIDE = "its program is not in the project ({program})"
 NEEDS_LEAVE = "{tool}: not checked - it needs your leave once ({why})"
+NO_FILES = "tsc: not checked - its tsconfig names no files (references)"
+COMPOSITE = "tsc: not checked - its tsconfig is composite: tsc would write its build info"
+NO_TSCONFIG = "tsc: not checked - its tsconfig.json could not be read"
 PAST = "past the {seconds} s of Code style and types"
 NO_ANSWER = "Code style not checked: the Orchestrator's answer is not on record"
 
@@ -152,9 +163,12 @@ def planned(root: Path, paths: list[str]) -> tuple[list[Run], list[str]]:
     tool set up but not installed, a name not put in a command line, more files than a run reads.
     ruff and mypy run at the root with the root's `.venv` (ruff: else one on PATH; mypy: its
     settings at the root) - eslint and tsc in the nearest folder up from a file with their
-    settings and their own `node_modules/.bin`.
+    settings and their own `node_modules/.bin`. What they would write goes nowhere but the work's
+    folder: mypy's cache in its `.mypy_cache`, tsc not incremental (`_tsconfig_says`).
     shortcut: mypy's settings only at the root; a `.venv` only at the root, not `venv/`; eslint's
-    settings in package.json are not looked for - add them if a project is met with them."""
+    settings in package.json are not looked for - add them if a project is met with them.
+    shortcut: mypy's cache is put in the folder by `--cache-dir` - what `--no-incremental` alone
+    writes is not measured here (no mypy on this machine)."""
     odd = [one for one in paths if not _PLAIN.fullmatch(one)]
     paths = [one for one in paths if _PLAIN.fullmatch(one)]
     notes = []
@@ -166,7 +180,9 @@ def planned(root: Path, paths: list[str]) -> tuple[list[Run], list[str]]:
         ("ruff", "check --no-cache --output-format=concise", [
             one for one in py if _home(root, one, _ruff_set) is not None
         ]),
-        ("mypy", "--no-error-summary --no-pretty", py if _mypy_set(root) else []),
+        ("mypy", "--no-error-summary --no-pretty --cache-dir=.mypy_cache", (
+            py if _mypy_set(root) else []
+        )),
     ):  # fmt: skip
         if not ours:
             continue
@@ -179,26 +195,90 @@ def planned(root: Path, paths: list[str]) -> tuple[list[Run], list[str]]:
         notes += more
     for tool, words, set_up, kinds in (
         ("eslint", "--format stylish --no-color", _eslint_set, JS),
-        ("tsc", "--noEmit --pretty false -p tsconfig.json", None, TS),
+        ("tsc", "--noEmit --pretty false --incremental false -p tsconfig.json", _tsconfig, TS),
     ):
-        by_home: dict[str, list[str]] = {}
-        for one in paths:
-            if one.casefold().endswith(kinds):
-                found = set_up or (lambda at: (at / "tsconfig.json").is_file())
-                home = _home(root, one, found)
-                if home is not None:
-                    by_home.setdefault(home, []).append(one)
-        for home, ours in by_home.items():
-            program = _node(root / home, tool)
-            if program is None:
-                notes.append(NOT_INSTALLED.format(tool=tool))
-                continue
-            files, more = _capped(tool, ours)
-            inside = [str(PurePosixPath(one).relative_to(home or ".")) for one in files]
-            line = _line(program, words, inside if tool == "eslint" else [])
-            runs.append(Run(tool, line, home or ".", tuple(files)))
-            notes += more
+        _node_runs(root, paths, (tool, words, set_up, kinds), runs, notes)
     return runs, notes
+
+
+def _tsconfig(folder: Path) -> bool:
+    return (folder / "tsconfig.json").is_file()
+
+
+def _node_runs(root: Path, paths: list[str], how: tuple, runs: list[Run], notes: list[str]) -> None:
+    """`planned`'s eslint or tsc (`how`: its name, its words, where it is set up, the endings it
+    reads): one run in each nearest folder with its settings and its program."""
+    tool, words, set_up, kinds = how
+    by_home: dict[str, list[str]] = {}
+    for one in paths:
+        if one.casefold().endswith(kinds) and (home := _home(root, one, set_up)) is not None:
+            by_home.setdefault(home, []).append(one)
+    for home, ours in by_home.items():
+        program = _node(root / home, tool)
+        if program is None:
+            notes.append(NOT_INSTALLED.format(tool=tool))
+            continue
+        if tool == "tsc" and (why := _tsconfig_says(root / home)):
+            notes.append(why)
+            continue
+        files, more = _capped(tool, ours)
+        inside = [str(PurePosixPath(one).relative_to(home or ".")) for one in files]
+        line = _line(program, words, inside if tool == "eslint" else [])
+        runs.append(Run(tool, line, home or ".", tuple(files)))
+        notes += more
+
+
+def _tsconfig_says(folder: Path) -> str | None:
+    """Why tsc is not run on this folder's tsconfig.json - None: it checks files and writes
+    nothing. One that names no files (a solution's `files: []` with its `references`, as
+    create-vite writes it) checks nothing: never a pass for that. A composite one makes tsc write
+    its build info whatever it is told (tsc 5.9, measured: `--incremental false` is refused there,
+    exit 2, and the file is written all the same). One that cannot be read is said too.
+    shortcut: this file alone, not what it `extends` - a base that is composite is not seen; read
+    the chain if a project is met with one."""
+    try:
+        found, said = _json(_read(folder / "tsconfig.json"), "tsconfig.json")
+    except WorkspaceError:
+        return NO_TSCONFIG
+    if said is not None or not isinstance(found, dict):
+        return NO_TSCONFIG
+    options = found.get("compilerOptions")
+    if isinstance(options, dict) and options.get("composite") is True:
+        return COMPOSITE
+    return NO_FILES if found.get("files") == [] and "include" not in found else None
+
+
+def _real(path: Path) -> str:
+    return os.path.normcase(os.path.realpath(path)).casefold()
+
+
+def _within(path: str, folder: str) -> bool:
+    return path == folder or path.startswith(folder.rstrip("\\/") + os.sep)
+
+
+def planted(work: Path, project: Path, run: Run, written: Iterable[str]) -> str | None:
+    """B1: why `run`'s program is not run - None: it may be. Its real place is in neither the
+    work's folder nor the project (a link leading out: a copy's `node_modules` and `.venv` are
+    links into the project, so both are its places); or a file the turn wrote (`written`, from the
+    root) is that program, or in the folder it is installed in (`node_modules`, `.venv` - what a
+    `.cmd` shim runs is there too): a program planted by the turn, whatever case its folder was
+    written in (Windows' and macOS's file systems ignore it) and through any link. By real paths,
+    casefolded on every system. A program on PATH (ruff's) is no file of the project's.
+    shortcut: what the turn wrote on record only - a file a command made unrecorded is not seen;
+    `proof.unrecorded` says a turn had such a command."""
+    program = run.command.split()[0]
+    if "/" not in program:
+        return None
+    cwd = work / run.cwd
+    real, install = _real(cwd / program), _real(cwd / program.split("/")[0])
+    if not any(_within(real, _real(root)) for root in (work, project)):
+        return OUTSIDE.format(program=program)
+    for rel in written:
+        mine = _real(work / rel)
+        if mine == real or _within(mine, install):
+            folder = PurePosixPath(run.cwd, program.split("/")[0]).as_posix()
+            return WROTE_IT.format(folder=folder.removeprefix("./"))
+    return None
 
 
 def _on_path(tool: str) -> bool:
@@ -217,12 +297,15 @@ def runs_tool(line: str, tool: str) -> bool:
 # --- what a tool said ----------------------------------------------------------------------------
 
 # ruff (concise) and mypy: `path:line:col: said`, `path:line: said`; tsc: `path(line,col): said`;
-# eslint (stylish): the file on a line of its own, each problem under it, indented.
+# eslint (stylish): the file on a line of its own, each problem under it, indented. (B2: no lazy
+# part before an optional one - mypy's `[code]` is read off the end by `_mypy`; each line is cut
+# at MOST_LINE first.)
 _COLON = re.compile(r"^(?P<path>[^\n]+?):(?P<line>\d+):(?:\d+:)?\s+(?P<said>\S.*)$")
 _TSC = re.compile(r"^(?P<path>[^\n(]+?)\((?P<line>\d+),\d+\):\s+(?P<said>\S.*)$")
 _ESLINT = re.compile(r"^\s+(?P<line>\d+):\d+\s+(?P<said>\S.*)$")
 _RUFF = re.compile(r"^(?P<code>[A-Z]+\d+)\s+(?:\[\*\]\s+)?(?P<message>.+)$")
-_MYPY = re.compile(r"^error:\s+(?P<message>.+?)(?:\s+\[(?P<code>[\w-]+)\])?$")
+_MYPY = re.compile(r"^error:\s+(?P<message>\S.*)$")
+_MYPY_CODE = re.compile(r"[\w-]+")
 _TS = re.compile(r"^(?P<level>error|warning)\s+(?P<code>TS\d+):\s+(?P<message>.+)$")
 
 
@@ -246,8 +329,7 @@ def _said(tool: str, said: str) -> tuple[str, bool] | None:
         return (f"ruff {found['code']} - {found['message']}", True) if found else None
     if tool == "mypy":
         found = _MYPY.match(said)
-        code = f" {found['code']}" if found and found["code"] else ""
-        return (f"mypy{code} - {found['message']}", True) if found else None
+        return _mypy(found["message"]) if found else None
     if tool == "tsc":
         found = _TS.match(said)
         return (
@@ -262,6 +344,15 @@ def _said(tool: str, said: str) -> tuple[str, bool] | None:
     message, _sep, rule = rest.strip().rpartition("  ")
     message, rule = (message, rule) if message else (rule, "")
     return f"eslint{f' {rule.strip()}' if rule else ''} - {message.strip()}", level == "error"
+
+
+def _mypy(message: str) -> tuple[str, bool]:
+    """mypy's error, its `[code]` read off the end (`... [attr-defined]`) - by `rpartition`, never
+    a lazy match before an optional group (B2: quadratic over a long run of spaces)."""
+    head, sep, tail = message.rstrip().rpartition(" [")
+    if sep and tail.endswith("]") and _MYPY_CODE.fullmatch(tail[:-1]):
+        return f"mypy {tail[:-1]} - {head.rstrip()}", True
+    return f"mypy - {message.rstrip()}", True
 
 
 def _from_root(root: Path, cwd: Path, path: str) -> str | None:
@@ -282,10 +373,11 @@ def _from_root(root: Path, cwd: Path, path: str) -> str | None:
 
 
 def problems(tool: str, output: str, root: Path, cwd: str) -> list[Problem]:
-    """What `tool` said, line by line - whatever else its output holds (a warning, a summary)."""
+    """What `tool` said, line by line - whatever else its output holds (a warning, a summary, its
+    colour codes) - each line read to MOST_LINE."""
     folder, found, current = root / cwd, [], None
-    for raw in output.splitlines():
-        text = raw.rstrip("\r")
+    for raw in _COLOUR.sub("", output).splitlines():
+        text = raw.rstrip("\r")[:MOST_LINE]
         if tool == "eslint":
             if (at := _ESLINT.match(text)) and current is not None:
                 said = _said(tool, at["said"])
@@ -306,21 +398,25 @@ def rows_of(
     run: Run, code: int | None, output: str, root: Path, added: Mapping[str, Iterable[int]]
 ) -> list[Row]:
     """A run's lines: each error on a line the turn added or changed in a file it changed is
-    failed (at most MOST_FAILED, the rest counted); the others one note; none, a pass. An exit
-    with nothing read from its output is said, never failed."""
+    failed (at most MOST_FAILED, the rest counted); its warnings there one note, what is on other
+    lines another; none, a pass. An exit with nothing read from its output is said, never
+    failed."""
     found = problems(run.tool, output, root, run.cwd)
     if code is None:
         return [row(STYLE, "note", UNREAD.format(tool=run.tool, why="it did not end"))]
     if code != 0 and not found:
         return [row(STYLE, "note", UNREAD.format(tool=run.tool, why=f"exit {code}"))]
     lines = {path: set(numbers) for path, numbers in added.items()}
-    mine = [one for one in found if one.error and one.line in lines.get(one.path, ())]
+    ours = [one for one in found if one.line in lines.get(one.path, ())]
+    mine = [one for one in ours if one.error]
     rows = [
         row(STYLE, "failed", _one_line(f"{one.path}:{one.line}: {one.said}"))
         for one in mine[:MOST_FAILED]
     ]
     if len(mine) > MOST_FAILED:
         rows.append(row(STYLE, "note", MORE.format(tool=run.tool, n=len(mine) - MOST_FAILED)))
-    if elsewhere := len(found) - len(mine):
+    if warned := len(ours) - len(mine):
+        rows.append(row(STYLE, "note", WARNED.format(tool=run.tool, n=warned)))
+    if elsewhere := len(found) - len(ours):
         rows.append(row(STYLE, "note", ELSEWHERE.format(tool=run.tool, n=elsewhere)))
     return rows or [row(STYLE, "passed", CLEAN.format(tool=run.tool, n=len(run.files)))]

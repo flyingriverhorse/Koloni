@@ -19,7 +19,8 @@ from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import PASS, begin, texts
 
 RUFF = ".venv/Scripts/ruff.exe" if sys.platform == "win32" else ".venv/bin/ruff"
-LINE = f"{RUFF} check --no-cache --output-format=concise ./app.py"
+FIXED_LINE = f"{RUFF} check --no-cache --output-format=concise"
+LINE = f"{FIXED_LINE} ./app.py"
 NEW = "import os\nx = 1\n"
 FIXED = "x = 1\n"
 # (Its words around the lines it gives - a warning, a summary - are read past.)
@@ -211,7 +212,9 @@ def test_at_auto_edit_one_card_a_tool_a_turn_and_always_keeps_it(
     snap = wait_status(client, cid, "waiting_approval")
     (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
     assert asked["command"] == LINE
-    assert asked["suggested_prefix"] == RUFF  # (Always: the tool, never asked again)
+    # (Always: this very line's fixed part - never the bare program, which would cover another
+    # config, a plugin folder, a report written elsewhere)
+    assert asked["suggested_prefix"] == FIXED_LINE
     yes = client.post(f"/api/commands/{asked['id']}/approve", json={"remember": True}, headers=OWN)
     assert yes.status_code == 200, yes.text
     snap = wait_run(client, cid, run_id)  # (no second card in the turn: it would wait here)
@@ -389,3 +392,356 @@ def test_in_the_recipes_copy_a_tools_writes_are_put_back_never_taken_in(make_cli
         answer(client, asked(snap), "Take in")
     assert until(client, cid, lambda _s: (project_dir / "app.py").exists(), timeout=20)
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n", executor.started
+
+
+# --- the security review's round (HOLD): what never runs, what is read, what is offered ---------
+
+NODE = "node_modules/.bin/eslint.cmd" if sys.platform == "win32" else "node_modules/.bin/eslint"
+ESLINT_CLEAN = Script(["\n"])
+
+
+def eslint_in(root: Path, folder: str) -> None:
+    """`folder` with eslint set up and installed - the project's own, from before the turn."""
+    (root / folder / "node_modules" / ".bin").mkdir(parents=True)
+    (root / folder / NODE).write_text("@echo the project's\n", encoding="utf-8")
+    (root / folder / "eslint.config.js").write_text("export default []\n", encoding="utf-8")
+
+
+def an_eslint(folder: str) -> proof_style.Run:
+    return proof_style.Run("eslint", f"{NODE} --format stylish --no-color ./x.js", folder, ())
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "admin/NODE_MODULES/.bin/eslint.cmd",  # (another case: one folder on Windows and macOS)
+        "admin/Node_Modules/.bin/eslint",
+        "admin/node_modules/eslint/bin/eslint.js",  # (what the .cmd shim runs)
+        "admin/node_modules/.bin/eslint.cmd",
+    ],
+)
+def test_a_program_the_turn_wrote_in_its_install_folder_is_never_run(tmp_path, written):
+    eslint_in(tmp_path, "admin")
+    said = proof_style.planted(tmp_path, tmp_path, an_eslint("admin"), ["admin/x.js", written])
+    assert said == "this turn wrote in admin/node_modules: no install of the project's"
+    # (the project's own, the turn writing elsewhere: it may run)
+    assert proof_style.planted(tmp_path, tmp_path, an_eslint("admin"), ["admin/x.js"]) is None
+    ruff = proof_style.Run("ruff", "ruff check ./a.py", ".", ("a.py",))  # (on PATH: none)
+    assert proof_style.planted(tmp_path, tmp_path, ruff, [written]) is None
+
+
+def test_a_program_through_a_link_is_judged_where_it_really_is(tmp_path):
+    from tests.test_project_map import _link
+
+    project, copy, outside = tmp_path / "p", tmp_path / "copy", tmp_path / "outside"
+    eslint_in(project, "web")
+    # (a copy's node_modules is a link into the project's: the project's own program)
+    (copy / "web").mkdir(parents=True)
+    _link(project / "web" / "node_modules", copy / "web" / "node_modules")
+    assert proof_style.planted(copy, project, an_eslint("web"), ["web/x.js"]) is None
+    # (one the turn made a link to a folder it wrote in, or out of the project: not run)
+    (project / "admin" / "vendor" / ".bin").mkdir(parents=True)
+    (project / "admin" / "vendor" / NODE.removeprefix("node_modules/")).write_text("x")
+    _link(project / "admin" / "vendor", project / "admin" / "node_modules")
+    wrote = ["admin/vendor/.bin/eslint.cmd", "admin/x.js"]
+    assert "this turn wrote in" in proof_style.planted(project, project, an_eslint("admin"), wrote)
+    eslint_in(outside, "x")
+    (project / "far").mkdir()
+    _link(outside / "x" / "node_modules", project / "far" / "node_modules")
+    assert proof_style.planted(project, project, an_eslint("far"), ["far/x.js"]) == (
+        f"its program is not in the project ({NODE})"
+    )
+
+
+@pytest.mark.no_po
+@pytest.mark.skipif(sys.platform != "win32", reason="a file system that ignores case")
+def test_one_yes_never_runs_an_eslint_the_turn_planted_under_another_case(
+    make_client, wait_run, project_dir
+):
+    """The review's probe: web's card said yes, and the eslint the turn wrote in admin's
+    NODE_MODULES ran unasked."""
+    eslint_in(project_dir, "web")
+    executor = ScriptedExecutor([PASS, ESLINT_CLEAN, ESLINT_CLEAN])
+    client, _model = make_client(
+        [
+            write("web/y.js", "let y = 1\n", "w1"),
+            write("admin/eslint.config.js", "export default []\n", "w2"),
+            write("admin/NODE_MODULES/.bin/eslint.cmd", "@echo PLANTED %*\n", "w3"),
+            write("admin/x.js", "let x = 1\n", "w4"),
+            text("done"),
+        ],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    snap = wait_status(client, cid, "waiting_approval")
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert asked["cwd"] == "web", asked
+    assert (
+        client.post(f"/api/commands/{asked['id']}/approve", json={}, headers=OWN).status_code == 200
+    )
+    rows = texts(wait_run(client, cid, run_id))
+    assert not [cwd for _c, cwd in executor.started if Path(cwd).name == "admin"], executor.started
+    said = "eslint: not run - this turn wrote in admin/node_modules: no install of the project's"
+    assert said in rows, rows
+
+
+@pytest.mark.no_po
+def test_a_yes_is_that_line_in_that_folder_another_folders_eslint_asks_its_own(
+    make_client, wait_run, project_dir
+):
+    from tests.test_parallel import until
+
+    eslint_in(project_dir, "web")
+    eslint_in(project_dir, "admin")
+    executor = ScriptedExecutor([PASS, ESLINT_CLEAN, ESLINT_CLEAN])
+    client, _model = make_client(
+        [
+            write("web/y.js", "let y = 1\n", "w1"),
+            write("admin/x.js", "let x = 1\n", "w2"),
+            text("done"),
+        ],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    for folder in ("web", "admin"):
+        snap = until(
+            client,
+            cid,
+            lambda s, f=folder: any(
+                c["status"] == "proposed" and c["cwd"] == f for c in s["commands"]
+            ),
+            timeout=10,
+        )
+        (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+        assert (
+            client.post(f"/api/commands/{asked['id']}/approve", json={}, headers=OWN).status_code
+            == 200
+        )
+    rows = texts(wait_run(client, cid, run_id))
+    assert sorted(Path(cwd).name for _c, cwd in executor.started[1:]) == ["admin", "web"], rows
+
+
+@pytest.mark.no_po
+def test_a_run_with_no_card_is_no_yes_when_the_level_drops_it_asks(
+    make_client, wait_run, project_dir
+):
+    """Full auto ran ruff with no card; the user turns the level down before the fix round's
+    pass: the same line asks - a yes is a card's only."""
+    from tests.conftest import Gate
+
+    set_up(project_dir)
+    held = Gate()
+    executor = ScriptedExecutor([PASS, RUFF_SAYS, PASS, RUFF_CLEAN])
+    client, _model = make_client(
+        [
+            write("app.py", NEW),
+            text("done"),
+            held.step(write("app.py", FIXED, "w2")),
+            text("fixed"),
+        ],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    held.wait_partial()
+    level = client.patch(
+        f"/api/conversations/{cid}", json={"permission_mode": "auto_edit"}, headers=OWN
+    )
+    assert level.status_code == 200, level.text
+    held.release()
+    snap = wait_status(client, cid, "waiting_approval")
+    (asked,) = [c for c in snap["commands"] if c["status"] == "proposed"]
+    assert asked["command"] == LINE
+    assert (
+        client.post(f"/api/commands/{asked['id']}/approve", json={}, headers=OWN).status_code == 200
+    )
+    wait_run(client, cid, run_id)
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("leave", [False, True])
+def test_in_a_turn_nobody_watches_a_tool_runs_only_on_its_triggers_leave_for_the_line(
+    make_client, wait_run, project_dir, leave
+):
+    from tests.test_triggers import allow, run_now, setup, trigger
+    from tests.test_triggers import leave as given
+
+    set_up(project_dir)
+    executor = ScriptedExecutor([PASS, RUFF_CLEAN])
+    client, _model, pid, cid = setup(
+        make_client, project_dir, [write("app.py", FIXED), text("done")], executor=executor
+    )
+    patched = client.patch(
+        f"/api/projects/{pid}", json={"check_command": "python check.py", "lead_work": "itself"}
+    )
+    assert patched.status_code == 200, patched.text
+    rules = [allow(client, cid, "python check.py"), *([allow(client, cid, LINE)] if leave else [])]
+    made = trigger(client, pid, cid, permissions=given(write=True, commands=rules))
+    rows = texts(wait_run(client, cid, run_now(client, made["id"])))
+    ran = [command for command, _cwd in executor.started]
+    if leave:  # (its leave for this very line: run, unasked)
+        assert ran == ["python check.py", LINE]
+        assert "ruff: no problems on the lines this turn changed (1 files)" in rows, rows
+    else:
+        assert ran == ["python check.py"]
+        assert any(one.startswith("ruff: not checked - it needs your leave once") for one in rows)
+
+
+@pytest.mark.no_po
+def test_a_part_test_that_does_not_run_this_turn_does_not_stand_for_the_tool(
+    make_client, wait_run, project_dir
+):
+    """The project's check command runs alone: its part's `ruff check .` does not run this
+    turn - so ruff is not said to be run by the project's own check, and runs."""
+    set_up(project_dir)
+    executor = ScriptedExecutor([PASS, RUFF_CLEAN])
+    client, _model = make_client([write("app.py", FIXED), text("done")], executor=executor)
+    cid, run_id = begin(
+        client, project_dir, check_command="python check.py", parts={"./": "ruff check ."}
+    )
+    rows = texts(wait_run(client, cid, run_id))
+    assert [command for command, _cwd in executor.started] == ["python check.py", LINE], rows
+    assert proof_style.BY_THEIRS.format(tool="ruff") not in rows
+
+
+@pytest.mark.no_po
+def test_a_tool_waits_for_the_machines_test_slot_and_says_so_past_its_time(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    from app.agent import AgentRunner
+
+    async def no_tests(_self, _ctx, _held):  # (the turn's own tests would wait for it too)
+        return None
+
+    monkeypatch.setattr(AgentRunner, "_proof_tests", no_tests)
+    set_up(project_dir)
+    monkeypatch.setattr(proof_style, "STYLE_SECONDS", 2)
+    executor = ScriptedExecutor([])
+    client, _model = make_client([write("app.py", FIXED), text("done")], executor=executor)
+    slot = client.app.state.runner._test_slot
+    slot.taken = 99  # (other turns' whole suites, going on - as many as Settings allow, and more)
+    try:
+        cid, run_id = begin(client, project_dir)
+        rows = texts(wait_run(client, cid, run_id))
+    finally:
+        slot.taken = 0
+    assert executor.started == [], executor.started
+    assert "ruff: not run - another of KOLONİ's test runs held the machine past the wait" in rows
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "a.py:1: error: a" + " " * 16000 + "b",
+        "a.py:1: error: a" + "\t" * 16000 + "b",
+        "a" + ":1" * 8000,
+        "a.ts(1,1): error TS1: " + " " * 16000 + "x",
+        " " * 16000 + "1:1",
+    ],
+    ids=["mypy", "mypy-tabs", "colon", "tsc", "eslint"],
+)
+def test_a_long_line_is_read_in_time_linear_in_its_length(line):
+    """B2: `_MYPY` was quadratic over a run of spaces, and held the GIL - every chat froze. Each
+    parser over 2 and 16 KB lines, in a child process with a time limit: 8x the line, never
+    near 64x the time."""
+    tool = "tsc" if "TS1" in line else "eslint" if line.startswith(" ") else "mypy"
+    probe = (
+        "import sys, time\nfrom pathlib import Path\nfrom app import proof_style\n"
+        "line, tool = sys.argv[1], sys.argv[2]\n"
+        "def took(text):\n    t = time.perf_counter()\n"
+        "    for _ in range(20):\n        proof_style.problems(tool, text, Path('.'), '.')\n"
+        "    return time.perf_counter() - t\n"
+        "short = line[:2048]\nprint(took(short), took(line))\n"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", probe, line, tool],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=Path(proof_style.__file__).parents[1],
+        check=False,
+    )
+    short, long = map(float, done.stdout.split())
+    assert long < max(short, 0.001) * 20, (short, long, done.stderr)
+
+
+def test_colour_codes_are_read_past():
+    said = "\x1b[1mapp.py\x1b[0m:1:8: \x1b[1;31mF401\x1b[0m [*] `os` imported but unused\n"
+    (one,) = proof_style.problems("ruff", said, Path("."), ".")
+    assert (one.path, one.line, one.said) == ("app.py", 1, "ruff F401 - `os` imported but unused")
+
+
+def test_the_turns_lines_are_counted_as_the_tools_count_them():
+    # (a form feed is no line of its own to ruff: the turn added line 2, never 3)
+    assert proof.changed_lines("\x0c\nimport os\n", "\x0c\ny = 1\nimport os\n") == [2]
+    assert proof.changed_lines("a\r\nb\r\n", "a\r\nB\r\n") == [2]
+    assert proof.changed_lines("a\rb", "a\rb\rc") == [3]
+
+
+def test_warnings_on_the_turns_lines_are_not_counted_as_elsewhere(tmp_path):
+    run = proof_style.Run("eslint", "x", "web", ("web/y.js",))
+    output = (
+        f"{tmp_path}/web/y.js\n  2:5  warning  Unexpected console statement  no-console\n"
+        "  9:1  error  'q' is defined but never used  no-unused-vars\n"
+    )
+    rows = proof_style.rows_of(run, 1, output, tmp_path, {"web/y.js": [2]})
+    assert [(one["state"], one["text"]) for one in rows] == [
+        ("note", "eslint: 1 warnings on the lines this turn changed"),
+        ("note", "eslint: 1 problems on lines this turn did not change"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "config, said",
+    [
+        ('{"files": [], "references": [{"path": "./tsconfig.app.json"}]}', proof_style.NO_FILES),
+        ('{"compilerOptions": {"composite": true}}', proof_style.COMPOSITE),
+        ('{"compilerOptions": {', proof_style.NO_TSCONFIG),
+        ('{\n  // checked\n  "compilerOptions": {"strict": true,},\n}', None),
+    ],
+)
+def test_tsc_runs_only_on_a_tsconfig_that_checks_files_and_writes_nothing(tmp_path, config, said):
+    (tmp_path / "web" / "node_modules" / ".bin").mkdir(parents=True)
+    tsc = "node_modules/.bin/tsc.cmd" if sys.platform == "win32" else "node_modules/.bin/tsc"
+    (tmp_path / "web" / tsc).write_text("")
+    (tmp_path / "web" / "tsconfig.json").write_text(config, encoding="utf-8")
+    runs, notes = proof_style.planned(tmp_path, ["web/src/a.ts"])
+    if said is not None:  # (never a pass row for nothing checked)
+        assert (runs, notes) == ([], [said])
+        return
+    ((_tool, line, cwd, _files),) = runs
+    assert line == f"{tsc} --noEmit --pretty false --incremental false -p tsconfig.json"
+    assert cwd == "web" and notes == []
+
+
+def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(tmp_path):
+    from app.commands import matches, suggest_prefix
+
+    py = "a.py"
+    lines = {
+        "ruff": f"{RUFF} check --no-cache --output-format=concise ./{py}",
+        "mypy": f"{RUFF.replace('ruff', 'mypy')} --no-error-summary --no-pretty "
+        f"--cache-dir=.mypy_cache ./{py}",
+        "eslint": f"{NODE} --format stylish --no-color ./a.js",
+        "tsc": f"{NODE.replace('eslint', 'tsc')} --noEmit --pretty false --incremental false "
+        "-p tsconfig.json",
+    }
+    escapes = {
+        "ruff": ["--config C:/x/evil.toml", "--output-file C:/x/out.txt", "-o C:/x/out.txt"],
+        "mypy": ["--python-executable C:/x/evil.exe", "--config-file C:/x/evil.ini",
+                 "--cache-dir C:/x", "--junit-xml C:/x/out.xml"],
+        "eslint": ["--resolve-plugins-relative-to C:/x", "-c C:/x/evil.js", "--rulesdir C:/x",
+                   "-o C:/x/out.txt", "--config C:/x/evil.js"],
+        "tsc": ["--outDir C:/x", "-p C:/x/tsconfig.json"],
+    }  # fmt: skip
+    for tool, line in lines.items():
+        offered = suggest_prefix(line)
+        fixed = line.split(" ./")[0]
+        assert offered == fixed, (tool, offered)
+        assert matches(line, offered)  # (the line it was offered for)
+        if " ./" in line:  # (and the same line on other files)
+            assert matches(f"{fixed} ./b.py ./c.py", offered)
+        program = line.split()[0]
+        for escape in escapes[tool]:
+            assert not matches(f"{fixed} {escape} ./b.py", offered), (tool, escape)
+            # (nor an older rule of the bare program's)
+            assert not matches(f"{program} {escape} ./b.py", program), (tool, escape)

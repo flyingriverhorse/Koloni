@@ -9,7 +9,6 @@ review: a turn of documents alone runs no test and gets these checks."""
 import asyncio
 import json
 import math
-import posixpath
 import time
 import uuid
 from collections.abc import Sequence
@@ -20,6 +19,7 @@ from sqlalchemy import literal_column, select
 
 from app import browser, injection, koloni, proof, proof_kinds, proof_style
 from app.agent.ctx import Ctx, _GateRefused
+from app.agent.proof_mixin import SLOT_BUSY
 from app.db.models import Agent, Command, Conversation, Message, Run, ShownFile, now
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row
@@ -61,17 +61,21 @@ def _written(changes: list[Change], made: Sequence[str] = ()) -> dict[str, list[
     return {**found, proof_style.STYLE: style} if style else found
 
 
-def _set_up(written: dict[str, list[str]], root: str | Path | None) -> dict[str, list[str]]:
-    """`written` without Code style and types where no tool of it is set up for those files:
-    a project with no linter hears nothing of it - not even that it is off."""
-    paths = written.get(proof_style.STYLE)
-    if paths and root is not None and proof_style.configured(Path(root), paths):
+def _set_up(written: dict[str, list[str]], set_up: bool) -> dict[str, list[str]]:
+    """`written` without Code style and types where no tool of it is set up for those files
+    (`set_up`: `KindsMixin._style_seen`'s, of this pass): a project with no linter hears nothing
+    of it - not even that it is off."""
+    if set_up:
         return written
     return {kind: one for kind, one in written.items() if kind != proof_style.STYLE}
 
 
 def _shown(kinds) -> str:
     return ", ".join(proof_kinds.SHOWN[kind] for kind in kinds)
+
+
+def _not_run(run: "proof_style.Run", why: str) -> list[Row]:
+    return [proof.row(proof_style.STYLE, "note", f"{run.tool}: not run - {why}")]
 
 
 class KindsMixin:
@@ -99,7 +103,7 @@ class KindsMixin:
             before = proof.before_of(session, ctx.run_id)
             held.kinds_seen = proof.last_change(session, ctx.run_id)
         ws = self._ws(ctx)
-        written = await asyncio.to_thread(_set_up, _written(held.changes, made), ws.root)
+        written = _set_up(_written(held.changes, made), held.style_set_up)
         checks = held.checks
         if not written or not checks.own and checks.setting != "check":  # (Tests only: tests)
             return None
@@ -145,29 +149,44 @@ class KindsMixin:
             )
         )
 
+    async def _style_seen(self: "AgentRunner", ctx: Ctx, changes: list[Change]) -> bool:
+        """Whether a tool of Code style and types is set up for the turn's code, where the work is
+        (`_ws`: a recipe's copy, not the project) - read once a pass, off the event loop: the
+        kinds' check and what is said of it at the turn's end (`_kinds_left`) go by it."""
+        paths = _written(changes).get(proof_style.STYLE)
+        return bool(paths) and await asyncio.to_thread(
+            proof_style.configured, self._ws(ctx).root, paths
+        )
+
     async def _style(
         self: "AgentRunner", ctx: Ctx, ws: Workspace, paths: list[str], held: "Proof"
     ) -> list[Row]:
         """0.1.7, Code style and types: the project's own tools on the turn's files, where the work
         is (`proof_style.planned`) - each run as the project's test command is (`_style_may`):
-        unasked at Full auto or where a rule of the user's covers it, at Ask and Auto-edit on one
-        card a tool a turn (Always: never again in the project), in a turn nobody watches only on
-        its trigger's leave. In a copy, in its one window, what one writes there (a cache) is put
-        back. A problem on a line the turn wrote fails (a fix round, its words as data); the
-        others are said. STYLE_SECONDS for them all.
-        shortcut: not in the app-wide slot of KOLONİ's test runs - take it if a tsc or mypy run
-        is seen to crowd the machine."""
+        unasked at Full auto or where a rule of the user's covers the line (the card offers that
+        very line as its Always rule, never the bare program), at Ask and Auto-edit on a card - a
+        yes covers that exact line in that folder for the turn (`held.yes`, as the test command's),
+        a no the tool in that folder -, in a turn nobody watches only on its trigger's leave. Never
+        a program the turn planted (`proof_style.planted`). In the app-wide slot of KOLONİ's test
+        runs; in a copy, in its one window, what one writes there (a cache) is put back. A problem
+        on a line the turn wrote fails (a fix round, its words as data); the others are said.
+        STYLE_SECONDS for them all, its wait for the slot too."""
         runs, notes = await asyncio.to_thread(proof_style.planned, ws.root, paths)
         rows = [proof.row(proof_style.STYLE, "note", one) for one in notes]
         if not runs:
             return rows
-        theirs = await self._approved_tests(ctx) if "tests" in held.checks.on else []
+        # (what the project's own check ran in this pass - never one it did not run this turn)
+        theirs = [
+            one["command"]
+            for one in held.rows
+            if one["kind"] == "tests" and one["state"] in ("passed", "failed") and one["command"]
+        ]
         message_id, added = await asyncio.to_thread(self._style_record, ctx)
         if message_id is None:
             return [*rows, proof.row(proof_style.STYLE, "note", proof_style.NO_ANSWER)]
         until = time.monotonic() + proof_style.STYLE_SECONDS
         for run in runs:
-            if any(proof_style.runs_tool(line, run.tool) for line, _folder in theirs):
+            if any(proof_style.runs_tool(line, run.tool) for line in theirs):
                 rows.append(
                     proof.row(
                         proof_style.STYLE, "note", proof_style.BY_THEIRS.format(tool=run.tool)
@@ -206,24 +225,23 @@ class KindsMixin:
         )
         return "run" if refused == "" else refused or "nobody is there to ask"
 
-    def _style_how(
-        self: "AgentRunner", ctx: Ctx, run: "proof_style.Run", held: "Proof"
+    async def _style_how(
+        self: "AgentRunner", ctx: Ctx, ws: Workspace, run: "proof_style.Run", held: "Proof"
     ) -> str | list[Row]:
         """How a tool's command goes (`_style_may`: "ask" or "run"), or what is said instead: a
-        no on its card this turn, a program the turn wrote itself (in .venv or node_modules: no
-        install of the project's), no leave."""
+        no on its card this turn (the tool in that folder), a program the turn planted or one
+        outside the project (`proof_style.planted`, by real paths), no leave."""
 
         def note(why: str) -> list[Row]:
             return [proof.row(proof_style.STYLE, "note", f"{run.tool}: not run - {why}")]
 
-        if held.style.get(run.tool) == "no":
+        if (run.tool, run.cwd) in held.style:
             return note(proof_style.DECLINED)
-        program = run.command.split()[0]
-        install = posixpath.normpath(posixpath.join(run.cwd, program.split("/")[0]))
-        if "/" in program and any(
-            one.path.replace("\\", "/").startswith(f"{install}/") for one in held.changes
+        written = [one.path for one in held.changes]
+        if why := await asyncio.to_thread(
+            proof_style.planted, ws.root, Path(ctx.folder), run, written
         ):
-            return note(proof_style.WROTE_IT.format(folder=install))
+            return note(why)
         how = self._style_may(ctx, run)
         if how not in ("run", "ask"):
             said = proof_style.NEEDS_LEAVE.format(tool=run.tool, why=how)
@@ -241,19 +259,11 @@ class KindsMixin:
         added: dict[str, list[int]],
     ) -> list[Row]:
         """One tool's command, on record as KOLONİ's call on the Lead's last answer (its card
-        there where one is asked) - at most one card a tool a turn: a no stands for the turn, a
-        yes covers its later lines in it."""
-
-        how = self._style_how(ctx, run, held)
+        there where one is asked): a no stands for the tool in that folder this turn; a yes is
+        that line's in that folder (`once`: the command runner adds it only on a card's yes)."""
+        how = await self._style_how(ctx, ws, run, held)
         if isinstance(how, list):
             return how
-
-        def note(why: str) -> list[Row]:
-            return [proof.row(proof_style.STYLE, "note", f"{run.tool}: not run - {why}")]
-
-        once = held.yes.setdefault(run.cwd, set())
-        if held.style.get(run.tool) == "yes":  # (its card's yes this turn: this line too)
-            once.add(run.command.strip())
         args = {"command": run.command, **({"cwd": run.cwd} if run.cwd != "." else {})}
         request = ToolCallRequest(
             f"{proof.PROOF_CALL}{uuid.uuid4().hex[:16]}",
@@ -262,42 +272,10 @@ class KindsMixin:
         )
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         self._set_call(ctx.cid, call_id, status="running", started_at=now())
-
-        async def given(args: dict) -> Workspace:  # (what is left of the time, once it may run)
-            seconds = math.ceil(until - time.monotonic())
-            if seconds < 1:
-                raise ToolError(proof_style.PAST.format(seconds=proof_style.STYLE_SECONDS))
-            args["timeout_seconds"] = seconds
-            return ws
-
-        copy = self._copies.get(self._works_in(ctx) or "")
-        left: list[str] = []
-        async with self._copy_held(copy):  # (one window of a copy: snapshot, run, put back)
-            trace = await self._look_trace(copy) if copy is not None else None
-            try:
-                code, output, result, ended = await self._run_in_copy(
-                    ctx,
-                    ws,
-                    run.command,
-                    call_id,
-                    ask=how == "ask",
-                    once=once,
-                    cwd=run.cwd,
-                    seconds=proof_style.STYLE_SECONDS,
-                    where=given,
-                )
-            except (_GateRefused, ToolError) as exc:
-                self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
-                return note(str(exc).removeprefix("error: "))
-            except asyncio.CancelledError:
-                self.commands.close_open(ctx.run_id, ctx.cid, calls=[call_id])
-                self._set_call(
-                    ctx.cid, call_id, status="interrupted", result=proof.STOPPED, ended_at=now()
-                )
-                raise
-            finally:
-                if trace is not None:
-                    left.append(await self._look_untrace(ctx, trace))
+        ran = await self._style_go(ctx, ws, run, held, call_id, how, until)
+        if isinstance(ran, list):
+            return ran
+        code, output, result, ended, left = ran
         self._set_call(
             ctx.cid,
             call_id,
@@ -306,13 +284,81 @@ class KindsMixin:
             ended_at=now(),
         )
         if ended == "rejected":
-            held.style[run.tool] = "no"
-            return note(proof_style.DECLINED)
-        held.style[run.tool] = "yes"
+            held.style.add((run.tool, run.cwd))
+            return _not_run(run, proof_style.DECLINED)
         if ended == "failed_to_start":  # (its time gone, its folder not there: as it said)
-            return note(result.removeprefix("error: "))
+            return _not_run(run, result.removeprefix("error: "))
         rows = await asyncio.to_thread(proof_style.rows_of, run, code, output, ws.root, added)
         return rows + [proof.row(proof_style.STYLE, "note", one) for one in left if one]
+
+    async def _style_go(
+        self: "AgentRunner",
+        ctx: Ctx,
+        ws: Workspace,
+        run: "proof_style.Run",
+        held: "Proof",
+        call_id: str,
+        how: str,
+        until: float,
+    ) -> tuple | list[Row]:
+        """`_style_run`'s run itself, in a copy's one window (what it writes there put back) and in
+        the app-wide slot of KOLONİ's test runs, taken once it may start - the machine runs one
+        such tool or test suite at a time as Settings say, never tsc beside the whole suite; the
+        wait for it is within STYLE_SECONDS. Its exit code, output, result, how it ended and what
+        could not be put back - or, not run, its row (the call on record as ended)."""
+        with self._factory() as session:
+            runs, _workers = proof.load_of(session)
+        slot, taken = self._slot(runs), []
+
+        async def given(args: dict) -> Workspace:  # (what is left of the time, once it may run)
+            if (wait := until - time.monotonic()) < 1:
+                raise ToolError(proof_style.PAST.format(seconds=proof_style.STYLE_SECONDS))
+            try:
+                await asyncio.wait_for(slot.acquire(), wait)
+            except TimeoutError:
+                raise ToolError(SLOT_BUSY) from None
+            taken.append(True)
+            if (seconds := math.ceil(until - time.monotonic())) < 1:
+                raise ToolError(proof_style.PAST.format(seconds=proof_style.STYLE_SECONDS))
+            args["timeout_seconds"] = seconds
+            return ws
+
+        copy = self._copies.get(self._works_in(ctx) or "")
+        left: list[str] = []
+        async with self._copy_held(copy):  # (one window of a copy: snapshot, run, put back)
+            try:
+                trace = await self._look_trace(copy) if copy is not None else None
+            except ToolError as exc:  # (a copy that cannot be read first: not run, and said)
+                self._set_call(ctx.cid, call_id, status="failed", result=str(exc), ended_at=now())
+                return _not_run(run, str(exc))
+            try:
+                code, output, result, ended = await self._run_in_copy(
+                    ctx,
+                    ws,
+                    run.command,
+                    call_id,
+                    ask=how == "ask",
+                    once=held.yes.setdefault(run.cwd, set()),
+                    cwd=run.cwd,
+                    seconds=proof_style.STYLE_SECONDS,
+                    where=given,
+                    env={"NO_COLOR": "1"},
+                )
+            except (_GateRefused, ToolError) as exc:
+                self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
+                return _not_run(run, str(exc).removeprefix("error: "))
+            except asyncio.CancelledError:
+                self.commands.close_open(ctx.run_id, ctx.cid, calls=[call_id])
+                self._set_call(
+                    ctx.cid, call_id, status="interrupted", result=proof.STOPPED, ended_at=now()
+                )
+                raise
+            finally:
+                if taken:
+                    slot.release()
+                if trace is not None:
+                    left.append(await self._look_untrace(ctx, trace))
+        return code, output, result, ended, left
 
     async def _pages(self: "AgentRunner", ctx: Ctx, ws: Workspace, paths: list[str]) -> list[Row]:
         """S5b: the turn's pages in a browser of KOLONİ's own, fenced as an agent's is (this
@@ -378,8 +424,7 @@ class KindsMixin:
         """Where the turn wrote such files under Test and review and the kinds' last look does not
         stand for them: never made (the turn ended on an earlier step's nudge), or made before
         the last change - said, never an old result for the new work."""
-        project = self._project(session, cid)
-        written = _set_up(_written(found), project.root_path if project is not None else None)
+        written = _set_up(_written(found), held.style_set_up)
         on = proof.checks_of(
             session, session.get_one(Conversation, cid), session.get(Run, run_id)
         ).on
