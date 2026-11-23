@@ -71,6 +71,16 @@ test('a fix round is a line back to the Orchestrator, and its strip counts it', 
   expect((nodes[0].data as AgentData).checked).toBe('✓ checked · 1 round')
 })
 
+test('k-canli-016: until it passes - the rounds the Checked section says, each a line back with no count of rounds', () => {
+  const failed = row('failed', 'Tests failed', { command: 'pytest' })
+  const sent = row('note', 'Sent back to fix: round 3 (until it passes, 3 failing → 1)', { kind: 'rounds' })
+  const stop = row('failed', 'Stopped after round 3: no progress in two rounds - you decide (Fix it)', { kind: 'rounds' })
+  const { data, edges, nodes } = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked([failed, sent, stop])] }))
+  expect(data?.rounds).toBe(3)
+  expect(edges.filter(e => e.round).map(e => e.round)).toEqual(['round 1', 'round 2', 'round 3'])
+  expect((nodes[0].data as AgentData).checked).toBe('✗ still failing · 3 rounds')
+})
+
 test('the tests run again on the test KOLONİ asked for are no fix round: at its end the Checked section counts them', () => {
   // (0.1.6's pictures: a turn sent back nowhere drew "round 1" round behind both boxes, and its strip said "1 round".)
   const passed = row('passed', 'Tests passed', { command: 'python -m pytest -q', counts: { passed: 4, failed: 0, skipped: 0, unit: 'tests' } })

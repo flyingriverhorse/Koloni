@@ -38,6 +38,7 @@ import {
   before,
   branches,
   candidatesLine,
+  roundsChosen,
   changeEnd,
   checksLine,
   checksPlace,
@@ -436,8 +437,9 @@ function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOn
             ))}
             <label className="recipe-row">
               <span className="muted">Fix rounds</span>
-              <select className="input" aria-label="Fix rounds" value={checks.fix_rounds ?? ''} onChange={e => set({ ...checks, fix_rounds: e.target.value === '' ? null : Number(e.target.value) })}>
+              <select className="input" aria-label="Fix rounds" value={checks.fix_rounds ?? ''} onChange={e => set({ ...checks, fix_rounds: roundsChosen(e.target.value) })}>
                 <option value="">the project’s</option>
+                <option value="until">until it passes</option>
                 <option value="0">0 - check only</option>
                 {FIX_ROUNDS.map(n => (
                   <option key={n} value={n}>

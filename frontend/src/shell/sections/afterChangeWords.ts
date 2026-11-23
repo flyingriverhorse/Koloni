@@ -30,6 +30,8 @@ export function testsRun(project: Testing, where = true): string {
 }
 
 const times = (n: number) => `${n} time${n === 1 ? '' : 's'}`
+/** k-canli-016: how far failing work goes back - until it passes (null, the default), or up to a number of times. */
+const goesBack = (rounds: number | null) => (rounds === null ? 'until it passes, while each round makes progress' : `up to ${times(rounds)}`)
 
 /** How long a turn you watch waits for its tests, in seconds: the whole suite before it goes on after the answer
  *  (`proof_later_mixin.DETACH_SECONDS`), and all of them where the work is in its own copy (`proof_mixin.END_WAIT_SECONDS`).
@@ -38,16 +40,16 @@ export const WAITS = { detach: 60, copy: 120 }
 const minutes = (seconds: number) => (seconds === 60 ? '1 minute' : seconds % 60 ? `${seconds} seconds` : `${seconds / 60} minutes`)
 
 /** Settings › After a change: what it does in this project now - live as the choice and Fix rounds change. */
-export function afterChangeSaid(project: Testing & Pick<Project, 'review_lines' | 'review_files'>, after: Project['after_change'], fix: number, stronger = true): string {
+export function afterChangeSaid(project: Testing & Pick<Project, 'review_lines' | 'review_files'>, after: Project['after_change'], fix: number | null, stronger = true): string {
   if (after === 'nothing') return 'Nothing is tested or reviewed; each answer says Not checked.'
   const review =
     after === 'check'
       ? `; a change over ${project.review_lines} lines or ${project.review_files} files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request)`
       : '; no review'
-  return `Runs ${testsRun(project)}, related tests first, the whole suite in the background${review}. A turn you watch waits for the related tests (with none, at most ${minutes(WAITS.detach)} for the whole suite; in its own working copy, at most ${minutes(WAITS.copy)} for them all). Failing work goes back up to ${times(fix)}${stronger ? ', then to a stronger model' : ''}.`
+  return `Runs ${testsRun(project)}, related tests first, the whole suite in the background${review}. A turn you watch waits for the related tests (with none, at most ${minutes(WAITS.detach)} for the whole suite; in its own working copy, at most ${minutes(WAITS.copy)} for them all). Failing work goes back ${goesBack(fix)}${stronger ? ', then to a stronger model' : ''}.`
 }
 
-/** The permission menu's switch, of what runs: "runs <command> after each change, then a Reviewer reads big or security changes. Failing work goes back to be fixed, up to N times." */
-export function runsSaid(command: string, review: boolean, rounds: number): string {
-  return `runs ${command} after each change${review ? ', then a Reviewer reads big or security changes' : ''}. Failing work goes back to be fixed, up to ${times(rounds)}.`
+/** The permission menu's switch, of what runs: "runs <command> after each change, then a Reviewer reads big or security changes. Failing work goes back to be fixed, until it passes …" (or "up to N times"). */
+export function runsSaid(command: string, review: boolean, rounds: number | null): string {
+  return `runs ${command} after each change${review ? ', then a Reviewer reads big or security changes' : ''}. Failing work goes back to be fixed, ${goesBack(rounds)}.`
 }

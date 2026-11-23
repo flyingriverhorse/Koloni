@@ -8947,7 +8947,7 @@ export interface components {
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
             /** Fix Rounds */
-            fix_rounds: number;
+            fix_rounds: number | null;
             /**
              * Full Auto Check
              * @enum {string}
@@ -9136,7 +9136,7 @@ export interface components {
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
             /** Fix Rounds */
-            fix_rounds?: number | null;
+            fix_rounds?: number | "until" | null;
             /** Forget Tests Found */
             forget_tests_found?: boolean | null;
             /** Full Auto Check */
@@ -9524,7 +9524,7 @@ export interface components {
              */
             docs: boolean;
             /** Fix Rounds */
-            fix_rounds?: number | null;
+            fix_rounds?: number | "until" | null;
             /**
              * Review
              * @default true

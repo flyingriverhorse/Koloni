@@ -29,7 +29,7 @@ SIGN = "Local · fake-model"
 CHECK = "python check.py"
 SCREEN = "".join(f"export const line{i} = {i}\n" for i in range(90))
 WORKS = text("I opened it and clicked Start; it works.\nVerdict: MERGE\n\nFindings: none")
-NUDGE = try_mixin.TRY_TO_FIX.split(" (round")[0]
+NUDGE = try_mixin.TRY_TO_FIX.split(" ({rounds})")[0]
 
 
 def hold(*found):

@@ -441,9 +441,14 @@ export function setChecks(graph: RecipeGraph, checks: Checks | null): RecipeGrap
 export function checksLine(checks: Checks | null | undefined): string {
   if (!checks) return 'follows the project'
   const on = CHECK_PARTS.filter(([part]) => checks[part]).map(([, name]) => name)
-  const rounds = checks.fix_rounds == null ? 'the project’s rounds' : checks.fix_rounds === 0 ? 'check only' : `rounds ${checks.fix_rounds}`
-  return `${on.join(' · ') || 'nothing'} · ${rounds}`
+  return `${on.join(' · ') || 'nothing'} · ${ROUNDS_SAID[String(checks.fix_rounds)] ?? `rounds ${checks.fix_rounds}`}`
 }
+
+/** The Checks step's Fix rounds, said: the project's (null), until it passes (k-canli-016), check only (0); else "rounds N". */
+const ROUNDS_SAID: Record<string, string> = { null: 'the project’s rounds', undefined: 'the project’s rounds', until: 'until it passes', 0: 'check only' }
+
+/** The recipe panel's Fix rounds as chosen: "" the project's (null), "until", else a number. */
+export const roundsChosen = (value: string): Checks['fix_rounds'] => (value === '' ? null : value === 'until' ? 'until' : Number(value))
 
 /** The parts the Checks step is joined to: each an arrow leads from to an end; with none yet, each no arrow leaves (the start, on an empty board). */
 export function lastParts(graph: RecipeGraph): string[] {

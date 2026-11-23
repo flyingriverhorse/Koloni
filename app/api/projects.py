@@ -571,9 +571,11 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
     for name in ("search_order", "search_agy", "notify_format", "notify_desktop", "auto_notes",
                  "observe_reports", "suggest_tasks", "suggest_tier", "hide_secrets", "canary",
                  "lead_work", "continue_steps", "when_away", "away_minutes", "full_auto_check",
-                 "disposable_deletes", "after_change", "fix_rounds", "stronger_model", *SPAWN):
+                 "disposable_deletes", "after_change", "stronger_model", *SPAWN):
         if getattr(body, name) is not None:
             setattr(project, name, getattr(body, name))
+    if "fix_rounds" in body.model_fields_set:  # (k-canli-016: null or "until" - until it passes)
+        project.fix_rounds = None if body.fix_rounds in (None, "until") else body.fix_rounds
     for name in spends:
         setattr(project, name, getattr(body, name))
     if body.after_change is not None:  # (0162's note of the old switch is said no more: theirs now)
