@@ -39,8 +39,8 @@ from tests.test_take_in_scenarios import (
     of,
     own_test,
     repository,
+    root_runs,
     start,
-    tested,
 )
 
 pytestmark = needs_git
@@ -247,7 +247,7 @@ def test_at_full_auto_a_branch_whose_check_passes_is_merged_and_nothing_is_left(
         make_client,
         repo,
         [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
-        project=tested(),
+        project=root_runs(),
     )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -307,7 +307,7 @@ def test_asked_the_test_runs_on_the_users_click_and_the_merge_goes_in_on_their_y
         make_client,
         repo,
         [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
-        project=tested(f"{RUNS} -s"),  # (-s: what check.py prints is in its output)
+        project=root_runs(f"{RUNS} -s"),  # (-s: what check.py prints is in its output)
         permission_mode="ask",
     )
     merge = card(client, cid)
@@ -604,7 +604,7 @@ def test_a_new_file_where_the_project_has_its_own_is_not_committed(make_client, 
             own_test("TWO-agent"),
             text("A done"),
         ],
-        project=tested(),
+        project=root_runs(),
     )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
@@ -1068,7 +1068,7 @@ def test_stop_while_the_check_of_a_card_blocked_by_a_secret_runs_deletes_the_bra
             ),
             text("A done"),
         ],
-        project=tested(),
+        project=root_runs(),
     )
     merge = card(client, cid)
     assert "holds a secret given this turn" in merge["branch"]["note"]
@@ -1499,7 +1499,7 @@ def test_a_secret_given_this_turn_goes_into_no_commit_message(
         make_client,
         repo,
         [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
-        project=tested(),
+        project=root_runs(),
     )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert [m["status"] for m in snap["merges"]] == ["applied"]
@@ -1770,7 +1770,7 @@ def test_at_full_auto_an_agent_resolves_the_conflicts_by_itself_and_the_user_see
     make_client, wait_run, repo
 ):
     client, cid, run_id = clashing(
-        make_client, repo, RESOLVING, tests=[own_test("TWO")], project=tested()
+        make_client, repo, RESOLVING, tests=[own_test("TWO")], project=root_runs()
     )
     # (A resolution may drop lines of the user's own commit: a card, even where the check passed.)
     merge = until(
@@ -1982,16 +1982,17 @@ def test_the_first_finished_branch_on_github_asks_which_way_and_a_pull_request_i
     assert project["finish_way"] == "pull_request"
 
 
-def pr_run(make_client, repo, meanwhile, wip=None, **conversation):
+def pr_run(make_client, repo, meanwhile, wip=None, tests=(), **conversation):
     """A Coder on `koloni/fix` in a project whose finished work goes as a pull request; the user
-    does `meanwhile` while it works (`wip`: as `on_branch`)."""
+    does `meanwhile` while it works (`wip`: as `on_branch`; `tests`: steps of the Coder's after
+    its change - its own test, for Take in's check)."""
     held = Gate()
     client, cid, run_id = on_branch(
         make_client,
         repo,
-        [step(edit("two", "TWO-agent")), own_test("TWO-agent"), held.step(text("A done"))],
+        [step(edit("two", "TWO-agent")), *tests, held.step(text("A done"))],
         wip=wip,
-        project=tested(finish_way="pull_request"),
+        project=root_runs(finish_way="pull_request"),
         **conversation,
     )
     held.wait_partial()
@@ -2004,7 +2005,9 @@ def test_with_pull_requests_set_full_auto_opens_one_unasked_and_never_merges(
     make_client, wait_run, repo, github
 ):
     bare, log = github
-    client, cid, run_id = pr_run(make_client, repo, lambda: pushed_main(repo))
+    client, cid, run_id = pr_run(
+        make_client, repo, lambda: pushed_main(repo), tests=[own_test("TWO-agent")]
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["commit"]["state"] == "pull_request" and merge["check"]["state"] == "passed"

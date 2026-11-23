@@ -49,9 +49,9 @@ from tests.test_take_in_scenarios import (
     of,
     own_test,
     repository,
+    root_runs,
     same,
     start,
-    tested,
 )
 from tests.test_take_in_scenarios import git as in_repo
 from tests.test_trigger_scenarios import allow, run_now, trigger
@@ -695,7 +695,7 @@ def test_the_lines_the_project_changed_meanwhile_are_told_as_not_the_agents(
             *([own_test()] if check else []),
             held.step(text("I changed line 2")),
         ],
-        project=tested() if check else None,
+        project=root_runs() if check else None,
         permission_mode="ask",
     )
     held.wait_partial()
@@ -952,7 +952,7 @@ def test_two_sides_written_together_before_a_restart_are_still_one_change_to_und
     with TestClient(app_, base_url="http://127.0.0.1:8790") as client:
         client.headers["Origin"] = ORIGIN
         pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-        assert client.patch(f"/api/projects/{pid}", json=tested()).status_code == 200
+        assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
         assert (
             client.patch(
@@ -1006,7 +1006,7 @@ def test_the_check_sees_what_the_project_changed_meanwhile_in_files_the_agent_le
             own_test(body="assert open('other.txt').read() == 'USER'"),
             held.step(text("A done")),
         ],
-        project=tested(),
+        project=root_runs(),
     )
     held.wait_partial()
     (project_dir / "other.txt").write_bytes(b"USER")
@@ -1038,7 +1038,7 @@ def test_what_the_check_itself_writes_in_the_copy_is_neither_shown_nor_taken(
         make_client,
         project_dir,
         [step(write("a.txt", "A")), own_test(body=does), text("A done")],
-        project=tested(),
+        project=root_runs(),
         permission_mode=mode,
     )
     merge = card(client, cid)
@@ -1066,7 +1066,7 @@ def test_a_check_that_does_not_end_in_time_did_not_pass(
         make_client,
         project_dir,
         [step(write("a.txt", "A")), own_test(body="import time\ntime.sleep(60)"), text("A done")],
-        project=tested(),
+        project=root_runs(),
         permission_mode="auto_edit",
     )  # (at Full auto it would go to the Lead first)
     merge = card(client, cid)
@@ -1096,7 +1096,7 @@ def test_stop_while_the_check_runs_ends_it_and_it_is_not_left_saying_that_it_run
             ),
             text("A done"),
         ],
-        project=tested(),
+        project=root_runs(),
         permission_mode="ask",
     )
     merge = card(client, cid)
@@ -1141,7 +1141,7 @@ def test_in_a_project_whose_commands_run_in_a_container_the_check_runs_there_in_
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     for change in (
         {"docker_image": "python:3.12"},
-        {"exec_location": "docker", **tested("python -m pytest -q")},
+        {"exec_location": "docker", **root_runs("python -m pytest -q")},
     ):
         assert client.patch(f"/api/projects/{pid}", json=change).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -1174,7 +1174,7 @@ def test_a_result_of_an_earlier_state_says_so(make_client, wait_run, project_dir
         make_client,
         project_dir,
         [own_test("one"), text("A done")],  # (its work is its own test - 0.1.7)
-        project=tested(),
+        project=root_runs(),
         permission_mode="ask",
     )
     merge = card(client, cid)
@@ -1217,7 +1217,7 @@ def test_where_only_commands_are_asked_about_the_check_runs_by_itself_before_any
         make_client,
         project_dir,
         [step(write("a.txt", "A")), own_test(words), text("A done")],
-        project=tested(),
+        project=root_runs(),
         permission_mode="auto_edit",
     )
     if passes:
@@ -1267,7 +1267,7 @@ def test_nobody_watching_a_clash_is_not_decided_and_nothing_is_taken_unchecked(
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json=tested()).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     made = trigger(
         client,
@@ -1534,7 +1534,7 @@ def test_what_a_turn_nobody_watched_left_is_offered_its_commit_only_once_the_use
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json=tested(git_commit=True)).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json=root_runs(git_commit=True)).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     rules = [allow(client, cid, CHECKED)] if ticked else []
     made = trigger(client, pid, cid, permissions={"write": True, "commands": rules, "agents": 1})

@@ -11,7 +11,7 @@ from tests.test_claim_scenarios import write
 from tests.test_handoff import ended
 from tests.test_parallel import until
 from tests.test_spawn import step
-from tests.test_take_in_scenarios import CHECK, GO_ON, LINES, LONG, own_test, tested
+from tests.test_take_in_scenarios import CHECK, GO_ON, LINES, LONG, own_test, root_runs
 from tests.test_team import team  # noqa: F401  (a fixture)
 from tests.test_tier_scenarios import WHY, spawn, tiered
 from tests.test_topics import db
@@ -123,7 +123,7 @@ def _checked(team, project_dir, local, fast=(), spawn_approval="auto"):  # noqa:
     client, _default, _fast = team(local, fast)
     tiered(team, client)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json=tested()).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     assert (
         client.patch(

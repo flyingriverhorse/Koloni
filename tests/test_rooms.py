@@ -52,7 +52,7 @@ from tests.test_take_in_scenarios import (
     needs_git,
     of,
     own_test,
-    tested,
+    root_runs,
 )
 from tests.test_triggers import (  # noqa: F401 (cli_app: a fixture)
     NOT_SLOW,
@@ -1302,7 +1302,7 @@ def test_the_projects_check_runs_on_the_rooms_copy_and_lines_of_both_go_together
             ),
             "Reviewer": [text("Nothing to add."), text("Done.")],
         },
-        project=tested(),
+        project=root_runs(),
     )
     held.wait_partial()
     meanwhile(project_dir, "six", "SIX-user")  # another line: no clash

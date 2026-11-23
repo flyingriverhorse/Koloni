@@ -43,7 +43,7 @@ OWN = "test_lines.py"
 CHECKED = f"{RUNS} {OWN}"
 
 
-def tested(runs=RUNS, **more):
+def root_runs(runs=RUNS, **more):
     """A project whose root part runs `runs`, and no end check: these are Take in's tests - the
     end check would run the Coder's test again, in the project, and count among the commands."""
     return {"check_command": runs, "after_change": "nothing", **more}
@@ -290,7 +290,7 @@ def test_the_check_runs_on_the_joined_state_in_the_copy_before_anything_is_taken
             own_test("TWO-agent", "SIX-user"),
             held.step(text("A done")),
         ],
-        project=tested(f"{RUNS} -s"),  # (-s: what check.py prints is in its output)
+        project=root_runs(f"{RUNS} -s"),  # (-s: what check.py prints is in its output)
     )
     held.wait_partial()
     meanwhile(project_dir, "six", "SIX-user")
@@ -357,7 +357,7 @@ def test_at_full_auto_a_failing_check_goes_back_to_the_lead_and_the_fix_is_taken
             step(edit("two", "TWO")),
             text("fixed"),
         ],
-        project=tested(),
+        project=root_runs(),
         lead=[
             step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
             GO_ON,
@@ -387,7 +387,7 @@ def test_at_full_auto_a_check_that_keeps_failing_is_the_users_after_two_rounds(
             text("tried"),
             text("tried again"),
         ],
-        project=tested(),
+        project=root_runs(),
         lead=[
             step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
             GO_ON,
@@ -419,7 +419,7 @@ def test_where_commands_are_asked_about_the_check_runs_before_the_card_and_again
         make_client,
         project_dir,
         [step(write("a.txt", "A")), own_test("one"), text("A done")],
-        project=tested(),
+        project=root_runs(),
         permission_mode="ask",
     )
     merge = card(client, cid)
@@ -462,7 +462,7 @@ def test_in_a_turn_nobody_watches_a_failed_check_takes_nothing_and_keeps_the_cop
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json=tested()).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     rules = [allow(client, cid, CHECKED)] if ticked else []
     made = trigger(client, pid, cid, permissions={"write": True, "commands": rules, "agents": 1})
@@ -503,7 +503,7 @@ def test_koloni_asks_before_its_own_check_that_deletes_and_the_users_click_runs_
         make_client,
         project_dir,
         [step(write("a.txt", "A")), own_test("one"), text("A done")],
-        project=tested(HARMS),
+        project=root_runs(HARMS),
         permission_mode=mode,
     )
     # B-355's check by itself asks first, with why; declined, it did not run - no failure.
@@ -532,7 +532,7 @@ def test_at_full_auto_a_check_declined_on_its_card_sends_no_work_back(
         make_client,
         project_dir,
         [step(write("a.txt", "A")), own_test("one"), text("A done")],
-        project=tested(HARMS),
+        project=root_runs(HARMS),
     )
     one, why = asked_command(client, cid)  # (once: no second card)
     assert why == BASETEMP
@@ -569,7 +569,7 @@ def test_a_triggers_leave_for_the_very_check_still_runs_it_nobody_watching(
     # went past 200 characters.)
     runs = f"{RUNS} --confcutdir=.."
     named = f"{runs} {OWN}"
-    assert client.patch(f"/api/projects/{pid}", json=tested(runs)).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json=root_runs(runs)).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     made = trigger(
         client,
