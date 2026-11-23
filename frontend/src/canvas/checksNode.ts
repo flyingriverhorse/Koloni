@@ -34,12 +34,21 @@ export interface ChecksData extends Record<string, unknown> {
   recipe: boolean
 }
 
-/** A command's tool, short: "pytest" of `python -m pytest -q`, "c8" of S9's `npx --no c8 …`, else its first word. */
+/**
+ * A command's tool, short: "pytest" of `python -m pytest -q`, "c8" of S9's `npx --no c8 …`, "python -c" of `python -c "…"`
+ * (never its quoted code), else its first word.
+ */
 export function toolOf(command: string): string {
   const words = command.split(/\s+/).filter(Boolean)
   const after = words.indexOf('-m')
+  const inline = inlineAt(words)
+  if (inline > 0 && (after < 0 || inline < after)) return `${words[inline - 1].split(/[\\/]/).at(-1)} ${words[inline]}`
   return (after >= 0 ? words[after + 1] : words.find(word => !word.startsWith('-') && !/^(npx|uv|poetry|run|python[\d.]*|py)$/.test(word))) ?? command
 }
+
+/** Where an interpreter is handed its code on the line - `python -c`, `node -e`, `bash -c` -; -1 for none. */
+const inlineAt = (words: string[]) =>
+  words.findIndex((word, at) => at > 0 && /^-[ce]$/.test(word) && /^(python[\d.]*|py|node|bash|sh|zsh|pwsh|ruby|perl)(\.exe)?$/i.test(words[at - 1].split(/[\\/]/).at(-1) ?? ''))
 
 export type Line = { state: Row['state']; text: string; since?: string | null }
 
@@ -92,7 +101,7 @@ export function linesOf(rows: Row[]): Line[] {
   return lines
 }
 
-/** The end check's passes: a new one where a run of the pass so far comes again. Each after the first followed a fix round (as `rounds` is counted on the server). */
+/** The end check's passes: a new one where a run of the pass so far comes again. Each after the first followed a fix round - or the ask for a test (`roundsOf`). */
 function passesOf(calls: { arguments: string }[]): number {
   let passes = calls.length ? 1 : 0
   let seen = new Set<string>()
@@ -106,6 +115,9 @@ function passesOf(calls: { arguments: string }[]): number {
   }
   return passes
 }
+
+/** Its fix rounds: at its end the Checked section's count (the tests run again on a test KOLONİ asked for are none), before it each pass again. */
+const roundsOf = (checked: Message | undefined, said: number, calls: { arguments: string }[]) => (checked ? said : Math.max(passesOf(calls) - 1, 0))
 
 /** The Orchestrator's strip: "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "not checked" - or nothing before its end. */
 export function stripOf(data: ChecksData): string | null {
@@ -136,7 +148,7 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
   if (off) return notChecked(nodes, lead.id, OFF_STRIPS[off.kind])
   const at = calls.find(c => c.status === 'running')
   const said = roundsSaid(checked)
-  const rounds = Math.max(passesOf(calls) - 1, said.n)
+  const rounds = roundsOf(checked, said.n, calls)
   const lines = linesOf(checked?.checked ?? [])
   const data: ChecksData = {
     runId: run.id,

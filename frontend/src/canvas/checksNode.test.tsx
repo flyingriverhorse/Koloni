@@ -53,18 +53,39 @@ test('the Checked rows are its lines, with their counts where the runner gave th
 })
 
 test('a fix round is a line back to the Orchestrator, and its strip counts it', () => {
-  const state = convState({
+  const passes = {
     runs: [run('r', 'completed')],
     agents: [agent('r', 'completed')],
     toolCalls: [proofCall('p1', 'succeeded'), proofCall('p2', 'succeeded', '2026-10-05T10:01:03Z')],
     commands: [command('c1', 'r', { tool_call_id: 'p1', exit_code: 1 }), command('c2', 'r', { tool_call_id: 'p2', exit_code: 0 })],
-    messages: [checked([row('passed', 'Tests passed', { command: 'python -m pytest -q', counts: { passed: 4, failed: 0, skipped: 0, unit: 'tests' } })])],
-  })
-  const { data, edges, nodes } = drawn(state)
+  }
+  // (Before the Checked section says its rounds: a pass again is one; neither the Fix rounds nor why are known.)
+  const live = drawn(convState(passes))
+  expect(live.data?.rounds).toBe(1)
+  expect(live.edges.find(e => e.round)).toMatchObject({ source: 'checks:r', target: 'agent:r', round: 'round 1' })
+  const passed = row('passed', 'Tests passed', { command: 'python -m pytest -q', counts: { passed: 4, failed: 0, skipped: 0, unit: 'tests' } })
+  const sent = row('note', 'Sent back to fix: 1 of 2 rounds', { kind: 'rounds' })
+  const { data, edges, nodes } = drawn(convState({ ...passes, messages: [checked([sent, passed])] }))
   expect(data?.rounds).toBe(1)
-  // (Before the Checked section says its rounds: neither the Fix rounds nor why are known.)
-  expect(edges.find(e => e.round)).toMatchObject({ source: 'checks:r', target: 'agent:r', round: 'round 1' })
+  expect(edges.find(e => e.round)).toMatchObject({ source: 'checks:r', target: 'agent:r', round: 'round 1 of 2: tests fail' })
   expect((nodes[0].data as AgentData).checked).toBe('✓ checked · 1 round')
+})
+
+test('the tests run again on the test KOLONİ asked for are no fix round: at its end the Checked section counts them', () => {
+  // (0.1.6's pictures: a turn sent back nowhere drew "round 1" round behind both boxes, and its strip said "1 round".)
+  const passed = row('passed', 'Tests passed', { command: 'python -m pytest -q', counts: { passed: 4, failed: 0, skipped: 0, unit: 'tests' } })
+  const { data, edges, nodes } = drawn(
+    convState({
+      runs: [run('r', 'completed')],
+      agents: [agent('r', 'completed')],
+      toolCalls: [proofCall('p1', 'succeeded'), proofCall('p2', 'succeeded', '2026-10-05T10:01:03Z')],
+      commands: [command('c1', 'r', { tool_call_id: 'p1', exit_code: 0 }), command('c2', 'r', { tool_call_id: 'p2', exit_code: 0 })],
+      messages: [checked([passed, row('note', 'No new test: the Orchestrator said “x”', { kind: 'test_ask' })])],
+    }),
+  )
+  expect(data?.rounds).toBe(0)
+  expect(edges.some(e => e.round)).toBe(false)
+  expect((nodes[0].data as AgentData).checked).toBe('✓ checked')
 })
 
 test('two parts failing in one pass are one round, not two; a pass again is one', () => {
@@ -108,6 +129,13 @@ test('the strip says still failing or not checked; the tool is the runner, not p
   expect(toolOf('npx vitest run')).toBe('vitest')
   expect(toolOf('go test ./...')).toBe('go')
   expect(toolOf('npx --no c8 --reporter=json --report-dir ".koloni/tmp/coverage-1" npm test')).toBe('c8')
+  // (Code handed to an interpreter on the line: its program and flag, never its quoted code.)
+  expect(toolOf(`python -c "import time; time.sleep(20); print('3 passed')"`)).toBe('python -c')
+  expect(toolOf(`node -e "require('./check')"`)).toBe('node -e')
+  expect(toolOf('bash -c "make test -m x"')).toBe('bash -c')
+  expect(toolOf('/usr/bin/python3 -c "print(1)"')).toBe('python3 -c')
+  expect(toolOf('pytest -c pytest.ini -q')).toBe('pytest')
+  expect(toolOf('python -m pytest -c pytest.ini')).toBe('pytest')
 })
 
 test('S9: the coverage row is a line like the others, and no test run of its own', () => {

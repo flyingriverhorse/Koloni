@@ -688,6 +688,9 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
    * inside the frames' left wall (React Flow's curve cut there too); route it left of the frames if that is seen.
    */
   const looseLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
+    // A fix round, from the Checks node back up to the Orchestrator over it: out of its right side and in at the
+    // Orchestrator's, its label beside them - not round behind both boxes to the Orchestrator's left dot.
+    if (e.round && byId.get(e.source)?.kind === 'checks') return { targetHandle: 'side-in' }
     const fromFrame = byId.get(e.source)?.kind === 'team'
     if (e.messages && (e.talk || !fromFrame)) return { type: 'lane', data }
     // (Not a line moved onto a frame: the frame spans the column of any agent under it, so it would seem stacked.)

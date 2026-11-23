@@ -16,8 +16,9 @@ Recipes are on the Agents page, tab **Recipes**.
 - **Or write it**: describe the recipe in a sentence and press **Make it a recipe**. The note
   under it says which model it asks - the first of the balanced tier ("Asks Balanced: Local ·
   qwen3"), passing over one whose server is not running, else the Orchestrator's own - and if
-  that one does not answer, the next is asked. The model draws the recipe on the board; nothing
-  is saved until you save it.
+  that one does not answer, the next is asked. Where none answers, it says so and names every
+  model it tried, each with why ("No model answered: Local · qwen3 (not running),
+  …"). The model draws the recipe on the board; nothing is saved until you save it.
 
 The ready recipes include Feature, Bugfix, Review only, Integration, Quality check, Model change,
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.
@@ -80,6 +81,8 @@ Every recipe ends in a **Checks** step 🔒: what KOLONİ checks before the reci
 ([What KOLONİ checked](../use/checked.md)). It is always the last step, joined to the step(s) that
 lead to the end, and it moves when you add a step after them. It cannot be removed or dragged.
 
+![The Bugfix recipe in the editor: its steps end in the locked Checks step, and its panel offers Follow the project or Set for this recipe with Tests, Review, Docs, Diagrams, Data, Slides and Pages, and Fix rounds](../images/recipe-checks-step.png)
+
 Click it to choose:
 
 - **Follow the project** (the default): the project's **After a change** - Test and review, Tests
@@ -101,9 +104,9 @@ documents and a review, **Evolve** its tests; the others follow the project. A r
 checks so even in a project at **Nothing** - set its Checks step to **Follow the project** to leave it
 to the project. Only a recipe you picked (**Teams for this chat**: Manual) can check less than the
 project does; one the Orchestrator picked (Orchestrator decides) only adds to the project's checks
-and takes the larger Fix rounds - it never turns them off. A recipe's turn follows its Checks step, never the chat's **Test and review
-changes** switch. Rounds never stack: where the
-recipe's own loop of test and fix ran out, the Checks step sends nothing back on top.
+and takes the larger Fix rounds - it never turns them off. A recipe's turn follows its Checks step,
+never the chat's **Test and review changes** switch. Rounds never stack: where the recipe's own
+loop of test and fix ran out, the Checks step sends nothing back on top.
 
 ## Where a recipe is kept
 
