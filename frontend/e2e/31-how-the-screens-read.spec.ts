@@ -605,7 +605,7 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   const settings = page.getByRole('form', { name: 'Project settings' })
   await expect(settings).toBeVisible()
   await settings.getByRole('button', { name: /^Checks/ }).click()
-  await expect(settings.getByLabel('Test before adding')).toBeVisible()
+  await expect(settings.getByLabel(/^Save each sub-agent’s work as a git commit/)).toBeVisible()
   const [commit] = await readOut(page, /^Save each sub-agent’s work as a git commit/)
   expect(commit.name).toMatch(/^Save each sub-agent’s work as a git commit One commit per piece of work\. Offered on the card .* top folder of a git repository\. Always your click: .* Nothing is pushed\.$/)
   expect(commit.name).not.toContain('About this')
@@ -618,8 +618,9 @@ test('as the browser itself reads it out: a box named by a note with a hint keep
   await expect(settings.locator('.hint-bubble', { hasText: /waits for a slot/ })).toBeHidden()
   expect(await described()).toMatch(/^Counted over all of this project’s conversations together\. When that many are at work, .* The Board shows who is at work\.$/)
   expect(await described()).not.toContain('About this')
-  // A note that warns of what a setting does not hold, or of what it runs, is not folded at all.
+  // A note that warns of what a setting does not hold, or of what it runs, is not folded at all. (0.1.7: Test before
+  // adding is gone, with its field - what runs before a sub-agent's work is added is a note of its own, in sight.)
   await settings.getByRole('button', { name: /^Checks/ }).click()
-  await expect(settings.getByLabel('Test before adding')).toBeVisible()
-  expect((await readOut(page, /^Test before adding$/))[0].description).toMatch(/It runs by itself only where commands do: in Full auto/)
+  await expect(settings.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run/)).toBeVisible()
+  await expect(settings.getByText(/^Before its work is added/)).toContainText(/It runs by itself where commands do: in Full auto/)
 })
