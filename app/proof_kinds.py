@@ -31,6 +31,7 @@ from xml.etree import ElementTree
 from xml.parsers import expat
 
 import yaml
+import yaml.reader
 
 from app import browser, ci_commands
 from app.proof import Row, row
@@ -179,10 +180,17 @@ def _each(
                 )
             )
             continue
+        # (Compared without the line a problem is on: one a line added above it moved is the
+        # file's old problem still - Q2 of 0.1.7.)
+        place = re.compile(rf"^{re.escape(rel)}:\d+: ")
         try:  # (an old version it cannot read hides nothing of the new)
             was = before.get(rel)
             old = (
-                {one["text"] for one in check(was.encode("utf-8"), rel) if one["state"] == "failed"}
+                {
+                    place.sub("", one["text"], count=1)
+                    for one in check(was.encode("utf-8"), rel)
+                    if one["state"] == "failed"
+                }
                 if was
                 else set()
             )
@@ -190,7 +198,7 @@ def _each(
             old = set()
         said = [
             {**one, "state": "note", "text": one["text"] + BEFORE}
-            if one["state"] == "failed" and one["text"] in old
+            if one["state"] == "failed" and place.sub("", one["text"], count=1) in old
             else one
             for one in now
         ]
@@ -812,9 +820,13 @@ _TOML_SKIP = re.compile(
 # A TOML key of over MOST_DEPTH dotted parts - each part a table deeper; looked for in the text as
 # it is too, so no string the scan misreads hides one (a string of as many dots is not read).
 _DOTTED = re.compile(rf"(?:\.[^.=\n\[\]{{}},]*){{{MOST_DEPTH}}}")
-# JSON with comments (tsconfig.json, VS Code's): its comments and trailing commas left out, its
-# lines kept where they were, its strings as they are.
-_JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)|,(?=\s*[}}\]])")
+# JSON with comments (tsconfig.json, VS Code's): its comments left out, then its trailing commas -
+# a comment between one and its bracket too - its lines kept where they were, its strings as
+# they are.
+_JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)")
+_TRAILING = re.compile(rf"({_QUOTED})|,(?=\s*[}}\]])")
+# (Python reads them; JSON has none, and a strict reader - npm's, JSON.parse - breaks on them.)
+_CONSTANT = re.compile(r"-?\b(?:NaN|Infinity)\b")
 # The JSON files their tools read with comments and trailing commas (TypeScript's, VS Code's, a dev
 # container's, ESLint's) - every other .json is strict: its reader breaks on them.
 # shortcut: by name; add one here when its tool is seen to read comments.
@@ -899,9 +911,15 @@ def _yaml(text: str, rel: str) -> tuple[object, str | None]:
         raise WorkspaceError(TOO_DEEP) from None
     except yaml.MarkedYAMLError as exc:
         line = exc.problem_mark.line + 1 if exc.problem_mark else 1
-        return None, f"{rel}:{line}: {NO_PARSE}{_said(exc.problem or 'not YAML')}"
+        return None, f"{rel}:{line}: {NO_PARSE}{_key(exc.problem or 'not YAML')}"
+    except yaml.reader.ReaderError as exc:  # (a control character: its line, not its offset)
+        line = text.count("\n", 0, exc.position) + 1
+        return None, f"{rel}:{line}: {NO_PARSE}{_key(exc.reason)}"
     except yaml.YAMLError as exc:
-        return None, f"{rel}: {NO_PARSE}{_said(str(exc))}"
+        return None, f"{rel}: {NO_PARSE}{_key(str(exc))}"
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        # (A tagged value its tag cannot read - `!!int "sk-…"`: what failed, never the value.)
+        raise WorkspaceError(f"a value in it is not read ({type(exc).__name__})") from None
     return docs[0] if docs else None, None
 
 
@@ -910,18 +928,29 @@ def _json(text: str, rel: str) -> tuple[object, str | None]:
     (`_COMMENTED`), JSON with them."""
     if _deep(_JSON_STRING.sub("", text)):
         raise WorkspaceError(TOO_DEEP)
+    if _COMMENTED.search("/" + rel.replace("\\", "/").casefold()):
+        # (A block comment within a line is a space: `1/**/2` is no 12.)
+        text = _JSONC.sub(lambda m: m.group(1) or "\n" * m.group(0).count("\n") or " ", text)
+        text = _TRAILING.sub(lambda m: m.group(1) or "", text)
     try:
-        return json.loads(text), None
-    except json.JSONDecodeError as strict:
-        if not _COMMENTED.search("/" + rel.replace("\\", "/").casefold()):
-            return None, f"{rel}:{strict.lineno}: {NO_PARSE}{strict.msg}"
-        bare = _JSONC.sub(lambda m: m.group(1) or "\n" * m.group(0).count("\n"), text)
-        try:
-            return json.loads(bare), None
-        except json.JSONDecodeError as exc:
-            return None, f"{rel}:{exc.lineno}: {NO_PARSE}{exc.msg}"
+        return json.loads(text, parse_constant=_no_constant), None
+    except json.JSONDecodeError as exc:
+        return None, f"{rel}:{exc.lineno}: {NO_PARSE}{exc.msg}"
+    except _Constant as exc:
+        bare = _JSON_STRING.sub('""', text)
+        found = _CONSTANT.search(bare)
+        line = bare.count("\n", 0, found.start()) + 1 if found else 1
+        return None, f"{rel}:{line}: {NO_PARSE}{exc} is not JSON"
     except RecursionError:
         raise WorkspaceError(TOO_DEEP) from None
+
+
+class _Constant(Exception):
+    pass
+
+
+def _no_constant(name: str) -> object:
+    raise _Constant(name)
 
 
 def _package(value: object) -> list[str]:
