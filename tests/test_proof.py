@@ -93,16 +93,18 @@ def test_needs_tests():
     assert proof.needs_tests(["index.html"]) is True
 
 
-def _project(root, check=None, tests=None):
-    return SimpleNamespace(root_path=str(root), check_command=check, test_commands=tests or {})
+def _project(root, tests=None):
+    return SimpleNamespace(root_path=str(root), test_commands=tests or {})
 
 
 def _map(*parts):
     return {"parts": [{"path": path, "guess": guess} for path, guess in parts]}
 
 
-def test_test_runs_take_the_users_command_then_each_parts_then_the_guess(tmp_path):
-    assert proof.test_runs(_project(tmp_path, check=" make check "), _map(("./", "pytest"))) == [
+def test_test_runs_take_each_parts_then_the_guess(tmp_path):
+    # (0.1.7: no command of the project's beside its parts' - Test before adding is gone; the
+    # whole project's is the root part's, the map has it even with no project file there)
+    assert proof.test_runs(_project(tmp_path, tests={"./": "make check"}), _map()) == [
         proof.TestRun("make check", ".", True)
     ]
     assert proof.test_runs(
