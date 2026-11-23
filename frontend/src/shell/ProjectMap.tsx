@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import type { Project, ProjectMap as MapOf } from '../api/types'
+import { useApp } from '../state/store'
 
 /** The map in a line: the project, whether it is in git, how many parts - and that not every folder was looked in. */
 const mapLine = (name: string, map: MapOf, parts: number) => (
@@ -9,6 +10,13 @@ const mapLine = (name: string, map: MapOf, parts: number) => (
     {map.partial && <span className="muted"> · not every folder was looked in</span>}
   </p>
 )
+
+/** A part's test command saved or taken back: the project is read again - After a change names the commands that run. */
+const reread = (id: string) =>
+  api.get<Project>(`/projects/${id}`).then(
+    read => useApp.setState(s => ({ projects: s.projects.map(p => (p.id === read.id ? read : p)) })),
+    () => {},
+  )
 
 /** Beside Refresh: what was last done - or, before the map (or why it is not) is read, that it is looked for. */
 const statusSaid = (map: MapOf | null, error: string | null, said: string) => (map || error ? said : 'Looking…')
@@ -50,6 +58,7 @@ export function ProjectMap({ project }: { project: Project }) {
     act(async () => {
       const saved = await api.put<MapOf>(`/projects/${project.id}/map/test`, { path, command: typed[path] ?? '' })
       forget(path)
+      void reread(project.id)
       return saved
     }, 'Saved')
 
@@ -58,6 +67,7 @@ export function ProjectMap({ project }: { project: Project }) {
     act(async () => {
       await api.delete(`/projects/${project.id}/map/test?path=${encodeURIComponent(path)}`)
       forget(path)
+      void reread(project.id)
       return api.get<MapOf>(`/projects/${project.id}/map`)
     }, 'Saved')
 

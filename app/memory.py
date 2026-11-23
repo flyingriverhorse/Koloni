@@ -900,13 +900,22 @@ def keep_note(
 def read_notes(answer: str) -> list | None:
     """What the summariser answered, as the list it was asked for: one JSON array, alone
     or in a code fence. None for anything else - it is not searched for a list."""
-    # (`\s*+` gives nothing back: a run of blank lines after the fence took time cubic in it.)
-    fenced = re.fullmatch(r"```(?:json)?\s*+(.*?)\s*```", answer.strip(), re.DOTALL)
     try:
-        notes = json.loads(fenced[1] if fenced else answer)
+        notes = json.loads(_fenced(answer.strip()) or answer)
     except (ValueError, RecursionError):
         return None
     return notes if isinstance(notes, list) else None
+
+
+def _fenced(text: str) -> str | None:
+    """What a code fence holds - the whole of `text` from ``` to ``` - past an optional `json`
+    word and the space around it; None where `text` is no fence. Read in one pass, no regex - as
+    the regex it replaces read it, whose search took time square in a run of space before the
+    closing fence: 100 000 of them, a minute (CL-311)."""
+    if len(text) < 6 or not (text.startswith("```") and text.endswith("```")):
+        return None
+    inside = text[3:-3]
+    return inside.removeprefix("json").strip()
 
 
 def note_by_itself(

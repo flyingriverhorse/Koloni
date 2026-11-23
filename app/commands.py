@@ -243,16 +243,31 @@ def _runner_lines(words: list[str]) -> list[str]:
             for one in starts if one < len(rest)]
 
 
+# uv's options of `uv run` and `uvx` that take a value: its index, resolver, build, cache and
+# global ones besides its own (`--color never --index-strategy x rm -rf .` hid the program: two
+# unknown ones in a row). Never a flag here - `--isolated rm` would hide rm as its value; one uv
+# does not know is refused by uv itself (`--python-preference`, `--preview-features`, `uv run`'s
+# `--from`: not in 0.10.4's help, kept). shortcut: as uv 0.10.4's `uv run --help` and `uv tool
+# run --help` list them (every `<value>` option in, no flag); a later uv's new value option, two
+# in a row, still hides the program - read each unknown option both ways if one is met.
+_UV_VALUES = (
+    "-p --python -w --with --with-editable --with-requirements --env-file --index -i --index-url "
+    "--extra-index-url --default-index -f --find-links --index-strategy --keyring-provider "
+    "--resolution --prerelease --fork-strategy --exclude-newer --exclude-newer-package -C "
+    "--config-setting --config-settings-package --no-build-isolation-package --no-build-package "
+    "--no-binary-package --no-sources-package --link-mode --refresh-package -P --upgrade-package "
+    "--reinstall-package --allow-insecure-host --cache-dir --color --config-file "
+    "--python-preference --preview-features --directory --project --python-platform")
 # The runners' own options that take the next word for their value (`conda run -n env python`).
 _RUNNER_VALUES = {program: frozenset(options.split()) for program, options in {
-    "uv": "-p --python -w --with --with-editable --with-requirements --package --directory "
-          "--project --env-file --extra --group --index --index-url --from",
+    "uv": f"{_UV_VALUES} --package --extra --no-extra --group --no-group --only-group --from",
     "conda": "-n --name -p --prefix", "poetry": "-C --directory -P --project",
     "pdm": "-p --project", "hatch": "-e --env", "pnpm": "-C --dir --filter -F",
     "yarn": "--cwd", "npm": "--package -w --workspace --prefix -C",
     **dict.fromkeys(("npx", "pnpx", "bunx"), "-p --package -c --call -w --workspace --cache "
                     "--registry --prefix --userconfig --node-options --loglevel"),
-    "uvx": "-p --python -w --with --from --index --index-url",
+    "uvx": f"{_UV_VALUES} --from -c --constraints -b --build-constraints --overrides "
+           "--torch-backend",
 }.items()}
 
 

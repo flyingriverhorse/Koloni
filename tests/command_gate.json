@@ -80402,12 +80402,60 @@ false,
 true
 ],
 [
+"uv run --cache-dir c --config-file f rm -rf .",
+2,
+"delete",
+false,
+false,
+false
+],
+[
+"uv run --color never --exclude-newer 2026-01-01 cmd /c rd /s /q src",
+2,
+"delete",
+false,
+false,
+false
+],
+[
+"uv run --color never --index-strategy x pytest",
+0,
+"",
+false,
+false,
+false
+],
+[
+"uv run --color never --index-strategy x rm -rf .",
+2,
+"delete",
+false,
+false,
+false
+],
+[
+"uv run --directory a --project b rm -rf .",
+2,
+"delete",
+false,
+false,
+false
+],
+[
 "uv run --frozen pytest",
 0,
 "",
 false,
 false,
 false
+],
+[
+"uv run --index-strategy unsafe-best-match --extra-index-url https://x rm -rf src",
+1,
+"delete",
+false,
+false,
+true
 ],
 [
 "uv run --no-project pip install x",
@@ -80424,6 +80472,14 @@ true
 true,
 false,
 true
+],
+[
+"uv run --python-platform linux --color never rm -rf .",
+2,
+"delete",
+false,
+false,
+false
 ],
 [
 "uv run --with requests python x.py",
@@ -80446,6 +80502,14 @@ true
 0,
 "",
 true,
+false,
+true
+],
+[
+"uv run -i https://x -f y rm -rf .",
+2,
+"delete",
+false,
 false,
 true
 ],
@@ -80818,9 +80882,25 @@ false,
 false
 ],
 [
+"uvx --color never --cache-dir c rm -rf .",
+2,
+"delete",
+true,
+false,
+true
+],
+[
 "uvx --from ruff ruff check .",
 0,
 "",
+true,
+false,
+true
+],
+[
+"uvx -c c.txt --torch-backend cpu rm -rf .",
+2,
+"delete",
 true,
 false,
 true

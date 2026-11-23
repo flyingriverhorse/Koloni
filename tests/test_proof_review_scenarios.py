@@ -50,7 +50,9 @@ def test_a_big_change_is_looked_over_once_and_said(make_client, wait_run, projec
     assert texts(snap) == ["Tests passed: python check.py - 4 passed in 0.1s",
                            f"Review: Reviewer ({SIGN}) - MERGE, no findings"]
     (looked,) = reviewers(snap)
-    assert looked["depth"] == 1 and set(looked["tools"]) <= set(review_mixin.READ), looked["tools"]
+    # (its role's read tools, and run_command held to reads and the approved tests: decision 6)
+    assert looked["depth"] == 1 and set(looked["tools"]) <= {
+        *review_mixin.READ, "run_command"}, looked["tools"]
     asked = calls_of(model, "Reviewer")[0]
     assert "Verdict: MERGE" in asked and "x89 = 89" in asked and "Tests passed" in asked
 
@@ -188,7 +190,7 @@ def test_the_reviewer_cannot_write_whatever_its_role_was_given(make_client, wait
     cid, run_id = begin(client, project_dir, check_command=CHECK)
     snap = wait_run(client, cid, run_id)
     (looked,) = reviewers(snap)
-    assert "write_file" not in looked["tools"] and "run_command" not in looked["tools"]
+    assert "write_file" not in looked["tools"] and "edit_file" not in looked["tools"]
     assert (project_dir / "a.py").read_text(encoding="utf-8") == BIG
     refused = [c for c in snap["tool_calls"] if c["agent_id"] == looked["id"]
                and c["name"] == "write_file"]
@@ -575,3 +577,120 @@ def test_new_lines_no_test_runs_reach_the_reviewer_as_data(make_client, wait_run
     assert texts(snap)[1] == coverage_mixin.MEASURED.format(p=96, tool="pytest-cov"), texts(snap)
     asked = calls_of(model, "Reviewer")[0]
     assert "New lines no test runs: a.py 3, 12-14" in asked and "Coverage: 96%" in asked
+
+
+# --- decision 6: the Reviewer runs what only reads, and the approved test command -----------
+
+TESTS = "python -m pytest -q"
+
+
+def test_the_reviewer_runs_a_read_and_the_approved_tests_and_nothing_else_never_on_a_card(
+        make_client, wait_run, project_dir):
+    from tests.test_proof_background_scenarios import approve_write
+
+    runs = [("cat a.py", "r1"), ("rm -rf .", "r2"), ("pip install requests", "r3"),
+            (f"{TESTS} -k greeting", "r4"), (TESTS, "r5")]
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, model = make_client({
+        "Lead": [write("a.py", BIG), text("done")],
+        "Reviewer": [step(*(call("run_command", {"command": line}, i) for line, i in runs)),
+                     MERGE]}, executor=executor)
+    # (At Ask: every command not covered would be a card - none of the Reviewer's is.)
+    cid, run_id = begin(client, project_dir, mode="ask", check_command=TESTS)
+    approve_write(client, cid, "a.py")
+    snap = wait_run(client, cid, run_id)
+    assert f"Review: Reviewer ({SIGN}) - MERGE, no findings" in texts(snap), texts(snap)
+    (looked,) = reviewers(snap)
+    assert looked["status"] == "completed" and "run_command" in looked["tools"], looked
+    assert sorted(line for line, _cwd in executor.started) == ["cat a.py", TESTS, TESTS]
+    said = {json.loads(c["arguments"])["command"]: (c["status"], c["result"] or "")
+            for c in snap["tool_calls"] if c["agent_id"] == looked["id"]}
+    assert [said[line][0] for line, _i in runs] == [
+        "succeeded", "failed", "failed", "failed", "succeeded"], said
+    for line, _i in runs[1:4]:  # (each refusal said to it, the approved line named)
+        assert "is not available: KOLONİ's Reviewer runs only" in said[line][1], said[line]
+        assert f'"{TESTS}" in .' in said[line][1], said[line]
+    assert not [c for c in snap["commands"] if c["status"] in ("proposed", "rejected")], (
+        snap["commands"])
+    assert (project_dir / "a.py").read_text(encoding="utf-8") == BIG
+    assert "run_skill_script" not in offered_to(model, "Reviewer")
+
+
+def test_the_reviewers_approved_tests_are_the_users_saves_under_always_and_approved_ci(
+        client, project_dir):
+    """Decision 6's sources, each in its folder: a part's own test, a save an Always rule covers
+    (not one none covers), a CI line approved while its workflows stand (not one not plain) - and
+    a line that is not plain is never named for the Reviewer to run."""
+    from types import SimpleNamespace
+
+    from app import ci_commands
+    from app.db.models import Project
+    from app.tools import ToolError, Workspace, plan_command
+
+    for folder in ("web", "api", "lib", ".koloni", ".ssh"):
+        (project_dir / folder).mkdir(exist_ok=True)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    lint = {"command": "ruff check .", "cwd": ".", "step": "lint"}
+    chained = {"command": "npm ci && npm test", "cwd": "web", "step": "test"}
+    with client.app.state.session_factory() as session:
+        project = session.get(Project, pid)
+        project.check_command = None
+        project.test_commands = {"web/": "npm test", "./": ""}
+        project.tests_found = {"api": {"command": "pytest -q", "always": True},
+                               "lib": {"command": "cargo test"}}
+        project.ci_commands = {"approved": {"hash": ci_commands.fingerprint(project_dir),
+                                            "commands": [lint, chained]}}
+        session.commit()
+    runner, ctx = client.app.state.runner, SimpleNamespace(cid=cid, run_id="none")
+    assert client.portal.call(runner._approved_tests, ctx) == [
+        ("npm test", "web"), ("pytest -q", "api"), ("ruff check .", ".")]
+
+    def runs(line, cwd="."):
+        planned = plan_command(Workspace(project_dir), {"command": line, "cwd": cwd})
+        try:
+            return client.portal.call(runner._review_runs, ctx, project_dir, planned)
+        except ToolError as refused:
+            return str(refused)
+
+    assert runs("npm test", "web") is True and runs("pytest -q", "api") is True
+    assert runs("ruff check .") is True and runs("git diff") is True
+    refused = runs("npm test")  # (not in its part's folder)
+    assert refused.startswith("npm test is not available"), refused
+    assert '"pytest -q" in api' in refused and "cargo test" not in refused
+    assert "npm ci" not in refused  # (not plain: it would be refused again)
+    assert runs("cargo test", "lib").startswith("cargo test is not available")
+    # (a read `CommandRunner.run` asks at every level - in a standing or a secret folder: refused)
+    asked = "is not available: KOLONİ's Reviewer is never asked about (it names"
+    assert runs("cat rules.md", ".koloni").startswith(f"cat rules.md {asked} .koloni")
+    assert runs("ls", ".ssh").startswith(f"ls {asked} a secret file")
+    with client.app.state.session_factory() as session:  # (a workflow changed: no CI line)
+        session.get(Project, pid).ci_commands = {"approved": {"hash": "x", "commands": [lint]}}
+        session.commit()
+    assert runs("ruff check .").startswith("ruff check . is not available")
+
+
+def test_the_reviewers_own_test_run_beneath_the_suite_is_no_change_of_the_project(
+        make_client, wait_run, project_dir, gate, monkeypatch):
+    # (The whole suite goes on after the answer while the Reviewer looks, and may run the approved
+    # test command beneath it: it changes nothing the tests read, as KOLONİ's own runs do not -
+    # even failing, it is no "the project changed while they ran".)
+    from app.agent import proof_later_mixin
+    from tests.test_proof_background_scenarios import held, rows_of, until
+
+    monkeypatch.setattr(proof_later_mixin, "DETACH_SECONDS", 0.2)
+    executor = ScriptedExecutor([held(gate, "4 passed\n"), failing()])
+    client, _model = make_client({
+        "Lead": [write("a.py", BIG), text("done")],
+        "Reviewer": [step(call("run_command", {"command": CHECK}, "r1")), MERGE]},
+        executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    snap = wait_run(client, cid, run_id)
+    assert [command for command, _cwd in executor.started] == [CHECK, CHECK]
+    (looked,) = reviewers(snap)
+    assert [(c["status"], c["exit_code"]) for c in snap["commands"]
+            if c["agent_id"] == looked["id"]] == [("exited", 1)]
+    gate.release()
+    (row,) = until(lambda: [one for one in rows_of(client, cid, run_id)
+                            if one["kind"] == "tests" and one["state"] != "running"])
+    assert (row["state"], row["text"]) == ("passed", f"Tests passed: {CHECK} - 4 passed"), row

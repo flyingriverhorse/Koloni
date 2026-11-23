@@ -2101,7 +2101,8 @@ class SpawnMixin:
             # (A team's lead is one of this chat's rows only: `find_role` finds any.)
             lead = any(one is not None and one.id == role.id
                        for _r, _t, one in self._rows(session, ctx.cid))
-            tools = self._read_only(call_id, effective_tools(role.tools, self._caps(ctx)))
+            caps = self._caps(ctx)
+            tools = self._read_only(call_id, effective_tools(role.tools, caps), caps)
             self._held_to_read(call_id, model, provider)
             # PAID_SWITCH: KOLONİ's move of it onto a provider paid per token (not a pick, not
             # the user's Run there). The user's word on that provider in this turn stands.
@@ -2156,7 +2157,9 @@ class SpawnMixin:
         # about at every permission level and for every role, unless nothing ever is. The
         # user's own Run there was the yes to this very agent, and their model in the recipe the
         # yes to that model (`users`).
-        other = _asked_about(approval, mode, tools) or (
+        # (KOLONİ's Reviewer changes nothing: its run_command runs only reads and the approved
+        # tests, `_review_runs`.)
+        other = _asked_about(approval, mode, () if call_id in self._read_only_calls else tools) or (
             chosen and not users and approval != "never")
         asks = refused is None and not yes and (other or said is None and approval != "never")
         if asks and said is None:

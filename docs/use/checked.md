@@ -34,7 +34,9 @@ project:
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
 the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
-is read by a Reviewer (one more model request). Failing work goes back up to 2 times." Before a
+is read by a Reviewer (one more model request). Failing work goes back up to 2 times." It names
+your check command; else each test command you set for a part on the project map ("npm test in
+web/"), then what KOLONİ saved for any other folder - and changes as you save one there. Before a
 test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
 
 ### For one chat
@@ -379,10 +381,14 @@ also what does not fit in the diff the Reviewer is shown.
 
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
-  the project they open. They do not run commands: KOLONİ's test lines are what they know of the
-  tests. They get read tools only and no MCP server, whatever their role is
-  given: they change nothing. One whose model is a CLI that works with tools of its own is not
-  opened ("Review not run: …"), as KOLONİ could not hold it to reading.
+  the project they open. They get read tools only and no MCP server, whatever their role is
+  given: they change nothing. They may run two kinds of command, never asked about: one that only
+  reads (`git diff`, `cat a.py`, `ls src`), and the project's approved test command exactly as it
+  is set, in its folder - your check command or a part's test command, a saved one an **Always**
+  rule covers, or a CI line you approved with **Run these**. Any other (`rm`, `pip install`, the
+  test command with an option added) is refused, and they are told which test commands they may
+  run; no card is ever opened for a Reviewer's command. One whose model is a CLI that works with
+  tools of its own is not opened ("Review not run: …"), as KOLONİ could not hold it to reading.
 - For a change a user sees (a screen's file, a command's option) in a project with `docs/`, a
   README or a CHANGELOG, they also check the docs: "Docs not updated for: …" is a suggestion,
   blocking only where the project's own rules say docs must change with it.
@@ -510,6 +516,9 @@ finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes afte
 Orchestrator's own box gets one line: "● checking…"
 while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
 not run), "✗ still failing" or "not checked". In a recipe's turn the node says "end of the recipe".
+A turn KOLONİ did not check has no Checks node: off for this chat, the Orchestrator's box says "not
+checked · off for this chat"; in a project whose After a change is **Nothing**, it says nothing of
+it - the Checked section does.
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this

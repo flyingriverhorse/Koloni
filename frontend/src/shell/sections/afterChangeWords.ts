@@ -1,23 +1,32 @@
 import type { Project } from '../../api/types'
 
-type Testing = Pick<Project, 'check_command' | 'tests_found'>
+type Testing = Pick<Project, 'check_command' | 'tests_found' | 'test_commands'>
 
 /** Where none is known yet: KOLONİ finds one, and asks you once. */
 export const FINDS_ONE = 'the test command KOLONİ finds (it asks you once)'
 
+/** A folder by its path in the project, "" the root: "./" and "web/" are the project map's keys, "." and "web" a save's. */
+const folderOf = (key: string) => key.replace(/^\.(\/|$)/, '').replace(/\/$/, '')
+
 /**
- * The test command(s) the end check runs now, as the project stands: your own check command, else what KOLONİ saved by
+ * The test command(s) the end check runs now, as the project stands (`proof.test_runs`, `FoundMixin._runs_found`): your
+ * own check command; else each part's test command you set on the project map, then what KOLONİ saved for any other
  * folder; none: it finds one. `where`: with each folder, and who found it.
- * shortcut: a part's own test command (the project map's) is not named here; name it if a project with parts is seen
- * reading this line wrong.
+ * shortcut: a part the map no longer finds is still named; drop it if a project whose parts moved reads this line wrong.
  */
 export function testsRun(project: Testing, where = true): string {
   const own = project.check_command?.trim()
   if (own) return where ? `${own} in ./` : own
-  const found = Object.entries(project.tests_found ?? {}).map(([folder, one]) =>
-    where ? `${String(one.command)} in ${folder === '.' ? './' : `${folder}/`} (found by KOLONİ)` : String(one.command),
-  )
-  return found.length ? found.join(', ') : FINDS_ONE
+  const yours = Object.entries(project.test_commands ?? {}).filter(([, line]) => line.trim())
+  // (A save for a folder whose part has your command is not run: yours is. Folders in one case - Windows keeps saves so.)
+  const theirs = new Set(yours.map(([key]) => folderOf(key).toLowerCase()))
+  const found = Object.entries(project.tests_found ?? {}).filter(([folder]) => !theirs.has(folderOf(folder).toLowerCase()))
+  const named = (line: string, key: string, by = '') => (where ? `${line} in ${folderOf(key) ? `${folderOf(key)}/` : './'}${by}` : line)
+  const runs = [
+    ...yours.map(([key, line]) => named(line.trim(), key)),
+    ...found.map(([folder, one]) => named(String(one.command), folder, ' (found by KOLONİ)')),
+  ]
+  return runs.length ? runs.join(', ') : FINDS_ONE
 }
 
 const times = (n: number) => `${n} time${n === 1 ? '' : 's'}`

@@ -17,7 +17,17 @@ from sqlalchemy.orm import Session
 from app import finish_tests, ledger, project_map, test_found
 from app.code_map import PYTHON, SCRIPT, tested
 from app.commands import only_reads, plain
-from app.db.models import Command, Conversation, FileChange, Flag, Message, Project, Run, ToolCall
+from app.db.models import (
+    Agent,
+    Command,
+    Conversation,
+    FileChange,
+    Flag,
+    Message,
+    Project,
+    Run,
+    ToolCall,
+)
 from app.tools import MAX_TIMEOUT
 from app.workspace import in_scratch, secret_in_project, unified_diff
 
@@ -653,15 +663,18 @@ def changed_since(session: Session, project_id: str, since: datetime,
     if ran is None or ran.started_at is None:
         return False
     # (Not KOLONİ's own test runs - another suite of the same turn, say: they change nothing the
-    # tests read, and a standing file they write is put back as they end.)
+    # tests read, and a standing file they write is put back as they end. Nor its Reviewer's - a
+    # read, or the approved test command: decision 6 - an agent its own call opened.)
     proofs = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
+    looks = select(Agent.id).where(Agent.tool_call_id.in_(proofs))
     agents: dict[str, set[str]] = {}
     for run_id, agent_id in session.execute(
             select(Command.run_id, Command.agent_id).join(Run, Run.id == Command.run_id)
             .join(Conversation, Conversation.id == Run.conversation_id)
             .where(Conversation.project_id == project_id, Command.id != ran.id,
                    Command.started_at.is_not(None), Command.started_at >= since,
-                   or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(proofs)))):
+                   or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(proofs)),
+                   Command.agent_id.not_in(looks))):
         agents.setdefault(run_id, set()).add(agent_id)
     return any(_rewritten_after(session, run_id, by, ran, _known_as(session, ran))
                for run_id, by in agents.items())

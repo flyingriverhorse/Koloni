@@ -190,6 +190,22 @@ def test_what_koloni_found_can_be_forgotten_from_the_apps_own_page(client, proje
     assert (seen["tests_found"], seen["tests_look"]) == ({}, None)
 
 
+def test_forget_it_tells_each_chat_of_the_project_as_a_save_does(client, project_dir,
+                                                                  monkeypatch):
+    # (Every page with a chat of the project reads it again: Settings there drops the line.)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cids = {client.post(f"/api/projects/{pid}/conversations").json()["id"] for _ in range(2)}
+    sent = []
+    monkeypatch.setattr(client.app.state.bus, "emit_transient",
+                        lambda cid, type, payload: sent.append((cid, type, payload)))
+    assert client.patch(f"/api/projects/{pid}", json={"fix_rounds": 3},
+                        headers=OWN).status_code == 200
+    assert sent == []  # (another setting: the page that set it has it)
+    assert client.patch(f"/api/projects/{pid}", json={"forget_tests_found": True},
+                        headers=OWN).status_code == 200
+    assert sorted(sent) == sorted((cid, "project.changed", {"project_id": pid}) for cid in cids)
+
+
 def saved_project(client, project_dir, **entry) -> str:
     """The project of `project_dir` with `python -m pytest -q` saved as its test command."""
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
