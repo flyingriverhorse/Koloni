@@ -22,6 +22,7 @@ from app.api.usage import over_limit, over_month
 from app.db.models import Agent, Conversation, FileChange, Merge, Message, Provider, now
 from app.model_client import ToolCallRequest
 from app.proof import Row
+from app.proof_related import PYTEST_FILES
 from app.roles import effective_tools, find_role
 from app.serialize import merge_out
 from app.team import TIERS, tier_of, would_run
@@ -55,9 +56,10 @@ TEST_HELD = "Not a pass: the Reviewer held {model}'s test change"
 TEST_UNREAD = "Not a pass: the Reviewer did not read {model}'s test change ({why})"
 NO_LOOK = "no look"
 # What steers which tests run, besides the tests: a test changed too, under the same leave.
-TEST_CONFIGS = frozenset({"conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml",
-                          "noxfile.py", "package.json"})
-TEST_CONFIG = re.compile(r"(?:vitest|vite|jest|playwright)\.config\.|karma\.conf\.|\.mocharc\.")
+# (pytest's own, as S6 reads them: pytest.toml first in pytest 9)
+TEST_CONFIGS = frozenset({"conftest.py", *PYTEST_FILES, "noxfile.py", "package.json"})
+TEST_CONFIG = re.compile(r"(?:vitest|vite|jest|playwright)\.config\.|vitest\.workspace\.|"
+                         r"karma\.conf\.|\.mocharc\.")
 NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
 STARTED_OVER = "Started over in a fresh copy: {why}"
 NOT_STARTED_OVER = "approach-wrong, but {why}: it goes on from the work as it is"

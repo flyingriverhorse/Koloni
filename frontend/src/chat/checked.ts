@@ -11,8 +11,18 @@ export const FIX_HELD = (question: string, reply: string) => `The last turn's wo
 
 type Row = NonNullable<Message['checked']>[number]
 
-/** S11: what Fix it sends where a stronger model's rounds ended as no pass (the tests may pass): the command and KOLONİ's own line why, quoted. */
-export const FIX_NOT_DONE = (command: string, why: string) => `${FIX_IT(command)} KOLONİ's end check says it is not done: "${why}"`
+/**
+ * S11: where a stronger model's rounds ended as no pass (its tests may pass), Fix it's words - the command and a fixed sentence by the row's
+ * kind. Never the row's own text: it names files and a look's output a model chose, which are no words of the user's (as FIX_REVIEW).
+ */
+const NOT_DONE: [RegExp, string][] = [
+  [/changed a test without leave/, 'a test, or what says which tests run, was changed without leave'],
+  [/the Reviewer held/, 'the Reviewer held the test change'],
+  [/the Reviewer did not read/, 'the Reviewer did not pass the test change'],
+  [/gave no verdict/, 'the tests gave no verdict after a round'],
+]
+export const FIX_NOT_DONE = (command: string, rowText: string) =>
+  `${FIX_IT(command)} The stronger model's rounds were no pass: ${NOT_DONE.find(([kind]) => kind.test(rowText))?.[1] ?? 'it still fails after the rounds'}.`
 
 /** What Fix it asks for under a turn's Checked section: a failing test run first, else a stronger model's rounds that were no pass, else a Reviewer's hold; null: nothing to fix. */
 export function fixOf(rows: Row[]): string | null {

@@ -325,6 +325,8 @@ def test_a_conftest_that_deselects_the_test_is_a_test_change(team, wait_run,  # 
 
 
 @pytest.mark.parametrize("path", ["conftest.py", "tests/conftest.py", "pytest.ini", "tox.ini",
+                                  ".pytest.ini", "pytest.toml", ".pytest.toml",
+                                  "vitest.workspace.ts",
                                   "setup.cfg", "pyproject.toml", "noxfile.py", "package.json",
                                   "vitest.config.ts", "vite.config.mts", "jest.config.js",
                                   "karma.conf.js", ".mocharc.yml", "playwright.config.ts"])
