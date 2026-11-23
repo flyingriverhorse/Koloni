@@ -807,10 +807,11 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
 
 # S5c (plan decision 16): what the end gate checks, part by part - the project's tests, the
 # Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui";
-# 0.1.7's config files, "config", and code style and types, "style").
-PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config", "style")
+# 0.1.7's config files, shell scripts and code style and types, "config", "scripts" and
+# "style").
+PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config", "scripts", "style")
 # (On in a recipe's Checks step unless unticked: a row's graph from before has no such key.)
-ON_UNLESS_UNTICKED = ("config", "style")
+ON_UNLESS_UNTICKED = ("config", "scripts", "style")
 
 
 class Checks(NamedTuple):

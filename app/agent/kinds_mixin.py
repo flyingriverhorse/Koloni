@@ -1,10 +1,10 @@
-"""Kanıtlı bitiş S5a: after a turn that wrote documents, diagrams, data, slides or config files
-(0.1.7), KOLONİ checks with no model (`app.proof_kinds`; 0.1.7's Code style and types runs the
-project's own tools, `_style`) - under Test and review, each kind the
-project has on (Settings › This project › Checks and git › Check by kind of work). A sure problem
-goes back to the Orchestrator as a fix round, one count with failing tests and the Reviewer's
-findings (the project's Fix rounds). `KindsMixin._proof_kinds` is the gate's step after the tests
-and before the review: a turn of documents alone runs no test and gets these checks."""
+"""Kanıtlı bitiş S5a: after a turn that wrote documents, diagrams, data, slides, config files or
+shell scripts (0.1.7), KOLONİ checks with no model (`app.proof_kinds`; 0.1.7's Code style and types
+runs the project's own tools, `_style`) - under Test and review, each kind the project has on
+(Settings › This project › Checks and git › Check by kind of work). A sure problem goes back to the
+Orchestrator as a fix round, one count with failing tests and the Reviewer's findings (the
+project's Fix rounds). `KindsMixin._proof_kinds` is the gate's step after the tests and before the
+review: a turn of documents alone runs no test and gets these checks."""
 
 import asyncio
 import json
@@ -53,6 +53,9 @@ def _written(changes: list[Change], made: Sequence[str] = ()) -> dict[str, list[
         # (0.1.7's Code style and types: code and screens by their ending - each its own kind too)
         if kind in ("code", "ui") and path.casefold().endswith(proof_style.STYLE_FILES):
             style += [path] if path not in style else []
+        # (0.1.7's scripts: code still - its tests and review stand - read here by their ending.)
+        if kind == "code" and path.casefold().endswith(proof_kinds.SCRIPT_FILES):
+            kind = "scripts"
         if kind in proof_kinds.WRITTEN and path not in found.get(kind, []):
             found.setdefault(kind, []).append(path)
     return {**found, proof_style.STYLE: style} if style else found
