@@ -311,7 +311,7 @@ test('☾ Away: the Away panel, and the summary when you are back', async ({ pag
 // (The e2e project's own check.py and slow.py: the Checks node names a command by its script.)
 const PASSING = 'python check.py'
 const SLOW = 'python slow.py'
-const WRITTEN = ['kanit.py', 'rehber_a.py', 'rehber_b.py', 'rehber_c.py', 'rehber_d.py']
+const WRITTEN = ['kanit.py', 'rehber_a.py', 'rehber_b.py', 'rehber_c.py', 'rehber_d.py', 'dongu_a.py', 'dongu_b.py', 'dongu_c.py', 'dongu_d.py']
 const WORKFLOW = 'name: ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m pytest -q\n'
 
 /** The project's After a change on, with `command`, and the page read again: the composer says what the chat checks. */
@@ -365,7 +365,7 @@ test.describe('proven finish (0.1.6)', () => {
     await expect(checked).toContainText(`Tests passed: ${PASSING} - 2 passed`, { timeout: 20_000 })
     await picture(checked, 'checked-section')
     await settled(page)
-    await picture(page, 'checks-node') // (its lines: the ⋯ menu is in checks-running)
+    // (The node's lines: in checks-running with its ⋯ menu, in checks-loop with its rounds.)
     await page.getByRole('button', { name: 'Checks: more' }).click()
     await expect(page.getByRole('menu', { name: 'Checks: more' })).toBeVisible()
   })
@@ -387,7 +387,7 @@ test.describe('proven finish (0.1.6)', () => {
     await picture(checked, 'checked-stopped')
   })
 
-  test('a big change looked over: the Reviewer’s rows, and its node after the Checks node', async ({ page }) => {
+  test('a big change looked over: the Reviewer’s rows, and the Reviewer in the Checks box', async ({ page }) => {
     await openFreshConversation(page)
     await checksOn(page, PASSING)
     await level(page, 'auto_edit')
@@ -397,6 +397,32 @@ test.describe('proven finish (0.1.6)', () => {
     await picture(checked, 'checked-review')
     await settled(page)
     await picture(page, 'checks-reviewer')
+  })
+
+  // tuval-kontrol-dongusu (0.1.7): KOLONİ's looks and the fixes it sent back, one loop on the canvas and its rounds in the panel.
+  test('a turn sent back twice: the loop of its looks and fixes, and its rounds in the inspector', async ({ page }) => {
+    test.setTimeout(180_000)
+    await openFreshConversation(page)
+    const id = await e2eProject(page)
+    const had = (await (await page.request.get(`/api/projects/${id}`)).json()).fix_rounds
+    await setProject(page, { fix_rounds: 2 })
+    try {
+      await checksOn(page, PASSING)
+      await level(page, 'full_auto') // (the Orchestrator's Coders open, and their work is taken in, unasked)
+      await page.getByLabel('Message').fill('write the looped change, k-dongu')
+      await page.getByRole('button', { name: 'Send' }).click()
+      const box = page.locator('.react-flow__node-checks')
+      await expect(box).toContainText('⟲ 3 looks · 2 fix rounds · on hold', { timeout: 150_000 })
+      // (The chat closed: the canvas has the room for the whole turn beside the panel.)
+      await page.getByRole('button', { name: 'Hide chat' }).click()
+      await settled(page)
+      await box.getByText('Checks · KOLONİ').click()
+      await expect(page.getByRole('complementary', { name: 'Inspector' }).getByRole('region', { name: 'Round 3' })).toBeVisible()
+      await settled(page)
+      await picture(page, 'checks-loop')
+    } finally {
+      await setProject(page, { fix_rounds: had })
+    }
   })
 
   test('your CI’s lines offered under the answer: Run these', async ({ page }) => {

@@ -217,6 +217,29 @@ sequenceDiagram
 \`\`\`
 `
 
+/**
+ * tuval-kontrol-dongusu, the guide's pictures: the Orchestrator opens a Coder that writes four files; KOLONİ's Reviewer holds
+ * them every time, with one blocking finding; after each "Not the end yet" the Orchestrator opens a Coder to fix it - two Fix
+ * rounds, and the turn ends on hold. KOLONİ's ask for a test is answered with why none fits.
+ */
+function loopedStep(messages, last) {
+  if (messages.some(m => m.role === 'user' && String(m.content).startsWith('KOLONİ opened you at the end of a turn to look over'))) {
+    return say('Read it.\nVerdict: HOLD\n\n## Findings\n- dongu_a.py:1 returns before it checks its input | kind: code | role: Orchestrator | blocking')
+  }
+  if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content))) {
+    const fixing = /Fix the finding, k-dongu/.test(String(messages[1]?.content))
+    if (last.role !== 'user') return say(fixing ? 'Fixed dongu_a.py.' : 'Wrote the looped module.')
+    if (fixing) return toolCall(`cdgf${messages.length}`, 'write_file', { path: 'dongu_a.py', content: `a = ${Date.now()}\n` })
+    return toolCalls(['a', 'b', 'c', 'd'].map(name => [`cdg${name}`, 'write_file', { path: `dongu_${name}.py`, content: `${name} = 1\n` }]))
+  }
+  if (last.role === 'user') {
+    if (/looped change, k-dongu/.test(String(last.content))) return toolCall('cdg0', 'spawn_agent', { role: 'Coder', task: 'Write the looped change, k-dongu' })
+    if (/Not the end yet: the Reviewer/.test(String(last.content))) return toolCall(`cdgx${messages.length}`, 'spawn_agent', { role: 'Coder', task: 'Fix the finding, k-dongu' })
+    return say('No test fits it: each file holds one constant.')
+  }
+  return say(messages.filter(m => m.tool_calls?.length).length > 1 ? 'Fixed the finding.' : 'Wrote the looped change.')
+}
+
 function nextStep(all, tools = [], model = '') {
   // (A message with files sent as they are - slice 85b - is read by its text parts.)
   const read = all.map(m => (Array.isArray(m.content) ? { ...m, content: m.content.filter(p => p.type === 'text').map(p => p.text).join('\n') } : m))
@@ -226,6 +249,9 @@ function nextStep(all, tools = [], model = '') {
   // Asked to say a project's day in words (slice 56): its numbers, in a few sentences. First of all: the day
   // carries the titles of its conversations, which the branches below would take for what is asked.
   if (String(messages[0].content).startsWith("You are given a software project's day")) return say('A day of one change. Nothing failed.')
+  // tuval-kontrol-dongusu (the guide's pictures): a change KOLONİ's Reviewer holds every time (`loopedStep`).
+  // (Not a question asked of the side - how hard, a summary: those are answered below as for any turn.)
+  if (!String(messages[0].content).startsWith('You are asked one thing') && messages.some(m => m.role === 'user' && /\bk-dongu\b/.test(String(m.content)))) return loopedStep(messages, last)
   // S3: KOLONİ's Reviewer at a turn's end (a change that touches security, say): it lets it stand.
   if (messages.some(m => m.role === 'user' && String(m.content).startsWith('KOLONİ opened you at the end of a turn to look over'))) return say('Read it.\nVerdict: MERGE\n\nFindings: none')
   if (String(messages[0].content).includes('Coder sub-agent') && /Fix the cart handler, 85b/.test(String(messages[1]?.content))) {
