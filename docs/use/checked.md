@@ -382,6 +382,17 @@ also what does not fit in the diff the Reviewer is shown.
   over its token limit, or a recipe whose own Review step looked already - rounds never stack.
   A recipe without a Review step gets this review at its end.
 
+### Documents read against your request
+
+A turn that wrote more than **80 lines** of documents (`.md`, `.rst`, `.txt`, `.docx`...) and no
+code that is looked over has them read once by the Reviewer, against what you asked for: what
+your request asks for that they leave out or contradict - and, where it asks for sources, whether
+they are there. Its line is "Documents read: Reviewer (…) - MERGE, no findings" or "- HOLD, …";
+a blocking finding goes back as a fix round, as a review's does. It is read once a turn: after
+that round, the turn's end says "Still on hold after round 1: not settled by the last look - you
+decide (Fix it)" where the hold stood. Where code is looked over too, the Reviewer's brief takes
+the documents in: one look a turn in all.
+
 ## How long it waits
 
 A long test suite does not hold up the answer. In a turn you watch, whose work is in the project

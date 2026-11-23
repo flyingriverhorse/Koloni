@@ -118,6 +118,8 @@ class Proof:
     looked_at: datetime | None = None
     lookers: tuple[str, ...] = ()
     review_rounds: int = 0
+    # S5b: the turn's documents were read once against the request (no code review was asked).
+    docs_read: bool = False
     # S1b (`FoundMixin`): where a guess came from ("guess", "look"), by (command, folder); and
     # why nothing was run - the look found no test, or there was no model to look.
     found_from: dict[tuple[str, str], str] = field(default_factory=dict)

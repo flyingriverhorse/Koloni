@@ -575,3 +575,56 @@ def test_new_lines_no_test_runs_reach_the_reviewer_as_data(make_client, wait_run
     assert texts(snap)[1] == coverage_mixin.MEASURED.format(p=96, tool="pytest-cov"), texts(snap)
     asked = calls_of(model, "Reviewer")[0]
     assert "New lines no test runs: a.py 3, 12-14" in asked and "Coverage: 96%" in asked
+
+
+# --- S5b: a big documents change is read once against the request -----------------------------
+
+GUIDE = "".join(f"- step {i}: what to do\n" for i in range(90))
+
+
+def test_a_big_docs_change_is_read_against_the_request_once(make_client, wait_run, project_dir):
+    client, model = make_client({"Lead": [write("GUIDE.md", GUIDE), text("done")],
+                                 "Reviewer": [MERGE]}, executor=ScriptedExecutor([]))
+    cid, run_id = begin(client, project_dir, content="write a guide with an install section")
+    snap = wait_run(client, cid, run_id)
+    assert f"Documents read: Reviewer ({SIGN}) - MERGE, no findings" in texts(snap), texts(snap)
+    (looked,) = reviewers(snap)
+    assert set(looked["tools"]) <= set(review_mixin.READ), looked["tools"]  # (it changes nothing)
+    asked = calls_of(model, "Reviewer")[0]
+    assert "leave out or contradict" in asked and "install section" in asked
+    assert "Why it is read: 90 lines of documents" in asked and "step 89" in asked
+
+
+def test_a_docs_hold_goes_back_once_and_is_not_read_again(make_client, wait_run, project_dir):
+    client, model = make_client({
+        "Lead": [write("GUIDE.md", GUIDE), text("done"),
+                 write("GUIDE.md", GUIDE + "## Install\n", "w2"), text("added it")],
+        "Reviewer": [hold("GUIDE.md: no install section")]}, executor=ScriptedExecutor([]))
+    cid, run_id = begin(client, project_dir, content="write a guide with an install section")
+    snap = wait_run(client, cid, run_id)
+    assert len(reviewers(snap)) == 1  # (once a turn: the fix is not read again)
+    sent = [str(m["content"]) for m in model.calls_of["Lead"][-1] if m["role"] == "user"]
+    assert any("GUIDE.md: no install section" in one for one in sent), sent
+    shown = texts(snap)
+    assert f"Documents read: Reviewer ({SIGN}) - HOLD, 1 findings, 1 blocking" in shown, shown
+    assert shown[-1].startswith("Still on hold after round 1: not settled by the last look")
+
+
+def test_a_small_docs_change_is_not_read(make_client, wait_run, project_dir):
+    client, _model = make_client({"Lead": [write("GUIDE.md", "# Guide\n"), text("done")]},
+                                 executor=ScriptedExecutor([]))
+    cid, run_id = begin(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    assert reviewers(snap) == [] and "No review: a small change (0 lines, 0 files)" in texts(snap)
+
+
+def test_with_a_code_review_asked_the_documents_are_in_its_brief_one_look_in_all(
+        make_client, wait_run, project_dir):
+    client, model = make_client({
+        "Lead": [write("a.py", BIG), write("GUIDE.md", GUIDE, "w2"), text("done")],
+        "Reviewer": [MERGE]}, executor=ScriptedExecutor([PASS]))
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    snap = wait_run(client, cid, run_id)
+    assert len(reviewers(snap)) == 1
+    assert f"Review: Reviewer ({SIGN}) - MERGE, no findings" in texts(snap), texts(snap)
+    assert "The turn also wrote 90 lines of documents (GUIDE.md)" in calls_of(model, "Reviewer")[0]
