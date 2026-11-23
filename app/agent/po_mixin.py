@@ -1,4 +1,4 @@
-"""The Assistant PO after a turn (the user, 6-7 Nov): follow-up tasks proposed for the To-do
+"""The Scout after a turn (the user, 6-7 Nov): follow-up tasks proposed for the To-do
 list, and at Full auto in a watched turn the Lead's word on them - `PoMixin`."""
 
 import asyncio
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 # Where a proposal's words read like orders (`injection.scan`): said so on its row.
-WHERE = "a To-do proposal of the Assistant PO"
+WHERE = "a To-do proposal of the Scout"
 
 
 @dataclass(frozen=True)
@@ -345,7 +345,7 @@ class PoMixin:
             self._po_noted(ctx, {"lead_added": added})
 
     def _po_noted(self: "AgentRunner", ctx: Ctx, po: dict) -> None:
-        """The Assistant PO's request after `ctx`'s turn, as it went, on the turn's record for
+        """The Scout's request after `ctx`'s turn, as it went, on the turn's record for
         the canvas (`Run.po`, `PoOut`): `po` over what is there. Never fails what comes after
         it (the proposals announced, the Lead's word): a chat deleted meanwhile has no run, and
         a busy database only loses the node."""
@@ -359,7 +359,7 @@ class PoMixin:
                 payload = run_out(run)
             self.bus.emit(ctx.cid, ctx.run_id, "run.updated", payload)
         except Exception as exc:
-            log.warning("run %s: the Assistant PO's request not on its record: %r", ctx.run_id, exc)
+            log.warning("run %s: the Scout's request not on its record: %r", ctx.run_id, exc)
 
     def _has_room(self: "AgentRunner", session, provider: Provider, project: Project) -> bool:
         """Whether KOLONİ may spend a request on `provider` for the project now: under its month's

@@ -60,7 +60,7 @@ export interface ProjectSettingsValues {
   finish_way?: 'merge' | 'pull_request'
   /** Whether the Observer's model looks over each sub-agent's report. Sent only when changed. */
   observe_reports?: boolean
-  /** Whether the Assistant PO suggests follow-up tasks after each turn, and from which tier. Sent only when changed. */
+  /** Whether the Scout suggests follow-up tasks after each turn, and from which tier. Sent only when changed. */
   suggest_tasks?: boolean
   suggest_tier?: Project['suggest_tier']
   /** tek-ev: every chat's sub-agent settings, the project's. Each sent only when changed. */

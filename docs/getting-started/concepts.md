@@ -38,7 +38,8 @@ how they hang together.
 
 **Role**
 : What an agent is for: a description, instructions, the tools it may use and, if you like, its own
-  model. KOLONİ comes with roles such as Coder, Reviewer, Tester, Planner and Product owner, and you can
+  model. KOLONİ comes with roles such as Coder, Reviewer, Tester, Planner and the Hive keeper (it keeps the
+  To-do list), and you can
   add your own on the Agents page. See [Roles](../agents/roles.md).
 
 **Tier**

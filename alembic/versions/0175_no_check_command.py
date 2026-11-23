@@ -7,16 +7,16 @@ dropped with what it held (one command; the end gate runs each part's tests, as 
 
 Going back adds the column again, empty.
 
-Revision ID: 0174
-Revises: 0173
+Revision ID: 0175
+Revises: 0174
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0174"
+revision = "0175"
 # (Written on the k-parca-test branch: re-chained after main's newest at its merge.)
-down_revision = "0173"
+down_revision = "0174"
 branch_labels = None
 depends_on = None
 

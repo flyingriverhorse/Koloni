@@ -45,8 +45,8 @@ TIERS = {
     "Translator": "fast",
     "Summarizer": "fast",
     # Slice 52: they keep the backlog.
-    "Product owner": "strongest",
-    "Assistant product owner": "balanced",
+    "Hive keeper": "strongest",
+    "Scout": "balanced",
     # Slice 33b: asked once, without tools, over a sub-agent's report.
     "Observer": "balanced",
 }

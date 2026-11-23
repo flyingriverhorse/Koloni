@@ -9,7 +9,8 @@ Type in **Add a task — title, then Enter**. Once there is a title you can also
 (high, normal, low), a **Detail** and **Done when (optional)**, then press **Add task**.
 
 A rough note can become several tasks. Type it, for example "the login page is broken on mobile, and
-we need a password reset", and press **Write it with the Product owner**. A model writes it as tasks,
+we need a password reset", and press **Write it with the Hive keeper** - the role that keeps the
+To-do list, turning a goal into tasks with what makes each done. A model writes it as tasks,
 each with a title, detail, done when and priority. It is asked once, with no tools, as **Or write
 it** asks (see [Recipes](../agents/recipes.md)) - your fast models first, then the other tiers',
 then the Orchestrator's model in the chat you are in, then your newest chat's. One that does not
@@ -17,14 +18,14 @@ answer passes it on in the same press; with none answering, the message names ea
 why, and how to fix it. The line under the buttons says which model is asked first and whether the
 request costs money. The tasks appear under the box for you to change. Press
 **Add** on one, **✕** to drop one, or **Add all**. Nothing is saved until you add it. **Plan it in a
-chat** works the other way: it opens a chat in the project whose first message asks for the Product
-owner. The Product owner reads the project and proposes tasks, which wait for you like any agent's.
+chat** works the other way: it opens a chat in the project whose first message asks for the Hive
+keeper. The Hive keeper reads the project and proposes tasks, which wait for you like any agent's.
 
 ![The To-do page: a rough note in Add a task, and under it the tasks the model wrote from it, each with Add and a cross to drop it](../images/todo-draft.png)
 
-*A rough note written as two tasks by **Write it with the Product owner**; nothing is saved until you add one.*
+*A rough note written as two tasks by **Write it with the Hive keeper**; nothing is saved until you add one.*
 
-Agents with the To-do tools (the Product owner and the Assistant product owner) can propose tasks and
+Agents with the To-do tools (the Hive keeper and the Scout) can propose tasks and
 changes. They wait for you under **Waiting for you**:
 
 | What waits | Buttons |
@@ -38,9 +39,10 @@ change them, then press **Add**.
 
 ## Follow-up tasks
 
-After a turn in one of the project's chats, the **Assistant PO** suggests what to do next. It looks at
+After a turn in one of the project's chats, the **Scout** - the role that looks for what is left
+after each turn - suggests what to do next. It looks at
 the turn's record: work left undone or for later, a TODO, a step that failed. It proposes at most
-three tasks, each with the words they came from ("Proposed by the Assistant PO, from: ..."). Those
+three tasks, each with the words they came from ("Proposed by the Scout, from: ..."). Those
 words must be an agent's in that turn, or the first line of a step that failed, not your message.
 Backticks, `*` and `_` are ignored, and curly quotes count as straight ones, so `` `CHANGELOG.md` ``
 still matches CHANGELOG.md. A suggestion without
@@ -61,7 +63,7 @@ tasks' titles. The secrets KOLONİ knows, and the variables the project passes t
 masked. Jobs while you're away and triggers get suggestions too; rooms, discussions and To-do tasks' own turns get
 none. Nothing is asked while the project is over its monthly budget.
 
-Each request shows on the canvas as an **Assistant PO** box under the turn, on a dashed line down from
+Each request shows on the canvas as a **Scout** box under the turn, on a dashed line down from
 the Orchestrator: the model, "2 proposed · 1 dropped" (at Full auto also "Orchestrator added 1"), its
 tokens ("–" where not reported), and **To-do →**. Click it to see why each suggestion was dropped; a
 double click, or **To-do →**, opens this page. A request that failed or timed out says "Sent, not heard

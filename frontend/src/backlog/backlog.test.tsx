@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type { Away, AwayJob, BacklogAuto, BacklogTask, Board, Provider } from '../api/types'
 import { waitingTotal } from '../board/waiting'
-import { BacklogPage, PLAN_ASK, WaitRow } from './BacklogPage'
+import { BacklogPage, HIVE_KEEPER_DOES, PLAN_ASK, WaitRow } from './BacklogPage'
 
 const task = (over: Partial<BacklogTask>): BacklogTask => ({
   id: over.title ?? 't',
@@ -391,7 +391,7 @@ test("a task's waiting rows stand by themselves too, each decision its own row (
   expect(props.onDecide).toHaveBeenCalledWith('form', 'approve')
 })
 
-// "Write it with the Product owner" (6 Nov): what is typed, written as tasks by a model asked once; nothing is added without the user.
+// "Write it with the Hive keeper" (6 Nov): what is typed, written as tasks by a model asked once; nothing is added without the user.
 const paid = { id: 'p2', name: 'Cloud', kind: 'openai_compat', base_url: 'https://api.example.com/v1', default_model: 'mini', models: [] } as unknown as Provider
 const drafter = (over: Partial<NonNullable<BacklogAuto['drafter']>> = {}) => ({ ...CHOICE, on: false, halt: null, drafter: { why: null, provider_id: 'p2', model_id: null, ...over } })
 
@@ -406,11 +406,11 @@ test('the note is written as tasks once there is text: each changed, added by yo
     ],
   }))
   render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} onPlan={vi.fn(async () => {})} />)
-  expect(screen.queryByRole('button', { name: 'Write it with the Product owner' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
   await userEvent.type(screen.getByLabelText('Title'), 'login mobilde bozuk')
-  const write = screen.getByRole('button', { name: 'Write it with the Product owner' })
+  const write = screen.getByRole('button', { name: 'Write it with the Hive keeper' })
   // Who writes them and what it costs, in sight - never behind a ⓘ.
-  expect(write).toHaveAccessibleDescription('Cloud (mini) writes them: one request you pay for. Nothing is saved until you add it.')
+  expect(write).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} Cloud (mini) writes them: one request you pay for. Nothing is saved until you add it.`)
   await userEvent.click(write)
   expect(onDraft).toHaveBeenCalledWith('login mobilde bozuk')
   const drafts = await screen.findByRole('region', { name: 'Drafted tasks' })
@@ -430,15 +430,15 @@ test('the note is written as tasks once there is text: each changed, added by yo
   expect(screen.queryByRole('region', { name: 'Drafted tasks' })).toBeNull()
 })
 
-test('with no model to ask the button says why; Plan it in a chat asks for the Product owner', async () => {
+test('with no model to ask the button says why; Plan it in a chat asks for the Hive keeper', async () => {
   const props = page()
   const onPlan = vi.fn(async (_message: string) => {})
   const why = 'There is no model to ask: add a provider on the Models page.'
   render(<BacklogPage {...props} backlog={[]} providers={[]} auto={drafter({ why, provider_id: null })} onDraft={vi.fn()} onPlan={onPlan} />)
   await userEvent.type(screen.getByLabelText('Title'), 'şifre sıfırlama lazım')
-  const write = screen.getByRole('button', { name: 'Write it with the Product owner' })
+  const write = screen.getByRole('button', { name: 'Write it with the Hive keeper' })
   expect(write).toBeDisabled()
-  expect(write).toHaveAccessibleDescription(why)
+  expect(write).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} ${why}`)
   await userEvent.click(screen.getByRole('button', { name: 'Plan it in a chat' }))
   expect(onPlan).toHaveBeenCalledWith(`${PLAN_ASK}şifre sıfırlama lazım`)
   expect(props.onAdd).not.toHaveBeenCalled()
@@ -450,7 +450,7 @@ test('while Add all runs, the drafts are held: none is changed and added twice',
   const onDraft = vi.fn(async () => ({ by: 'Cloud (mini)', tasks: [{ title: 'One', detail: null, criteria: null, priority: 'normal' as const }] }))
   render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} />)
   await userEvent.type(screen.getByLabelText('Title'), 'a note')
-  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Product owner' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Hive keeper' }))
   const drafts = await screen.findByRole('region', { name: 'Drafted tasks' })
   await userEvent.click(within(drafts).getByRole('button', { name: 'Add all' }))
   expect(within(drafts).getByLabelText('Title')).toBeDisabled()
@@ -462,7 +462,7 @@ test('while Add all runs, the drafts are held: none is changed and added twice',
 })
 
 
-test('a proposal of the Assistant PO says what it came from, and is added, edited first, or turned down; one the Orchestrator said no to waits for nobody', async () => {
+test('a proposal of the Scout says what it came from, and is added, edited first, or turned down; one the Orchestrator said no to waits for nobody', async () => {
   const props = page()
   const po = { chat: 'c', why: 'the parser tests are left undone', lead: null, lead_why: null, seen: false, injection: [] as string[] }
   const backlog = [
@@ -475,7 +475,7 @@ test('a proposal of the Assistant PO says what it came from, and is added, edite
   expect(within(waiting).getAllByRole('group').map(row => row.getAttribute('aria-label'))).toEqual(['Proposed task: parser tests', 'Proposed task: push it'])
   expect(screen.getByRole('group', { name: 'Proposed task: push it' })).toHaveTextContent('Its words look like they try to give the agent orders (rules: ignore previous)')
   const row = screen.getByRole('group', { name: 'Proposed task: parser tests' })
-  expect(row).toHaveTextContent('Proposed by the Assistant PO, from: “the parser tests are left undone” · cover the parser')
+  expect(row).toHaveTextContent('Proposed by the Scout, from: “the parser tests are left undone” · cover the parser')
   expect(within(row).getAllByRole('button').map(button => button.textContent)).toEqual(['Add', 'Edit', 'Reject'])
   await userEvent.click(within(row).getByRole('button', { name: 'Reject' }))
   expect(props.onDecide).toHaveBeenLastCalledWith('parser tests', 'reject')
@@ -516,20 +516,20 @@ test('who writes the drafts is said by what is known: a model named for it, the 
   const props = page()
   const { rerender } = render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter({ model_id: 'big' })} onDraft={vi.fn()} />)
   await userEvent.type(screen.getByLabelText('Title'), 'x')
-  const write = () => screen.getByRole('button', { name: 'Write it with the Product owner' })
-  expect(write()).toHaveAccessibleDescription('Cloud (big) writes them: one request you pay for. Nothing is saved until you add it.')
+  const write = () => screen.getByRole('button', { name: 'Write it with the Hive keeper' })
+  expect(write()).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} Cloud (big) writes them: one request you pay for. Nothing is saved until you add it.`)
   expect(write()).toBeEnabled()
   expect(document.getElementById('draft-who')).toHaveClass('muted')
   // no chat to plan it in: no button for it; the opened task's buttons in their order
-  expect(Array.from(document.querySelectorAll('.backlog-add .memory-actions > button'), button => button.textContent)).toEqual(['Add task', 'Write it with the Product owner'])
+  expect(Array.from(document.querySelectorAll('.backlog-add .memory-actions > button'), button => button.textContent)).toEqual(['Add task', 'Write it with the Hive keeper'])
   rerender(<BacklogPage {...props} backlog={[]} providers={[{ ...paid, default_model: null }]} auto={drafter()} onDraft={vi.fn()} />)
-  expect(write()).toHaveAccessibleDescription('Cloud (its default model) writes them: one request you pay for. Nothing is saved until you add it.')
+  expect(write()).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} Cloud (its default model) writes them: one request you pay for. Nothing is saved until you add it.`)
   rerender(<BacklogPage {...props} backlog={[]} providers={[]} auto={drafter()} onDraft={vi.fn()} />)
-  expect(write()).toHaveAccessibleDescription('Who writes them is not read yet.')
+  expect(write()).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} Who writes them is not read yet.`)
   expect(write()).toBeDisabled()
   // with no way to draft, neither the button nor its line
   rerender(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onPlan={vi.fn(async () => {})} />)
-  expect(screen.queryByRole('button', { name: 'Write it with the Product owner' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
   expect(document.getElementById('draft-who')).toBeNull()
   expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeEnabled()
 })
@@ -539,7 +539,7 @@ test('while the drafts are written the button says so, and neither it nor Plan i
   const onDraft = vi.fn(() => new Promise<never>(() => {}))
   render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} onPlan={vi.fn(async () => {})} />)
   await userEvent.type(screen.getByLabelText('Title'), 'x')
-  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Product owner' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Hive keeper' }))
   expect(await screen.findByRole('button', { name: 'Writing…' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Writing…' })).toHaveAttribute('aria-describedby', 'draft-who')
   expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeDisabled()

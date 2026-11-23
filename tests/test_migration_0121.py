@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 
-from app.roles import BUILTIN_ROLES
+from app.roles import BUILTIN_ROLES, HIVE_KEEPER
 from tests.test_migration_0002 import _config
 from tests.test_migration_0109 import _role
 
@@ -18,10 +18,12 @@ GAIN = {"Architect", "Debugger", "Product owner", "Spec writer", "DevOps", "MLOp
 
 
 def test_who_may_open_a_helper():
+    # (the Product owner of 0121 is the Hive keeper since 0174)
+    now = {HIVE_KEEPER if name == "Product owner" else name for name in GAIN}
     assert {
         name for name, spec in BUILTIN_ROLES.items() if "spawn_agent" in spec.tools
-    } == GIVEN | GAIN
-    for name in GAIN:  # (each is told what a helper is for)
+    } == GIVEN | now
+    for name in now:  # (each is told what a helper is for)
         assert "spawn_agent" in BUILTIN_ROLES[name].instructions, name
 
 

@@ -53,7 +53,7 @@ What waits:
 - **Chat cards** from every chat, including chats in other folders.
 - **To-do** decisions: a new task (**Add** / **Edit** / **Reject**), a "done?" (**Done** / **Not yet**),
   or a change (**Change** / **Reject**). New tasks include the
-  [Assistant PO](../automation/todo.md#follow-up-tasks)'s suggestions after a turn. At Full auto, a task
+  [Scout](../automation/todo.md#follow-up-tasks)'s suggestions after a turn. At Full auto, a task
   the Orchestrator added for you waits as "Added for you" (**OK** / **Reject**): it does not start until
   you press **OK**.
 - **Memory** proposals (**Approve**, **Approve as edited**, **Reject**) and suggested preferences

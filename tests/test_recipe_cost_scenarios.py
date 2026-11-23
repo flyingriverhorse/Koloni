@@ -114,7 +114,7 @@ def test_a_folder_recipe_that_leads_nowhere_has_no_count(make_client, project_di
     assert mine == {"small": {"least": 2, "most": 6}, "nowhere": None}
 
 
-@pytest.mark.no_po  # (the Assistant PO's request would be one more call)
+@pytest.mark.no_po  # (the Scout's request would be one more call)
 def test_a_two_line_fix_through_bugfix_opens_two_agents_and_asks_the_lead_three_times(
     make_client, wait_run, project_dir, monkeypatch
 ):

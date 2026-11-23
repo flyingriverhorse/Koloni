@@ -20,7 +20,7 @@ export interface RoleTool {
 
 /**
  * Every tool a role can be given, in the order the server keeps them.
- * shortcut: assess_task (the Assistant product owner's own job) has no tile; a role keeps it as saved, and a tile's
+ * shortcut: assess_task (the Scout's own job) has no tile; a role keeps it as saved, and a tile's
  * save sends it back untouched. Give it one if other roles are to assess tasks.
  */
 export const ROLE_TOOLS: RoleTool[] = [

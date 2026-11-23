@@ -59,8 +59,8 @@ def _told(request: Request, session: Session, project_id: str) -> None:
 def _drafter(
     session: Session, request: Request, project: Project, conversation_id: str | None = None
 ) -> list[Asked] | str:
-    """Whom "Write it with the Product owner" asks, in turn: each fast model the Lead may pick,
-    as the Assistant product owner's view is written (`AgentRunner._assess`), then the Lead's
+    """Whom "Write it with the Hive keeper" asks, in turn: each fast model the Lead may pick,
+    as the Scout's view is written (`AgentRunner._assess`), then the Lead's
     (`askers`, as "Or write it" asks) - or why nobody is asked now. The page shows the first,
     the one the request asks first."""
     if over := over_month(session, project):
@@ -110,7 +110,7 @@ async def draft_tasks(
     project_id: str, body: BacklogDraftIn, request: Request, session: Session = Depends(get_session)
 ):
     """The user's rough note written as tasks by a model asked once, with no tools, as the
-    Product owner breaks a goal (`backlog.DRAFT`): nothing is saved - the page shows them, and
+    Hive keeper breaks a goal (`backlog.DRAFT`): nothing is saved - the page shows them, and
     each is added by the user's word. What it spends is on Usage as KOLONİ itself, in this
     project."""
     project = _project(session, project_id)
@@ -293,7 +293,7 @@ async def decide(
 
 @router.post("/backlog/{task_id}/seen", response_model=BacklogTaskOut, dependencies=OWN)
 async def seen(task_id: str, request: Request, session: Session = Depends(get_session)):
-    """The user's OK of the Lead's word on a proposal of the Assistant PO's at Full auto: it
+    """The user's OK of the Lead's word on a proposal of the Scout's at Full auto: it
     leaves "Decided for you"."""
     task = _task(session, task_id)
     if not (task.po or {}).get("lead"):

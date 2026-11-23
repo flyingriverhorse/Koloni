@@ -479,7 +479,7 @@ test('an approved plan stands over the Lead of its work turn, the request level 
   expect(pos['request:a']).toEqual({ x: 0, y: 2 * row })
 })
 
-test('the Assistant PO stands under all of its turn, in its Lead’s column, and the next turn under it', () => {
+test('the Scout stands under all of its turn, in its Lead’s column, and the next turn under it', () => {
   const { positions: pos } = layoutGraph([
     node('request:a', 'request', 'a'),
     agentNode('a'),

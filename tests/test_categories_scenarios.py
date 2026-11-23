@@ -137,10 +137,10 @@ def test_there_are_200_categories_at_most(make_client):
 def test_a_role_an_agent_makes_lands_in_a_category_whatever_kind_it_says(
     make_client, wait_run, project_dir
 ):
-    client, _ = make_client([new_role("Scout", ["read_file"], kind="Ship it"), text("done")])
+    client, _ = make_client([new_role("Forager", ["read_file"], kind="Ship it"), text("done")])
     cid, run_id = begin(client, project_dir, mode="full_auto")
     wait_run(client, cid, run_id)
-    scout = next(r for r in client.get("/api/roles").json() if r["name"] == "Scout")
+    scout = next(r for r in client.get("/api/roles").json() if r["name"] == "Forager")
     assert scout["created_by_agent"] and scout["kind"] == "build"
 
 

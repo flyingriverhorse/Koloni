@@ -1,7 +1,7 @@
 """B-301's acceptance set: a role that may not both write and run works on every CLI, recipes too.
 
 The user (R94): "bunun düzeltilmesi lazım … her model yapabilmeli bunu". A role short of the write
-and command tools (Product owner, Spec writer, Reviewer; and, on Codex, a Tester) is started
+and command tools (Hive keeper, Spec writer, Reviewer; and, on Codex, a Tester) is started
 read-only on the CLI's own side: Codex in its read-only sandbox, Copilot with its view tool only,
 agy reading. Its own writes are refused; it writes only with KOLONİ's write_file over the bridge,
 which lands where KOLONİ decides - a recipe's copy, taken in by the user. A role that runs commands
@@ -143,7 +143,7 @@ def product_recipe(client, ends=None):
         "Plan then spec",
         graph(
             [
-                part("po", "Plan the tasks", {"role": "Product owner"}),
+                part("po", "Plan the tasks", {"role": "Hive keeper"}),
                 part("spec", "Write the spec", {"role": "Spec writer"}),
             ],
             [("start", "po"), ("po", "spec"), ("spec", "end")],
@@ -153,7 +153,7 @@ def product_recipe(client, ends=None):
 
 
 LEAD = [
-    spawn("Product owner", "plan the greeting work", "p0"),
+    spawn("Hive keeper", "plan the greeting work", "p0"),
     spawn("Spec writer", "write docs/spec.md", "s0"),
     text("done"),
 ]
@@ -179,7 +179,7 @@ def test_only_codex_runs_the_product_recipe_read_only_writing_through_koloni(
     clis, wait_run, project_dir
 ):
     client, providers = clis(LEAD, codex=OWN_THEN_KOLONI["Codex"])
-    on(client, providers, "Codex", "Product owner", "Spec writer")
+    on(client, providers, "Codex", "Hive keeper", "Spec writer")
     calls, snap = taken_in(client, project_dir, wait_run)
     assert [status for status, _said in calls] == ["succeeded", "succeeded"], calls
     seen = clis.record("Codex")  # (the Spec writer's, the last run)
@@ -291,7 +291,7 @@ def test_a_codex_coder_still_works_in_its_writable_sandbox(clis, wait_run, proje
 
 def test_only_copilot_runs_the_product_recipe_with_its_view_tool_only(clis, wait_run, project_dir):
     client, providers = clis(LEAD, copilot=OWN_THEN_KOLONI["Copilot"])
-    on(client, providers, "Copilot", "Product owner", "Spec writer")
+    on(client, providers, "Copilot", "Hive keeper", "Spec writer")
     calls, _snap = taken_in(client, project_dir, wait_run)
     assert [status for status, _said in calls] == ["succeeded", "succeeded"], calls
     seen = clis.record("Copilot")
@@ -344,7 +344,7 @@ def test_agy_reading_runs_the_product_recipe_writing_its_spec_through_koloni(
             {"say": "Wrote docs/spec.md."},
         ],
     )
-    on(client, providers, "agy", "Product owner", "Spec writer")
+    on(client, providers, "agy", "Hive keeper", "Spec writer")
     calls, snap = taken_in(client, project_dir, wait_run)
     assert [status for status, _said in calls] == ["succeeded", "succeeded"], calls
     seen = clis.record("agy")  # (the Spec writer's, the last run)
@@ -376,15 +376,13 @@ PO_TOOLS = {
 }
 
 
-def test_a_product_owner_on_agy_reads_the_backlog_through_kolonis_bridge(
-    clis, wait_run, project_dir
-):
+def test_a_hive_keeper_on_agy_reads_the_backlog_through_kolonis_bridge(clis, wait_run, project_dir):
     # B-315 (R106): without it, it searched the files for the To-do list for 17 minutes.
     client, providers = clis(
-        [spawn("Product owner", "plan the work", "p0"), text("done")],
+        [spawn("Hive keeper", "plan the work", "p0"), text("done")],
         agy=[{"koloni": "read_backlog", "args": {}}, {"say": "The list is empty."}],
     )
-    on(client, providers, "agy", "Product owner")
+    on(client, providers, "agy", "Hive keeper")
     cid, run_id = begin(client, project_dir, spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     ((status, said),) = by_call(snap)
@@ -397,18 +395,18 @@ def test_a_product_owner_on_agy_reads_the_backlog_through_kolonis_bridge(
     assert ("read_backlog", "succeeded") in [(t["name"], t["status"]) for t in snap["tool_calls"]]
 
 
-def test_a_product_owner_on_an_agy_whose_bridge_never_comes_is_not_left_to_wander(
+def test_a_hive_keeper_on_an_agy_whose_bridge_never_comes_is_not_left_to_wander(
     clis, wait_run, project_dir, monkeypatch
 ):
     import app.model_agy
 
     monkeypatch.setattr(app.model_agy, "BRIDGE_SECONDS", 0.5)
     client, providers = clis(
-        [spawn("Product owner", "plan the work", "p0"), text("done")],
+        [spawn("Hive keeper", "plan the work", "p0"), text("done")],
         agy=[{"say": "never told its task"}],
     )
     clis.plan("agy", [{"say": "never told its task"}], no_bridge=True)
-    on(client, providers, "agy", "Product owner")
+    on(client, providers, "agy", "Hive keeper")
     cid, run_id = begin(client, project_dir, spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     ((status, said),) = by_call(snap)

@@ -1,6 +1,6 @@
 """0.1.7 (the user, 23 Nov): Take in's check runs only the test files a sub-agent wrote or changed,
 each with its part's test command narrowed to them (`proof_related.own_tests`) - never the whole
-suite; Test before adding is gone (migration 0174), and the root is a part the user may set a test
+suite; Test before adding is gone (migration 0175), and the root is a part the user may set a test
 command for, project file or not."""
 
 import sqlite3
@@ -64,20 +64,20 @@ def test_the_root_is_a_part_its_test_command_may_be_set_for_with_no_project_file
 def test_the_migration_drops_test_before_adding_and_going_back_adds_it_empty(tmp_path):
     db = tmp_path / "m.db"
     cfg = _config(db)
-    alembic.upgrade(cfg, "0173")
+    alembic.upgrade(cfg, "0174")
     with sqlite3.connect(db) as conn:
         conn.execute(
             "INSERT INTO projects (id, name, root_path, created_at, check_command) "
             "VALUES ('p', 'p', 'C:/p', '2026-11-23', 'pytest -q')"
         )
-    alembic.upgrade(cfg, "0174")
+    alembic.upgrade(cfg, "0175")
 
     def columns():
         with sqlite3.connect(db) as conn:
             return [row[1] for row in conn.execute("PRAGMA table_info(projects)")]
 
     assert "check_command" not in columns()
-    alembic.downgrade(cfg, "0173")
+    alembic.downgrade(cfg, "0174")
     assert "check_command" in columns()
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT check_command FROM projects").fetchall() == [(None,)]

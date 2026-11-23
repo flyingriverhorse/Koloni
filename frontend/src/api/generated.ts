@@ -457,7 +457,7 @@ export interface paths {
         put?: never;
         /**
          * Seen
-         * @description The user's OK of the Lead's word on a proposal of the Assistant PO's at Full auto: it
+         * @description The user's OK of the Lead's word on a proposal of the Scout's at Full auto: it
          *     leaves "Decided for you".
          */
         post: operations["seen_api_backlog__task_id__seen_post"];
@@ -2503,7 +2503,7 @@ export interface paths {
         /**
          * Draft Tasks
          * @description The user's rough note written as tasks by a model asked once, with no tools, as the
-         *     Product owner breaks a goal (`backlog.DRAFT`): nothing is saved - the page shows them, and
+         *     Hive keeper breaks a goal (`backlog.DRAFT`): nothing is saved - the page shows them, and
          *     each is added by the user's word. What it spends is on Usage as KOLONİ itself, in this
          *     project.
          */
@@ -8823,7 +8823,7 @@ export interface components {
         };
         /**
          * PoOut
-         * @description The Assistant PO's one request after a turn (`PoMixin`): the model asked, whether it
+         * @description The Scout's one request after a turn (`PoMixin`): the model asked, whether it
          *     was heard out and what it spent (None: not said), how many of its proposals went on the
          *     To-do list, and why each other was dropped - never its answer nor words the turn did not
          *     say. `note`: why its answer proposed nothing it could read.
@@ -9681,6 +9681,11 @@ export interface components {
              * @default true
              */
             review: boolean;
+            /**
+             * Scripts
+             * @default true
+             */
+            scripts: boolean;
             /**
              * Slides
              * @default false

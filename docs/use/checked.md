@@ -22,8 +22,8 @@ checked again:
    ([Not this turn's](#not-this-turns-flaky-tests-and-failures-from-before)).
 2. **What it wrote besides code** - documents, diagrams, data, slides
    ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and a changed
-   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width
-   ([Pages](#pages)).
+   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width - its
+   console, its width and its accessibility ([Pages](#pages)).
 3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)); long
    documents are read once against your request
    ([Documents read against your request](#documents-read-against-your-request)).
@@ -75,7 +75,7 @@ project:
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
-![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data, Pages and Config](../images/settings-checks.png)
+![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data, Pages, Config and Scripts](../images/settings-checks.png)
 
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
@@ -418,8 +418,8 @@ Ask for changes would: its own roles fix it in its copy, and its end checks it a
 
 ## Documents, diagrams, data and slides
 
-Under **Test and review**, a turn that wrote documents, diagrams, data, slides or config files
-gets KOLONİ's checks of them, with no model and nothing installed: each file its own line under
+Under **Test and review**, a turn that wrote documents, diagrams, data, slides, config files or
+shell scripts gets KOLONİ's checks of them, with no model and nothing installed: each file its own line under
 the answer. Which kind a file is, its ending says.
 They come after the tests and before the review. A turn that wrote only such files runs no tests
 ("No tests: only documents, slides, diagrams or data changed") and gets these checks. Under
@@ -430,6 +430,7 @@ They come after the tests and before the review. A turn that wrote only such fil
 | Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
 | Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
+| Scripts (`.sh`, `.bash`, `.ps1`, `.psm1`) | a script that does not parse, with its shell's first complaint and line ("build.sh:4: does not parse - syntax error near unexpected token `fi'") - read by `bash -n` or PowerShell's own parser, never run | no bash or no PowerShell here; a secret file, one over 1 MB, more than 20 a turn: not read |
 | Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
 | Config (`.json`, `.yaml`, `.yml`, `.toml`) | a file that does not parse, with its parser's first complaint and line ("package.json:3: does not parse - Expecting property name enclosed in double quotes") - `NaN` or `Infinity` in a `.json` too, which npm's reader and `JSON.parse` break on; a `package.json` that is no object, or whose `name`, `version` or a script is no string; a `pyproject.toml` whose `[project]` has no name or whose `[tool.…]` is no table; a GitHub workflow (`.github/workflows/*.yml`) with no `on:` or no jobs, or a job with neither `runs-on` nor `uses`, or with no list of steps; a Compose file (`compose.yaml`, `docker-compose*.yml`) whose `services` is no mapping | a secret file (`.env.json`, `secrets.yaml`) is never read, nor one whose name often holds a secret (`credentials.json`, `token.json`, `kubeconfig…`, `client_secret….json`); a file nested over 100 deep (a TOML key of over 100 dotted parts too), a YAML or TOML file over 256 KB, YAML past 1 MB in all in a turn, or YAML with aliases is not read; a YAML tag KOLONİ does not know (`!!python/name:`, `!reset`) is read as the value under it; JSON with comments and trailing commas passes where its tool reads them (`tsconfig.json`, `.vscode/*.json`; a comment after the last comma too), never a `package.json`; a key twice in a `.json` passes (JavaScript reads the last); a value a YAML tag cannot read (`!!int "x"`) is not checked, and never said back |
 
@@ -446,6 +447,23 @@ CSV field over the reader's limit) is said as not checked; one file gives at mos
 for this project". Where the turn ended before the check, or changed such a file after it, the
 section says so instead of an old result. On the canvas, the Checks node shows each kind as one
 line: "documents · 2 ✓ · 1 ✗".
+
+A script is code too: the turn's tests run and the review reads it as before - **Scripts** only
+adds whether it parses. KOLONİ reads it as its shell would and runs nothing of it: a `.sh` or
+`.bash` file with `bash -n` (on Windows Git's bash, never WSL's), a `.ps1` or `.psm1` file with
+PowerShell's own parser - the script's text given on its input, never in a command line, the
+shell started with none of your variables in an empty folder of its own, 10 s (bash) or 20 s
+(PowerShell) at most, then stopped with all it started. bash reads with `extglob` on. A `using
+assembly`, `using module` or `#requires` statement that names modules or assemblies is left out
+before PowerShell reads it, so nothing is looked up or loaded; a script that would still make
+its parser look one up - a `using` it cannot take out (a comment between its words, a line
+continued with a backtick, any `using` but `using namespace`, an English "using" in a comment
+too), an `Import-DscResource` - is not read: "not checked: it loads a module or an assembly".
+A type of a module left out is said, not failed. With Windows PowerShell 5.1 alone (no
+PowerShell 7 here), a `Configuration` or PowerShell 7's own syntax (`??`, `&&`) is "not checked:
+it needs PowerShell 7". A `.sh` with Windows line endings (CR LF) is read as Git's bash reads it,
+and said: bash on Linux will not run it as it is. Where this machine has no bash or no
+PowerShell, its scripts are said as not checked.
 
 ### Pages
 
@@ -466,6 +484,55 @@ Edge here: "Pages not checked: no Chrome or Edge here". Each page's screenshots,
 kept for you in the project's `.koloni/tmp/checked/<turn>/` - never shown to a model; what reaches
 the Orchestrator of a page is only these lines, as data. **Pages** is switched off with the other
 kinds.
+
+At each width the page, as it loaded, is also read for accessibility - by KOLONİ, in the page, with
+no model and nothing installed:
+
+- an image with no text for it: "index.html: 2 images without alt text at 375, 768, 1280 px -
+  logo.png, hero.jpg". `alt=""` marks a picture as decoration, and one hidden from screen readers
+  (`aria-hidden`, `role="presentation"`) is not counted;
+- a button, link or field with no name - no words of its own, `aria-label`, `aria-labelledby`,
+  `title`, label, placeholder, a button's value or an image's `alt` in it: "1 buttons, links or
+  fields with no name at 375, 768, 1280 px - input[type=email]#email";
+- a page hidden whole from screen readers (`aria-hidden` on `html` or `body`), and a control one
+  can tab to inside `aria-hidden` (a button, a link, a field, `tabindex` 0 or more, not disabled,
+  not inside `inert`): "2 controls one can tab to inside aria-hidden at 375, 768, 1280 px -
+  button, a[href=/x]".
+
+These are failed and go back as a fix round, the page's words in them as data; the "no console
+errors" line stays with them.
+
+Contrast is a warning: said with its ratio, never sent back - a colour is the page's design, and a
+reading of it is not sure enough to send work back for. Text below the contrast WCAG 2 asks -
+4.5:1, or 3:1 for large text (24 px, or 18.66 px bold) - its colour over the backgrounds under it,
+up to the first opaque one (the page's white where there is none), any CSS colour: "3 texts below
+the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1)". Each colour, background,
+size and weight is named once, the lowest first. Its colour is `-webkit-text-fill-color` where
+that is set. Read with the light colour scheme (`prefers-color-scheme: light`, set before the page
+first loads), whatever this machine's is. What the read cannot judge is said, not sent back, never
+guessed:
+
+- text with something drawn under it - an image, a gradient, gradient text (its fill
+  see-through), or a picture or a layer of another element over its words, drawn inside the
+  background found under it, or anywhere where none is (a positioned overlay, a hero image under
+  a dark layer, a fixed backdrop): "contrast not checked … on 2 texts with something drawn under
+  them". A fixed header or bottom bar counts only where it is at the page's top; a backdrop that
+  is hidden (`visibility: hidden`, `opacity: 0`), as a closed modal's is, not at all;
+- a page whose colour scheme is dark only (`color-scheme: dark`): "contrast not checked … the
+  page's colour scheme is dark only" - its canvas is dark, not the white the rule reads under it;
+- frames and shadow roots: counted, not read ("accessibility not read inside 1 frames or shadow
+  roots"); a closed shadow root is not seen at all;
+- a page whose script took its body away: "accessibility not read … the page has no body". One
+  that moved its content out of the body is read all the same: the read starts at the page's root;
+- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), for 3
+  seconds at most a width, and a text's words are compared with the 200 drawn elements over its
+  box at most; past that: "accessibility checked only in part", with which limit it met ("only its
+  first 2000 elements are read", "a text has more than 200 drawn elements over it" …).
+
+The read goes through the browser's own getters, so a field named after one of the page's
+properties (`<input name="parentElement">`) cannot steer it. Hidden and disabled elements are left
+out. A text's opacity (its own or a parent's), its shadow, an outline drawn by a parent's
+`::before` or `::after`, and a field's typed value are not looked at.
 
 ## A test for the change
 
@@ -815,6 +882,10 @@ the Orchestrator's window, whose record holds the runs.
 | – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
 | ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
 | ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |
+| ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name … | The page is hard to use with a screen reader: sent back as a fix round. |
+| – `page`: 3 texts below the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1) | A warning: hard to read, said with its ratio - never sent back. |
+| ✗ `page`: the whole page is hidden from screen readers (aria-hidden) · 2 controls one can tab to inside aria-hidden … | A screen reader is told nothing of the page, or a control one tabs to is not there for it: sent back as a fix round. |
+| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body) | What the accessibility read could not judge: said, not sent back. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | ✓ Tried `python 'bin/tool.py' --help`: exit 0, 12 lines | A command-line tool the turn changed answered its `--help`. |
 | ✗ Tried `line`: exit 2 · Tried `line`: it did not end in 30 s | Its `--help` failed or ran on: sent back as a fix round. |

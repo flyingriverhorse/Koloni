@@ -685,7 +685,7 @@ class ContextMixin:
                 announce_memory(self._factory, self.bus, project_id)
 
     async def _assess(self: "AgentRunner", ctx: Ctx, task_id: str) -> None:
-        """The Assistant product owner's view of a backlog task whose turn just ended:
+        """The Scout's view of a backlog task whose turn just ended:
         asked of the first fast model with no tools, as notes made by themselves are
         (`_summarised`), given the task, what was said in the turn and the changes it took
         into the project - in two or three

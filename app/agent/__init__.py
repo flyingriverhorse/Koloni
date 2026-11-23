@@ -2188,7 +2188,7 @@ class AgentRunner(
             # choice: `note_chosen`.)
             if not t.run_compare:
                 await self._note_what_it_found(ctx)
-            # The Assistant PO, once the turn has let go of everything (`_po_later`): not of a
+            # The Scout, once the turn has let go of everything (`_po_later`): not of a
             # task's own turn; a night's job's and a trigger's wait for the user, undecided.
             if not (t.run_compare or t.backlog_turn):
                 t.po = self._po_turn(ctx, decides=not (t.unattended or t.job))
