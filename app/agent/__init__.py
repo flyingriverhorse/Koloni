@@ -9366,7 +9366,12 @@ class AgentRunner(
         also += "".join(f" {name} failed: its work is not finished." for name in failed)
         # (k-sira-016: KOLONİ's checks first, on the work in the recipe's copy - Ready for you
         # after them; never for work they left failing, S11)
-        if (not_yet := await self._not_yet_ready(ctx, rows)) is not None:
+        self._readying.add(ctx.run_id)  # (KOLONİ's Reviewer is a spawn: its end opens no more)
+        try:
+            not_yet = await self._not_yet_ready(ctx, rows)
+        finally:
+            self._readying.discard(ctx.run_id)
+        if not_yet is not None:
             return not_yet
         self._readying.add(ctx.run_id)
         # K-fullauto-sorma: at Full auto the work is taken in by itself, as work outside a
