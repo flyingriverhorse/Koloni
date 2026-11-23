@@ -115,6 +115,8 @@ class Proof:
     # The commands said yes to on a card, by the folder they ran in: a yes covers that text in
     # that folder only - never another part's command of the same text.
     yes: dict[str, set[str]] = field(default_factory=dict)
+    # 0.1.7's Code style and types: each tool's card this turn, "yes" or "no" - one a turn.
+    style: dict[str, str] = field(default_factory=dict)
     # Plan decision 13: a recipe of the turn ran its own fix loop to its end - rounds never stack.
     recipe_spent: bool = False
     # CL-321 Bulgu D: the turn's newest command that may have changed files off the record

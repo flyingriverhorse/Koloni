@@ -279,6 +279,11 @@ count. The trigger's own permissions decide, and anything they do not allow is r
 asked - except the project's own test command, which runs even when it is not ticked. Secret files, files that steer agents, files outside the project and MCP tools are always
 refused in such a turn. See [Triggers](../automation/triggers.md).
 
+KOLONİ's own check of [code style and types](checked.md#documents-diagrams-data-and-slides) runs
+the project's ruff, eslint, tsc or mypy as it runs the test command: at Ask and Auto-edit it asks
+on one card a tool (**Always** keeps it); while you are away, or in a turn nobody watches, it is
+not run, and says so.
+
 ## Choosing a level
 
 - Start with **Ask before changes** in a project you care about. You see every change before it

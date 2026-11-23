@@ -427,11 +427,25 @@ They come after the tests and before the review. A turn that wrote only such fil
 
 | Kind | Checked | Said, not failed |
 |---|---|---|
+| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") | the problems on lines the turn did not change, counted; a tool set up but not installed here; one the project's own check already runs (its CI lines, its test command); eslint's and tsc's warnings |
 | Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
 | Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
 | Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
 | Config (`.json`, `.yaml`, `.yml`, `.toml`) | a file that does not parse, with its parser's first complaint and line ("package.json:3: does not parse - Expecting property name enclosed in double quotes") - `NaN` or `Infinity` in a `.json` too, which npm's reader and `JSON.parse` break on; a `package.json` that is no object, or whose `name`, `version` or a script is no string; a `pyproject.toml` whose `[project]` has no name or whose `[tool.…]` is no table; a GitHub workflow (`.github/workflows/*.yml`) with no `on:` or no jobs, or a job with neither `runs-on` nor `uses`, or with no list of steps; a Compose file (`compose.yaml`, `docker-compose*.yml`) whose `services` is no mapping | a secret file (`.env.json`, `secrets.yaml`) is never read, nor one whose name often holds a secret (`credentials.json`, `token.json`, `kubeconfig…`, `client_secret….json`); a file nested over 100 deep (a TOML key of over 100 dotted parts too), a YAML or TOML file over 256 KB, YAML past 1 MB in all in a turn, or YAML with aliases is not read; a YAML tag KOLONİ does not know (`!!python/name:`, `!reset`) is read as the value under it; JSON with comments and trailing commas passes where its tool reads them (`tsconfig.json`, `.vscode/*.json`; a comment after the last comma too), never a `package.json`; a key twice in a `.json` passes (JavaScript reads the last); a value a YAML tag cannot read (`!!int "x"`) is not checked, and never said back |
+
+**Code style and types** runs the project's own tools - only where the project sets one up and
+has it installed here, never a download: ruff (`[tool.ruff]`, `ruff.toml`; the project's `.venv`,
+else one on PATH) and mypy (`[tool.mypy]`, `mypy.ini`; the `.venv`'s) on the changed `.py` files,
+eslint (its config and `node_modules/.bin/eslint`) on the changed scripts, and tsc
+(`tsconfig.json` and `node_modules/.bin/tsc`) on its project - eslint and tsc from the nearest
+folder up from a file that has them. Running one runs the project's code (an `eslint.config.js`
+is JavaScript), so it goes as the project's test command goes: at Full auto it runs; at Ask and
+Auto-edit it waits on one card a tool a turn (**Always** keeps it for the project, so it never
+asks again); while you are away, or in a turn a trigger started, it is not run and its line says
+"needs your leave once". In a recipe's copy it runs there, and what it writes (a cache, a report)
+is put back - never taken in. At most 50 files a run, 2 minutes for them all. Where the project
+sets none of them up, nothing at all is said of it.
 
 A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
 when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
