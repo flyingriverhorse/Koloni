@@ -722,7 +722,8 @@ it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pyte
 
 A checked turn has a **Checks** box: under its Orchestrator, or - where the Orchestrator opened agents
 of its own - under them, in their column. While KOLONİ's test run works, it shows the tool and how
-long it has run; once the turn is over, each line of the Checked section, with the runner's counts
+long it has run; once the turn is over, each line of the Checked section - with KOLONİ's agents in it,
+the test runs alone, at its foot -, with the runner's counts
 ("pytest · 214 ✓ · 2 ✗"), the related step's ("related tests · 12 passed"), and a whole suite
 running after the answer with its clock from its own start ("full tests · 2:14 …"), or "full tests ·
 waiting for another test run to end", then its result or "full tests · stopped by you at 1:02 - not
@@ -734,8 +735,9 @@ the Orchestrator's, each role once. Where KOLONİ sent the work back, the box is
 KOLONİ**, dashed as a recipe's "back, at most N rounds": the agents the Orchestrator opened to fix
 what was sent back are in it too ("Coder · fix"), the looks ⇄ the fixes; each role is its latest
 agent, the earlier ones shadows behind it with a count (×3). Its head says the rounds - "⟲ 3 looks ·
-2 fix rounds · on hold", "✓ checked" -, or at work "● round 2 · looking…"; its foot the test runs and
-a dot a round (red: it went back or held, green: passed, amber: at work). One look and nothing sent
+2 fix rounds · on hold", "✓ checked" -, or at work "● round 2 · looking…" ("· waits for you" where
+one of them asks you something: the card says it too); its foot the test runs and a dot a round
+(red: it went back or held, green: passed, amber: at work). One look and nothing sent
 back is a plain box: no count, no shadows, no loop.
 
 **Click the box** for its panel on the right - the canvas stays as it is: **Tests**, the Checked

@@ -1,3 +1,4 @@
+import { AGENT_STATUS, WAITS } from '../agents/agentStatus'
 import type { Agent, Message, Run, ToolCall } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
 import { type ChecksData, type Line, linesOf, PROOF_CALL, roundsSaid } from './checksNode'
@@ -65,6 +66,7 @@ export function verdictOf(agent: Agent): string | null {
   return VERDICT.exec(agent.report ?? '')?.[1]?.toUpperCase() ?? null
 }
 
+/** Not over yet: at work, or waiting - to be let start, for a slot, a file, an agent, or for you. */
 const AT_WORK: ReadonlySet<Agent['status']> = new Set(['proposed', 'queued', 'running', 'waiting', 'blocked'])
 const atWork = (agent: Agent) => AT_WORK.has(agent.status)
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
@@ -126,36 +128,49 @@ function roundsOf(box: Box, state: ConvState, why: string[]): LoopRound[] {
 const filesOf = (state: ConvState, agentId: string) => new Set(state.fileChanges.filter(f => f.agent_id === agentId).map(f => f.path)).size
 
 /** A role's card: its latest agent, with how many there were - "Reviewer ×3, last: HOLD · 1 blocking", "Coder · fix ×2, last: 4 files". */
-function cardsOf(agents: Agent[], fix: boolean, state: ConvState): LoopCard[] {
+function cardsOf(agents: Agent[], fix: boolean, state: ConvState, asking: ReadonlySet<string>): LoopCard[] {
   const byRole = new Map<string, Agent[]>()
   for (const agent of agents) byRole.set(agent.role_name, [...(byRole.get(agent.role_name) ?? []), agent])
   return [...byRole.values()].map(all => {
     const latest = all.at(-1)!
     const name = `${all.length > 1 ? latest.role_name : latest.name}${fix ? ' · fix' : ''}`
-    const [said, tone] = cardSaid(latest, fix, state)
+    const [said, tone] = cardSaid(latest, fix, state, asking)
     return { agentId: latest.id, name, count: all.length, said: all.length > 1 && tone !== 'run' ? `last: ${said}` : said, tone }
   })
 }
 
-function cardSaid(agent: Agent, fix: boolean, state: ConvState): [string, Tone] {
-  if (atWork(agent)) return [fix ? '● at work' : '● reading', 'run']
-  if (agent.status === 'failed' || agent.status === 'cancelled' || agent.status === 'interrupted') return [agent.status, 'bad']
+/** A card's line: what waits for you as its node said it, a wait in the agent's own words, at work, how it ended. */
+function cardSaid(agent: Agent, fix: boolean, state: ConvState, asking: ReadonlySet<string>): [string, Tone] {
+  if (asking.has(agent.id) || agent.status === 'proposed') return [WAITS, 'note']
+  if (agent.status === 'running') return [fix ? '● at work' : '● reading', 'run']
+  if (atWork(agent)) return [AGENT_STATUS[agent.status][0], 'note']
+  return endedSaid(agent, fix, state)
+}
+
+/** How an agent of the box ended: a fix by its files, a look by its verdict; else as its state reads (stopped, failed, rejected). */
+function endedSaid(agent: Agent, fix: boolean, state: ConvState): [string, Tone] {
+  if (agent.status !== 'completed') return [AGENT_STATUS[agent.status][0], 'bad']
   if (fix) return [plural(filesOf(state, agent.id), 'file'), 'note']
   const verdict = verdictOf(agent)
   return [verdict ?? 'done', verdict?.startsWith('HOLD') ? 'bad' : verdict === 'MERGE' ? 'ok' : 'note']
 }
 
 /** The box's line: at work "● round 2 · looking…"; over "⟲ 3 looks · 2 fix rounds · on hold" (looks and rounds said where there were). */
-function statusOf(box: Box, rounds: LoopRound[], data: ChecksData, running: boolean): [string, Tone] {
-  if (running) {
-    const what = box.looks.some(atWork) ? 'looking…' : box.fixes.some(atWork) ? 'fixing…' : 'testing…'
-    return [`● round ${rounds.length} · ${what}`, 'run']
-  }
+function statusOf(box: Box, rounds: LoopRound[], data: ChecksData, running: number, asking: ReadonlySet<string>): [string, Tone] {
+  if (running) return [`● round ${running} · ${doing(box, asking)}`, 'run']
   const failed = data.lines.some(line => line.state === 'failed')
   const end = failed ? (data.held ? 'on hold' : 'still failing') : '✓ checked'
   const looked = rounds.filter(round => round.looks.length).length
   const parts = [looked && plural(looked, 'look'), data.rounds && plural(data.rounds, 'fix round')].filter(Boolean)
   return [`${failed ? '⟲ ' : ''}${[...parts, end].join(' · ')}`, failed ? 'bad' : 'ok']
+}
+
+/** What the round at work does now: waits for you (an agent of it asks), looks, fixes - else KOLONİ's test run. */
+function doing(box: Box, asking: ReadonlySet<string>): string {
+  const now = box.ordered.filter(atWork)
+  if (now.some(a => asking.has(a.id) || a.status === 'proposed')) return WAITS
+  const running = now.filter(a => a.status === 'running')
+  return running.some(a => box.looks.includes(a)) ? 'looking…' : running.length ? 'fixing…' : now.length ? 'waiting…' : 'testing…'
 }
 
 /** Why the checks stopped where a round held: the Checked section's own line ("Still on hold after 2 fix rounds: …", "Stopped after round 3: …"). */
@@ -166,7 +181,7 @@ const stopOf = (rows: Row[]) => rows.find(row => row.state === 'failed' && /^(St
  * opened for the work it sent back, each role drawn once with how many there were, round by round for the panel. Null where
  * none was opened: the plain Checks node of its lines.
  */
-export function loopOf(state: ConvState, run: Run, data: ChecksData): Loop | null {
+export function loopOf(state: ConvState, run: Run, data: ChecksData, asking: ReadonlySet<string> = new Set()): Loop | null {
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
   if (!lead) return null
   const box = boxOf(state, run, lead)
@@ -174,21 +189,33 @@ export function loopOf(state: ConvState, run: Run, data: ChecksData): Loop | nul
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   const rows = checked?.checked ?? []
   const rounds = roundsOf(box, state, roundsSaid(checked).why)
-  const running = Boolean(data.running) || data.lines.some(line => line.state === 'running') || box.ordered.some(atWork) || ownRunning(state, run)
-  const [status, tone] = statusOf(box, rounds, data, running)
+  const running = passAtWork(state, run, data, box, rounds)
+  const [status, tone] = statusOf(box, rounds, data, running, asking)
   const last: Loop['dots'][number] = running ? 'running' : tone === 'ok' ? 'passed' : 'held'
+  const passes = Math.max(running, rounds.length)
   return {
-    loop: data.rounds > 0 || rounds.length > 1,
+    // (A fix agent in it: work went back already - before KOLONİ's next pass counts the round.)
+    loop: data.rounds > 0 || rounds.length > 1 || box.fixes.length > 0,
     agents: box.ordered.map(a => a.id),
-    looks: cardsOf(box.looks, false, state),
-    fixes: cardsOf(box.fixes, true, state),
+    looks: cardsOf(box.looks, false, state, asking),
+    fixes: cardsOf(box.fixes, true, state, asking),
     rounds,
     status,
     tone,
-    dots: rounds.map((_, n) => (n === rounds.length - 1 ? last : 'held')),
+    dots: Array.from({ length: passes }, (_, n) => (n === passes - 1 ? last : 'held')),
     tests: linesOf(testRows(rows)),
     stop: running ? null : stopOf(rows),
   }
+}
+
+/**
+ * The round at work now, by its number; 0: none. A round fixed, its fixes over: KOLONİ checks again - the next round, before a
+ * look of it is opened.
+ */
+function passAtWork(state: ConvState, run: Run, data: ChecksData, box: Box, rounds: LoopRound[]): number {
+  const working = Boolean(data.running) || data.lines.some(line => line.state === 'running') || box.ordered.some(atWork) || ownRunning(state, run)
+  if (!working) return 0
+  return rounds.at(-1)!.fixed.length > 0 && !box.fixes.some(atWork) ? rounds.length + 1 : rounds.length
 }
 
 /** A call of KOLONİ's at work: a test run, a look being opened. */
@@ -201,7 +228,9 @@ const ownRunning = (state: ConvState, run: Run) => state.toolCalls.some((c: Tool
  */
 export function settleChecks(state: ConvState, run: Run, checks: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<string> {
   const data = checks.data as ChecksData
-  data.loop = loopOf(state, run, data)
+  // (What waits for you as each agent's node had it, before the box takes their place: `asks`.)
+  const asking = new Set(nodes.filter(n => n.runId === run.id && n.kind === 'agent' && (n.data as AgentData).attention).map(n => n.agentId ?? ''))
+  data.loop = loopOf(state, run, data, asking)
   const gone = takeOut(nodes, new Set((data.loop?.agents ?? []).map(id => `agent:${id}`)))
   const beside = nodes.some(n => n.kind === 'agent' && (n.data as AgentData).parentId === data.leadId)
   const long = beside && !checks.team ? `agent:${data.leadId}>${checks.id}` : null

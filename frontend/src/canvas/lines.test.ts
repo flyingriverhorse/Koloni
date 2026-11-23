@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import type { Attachment, ChannelMessage, ChatTeam, ChatTeamState, Discussion, DiscussionPost, Room, Team } from '../api/types'
 import { agent, assistantMessage, command, conversation, convState, note, run, toolCall, userMessage } from '../test-fixtures'
+import type { ChecksData } from './checksNode'
 import { type AgentData, type RoundData, type TeamData, deriveGraph } from './deriveGraph'
 import { foldAll, foldGraph, unfold } from './foldGraph'
 import { ARC_ROOM, ARC_STEP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, STRIP_H, TEAM_HEAD, TEAM_OUT, TEAM_PAD, arcPath, arcWay, arced, bendOf, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberFrame, memberLine } from './layout'
@@ -753,6 +754,36 @@ test('S5c: in a recipe’s turn the Checks node is the recipe’s last step - in
   // Folded, the frame holds it: not drawn, its lines go to the frame.
   const folded = foldGraph(deriveGraph(state), { 'team:r:web': false })
   expect(folded.nodes.some(node => node.kind === 'checks')).toBe(false)
+})
+
+test('tuval-kontrol-dongusu: in a recipe’s turn the loop of KOLONİ’s looks is the frame’s last part - inside it, over none of its agents', () => {
+  const rows = [
+    { kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null, counts: null },
+    { kind: 'rounds', state: 'note' as const, text: 'Sent back to fix: 1 of 2 rounds (1 blocking finding)', command: null, guessed: false, started_at: null, counts: null },
+  ]
+  const checked = { id: 'k', conversation_id: 'c', run_id: 'r', agent_id: null, role: 'checked' as const, content: '', created_at: at, checked: rows }
+  // KOLONİ's Reviewer twice - its calls after the recipe's agents; the recipe's own roles fixed in between, in the frame.
+  const looks = ['look1', 'look2'].map((id, n) => ({ ...sub(id, 'Reviewer'), name: n ? 'Reviewer 2' : 'Reviewer', tool_call_id: `s${id}` }))
+  const calls = looks.map((one, n) => toolCall(`s${one.id}`, 'r', 'spawn_agent', 'succeeded', '{}', { seq: 50 + n, provider_call_id: `koloni_proof_review_${n}` }))
+  const base = web()
+  const state = { ...base, runs: [{ ...run('r', 'completed'), teams: [row('web', 'Web app', AGENTS, PASSES, STEPS)] }], agents: [...base.agents, ...looks], toolCalls: calls, messages: [checked] } as typeof base
+  const g = foldGraph(deriveGraph(state), OPENED)
+  const checks = g.nodes.find(node => node.kind === 'checks')!
+  expect(checks.team).toBe('team:r:web')
+  expect((checks.data as ChecksData).loop).toMatchObject({ loop: true, looks: [{ name: 'Reviewer', count: 2 }], fixes: [] })
+  expect(g.nodes.some(node => node.id === 'agent:look1' || node.id === 'agent:look2')).toBe(false)
+  const { positions, sizes } = layoutGraph(g.nodes, g.edges)
+  const frame = { ...positions['team:r:web'], ...sizes['team:r:web'] }
+  const box = { ...positions[checks.id], ...sizes[checks.id] }
+  expect(box.width).toBeGreaterThan(NODE_W)
+  // In the frame, the frame grown round it; under all of its agents, over none.
+  expect(box.x).toBeGreaterThan(frame.x)
+  expect(box.x + box.width).toBeLessThanOrEqual(frame.x + frame.width)
+  expect(box.y + box.height).toBeLessThanOrEqual(frame.y + frame.height)
+  for (const id of AGENTS) {
+    const one = { ...positions[`agent:${id}`], ...sizes[`agent:${id}`] }
+    expect(one.y + one.height <= box.y || box.x + box.width <= one.x || one.x + one.width <= box.x, id).toBe(true)
+  }
 })
 
 test('the Checks node stands a row’s gap under the Orchestrator, below its checked strip; its line straight down', () => {

@@ -10,6 +10,7 @@ import { agent, assistantMessage, convState, fileChange, run, toolCall } from '.
 import { checksSize, type Loop } from './checksLoop'
 import type { ChecksData } from './checksNode'
 import { deriveGraph } from './deriveGraph'
+import { nodeOf } from './foldGraph'
 import { COL_GAP, layoutGraph, NODE_H, NODE_W } from './layout'
 import { ChecksNode } from './nodes'
 
@@ -61,7 +62,7 @@ function sketched(over: { running?: boolean } = {}) {
     agents: [agent('r', over.running ? 'running' : 'completed'), ...agents],
     toolCalls: [...opened.map(one => one.call), test_run('p1', 4), test_run('p2', 8), test_run('p3', 12)],
     fileChanges: files,
-    messages: over.running ? [] : [checked(rows)],
+    messages: over.running ? [] : [assistantMessage('a', 'r', 'Fixed the finding.'), checked(rows)],
   })
 }
 
@@ -132,6 +133,33 @@ test('at work: the round and what it does now, the looks reading, the last dot a
   expect(loop.dots).toEqual(['held', 'held', 'running'])
   expect(loop.looks[0]).toMatchObject({ name: 'Reviewer', count: 3, said: '● reading', tone: 'run' })
   expect(loop.stop).toBeNull()
+})
+
+test('the first fix round at work is a loop already: its fixer at work, one amber dot - and one that waits for you says so, never “at work”', () => {
+  // Round 1's look held, and the Orchestrator's Coder fixes: KOLONİ has not run again yet, so no round is counted.
+  const look = sub('rv', 'Reviewer', 'Reviewer', 2, true, { findings: [blocking('a.py:1 is wrong')] })
+  const fix = sub('fx', 'Coder', 'Coder 2', 3, false, { status: 'running' })
+  const turn = (fixer: Agent, more: Partial<Parameters<typeof convState>[0]> = {}) =>
+    convState({ runs: [run('r', 'running')], agents: [agent('r', 'running'), look.agent, fixer], toolCalls: [test_run('p1', 1), look.call, fix.call], ...more })
+  const loop = loopIn(deriveGraph(turn(fix.agent)))
+  expect(loop).toMatchObject({ loop: true, status: '● round 1 · fixing…', tone: 'run', dots: ['running'] })
+  expect(loop.fixes).toEqual([{ agentId: 'fx', name: 'Coder 2 · fix', count: 1, said: '● at work', tone: 'run' }])
+  // Asked to be let start, or its change waiting for your yes (its node's cue, which the box takes over).
+  const proposed = loopIn(deriveGraph(turn({ ...fix.agent, status: 'proposed' })))
+  expect(proposed).toMatchObject({ status: '● round 1 · waits for you', fixes: [{ said: 'waits for you', tone: 'note' }] })
+  const asked = loopIn(deriveGraph(turn(fix.agent, { fileChanges: [fileChange('w', 'r', { agent_id: 'fx', status: 'proposed' })] })))
+  expect(asked).toMatchObject({ status: '● round 1 · waits for you', fixes: [{ said: 'waits for you' }] })
+  // Its fix over, KOLONİ tests again: round 2 already, before a look of it is opened.
+  const again = turn({ ...fix.agent, status: 'completed' }, { toolCalls: [test_run('p1', 1), look.call, fix.call, { ...test_run('p2', 4), status: 'running' }] })
+  expect(loopIn(deriveGraph(again))).toMatchObject({ status: '● round 2 · testing…', dots: ['held', 'running'] })
+  // Waiting for a slot is the agent's own words.
+  expect(loopIn(deriveGraph(turn({ ...fix.agent, status: 'queued' }))).fixes[0]).toMatchObject({ said: 'waiting for a slot', tone: 'note' })
+})
+
+test('an agent drawn in the box, selected in the chat, is shown as the box', () => {
+  const graph = deriveGraph(sketched())
+  expect(nodeOf(graph, 'agent:rv2')?.id).toBe('checks:r')
+  expect(nodeOf(graph, 'agent:c2')?.id).toBe('agent:c2')
 })
 
 test('one look and nothing sent back is the plain box: no loop, no ×N; with no agent of KOLONİ’s, the node of lines it was', () => {

@@ -1,7 +1,7 @@
 import type { Message, Run } from '../api/types'
 import { type Loop, type LoopRound, testRows } from '../canvas/checksLoop'
 import { FixIt } from '../chat/CheckedSection'
-import { fixOf } from '../chat/checked'
+import { fixOf, newestTurn } from '../chat/checked'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 
@@ -18,7 +18,7 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 export function ChecksPanel({ state, run, loop, openWindow }: { state: ConvState; run: Run; loop: Loop | null; openWindow: (agentId: string) => void }) {
   const rows = state.messages.find(m => m.run_id === run.id && m.role === 'checked')?.checked ?? []
   // (Work not taken in is answered in the Checked section itself: its Fix it asks the stronger model's question.)
-  const fix = state.runs.at(-1)?.id === run.id && !rows.some(row => row.kind === 'not_taken') ? fixOf(rows) : null
+  const fix = newestTurn(state) === run.id && !rows.some(row => row.kind === 'not_taken') ? fixOf(rows) : null
   const tests = testRows(rows)
   return (
     <div className="insp-body checks-panel">
