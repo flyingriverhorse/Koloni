@@ -21,6 +21,8 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-23
+
 ### Added
 
 - **Chat**: under **Test and review**, KOLONİ tries a turn's change as a user would, once a turn: a changed command-line tool that answers `--help` by itself (a parser it imports, or its own case for it) is asked for it, never run plainly, and a big change of screens is tried by the Tester in KOLONİ's own browser on the chat's preview - started by KOLONİ (`npm run dev`, a free port) where none runs, and stopped after; what fails goes back as a fix round ([docs](docs/use/checked.md#the-live-try)).
