@@ -33,7 +33,8 @@ class TestAskMixin:
         """Where the turn changed source in the project and no test (`proof.untested`), the
         Orchestrator is asked once a turn (`asked_test`) - model-side, so the last step; it
         spends no fix round. Its rows are made with the Checked section (`_test_rows`)."""
-        if held.asked_test or not (missing := proof.untested(held.changes)):
+        if held.asked_test or "tests" not in held.checks.on or not (
+                missing := proof.untested(held.changes)):
             return None
         held.asked_test = True
         return TEST_ASKED.format(files=named(missing))

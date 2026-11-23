@@ -6,14 +6,14 @@ in every project, as decision 18 has it; off, the work waits after the first mod
 Going back drops it.
 
 Revision ID: 0169
-Revises: 0167
+Revises: 0170
 """
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0169"
 # (Written on the k-kanit-yukselt branch: re-chained after main's newest at its merge.)
-down_revision = "0167"
+down_revision = "0170"
 branch_labels = None
 depends_on = None
 

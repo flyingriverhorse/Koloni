@@ -53,7 +53,8 @@ on with the project's setting.
 
 It is free at every level. At **Full auto** with it off, the menu says so under it: "Full auto
 with no checks: nothing checks this chat's changes". A turn that runs a team's recipe follows
-the recipe, not this switch: today the project's setting.
+the recipe's **Checks** step, not this switch: the project's setting, unless the recipe sets its own
+([The Checks step](../agents/recipes.md#the-checks-step)).
 
 A project that had turned off the old **Finish only when the tests pass** switch is on
 **Nothing**, and Settings says so under the setting.
@@ -515,10 +516,11 @@ Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2
 finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
 Orchestrator's own box gets one line: "● checking…"
 while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
-not run), "✗ still failing" or "not checked". In a recipe's turn the node says "end of the recipe".
-A turn KOLONİ did not check has no Checks node: off for this chat, the Orchestrator's box says "not
-checked · off for this chat"; in a project whose After a change is **Nothing**, it says nothing of
-it - the Checked section does.
+not run), "✗ still failing" or "not checked". In a recipe's turn the node is the recipe's last step,
+inside its frame, and says "end of the recipe". A turn KOLONİ did not check has no Checks node: off
+for this chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's
+Checks step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
+**Nothing**, it says nothing of it - the Checked section does.
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
@@ -579,6 +581,9 @@ the Orchestrator's window, whose record holds the runs.
 | – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
+| – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
+| – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |
+| ✗ Checked only: this recipe's Checks step sends nothing back to fix - you decide (Fix it) | The recipe's Fix rounds are 0: the tests failed and nothing went back. |
 | – CI commands found: `lines` - not run until you approve them once (Run these) | The project's CI lint, typecheck and test lines, offered. **Run these** approves exactly these. |
 | – CI step `name`: not run: `why` / e2e not run: `name` / CI file not read: `file` - `why` | What of the CI is left out beside the lines it offers or runs: an e2e step, a line not plain, an install, a secret, another shell, a folder outside, a file past the limits. |
 | – CI commands not used: a workflow changed in this turn | A workflow file changed in the turn: its lines wait for the next one. |

@@ -32,9 +32,9 @@ def test_run_shows_the_link_with_the_apps_own_key(monkeypatch, settings_env, cap
         logging.getLogger("uvicorn.error").info(
             "Uvicorn running on %s://%s:%d (Press CTRL+C to quit)", "http", "127.0.0.1", 8790)
 
-    import uvicorn
-
-    monkeypatch.setattr(uvicorn, "run", serve)
+    # (`run` serves through `app.main.serve` since k-kucuk's ClosingServer, not `uvicorn.run`:
+    # patching that one started a real server here, and CI's part sat until its time limit)
+    monkeypatch.setattr(app.main, "serve", serve)
     window = logging.getLogger("uvicorn.error")
     before = list(window.filters)
     try:

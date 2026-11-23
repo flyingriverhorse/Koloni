@@ -74,6 +74,35 @@ agent's CLI keeps its own commands off KOLONİ's record, its report is taken as 
 
 **Ask me** is an end: **Ask me, then in**, or **Tell me what was found**. Every recipe needs an end.
 
+### The Checks step
+
+Every recipe ends in a **Checks** step 🔒: what KOLONİ checks before the recipe's work is done
+([What KOLONİ checked](../use/checked.md)). It is always the last step, joined to the step(s) that
+lead to the end, and it moves when you add a step after them. It cannot be removed or dragged.
+
+Click it to choose:
+
+- **Follow the project** (the default): the project's **After a change** - Test and review, Tests
+  only or Nothing - with its **Check by kind of work** and **Fix rounds**.
+- **Set for this recipe**: **Tests**, **Review**, **Docs**, **Diagrams**, **Data** and **Slides**,
+  each on or off, and **Fix rounds** - the project's, 1 to 5, or **0 - check only** (a problem is
+  said, nothing goes back to be fixed). **Pages** comes with the next update.
+
+A recipe that makes no code - a report, the docs - turns **Tests** off and its kind of work on: its
+turn runs no tests and checks the documents it wrote; a fixable problem (a broken link) goes back
+as a fix round, as a failing test does. With every check off, the answer says "Not checked: this
+recipe's Checks step checks nothing". The choice is kept with the recipe - in a folder's
+`.koloni/recipes/*.json` too, as its graph's `checks`.
+
+The ready recipes come set: **Bugfix** and **Feature** check their tests and a review, **Docs** its
+documents and a review, **Evolve** its tests; the others follow the project. A recipe set for itself
+checks so even in a project at **Nothing** - set its Checks step to **Follow the project** to leave it
+to the project. Only a recipe you picked (**Teams for this chat**: Manual) can check less than the
+project does; one the Orchestrator picked (Orchestrator decides) only adds to the project's checks
+and takes the larger Fix rounds - it never turns them off. A recipe's turn follows its Checks step, never the chat's **Test and review
+changes** switch. Rounds never stack: where the
+recipe's own loop of test and fix ran out, the Checks step sends nothing back on top.
+
 ## Where a recipe is kept
 
 Choose **Kept in KOLONİ, for every folder**, or **Kept in this folder's .koloni/recipes (in git)**. A
