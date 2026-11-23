@@ -40,11 +40,13 @@ run · 2 still asked".
 
 With **This project**, a delete you approved unchanged 5 times in 30 days - the same command, in the
 same folder - is suggested as a rule: "You approved `rm -rf build` 5 times - add “You may delete
-build.” to this project's rules?" **Add to rules** puts that line at the end of the project's rules
-on the [Memory](../memory.md) page, as if you wrote it there; nothing is ever added by itself. The
-line is KOLONİ's words with the paths of the command you approved - only for a plain delete of plain
-relative paths in the project (`rm -rf build`, `Remove-Item -Recurse build`), never a glob, a
-variable, `..` or a command chained to another. It spares the card only at Full auto with Check what
+./build.” to this project's rules?" **Add to rules** puts that line at the end of the project's
+rules on the [Memory](../memory.md) page, as if you wrote it there; nothing is ever added by itself.
+The line is KOLONİ's words with the paths of the command you approved, each written from the
+project's root (`rm -rf build dist` in `web`: “You may delete ./web/build and ./web/dist.”) - only
+for a plain delete of plain relative paths in the project (`rm -rf build`, `Remove-Item -Recurse
+build`), never a glob, a variable, `.`, `..`, a dot file or a command chained to another, nor one
+whose folder or command reads as anything else. It spares the card only at Full auto with Check what
 I said first on.
 
 ## Where the money comes from

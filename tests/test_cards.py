@@ -200,7 +200,7 @@ def suggested(db, times, rules=None, **more):
 def test_five_unchanged_approvals_suggest_a_rule_in_koloni_s_words(db):
     assert suggested(db, 4) == []
     (one,) = suggested(db, 1)  # (the fifth)
-    assert one["rule"] == "You may delete build."
+    assert one["rule"] == "You may delete ./build."
     assert (one["command"], one["cwd"], one["times"]) == ("rm -rf build", ".", 5)
     assert one["key"] == cards.key_of("p", "rm -rf build", ".")
     # The line holds as the user's own for the check of their words: a run stands on it.
@@ -211,9 +211,12 @@ def test_five_unchanged_approvals_suggest_a_rule_in_koloni_s_words(db):
 @pytest.mark.parametrize(
     ("more", "rule"),
     [
-        ({"cwd": "web"}, "You may delete web/build."),
-        ({"command": "rm -rf build dist"}, "You may delete build and dist."),
-        ({"command": "Remove-Item -Recurse -Force build"}, "You may delete build."),
+        ({"cwd": "web"}, "You may delete ./web/build."),
+        ({"command": "rm -rf build dist"}, "You may delete ./build and ./dist."),
+        ({"command": "rm -rf a b/c", "cwd": "web"}, "You may delete ./web/a and ./web/b/c."),
+        ({"command": "Remove-Item -Recurse -Force build"}, "You may delete ./build."),
+        # (Review: a bare word names a path from the project's root, never "everything")
+        ({"command": "rm -rf everything"}, "You may delete ./everything."),
         # (no rule: what was not answered by the user, or said no to, or what is no plain delete)
         ({"decided": None}, None),
         ({"status": "rejected"}, None),
@@ -230,6 +233,23 @@ def test_five_unchanged_approvals_suggest_a_rule_in_koloni_s_words(db):
         ({"command": "Remove-Item build -Exclude src"}, None),
         ({"command": "del /s build.log"}, None),
         ({"cwd": None}, None),
+        # (Review: two commands on two lines, read as one once their spaces were made one; a
+        # folder in the agent's words; a path through `..`; KOLONİ's own scratch; a dot file;
+        # a command too long to be a plain delete)
+        ({"command": "rm -rf build\nsrc"}, None),
+        ({"command": "rm -rf build\r\nsrc"}, None),
+        ({"cwd": "all of src and"}, None),
+        ({"cwd": "s\u0455rc"}, None),
+        ({"cwd": "sub/.."}, None),
+        ({"cwd": "web/"}, None),
+        ({"command": "rm -rf x/../src"}, None),
+        ({"command": "rm -rf build/."}, None),
+        ({"command": "rm -rf build."}, None),
+        ({"cwd": ".koloni/tmp"}, None),
+        ({"command": "rm -rf src/.git"}, None),
+        ({"command": "rm -rf " + "a" * 79 + " b"}, "You may delete ./" + "a" * 79 + " and ./b."),
+        ({"command": "rm -rf " + "a" * 81}, None),
+        ({"command": "rm -rf build" + " " * cards.MAX_RULE}, None),
     ],
 )
 def test_what_a_suggestion_names_and_what_suggests_none(db, more, rule):
@@ -238,15 +258,15 @@ def test_what_a_suggestion_names_and_what_suggests_none(db, more, rule):
 
 
 def test_a_rule_already_there_is_not_suggested_again(db):
-    assert suggested(db, 5, rules="Be brief.\n- You may delete build.") == []
+    assert suggested(db, 5, rules="Be brief.\n- You may delete ./build.") == []
 
 
 def test_a_rule_that_would_not_hold_where_it_is_saved_is_not_suggested(db):
     # (Under a heading that forbids, the check would never let a run stand on it.)
     assert suggested(db, 5, rules="Never do these:") == []
     # (A rule that only starts so is another one: this one is not there yet.)
-    (one,) = suggested(db, 0, rules="You may delete build.log.")
-    assert one["rule"] == "You may delete build."
+    (one,) = suggested(db, 0, rules="You may delete ./build.log.")
+    assert one["rule"] == "You may delete ./build."
 
 
 def test_one_click_saves_the_rule_from_the_own_page_alone(make_client, project_dir):
@@ -265,17 +285,17 @@ def test_one_click_saves_the_rule_from_the_own_page_alone(make_client, project_d
         session.commit()
     read = client.get("/api/cards", params={"project_id": pid}).json()
     ((one,),) = [read["suggestions"]]
-    assert (read["asked"], read["approved"], one["rule"]) == (5, 5, "You may delete build.")
+    assert (read["asked"], read["approved"], one["rule"]) == (5, 5, "You may delete ./build.")
     url = f"/api/projects/{pid}/card-suggestions/{one['key']}"
     assert client.post(url, headers=NO_ORIGIN).status_code == 403
     assert client.post(url, headers={"Origin": "http://evil.example"}).status_code == 403
     assert client.post(f"/api/projects/{pid}/card-suggestions/0000", headers=OWN).status_code == 404
     saved = client.post(url, headers=OWN)
-    assert saved.json() == {"rules": "Be brief.\nYou may delete build."}, saved.text
+    assert saved.json() == {"rules": "Be brief.\nYou may delete ./build."}, saved.text
     assert client.post(url, headers=OWN).json() == saved.json()  # (once there, as it is)
     assert client.get("/api/cards", params={"project_id": pid}).json()["suggestions"] == []
     rules = (project_dir / ".koloni" / "rules.md").read_text(encoding="utf-8")
-    assert "You may delete build." in rules  # (as the Memory page saves them)
+    assert "You may delete ./build." in rules  # (as the Memory page saves them)
 
 
 def test_the_migration_adds_and_drops_the_columns(tmp_path):
@@ -302,13 +322,16 @@ def test_a_clis_card_says_why_too(tmp_path):
 
     runner, factory = runner_at(tmp_path, "auto_edit")
     with factory() as session:
-        session.get_one(ToolCall, "t1").why_asked = "It runs another command through a shell"
+        # (Review: on its card a CLI's own words - Codex's reason - never choose the family)
+        session.get_one(ToolCall, "t3").why_asked = "Deletes the build folder"
         session.commit()
+    shell = {"always": True, "why": "It runs another command through a shell"}
     for call, line, given, reason in (
         ("t0", "rm -rf build", {}, "delete"),
-        ("t1", "make build", {"always": True}, "shell"),
+        ("t1", "make build", shell, "shell"),
         ("t2", "cat .env", {}, "secret"),
-        ("t3", "python x.py", {}, "rule"),
+        ("t3", "python x.py", {"always": True}, "rule"),
+        ("t4", "python y.py", {"always": True, "why": cards.CLI_ASKED}, "other"),
     ):
         _ran, command_id = asyncio.run(runner.ask_for("r", "c", "a", call, line, cwd=".", **given))
         with factory() as session:

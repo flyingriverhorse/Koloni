@@ -264,7 +264,8 @@ same holds in the chat you went away from, while you're away. A plain chat has n
 
 How often each of these happened - and the cards asked, by why - is on the Usage page under
 [Cards](../money/usage.md#cards). There a delete you approved unchanged 5 times is suggested as a line
-for this project's rules ("You may delete build."); it is added only when you press **Add to rules**.
+for this project's rules ("You may delete ./build."); it is added only when you press **Add to
+rules**.
 
 ## Plan first
 

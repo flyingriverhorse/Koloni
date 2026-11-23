@@ -670,6 +670,7 @@ class CommandRunner:
         cwd: str | None = None,
         judgement: dict | None = None,
         disposable: dict | None = None,
+        why: str = "",
     ) -> tuple[bool, str]:
         """A command a CLI is about to run with a tool of its own: put it on record,
         get it decided the way KOLONİ's own commands are, and say whether it may run.
@@ -681,7 +682,9 @@ class CommandRunner:
         the root), so that the card is judged the same when it is read again. What it
         prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
         screen and the record - the CLI's own model has read it already. `judgement`: as
-        `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too."""
+        `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too.
+        `why`: KOLONİ's own reason for its card, for the family it is counted in (`card_reason`)
+        - never the reason the CLI gave in words of its own, shown on its card all the same."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
@@ -726,13 +729,7 @@ class CommandRunner:
                 judged=_kept(judgement, asks, gate),
                 disposable=_noted(disposable, free and not asks),
                 asked_reason=card_reason(
-                    judged,
-                    mode != "full_auto",
-                    (call.why_asked or "")
-                    if (call := session.get(ToolCall, call_id)) is not None
-                    else "",
-                    searched=held,
-                    web_off=web_off,
+                    judged, mode != "full_auto", why, searched=held, web_off=web_off
                 )
                 if asks and not forbidden
                 else None,

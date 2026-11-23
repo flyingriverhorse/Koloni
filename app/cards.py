@@ -9,11 +9,10 @@ the user's click on the app's own page (`app.api.cards`)."""
 
 import hashlib
 import json
-import posixpath
 import re
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
 from app import judge
@@ -64,8 +63,17 @@ _FAMILIES = (
 )
 _FAMILY = [(name, re.compile(pattern)) for name, pattern in _FAMILIES]
 
-# A suggestion: a delete the user approved unchanged this many times, of the last DAYS.
+# The family of a card a CLI asked for with a reason of its own (Codex: to leave its sandbox) where
+# KOLONİ's gate gave none: the CLI's words are on the card, never read for its family (review of
+# the card measurement: a reason that started "Deletes" made any command a delete card).
+CLI_ASKED = "The CLI asked for it in words of its own"
+
+# A suggestion: a delete the user approved unchanged this many times, of the last DAYS - of the
+# MOST_SUGGESTED commands approved most, each no longer than MAX_RULE (a plain delete of
+# MOST_TARGETS paths is far shorter; a longer one is not read: its harm check is linear but slow).
 TIMES, DAYS = 5, 30
+MOST_SUGGESTED = 20
+MAX_RULE = 400
 # What deletes files by their names, and the switches it may have in a suggested rule - none that
 # takes a value (`-ErrorAction x`, `-Exclude src`: a value read as a target names what was not
 # deleted) nor one that reaches further (`del /s`, `rmdir -p`). shortcut: deletes only; add a
@@ -96,8 +104,10 @@ _DELETERS = {
     "ri": frozenset({"-recurse", "-force"}),
 }
 _CASED = frozenset({"rm", "rmdir"})  # (PowerShell's and cmd's switches are read in any case)
-# A target a rule may name: a relative path of plain characters, never a glob, a variable, `..`.
-_TARGET = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.\-/]{0,79}")
+# A target a rule may name, joined with its folder: a relative path every part of which is plain
+# characters - never a glob, a variable, `.`, `..`, a dot file, a part that ends in a dot.
+_PART = re.compile(r"[A-Za-z0-9_](?:[A-Za-z0-9_.\-]*[A-Za-z0-9_\-])?")
+MOST_PATH = 80
 MOST_TARGETS = 3
 
 
@@ -116,9 +126,9 @@ def card_reason(
     keep_running: bool = False,
 ) -> str:
     """Why a card was asked, as the gate saw it the moment it opened: the sentence its card shows
-    (the harm of `judged` - the command with its folder, `with_cwd` - else the reason its call was
-    given, `ToolCall.why_asked`, else the folder search), then web off, a server, else no rule
-    covered it at the chat's level."""
+    (the harm of `judged` - the command with its folder, `with_cwd` - else the reason KOLONİ gave
+    its call, `why` - `ToolCall.why_asked`, never a CLI's own words: `CLI_ASKED` -, else the
+    folder search), then web off, a server, else no rule covered it at the chat's level."""
     said = harms(judged, instructions) or why or (SEARCHES_FOLDER if searched else "")
     if said:
         return family(said)
@@ -131,39 +141,51 @@ def _counts() -> dict:
     return {"asked": 0, "approved": 0, "rejected": 0, "unanswered": 0}
 
 
+_VERDICTS = ("run", "refuse", "ask")
+
+
+def _in_period(query: Select, project_id: str | None, since: datetime | None) -> Select:
+    query = query.join(Run, Run.id == Command.run_id)
+    if project_id is not None:
+        query = query.join(Conversation, Conversation.id == Run.conversation_id).where(
+            Conversation.project_id == project_id
+        )
+    return query if since is None else query.where(Command.created_at >= since)
+
+
 def stats(session: Session, project_id: str | None, since: datetime | None) -> dict:
     """The cards asked since `since` (None: all) in a project's chats (None: every chat's): how
     many, answered how - approved or rejected by the user, or no answer (the turn ended first) -
     by reason, the average seconds to an answer (None: none answered), and the three outcomes of
-    "Check what I said first". Only cards from 0.1.7 on carry their reason (`asked_reason`)."""
-    asked = select(
-        Command.asked_reason,
-        Command.status,
-        Command.judged,
-        Command.created_at,
-        Command.decided_at,
-    ).join(Run, Run.id == Command.run_id)
-    if project_id is not None:
-        asked = asked.join(Conversation, Conversation.id == Run.conversation_id).where(
-            Conversation.project_id == project_id
-        )
-    if since is not None:
-        asked = asked.where(Command.created_at >= since)
-    total, by_reason, waited, checked = _counts(), {}, [], {"run": 0, "refuse": 0, "ask": 0}
-    for reason, status, judged, made, decided in session.execute(asked):
-        if judged and judged.get("verdict") in checked:
-            checked[judged["verdict"]] += 1
-        if reason is None:
-            continue
-        how = (
-            "unanswered" if decided is None else "rejected" if status == "rejected" else "approved"
-        )
-        one = by_reason.setdefault(reason, _counts())
-        for counts in (total, one):
-            counts["asked"] += 1
-            counts[how] += 1
-        if decided is not None:
-            waited.append((decided - made).total_seconds())
+    "Check what I said first". Only cards from 0.1.7 on carry their reason (`asked_reason`).
+    Counted by the database: a row for each reason and answer, and for each outcome (review: every
+    command of the period was read, its check's record with it)."""
+    how = case(
+        (Command.decided_at.is_(None), "unanswered"),
+        (Command.status == "rejected", "rejected"),
+        else_="approved",
+    )
+    waited = (func.julianday(Command.decided_at) - func.julianday(Command.created_at)) * 86400
+    asked = _in_period(
+        select(Command.asked_reason, how, func.count(), func.sum(waited))
+        .where(Command.asked_reason.in_(REASONS))
+        .group_by(Command.asked_reason, how),
+        project_id,
+        since,
+    )
+    verdict = Command.judged["verdict"].as_string()
+    judged = _in_period(
+        select(verdict, func.count()).where(verdict.in_(_VERDICTS)).group_by(verdict),
+        project_id,
+        since,
+    )
+    total, by_reason, seconds, answered = _counts(), {}, 0.0, 0
+    for reason, said, n, took in session.execute(asked):
+        for counts in (total, by_reason.setdefault(reason, _counts())):
+            counts["asked"] += n
+            counts[said] += n
+        if said != "unanswered":
+            seconds, answered = seconds + (took or 0.0), answered + n
     return {
         **total,
         "by_reason": [
@@ -171,8 +193,8 @@ def stats(session: Session, project_id: str | None, since: datetime | None) -> d
             for key in REASONS
             if key in by_reason
         ],
-        "decide_seconds": round(sum(waited) / len(waited), 1) if waited else None,
-        "checked": checked,
+        "decide_seconds": round(seconds / answered, 1) if answered else None,
+        "checked": {**dict.fromkeys(_VERDICTS, 0), **dict(session.execute(judged).tuples().all())},
     }
 
 
@@ -188,23 +210,32 @@ def _targets(command: str, cwd: str | None) -> list[str] | None:
     if any((w if program in _CASED else w.casefold()) not in plain for w in switches):
         return None
     named = [w for w in words[1:] if not w.startswith(("-", "/"))]
-    if not named or len(named) > MOST_TARGETS or not all(_TARGET.fullmatch(w) for w in named):
+    if not named or len(named) > MOST_TARGETS:
         return None
-    joined = [posixpath.normpath(posixpath.join(cwd, w)) for w in named]
-    if any(one in (".", "..") or one.startswith(("../", "/")) for one in joined):
+    # The path as joined, never resolved, is what must be plain - its folder is on record as the
+    # agent's command gave it (review: a cwd "all of src and" wrote "You may delete all of src
+    # and/build.", and `x/../src` "You may delete src.").
+    joined = [w.rstrip("/") if cwd == "." else f"{cwd}/{w}".rstrip("/") for w in named]
+    if not all(_plain_path(one) for one in joined):
         return None
     return joined
 
 
+def _plain_path(path: str) -> bool:
+    return len(path) <= MOST_PATH and all(_PART.fullmatch(part) for part in path.split("/"))
+
+
 def rule_line(command: str, cwd: str | None) -> str | None:
-    """The line for the project's rules that names this delete and its targets - "You may delete
-    build." - in KOLONİ's words; None: no such line (`_targets`)."""
-    if cwd is None or not is_plain(command) or harm_class(with_cwd(command, cwd)) != "soft":
+    """The line for the project's rules that names this delete and its targets, each as a path
+    from the project's root - "You may delete ./build." (review: a bare word, "everything", read
+    as a grant of all) - in KOLONİ's words; None: no such line (`_targets`)."""
+    if len(command) > MAX_RULE or cwd is None or not is_plain(command):
         return None
     targets = _targets(command, cwd)
-    if targets is None:
+    if targets is None or harm_class(with_cwd(command, cwd)) != "soft":
         return None
-    named = targets[0] if len(targets) == 1 else f"{', '.join(targets[:-1])} and {targets[-1]}"
+    paths = [f"./{one}" for one in targets]
+    named = paths[0] if len(paths) == 1 else f"{', '.join(paths[:-1])} and {paths[-1]}"
     return f"You may delete {named}."
 
 
@@ -230,9 +261,12 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
     """The deletes the user approved unchanged TIMES times or more in DAYS, in this project's
     chats - each with the line for the project's rules (`rules`, as in effect) that would spare
     its card at Full auto with Check what I said first on; one the rules hold already is left out
-    (`added` False)."""
+    (`added` False). Each command as it was approved, to the character: one with a line break
+    in it is two commands, and never plain (review: `rm -rf build⏎src`, its spaces made one,
+    suggested "You may delete build and src.")."""
+    times = func.count()
     approved = (
-        select(Command.command, Command.cwd)
+        select(Command.command, Command.cwd, times)
         .join(Run, Run.id == Command.run_id)
         .join(Conversation, Conversation.id == Run.conversation_id)
         .where(
@@ -242,15 +276,16 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
             Command.decided_at.is_not(None),
             Command.status != "rejected",
             Command.created_at >= now() - timedelta(days=DAYS),
+            func.length(Command.command) <= MAX_RULE,
         )
+        .group_by(Command.command, Command.cwd)
+        .having(times >= TIMES)
+        .order_by(times.desc(), Command.command)
+        .limit(MOST_SUGGESTED)
     )
-    times: dict[tuple[str, str], int] = {}
-    for command, cwd in session.execute(approved):
-        shape = (" ".join(command.split()), cwd)
-        times[shape] = times.get(shape, 0) + 1
     found = []
-    for (command, cwd), n in sorted(times.items(), key=lambda one: -one[1]):
-        line = rule_line(command, cwd) if n >= TIMES else None
+    for command, cwd, n in session.execute(approved):
+        line = rule_line(command, cwd)
         if line is not None and (added or not _has(rules, line)) and _stands(rules, line):
             found.append(
                 {

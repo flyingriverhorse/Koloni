@@ -18,7 +18,7 @@ const cards = (over: Partial<Cards> = {}): Cards => ({
   suggestions: [],
   ...over,
 })
-const SUGGESTED = { key: 'k1', command: 'rm -rf build', cwd: '.', times: 5, rule: 'You may delete build.' }
+const SUGGESTED = { key: 'k1', command: 'rm -rf build', cwd: '.', times: 5, rule: 'You may delete ./build.' }
 
 test('Cards says the period’s cards, answered how and why, and what Check what I said first did', async () => {
   const onLoad = vi.fn().mockResolvedValue(cards())
@@ -46,7 +46,7 @@ test('a suggested rule says the command, how often, and KOLONİ’s line; one cl
   const onAdd = vi.fn().mockResolvedValue(undefined)
   render(<CardsSection projectId="p" period="30" onLoad={onLoad} onAdd={onAdd} />)
   const line = await screen.findByText(/^You approved/)
-  expect(line).toHaveTextContent('You approved rm -rf build 5 times - add “You may delete build.” to this project’s rules? Add to rules')
+  expect(line).toHaveTextContent('You approved rm -rf build 5 times - add “You may delete ./build.” to this project’s rules? Add to rules')
   await userEvent.click(within(line).getByRole('button', { name: 'Add to rules' }))
   expect(onAdd).toHaveBeenCalledWith('p', 'k1')
   // (read again: once in the rules, it is suggested no more)
