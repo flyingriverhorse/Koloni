@@ -100,9 +100,10 @@ Click it to choose:
 
 - **Follow the project** (the default): the project's **After a change** - Test and review, Tests
   only or Nothing - with its **Check by kind of work** and **Fix rounds**.
-- **Set for this recipe**: **Tests**, **Review**, **Docs**, **Diagrams**, **Data**, **Slides** and
-  **Pages** (a changed page in KOLONİ's own browser at phone, tablet and desktop widths), each on or
-  off, and **Fix rounds** - the project's, until it passes, 1 to 10, or **0 - check only** (a problem is said,
+- **Set for this recipe**: **Tests**, **Review**, **Docs**, **Diagrams**, **Data**, **Slides**,
+  **Pages** (a changed page in KOLONİ's own browser at phone, tablet and desktop widths) and
+  **Config** (JSON, YAML and TOML files parse; on unless you untick it), each on or off, and
+  **Fix rounds** - the project's, until it passes, 1 to 10, or **0 - check only** (a problem is said,
   nothing goes back to be fixed). With **Review** on, a big change of screens is also tried by the
   Tester ([the live try](../use/checked.md#the-live-try)).
 

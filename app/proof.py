@@ -800,8 +800,9 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
 
 
 # S5c (plan decision 16): what the end gate checks, part by part - the project's tests, the
-# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui").
-PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui")
+# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui";
+# 0.1.7's config files, "config").
+PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config")
 
 
 class Checks(NamedTuple):
@@ -876,7 +877,8 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     on: set[str] = set()
     most: int | None = 0
     for one, who in recipes:
-        parts = set() if one is None else {part for part in PARTS if one.get(part)}
+        # (Config is on unless unticked: a row's graph from before has no such key.)
+        parts = set() if one is None else {p for p in PARTS if one.get(p, p == "config")}
         asked = None if one is None else one.get("fix_rounds")
         # (Review of S5c: only a recipe the user picked may lower the project's checks - one the
         # Orchestrator picked only adds to them, or it would switch its own checks off.)
