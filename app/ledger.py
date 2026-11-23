@@ -200,16 +200,42 @@ def _name(word: str) -> str:
 _REDIRECT = re.compile(r"[<>]+&?|&>+")  # (`>`, `>>`, `2>&1`'s `>&`, `&>`)
 
 
-def _split(line: str) -> list[tuple[list[str], str]]:
-    """A line's parts as its shell splits them, each with the operator after it ("" at its end) -
-    a redirection off them (`> out.txt`, `2>&1`: no word of the command's).
-    shortcut: a number before one is taken as its stream (`2>`), also one spaced off (`-n 2 >`)."""
+def _lexed(line: str) -> list[str]:
+    """A line's words as its shell reads them, its operators and redirections words of their own
+    (quotes kept: a quoted `">"` is no redirection)."""
     lexer = shlex.shlex(line.replace("\n", " ; "), posix=False, punctuation_chars=True)
     lexer.whitespace_split = True
     try:
-        words = list(lexer)
+        return list(lexer)
     except ValueError:  # (quotes that do not pair)
-        words = line.split()
+        return line.split()
+
+
+# Where a redirection writes nothing of the project's: nowhere, or another stream.
+_NOWHERE = frozenset({"/dev/null", "nul", "$null", "nul:"})
+
+
+def written_to(line: str) -> list[str]:
+    """CL-329 G: the files a line's redirections write (`cat a > b`, `> f`, `>> log`, `&> all`) -
+    not another stream (`2>&1`, `>&2`) nor nowhere (`/dev/null`, `NUL`, `$null`). Read off the
+    line as `_split` reads it, which drops them from the parts."""
+    words, found = _lexed(line), []
+    for at, word in enumerate(words):
+        if not _REDIRECT.fullmatch(word) or ">" not in word or at + 1 >= len(words):
+            continue
+        target = words[at + 1].strip("'\"")
+        if not word.endswith("&") and target.casefold() not in _NOWHERE and target not in (
+                _OPERATORS):
+            found.append(target)
+    return found
+
+
+def _split(line: str) -> list[tuple[list[str], str]]:
+    """A line's parts as its shell splits them, each with the operator after it ("" at its end) -
+    a redirection off them (`> out.txt`, `2>&1`: no word of the command's; `written_to` reads
+    what they write).
+    shortcut: a number before one is taken as its stream (`2>`), also one spaced off (`-n 2 >`)."""
+    words = _lexed(line)
     parts: list[tuple[list[str], str]] = []
     part: list[str] = []
     target = False
@@ -320,6 +346,29 @@ def _test_of(command: str) -> _Test | None:
             return found._replace(masked=found.masked or masked, cds=(*cds, *found.cds),
                                   addopts=found.addopts or addopts)
     return None
+
+
+# CL-329 G: a test run's options that write - its snapshots updated (`jest -u`, `vitest run -u`,
+# `pytest --snapshot-update`), a report to a path (`--junitxml=a.py`), its temp folder (pytest
+# deletes it first) - by the option, and those of `=` or a value after them.
+_WRITES = frozenset({"-u", "--update", "--updatesnapshot", "--update-snapshots",
+                     "--snapshot-update", "--force-regen", "--regen-all", "--ci=false"})
+_WRITES_TO = frozenset({"--junitxml", "--junit-xml", "--junit_xml", "--result-log",
+                        "--report-log", "--html", "--json-report-file", "--outputfile",
+                        "--output-file", "--basetemp", "-coverprofile", "--coverage-directory",
+                        "--coveragedirectory"})
+
+
+def test_writes(command: str) -> bool:
+    """CL-329 G: whether a line's test run writes with an option of its own - an update of its
+    snapshots, or a report or folder at a path (`ledger._WRITES`, `_WRITES_TO`)."""
+    found = _test_of(command)
+    for word in found.args if found else []:
+        option = word.strip("'\"").casefold()
+        if option in _WRITES or option.partition("=")[0] in _WRITES_TO or (
+                option.startswith("--cov-report") and ":" in option.partition("=")[2]):
+            return True
+    return False
 
 
 def read_test(command: str) -> tuple[str, bool] | None:

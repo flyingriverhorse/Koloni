@@ -176,3 +176,16 @@ test('S11: Fix it never sends a model-chosen file name or look output as the use
   expect(sent).toBe(`${FIX_IT('pytest -q')} The stronger model\u2019s rounds were no pass: a test, or what says which tests run, was changed without leave.`.replace('\u2019', "'"))
   expect(FIX_NOT_DONE('pytest -q', rows[1].text)).toContain('the Reviewer did not pass the test change.')
 })
+
+test('CL-329: a file changed while KOLONİ’s run went on - Put back is the user’s click, and says what it did', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({ put_back: ['calc.py'], refused: [{ path: 'b.py', why: 'b.py changed again since KOLONİ’s run' }] } as never)
+  try {
+    render(<CheckedSection message={checked([row('note', 'Changed while KOLONİ’s run of ruff check . went on: calc.py, b.py', { kind: 'changed_during' })])} over latest={false} />)
+    expect(post).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Put back' }))
+    expect(post).toHaveBeenCalledWith('/runs/r/check/put-back')
+    expect(await screen.findByRole('status')).toHaveTextContent('Put back: calc.py. Not put back: b.py changed again since KOLONİ’s run.')
+  } finally {
+    vi.restoreAllMocks()
+  }
+})

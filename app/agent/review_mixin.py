@@ -135,11 +135,20 @@ VERDICT = re.compile(r"^\s*+(?:#+\s*+|[-*]\s++)?(?:\d{1,3}[.)]\s++)?\**+\s*+(?:[
 # A verdict's words (review of CL-321 E): the first of MERGE and what holds - HOLD, a change asked
 # for, a rejection, a block - decides; a hold word negated ("I'd not block", "no need to reject")
 # is none, a MERGE negated ("do not MERGE") or said not to be ("MERGE is not possible") holds.
-_KEYWORD = re.compile(r"\b(MERGE|HOLD|REQUEST(?:ED|ING)?\s+CHANGES|REJECT(?:ED)?|BLOCK(?:ED)?)\b",
-                      re.IGNORECASE)
-_NEGATION = re.compile(r"^(?:not|no|never|cannot)$|n't$", re.IGNORECASE)
+# (CL-329 E: "NEEDS CHANGES" and "FAIL" hold too; "APPROVE" and "LGTM" merge - `_MERGES`.)
+_KEYWORD = re.compile(r"\b(MERGE|APPROVE[DS]?|LGTM|HOLD|REQUEST(?:ED|ING)?\s+CHANGES"
+                      r"|NEEDS?\s+CHANGES|CHANGES\s+NEEDED|FAIL(?:ED|S)?|REJECT(?:ED)?"
+                      r"|BLOCK(?:ED)?)\b", re.IGNORECASE)
+_MERGES = frozenset({"MERGE", "APPROVE", "APPROVED", "APPROVES", "LGTM"})
+_NEGATION = re.compile(r"^(?:not|no|never|cannot|unable)$|n't$", re.IGNORECASE)
 _MERGE_NOT = re.compile(r"\s*(?:is|was|should|would|will)?\s*(?:not|never)\b|\s*isn't\b"
-                        r"|\s*\?\s*(?:no|not|never)\b", re.IGNORECASE)  # ("MERGE? No - HOLD")
+                        r"|\s*\?\s*(?:no|not|never)\b"  # ("MERGE? No - HOLD")
+                        # (CL-329 E: "MERGE - no, HOLD"; "MERGE is unsafe"; a MERGE on a condition
+                        # - "MERGE once the SQL injection is fixed", "MERGE only after the fix")
+                        r"|\s*[-–—:]+\s*no\s*[,.;!-]"
+                        r"|\s*(?:is|would\s+be|seems)\s+(?:unsafe|premature|risky|blocked)\b"
+                        r"|\s*[,–—-]?\s*(?:only\s+)?(?:once|if|when|after|pending|provided|unless"
+                        r"|until|as\s+soon\s+as)\b", re.IGNORECASE)
 # Where a negation's reach ends: "no, HOLD" and "No. HOLD until …" hold.
 _STOP = re.compile(r"[,.;:!?–—…]|\s-+\s")
 _CHOICE = re.compile(r"\b(?:MERGE|HOLD)\s+or\s+(?:MERGE|HOLD)\b", re.IGNORECASE)  # (a question)
@@ -189,9 +198,11 @@ def verdict_of(report: str) -> str | None:
     found, fenced, lines = set(), False, report.splitlines()
     for at, line in enumerate(lines):
         bare = line.lstrip()
-        if bare.startswith("```"):
+        if bare.startswith(("```", "~~~")):
             fenced = not fenced
-        elif not fenced and not bare.startswith((">", "+")) and not (
+        # (CL-329 E: an indented line of code - four spaces, a tab - is quoted, no verdict)
+        elif not fenced and not line.startswith(("    ", "\t")) and not bare.startswith(
+                (">", "+")) and not (
                 bare.startswith("-") and not bare.startswith("- ")) and (
                 head := VERDICT.match(line)) and not _EARLIER.search(line[:head.start("rest")]):
             # (A heading, or "Verdict:" alone: what it says is on the next line with words.)
@@ -212,8 +223,9 @@ def _verdict_said(words: str) -> str | None:
         # (only the words since the last keyword: "I'd not block: MERGE" negates no MERGE)
         before = [one.strip("*()") for one in _STOP.split(words[since:found.start()])[-1].split()]
         since = found.end()
-        if found[1].upper() == "MERGE":
-            near = any(_NEGATION.search(one) for one in before[-2:])
+        if found[1].upper() in _MERGES:
+            # ("not ready to merge", "unable to MERGE": a negation within three words)
+            near = any(_NEGATION.search(one) for one in before[-3:])
             return "HOLD" if near or _MERGE_NOT.match(words[found.end():]) else "MERGE"
         if not any(_NEGATION.search(one) for one in before[-3:]):
             return "HOLD"
@@ -618,7 +630,7 @@ class ReviewMixin:
         if approved and approved.get("hash") == await asyncio.to_thread(
                 ci_commands.fingerprint, Path(root)):
             runs += [(one["command"], one["cwd"]) for one in approved.get("commands") or []
-                     if ci_commands.kept(one["command"])]
+                     if ci_commands.kept(one["command"], Path(root) / one["cwd"])]
         return runs
 
     def _recipe_reviewer(self: "AgentRunner", ctx: Ctx, child: Ctx, role: str) -> None:

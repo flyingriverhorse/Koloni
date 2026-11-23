@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -75,6 +76,19 @@ async def stop_check(run_id: str, request: Request, session: Session = Depends(g
     if not request.app.state.runner.stop_check(run_id):
         raise HTTPException(409, "no check of this turn is running")
     return {}
+
+
+@router.post("/{run_id}/check/put-back", dependencies=[Depends(require_own_origin)])
+async def put_back_check(run_id: str, request: Request, session: Session = Depends(get_session)):
+    """CL-329 Put back: the files that changed while KOLONİ's own run of this turn went on, as
+    they were when it started - each only where it is still as the run left it (the user's
+    click; KOLONİ never puts one back by itself). What was put back, and what not with why."""
+    if session.get(Run, run_id) is None:
+        raise HTTPException(404, "run not found")
+    said = await asyncio.to_thread(request.app.state.runner.put_back_changed, run_id)
+    if said is None:
+        raise HTTPException(409, "nothing of this turn waits to be put back")
+    return said
 
 
 def stop(session: Session, request: Request, run: Run) -> None:

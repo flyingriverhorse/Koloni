@@ -9,7 +9,7 @@ It works the same for every model and CLI.
 
 ![The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (3 lines, 2 files); No new test: the Orchestrator said "Updated the greeting in hello.py."](../images/checked-section.png)
 
-[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides and pages, a Reviewer's look (long documents read against the request), a test for the change, the live try, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
+[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides and pages, a Reviewer's look (long documents read against the request), the live try, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
 
 *What KOLONİ checks at a turn's end, and where you set each part. ([full size](../diagrams/proven-finish.svg))*
 
@@ -27,10 +27,10 @@ checked again:
 3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)); long
    documents are read once against your request
    ([Documents read against your request](#documents-read-against-your-request)).
-4. **A test for the change**, asked once where code changed and no test did
-   ([A test for the change](#a-test-for-the-change)).
-5. **The live try**, once a turn: a changed command-line tool is asked for its `--help`, and a big
+4. **The live try**, once a turn: a changed command-line tool is asked for its `--help`, and a big
    change of screens is tried by a Tester on the chat's preview ([The live try](#the-live-try)).
+5. **A test for the change**, asked once where code changed and no test did
+   ([A test for the change](#a-test-for-the-change)).
 
 A failure goes back to the Orchestrator until it passes - while each round makes progress - or
 as many times as **Fix rounds** says ([When the tests fail](#when-the-tests-fail)); then a stronger
@@ -44,13 +44,16 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
 
 - After a turn in a project folder that changed a file. A turn that changed nothing, a plain
   chat, a plan, and a side of a comparison get no Checked section. A change made only by a
-  command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a formatter,
-  `black . && pytest -q`) is on no record, so KOLONİ runs the tests all the same and says "A
+  command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a redirection into one
+  - `cat a > b`, `git show HEAD:f > f`, not `2>&1` or `> /dev/null` -, a formatter,
+  `black . && pytest -q`, a test run that writes - `jest -u`, `pytest --snapshot-update`,
+  `--junitxml=a.py` -, a line handed to a shell that does) is on no record, so KOLONİ runs the tests all the same and says "A
   command of this turn may have changed files KOLONİ did not record: …", with "No review: changes
   made by a command are not recorded". In a git project such commands count only where git lists
   a file written since the first of them began, or one committed during the turn, and the line
   names them ("… did not record: gen.py - python gen_it.py"): a `python main.py` that only
-  answered changes nothing. A turn whose commands only read or ran tests is still a turn that
+  answered changes nothing. A tracked test file such a command deleted is said "Test removed", as
+  one deleted on record is. A turn whose commands only read or ran tests is still a turn that
   changed nothing.
 - Where the work now is: in the project, or in the Orchestrator's own working copy (a team's
   branch, or a job while you're away). Work that waits in **Ready for you** is not part of it.
@@ -166,6 +169,23 @@ over them. Each still goes through KOLONİ's reading of commands: a harmful one 
 level says. An approved line runs as your own command does: `make test`, `npm test` or `tox` run
 the project's own Makefile, package scripts or tox file, whatever they hold. A trigger's turn runs
 one only with the trigger's own leave for that line.
+
+A line is offered only in a form that checks. One that changes files (`ruff check --fix`, `ruff
+format`, `eslint --fix`, `tsc --build`, a test run's `-u` or `--junitxml=…`), downloads or installs
+(`npx`, `uv run --with`, `mypy --install-types`), sends (`--pastebin`), does not end by itself
+(`ruff server`, `--watch`), runs code of its own beside the tool (`pylint --init-hook`, `pytest -p
+x`, `go test -exec`) or runs a file in place of the tool by its name (`./pytest`, `lint.cmd`,
+`python -m lint`) is not, and its step says why: "CI step Fix: not run: it changes files".
+
+A file git tracks that changed while one of KOLONİ's own runs went on is said: "Changed while
+KOLONİ's run of ruff check . went on: calc.py". It may be the run's doing (a check that formats) -
+or yours, saved in your editor meanwhile, or another chat's: KOLONİ never puts it back by itself.
+**Put back** on that row does, for each file still as the run left it: as it was when the run
+started (its commit's, through git's own line ends and filters). One changed again since is not
+put back, and says so. A file the run made that git does not track (a report, a cache), and one
+an agent wrote on record meanwhile, are not listed; nor is a secret file (`.env`, a key) - KOLONİ
+keeps no copy of one, so putting it back is yours. What Put back keeps goes once nothing of the run
+waits, and after three days.
 
 ### Saved by KOLONİ
 
@@ -421,7 +441,7 @@ is asked, once, for a test: "Not the end yet: `a.py` changed and no test did." T
 has one written - by an agent that writes code, or itself; for a bug fix, first a test that fails
 without the fix - and KOLONİ runs the tests again on it. Where no test fits (documents, settings, a
 one-off script), it says so in one line instead, and that line is quoted under the answer. The ask
-comes last, after the tests and the review, spends no fix round, and is made under **Test and
+comes last, after the tests, the review and the live try, spends no fix round, and is made under **Test and
 review** and **Tests only**, never under **Nothing** or where checks are off for the chat. A
 turn of a recipe whose steps wrote a test (Bugfix's **Reproduce it**) is not asked. It works the
 same while you're away and at Full auto: the Orchestrator writes the test or gives its reason.
@@ -517,12 +537,14 @@ also what does not fit in the diff the Reviewer is shown.
   the section says "Still on hold after round 1: not settled by the last look - you decide (Fix
   it)" ("nothing changed" where KOLONİ checked again and found no change).
 - A HOLD is a hold: one that marks no finding blocking, or writes its findings as prose, goes
-  back with its own words as the finding. The verdict is a line of its own (not one quoted or in
-  a code block): `Verdict: MERGE`, `Final verdict: HOLD`, `1. Verdict: HOLD`, a `## Verdict`
+  back with its own words as the finding. The verdict is a line of its own (not one quoted, in a
+  code block - ``` or ~~~ - or indented as code): `Verdict: MERGE`, `Final verdict: HOLD`, `1. Verdict: HOLD`, a `## Verdict`
   heading or `Verdict:` with the word on the next line. Its first verdict word decides: HOLD,
   REQUEST CHANGES, REJECT and BLOCK hold, unless a "not" or "no" stands just before it ("MERGE -
   no reason to hold this back", "I'd not block: MERGE" merge); a MERGE negated or said not to be
-  ("do not MERGE", "MERGE is not possible yet", "MERGE? No - HOLD") holds. A negation reaches no
+  ("do not MERGE", "MERGE is not possible yet", "MERGE? No - HOLD", "not ready to merge",
+  "MERGE is unsafe") holds, and so does a MERGE on a condition ("MERGE once the SQL injection is
+  fixed", "MERGE only after the fix"); NEEDS CHANGES and FAIL hold, APPROVE and LGTM merge. A negation reaches no
   further than a comma, a full stop or a dash: "No. HOLD until the test is fixed" holds. A
   "Previous verdict" line is not this look's. Any HOLD wins; a report with no verdict is "Review
   gave no verdict: not counted".
@@ -743,6 +765,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Review gave no verdict: not counted (`role`, `provider · model`) | Its report had no verdict line KOLONİ could read: nothing was sent back. |
 | ✓ Documents read: Reviewer (`provider · model`) - MERGE, no findings · ✗ … - HOLD, 1 finding, 1 blocking | The turn's long documents, read once against your request; a blocking finding goes back as a fix round. |
 | – No review: changes made by a command are not recorded | The turn's only change was a command's: there is no diff for a Reviewer to read. |
+| – Changed while KOLONİ's run of `command` went on: `files` | A file git tracks changed while one of KOLONİ's own runs went on - by the run, or by you meanwhile. **Put back** (your click) restores each still as the run left it. |
 | – A command of this turn may have changed files KOLONİ did not record: `files` - `command` | A command (a `sed -i`, a formatter, a script) wrote files no record holds; in a git project the files git lists are named. The tests ran on them. |
 | – Review not run: `why` | It could not look: it failed, it was refused, or the turn's token limit was reached. |
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |

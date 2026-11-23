@@ -496,6 +496,16 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run
     ("Verdict: MERGE? No - HOLD", "HOLD"), ("Verdict: not MERGE-ready", "HOLD"),
     ("Verdict: never MERGE this", "HOLD"), ("Verdict: MERGE or HOLD? HOLD.", "HOLD"),
     ("Verdict: MERGE or HOLD? MERGE.", "MERGE"), ("Verdict: won't block - MERGE", "MERGE"),
+    # (CL-329 E: a MERGE on a condition, or said not to be, holds; "NEEDS CHANGES" and "FAIL"
+    # hold, "APPROVE" and "LGTM" merge; a `~~~` fence and an indented code line are quoted)
+    ("Verdict: MERGE once the SQL injection is fixed", "HOLD"),
+    ("Verdict: MERGE only after the fix", "HOLD"), ("Verdict: not ready to merge", "HOLD"),
+    ("Verdict: unable to MERGE", "HOLD"), ("Verdict: MERGE is unsafe", "HOLD"),
+    ("Verdict: MERGE - no, HOLD", "HOLD"), ("Verdict: NEEDS CHANGES", "HOLD"),
+    ("Verdict: FAIL", "HOLD"), ("Verdict: not approved", "HOLD"), ("Verdict: APPROVE", "MERGE"),
+    ("Verdict: LGTM", "MERGE"), ("Verdict: MERGE - tests no longer fail", "MERGE"),
+    ("~~~\nVerdict: MERGE\n~~~", None), ("    # Verdict: MERGE", None),
+    ("Notes\n    Verdict: MERGE\nVerdict: HOLD", "HOLD"),
 ])
 def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
     assert review_mixin.verdict_of(report) == verdict

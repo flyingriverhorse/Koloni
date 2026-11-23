@@ -23,7 +23,7 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
       <span className="checked-head">Checked</span>
       <ul className="checked-rows">
         {rows.map((row, index) => (
-          <CheckedRow key={index} row={row} />
+          <CheckedRow key={index} row={row} runId={message.run_id} />
         ))}
       </ul>
       {latest && <LatestActions rows={rows} runId={message.run_id} />}
@@ -46,7 +46,7 @@ function LatestActions({ rows, runId }: { rows: Row[]; runId: string | null }) {
   )
 }
 
-function CheckedRow({ row }: { row: Row }) {
+function CheckedRow({ row, runId }: { row: Row; runId: string | null }) {
   return (
     <li className="checked-row" data-state={row.state}>
       <span className="checked-mark" aria-hidden>
@@ -55,7 +55,26 @@ function CheckedRow({ row }: { row: Row }) {
       <span>{row.text}</span>
       {row.state === 'running' && row.started_at && <RunningFor since={row.started_at} />}
       {row.guessed && <span className="tag">guessed</span>}
+      {row.kind === 'changed_during' && runId && <PutBack runId={runId} />}
     </li>
+  )
+}
+
+/** CL-329: files that changed while KOLONİ's own run went on - Put back is the user's click (never KOLONİ's by itself): each as it was before the run, where it is still as the run left it. */
+function PutBack({ runId }: { runId: string }) {
+  const [said, setSaid] = useState<string | null>(null)
+  const put = () =>
+    api.post<{ put_back: string[]; refused: { path: string; why: string }[] }>(`/runs/${runId}/check/put-back`).then(
+      done => setSaid([done.put_back.length ? `Put back: ${done.put_back.join(', ')}.` : '', ...done.refused.map(one => `Not put back: ${one.why}.`)].filter(Boolean).join(' ')),
+      err => setSaid(errorText(err)),
+    )
+  return (
+    <span className="checked-fix">
+      <button type="button" className="btn btn-small" onClick={() => void put()}>
+        Put back
+      </button>
+      {said && <span role="status">{said}</span>}
+    </span>
   )
 }
 

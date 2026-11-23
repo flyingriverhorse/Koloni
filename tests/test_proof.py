@@ -391,6 +391,91 @@ def test_touched_since_counts_an_earlier_write_and_a_committed_one(tmp_path, mon
     assert proof.touched_since(folder, began, {"a.py"}, head) == ["b.py"]
 
 
+@pytest.mark.parametrize("line", [
+    "cat gen.py > calc.py", "> f", "git show HEAD:f > f", "grep -v x a > b", "rg x > f",
+    "head -3 a > f", "type a > b", "Get-Content a > b", "npm test -- -u", "npx jest -u",
+    "npx vitest run -u", "pytest --snapshot-update", "python -m pytest -q --junitxml=calc.py",
+    "pytest -q $(sed -i s/a/b/ a.py)", 'bash -c "pytest -q > a.py"'])
+def test_a_redirect_or_a_test_runs_writing_option_may_write(line):
+    # (CL-329 G: the end check opened for none of these - `ledger._split` drops a redirection,
+    # and a test run was taken as reading only)
+    assert proof.may_write(line)
+
+
+@pytest.mark.parametrize("line", [
+    "pytest -q", "pytest -q 2>&1 | tail -1", "git status > /dev/null", "python -m pytest -q > NUL",
+    'bash -c "pytest -q"', "rg KEY .", "python -u -m pytest -q", "pytest --cov-report=term"])
+def test_a_stream_nowhere_or_a_plain_test_run_writes_nothing(line):
+    assert not proof.may_write(line)
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_a_test_file_a_command_deleted_is_counted_and_another_file_is_put_back(tmp_path,
+                                                                              monkeypatch):
+    from tests.test_take_in_scenarios import repository
+    (tmp_path / "gitconfig").write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    folder = tmp_path / "p"
+    folder.mkdir()
+    for name in ("a.py", "b.py", "test_b.py", "c.py"):
+        (folder / name).write_text("1\n")
+    repository(folder)
+    # (CL-329 G: a tracked test deleted - no time to read - is counted; another file is not)
+    (folder / "test_b.py").unlink()
+    (folder / "c.py").unlink()
+    assert proof.touched_since(folder, now(), set()) == ["test_b.py"]
+    assert proof.touched_since(folder, now(), {"test_b.py"}) == []
+
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_what_changed_while_kolonis_run_went_on_is_said_and_put_back_only_by_a_click(
+        tmp_path, monkeypatch):
+    # (review of k-onceki-2: the run's put-back reverted the user's editor save, newer uncommitted
+    # work, another chat's change and an edit after a commit. Nothing is put back by itself now:
+    # it is said, and Put back - the user's click - restores one still as the run left it.)
+    from tests.test_take_in_scenarios import git, repository
+    (tmp_path / "gitconfig").write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    folder = tmp_path / "p"
+    folder.mkdir()
+    for name in ("a.py", "b.py", "c.py", "d.py", "e.txt", "f.py"):
+        (folder / name).write_bytes(b"1\n")
+    repository(folder)
+    (folder / "c.py").write_bytes(b"C = 2  # the user's uncommitted work\n")
+    before = proof.sources_before(folder)
+    assert before is not None and before.files == {"c.py": b"C = 2  # the user's uncommitted work\n"}
+    # (while the run goes on: the user's editor, newer work, another chat's command, the run's
+    # own reformat, a commit then an edit; an agent's write on record; a report it made)
+    (folder / "a.py").write_bytes(b"NEW = 'the user saved this'\n")
+    (folder / "c.py").write_bytes(b"C = 3  # newer\n")
+    (folder / "d.py").write_bytes(b"D = 2  # another chat\n")
+    (folder / "b.py").write_bytes(b"B = 1  # reformatted by the run\n")
+    (folder / "e.txt").write_bytes(b"committed\n")
+    git(folder, "commit", "-qm", "mid-run", "--", "e.txt")
+    (folder / "e.txt").write_bytes(b"committed\nstill editing\n")
+    (folder / "f.py").write_bytes(b"an agent's\n")
+    (folder / "report.xml").write_bytes(b"<r/>")
+    changed = proof.changed_during(folder, before, {"f.py"})
+    assert sorted(changed) == ["a.py", "b.py", "c.py", "d.py", "e.txt"]
+    # (nothing lost without a click)
+    assert (folder / "a.py").read_bytes() == b"NEW = 'the user saved this'\n"
+    assert (folder / "c.py").read_bytes() == b"C = 3  # newer\n"
+    assert (folder / "e.txt").read_bytes() == b"committed\nstill editing\n"
+    # (a click: b.py as the run's commit had it, c.py as it was then; one changed again: refused)
+    assert proof.put_back(folder, "b.py", before, changed["b.py"]) is None
+    assert (folder / "b.py").read_bytes() == b"1\n"
+    assert proof.put_back(folder, "c.py", before, changed["c.py"]) is None
+    assert (folder / "c.py").read_bytes() == b"C = 2  # the user's uncommitted work\n"
+    (folder / "a.py").write_bytes(b"NEW = 'and saved again'\n")
+    assert proof.put_back(folder, "a.py", before, changed["a.py"]) == (
+        "a.py changed again since KOLONİ's run")
+    assert (folder / "a.py").read_bytes() == b"NEW = 'and saved again'\n"
+    assert proof.put_back(folder, "../x.py", before, "") == "../x.py is not in the project"
+
+
 def test_exit_0_with_command_not_found_in_its_output_is_passed():
     out = "test_cli.py::test_missing_tool PASSED  (asserts 'bash: foo: command not found')\n3 passed\n"
     assert proof.tests_row(RUN, 0, out, "exited", "")["state"] == "passed"

@@ -47,7 +47,7 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 <td width="50%"><img src="docs/images/checks-node.png" alt="The canvas: the Orchestrator's box says checked, and the Checks node under it lists each line"><br><sub><b>The Checks node.</b> The same lines on the canvas; its ⋯ menu stops a check or turns it off for the chat.</sub></td>
 </tr>
 <tr>
-<td colspan="2"><img src="docs/diagrams/proven-finish.svg" alt="Proven finish: the related tests, the whole suite after the answer, documents, slides and pages, a Reviewer's look, a test for the change, the live try; a failure goes back to be fixed, then a stronger model; and where Settings sets each part"><br><sub><b>Proven finish.</b> What KOLONİ checks before an answer ends a turn that changed your project, and where you set each part.</sub></td>
+<td colspan="2"><img src="docs/diagrams/proven-finish.svg" alt="Proven finish: the related tests, the whole suite after the answer, documents, slides and pages, a Reviewer's look, the live try, a test for the change; a failure goes back to be fixed, then a stronger model; and where Settings sets each part"><br><sub><b>Proven finish.</b> What KOLONİ checks before an answer ends a turn that changed your project, and where you set each part.</sub></td>
 </tr>
 </table>
 

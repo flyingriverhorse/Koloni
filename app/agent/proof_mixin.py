@@ -11,6 +11,7 @@ import contextlib
 import json
 import logging
 import math
+import shutil
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -18,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import literal_column, or_, select
 
 from app import away, injection, ledger, proof, proof_before, recipe_run
 from app.agent.before_mixin import NOT_YOURS
@@ -27,13 +28,13 @@ from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
 from app.api.usage import over_month
 from app.commands import web_off_reason
-from app.db.models import Agent, Command, Conversation, Message, Run, ToolCall, now
+from app.db.models import Agent, Command, Conversation, FileChange, Message, Run, ToolCall, now
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row, TestRun
 from app.serialize import message_out
 from app.team import quoted
 from app.tools import MAX_TIMEOUT, ToolError
-from app.workspace import Workspace
+from app.workspace import Workspace, is_secret, secret_in_project
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -50,6 +51,8 @@ PROOF_CALL = proof.PROOF_CALL
 # it they are stopped and said not waited for. An Away job, a To-do task's and a trigger's turn
 # wait to the commands' own limit (MAX_TIMEOUT), each command.
 END_WAIT_SECONDS = 120
+# CL-329: how long Put back's kept folder of a run stays, unclicked (or its chat deleted).
+KEPT_DAYS = 3
 SLOT_BUSY = "another of KOLONİ's test runs held the machine past the wait"
 # Plan decision 8: while the user is away (an Away job, a To-do turn) nobody is there to say yes to
 # a guess - it is not run; the user's own saved command still is.
@@ -106,8 +109,10 @@ class Proof:
     # Plan decision 13: a recipe of the turn ran its own fix loop to its end - rounds never stack.
     recipe_spent: bool = False
     # CL-321 Bulgu D: the turn's newest command that may have changed files off the record
-    # (`proof.unrecorded`, shortened); None: none.
+    # (`proof.unrecorded`, shortened); None: none. CL-329 G: the test files such commands
+    # deleted (git's word): "Test removed" each.
     unrecorded: str | None = None
+    gone_tests: list[str] = field(default_factory=list)
     # S5c: what this pass checks (`proof.checks_of`: the project's, or its recipe's Checks step).
     checks: proof.Checks = proof.Checks(frozenset(proof.PARTS), MAX_SENT_BACK, "check", False)
     changes: list[Change] = field(default_factory=list)
@@ -185,8 +190,10 @@ class Proof:
 
 class ProofMixin:
     # The gate's steps, run in order: the first nudge ends the pass (later slices append theirs).
+    # (CL-329 I: the live try before the ask for a test - an answer to that ask with a reason
+    # and no call ends the turn, and the try was never made.)
     PROOF_STEPS: tuple[str, ...] = ("_proof_tests", "_proof_kinds", "_proof_review",
-                                    "_proof_test_ask", "_proof_try")
+                                    "_proof_try", "_proof_test_ask")
 
     async def _end_left(self: "AgentRunner", ctx: Ctx) -> str | None:
         """What the Lead is told before its answer may end the turn; None: it may."""
@@ -211,14 +218,15 @@ class ProofMixin:
             # (CL-321 Bulgu D: a change a command made is on no record - the gate opens for it.)
             ran = proof.unrecorded(session, ctx.run_id, {ctx.agent_id, *self._sharing(ctx)},
                                    ctx.root)
-        unrecorded = await self._what_it_touched(ctx, ran, found) if ran is not None else None
+        unrecorded, gone = await self._what_it_touched(ctx, ran, found) if ran is not None else (
+            None, [])
         if not any(one.in_project for one in found) and unrecorded is None:
             return None
         until = checks.rounds is None  # (k-canli-016: until it passes, to its ceiling)
         most = proof.UNTIL_CEILING if checks.rounds is None else checks.rounds
         held = self._proofs.setdefault(ctx.run_id, Proof(most=most))
         held.changes, held.checks, held.most, held.until_passes = found, checks, most, until
-        held.unrecorded = unrecorded
+        held.unrecorded, held.gone_tests = unrecorded, gone
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         for name in self.PROOF_STEPS:
             try:
@@ -264,23 +272,26 @@ class ProofMixin:
         return True
 
     async def _what_it_touched(self: "AgentRunner", ctx: Ctx, ran: tuple[str, Any],
-                               found: list[Change]) -> str | None:
+                               found: list[Change]) -> tuple[str | None, list[str]]:
         """Review of CL-321 D: in a git project, unrecorded commands count only where git lists a
         file written since the first of them started (or committed since the turn began) - then
         the newest said with up to MOST_TOUCHED of them ("a.py, b.py - python gen.py"); none:
         they changed nothing (a question's `python main.py`). Not a git project: the command
-        alone, as it may have changed anything."""
+        alone, as it may have changed anything. And (CL-329 G) the test files they deleted -
+        each a "Test removed" row, as one a change on record deleted."""
         command, since = ran
         head = (self._git_at.get(ctx.run_id) or {}).get("head")  # (`_git_start`)
         touched = await asyncio.to_thread(
             proof.touched_since, Path(ctx.folder), since, {one.path for one in found}, head)
         if touched is None:
-            return command
+            return command, []
         if not touched:
-            return None
+            return None, []
+        gone = [path for path in touched
+                if proof.is_test(path) and not (Path(ctx.folder) / path).exists()]
         more = f" +{len(touched) - proof.MOST_TOUCHED} more" if len(
             touched) > proof.MOST_TOUCHED else ""
-        return f"{', '.join(touched[:proof.MOST_TOUCHED])}{more} - {command}"
+        return f"{', '.join(touched[:proof.MOST_TOUCHED])}{more} - {command}", gone
 
     @staticmethod
     def _round_of(held: "Proof") -> str:
@@ -591,6 +602,7 @@ class ProofMixin:
                 raise ToolError(SLOT_BUSY) from None
             taken.append(True)
             check.going.set_result(now())
+            look["before"], look["started"] = await self._sources_now(ctx, held, copy), now()
             if (now_left := left()) is not None:
                 if now_left < 1:
                     taken.append(False)
@@ -601,6 +613,7 @@ class ProofMixin:
         copy = self._copies.get(self._works_in(ctx) or "")
         was, kept = await asyncio.to_thread(lambda: copy.snapshot(
             [path for path, _kind, _state in copy.changes()])) if copy else ({}, {})
+        look: dict = {}  # (CL-329: the project as the run starts - taken once it has its slot)
         try:
             code, output, said, ended = await self._run_in_copy(
                 ctx, ws, line, call_id, ask=how == "ask",
@@ -623,6 +636,7 @@ class ProofMixin:
             if True in taken:
                 slot.release()
         await self._tests_put_back(copy, was, kept)
+        await self._changed_said(ctx, held, run, look.get("before"), look.get("started"))
         self._set_call(ctx.cid, call_id, status="denied" if ended == "rejected" else
                        "failed" if code is None else "succeeded", result=said, ended_at=now())
         self._always_kept(ctx, held, run, call_id)  # (option A: Always on its own card)
@@ -632,6 +646,102 @@ class ProofMixin:
                 run.guessed), ""
         return proof.tests_row(run, code, output, ended, said,
                                given["seconds"] or MAX_TIMEOUT), output
+
+    @staticmethod
+    async def _sources_now(ctx: Ctx, held: Proof, copy) -> proof.Before | None:
+        """CL-329: in the project itself (not a copy, nor S7's old code), its tracked files as
+        they are as KOLONİ's own run starts - what changed while it went on is said after it
+        (`_changed_said`)."""
+        if copy is not None or held.place is not None:
+            return None
+        return await asyncio.to_thread(proof.sources_before, Path(ctx.folder))
+
+    async def _changed_said(self: "AgentRunner", ctx: Ctx, held: Proof, run: TestRun,
+                            before: proof.Before | None, started) -> None:
+        """CL-329 (review: say it, never revert it by itself): a tracked file of the project that
+        changed while KOLONİ's own run went on - by the run (a check that formats), the user's
+        editor or another chat - is said on a row with Put back, the user's click
+        (`put_back_changed`); one an agent wrote on record since the run started is not.
+        shortcut: a run that was stopped says nothing of what changed; say it there too if seen."""
+        if before is None:
+            return
+        with self._factory() as session:
+            spare = set(session.scalars(select(FileChange.path).where(or_(
+                FileChange.created_at >= started, FileChange.decided_at >= started))))
+        changed = await asyncio.to_thread(proof.changed_during, Path(ctx.folder), before, spare)
+        if not changed:
+            return
+        await asyncio.to_thread(self._keep_changed, ctx, before, changed)
+        more = f" +{len(changed) - proof.MOST_TOUCHED} more" if len(
+            changed) > proof.MOST_TOUCHED else ""
+        held.rows.append(proof.row("changed_during", "note", proof.CHANGED_DURING.format(
+            command=run.command, files=", ".join(list(changed)[:proof.MOST_TOUCHED]) + more)))
+
+    def _changed_place(self: "AgentRunner", run_id: str) -> Path:
+        """Where what Put back needs is kept, KOLONİ's own: the files' bytes before the run."""
+        return self.settings.runtime_root / "changed-during" / run_id
+
+    def _keep_changed(self: "AgentRunner", ctx: Ctx, before: proof.Before,
+                      changed: dict[str, str]) -> None:
+        """What Put back needs of `changed`: the project, the run's commit, and each file's
+        digest after the run and bytes before it (none: the commit's) - never a secret file's
+        (KOLONİ keeps no copy of one: changed before the run, it is the user's to put back).
+        Kept folders of runs past KEPT_DAYS go."""
+        self._prune_changed()
+        place = self._changed_place(ctx.run_id)
+        place.mkdir(parents=True, exist_ok=True)
+        state = self._changed_state(ctx.run_id) or {"files": {}}
+        state.update(folder=ctx.folder, head=before.head)
+        for rel, after in changed.items():
+            kept, secret = None, is_secret(rel) or secret_in_project(rel)
+            if before.files.get(rel) is not None and not secret:
+                kept = uuid.uuid4().hex
+                (place / kept).write_bytes(before.files[rel] or b"")
+            state["files"][rel] = {"after": after, "before": kept,
+                                   "secret": secret and rel in before.files}
+        (place / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    def _prune_changed(self: "AgentRunner") -> None:
+        """Put back's kept folders of runs older than KEPT_DAYS: gone (a chat deleted, or a row
+        nobody clicked)."""
+        edge = time.time() - KEPT_DAYS * 86400
+        for one in (self.settings.runtime_root / "changed-during").glob("*"):
+            with contextlib.suppress(OSError):
+                if one.is_dir() and one.stat().st_mtime < edge:
+                    shutil.rmtree(one, ignore_errors=True)
+
+    def _changed_state(self: "AgentRunner", run_id: str) -> dict | None:
+        try:
+            return json.loads((self._changed_place(run_id) / "state.json").read_text(
+                encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    def put_back_changed(self: "AgentRunner", run_id: str) -> dict | None:
+        """The user's Put back (CL-329): each file changed while KOLONİ's run went on, as it was
+        when the run started - where it is still as the run left it; one changed again since is
+        refused, said. What was put back and what not; None: nothing waits. Blocking."""
+        state = self._changed_state(run_id)
+        if not state or not state.get("files"):
+            return None
+        folder, place = Path(state["folder"]), self._changed_place(run_id)
+        done, refused = [], []
+        for rel, one in list(state["files"].items()):
+            kept = (place / one["before"]).read_bytes() if one.get("before") else None
+            why = f"{rel}: {proof.SECRET_KEPT}" if one.get("secret") else proof.put_back(
+                folder, rel, proof.Before(state.get("head"), {rel: kept}), one["after"])
+            if why is not None:
+                refused.append({"path": rel, "why": why})
+            else:
+                done.append(rel)
+            # (put back, or refused for good: no more to keep of it)
+            if why is None or one.get("secret") or why.endswith((proof.AGAIN, proof.OUTSIDE)):
+                del state["files"][rel]
+        if state["files"]:
+            (place / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        else:
+            shutil.rmtree(place, ignore_errors=True)
+        return {"put_back": done, "refused": refused}
 
     def _timeout_on_record(self: "AgentRunner", call_id: str, seconds: int) -> None:
         """The limit a run really has, on its record: what is left of the wait once it held the
