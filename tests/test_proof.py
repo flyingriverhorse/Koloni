@@ -322,6 +322,43 @@ def test_a_line_started_in_the_same_clock_tick_after_a_pass_unmakes_it(factory):
         assert proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r")) is None
 
 
+def test_unrecorded_names_the_newest_writer_from_the_oldest_ones_start(factory):
+    # (Re-check of D: `sed -i` wrote a.py, `python main.py` 30 s later wrote nothing - from the
+    # newest's start a.py was left out, and the turn went unchecked.)
+    at = now()
+    with factory() as s:
+        ran(s, "cat a.py", 0, at - timedelta(seconds=40))  # (a read: not where it starts)
+        ran(s, "sed -i s/1/2/ a.py", 0, at - timedelta(seconds=30))
+        ran(s, "python -m pytest -q", 0, at - timedelta(seconds=20))
+        ran(s, "python main.py", 0, at)
+        assert proof.unrecorded(s, "r", {"lead"}) == ("python main.py", at - timedelta(seconds=31))
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_touched_since_counts_an_earlier_write_and_a_committed_one(tmp_path, monkeypatch):
+    import os
+
+    from tests.test_take_in_scenarios import git, repository
+    (tmp_path / "gitconfig").write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    folder = tmp_path / "p"
+    folder.mkdir()
+    for name in ("a.py", "b.py", "c.py", "d.py"):
+        (folder / name).write_text("1\n")
+    repository(folder)
+    head, began = git(folder, "rev-parse", "HEAD"), now() - timedelta(seconds=60)
+    (folder / "a.py").write_text("2\n")  # (by the turn's first writing command, 30 s on)
+    os.utime(folder / "a.py", (began.timestamp() + 30,) * 2)
+    (folder / "b.py").write_text("2\n")  # (written and committed: `black . && git commit`)
+    git(folder, "commit", "-qm", "fmt", "b.py")
+    (folder / "d.py").write_text("2\n")  # (an hour old: `cp -p` - not seen, a shortcut)
+    os.utime(folder / "d.py", (began.timestamp() - 3600,) * 2)
+    assert proof.touched_since(folder, began, set()) == ["a.py"]
+    assert proof.touched_since(folder, began, set(), head) == ["a.py", "b.py"]
+    assert proof.touched_since(folder, began, {"a.py"}, head) == ["b.py"]
+
+
 def test_exit_0_with_command_not_found_in_its_output_is_passed():
     out = "test_cli.py::test_missing_tool PASSED  (asserts 'bash: foo: command not found')\n3 passed\n"
     assert proof.tests_row(RUN, 0, out, "exited", "")["state"] == "passed"

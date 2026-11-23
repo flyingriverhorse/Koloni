@@ -491,6 +491,11 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run
     ("Verdict: MERGE - no changes requested", "MERGE"), ("Final verdict: MERGE", "MERGE"),
     ("Verdict: MERGE is not possible yet", "HOLD"), ("Verdict:\n**MERGE**", "MERGE"),
     ("My verdict: MERGE, with minor nits", "MERGE"),
+    # (a negation reaches no further than punctuation; "MERGE? No" is no MERGE)
+    ("Verdict: no, HOLD", "HOLD"), ("Verdict: No. HOLD until the test is fixed", "HOLD"),
+    ("Verdict: MERGE? No - HOLD", "HOLD"), ("Verdict: not MERGE-ready", "HOLD"),
+    ("Verdict: never MERGE this", "HOLD"), ("Verdict: MERGE or HOLD? HOLD.", "HOLD"),
+    ("Verdict: MERGE or HOLD? MERGE.", "MERGE"), ("Verdict: won't block - MERGE", "MERGE"),
 ])
 def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
     assert review_mixin.verdict_of(report) == verdict

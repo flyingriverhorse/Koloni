@@ -1039,6 +1039,33 @@ def test_in_a_git_project_a_command_counts_by_the_files_it_wrote(make_client, wa
                            "Tests passed: python check.py - 4 passed in 0.1s"], texts(snap)
 
 
+class _Commits(ScriptedExecutor):
+    """As `black . && git commit -am fmt`: what `python fmt.py` writes, it commits."""
+
+    async def start(self, command_id, command, cwd, *args, **kwargs):
+        from tests.test_take_in_scenarios import git
+        started = await super().start(command_id, command, cwd, *args, **kwargs)
+        if command == "python fmt.py":
+            git(cwd, "commit", "-qam", "fmt")
+        return started
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_in_a_git_project_a_write_the_command_committed_counts(make_client, wait_run,
+                                                                project_dir, monkeypatch):
+    # (Re-check of D: git status is clean after a commit - what the turn committed counts too.)
+    from tests.test_take_in_scenarios import git
+    (project_dir / "app.py").write_text("x=1\n")
+    _git_project(project_dir, monkeypatch)
+    executor = _Commits([Script(["\n"], writes={"app.py": "x = 1\n"}), PASS])
+    client, _model = make_client([run("python fmt.py"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert "app.py" not in git(project_dir, "status", "--porcelain")  # (committed: status clean)
+    assert texts(snap) == [proof.UNRECORDED.format(command="app.py - python fmt.py"),
+                           "Tests passed: python check.py - 4 passed in 0.1s"], texts(snap)
+
+
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
 def test_in_a_git_project_a_command_that_wrote_nothing_opens_no_gate(make_client, wait_run,
                                                                       project_dir, monkeypatch):

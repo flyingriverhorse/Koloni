@@ -31,7 +31,7 @@ from app.db.models import (
     ToolCall,
 )
 from app.tools import MAX_TIMEOUT
-from app.workspace import in_scratch, secret_in_project, unified_diff
+from app.workspace import in_scratch, is_secret, secret_in_project, unified_diff
 
 # KOLONİ's own end-of-turn test run: its call's id starts so (`ProofMixin`).
 PROOF_CALL = "koloni_proof_"
@@ -322,21 +322,24 @@ def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
 
 def unrecorded(session: Session, run_id: str, by: Collection[str]
                ) -> tuple[str, datetime | None] | None:
-    """CL-321 Bulgu D: the newest command of `by` (the Lead and the agents working where it
-    does) this turn that may have changed files no change record holds - one with a part that
-    is neither a mere read (`only_reads`) nor a test run (`ledger.read_test`), not KOLONİ's own:
-    `python -c "open(…)"`, `sed -i`, a heredoc to a file, `black . && pytest -q`. Its line,
-    shortened, and when it started; None: none ran."""
+    """CL-321 Bulgu D: the commands of `by` (the Lead and the agents working where it does) this
+    turn that may have changed files no change record holds - each with a part that is neither a
+    mere read (`only_reads`) nor a test run (`ledger.read_test`), not KOLONİ's own:
+    `python -c "open(…)"`, `sed -i`, a heredoc to a file, `black . && pytest -q`. The newest's
+    line, shortened, and when the oldest started (an earlier `sed -i` wrote too); None: none."""
     mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
+    newest, oldest = None, None
     for line, started in session.execute(select(Command.command, Command.started_at).where(
             Command.run_id == run_id, Command.agent_id.in_(by),
             Command.status.in_(("exited", "timed_out")),
             or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(mine)))
             .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
         if may_write(line):
-            said = " ".join(line.split())
-            return (said if len(said) <= MOST_COMMAND else said[:MOST_COMMAND - 1] + "…"), started
-    return None
+            if newest is None:
+                said = " ".join(line.split())
+                newest = said if len(said) <= MOST_COMMAND else said[:MOST_COMMAND - 1] + "…"
+            oldest = started
+    return None if newest is None else (newest, oldest)
 
 
 def may_write(line: str) -> bool:
@@ -346,25 +349,32 @@ def may_write(line: str) -> bool:
                for part in (" ".join(words) for words, _op in ledger._split(line) if words))
 
 
-def touched_since(folder: Path, since: datetime | None, recorded: Collection[str]
-                  ) -> list[str] | None:
-    """Review of CL-321 D: what a command may have changed, by git - the files `git status`
-    lists in `folder` (changed, added, untracked; not ignored), but those on record
+def touched_since(folder: Path, since: datetime | None, recorded: Collection[str],
+                  head: str | None = None) -> list[str] | None:
+    """Review of CL-321 D: what commands may have changed, by git - the files `git status`
+    lists in `folder` (changed, added, untracked; not ignored) and, from `head` (the turn's
+    start), those committed since (`black . && git commit -am x`), but those on record
     (`recorded`), written at or after `since`. None: no git there (or it did not answer in
-    time). shortcut: a file it deleted is not seen (no time to read); count git's deletions if
-    that is missed. Blocking: call it off the event loop."""
+    time). Blocking: call it off the event loop.
+    shortcut: a file deleted is not seen (no time to read); count git's deletions if missed.
+    shortcut: a write that keeps an old time (`cp -p`, `tar x`, `unzip`, `touch -d`), one into
+    an ignored folder and a secret-named file (`git.changes` leaves it out) are not seen; ask
+    git for them, or read the files' hashes as the turn begins, if a change slips by so."""
     listed = git.changes(folder)
     if listed is None:
         return None
+    paths = [one["path"] for one in listed]
+    if head is not None:
+        paths += [one for one in git.committed_since(folder, head) if not is_secret(one)]
     edge = since.timestamp() - MTIME_SLACK if since is not None else float("-inf")
     found = []
-    for one in listed:
-        if one["path"] in recorded:
+    for path in dict.fromkeys(paths):
+        if path in recorded:
             continue
         with contextlib.suppress(OSError):
-            if (folder / one["path"]).stat().st_mtime >= edge:
-                found.append(one["path"])
-    return found
+            if (folder / path).stat().st_mtime >= edge:
+                found.append(path)
+    return sorted(found)
 
 
 def last_change(session: Session, run_id: str, made_there: Collection[str] = ()

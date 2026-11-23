@@ -179,13 +179,15 @@ class ProofMixin:
 
     async def _what_it_touched(self: "AgentRunner", ctx: Ctx, ran: tuple[str, Any],
                                found: list[Change]) -> str | None:
-        """Review of CL-321 D: in a git project, an unrecorded command counts only where git lists
-        a file written since it started - then said with up to MOST_TOUCHED of them ("a.py, b.py
-        - python gen.py"); none: it changed nothing (a question's `python main.py`). Not a git
-        project: the command alone, as it may have changed anything."""
+        """Review of CL-321 D: in a git project, unrecorded commands count only where git lists a
+        file written since the first of them started (or committed since the turn began) - then
+        the newest said with up to MOST_TOUCHED of them ("a.py, b.py - python gen.py"); none:
+        they changed nothing (a question's `python main.py`). Not a git project: the command
+        alone, as it may have changed anything."""
         command, since = ran
+        head = (self._git_at.get(ctx.run_id) or {}).get("head")  # (`_git_start`)
         touched = await asyncio.to_thread(
-            proof.touched_since, Path(ctx.folder), since, {one.path for one in found})
+            proof.touched_since, Path(ctx.folder), since, {one.path for one in found}, head)
         if touched is None:
             return command
         if not touched:

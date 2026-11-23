@@ -115,8 +115,10 @@ VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?(?:\d{1,3}[.)]\s+)?\**\s*(?:[A-Za-z
 _KEYWORD = re.compile(r"\b(MERGE|HOLD|REQUEST(?:ED|ING)?\s+CHANGES|REJECT(?:ED)?|BLOCK(?:ED)?)\b",
                       re.IGNORECASE)
 _NEGATION = re.compile(r"^(?:not|no|never|cannot)$|n't$", re.IGNORECASE)
-_MERGE_NOT = re.compile(r"\s*(?:is|was|should|would|will)?\s*(?:not|never)\b|\s*isn't\b",
-                        re.IGNORECASE)
+_MERGE_NOT = re.compile(r"\s*(?:is|was|should|would|will)?\s*(?:not|never)\b|\s*isn't\b"
+                        r"|\s*\?\s*(?:no|not|never)\b", re.IGNORECASE)  # ("MERGE? No - HOLD")
+# Where a negation's reach ends: "no, HOLD" and "No. HOLD until …" hold.
+_STOP = re.compile(r"[,.;:!?–—…]|\s-+\s")
 _CHOICE = re.compile(r"\b(?:MERGE|HOLD)\s+or\s+(?:MERGE|HOLD)\b", re.IGNORECASE)  # (a question)
 # A verdict not this look's: "Previous verdict: HOLD. Now it is fixed."
 _EARLIER = re.compile(r"\b(?:previous|last|earlier|old)\s+verdict\b", re.IGNORECASE)
@@ -156,11 +158,12 @@ def verdict_of(report: str) -> str | None:
 def _verdict_said(words: str) -> str | None:
     """What a verdict's words say, by the first that is one (`_KEYWORD`): a hold word not
     negated in the three words before it holds; MERGE merges unless a negation is among the two
-    words before it or it is said not to be (`MERGE is not possible`). None: neither."""
+    words before it or it is said not to be (`MERGE is not possible`, `MERGE? No`). A negation
+    reaches no further than punctuation (`_STOP`). None: neither."""
     words, since = _CHOICE.sub(" ", words), 0
     for found in _KEYWORD.finditer(words):
         # (only the words since the last keyword: "I'd not block: MERGE" negates no MERGE)
-        before = [one.strip("*:,.;()") for one in words[since:found.start()].split()]
+        before = [one.strip("*()") for one in _STOP.split(words[since:found.start()])[-1].split()]
         since = found.end()
         if found[1].upper() == "MERGE":
             near = any(_NEGATION.search(one) for one in before[-2:])
