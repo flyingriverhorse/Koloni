@@ -338,7 +338,8 @@ decides, as before (Fix it).
 
 The order is always the same: KOLONİ's checks first, on the work where it is (a recipe's copy), then
 **Ready for you**. Its card, or Full auto's own Take in, comes only after the Checked section - never
-for work the checks left failing.
+for work the checks left failing. A fix round there sends the recipe back to work, as a wordless
+Ask for changes would: its own roles fix it in its copy, and its end checks it again.
 
 ## Documents, diagrams, data and slides
 

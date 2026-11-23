@@ -680,7 +680,8 @@ def test_a_capped_review_loop_leaves_the_end_checks_own_rounds(make_client, wait
     from tests.test_spawn import call, spawn, step
 
     # (k-sira-016: the end check runs first, on the recipe's copy, and fails - before any Ready
-    # for you; its one run stands for the work after, as nothing changed.)
+    # for you - and sends the recipe back to work; a Lead that leaves it there leaves it in its
+    # copy, never offered.)
     executor = ScriptedExecutor([failing(), failing(), failing()])
     client, _model = make_client({
         "Lead": [spawn("Coder", "build", "c1"), spawn("Reviewer", "review", "r1"),
@@ -704,9 +705,8 @@ def test_a_capped_review_loop_leaves_the_end_checks_own_rounds(make_client, wait
     assert row(snap)["status"] != "in" and not (project_dir / "greet.py").exists()
     rows = checked(snap)
     assert rows[0]["state"] == "failed" and len(proof_calls(snap)) == 1, rows
-    assert [one["text"] for one in rows[1:]] == [
-        "Sent back to fix: 2 of 2 rounds", "Still failing after 2 fix rounds: you decide (Fix it)",
-        "Not taken in: the tests still fail after rounds by fake-model"], rows
+    assert [one["text"] for one in rows[1:]] == ["Sent back to fix: 1 of 2 rounds"], rows
+    assert row(snap)["status"] == "stopped", row(snap)
 
 
 def test_an_error_inside_the_end_check_is_a_row_not_a_failed_turn(

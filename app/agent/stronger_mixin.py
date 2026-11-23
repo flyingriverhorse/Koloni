@@ -100,7 +100,11 @@ TIER_NAMES = {"fast": "Fast", "balanced": "Balanced", "strongest": "Strongest"}
 RECIPE_FAILING = "the recipe's tests still fail after its fix rounds"
 TESTS_FAILING = "its tests still fail after its fix rounds"
 NOT_TAKEN_TOLD = ("\n\nNot taken in: {why}. The work stays in its copy, with no card at any "
-                  "level: KOLONİ checks it again at your answer's end, and the user decides.")
+                  "level: change it and KOLONİ checks it again at your answer's end; else the "
+                  "user decides.")
+# k-sira-016: a fix round of KOLONİ's checks at Ready for you, in the recipe - its roles fix it.
+FIX_IN_RECIPE = ("\n\nKOLONİ's checks send the recipe back, as Ask for changes would: {back} Its "
+                 "end runs them again before Ready for you.")
 NOT_TAKEN_KEPT = "not taken in: {why}"
 NOT_TAKEN = "Not taken in: {what} after rounds by {by}"
 NOT_TAKEN_PLAIN = "Not taken in: {why}"
@@ -179,10 +183,13 @@ class StrongerMixin:
         if held.left_failing and self._works_in(ctx) is not None:
             # (decision 18: failing work in a copy of the turn's own is never taken in - kept)
             self._held_back.setdefault(ctx.run_id, TESTS_FAILING)
-        elif not held.left_failing and held.handed and self._held_back.pop(ctx.run_id, None):
-            # (its recipe's row still says findings were left; Ready for you, which ran these
-            # checks first, asks next - k-sira-016)
-            held.passed_by_stronger = True
+        elif not held.left_failing and held.handed:
+            held.passed_by_stronger = True  # (its recipe's row still says findings were left)
+            if self._held_back.pop(ctx.run_id, None):  # (held before, at the Lead's end: never
+                # inside Ready for you, which asks nothing while held - it asks now, these
+                # checks standing for it, k-sira-016)
+                held.ready_calls = self._calls_of(ctx)
+                await self._ready_at_end(ctx)
         return None
 
     async def _hand_up(self: "AgentRunner", ctx: Ctx, held: "Proof") -> None:
@@ -537,9 +544,14 @@ class StrongerMixin:
         it is. KOLONİ's end checks run first, on the work where it is (the recipe's copy): a fix
         round goes to the Lead (its words, no card); work they left failing after the rounds
         and the stronger models is never taken in nor carded (decision 18, S11). Asked: its
-        Checked section is said first, so the card comes after it."""
+        Checked section is said first, so the card comes after it. A fix round sends the rows
+        back to work, as a wordless Ask for changes: at their end no role is opened, and the
+        Lead may not write (delegates) - the recipe's own roles fix it, in its copy."""
+        rounds = was.rounds if (was := self._proofs.get(ctx.run_id)) else 0
         if (said := await self._proof_left(ctx)) is not None:
-            return f"\n\n{said}"
+            fixing = (was := self._proofs.get(ctx.run_id)) is not None and was.rounds > rounds
+            back = self._rows_to(ctx, "Ask for changes", "") if fixing else ""
+            return f"\n\n{said}" + (FIX_IN_RECIPE.format(back=back) if back else "")
         if was := self._proofs.get(ctx.run_id):  # (not again at the Lead's end, `_proof_left`)
             was.ready_calls = self._calls_of(ctx)
         if held := self._recipe_held(ctx, rows) or self._held_back.get(ctx.run_id):

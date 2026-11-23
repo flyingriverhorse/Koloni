@@ -82,7 +82,8 @@ Every recipe ends in a **Checks** step 🔒: what KOLONİ checks before the reci
 the end itself ("Ask me, then in", "Take in", "Tell me"): the arrows go last step → Checks → end,
 one Checks step before all of the ends, and it moves with them when you add or move a step. It cannot be
 removed or dragged. KOLONİ runs its checks first, on the work in the recipe's copy, and only then asks
-**Ready for you**: work whose tests still fail after the rounds is never offered nor taken in.
+**Ready for you**: a fix round sends the recipe back to work, and work whose tests still fail after
+the rounds is never offered nor taken in.
 
 ![The Bugfix recipe in the editor: its steps end in the locked Checks step, and its panel offers Follow the project or Set for this recipe with Tests, Review, Docs, Diagrams, Data, Slides and Pages, and Fix rounds](../images/recipe-checks-step.png)
 

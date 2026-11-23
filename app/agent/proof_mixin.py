@@ -211,7 +211,10 @@ class ProofMixin:
     def _checked_at_ready(self: "AgentRunner", ctx: Ctx) -> bool:
         """k-sira-016: Ready for you ran this pass first, on the recipe's copy, and the Lead has
         made no call since: the work is as it was checked - what Take in brought in is that work,
-        no change after the check."""
+        no change after the check.
+        shortcut: "since" is the Lead's own calls - an agent at work after Ready for you is not
+        counted (none is: it asks only with the copy free, `_busy_in_copy`); count the turn's
+        changes since if one is seen."""
         was = self._proofs.get(ctx.run_id)
         if was is None or was.ready_calls != self._calls_of(ctx):
             return False
