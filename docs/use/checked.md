@@ -792,7 +792,7 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Still on hold: `role` could not look again (`why`) - you decide (Fix it) | A look after a fix round could not be had: the hold stands. |
 | ✓ `file`: 3 links, all found · `file`: 120 rows × 4 columns · `file`: 12 slides, 3 with notes | A document, diagram, data file or deck KOLONİ checked and found right. |
 | ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
-| – `file`: … - so before this turn | A problem the file already had - on another line too, where the turn moved it: said, not sent back. |
+| – `file`: … - so before this turn | A problem the file already had - the same complaint on a line of the same text, where a line added above moved it: said, not sent back. The same complaint on a line the turn wrote is the turn's. |
 | – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
 | ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
 | ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |

@@ -372,6 +372,85 @@ def test_an_old_problem_a_line_above_moved_is_still_the_files_own(tmp_path):
     ]
 
 
+OLD_COMMA = "{\n" + "".join(f'  "k{n}": {n},\n' for n in range(9)) + "}\n"  # (line 11: "}")
+
+
+@pytest.mark.parametrize(
+    ("rel", "was", "now"),
+    [
+        # (Review of k-config-q: the same complaint on a line the turn wrote is the turn's - its
+        # old trailing comma taken out, a new one written on line 3; the file written anew; a
+        # YAML line of the same fault replaced)
+        (
+            "package.json",
+            OLD_COMMA,
+            OLD_COMMA.replace('"k8": 8,', '"k8": 8').replace('"k1": 1,', '"k1": {"x": 1,},'),
+        ),
+        ("data.json", '{"a": 1,}', '{"q": 2,}'),
+        ("a.yaml", "a: b: c\n", "w: q: r\n"),
+    ],
+)
+def test_the_same_complaint_on_a_line_the_turn_wrote_is_the_turns(tmp_path, rel, was, now):
+    (tmp_path / rel).write_text(now, encoding="utf-8")
+    old = check_config(tmp_path, [rel], before={rel: now})
+    assert [one["state"] for one in old] == ["note"]  # (its own text before: an old problem)
+    ((one,),) = [check_config(tmp_path, [rel], before={rel: was})]
+    assert one["state"] == "failed", one["text"]
+    assert "does not parse" in check_config(tmp_path, [rel], before={rel: was})[0]["text"]
+    assert check_config(tmp_path, [rel])[0]["text"] == one["text"]  # (said as with no before)
+
+
+def test_a_text_before_the_turn_past_a_reads_size_is_not_compared(tmp_path, monkeypatch):
+    from app import proof_kinds
+
+    (tmp_path / "a.json").write_text("{", encoding="utf-8")
+    monkeypatch.setattr(proof_kinds, "MOST_BYTES", 8)
+    (row,) = check_config(tmp_path, ["a.json"], before={"a.json": "{" + " " * 8})
+    assert row["state"] == "failed"  # (an old text past the cap hides nothing of the new)
+    (row,) = check_config(tmp_path, ["a.json"], before={"a.json": "{"})
+    assert row["state"] == "note"
+
+
+GROWTH = """
+import json, tracemalloc
+from app import proof_kinds as p
+out = {}
+for n in (2048, 16 * 1024 - 8):
+    for name, rx, text in (
+        ("json", p._JSON_STRING, '"' + "a" * n + '"'),
+        ("escaped", p._JSON_STRING, '"' + "\\\\x" * (n // 2) + '"'),
+        ("toml", p._TOML_SKIP, '\"\"\"' + "a" * n + '\"\"\"'),
+        ("literal", p._TOML_SKIP, "'''" + "a" * n + "'''"),
+    ):
+        tracemalloc.start()
+        rx.sub("", text)
+        out.setdefault(name, []).append(tracemalloc.get_traced_memory()[1])
+        tracemalloc.stop()
+print(json.dumps(out))
+"""
+
+
+def test_a_long_string_costs_the_scan_no_memory_by_its_length():
+    # (Review of k-config-q: each character of one string kept ~140 B of the matcher's stack -
+    # an 8 MB .json was a GB for a moment. Measured on 2 and 16 KB, in a child process.)
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from tests.conftest import scaled
+
+    done = subprocess.run(
+        [sys.executable, "-c", GROWTH],
+        cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True,
+        text=True,
+        timeout=scaled(30),
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    for name, (small, big) in json.loads(done.stdout).items():
+        assert big < 64 * 1024 and big < small * 2 + 4096, (name, small, big)
+
+
 @pytest.mark.parametrize(
     "body",
     [

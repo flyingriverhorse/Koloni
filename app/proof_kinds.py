@@ -167,7 +167,8 @@ def _each(
     rows: list[Row] = []
     for rel in paths:
         try:
-            now = check(_bytes(ws, rel), rel)
+            data = _bytes(ws, rel)
+            now = check(data, rel)
         except Outside:
             rows.append(row(kind, "note", OUTSIDE.format(path=rel)))
             continue
@@ -180,25 +181,11 @@ def _each(
                 )
             )
             continue
-        # (Compared without the line a problem is on: one a line added above it moved is the
-        # file's old problem still - Q2 of 0.1.7.)
-        place = re.compile(rf"^{re.escape(rel)}:\d+: ")
-        try:  # (an old version it cannot read hides nothing of the new)
-            was = before.get(rel)
-            old = (
-                {
-                    place.sub("", one["text"], count=1)
-                    for one in check(was.encode("utf-8"), rel)
-                    if one["state"] == "failed"
-                }
-                if was
-                else set()
-            )
-        except Exception:
-            old = set()
+        old = _old_problems(check, rel, before.get(rel))
+        lines = data.decode("utf-8-sig", "replace").split("\n") if old else []
         said = [
             {**one, "state": "note", "text": one["text"] + BEFORE}
-            if one["state"] == "failed" and place.sub("", one["text"], count=1) in old
+            if one["state"] == "failed" and _problem(one["text"], rel, lines) in old
             else one
             for one in now
         ]
@@ -207,6 +194,33 @@ def _each(
             said = [*said[:MOST_ROWS_A_FILE], row(kind, "note", f"{rel}: +{left} more lines")]
         rows += said
     return rows
+
+
+def _problem(text: str, rel: str, lines: list[str]) -> tuple[str, str]:
+    """A failed line as compared with the file's before the turn: its words without the number
+    of the line it is on, and that line's text - so a problem a line added above moved is the
+    old one still, and the same complaint on a line the turn wrote is the turn's (Q2 of 0.1.7)."""
+    at = re.match(rf"{re.escape(rel)}:(\d+): ", text)
+    if at is None:
+        return text, ""
+    n = int(at[1])
+    return f"{rel}: {text[at.end() :]}", lines[n - 1].strip() if 0 < n <= len(lines) else ""
+
+
+def _old_problems(
+    check: Callable[[bytes, str], list[Row]], rel: str, was: str | None
+) -> set[tuple[str, str]]:
+    """The failed lines of the file's text before the turn (`_problem`) - none where there was
+    none, or it is past what a read takes (MOST_BYTES), or its check breaks: an old version it
+    cannot read hides nothing of the new."""
+    if not was or len(was) > MOST_BYTES or len(data := was.encode("utf-8")) > MOST_BYTES:
+        return set()
+    try:
+        failed = [one["text"] for one in check(data, rel) if one["state"] == "failed"]
+    except Exception:
+        return set()
+    lines = was.removeprefix("﻿").split("\n")
+    return {_problem(one, rel, lines) for one in failed}
 
 
 # --- documents ---------------------------------------------------------------------------------
@@ -805,14 +819,16 @@ NO_PARSE = "does not parse - "
 _BRACKET = re.compile(r"[\[\]{}]")
 # (Each one unended - a lone backslash before the end too - runs to the end of its line, or of the
 # file for a comment or a long string, in one match: never read again from each later quote,
-# which takes time squared. `re` holds the GIL: a slow one stops the whole server.)
-_QUOTED = r'"(?:[^"\\\n]|\\.)*(?:"|\\?(?:\n|\Z))'
+# which takes time squared. `re` holds the GIL: a slow one stops the whole server. Each repeat
+# is possessive: one that may give back keeps ~140 B of the matcher's stack a character - an
+# 8 MB string was a GB for a moment - review of k-config-q.)
+_QUOTED = r'"(?:[^"\\\n]|\\.)*+(?:"|\\?(?:\n|\Z))'
 _JSON_STRING = re.compile(_QUOTED)
 # (A multi-line string ends as TOML ends it: its escaped quotes are its own, and it closes on its
 # LAST quote - up to two more are its text, `"""x""""` is `x"` - or the scan loses step with it.)
 _TOML_SKIP = re.compile(
-    r'"""(?:[^"\\]|\\[\s\S]|"(?!""))*(?:"{3,5}|\\?\Z)'
-    r"|'''(?:[^']|'(?!''))*(?:'{3,5}|\Z)"
+    r'"""(?:[^"\\]|\\[\s\S]|"(?!""))*+(?:"{3,5}|\\?\Z)'
+    r"|'''(?:[^']|'(?!''))*+(?:'{3,5}|\Z)"
     rf"|{_QUOTED}"
     r"|'[^'\n]*(?:'|\n|\Z)"
     r"|#.*"
