@@ -409,12 +409,15 @@ def _hand_on(findings: list[dict] | None) -> str:
     )
 
 
-def _carried(findings: list[dict], role: str, step: list[str] | None = None) -> str:
+def _carried(
+    findings: list[dict], role: str, step: list[str] | None = None, every: bool = False
+) -> str:
     """The blocking findings an agent of `role` is handed (`findings_from`), one line each,
     word for word: those for its role - and, the first role of a recipe's step (`step`, its
     roles casefolded in order), those for no role of it - or all of them where none is.
-    Suggestions stay the user's (B-192)."""
-    findings = _blocking(findings)
+    Suggestions stay the user's (B-192) - but `every`: those of a step of the turn's recipe,
+    its handoff to the next step (CL-345), all of them."""
+    findings = findings if every else _blocking(findings)
     named = set(step) if step and step[0] == role.casefold() else None
     mine = [
         f

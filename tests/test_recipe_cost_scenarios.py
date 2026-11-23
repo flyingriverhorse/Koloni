@@ -318,3 +318,40 @@ def test_a_hold_on_the_bugfix_goes_back_to_fix_it_and_its_fix_is_looked_at_once(
     ], row(snap)
     assert row(snap)["status"] == "in", row(snap)
     assert (project_dir / "calc.py").read_text(encoding="utf-8") == BIG2
+
+
+@pytest.mark.no_po
+def test_a_steps_suggestions_reach_the_next_step_by_findings_from(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    # (CL-345: the thin Bugfix's Lead handing the Debugger's findings to Fix it was refused -
+    # "left suggestions only - they are the user's": no step's brief carries a step's report on,
+    # so a recipe step's findings, suggestions too, are its handoff to the next)
+    from tests.test_spawn import call
+
+    guess(monkeypatch, PYTEST)
+    said = (
+        "Reproduced: calc(2) crashes.\n\n## Findings\n"
+        "- calc.py:2 divides by x with no check for 0 | kind: code | role: Coder | suggestion"
+    )
+    lead = [
+        spawn("Debugger", "reproduce the crash", "d1"),
+        step(
+            call(
+                "spawn_agent",
+                {"role": "Coder", "task": "fix it", "findings_from": "Debugger"},
+                "c0",
+            )
+        ),
+        text("done"),
+    ]
+    client, model = make_client(
+        {"Lead": lead, "Debugger": [*REPRODUCES[:2], text(said)], "Coder": fixed()},
+        executor=ScriptedExecutor([REPRO, PASSED]),
+    )
+    cid, run_id = bugfix_run(client, project_dir, ready=True)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert opened(snap) == ["Debugger", "Coder"], by_call(snap)
+    first = model.calls_of["Coder"][0][1]["content"]
+    assert "divides by x with no check for 0" in first, first[-600:]

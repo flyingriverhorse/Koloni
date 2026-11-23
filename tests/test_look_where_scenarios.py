@@ -415,7 +415,7 @@ def test_two_looks_commands_in_one_copy_leave_neither_ones_report(tmp_path):
     class Runner:
         _ctxs, _copies, _copy_locks = {"lead": object()}, {"lead": copy}, {}
         _works_in = staticmethod(lambda _ctx: "lead")
-        _copy_lock, _copy_held = ProofMixin._copy_lock, ProofMixin._copy_held
+        _copy_lock = ProofMixin._copy_lock
         _look_kept, _look_untrace = ReviewMixin._look_kept, ReviewMixin._look_untrace
         _look_trace = staticmethod(ReviewMixin._look_trace)
 
@@ -456,3 +456,74 @@ def test_two_looks_commands_in_one_copy_leave_neither_ones_report(tmp_path):
         assert (copy.root / "calc.py").read_text(encoding="utf-8") == "x = 2  # the work\n"
     finally:
         copies.remove(runtime, "two-looks")
+
+
+def test_a_run_waiting_for_the_machine_holds_up_no_looks_command_in_its_copy(
+    make_client, tmp_path, monkeypatch
+):
+    # (review of k-bakis-yeri's lock: a run of KOLONİ's queued for the app-wide test slot held its
+    # copy's lock all the while - every command of a look there, a `cat` too, waited behind it.
+    # The window is taken once the run has the machine.)
+    import asyncio
+
+    from app import copies
+    from app.agent.ctx import Ctx
+    from app.agent.proof_later_mixin import Check, Slots
+    from app.agent.proof_mixin import Proof
+    from app.proof import TestRun
+
+    client, _model = make_client([])
+    runner = client.app.state.runner
+    project, runtime = tmp_path / "proj", tmp_path / "rt"
+    project.mkdir()
+    runtime.mkdir()
+    (project / "calc.py").write_text("x = 1\n", encoding="utf-8")
+    copy = copies.make(project, runtime, "waits")
+    lead = Ctx("r", "c", str(project), "lead", "Lead", (), 0)
+    look = Ctx("r", "c", str(project), "look", "Reviewer", (), 1, parent_id="lead")
+    ran = []
+
+    async def run_in_copy(_ctx, ws, _line, _call_id, **more):
+        await more["where"]({})  # (waits for the machine, as `_run_in_copy` does)
+        ran.append(ws.root)
+        return 0, "1 passed in 0.1s\n", "exit code 0", "exited"
+
+    async def nothing(*_args, **_more):
+        return None
+
+    for name, value in {
+        "_record_calls": lambda *_args: [("call1", {})],
+        "_set_call": lambda *_args, **_more: None,
+        "_sources_now": nothing,
+        "_changed_said": nothing,
+        "_always_kept": lambda *_args: None,
+        "_timeout_on_record": lambda *_args: None,
+        "_run_in_copy": run_in_copy,
+    }.items():
+        monkeypatch.setattr(runner, name, value)
+    runner._copies["lead"], runner._ctxs["lead"], runner._recipe_copy["r"] = copy, lead, "lead"
+
+    async def both():
+        slot = Slots(1)
+        await slot.acquire()  # (another run has the machine)
+        check = Check("r", "c", "p", "tests", "pytest -q", ".", None)
+        going = asyncio.ensure_future(
+            runner._run_tests_now(
+                lead, TestRun("pytest -q", ".", True), "run", Proof(), None, "m", check, (slot, 1)
+            )
+        )
+        await asyncio.wait_for(check.started, 10)  # (past its card, waiting for the machine)
+        async with asyncio.timeout(5):  # (the look's command goes on at once)
+            async with runner._look_kept(look, True):
+                pass
+        slot.release()
+        await asyncio.wait_for(going, 10)
+
+    try:
+        asyncio.run(both())
+        assert ran == [copy.root]
+    finally:
+        for one in (runner._copies, runner._ctxs):
+            one.pop("lead", None)
+        runner._recipe_copy.pop("r", None)
+        copies.remove(runtime, "waits")

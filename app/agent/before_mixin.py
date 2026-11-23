@@ -21,6 +21,7 @@ from sqlalchemy import literal_column, or_, select
 
 from app import ci_commands, copies, ledger, memory, proof, proof_before, test_found
 from app.agent.ctx import Ctx
+from app.agent.stronger_mixin import steers_tests
 from app.commands import only_reads
 from app.db.models import Command, Memory, Message, Run, ToolCall, now
 from app.proof import TestRun
@@ -46,6 +47,9 @@ ASKS_AGAIN = "not re-run alone or on the old code: it would ask again"
 REGRESSION = "Regression: {id} passed at the last green run and fails now{by}"
 UNUSUAL = "Not re-run alone or on the old code: an unusual test name ({ids})"
 EXCUSED = "{said} - the answer says why: “{why}”"
+# R (CL-345): fewer tests, or more skipped, that no change of the turn's could make - a test file
+# deleted by hand outside KOLONİ, a pull, a branch switched: said, not sent back.
+NOT_OURS = "{said} - not this turn's change"
 NOT_YOURS = " These were failing before this turn and are not yours to fix: {ids}."
 GREEN_LEAD = (
     "Not the end yet: {said}, against this project's last green run - and your answer "
@@ -240,6 +244,13 @@ class BeforeMixin:
             if project is None:
                 return []
             said = proof_before.green_said((project.tests_green or {}).get(key), ran, skipped)
+            if said and not self._could_drop(held):  # (R: the green state moves to this run)
+                for one in said:
+                    self._said_once(
+                        held,
+                        proof.row("tests", "note", NOT_OURS.format(said=one), run.command),
+                    )
+                said = []
             answer = self._last_answer(session, ctx)
             why = {one: proof_before.excuse(answer, one) for one in said}
             for one in (one for one in said if why[one]):  # (excused, still shown: a note)
@@ -261,6 +272,21 @@ class BeforeMixin:
             }
             session.commit()
         return []
+
+    @staticmethod
+    def _could_drop(held: "Proof") -> bool:
+        """R (CL-345): whether the turn's own work could make fewer tests run, or more skipped -
+        a test file that was there before it, changed, renamed or deleted (one it added takes
+        none away), what says which tests run (a conftest, pytest.ini, pyproject.toml, setup.cfg,
+        tox.ini, package.json, a Vitest or Jest config: `steers_tests`), a test a command of its
+        deleted, a command whose change is on no record. Else the drop is not the turn's.
+        shortcut: a test file the turn edited counts whole - a test of another file gone since
+        the green run is put down to it too; tell them apart by the green run's ids (`passed_ids`,
+        where the runner lists them) if that is met."""
+        return bool(held.unrecorded or held.gone_tests) or any(
+            one.in_project and (proof.is_test(one.path) and one.existed or steers_tests(one.path))
+            for one in held.changes
+        )
 
     @staticmethod
     def _passed_now(session, ctx: Ctx, run: TestRun) -> list[str] | None:

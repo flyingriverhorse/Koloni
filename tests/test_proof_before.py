@@ -356,3 +356,21 @@ def test_a_file_the_turn_changed_anywhere_in_the_output_makes_it_the_turns(tmp_p
     assert proof_before.lint_findings("a.py:1:1: E1\n", tmp_path, "src", ["src/a.py"]) is None
     # (not a name that only ends like it)
     assert proof_before.lint_findings("old.py:3:1: F821 `y`\n", tmp_path, ".", ["d.py"]) is not None
+
+
+def test_a_count_left_failing_is_said_as_fewer_tests_never_as_failing_ones():
+    # (R, CL-345: the work held for fewer tests, or more skipped, said so - not "its tests
+    # still fail", and Fix it's words by the row's code)
+    from app import proof
+    from app.agent import stronger_mixin
+
+    passed = proof.row("tests", "passed", "Tests passed: pytest -q - 45 passed", "pytest -q")
+    fewer = proof.row("tests", "failed", "Tests went from 48 to 45 (3 removed)", "pytest -q")
+    skipped = proof.row("tests", "failed", "Skipped rose from 0 to 2", "pytest -q")
+    failing = proof.row("tests", "failed", "Tests failed: pytest -q - 1 failed", "pytest -q")
+    assert proof.counts_only([passed, fewer, skipped])
+    assert not proof.counts_only([passed, fewer, failing]) and not proof.counts_only([passed])
+    reason = stronger_mixin.HELD_WHY["removed"]
+    assert stronger_mixin.FIX_HELD.format(why=reason, question="Q?", reply="a").startswith(
+        "The last turn's work was not taken in: fewer of its tests run, or more are skipped."
+    )

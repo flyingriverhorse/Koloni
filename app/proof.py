@@ -939,7 +939,7 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
 
 # S11: why a stronger model's rounds were no pass - a test changed without leave, the Reviewer
 # held or did not read the test change, the tests gave no verdict, or they still fail.
-Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold"]
+Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold", "removed"]
 
 
 class Row(TypedDict):
@@ -1001,6 +1001,10 @@ AT_CEILING = "at most {most} rounds"
 TOKEN_LIMIT = "the turn's token limit"
 BUDGET = "the project's monthly budget"
 STILL_FAILING = "Still failing after {most} fix rounds: you decide (Fix it)"
+# R (CL-345): a whole suite's count against its last green run (`proof_before.green_said`) -
+# fewer tests, more skipped - the only failure left: said so, not as tests that fail.
+COUNT_ROWS = ("Tests went from ", "Skipped rose from ")
+STILL_FEWER = "Still fewer tests, or more skipped, after {most} fix rounds: you decide (Fix it)"
 RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)"
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
@@ -1054,6 +1058,13 @@ def row(
     if reason is not None:
         made["reason"] = reason
     return made
+
+
+def counts_only(rows: list[Row]) -> bool:
+    """R: whether the failed "tests" rows are all a count against the last green run (fewer
+    tests, more skipped) - no test fails."""
+    failed = [one["text"] for one in rows if one["kind"] == "tests" and one["state"] == "failed"]
+    return bool(failed) and all(one.startswith(COUNT_ROWS) for one in failed)
 
 
 def still_failing(rows: list[Row]) -> bool:

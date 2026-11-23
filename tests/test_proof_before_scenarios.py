@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from app import copies, proof_before
+from app import copies, proof, proof_before
 from app.agent import before_mixin
 from app.db.models import Memory
 from tests import test_proof_ci_scenarios as ci_scenarios
@@ -192,7 +192,7 @@ def test_the_last_green_state_holds_a_drop_in_tests_and_a_rise_in_skipped(
         [
             write("a.py", "x = 1\n"),
             text("done"),
-            write("a.py", "x = 2\n", "w2"),
+            write("pytest.ini", "[pytest]\n", "w2"),
             text("done"),
             text("I left it so"),
         ],
@@ -220,7 +220,7 @@ def test_a_drop_the_answer_says_why_is_the_new_green_state(make_client, wait_run
         [
             write("a.py", "x = 1\n"),
             text("done"),
-            write("a.py", "x = 2\n", "w2"),
+            write("pytest.ini", "[pytest]\n", "w2"),
             text("I removed the obsolete test of the old parser"),
         ],
         executor=executor,
@@ -255,7 +255,7 @@ def test_an_excuse_that_names_no_test_hides_nothing(make_client, wait_run, proje
         [
             write("a.py", "x = 1\n"),
             text("done"),
-            write("a.py", "x = 2\n", "w2"),
+            write("pytest.ini", "[pytest]\n", "w2"),
             text("Removed a stray debug print."),
             text("left as it is"),
         ],
@@ -267,6 +267,8 @@ def test_an_excuse_that_names_no_test_hides_nothing(make_client, wait_run, proje
     rows = rows_of(wait_run(client, cid, posted["run"]["id"]), posted["run"]["id"])
     assert "Tests went from 4 to 1 (3 removed)" in rows and "Skipped rose from 0 to 3" in rows, rows
     assert "in a sentence that names the tests" in told(model, 4)
+    # (R: no test fails - fewer ran, more skipped: said so at the end, not "Still failing")
+    assert proof.STILL_FEWER.format(most=1) in rows, rows
     assert green_ran(client) == 4
 
 
@@ -277,7 +279,7 @@ def test_a_rise_in_skipped_needs_skip_named(make_client, wait_run, project_dir):
         [
             write("a.py", "x = 1\n"),
             text("done"),
-            write("a.py", "x = 2\n", "w2"),
+            write("pytest.ini", "[pytest]\n", "w2"),
             text("I removed the obsolete test of the old parser"),
             text("left as it is"),
         ],
@@ -631,3 +633,30 @@ def test_a_ci_check_failing_only_where_the_turn_did_not_change_is_no_round(
         assert executor.started[2][1] != str(project_dir)  # (on the old code: a copy)
     else:
         assert note not in rows and len(model.calls) == 6, rows  # (one round)
+
+
+def test_tests_deleted_outside_koloni_are_no_turns_drop(make_client, wait_run, project_dir):
+    # (R, CL-345: 4 green; a test file deleted by hand before the next turn, which changes app
+    # code only - 3 run: not its change. Said, nothing sent back, the green state moves to 3.
+    # Before: "Tests went from 48 to 45" sent back twice, the work not taken in.)
+    (project_dir / "tests").mkdir()
+    (project_dir / "tests" / "test_old.py").write_text("def test_old(): pass\n", encoding="utf-8")
+    executor = ScriptedExecutor([passing(4), passing(3)])
+    client, model = make_client(
+        [write("a.py", "x = 1\n"), text("done"), write("a.py", "x = 2\n", "w2"), text("done")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    wait_run(client, cid, run_id)
+    (project_dir / "tests" / "test_old.py").unlink()  # (by hand, outside any turn)
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
+    snap = wait_run(client, cid, posted["run"]["id"])
+    rows = [
+        (r["text"], r["state"])
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == posted["run"]["id"]
+        for r in m["checked"]
+    ]
+    said = before_mixin.NOT_OURS.format(said="Tests went from 4 to 3 (1 removed)")
+    assert (said, "note") in rows and not any(state == "failed" for _t, state in rows), rows
+    assert len(model.calls) == 4 and green_ran(client) == 3  # (nothing sent back)

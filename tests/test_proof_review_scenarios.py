@@ -121,6 +121,37 @@ def test_hold_goes_back_as_a_fix_round_then_tests_and_a_second_look_merge(
     assert "a.py:3 divides by zero" in told and "1 of 2 fix rounds" in told
 
 
+def test_a_merge_that_marks_a_finding_blocking_is_said_as_the_hold_it_is(
+    make_client, wait_run, project_dir
+):
+    # (CL-345: "✗ Review: Security reviewer … MERGE, 1 findings, 1 blocking" read as a
+    # contradiction - the blocking finding holds the work: said so)
+    merge_but = text(
+        "Verdict: MERGE\n\n## Findings\n- a.py:3 divides by zero | kind: code | "
+        "role: Orchestrator | blocking"
+    )
+    client, _model = make_client(
+        {
+            "Lead": [
+                write("a.py", BIG),
+                text("done"),
+                write("a.py", BIG + "y = 1\n", "w2"),
+                text("fixed"),
+            ],
+            "Reviewer": [merge_but],
+            "Reviewer 2": [merge_but],
+        },
+        executor=ScriptedExecutor([PASS, PASS]),
+    )
+    cid, run_id = begin(client, project_dir, check_command=CHECK, fix_rounds=1)
+    said = [(r["kind"], r["state"], r["text"]) for r in checked(wait_run(client, cid, run_id))]
+    assert (
+        "review",
+        "failed",
+        f"Review: Reviewer ({SIGN}) - 1 blocking finding, though its verdict said MERGE",
+    ) in said, said
+
+
 def test_the_cap_leaves_the_findings_and_fix_it_to_the_user(make_client, wait_run, project_dir):
     client, _model = make_client(
         {

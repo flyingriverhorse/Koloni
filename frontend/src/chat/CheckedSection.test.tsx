@@ -148,6 +148,8 @@ test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends th
     // (P: a look still holding the work - said by the row's code, never by its text)
     expect(FIX_HELD('Q?', 'a', 'on_hold')).toContain("not taken in: a look of KOLONİ's still held it.")
     expect(FIX_HELD('Q?', 'a')).toContain('not taken in: its tests still fail.')
+    // (R: fewer tests, or more skipped - said so, by the row's code)
+    expect(FIX_HELD('Q?', 'a', 'removed')).toContain('not taken in: fewer of its tests run, or more are skipped.')
   } finally {
     vi.restoreAllMocks()
   }

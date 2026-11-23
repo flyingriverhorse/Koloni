@@ -321,7 +321,16 @@ dropped or skipped them and names the tests (test, tests, skip, xfail; for more 
 or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a
 failing test. Said why, it is still shown, as a note quoting that sentence - "Tests went from 4 to
 3 (1 removed) - the answer says why: “I removed the obsolete test of the old parser”" - and the
-new counts are the green state from then on. Where the
+new counts are the green state from then on. Only a turn whose own work could take tests away is
+held to it: one that changed, renamed or deleted a test file that was there before it, or what
+says which tests run (a `conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`, `tox.ini`,
+`package.json`, a Vitest or Jest config), or ran a command whose change is on no record. Tests
+gone otherwise - deleted by hand, a pull, another branch checked out - are said and not sent back,
+"Tests went from 48 to 45 (3 removed) - not this turn's change", and the new counts are the green
+state. Where the rounds end with no test failing but fewer run, or more skipped, the line says so:
+"Still fewer tests, or more skipped, after 2 fix rounds: you decide (Fix it)"; work kept for it
+says "Not taken in: fewer of its tests run, or more are skipped, after its fix rounds". Where the
+
 green run listed its passes (pytest with `-v`, jest's and vitest's files), KOLONİ keeps those
 names too (at most 5 000): a test that passed then and fails now is named, "Regression: `test`
 passed at the last green run and fails now" - never one added since. Where it listed none, the
@@ -795,8 +804,12 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Stopped after round 4: `why` - you decide (Fix it) | Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.) |
 | – `model`'s rounds stopped: no progress in two rounds | Until it passes, a stronger model's round left the same tests failing. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back. |
+| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing - or the Orchestrator answered a round without changing anything, which ends its turn there. |
+| ✗ Still fewer tests, or more skipped, after 1 fix rounds: you decide (Fix it) | As above, where no test fails but fewer ran, or more were skipped, than at the last green run. |
+| – Tests went from 48 to 45 (3 removed) - not this turn's change | Fewer tests, or more skipped, than at the last green run, where nothing of the turn's could take them away (deleted by hand, a pull, a branch): said, the new counts the green state. |
 | ✓ Review: Reviewer (`provider · model`) - MERGE, no findings | The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first). |
 | ✗ Review: Reviewer (`provider · model`) - HOLD, 2 findings, 1 blocking | It held the change; each finding follows as "Blocking: …" or "Suggestion: …". |
+| ✗ Review: Security reviewer (`provider · model`) - 1 blocking finding, though its verdict said MERGE | A blocking finding holds the change, whatever its verdict word says. |
 | – Review: … in the part it saw (3000 of 15000 characters; not shown: …) | The diff was cut: what it said is of that part only, never a pass. |
 | – Review gave no findings section: not counted | Its report had no findings section: nothing was sent back. |
 | – Review gave no verdict: not counted (`role`, `provider · model`) | Its report had no verdict line KOLONİ could read: nothing was sent back. |
