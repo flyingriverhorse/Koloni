@@ -332,3 +332,35 @@ def test_a_conftest_that_deselects_the_test_is_a_test_change(team, wait_run,  # 
                                   "karma.conf.js", ".mocharc.yml", "playwright.config.ts"])
 def test_what_steers_the_tests_is_a_test_change(path):
     assert s11.steers_tests(path) and not s11.steers_tests("src/config.py")
+
+
+def test_until_it_passes_a_stronger_models_rounds_stop_where_they_make_no_progress(
+        team, wait_run, project_dir):  # noqa: F811
+    # (k-canli-016: the first model's answer to its round changed nothing - no progress: the
+    # rounds stop and the strongest tier is handed the fix; its own round leaves the same test
+    # failing - it stops there too, never 20 rounds of the same failure.)
+    from app import proof
+    texts, _snap, executor = one_tier(team, wait_run, project_dir, {
+        "Coder 2": [said(s11.FIX_INCOMPLETE)],
+        "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")]},
+        [PASS, failing(), PASS, failing()], fix_rounds="until")
+    assert s11.HANDED.format(model="big-model", tier="Strongest", n="1 round",
+                             by="fast-model") in texts, texts
+    assert s11.STRONGER_HALTED.format(model="big-model", why=proof.NO_PROGRESS) in texts, texts
+    assert len(executor.started) == 4, executor.started  # (its copy's check, then the end's)
+
+
+def test_until_it_passes_one_ceiling_holds_the_turns_rounds_and_the_stronger_ones(
+        team, wait_run, project_dir, monkeypatch):  # noqa: F811
+    # (A stronger model that keeps making progress is held to the ceiling with the first model's
+    # rounds - 1 here, 20 in use -, and no tier more is tried after it: never 20 rounds a tier.)
+    from app import proof
+    from tests.test_proof_until_scenarios import fails
+    monkeypatch.setattr(proof, "UNTIL_CEILING", 1)
+    texts, _snap, executor = one_tier(team, wait_run, project_dir, {
+        "Coder 2": [said(s11.FIX_INCOMPLETE)],
+        "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed one")]},
+        [PASS, fails(3), PASS, fails(2)], fix_rounds="until")
+    assert s11.STRONGER_HALTED.format(model="big-model", why=proof.AT_CEILING.format(most=1)) in (
+        texts), texts
+    assert len(executor.started) == 4, executor.started

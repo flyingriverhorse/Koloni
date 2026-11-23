@@ -101,6 +101,7 @@ from app.limits import another_account, has_room
 from app.limits import window as limit_window
 from app.model_client import EFFORTS, ModelClient, ModelUnavailable, ToolCallRequest
 from app.model_native import claude_tools, inside_name
+from app.proof import PROOF_CALL
 from app.providers import (
     TIERS,
     NotListed,
@@ -2087,17 +2088,13 @@ class SpawnMixin:
             own = settings_of(session, conversation)
             mode, approval = conversation.permission_mode, own.spawn_approval
             max_depth, max_agents = own.spawn_max_depth, own.spawn_max_agents
-            # One the user declined never ran, so it does not use up the turn's allowance. A
-            # recipe's step has an allowance of its own (slice 84b-2: what it draws, 84e); its
-            # agents use none of the turn's.
+            # The turn's allowance (`_opened_this_turn`); a recipe's step has one of its own
+            # (slice 84b-2: what it draws, 84e). KOLONİ's own look uses none (k-canli-016).
             step = self._recipe_count_of(call_id, session, ctx, role, max_agents)
-            opened, most, over = step or (session.scalar(
-                select(func.count()).select_from(Agent).where(
-                    Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.status != "rejected",
-                    Agent.id.not_in(self._in_recipe),
-                )
-            ) or 0, max_agents, f"limit of {max_agents} sub-agents per turn reached. Do the "
-                "rest yourself.")
+            opened, most, over = step or (
+                0 if self._kolonis_call(session, call_id) else self._opened_this_turn(
+                    session, ctx.run_id), max_agents, f"limit of {max_agents} sub-agents per "
+                "turn reached. Do the rest yourself.")
             # (A team's lead is one of this chat's rows only: `find_role` finds any.)
             lead = any(one is not None and one.id == role.id
                        for _r, _t, one in self._rows(session, ctx.cid))
@@ -2187,6 +2184,23 @@ class SpawnMixin:
                 raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
         elif ctx.run_id in self._backlog_turns and self._cannot_be_held(model, provider):
             raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
+
+    def _opened_this_turn(self: "AgentRunner", session, run_id: str) -> int:
+        """The sub-agents a turn's allowance (`spawn_max_agents`) counts: not one the user
+        declined (it never ran), a recipe step's (an allowance of its own) or KOLONİ's own look -
+        a review, a try, a stronger model's diagnosis or fix - bound by the Fix rounds instead
+        (k-canli-016: three Coders of the Orchestrator's left no room for a review's re-look)."""
+        looks = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
+        return session.scalar(select(func.count()).select_from(Agent).where(
+            Agent.run_id == run_id, Agent.depth > 0, Agent.status != "rejected",
+            Agent.id.not_in(self._in_recipe),
+            or_(Agent.tool_call_id.is_(None), Agent.tool_call_id.not_in(looks)))) or 0
+
+    @staticmethod
+    def _kolonis_call(session, call_id: str) -> bool:
+        """Whether a call is KOLONİ's own (`PROOF_CALL`): its look, never the Lead's spawn."""
+        call = session.get(ToolCall, call_id)
+        return call is not None and call.provider_call_id.startswith(PROOF_CALL)
 
     def _propose_within(
         self: "AgentRunner", ctx: Ctx, role: Role, tools: list[str], max_depth: int, opened: int,

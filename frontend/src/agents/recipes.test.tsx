@@ -23,6 +23,7 @@ import {
   place,
   remove,
   renameGroup,
+  roundsChosen,
   summary,
   START,
   targets,
@@ -951,6 +952,13 @@ test('S5c: the Checks step is drawn after the last step, never dragged nor remov
   await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
   const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
   expect(body.graph.checks).toEqual({ tests: false, review: true, docs: true, diagram: false, data: false, slides: false, ui: true, fix_rounds: 0 })
+})
+
+test('k-canli-016: a recipe’s Checks step may go on until it passes', async () => {
+  expect(checksLine({ ...ownChecks(), fix_rounds: 'until' })).toBe('Tests · Review · until it passes')
+  expect(roundsChosen('until')).toBe('until')
+  expect(roundsChosen('')).toBeNull()
+  expect(roundsChosen('7')).toBe(7)
 })
 
 test('S5c: a ready recipe’s Checks step is shown, not changed', () => {

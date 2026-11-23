@@ -269,8 +269,9 @@ class ProjectOut(Out):
     room_min_tokens: int | None
     # Kanıtlı bitiş: what KOLONİ checks after a turn that changed code (`app.proof`).
     after_change: AfterChange
-    # S3: how often the end check sends work back a turn - tests and the Reviewer's findings.
-    fix_rounds: int
+    # S3: how often the end check sends work back a turn - tests and the Reviewer's findings;
+    # null: until it passes (k-canli-016, the default).
+    fix_rounds: int | None
     # S11: then a stronger model tries, the rounds spent.
     stronger_model: bool
     # S5a: Check by kind of work - {kind: on}; a kind left out is on.
@@ -381,7 +382,8 @@ class ProjectPatch(BaseModel):
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
-    fix_rounds: int | None = Field(default=None, ge=1, le=5, strict=True)
+    # k-canli-016: 1 to 10, or "until" (null too) - until it passes; left out: kept.
+    fix_rounds: Annotated[int, Field(ge=1, le=10, strict=True)] | Literal["until"] | None = None
     stronger_model: bool | None = None
     # S5a: the kinds switched, merged into the project's (a kind left out keeps its switch).
     check_kinds: dict[CheckKind, bool] | None = None
@@ -2973,8 +2975,9 @@ class RecipeChecks(Shut):
     data: bool = False
     slides: bool = False
     ui: bool = False  # (S5b: pages in KOLONİ's own browser - Settings calls them Pages)
-    # How often a problem goes back to fix; 0: check only; None: the project's Fix rounds.
-    fix_rounds: int | None = Field(None, ge=0, le=5)
+    # How often a problem goes back to fix; 0: check only; "until": until it passes
+    # (k-canli-016); None: the project's Fix rounds.
+    fix_rounds: Annotated[int, Field(ge=0, le=10)] | Literal["until"] | None = None
 
 
 class RecipeGraph(Shut):
@@ -3020,6 +3023,8 @@ class RecipesOut(BaseModel):
 
 class RecipeDraftIn(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
+    # k-tarif-model: the chat the page is open on - its Orchestrator's model is asked too.
+    conversation_id: str | None = Field(default=None, max_length=32)
 
 
 class RecipeDraftOut(BaseModel):
@@ -4699,6 +4704,8 @@ class BacklogAutoOut(BaseModel):
 class BacklogDraftIn(BaseModel):
     # (The page's title and detail, a line apart.)
     text: str = Field(min_length=1, max_length=4201)
+    # k-tarif-model: the chat the page is open on - its Orchestrator's model is asked too.
+    conversation_id: str | None = Field(default=None, max_length=32)
 
 
 class BacklogDraftOut(BaseModel):

@@ -32,7 +32,15 @@ export interface ChecksData extends Record<string, unknown> {
   rounds: number
   /** In a recipe's turn: the recipe's end. */
   recipe: boolean
+  /** k-canli-016: what failed is a look's hold (a Reviewer's, a Tester's), every check passed: "on hold", not "still failing". */
+  held?: boolean
 }
+
+/** The Checked rows of a look - a review, its findings, the live try's Tester -: their failing is a hold. */
+const LOOKS = new Set(['review', 'finding', 'try'])
+
+/** Whether what failed in the Checked rows is only a look's hold. */
+const heldOnly = (checked: Message | undefined, rows = checked?.checked ?? []) => rows.some(row => row.state === 'failed') && rows.every(row => row.state !== 'failed' || LOOKS.has(row.kind))
 
 /**
  * A command's tool, short: "pytest" of `python -m pytest -q`, "c8" of S9's `npx --no c8 …`, "python -c" of `python -c "…"`
@@ -119,13 +127,13 @@ function passesOf(calls: { arguments: string }[]): number {
 /** Its fix rounds: at its end the Checked section's count (the tests run again on a test KOLONİ asked for are none), before it each pass again. */
 const roundsOf = (checked: Message | undefined, said: number, calls: { arguments: string }[]) => (checked ? said : Math.max(passesOf(calls) - 1, 0))
 
-/** The Orchestrator's strip: "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "not checked" - or nothing before its end. */
+/** The Orchestrator's strip: "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (a look holds, every check passed), "not checked" - or nothing before its end. */
 export function stripOf(data: ChecksData): string | null {
   if (data.running || data.lines.some(line => line.state === 'running')) return '● checking…'
   const tests = data.lines.filter(line => line.state !== 'note')
   if (!tests.length) return null
   const rounds = data.rounds ? ` · ${data.rounds} round${data.rounds === 1 ? '' : 's'}` : ''
-  if (tests.some(line => line.state === 'failed')) return `✗ still failing${rounds}`
+  if (tests.some(line => line.state === 'failed')) return `✗ ${data.held ? 'on hold' : 'still failing'}${rounds}`
   const passed = tests.filter(line => line.state === 'passed')
   if (!passed.length) return 'not checked'
   return `✓ checked${passed.every(line => line.text.startsWith('related tests')) ? ' · related only' : ''}${rounds}`
@@ -159,13 +167,13 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
     stoppable: Boolean(at) || lines.some(line => line.state === 'running'),
     rounds,
     recipe: Boolean(run.teams?.length),
+    held: heldOnly(checked),
   }
   const id = `checks:${run.id}`
   const { team, from } = recipeEnd(run, nodes, lead.id)
   nodes.push({ id, kind: 'checks', runId: run.id, refId: run.id, data, ...(team && { team }) })
   edges.push({ id: `${from}>${id}`, source: from, target: id, active: Boolean(at), plan: true, po: true })
-  for (let round = 1; round <= Math.min(rounds, said.most); round++)
-    edges.push({ id: `${id}>agent:${lead.id}:${round}`, source: id, target: `agent:${lead.id}`, active: false, round: roundLine(round, said) })
+  edges.push(...roundsBack(id, `agent:${lead.id}`, rounds, said))
   reviewersAfter(state, own, `agent:${lead.id}`, id, edges)
   // (The Orchestrator's strip says it too.)
   const leadNode = nodes.find(node => node.id === `agent:${lead.id}`)
@@ -204,15 +212,27 @@ function sinceOf(state: ConvState, callId: string): string | null {
  * went back where a Reviewer's findings did - "Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)". Before
  * its end, none (a pass after a round may run nothing: the Orchestrator's own run stood - counted here then).
  */
-function roundsSaid(checked: Message | undefined): { n: number; most: number; why: string[] } {
+function roundsSaid(checked: Message | undefined): Said {
   const text = checked?.checked?.find(row => row.kind === 'rounds')?.text ?? ''
+  // (k-canli-016: "Sent back to fix: round 3 (until it passes, 3 failing → 1)" - no count of rounds, no why each)
+  const until = /round (\d+) \(until it passes/.exec(text)
+  if (until) return { n: Number(until[1]), most: null, why: [] }
   const [, n, most, why] = /(\d+) of (\d+) rounds?(?: \((.*)\))?/.exec(text) ?? []
   return { n: Number(n ?? 0), most: most ? Number(most) : MOST_ROUNDS, why: why ? why.split('; ') : [] }
 }
 
+/** Each fix round a line back from the node to the Orchestrator - no more than the Fix rounds (until it passes: as many as went back). */
+function roundsBack(id: string, lead: string, rounds: number, said: Said): GraphEdge[] {
+  const most = Math.min(rounds, said.most ?? rounds)
+  return Array.from({ length: most }, (_, n) => ({ id: `${id}>${lead}:${n + 1}`, source: id, target: lead, active: false, round: roundLine(n + 1, said) }))
+}
+
+/** What the Checked section says of its rounds: how many, of how many (null: until it passes), why each went back. */
+type Said = { n: number; most: number | null; why: string[] }
+
 /** A round's line back: "round 1 of 2: tests fail" once the Checked section says its rounds; before that only "round 1" - the Fix rounds and what sent it back are not known yet. */
-function roundLine(round: number, said: { n: number; most: number; why: string[] }): string {
-  return said.n ? `round ${round} of ${said.most}: ${said.why[round - 1] ?? 'tests fail'}` : `round ${round}`
+function roundLine(round: number, said: Said): string {
+  return said.n && said.most !== null ? `round ${round} of ${said.most}: ${said.why[round - 1] ?? 'tests fail'}` : `round ${round}`
 }
 
 /** S3: the Reviewers KOLONİ opened at the turn's end are drawn after its Checks node - their spawn line from it, not the Orchestrator. */

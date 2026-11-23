@@ -67,6 +67,8 @@ NOT_STARTED_OVER = "approach-wrong, but {why}: it goes on from the work as it is
 BRANCH_COPY = "the work is on a branch of its own, which KOLONİ does not start over"
 NOT_COPIED = "the project could not be copied again"
 NOT_HANDED = "Not handed to {model}: {why}"
+# k-canli-016: until it passes, a stronger model's rounds stopped short of a pass.
+STRONGER_HALTED = "{model}'s rounds stopped: {why}"
 STILL_HANDED = "Still failing after rounds by {by}: you decide (Fix it)"
 DIAGNOSE_TASK = (
     "KOLONİ ran this project's tests after the work below, and they still fail after {n} fix "
@@ -174,8 +176,10 @@ class StrongerMixin:
         """At the end check's end, no step sending work back: where the rounds are spent and the
         last pass's own failures stand, each stronger tier in turn - a diagnosis, then its rounds
         - until the tests pass. Said in Checked; the turn's answer is not held for it."""
+        # (k-canli-016: until it passes, also where the rounds stopped for no progress - never
+        # for a limit, which a stronger model would only spend more of.)
         if held.escalated or not held.left_failing or held.stopped or not (
-                held.rounds >= held.most or held.recipe_spent):
+                held.rounds >= held.most or held.recipe_spent or held.halted == proof.NO_PROGRESS):
             return None
         held.escalated = True
         await self._hand_up(ctx, held)
@@ -215,6 +219,10 @@ class StrongerMixin:
         held = self._proofs.get(ctx.run_id)
         if held is None or status != "completed" or ctx.depth:
             return
+        if held.until_passes and held.rounds and held.halted is None and held.left_failing:
+            # (k-canli-016: until it passes, an answer that changed nothing is no progress - said,
+            # and the stronger model's hand-off may come)
+            held.halted = proof.NO_PROGRESS
         try:
             await self._stronger(ctx, held)
         except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
@@ -363,14 +371,36 @@ class StrongerMixin:
                     model=model, why=(said.removeprefix("error: ").strip().splitlines()
                                       or [status])[0][:MOST_SAID])))
                 return
+            held.stronger_rounds += 1
             wanted = list(held.left_failing)
+            before = self._failing_tests(held, wanted)  # (its counts as they were)
             await self._recheck(ctx, held)
             if held.stopped or held.left_failing:
+                if halt := self._stronger_halt(ctx, held, before):
+                    held.rows.append(proof.row("stronger", "note", STRONGER_HALTED.format(
+                        model=model, why=halt)))
+                    return
                 continue
             if why_not := await self._not_a_pass(ctx, held, kind, model, fixer, wanted):
                 held.left_failing, held.no_more = wanted, True  # (no tier more: it stands held)
                 held.rows.append(why_not)
             return
+
+    def _stronger_halt(self: "AgentRunner", ctx: Ctx, held: "Proof",
+                       before: frozenset[str]) -> str | None:
+        """Until it passes (k-canli-016), a stronger model's rounds follow the same rule: no more
+        where its round left the same tests failing (the next tier may try), or - no tier more -
+        where the turn's rounds, the first model's and the stronger ones', reach the ceiling
+        (`held.most`) or a limit is reached; None: one more. Numbered Fix rounds: None - their
+        count bounds them."""
+        if not held.until_passes:
+            return None
+        if self._failing_tests(held, held.left_failing) == before:
+            return proof.NO_PROGRESS
+        why = proof.AT_CEILING.format(most=held.most) if (
+            held.rounds + held.stronger_rounds >= held.most) else self._over_limits(ctx)
+        held.no_more = held.no_more or why is not None
+        return why
 
     async def _diagnose(self: "AgentRunner", ctx: Ctx, held: "Proof", role: str, tier: str,
                         model: str, by: str) -> tuple[str, str]:
@@ -448,7 +478,7 @@ class StrongerMixin:
         if message_id is None:
             return "failed", "the Orchestrator's answer is not on record", None
         request = ToolCallRequest(f"{proof.PROOF_CALL}{kind}_{uuid.uuid4().hex[:12]}",
-                                  "spawn_agent", json.dumps(args))
+                                  "spawn_agent", json.dumps(args, ensure_ascii=False))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         if read_only:
             self._read_only_calls.add(call_id)

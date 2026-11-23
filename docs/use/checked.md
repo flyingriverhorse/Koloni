@@ -32,8 +32,9 @@ checked again:
 5. **The live try**, once a turn: a changed command-line tool is asked for its `--help`, and a big
    change of screens is tried by a Tester on the chat's preview ([The live try](#the-live-try)).
 
-A failure goes back to the Orchestrator at most **Fix rounds** times
-([When the tests fail](#when-the-tests-fail)); then a stronger model tries, and failing work is
+A failure goes back to the Orchestrator until it passes - while each round makes progress - or
+as many times as **Fix rounds** says ([When the tests fail](#when-the-tests-fail)); then a stronger
+model tries, and failing work is
 never taken in ([A stronger model](#a-stronger-model)). **Checked** under the answer says it all,
 line by line ([What each line means](#what-each-line-means)), and the canvas's **Checks** node
 shows it ([On the canvas](#on-the-canvas)). A recipe's turn follows the recipe's own **Checks**
@@ -76,7 +77,8 @@ project:
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
 the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
-is read by a Reviewer (one more model request). Failing work goes back up to 2 times." It names
+is read by a Reviewer (one more model request). Failing work goes back until it passes, while
+each round makes progress." It names
 your check command; else each test command you set for a part on the project map ("npm test in
 web/"), then what KOLONİ saved for any other folder - and changes as you save one there. Before a
 test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
@@ -224,10 +226,21 @@ The Orchestrator is told that the tests failed, with the end of their output, an
 what fails, by itself or with an agent that writes code. It is told never to delete or skip a
 test to make it pass. Then KOLONİ runs the tests again.
 
-It is sent back at most **Fix rounds** times a turn (**Settings › This project › Checks and git ›
-Fix rounds**, 1 to 5, 2 unless you change it) - one count with the Reviewer's findings. After that
-the turn ends, and the section says "Still failing after 2 fix rounds: you decide (Fix it)". **Fix it**, on the newest turn, sends a
-new message that asks for the fix. Nothing starts until you click it.
+How often is **Settings › This project › Checks and git › Fix rounds** - one count with the
+Reviewer's findings and the other checks:
+
+- **Until it passes** (the default): it goes back while each round makes progress. It stops - and
+  says why - where a round changed nothing (the same tests failing, or the same blocking findings
+  by who found them and the file each names, two rounds in a row), at the turn's token limit or
+  the project's monthly budget, or after 20 rounds at most: "Sent back to fix: round 3 (until it
+  passes, 3 failing → 1)", "Stopped after round 4: no progress in two rounds - you decide (Fix
+  it)". An answer to a round that changes nothing is no progress either.
+- **1 to 10**: at most that many rounds; after them the turn ends, and the section says "Still
+  failing after 2 fix rounds: you decide (Fix it)".
+
+A project still on the old default, 2, moved to Until it passes with 0.1.6; a number you had chosen
+is kept. **Fix it**, on the newest turn, sends a new message that asks for the fix. Nothing starts
+until you click it.
 
 Rounds never stack: where a recipe of the turn has already run its own test-and-fix rounds to
 the end (Bugfix's **Test it** back to **Fix it**), KOLONİ does not send the Orchestrator round
@@ -295,9 +308,13 @@ run of its own on record failed".
 
 ## A stronger model
 
-When the **Fix rounds** are spent and a test still fails, KOLONİ hands the fix to the next
-stronger tier on the Models page (fast, then balanced, then strongest), the same role on that
-tier's model, for the same number of rounds. Each tier
+When the **Fix rounds** are spent and a test still fails - until it passes: where a round made no
+progress, or after 20 -, KOLONİ hands the fix to the next stronger tier on the Models page (fast,
+then balanced, then strongest), the same role on that tier's model, for the same number of rounds
+(until it passes: while each of its rounds makes progress - "big-model's rounds stopped: no
+progress in two rounds" - and within the turn's 20 rounds in all, the first model's counted).
+Rounds stopped by the turn's token limit or the budget are not handed on, and a stronger model's
+stopped so tries no tier more. Each tier
 tries at most once a turn, and its model's use is always said: "Handed to `model` (Strongest)
 after 2 rounds by `model`". A tier whose provider is over its limit is skipped ("Strongest
 skipped: over its limit"), and none is tried where the project's month budget or the turn's
@@ -479,7 +496,14 @@ also what does not fit in the diff the Reviewer is shown.
   lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
   sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
   as data, never as your words.
-- Each look is an agent's work on its model: on the canvas, in its window and in Usage.
+- Each look is an agent's work on its model: on the canvas, in its window and in Usage. In the
+  chat its step reads "KOLONİ's look: Reviewer", not as one of the Orchestrator's. KOLONİ's looks
+  - a review, a look again, the live try's Tester, a stronger model's diagnosis and fix - use none
+  of the turn's **sub-agents per turn**: their bound is the Fix rounds, and the Orchestrator's
+  own sub-agents are counted without them.
+- Where a look again cannot be had (it failed, it was refused, the turn's token limit), the hold
+  stands and says why: "Still on hold: Security reviewer could not look again (…) - you decide
+  (Fix it)".
 - In a chat with teams the look is KOLONİ's, not a team's: no team's lead or door holds it, and
   it gets no team's tools (their shared folder, a request for another team's work).
 - The Orchestrator may answer the findings without changing anything: the turn ends there, and
@@ -662,7 +686,8 @@ Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2
 finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
 Orchestrator's own box gets one line: "● checking…"
 while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
-not run), "✗ still failing" or "not checked". In a recipe's turn the node is the recipe's last step,
+not run), "✗ still failing", "✗ on hold" (the tests passed, a Reviewer or the Tester holds) or "not
+checked". In a recipe's turn the node is the recipe's last step,
 inside its frame, and says "end of the recipe". A turn KOLONİ did not check has no Checks node: off
 for this chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's
 Checks step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
@@ -700,6 +725,9 @@ the Orchestrator's window, whose record holds the runs.
 | – `…` - the project changed while they ran | The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed. |
 | – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |
 | – No test command | There was nothing to run. |
+| – Sent back to fix: round 3 (until it passes, 3 failing → 1) | Until it passes: the rounds sent back, and how many failed at the first and fail now. |
+| ✗ Stopped after round 4: `why` - you decide (Fix it) | Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.) |
+| – `model`'s rounds stopped: no progress in two rounds | Until it passes, a stronger model's round left the same tests failing. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back. |
 | ✓ Review: Reviewer (`provider · model`) - MERGE, no findings | The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first). |
 | ✗ Review: Reviewer (`provider · model`) - HOLD, 2 findings, 1 blocking | It held the change; each finding follows as "Blocking: …" or "Suggestion: …". |
@@ -713,6 +741,7 @@ the Orchestrator's window, whose record holds the runs.
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
+| ✗ Still on hold: `role` could not look again (`why`) - you decide (Fix it) | A look after a fix round could not be had: the hold stands. |
 | ✓ `file`: 3 links, all found · `file`: 120 rows × 4 columns · `file`: 12 slides, 3 with notes | A document, diagram, data file or deck KOLONİ checked and found right. |
 | ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
 | – `file`: … - so before this turn | A problem the file already had: said, not sent back. |

@@ -108,7 +108,7 @@ def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(mak
               "slides": False, "ui": False, "fix_rounds": 0}
     (folder / "report.json").write_text(json.dumps(
         {"name": "Report", "graph": {**SMALL, "checks": checks}}), encoding="utf-8")
-    for name, wrong in (("rounds", {**checks, "fix_rounds": 9}), ("pages", {"pages": True})):
+    for name, wrong in (("rounds", {**checks, "fix_rounds": 11}), ("pages", {"pages": True})):
         (folder / f"{name}.json").write_text(json.dumps(
             {"name": name, "graph": {**SMALL, "checks": wrong}}), encoding="utf-8")
     read = listed(client, project_id=pid)

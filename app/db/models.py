@@ -216,8 +216,9 @@ class Project(Base):
     # look at a big or security-touching change), "tests" (Tests only) or "nothing" (`app.proof`).
     after_change: Mapped[str] = mapped_column(String(7), default="check", server_default="check")
     # S3 (0165, plan decisions 14a and 19): how often the end check sends work back - failing
-    # tests and a Reviewer's blocking findings, one count a turn - 1 to 5.
-    fix_rounds: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    # tests and a Reviewer's blocking findings, one count a turn - 1 to 10; None (0171, the
+    # default): until it passes, while each round makes progress (`app.proof.UNTIL_CEILING`).
+    fix_rounds: Mapped[int | None] = mapped_column(Integer, default=None, nullable=True)
     # S11 (0169, decisions 18, 19): Then a stronger model - the fix rounds spent with a test
     # still failing (or a blocking finding left), the next stronger tier tries; off: the work
     # waits after the first model's rounds.

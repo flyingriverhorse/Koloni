@@ -502,13 +502,29 @@ PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui")
 
 
 class Checks(NamedTuple):
-    """What a turn's end gate checks (S5c): its parts `on`; its Fix rounds (0: check only); the
-    effective After a change (`after_change_of`); and whether a recipe of the turn set its own
-    (its Checks step's "Set for this recipe")."""
+    """What a turn's end gate checks (S5c): its parts `on`; its Fix rounds (0: check only; None:
+    until it passes, k-canli-016); the effective After a change (`after_change_of`); and whether
+    a recipe of the turn set its own (its Checks step's "Set for this recipe")."""
     on: frozenset[str]
-    rounds: int
+    rounds: int | None
     setting: str
     own: bool
+
+
+# k-canli-016 (the user's): Until it passes - the work goes back while each round makes progress,
+# within the turn's token limit and the project's budget, and never more than this many times.
+UNTIL_CEILING = 20
+
+
+def _more(*rounds: int | None) -> int | None:
+    """The more of Fix rounds: until it passes (None) is more than any number."""
+    numbers = [one for one in rounds if one is not None]
+    return None if len(numbers) < len(rounds) else max(numbers, default=0)
+
+
+def _asked(asked: int | str | None, rounds: int | None) -> int | None:
+    """A recipe's Checks step's Fix rounds: None the project's, "until" until it passes."""
+    return rounds if asked is None else None if asked == "until" else int(asked)
 
 
 def recipe_checks(session: Session, run: Run | None) -> list[tuple[dict | None, str]]:
@@ -534,7 +550,7 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     that (`_checks_told`) follow the project; tell them again if a recipe's own is missed."""
     setting = after_change_of(session, conversation, run)
     project = session.get(Project, conversation.project_id) if conversation.project_id else None
-    rounds = project.fix_rounds if project is not None else 2
+    rounds = project.fix_rounds if project is not None else None
     kinds = dict(project.check_kinds or {}) if project is not None else {}
     theirs = frozenset(
         (["tests"] if setting in ("check", "tests") else []) + (
@@ -544,16 +560,16 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     if all(one is None for one, _who in recipes):
         return Checks(theirs, rounds, setting, False)
     on: set[str] = set()
-    most = 0
+    most: int | None = 0
     for one, who in recipes:
         parts = set() if one is None else {part for part in PARTS if one.get(part)}
         asked = None if one is None else one.get("fix_rounds")
         # (Review of S5c: only a recipe the user picked may lower the project's checks - one the
         # Orchestrator picked only adds to them, or it would switch its own checks off.)
         if one is not None and who == "user":
-            on, most = on | parts, max(most, rounds if asked is None else asked)
+            on, most = on | parts, _more(most, _asked(asked, rounds))
         else:
-            on, most = on | parts | theirs, max(most, rounds, asked or 0)
+            on, most = on | parts | theirs, _more(most, rounds, _asked(asked, rounds))
     return Checks(frozenset(on), most, setting, True)
 
 
@@ -621,6 +637,13 @@ NO_COMMAND = ("No test command: nothing was run (set one in Settings › This pr
               "and git)")
 NO_TESTS_ROW = "No tests: only documents, slides, diagrams or data changed"
 SENT_BACK = "Sent back to fix: {n} of {most} rounds"
+# k-canli-016: Until it passes - how far it came, and why the rounds stopped short of a pass.
+SENT_BACK_UNTIL = "Sent back to fix: round {n} (until it passes, {first} failing → {now})"
+STOPPED_AFTER = "Stopped after round {n}: {why} - you decide (Fix it)"
+NO_PROGRESS = "no progress in two rounds"
+AT_CEILING = "at most {most} rounds"
+TOKEN_LIMIT = "the turn's token limit"
+BUDGET = "the project's monthly budget"
 STILL_FAILING = "Still failing after {most} fix rounds: you decide (Fix it)"
 RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)"
 WAITING = "Not in this run: {name}'s work waits in Ready for you"

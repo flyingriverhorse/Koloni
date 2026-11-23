@@ -18,7 +18,8 @@ export interface Checks {
   project: Project['after_change']
   /** What runs (`testsRun`): the project's command, or that KOLONİ finds one. */
   command: string
-  rounds: number
+  /** The project's Fix rounds; null: until it passes (k-canli-016). */
+  rounds: number | null
   onChange: (value: Conversation['after_change']) => void
 }
 

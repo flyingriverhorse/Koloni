@@ -28,7 +28,9 @@ NUDGE = TESTS_FAILED_LEAD.split("(")[0]  # "Not the end yet: KOLONİ ran the pro
 
 def begin(client, root, mode="full_auto", content="fix the greeting", parts=None, **project):
     """A chat in a project whose Lead writes itself, at `mode`, its first message sent; `parts`:
-    the user's test commands by part."""
+    the user's test commands by part. Fix rounds 2 unless `project` says: these scenarios pin a
+    number of rounds - Until it passes, the default since k-canli-016, has tests of its own."""
+    project = {"fix_rounds": 2, **project}
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
     assert client.patch(f"/api/projects/{pid}", json=project, headers=OWN).status_code == 200
     for path, command in (parts or {}).items():
@@ -694,7 +696,8 @@ def test_a_capped_review_loop_leaves_the_end_checks_own_rounds(make_client, wait
         "Reviewer": [text(FOUND)], "Reviewer 2": [text(FOUND)],
     }, executor=executor)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py"},
+    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py",
+                                                      "fix_rounds": 2},
                         headers=OWN).status_code == 200
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"],
                                                build_review_ship(client)))

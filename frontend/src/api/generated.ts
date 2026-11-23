@@ -5301,6 +5301,8 @@ export interface components {
         };
         /** BacklogDraftIn */
         BacklogDraftIn: {
+            /** Conversation Id */
+            conversation_id?: string | null;
             /** Text */
             text: string;
         };
@@ -8947,7 +8949,7 @@ export interface components {
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
             /** Fix Rounds */
-            fix_rounds: number;
+            fix_rounds: number | null;
             /**
              * Full Auto Check
              * @enum {string}
@@ -9136,7 +9138,7 @@ export interface components {
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
             /** Fix Rounds */
-            fix_rounds?: number | null;
+            fix_rounds?: number | "until" | null;
             /** Forget Tests Found */
             forget_tests_found?: boolean | null;
             /** Full Auto Check */
@@ -9524,7 +9526,7 @@ export interface components {
              */
             docs: boolean;
             /** Fix Rounds */
-            fix_rounds?: number | null;
+            fix_rounds?: number | "until" | null;
             /**
              * Review
              * @default true
@@ -9548,6 +9550,8 @@ export interface components {
         };
         /** RecipeDraftIn */
         RecipeDraftIn: {
+            /** Conversation Id */
+            conversation_id?: string | null;
             /** Text */
             text: string;
         };
@@ -16174,7 +16178,9 @@ export interface operations {
     };
     read_auto_api_projects__project_id__backlog_auto_get: {
         parameters: {
-            query?: never;
+            query?: {
+                conversation_id?: string | null;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -18338,6 +18344,7 @@ export interface operations {
         parameters: {
             query?: {
                 project_id?: string | null;
+                conversation_id?: string | null;
             };
             header?: never;
             path?: never;

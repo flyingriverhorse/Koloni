@@ -1146,5 +1146,27 @@ test('what an event of the open chat has the page read again, in the order it as
   expect(await on('agent.updated', { ...worker, id: 'z' })).toEqual([])
   useApp.setState({ memory: {} as never, backlog: [] })
   expect(await on('memory.changed')).toEqual(['GET /api/projects/p/memory'])
-  expect(await on('backlog.changed')).toEqual(['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/auto', ...rest])
+  expect(await on('backlog.changed')).toEqual(['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/auto?conversation_id=a', ...rest])
+})
+
+test('k-tarif-model: a draft - Or write it, the Product owner’s - names the chat the page is open on, whose model is asked too', async () => {
+  const asked: string[] = []
+  vi.mocked(fetch).mockImplementation(async (url, init) => {
+    asked.push(`${init?.method ?? 'GET'} ${String(url)}${init?.body ? ` ${String(init.body)}` : ''}`)
+    return new Response(JSON.stringify({ recipes: [], broken: [], writer: { why: null, asks: null }, tasks: [], by: 'x' }), { status: 200 })
+  })
+  useApp.setState({ projectId: 'p', conv: { conversation: { ...conversation, id: 'c1' } } as never })
+  await useApp.getState().draftRecipe('spec, then code')
+  await useApp.getState().recipes('p')
+  await useApp.getState().recipes(null)
+  await useApp.getState().draftTasks('a note')
+  useApp.setState({ conv: null })
+  await useApp.getState().draftRecipe('again')
+  expect(asked).toEqual([
+    `POST /api/recipes/draft ${JSON.stringify({ text: 'spec, then code', conversation_id: 'c1' })}`,
+    'GET /api/recipes?project_id=p&conversation_id=c1',
+    'GET /api/recipes?conversation_id=c1',
+    `POST /api/projects/p/backlog/draft ${JSON.stringify({ text: 'a note', conversation_id: 'c1' })}`,
+    `POST /api/recipes/draft ${JSON.stringify({ text: 'again', conversation_id: null })}`,
+  ])
 })
