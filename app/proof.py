@@ -550,8 +550,9 @@ def touched_since(
     off the event loop.
     shortcut: a tracked test file deleted before the turn is counted too (git says no when);
     read the deletions as the turn begins if that is seen.
-    A file that cannot be read (gone: deleted, a committed deletion) is touched - never passed
-    over (R's second round).
+    A file committed since the turn began that cannot be read (a committed deletion) is
+    touched - never passed over (R's second round); one deleted by hand, listed by git as
+    deleted, is not.
     shortcut: a write that keeps an old time (`cp -p`, `tar x`, `unzip`, `touch -d`), one into
     an ignored folder and a secret-named file (`git.changes` leaves it out) are not seen; ask
     git for them, or read the files' hashes as the turn begins, if a change slips by so."""
@@ -559,8 +560,12 @@ def touched_since(
     if listed is None:
         return None
     paths = [one["path"] for one in listed]
-    if head is not None:
-        paths += [one for one in git.committed_since(folder, head) if not is_secret(one)]
+    committed = (
+        {one for one in git.committed_since(folder, head) if not is_secret(one)}
+        if head is not None
+        else set()
+    )
+    paths += sorted(committed)
     edge = since.timestamp() - MTIME_SLACK if since is not None else float("-inf")
     found = [
         one["path"]
@@ -573,8 +578,9 @@ def touched_since(
         try:
             if (folder / path).stat().st_mtime >= edge:
                 found.append(path)
-        except OSError:  # (gone, or not read - a committed deletion: touched, never passed over)
-            found.append(path)
+        except OSError:  # (a deletion committed since the turn began: touched, never passed over -
+            if path in committed:  # one deleted by hand before it, as git lists it, is not)
+                found.append(path)
     return sorted(found)
 
 

@@ -10,6 +10,7 @@ path. `BeforeMixin`; S11 reads `flaky` / `failing_before` for its diagnosis."""
 import asyncio
 import logging
 import math
+import posixpath
 import re
 import time
 import uuid
@@ -70,15 +71,16 @@ GREEN_LEAD = (
 _SEEN = re.compile(r"seen (\d+) times")
 
 
-def _text(path: Path) -> str | None:
-    """R: a test file's text as it is on disk where the tests ran; None where it is not read - gone,
-    not UTF-8, over what is counted (`proof_before.MOST_COUNTED`)."""
-    try:
-        with path.open("rb") as file:
-            data = file.read(proof_before.MOST_COUNTED + 1)
-        return data.decode("utf-8") if len(data) <= proof_before.MOST_COUNTED else None
-    except (OSError, UnicodeDecodeError):
-        return None
+def _touched(test_id: str, cwd: str, touched: set[str]) -> bool:
+    """R: whether a test's file (a pytest node id's part before `::`; a vitest or jest id is its
+    file) is one of `touched` - from the run's folder or the project's root, or ending so (a
+    rootdir elsewhere): any doubt, touched."""
+    file = test_id.split("::", 1)[0].replace("\\", "/").removeprefix("./")
+    joined = posixpath.normpath(posixpath.join(cwd, file)) if cwd not in ("", ".") else file
+    return any(
+        one in (file, joined) or one.endswith("/" + file) or file.endswith("/" + one)
+        for one in touched
+    )
 
 
 def _named(command: str):
@@ -267,9 +269,7 @@ class BeforeMixin:
             was = (project.tests_green or {}).get(key)
             said = proof_before.green_said(was, ran, skipped)
             fewer, skips = (
-                self._could_drop(session, ctx, held, run, was.get("at"))
-                if said and was
-                else (True, True)
+                self._could_drop(session, ctx, held, run, was) if said and was else (True, True)
             )
             ours = [one for one in said if (skips if one.startswith("Skipped") else fewer)]
             for one in (one for one in said if one not in ours):  # (R: the green state moves)
@@ -300,53 +300,48 @@ class BeforeMixin:
         return []
 
     def _could_drop(
-        self: "AgentRunner", session, ctx: Ctx, held: "Proof", run: TestRun, since: str | None
+        self: "AgentRunner", session, ctx: Ctx, held: "Proof", run: TestRun, was: dict
     ) -> tuple[bool, bool]:
-        """R (CL-345; its second round, the main session's rule): whether a drop against the last
-        green run - fewer tests run, more skipped - may be the turn's. Outside it only where that
-        is shown, all of: no command of the turn's that may write ran, wherever it ran (a script
-        in a recipe's copy, `git rm … && git commit`: `_wrote_by_command`); no test file it
-        deleted or renamed, and each one of the project's it changed holds all its old lines,
-        added to only, with nothing that may skip, hide or rebind a test
-        (`proof_before.only_added` - read where the tests ran, never from another copy's record);
-        nothing that says which tests run changed (`steers_tests`, a file the test command names);
-        no change on KOLONİ's record since that green run (`since`) took lines out of a test file
-        (`_tests_cut_since`: another turn's, its suite ended after its answer). Else the turn's,
-        both - as before R. Shown outside: the tests counted in each file it added to
-        (`proof_before.tests_in`), a word more."""
+        """R (CL-345; its third round, the main session's rule: by test id): whether a drop against
+        the last green run `was` - fewer tests run, more skipped - may be the turn's. Fewer is
+        outside it only where it is shown: each test the green run listed as passed and this run
+        does not (`missing`) lives in a file the turn did not touch in any way - and none of: a
+        command of the turn's that may write ran, wherever it ran (`_wrote_by_command`); what says
+        which tests run changed (`steers_tests`, a file the test command names); a test file the
+        turn made (a new spec's `.only` switches others off); a change on KOLONİ's record since
+        that green run took lines out of a test file (`_tests_cut_since`: another turn's, whose
+        suite ended after its answer). A runner that lists no ids (either run), or ids that do not
+        add up to the drop: the turn's, as before R. More skipped: the turn's - no runner here
+        lists what it skipped by id.
+        shortcut: a test generated from data the turn changed elsewhere - a parametrize list built
+        from the app's data, a flag a skipif reads - lives in a file it did not touch, and its
+        drop reads as outside; read the tests' own imports if that is seen."""
         turns = (True, True)
         if held.unrecorded or held.gone_tests or self._wrote_by_command(session, ctx):
             return turns
+        mine = [one for one in held.changes if one.in_project]
         named = {
             word.rsplit("/", 1)[-1]
             for word in run.command.replace("\\", "/").split()
             if "." in word
         }
         if any(
-            one.in_project and (steers_tests(one.path) or one.path.rsplit("/", 1)[-1] in named)
-            for one in held.changes
+            steers_tests(one.path)
+            or one.path.rsplit("/", 1)[-1] in named
+            or (proof.is_test(one.path) and not one.existed and not one.deleted)
+            for one in mine
         ):
             return turns
+        since = was.get("at")
         if since is None or self._tests_cut_since(session, ctx, since):
             return turns
-        root, kept = Path(self._ws(ctx).root), proof._kept(session, ctx.run_id)
-        fewer = skips = False
-        for one in held.changes:
-            if not (one.in_project and one.existed and proof.is_test(one.path)):
-                continue
-            made = kept.get(one.path)
-            was = made[0].before_content if made else None
-            now = None if one.deleted else _text(root / one.path)
-            if not proof_before.only_added(one.path, was, now):
-                return turns
-            before, after = (
-                proof_before.tests_in(one.path, was),
-                proof_before.tests_in(one.path, now),
-            )
-            if before is None or after is None:  # (`only_added` counted both: never here)
-                return turns
-            fewer, skips = fewer or after[0] < before[0], skips or after[1] > before[1]
-        return fewer, skips
+        green, now = was.get("ids"), self._passed_now(session, ctx, run)
+        if not green or now is None or len(green) >= proof_before.MOST_IDS:
+            return turns
+        missing = set(green) - set(now)
+        touched = {one.path for one in mine}
+        fewer = not missing or any(_touched(one, run.cwd, touched) for one in missing)
+        return fewer, True
 
     def _wrote_by_command(self: "AgentRunner", session, ctx: Ctx) -> bool:
         """R: whether a command of the turn's agents that may write files ran (`proof.may_write`)

@@ -35,6 +35,14 @@ def passing(n=4, skipped=0):
     return Script([f"{n} passed" + (f", {skipped} skipped" if skipped else "") + " in 0.1s\n"])
 
 
+def listing(ids, skipped=0):
+    """A passing pytest run that lists its passes by id (as `-v` / `-rA` do): R reads them."""
+    lines = "".join(f"{one} PASSED\n" for one in ids)
+    return Script(
+        [lines + f"{len(ids)} passed" + (f", {skipped} skipped" if skipped else "") + " in 0.1s\n"]
+    )
+
+
 def rows_of(snap, run_id):
     return [
         r["text"]
@@ -638,10 +646,12 @@ def test_a_ci_check_failing_only_where_the_turn_did_not_change_is_no_round(
 def test_tests_deleted_outside_koloni_are_no_turns_drop(make_client, wait_run, project_dir):
     # (R, CL-345: 4 green; a test file deleted by hand before the next turn, which changes app
     # code only - 3 run: not its change. Said, nothing sent back, the green state moves to 3.
-    # Before: "Tests went from 48 to 45" sent back twice, the work not taken in.)
+    # Before: "Tests went from 48 to 45" sent back twice, the work not taken in. Third round: by
+    # test id - the one missing lives in a file the turn did not touch.)
     (project_dir / "tests").mkdir()
     (project_dir / "tests" / "test_old.py").write_text("def test_old(): pass\n", encoding="utf-8")
-    executor = ScriptedExecutor([passing(4), passing(3)])
+    four = ["tests/test_old.py::test_old", *(f"tests/test_a.py::test_{n}" for n in range(3))]
+    executor = ScriptedExecutor([listing(four), listing(four[1:])])
     client, model = make_client(
         [write("a.py", "x = 1\n"), text("done"), write("a.py", "x = 2\n", "w2"), text("done")],
         executor=executor,
@@ -663,9 +673,25 @@ def test_tests_deleted_outside_koloni_are_no_turns_drop(make_client, wait_run, p
 
 
 CALC_TESTS = "def test_one():\n    pass\n\n\ndef test_two():\n    pass\n"
+# (the 48 a first turn's run lists: test_calc.py's two, test_old.py's three, 43 more)
+GREEN = [
+    "tests/test_calc.py::test_one",
+    "tests/test_calc.py::test_two",
+    *(f"tests/test_old.py::test_{n}" for n in "abc"),
+    *(f"tests/test_more.py::test_{n}" for n in range(43)),
+]
 
 
-def second_turn(make_client, wait_run, project_dir, edited, counts, by_hand=None):
+def second_turn(
+    make_client,
+    wait_run,
+    project_dir,
+    edited,
+    counts,
+    by_hand=None,
+    ids=None,
+    path="tests/test_calc.py",
+):
     """Green at a first turn's run (48); `by_hand` done to the project between the turns; then a
     turn by a recipe at Full auto - its one step, Fix it (Coder), writes tests/test_calc.py as
     `edited` (it was CALC_TESTS) and fixes calc.py; KOLONİ's checks run in its copy, `counts`
@@ -688,13 +714,17 @@ def second_turn(make_client, wait_run, project_dir, edited, counts, by_hand=None
                 *[text(f"done {i}") for i in range(4)],
             ],
             "Coder": [
-                write("tests/test_calc.py", edited, "w2"),
+                write(path, edited, "w2"),
                 write("calc.py", "x = 2\n", "w3"),
                 text("fixed, and a test for it"),
             ],
             "Coder 2": [text("nothing to change")],
         },
-        executor=ScriptedExecutor([passing(48), *[passing(*counts)] * 8]),
+        executor=ScriptedExecutor(
+            [listing(GREEN), *[listing(ids)] * 8]
+            if ids is not None
+            else [passing(48), *[passing(*counts)] * 8]
+        ),
     )
     cid, run_id = begin(client, project_dir, check_command=PYTEST, fix_rounds=1)
     wait_run(client, cid, run_id)
@@ -736,9 +766,9 @@ def second_turn(make_client, wait_run, project_dir, edited, counts, by_hand=None
 def test_a_turn_that_adds_a_test_to_a_file_does_not_take_on_tests_deleted_by_hand(
     make_client, wait_run, project_dir
 ):
-    # (R, the live shape: 48 green, tests deleted by hand in another file, the turn adds a test to
-    # an existing test file and fixes the code - 46 run. It took none away: a note, nothing sent
-    # back, the work taken in)
+    # (R, the live shape: 48 green, test_old.py's 3 tests deleted by hand, the turn adds a test to
+    # test_calc.py and fixes the code - 46 run. Every test missing lives in a file it did not
+    # touch: a note, nothing sent back, the work taken in)
     rows, taken, _model = second_turn(
         make_client,
         wait_run,
@@ -746,6 +776,7 @@ def test_a_turn_that_adds_a_test_to_a_file_does_not_take_on_tests_deleted_by_han
         CALC_TESTS + "\n\ndef test_three():\n    pass\n",
         (46,),
         by_hand=lambda: (project_dir / "tests" / "test_old.py").unlink(),
+        ids=[one for one in GREEN if "test_old" not in one] + ["tests/test_calc.py::test_three"],
     )
     said = before_mixin.NOT_OURS.format(said="Tests went from 48 to 46 (2 removed)")
     assert (said, "note") in rows and not any(state == "failed" for _t, state in rows), rows

@@ -252,3 +252,80 @@ def test_a_test_file_weakened_by_lines_added_is_the_turns(
     rows, taken, _model = second_turn(make_client, wait_run, project_dir, edited, (47,))
     assert (DROP, "failed") in rows and (NOT_OURS, "note") not in rows, rows
     assert not taken, rows
+
+
+# R, third round: by test id - the probes that slipped past a list of words, each a turn's own.
+CALC = CALC_TESTS.replace("def test_two", "{mark}def test_two")
+
+
+@pytest.mark.parametrize(
+    ("ini", "edited"),
+    [
+        # (an existing `addopts = -m "not slow"`: a test marked slow is deselected)
+        (
+            '[pytest]\naddopts = -m "not slow"\nmarkers = slow\n',
+            "import pytest\n" + CALC.format(mark="@pytest.mark.slow\n"),
+        ),
+        (None, "import pytest\n" + CALC.format(mark='@pytest.mark.usefixtures("gpu")\n')),
+        (None, "from tests.markers import later\n" + CALC.format(mark="@later\n")),
+        (None, CALC_TESTS + "\ntest_two = None\n"),
+        (None, "import sys\n" + CALC_TESTS + '\ndelattr(sys.modules[__name__], "test_two")\n'),
+        (None, CALC_TESTS + '\nglobals().pop("test_two")\n'),
+    ],
+    ids=["slow_deselected", "skipping_fixture", "skip_alias", "rebound", "delattr", "globals_pop"],
+)
+def test_a_test_gone_from_a_file_the_turn_touched_is_the_turns(
+    make_client, wait_run, project_dir, ini, edited
+):
+    from tests.test_proof_before_scenarios import GREEN
+
+    if ini:
+        (project_dir / "pytest.ini").write_text(ini, encoding="utf-8")  # (there before the turn)
+    now = [one for one in GREEN if one != "tests/test_calc.py::test_two"]
+    rows, taken, _model = second_turn(make_client, wait_run, project_dir, edited, (47,), ids=now)
+    assert (DROP, "failed") in rows and (NOT_OURS, "note") not in rows and not taken, rows
+
+
+def test_a_runner_that_lists_no_ids_leaves_a_drop_the_turns(make_client, wait_run, project_dir):
+    # (with no ids listed, nothing shows where the tests went: the turn's, as before R - the
+    # same drop listed by id is outside: test_proof_before_scenarios' live case)
+    rows, _taken, _model = second_turn(
+        make_client,
+        wait_run,
+        project_dir,
+        CALC_TESTS + "\n\ndef test_three():\n    pass\n",
+        (46,),
+        by_hand=lambda: (project_dir / "tests" / "test_old.py").unlink(),
+    )
+    said = "Tests went from 48 to 46 (2 removed)"
+    assert (said, "failed") in rows, rows  # (no ids: the turn's)
+
+
+def test_a_test_file_the_turn_made_is_the_turns_wherever_the_tests_went(
+    make_client, wait_run, project_dir
+):
+    # (test_old.py's tests deleted by hand, listed by id - but the turn made a test file: a new
+    # spec's `.only` switches the others off, wherever they live - the turn's, fail safe)
+    from tests.test_proof_before_scenarios import GREEN
+
+    rows, _taken, _model = second_turn(
+        make_client,
+        wait_run,
+        project_dir,
+        "def test_new():\n    pass\n",
+        (46,),
+        by_hand=lambda: (project_dir / "tests" / "test_old.py").unlink(),
+        ids=[one for one in GREEN if "test_old" not in one] + ["tests/test_new.py::test_new"],
+        path="tests/test_new.py",
+    )
+    assert ("Tests went from 48 to 46 (2 removed)", "failed") in rows, rows
+
+
+def test_a_tests_file_is_found_from_the_runs_folder_or_its_end():
+    from app.agent.before_mixin import _touched
+
+    assert _touched("tests/test_calc.py::test_one", ".", {"tests/test_calc.py"})
+    assert _touched("tests/a.py::t", "web", {"web/tests/a.py"})
+    assert _touched("a.py::t", ".", {"web/a.py"})  # (a rootdir elsewhere: any doubt, touched)
+    assert _touched("src/a.test.ts", ".", {"src/a.test.ts"})  # (vitest's and jest's: the file)
+    assert not _touched("tests/test_old.py::test_a", ".", {"tests/test_calc.py", "a.py"})
