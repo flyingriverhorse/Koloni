@@ -21,6 +21,7 @@ from app.db.models import (
     Project,
     Provider,
     Recipe,
+    Run,
     Team,
     now,
 )
@@ -125,7 +126,8 @@ Asked = tuple[Provider, str | None, str]
 
 
 def askers(session: Session, providers, tier: str,
-           conversation: Conversation | None = None) -> list[Asked] | str:
+           conversation: Conversation | None = None,
+           project_id: str | None = None) -> list[Asked] | str:
     """Whom a draft is asked of, in turn, each once: each model of `tier` the Lead may pick, as
     KOLONİ's other small requests go (`askable`: not one whose provider looked down when last
     read - a local model server not running -), then the other tiers' (fast, balanced,
@@ -158,7 +160,7 @@ def askers(session: Session, providers, tier: str,
     can = writer(session, conversation)
     if not isinstance(can, str):
         add(*can, "the Orchestrator's model")
-    if (newest := _newest_chats(session)) is not None:
+    if (newest := _newest_chats(session, project_id)) is not None:
         add(*newest, "the newest chat's model")
     if found:
         return list(found.values())
@@ -177,11 +179,16 @@ def _talks(session: Session, providers, provider: Provider, model: str | None) -
     return not getattr(client, "native", False)
 
 
-def _newest_chats(session: Session) -> tuple[Provider, str | None] | None:
-    """The model the newest chat's Orchestrator ran on, as it was last used; None: no chat ran,
-    or its provider is gone."""
+def _newest_chats(session: Session, project_id: str | None = None,
+                  ) -> tuple[Provider, str | None] | None:
+    """The model the newest chat's Orchestrator ran on, as it was last used - of `project_id`'s
+    chats where a project asks (its text goes to no model only another project's chat used);
+    None: no chat ran, or its provider is gone."""
+    of_project = [] if project_id is None else [Agent.run_id.in_(select(Run.id).join(
+        Conversation, Conversation.id == Run.conversation_id).where(
+        Conversation.project_id == project_id))]
     lead = session.scalars(select(Agent).where(
-        Agent.depth == 0, Agent.provider_name.is_not(None)).order_by(
+        Agent.depth == 0, Agent.provider_name.is_not(None), *of_project).order_by(
         Agent.created_at.desc(), literal_column("agents.rowid").desc()).limit(1)).first()
     provider = session.scalar(select(Provider).where(
         Provider.name == lead.provider_name)) if lead is not None else None

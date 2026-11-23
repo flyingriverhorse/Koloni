@@ -64,7 +64,7 @@ def _drafter(session: Session, request: Request, project: Project,
     if over := over_month(session, project):
         return f"This project is {over}."
     return askers(session, request.app.state.providers, "fast",
-                  chat_of(session, conversation_id, project.id))
+                  chat_of(session, conversation_id, project.id), project.id)
 
 
 def _auto(session: Session, project: Project, request: Request,

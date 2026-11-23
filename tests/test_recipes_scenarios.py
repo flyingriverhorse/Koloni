@@ -567,6 +567,25 @@ def test_or_write_it_with_no_chat_asks_every_tier_then_the_newest_chats_model(
     assert (drawn.json()["provider_name"], drawn.json()["model_id"]) == ("Fast", "deep")
 
 
+
+def test_a_projects_draft_asks_only_its_own_chats_newest_model(team, project_dir):  # noqa: F811
+    """Review of k-tarif-model: the newest chat's model, where a project asks, is one of its own
+    chats' - its text goes to no model only another project's chat used."""
+    client, _default, _fast = team([], [])
+    fast_id = team.providers["Fast"]["id"]
+    pid, cid = chat_on(client, project_dir, fast_id, "deep")
+    with client.app.state.session_factory() as session:
+        session.add(models.Run(id="r1", conversation_id=cid, status="completed"))
+        session.flush()
+        session.add(models.Agent(id="a1", run_id="r1", role_name="Orchestrator", tools=[],
+                                 provider_name="Fast", model_id="deep"))
+        session.commit()
+        from app.api.recipes import _newest_chats
+        assert _newest_chats(session, pid)[1] == "deep"
+        assert _newest_chats(session) is not None  # (no project: the Agents page's own)
+        assert _newest_chats(session, "another") is None
+
+
 def test_or_write_it_may_draw_a_role_step_of_more_than_one(make_client):
     """K-rol-cogul: "at most N" of a role (`most`) is told, and a draft with it is read."""
     two = {"name": "Two coders", "graph": graph([step("c", "Code it", {"role": "Coder", "most": 2})],
