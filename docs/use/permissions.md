@@ -27,7 +27,7 @@ level says "· no checks"). Each chat has its own level.
 |---|---|---|---|
 | Reading, listing or searching files in the project | Runs | Runs | Runs |
 | Changing a file | Card | Runs | Runs |
-| A command that only reads, such as `cat`, `ls` or `git status` | Runs | Runs | Runs |
+| A command that only reads, such as `cat`, `ls` or `git status` (every path it names, followed through links and junctions, inside the project and no secret file - else it is any other command) | Runs | Runs | Runs |
 | Any other command | Card, unless a rule covers it | Card, unless a rule covers it | Runs |
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
 | A command that deletes, cannot be undone, or sends data off the machine (`rm -rf`, `git reset --hard`, `git push --force`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |

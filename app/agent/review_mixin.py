@@ -407,7 +407,7 @@ class ReviewMixin:
         command, cwd = planned.command, planned.cwd_rel
         if planned.keep_running:
             raise ToolError(ASKED_FOR_REVIEW.format(command=command, why="it would keep running"))
-        if not await asyncio.to_thread(reads_here, command, root, cwd == "."):
+        if not await asyncio.to_thread(reads_here, command, root, cwd == ".", cwd):
             # (only a line `is_exactly` lets through is named: another would be refused again)
             approved = [(line, folder) for line, folder in await self._approved_tests(ctx)
                         if is_exactly(line, line)]

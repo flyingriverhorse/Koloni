@@ -2,6 +2,8 @@
 
 import contextlib
 import fnmatch
+import glob
+import itertools
 import ntpath
 import os
 import posixpath
@@ -3663,15 +3665,71 @@ def only_looks(command: str) -> bool:
         _program(words[0]) in _LOOKERS | _SEARCHERS)
 
 
-def reads_here(command: str, root: Path, at_root: bool) -> bool:
+def reads_here(command: str, root: Path, at_root: bool, cwd: str = ".") -> bool:
     """Whether a command runs unasked below Full auto (`only_reads`): git's only at the root
     of the folder it works in (a repository shaped in a folder below could set what git
     runs) and while that folder holds no secret file - its diff, log and show print a
-    committed one's lines without naming it. shortcut: a gitignored .env cards git too;
-    ask `git ls-files` if that is met. Blocking: call it off the event loop."""
-    if not only_reads(command):
+    committed one's lines without naming it. And (k-okuma-yol) every path it names, followed
+    through links and junctions as `read_file` follows them (`Workspace.resolve`), ends in the
+    folder and on no secret path (`_named_here`). `cwd`: where in `root` it runs. shortcut: a
+    gitignored .env cards git too; ask `git ls-files` if that is met. Blocking: call it off the
+    event loop."""
+    if not only_reads(command) or not _named_here(command, root, cwd):
         return False
     return _program(_words(command.strip())[0]) != "git" or at_root and secret_held(root) is None
+
+
+# What a read's paths are followed for, at most: a line naming more is asked.
+MOST_NAMED = 64
+MOST_MATCHED = 256
+
+
+def _named_here(command: str, root: Path, cwd: str) -> bool:
+    """Whether each path a plain read names (`only_reads`' words, a glob's matches), followed
+    through links and junctions, ends inside `root` and on no secret path - a link in the
+    project that leads out of it (planted, or a repository's symlink) reads nothing outside
+    unasked, as `read_file` refuses it. A name that is no file reads nothing: passed. A line
+    naming more than it is worth following (MOST_NAMED, a glob over MOST_MATCHED): False."""
+    try:
+        top = root.resolve()
+        here = (root / cwd).resolve()
+    except (OSError, RuntimeError):
+        return False
+    if not here.is_relative_to(top):
+        return False
+    words = [word.strip("'\"") for word in _words(command.strip())][1:]
+    named = [re.sub(r"^-\w+:", "", word) for word in words]  # (`-Path:x` names x)
+    pieces = [piece for word in named if not word.startswith("-")
+              for piece in re.split(r"[=:,]", word) if piece]
+    if len(pieces) > MOST_NAMED:
+        return False
+    for piece in pieces:
+        found = _named_paths(here, piece)
+        if found is None or not all(_lands_here(one, top) for one in found):
+            return False
+    return True
+
+
+def _named_paths(here: Path, piece: str) -> list[Path] | None:
+    """What a word of a read names in `here`: its glob's matches, or the path where something
+    is there (a dangling link too); None: a glob over MOST_MATCHED."""
+    if glob.has_magic(piece):
+        matched = list(itertools.islice(glob.iglob(str(here / piece)), MOST_MATCHED + 1))
+        return None if len(matched) > MOST_MATCHED else [Path(one) for one in matched]
+    path = here / piece
+    return [path] if os.path.lexists(path) else []
+
+
+def _lands_here(path: Path, top: Path) -> bool:
+    """Whether a named path, followed through every link, ends in the folder and on no secret
+    path."""
+    try:
+        real = path.resolve()
+    except (OSError, RuntimeError):  # (a loop of links: not followed, asked)
+        return False
+    if not (real == top or real.is_relative_to(top)):
+        return False
+    return real == top or not secret_in_project(real.relative_to(top).as_posix())
 
 
 # How long a folder's answer is kept: the commands of one turn do not each walk it.

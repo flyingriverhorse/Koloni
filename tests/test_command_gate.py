@@ -118,3 +118,66 @@ def test_every_line_is_read_as_written_too():
     # the line as written: a data heredoc's body once cut the commands after it)
     missing = [row[0] for row in GATE["lines"] if row[0] not in commands.readings(row[0])]
     assert not missing, "\n".join(missing[:20])
+
+
+def _link_out(link: Path, target: Path) -> None:
+    """A folder link in the project leading out of it: a junction on Windows (no developer mode
+    needed), a symlink elsewhere; skipped where neither can be made."""
+    import subprocess
+
+    import pytest
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True,
+                           capture_output=True)
+        else:
+            os.symlink(target, link, target_is_directory=True)
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("no folder link can be made here")
+
+
+def test_a_read_through_a_link_out_of_the_project_is_no_plain_read(tmp_path):
+    # (k-okuma-yol: `read_file` refuses `out/secret.txt` - "outside the project folder" - and
+    # this read of it ran unasked below Full auto; a planted link, or a repository's symlink)
+    project, outside = tmp_path / "proj", tmp_path / "outside"
+    project.mkdir()
+    outside.mkdir()
+    (outside / "secret.txt").write_text("s", encoding="utf-8")
+    (project / "a.py").write_text("x = 1\n", encoding="utf-8")
+    (project / "notes").mkdir()
+    _link_out(project / "out", outside)
+    asked = ["cat out/secret.txt", "head -n 5 out/secret.txt", "ls out", "cat out"]
+    if sys.platform == "win32":
+        asked += [r"type out\secret.txt", r"gc -Path:out\secret.txt", "Get-Content out/secret.txt"]
+    for line in asked:
+        assert commands.only_reads(line), line  # (by its words alone, a plain read)
+        assert not commands.reads_here(line, project, True), line
+    # (from a folder below, `..` reads stay what `only_reads` says; the link is still followed)
+    assert not commands.reads_here("cat secret.txt", project, False, "out")
+    for line in ["cat a.py", "ls .", "ls notes", "cat missing.txt", "head -n 5 a.py"]:
+        assert commands.reads_here(line, project, True), line
+
+
+def test_a_link_to_a_secret_in_the_project_is_no_plain_read(tmp_path):
+    project = tmp_path / "proj"
+    (project / "keys").mkdir(parents=True)
+    (project / ".env").write_text("TOKEN=x\n", encoding="utf-8")
+    _link_out(project / "shown", project / "keys")
+    (project / "keys" / "id_rsa").write_text("k", encoding="utf-8")
+    assert not commands.reads_here("cat shown/id_rsa", project, True)
+
+
+def test_every_quiet_read_of_the_gate_stays_quiet_in_a_plain_project(tmp_path, monkeypatch):
+    # (following paths must not ask more: each gate line that only reads still runs unasked in
+    # a project with no link and no secret)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "user-data"))
+    values = tokens(tmp_path)
+    project = tmp_path / "proj"
+    project.mkdir(exist_ok=True)
+    (project / "a.py").write_text("x = 1\n", encoding="utf-8")
+    louder = []
+    for template, *_rest in GATE["lines"]:
+        line = re.sub(r"<[a-z_]+(?:\|[a-z]+)?>", lambda m: values.get(m[0], m[0]), template)
+        if commands.only_reads(line) and not commands.reads_here(line, project, True):
+            louder.append(line)
+    assert not louder, "asked now, read unasked before:\n" + "\n".join(louder)
