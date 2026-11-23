@@ -243,7 +243,7 @@ class AwayMixin:
             return harms(command, not self._full_auto(ctx))
         copy = self._copies.get(self._away_jobs[ctx.run_id])
         # shortcut: a job's agent runs its tests with its own line, judged as any command (R147:
-        # a pipe into a filter no longer asks); have KOLONİ run the project's check_command for
+        # a pipe into a filter no longer asks); have KOLONİ run the project's test command for
         # it, unasked, if a test line is still seen to make a night's job wait.
         return (
             harms(command)

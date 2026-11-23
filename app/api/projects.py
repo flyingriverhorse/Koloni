@@ -591,7 +591,8 @@ def set_part_test(project_id: str, body: PartTestIn, session: Session = Depends(
     without asking at Full auto, so an agent's request must not set it. Empty: no test. A part
     the map no longer has may still be changed where the user set one for it."""
     project = _project(session, project_id)
-    if body.path not in project.test_commands and body.path not in {
+    # (the root is always one: its test runs on the whole project - `project_map.edited`)
+    if body.path not in (*project.test_commands, project_map.ROOT) and body.path not in {
         part["path"] for part in _map(project)["parts"]
     }:
         raise HTTPException(422, f"{body.path} is not a part of the project's map")
@@ -656,8 +657,6 @@ def _change_teams_and_folders(
 
 
 async def _change_commands(project: Project, body: ProjectPatch) -> None:
-    if body.check_command is not None:
-        project.check_command = body.check_command.strip() or None
     if body.measure_command is not None:
         project.measure_command = body.measure_command.strip() or None
     if body.git_commit is not None:
@@ -777,7 +776,6 @@ async def patch_project(
         "notify_url",
         "notify_format",
         "notify_desktop",
-        "check_command",
         "measure_command",
         "git_commit",
         "finish_way",

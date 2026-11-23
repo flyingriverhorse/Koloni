@@ -74,11 +74,14 @@ from app import (
     mcp_client,
     project_map,
     project_view,
+    proof,
     proof_before,
+    proof_related,
     raw,
     recipe_run,
     signs,
     team_requests,
+    test_found,
     topics,
     views,
     web,
@@ -3529,9 +3532,7 @@ class AgentRunner(
         base, names = dict(copy.base), dict(copy.names)
         with self._factory() as session:
             times = _last_changes(session, self._line_of(owner))
-            command = session.get_one(
-                Project, session.get_one(Conversation, known.cid).project_id
-            ).check_command
+        command = await self._own_command(known, copy)
         try:
             fresh: dict[str, dict] | None = await asyncio.to_thread(
                 _kept_files, copy, False, times, base, names
@@ -3738,7 +3739,7 @@ class AgentRunner(
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             mode, project_id = conversation.permission_mode, conversation.project_id
-            command = session.get_one(Project, project_id).check_command
+        command = await self._own_command(ctx, copy)
         check = (
             {"command": command, "state": "not_run", "exit_code": None, "output": None}
             if command
@@ -4462,9 +4463,8 @@ class AgentRunner(
         check could therefore not run on what would be taken."""
         watched = self._watched(ctx.run_id)
         with self._factory() as session:
-            conversation = session.get_one(Conversation, ctx.cid)
-            mode = conversation.permission_mode
-            command = session.get_one(Project, conversation.project_id).check_command
+            mode = session.get_one(Conversation, ctx.cid).permission_mode
+        command = await self._own_command(ctx, copy)
         refused, unasked = self._merge_leave(ctx, status, asked, watched, mode)
         check, by_itself = self._merge_check(ctx, command, watched, unasked)
         files: dict[str, dict] = {}
@@ -4475,7 +4475,7 @@ class AgentRunner(
                 return ""
             if check and by_itself and merge_id is None and not fault and as_shown(files):
                 said, passed = await self._checked_first(
-                    ctx, copy, files, check, command, watched, mode
+                    ctx, copy, files, check, command or "", watched, mode
                 )
                 if said is not None:
                     return said
@@ -4539,6 +4539,37 @@ class AgentRunner(
         unasked = status == "completed" and ((asked or mode != "ask") if watched else not refused)
         return refused, unasked
 
+    def _own_runs(self, ctx: Ctx, copy: copies.Copy) -> tuple[list["proof.TestRun"], list[str]]:
+        """Take in's check (the user, 23 Nov): only the test files the agent wrote or changed in
+        its copy, each with its part's runner narrowed to them - the project's by part: its map's
+        test command, else the one KOLONİ saved, else the guess from its files (no model's look,
+        no agent's run) - and what is said instead (`proof_related.own_tests`). The end gate
+        runs every test once, at the turn's end."""
+        with self._factory() as session:
+            project = session.get_one(Project, session.get_one(Conversation, ctx.cid).project_id)
+            runs = proof.test_runs(project, project_map.scan(project.root_path))
+            saved = dict(project.tests_found or {})
+        runs = [
+            run._replace(command=saved[key]["command"], saved=True)
+            if not run.yours and (key := test_found.folder_key(run.cwd)) in saved
+            else run
+            for run in runs
+        ]
+        ran = {test_found.folder_key(run.cwd) for run in runs}
+        runs += [
+            proof.TestRun(one["command"], folder, False, saved=True)
+            for folder, one in saved.items()
+            if folder not in ran
+        ]
+        paths = [path for path, _kind, _state in copy.changes() if (copy.root / path).is_file()]
+        return proof_related.own_tests(runs, paths, copy.root)
+
+    async def _own_command(self, ctx: Ctx, copy: copies.Copy) -> str | None:
+        """`_own_runs` as its card shows it - each line one part's narrowed run; None: nothing to
+        run before taking it in."""
+        runs, _said = await asyncio.to_thread(self._own_runs, ctx, copy)
+        return "\n".join(run.command for run in runs) or None
+
     def _merge_check(
         self, ctx: Ctx, command: str | None, watched: bool, unasked: bool
     ) -> tuple[dict | None, bool]:
@@ -4549,11 +4580,12 @@ class AgentRunner(
             check = {"command": command, "state": "not_run", "exit_code": None, "output": None}
             # B-355: watched, it runs by itself at every level before the card - the user's own
             # command, in the copy - and the card shows what it said.
-            by_itself = (
-                watched
-                or unasked
-                and self._nobody_to_ask(ctx, "command", f"run {quoted(command)}", command=command)
-                == ""
+            by_itself = watched or (
+                unasked
+                and all(
+                    self._nobody_to_ask(ctx, "command", f"run {quoted(line)}", command=line) == ""
+                    for line in command.splitlines()
+                )
             )
             if not watched and unasked and not by_itself:
                 check["note"] = CHECK_NOT_ALLOWED  # taken as before, and said so
@@ -4748,6 +4780,26 @@ class AgentRunner(
             with contextlib.suppress(OSError):
                 copy.save()  # what it was made from is different now: for a restart
 
+    async def _own_tests_run(
+        self, ctx: Ctx, copy: copies.Copy, runs: list, call_id: str, leave: bool
+    ) -> tuple[int | None, str, str]:
+        """`_check`'s runs, each part's own tests in turn in its folder - the first that does not
+        pass ends them: its exit code (None: no end), all they printed, what the last said."""
+        code, output, said = 0, "", ""
+        for run in runs:
+            code, out, said, _ended = await self._run_in_copy(
+                ctx,
+                copy.workspace(),
+                run.command,
+                call_id,
+                gated="run" if leave else ("ask" if self._watched(ctx.run_id) else "refuse"),
+                cwd=run.cwd,
+            )
+            output += out
+            if code != 0:
+                break
+        return code, output, said
+
     async def _check(
         self,
         ctx: Ctx,
@@ -4786,13 +4838,13 @@ class AgentRunner(
         with why - never "failed"."""
         with self._factory() as session:
             call_id = session.get_one(Agent, ctx.agent_id).tool_call_id
-            command = session.scalar(
-                select(Project.check_command)
-                .join(Conversation, Conversation.project_id == Project.id)
-                .where(Conversation.id == ctx.cid)
-            )
-        if not command:
-            return  # taken off the project meanwhile: nothing is run
+        runs, untold = await asyncio.to_thread(self._own_runs, ctx, copy)
+        if not runs:  # (its test files gone meanwhile: nothing is run, and said)
+            check.update(state="not_run", note="; ".join(untold) or proof_related.NO_OWN_TESTS)
+            if merge_id is not None:
+                self._record_merge(ctx, merge_id, "pending", files, check)
+            return
+        command = "\n".join(run.command for run in runs)
         # On the card at once: getting the copy ready is the first part of it.
         check.update(
             command=command,
@@ -4834,13 +4886,7 @@ class AgentRunner(
             )
         )
         try:
-            code, output, said, _ended = await self._run_in_copy(
-                ctx,
-                copy.workspace(),
-                command,
-                call_id,
-                gated="run" if leave else ("ask" if self._watched(ctx.run_id) else "refuse"),
-            )
+            code, output, said = await self._own_tests_run(ctx, copy, runs, call_id, leave)
         except _GateRefused as exc:
             check.update(state="not_run", note=f"not run: {exc}")
             if merge_id is not None:

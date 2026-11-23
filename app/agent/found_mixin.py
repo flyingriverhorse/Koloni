@@ -74,8 +74,6 @@ class FoundMixin:
                 for folder, one in (project.tests_found or {}).items()
             }
             root = project.root_path
-            if (project.check_command or "").strip():  # (the user's check is the project's: alone)
-                return runs
             rules = [
                 rule.prefix
                 for rule in session.scalars(rules_here(session.get_one(Conversation, ctx.cid)))
@@ -281,11 +279,7 @@ class FoundMixin:
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             part = "./" if run.cwd == "." else f"{run.cwd}/"
-            if (
-                project is None
-                or (project.check_command or "").strip()
-                or part in (project.test_commands or {})
-            ):
+            if project is None or part in (project.test_commands or {}):
                 return None
             pid = project.id
             _keys_normalized(session, project)

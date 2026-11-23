@@ -215,8 +215,6 @@ class ProjectOut(Out):
     continue_steps: int
     # What this calendar month's turns may cost, in the prices' currency; None: no budget.
     monthly_budget: float | None
-    # The command that checks a sub-agent's work before it is taken; None: none.
-    check_command: str | None
     # K-evrim: the command whose last line of output scores a candidate (0-100); None: none.
     measure_command: str | None
     # Whether what is taken from a sub-agent is offered for a commit of those files.
@@ -341,7 +339,6 @@ class ProjectPatch(BaseModel):
         default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True
     )
     # Left out: kept as it is. Empty: none.
-    check_command: str | None = Field(default=None, max_length=500)
     measure_command: str | None = Field(default=None, max_length=500)
     git_commit: bool | None = None
     # Left out: kept as it is. "pull_request" is the user's consent to push the project's
@@ -1086,7 +1083,7 @@ class ProjectPartOut(BaseModel):
     """A part of the project in its map (`project_map`): a folder with a marker file."""
 
     path: str  # "./" for the project's own folder, else "folder/sub/"
-    language: str
+    language: str  # "none": the root with no marker, a part only for its test (`edited`)
     files: int  # at most `project_map.MOST_COUNTED`
     more: bool  # it has more files than that
     agents_md: bool

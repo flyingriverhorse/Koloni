@@ -478,3 +478,41 @@ def _is_test(csproj: Path) -> bool:
     except OSError:
         return False
     return "Microsoft.NET.Test.Sdk" in text or "<IsTestProject>true" in text
+
+
+# --- Take in's check (the user, 23 Nov: "only the tests it created - running everything would
+# choke us; make it automatic"): the test files a sub-agent wrote, each part's runner narrowed to
+# them. The end gate still runs every test once, at the turn's end.
+
+NO_OWN_TESTS = "no tests of its own to run"
+NOT_NARROWED = "{part}: its test command ({command}) cannot run just these files - not run"
+
+
+def own_tests(runs: list[TestRun], paths: list[str], root: Path) -> tuple[list[TestRun], list[str]]:
+    """The take-in check's runs: of `paths` (what a sub-agent changed, from the root) its test
+    files (`proof_before.TEST_FILE`), each with the runner of the part it is in (`runs`: the
+    project's by part - its map's, KOLONİ's saved, the guess - the deepest folder holding it),
+    narrowed to them (`related`, in `root`: where the copy is) - and what is said instead: none
+    written, a part with no runner, one that cannot be narrowed (never the whole suite)."""
+    from app.proof_before import TEST_FILE
+
+    tests = [path for path in paths if TEST_FILE.search(path)]
+    if not tests:
+        return [], [NO_OWN_TESTS]
+    by_run: dict[TestRun, list[str]] = {}
+    said: list[str] = []
+    for path in tests:
+        holding = [
+            run for run in runs if run.cwd == "." or path.startswith(f"{run.cwd.rstrip('/')}/")
+        ]
+        if not holding:
+            said.append(f"{path}: no test command of its part - not run")
+            continue
+        by_run.setdefault(max(holding, key=lambda run: len(run.cwd)), []).append(path)
+    narrowed = []
+    for run, mine in by_run.items():
+        if (one := related(run, mine, root)) is None:
+            said.append(NOT_NARROWED.format(part=run.cwd, command=run.command))
+        else:
+            narrowed.append(one)
+    return narrowed, said

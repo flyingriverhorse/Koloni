@@ -47,6 +47,15 @@ DOCS_HEAD = "Documents in the project — read one with read_file when the task 
 # What `npm init` writes as a test script: there is no test.
 NPM_NO_TEST = "no test specified"
 ROOT = "./"
+# The root as a part where no marker makes it one: the user set its test (`edited`).
+ROOT_PART = {
+    "path": ROOT,
+    "language": "none",
+    "files": 0,
+    "more": False,
+    "agents_md": False,
+    "guess": None,
+}
 
 # root -> (its markers with their mtimes, the folders git ignored then, the map).
 _cache: dict[str, tuple[dict[str, int], frozenset[str], dict]] = {}
@@ -225,7 +234,12 @@ def scan(root_path: str, fresh: bool = False) -> dict:
 
 def edited(found: dict, tests: dict[str, str]) -> dict:
     """The map with the user's test commands (`Project.test_commands`, by a part's path): each
-    part's `test`, the user's where there is one ("" is their "no test"), else the guess."""
+    part's `test`, the user's where there is one ("" is their "no test"), else the guess. The
+    root is a part the user may set a test for with no marker there (0.1.7, Test before adding
+    gone): where they did, it is one - language "none", the whole project."""
+    parts = found["parts"]
+    if ROOT in tests and not any(part["path"] == ROOT for part in parts):
+        parts = [{**ROOT_PART}, *parts]
     return {
         **found,
         "parts": [
@@ -234,7 +248,7 @@ def edited(found: dict, tests: dict[str, str]) -> dict:
                 "test": tests.get(part["path"], part["guess"]) or None,
                 "edited": part["path"] in tests,
             }
-            for part in found["parts"]
+            for part in parts
         ],
     }
 

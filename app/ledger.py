@@ -1037,7 +1037,7 @@ def test_lines(session: Session, run_id: str, project: Project | None) -> set[st
     ]
     lines = {
         " ".join(str(line or "").split())
-        for line in (project.check_command, *(project.test_commands or {}).values(), *saved)
+        for line in (*(project.test_commands or {}).values(), *saved)
     } - {""}
     if not lines and (guess := command_of(project.root_path, None)):
         lines = {guess}

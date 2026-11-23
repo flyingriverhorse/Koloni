@@ -130,10 +130,8 @@ class TestRun(NamedTuple):
 
 
 def test_runs(project: Project, found: dict | None) -> list[TestRun]:
-    """The project's whole test command(s): the user's check command; else each part's test of
-    its map (the user's, or the map's guess); else the guess from its files; else none."""
-    if project.check_command and project.check_command.strip():
-        return [TestRun(project.check_command.strip(), ".", True)]
+    """The project's whole test command(s): each part's test of its map (the user's, or the map's
+    guess); else the guess from its files; else none."""
     parts = project_map.edited(found, project.test_commands or {})["parts"] if found else []
     runs = [
         TestRun(

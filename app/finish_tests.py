@@ -20,11 +20,11 @@ NOT_FOUND = (
 NOT_FOUND_CODES = (127, 9009)
 
 
-def command_of(root: str, check_command: str | None) -> str | None:
+def command_of(root: str, named: str | None) -> str | None:
     """The project's check command, or one the files of a folder show (S1b, plan decision 11:
     any language): pytest, `npm test`, then each marker of `MARKER_TESTS` in its order."""
-    if check_command:
-        return check_command
+    if named:
+        return named
     folder = Path(root)
     if (folder / "pyproject.toml").is_file() or (folder / "pytest.ini").is_file():
         return "python -m pytest -q"

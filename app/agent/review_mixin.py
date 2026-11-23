@@ -903,12 +903,10 @@ class ReviewMixin:
                 rule.prefix
                 for rule in session.scalars(rules_here(session.get_one(Conversation, ctx.cid)))
             ]
-            check = (project.check_command or "").strip()
             parts = dict(project.test_commands or {})
             saved = dict(project.tests_found or {})
             approved, root = (project.ci_commands or {}).get("approved"), project.root_path
-        runs = [(check, ".")] if check else []
-        runs += [
+        runs = [
             (line, part.removeprefix(project_map.ROOT).rstrip("/") or ".")
             for part, line in parts.items()
             if line
