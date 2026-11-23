@@ -728,25 +728,26 @@ class ReviewMixin:
 
     @contextlib.asynccontextmanager
     async def _look_kept(self: "AgentRunner", ctx: Ctx, review: bool):
-        """Around a command: for KOLONİ's look (`review`), what it writes in the copy put back
-        after it (`_look_trace`); yields the list what could not be is said into."""
-        trace = await self._look_trace(ctx) if review else None
-        said: list[str] = []
-        try:
-            yield said
-        finally:
-            if trace is not None:
-                said.append(await self._look_untrace(ctx, trace))
-
-    async def _look_trace(self: "AgentRunner", ctx: Ctx) -> tuple | None:
-        """P: before a command of KOLONİ's look in the copy of the work it looks at (its opener's,
-        `_ws`) - that copy as it is, for `_look_untrace`; None: it runs in the project, where what
-        it writes stays, as any agent's command's. A copy that cannot be read first: the command
-        is not run - never one whose writes could not be put back."""
-        opener = self._ctxs.get(ctx.parent_id or "")
+        """Around a command: for KOLONİ's look (`review`) in the copy of the work it looks at (its
+        opener's, `_ws`), what it writes there put back after it - in that copy's one window at a
+        time (`_copy_lock`: another look's command, the end gate's own run); yields the list what
+        could not be is said into. In the project (no copy) what it writes stays, as any agent's
+        command's."""
+        opener = self._ctxs.get(ctx.parent_id or "") if review else None
         copy = self._copies.get(self._works_in(opener) or "") if opener is not None else None
-        if copy is None:
-            return None
+        said: list[str] = []
+        async with self._copy_held(copy):
+            trace = await self._look_trace(copy) if copy is not None else None
+            try:
+                yield said
+            finally:
+                if trace is not None:
+                    said.append(await self._look_untrace(ctx, trace))
+
+    @staticmethod
+    async def _look_trace(copy) -> tuple:
+        """P: the copy as it is before a look's command, for `_look_untrace`. A copy that cannot be
+        read first: the command is not run - never one whose writes could not be put back."""
         try:
             was, kept = await asyncio.to_thread(
                 lambda: copy.snapshot([path for path, _kind, _state in copy.changes()])

@@ -7,6 +7,7 @@ import pytest
 
 from app import proof
 from app.agent import before_mixin
+from tests.conftest import TERMINAL
 from tests.fakes import ScriptedExecutor
 from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import OWN
@@ -62,13 +63,17 @@ class ByContent(ScriptedExecutor):
         return ScriptedCommand(failing(ONE) if held else passing(), self, command_id)
 
 
+@pytest.mark.parametrize("found", [False, True], ids=["check_command", "guessed"])
 def test_fix_it_on_work_held_for_its_tests_excuses_none_of_them_as_failing_before(
-    make_client, wait_run, project_dir
+    make_client, wait_run, project_dir, monkeypatch, found
 ):
     # (B3: the old code S7 runs a failure on is the project's - not the kept copy, which holds
-    # the held work's own failure: that was never "failing before this turn")
+    # the held work's own failure: that was never "failing before this turn". The failing line
+    # the project's check command, or one KOLONİ found - which no Take in runs again.)
     from tests.test_chat_teams_scenarios import teams_of
     from tests.test_claim_scenarios import write
+    from tests.test_parallel import until
+    from tests.test_proof_end_scenarios import guess
     from tests.test_recipe_run_scenarios import made
     from tests.test_recipes_scenarios import graph
     from tests.test_recipes_scenarios import step as part
@@ -87,8 +92,12 @@ def test_fix_it_on_work_held_for_its_tests_excuses_none_of_them_as_failing_befor
     (project_dir / "tests").mkdir(exist_ok=True)
     (project_dir / "tests" / "test_a.py").write_text("def test_x(): pass\n", encoding="utf-8")
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    if found:
+        guess(monkeypatch, PYTEST)
     client.patch(
-        f"/api/projects/{pid}", json={"check_command": PYTEST, "fix_rounds": 1}, headers=OWN
+        f"/api/projects/{pid}",
+        json={**({} if found else {"check_command": PYTEST}), "fix_rounds": 1},
+        headers=OWN,
     )
     recipe = made(
         client,
@@ -124,9 +133,26 @@ def test_fix_it_on_work_held_for_its_tests_excuses_none_of_them_as_failing_befor
     )
     assert went.status_code == 202, went.text
     second = went.json()["run_id"]
-    snap = wait_run(client, cid, second)
+    # (its Checked rows - or a card waiting, or its end: whichever comes first, said by name)
+    snap = until(
+        client,
+        cid,
+        lambda s: (
+            rows_of(s, second)
+            or any(q["status"] == "pending" for q in s["questions"])
+            or any(m["status"] == "pending" for m in s["merges"])
+            or next(r for r in s["runs"] if r["id"] == second)["status"] in TERMINAL
+        ),
+        timeout=20,
+    )
     said = [r["text"] for r in rows_of(snap, second)]
     assert not any("failing before" in one for one in said), said
+    assert any(r["kind"] == "not_taken" for r in rows_of(snap, second)), (
+        said,
+        [q["question"][:120] for q in snap["questions"] if q["status"] == "pending"],
+        [m["status"] for m in snap["merges"]],
+    )
+    wait_run(client, cid, second)
     assert not (project_dir / "a.py").exists(), (said, executor.started)
 
 

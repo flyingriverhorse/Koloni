@@ -368,8 +368,91 @@ def test_a_looks_command_runs_only_where_what_it_writes_can_be_put_back():
 
     look = Ctx("r", "c", "x", "look", "Reviewer", (), 1, parent_id="lead")
     with pytest.raises(ToolError, match="could not read the copy"):
-        asyncio.run(ReviewMixin._look_trace(_Runner(_Unread()), look))
+        asyncio.run(ReviewMixin._look_trace(_Unread()))
     left = _Unread(["htmlcov/index.html"])
-    trace = asyncio.run(ReviewMixin._look_trace(_Runner(left), look))
+    trace = asyncio.run(ReviewMixin._look_trace(left))
     said = asyncio.run(ReviewMixin._look_untrace(_Runner(left), look, trace))
     assert "could not put back" in said and "htmlcov/index.html" in said, said
+
+
+def test_a_tracked_file_the_gates_own_test_run_writes_in_the_copy_is_not_the_work(
+    make_client, project_dir
+):
+    # (CL-345: a test that writes a tracked file - a.txt - run by KOLONİ's end check in the
+    # recipe's copy: put back there, never taken in as the work. An agent's own run_command's
+    # writes stay its work, by design.)
+    from tests.fakes import Script
+
+    (project_dir / "a.txt").write_text("as it was\n", encoding="utf-8")
+    wrote = Script(PASS.chunks, writes={"a.txt": "written by a test\n"})
+    client, executor, cid, _run_id = started(
+        make_client, project_dir, "auto_edit", [MERGE], [wrote, PASS, PASS]
+    )
+    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"], timeout=20)
+    answer(client, asked(snap), "Take in")
+    assert until(client, cid, lambda _s: (project_dir / "calc.py").exists(), timeout=20)
+    assert (project_dir / "a.txt").read_text(encoding="utf-8") == "as it was\n", executor.started
+
+
+def test_two_looks_commands_in_one_copy_leave_neither_ones_report(tmp_path):
+    # (S1 of the review: the Reviewer's and the Security reviewer's runs at once - A writes its
+    # report, B starts, A puts back, B puts back: B's snapshot held A's report and brought it
+    # back as work. One window at a time in a copy, `_copy_lock`: B waits for A's put back.)
+    import asyncio
+    import contextlib
+
+    from app import copies
+    from app.agent.ctx import Ctx
+    from app.agent.proof_mixin import ProofMixin
+    from app.agent.review_mixin import ReviewMixin
+
+    project, runtime = tmp_path / "proj", tmp_path / "rt"
+    project.mkdir()
+    runtime.mkdir()
+    (project / "calc.py").write_text("x = 1\n", encoding="utf-8")
+    copy = copies.make(project, runtime, "two-looks")
+
+    class Runner:
+        _ctxs, _copies, _copy_locks = {"lead": object()}, {"lead": copy}, {}
+        _works_in = staticmethod(lambda _ctx: "lead")
+        _copy_lock, _copy_held = ProofMixin._copy_lock, ProofMixin._copy_held
+        _look_kept, _look_untrace = ReviewMixin._look_kept, ReviewMixin._look_untrace
+        _look_trace = staticmethod(ReviewMixin._look_trace)
+
+    runner = Runner()
+    a = Ctx("r", "c", "x", "rev", "Reviewer", (), 1, parent_id="lead")
+    b = Ctx("r", "c", "x", "sec", "Security reviewer", (), 1, parent_id="lead")
+
+    async def both():
+        (copy.root / "calc.py").write_text("x = 2  # the work\n", encoding="utf-8")
+        a_in, a_go, b_in, b_go = (asyncio.Event() for _ in range(4))
+
+        async def look_a():
+            async with runner._look_kept(a, True):
+                (copy.root / "report_a.xml").write_text("<a/>\n", encoding="utf-8")
+                a_in.set()
+                await a_go.wait()
+
+        async def look_b():
+            await a_in.wait()
+            async with runner._look_kept(b, True):
+                (copy.root / "report_b.xml").write_text("<b/>\n", encoding="utf-8")
+                b_in.set()
+                await b_go.wait()
+
+        first, second = asyncio.ensure_future(look_a()), asyncio.ensure_future(look_b())
+        await asyncio.wait_for(a_in.wait(), 30)
+        # (B's command starts while A's still goes - or, held to the copy's one window, waits)
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(b_in.wait(), 1)
+        a_go.set()
+        await asyncio.wait_for(first, 30)  # (A puts back first)
+        b_go.set()
+        await asyncio.wait_for(second, 30)
+
+    try:
+        asyncio.run(both())
+        assert [path for path, _kind, _state in copy.changes()] == ["calc.py"], copy.changes()
+        assert (copy.root / "calc.py").read_text(encoding="utf-8") == "x = 2  # the work\n"
+    finally:
+        copies.remove(runtime, "two-looks")

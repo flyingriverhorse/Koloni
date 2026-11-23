@@ -537,7 +537,7 @@ also what does not fit in the diff the Reviewer is shown.
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
   the project they open - where the work is: in a recipe's turn, the recipe's copy, as KOLONİ's own
-  tests there; what their commands write there (a report, a cache) is put back, never taken in. They get read tools only and no MCP server, whatever their role is
+  tests there; what their commands write there (a report, a cache, a file a test rewrites) is put back, never taken in - so is what KOLONİ's own test runs write there, one run at a time in a copy. What an agent's own command writes there (a Coder's test run) is that agent's work, and goes in with it. They get read tools only and no MCP server, whatever their role is
   given: they change nothing. They may run two kinds of command, never asked about: one that only
   reads (`git diff`, `cat a.py`, `ls src`), and the project's approved test command exactly as it
   is set, in its folder - your check command or a part's test command, a saved one an **Always**

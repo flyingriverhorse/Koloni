@@ -1577,6 +1577,8 @@ class AgentRunner(
         self._resumed: dict[str, str] = {}
         # (k-bakis-yeri: and the run whose work it holds - its checks are the turn's too)
         self._resumed_from: dict[str, str] = {}
+        # (k-bakis-yeri: one snapshot - run - put back at a time in a copy, by root: `_copy_lock`)
+        self._copy_locks: dict[str, asyncio.Lock] = {}
         # S9: where the coverage flags failed a whole suite - (project, folder, command) -> its
         # coverage settings then (`coverage.config_mark`): not tried again till they change, or
         # KOLONİ starts again (it was run twice each turn).

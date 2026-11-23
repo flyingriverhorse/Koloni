@@ -289,6 +289,23 @@ class ProofMixin:
         await self._on_hold(ctx, held)  # (P: a hold that stands keeps the work out)
         return None
 
+    def _copy_lock(self: "AgentRunner", copy: "copies.Copy") -> asyncio.Lock:
+        """One window of snapshot, run and put back at a time in a copy - the end gate's own run
+        and each command of KOLONİ's looks: two that overlapped would each put back, or keep as
+        work, what the other wrote. (A look's command waits for a run still going there.)
+        shortcut: a lock a copy, kept for the app's life (a few bytes); drop it with its copy if
+        that is ever felt."""
+        return self._copy_locks.setdefault(str(copy.root), asyncio.Lock())
+
+    @contextlib.asynccontextmanager
+    async def _copy_held(self: "AgentRunner", copy: "copies.Copy | None"):
+        """`_copy_lock`'s window, where there is a copy; nothing to hold in the project."""
+        if copy is None:
+            yield
+            return
+        async with self._copy_lock(copy):
+            yield
+
     def _kept_work(self: "AgentRunner", ctx: Ctx) -> "copies.Copy | None":
         """Fix it on a "Not taken in" row: the kept copy this turn's Lead goes on in - its end check
         covers the whole of it as Take in would bring it, the held work and the fix
@@ -808,47 +825,50 @@ class ProofMixin:
             return ws
 
         copy = self._copies.get(self._works_in(ctx) or "")
-        was, kept = (
-            await asyncio.to_thread(
-                lambda: copy.snapshot([path for path, _kind, _state in copy.changes()])
+        # (one snapshot - run - put back at a time in a copy: two looks' runs, a look's and this
+        # one, would each put back - or keep - the other's report as work: `_copy_lock`)
+        async with self._copy_held(copy):
+            was, kept = (
+                await asyncio.to_thread(
+                    lambda: copy.snapshot([path for path, _kind, _state in copy.changes()])
+                )
+                if copy
+                else ({}, {})
             )
-            if copy
-            else ({}, {})
-        )
-        look: dict = {}  # (CL-329: the project as the run starts - taken once it has its slot)
-        try:
-            code, output, said, ended = await self._run_in_copy(
-                ctx,
-                ws,
-                line,
-                call_id,
-                ask=how == "ask",
-                once=held.yes.setdefault(run.cwd, set()),
-                cwd=run.cwd,
-                seconds=seconds,
-                where=in_slot,
-                env={WORKERS_ENV: str(workers)},
-                over=lambda: check.later,
-            )
-        except _GateRefused as exc:
-            self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
-            return proof.row(
-                "tests", "not_run", proof.NOT_RUN.format(why=exc), run.command, run.guessed
-            ), ""
-        except ToolError as exc:
-            code, output, said, ended = None, "", f"error: {exc}", None
-        except asyncio.CancelledError:
-            # (Stopped - the turn, or the check alone, maybe after its turn: nothing of it is
-            # left open - a card turned down, its call over.)
-            self.commands.close_open(ctx.run_id, ctx.cid, calls=[call_id])
-            self._set_call(
-                ctx.cid, call_id, status="interrupted", result=proof.STOPPED, ended_at=now()
-            )
-            raise
-        finally:
-            if True in taken:
-                slot.release()
-        await self._tests_put_back(copy, was, kept)
+            look: dict = {}  # (CL-329: the project as the run starts - taken once it has its slot)
+            try:
+                code, output, said, ended = await self._run_in_copy(
+                    ctx,
+                    ws,
+                    line,
+                    call_id,
+                    ask=how == "ask",
+                    once=held.yes.setdefault(run.cwd, set()),
+                    cwd=run.cwd,
+                    seconds=seconds,
+                    where=in_slot,
+                    env={WORKERS_ENV: str(workers)},
+                    over=lambda: check.later,
+                )
+            except _GateRefused as exc:
+                self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
+                return proof.row(
+                    "tests", "not_run", proof.NOT_RUN.format(why=exc), run.command, run.guessed
+                ), ""
+            except ToolError as exc:
+                code, output, said, ended = None, "", f"error: {exc}", None
+            except asyncio.CancelledError:
+                # (Stopped - the turn, or the check alone, maybe after its turn: nothing of it is
+                # left open - a card turned down, its call over.)
+                self.commands.close_open(ctx.run_id, ctx.cid, calls=[call_id])
+                self._set_call(
+                    ctx.cid, call_id, status="interrupted", result=proof.STOPPED, ended_at=now()
+                )
+                raise
+            finally:
+                if True in taken:
+                    slot.release()
+            await self._tests_put_back(copy, was, kept)
         await self._changed_said(ctx, held, run, look.get("at"), check)
         self._set_call(
             ctx.cid,
