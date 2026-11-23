@@ -455,6 +455,12 @@ def turn_diff(
             made[0].before_content, last.after_content or "", path
         )
         parts.append((path, diff if diff.endswith("\n") or not diff else f"{diff}\n"))
+    return cut(parts, most)
+
+
+def cut(parts: list[tuple[str, str]], most: int) -> tuple[str, str, list[str]]:
+    """Each file's diff, (path, text), as one diff cut at `most` characters: the text, the whole
+    of it, and the files left out."""
     whole = "".join(text for _path, text in parts)
     shown, left = "", []
     for path, text in parts:
@@ -463,6 +469,33 @@ def turn_diff(
         else:
             left.append(path)
     return shown, whole, left
+
+
+def kept_work(copy, lead_id: str) -> list[tuple[Change, str]]:
+    """k-bakis-yeri: a kept copy's work as Take in would bring it - each file it changed against
+    the project, as it stands - for the end check of the turn that goes on in it (Fix it on a
+    "Not taken in" row): each file's change, where the tests run, and its diff (a secret file
+    named, never shown). Blocking: it reads the copy and the project."""
+
+    def text_of(place: Path | None) -> str:
+        try:
+            return (
+                place.read_bytes().decode("utf-8", "replace") if place and place.is_file() else ""
+            )
+        except OSError:
+            return ""
+
+    found = []
+    for path, kind, _state in copy.changes():
+        after = "" if kind == "deleted" else text_of(copy.here(path))
+        diff, added, removed = unified_diff(text_of(copy.there(path)), after, path)
+        if secret_in_project(path):
+            diff = f"{path}: a secret file - changed, not shown"
+        made = Change(path, kind_of(path), added, removed, kind == "deleted", lead_id, True)
+        found.append(
+            (made._replace(existed=kind != "new"), diff.rstrip("\n") + "\n" if diff else "")
+        )
+    return found
 
 
 def unrecorded(

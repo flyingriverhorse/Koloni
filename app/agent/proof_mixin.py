@@ -38,6 +38,7 @@ from app.tools import MAX_TIMEOUT, ToolError
 from app.workspace import Workspace, is_secret, secret_in_project
 
 if TYPE_CHECKING:
+    from app import copies
     from app.agent import AgentRunner
 
 log = logging.getLogger(__name__)
@@ -248,6 +249,10 @@ class ProofMixin:
         unrecorded, gone = (
             await self._what_it_touched(ctx, ran, found) if ran is not None else (None, [])
         )
+        if (copy := self._kept_work(ctx)) is not None:  # (Fix it: the whole kept work)
+            found = [
+                one for one, _diff in await asyncio.to_thread(proof.kept_work, copy, ctx.agent_id)
+            ]
         if not any(one.in_project for one in found) and unrecorded is None:
             return None
         until = checks.rounds is None  # (k-canli-016: until it passes, to its ceiling)
@@ -277,6 +282,13 @@ class ProofMixin:
             log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
         await self._on_hold(ctx, held)  # (P: a hold that stands keeps the work out)
         return None
+
+    def _kept_work(self: "AgentRunner", ctx: Ctx) -> "copies.Copy | None":
+        """Fix it on a "Not taken in" row: the kept copy this turn's Lead goes on in - its end check
+        covers the whole of it as Take in would bring it, the held work and the fix
+        (`proof.kept_work`), never the fix alone; None: a turn of its own."""
+        owner = self._resumed.get(ctx.run_id)
+        return self._copies.get(owner) if owner is not None and owner == ctx.agent_id else None
 
     def _mark_ready(self: "AgentRunner", ctx: Ctx, held: Proof) -> None:
         """k-sira-016: what Ready for you's pass checked (`Proof.ready_*`, `_checked_at_ready`)."""

@@ -361,6 +361,9 @@ class ReviewMixin:
             )
             reviewed = self._recipe_reviewed(session, ctx.run_id, seen)
             root = project.root_path if project is not None else None
+        if (copy := self._kept_work(ctx)) is not None:  # (Fix it: the whole kept work is looked at)
+            kept = await asyncio.to_thread(proof.kept_work, copy, ctx.agent_id)
+            diff, whole, left = proof.cut([(one.path, text) for one, text in kept], MAX_REVIEW_DIFF)
         forced = held.review_forced  # (S11: a stronger model changed a test - always read)
         off = REVIEW_OFF if held.checks.own else TESTS_ONLY  # (S5c: the recipe's, or Tests only)
         failing = proof.still_failing(held.rows)  # (N: not one failing before this turn)

@@ -399,8 +399,11 @@ A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model
 decides (Fix it). Work in a copy - a recipe's, before Ready for you - that a look still holds is
 not taken in by itself either, at any level: no Ready for you card, not even at Auto-edit, and
 not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
-its fix rounds", with **Take in anyway** and **Fix it** (your answer goes on in the kept work's
-copy).
+its fix rounds", with **Take in anyway** and **Fix it**. **Fix it** goes on in the kept work's
+copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
+change and the fix, by the same rule (a big or security-touching change gets the look), never
+the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
+**Take in anyway** is your word: the work goes in as it is, with no look first.
 
 The order is always the same: KOLONİ's checks first, on the work where it is (a recipe's copy), then
 **Ready for you**. Its card, or Full auto's own Take in, comes only after the Checked section - never

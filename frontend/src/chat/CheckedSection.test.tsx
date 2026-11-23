@@ -134,6 +134,8 @@ test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends th
     const failing = row('failed', 'Tests failed: pytest -q', { command: 'pytest -q' })
     render(<CheckedSection message={checked([failing, held])} over latest />)
     expect(screen.getAllByRole('button', { name: 'Fix it' })).toHaveLength(1)
+    // (the user's word: no look runs on it first - said on the button)
+    expect(screen.getByRole('button', { name: 'Take in anyway' })).toHaveAttribute('title', expect.stringContaining('no Reviewer looks at it first'))
     await userEvent.click(screen.getByRole('button', { name: 'Take in anyway' }))
     expect(post).toHaveBeenCalledWith('/merges/m1/approve')
     await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))

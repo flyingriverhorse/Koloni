@@ -105,7 +105,12 @@ function NotTaken({ row, runId }: { row: Row; runId: string | null }) {
   return (
     <span className="checked-fix">
       {row.merge_id && (
-        <button type="button" className="btn btn-small" onClick={() => api.post(`/merges/${row.merge_id}/approve`).then(() => setSaid('Taken in.'), err => setSaid(errorText(err)))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          title="Takes the kept work in as it is, at your word - no Reviewer looks at it first"
+          onClick={() => api.post(`/merges/${row.merge_id}/approve`).then(() => setSaid('Taken in.'), err => setSaid(errorText(err)))}
+        >
           Take in anyway
         </button>
       )}

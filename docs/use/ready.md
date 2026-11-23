@@ -79,9 +79,10 @@ The card does not ask:
 
 - at **Full auto**, when nothing failed or went unchecked: the work is taken in by itself;
 - when the work changed nothing;
-- at any level, when KOLONİ's checks left it failing or a Reviewer still holds it after the fix
-  rounds: the work stays in its copy, and the turn's **Checked** section says "Not taken in" with
-  **Take in anyway** and **Fix it** ([docs](checked.md#a-stronger-model)).
+- at any level - Auto-edit and Ask too - when KOLONİ's checks left it failing or a Reviewer still
+  holds it after the fix rounds: the work stays in its copy, and the turn's **Checked** section
+  says "Not taken in" with **Take in anyway** (no look first) and **Fix it** (its turn checks and
+  looks at the whole kept work again) ([docs](checked.md#a-stronger-model)).
 
 On the canvas the same card is a box titled **Ready for you**. **Open the list →** opens the panel.
 

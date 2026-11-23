@@ -145,3 +145,112 @@ def test_work_a_look_still_holds_is_not_taken_in_at_any_level(
     snap = until(client, cid, lambda s: len([m for m in s["messages"] if m["role"] == "user"]) > 1)
     said = [m["content"] for m in snap["messages"] if m["role"] == "user"][-1]
     assert "a look of KOLONİ's still held it" in said and "rename them" in said, said
+
+
+def held_then_fix_it(make_client, wait_run, project_dir, second_look):
+    """A recipe's big change a look holds (Fix rounds 0: kept, "Not taken in: on hold"), then
+    Fix it: its turn's Lead changes one line of it in the kept copy; the next look as given."""
+    from tests.test_proof_review_scenarios import hold
+
+    executor = ScriptedExecutor([PASS for _ in range(10)])
+    client, model = make_client(
+        {
+            "Lead": [spawn("Coder", "fix it", "c1"), text("done 0")],
+            "Coder": [step(write("calc.py", BIG)), text("fixed")],
+            "Reviewer": [hold("calc.py: the names are wrong"), second_look],
+            "Reviewer 2": [second_look],
+        },
+        executor=executor,
+    )
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    client.patch(
+        f"/api/projects/{pid}", json={"check_command": CHECK, "fix_rounds": 1}, headers=OWN
+    )
+    recipe = made(
+        client,
+        "Just fix it",
+        {
+            **graph([part("fix", "Fix it", {"role": "Coder"})], [("start", "fix"), ("fix", "end")]),
+            "checks": {"tests": True, "review": True, "fix_rounds": 0},
+        },
+    )
+    web = teams_of(client)["Web app"]
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode="full_auto",
+        spawn_approval="never",
+        teams_mode="manual",
+        teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}],
+    )
+    snap = wait_run(client, cid, run_id)
+    (kept,) = [r for r in held_rows(snap, run_id) if r["kind"] == "not_taken"]
+    model.by_agent["Lead"] += [
+        step(write("calc.py", FIXED, "w9")),
+        text("renamed it"),
+        *DONE,
+    ]
+    client.patch(f"/api/conversations/{cid}", json={"lead_hands_code": False}, headers=OWN)
+    went = client.post(
+        f"/api/runs/{run_id}/held/fix",
+        json={"merge_id": kept["merge_id"], "reply": "rename them"},
+        headers=OWN,
+    )
+    assert went.status_code == 202, went.text
+    second = went.json()["run_id"]
+    return client, model, cid, second, wait_run(client, cid, second)
+
+
+FIXED = BIG.replace("x1 = 1", "y1 = 1")
+
+
+def test_fix_it_on_held_work_looks_at_the_whole_kept_work_and_a_merge_takes_it_in(
+    make_client, wait_run, project_dir
+):
+    client, model, cid, second, snap = held_then_fix_it(make_client, wait_run, project_dir, MERGE)
+    assert snap["runs"][-1]["status"] == "completed", snap["runs"][-1]["error"]
+    rows = [r["text"] for r in held_rows(snap, second)]
+    # (the fix is one line; the look is of the whole kept work, as Take in brings it)
+    looks = [a for a in snap["agents"] if a["role_name"] == "Reviewer"]
+    assert len(looks) == 2, ([a["name"] for a in looks], rows)
+    asked = str(model.calls_of[looks[-1]["name"]][-1])  # (the second turn's look)
+    assert "x89 = 89" in asked and "y1 = 1" in asked, asked[-600:]
+    assert any(one.startswith("Review: Reviewer") and "MERGE" in one for one in rows), rows
+    assert (project_dir / "calc.py").read_bytes() == FIXED.encode()
+
+
+def test_fix_it_on_held_work_a_hold_keeps_it_held(make_client, wait_run, project_dir):
+    from tests.test_proof_review_scenarios import hold
+
+    client, model, cid, second, snap = held_then_fix_it(
+        make_client, wait_run, project_dir, hold("calc.py: still wrong")
+    )
+    assert snap["runs"][-1]["status"] == "completed", snap["runs"][-1]["error"]
+    rows = held_rows(snap, second)
+    assert any(r["kind"] == "not_taken" and r["reason"] == "on_hold" for r in rows), [
+        r["text"] for r in rows
+    ]
+    assert not (project_dir / "calc.py").exists()
+
+
+def test_at_the_turns_end_a_hold_after_a_stronger_pass_keeps_the_copy_out(make_client):
+    # (`_stronger_at_end`: the Orchestrator's answer changed nothing - the gate is not run again,
+    # the stronger model's hand-off and its look may still come; a hold then keeps the work out,
+    # as at the gate's end)
+    import asyncio
+
+    from app.agent.ctx import Ctx
+    from app.agent.proof_mixin import Proof
+
+    client, _model = make_client([])
+    runner = client.app.state.runner
+    held = Proof()
+    held.verdict = "HOLD"
+    runner._proofs["r"], runner._resumed["r"], runner._copies["lead"] = held, "lead", object()
+    try:
+        asyncio.run(runner._stronger_at_end(Ctx("r", "c", "x", "lead", "Lead", (), 0), "completed"))
+        assert runner._held_back.get("r") == ON_HOLD
+    finally:
+        for one in (runner._proofs, runner._resumed, runner._held_back):
+            one.pop("r", None)
+        runner._copies.pop("lead", None)
