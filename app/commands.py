@@ -2579,7 +2579,7 @@ def _reads(part: str, sinks: bool = True) -> bool:
     (`sls -Pattern "a|b"`) splits the pipeline there, so such a one asks; split outside quotes
     if that is met with a standing name."""
     first, *stages = part.split("|")
-    return only_reads(part.strip()) or _only_searches(part) or sinks and bool(stages) and (
+    return only_reads(part.strip()) or only_searches(part) or sinks and bool(stages) and (
         only_reads(first.strip()) and all(map(_sink, stages)))
 
 
@@ -2593,7 +2593,7 @@ _SEARCH_DOES = re.compile(r"(?i)-exec|-execdir|-ok|-okdir|-delete|-fprint0?|-fpr
                           r"|--pre(?:=.*)?|--replace(?:=.*)?")
 
 
-def _only_searches(part: str) -> bool:
+def only_searches(part: str) -> bool:
     """B-198: a lone search that only reads - rg, ag, ack, a grep or find by its own name,
     nothing piped, redirected, substituted or wrapped (a shell's script: `_script`, B-307),
     none of `_SEARCH_DOES`. A file that

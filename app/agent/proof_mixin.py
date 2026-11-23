@@ -178,7 +178,8 @@ class ProofMixin:
                 return None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
             # (CL-321 Bulgu D: a change a command made is on no record - the gate opens for it.)
-            ran = proof.unrecorded(session, ctx.run_id, {ctx.agent_id, *self._sharing(ctx)})
+            ran = proof.unrecorded(session, ctx.run_id, {ctx.agent_id, *self._sharing(ctx)},
+                                   ctx.root)
         unrecorded = await self._what_it_touched(ctx, ran, found) if ran is not None else None
         if not any(one.in_project for one in found) and unrecorded is None:
             return None
