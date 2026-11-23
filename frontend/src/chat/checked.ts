@@ -11,10 +11,15 @@ export const FIX_HELD = (question: string, reply: string) => `The last turn's wo
 
 type Row = NonNullable<Message['checked']>[number]
 
-/** What Fix it asks for under a turn's Checked section: a failing test run first, else a Reviewer's hold; null: nothing to fix. */
+/** S11: what Fix it sends where a stronger model's rounds ended as no pass (the tests may pass): the command and KOLONİ's own line why, quoted. */
+export const FIX_NOT_DONE = (command: string, why: string) => `${FIX_IT(command)} KOLONİ's end check says it is not done: "${why}"`
+
+/** What Fix it asks for under a turn's Checked section: a failing test run first, else a stronger model's rounds that were no pass, else a Reviewer's hold; null: nothing to fix. */
 export function fixOf(rows: Row[]): string | null {
   const failed = rows.find(row => row.kind === 'tests' && row.state === 'failed' && row.command)
   if (failed?.command) return FIX_IT(failed.command)
+  const notDone = rows.find(row => (row.kind === 'stronger' || row.kind === 'rounds') && row.state === 'failed' && row.command)
+  if (notDone?.command) return FIX_NOT_DONE(notDone.command, notDone.text)
   const held = rows.some(row => row.kind === 'review' && row.text.startsWith('Still on hold'))
   return held && rows.some(row => row.kind === 'finding' && row.text.startsWith('Blocking: ')) ? FIX_REVIEW : null
 }

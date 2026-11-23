@@ -52,6 +52,12 @@ TURN_LIMIT = "the turn's token limit is reached"
 TESTS_TOUCHED = ("Not a pass: {model} changed a test without leave ({paths}) - its diagnosis "
                  "was not test-wrong")
 TEST_HELD = "Not a pass: the Reviewer held {model}'s test change"
+TEST_UNREAD = "Not a pass: the Reviewer did not read {model}'s test change ({why})"
+NO_LOOK = "no look"
+# What steers which tests run, besides the tests: a test changed too, under the same leave.
+TEST_CONFIGS = frozenset({"conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml",
+                          "noxfile.py", "package.json"})
+TEST_CONFIG = re.compile(r"(?:vitest|vite|jest|playwright)\.config\.|karma\.conf\.|\.mocharc\.")
 NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
 STARTED_OVER = "Started over in a fresh copy: {why}"
 NOT_STARTED_OVER = "approach-wrong, but {why}: it goes on from the work as it is"
@@ -102,6 +108,13 @@ DECIDED = "it was decided since"
 ON_ITS_WAY = "a fix of it is on its way already"
 FIX_HELD = ("The last turn's work was not taken in: its tests still fail. {question} My answer: "
             "{reply} Fix it - you work in that turn's copy, as it was left.")
+
+
+def steers_tests(path: str) -> bool:
+    """Whether a file says which tests run, or how: a conftest anywhere, a test runner's config
+    (`TEST_CONFIGS`, `TEST_CONFIG`) - conservative: changed without leave, the work stays held."""
+    name = path.replace("\\", "/").rsplit("/", 1)[-1]
+    return name in TEST_CONFIGS or bool(TEST_CONFIG.match(name))
 
 
 def rounds_said(n: int) -> str:
@@ -449,23 +462,31 @@ class StrongerMixin:
 
     async def _not_a_pass(self: "AgentRunner", ctx: Ctx, held: "Proof", kind: str, model: str,
                           fixer: str | None, wanted: list) -> Row | None:
-        """Why a round whose tests pass is no pass (its row); None: it is one. No verdict (a run
-        not run, timed out, still running; S7's failed rows); a test changed without a test-wrong
-        verdict; a test-wrong change the Reviewer held (S3's look, whatever its size)."""
+        """Why a round whose tests pass is no pass (its row, with the failing command for Fix
+        it); None: it is one. No verdict (a run not run, timed out, still running; S7's failed
+        rows); a test (or what steers the tests) changed without a test-wrong verdict; a
+        test-wrong change S3's look - whatever its size - did not MERGE afresh: held, not read
+        (it failed, no verdict, the turn's limit)."""
+        command = wanted[0][0].command if wanted else None
         if not self._handed_passed(held, wanted):
-            return proof.row("stronger", "not_run", NO_VERDICT)
+            return proof.row("stronger", "failed", NO_VERDICT, command)
         touched = self._tests_touched(ctx, fixer) if kind != TEST_WRONG else []
         if touched:
             return proof.row("stronger", "failed", TESTS_TOUCHED.format(
-                model=model, paths=", ".join(touched[:5])))
-        if kind == TEST_WRONG:
-            held.review_forced = True
-            try:
-                await self._proof_review(ctx, held)
-            finally:
-                held.review_forced = False
-            if held.verdict == "HOLD":
-                return proof.row("stronger", "failed", TEST_HELD.format(model=model))
+                model=model, paths=", ".join(touched[:5])), command)
+        if kind != TEST_WRONG:
+            return None
+        held.verdict, held.looked_at, held.review_forced = None, None, True  # (a fresh look)
+        try:
+            await self._proof_review(ctx, held)
+        finally:
+            held.review_forced = False
+        if held.verdict == "HOLD":
+            return proof.row("stronger", "failed", TEST_HELD.format(model=model), command)
+        if held.verdict != "MERGE":
+            said = [one["text"] for one in held.rows if one["kind"] == "review"]
+            return proof.row("stronger", "failed", TEST_UNREAD.format(
+                model=model, why=said[-1] if said else NO_LOOK), command)
         return None
 
     def _tests_touched(self: "AgentRunner", ctx: Ctx, fixer: str | None) -> list[str]:
@@ -478,7 +499,7 @@ class StrongerMixin:
             line = select(Agent.id).where(or_(Agent.id == fixer, Agent.parent_agent_id == fixer))
             paths = session.scalars(select(FileChange.path).where(
                 FileChange.run_id == ctx.run_id, FileChange.agent_id.in_(line))).all()
-        return sorted({path for path in paths if proof.is_test(path)})
+        return sorted({path for path in paths if proof.is_test(path) or steers_tests(path)})
 
     @staticmethod
     def _handed_passed(held: "Proof", wanted: list) -> bool:
@@ -544,5 +565,6 @@ class StrongerMixin:
         if not held.handed or not held.left_failing:
             return []
         return [proof.row("rounds", "failed", STILL_HANDED.format(
-            by=" and ".join([held.first_by, *held.handed])))]
+            by=" and ".join([held.first_by, *held.handed])),
+            held.left_failing[0][0].command)]  # (Fix it's command, as a failing tests row's)
 

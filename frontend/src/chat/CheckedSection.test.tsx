@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { Message } from '../api/types'
 import { useApp } from '../state/store'
 import { assistantMessage, convState } from '../test-fixtures'
-import { FIX_HELD, FIX_IT, FIX_REVIEW, checkedOf } from './checked'
+import { FIX_HELD, FIX_IT, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
 import { CheckedSection } from './CheckedSection'
 
 type Row = NonNullable<Message['checked']>[number]
@@ -146,4 +146,16 @@ test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends th
   } finally {
     vi.restoreAllMocks()
   }
+})
+
+test('S11: a stronger model\u2019s rounds that were no pass - Fix it sends the command and why', () => {
+  const why = 'Not a pass: big-model changed a test without leave (test_a.py) - its diagnosis was not test-wrong'
+  const rows = [
+    row('passed', 'Tests passed: python check.py - 4 passed', { command: 'python check.py' }),
+    row('failed', why, { kind: 'stronger', command: 'python check.py' }),
+    row('failed', 'Still failing after rounds by quick and big-model: you decide (Fix it)', { kind: 'rounds', command: 'python check.py' }),
+  ]
+  expect(fixOf(rows)).toBe(FIX_NOT_DONE('python check.py', why))
+  render(<CheckedSection message={checked(rows)} over latest />)
+  expect(screen.getByRole('button', { name: 'Fix it' })).toBeInTheDocument()
 })

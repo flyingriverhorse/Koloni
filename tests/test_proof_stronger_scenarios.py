@@ -17,6 +17,10 @@ from tests.test_tier_scenarios import WHY, spawn, tiered
 
 pytestmark = pytest.mark.no_po
 
+from app.agent.review_mixin import ReviewMixin as _Review  # noqa: E402
+
+REVIEW = _Review._proof_review  # (the real one: the shared setup turns it off here)
+
 CHECK = "python check.py"
 
 
@@ -80,7 +84,12 @@ def one_tier(team, wait_run, project_dir, strongest, scripts, **project):  # noq
 
 
 def test_test_wrong_with_the_requests_words_may_change_the_test(team, wait_run,  # noqa: F811
-                                                                 project_dir):
+                                                                 project_dir, monkeypatch):
+    from app.agent.review_mixin import ReviewMixin
+
+    async def merges(_self, _ctx, held):  # (the Reviewer's fresh MERGE: the pass counts)
+        held.verdict = "MERGE"
+    monkeypatch.setattr(ReviewMixin, "_proof_review", merges)
     why = 'the request asks to "check my greeting", the test wants another'
     texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
         "Coder 2": [said(s11.TEST_WRONG, why)],
@@ -222,6 +231,10 @@ def test_a_round_that_loosens_the_test_without_leave_is_no_pass(team, wait_run, 
         [PASS, failing(), PASS, PASS])
     assert s11.TESTS_TOUCHED.format(model="big-model", paths="test_a.py") in texts, texts
     assert s11.STILL_HANDED.format(by="fast-model and big-model") in texts, texts
+    # (each says it with the failing command: Fix it's, as a failing tests row's)
+    rows = [r for m in _snap["messages"] if m["role"] == "checked" for r in m["checked"]
+            if r["kind"] in ("stronger", "rounds") and r["state"] == "failed"]
+    assert rows and all(r["command"] == CHECK for r in rows), rows
 
 
 def test_a_test_wrong_round_is_read_by_the_reviewer(team, wait_run, project_dir,  # noqa: F811
@@ -270,3 +283,50 @@ def test_held_fix_refuses_another_origin_a_made_up_merge_and_a_second_click(make
     assert client.post(url, headers=OWN, json={**body, "merge_id": "x" * 32}).status_code == 409
     assert client.post(url, headers=OWN, json=body).status_code == 202
     assert client.post(url, headers=OWN, json=body).status_code == 409  # (on its way, or taken up)
+
+
+WRONG = 'the request asks to "check my greeting", the test wants another'
+
+
+@pytest.mark.parametrize("unread", ["failed", "no verdict", "over"])
+def test_a_test_wrong_round_the_reviewer_did_not_read_is_no_pass(team, wait_run,  # noqa: F811
+                                                                  project_dir, monkeypatch,
+                                                                  unread):
+    # (S11 re-check: the forced look failed open where the Reviewer could not look, gave no
+    # verdict, or the turn was over its limit - the earlier verdict stood)
+    from app.agent.review_mixin import Look, ReviewMixin
+    monkeypatch.setattr(ReviewMixin, "_proof_review", REVIEW)
+    look = Look("Reviewer", "x · y", None, None, "it failed" if unread == "failed" else None)
+
+    async def no_look(_self, _ctx, _role, _task):
+        return look
+    monkeypatch.setattr(ReviewMixin, "_review_look", no_look)
+    if unread == "over":  # (under the limit as it is handed on, over it by the forced look)
+        calls = []
+        monkeypatch.setattr(ReviewMixin, "_review_over",
+                            lambda *_args: bool(calls.append(1)) or len(calls) > 1)
+    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
+        "Coder 2": [said(s11.TEST_WRONG, WRONG)],
+        "Coder 3": [step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
+                    text("changed the test as the request asks")]},
+        [PASS, failing(), PASS, PASS])
+    assert any(one.startswith("Not a pass: the Reviewer did not read big-model") for one in texts), (
+        texts)
+
+
+def test_a_conftest_that_deselects_the_test_is_a_test_change(team, wait_run,  # noqa: F811
+                                                              project_dir):
+    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
+        "Coder 2": [said(s11.FIX_INCOMPLETE)],
+        "Coder 3": [step(write("conftest.py", "collect_ignore = ['test_a.py']\n").tool_calls[0]),
+                    text("fixed")]},
+        [PASS, failing(), PASS, PASS])
+    assert s11.TESTS_TOUCHED.format(model="big-model", paths="conftest.py") in texts, texts
+
+
+@pytest.mark.parametrize("path", ["conftest.py", "tests/conftest.py", "pytest.ini", "tox.ini",
+                                  "setup.cfg", "pyproject.toml", "noxfile.py", "package.json",
+                                  "vitest.config.ts", "vite.config.mts", "jest.config.js",
+                                  "karma.conf.js", ".mocharc.yml", "playwright.config.ts"])
+def test_what_steers_the_tests_is_a_test_change(path):
+    assert s11.steers_tests(path) and not s11.steers_tests("src/config.py")
