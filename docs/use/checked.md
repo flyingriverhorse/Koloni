@@ -178,14 +178,19 @@ x`, `go test -exec`) or runs a file in place of the tool by its name (`./pytest`
 `python -m lint`) is not, and its step says why: "CI step Fix: not run: it changes files".
 
 A file git tracks that changed while one of KOLONİ's own runs went on is said: "Changed while
-KOLONİ's run of ruff check . went on: calc.py". It may be the run's doing (a check that formats) -
-or yours, saved in your editor meanwhile, or another chat's: KOLONİ never puts it back by itself.
-**Put back** on that row does, for each file still as the run left it: as it was when the run
-started (its commit's, through git's own line ends and filters). One changed again since is not
-put back, and says so. A file the run made that git does not track (a report, a cache), and one
-an agent wrote on record meanwhile, are not listed; nor is a secret file (`.env`, a key) - KOLONİ
-keeps no copy of one, so putting it back is yours. What Put back keeps goes once nothing of the run
-waits, and after three days.
+KOLONİ's run of ruff check . went on: calc.py". The end check's runs - the related tests, then the
+whole suite, in the turn or gone on after the answer - are looked at against one look taken before
+the first of them, on one row. It may be a run's doing (a check that formats, a test that rewrites
+a data file) - or yours, saved in your editor meanwhile, or another chat's: KOLONİ never puts it
+back by itself. **Put back** on that row does, for each file still as the run left it: as it was
+when the run started. One changed before the run comes back byte for byte; one that was as
+committed comes back from its commit through git's own filters, so its line ends are git's (CRLF
+where `core.autocrlf` is on) - `git diff` shows nothing, though the bytes may differ from before
+the run. One changed again since is not put back, and says so; while a test run of the turn still
+goes on, Put back waits ("put back once it ends"). A file the run made that git does not track (a
+report, a cache), and one an agent wrote on record meanwhile, are not listed; nor is a secret file
+(`.env`, a key) - KOLONİ keeps no copy of one, so putting it back is yours. What Put back keeps
+goes once nothing of the run waits, and after three days.
 
 ### Saved by KOLONİ
 
@@ -284,6 +289,14 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
   too were failing before: "1 were failing before this turn, 1 new". Only the new ones go back,
   and the Orchestrator is told the others are not its to fix. The copy is deleted after, its
   linked folders (`.venv`, `node_modules`) let go of first, never emptied.
+- **A lint, format or type check failing before.** A line such as `ruff format --check .`,
+  `ruff check .`, `eslint .`, `mypy app` or `tsc --noEmit` - from your CI or your own - that fails
+  only on files the turn did not change (by the file each finding names: `old.py:1:3`, "Would
+  reformat: old.py") runs once on the old code too. Where each finding is there as well: "Were
+  failing before this turn: old.py (from CI: ruff format --check .)" - not sent back, and no
+  stronger model is called for it. A finding in a file the turn changed, one the old code does
+  not have (a type error the turn caused in a file it did not touch), output that names no file,
+  or a name that is no file of the project: the turn's, as before.
 - Where a command of the turn may have changed the project (one that is not a test run and not a
   mere read), what it changed is not on record: "Not checked against the old code: a command
   changed the project this turn …", and every failure counts as new.
@@ -754,6 +767,7 @@ the Orchestrator's window, whose record holds the runs.
 | – `…` - the project changed while they ran | The project changed under the run. Its result stands for no state of the work, and a pass is not shown as passed. |
 | – Tests not run on the last change: `why` | A file changed after the last run, and the turn ended before KOLONİ could run the tests again. The lines above it are of the earlier run. |
 | – No test command | There was nothing to run. |
+| – Were failing before this turn: `files` (from CI: `command`) | A lint, format or type check failed only on files the turn did not change, and each of its findings is there on the old code too. Not sent back. |
 | – Sent back to fix: round 3 (until it passes, 3 failing → 1) | Until it passes: the rounds sent back, and how many failed at the first and fail now. |
 | ✗ Stopped after round 4: `why` - you decide (Fix it) | Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.) |
 | – `model`'s rounds stopped: no progress in two rounds | Until it passes, a stronger model's round left the same tests failing. |

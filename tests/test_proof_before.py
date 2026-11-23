@@ -129,3 +129,40 @@ def test_a_regression_is_a_test_that_passed_then():
     assert proof_before.regressions(["tests/test_a.py::test_x", "tests/test_n.py::test_m"],
                                     {"ran": 2, "skipped": 0, "ids": None},
                                     {"tests/test_n.py"}) == [("tests/test_a.py::test_x", True)]
+
+
+def test_lint_findings_name_the_project_files_each_tool_says(tmp_path):
+    # (CL-336 M: a lint, format or type check's findings by the file each names)
+    for rel in ("old.py", "src/a.ts", "web/b.js"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("x\n", encoding="utf-8")
+    ruff = ("F401 [*] `os` imported but unused\n --> old.py:1:8\n  |\n1 | import os\n  |\n"
+            "Found 1 error.\n")
+    assert proof_before.lint_findings(ruff, tmp_path, ".") == (
+        frozenset({"old.py"}), frozenset({"F401 [*] `os` imported but unused --> old.py:1:8"}))
+    said = {
+        "Would reformat: old.py\n1 file would be reformatted\n": "old.py",  # (ruff format)
+        "would reformat old.py\nOh no!\n": "old.py",  # (black --check)
+        "[warn] web/b.js\n[warn] Code style issues found.\n": "web/b.js",  # (prettier)
+        'old.py:3: error: Argument 1 to "f" has incompatible type\nFound 1 error\n': "old.py",
+        "src/a.ts(3,4): error TS2322: Type 'string' is not assignable\n": "src/a.ts",
+        "src/a.ts:3:4 - error TS2322: Type 'string'\n": "src/a.ts",  # (tsc --pretty)
+        f"{tmp_path / 'web' / 'b.js'}\n  3:1  error  'x' is not defined  no-undef\n\n"
+        "✖ 1 problem\n": "web/b.js",  # (eslint, its absolute path)
+    }
+    for output, rel in said.items():
+        found = proof_before.lint_findings(output, tmp_path, ".")
+        assert found is not None and found[0] == {rel}, (output, found)
+    eslint = proof_before.lint_findings(f"{tmp_path / 'web' / 'b.js'}\n  3:1  error  x\n",
+                                        tmp_path, ".")
+    assert eslint is not None and "web/b.js 3:1  error  x" in eslint[1]  # (its lines under it)
+    # (from a part's folder: project-relative; none named, or a name that is no project file
+    # - gone, outside it - is not to be told apart)
+    assert proof_before.lint_findings("a.ts:1:1: x\n", tmp_path, "src")[0] == {"src/a.ts"}
+    assert proof_before.lint_findings("error: Failed to parse pyproject.toml\n", tmp_path,
+                                      ".") is None
+    assert proof_before.lint_findings("old.py:1:1: E1\ngone.py:2:1: E2\n", tmp_path, ".") is None
+    assert proof_before.lint_findings("../outside.py:1:1: E1\n", tmp_path, ".") is None
+    # (coloured output is read as plain)
+    assert proof_before.lint_findings("\x1b[1mold.py\x1b[0m:1:1: E1\n", tmp_path, ".")[0] == {
+        "old.py"}

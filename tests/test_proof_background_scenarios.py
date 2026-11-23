@@ -110,6 +110,81 @@ def test_related_tests_first_then_the_whole_suite_in_the_background(
     assert len(model.calls) == 2
 
 
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+@pytest.mark.parametrize("by", ["whole", "related", "both"])
+def test_what_a_run_after_the_related_tests_changed_is_said_with_put_back(
+        make_client, wait_run, project_dir, monkeypatch, by):
+    # (CL-336 L: the related tests first, then the whole suite gone on after the answer - a
+    # tracked file the test run rewrote had no "Changed while" row: one look before the first
+    # of the end check's runs, compared after each, one row)
+    from tests.test_proof_end_scenarios import _git_project
+    with_tests(project_dir, "test_a.py")
+    (project_dir / "data.txt").write_bytes(b"as it was\n")
+    _git_project(project_dir, monkeypatch)
+    rewrites = {"data.txt": "rewritten by the tests\n"}
+    executor = ScriptedExecutor([
+        Script(["1 passed\n"], writes=rewrites if by != "whole" else {}),
+        Script(["2 passed\n"], writes=rewrites if by != "related" else {})])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    wait_run(client, cid, run_id)
+    rows = until(lambda: (r := rows_of(client, cid, run_id)) and len(r) > 1 and all(
+        one["state"] != "running" for one in r) and r)
+    command = PYTEST if by == "whole" else f"{PYTEST} tests/test_a.py"
+    assert [one["text"] for one in rows if one["kind"] == "changed_during"] == [
+        proof.CHANGED_DURING.format(command=command, files="data.txt")], rows
+    put = client.post(f"/api/runs/{run_id}/check/put-back", headers=OWN)
+    assert put.json() == {"put_back": ["data.txt"], "refused": []}
+    assert (project_dir / "data.txt").read_text() == "as it was\n"
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_put_back_waits_for_the_turns_test_run_to_end(make_client, wait_run, project_dir,
+                                                       monkeypatch, gate):
+    # (review of CL-336 L: a click while the whole suite still runs was undone by it at once)
+    from tests.test_proof_end_scenarios import _git_project
+    with_tests(project_dir, "test_a.py")
+    (project_dir / "data.txt").write_bytes(b"as it was\n")
+    _git_project(project_dir, monkeypatch)
+    rewrites = {"data.txt": "rewritten by the tests\n"}
+    executor = ScriptedExecutor([Script(["1 passed\n"], writes=rewrites),
+                                 held(gate, "2 passed\n")])
+    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    wait_run(client, cid, run_id)
+    until(lambda: any(one["kind"] == "changed_during" for one in rows_of(client, cid, run_id)))
+    put = client.post(f"/api/runs/{run_id}/check/put-back", headers=OWN)
+    assert put.status_code == 409 and "still goes on" in put.json()["detail"]
+    gate.release()
+    until(lambda: all(one["state"] != "running" for one in rows_of(client, cid, run_id)))
+    put = client.post(f"/api/runs/{run_id}/check/put-back", headers=OWN)
+    assert put.json() == {"put_back": ["data.txt"], "refused": []}
+
+
+def test_a_later_pass_keeps_put_back_to_before_the_first_run(make_client):
+    # (review of CL-336 L: each pass has its own look - one taken after an earlier pass's run
+    # rewrote a file would put it back to what that run made)
+    import hashlib
+    from types import SimpleNamespace
+    client, _model = make_client([])
+    runner = client.app.state.runner
+    ctx = SimpleNamespace(run_id="r-later", folder="x")
+    made, again = b"made by the first run\n", b"and by the next\n"
+
+    def digest(data):
+        return hashlib.sha256(data).hexdigest()
+    runner._keep_changed(ctx, proof.Before("abc", {}), {"data.txt": digest(made)})
+    runner._keep_changed(ctx, proof.Before("abc", {"data.txt": made}),
+                         {"data.txt": digest(again)})
+    assert runner._changed_state("r-later")["files"]["data.txt"] == {
+        "after": digest(again), "before": None, "secret": False}
+    # (one changed by someone else between the passes: put back to that)
+    runner._keep_changed(ctx, proof.Before("abc", {"data.txt": b"yours\n"}),
+                         {"data.txt": digest(made)})
+    kept = runner._changed_state("r-later")["files"]["data.txt"]["before"]
+    assert (runner._changed_place("r-later") / kept).read_bytes() == b"yours\n"
+
+
 def test_failing_related_tests_send_the_orchestrator_back_before_the_whole_suite(
         make_client, wait_run, project_dir):
     with_tests(project_dir, "test_a.py")

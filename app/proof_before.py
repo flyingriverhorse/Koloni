@@ -6,6 +6,7 @@ said. The runner's part: `BeforeMixin`."""
 
 import re
 from collections.abc import Iterable
+from pathlib import Path
 
 from app import ledger
 
@@ -40,6 +41,15 @@ MOST_SAID = 120  # characters of the sentence quoted
 # characters only - letters of any alphabet (`test_düzelt`), digits, `_ - . / \ : [ ]`; none a
 # shell reads (`$ ( ) ; % ^ & | < >`, a backtick, a quote - PowerShell's curly ones too - a space).
 _PLAIN_ID = re.compile(r"[\w\-./\\:\[\]]{1,500}")
+# CL-336 M: a lint, format or type check's findings by the file each names - `path:3`,
+# `path:3:1`, `path(3,1)` (ruff, flake8, pylint, mypy, tsc), a path alone or after "would
+# reformat" / "[warn]" (ruff format, black, prettier; eslint's and pyright's file above its lines),
+# eslint's `  3:1  error ...` under it, and ruff's / ty's `--> path:3:1` with the line above it.
+_AT = re.compile(r"([^\s:()\"'<>\[\]`]+\.[A-Za-z0-9]{1,8})(?::\d+|\(\d+,\d+\))")
+_BARE = re.compile(r"^\s*(?:would reformat:?\s+|\[warn\]\s+)?([^\s:]+\.[A-Za-z0-9]{1,8})\s*$",
+                   re.IGNORECASE)
+_UNDER = re.compile(r"^\s+\d+:\d+\s")
+MOST_LINT_CHARS = 100_000  # (of the output's end, its colours off)
 
 
 def failed_ids(command: str, output: str) -> list[str]:
@@ -101,6 +111,44 @@ def alone(command: str, ids: list[str]) -> str | None:
     if read[0] == "pytest" or read[0] in ("vitest", "jest"):
         return f"{command} {named}"
     return f"{command} -- {named}" if read[0] in _FILE_TOOLS else None
+
+
+def lint_findings(output: str, root: Path,
+                  cwd: str) -> tuple[frozenset[str], frozenset[str]] | None:
+    """CL-336 M: a failed lint, format or type check's (`ci_commands.checks_files`) files - each
+    project-relative - and findings: each line that names a file, its folder's path taken off
+    (one copy's output reads as another's). None: none named, or a name that is no file of the
+    project (gone, outside it, a word that only looks like one) - not to be told apart."""
+    folder = (root / cwd).resolve()
+    text = ledger.tail(output, MOST_LINT_CHARS)
+    for prefix in {str(folder), folder.as_posix()}:
+        text = text.replace(prefix + "\\", "").replace(prefix + "/", "")
+    files: set[str] = set()
+    found: set[str] = set()
+    header, last = None, ""
+    for line in text.splitlines():
+        bare = _BARE.match(line)
+        named = [bare[1]] if bare else _AT.findall(line)
+        if named:
+            rels = [_project_file(one, folder, root) for one in named]
+            if None in rels:
+                return None
+            files.update(one for one in rels if one)
+            header = rels[-1] if bare else header
+            said = line.strip().replace("\\", "/")
+            found.add(f"{last} {said}" if said.startswith("-->") else said)
+        elif header and _UNDER.match(line):
+            found.add(f"{header} {line.strip()}")
+        last = line.strip() or last
+    return (frozenset(files), frozenset(found)) if files else None
+
+
+def _project_file(said: str, folder: Path, root: Path) -> str | None:
+    try:
+        path = (folder / said.replace("\\", "/")).resolve()
+        return path.relative_to(root.resolve()).as_posix() if path.is_file() else None
+    except (OSError, ValueError):
+        return None
 
 
 def reproduces(output: str, wrote: dict[str, str]) -> bool:

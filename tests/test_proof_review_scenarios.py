@@ -506,6 +506,12 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run
     ("Verdict: LGTM", "MERGE"), ("Verdict: MERGE - tests no longer fail", "MERGE"),
     ("~~~\nVerdict: MERGE\n~~~", None), ("    # Verdict: MERGE", None),
     ("Notes\n    Verdict: MERGE\nVerdict: HOLD", "HOLD"),
+    # (CL-336: a MERGE blocked, said wrong, or crossed out holds - one not blocked, or ticked,
+    # merges)
+    ("Verdict: MERGE blocked by the failing test", "HOLD"),
+    ("Verdict: MERGE would be wrong", "HOLD"), ("Verdict: MERGE ✗", "HOLD"),
+    ("Verdict: MERGE is a mistake", "HOLD"), ("Verdict: MERGE - not blocked", "MERGE"),
+    ("Verdict: MERGE, nothing blocking", "MERGE"), ("Verdict: MERGE ✓", "MERGE"),
 ])
 def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
     assert review_mixin.verdict_of(report) == verdict
