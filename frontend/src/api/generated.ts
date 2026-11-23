@@ -9540,6 +9540,11 @@ export interface components {
          */
         RecipeChecks: {
             /**
+             * Config
+             * @default false
+             */
+            config: boolean;
+            /**
              * Data
              * @default false
              */

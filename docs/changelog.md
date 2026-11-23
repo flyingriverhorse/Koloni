@@ -8,6 +8,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Added
 
+- **Settings**: **Config** joins Settings › This project › Checks and git › **Check by kind of work** (on in every project, new and existing): under **Test and review**, a JSON, YAML or TOML file a turn wrote must parse - else its line says the parser's first complaint and line ("package.json:3: does not parse - …") and it goes back as a fix round - and a `package.json`, `pyproject.toml`, GitHub workflow or Compose file must have the shape its tool reads; a secret file is never read, nor a file nested too deep or YAML with aliases. A recipe's **Checks** step offers it too ([docs](use/checked.md#documents-diagrams-data-and-slides)).
 - **Agents**: each recipe in the Recipes list, and in the chat's recipe picker, says how many agents a run of it opens, counted from its drawing - "Bugfix · 4–14 agents": the fewest where no review finds a problem, the most where every loop goes back all its rounds ([docs](agents/recipes.md#making-a-recipe)).
 
 ## [0.1.6] - 2026-11-23

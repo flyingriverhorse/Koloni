@@ -800,8 +800,9 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
 
 
 # S5c (plan decision 16): what the end gate checks, part by part - the project's tests, the
-# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui").
-PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui")
+# Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui";
+# 0.1.7's config files, "config").
+PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config")
 
 
 class Checks(NamedTuple):

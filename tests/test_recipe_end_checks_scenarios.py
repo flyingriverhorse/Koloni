@@ -142,6 +142,7 @@ def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(
         "data": False,
         "slides": False,
         "ui": False,
+        "config": False,
         "fix_rounds": 0,
     }
     (folder / "report.json").write_text(

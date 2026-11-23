@@ -948,12 +948,14 @@ test('S5c: the Checks step is drawn after the last step, never dragged nor remov
   fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Docs/ }))
   // (S5b: Pages is a choice too - a changed page in KOLONİ's browser)
   fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Pages/ }))
+  // (0.1.7: Config too - JSON, YAML and TOML files parse)
+  fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Config/ }))
   fireEvent.change(within(panel()).getByRole('combobox', { name: 'Fix rounds' }), { target: { value: '0' } })
-  expect(part(/^Checks 🔒/)).toHaveTextContent('Review · Docs · Pages · check only')
+  expect(part(/^Checks 🔒/)).toHaveTextContent('Review · Docs · Pages · Config · check only')
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
   await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
   const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
-  expect(body.graph.checks).toEqual({ tests: false, review: true, docs: true, diagram: false, data: false, slides: false, ui: true, fix_rounds: 0 })
+  expect(body.graph.checks).toEqual({ tests: false, review: true, docs: true, diagram: false, data: false, slides: false, ui: true, config: true, fix_rounds: 0 })
 })
 
 test('k-canli-016: a recipe’s Checks step may go on until it passes', async () => {
