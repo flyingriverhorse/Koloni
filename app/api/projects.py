@@ -660,7 +660,8 @@ async def patch_project(
     noted = "day_note_at" in body.model_fields_set  # the same: null sends it no more
     budgeted = "monthly_budget" in body.model_fields_set  # the same
     embedded = "embedding_provider_id" in body.model_fields_set  # the same: null is off
-    if limited or crowded or noted or budgeted or embedded or spends or any(
+    rounds = "fix_rounds" in body.model_fields_set  # the same: null is Until it passes
+    if limited or crowded or noted or budgeted or embedded or rounds or spends or any(
         getattr(body, name) is not None for name in users_own
     ):
         # Where a search and a notification go, how much a turn or a month may spend, how many

@@ -152,3 +152,31 @@ def test_each_kind_is_held_to_its_own_last_round():
     assert back("tests", "t1")  # (one fixed: progress)
     assert not back("tests", "t1") and held.halted == proof.NO_PROGRESS and held.rounds == 3
     assert not back("review", "Reviewer | b.py #0")  # (stopped: it stays stopped)
+
+
+@pytest.mark.parametrize("given", [None, "until", 7])
+def test_only_the_apps_own_page_changes_fix_rounds(client, project_dir, given):
+    # (review of k-canli-016: an explicit null slipped past the own-page check - an agent's
+    # command against the app's address turned a project's 1 round into Until it passes)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"fix_rounds": 1},
+                        headers=OWN).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json={"fix_rounds": given}).status_code == 403
+    assert client.get(f"/api/projects/{pid}").json()["fix_rounds"] == 1
+
+
+def test_failures_that_take_turns_are_no_progress():
+    # (review of k-canli-016: A, B, A counted as progress every round - up to the ceiling)
+    from types import SimpleNamespace
+
+    from app.agent import AgentRunner
+    from app.agent.proof_mixin import Proof
+    stub = SimpleNamespace(_over_limits=lambda _ctx: None)
+    stub._no_round = lambda ctx, held, kind, failing: AgentRunner._no_round(
+        stub, ctx, held, kind, failing)
+    held = Proof(most=proof.UNTIL_CEILING, until_passes=True)
+
+    def back(*failing):
+        return AgentRunner._round_left(stub, None, held, "tests", frozenset(failing), "tests")
+    assert back("t_a") and back("t_b")
+    assert not back("t_a") and held.halted == proof.NO_PROGRESS and held.rounds == 2

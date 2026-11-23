@@ -90,7 +90,7 @@ class Proof:
     # short of a pass (said under the answer; then no round more); the first round's count of
     # what failed, and the newest set.
     until_passes: bool = False
-    last_failing: dict[str, frozenset[str]] = field(default_factory=dict)
+    last_failing: dict[str, set[frozenset[str]]] = field(default_factory=dict)  # (every one)
     halted: str | None = None
     first_failing: int | None = None
     failing_now: frozenset[str] = frozenset()
@@ -349,8 +349,9 @@ class ProofMixin:
                     failing: frozenset[str], why: str) -> bool:
         """Whether the work goes back once more for `why` - counted - under the turn's Fix
         rounds: up to their number; or, until it passes (k-canli-016), while each round makes
-        progress - not the same failing set of its `kind` as at its last round -, within the
-        turn's token limit and the project's budget, and at most `most` (the ceiling). Once the
+        progress - not a failing set of its `kind` it was sent back for before (A, B, A
+        stops) -, within the turn's token limit and the project's budget, and at most `most`
+        (the ceiling). Once the
         rounds stop short of a pass they stay stopped: `held.halted`, said under the answer."""
         held.failing_now = failing
         if held.halted is not None or held.recipe_spent:
@@ -362,7 +363,7 @@ class ProofMixin:
         if held.until_passes and (halt := self._no_round(ctx, held, kind, failing)):
             held.halted = halt
             return False
-        held.last_failing[kind] = failing
+        held.last_failing.setdefault(kind, set()).add(failing)
         held.first_failing = len(failing) if held.first_failing is None else held.first_failing
         held.rounds += 1
         held.sent.append(why)
@@ -370,11 +371,11 @@ class ProofMixin:
 
     def _no_round(self: "AgentRunner", ctx: Ctx, held: "Proof", kind: str,
                   failing: frozenset[str]) -> str | None:
-        """Until it passes: why no round more - the same failing set as its kind's last round (a
+        """Until it passes: why no round more - a failing set its kind was sent back for before (a
         set of ids, counts, files or KOLONİ's own words, never a model's: a round that changed
         nothing reads the same), the turn's token limit or the project's monthly budget; None:
         one more."""
-        if held.last_failing.get(kind) == failing:
+        if failing in held.last_failing.get(kind, ()):  # (review: A, B, A is no progress either)
             return proof.NO_PROGRESS
         return self._over_limits(ctx)
 
