@@ -11,6 +11,7 @@ import contextlib
 import json
 import logging
 import math
+import shutil
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -33,7 +34,7 @@ from app.proof import Change, Row, TestRun
 from app.serialize import message_out
 from app.team import quoted
 from app.tools import MAX_TIMEOUT, ToolError
-from app.workspace import Workspace
+from app.workspace import Workspace, is_secret, secret_in_project
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -50,6 +51,8 @@ PROOF_CALL = proof.PROOF_CALL
 # it they are stopped and said not waited for. An Away job, a To-do task's and a trigger's turn
 # wait to the commands' own limit (MAX_TIMEOUT), each command.
 END_WAIT_SECONDS = 120
+# CL-329: how long Put back's kept folder of a run stays, unclicked (or its chat deleted).
+KEPT_DAYS = 3
 SLOT_BUSY = "another of KOLONİ's test runs held the machine past the wait"
 # Plan decision 8: while the user is away (an Away job, a To-do turn) nobody is there to say yes to
 # a guess - it is not run; the user's own saved command still is.
@@ -675,18 +678,31 @@ class ProofMixin:
     def _keep_changed(self: "AgentRunner", ctx: Ctx, before: proof.Before,
                       changed: dict[str, str]) -> None:
         """What Put back needs of `changed`: the project, the run's commit, and each file's
-        digest after the run and bytes before it (none: the commit's)."""
+        digest after the run and bytes before it (none: the commit's) - never a secret file's
+        (KOLONİ keeps no copy of one: changed before the run, it is the user's to put back).
+        Kept folders of runs past KEPT_DAYS go."""
+        self._prune_changed()
         place = self._changed_place(ctx.run_id)
         place.mkdir(parents=True, exist_ok=True)
         state = self._changed_state(ctx.run_id) or {"files": {}}
         state.update(folder=ctx.folder, head=before.head)
         for rel, after in changed.items():
-            kept = None
-            if before.files.get(rel) is not None:
+            kept, secret = None, is_secret(rel) or secret_in_project(rel)
+            if before.files.get(rel) is not None and not secret:
                 kept = uuid.uuid4().hex
                 (place / kept).write_bytes(before.files[rel] or b"")
-            state["files"][rel] = {"after": after, "before": kept}
+            state["files"][rel] = {"after": after, "before": kept,
+                                   "secret": secret and rel in before.files}
         (place / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    def _prune_changed(self: "AgentRunner") -> None:
+        """Put back's kept folders of runs older than KEPT_DAYS: gone (a chat deleted, or a row
+        nobody clicked)."""
+        edge = time.time() - KEPT_DAYS * 86400
+        for one in (self.settings.runtime_root / "changed-during").glob("*"):
+            with contextlib.suppress(OSError):
+                if one.is_dir() and one.stat().st_mtime < edge:
+                    shutil.rmtree(one, ignore_errors=True)
 
     def _changed_state(self: "AgentRunner", run_id: str) -> dict | None:
         try:
@@ -706,14 +722,19 @@ class ProofMixin:
         done, refused = [], []
         for rel, one in list(state["files"].items()):
             kept = (place / one["before"]).read_bytes() if one.get("before") else None
-            why = proof.put_back(folder, rel, proof.Before(state.get("head"), {rel: kept}),
-                                 one["after"])
-            if why is None:
-                done.append(rel)
-                del state["files"][rel]
-            else:
+            why = f"{rel}: {proof.SECRET_KEPT}" if one.get("secret") else proof.put_back(
+                folder, rel, proof.Before(state.get("head"), {rel: kept}), one["after"])
+            if why is not None:
                 refused.append({"path": rel, "why": why})
-        (place / "state.json").write_text(json.dumps(state), encoding="utf-8")
+            else:
+                done.append(rel)
+            # (put back, or refused for good: no more to keep of it)
+            if why is None or one.get("secret") or why.endswith((proof.AGAIN, proof.OUTSIDE)):
+                del state["files"][rel]
+        if state["files"]:
+            (place / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        else:
+            shutil.rmtree(place, ignore_errors=True)
         return {"put_back": done, "refused": refused}
 
     def _timeout_on_record(self: "AgentRunner", call_id: str, seconds: int) -> None:

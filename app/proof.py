@@ -485,9 +485,9 @@ def put_back(folder: Path, rel: str, before: Before, after: str) -> str | None:
     None: put back; else why not."""
     target = folder / rel
     if not target.resolve().is_relative_to(folder.resolve()):
-        return f"{rel} is not in the project"
+        return f"{rel} {OUTSIDE}"
     if _digest(target) != after:
-        return f"{rel} changed again since KOLONİ's run"
+        return f"{rel} {AGAIN}"
     if before.files.get(rel) is not None:
         try:
             target.write_bytes(before.files[rel] or b"")
@@ -765,6 +765,11 @@ UNRECORDED = "A command of this turn may have changed files KOLONİ did not reco
 # CL-329 (review): a tracked file changed while KOLONİ's own run went on - said; Put back is the
 # user's click (`ProofMixin.put_back_changed`), never KOLONİ's by itself.
 CHANGED_DURING = "Changed while KOLONİ's run of {command} went on: {files}"
+# ...and why one is not put back for good: changed again, not the project's, a secret file (of
+# which KOLONİ keeps no copy: one changed before the run is the user's to put back).
+AGAIN = "changed again since KOLONİ's run"
+OUTSIDE = "is not in the project"
+SECRET_KEPT = "a secret file - KOLONİ keeps no copy of it: put it back yourself"
 MOST_COMMAND = 120  # characters of such a command said
 MOST_TOUCHED = 5  # files it changed named, then "+N more"
 # A file's time against a command's start: what a file system rounds down (FAT: 2 s).

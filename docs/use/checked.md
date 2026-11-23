@@ -183,7 +183,9 @@ or yours, saved in your editor meanwhile, or another chat's: KOLONİ never puts 
 **Put back** on that row does, for each file still as the run left it: as it was when the run
 started (its commit's, through git's own line ends and filters). One changed again since is not
 put back, and says so. A file the run made that git does not track (a report, a cache), and one
-an agent wrote on record meanwhile, are not listed.
+an agent wrote on record meanwhile, are not listed; nor is a secret file (`.env`, a key) - KOLONİ
+keeps no copy of one, so putting it back is yours. What Put back keeps goes once nothing of the run
+waits, and after three days.
 
 ### Saved by KOLONİ
 

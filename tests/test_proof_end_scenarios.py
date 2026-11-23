@@ -1105,6 +1105,7 @@ def test_a_tracked_file_changed_while_kolonis_run_went_on_is_said_and_put_back_b
     assert put.status_code == 200 and put.json() == {"put_back": ["calc.py"], "refused": []}
     assert (project_dir / "calc.py").read_bytes() == b"import os\nx = 1\n"
     assert client.post(f"/api/runs/{run_id}/check/put-back", headers=OWN).status_code == 409
+    assert not client.app.state.runner._changed_place(run_id).exists()  # (nothing left to keep)
 
 
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
@@ -1122,6 +1123,35 @@ def test_a_file_changed_again_after_kolonis_run_is_not_put_back(make_client, wai
     assert put.json() == {"put_back": [], "refused": [
         {"path": "calc.py", "why": "calc.py changed again since KOLONİ's run"}]}
     assert (project_dir / "calc.py").read_bytes() == b"x = 1\ny = 'the user, after the run'\n"
+    assert not client.app.state.runner._changed_place(run_id).exists()  # (refused for good)
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_a_secret_file_is_never_kept_and_its_put_back_is_the_users(make_client, wait_run,
+                                                                   project_dir, monkeypatch):
+    # (re-check of k-onceki-2: KOLONİ keeps no copy of a secret file. A tracked .env changed
+    # before and during the run: git's list leaves it out - nothing kept, nothing said; and kept
+    # by any other way, no bytes of it are written and the click says why)
+    from types import SimpleNamespace
+    (project_dir / ".env").write_bytes(b"KEY=1\n")
+    _git_project(project_dir, monkeypatch)
+    (project_dir / ".env").write_bytes(b"KEY=2\n")  # (the user's, before the run)
+    fixes = Script(["....\n===== 4 passed in 0.1s =====\n"], writes={".env": "KEY=3\n"})
+    client, _model = make_client([write("a.py", "y = 2\n"), text("done")],
+                                 executor=ScriptedExecutor([fixes]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    rows = texts(wait_run(client, cid, run_id))
+    runner = client.app.state.runner
+    assert not any(one.startswith("Changed while") for one in rows), rows
+    assert not runner._changed_place(run_id).exists()
+    ctx = SimpleNamespace(run_id=run_id, folder=str(project_dir))
+    runner._keep_changed(ctx, proof.Before(None, {".env": b"KEY=2\n"}), {".env": "digest"})
+    assert [one.name for one in runner._changed_place(run_id).iterdir()] == ["state.json"]
+    put = client.post(f"/api/runs/{run_id}/check/put-back", headers=OWN)
+    assert put.json() == {"put_back": [], "refused": [
+        {"path": ".env", "why": f".env: {proof.SECRET_KEPT}"}]}
+    assert (project_dir / ".env").read_bytes() == b"KEY=3\n"
+    assert not runner._changed_place(run_id).exists()
 
 
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
