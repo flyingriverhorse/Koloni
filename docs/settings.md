@@ -138,6 +138,8 @@ See [Permission levels](use/permissions.md) for what a rule can and cannot cover
 
 ### Checks and git
 
+![Settings, This project, Checks and git: After a change, Fix rounds, Then a stronger model and Check by kind of work](images/settings-checks.png)
+
 Heading: "After a turn that changed code".
 
 | Setting | What it does |

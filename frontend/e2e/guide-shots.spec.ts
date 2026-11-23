@@ -308,10 +308,18 @@ test('☾ Away: the Away panel, and the summary when you are back', async ({ pag
 
 // --- 0.1.6, proven finish: what KOLONİ checks after a change, where it is set, and what it says --------------------------
 // (The backend is shared: what these set and write in the e2e project is put back after each.)
-const PASSING = `python -c "print('3 passed')"`
-const SLOW = `python -c "import time; time.sleep(20); print('3 passed')"`
+// (The e2e project's own check.py and slow.py: the Checks node names a command by its script.)
+const PASSING = 'python check.py'
+const SLOW = 'python slow.py'
 const WRITTEN = ['kanit.py', 'rehber_a.py', 'rehber_b.py', 'rehber_c.py', 'rehber_d.py']
 const WORKFLOW = 'name: ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m pytest -q\n'
+
+/** The project's After a change on, with `command`, and the page read again: the composer says what the chat checks. */
+async function checksOn(page: Page, command: string) {
+  await setProject(page, { check_command: command, after_change: 'check' })
+  await page.reload()
+  await page.getByLabel('Message').waitFor()
+}
 
 test.describe('proven finish (0.1.6)', () => {
   test.afterEach(async ({ page }) => {
@@ -323,6 +331,8 @@ test.describe('proven finish (0.1.6)', () => {
   test('Settings: After a change, Fix rounds and Check by kind of work; the app’s test runs; the level menu’s switch', async ({ page }) => {
     await openFreshConversation(page)
     await setProject(page, { after_change: 'check' })
+    // (No message yet: the First steps panel would show the project's folder - under this machine's user.)
+    await page.addInitScript(() => localStorage.setItem('koloni-first-steps', 'hidden'))
     await page.reload()
     await page.getByLabel('Message').waitFor()
     // The permission level's menu: Test and review changes, for this chat.
@@ -348,38 +358,38 @@ test.describe('proven finish (0.1.6)', () => {
 
   test('Checked under the answer, and the Checks node with its ⋯ menu', async ({ page }) => {
     await openFreshConversation(page)
-    await setProject(page, { check_command: PASSING, after_change: 'check' })
+    await checksOn(page, PASSING)
     await level(page, 'auto_edit') // (the write is applied; the user's own command runs unasked)
     await say(page, 'write the checked file, k-kanit', 'Wrote kanit.py.')
     const checked = page.getByRole('region', { name: 'Chat' }).getByRole('region', { name: 'Checked' })
-    await expect(checked).toContainText(`Tests passed: ${PASSING} - 3 passed`, { timeout: 20_000 })
+    await expect(checked).toContainText(`Tests passed: ${PASSING} - 2 passed`, { timeout: 20_000 })
     await picture(checked, 'checked-section')
     await settled(page)
+    await picture(page, 'checks-node') // (its lines: the ⋯ menu is in checks-running)
     await page.getByRole('button', { name: 'Checks: more' }).click()
     await expect(page.getByRole('menu', { name: 'Checks: more' })).toBeVisible()
-    await picture(page, 'checks-node')
   })
 
   test('a check at work: the node runs, its ⋯ menu stops it', async ({ page }) => {
     await openFreshConversation(page)
-    await setProject(page, { check_command: SLOW, after_change: 'check' })
+    await checksOn(page, SLOW)
     await level(page, 'auto_edit')
     await page.getByLabel('Message').fill('write the checked file, k-kanit')
     await page.getByRole('button', { name: 'Send' }).click()
-    await expect(page.locator('.react-flow__node-checks')).toContainText('python', { timeout: 20_000 })
+    await expect(page.locator('.react-flow__node-checks')).toContainText('slow.py', { timeout: 20_000 })
     await settled(page)
     await page.getByRole('button', { name: 'Checks: more' }).click()
     await expect(page.getByRole('menuitem', { name: 'Stop this check' })).toBeVisible()
     await picture(page, 'checks-running')
     await page.getByRole('menuitem', { name: 'Stop this check' }).click()
     const checked = page.getByRole('region', { name: 'Chat' }).getByRole('region', { name: 'Checked' })
-    await expect(checked).toContainText('Tests not finished', { timeout: 20_000 })
+    await expect(checked).toContainText('Tests not run: you stopped the check', { timeout: 20_000 })
     await picture(checked, 'checked-stopped')
   })
 
   test('a big change looked over: the Reviewer’s rows, and its node after the Checks node', async ({ page }) => {
     await openFreshConversation(page)
-    await setProject(page, { check_command: PASSING, after_change: 'check' })
+    await checksOn(page, PASSING)
     await level(page, 'auto_edit')
     await say(page, 'write the reviewed change, k-rehber', 'Wrote the change.')
     const checked = page.getByRole('region', { name: 'Chat' }).getByRole('region', { name: 'Checked' })
@@ -393,7 +403,7 @@ test.describe('proven finish (0.1.6)', () => {
     mkdirSync(path.join(PROJECT_DIR, '.github', 'workflows'), { recursive: true })
     writeFileSync(path.join(PROJECT_DIR, '.github', 'workflows', 'guide.yml'), WORKFLOW)
     await openFreshConversation(page)
-    await setProject(page, { check_command: '', after_change: 'check' })
+    await checksOn(page, '')
     await level(page, 'auto_edit')
     await say(page, 'write the checked file, k-kanit', 'Wrote kanit.py.')
     const checked = page.getByRole('region', { name: 'Chat' }).getByRole('region', { name: 'Checked' })

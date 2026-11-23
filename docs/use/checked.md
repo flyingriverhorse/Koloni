@@ -7,6 +7,8 @@ writes it from its own records, not from the model's words, and no model is aske
 
 It works the same for every model and CLI.
 
+![The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (3 lines, 2 files); No new test: the Orchestrator said "Updated the greeting in hello.py."](../images/checked-section.png)
+
 [![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides and pages, a Reviewer's look (long documents read against the request), a test for the change, the live try, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
 
 *What KOLONİ checks at a turn's end, and where you set each part. ([full size](../diagrams/proven-finish.svg))*
@@ -69,6 +71,8 @@ project:
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
+![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds at 2, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data and Pages](../images/settings-checks.png)
+
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
 the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
@@ -78,6 +82,8 @@ web/"), then what KOLONİ saved for any other folder - and changes as you save o
 test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
 
 ### For one chat
+
+![The permission level's menu: Ask before changes, Auto-edit files, Full auto, Check what I said first, Plan first, and Test and review changes switched on with its line, As the project](../images/level-menu-checks.png)
 
 **Test and review changes**, in the permission level's menu beside **Plan first**, turns it on
 or off for this chat only. Its line says what this chat's changes get: "As the project: runs
@@ -146,7 +152,10 @@ where no line is taken, nothing of the CI is said.
 
 It asks once a project: the section lists them - "CI commands found: ruff check app, python -m
 pytest -q - not run until you approve them once (Run these)" - and **Run these** approves exactly
-the lines that row shows. If the workflow files changed since, or another turn offered other lines,
+the lines that row shows.
+
+![The Checked section offering the CI's line: CI commands found: python -m pytest -q - not run until you approve them once (Run these), with the Run these button under it](../images/checked-ci-offer.png)
+ If the workflow files changed since, or another turn offered other lines,
 nothing is approved and they are offered again after the next change. From the next change on they are the turn's test run, one line each, said "(from
 CI)". Until you approve them they are not run - at **Full auto** and while you're away too. A
 change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
@@ -430,6 +439,8 @@ Lines a test could run but none did go to the Reviewer, as data: "New lines no t
 
 ## The review
 
+![The Checked section of a reviewed change: Tests passed: python check.py - 2 passed; Review: Reviewer (Local · fake-qwen) - MERGE, no findings](../images/checked-review.png)
+
 Under **Test and review**, once the tests pass, a change of more than **80 lines** or **3 files** of code,
 config or screens - or one that touches security - is looked over by the **Reviewer**, an agent
 KOLONİ opens itself. A security touch is a path with a word like auth, login, session, token,
@@ -590,7 +601,10 @@ out after 10 min".
 the line says "Full tests stopped by you at 1:02 - not checked" (counted from when it started),
 or "before they started" if it was still waiting for the machine. It works at every permission
 level. The canvas's Checks node has it too, in its **⋯** menu, also while the answer waits for
-the related tests (see [On the canvas](#on-the-canvas)).
+the related tests (see [On the canvas](#on-the-canvas)). Stopped while the answer still waits for
+them, the line says "Tests not run: you stopped the check".
+
+![The Checked section after Stop this check: Tests not run: you stopped the check](../images/checked-stopped.png)
 
 - A newer turn that changes the same project and runs the same suite stops one still running in
   the background, as a new push stops a pull request's old CI run: "Tests not finished: the
@@ -621,6 +635,8 @@ the related tests (see [On the canvas](#on-the-canvas)).
 
 ### How many run at once
 
+![Settings, The app, Agents: KOLONİ's test runs at once at 1 and Test processes per run at 2, under the other limits](../images/settings-app-test-runs.png)
+
 KOLONİ's own test runs queue: **Settings › The app › KOLONİ's test runs at once** (1 unless you
 change it, up to 4) go at the same time, and the rest wait. A whole suite waiting its turn says
 "Full tests waiting for another test run to end". **Test processes per run** (2 unless you change
@@ -628,6 +644,8 @@ it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pyte
 `-n auto`. The agents' own commands are not limited by either.
 
 ## On the canvas
+
+![The canvas after a checked turn: the Orchestrator's box says checked · 1 round, and under it the Checks node lists check.py · 2 passed, No review and No new test](../images/checks-node.png)
 
 A checked turn has a **Checks** node under its Orchestrator. While KOLONİ's test run works, it
 shows the tool and how long it has run; once the turn is over, each line of the Checked section,
@@ -644,6 +662,10 @@ inside its frame, and says "end of the recipe". A turn KOLONİ did not check has
 for this chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's
 Checks step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
 **Nothing**, it says nothing of it - the Checked section does.
+
+![A check at work: the Orchestrator's box says checking…, and the Checks node's ⋯ menu offers Stop this check, Off for this chat and Open its log](../images/checks-running.png)
+
+![A reviewed turn on the canvas: the Checks node with the Reviewer's line, and the Reviewer KOLONİ opened as an agent node after it](../images/checks-reviewer.png)
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
@@ -662,7 +684,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Tests ran none: `command` collected no test | The runner found no test: pytest's or unittest's exit code 5, "Ran 0 tests", jest's "No tests found", vitest's "No test files found". This is not a pass. |
 | – Tests skipped only: `command` - `summary` | Every test it found was skipped. This is not a pass. |
 | – Tests could not start: `why` | The program was not found, the command could not start, or KOLONİ's check itself broke. Nothing is sent back. |
-| – Tests not run: `why` | It was declined on its card, a trigger does not allow it, the web is off and it reaches the internet, or the turn ended first. |
+| – Tests not run: `why` | It was declined on its card, a trigger does not allow it, the web is off and it reaches the internet, you stopped it while the answer waited for it, or the turn ended first. |
 | – Tests timed out / not waited for | It did not end in time. This is neither a pass nor a failure. |
 | ✓ Related tests passed: `command` `files` - `summary` | The tests related to the changed files passed. The whole suite runs after them. |
 | … Full tests running: `command` (2:14) | The whole suite goes on after the answer. Its line is written again when it ends. |

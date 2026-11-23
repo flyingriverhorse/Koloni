@@ -81,6 +81,8 @@ Every recipe ends in a **Checks** step 🔒: what KOLONİ checks before the reci
 ([What KOLONİ checked](../use/checked.md)). It is always the last step, joined to the step(s) that
 lead to the end, and it moves when you add a step after them. It cannot be removed or dragged.
 
+![The Bugfix recipe in the editor: its steps end in the locked Checks step, and its panel offers Follow the project or Set for this recipe with Tests, Review, Docs, Diagrams, Data, Slides and Pages, and Fix rounds](../images/recipe-checks-step.png)
+
 Click it to choose:
 
 - **Follow the project** (the default): the project's **After a change** - Test and review, Tests
