@@ -1248,6 +1248,51 @@ def test_what_koloni_wrote_for_another_agent_is_no_native_change_however_the_loo
     assert not runner._still_wrote_for(here, ("gone.txt", "again\n", None))
 
 
+def test_a_native_agents_look_never_reads_a_file_take_in_is_half_way_through(tmp_path):
+    # (A macOS runner, 23 Nov: the Lead's last look read made.txt while its Coder's copy was
+    # taken in - there, not yet written - and put it down to the Lead.)
+    import asyncio
+    import threading
+
+    from app.agent.ctx import _Watch
+    from app.agent.observe_mixin import ObserveMixin
+    from app.project_view import ProjectView
+    from tests.conftest import scaled
+
+    got = []  # (a look had the folder to itself)
+
+    class Looking(asyncio.Lock):
+        async def acquire(self):
+            await super().acquire()
+            got.append(True)
+            return True
+
+    async def take_in_beside_a_look():
+        watch = _Watch(ProjectView(tmp_path))
+        watch.looking, watch.ctx = Looking(), SimpleNamespace(root=str(tmp_path))
+        runner = SimpleNamespace(_watches={"chat": [watch]})
+        read = threading.Event()
+
+        def changes():
+            try:
+                return watch.view.changes()
+            finally:
+                read.set()
+
+        async with ObserveMixin._looks_held(runner, tmp_path):
+            (tmp_path / "made.txt").write_bytes(b"")  # half way: there, not yet written
+            got.clear()
+            look = asyncio.ensure_future(watch.look(changes))
+            for _ in range(5):  # (its turn to ask for the folder)
+                await asyncio.sleep(0)
+            if got:  # not held off: it reads the folder now
+                assert await asyncio.to_thread(read.wait, scaled(30))
+            (tmp_path / "made.txt").write_bytes(b"new\n")
+        return await look
+
+    assert asyncio.run(take_in_beside_a_look()) == [("made.txt", None, "new\n")]
+
+
 # --- discussions (slice 10) ---------------------------------------------------------
 
 

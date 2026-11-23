@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **CLIs**: a file a sub-agent's work brought into the project is no longer, now and then, put down to the Orchestrator working with its own CLI beside it: KOLONİ's look at the project waits while Take in writes files
+
 ## [0.1.6] - 2026-11-23
 
 ### Added

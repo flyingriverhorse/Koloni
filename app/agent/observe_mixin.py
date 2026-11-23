@@ -4,13 +4,14 @@ kept on a card, who is told, and a watch settled when a turn ends - `ObserveMixi
 """
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import os
 import re
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -314,6 +315,25 @@ class ObserveMixin:
         """Where what a turn takes back is kept first, KOLONİ's own (`_keep_aside`)."""
         return self.settings.runtime_root / "taken-back" / ctx.run_id
 
+    @contextlib.asynccontextmanager
+    async def _looks_held(self: "AgentRunner", project: Path) -> AsyncIterator[None]:
+        """Take in writes a project (`_apply`): no native agent at work there, or in a copy of
+        it, looks meanwhile - a look runs in a thread beside the writes, and one that read a file
+        still half written put it down to its CLI (a macOS runner, 23 Nov: the Lead's last look
+        and its Coder's made.txt). A look waits for the last file written; let go with no await
+        before `_seen_by_watchers`, which marks those files as KOLONİ's before any look goes on.
+        (By the folder as it resolves: a copy's `project` does, an agent's root may not.)"""
+        here = project.resolve()
+        async with contextlib.AsyncExitStack() as held:
+            for watch in [one for watches in list(self._watches.values()) for one in watches]:
+                if (
+                    watch.ctx is not None
+                    and watch.ctx.root
+                    and Path(watch.ctx.root).resolve() == here
+                ):
+                    await held.enter_async_context(watch.looking)
+            yield
+
     def _watches_in(self: "AgentRunner", root: str) -> list["_Watch"]:
         """The native agents at work in this project folder, in a copy of it too."""
         return [
@@ -605,9 +625,11 @@ class ObserveMixin:
                 or wrote[0] != (None if one[2] is None else one[2].encode())
             ]
             # Nor what KOLONİ wrote there for another agent, taken in from its copy say, and
-            # still as it wrote it - however this look and that write met in time.
-            # shortcut: a write still under way when the look read it (a part of the file) is
-            # put down to the CLI; hold the looks off the writes if that is seen.
+            # still as it wrote it - however this look and that write met in time (a look waits
+            # for Take in's writes, `_looks_held`).
+            # shortcut: another write of KOLONİ's for an agent (its write_file in the project,
+            # a branch's merge) still under way when a look read it is put down to the CLI; hold
+            # the looks off those writes too if that is seen.
             found = [one for one in found if not self._still_wrote_for(here, one)]
         if _changes_nothing(ctx):  # (what changed beside it, at work at once: not its)
             return set()
