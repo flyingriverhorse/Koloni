@@ -5301,6 +5301,8 @@ export interface components {
         };
         /** BacklogDraftIn */
         BacklogDraftIn: {
+            /** Conversation Id */
+            conversation_id?: string | null;
             /** Text */
             text: string;
         };
@@ -9548,6 +9550,8 @@ export interface components {
         };
         /** RecipeDraftIn */
         RecipeDraftIn: {
+            /** Conversation Id */
+            conversation_id?: string | null;
             /** Text */
             text: string;
         };
@@ -16174,7 +16178,9 @@ export interface operations {
     };
     read_auto_api_projects__project_id__backlog_auto_get: {
         parameters: {
-            query?: never;
+            query?: {
+                conversation_id?: string | null;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -18338,6 +18344,7 @@ export interface operations {
         parameters: {
             query?: {
                 project_id?: string | null;
+                conversation_id?: string | null;
             };
             header?: never;
             path?: never;

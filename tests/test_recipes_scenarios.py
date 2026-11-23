@@ -491,14 +491,80 @@ def test_or_write_it_asks_the_next_model_when_one_does_not_answer(team):  # noqa
 
 
 def test_or_write_it_with_every_model_down_names_each_one_it_asked(team):  # noqa: F811
-    client, default, fast = team([UNREACHABLE], [
-        ModelUnavailable("model server returned 500: overloaded")])
+    # (the balanced tier, then the fast one - each once -, and how to fix it: k-tarif-model)
+    down = ModelUnavailable("model server returned 500: overloaded")
+    client, default, fast = team([UNREACHABLE], [down, down])
     local_first(team, client)
     drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer"}, headers=OWN)
     assert drawn.status_code == 502
     assert drawn.json()["detail"] == (
         "No model answered: Local · big-model (not running), Fast · deep (model server returned "
-        "500: overloaded).")
+        "500: overloaded), Fast · quick (model server returned 500: overloaded). Start Local on "
+        "the Models page, give a model a tier there, or pick a model in the chat.")
+
+
+def chat_on(client, project_dir, provider_id, model):
+    """A chat whose model picker chose `provider_id` · `model`: its id."""
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json={
+        "provider_id": provider_id, "model_id": model}).status_code == 200
+    return pid, cid
+
+
+def test_or_write_it_asks_the_model_of_the_chat_it_is_opened_from(team, project_dir):  # noqa: F811
+    """k-tarif-model (the user's): no model has a tier, the app's default - Local - is not
+    running, and the chat runs on another provider: that chat's model writes it."""
+    client, default, fast = team([UNREACHABLE], [text(json.dumps(DRAWN))])
+    _pid, cid = chat_on(client, project_dir, team.providers["Fast"]["id"], "deep")
+    with client.app.state.session_factory() as session:
+        local = session.query(models.Provider).filter_by(name="Local").one()
+        looked_down(session)[local.id] = ("not answering", None)
+    assert listed(client, conversation_id=cid)["writer"]["asks"] == (
+        "the Orchestrator's model: Fast · deep")
+    drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer",
+                                                    "conversation_id": cid}, headers=OWN)
+    assert drawn.status_code == 200, drawn.text
+    assert (drawn.json()["provider_name"], drawn.json()["model_id"]) == ("Fast", "deep")
+    assert default.calls == [] and len(fast.calls) == 1
+    # (with no chat: the app's own default, Local - not running -, and how to fix it; found not
+    # running only as it is asked: "No model answered: Local (not running). Start Local …")
+    why = ("There is no model to ask: Local is not running. Start Local on the Models page, give "
+           "a model a tier there, or pick a model in the chat.")
+    assert listed(client)["writer"] == {"why": why, "asks": None}
+    drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer"}, headers=OWN)
+    assert drawn.status_code == 409 and drawn.json()["detail"] == why, drawn.text
+    # (a chat of another project, or none such: as with no chat)
+    from app.api.recipes import chat_of
+    with client.app.state.session_factory() as session:
+        assert chat_of(session, cid, "another") is None and chat_of(session, "gone") is None
+        assert chat_of(session, cid) is not None and chat_of(session, None) is None
+
+
+def test_or_write_it_with_no_chat_asks_every_tier_then_the_newest_chats_model(
+        team, project_dir):  # noqa: F811
+    """No balanced model: the fast tier's next; the newest chat's model after the Lead's."""
+    client, default, fast = team([], [ModelUnavailable("model server returned 500: overloaded"),
+                                      text(json.dumps(DRAWN))])
+    fast_id = team.providers["Fast"]["id"]
+    assert client.patch(f"/api/providers/{fast_id}", json={
+        "models": [{"name": "quick", "tier": "fast"}, {"name": "deep"}]},
+        headers={"Origin": ORIGIN}).status_code == 200
+    _pid, cid = chat_on(client, project_dir, fast_id, "deep")
+    with client.app.state.session_factory() as session:
+        # (a turn of that chat ran on Fast · deep - its Orchestrator as it was last used)
+        session.add(models.Run(id="r1", conversation_id=cid, status="completed"))
+        session.flush()
+        session.add(models.Agent(id="a1", run_id="r1", role_name="Orchestrator", tools=[],
+                                 provider_name="Fast", model_id="deep"))
+        local = session.query(models.Provider).filter_by(name="Local").one()
+        looked_down(session)[local.id] = ("not answering", None)
+        session.commit()
+    assert listed(client)["writer"]["asks"] == "Fast: Fast · quick"
+    drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer"}, headers=OWN)
+    assert drawn.status_code == 200, drawn.text
+    # (Fast · quick overloaded; Local passed over - not running -; the newest chat's: Fast · deep)
+    assert (drawn.json()["provider_name"], drawn.json()["model_id"]) == ("Fast", "deep")
 
 
 def test_or_write_it_may_draw_a_role_step_of_more_than_one(make_client):

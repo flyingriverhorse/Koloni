@@ -10,10 +10,11 @@ Type in **Add a task — title, then Enter**. Once there is a title you can also
 
 A rough note can become several tasks. Type it, for example "the login page is broken on mobile, and
 we need a password reset", and press **Write it with the Product owner**. A model writes it as tasks,
-each with a title, detail, done when and priority. It is asked once, with no tools: your first fast
-model if you have one, else the Orchestrator's. One that does not answer passes it on in the same
-press - to your next fast model, then the Orchestrator's; with none answering, the message names
-each one asked and why. The line under the buttons says which model is asked first and whether the
+each with a title, detail, done when and priority. It is asked once, with no tools, as **Or write
+it** asks (see [Recipes](../agents/recipes.md)) - your fast models first, then the other tiers',
+then the Orchestrator's model in the chat you are in, then your newest chat's. One that does not
+answer passes it on in the same press; with none answering, the message names each one asked and
+why, and how to fix it. The line under the buttons says which model is asked first and whether the
 request costs money. The tasks appear under the box for you to change. Press
 **Add** on one, **✕** to drop one, or **Add all**. Nothing is saved until you add it. **Plan it in a
 chat** works the other way: it opens a chat in the project whose first message asks for the Product

@@ -14,9 +14,18 @@ from app import recipes
 from app.api.deps import get_session, require_own_origin
 from app.api.usage import over_limit
 from app.config import is_local
-from app.db.models import ConversationTeam, Project, Provider, Recipe, Team, now
+from app.db.models import (
+    Agent,
+    Conversation,
+    ConversationTeam,
+    Project,
+    Provider,
+    Recipe,
+    Team,
+    now,
+)
 from app.model_client import UNREACHABLE, ModelUnavailable
-from app.providers import LIST_DOWN_SECONDS, ask_own, looked_down, mode_of
+from app.providers import LIST_DOWN_SECONDS, TIERS, ask_own, down_now, looked_down, mode_of
 from app.roles import LEAD, agent_roles, find_role
 from app.schemas import (
     RecipeDraftIn,
@@ -77,13 +86,32 @@ def _project(session: Session, project_id: str) -> Project:
     return project
 
 
-def writer(session: Session) -> tuple[Provider, str | None] | str:
-    """The Lead's model, which "Or write it" asks - or why it cannot be asked now. What the
-    page shows and what the request does are this one answer."""
+NO_MODEL = "There is no model to ask: add a provider on the Models page."
+# k-tarif-model: models that can be had, and none of them talks with its tools off.
+NO_ONE = ("There is no model to ask: give a model a tier on the Models page, or pick a model in "
+          "the chat.")
+# ...or every one there is was passed over as not running (`down_now`), and how to fix it.
+START = "Start {names} on the Models page, give a model a tier there, or pick a model in the chat."
+NOT_RUNNING = "There is no model to ask: {names} {are} not running. {fix}"
+
+
+def chat_of(session: Session, conversation_id: str | None,
+            project_id: str | None = None) -> Conversation | None:
+    """The chat the page is open on (k-tarif-model): its Orchestrator's model is asked - the one
+    its model picker chose. None - none given, gone, or not of the page's project: as before."""
+    chat = session.get(Conversation, conversation_id) if conversation_id else None
+    return chat if chat is not None and project_id in (None, chat.project_id) else None
+
+
+def writer(session: Session, conversation: Conversation | None = None
+           ) -> tuple[Provider, str | None] | str:
+    """The Lead's model - in `conversation`, the one that chat picked -, which "Or write it" asks
+    - or why it cannot be asked now. What the page shows and what the request does are this one
+    answer."""
     try:
-        would = would_run(session, find_role(session, LEAD), None)
+        would = would_run(session, find_role(session, LEAD), conversation)
     except ModelUnavailable:
-        return "There is no model to ask: add a provider on the Models page."
+        return NO_MODEL
     if would.refused:
         return str(would.refused)
     over = over_limit(session, would.provider)
@@ -96,25 +124,68 @@ def writer(session: Session) -> tuple[Provider, str | None] | str:
 Asked = tuple[Provider, str | None, str]
 
 
-def askers(session: Session, providers, tier: str) -> list[Asked] | str:
-    """Whom a draft is asked of, in turn: each model of `tier` the Lead may pick, as KOLONİ's other
-    small requests go (`askable`: not one whose provider looked down when last read - a local
-    model server not running - nor a CLI that keeps its tools), while under its provider's limit;
-    then the Lead's own (`writer`, which also says why nobody is asked)."""
-    can = writer(session)
-    if isinstance(can, str):
-        return can
-    tiered = [(other, model, tier.capitalize()) for entry, model in askable(
-        session, would_run(session, find_role(session, LEAD), None), providers, tier)
-        if not over_limit(session, other := session.get_one(Provider, entry.provider_id))]
-    def same(one: tuple[Provider, str | None]) -> tuple[str, str | None]:
-        return one[0].id, one[1] or one[0].default_model
+def askers(session: Session, providers, tier: str,
+           conversation: Conversation | None = None) -> list[Asked] | str:
+    """Whom a draft is asked of, in turn, each once: each model of `tier` the Lead may pick, as
+    KOLONİ's other small requests go (`askable`: not one whose provider looked down when last
+    read - a local model server not running -), then the other tiers' (fast, balanced,
+    strongest); then the Lead's own in the chat the page is on (`writer`: that chat's model
+    picker - k-tarif-model: the user's chats ran on another provider than the app's default,
+    whose server was not running); then the model the newest chat ran on. Never a CLI that keeps
+    its tools, nor one past its provider's limit. None: why nobody is asked."""
+    try:
+        would = would_run(session, find_role(session, LEAD), conversation)
+    except ModelUnavailable:
+        return NO_MODEL
+    found: dict[tuple[str, str | None], Asked] = {}
+    down = down_now(session)  # (a local server not running, as a tier passes it over)
+    passed: list[str] = []
 
-    lead = (*can, "the Orchestrator's model")
-    found = [*tiered, *([] if any(same(one[:2]) == same(can) for one in tiered) else [lead])]
-    return [(provider, model, f"{label}: {provider.name} · "
-             f"{model or provider.default_model or 'its default model'}")
-            for provider, model, label in found]
+    def add(provider: Provider, model: str | None, label: str) -> None:
+        key = (provider.id, model or provider.default_model)
+        # (A model not named stands for whichever its provider gives: one already asked of it.)
+        again = key in found or key[1] is None and any(one[0] == provider.id for one in found)
+        if provider.id in down and provider.name not in passed:
+            passed.append(provider.name)
+        if not again and provider.id not in down and not over_limit(session, provider) and _talks(
+                session, providers, provider, model):
+            named = model or provider.default_model or "its default model"
+            found[key] = (provider, model, f"{label}: {provider.name} · {named}")
+
+    for one in (tier, *(other for other in TIERS if other != tier)):
+        for entry, model in askable(session, would, providers, one):
+            add(session.get_one(Provider, entry.provider_id), model, one.capitalize())
+    can = writer(session, conversation)
+    if not isinstance(can, str):
+        add(*can, "the Orchestrator's model")
+    if (newest := _newest_chats(session)) is not None:
+        add(*newest, "the newest chat's model")
+    if found:
+        return list(found.values())
+    if passed:
+        return NOT_RUNNING.format(names=" and ".join(passed), are="is" if len(passed) == 1
+                                  else "are", fix=START.format(names=" and ".join(passed)))
+    return can if isinstance(can, str) else NO_ONE
+
+
+def _talks(session: Session, providers, provider: Provider, model: str | None) -> bool:
+    """`askable`'s rule for a model asked outside a tier: a CLI at work with its own tools speaks
+    with them off - one that still has them then is passed over."""
+    client = providers.client(provider, model)
+    if getattr(client, "native", False):
+        client = client.talker()
+    return not getattr(client, "native", False)
+
+
+def _newest_chats(session: Session) -> tuple[Provider, str | None] | None:
+    """The model the newest chat's Orchestrator ran on, as it was last used; None: no chat ran,
+    or its provider is gone."""
+    lead = session.scalars(select(Agent).where(
+        Agent.depth == 0, Agent.provider_name.is_not(None)).order_by(
+        Agent.created_at.desc(), literal_column("agents.rowid").desc()).limit(1)).first()
+    provider = session.scalar(select(Provider).where(
+        Provider.name == lead.provider_name)) if lead is not None else None
+    return (provider, lead.model_id) if provider is not None and lead is not None else None
 
 
 async def asked_once(request: Request, provider: Provider, model: str | None,
@@ -156,12 +227,16 @@ async def ask_in_turn(request: Request, session: Session, can: list[Asked],
                 reason = "not running"
                 stopped.add(provider.id)
             tried.append(f"{provider.name}{f' · {model}' if model else ''} ({reason})")
-    raise HTTPException(502, f"No model answered: {', '.join(tried)}.")
+    # (k-tarif-model: how to fix it, in KOLONİ's words)
+    names = [one.name for one in session.scalars(select(Provider).where(Provider.id.in_(stopped)))]
+    fix = START.format(names=" and ".join(names)) if names else (
+        "Give a model a tier on the Models page, or pick a model in the chat.")
+    raise HTTPException(502, f"No model answered: {', '.join(tried)}. {fix}")
 
 
 @router.get("/api/recipes", response_model=RecipesOut)
 def list_recipes(request: Request, project_id: str | None = None,
-                 session: Session = Depends(get_session)):
+                 conversation_id: str | None = None, session: Session = Depends(get_session)):
     """KOLONİ's own, the ready ones first; with a project, its folder's own after them."""
     kept = session.scalars(select(Recipe).order_by(
         Recipe.ready.desc(), Recipe.created_at, literal_column("recipes.rowid"))).all()
@@ -172,7 +247,8 @@ def list_recipes(request: Request, project_id: str | None = None,
         files, broken = recipes.folder_recipes(project.root_path)
         found += [RecipeOut(id=file, name=one.name, ready=False, graph=one.graph,
                             project_id=project.id, file=file) for file, one in files]
-    can = askers(session, request.app.state.providers, "balanced")
+    can = askers(session, request.app.state.providers, "balanced",
+                 chat_of(session, conversation_id, project_id))
     return RecipesOut(recipes=found, broken=broken, writer={
         "why": can if isinstance(can, str) else None,
         "asks": None if isinstance(can, str) else can[0][2]})
@@ -286,7 +362,8 @@ async def draft_recipe(body: RecipeDraftIn, request: Request,
     on Usage as "KOLONİ itself", and counts toward that provider's limits (K-56)."""
     # The first balanced model: a recipe's graph is more than a line of words (B-69: it was
     # drawn by the strongest model) - the next where one does not answer, then the Lead's.
-    can = askers(session, request.app.state.providers, "balanced")
+    can = askers(session, request.app.state.providers, "balanced",
+                 chat_of(session, body.conversation_id))
     if isinstance(can, str):
         raise HTTPException(409, can)
     roles = [role.name for role in agent_roles(session) if not (

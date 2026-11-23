@@ -110,17 +110,43 @@ def test_a_fast_model_that_does_not_answer_passes_it_to_the_leads(team, project_
     from app.model_client import ModelUnavailable
 
     down = ModelUnavailable("model server returned 500: overloaded")
-    client, default, fast = team([text(json.dumps(TASKS))], [down])
-    tiered(team, client)  # fast: Fast · quick, then the Lead's: Local
+    client, default, fast = team([text(json.dumps(TASKS))], [down, down])
+    # (fast: Fast · quick, then balanced: Fast · deep, strongest: Local · big-model - k-tarif-model)
+    tiered(team, client)
     pid, _ = setup(client, project_dir)
     drawn = draft(client, pid)
     assert drawn.status_code == 200, drawn.text
     assert drawn.json()["by"].startswith("Local (") and len(drawn.json()["tasks"]) == 2
-    assert len(fast.calls) == 1 and len(default.calls) == 1
-    client, default, fast = team([down], [down])
+    assert len(fast.calls) == 2 and len(default.calls) == 1
+    client, default, fast = team([down], [down, down])
     tiered(team, client)
     pid, _ = setup(client, project_dir)
     drawn = draft(client, pid)
     assert drawn.status_code == 502, drawn.text
-    assert drawn.json()["detail"].startswith("No model answered: Fast · quick (model server "
-                                             "returned 500: overloaded), Local"), drawn.text
+    assert drawn.json()["detail"] == (
+        "No model answered: Fast · quick (model server returned 500: overloaded), Fast · deep "
+        "(model server returned 500: overloaded), Local · big-model (model server returned 500: "
+        "overloaded). Give a model a tier on the Models page, or pick a model in the chat."), (
+            drawn.text)
+
+
+def test_the_po_draft_asks_the_model_of_the_chat_it_is_opened_from(team, project_dir):  # noqa: F811
+    """k-tarif-model: the Product owner's draft follows the same chain - the chat's model."""
+    from app.model_client import ModelUnavailable
+    from app.providers import looked_down
+
+    client, default, fast = team([ModelUnavailable("never")], [text(json.dumps(TASKS))])
+    pid, _ = setup(client, project_dir)
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json={
+        "provider_id": team.providers["Fast"]["id"], "model_id": "deep"}).status_code == 200
+    with client.app.state.session_factory() as session:
+        local = session.query(models.Provider).filter_by(name="Local").one()
+        looked_down(session)[local.id] = ("not answering", None)
+    drafter = client.get(f"/api/projects/{pid}/backlog/auto",
+                         params={"conversation_id": cid}).json()["drafter"]
+    assert (drafter["provider_id"], drafter["model_id"]) == (team.providers["Fast"]["id"], "deep")
+    drawn = client.post(f"/api/projects/{pid}/backlog/draft",
+                        json={"text": NOTE, "conversation_id": cid})
+    assert drawn.status_code == 200, drawn.text
+    assert drawn.json()["by"] == "Fast (deep)" and default.calls == []

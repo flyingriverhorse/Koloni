@@ -3020,6 +3020,8 @@ class RecipesOut(BaseModel):
 
 class RecipeDraftIn(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
+    # k-tarif-model: the chat the page is open on - its Orchestrator's model is asked too.
+    conversation_id: str | None = Field(default=None, max_length=32)
 
 
 class RecipeDraftOut(BaseModel):
@@ -4699,6 +4701,8 @@ class BacklogAutoOut(BaseModel):
 class BacklogDraftIn(BaseModel):
     # (The page's title and detail, a line apart.)
     text: str = Field(min_length=1, max_length=4201)
+    # k-tarif-model: the chat the page is open on - its Orchestrator's model is asked too.
+    conversation_id: str | None = Field(default=None, max_length=32)
 
 
 class BacklogDraftOut(BaseModel):
