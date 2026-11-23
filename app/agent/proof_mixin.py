@@ -8,6 +8,7 @@ Stop hook."""
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import math
@@ -186,6 +187,14 @@ class Proof:
     ready_calls: int | None = None
     ready_seen: dict[str, tuple[str, str | None]] = field(default_factory=dict)
     ready_by: frozenset[str] = frozenset()
+    # CL-336 L: the project's tracked files as the pass's first run of KOLONİ's there started,
+    # and when - every run of the pass (the related tests, the whole suite, in the turn or gone on
+    # after it) is compared with that one look; and the turn's one "Changed while" row: its
+    # files and the runs that changed them.
+    look: tuple[proof.Before | None, datetime] | None = None
+    changed_row: Row | None = None
+    changed_files: list[str] = field(default_factory=list)
+    changed_by: list[str] = field(default_factory=list)
 
 
 class ProofMixin:
@@ -358,6 +367,7 @@ class ProofMixin:
         """The project's tests on the work as it stands: a fresh run on record stands for it, else
         each is run; a failure goes back to the Orchestrator while rounds are left."""
         held.rows = [one for one in held.rows if one["kind"] not in ("tests", "coverage")]
+        held.look = None  # (CL-336 L: this pass's own look, taken as its first run starts)
         held.uncovered.clear()  # (S9: this pass's word on the new lines, not an earlier one's)
         if "tests" not in held.checks.on:  # (S5c: off in the recipe's Checks step)
             held.rows.append(proof.row("tests", "note", proof.TESTS_OFF))
@@ -602,7 +612,7 @@ class ProofMixin:
                 raise ToolError(SLOT_BUSY) from None
             taken.append(True)
             check.going.set_result(now())
-            look["before"], look["started"] = await self._sources_now(ctx, held, copy), now()
+            look["at"] = await self._sources_now(ctx, held, copy)
             if (now_left := left()) is not None:
                 if now_left < 1:
                     taken.append(False)
@@ -636,7 +646,7 @@ class ProofMixin:
             if True in taken:
                 slot.release()
         await self._tests_put_back(copy, was, kept)
-        await self._changed_said(ctx, held, run, look.get("before"), look.get("started"))
+        await self._changed_said(ctx, held, run, look.get("at"), check)
         self._set_call(ctx.cid, call_id, status="denied" if ended == "rejected" else
                        "failed" if code is None else "succeeded", result=said, ended_at=now())
         self._always_kept(ctx, held, run, call_id)  # (option A: Always on its own card)
@@ -648,21 +658,27 @@ class ProofMixin:
                                given["seconds"] or MAX_TIMEOUT), output
 
     @staticmethod
-    async def _sources_now(ctx: Ctx, held: Proof, copy) -> proof.Before | None:
+    async def _sources_now(ctx: Ctx, held: Proof,
+                           copy) -> tuple[proof.Before | None, datetime] | None:
         """CL-329: in the project itself (not a copy, nor S7's old code), its tracked files as
-        they are as KOLONİ's own run starts - what changed while it went on is said after it
-        (`_changed_said`)."""
+        they are as the pass's first run of KOLONİ's starts, and when - what changed while its
+        runs went on is said after each (`_changed_said`). CL-336 L: one look for them all - a
+        file the related tests rewrote is no change to the whole suite's own look."""
         if copy is not None or held.place is not None:
             return None
-        return await asyncio.to_thread(proof.sources_before, Path(ctx.folder))
+        if held.look is None:
+            held.look = (await asyncio.to_thread(proof.sources_before, Path(ctx.folder)), now())
+        return held.look
 
     async def _changed_said(self: "AgentRunner", ctx: Ctx, held: Proof, run: TestRun,
-                            before: proof.Before | None, started) -> None:
+                            at: tuple[proof.Before | None, datetime] | None,
+                            check: Check) -> None:
         """CL-329 (review: say it, never revert it by itself): a tracked file of the project that
-        changed while KOLONİ's own run went on - by the run (a check that formats), the user's
-        editor or another chat - is said on a row with Put back, the user's click
-        (`put_back_changed`); one an agent wrote on record since the run started is not.
+        changed while KOLONİ's own runs went on (since the pass's look, `at`) - by a run (a check
+        that formats), the user's editor or another chat - is said on the turn's row with Put
+        back, the user's click (`put_back_changed`); one an agent wrote on record since is not.
         shortcut: a run that was stopped says nothing of what changed; say it there too if seen."""
+        before, started = at or (None, None)
         if before is None:
             return
         with self._factory() as session:
@@ -672,10 +688,29 @@ class ProofMixin:
         if not changed:
             return
         await asyncio.to_thread(self._keep_changed, ctx, before, changed)
-        more = f" +{len(changed) - proof.MOST_TOUCHED} more" if len(
-            changed) > proof.MOST_TOUCHED else ""
-        held.rows.append(proof.row("changed_during", "note", proof.CHANGED_DURING.format(
-            command=run.command, files=", ".join(list(changed)[:proof.MOST_TOUCHED]) + more)))
+        self._changed_row(held, check, run.command, changed)
+
+    def _changed_row(self: "AgentRunner", held: Proof, check: Check, command: str,
+                     changed: dict[str, str]) -> None:
+        """The turn's one "Changed while" row, with the files a run found changed that no run
+        before it had: written where it is (`_checked_update`), or new - under a whole suite gone
+        on after the answer, as that one ends (`Check.after`)."""
+        new = [rel for rel in changed if rel not in held.changed_files]
+        if not new:
+            return
+        held.changed_files += new
+        held.changed_by += [command] if command not in held.changed_by else []
+        files = held.changed_files
+        more = f" +{len(files) - proof.MOST_TOUCHED} more" if len(
+            files) > proof.MOST_TOUCHED else ""
+        made = proof.row("changed_during", "note", proof.CHANGED_DURING.format(
+            command=", ".join(held.changed_by),
+            files=", ".join(files[:proof.MOST_TOUCHED]) + more))
+        if held.changed_row is not None:
+            self._checked_update(check, held.changed_row, made)
+            return
+        held.changed_row = made
+        (check.after if check.later else held.rows).append(made)
 
     def _changed_place(self: "AgentRunner", run_id: str) -> Path:
         """Where what Put back needs is kept, KOLONİ's own: the files' bytes before the run."""
@@ -693,6 +728,11 @@ class ProofMixin:
         state = self._changed_state(ctx.run_id) or {"files": {}}
         state.update(folder=ctx.folder, head=before.head)
         for rel, after in changed.items():
+            was = state["files"].get(rel)
+            if was and before.files.get(rel) is not None and hashlib.sha256(
+                    before.files[rel] or b"").hexdigest() == was["after"]:
+                was["after"] = after  # (CL-336: as an earlier pass's run left it: put back to
+                continue  # before that run, not to what it made)
             kept, secret = None, is_secret(rel) or secret_in_project(rel)
             if before.files.get(rel) is not None and not secret:
                 kept = uuid.uuid4().hex

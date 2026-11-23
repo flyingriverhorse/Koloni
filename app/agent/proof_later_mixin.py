@@ -96,6 +96,8 @@ class Check:
     later: bool = False
     why: str | None = None
     on_card: asyncio.Future = field(default_factory=lambda: _future())
+    # CL-336 L: rows of its own said under its row once it ends (a file it changed).
+    after: list = field(default_factory=list)
 
 
 class ProofLaterMixin:
@@ -216,6 +218,11 @@ class ProofLaterMixin:
             if check.call_id == call_id and not check.on_card.done():
                 check.on_card.set_result(None)
 
+    def checking(self: "AgentRunner", run_id: str) -> bool:
+        """Whether a test run of the turn's end check still runs (or waits for the machine)."""
+        return any(one.run_id == run_id and not task.done()
+                   for task, one in list(self._checks.items()))
+
     def checks_in(self: "AgentRunner", project_id: str) -> str | None:
         """Why a project is not deleted now: a test run of KOLONİ's in it runs, or waits for the
         machine - it would start later in a folder no longer KOLONİ's."""
@@ -301,7 +308,10 @@ class ProofLaterMixin:
                      ctx: Ctx, held: "Proof", run: TestRun) -> None:
         """A suite gone on after its answer is over: its row as it ended - and a guess that
         really ran tests saved, as in the turn (`_save_found`), its row under it. Ended by KOLONİ
-        closing: nothing here - the next start says so (`proof.settle_running`)."""
+        closing: nothing here - the next start says so (`proof.settle_running`).
+        shortcut: a lint line gone on after the answer that fails only where it failed before is
+        not told apart (S7 / CL-336 M run in the turn only): its row offers Fix it, nothing starts
+        by itself; run `_lint_before` here too if that is seen to mislead."""
         if done.cancelled() and self._closing:
             return
         saved: list[Row] = []
@@ -311,10 +321,10 @@ class ProofLaterMixin:
             except Exception as exc:  # (a save that broke saves nothing: the row is said)
                 log.warning("run %s: the guess gone on after it not saved: %r", check.run_id, exc)
         def said(more: list[Row]) -> None:
+            more = [*saved, *more, *check.after]
             try:
-                held.rows.extend([*saved, *more])  # (its Checked section not yet written: there)
-                self._checked_update(check, made, self._later_row(check, made, done), *saved,
-                                     *more)
+                held.rows.extend(more)  # (its Checked section not yet written: there)
+                self._checked_update(check, made, self._later_row(check, made, done), *more)
             except Exception as exc:  # (a row of KOLONİ's fails nothing)
                 log.warning("run %s: the tests gone on after it not said: %r", check.run_id, exc)
         # (S9: its coverage report, read as it ends - off the loop, said with it)

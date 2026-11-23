@@ -85,6 +85,8 @@ async def put_back_check(run_id: str, request: Request, session: Session = Depen
     click; KOLONİ never puts one back by itself). What was put back, and what not with why."""
     if session.get(Run, run_id) is None:
         raise HTTPException(404, "run not found")
+    if request.app.state.runner.checking(run_id):  # (it may change them again: CL-336)
+        raise HTTPException(409, "a test run of this turn still goes on: put back once it ends")
     said = await asyncio.to_thread(request.app.state.runner.put_back_changed, run_id)
     if said is None:
         raise HTTPException(409, "nothing of this turn waits to be put back")

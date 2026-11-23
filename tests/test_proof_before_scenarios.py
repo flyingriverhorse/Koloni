@@ -12,9 +12,11 @@ from sqlalchemy import select
 from app import copies, proof_before
 from app.agent import before_mixin
 from app.db.models import Memory
+from tests import test_proof_ci_scenarios as ci_scenarios
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
+from tests.test_ci_commands import write as write_flow
 from tests.test_proof_end_scenarios import PASS, begin, checked, run, texts
 
 pytestmark = pytest.mark.no_po
@@ -415,3 +417,47 @@ def test_the_green_state_keeps_the_passes_of_a_run_with_coverage_flags(make_clie
     with client.app.state.session_factory() as session:
         (kept,) = session.scalars(select(Project.tests_green)).all()
     assert next(iter(kept.values()))["ids"] == [ONE, "tests/test_a.py::test_y"], kept
+
+
+FORMAT = ci_scenarios.FLOW.replace("ruff check app", "ruff format --check .")
+REFORMAT = "Would reformat: {file}\n1 file would be reformatted, 1 file already formatted\n"
+
+
+def reformat(file):
+    return Script([REFORMAT.format(file=file)], exit_code=1)
+
+
+@pytest.mark.parametrize("case", ["old file", "the turn's file", "the turn's nested file",
+                                  "not on the old code", "no file named"])
+def test_a_ci_check_failing_only_where_the_turn_did_not_change_is_no_round(
+        make_client, wait_run, project_dir, case):
+    # (CL-336 M: `ruff format --check .` failing on an old unformatted file the turn never
+    # touched went to a fix round, then to the stronger model. It was failing before: said, not
+    # sent back - but only where each finding is there on the old code too; one in the turn's
+    # file, one the old code has not (a type error the turn caused), or none named: the turn's)
+    write_flow(project_dir, FORMAT)
+    (project_dir / "old.py").write_text("y   =  1\n", encoding="utf-8")
+    mine = "pkg/a.py" if case == "the turn's nested file" else "a.py"
+    now = {"old file": reformat("old.py"), "the turn's file": reformat("a.py"),
+           "the turn's nested file": reformat("pkg/a.py"),
+           "not on the old code": reformat("old.py"),
+           "no file named": Script(["error: Failed to parse pyproject.toml\n"], exit_code=2)}[case]
+    then = {"old file": [reformat("old.py")], "not on the old code": [Script(["ok\n"])]}
+    executor = ScriptedExecutor([now, PASS, *then.get(case, []), Script(["ok\n"]), PASS])
+    client, model = make_client([write(mine, "x = 1\n"), text("done"),
+                                 write(mine, "x = 2\n", "w2"), text("done"),
+                                 write(mine, "x = 3\n", "w3"), text("fixed")],
+                                executor=executor)
+    cid, run_id = begin(client, project_dir)
+    ci_scenarios.approve(client, wait_run(client, cid, run_id), run_id)
+    second, snap = ci_scenarios.again(client, wait_run, cid)
+    rows = ci_scenarios.rows_of(snap, second)
+    note = ("before", before_mixin.LINT_BEFORE.format(
+        files="old.py", command="from CI: ruff format --check ."))
+    if case == "old file":
+        assert note in rows and len(model.calls) == 4, rows  # (no round: nothing sent back)
+        assert [one for one, _cwd in executor.started] == [
+            "ruff format --check .", "python -m pytest -q", "ruff format --check ."]
+        assert executor.started[2][1] != str(project_dir)  # (on the old code: a copy)
+    else:
+        assert note not in rows and len(model.calls) == 6, rows  # (one round)

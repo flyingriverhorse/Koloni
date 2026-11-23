@@ -163,6 +163,11 @@ def _plugin(words: list[str]) -> bool:
                for at, word in enumerate(words))
 
 
+def checks_files(line: str) -> bool:
+    """CL-336 M: a lint, format or type check - one plain command - whose findings name files."""
+    return is_plain(line) and bool(LINTS.match(line) or TYPECHECKS.match(line))
+
+
 def _checks(line: str) -> bool:
     return bool(LINTS.match(line) or TYPECHECKS.match(line) or ledger.read_test(line))
 

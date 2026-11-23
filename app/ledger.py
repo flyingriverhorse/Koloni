@@ -352,7 +352,17 @@ def _test_of(command: str) -> _Test | None:
 # `pytest --snapshot-update`), a report to a path (`--junitxml=a.py`), its temp folder (pytest
 # deletes it first) - by the option, and those of `=` or a value after them.
 _WRITES = frozenset({"-u", "--update", "--updatesnapshot", "--update-snapshots",
-                     "--snapshot-update", "--force-regen", "--regen-all", "--ci=false"})
+                     "--snapshot-update", "--force-regen", "--regen-all", "--ci=false",
+                     "-update"})  # (CL-336: go's golden files, `go test ./... -update`)
+# ...and (CL-336) inline-snapshot's that write, `--inline-snapshot=fix,create`; go's test binary
+# and profiles at a path (`go test -o x ./...`); an update asked in the environment
+# (`INSTA_UPDATE=always cargo test`; not `=no`), and options carried there
+# (`PYTEST_ADDOPTS=--junitxml=a.py pytest -q`).
+_INLINE_WRITES = frozenset({"fix", "create", "update", "trim"})
+_GO_WRITES_TO = frozenset({"-o", "-cpuprofile", "-memprofile", "-blockprofile", "-mutexprofile",
+                           "-trace", "-outputdir"})
+_UPDATE_ENV = frozenset({"INSTA_UPDATE", "UPDATE_SNAPSHOTS", "SNAPSHOT_UPDATE"})
+_NOT_ON = frozenset({"", "0", "no", "false", "off", "never"})
 _WRITES_TO = frozenset({"--junitxml", "--junit-xml", "--junit_xml", "--result-log",
                         "--report-log", "--html", "--json-report-file", "--outputfile",
                         "--output-file", "--basetemp", "-coverprofile", "--coverage-directory",
@@ -363,10 +373,25 @@ def test_writes(command: str) -> bool:
     """CL-329 G: whether a line's test run writes with an option of its own - an update of its
     snapshots, or a report or folder at a path (`ledger._WRITES`, `_WRITES_TO`)."""
     found = _test_of(command)
-    for word in found.args if found else []:
+    if found is None:
+        return False
+    args = list(found.args)
+    # shortcut: `NAME=value` words only - PowerShell's `$env:NAME = "v"` spaced is not read.
+    for word in _lexed(command):
+        name, set_to, value = word.removeprefix("$env:").partition("=")
+        value = value.strip("'\"")
+        if set_to and re.fullmatch(r"\w+", name):
+            if name.upper() in _UPDATE_ENV and value.casefold() not in _NOT_ON:
+                return True
+            if name.upper().endswith("ADDOPTS"):
+                args += value.split()
+    for word in args:
         option = word.strip("'\"").casefold()
-        if option in _WRITES or option.partition("=")[0] in _WRITES_TO or (
-                option.startswith("--cov-report") and ":" in option.partition("=")[2]):
+        name, _set, value = option.partition("=")
+        if option in _WRITES or name in _WRITES_TO or (
+                name == "--cov-report" and ":" in value) or (
+                name == "--inline-snapshot" and _INLINE_WRITES & set(value.split(","))) or (
+                found.tool == "go test" and name in _GO_WRITES_TO):
             return True
     return False
 

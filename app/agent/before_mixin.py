@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, or_, select
 
-from app import copies, ledger, memory, proof, proof_before, test_found
+from app import ci_commands, copies, ledger, memory, proof, proof_before, test_found
 from app.agent.ctx import Ctx
 from app.commands import only_reads
 from app.db.models import Command, Memory, Message, Run, ToolCall, now
@@ -33,6 +33,9 @@ log = logging.getLogger(__name__)
 FLAKY = "Flaky: {id} failed in the full run and passed alone (noted in this project's memory)"
 FLAKY_NOTE = "Failed in a full run and passed alone ({date}); seen {n} times"
 BEFORE = "{n} were failing before this turn, {m} new"
+# CL-336 M: a lint, format or type check failing only on files the turn did not change, each of
+# its findings there on the old code too.
+LINT_BEFORE = "Were failing before this turn: {files} ({command})"
 AT_LAST = "{n} were failing at the last run ({when}), {m} now"
 CAUGHT = "The new test fails on the old code ✓"
 NOT_CAUGHT = "The new test passes on the old code too: it may not catch the bug"
@@ -65,6 +68,10 @@ class BeforeMixin:
         are all one or the other drops out."""
         kept = []
         for run, output in failed:
+            if ci_commands.checks_files(run.command):  # (CL-336 M: its findings name files)
+                if not await self._lint_before(ctx, held, run, output):
+                    kept.append((run, output))
+                continue
             named = proof_before.failed_ids(run.command, output)
             self._regressions(ctx, held, run, named)
             # (Review: an id is what the run PRINTED - only a plain one goes on a line run unasked.)
@@ -81,6 +88,37 @@ class BeforeMixin:
             if new or odd:
                 kept.append((run, output))
         return kept
+
+    async def _lint_before(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
+                           output: str) -> bool:
+        """CL-336 M: whether a failed lint, format or type check was failing before - said, not
+        sent back: no file the turn changed is in its output, and each finding is there on the
+        old code too, as often (a type error in a file the turn did not touch may be the turn's;
+        a config error of the turn's names no file). Not where none is named, nor without the
+        old code: the turn's."""
+        root = self._ws(ctx).root
+        now_found = proof_before.lint_findings(output, root, run.cwd,
+                                               [one.path for one in held.changes])
+        if now_found is None:
+            return False
+        why = CHANGED_BY_COMMAND if self._changed_by_command(ctx) else None if (
+            self._may_rerun(ctx, held, run)) else ASKS_AGAIN
+        if why:
+            self._said_once(held, proof.row("before", "note", NO_BEFORE.format(why=why)))
+            return False
+        async with self._throwaway_copy(ctx) as place:
+            made = None if place is None else await self._run_aside(ctx, held, run, place)
+            then = proof_before.lint_findings(made[1], place.root, run.cwd) if (
+                made and place) else None
+        if then is None or not now_found[1] <= then[1]:
+            return False
+        files = sorted(now_found[0])
+        more = f" +{len(files) - proof.MOST_TOUCHED} more" if len(
+            files) > proof.MOST_TOUCHED else ""
+        self._said_once(held, proof.row("before", "note", LINT_BEFORE.format(
+            files=", ".join(files[:proof.MOST_TOUCHED]) + more,
+            command=f"from CI: {run.command}" if run.ci else run.command), run.command))
+        return True
 
     async def flaky(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
                     ids: list[str]) -> list[str]:

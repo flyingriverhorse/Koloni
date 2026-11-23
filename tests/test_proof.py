@@ -395,7 +395,14 @@ def test_touched_since_counts_an_earlier_write_and_a_committed_one(tmp_path, mon
     "cat gen.py > calc.py", "> f", "git show HEAD:f > f", "grep -v x a > b", "rg x > f",
     "head -3 a > f", "type a > b", "Get-Content a > b", "npm test -- -u", "npx jest -u",
     "npx vitest run -u", "pytest --snapshot-update", "python -m pytest -q --junitxml=calc.py",
-    "pytest -q $(sed -i s/a/b/ a.py)", 'bash -c "pytest -q > a.py"'])
+    "pytest -q $(sed -i s/a/b/ a.py)", 'bash -c "pytest -q > a.py"',
+    # (CL-336: go's golden files, inline-snapshot's that write, an update asked in the
+    # environment, go's test binary at a path, options carried in PYTEST_ADDOPTS)
+    "go test ./... -update", "pytest --inline-snapshot=fix", "pytest --inline-snapshot=create",
+    "pytest --inline-snapshot=review,update", "INSTA_UPDATE=always cargo test",
+    "UPDATE_SNAPSHOTS=1 npx playwright test", "SNAPSHOT_UPDATE=true pytest -q",
+    "go test -o x ./...", "PYTEST_ADDOPTS=--junitxml=a.py pytest -q",
+    'PYTEST_ADDOPTS="-q --junitxml=a.py" python -m pytest'])
 def test_a_redirect_or_a_test_runs_writing_option_may_write(line):
     # (CL-329 G: the end check opened for none of these - `ledger._split` drops a redirection,
     # and a test run was taken as reading only)
@@ -404,7 +411,9 @@ def test_a_redirect_or_a_test_runs_writing_option_may_write(line):
 
 @pytest.mark.parametrize("line", [
     "pytest -q", "pytest -q 2>&1 | tail -1", "git status > /dev/null", "python -m pytest -q > NUL",
-    'bash -c "pytest -q"', "rg KEY .", "python -u -m pytest -q", "pytest --cov-report=term"])
+    'bash -c "pytest -q"', "rg KEY .", "python -u -m pytest -q", "pytest --cov-report=term",
+    "CI=1 pytest -q", "PYTHONPATH=. pytest", "PYTEST_ADDOPTS=-q pytest", "go test -run x ./...",
+    "INSTA_UPDATE=no cargo test", "pytest --inline-snapshot=disable", "pytest -o x=1 -q"])
 def test_a_stream_nowhere_or_a_plain_test_run_writes_nothing(line):
     assert not proof.may_write(line)
 

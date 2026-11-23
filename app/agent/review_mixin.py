@@ -146,7 +146,10 @@ _MERGE_NOT = re.compile(r"\s*(?:is|was|should|would|will)?\s*(?:not|never)\b|\s*
                         # (CL-329 E: "MERGE - no, HOLD"; "MERGE is unsafe"; a MERGE on a condition
                         # - "MERGE once the SQL injection is fixed", "MERGE only after the fix")
                         r"|\s*[-–—:]+\s*no\s*[,.;!-]"
-                        r"|\s*(?:is|would\s+be|seems)\s+(?:unsafe|premature|risky|blocked)\b"
+                        r"|\s*(?:is|would\s+be|seems)\s+(?:unsafe|premature|risky|blocked"
+                        r"|wrong|a\s+mistake)\b"
+                        # (CL-336: "MERGE blocked by the failing test", "MERGE ✗")
+                        r"|\s*blocked\b|\s*[✗✘❌]"
                         r"|\s*[,–—-]?\s*(?:only\s+)?(?:once|if|when|after|pending|provided|unless"
                         r"|until|as\s+soon\s+as)\b", re.IGNORECASE)
 # Where a negation's reach ends: "no, HOLD" and "No. HOLD until …" hold.

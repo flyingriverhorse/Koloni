@@ -199,6 +199,8 @@ REFUSED = [
     ("ruff check --fix .", ci_commands.CHANGES), ("ruff format .", ci_commands.CHANGES),
     ("eslint --fix .", ci_commands.CHANGES), ("tsc --build", ci_commands.CHANGES),
     ("npm test -- -u", ci_commands.CHANGES), ("pytest --junitxml=src/a.py", ci_commands.CHANGES),
+    ("go test ./... -update", ci_commands.CHANGES), ("go test -o x ./...", ci_commands.CHANGES),
+    ("pytest --inline-snapshot=fix", ci_commands.CHANGES),
     ("npx eslint .", ci_commands.DOWNLOADS), ("uv run --with x pytest", ci_commands.DOWNLOADS),
     ("mypy --install-types --non-interactive", ci_commands.DOWNLOADS),
     ("pytest --pastebin=all", ci_commands.SENDS), ("ruff server", ci_commands.ENDLESS),
