@@ -7054,6 +7054,16 @@ class AgentRunner(
             if self._runs_it(ctx, lead, self._live_state(row, ctx.run_id))
         ]
 
+    def _recipe_at_work(self, ctx: Ctx) -> bool:
+        """Whether a recipe row it runs in this turn is still at work (`_left_to_do` tells its
+        next step) - its own end, its Checks step at Ready for you, checks its work."""
+        with self._factory() as session:
+            return any(
+                (state := self._live_state(row, ctx.run_id)) is not None
+                and state["status"] == recipe_run.RUNNING
+                for row, _team in self._runs(session, ctx)
+            )
+
     @staticmethod
     def _where(team: str, state: dict, cli: bool = False) -> str:
         """Where a row's recipe is, as its opener is told - `cli`: one a CLI runs, which opens a

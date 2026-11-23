@@ -835,8 +835,12 @@ class LoopMixin:
             # within the steps it had. Told, an answer with no call is its why: it stands -
             # but where it was told before KOLONİ's end check ran (B-90's why no team: tarif
             # maliyeti T2, a small change made with no team), the check runs all the same, once.
+            # Not on a recipe still at work (review of T2): its own end checks its work - a fix
+            # round on half of it would go to an Orchestrator its step keeps from fixing it.
             answered = calls == self._calls_of(ctx)
-            if status != "completed" or (answered and ctx.run_id in self._proofs):
+            if status != "completed" or (
+                answered and (ctx.run_id in self._proofs or self._recipe_at_work(ctx))
+            ):
                 await self._stronger_at_end(ctx, status)  # (S11: as at the gate's end)
                 return status, error
             # (and KOLONİ's end check, `_proof_left`)

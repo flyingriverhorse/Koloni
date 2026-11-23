@@ -12,11 +12,11 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Changed
 
-- **Chat**: under **Orchestrator decides**, a small change - a few lines in one or two files - gets no team: the Orchestrator makes it itself or with one agent and says why in one line, and KOLONİ's checks run at the end all the same; picking a team, it sees how many agents each recipe opens ([docs](agents/teams.md#teams-for-a-chat)).
+- **Chat**: under **Orchestrator decides**, a small change - a few lines in one or two files - gets no team: the Orchestrator makes it with one agent (or itself, where the project lets it write) and says why in one line, and KOLONİ's checks run at the end all the same; picking a team, it sees how many agents each recipe opens ([docs](agents/teams.md#teams-for-a-chat)).
 
 ### Fixed
 
-- **Chat**: KOLONİ's checks run at the end of a turn whose Orchestrator, told "Not the end yet" (why no team, or a recipe's step left), answered without doing more - the answer said "Tests not run: the turn ended before KOLONİ's check" ([docs](use/checked.md)).
+- **Chat**: KOLONİ's checks run at the end of a turn whose Orchestrator, told "Not the end yet: say in one line why no team", answered without doing more - the answer said "Tests not run: the turn ended before KOLONİ's check" ([docs](use/checked.md)).
 
 ## [0.1.6] - 2026-11-23
 

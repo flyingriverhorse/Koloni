@@ -42,7 +42,7 @@ interface Props {
 }
 
 const MODES: [mode: TeamsMode, label: string, note: string][] = [
-  ['lead', 'Orchestrator decides', 'It picks the teams and a recipe for each, and says why. A small change (a few lines in one or two files) needs no team: it makes it itself or with one agent, and KOLONİ checks it all the same.'],
+  ['lead', 'Orchestrator decides', 'It picks the teams and a recipe for each, and says why. A small change (a few lines in one or two files) needs no team: it makes it with one agent (or itself, where the project lets it write), and KOLONİ checks it all the same.'],
   ['manual', 'Manual', 'You pick the teams it may use; it opens only those a message needs.'],
   ['none', 'No teams', 'As before: it calls any role itself.'],
 ]
