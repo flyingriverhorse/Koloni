@@ -269,7 +269,9 @@ class BeforeMixin:
             was = (project.tests_green or {}).get(key)
             said = proof_before.green_said(was, ran, skipped)
             fewer, skips = (
-                self._could_drop(session, ctx, held, run, was) if said and was else (True, True)
+                self._could_drop(session, ctx, held, run, was, ran)
+                if said and was
+                else (True, True)
             )
             ours = [one for one in said if (skips if one.startswith("Skipped") else fewer)]
             for one in (one for one in said if one not in ours):  # (R: the green state moves)
@@ -300,7 +302,7 @@ class BeforeMixin:
         return []
 
     def _could_drop(
-        self: "AgentRunner", session, ctx: Ctx, held: "Proof", run: TestRun, was: dict
+        self: "AgentRunner", session, ctx: Ctx, held: "Proof", run: TestRun, was: dict, ran: int
     ) -> tuple[bool, bool]:
         """R (CL-345; its third round, the main session's rule: by test id): whether a drop against
         the last green run `was` - fewer tests run, more skipped - may be the turn's. Fewer is
@@ -311,7 +313,9 @@ class BeforeMixin:
         turn made (a new spec's `.only` switches others off); a change on KOLONİ's record since
         that green run took lines out of a test file (`_tests_cut_since`: another turn's, whose
         suite ended after its answer). A runner that lists no ids (either run), or ids that do not
-        add up to the drop: the turn's, as before R. More skipped: the turn's - no runner here
+        add up to the tests each run counted (`ran`: file ids - vitest's, jest's - never do; a
+        list cut at MOST_IDS): the turn's, as before R - a turn's own removal never rides on one
+        made outside. More skipped: the turn's - no runner here
         lists what it skipped by id.
         shortcut: a test generated from data the turn changed elsewhere - a parametrize list built
         from the app's data, a flag a skipif reads - lives in a file it did not touch, and its
@@ -336,7 +340,7 @@ class BeforeMixin:
         if since is None or self._tests_cut_since(session, ctx, since):
             return turns
         green, now = was.get("ids"), self._passed_now(session, ctx, run)
-        if not green or now is None or len(green) >= proof_before.MOST_IDS:
+        if not green or now is None or len(set(green)) != was.get("ran") or len(set(now)) != ran:
             return turns
         missing = set(green) - set(now)
         touched = {one.path for one in mine}

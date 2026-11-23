@@ -35,11 +35,13 @@ def passing(n=4, skipped=0):
     return Script([f"{n} passed" + (f", {skipped} skipped" if skipped else "") + " in 0.1s\n"])
 
 
-def listing(ids, skipped=0):
-    """A passing pytest run that lists its passes by id (as `-v` / `-rA` do): R reads them."""
+def listing(ids, skipped=0, total=None):
+    """A passing pytest run that lists its passes by id (as `-v` does): R reads them - `total`
+    passed in all (its ids' number unless said)."""
     lines = "".join(f"{one} PASSED\n" for one in ids)
+    n = len(ids) if total is None else total
     return Script(
-        [lines + f"{len(ids)} passed" + (f", {skipped} skipped" if skipped else "") + " in 0.1s\n"]
+        [lines + f"{n} passed" + (f", {skipped} skipped" if skipped else "") + " in 0.1s\n"]
     )
 
 
@@ -691,6 +693,7 @@ def second_turn(
     by_hand=None,
     ids=None,
     path="tests/test_calc.py",
+    total=None,
 ):
     """Green at a first turn's run (48); `by_hand` done to the project between the turns; then a
     turn by a recipe at Full auto - its one step, Fix it (Coder), writes tests/test_calc.py as
@@ -721,7 +724,7 @@ def second_turn(
             "Coder 2": [text("nothing to change")],
         },
         executor=ScriptedExecutor(
-            [listing(GREEN), *[listing(ids)] * 8]
+            [listing(GREEN), *[listing(ids, total=total)] * 8]
             if ids is not None
             else [passing(48), *[passing(*counts)] * 8]
         ),

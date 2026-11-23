@@ -329,3 +329,25 @@ def test_a_tests_file_is_found_from_the_runs_folder_or_its_end():
     assert _touched("a.py::t", ".", {"web/a.py"})  # (a rootdir elsewhere: any doubt, touched)
     assert _touched("src/a.test.ts", ".", {"src/a.test.ts"})  # (vitest's and jest's: the file)
     assert not _touched("tests/test_old.py::test_a", ".", {"tests/test_calc.py", "a.py"})
+
+
+def test_ids_that_do_not_add_up_to_the_count_leave_the_drop_the_turns(
+    make_client, wait_run, project_dir
+):
+    # (review: a turn's own removal riding on one made outside - test_old.py's tests deleted by
+    # hand, the turn's own test_two gone too, and ids that do not show it: a file id still listed,
+    # as vitest's and jest's are, 45 listed for 44 counted. What is missing cannot be told - the
+    # turn's; read by the ids alone, only test_old.py's were missing: "not this turn's change")
+    from tests.test_proof_before_scenarios import GREEN
+
+    rows, _taken, _model = second_turn(
+        make_client,
+        wait_run,
+        project_dir,
+        CALC_TESTS.replace("def test_two", "def helper_two"),
+        (44,),
+        by_hand=lambda: (project_dir / "tests" / "test_old.py").unlink(),
+        ids=[one for one in GREEN if "test_old" not in one],
+        total=44,
+    )
+    assert ("Tests went from 48 to 44 (4 removed)", "failed") in rows, rows

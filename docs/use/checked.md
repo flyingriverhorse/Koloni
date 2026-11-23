@@ -322,9 +322,10 @@ or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" 
 failing test. Said why, it is still shown, as a note quoting that sentence - "Tests went from 4 to
 3 (1 removed) - the answer says why: “I removed the obsolete test of the old parser”" - and the
 new counts are the green state from then on. Fewer tests are put down to something outside the
-turn only where KOLONİ can show it, test by test: the green run listed its passes by name and this
-run does too (pytest with `-v` or `-rA`, jest's and vitest's files), and every test missing now
-lives in a file the turn did not touch in any way - nor did any of these happen:
+turn only where KOLONİ can show it, test by test: the green run listed each of its passes by name
+and this run does too (pytest with `-v`; jest and vitest list files, not tests, so theirs never
+add up), and every test missing now lives in a file the turn did not touch in any way - nor did
+any of these happen:
 
 - a command of the turn that may write files ran, in the project or in a recipe's copy (a script,
   `sed -i`, `git rm … && git commit`, `git mv` - a test run alone writes nothing);
