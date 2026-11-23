@@ -477,8 +477,9 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         "plan",
     ),
     SCOUT: RoleSpec(
-        "After each turn, looks for what is left and suggests follow-up tasks; checks finished "
-        "tasks against what makes them done.",
+        "Keeps watch on the To-do list: after each turn suggests follow-up tasks, splits vague "
+        "tasks, flags duplicates and stale ones, and checks finished tasks against what makes "
+        "them done.",
         "Split a vague task into smaller ones and ask the user what a task leaves open. Flag "
         "tasks written twice, tasks waiting a long time and tasks blocked by unfinished "
         "work. When a task's conversation has ended, compare what was done with what makes it "

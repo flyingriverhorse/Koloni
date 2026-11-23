@@ -164,9 +164,10 @@ KOLONİ's own words, as they appear on screen.
   out first, and each file has one holder. You open one with **Work together…** under **More**.
 
 **Scout**
-: The built-in role that looks for what is left after each turn: one small model request with no
-  tools that suggests at most three follow-up tasks for the To-do list, each with the words it came
-  from; it also checks finished tasks against what makes them done. On the canvas it is a small box
+: The built-in role that keeps watch on the To-do list: after each turn, one small model request
+  with no tools suggests at most three follow-up tasks, each with the words it came from; it also
+  splits vague tasks, flags duplicates and stale ones, and checks finished tasks against what makes
+  them done. On the canvas it is a small box
   under the turn. See [Follow-up tasks](../automation/todo.md#follow-up-tasks).
 
 **Skill**

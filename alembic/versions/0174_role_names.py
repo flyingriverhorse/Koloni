@@ -47,8 +47,9 @@ RENAMED = (
         "Scout",
         "Helps keep the To-do list: splits vague tasks, asks what is missing, flags problems and "
         "assesses finished work against what makes it done.",
-        "After each turn, looks for what is left and suggests follow-up tasks; checks finished "
-        "tasks against what makes them done.",
+        "Keeps watch on the To-do list: after each turn suggests follow-up tasks, splits vague "
+        "tasks, flags duplicates and stale ones, and checks finished tasks against what makes "
+        "them done.",
     ),
 )
 
