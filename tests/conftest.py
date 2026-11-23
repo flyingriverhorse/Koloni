@@ -258,6 +258,18 @@ SWITCHES = ((LOOK_ON, _no_look), (BEFORE_ON, _no_before), (REVIEW_ON, _no_review
 
 
 @pytest.fixture(autouse=True)
+def no_real_server(monkeypatch):
+    """A test never serves for real: `app.main.serve` unpatched fails it at once (two tests that
+    patched `uvicorn.run` after `run` moved to `serve` served forever - CI's part sat at 98%)."""
+    import app.main
+
+    def refused(*_args, **_more):
+        raise AssertionError("a test started a real server: patch app.main.serve")
+
+    monkeypatch.setattr(app.main, "serve", refused)
+
+
+@pytest.fixture(autouse=True)
 def end_check_where_it_fits(request, monkeypatch):
     module = request.module.__name__.rpartition(".")[2]
     for on, off in SWITCHES:
