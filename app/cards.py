@@ -250,37 +250,26 @@ def _stands(rules: str, line: str) -> bool:
     return (judge.verdict(answer, said) or {}).get("verdict") == "run"
 
 
-def forbidden(texts: list[str | None], command: str, cwd: str | None) -> str | None:
-    """S: a line of the user's words - their preferences, the project's rules - that names a
-    target of this delete and says no, in itself or by the heading above it ("Never delete
-    these:"), as `judge` reads a no; None: none does. Such a delete is never suggested, nor
-    added: a "You may" beside it would only set the two against each other."""
+def mentioned(texts: list[str | None], command: str, cwd: str | None) -> str | None:
+    """S: the first line of the user's words - their preferences, the project's rules - that
+    names a target of this delete at all, however spelled (`./build`, `.\\build`, `build/`,
+    `build`, a path under it: `build/keep.txt`), a nested list item and a code block's line too;
+    None: none does. Such a delete is never suggested, nor added: where a line allows it a "You
+    may" is one too many, where one forbids it the two are set against each other - and no list
+    of words tells the two apart."""
     targets = _targets(command, cwd) or []
     if not targets:
         return None
     named = re.compile(
-        # (a path of its own: no part of a longer one - a sentence's full stop after it is none)
-        r"(?<![\w./\\-])(?:\./)?(?:" + "|".join(map(re.escape, targets)) + r")/?"
-        r"(?![\w/\\-]|\.[\w/\\-])",
+        # (a path of its own or one under it - never part of a longer name: `src/build`,
+        # `build-cache`, `build.old`; a sentence's full stop after it is none)
+        r"(?<![\w./\\-])(?:\.[/\\])?(?:"
+        + "|".join(re.escape(one).replace("/", r"[/\\]") for one in targets)
+        + r")(?![\w-]|\.[\w-])",
         re.IGNORECASE,
     )
-    for text in texts:
-        # (the line above that ends in ":" - in its block, or for a list's item across blank lines
-        # and other items - as `judge._units` reads a heading; a backtick's sentence counts here)
-        head = listed = ""
-        for line in judge._prose(text or ""):
-            if line is None or not line.strip():
-                head = "" if line is not None else head
-                continue
-            item = bool(judge.LIST_MARK.match(line.strip()))
-            above = head or (listed if item else "")
-            if named.search(line) and judge._says_no(judge._plain(f"{line}\n{above}")):
-                return line.strip()
-            if line.rstrip().endswith(":"):
-                head = listed = line
-            elif not item:
-                listed = ""
-    return None
+    lines = (line.strip() for text in texts for line in (text or "").splitlines())
+    return next((line for line in lines if named.search(line)), None)
 
 
 def _has(rules: str, line: str) -> bool:
@@ -298,8 +287,9 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
     its card at Full auto with Check what I said first on; one the rules hold already is left out
     (`added` False). Each command as it was approved, to the character: one with a line break
     in it is two commands, and never plain (review: `rm -rf build⏎src`, its spaces made one,
-    suggested "You may delete build and src."). One the user's words forbid (`forbidden`) is
-    not suggested - `added`: kept, with the line that forbids it, for Add to rules to refuse."""
+    suggested "You may delete build and src."). One whose path the user's words name
+    (`mentioned`) is not suggested - `added`: kept, with that line, for Add to rules to refuse;
+    one the rules hold already is no such line."""
     times = func.count()
     approved = (
         select(Command.command, Command.cwd, times)
@@ -325,7 +315,7 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
         line = rule_line(command, cwd)
         if line is None or not (added or not _has(rules, line)) or not _stands(rules, line):
             continue
-        why = forbidden([preferences, rules], command, cwd)
+        why = None if _has(rules, line) else mentioned([preferences, rules], command, cwd)
         if why is None or added:
             found.append(
                 {
@@ -334,7 +324,7 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
                     "cwd": cwd,
                     "times": n,
                     "rule": line,
-                    **({"forbidden": why} if why is not None else {}),
+                    **({"mentioned": why} if why is not None else {}),
                 }
             )
     return found

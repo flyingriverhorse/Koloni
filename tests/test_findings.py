@@ -385,13 +385,18 @@ def test_a_closing_findings_line_leaves_the_section_counted():
     assert _findings("## Findings\nNone.\n\nFindings: see above, nothing.", []) == []
 
 
-def test_a_closing_findings_line_never_loses_a_blocking_finding():
+def look(
+    report,
+):  # (as `ReviewMixin._look` reads a look's report: no verdict, a blocking row holds)
     from app.agent.review_mixin import FIXER, _held_in_words, verdict_of
+    from app.agent.summary import _blocking
 
-    def look(report):  # (as `ReviewMixin._look` reads a look's report)
-        verdict, found = verdict_of(report), _findings(report, [FIXER])
-        return verdict, _held_in_words(report, found) if verdict == "HOLD" else found
+    verdict, found = verdict_of(report), _findings(report, [FIXER])
+    verdict = verdict or ("HOLD" if _blocking(found) else None)
+    return verdict, _held_in_words(report, found) if verdict == "HOLD" else found
 
+
+def test_a_closing_findings_line_never_loses_a_blocking_finding():
     # (a MERGE whose section marks one blocking: counted, and that finding holds the work)
     verdict, found = look(SECTION.format(verdict="MERGE", mark="blocking", closing="1 blocking"))
     assert verdict == "MERGE" and [f["blocking"] for f in found] == [True, False]
@@ -402,3 +407,63 @@ def test_a_closing_findings_line_never_loses_a_blocking_finding():
         and len(found) == 2
         and found[0]["what"].startswith("tests/test_shellrun.py:32-37")
     )
+
+
+ROW_B = "- a.py:3: divides by zero on empty input | kind: bug | role: Orchestrator | blocking"
+ROW_S = "- a.py:9: naming | kind: code | role: Orchestrator | suggestion"
+
+
+@pytest.mark.parametrize(
+    ("report", "verdict", "blocking"),
+    [
+        # (FINDINGS_PROMPT's own shape, nothing found: counted - it read "no findings section")
+        ("Verdict: MERGE\n\n## Findings\nFindings: none\n", "MERGE", []),
+        ("Verdict: MERGE\n\n## Findings\n\nFindings: none.\n", "MERGE", []),
+        # (a "Findings:" summary line above or after the rows takes none away)
+        (
+            f"Verdict: MERGE\n\n## Findings\nFindings: 1 blocking, 1 suggestion\n{ROW_B}\n{ROW_S}\n",
+            "MERGE",
+            [True, False],
+        ),
+        (f"Verdict: MERGE\n\n**Findings:** 1 blocking\n{ROW_B}\n", "MERGE", [True]),
+        (
+            f"Verdict: MERGE\n\n## Findings\nSee below.\n\nFindings: 1 blocking\n{ROW_B}\n",
+            "MERGE",
+            [True],
+        ),
+        (f"Verdict: MERGE\n\n## Findings\nNone.\n\n## Findings\n{ROW_B}\n", "MERGE", [True]),
+        # (no Verdict line: a blocking row holds the work, as before)
+        (f"Looked it over.\n\n## Findings\nFindings: 1 blocking\n{ROW_B}\n", "HOLD", [True]),
+        # (only prose, then "Findings: none": counted, nothing found)
+        (
+            "Verdict: MERGE\n\n## Findings\nThe change looks correct.\n\nFindings: none\n",
+            "MERGE",
+            [],
+        ),
+        # (an earlier look quoted - indented, `>` - and the prompt's row echoed are no findings)
+        (
+            f"Verdict: MERGE\n\nThe last look said:\n\n    Verdict: HOLD\n    ## Findings\n    {ROW_B}\n"
+            "\n## Findings\nNone.\n",
+            "MERGE",
+            [],
+        ),
+        (f"Verdict: MERGE\n\n> ## Findings\n> {ROW_B}\n\n## Findings\nNone.\n", "MERGE", []),
+        (
+            "Verdict: MERGE\n\n## Findings\n- <what> | kind: <kind> | role: <role> | blocking\n\n"
+            "Findings: none\n",
+            "MERGE",
+            [],
+        ),
+    ],
+)
+def test_every_findings_section_is_read_and_a_summary_line_takes_no_row(report, verdict, blocking):
+    # (T, second round: the review found the first round's reader lost these - a "## Findings"
+    # heading outweighed the "Findings:" line under it that held the rows, or said "none")
+    said, found = look(report)
+    assert (said, [f["blocking"] for f in found]) == (verdict, blocking)
+
+
+def test_the_live_report_with_a_closing_line_keeps_its_rows():
+    # (Claude Code · haiku: its section, then "Findings: see the suggestions above; …")
+    said, found = look(SECTION.format(verdict="MERGE", mark="suggestion", closing="none blocking"))
+    assert said == "MERGE" and [f["blocking"] for f in found] == [False, False]

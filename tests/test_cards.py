@@ -353,27 +353,58 @@ def test_the_page_asks_for_a_period_as_it_sends_it(make_client, project_dir):
     assert client.get("/api/cards", params={"project_id": "nowhere"}).status_code == 404
 
 
-@pytest.mark.parametrize(
-    "rules",
-    [
-        "Never delete ./build.\nUse tabs.",
-        "Use tabs.\n- Do not remove `build`",
-        "Never delete these:\n\n- ./build\n- ./dist",
-    ],
-)
-def test_a_delete_the_users_own_words_forbid_is_never_suggested(db, rules):
+# S: any line of the user's words that names the path - allowed already (a "You may" one too
+# many) or forbidden (one set against it): no word list tells the two apart (the review's misses
+# and false refusals, each said by a list of words).
+NAMES_BUILD = [
+    "Never delete ./build.\nUse tabs.",
+    "Use tabs.\n- Do not remove `build`",
+    "Never delete these:\n\n- ./build\n- ./dist",
+    "NEVER DELETE ./BUILD",
+    "Never delete build/",
+    "Never delete .\\build",
+    "Never delete build\\",
+    "## Never delete\n- ./build\n- ./dist",
+    "Never delete these:\n\nNote the list.\n- ./build",
+    "- Never delete:\n    - ./build",
+    "- Never delete:\n\t- ./build",
+    "Never delete build/keep.txt",
+    "Never delete build*",
+    "Never delete 'build'",
+    "Keep ./build.",
+    "./build klasörünü asla silme.",
+    "> Never delete ./build",
+    "No need to ask before deleting ./build.",
+    "./build is not tracked - delete it freely.",
+    "You may delete ./build, not ./src.",
+    "./build is regenerated; nothing in it is kept.",
+]
+
+
+@pytest.mark.parametrize("rules", NAMES_BUILD)
+def test_a_delete_whose_path_the_users_words_name_is_never_suggested(db, rules):
     # (S, live: "Never delete ./zz096build." stood, five approvals suggested "You may delete
     # ./zz096build." and Add to rules wrote it under it - the two set against each other)
     assert suggested(db, 5, rules=rules) == []
-    assert cards.forbidden([rules], "rm -rf build", ".") is not None
-    # (one that names another path, or says yes, forbids nothing)
-    assert (
-        cards.forbidden(["Never delete ./builds.", "Keep these:\n- ./build"], "rm -rf build", ".")
-        is None
-    )
+    assert cards.mentioned([rules], "rm -rf build", ".") is not None
 
 
-def test_add_to_rules_refuses_a_delete_the_users_preferences_forbid(make_client, project_dir):
+@pytest.mark.parametrize(
+    "rules",
+    [
+        "Never delete ./build-cache",
+        "Never delete src/build",
+        "Never delete ./builds.",
+        "Never delete ./build.old",
+    ],
+)
+def test_a_line_on_another_path_leaves_the_delete_suggested(db, rules):
+    assert [one["rule"] for one in suggested(db, 5, rules=rules)] == ["You may delete ./build."]
+
+
+def test_add_to_rules_refuses_a_delete_whose_path_the_users_preferences_name(
+    make_client, project_dir
+):
     from app.db.models import UserPreferences
 
     client, _model = make_client([])

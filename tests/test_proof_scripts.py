@@ -34,6 +34,10 @@ if "hang" in text:
 if "BASH_ENV" in text and "BASH_ENV" in os.environ:
     sys.stderr.write("fake: line 1: BASH_ENV was passed\n")
     sys.exit(2)
+if "warn and fail" in text:
+    sys.stderr.write("fake: line 2: warning: here-document at line 1 delimited by end-of-file\n")
+    sys.stderr.write("fake: line 3: syntax error: unexpected end of file\n")
+    sys.exit(2)
 if "where?" in text:
     sys.stderr.write(f"fake: line 1: in {os.getcwd()}\n")
     sys.exit(2)
@@ -124,6 +128,20 @@ def test_what_powershell_would_look_up_never_reaches_its_parser(tmp_path, stand_
     ]
 
 
+DSC = "Configuration C { Import-DscResource -ModuleName //h/s/m\n Node localhost { } }\n"
+DSC_HIDDEN = [
+    ("# note\u2028 '\n", "# '\n"),
+    ("$q = 1 # x\u2028 '\n", "# '\n"),
+    ('$a = "${x"}"\n', '"\n'),
+    ('$a = @"\n${x\n"@}\n"@\n', '"\n'),
+    ("echo a` #b '\n'\n", "'\n"),
+    ("cmd \u2013-% '\n", "'\n"),
+    ("cmd \u2014\u2014% '\n", "'\n"),
+    ("cmd -\u2013% '\n", "'\n"),
+    ("$a = @'  \nx\n'@\n", ""),
+]
+
+
 @pytest.mark.parametrize(
     "body",
     [
@@ -137,18 +155,23 @@ def test_what_powershell_would_look_up_never_reaches_its_parser(tmp_path, stand_
         "\x0cusing assembly ./x.dll\n'x'\n",
         "\x0busing module ./x\n'x'\n",
         "using `\nassembly ./x.dll\n'x'\n",
-        # (U3: "using" in a comment or a string is read - but where a boundary is not sure, the
-        # whole text is looked at, as before: `<#` or a quote inside a word, a line a backtick
-        # goes on, a "…" with code in it, PowerShell's other quote marks, an unended string)
+        # (fail closed: an English "using" too - in a comment or a string, the whole text is
+        # looked at; none of it is taken for a comment or a string first)
+        "'we are using this'\n",
+        "# Build using dotnet\n$x = 1\n",
+        "<#\n.SYNOPSIS\nDeploys using az.\n#>\nparam($a)\n",
+        "$s = @'\nWe are using it\n'@\n$s\n",
         "Write-Output a<#; Import-DscResource -ModuleName x #>\n",
-        "Write-Output don't stop'\nImport-DscResource\n",
         "x`\n# Import-DscResource -ModuleName x\n",
-        'Write-Output "$(1) using it"\n',
-        "'a’ + 'Import-DscResource'\n",
-        "'unended using it\n",
-        "$x = 1 # using it\n",  # (a comment after code: read, not taken out)
-        # (the stop-parsing token: what follows it on its line is no string - nor its quote's end)
         "Configuration C {\n cmd --% '\n Import-DscResource -ModuleName //h/s/m #'\n Node x { } }\n",
+        # (the review of U3's blanking, each a lookup it let through - pwsh 7 read a module
+        # outside the project: a `#` comment PowerShell ends at U+2028, U+2029, U+0085, VT or FF;
+        # a `${x"}` in "…" or @"…"@; a `#` after a backtick-escaped space; a dash of another kind)
+        *(f"# x{end} '\n<#c#>using module ./m\n# '\n" for end in "\u2028\u2029\u0085\x0b\x0c"),
+        "# x\u2028 '\n<#c#>using assembly ./x.dll\n# '\nclass X : Evil.Base { }\n",
+        "# x\u2029 <#\n<#c#>using module ./m\n# #>\n",
+        *(f"{before}{DSC}{after}" for before, after in DSC_HIDDEN),
+        '$a = "${x"}"\n<#c#>using assembly \'./x.dll\'\n"\n',
         # (a statement whose taking out would change the rest: a comment's end, a quote)
         "<#\nusing module x #>\n$y = 1\n",
         "using assembly 'a;b.dll'\n'x'\n",
@@ -161,7 +184,11 @@ def test_a_script_that_would_have_its_parser_look_something_up_is_not_read(
     tmp_path, stand_in, body
 ):
     ((state, line),) = said(tmp_path, {"a.ps1": body})
-    assert (state, line) == ("note", "a.ps1: not checked: it loads a module or an assembly")
+    assert (state, line) == (
+        "note",
+        "a.ps1: not checked: it may load a module or an assembly (it names `using` or "
+        "Import-DscResource)",
+    )
 
 
 @pytest.mark.parametrize(
@@ -476,86 +503,6 @@ def test_no_folder_of_a_read_is_left_behind_whatever_its_shell_left_running(
     assert list(temp.iterdir()) == []
 
 
-@needs_powershell
-def test_using_in_a_comment_or_a_string_is_read(tmp_path):
-    # (U3: each of these was "not checked: it loads a module or an assembly")
-    files = {
-        "a.ps1": "# Build using dotnet\n$x = 1\n",
-        "b.ps1": "# Using the default path\nWrite-Output 'we are using it'\n",
-        "c.ps1": "<#\n.SYNOPSIS\nDeploys using az.\n#>\nparam($a)\n",
-        "d.ps1": "$s = @'\nusing module ./evil.psm1\nImport-DscResource\n'@\n$s\n",
-    }
-    assert said(tmp_path, files) == [("passed", f"{rel}: parses") for rel in files]
-
-
-# (each kind of part U3 blanks, and the boundaries it is not sure of - ZZZ for any keyword: no lookup)
-TOKENS = [
-    "# Build ZZZ dotnet\n$x = 1\n",
-    "<#\n.SYNOPSIS\nDeploys ZZZ az.\n#>\nparam($a)\n",
-    "$x = 1 # ZZZ it\n",
-    'Write-Output "ZZZ $x"\n',
-    "$s = @'\nZZZ module x\n'@\n",
-    '$s = @"\nZZZ $x\n"@\n',
-    "Write-Output a<#c#>b\n",
-    "Write-Output don't stop'\nZZZ\n",
-    "${a'b} = 1\nZZZ\n",
-    "$x = 'a''b'; ZZZ\n",
-    '$x = "a""b`"c"; ZZZ\n',
-    "x`\n# ZZZ\n",
-    "$a = @'\n  '@\nZZZ\n'@\n",
-    "<# a #> <# b #>ZZZ\n",
-    "$h = @{ 'k' = \"v\" } # c\n",
-    "Write-Output 'a<#b'; ZZZ #> \n",
-    "[string]'x' # ZZZ\n",
-    "Write-Host @'\nx\n'@ ; ZZZ\n",
-    "cmd --% '\nZZZ #'\n",
-    "cmd --% <#\nZZZ #>\n",
-]
-_SPANS = r"""
-$text = [Console]::In.ReadToEnd()
-$tokens = $null; $errors = $null
-$null = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
-ConvertTo-Json -Compress @($tokens | Where-Object { $_.Kind -in 'Comment', 'StringLiteral',
-  'StringExpandable', 'HereStringLiteral', 'HereStringExpandable' } |
-  ForEach-Object { @{ s = $_.Extent.StartOffset; e = $_.Extent.EndOffset } })
-"""
-
-
-@needs_powershell
-@pytest.mark.parametrize("text", TOKENS)
-def test_what_u3_takes_for_a_comment_or_a_string_powershell_does_too(text):
-    # (never weaker than before: a character blanked for the look is one of a comment or a string
-    # to PowerShell's own tokenizer - else code with a lookup in it could hide there)
-    import base64
-    import json
-    import subprocess
-
-    code = proof_kinds._code_of(text)
-    if code is None:
-        return  # (not sure: the whole text is looked at, as before)
-    done = subprocess.run(  # noqa: S603 (PowerShell, its own script encoded; the text on stdin)
-        [
-            *proof_kinds._powershell(),
-            "-NoProfile",
-            "-NonInteractive",
-            "-EncodedCommand",
-            base64.b64encode(_SPANS.encode("utf-16-le")).decode("ascii"),
-        ],
-        input=text,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=scaled(60),
-    )
-    spans = json.loads(done.stdout or "[]")
-    inside = {
-        at
-        for one in ([spans] if isinstance(spans, dict) else spans)
-        for at in range(one["s"], one["e"])
-    }
-    assert {at for at, (a, b) in enumerate(zip(text, code, strict=True)) if a != b} <= inside
-
-
 @pytest.mark.parametrize(
     ("first", "row"),
     [
@@ -586,6 +533,14 @@ def test_what_u3_takes_for_a_comment_or_a_string_powershell_does_too(text):
             "# a comment",
             ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
         ),
+        (
+            "#!C:\\Program Files\\Git\\bin\\bash.exe",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "#!C:\\tools\\zsh.exe -l",
+            ("note", "s.sh: not checked: its first line says it is a zsh script"),
+        ),
     ],
 )
 def test_a_script_whose_first_line_names_another_shell_is_not_read_by_bash(
@@ -608,3 +563,16 @@ def test_what_bash_warns_of_with_exit_0_is_a_note(tmp_path):
         state == "note" and line.startswith("heredoc.sh:") and "bash warns - " in line
         for state, line in rows[1:-1]
     ), rows
+
+
+def test_a_failure_beside_a_warning_says_the_failure(tmp_path, stand_in):
+    # (U2: it quoted bash's here-document warning as the reason it did not parse)
+    assert said(tmp_path, {"s.sh": "warn and fail\n"}) == [
+        ("failed", "s.sh:3: does not parse - syntax error: unexpected end of file")
+    ]
+
+
+@needs_bash
+def test_bash_s_own_failure_beside_its_warning_is_said(tmp_path):
+    ((state, line),) = said(tmp_path, {"s.sh": "if true; then\ncat <<EOF\nline\n"})
+    assert state == "failed" and "syntax error" in line and "warning" not in line, line

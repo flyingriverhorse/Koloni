@@ -46,6 +46,8 @@ FAILS = re.compile(
     r"|raises|traceback|başarısız\w*|hata\w*)",
     re.IGNORECASE,
 )
+# FINDINGS_PROMPT's own row echoed back, its placeholders unfilled: no finding.
+ECHOED = re.compile(r"<(?:what|kind|role)>", re.IGNORECASE)
 # What a Findings section says when nothing was found, after its bullet and before a full stop.
 NO_FINDINGS = frozenset(
     {
@@ -227,56 +229,53 @@ def _handed_findings(
 def _findings(
     report: str, roles: list[str], agents: dict[str, str] | None = None
 ) -> list[dict] | None:
-    """What a check role's report says in its Findings section (`FINDINGS_PROMPT`), each
-    finding as {"what", "kind", "role", "blocking"}: [] where it says nothing was found
-    (NO_FINDINGS), None where it has no such section or no line of it is in the format. The
-    sections are those outside a fenced block (`_findings_section`); each ends at the next heading
-    or fence, and a line on the heading itself is read like the rest. It is a model's text: each
-    line is cut before it is read, a kind not of FINDING_KINDS is "other", and a role is one of
-    `roles` (those that may be opened here), as spelled there, else None (`_role_named`: an
-    agent of `agents` names its role)."""
+    """What a check role's report says in its Findings sections (`FINDINGS_PROMPT`), each
+    finding as {"what", "kind", "role", "blocking"}: the rows in the format of all of them
+    (`_findings_section`); with none anywhere, [] where it says nothing was found (NO_FINDINGS
+    on a line of its own, or only what was failing before), else None - no such section, or no
+    line of it in the format. A "Findings: <summary>" line never takes a row away ("Findings: 1
+    blocking" above its rows, "Findings: see above" closing the report), nor does the prompt's
+    own row echoed (`<what>`). It is a model's text: each line is cut before it is read, a kind
+    not of FINDING_KINDS is "other", and a role is one of `roles` (those that may be opened
+    here), as spelled there, else None (`_role_named`: an agent of `agents` names its role)."""
     lines, failing = _findings_section(report)
     if lines is None:
         return None
-    said = [BULLET.sub("", line) for line in lines if line]
+    said = [BULLET.sub("", line) for line in lines if line and not ECHOED.search(line)]
     kept = [line for line in said if _marked_before(line) is None]
     said, failing = kept, failing or len(kept) < len(said)
+    if (found := _findings_read(said, roles, agents)) is not None:
+        return found
     if not said and failing:
         return []  # (only what was failing before: nothing found)
-    if said and all(one.rstrip(".!").casefold() in NO_FINDINGS for one in said):
-        return []
-    return _findings_read(said, roles, agents)
+    return [] if any(one.rstrip(".!").casefold() in NO_FINDINGS for one in said) else None
 
 
 def _findings_section(report: str) -> tuple[list[str] | None, bool]:
-    """`_findings`: the lines of a report's Findings sections outside a fenced block (None: there
-    is none), and whether it says what was failing before. T: a section with a heading of its own
-    - "## Findings", or a "Findings:" line with its rows under it - outweighs a one-line mention
-    ("Findings: see above, nothing blocking." closing the report): every such section is read, its
-    rows together; with none, the last one-liner is, as it says ("Findings: none")."""
-    sections: list[tuple[bool, list[str]]] = []
+    """`_findings`: the lines of all of a report's Findings sections - each a `#… Findings`
+    heading or a "Findings:" line (what follows it on its line its first), to the next heading,
+    fence or "Checked" - outside a fenced block, an indented one (four spaces, a tab) and a `>`
+    quote, as `verdict_of` reads them (an earlier look quoted); None: there is none. And whether
+    it says what was failing before."""
+    lines: list[str] | None = None
     under = fenced = failing = False
     for line in report.splitlines():
         bare = line.strip()[: 2 * MAX_WHAT]
         if bare.startswith(("```", "~~~")):
             fenced, under = not fenced, False
             continue
-        if fenced:
+        if fenced or line.startswith(("    ", "\t")) or bare.startswith(">"):
             continue
         name, _, rest = bare.lstrip("#").strip(" *").partition(":")
         if name.strip(" *-•").casefold() == FAILING_BEFORE:
             failing = True  # (no finding, wherever it is: B-117)
         elif name.strip(" *").casefold() == "findings":
-            rest = rest.strip(" *")
-            sections.append((bare.startswith("#") or not rest, [rest]))
-            under = True
+            lines, under = [*(lines or []), rest.strip(" *")], True
         elif bare.startswith("#") or name.strip(" *-•").casefold() == "checked":
             under = False
-        elif under and sections:
-            sections[-1][1].append(bare)
-    if heads := [lines for heading, lines in sections if heading]:
-        return [line for lines in heads for line in lines], failing
-    return (sections[-1][1] if sections else None), failing
+        elif under and lines is not None:
+            lines.append(bare)
+    return lines, failing
 
 
 def _findings_read(

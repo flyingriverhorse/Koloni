@@ -1134,7 +1134,7 @@ MOST_SCRIPT = 2**20  # bytes of a script
 BASH_SECONDS, POWERSHELL_SECONDS = 10, 20
 MOST_HEARD = 64 * 1024  # of what a shell prints, each stream - the rest read and dropped
 SCRIPTS_MORE = "Scripts not checked: {named} - at most {most} a turn"
-LOADS = "it loads a module or an assembly"
+LOADS = "it may load a module or an assembly (it names `using` or Import-DscResource)"
 CRLF = "{path}: Windows line endings (CR LF) - bash on Linux will not run it as it is"
 NEEDS_7 = "it needs PowerShell 7"
 TYPE_UNREAD = "it uses a type of a module KOLONİ does not load"
@@ -1142,7 +1142,7 @@ TYPE_UNREAD = "it uses a type of a module KOLONİ does not load"
 # python ...): said. bash -n reads one with no such line, or sh, bash or dash - a POSIX sh script
 # parses in bash too, so `--posix` is not asked for.
 OTHER_SHELL = "its first line says it is a {name} script"
-_SHEBANG = re.compile(r"#![ \t]*(\S+)[ \t]*(.*)")
+_SHEBANG = re.compile(r"(?i)#![ \t]*([a-z]:[\\/].*?\.exe(?=[ \t]|$)|\S+)[ \t]*(.*)")
 _BASH_READS = frozenset({"sh", "bash", "dash"})
 # U2: what bash -n says with exit code 0 (a here-document ended by the file's end) is a warning.
 BASH_WARNS = "{at}: bash warns - {message}"
@@ -1163,7 +1163,10 @@ _BASH_SAID = re.compile(r": line (\d+): (.+)")
 # reads it; then a text with a `using` left in it anywhere (a comment between its words, a
 # backtick's next line, a space of another kind) but `using namespace`, or an
 # `Import-DscResource`, is not given to it at all (`LOADS`). Fail closed: an English "using" in a
-# comment leaves a script unread, never a lookup made.
+# comment or a string leaves a script unread, never a lookup made - the whole text is looked at,
+# none of it taken for a comment or a string first: no tokenizer of KOLONİ's is PowerShell's (one
+# was tried - 0.1.7's review: a `#` comment PowerShell ends at U+2028 hid an Import-DscResource
+# that pwsh 7 then looked up), and PowerShell's own tokenizer is its parser.
 _LINES = re.compile(r"\r\n|\r|\n")
 _RESOLVED = re.compile(
     r"(?i)(?:^|(?<=;))[ \t]*"
@@ -1319,113 +1322,6 @@ def _gone(folder: str) -> None:
     log.warning("a script read's folder %s could not be removed", folder)
 
 
-# U3: an English "using" in a comment or a string is no statement - the fail-closed look reads the
-# script's code alone (`_code_of`): whole-line `#` comments, `<# … #>` blocks, '…' and "…" strings
-# and here-strings blanked, the lines kept. Where a boundary is not sure, the whole text is looked
-# at, as before: an unended string or comment, a "…" or @"…"@ with a `$(…)` in it (code), a `#`
-# inside a word (`a#b`), a `#>` opening a line, PowerShell's other quote marks (‘ ’ ‚ ‛ “ ” „),
-# the stop-parsing token `--%` (what follows it on its line is no string nor comment).
-# A comment after code (`$x = 1 # …`) is read, never blanked.
-_PS_QUOTES = "\u2018\u2019\u201a\u201b\u201c\u201d\u201e"
-_LINE_END = ("\u2028", "\u2029", "\u0085", "\x0b", "\x0c")
-# (what a comment or a string opens after: the line's start, a space, a bracket or an operator)
-_PS_OPENS = ("", " ", "\t", "\n", "(", ")", "{", "}", "[", "]", ";", ",", "=", "|", "&", "+", "!")
-_PS_SPECIAL = re.compile(r"[`$<@'\"#]")  # (what may open a part: plain code between is taken whole)
-
-
-def _quoted_end(text: str, at: int, quote: str) -> int:
-    """Past the end of the '…' or "…" opened at `at` (a quote doubled, a backtick in "…" escapes);
-    -1: unended, or a "…" with code in it."""
-    i = at + 1
-    while i < len(text):
-        if quote == '"' and text[i] == "`":
-            i += 2
-        elif quote == '"' and text.startswith("$(", i):
-            return -1
-        elif text[i] == quote and text.startswith(quote, i + 1):
-            i += 2
-        elif text[i] == quote:
-            return i + 1
-        else:
-            i += 1
-    return -1
-
-
-def _here_end(text: str, at: int) -> int:
-    """Past the end of the here-string opened at `at` (`@'` or `@"` and the line's end right after
-    it; closed by `'@` or `"@` opening a line); -1: not one, unended, or an @"…"@ with code."""
-    quote = text[at + 1]
-    close = text.find("\n" + quote + "@", at + 2)
-    if text[at + 2 : at + 3] != "\n" or close < 0 or quote == '"' and "$(" in text[at:close]:
-        return -1
-    return close + 3
-
-
-def _hash_end(text: str, at: int) -> tuple[int, bool] | None:
-    """A `#` at `at`: a whole-line comment (to its line's end, blanked), one after code (read, not
-    blanked); None: one inside a word, or a `#>` opening a line."""
-    start = text.rfind("\n", 0, at) + 1
-    if text[max(0, start - 2) : start] == "`\n":  # (a line a backtick goes on: no line's start)
-        return None
-    before = text[start:at]
-    eol = text.find("\n", at)
-    line = text[at : len(text) if eol < 0 else eol]
-    stop = at + min([len(line), *(k for k in map(line.find, _LINE_END) if k >= 0)])
-    if not before.strip(" \t"):
-        return None if line.startswith("#>") else (stop, True)
-    return (stop, False) if before[-1] in " \t" else None
-
-
-def _part_end(text: str, i: int) -> tuple[int, bool] | None:
-    """What starts at `i` - a comment, a string, a braced variable, an escaped character, else one
-    character of code: past its end, and whether it is blanked; None: not sure."""
-    two = text[i : i + 2]
-    if two[:1] == "`":
-        return i + 2, False
-    if two == "${":  # (a variable's name may hold any character)
-        end = text.find("}", i)
-        return None if end < 0 or "`" in text[i:end] else (end + 1, False)
-    opens = two == "<#" or two in ("@'", '@"') or two[:1] in ("'", '"')
-    if opens and text[i - 1 : i] not in _PS_OPENS:  # (`don't`, `a<#b`: inside a word - not sure)
-        return None
-    if two == "<#":
-        end = text.find("#>", i + 2)
-        return None if end < 0 else (end + 2, True)
-    if two in ("@'", '@"'):
-        end = _here_end(text, i)
-    elif two[:1] in ("'", '"'):
-        end = _quoted_end(text, i, two[0])
-    elif two[:1] == "#":
-        return _hash_end(text, i)
-    else:
-        return i + 1, False
-    return None if end < 0 else (end, True)
-
-
-def _code_of(text: str) -> str | None:
-    """U3: a PowerShell script's code alone, its comments and strings blanked (`_part_end`), each
-    line where it was; None where a boundary is not sure."""
-    if "--%" in text or any(
-        one in text for one in _PS_QUOTES
-    ):  # (`--%`: the rest of a line verbatim)
-        return None
-    out, i = [], 0
-    while i < len(text):
-        at = _PS_SPECIAL.search(text, i)
-        if at is None or at.start() > i:  # (plain code, as it is)
-            end = len(text) if at is None else at.start()
-            out.append(text[i:end])
-            i = end
-            continue
-        part = _part_end(text, i)
-        if part is None:
-            return None
-        end, blank = part
-        out.append(re.sub(r"[^\n]", " ", text[i:end]) if blank else text[i:end])
-        i = end
-    return "".join(out)
-
-
 def _unresolved(text: str) -> tuple[str, bool]:
     """The script's text as PowerShell is given it (`_RESOLVED` out, lines kept, each ended with a
     LF), and whether anything was taken out. Raises where it would still look something up, or
@@ -1435,9 +1331,8 @@ def _unresolved(text: str) -> tuple[str, bool]:
         _RESOLVED.sub(lambda m: taken.append(m.group()) or "", one) for one in _LINES.split(text)
     ]
     kept = "\n".join(lines)
-    code = _code_of(kept)
     if (
-        _LOOKED_UP.search((kept if code is None else code).replace("`", ""))
+        _LOOKED_UP.search(kept.replace("`", ""))
         or any("#>" in one or "<#" in one for one in taken)
         or any(one.count('"') % 2 or one.count("'") % 2 for one in taken)
     ):
@@ -1500,8 +1395,11 @@ def _bash_said(shell: list[str], text: str) -> tuple[list[tuple[object, object]]
     ]
     if not code:
         return [], next(iter(found), None)
+    # (a warning beside an error - a here-document the error left open: the error is said)
+    found = [one for one in found if not str(one[1]).startswith("warning:")]
     if not found:
-        found = [(None, next((one for one in lines if one.strip()), "a syntax error"))]
+        said = (one for one in lines if one.strip() and "warning:" not in one)
+        found = [(None, next(said, "a syntax error"))]
     return found, None
 
 
