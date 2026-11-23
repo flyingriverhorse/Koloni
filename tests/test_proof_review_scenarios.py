@@ -207,8 +207,8 @@ def test_fix_rounds_one_sends_failing_tests_back_once(make_client, wait_run, pro
     assert proof.STILL_FAILING.format(most=1) in rows and len(executor.started) == 2, rows
 
 
-@pytest.mark.parametrize(("rounds", "status"), [(1, 200), (5, 200), (0, 422), (6, 422)])
-def test_fix_rounds_are_one_to_five(client, project_dir, rounds, status):
+@pytest.mark.parametrize(("rounds", "status"), [(1, 200), (10, 200), (0, 422), (11, 422)])
+def test_fix_rounds_are_one_to_ten(client, project_dir, rounds, status):
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     assert client.patch(f"/api/projects/{pid}", json={"fix_rounds": rounds},
                         headers=OWN).status_code == status

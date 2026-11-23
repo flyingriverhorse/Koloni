@@ -68,6 +68,7 @@ import {
   tidy,
   waitFor,
 } from './recipeGraph'
+import { FIX_ROUNDS } from '../shell/sections/AfterChange'
 import { cannotOf } from './chart'
 import { Cannot } from './roleParts'
 
@@ -438,7 +439,7 @@ function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOn
               <select className="input" aria-label="Fix rounds" value={checks.fix_rounds ?? ''} onChange={e => set({ ...checks, fix_rounds: e.target.value === '' ? null : Number(e.target.value) })}>
                 <option value="">the project’s</option>
                 <option value="0">0 - check only</option>
-                {[1, 2, 3, 4, 5].map(n => (
+                {FIX_ROUNDS.map(n => (
                   <option key={n} value={n}>
                     {n}
                   </option>

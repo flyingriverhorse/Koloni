@@ -14,7 +14,9 @@ export const AFTER_CHANGE: [value: Project['after_change'], label: string][] = [
 /** Behind ⓘ: what a turn's answer then says, and where the guide says the rest. */
 export const AFTER_CHANGE_WHY = 'After a turn that changed code KOLONİ tests the work as it now stands - and, under Test and review, a Reviewer reads a big or security-touching change - then says under the answer what was checked and what was not.'
 /** S3 (decisions 14a, 19): how often work goes back - failing tests and the Reviewer's findings, one count a turn. */
-export const FIX_ROUNDS_NOTE = 'How often a turn’s failing tests or the Reviewer’s blocking findings go back to the Orchestrator, 1 to 5; then you decide (Fix it).'
+/** The Fix rounds one may choose (k-canli-016: up to 10, the user's). */
+export const FIX_ROUNDS = Array.from({ length: 10 }, (_, n) => n + 1)
+export const FIX_ROUNDS_NOTE = 'How often a turn’s failing tests or the Reviewer’s blocking findings go back to the Orchestrator, 1 to 10; then you decide (Fix it).'
 /** S11 (decisions 18, 19): the rounds spent and a test still failing, the next stronger tier tries; off, the work waits. */
 export const STRONGER_NOTE = 'The rounds spent with a test still failing, the next stronger tier on the Models page tries (it says what is wrong first; its model’s use is said). Failing work is never taken in: you decide. A Reviewer’s hold after the rounds waits for you (Fix it).'
 /** 0162: a project that had turned 89m's switch off is Nothing - said, never silently. */
@@ -60,7 +62,7 @@ export function useAfterChange(project: Project) {
       </Row>
       <Row label="Fix rounds" htmlFor="fix-rounds" doc={GUIDE.checked} warn={<span id="fix-rounds-note" className="choice-note">{FIX_ROUNDS_NOTE}</span>}>
         <select id="fix-rounds" className="input" value={fix} aria-describedby="fix-rounds-note" onChange={e => setFix(Number(e.target.value))}>
-          {[1, 2, 3, 4, 5].map(n => (
+          {FIX_ROUNDS.map(n => (
             <option key={n} value={n}>
               {n}
             </option>

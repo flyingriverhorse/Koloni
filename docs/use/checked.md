@@ -225,7 +225,7 @@ what fails, by itself or with an agent that writes code. It is told never to del
 test to make it pass. Then KOLONİ runs the tests again.
 
 It is sent back at most **Fix rounds** times a turn (**Settings › This project › Checks and git ›
-Fix rounds**, 1 to 5, 2 unless you change it) - one count with the Reviewer's findings. After that
+Fix rounds**, 1 to 10, 2 unless you change it) - one count with the Reviewer's findings. After that
 the turn ends, and the section says "Still failing after 2 fix rounds: you decide (Fix it)". **Fix it**, on the newest turn, sends a
 new message that asks for the fix. Nothing starts until you click it.
 

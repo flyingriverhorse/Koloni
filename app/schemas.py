@@ -381,7 +381,7 @@ class ProjectPatch(BaseModel):
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
-    fix_rounds: int | None = Field(default=None, ge=1, le=5, strict=True)
+    fix_rounds: int | None = Field(default=None, ge=1, le=10, strict=True)
     stronger_model: bool | None = None
     # S5a: the kinds switched, merged into the project's (a kind left out keeps its switch).
     check_kinds: dict[CheckKind, bool] | None = None
@@ -2974,7 +2974,7 @@ class RecipeChecks(Shut):
     slides: bool = False
     ui: bool = False  # (S5b: pages in KOLONİ's own browser - Settings calls them Pages)
     # How often a problem goes back to fix; 0: check only; None: the project's Fix rounds.
-    fix_rounds: int | None = Field(None, ge=0, le=5)
+    fix_rounds: int | None = Field(None, ge=0, le=10)
 
 
 class RecipeGraph(Shut):

@@ -916,18 +916,18 @@ test('with nothing found, nothing of it is shown', async () => {
   expect(screen.queryByTestId('tests-found')).toBeNull()
 })
 
-test('Fix rounds: 1 to 5 beside After a change, saved as fix_rounds', async () => {
+test('Fix rounds: 1 to 10 beside After a change, saved as fix_rounds', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const box = screen.getByLabelText('Fix rounds')
   expect(box).toHaveValue('2')
-  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['1', '2', '3', '4', '5'])
+  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
   expect(box).toHaveAccessibleDescription(/failing tests or the Reviewer’s blocking findings go back/)
-  await userEvent.selectOptions(box, '4')
+  await userEvent.selectOptions(box, '10')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ fix_rounds: 4 })
+  expect(onSave).toHaveBeenLastCalledWith({ fix_rounds: 10 })
 })
 
 test('Check by kind of work: all on by default; unticking Slides saves check_kinds.slides false (S5a)', async () => {
