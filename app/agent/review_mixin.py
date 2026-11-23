@@ -402,7 +402,7 @@ class ReviewMixin:
         """S3's Reviewer is never opened on a CLI that works with tools of its own: KOLONİ could
         not hold it to reading. (Refused: its row says why.)"""
         if call_id in self._read_only_calls and self._cannot_be_held(model, provider):
-            role = "the Reviewer"
+            role = "the Tester" if call_id in self._try_calls else "the Reviewer"
             raise ToolError(OWN_TOOLS.format(role=role, provider=shown_name(provider.name)))
 
     @staticmethod

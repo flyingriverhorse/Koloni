@@ -78,9 +78,19 @@ async def test_a_page_that_loads_from_outside_this_machine_is_a_note(tmp_path):
     found = pages(tmp_path, out=OUT_PAGE)
     rows = await proof_kinds.check_pages(starter(tmp_path / "b", ws), ws, found, None,
                                          tmp_path / "shots")
-    ((kind, state, line),) = said(rows)
-    assert (kind, state) == ("ui", "note") and line.startswith(
-        f"out.html: 1 console errors at {ALL} px - it loads from outside this machine"), line
+    # (its failed load is no error of its own; what it was checked without is said)
+    assert said(rows) == [
+        ("ui", "passed", f"out.html: no console errors at {ALL} px"),
+        ("ui", "note", "out.html: checked without what it loads from outside this machine, "
+                       "which KOLONİ's browser never opens: https://cdn.example/x.js")]
+    # (a script of its own failing beside such a load: said, not sent back - it may be of it)
+    found = pages(tmp_path, both=OUT_PAGE.replace("</html>", "<script>console.error('x')"
+                                                             "</script></html>"))
+    rows = await proof_kinds.check_pages(starter(tmp_path / "b2", ws), ws, found, None,
+                                         tmp_path / "shots")
+    assert said(rows)[0] == ("ui", "note", f"both.html: 1 console errors at {ALL} px - it loads "
+                             "from outside this machine, which KOLONİ's browser never opens: "
+                             "console.error: x")
 
 
 @pytest.mark.anyio
@@ -129,6 +139,7 @@ async def test_the_real_chrome_finds_an_error_and_a_page_too_wide_for_a_phone(tm
     # (What it finds is tested here, not how fast: a busy machine is waited for longer.)
     monkeypatch.setattr(browser, "START_WAIT", 120.0)
     monkeypatch.setattr(browser, "LOAD_WAIT", 40.0)
+    monkeypatch.setattr(proof_kinds, "PAGES_SECONDS", 600)
     ws, command = Workspace(str(tmp_path)), browser.find_browser()
     found = pages(
         tmp_path, broken="<html><head><meta name='viewport' content='width=device-width'>"
@@ -141,6 +152,43 @@ async def test_the_real_chrome_finds_an_error_and_a_page_too_wide_for_a_phone(tm
         ("ui", "failed", f"broken.html: 1 console errors at {ALL} px - console.error: oops"),
         ("ui", "failed", "wide.html: wider than the screen at 375, 768 px")]
     assert (tmp_path / "shots" / "wide-html-375.png").read_bytes().startswith(b"\x89PNG")
+
+
+@pytest.mark.anyio
+async def test_a_missing_script_of_the_project_is_the_pages_own_error(tmp_path):
+    # (Refused too - "not a file of the project" - but no address out of this machine: failed)
+    ws = Workspace(str(tmp_path))
+    found = pages(tmp_path, gone='<html><title>G</title><script src="missing.js"></script></html>')
+    rows = await proof_kinds.check_pages(starter(tmp_path / "b", ws), ws, found, None,
+                                         tmp_path / "shots")
+    ((kind, state, line),) = said(rows)
+    assert (kind, state) == ("ui", "failed") and line.startswith(
+        f"gone.html: 1 console errors at {ALL} px - network error: Failed to load"), line
+
+
+@pytest.mark.anyio
+async def test_an_outside_stylesheet_does_not_hide_the_pages_own_error(tmp_path):
+    ws = Workspace(str(tmp_path))
+    found = pages(tmp_path, styled='<html><title>S</title><script src="https://fonts.example/'
+                                   'a.css"></script><script>console.error(\'own\')</script></html>')
+    rows = await proof_kinds.check_pages(starter(tmp_path / "b", ws), ws, found, None,
+                                         tmp_path / "shots")
+    assert said(rows)[0] == (
+        "ui", "failed", f"styled.html: 1 console errors at {ALL} px - console.error: own")
+
+
+def test_a_favicon_and_an_outside_load_are_not_the_pages_own_errors():
+    # (Measured with Chrome here: a preview with no favicon.ico logs its 404 at the first load.)
+    console = "\n".join([
+        "network error: Failed to load resource: the server responded with a status of 404 "
+        "(File not found) (http://127.0.0.1:5173/favicon.ico)",
+        "network error: Failed to load resource: net::ERR_BLOCKED_BY_CLIENT "
+        "(https://cdn.example/lib.js)",
+        "console.log: ready", "error: ReferenceError: lib is not defined (http://127.0.0.1:5173/)"])
+    refused = "\nrefused: https://cdn.example/lib.js: not a web address of this machine; x"
+    assert proof_kinds._errors(console, refused) == (
+        ["error: ReferenceError: lib is not defined (http://127.0.0.1:5173/)"], True)
+    assert proof_kinds._errors(console.split("\n", 1)[0], "") == ([], False)
 
 
 # --- the end check: a page the turn wrote ------------------------------------------------------

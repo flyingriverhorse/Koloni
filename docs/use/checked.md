@@ -274,9 +274,11 @@ agents' browser tools use, on this machine, never out on the internet - at 375, 
 (a phone, a tablet, a desktop). Console errors and a page wider than the screen (it scrolls
 sideways) are failed, and go back as a fix round with the first error: "index.html: 2 console
 errors at 375, 768, 1280 px - error: x is not defined", "index.html: wider than the screen at 375
-px". Where it passes: "index.html: no console errors at 375, 768, 1280 px". A page that loads a
-script or a font from outside this machine gets its errors as a note: KOLONİ's browser never goes
-out, so the page is not wrong for that. A changed component or style (`.tsx`, `.jsx`, `.vue`,
+px". Where it passes: "index.html: no console errors at 375, 768, 1280 px". KOLONİ's browser
+never goes out: a load from outside this machine (a CDN's script, a web font) is no error of the
+page's, and the page is said to be checked without it; where such a script is missing, the page's
+own errors are a note, not sent back (they may come of it). The `favicon.ico` a browser asks every
+site for is not counted either. A missing file of the project's own is an error. A changed component or style (`.tsx`, `.jsx`, `.vue`,
 `.svelte`, `.css`, `.scss`) is looked at on the chat's preview, where one runs that serves the
 work (started from the Preview, or by an agent, where the work is); with none: "Pages not
 checked: no preview running". At most three pages a turn, two minutes in all. With no Chrome or

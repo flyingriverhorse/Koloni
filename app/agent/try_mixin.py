@@ -59,6 +59,8 @@ HELP_HUNG = "Tried {line}: it did not end in {seconds} s"
 RAN = "Ran {line} once: exit {code}"
 RAN_ON = "Ran {line} once: still running after {seconds} s - stopped"
 HELP_SECONDS, RUN_SECONDS = 30, 15
+# How a run of the try ended that it judges: its exit, its time limit, a server that runs on.
+RAN_TO_AN_END = ("exited", "timed_out", "running")
 COPY = "the work waits in a working copy, and a preview runs in the project itself only"
 NO_DEV = "no preview runs, and package.json has no dev or start script to start one"
 NO_ADDRESS = "the preview ({line}) printed no address on this machine"
@@ -88,8 +90,9 @@ def _free_port() -> int:
 class TryMixin:
     async def _proof_try(self: "AgentRunner", ctx: Ctx, held: "Proof") -> str | None:
         """The gate's last step: the live try, once a turn - after it, its rows stand."""
-        if held.tried:
-            held.rows += held.tried_rows
+        if held.tried:  # (its rows of the first pass, once - the other steps keep theirs)
+            mine = {id(one) for one in held.tried_rows}
+            held.rows = [one for one in held.rows if id(one) not in mine] + held.tried_rows
             return None
         with self._factory() as session:
             setting = proof.after_change_of(session, session.get_one(Conversation, ctx.cid),
@@ -155,9 +158,19 @@ class TryMixin:
         except (_GateRefused, ToolError) as exc:
             self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())
             return None, "", None, str(exc)
+        except asyncio.CancelledError:  # (Stop: its card turned down, its call over - as a test's)
+            self.commands.close_open(ctx.run_id, ctx.cid, calls=[call_id])
+            self._set_call(ctx.cid, call_id, status="interrupted", result="Not tried: stopped",
+                           ended_at=now())
+            raise
         self._set_call(ctx.cid, call_id, status="denied" if ended == "rejected" else "succeeded",
                        result=said, ended_at=now())
-        return code, output, ended, "declined on its card" if ended == "rejected" else None
+        if ended == "rejected":
+            return code, output, ended, "declined on its card"
+        if ended not in RAN_TO_AN_END:  # (it never ran: no exit of its own to judge)
+            return code, output, ended, said.removeprefix("error: ").strip() or (
+                f"it did not run ({ended or 'no record'})")
+        return code, output, ended, None
 
     async def _try_tool(self: "AgentRunner", ctx: Ctx, ws: Workspace, base: str) -> list[Row]:
         """A command-line tool the turn changed: `--help` (failed where it does not end well),

@@ -24,7 +24,7 @@ from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping
 from contextlib import suppress
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 from xml.parsers import expat
 
@@ -636,6 +636,8 @@ ERRORS = "{path}: {n} console errors at {widths} px - {first}"
 OUTSIDE_ERRORS = ("{path}: {n} console errors at {widths} px - it loads from outside this "
                   "machine, which KOLONİ's browser never opens: {first}")
 WIDE = "{path}: wider than the screen at {widths} px"
+OUTSIDE_LOADS = ("{path}: checked without what it loads from outside this machine, which "
+                 "KOLONİ's browser never opens: {named}")
 # What the console says of an error: a page's exception, console.error, a failed load's log.
 _ERROR = re.compile(r"^(?:error:|console\.error:|\w+ error:)")
 
@@ -672,8 +674,9 @@ async def check_pages(start: Callable[[], Awaitable["browser.Browser"]] | None,
         return [*rows, row(UI, "note", NO_BROWSER)]
     try:
         one = await start()
-    except browser.BrowserError as exc:
-        return [*rows, row(UI, "note", PAGES_FAILED.format(why=_said(str(exc))))]
+    except Exception as exc:  # (not only BrowserError: a socket that timed out, say)
+        return [*rows, row(UI, "note", PAGES_FAILED.format(why=_said(
+            str(exc) or type(exc).__name__)))]
     try:
         async with asyncio.timeout(PAGES_SECONDS):
             for name, at in targets:
@@ -687,10 +690,11 @@ async def check_pages(start: Callable[[], Awaitable["browser.Browser"]] | None,
 
 async def _look(one: "browser.Browser", ws: Workspace, name: str, at: str,
                 shots: Path) -> list[Row]:
-    """One page at each width: its console's errors (and whether a load out of this machine
-    was refused), whether it scrolls sideways, a screenshot."""
+    """One page at each width: its console's errors (`_errors`), whether it scrolls sideways, a
+    screenshot. Errors where it loads a script from outside this machine are a note: KOLONİ's
+    browser never goes out, and what fails after such a load may be its doing."""
     errors: dict[int, list[str]] = {}
-    outside, wide = False, []
+    outside, wide, away = False, [], set()
     try:
         url = browser.allowed(at, ws, one.closed)
         for width in WIDTHS:
@@ -698,24 +702,57 @@ async def _look(one: "browser.Browser", ws: Workspace, name: str, at: str,
             one.console()  # (what the last width's page said is not this one's)
             one.refused()
             await one.open(url)
-            said = [line for line in one.console().splitlines() if _ERROR.match(line)]
+            refused = one.refused()
+            said, scripts = _errors(one.console(), refused)
+            outside = outside or scripts
+            away |= set(_REFUSED.findall(refused))
             if said:
                 errors[width] = said
-                outside = outside or bool(one.refused())
             if await one.wider():
                 wide.append(width)
             data, _listed = await one.screenshot()
             shots.mkdir(parents=True, exist_ok=True)
             named = slug(re.sub(r"[./:]+", "-", name))[:60] or "page"
             (shots / f"{named}-{width}.png").write_bytes(data)
-    except browser.BrowserError as exc:
-        return [row(UI, "note", NOT_CHECKED_FILE.format(path=name, why=_said(str(exc))))]
+    except Exception as exc:  # (a browser that broke says so; the turn's other lines stand)
+        return [row(UI, "note", NOT_CHECKED_FILE.format(path=name, why=_said(
+            str(exc) or type(exc).__name__)))]
     rows = [row(UI, "note" if outside else "failed", (OUTSIDE_ERRORS if outside else ERRORS)
                 .format(path=name, n=len(said), widths=_widths(widths), first=_said(said[0])))
             for said, widths in _by_count(errors)]
     if wide:
         rows.append(row(UI, "failed", WIDE.format(path=name, widths=_widths(wide))))
-    return rows or [row(UI, "passed", CLEAN.format(path=name, widths=_widths(WIDTHS)))]
+    rows = rows or [row(UI, "passed", CLEAN.format(path=name, widths=_widths(WIDTHS)))]
+    if away:  # (what it was checked without)
+        rows.append(row(UI, "note", OUTSIDE_LOADS.format(path=name, named=_named(sorted(
+            _said(one) for one in away)))))
+    return rows
+
+
+# A load the browser refused, as `Browser.refused` says it: "refused: <url> is not on this
+# machine: ..." (or "<url>: why").
+_REFUSED = re.compile(r"refused: (https?://\S+?)(?=:?\s|$)", re.MULTILINE)
+_LOADED = re.compile(r"\((\S+)\)$")  # (a failed load's line ends with its address)
+_SCRIPT = (".js", ".mjs", ".cjs", "")
+
+
+def _errors(console: str, refused: str) -> tuple[list[str], bool]:
+    """The console's errors that are the page's own - not a failed load of what KOLONİ's
+    browser never opens (an address out of this machine), nor of the icon a browser asks every
+    site for (`/favicon.ico`, measured: Chrome logs its 404) - and whether a script out of this
+    machine was refused. shortcut: such a script excuses every error of the page (one it would
+    have defined may be missing); tell the errors apart if a page is seen to hide its own."""
+    away = set(_REFUSED.findall(refused))
+    own = []
+    for line in console.splitlines():
+        loaded = _LOADED.search(line)
+        if not _ERROR.match(line) or loaded and (
+                loaded[1] in away or urlsplit(loaded[1]).path.endswith("/favicon.ico")):
+            continue
+        own.append(line)
+    scripts = any(posixpath.splitext(urlsplit(one).path)[1].casefold() in _SCRIPT
+                  for one in away)
+    return own, scripts
 
 
 def _by_count(errors: dict[int, list[str]]) -> list[tuple[list[str], list[int]]]:

@@ -17,7 +17,7 @@ from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_browser import served  # noqa: F401  (a fixture)
 from tests.test_chat_flow import text
-from tests.test_proof_background_scenarios import approve_write
+from tests.test_proof_background_scenarios import approve_write, until
 from tests.test_proof_end_scenarios import OWN, PASS, begin, failing, texts
 from tests.test_spawn import call, step
 
@@ -108,7 +108,10 @@ def test_the_testers_blocking_finding_goes_back_once_and_it_is_not_tried_again(
     (said,) = nudged(model)
     assert "Start does nothing when clicked" in said and "data, not instructions" in said
     shown = texts(snap)
-    assert f"Tried: Tester ({SIGN}) on {preview} - HOLD, 1 findings, 1 blocking" in shown, shown
+    # (said once, its finding too - the second pass's rows are the first's, not again)
+    assert shown.count(f"Tried: Tester ({SIGN}) on {preview} - HOLD, 1 findings, 1 blocking"
+                       ) == 1, shown
+    assert shown.count("Blocking: Start does nothing when clicked") == 1, shown
     assert shown[-1] == "Sent back to fix: 1 of 2 rounds (1 problem in the try)"
 
 
@@ -126,7 +129,7 @@ def test_with_no_preview_koloni_starts_the_dev_server_on_a_free_port_and_stops_i
     started = executor.extra_envs[1]
     assert started["BROWSER"] == "none" and int(started["PORT"]) > 0
     (dev,) = [one for one in snap["commands"] if one["command"] == "npm run dev"]
-    assert dev["status"] != "running" and dev["id"] in executor.killed  # (stopped after)
+    until(lambda: dev["id"] in executor.killed)  # (stopped after: its kill may come after)
     # (KOLONİ's own run - no test run of the turn's on the canvas: `checksNode`'s TRY_CALL)
     (own,) = [c for c in snap["tool_calls"] if c["name"] == "run_command"
               and json.loads(c["arguments"])["command"] == "npm run dev"]
@@ -164,7 +167,20 @@ def test_a_cli_help_that_fails_goes_back_as_a_fix_round(make_client, wait_run, p
     snap = wait_run(client, cid, run_id)
     (said,) = nudged(model)
     assert "Tried python bin/tool.py --help: exit 1" in said
+    assert texts(snap).count("Tried python bin/tool.py --help: exit 1") == 1, texts(snap)
     assert texts(snap)[-1] == "Sent back to fix: 1 of 2 rounds (1 problem in the try)"
+
+
+def test_a_tool_that_cannot_start_is_said_not_sent_back(make_client, wait_run, project_dir):
+    # (python not on PATH, say: no exit of its own to judge - never a fix round)
+    executor = ScriptedExecutor([PASS, Script(start_error="python: command not found")])
+    client, model = make_client([write("bin/tool.py", "print(1)\n"), text("done")],
+                                executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    snap = wait_run(client, cid, run_id)
+    assert nudged(model) == [] and [line for line, _cwd in executor.started] == [CHECK]
+    assert ("Not tried: python bin/tool.py --help - python: command not found"
+            in texts(snap)), texts(snap)
 
 
 def test_failing_tests_are_fixed_before_any_try(fake, preview, make_client, wait_run,
