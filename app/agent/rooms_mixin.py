@@ -423,10 +423,8 @@ class RoomsMixin:
     def _open_room_allowance(self: "AgentRunner", session, ctx: Ctx, conversation,
                              wanted) -> None:
         """`_open_room`: a room of more members than the turn may still open, raised."""
-        left = settings_of(session, conversation).spawn_max_agents - (session.scalar(
-            select(func.count()).select_from(Agent).where(
-                Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.status != "rejected",
-                Agent.id.not_in(self._in_recipe))) or 0)
+        left = settings_of(session, conversation).spawn_max_agents - self._opened_this_turn(
+            session, ctx.run_id)
         if len(wanted) > left:
             raise ToolError(f"this turn may open {max(left, 0)} more agents; the room "
                             f"needs {len(wanted)}. Open a smaller room, or do the rest "

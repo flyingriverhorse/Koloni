@@ -289,3 +289,13 @@ test('S5c: a recipe’s turn whose Checks step checks nothing: no node - the str
   expect(checksNode(state, run('r', 'completed'), nodes, [])).toBeNull()
   expect((nodes[0].data as AgentData).checked).toBe('not checked · off in the recipe’s Checks step')
 })
+
+test('k-canli-016: tests passed and a Reviewer holds - the strip says on hold, not still failing', () => {
+  const passed = row('passed', 'Tests passed', { command: 'python -m pytest -q', counts: { passed: 11, failed: 0, skipped: 0, unit: 'tests' } })
+  const hold = row('failed', 'Still on hold after round 1: not settled by the last look - you decide (Fix it)', { kind: 'review' })
+  const sent = row('note', 'Sent back to fix: 1 of 2 rounds (3 blocking findings)', { kind: 'rounds' })
+  const held = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked([passed, sent, hold])] }))
+  expect((held.nodes[0].data as AgentData).checked).toBe('✗ on hold · 1 round')
+  const failing = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked([row('failed', 'Tests failed', { command: 'pytest' }), hold])] }))
+  expect((failing.nodes[0].data as AgentData).checked).toBe('✗ still failing')
+})

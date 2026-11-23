@@ -124,6 +124,9 @@ class Proof:
     looked_at: datetime | None = None
     lookers: tuple[str, ...] = ()
     review_rounds: int = 0
+    # k-canli-016: the last round's look that could not be had (its role, why): a hold that
+    # stands says so, not "not settled by the last look".
+    unlooked: tuple[str, str] | None = None
     # S5b: the turn's documents were read once against the request (no code review was asked).
     docs_read: bool = False
     # S5b (`TryMixin`): the live try was made (once a turn), and its rows.
@@ -412,7 +415,7 @@ class ProofMixin:
         args = {"command": line, **({"cwd": run.cwd} if run.cwd != "." else {}),
                 **({"known_as": run.command} if line != run.command else {})}
         request = ToolCallRequest(f"{PROOF_CALL}{uuid.uuid4().hex[:16]}", "run_command",
-                                  json.dumps(args))
+                                  json.dumps(args, ensure_ascii=False))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         check.call_id = call_id
         self._set_call(ctx.cid, call_id, status="running", started_at=now())

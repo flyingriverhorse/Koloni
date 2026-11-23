@@ -789,3 +789,57 @@ def test_a_change_only_a_command_made_is_not_reviewed_and_says_why(make_client, 
     rows = texts(wait_run(client, cid, run_id))
     assert proof.UNRECORDED.format(command=WRITES) in rows, rows
     assert review_mixin.UNRECORDED in rows, rows
+
+
+def test_kolonis_looks_use_none_of_the_turns_allowance_of_sub_agents(make_client, wait_run,
+                                                                     project_dir):
+    # (k-canli-016, the user's first live run: three Coders of the Orchestrator's filled the
+    # turn's sub-agents, and the look again was refused - "limit of 6 sub-agents per turn
+    # reached. Do the rest yourself.". KOLONİ's looks are bound by the Fix rounds instead, and
+    # the Orchestrator's own opening does not count them.)
+    from tests.test_spawn import spawn
+    executor = ScriptedExecutor([PASS, PASS])
+    client, _model = make_client({
+        "Lead": [spawn("Coder", "read a.py's callers", "s1"), write("a.py", BIG), text("done"),
+                 spawn("Coder", "read the callers again", "s2"),
+                 write("a.py", BIG + "y = 1\n", "w2"), text("fixed")],
+        "Coder": [text("two callers")], "Coder 2": [text("still two")],
+        "Reviewer": [hold("a.py:3 divides by zero")], "Reviewer 2": [MERGE]}, executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=CHECK, spawn_max_agents=2)
+    snap = wait_run(client, cid, run_id)
+    rows = texts(snap)
+    assert rows[1:] == [f"Review: Reviewer ({SIGN}) - MERGE, no findings after 1 round",
+                        "Sent back to fix: 1 of 2 rounds (1 blocking finding)"], rows
+    assert len(reviewers(snap)) == 2
+    assert {a["name"] for a in snap["agents"]} >= {"Coder", "Coder 2"}
+    # (KOLONİ's call reads as written: no ASCII escapes - the chat showed "KOLONİ's")
+    looks = [c for c in snap["tool_calls"] if c["provider_call_id"].startswith(proof.PROOF_CALL)
+             and c["name"] == "spawn_agent"]
+    assert looks and all(r"\u0" not in c["arguments"] for c in looks), looks
+
+
+def test_a_look_again_that_could_not_be_had_says_so_not_unsettled(make_client, wait_run,
+                                                                  project_dir):
+    # (k-canli-016: the hold stood because the look again was refused - the row said "not settled
+    # by the last look", and the refusal's words to the model, "Do the rest yourself.")
+    client, _model = make_client({
+        "Lead": [write("a.py", BIG), text("done"), write("a.py", BIG + "y = 1\n", "w2"),
+                 text("fixed")],
+        "Reviewer": [hold("a.py:3 divides by zero")],
+        "Reviewer 2": []},  # (no step to take: the look again fails)
+        executor=ScriptedExecutor([PASS, PASS]))
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    rows = texts(wait_run(client, cid, run_id))
+    said = [one for one in rows if one.startswith("Still on hold")]
+    assert len(said) == 1 and said[0].startswith("Still on hold: Reviewer could not look again (")
+    assert said[0].endswith(") - you decide (Fix it)"), rows
+    assert not any("yourself" in one for one in rows), rows
+
+
+def test_a_refusals_words_to_the_model_are_no_rows():
+    assert review_mixin._why("limit of 6 sub-agents per turn reached. Do the rest yourself.") == (
+        "limit of 6 sub-agents per turn reached")
+    assert review_mixin._why("depth limit reached: at most 2 level(s). Do this part yourself.") == (
+        "depth limit reached: at most 2 level(s)")
+    assert review_mixin._why(review_mixin.STOPPED_LOOK) == "stopped by you"
+    assert review_mixin._why(review_mixin.OVER_LIMIT) == review_mixin.OVER_LIMIT

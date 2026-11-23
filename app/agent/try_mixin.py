@@ -137,7 +137,7 @@ class TryMixin:
         if message_id is None:
             return None
         request = ToolCallRequest(f"{TRY_CALL}{uuid.uuid4().hex[:16]}", "run_command",
-                                  json.dumps(args))
+                                  json.dumps(args, ensure_ascii=False))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         self._set_call(ctx.cid, call_id, status="running", started_at=now())
         return call_id

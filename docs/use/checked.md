@@ -474,7 +474,14 @@ also what does not fit in the diff the Reviewer is shown.
   lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
   sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
   as data, never as your words.
-- Each look is an agent's work on its model: on the canvas, in its window and in Usage.
+- Each look is an agent's work on its model: on the canvas, in its window and in Usage. In the
+  chat its step reads "KOLONİ's look: Reviewer", not as one of the Orchestrator's. KOLONİ's looks
+  - a review, a look again, the live try's Tester, a stronger model's diagnosis and fix - use none
+  of the turn's **sub-agents per turn**: their bound is the Fix rounds, and the Orchestrator's
+  own sub-agents are counted without them.
+- Where a look again cannot be had (it failed, it was refused, the turn's token limit), the hold
+  stands and says why: "Still on hold: Security reviewer could not look again (…) - you decide
+  (Fix it)".
 - In a chat with teams the look is KOLONİ's, not a team's: no team's lead or door holds it, and
   it gets no team's tools (their shared folder, a request for another team's work).
 - The Orchestrator may answer the findings without changing anything: the turn ends there, and
@@ -657,7 +664,8 @@ Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2
 finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
 Orchestrator's own box gets one line: "● checking…"
 while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
-not run), "✗ still failing" or "not checked". In a recipe's turn the node is the recipe's last step,
+not run), "✗ still failing", "✗ on hold" (the tests passed, a Reviewer or the Tester holds) or "not
+checked". In a recipe's turn the node is the recipe's last step,
 inside its frame, and says "end of the recipe". A turn KOLONİ did not check has no Checks node: off
 for this chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's
 Checks step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
@@ -708,6 +716,7 @@ the Orchestrator's window, whose record holds the runs.
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
 | ✗ Still on hold after 2 fix rounds: you decide (Fix it) | The Fix rounds were spent with blocking findings left. |
+| ✗ Still on hold: `role` could not look again (`why`) - you decide (Fix it) | A look after a fix round could not be had: the hold stands. |
 | ✓ `file`: 3 links, all found · `file`: 120 rows × 4 columns · `file`: 12 slides, 3 with notes | A document, diagram, data file or deck KOLONİ checked and found right. |
 | ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
 | – `file`: … - so before this turn | A problem the file already had: said, not sent back. |

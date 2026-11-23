@@ -99,3 +99,9 @@ test('the rest of the tools by their target, and a tool whose target is not as e
   expect(toolSummary(tc('read_file', 'null'))).toBe('read_file')
   expect(toolSummary(tc('list_dir', '"x"'))).toBe('list_dir')
 })
+
+test('k-canli-016: a look KOLONİ opened at a turn’s end reads as its own, not as the Orchestrator’s spawn', () => {
+  const look = { name: 'spawn_agent', arguments: JSON.stringify({ role: 'Security reviewer', task: 'KOLONİ’s own test run:\n\n✓ …' }) }
+  expect(toolSummary({ ...look, provider_call_id: 'koloni_proof_review_1a2b' })).toBe('KOLONİ’s look: Security reviewer')
+  expect(toolSummary({ ...look, provider_call_id: 'call_7' })).toBe('spawn_agent Security reviewer')
+})

@@ -7,7 +7,7 @@ import contextlib
 from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
-from sqlalchemy import func, literal_column, select
+from sqlalchemy import literal_column, select
 
 from app import room as rooms
 from app.agent.ctx import Ctx, _NobodyToAsk
@@ -161,12 +161,7 @@ class DiscussionsMixin:
             budget = own.discussion_budget
             states = dict(session.execute(
                 select(Agent.id, Agent.status).where(Agent.run_id == ctx.run_id)).all())
-            opened = session.scalar(
-                select(func.count()).select_from(Agent).where(
-                    Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.status != "rejected",
-                    Agent.id.not_in(self._in_recipe),
-                )
-            ) or 0
+            opened = self._opened_this_turn(session, ctx.run_id)
             recipe = self._in_a_recipe(ctx)
             named = self._names_past(session, ctx)
             teams = self._door(session, ctx)

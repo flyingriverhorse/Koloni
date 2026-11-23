@@ -32,7 +32,15 @@ export interface ChecksData extends Record<string, unknown> {
   rounds: number
   /** In a recipe's turn: the recipe's end. */
   recipe: boolean
+  /** k-canli-016: what failed is a look's hold (a Reviewer's, a Tester's), every check passed: "on hold", not "still failing". */
+  held?: boolean
 }
+
+/** The Checked rows of a look - a review, its findings, the live try's Tester -: their failing is a hold. */
+const LOOKS = new Set(['review', 'finding', 'try'])
+
+/** Whether what failed in the Checked rows is only a look's hold. */
+const heldOnly = (checked: Message | undefined, rows = checked?.checked ?? []) => rows.some(row => row.state === 'failed') && rows.every(row => row.state !== 'failed' || LOOKS.has(row.kind))
 
 /**
  * A command's tool, short: "pytest" of `python -m pytest -q`, "c8" of S9's `npx --no c8 …`, "python -c" of `python -c "…"`
@@ -119,13 +127,13 @@ function passesOf(calls: { arguments: string }[]): number {
 /** Its fix rounds: at its end the Checked section's count (the tests run again on a test KOLONİ asked for are none), before it each pass again. */
 const roundsOf = (checked: Message | undefined, said: number, calls: { arguments: string }[]) => (checked ? said : Math.max(passesOf(calls) - 1, 0))
 
-/** The Orchestrator's strip: "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "not checked" - or nothing before its end. */
+/** The Orchestrator's strip: "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (a look holds, every check passed), "not checked" - or nothing before its end. */
 export function stripOf(data: ChecksData): string | null {
   if (data.running || data.lines.some(line => line.state === 'running')) return '● checking…'
   const tests = data.lines.filter(line => line.state !== 'note')
   if (!tests.length) return null
   const rounds = data.rounds ? ` · ${data.rounds} round${data.rounds === 1 ? '' : 's'}` : ''
-  if (tests.some(line => line.state === 'failed')) return `✗ still failing${rounds}`
+  if (tests.some(line => line.state === 'failed')) return `✗ ${data.held ? 'on hold' : 'still failing'}${rounds}`
   const passed = tests.filter(line => line.state === 'passed')
   if (!passed.length) return 'not checked'
   return `✓ checked${passed.every(line => line.text.startsWith('related tests')) ? ' · related only' : ''}${rounds}`
@@ -159,6 +167,7 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
     stoppable: Boolean(at) || lines.some(line => line.state === 'running'),
     rounds,
     recipe: Boolean(run.teams?.length),
+    held: heldOnly(checked),
   }
   const id = `checks:${run.id}`
   const { team, from } = recipeEnd(run, nodes, lead.id)

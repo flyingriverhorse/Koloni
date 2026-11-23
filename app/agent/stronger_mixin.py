@@ -432,7 +432,7 @@ class StrongerMixin:
         if message_id is None:
             return "failed", "the Orchestrator's answer is not on record", None
         request = ToolCallRequest(f"{proof.PROOF_CALL}{kind}_{uuid.uuid4().hex[:12]}",
-                                  "spawn_agent", json.dumps(args))
+                                  "spawn_agent", json.dumps(args, ensure_ascii=False))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         if read_only:
             self._read_only_calls.add(call_id)

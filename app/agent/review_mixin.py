@@ -94,6 +94,10 @@ OWN_TOOLS = ("{role}'s provider, {provider}, works with tools of its own, which 
 STOPPED_LOOK = "Review stopped by you - not checked"
 NOTHING_CHANGED = "Still on hold after round {n}: nothing changed - you decide (Fix it)"
 NOT_SETTLED = "Still on hold after round {n}: not settled by the last look - you decide (Fix it)"
+# k-canli-016: the hold stands because a look again could not be had - not because one held.
+COULD_NOT_LOOK = "Still on hold: {role} could not look again ({why}) - you decide (Fix it)"
+# What a refusal says to the model that asked ("… reached. Do the rest yourself."): no row's words.
+TO_THE_MODEL = re.compile(r"[.;,]?\s*(?:or )?do (?:the rest|this part) yourself\.?$", re.IGNORECASE)
 # What KOLONİ's Reviewer may call (B2): its read tools and what only reads - never a team's
 # shared folder's writing, a request for another team's work, or `show`.
 REVIEW_ALLOWED = frozenset({*READ, "use_skill", "lookup", "recall_output", "read_shared"})
@@ -147,6 +151,14 @@ REMOVED_ASK = ("\n\nTests the change deleted: {paths}. Judge each: one removed t
                "finding; one whose code went with it is not.")
 # shortcut: no wall clock of its own - an agent's step limits and Stop end it; time it if a
 # review is seen to hold a turn's end too long.
+
+
+def _why(not_run: str | None) -> str:
+    """Why a look was not had, in KOLONİ's words: a refusal's words to the model that asked it
+    left out (`TO_THE_MODEL`); "stopped by you" for Stop this check."""
+    if not_run == STOPPED_LOOK:
+        return "stopped by you"
+    return TO_THE_MODEL.sub("", not_run or "").strip() or "not run"
 
 
 def verdict_of(report: str) -> str | None:
@@ -258,7 +270,7 @@ class ReviewMixin:
                 held.looked_at is not None and held.looked_at == seen):
             held.rows += held.looked  # (nothing new since its last look)
             if held.verdict == "HOLD" and not any(
-                    one["text"].startswith("Still on hold ") for one in held.looked):
+                    one["text"].startswith("Still on hold") for one in held.looked):
                 # (Sent back, the Orchestrator changed nothing: the hold stands, said - the user
                 # decides, Fix it; below the cap.)
                 held.rows.append(proof.row("review", "failed", NOTHING_CHANGED.format(
@@ -316,6 +328,9 @@ class ReviewMixin:
         """The looks' rows, and the fix round where a blocking finding was found and rounds are
         left. MERGE only where every look said MERGE with nothing blocking. None looked this time
         (refused, failed): the last look's findings stand under why."""
+        # (A look that could not be had this time: a hold that stands says so - `_hold_left`.)
+        held.unlooked = next(((look.role, _why(look.not_run)) for look in looks
+                              if look.not_run is not None), None)
         if all(look.not_run is not None for look in looks):
             held.rows += [*held.looked, *(self._not_run_row(look) for look in looks)]
             return None
@@ -424,7 +439,8 @@ class ReviewMixin:
             return Look(role, "", None, None, "the Orchestrator's answer is not on record")
         request = ToolCallRequest(f"{proof.PROOF_CALL}{'try' if tryout else 'review'}_"
                                   f"{uuid.uuid4().hex[:12]}",
-                                  "spawn_agent", json.dumps({"role": role, "task": task}))
+                                  "spawn_agent", json.dumps({"role": role, "task": task},
+                                                            ensure_ascii=False))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         self._read_only_calls.add(call_id)
         if tryout:
@@ -474,11 +490,15 @@ class ReviewMixin:
     @staticmethod
     def _hold_left(held: "Proof") -> list[Row]:
         """B4: at the turn's end, a HOLD sent back that no later look settled - the Orchestrator
-        answered with no change (its answer ends the turn, `_loop_steps`): it still stands, said,
-        and the user decides (Fix it)."""
-        if held.verdict != "HOLD" or any(one["text"].startswith("Still on hold ")
+        answered with no change (its answer ends the turn, `_loop_steps`), or a look again could
+        not be had (k-canli-016: refused, failed, the token limit): it still stands, said, and the
+        user decides (Fix it)."""
+        if held.verdict != "HOLD" or any(one["text"].startswith("Still on hold")
                                          for one in held.rows):
             return []
+        if held.unlooked is not None:
+            role, why = held.unlooked
+            return [proof.row("review", "failed", COULD_NOT_LOOK.format(role=role, why=why))]
         return [proof.row("review", "failed", NOT_SETTLED.format(n=held.review_rounds))]
 
     def _unheld_for(self: "AgentRunner", call_id: str | None, provider) -> bool:
@@ -610,7 +630,7 @@ class ReviewMixin:
     @staticmethod
     def _not_run_row(look: Look) -> Row:
         return proof.row("review", "not_run", look.not_run if look.not_run == STOPPED_LOOK
-                         else NOT_RUN.format(why=look.not_run))
+                         else NOT_RUN.format(why=_why(look.not_run)))
 
     def _read_only(self: "AgentRunner", call_id: str, tools: list[str],
                    caps: tuple[str, ...] | None) -> list[str]:
