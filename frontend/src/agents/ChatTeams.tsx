@@ -5,7 +5,7 @@ import type { Agent, ChatTeam, ChatTeamIn, Conversation, Project, Provider, Reci
 import { useConfirm } from '../shell/Confirm'
 import { usePanel } from '../shell/usePanel'
 import { cannotOf } from './chart'
-import { stepRoles } from './recipeGraph'
+import { agentsLine, stepRoles } from './recipeGraph'
 import { chatColours, rowTokens, tokensLine } from './teamRun'
 
 /** A change to a chat's teams: who picks them, and the user's rows (only with Manual). */
@@ -244,7 +244,7 @@ export function ChatTeams({ conversation, agents, runs = [], onStop, onFinish, t
                   <option value={NO_RECIPE}>No recipe</option>
                   {recipes.map(recipe => (
                     <option key={recipe.id} value={recipe.id}>
-                      {recipe.name}
+                      {recipe.name + agentsLine(recipe)}
                     </option>
                   ))}
                 </select>

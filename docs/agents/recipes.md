@@ -26,6 +26,12 @@ Recipes are on the Agents page, tab **Recipes**.
 The ready recipes include Feature, Bugfix, Review only, Integration, Quality check, Model change,
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.
 
+Each recipe in the list, and in the chat's recipe picker, says how many agents a run of it opens,
+counted from its drawing: "Bugfix · 4–14 agents" - the fewest where no review finds a problem (a
+step that runs only on a problem left out), the most where every loop goes back all its rounds. A
+team's experts or stages count as one agent there, and the helpers a step's agents open are not
+counted.
+
 ## The parts of a recipe
 
 The toolbar adds parts to the drawing: **+ Step**, **+ All at once**, **+ Loop back**, **+ Room** and

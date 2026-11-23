@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
 from sqlalchemy import func, literal_column, select, update
 from sqlalchemy.orm import Session
 
-from app import recipes
+from app import recipe_run, recipes
 from app.api.deps import get_session, require_own_origin
 from app.api.usage import over_limit
 from app.config import is_local
@@ -29,6 +29,7 @@ from app.model_client import UNREACHABLE, ModelUnavailable
 from app.providers import LIST_DOWN_SECONDS, TIERS, ask_own, down_now, looked_down, mode_of
 from app.roles import LEAD, agent_roles, find_role
 from app.schemas import (
+    RecipeAgents,
     RecipeDraftIn,
     RecipeDraftOut,
     RecipeGraph,
@@ -45,12 +46,21 @@ OWN = [Depends(require_own_origin)]
 File = Path(pattern=f"^{recipes.FILE_NAME.pattern}$", max_length=60)
 
 
+def _agents(graph: RecipeGraph) -> RecipeAgents | None:
+    """How many agents its run opens, from the drawing alone (`recipe_run.drawn`); None where
+    its way leads nowhere - a folder's file is read, never checked to run (`_ahead` and `strip`
+    find no arrow on)."""
+    slots = recipe_run.slot_map(graph, recipe_run.drawn)
+    try:
+        return RecipeAgents(least=recipe_run.least(graph, slots), most=recipe_run.cap(graph, slots))
+    except StopIteration:
+        return None
+
+
 def _out(recipe: Recipe) -> RecipeOut:
+    graph = RecipeGraph.model_validate(recipe.graph)
     return RecipeOut(
-        id=recipe.id,
-        name=recipe.name,
-        ready=recipe.ready,
-        graph=RecipeGraph.model_validate(recipe.graph),
+        id=recipe.id, name=recipe.name, ready=recipe.ready, graph=graph, agents=_agents(graph)
     )
 
 
@@ -320,17 +330,7 @@ def list_recipes(
     if project_id is not None:
         project = _project(session, project_id)
         files, broken = recipes.folder_recipes(project.root_path)
-        found += [
-            RecipeOut(
-                id=file,
-                name=one.name,
-                ready=False,
-                graph=one.graph,
-                project_id=project.id,
-                file=file,
-            )
-            for file, one in files
-        ]
+        found += [_folder_out(project, file, one) for file, one in files]
     can = askers(
         session,
         request.app.state.providers,
@@ -394,7 +394,13 @@ def _in_folder(project: Project, file: str, body: RecipeIn | None) -> None:
 
 def _folder_out(project: Project, file: str, body: RecipeIn) -> RecipeOut:
     return RecipeOut(
-        id=file, name=body.name, ready=False, graph=body.graph, project_id=project.id, file=file
+        id=file,
+        name=body.name,
+        ready=False,
+        graph=body.graph,
+        project_id=project.id,
+        file=file,
+        agents=_agents(body.graph),
     )
 
 

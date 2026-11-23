@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Added
+
+- **Agents**: each recipe in the Recipes list, and in the chat's recipe picker, says how many agents a run of it opens, counted from its drawing - "Bugfix · 4–14 agents": the fewest where no review finds a problem, the most where every loop goes back all its rounds ([docs](agents/recipes.md#making-a-recipe)).
+
 ## [0.1.6] - 2026-11-23
 
 ### Added
