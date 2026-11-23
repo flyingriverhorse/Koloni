@@ -271,8 +271,9 @@ class StrongerMixin:
         """P (decision 18's spirit): work in a copy of the turn's own that a look of KOLONİ's
         still holds after its fix rounds is never taken in by itself, at any level - kept, as
         failing work is ("Not taken in: on hold", Take in anyway or Fix it). A later look's
-        MERGE lets it go: Ready for you asks now, as after a stronger model's pass."""
-        if self._works_in(ctx) is None:
+        MERGE lets it go: Ready for you asks now, as after a stronger model's pass. (Work taken
+        in already - its copy gone - is in the project: nothing to hold.)"""
+        if self._copies.get(self._works_in(ctx) or "") is None:
             return
         if held.verdict == "HOLD" and not held.left_failing:
             self._held_back[ctx.run_id] = ON_HOLD
