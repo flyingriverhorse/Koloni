@@ -66,8 +66,36 @@ _FAMILY = [(name, re.compile(pattern)) for name, pattern in _FAMILIES]
 
 # A suggestion: a delete the user approved unchanged this many times, of the last DAYS.
 TIMES, DAYS = 5, 30
-# What deletes files by their names, and so has targets to name in a rule.
-_DELETERS = frozenset({"rm", "rmdir", "rd", "del", "erase", "remove-item", "ri"})
+# What deletes files by their names, and the switches it may have in a suggested rule - none that
+# takes a value (`-ErrorAction x`, `-Exclude src`: a value read as a target names what was not
+# deleted) nor one that reaches further (`del /s`, `rmdir -p`). shortcut: deletes only; add a
+# family (a push to a branch) when its rule's words are as plain.
+_DELETERS = {
+    "rm": frozenset(
+        {
+            "-r",
+            "-R",
+            "-f",
+            "-rf",
+            "-fr",
+            "-Rf",
+            "-fR",
+            "-d",
+            "-v",
+            "--recursive",
+            "--force",
+            "--dir",
+            "--verbose",
+        }
+    ),
+    "rmdir": frozenset({"-v", "--verbose"}),
+    "rd": frozenset({"/s", "/q"}),
+    "del": frozenset({"/q", "/f"}),
+    "erase": frozenset({"/q", "/f"}),
+    "remove-item": frozenset({"-recurse", "-force"}),
+    "ri": frozenset({"-recurse", "-force"}),
+}
+_CASED = frozenset({"rm", "rmdir"})  # (PowerShell's and cmd's switches are read in any case)
 # A target a rule may name: a relative path of plain characters, never a glob, a variable, `..`.
 _TARGET = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.\-/]{0,79}")
 MOST_TARGETS = 3
@@ -108,7 +136,13 @@ def stats(session: Session, project_id: str | None, since: datetime | None) -> d
     many, answered how - approved or rejected by the user, or no answer (the turn ended first) -
     by reason, the average seconds to an answer (None: none answered), and the three outcomes of
     "Check what I said first". Only cards from 0.1.7 on carry their reason (`asked_reason`)."""
-    asked = select(Command).join(Run, Run.id == Command.run_id)
+    asked = select(
+        Command.asked_reason,
+        Command.status,
+        Command.judged,
+        Command.created_at,
+        Command.decided_at,
+    ).join(Run, Run.id == Command.run_id)
     if project_id is not None:
         asked = asked.join(Conversation, Conversation.id == Run.conversation_id).where(
             Conversation.project_id == project_id
@@ -116,24 +150,20 @@ def stats(session: Session, project_id: str | None, since: datetime | None) -> d
     if since is not None:
         asked = asked.where(Command.created_at >= since)
     total, by_reason, waited, checked = _counts(), {}, [], {"run": 0, "refuse": 0, "ask": 0}
-    for command in session.scalars(asked):
-        if command.judged and command.judged.get("verdict") in checked:
-            checked[command.judged["verdict"]] += 1
-        if command.asked_reason is None:
+    for reason, status, judged, made, decided in session.execute(asked):
+        if judged and judged.get("verdict") in checked:
+            checked[judged["verdict"]] += 1
+        if reason is None:
             continue
         how = (
-            "unanswered"
-            if command.decided_at is None
-            else "rejected"
-            if command.status == "rejected"
-            else "approved"
+            "unanswered" if decided is None else "rejected" if status == "rejected" else "approved"
         )
-        one = by_reason.setdefault(command.asked_reason, _counts())
+        one = by_reason.setdefault(reason, _counts())
         for counts in (total, one):
             counts["asked"] += 1
             counts[how] += 1
-        if command.decided_at is not None:
-            waited.append((command.decided_at - command.created_at).total_seconds())
+        if decided is not None:
+            waited.append((decided - made).total_seconds())
     return {
         **total,
         "by_reason": [
@@ -147,15 +177,20 @@ def stats(session: Session, project_id: str | None, since: datetime | None) -> d
 
 
 def _targets(command: str, cwd: str | None) -> list[str] | None:
-    """What a plain delete names, each joined with its folder; None where one is no plain relative
-    path (an option is no target)."""
+    """What a plain delete names, each joined with its folder; None where its folder is not known,
+    a switch is not one of its plain ones (`_DELETERS`), or a target is no plain relative path."""
     words = _words(command)
-    if not words or _program(words[0]) not in _DELETERS:
+    program = _program(words[0]) if words else ""
+    if cwd is None or program not in _DELETERS:
+        return None
+    switches = [w for w in words[1:] if w.startswith(("-", "/"))]
+    plain = _DELETERS[program]
+    if any((w if program in _CASED else w.casefold()) not in plain for w in switches):
         return None
     named = [w for w in words[1:] if not w.startswith(("-", "/"))]
     if not named or len(named) > MOST_TARGETS or not all(_TARGET.fullmatch(w) for w in named):
         return None
-    joined = [posixpath.normpath(posixpath.join(cwd or ".", w)) for w in named]
+    joined = [posixpath.normpath(posixpath.join(cwd, w)) for w in named]
     if any(one in (".", "..") or one.startswith(("../", "/")) for one in joined):
         return None
     return joined
@@ -163,18 +198,28 @@ def _targets(command: str, cwd: str | None) -> list[str] | None:
 
 def rule_line(command: str, cwd: str | None) -> str | None:
     """The line for the project's rules that names this delete and its targets - "You may delete
-    build." - in KOLONİ's words, and only where the check of the user's words would let it run on
-    that line (`judge.verdict`); None: no such line."""
-    if not is_plain(command) or harm_class(with_cwd(command, cwd or ".")) != "soft":
+    build." - in KOLONİ's words; None: no such line (`_targets`)."""
+    if cwd is None or not is_plain(command) or harm_class(with_cwd(command, cwd)) != "soft":
         return None
     targets = _targets(command, cwd)
     if targets is None:
         return None
     named = targets[0] if len(targets) == 1 else f"{', '.join(targets[:-1])} and {targets[-1]}"
-    line = f"You may delete {named}."
+    return f"You may delete {named}."
+
+
+def _stands(rules: str, line: str) -> bool:
+    """Whether the check of the user's words would let a run stand on `line` in the rules as they
+    would be with it (`judge.verdict`): never under a heading or beside a line that forbids or
+    sets a condition."""
     answer = json.dumps({"verdict": "run", "quote": line, "why": ""})
-    said = judge.said(None, line, [])
-    return line if (judge.verdict(answer, said) or {}).get("verdict") == "run" else None
+    said = judge.said(None, with_rule(rules, line), [])
+    return (judge.verdict(answer, said) or {}).get("verdict") == "run"
+
+
+def _has(rules: str, line: str) -> bool:
+    """Whether the rules hold `line` as a line of their own (a list item too)."""
+    return any(judge.LIST_MARK.sub("", one.strip()) == line for one in rules.splitlines())
 
 
 def key_of(project_id: str, command: str, cwd: str | None) -> str:
@@ -193,6 +238,7 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
         .where(
             Conversation.project_id == project.id,
             Command.asked_reason == "delete",
+            Command.cwd.is_not(None),  # (a CLI's whose folder is not known: no rule names it)
             Command.decided_at.is_not(None),
             Command.status != "rejected",
             Command.created_at >= now() - timedelta(days=DAYS),
@@ -200,12 +246,12 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
     )
     times: dict[tuple[str, str], int] = {}
     for command, cwd in session.execute(approved):
-        shape = (" ".join(command.split()), cwd or ".")
+        shape = (" ".join(command.split()), cwd)
         times[shape] = times.get(shape, 0) + 1
     found = []
     for (command, cwd), n in sorted(times.items(), key=lambda one: -one[1]):
         line = rule_line(command, cwd) if n >= TIMES else None
-        if line is not None and (added or line not in rules):  # (as a list item too)
+        if line is not None and (added or not _has(rules, line)) and _stands(rules, line):
             found.append(
                 {
                     "key": key_of(project.id, command, cwd),
@@ -222,6 +268,6 @@ def with_rule(rules: str | None, line: str) -> str:
     """The project's rules with `line` as a line of its own at their end - as they are where it is
     there already."""
     rules = rules or ""
-    if line in rules:
+    if _has(rules, line):
         return rules
     return f"{rules.rstrip()}\n{line}" if rules.strip() else line

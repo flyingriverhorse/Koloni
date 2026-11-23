@@ -10,7 +10,7 @@ import pytest
 from alembic import command as alembic
 
 from app import cards, judge
-from app.db.models import Agent, Command, Conversation, Project, Run, now
+from app.db.models import Agent, Command, Conversation, Project, Run, ToolCall, now
 from app.db.session import make_engine, make_session_factory, upgrade_db
 from tests.fakes import ScriptedExecutor
 from tests.keyed import NO_ORIGIN, OWN
@@ -184,12 +184,16 @@ def test_the_cards_of_a_period_by_reason_answer_and_check(db):
 
 
 def suggested(db, times, rules=None, **more):
+    """`times` approvals more of a card (`card`'s `more`), and what is suggested then - under
+    `rules` where given."""
     with db() as session:
-        turn(session, rules=rules)
+        turn(session)
         for _one in range(times):
             card(session, "r", **more)
-        session.commit()
         project = session.get_one(Project, "p")
+        if rules is not None:
+            project.rules = rules
+        session.commit()
         return cards.suggestions(session, project, project.rules or "")
 
 
@@ -220,6 +224,12 @@ def test_five_unchanged_approvals_suggest_a_rule_in_koloni_s_words(db):
         ({"command": "rm -rf $HOME/x"}, None),
         ({"command": "rm -rf build; git push"}, None),
         ({"command": "rm -rf build-if"}, None),  # (a line with "if" is no run for the check)
+        # (Review: a switch's value is no target - it names what was not deleted - nor is a switch
+        # that reaches further a plain delete; a CLI's command whose folder is not known)
+        ({"command": "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue build"}, None),
+        ({"command": "Remove-Item build -Exclude src"}, None),
+        ({"command": "del /s build.log"}, None),
+        ({"cwd": None}, None),
     ],
 )
 def test_what_a_suggestion_names_and_what_suggests_none(db, more, rule):
@@ -229,6 +239,14 @@ def test_what_a_suggestion_names_and_what_suggests_none(db, more, rule):
 
 def test_a_rule_already_there_is_not_suggested_again(db):
     assert suggested(db, 5, rules="Be brief.\n- You may delete build.") == []
+
+
+def test_a_rule_that_would_not_hold_where_it_is_saved_is_not_suggested(db):
+    # (Under a heading that forbids, the check would never let a run stand on it.)
+    assert suggested(db, 5, rules="Never do these:") == []
+    # (A rule that only starts so is another one: this one is not there yet.)
+    (one,) = suggested(db, 0, rules="You may delete build.log.")
+    assert one["rule"] == "You may delete build."
 
 
 def test_one_click_saves_the_rule_from_the_own_page_alone(make_client, project_dir):
@@ -274,3 +292,34 @@ def test_the_migration_adds_and_drops_the_columns(tmp_path):
     assert {"asked_reason", "decided_at"} <= set(columns())
     alembic.downgrade(cfg, "0172")
     assert not {"asked_reason", "decided_at"} & set(columns())
+
+
+def test_a_clis_card_says_why_too(tmp_path):
+    # (`ask_for`: a command a CLI runs with a tool of its own - the same gate, the same reason.)
+    import asyncio
+
+    from tests.test_disposable import runner_at
+
+    runner, factory = runner_at(tmp_path, "auto_edit")
+    with factory() as session:
+        session.get_one(ToolCall, "t1").why_asked = "It runs another command through a shell"
+        session.commit()
+    for call, line, given, reason in (
+        ("t0", "rm -rf build", {}, "delete"),
+        ("t1", "make build", {"always": True}, "shell"),
+        ("t2", "cat .env", {}, "secret"),
+        ("t3", "python x.py", {}, "rule"),
+    ):
+        _ran, command_id = asyncio.run(runner.ask_for("r", "c", "a", call, line, cwd=".", **given))
+        with factory() as session:
+            assert session.get_one(Command, command_id).asked_reason == reason, line
+
+
+def test_the_page_asks_for_a_period_as_it_sends_it(make_client, project_dir):
+    client, _model = make_client([])
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    # (as `new Date(...).toISOString()` gives it: "2026-11-16T10:00:00.000Z")
+    since = (now() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    read = client.get("/api/cards", params={"project_id": pid, "since": since})
+    assert read.status_code == 200 and read.json()["asked"] == 0, read.text
+    assert client.get("/api/cards", params={"project_id": "nowhere"}).status_code == 404
