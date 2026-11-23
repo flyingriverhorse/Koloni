@@ -1,9 +1,9 @@
 import { expect, test } from 'vitest'
 import type { Attachment, ChannelMessage, ChatTeam, ChatTeamState, Discussion, DiscussionPost, Room, Team } from '../api/types'
-import { agent, command, conversation, convState, note, run, toolCall, userMessage } from '../test-fixtures'
+import { agent, assistantMessage, command, conversation, convState, note, run, toolCall, userMessage } from '../test-fixtures'
 import { type AgentData, type RoundData, type TeamData, deriveGraph } from './deriveGraph'
 import { foldAll, foldGraph, unfold } from './foldGraph'
-import { ARC_ROOM, ARC_STEP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, TEAM_HEAD, TEAM_OUT, TEAM_PAD, arcPath, arcWay, arced, bendOf, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberFrame, memberLine } from './layout'
+import { ARC_ROOM, ARC_STEP, DOOR_PAD, IN_GAP, NODE_H, NODE_W, ROUND_H, ROW_GAP, STRIP_H, TEAM_HEAD, TEAM_OUT, TEAM_PAD, arcPath, arcWay, arced, bendOf, crossTalk, crosses, frameLine, headOf, laneLegs, wallsOf, layoutGraph, memberFrame, memberLine } from './layout'
 import { oneTurn } from './turns'
 
 // K-canvas-dili (mockup W): a team's work line left to right in its recipe's order, one fork into a step and one join
@@ -753,4 +753,18 @@ test('S5c: in a recipe’s turn the Checks node is the recipe’s last step - in
   // Folded, the frame holds it: not drawn, its lines go to the frame.
   const folded = foldGraph(deriveGraph(state), { 'team:r:web': false })
   expect(folded.nodes.some(node => node.kind === 'checks')).toBe(false)
+})
+
+test('the Checks node stands a row’s gap under the Orchestrator, below its checked strip; its line straight down', () => {
+  // (The strip made the Orchestrator's box taller than the layout's: the Checks node touched it - 0.1.6's pictures.)
+  const rows = [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null, counts: null }]
+  const checked = { ...assistantMessage('k', 'r', 'x'), role: 'checked' as const, agent_id: null, checked: rows }
+  const g = deriveGraph(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked] }))
+  const { positions, sizes } = layoutGraph(g.nodes, g.edges)
+  const lead = { ...positions['agent:r'], ...sizes['agent:r'] }
+  expect(lead.height).toBe(NODE_H + STRIP_H)
+  const box = positions['checks:r']
+  expect(box.x).toBe(lead.x)
+  expect(box.y).toBeGreaterThanOrEqual(lead.y + lead.height + ROW_GAP)
+  expect(g.edges.filter(e => e.target === 'checks:r')).toEqual([expect.objectContaining({ source: 'agent:r', plan: true })])
 })

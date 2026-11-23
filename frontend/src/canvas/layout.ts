@@ -41,6 +41,10 @@ export const AT_ONCE_ROW = 3
 export const ROUND_W = 2 * NODE_W + ROW_GAP
 export const ROUND_H = 32
 export const CHIP_H = 32
+/** The Orchestrator's checked strip under its box's lines ("✓ checked · 1 round"; canvas: `.node-strip`), which makes it taller. */
+export const STRIP_H = 26
+/** An agent's box: a chip in a round, else a node - taller by its checked strip where it has one. */
+const agentH = (data: AgentData) => (data.chip ? CHIP_H : NODE_H + (data.checked ? STRIP_H : 0))
 
 // K-shared-bagli, batch-26 (the user's): what a team shared, noted and remembered is a small card at its frame's
 // top-right - its width, a line for whose it is, a row for each thing, its padding and border - joined by a very short
@@ -125,7 +129,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
   const box = (group: GraphNode): Size => {
     const held = inside.get(group.id) ?? []
     let size: Size
-    if (group.kind === 'agent') size = { width: NODE_W, height: (group.data as AgentData).chip ? CHIP_H : NODE_H }
+    if (group.kind === 'agent') size = { width: NODE_W, height: agentH(group.data as AgentData) }
     else if (group.kind === 'team') size = { width: TEAM_W, height: Math.max(TEAM_SHUT_H, cardRoom(group)) } // (only a folded one is placed as a box)
     else if (held.length === 0) size = { width: NODE_W, height: FILES_HEAD } // ("6 files", folded)
     else {

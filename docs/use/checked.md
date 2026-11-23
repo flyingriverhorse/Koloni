@@ -645,7 +645,7 @@ it, up to 16) is given to each of KOLONİ's runs where its runner reads it: pyte
 
 ## On the canvas
 
-![The canvas after a checked turn: the Orchestrator's box says checked · 1 round, and under it the Checks node lists check.py · 2 passed, No review and No new test](../images/checks-node.png)
+![The canvas after a checked turn: the Orchestrator's box says checked, and a short line down from it the Checks node lists check.py · 2 passed, No review and No new test](../images/checks-node.png)
 
 A checked turn has a **Checks** node under its Orchestrator. While KOLONİ's test run works, it
 shows the tool and how long it has run; once the turn is over, each line of the Checked section,
