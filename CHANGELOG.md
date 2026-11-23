@@ -27,7 +27,11 @@ How to write an entry (every release looks the same):
 
 ### Changed
 
-- **Chat**: under **Orchestrator decides**, a small change - a few lines in one or two files - gets no team: the Orchestrator makes it itself or with one agent and says why in one line, and KOLONİ's checks run at the end all the same (they ran no more where that line came before them); picking a team, it sees how many agents each recipe opens ([docs](docs/agents/teams.md#teams-for-a-chat)).
+- **Chat**: under **Orchestrator decides**, a small change - a few lines in one or two files - gets no team: the Orchestrator makes it itself or with one agent and says why in one line, and KOLONİ's checks run at the end all the same; picking a team, it sees how many agents each recipe opens ([docs](docs/agents/teams.md#teams-for-a-chat)).
+
+### Fixed
+
+- **Chat**: KOLONİ's checks run at the end of a turn whose Orchestrator, told "Not the end yet" (why no team, or a recipe's step left), answered without doing more - the answer said "Tests not run: the turn ended before KOLONİ's check" ([docs](docs/use/checked.md)).
 
 ## [0.1.6] - 2026-11-23
 

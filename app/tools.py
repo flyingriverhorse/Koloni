@@ -478,7 +478,8 @@ def pick_schema(teams, recipes) -> dict:
         f"- {team.name}: {', '.join(roles) or 'no roles yet'}" for team, roles in teams
     )
     counted = "".join(
-        f"\n- {name}: {one.least}{'' if one.least == one.most else f'-{one.most}'} agents"
+        f"\n- {name}: {one.least}{'' if one.least == one.most else f'-{one.most}'} "
+        f"agent{'' if one.most == 1 else 's'}"
         for name, one in recipes
         if one is not None
     )
