@@ -11,7 +11,7 @@ const team = (id: string, name: string, recipe: string | null = null) =>
   ({ id, name, roles: [], stages: [], lead_on: true, lead_may_pick: true, default_recipe_id: recipe }) as unknown as Team
 const recipe = (id: string, name: string, steps: Partial<RecipeStep>[] = []) => ({ id, name, ready: true, graph: { steps } }) as unknown as Recipe
 const teams = [team('web', 'Web app', 'feature'), team('docs', 'Docs'), team('api', 'Backend / API', 'bugfix')]
-const recipes = [recipe('feature', 'Feature', [{ name: 'Code review', who: { role: 'Reviewer' } }, { name: 'Build it', who: { role: 'Coder' } }]), recipe('bugfix', 'Bugfix')]
+const recipes = [recipe('feature', 'Feature', [{ name: 'Code review', who: { role: 'Reviewer' } }, { name: 'Build it', who: { role: 'Coder' } }]), { ...recipe('bugfix', 'Bugfix'), agents: { least: 4, most: 14 } }]
 const row = (team_id: string, over: Partial<ChatTeam> = {}): ChatTeam => ({ team_id, recipe_id: null, no_recipe: false, picked_by: 'user', why: null, ...over })
 // A row as the window sends it.
 const sent = (team_id: string, recipe_id: string | null = null, no_recipe = false) => ({ team_id, recipe_id, no_recipe })
@@ -51,7 +51,9 @@ test('the button says the mode; the window switches it at once', async () => {
 test('in Manual a team is added following its default recipe, and rows are reordered and removed', async () => {
   const { onChange } = show({ teams_mode: 'manual', teams: [row('docs'), row('web', { recipe_id: 'bugfix' })] })
   await userEvent.click(screen.getByRole('button', { name: 'Teams for this chat: 2 teams, Manual' }))
-  expect(await within(panel()).findAllByRole('option', { name: 'Bugfix' })).toHaveLength(2)
+  // (A recipe says how many agents its run opens, as the server counted its drawing; Feature here has no count.)
+  expect(await within(panel()).findAllByRole('option', { name: 'Bugfix · 4–14 agents' })).toHaveLength(2)
+  expect(within(panel()).getAllByRole('option', { name: 'Feature' })).toHaveLength(2)
   expect(within(panel()).getByLabelText('Recipe for Web app')).toHaveValue('bugfix')
   expect(within(panel()).getByLabelText('Recipe for Docs')).toHaveDisplayValue('its default (none)')
   // (A team picked anew follows its default: no recipe of its own.)
@@ -72,7 +74,7 @@ test('a row’s recipe is its team’s default, No recipe in this chat, or a rec
   await userEvent.click(screen.getByRole('button', { name: 'Teams for this chat: 3 teams, Manual' }))
   expect(await within(panel()).findByDisplayValue('its default (Feature)')).toBe(within(panel()).getByLabelText('Recipe for Web app'))
   expect(within(panel()).getByLabelText('Recipe for Backend / API')).toHaveDisplayValue('No recipe')
-  expect(within(panel()).getByLabelText('Recipe for Docs')).toHaveDisplayValue('Bugfix')
+  expect(within(panel()).getByLabelText('Recipe for Docs')).toHaveDisplayValue('Bugfix · 4–14 agents')
   await userEvent.selectOptions(within(panel()).getByLabelText('Recipe for Web app'), 'No recipe')
   expect(onChange).toHaveBeenLastCalledWith({ teams: [sent('web', null, true), sent('api', null, true), sent('docs', 'bugfix')] })
   await userEvent.selectOptions(within(panel()).getByLabelText('Recipe for Backend / API'), 'Feature')
@@ -178,7 +180,7 @@ test('in Manual with every team in there is no Add; a row the Orchestrator picke
 test('a row with no recipe of its own says its team’s default', async () => {
   show({ teams_mode: 'manual', teams: [row('api')] })
   await userEvent.click(screen.getByRole('button', { name: 'Teams for this chat: 1 team, Manual' }))
-  await within(panel()).findAllByRole('option', { name: 'Bugfix' })
+  await within(panel()).findAllByRole('option', { name: 'Bugfix · 4–14 agents' })
   expect(within(panel()).getByLabelText('Recipe for Backend / API')).toHaveDisplayValue('its default (Bugfix)')
 })
 

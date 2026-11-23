@@ -1186,6 +1186,38 @@ def cap(graph: RecipeGraph, slots: dict[str, list[list]]) -> int:
     return total
 
 
+def least(graph: RecipeGraph, slots: dict[str, list[list]]) -> int:
+    """The fewest agents a run's steps open, as it is drawn: along its way where no review finds
+    a problem - no loop goes back, a step that runs only on a problem is passed, and so is one
+    with no slot (`_ahead`) - a role's step one agent each slot (its `most` is "up to"), any
+    other as it draws (`size`).
+    shortcut: a "first" group is counted whole, though its lost branches' later steps may never
+    open; count its branches' first steps if such groups are drawn often."""
+    who = {step.id: step.who for step in graph.steps}
+    ends, seen, total = {end.id for end in graph.ends}, set(), 0
+    at = _ahead(graph, slots, START)[1]
+    while at not in ends and at not in seen:
+        seen.add(at)
+        total += sum(
+            len(roles) if isinstance(who[step], WhoRole) else _draws(graph, step, roles)
+            for step, roles in slots.get(at, [])
+        )
+        at = _ahead(graph, slots, at)[1]
+    return total
+
+
+def drawn(step: RecipeStep) -> list[tuple[str, ...]]:
+    """A step's slots from the drawing alone, as no chat has picked its team yet (the recipes'
+    list, `RecipeOut.agents`): a room's a slot for each of its roles, any other step one.
+    shortcut: a role switched off is counted, and a team's experts or stages count one slot -
+    read them as a run does (`AgentRunner._slots_of`) if the list's numbers are seen to mislead."""
+    return (
+        [(name,) for name in step.who.room]
+        if isinstance(step.who, WhoRoom)
+        else [(role_of(step) or "",)]
+    )
+
+
 def room_at(graph: RecipeGraph, part: str) -> RecipeStep | None:
     """The part's Room step (slice 84e: a room meets on its own, in no group); None: not one."""
     return next((s for s in steps_of(graph, part) if isinstance(s.who, WhoRoom)), None)

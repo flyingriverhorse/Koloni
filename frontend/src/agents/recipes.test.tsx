@@ -798,19 +798,21 @@ test('a list not read says why, with nothing drawn and no part; with nothing to 
 })
 
 test('whose each recipe is; a ready one says so with no Delete; its copy may be kept in the folder and its Loop back waits for a part before; a folder’s says its file goes; Make it a recipe waits', async () => {
-  const mine: Recipe = { ...FEATURE, id: 'mine', name: 'Mine', ready: false }
-  const folder: Recipe = { ...FEATURE, id: 'f1', name: 'Fix', ready: false, project_id: 'p', file: 'fix.json' }
+  // (How many agents a run opens, as the server counted the drawing: the fewest–the most; none where it could not count.)
+  const ready: Recipe = { ...FEATURE, agents: { least: 3, most: 9 } }
+  const mine: Recipe = { ...FEATURE, id: 'mine', name: 'Mine', ready: false, agents: { least: 1, most: 1 } }
+  const folder: Recipe = { ...FEATURE, id: 'f1', name: 'Fix', ready: false, project_id: 'p', file: 'fix.json', agents: null }
   let answer: (drawn: RecipeDraft) => void = () => {}
   const given = actions({
     saveRecipe: vi.fn(async (_recipe, body) => ({ id: 'f2', ready: false, project_id: 'p', file: 'copy.json', ...body })),
     draftRecipe: vi.fn(() => new Promise<RecipeDraft>(done => (answer = done))),
   })
-  render(<RecipesTab roles={roles} teams={teams} list={{ recipes: [FEATURE, mine, folder], broken: ['bad.json: not a recipe'], writer: { why: null, asks: 'Balanced: Fast · deep' } }} projectId="p" actions={given} reload={vi.fn()} />)
+  render(<RecipesTab roles={roles} teams={teams} list={{ recipes: [ready, mine, folder], broken: ['bad.json: not a recipe'], writer: { why: null, asks: 'Balanced: Fast · deep' } }} projectId="p" actions={given} reload={vi.fn()} />)
   expect(screen.getByRole('alert')).toHaveTextContent(/^bad\.json: not a recipe$/)
   const item = (name: RegExp) => screen.getByRole('button', { name })
-  expect(item(/^Feature/)).toHaveTextContent(/ · ready$/)
-  expect(item(/^Mine/)).toHaveTextContent(/ · yours$/)
-  expect(item(/^Fix/)).toHaveTextContent(/ · this folder’s$/)
+  expect(item(/^Feature/)).toHaveTextContent(/^FeatureBuild it → 2 at once \(≤2 rounds\) → Ask me, then in · 3–9 agents · ready$/)
+  expect(item(/^Mine/)).toHaveTextContent(/then in · 1 agent · yours$/)
+  expect(item(/^Fix/)).toHaveTextContent(/then in · this folder’s$/)
   expect(item(/^Feature/).className).toBe('recipe-item recipe-item-chosen')
   expect(item(/^Mine/).className).toBe('recipe-item')
   expect(item(/^Mine/)).toHaveAttribute('aria-pressed', 'false')

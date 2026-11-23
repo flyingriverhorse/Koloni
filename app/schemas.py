@@ -3054,6 +3054,13 @@ class RecipeIn(BaseModel):
     graph: RecipeGraph
 
 
+class RecipeAgents(BaseModel):
+    # How many agents a run of it opens, from its drawing: where no review finds a problem
+    # (`recipe_run.least`), and where every loop goes back all its rounds (`recipe_run.cap`).
+    least: int
+    most: int
+
+
 class RecipeOut(BaseModel):
     # A folder's own: its file's name (no .json), and `project_id` set.
     id: str
@@ -3062,6 +3069,8 @@ class RecipeOut(BaseModel):
     graph: RecipeGraph
     project_id: str | None = None
     file: str | None = None
+    # None: its drawing leads nowhere (a folder's file is read, not checked to run).
+    agents: RecipeAgents | None = None
 
 
 class RecipeWriter(BaseModel):

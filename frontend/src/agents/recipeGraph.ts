@@ -1,4 +1,4 @@
-import type { RecipeGraph, RecipeStep, Role, Team } from '../api/types'
+import type { Recipe, RecipeGraph, RecipeStep, Role, Team } from '../api/types'
 
 /**
  * A recipe's drawing as the board changes it (slice 84a): pure functions of the graph the server keeps, each giving a new one. What
@@ -282,6 +282,14 @@ export function summary(graph: RecipeGraph): string {
     if (!seen.has(at)) words.push(word(at))
   }
   return words.join(' → ') || 'nothing drawn yet'
+}
+
+/** How many agents a run of it opens, as the server counts its drawing: " · 4–14 agents" - the fewest where no review finds a problem, the most
+ * where every loop goes back all its rounds; " · 2 agents" where they are the same; nothing where it could not count (a folder's that leads nowhere). */
+export function agentsLine(recipe: Recipe): string {
+  if (!recipe.agents) return ''
+  const { least, most } = recipe.agents
+  return ` · ${least === most ? least : `${least}–${most}`} agent${most === 1 ? '' : 's'}`
 }
 
 /** Where each part is drawn: rows by how far from the start it is, the parts of a row side by side. */

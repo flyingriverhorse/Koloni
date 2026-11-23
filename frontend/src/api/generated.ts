@@ -9505,6 +9505,13 @@ export interface components {
             /** More */
             more: boolean;
         };
+        /** RecipeAgents */
+        RecipeAgents: {
+            /** Least */
+            least: number;
+            /** Most */
+            most: number;
+        };
         /** RecipeArrow */
         RecipeArrow: {
             /** From */
@@ -9665,6 +9672,7 @@ export interface components {
         };
         /** RecipeOut */
         RecipeOut: {
+            agents?: components["schemas"]["RecipeAgents"] | null;
             /** File */
             file?: string | null;
             graph: components["schemas"]["RecipeGraph"];

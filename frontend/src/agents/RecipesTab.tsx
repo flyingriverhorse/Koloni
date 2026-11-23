@@ -22,6 +22,7 @@ import { ApiError, errorText } from '../api/client'
 import type { CandidateModel, Provider, Recipe, RecipeDraft, RecipeGraph, RecipeStep, Recipes, Role, RoleModel, Team } from '../api/types'
 import { type LoadModels, ModelNameInput } from '../models/ModelNameInput'
 import {
+  agentsLine,
   CHECK_PARTS,
   CHECKS,
   type Checks,
@@ -1020,7 +1021,8 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
         <button key={recipeKey(recipe)} type="button" className={`recipe-item${chosen === recipeKey(recipe) ? ' recipe-item-chosen' : ''}`} aria-pressed={chosen === recipeKey(recipe)} onClick={() => open(opened(recipe), recipeKey(recipe))}>
           <b>{recipe.name}</b>
           <span className="muted">
-            {summary(recipe.graph)} · {recipe.ready ? 'ready' : recipe.project_id ? 'this folder’s' : 'yours'}
+            {summary(recipe.graph)}
+            {agentsLine(recipe)} · {recipe.ready ? 'ready' : recipe.project_id ? 'this folder’s' : 'yours'}
           </span>
         </button>
       ))}
