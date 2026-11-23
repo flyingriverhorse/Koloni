@@ -364,3 +364,88 @@ def test_until_it_passes_one_ceiling_holds_the_turns_rounds_and_the_stronger_one
     assert s11.STRONGER_HALTED.format(model="big-model", why=proof.AT_CEILING.format(most=1)) in (
         texts), texts
     assert len(executor.started) == 4, executor.started
+
+
+# --- k-onceki-1: the second session's J and K ------------------------------------------------
+
+PYTEST = "python -m pytest -q"
+
+
+class ByTheWork(ScriptedExecutor):
+    """The project's tests as they would run: they pass where `a.py` holds the fix, x = 3 - the
+    first run (the first Coder's Take in check) passes, as its suite did then."""
+
+    def __init__(self):
+        super().__init__([])
+        self.runs = 0
+
+    async def start(self, command_id, command, cwd, copy=None, links=None, secrets=None, env=None):
+        from pathlib import Path
+        a = Path(cwd) / "a.py"
+        fixed = a.exists() and "x = 3" in a.read_text(encoding="utf-8")
+        self.scripts = [PASS if fixed or not self.runs else failing()]
+        self.runs += 1
+        return await super().start(command_id, command, cwd, copy, links, secrets, env)
+
+
+def fixer_writes(*files, again=()):
+    """The strongest model's fix round: its diagnosis (fix-incomplete), then `files` written -
+    and `again`, in a step after."""
+    def wrote(written, first):
+        return step(*(write(path, body, f"w{first + at}").tool_calls[0]
+                      for at, (path, body) in enumerate(written)))
+    return {"Coder 2": [said(s11.FIX_INCOMPLETE)],
+            "Coder 3": [wrote(files, 0), *([wrote(again, len(files))] if again else []),
+                        text("fixed")]}
+
+
+def handed(team, wait_run, project_dir, files, again=(), **project):  # noqa: F811
+    """J's turn: the balanced model's work fails the project's own pytest; the strongest is
+    handed it and writes `files` (and `again`, after)."""
+    executor = ByTheWork()
+    client, cid, run_id = started(team, project_dir, {
+        "Lead": ONE, **fixer_writes(*files, again=again)}, WORK, executor, check_command=PYTEST,
+        **project)
+    snap = wait_run(client, cid, run_id, timeout=60)
+    return [one[2] for one in rows_of(snap, run_id)], snap
+
+
+@pytest.mark.parametrize("again", [(), [("test_new.py", "def test_new():\n    assert 3\n")]])
+def test_a_fix_with_a_new_test_is_judged_on_the_whole_suites_verdict(team, wait_run,  # noqa: F811
+                                                                      project_dir, again):
+    # (J: the related tests passed, the whole suite went on after the answer - and the hand-off
+    # judged "no verdict" before it ended: "Still failing" over passing work. Its new test
+    # written again is still a new test of its own - no test changed without leave.)
+    texts, _snap = handed(team, wait_run, project_dir,
+                          [("a.py", "x = 3\n"), ("test_new.py", "def test_new(): pass\n")], again)
+    assert s11.NO_VERDICT not in texts, texts
+    assert not any(one.startswith("Not a pass") for one in texts), texts
+    assert not any(one.startswith("Still failing") for one in texts), texts
+    assert f"Tests passed: {PYTEST} - 4 passed in 0.1s" in texts, texts
+
+
+@pytest.mark.parametrize("path, body", [
+    ("test_a.py", "def test_a():\n    assert True\n"),
+    ("conftest.py", "collect_ignore = ['test_a.py']\n")])
+def test_a_loosened_test_is_said_as_no_pass_whatever_ran(team, wait_run, project_dir,  # noqa: F811
+                                                        path, body):
+    # (J: with the project's own pytest, the round that loosened the test or left it out gave
+    # "no verdict" first - the row that says why never came, and the test counted as new)
+    (project_dir / "test_a.py").write_text("def test_a():\n    assert 1 == 2\n", encoding="utf-8")
+    texts, _snap = handed(team, wait_run, project_dir, [("a.py", "x = 3\n"), (path, body)])
+    assert s11.TESTS_TOUCHED.format(model="big-model", paths=path) in texts, texts
+    assert not any(one.startswith("New tests") and path in one for one in texts), texts
+
+
+def test_a_fix_that_fails_take_ins_check_is_said_in_checked_and_stays_out(team, wait_run,  # noqa: F811
+                                                                          project_dir):
+    # (K: with the project's own check command, the fixer's work failed Take in's own check
+    # and stayed in its copy - and no Checked section came at all: the newest record of a.py
+    # was that copy's, so nothing of the turn counted as in the project)
+    texts, snap = handed(team, wait_run, project_dir, [("a.py", "x = 2\n")])
+    assert s11.HANDED.format(model="big-model", tier="Strongest", n="1 round",
+                             by="fast-model") in texts, texts
+    assert s11.STILL_HANDED.format(by="fast-model and big-model") in texts, texts
+    assert s11.FIX_KEPT_OUT.format(model="big-model") in texts, texts
+    assert not any(one.startswith("Tests not run") for one in texts), texts
+    assert (project_dir / "a.py").read_text(encoding="utf-8") == "x = 1\n"  # (never taken in)

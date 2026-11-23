@@ -110,7 +110,7 @@ class ProofLaterMixin:
         """Each test command's row in `held`; the failed ones, with their output. Where the
         suite may go on after the answer: the related tests first, then the whole suite - which
         stops holding the answer at once after them, else after DETACH_SECONDS."""
-        later = self._may_go_on(ctx)
+        later = self._may_go_on(ctx) and not held.judging  # (J: a hand-off waits for its verdict)
         project_id, mine = self._project_id(ctx), {(run.command, run.cwd) for run in runs}
         if later:  # (the same suite gone on over an earlier state of the project: void, as CI's)
             self._end_checks(lambda one: one.later and one.project_id == project_id and (

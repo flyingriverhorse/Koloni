@@ -339,6 +339,13 @@ A line that only looks like a verdict - in the work itself, in a quote or a code
 answer - is not one; with none, or two different ones, it goes on as fix-incomplete. A test-wrong
 without the request's own words in quotation marks goes on as fix-incomplete too.
 
+Each of its rounds is judged on the whole test run's own verdict, run to its end there and then -
+never one that goes on after the answer. A new test it adds is fine; a test it changed or deleted,
+or a file that steers the tests (a `conftest.py` that leaves one out), without a test-wrong is no
+pass: "Not a pass: `model` changed a test without leave (`file`)", and that test is not listed as
+one of the turn's new tests. A round whose work fails the project's own check before Take in stays
+in its copy: "Not taken in: `model`'s round - the project's check failed on it before Take in".
+
 Failing work is never taken in, at any level - Full auto and while you're away too. Where nothing
 passes after the strongest tier (or none is set, or the switch is off), the work stays in its
 copy and the section says "Not taken in: 2 tests still fail after rounds by `A` and `B`", with

@@ -1649,7 +1649,9 @@ class AskedModel(BaseModel):
     goes to, or the summariser that made a note of what a turn found."""
 
     provider_name: str
-    model_id: str
+    # None: KOLONİ itself, no model - its note of a flaky test (k-onceki-1, H: such a note made
+    # its project's memory list fail).
+    model_id: str | None
 
 
 class FindingOut(BaseModel):

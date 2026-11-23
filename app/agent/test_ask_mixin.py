@@ -47,7 +47,8 @@ class TestAskMixin:
         answer - its reason (an answer with no tool call ended the turn: no pass after it)."""
         rows = [proof.row("test", "failed", proof.TEST_REMOVED.format(path=path))
                 for path in proof.removed_tests(found)]
-        if new := proof.new_tests(found):
+        # (k-onceki-1, J: a test a stronger model changed without leave is said as no pass)
+        if new := [one for one in proof.new_tests(found) if one.path not in held.loosened]:
             return [proof.row("test", "note", proof.NEW_TESTS.format(
                 files=named([one.path for one in new]))), *rows]
         if held.asked_test:

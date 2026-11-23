@@ -54,6 +54,8 @@ How to write an entry (every release looks the same):
 
 ### Fixed
 
+- **Memory**: a project's Memory opens again after KOLONİ noted a flaky test in it - the note names no model, and the list failed to load from then on.
+- **Chat**: where the project has its own test command and a stronger model's fix fails Take in's check, the turn still says what was checked - the hand-off, "Still failing after rounds by …" and that the fix was not taken in - instead of no Checked section ([docs](docs/use/checked.md#a-stronger-model)).
 - **Agents**: **Make it a recipe** (and the Product owner's draft of tasks) asks the model of the chat you are in, then every tier, then your newest chat's model, when the Fast or Balanced tier's model is not running - it said "No model answered: Local (not running)" though your chats ran on another provider; with none answering it says how to fix it ([docs](docs/agents/recipes.md)).
 - **Settings**: the line under **After a change** names the test command you set for a part on the project map, before what KOLONİ saved for another folder, and changes as you save one there ([docs](docs/use/checked.md)).
 - **To-do**: **Write it with the Product owner** asks the next model when one does not answer - your next fast model, then the Orchestrator's - as **Or write it** does, instead of stopping at the first ([docs](docs/automation/todo.md)).

@@ -4995,7 +4995,7 @@ export interface components {
          */
         AskedModel: {
             /** Model Id */
-            model_id: string;
+            model_id: string | null;
             /** Provider Name */
             provider_name: string;
         };
