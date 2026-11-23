@@ -664,6 +664,11 @@ async function inUseNow(get: () => AppStore, health: Health | null): Promise<{ r
   }
 }
 
+/** k-tarif-model: the chat the page is open on - a draft asks its Orchestrator's model too (its model picker); null: none. */
+const openChatId = (state: AppStore) => state.conv?.conversation.id ?? null
+/** ...as a query: "?conversation_id=…", or "" with no chat open. */
+const inChat = (state: AppStore) => (openChatId(state) ? `?conversation_id=${encodeURIComponent(openChatId(state) ?? '')}` : '')
+
 export const useApp = create<AppStore>()((set, get) => {
   async function refreshConversations(): Promise<ListedConversation[]> {
     const asked = ++conversationsAsked
@@ -1100,7 +1105,7 @@ export const useApp = create<AppStore>()((set, get) => {
       try {
         const [backlog, backlogAuto] = await Promise.all([
           api.get<BacklogTask[]>('/projects/' + projectId + '/backlog'),
-          api.get<BacklogAuto>('/projects/' + projectId + '/backlog/auto'),
+          api.get<BacklogAuto>('/projects/' + projectId + '/backlog/auto' + inChat(get())),
         ])
         if (mine === backlogReads) set({ backlog, backlogAuto, backlogError: null })
       } catch (err) {
@@ -1145,7 +1150,7 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadBacklog()
     },
 
-    draftTasks: text => api.post<BacklogDraft>('/projects/' + get().projectId + '/backlog/draft', { text }),
+    draftTasks: text => api.post<BacklogDraft>('/projects/' + get().projectId + '/backlog/draft', { text, conversation_id: openChatId(get()) }),
 
     async runBacklog() {
       await backlogChoice
@@ -1583,7 +1588,7 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadRoles()
     },
 
-    recipes: projectId => api.get<Recipes>(projectId ? `/recipes?project_id=${projectId}` : '/recipes'),
+    recipes: projectId => api.get<Recipes>(projectId ? `/recipes?project_id=${projectId}${inChat(get()).replace('?', '&')}` : `/recipes${inChat(get())}`),
 
     saveRecipe: (recipe, body, projectId) =>
       recipe === null
@@ -1596,7 +1601,7 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadRoles()
     },
 
-    draftRecipe: text => api.post<RecipeDraft>('/recipes/draft', { text }),
+    draftRecipe: text => api.post<RecipeDraft>('/recipes/draft', { text, conversation_id: openChatId(get()) }),
 
     roleActivity: () => api.get<RolesActivity>('/roles/activity'),
     roleHistory: days => api.get<RolesHistory>(`/roles/history?days=${days}`),

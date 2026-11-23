@@ -14,11 +14,14 @@ Recipes are on the Agents page, tab **Recipes**.
 - Pick a ready recipe and press **Copy it**. Ready recipes cannot be changed: "A ready recipe: copy it
   to change it."
 - **Or write it**: describe the recipe in a sentence and press **Make it a recipe**. The note
-  under it says which model it asks - the first of the balanced tier ("Asks Balanced: Local ·
-  qwen3"), passing over one whose server is not running, else the Orchestrator's own - and if
-  that one does not answer, the next is asked. Where none answers, it says so and names every
-  model it tried, each with why ("No model answered: Local · qwen3 (not running),
-  …"). The model draws the recipe on the board; nothing is saved until you save it.
+  under it says which model it asks first ("Asks Balanced: Local · qwen3"). It asks, each once
+  and in turn: the balanced tier's models, then the fast and the strongest tier's, then the
+  Orchestrator's model in the chat you are in (the one its model picker chose), then the model
+  your newest chat ran on - passing over one whose server is not running, and never a CLI that
+  keeps its tools. If one does not answer, the next is asked. Where none answers, it names every
+  model it tried, each with why, and how to fix it ("No model answered: Local · qwen3 (not
+  running). Start Local on the Models page, give a model a tier there, or pick a model in the
+  chat."). The model draws the recipe on the board; nothing is saved until you save it.
 
 The ready recipes include Feature, Bugfix, Review only, Integration, Quality check, Model change,
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.

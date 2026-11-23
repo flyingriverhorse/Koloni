@@ -10,7 +10,7 @@ from app import away, backlog, earlier
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
 from app.api.providers import _model
-from app.api.recipes import Asked, ask_in_turn, askers
+from app.api.recipes import Asked, ask_in_turn, askers, chat_of
 from app.api.usage import over_budget, over_month
 from app.db.models import BacklogTask, Project, Provider, now
 from app.providers import works_with_own_tools
@@ -55,18 +55,21 @@ def _told(request: Request, session: Session, project_id: str) -> None:
              "backlog.changed")
 
 
-def _drafter(session: Session, request: Request, project: Project) -> list[Asked] | str:
+def _drafter(session: Session, request: Request, project: Project,
+             conversation_id: str | None = None) -> list[Asked] | str:
     """Whom "Write it with the Product owner" asks, in turn: each fast model the Lead may pick,
     as the Assistant product owner's view is written (`AgentRunner._assess`), then the Lead's
     (`askers`, as "Or write it" asks) - or why nobody is asked now. The page shows the first,
     the one the request asks first."""
     if over := over_month(session, project):
         return f"This project is {over}."
-    return askers(session, request.app.state.providers, "fast")
+    return askers(session, request.app.state.providers, "fast",
+                  chat_of(session, conversation_id, project.id), project.id)
 
 
-def _auto(session: Session, project: Project, request: Request) -> dict:
-    found = _drafter(session, request, project)
+def _auto(session: Session, project: Project, request: Request,
+          conversation_id: str | None = None) -> dict:
+    found = _drafter(session, request, project, conversation_id)
     can = found if isinstance(found, str) else found[0][:2]
     return {"on": project.backlog_auto, "halt": project.backlog_halt,
             "permission_mode": project.backlog_mode, "provider_id": project.backlog_provider_id,
@@ -78,8 +81,9 @@ def _auto(session: Session, project: Project, request: Request) -> dict:
 
 
 @router.get("/projects/{project_id}/backlog/auto", response_model=BacklogAutoOut)
-async def read_auto(project_id: str, request: Request, session: Session = Depends(get_session)):
-    return _auto(session, _project(session, project_id), request)
+async def read_auto(project_id: str, request: Request, conversation_id: str | None = None,
+                    session: Session = Depends(get_session)):
+    return _auto(session, _project(session, project_id), request, conversation_id)
 
 
 @router.post("/projects/{project_id}/backlog/draft", response_model=BacklogDraftOut,
@@ -91,7 +95,7 @@ async def draft_tasks(project_id: str, body: BacklogDraftIn, request: Request,
     each is added by the user's word. What it spends is on Usage as KOLONİ itself, in this
     project."""
     project = _project(session, project_id)
-    can = _drafter(session, request, project)
+    can = _drafter(session, request, project, body.conversation_id)
     if isinstance(can, str):
         raise HTTPException(409, can)
     provider, said, model_id = await ask_in_turn(request, session, can, [
