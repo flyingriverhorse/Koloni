@@ -46,7 +46,7 @@ OWN = [Depends(require_own_origin)]
 File = Path(pattern=f"^{recipes.FILE_NAME.pattern}$", max_length=60)
 
 
-def _agents(graph: RecipeGraph) -> RecipeAgents | None:
+def agents_of(graph: RecipeGraph) -> RecipeAgents | None:
     """How many agents its run opens, from the drawing alone (`recipe_run.drawn`); None where
     its way leads nowhere - a folder's file is read, never checked to run (`_ahead` and `strip`
     find no arrow on)."""
@@ -60,7 +60,7 @@ def _agents(graph: RecipeGraph) -> RecipeAgents | None:
 def _out(recipe: Recipe) -> RecipeOut:
     graph = RecipeGraph.model_validate(recipe.graph)
     return RecipeOut(
-        id=recipe.id, name=recipe.name, ready=recipe.ready, graph=graph, agents=_agents(graph)
+        id=recipe.id, name=recipe.name, ready=recipe.ready, graph=graph, agents=agents_of(graph)
     )
 
 
@@ -400,7 +400,7 @@ def _folder_out(project: Project, file: str, body: RecipeIn) -> RecipeOut:
         graph=body.graph,
         project_id=project.id,
         file=file,
-        agents=_agents(body.graph),
+        agents=agents_of(body.graph),
     )
 
 

@@ -10,6 +10,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 - **Agents**: each recipe in the Recipes list, and in the chat's recipe picker, says how many agents a run of it opens, counted from its drawing - "Bugfix · 4–14 agents": the fewest where no review finds a problem, the most where every loop goes back all its rounds ([docs](agents/recipes.md#making-a-recipe)).
 
+### Changed
+
+- **Chat**: under **Orchestrator decides**, a small change - a few lines in one or two files - gets no team: the Orchestrator makes it itself or with one agent and says why in one line, and KOLONİ's checks run at the end all the same (they ran no more where that line came before them); picking a team, it sees how many agents each recipe opens ([docs](agents/teams.md#teams-for-a-chat)).
+
 ## [0.1.6] - 2026-11-23
 
 ### Added
