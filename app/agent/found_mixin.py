@@ -395,7 +395,7 @@ class FoundMixin:
         return [TestRun(command, folder, False) for command, folder in said]
 
     def _look_model(self: "AgentRunner", session, ctx: Ctx) -> tuple[Ctx, str | None] | None:
-        """The Fast tier's first model that may be asked with no tools now (as the Assistant PO's,
+        """The Fast tier's first model that may be asked with no tools now (as the Scout's,
         `asked_how_hard`), as the asking agent, and its CLI's mode; None: none."""
         conversation = session.get_one(Conversation, ctx.cid)
         would = would_run(session, find_role(session, LEAD), conversation, tools=ctx.tools)

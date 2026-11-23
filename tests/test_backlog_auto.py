@@ -1,7 +1,7 @@
 """Slice 52's backlog working itself (the user, 22 Oct: "if a task list is created, the product
 owner could start by itself"): the page's switch, the next task started when one's turn ends,
 what stops it and says why, two tasks at work at a time (K-symphony; one here where a test is
-about what holds a place), and the Assistant product owner's view written when a task's turn
+about what holds a place), and the Scout's view written when a task's turn
 ends."""
 
 import time
@@ -135,9 +135,7 @@ def test_over_the_months_budget_nothing_starts_and_the_page_says_why(
     assert tasks(client, pid)["one"]["status"] == "todo" and not model.calls
 
 
-def test_the_assistant_product_owner_assesses_a_task_when_its_turn_ends(
-    team, wait_run, project_dir
-):  # noqa: F811
+def test_the_scout_assesses_a_task_when_its_turn_ends(team, wait_run, project_dir):  # noqa: F811
     client, _default, fast = team(
         [text("LEAD-ANSWER the form shows errors.")],
         [text("<think>hm</think>Criterion one is met; no test for it.", 11, 7)],
@@ -162,9 +160,7 @@ def test_the_assistant_product_owner_assesses_a_task_when_its_turn_ends(
     assert (used["Fast"]["input_tokens"], used["Fast"]["output_tokens"]) == (11, 7)
 
 
-def test_the_assistant_product_owner_is_given_the_turns_changes(
-    team, wait_run, project_dir, monkeypatch
-):  # noqa: F811
+def test_the_scout_is_given_the_turns_changes(team, wait_run, project_dir, monkeypatch):  # noqa: F811
     # (the Lead writes itself here: what is looked at is what the view is given)
     monkeypatch.setattr(agent.AgentRunner, "_hands_code", lambda self, ctx: False)
     client, _default, fast = team([edit(), text("changed it")], [text("Met.")])

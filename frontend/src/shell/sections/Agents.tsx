@@ -39,9 +39,9 @@ const OBSERVE_SHOWN =
   'One more model request after every sub-agent’s report, on your plan or your bill; Usage shows it under that model. The Observer role’s model (set on the Agents page) is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked.'
 const OBSERVE_REST = 'It says, with no tools, what of the report the record shows. The Orchestrator takes its words as an opinion, not a fact.'
 
-/** The Assistant PO at a turn's end (6 Nov): what it costs, in sight; the rest behind ⓘ. */
+/** The Scout at a turn's end (6 Nov): who it is and what it costs, in sight; the rest behind ⓘ. */
 const SUGGEST_SHOWN =
-  'One small model request after each turn that did something (changed a file, ran a command, handed work on or had a step fail), on your plan or your bill; Usage shows it under that model. At Full auto the Orchestrator’s model decides them with one more.'
+  'The Scout looks for what is left after each turn that did something (changed a file, ran a command, handed work on or had a step fail): one small model request, on your plan or your bill; Usage shows it under that model. At Full auto the Orchestrator’s model decides them with one more.'
 const SUGGEST_REST =
   'The first model of the tier you choose is sent what was said in the turn, the files it changed and the steps that failed, with the secrets KOLONİ knows masked, and the open tasks’ titles. It proposes at most three follow-up tasks, each from words of the turn; they wait on the To-do list for your Add, Edit or Reject. An added task starts when you run the backlog, or by itself where the To-do list runs by itself. Proposals made while you’re away or by a trigger always wait for you; rooms, discussions and To-do tasks’ own turns get none.'
 const SUGGEST_TIERS: [value: Project['suggest_tier'], label: string][] = [

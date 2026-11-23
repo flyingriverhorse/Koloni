@@ -101,8 +101,10 @@ const EMPTY: NewBacklogTask = { title: '', detail: '', criteria: '', priority: '
 // An empty detail or criteria is none.
 const cleaned = (task: NewBacklogTask) => ({ ...task, title: task.title.trim(), detail: task.detail?.trim() || null, criteria: task.criteria?.trim() || null })
 
-/** "Plan it in a chat": the Lead is asked for the Product owner, whose tasks wait on cards as any agent's proposal does. */
-export const PLAN_ASK = 'Have the Product owner break this into To-do tasks: '
+/** "Plan it in a chat": the Lead is asked for the Hive keeper, whose tasks wait on cards as any agent's proposal does. */
+export const PLAN_ASK = 'Have the Hive keeper break this into To-do tasks: '
+/** What the Hive keeper does, under its button: its name does not say it. */
+export const HIVE_KEEPER_DOES = 'The Hive keeper keeps the To-do list: it turns your note into tasks, each with what makes it done.'
 const COSTS: Record<Paid, string> = {
   subscription: 'one request on your plan',
   'API key': 'one request you pay for',
@@ -166,7 +168,7 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
         </button>
         {onDraft && (
           <button type="button" className="btn btn-small" aria-describedby="draft-who" disabled={!asked || !!drafter?.why || drafting.busy} onClick={() => draft(onDraft)}>
-            {drafting.busy ? 'Writing…' : 'Write it with the Product owner'}
+            {drafting.busy ? 'Writing…' : 'Write it with the Hive keeper'}
           </button>
         )}
         {onPlan && (
@@ -177,7 +179,7 @@ function AddTask({ onAdd, onDraft, onPlan, providers, drafter }: AddProps) {
       </div>
       {onDraft && (
         <p id="draft-who" className="muted">
-          {who}
+          {HIVE_KEEPER_DOES} {who}
         </p>
       )}
     </>
@@ -303,7 +305,7 @@ interface Wait {
   edit?: (fields: { title: string; detail: string | null }) => Promise<void>
 }
 
-/** A task the Assistant PO proposed and the Orchestrator said no to at Full auto: under "Decided for you" in its chat, not waiting here. */
+/** A task the Scout proposed and the Orchestrator said no to at Full auto: under "Decided for you" in its chat, not waiting here. */
 const declined = (task: BacklogTask) => task.status === 'proposed' && task.po?.lead === 'no'
 /** One the Orchestrator added at Full auto that you have not OK'd: it starts by your OK only. */
 const unseen = (task: BacklogTask) => task.status === 'todo' && task.po?.lead === 'add' && !task.po.seen
@@ -330,9 +332,9 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
         task,
         kind,
         name: `Proposed task: ${task.title}`,
-        // (Who proposed it is known only as "an agent", but for the Assistant PO's at a turn's end, with the words it came from.)
+        // (Who proposed it is known only as "an agent", but for the Scout's at a turn's end, with the words it came from.)
         line: [
-          task.po ? `Proposed by the Assistant PO, from: “${task.po.why}”` : task.created_by === 'agent' && 'Proposed by an agent',
+          task.po ? `Proposed by the Scout, from: “${task.po.why}”` : task.created_by === 'agent' && 'Proposed by an agent',
           // (As a text that read like orders is told everywhere: the rule, never the text - here the task is the text.)
           task.po?.injection?.length && `Its words look like they try to give the agent orders (rules: ${task.po.injection.map(rule => rule.replaceAll('_', ' ')).join(', ')}); read them before you add it`,
           task.detail,
@@ -385,7 +387,7 @@ function waitsOf(tasks: BacklogTask[], onDecide: Props['onDecide'], onChange: Pr
   ]
 }
 
-/** The Assistant PO's proposals the Orchestrator rejected at Full auto, folded: still yours to add. */
+/** The Scout's proposals the Orchestrator rejected at Full auto, folded: still yours to add. */
 function Declined({ backlog, onDecide }: Pick<Props, 'backlog' | 'onDecide'>) {
   const tasks = (backlog ?? []).filter(declined)
   if (tasks.length === 0) return null
@@ -946,7 +948,7 @@ function runLine(auto: BacklogAuto | null, listed: BacklogTask[]) {
 }
 
 /**
- * The project's backlog, kept like a product owner would: what waits for your word on top, one row
+ * The project's backlog, kept like a Hive keeper would: what waits for your word on top, one row
  * each; your tasks in order (priority first, then the order you give); and "Run the backlog", which
  * starts the todo tasks - two at a time, each in a new conversation - and how the run stands.
  */
@@ -1049,7 +1051,7 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
           Run the backlog starts the todo tasks, two at a time, each in a new conversation where the Orchestrator hands it to the right
           role. Its first message is the task’s title, detail and what makes it done. A task that waits for others (⋯, Waits for) starts
           once they are done. When the work ends, the task shows “done?”: you decide whether it is done; what needs your word still waits
-          for it. With Runs by itself on, todo tasks start as there is room. A Product owner or an Assistant product owner can propose
+          for it. With Runs by itself on, todo tasks start as there is room. The Hive keeper and the Scout can propose
           tasks and changes; they wait here for your word. Going away? Press ☾ Away on a chat’s status line: that chat finishes its turn,
           then the tasks you tick are worked through, each in a copy of its own, until you are back.
         </Hint>
@@ -1057,7 +1059,7 @@ export function BacklogPage({ backlog, error, auto, away, providers, onAuto, onC
       {/* What it runs and spends stays in sight, never behind an ⓘ. */}
       <div id="backlog-rules" className="muted memory-hint">
         A task not finished gets one fix round; still not, it is stuck and the next goes on. A stop, a restart or a limit pauses the run and
-        says why. When a task’s work ends, a fast model, if you have one, writes the Assistant product owner’s view of it: one more
+        says why. When a task’s work ends, a fast model, if you have one, writes the Scout’s view of it - what of what makes it done looks met: one more
         request, and only an opinion. None is written for work that failed, was stopped, only made a plan or went over its turn’s token
         limit.
       </div>

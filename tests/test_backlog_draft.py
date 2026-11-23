@@ -1,4 +1,4 @@
-"""The To-do page's "Write it with the Product owner" (6 Nov): the user's rough note written as
+"""The To-do page's "Write it with the Hive keeper" (6 Nov): the user's rough note written as
 tasks by a model asked once with no tools - a fast one if there is one, else the Lead's - and
 nothing saved until the user adds them; the page reads who is asked, or why nobody is."""
 
@@ -157,7 +157,7 @@ def test_a_fast_model_that_does_not_answer_passes_it_to_the_leads(team, project_
 
 
 def test_the_po_draft_asks_the_model_of_the_chat_it_is_opened_from(team, project_dir):  # noqa: F811
-    """k-tarif-model: the Product owner's draft follows the same chain - the chat's model."""
+    """k-tarif-model: the Hive keeper's draft follows the same chain - the chat's model."""
     from app.model_client import ModelUnavailable
     from app.providers import looked_down
 

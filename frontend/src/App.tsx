@@ -944,7 +944,7 @@ export function App() {
             if (kind === 'discussion') useApp.getState().openDiscussion(refId)
             if (kind === 'room') useApp.getState().showRoom(refId)
             if (kind === 'memory') setView('memory')
-            // (The Assistant PO's node, opened, or its To-do →.)
+            // (The Scout's node, opened, or its To-do →.)
             if (kind === 'po' || kind === 'backlog') setView('backlog')
           }}
           onOpenList={() => useApp.getState().showReady(true)}

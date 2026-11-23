@@ -370,7 +370,7 @@ def test_docs_are_written_reviewed_and_written_again_once(make_client, project_d
     ("team", "first", "second", "ids"),
     [
         ("Research", "Researcher", "Summarizer", ("research", "summary")),
-        ("Product", "Product owner", "Spec writer", ("tasks", "spec")),
+        ("Product", "Hive keeper", "Spec writer", ("tasks", "spec")),
         ("Data", "Data analyst", "Reviewer", ("analyse", "review")),
     ],
 )
@@ -428,11 +428,11 @@ def test_a_report_recipe_whose_step_wrote_a_file_ends_at_take_in(
     client, _model = make_client(
         {
             "Lead": [
-                spawn("Product owner", "break it up", "a"),
+                spawn("Hive keeper", "break it up", "a"),
                 spawn("Spec writer", "write docs/spec.md", "b"),
                 text("all done"),
             ],
-            "Product owner": [text("three tasks")],
+            "Hive keeper": [text("three tasks")],
             "Spec writer": [step(write("docs/spec.md", "# POST /predict\n")), text("written")],
         }
     )

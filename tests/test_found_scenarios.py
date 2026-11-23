@@ -17,7 +17,7 @@ from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import OWN, PASS, begin, checked, guess, run, texts
 
-pytestmark = pytest.mark.no_po  # (the PO's own request would take a scripted step)
+pytestmark = pytest.mark.no_po  # (the Scout's own request would take a scripted step)
 
 SAVED = "Saved as this project's test command - change it in Settings"
 

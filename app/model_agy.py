@@ -219,7 +219,7 @@ BRIDGE_SECONDS = 10.0
 BRIDGE_NOT_STARTED = "agy did not start KOLONİ's bridge: running the old way"
 NOT_OFFERED = "it is not one of KOLONİ's tools given to this agent"
 # What no tool of agy's own can do: an agent offered one whose role does not run commands (a
-# Product owner, not a Lead: it does the work itself) is not run the old way. Nor, started
+# Hive keeper, not a Lead: it does the work itself) is not run the old way. Nor, started
 # read-only for its role (B-301), one that writes only with KOLONİ's.
 NEEDS_KOLONI = frozenset(BACKLOG)
 WRITES_KOLONI = frozenset({"write_file", "edit_file"})
@@ -811,7 +811,7 @@ class AgyClient(CodexNativeClient):
                         )
                     )
                 ):
-                    # (B-315: a Product owner without them searched the files for 17 minutes.)
+                    # (B-315: a Hive keeper without them searched the files for 17 minutes.)
                     raise OwnStop(
                         f"{BRIDGE_NOT_STARTED.split(':')[0]}, and this agent's work "
                         f"needs KOLONİ's own tools ({', '.join(needs)}): it is not "

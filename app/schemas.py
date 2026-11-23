@@ -233,7 +233,7 @@ class ProjectOut(Out):
     embedding_model: str
     # Whether the Observer role's model looks over each sub-agent's report.
     observe_reports: bool
-    # Whether the Assistant PO proposes follow-up tasks after a turn, and on which tier.
+    # Whether the Scout proposes follow-up tasks after a turn, and on which tier.
     suggest_tasks: bool
     suggest_tier: "Tier"
     # Folders outside the project its agents also work in (absolute paths).
@@ -663,7 +663,7 @@ class PoDropped(BaseModel):
 
 
 class PoOut(BaseModel):
-    """The Assistant PO's one request after a turn (`PoMixin`): the model asked, whether it
+    """The Scout's one request after a turn (`PoMixin`): the model asked, whether it
     was heard out and what it spent (None: not said), how many of its proposals went on the
     To-do list, and why each other was dropped - never its answer nor words the turn did not
     say. `note`: why its answer proposed nothing it could read."""
@@ -711,7 +711,7 @@ class RunOut(Out):
     by_user: bool
     # B-107: the chat's teams as this turn left them; None for a turn without, or from before.
     teams: list[ChatTeamOut] | None = None
-    # The Assistant PO's request after the turn; None where it was not asked.
+    # The Scout's request after the turn; None where it was not asked.
     po: PoOut | None = None
 
 
@@ -4798,7 +4798,7 @@ class BacklogTaskOut(Out):
     stuck: str | None = None
     # Doing, its turn waiting for the user's word now (`backlog.waiting`): the list's only.
     waiting: bool = False
-    # Proposed by the Assistant PO at a turn's end (`BacklogTask.po`); None: not its.
+    # Proposed by the Scout at a turn's end (`BacklogTask.po`); None: not its.
     po: "BacklogPoOut | None" = None
     # ☾ Away: the chat an agent proposed it in (None: the user's), and when it was made.
     proposed_in: str | None = None
@@ -4883,7 +4883,7 @@ class BacklogAutoOut(BaseModel):
     # Why no backlog task can run on the provider its chats would use, or None: one with tools
     # of its own (Run the backlog and by itself are refused while it holds).
     cannot_run: str | None
-    # Who "Write it with the Product owner" asks (`api.backlog._drafter`): its provider and
+    # Who "Write it with the Hive keeper" asks (`api.backlog._drafter`): its provider and
     # model (None: its default), or why nobody is asked now.
     drafter: BacklogDrafter | None = None
 
@@ -4940,7 +4940,7 @@ class AwayJobOut(BaseModel):
     conversation_id: str | None = None
     state: Literal["planned", "next", "working", "waits", "done", "failed", "stopped"] = "planned"
     why: str | None = None
-    # The Assistant product owner's view (slice 52b), as on its task.
+    # The Scout's view (slice 52b), as on its task.
     assessment: str | None = None
     # Its work kept for the user's Take in: the kept copies, and the files in them.
     kept: list[str] = []

@@ -22,6 +22,10 @@ export type PanelTab = (typeof TABS)[number]
 type Tab = PanelTab
 /** The Category list's last line: a new one, made and the role put in it. */
 const NEW_CATEGORY = '+new'
+/** The built-in Scout's card: its description says what an opened Scout does; this, KOLONİ's own request in its name. */
+export const SCOUT_AFTER =
+  'After each turn KOLONİ also asks a model, in the Scout’s name, for follow-up tasks (Settings › This project › Agents).'
+const isScout = (role: Role) => role.builtin && role.name.replace(/ \(built-in( \d+)?\)$/, '') === 'Scout'
 
 interface Props {
   role: Role
@@ -147,6 +151,7 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
         </h2>
         {titleOf(role.name, teams) !== role.name && <span className="muted">— shown as {titleOf(role.name, teams)}</span>}
         <span className="muted">{role.description}</span>
+        {isScout(role) && <span className="muted">{SCOUT_AFTER}</span>}
         {role.created_by_agent && <span className="tag tag-accent">Created by an agent</span>}
       </div>
       {hasSwitch(role) && !teamLead && <input type="checkbox" role="switch" className="model-agents" aria-label={`${role.name} on`} checked={role.enabled} onChange={e => patch({ enabled: e.target.checked })} />}

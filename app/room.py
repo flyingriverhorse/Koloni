@@ -16,7 +16,15 @@ from app.board import USER, as_data
 from app.db.models import Role
 from app.memory import one_line, search
 from app.providers import NotListed, allowed, find_provider, works_with_own_tools
-from app.roles import CHANGES, chat_teams, closed, effective_tools, find_agent_role, shown_name
+from app.roles import (
+    CHANGES,
+    chat_teams,
+    closed,
+    effective_tools,
+    find_agent_role,
+    shown_name,
+    was_named,
+)
 from app.team import would_run
 from app.tools import READ_TOOLS, ROOM_SCHEMAS, ToolError
 
@@ -264,7 +272,7 @@ def member_model(
     (`AgentRunner._team_lead`, K-oda-takim): past spawn_agent's door already."""
     role = lead or find_agent_role(session, " ".join(wanted.split()))
     if role is None:
-        raise ValueError(f"unknown role: {wanted}")
+        raise ValueError(f"unknown role: {wanted}{was_named(wanted)}")
     shut = None if by_user or lead else closed(role, chat_teams(session, conversation), named_roles)
     if shut:
         raise ValueError(shut)

@@ -1156,14 +1156,14 @@ def test_the_offer_holds_only_the_tasks_its_orchestrator_added_in_that_turn(
             "Lead": [
                 step(call("add_task", {"title": "earlier"}, "t0")),
                 text("noted"),
-                spawn("Product owner", "note what you found"),
+                spawn("Hive keeper", "note what you found"),
                 step(
                     call("add_task", {"title": "mine", "criteria": "it is done"}, "t1"),
                     call("offer_away", OFFER, "o1"),
                 ),
                 text("offered"),
             ],
-            "Product owner": [step(call("add_task", {"title": "sneaky"}, "c1")), text("added")],
+            "Hive keeper": [step(call("add_task", {"title": "sneaky"}, "c1")), text("added")],
         }
     )
     client.headers.update(ORIGIN)

@@ -127,12 +127,12 @@ class Project(Base):
     # what of the report its record shows (`AgentRunner._look_over`). Off until the user
     # says so: a request KOLONİ makes and the user pays.
     observe_reports: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # Whether the Assistant PO proposes at most three follow-up tasks after a watched turn that
+    # Whether the Scout proposes at most three follow-up tasks after a watched turn that
     # did something (`AgentRunner._propose_tasks`), asked of the first model of `suggest_tier`.
     # On by default (the user, 6 Nov).
     suggest_tasks: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     suggest_tier: Mapped[str] = mapped_column(String(10), default="fast", server_default="fast")
-    # The titles of the Assistant PO's proposals the user turned down, the latest: not
+    # The titles of the Scout's proposals the user turned down, the latest: not
     # proposed again (`backlog.TURNED_DOWN`).
     po_rejected: Mapped[list | None] = mapped_column(JSON, default=None)
     # How that went after the last such turn: {"run_id", "noted", "skipped", "note"} -
@@ -458,7 +458,7 @@ class Run(Base):
     # B-107: each chat team's row as this turn left it (`ChatTeamOut`), so a later change of
     # the chat's teams, or the row run again, does not redraw the turn. None: no team ran.
     teams: Mapped[list | None] = mapped_column(JSON, default=None)
-    # The Assistant PO's request after the turn (`PoMixin`), as it went (`PoOut`), for the
+    # The Scout's request after the turn (`PoMixin`), as it went (`PoOut`), for the
     # canvas; None where it was not asked.
     po: Mapped[dict | None] = mapped_column(JSON, default=None)
 
@@ -1852,10 +1852,10 @@ class BacklogTask(Base):
     # its fix round is due, "fixed": it had it, "stuck": why it is blocked}. Replaced whole
     # (`backlog.set_flow`): a JSON field changed in place is not seen.
     flow: Mapped[dict | None] = mapped_column(JSON, default=None)
-    # Proposed by the Assistant PO at a turn's end (`AgentRunner._propose_tasks`): {"chat": the
+    # Proposed by the Scout at a turn's end (`AgentRunner._propose_tasks`): {"chat": the
     # conversation, "why": the words of the turn's record it came from, "lead": "add" | "no" -
     # the Lead's word at Full auto - or None, "lead_why", "seen": the user's OK of that word}.
-    # None: not the Assistant PO's. Replaced whole, as `flow` is.
+    # None: not the Scout's. Replaced whole, as `flow` is.
     po: Mapped[dict | None] = mapped_column(JSON, default=None)
 
     @property

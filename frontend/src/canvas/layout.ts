@@ -484,10 +484,10 @@ function planAbove(own: GraphNode[], top: number, positions: Record<string, Poin
 }
 
 /**
- * The Assistant PO asked once the turn ended (`po:`): under all of the turn, in its Lead's column - its line straight down
+ * The Scout asked once the turn ended (`po:`): under all of the turn, in its Lead's column - its line straight down
  * from the Lead; returns the room it takes.
  * shortcut: another agent with no opener stands under the Lead in that column and the line runs over it; route it round if
- * such a turn is seen with a PO.
+ * such a turn is seen with a Scout.
  */
 function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {
   const po = own.find(n => n.kind === 'po')
@@ -498,8 +498,8 @@ function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>
 
 /**
  * KOLONİ's Checks node (`checks:`), under the turn's Orchestrator in its column, its line straight down from it - before the
- * Assistant PO; returns the room it takes. (In a recipe's turn it is in the frame: `checksInFrame`.)
- * shortcut: under the Orchestrator, not right of it as the sketch has it: placed as the PO is; move it once the canvas's
+ * Scout; returns the room it takes. (In a recipe's turn it is in the frame: `checksInFrame`.)
+ * shortcut: under the Orchestrator, not right of it as the sketch has it: placed as the Scout is; move it once the canvas's
  * columns make room.
  */
 function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {

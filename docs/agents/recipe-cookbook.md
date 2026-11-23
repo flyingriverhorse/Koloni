@@ -17,7 +17,7 @@ found.
 | **Infra change** | Change the infrastructure (DevOps) → at once: Security review (Security reviewer), Performance review (Performance engineer) → Review it (Reviewer, review) | reviews → change, 2 rounds | in |
 | **Docs** | Write the docs (Docs writer) → Review it (Reviewer, review) | review → write, 2 rounds | in |
 | **Research** | Find it out (Researcher) → Sum it up (Summarizer) | — | report |
-| **Spec** | Break it into tasks (Product owner) → Write the spec (Spec writer) | — | report |
+| **Spec** | Break it into tasks (Hive keeper) → Write the spec (Spec writer) | — | report |
 | **Analysis** | Analyse the data (Data analyst) → Review the analysis (Reviewer, review) | — | report |
 | **Upkeep** | Update the dependencies (Dependency keeper) → Run the tests (Tester, review) → Find and fix the cause (Debugger, only if a problem was found) | fix → tests, 2 rounds | in |
 | **Evolve** | Try it three ways (3 Coders as candidates, target score 80) | try again, 3 rounds | in |

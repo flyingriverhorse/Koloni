@@ -1149,7 +1149,7 @@ test('what an event of the open chat has the page read again, in the order it as
   expect(await on('backlog.changed')).toEqual(['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/auto?conversation_id=a', ...rest])
 })
 
-test('k-tarif-model: a draft - Or write it, the Product owner’s - names the chat the page is open on, whose model is asked too', async () => {
+test('k-tarif-model: a draft - Or write it, the Hive keeper’s - names the chat the page is open on, whose model is asked too', async () => {
   const asked: string[] = []
   vi.mocked(fetch).mockImplementation(async (url, init) => {
     asked.push(`${init?.method ?? 'GET'} ${String(url)}${init?.body ? ` ${String(init.body)}` : ''}`)

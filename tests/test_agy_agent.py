@@ -1543,17 +1543,17 @@ def test_reading_only_agy_reads_its_own_definition_of_a_kolonis_tool_with_its_ow
     assert (read["name"], read["status"]) == ("agy__view_file", "succeeded"), read
 
 
-def test_a_read_only_product_owner_on_native_agy_reads_the_backlog_through_the_wrapper(
+def test_a_read_only_hive_keeper_on_native_agy_reads_the_backlog_through_the_wrapper(
     agy_app, wait_run, project_dir
 ):
     # B-318: it was refused as "may only use tools that read"
     client, provider, default = agy_app(
         [{"koloni": "read_backlog", "args": {}, "wrapped": True}, {"say": "The list is empty."}],
         mode="native",
-        default_steps=[spawn("Product owner", "plan the work"), text("done")],
+        default_steps=[spawn("Hive keeper", "plan the work"), text("done")],
     )
     client.patch(
-        f"/api/roles/{role_id(client, 'Product owner')}", json={"provider_id": provider["id"]}
+        f"/api/roles/{role_id(client, 'Hive keeper')}", json={"provider_id": provider["id"]}
     )
     cid, run_id = start(client, project_dir, None, mode="full_auto")
     snap = wait_run(client, cid, run_id)

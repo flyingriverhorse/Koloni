@@ -116,12 +116,12 @@ def test_a_role_the_lead_makes_joins_no_team_and_is_opened_that_turn_only_withou
     from tests.test_spawn import new_role
 
     client, _default, _fast = team(
-        [new_role("Scout", ["read_file"]), step(spawn("Scout")), text("scouted"), text("done")]
+        [new_role("Forager", ["read_file"]), step(spawn("Forager")), text("scouted"), text("done")]
     )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
-    assert [a["role_name"] for a in snap["agents"]] == ["Lead", "Scout"]
-    scout = next(r for r in client.get("/api/roles").json() if r["name"] == "Scout")
+    assert [a["role_name"] for a in snap["agents"]] == ["Lead", "Forager"]
+    scout = next(r for r in client.get("/api/roles").json() if r["name"] == "Forager")
     assert scout["teams"] == []
 
 
