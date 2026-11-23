@@ -22,8 +22,8 @@ checked again:
    ([Not this turn's](#not-this-turns-flaky-tests-and-failures-from-before)).
 2. **What it wrote besides code** - documents, diagrams, data, slides
    ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and a changed
-   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width
-   ([Pages](#pages)).
+   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width - its
+   console, its width and its accessibility ([Pages](#pages)).
 3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)); long
    documents are read once against your request
    ([Documents read against your request](#documents-read-against-your-request)).
@@ -451,6 +451,27 @@ kept for you in the project's `.koloni/tmp/checked/<turn>/` - never shown to a m
 the Orchestrator of a page is only these lines, as data. **Pages** is switched off with the other
 kinds.
 
+At each width the page, as it loaded, is also read for accessibility - by KOLONİ, in the page, with
+no model and nothing installed:
+
+- an image with no text for it: "index.html: 2 images without alt text at 375, 768, 1280 px -
+  logo.png, hero.jpg". `alt=""` marks a picture as decoration, and one hidden from screen readers
+  (`aria-hidden`, `role="presentation"`) is not counted;
+- a button, link or field with no name - no words of its own, `aria-label`, `aria-labelledby`,
+  `title`, label, placeholder, a button's value or an image's `alt` in it: "1 buttons, links or
+  fields with no name at 375, 768, 1280 px - input[type=email]#email";
+- text below the contrast WCAG 2 asks - 4.5:1, or 3:1 for large text (24 px, or 18.66 px bold) -
+  its colour over the backgrounds under it, up to the first opaque one (the page's white where
+  there is none), any CSS colour: "3 texts below the contrast they need at 375 px - “Muted words”
+  2.84:1 (needs 4.5:1)". Each colour, background, size and weight is named once, the lowest first.
+
+These are failed and go back as a fix round, the page's words in them as data. Text over an image
+or a gradient is not checked, and said ("contrast not checked … on 2 texts over an image or a
+gradient"). A page's first 2,000 elements are read, for 3 seconds at most a width; past that:
+"accessibility checked only in part". Hidden and disabled elements are left out. A text's own
+opacity or shadow, a picture placed behind it (not a background), and a field's typed value are not
+looked at.
+
 ## A test for the change
 
 A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
@@ -796,6 +817,8 @@ the Orchestrator's window, whose record holds the runs.
 | – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
 | ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
 | ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |
+| ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name · 3 texts below the contrast they need … | The page is hard to see or use with a screen reader: sent back as a fix round. |
+| – `page`: contrast not checked … over an image or a gradient · accessibility checked only in part · accessibility not read | What the accessibility read could not judge: said, not sent back. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | ✓ Tried `python 'bin/tool.py' --help`: exit 0, 12 lines | A command-line tool the turn changed answered its `--help`. |
 | ✗ Tried `line`: exit 2 · Tried `line`: it did not end in 30 s | Its `--help` failed or ran on: sent back as a fix round. |

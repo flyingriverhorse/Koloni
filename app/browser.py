@@ -504,6 +504,157 @@ _WIDE_JS = _tag("wide") + (
     "document.documentElement.scrollWidth > document.documentElement.clientWidth + 1"
 )
 
+# Pages accessibility (0.1.7): what the page as it loaded says of itself, read in KOLONİ's own
+# world - its first MOST_A11Y elements, for A11Y_MS at most: each image shown with no text for
+# it (no alt, aria-label, aria-labelledby nor title; alt="" is a decorative one, aria-hidden or
+# role none one nobody is told of), each button, link or field shown with no name (its words,
+# aria-label, aria-labelledby, title, its label, a placeholder, a button's value, an image's alt
+# in it), and each text shown: its colour, the backgrounds under it up to the first opaque one
+# (`under`: null - over an image or a gradient, or more than A11Y_LAYERS see-through ones), its
+# size and weight. The colours as numbers, [r, g, b, alpha] - any CSS colour, through a canvas
+# (Tailwind's are oklch). `proof_kinds` judges them. At most A11Y_LISTED images and controls
+# named (all counted), A11Y_STYLES texts of a colour, background, size and weight (each counted).
+# shortcut: a text's own opacity, its shadow, a picture under it set apart (an <img> behind it,
+# not a background) and the text of a field's value are not looked at.
+MOST_A11Y = 2000
+A11Y_MS = 3000
+A11Y_LISTED = 20
+A11Y_STYLES = 500
+A11Y_LAYERS = 16
+_A11Y = r"""(o) => {
+  const out = {cut: false, images: [], imagesN: 0, controls: [], controlsN: 0, texts: []};
+  const body = document.body;
+  if (!body) return out;
+  const until = performance.now() + o.ms;
+  const pen = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
+  const colours = new Map(), under = new Map(), styles = new Map();
+  const rgba = (c) => {
+    let got = colours.get(c);
+    if (got) return got;
+    const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*(?:[,\/]\s*([\d.]+)(%?))?\s*\)$/
+      .exec(c);
+    if (m) {
+      got = [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4] / (m[5] ? 100 : 1)];
+    } else {
+      pen.clearRect(0, 0, 1, 1);
+      pen.fillStyle = 'rgba(0, 0, 0, 0)';
+      pen.fillStyle = c;
+      pen.fillRect(0, 0, 1, 1);
+      const d = pen.getImageData(0, 0, 1, 1).data;
+      got = [d[0], d[1], d[2], d[3] / 255];
+    }
+    colours.set(c, got);
+    return got;
+  };
+  const words = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const seen = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1 &&
+      (!el.checkVisibility || el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true}));
+  };
+  const told = (el) => !el.closest('[aria-hidden="true"]');
+  const by = (el) => (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
+    .map((id) => document.getElementById(id)).filter(Boolean).map((one) => one.textContent);
+  const content = (el) => [el.textContent, ...[...el.querySelectorAll('img[alt], [aria-label]')]
+    .slice(0, 20).map((one) => one.getAttribute('alt') || one.getAttribute('aria-label'))];
+  const named = (el) => {
+    const input = el.tagName === 'INPUT' ? el.type : '';
+    return words([
+      el.getAttribute('aria-label'), el.getAttribute('title'), el.getAttribute('placeholder'),
+      ...by(el), ...(el.labels ? [...el.labels].map((one) => one.textContent) : []),
+      /^(submit|reset)$/.test(input) ? el.value || input : input === 'button' ? el.value : '',
+      input === 'image' ? el.getAttribute('alt') : '',
+      ...(input || /^(SELECT|TEXTAREA)$/.test(el.tagName) ? [] : content(el)),
+    ].join(' '));
+  };
+  const called = (el) => {
+    const tag = el.tagName.toLowerCase();
+    const how = tag === 'input' ? '[type=' + el.type + ']'
+      : tag === 'a' ? '[href=' + el.getAttribute('href') + ']' : '';
+    return (tag + how + (el.id ? '#' + el.id : '')).slice(0, 80);
+  };
+  const below = (el) => {
+    const path = [];
+    let got = {layers: [], image: false};
+    for (let at = el; at; at = at.parentElement) {
+      const known = under.get(at);
+      if (known) { got = known; break; }
+      const s = getComputedStyle(at), c = rgba(s.backgroundColor);
+      if (s.backgroundImage !== 'none') {
+        got = {layers: [], image: true};
+        under.set(at, got);
+        break;
+      }
+      if (c[3] >= 1) { got = {layers: [c], image: false}; under.set(at, got); break; }
+      path.push([at, c]);
+    }
+    for (let i = path.length - 1; i >= 0; i--) {
+      const [at, c] = path[i];
+      if (c[3] > 0 && !got.image) {
+        got = got.layers.length < o.layers ? {layers: [c, ...got.layers], image: false}
+          : {layers: [], image: true};
+      }
+      under.set(at, got);
+    }
+    return got;
+  };
+  const skip = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'OPTION', 'OPTGROUP']);
+  const controls = 'button, a[href], input:not([type=hidden]), select, textarea, summary, ' +
+    '[role=button], [role=link]';
+  const walk = document.createTreeWalker(body, NodeFilter.SHOW_ELEMENT);
+  let n = 0;
+  for (let el = body; el; el = walk.nextNode()) {
+    if (++n > o.most || performance.now() > until) { out.cut = true; break; }
+    if (skip.has(el.tagName) || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
+    if (el.tagName === 'IMG' && !el.hasAttribute('alt') && told(el) && seen(el) &&
+        !/^(presentation|none)$/.test(el.getAttribute('role') || '') &&
+        !words([el.getAttribute('aria-label'), el.getAttribute('title'), ...by(el)].join(' '))) {
+      out.imagesN++;
+      if (out.images.length < o.listed) {
+        const src = (el.getAttribute('src') || '').split(/[?#]/)[0].split('/').pop();
+        out.images.push(src.slice(0, 80) || 'img');
+      }
+    }
+    if (el.matches(controls) && !el.matches(':disabled') && told(el) && seen(el) && !named(el)) {
+      out.controlsN++;
+      if (out.controls.length < o.listed) out.controls.push(called(el));
+    }
+    let text = '';
+    for (const node of el.childNodes) if (node.nodeType === 3) text += node.data;
+    text = words(text);
+    if (!text || el.closest(':disabled, [aria-disabled="true"]') || !seen(el)) continue;
+    const s = getComputedStyle(el), fg = rgba(s.color);
+    if (fg[3] === 0) continue;
+    const bg = below(el), px = parseFloat(s.fontSize) || 0;
+    const weight = parseInt(s.fontWeight, 10) || 400;
+    const key = JSON.stringify([fg, bg.layers, bg.image, px, weight]);
+    let one = styles.get(key);
+    if (!one) {
+      if (styles.size >= o.styles) { out.cut = true; continue; }
+      one = {words: text.slice(0, 80), color: fg, under: bg.image ? null : bg.layers, px,
+        weight, n: 0};
+      styles.set(key, one);
+      out.texts.push(one);
+    }
+    one.n++;
+  }
+  return out;
+}"""
+
+
+def _a11y_js() -> str:
+    """`_A11Y` with its bounds as they are now (a test sets them; the stand-in reads them from
+    the first line)."""
+    bounds = {
+        "most": MOST_A11Y,
+        "ms": A11Y_MS,
+        "listed": A11Y_LISTED,
+        "styles": A11Y_STYLES,
+        "layers": A11Y_LAYERS,
+    }
+    return _tag("a11y", bounds) + f"({_A11Y})({json.dumps(bounds)})"
+
+
 # K-tarayici-disari A2: on a site, what waits for the user's yes at every level - a form sent,
 # a password typed, a click on words like these (case aside).
 # shortcut: English and Turkish words only; a button in another language is not stopped (its
@@ -1193,6 +1344,12 @@ class Browser:
         """S5b: whether the page is wider than its window - it scrolls sideways - looked at in
         KOLONİ's own world (`_world`): the page's scripts cannot change what it calls."""
         return bool(await self._world(_WIDE_JS))
+
+    async def access(self) -> dict | None:
+        """Pages accessibility (0.1.7): what the page as it loaded says of its images, controls
+        and texts (`_A11Y`), read in KOLONİ's own world (`_world`); None where the read threw."""
+        found = await self._world(_a11y_js())
+        return found if isinstance(found, dict) else None
 
     def console(self) -> str:
         """The console's messages and the page's errors since the last call."""

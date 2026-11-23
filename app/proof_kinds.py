@@ -17,6 +17,7 @@ import base64
 import csv
 import io
 import json
+import math
 import posixpath
 import re
 import tomllib
@@ -1093,6 +1094,27 @@ OUTSIDE_ERRORS = (
     "machine, which KOLONİ's browser never opens: {first}"
 )
 WIDE = "{path}: wider than the screen at {widths} px"
+# Pages accessibility (0.1.7): the page as it loaded at each width, read by KOLONİ's browser
+# (`Browser.access`) - an image with no text for it, a button, link or field with no name, a
+# text below WCAG 2's contrast for it: 4.5:1, 3:1 for large text (LARGE_PX, or LARGE_BOLD_PX at
+# BOLD) - its colour over the backgrounds under it up to the first opaque one (none: the white
+# of the page's canvas). Failed, as a console error is; text over an image or a gradient is not
+# checked, and said. Its words, an image's file name, a control's tag and id are the page's own:
+# each cut to MOST_SNIPPET, and sent back as data (`KINDS_TO_FIX`).
+NO_ALT = "{path}: {n} images without alt text at {widths} px - {named}"
+NO_NAME = "{path}: {n} buttons, links or fields with no name at {widths} px - {named}"
+LOW_CONTRAST = "{path}: {n} texts below the contrast they need at {widths} px - {named}"
+OVER_IMAGE = (
+    "{path}: contrast not checked at {widths} px on {n} texts over an image or a gradient - {named}"
+)
+A11Y_CUT = (
+    "{path}: accessibility checked only in part at {widths} px - at most {most} elements and "
+    "{s} s are read"
+)
+A11Y_UNREAD = "{path}: accessibility not read at {widths} px"
+NEEDS, NEEDS_LARGE = 4.5, 3.0
+LARGE_PX, LARGE_BOLD_PX, BOLD = 24.0, 18.66, 700
+MOST_SNIPPET = 40
 OUTSIDE_LOADS = (
     "{path}: checked without what it loads from outside this machine, which "
     "KOLONİ's browser never opens: {named}"
@@ -1115,8 +1137,9 @@ async def check_pages(
     """The turn's pages in KOLONİ's own browser (`start`: one started, fenced to this machine's
     previews and the project's files as the agents' is; None: no Chrome or Edge here) - each
     `.html` page as a file of the project, and the chat's `preview` where a component or a
-    style changed - at WIDTHS: console errors and a page wider than the screen are failed; a
-    page that loads from outside this machine (refused) is a note. At most MOST_PAGES pages,
+    style changed - at WIDTHS: console errors, a page wider than the screen and what its
+    accessibility read finds (`_access_rows`) are failed; a page that loads from outside this
+    machine (refused) is a note. At most MOST_PAGES pages,
     PAGES_SECONDS in all. Screenshots go to `shots` (the project's scratch) for the user only;
     nothing of a page reaches a model but these lines."""
     ws = _workspace(root)
@@ -1169,7 +1192,7 @@ async def _look(
     screenshot. Errors where it loads a script from outside this machine are a note: KOLONİ's
     browser never goes out, and what fails after such a load may be its doing."""
     errors: dict[int, list[str]] = {}
-    outside, wide, away = False, [], set()
+    outside, wide, away, read = False, [], set(), {}
     try:
         url = browser.allowed(at, ws, one.closed)
         for width in WIDTHS:
@@ -1185,6 +1208,7 @@ async def _look(
                 errors[width] = said
             if await one.wider():
                 wide.append(width)
+            read[width] = await _accessed(one)
             data, _listed = await one.screenshot()
             shots.mkdir(parents=True, exist_ok=True)
             named = slug(re.sub(r"[./:]+", "-", name))[:60] or "page"
@@ -1209,7 +1233,9 @@ async def _look(
     ]
     if wide:
         rows.append(row(UI, "failed", WIDE.format(path=name, widths=_widths(wide))))
-    rows = rows or [row(UI, "passed", CLEAN.format(path=name, widths=_widths(WIDTHS)))]
+    failed, noted = _access_rows(name, read)
+    rows = [*rows, *failed] or [row(UI, "passed", CLEAN.format(path=name, widths=_widths(WIDTHS)))]
+    rows += noted
     if away:  # (what it was checked without)
         rows.append(
             row(
@@ -1255,3 +1281,157 @@ def _by_count(errors: dict[int, list[str]]) -> list[tuple[list[str], list[int]]]
     for width, said in errors.items():
         found.setdefault(len(said), (said, []))[1].append(width)
     return list(found.values())
+
+
+# --- pages accessibility (0.1.7) ----------------------------------------------------------------
+
+# What one rule found at a width: how many, the first named, and of how many names those are.
+Found = tuple[int, tuple[str, ...], int]
+_FAILED = (("alt", NO_ALT), ("name", NO_NAME), ("contrast", LOW_CONTRAST))
+_NOTED = (("over", OVER_IMAGE), ("cut", A11Y_CUT), ("unread", A11Y_UNREAD))
+
+
+async def _accessed(one: "browser.Browser") -> dict | None:
+    """What the page says of its images, controls and texts (`Browser.access`); None where the
+    read threw or was not answered (a script of the page's that keeps it busy) - said; the page's
+    other lines stand."""
+    try:
+        return await one.access()
+    except browser.BrowserError:
+        return None
+
+
+def _snippet(text: object) -> str:
+    said = " ".join(str(text).split())
+    return said if len(said) <= MOST_SNIPPET else said[: MOST_SNIPPET - 1] + "…"
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        return None
+    return float(value)
+
+
+def _rgba(value: object) -> tuple[float, float, float, float] | None:
+    """A colour as the page's read gives it, [r, g, b, alpha]; None for anything else."""
+    if not isinstance(value, list) or len(value) != 4:
+        return None
+    parts = [_number(one) for one in value]
+    if None in parts:
+        return None
+    r, g, b, a = (
+        min(max(one or 0.0, 0.0), top) for one, top in zip(parts, (255, 255, 255, 1), strict=True)
+    )
+    return r, g, b, a
+
+
+def _luminance(rgb: Iterable[float]) -> float:
+    """WCAG 2's relative luminance of an sRGB colour."""
+    r, g, b = (
+        c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+        for c in (one / 255 for one in rgb)
+    )
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(colour: object, under: object) -> float | None:
+    """WCAG 2's contrast of a text of `colour` over the backgrounds `under` it - the nearest
+    first, each laid over the next; under them all the white of the page's canvas - None for
+    what is no colour."""
+    fg = _rgba(colour)
+    layers = []
+    for one in under[: browser.A11Y_LAYERS + 1] if isinstance(under, list) else [None]:
+        if (layer := _rgba(one)) is None:
+            return None
+        layers.append(layer)
+    if fg is None:
+        return None
+    bg = (255.0, 255.0, 255.0)
+    for *rgb, a in reversed(layers):
+        bg = tuple(c * a + below * (1 - a) for c, below in zip(rgb, bg, strict=True))
+    shown = [c * fg[3] + below * (1 - fg[3]) for c, below in zip(fg[:3], bg, strict=True)]
+    light, dark = sorted((_luminance(shown), _luminance(bg)), reverse=True)
+    return (light + 0.05) / (dark + 0.05)
+
+
+def _needs(text: dict) -> float:
+    """The contrast a text needs: 3:1 where it is large - LARGE_PX, or LARGE_BOLD_PX in BOLD."""
+    px, weight = _number(text.get("px")) or 0.0, _number(text.get("weight")) or 400.0
+    return NEEDS_LARGE if px >= LARGE_PX or px >= LARGE_BOLD_PX and weight >= BOLD else NEEDS
+
+
+def _texts(texts: object) -> dict[str, Found]:
+    """The page's texts - each of a colour, background, size and weight once, with how many
+    there are - below the contrast they need (the lowest first), and those over an image."""
+    low: list[tuple[float, str, int]] = []
+    over: list[tuple[str, int]] = []
+    for one in texts[: browser.A11Y_STYLES] if isinstance(texts, list) else []:
+        if not isinstance(one, dict):
+            continue
+        n, words = max(int(_number(one.get("n")) or 1), 1), _snippet(one.get("words", ""))
+        if one.get("under") is None:
+            over.append((f"“{words}”", n))
+        elif (ratio := contrast(one.get("color"), one.get("under"))) is not None and ratio < (
+            need := _needs(one)
+        ):
+            low.append(
+                (ratio, f"“{words}” {math.floor(ratio * 100) / 100:.2f}:1 (needs {need:g}:1)", n)
+            )
+    low.sort(key=lambda one: one[0])
+    found: dict[str, Found] = {}
+    if low:
+        found["contrast"] = (sum(n for *_, n in low), tuple(said for _r, said, _n in low), len(low))
+    if over:
+        found["over"] = (sum(n for _said, n in over), tuple(said for said, _n in over), len(over))
+    return found
+
+
+def _findings(read: dict | None) -> dict[str, Found]:
+    """One width's read (`Browser.access`) as what each rule found."""
+    if read is None:
+        return {"unread": (1, (), 0)}
+    found: dict[str, Found] = {}
+    for kind, listed, counted in (("alt", "images", "imagesN"), ("name", "controls", "controlsN")):
+        named = read.get(listed)
+        named = (
+            tuple(_snippet(one) for one in named[: browser.A11Y_LISTED] if isinstance(one, str))
+            if isinstance(named, list)
+            else ()
+        )
+        n = max(int(_number(read.get(counted)) or 0), len(named))
+        if n:
+            found[kind] = (n, named, n)
+    found.update(_texts(read.get("texts")))
+    if read.get("cut") is True:
+        found["cut"] = (1, (), 0)
+    return found
+
+
+def _access_rows(name: str, read: dict[int, dict | None]) -> tuple[list[Row], list[Row]]:
+    """The page's accessibility at each width as lines - failed ones, and notes - a width with
+    the same findings as another said in one line with it."""
+    found = {width: _findings(one) for width, one in read.items()}
+    lines: tuple[list[Row], list[Row]] = ([], [])
+    for kinds, said, state in ((_FAILED, lines[0], "failed"), (_NOTED, lines[1], "note")):
+        for kind, text in kinds:
+            together: dict[Found, list[int]] = {}
+            for width, each in found.items():
+                if kind in each:
+                    together.setdefault(each[kind], []).append(width)
+            for (n, named, of), widths in together.items():
+                more = f" +{of - MOST_NAMED} more" if of > MOST_NAMED else ""
+                said.append(
+                    row(
+                        UI,
+                        state,
+                        text.format(
+                            path=name,
+                            n=n,
+                            widths=_widths(widths),
+                            named=", ".join(named[:MOST_NAMED]) + more,
+                            most=browser.MOST_A11Y,
+                            s=f"{browser.A11Y_MS / 1000:g}",
+                        ),
+                    )
+                )
+    return lines
