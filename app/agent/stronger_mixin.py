@@ -102,7 +102,11 @@ TIER_NAMES = {"fast": "Fast", "balanced": "Balanced", "strongest": "Strongest"}
 RECIPE_FAILING = "the recipe's tests still fail after its fix rounds"
 TESTS_FAILING = "its tests still fail after its fix rounds"
 NOT_TAKEN_TOLD = ("\n\nNot taken in: {why}. The work stays in its copy, with no card at any "
-                  "level: KOLONİ checks it again at your answer's end, and the user decides.")
+                  "level: change it and KOLONİ checks it again at your answer's end; else the "
+                  "user decides.")
+# k-sira-016: a fix round of KOLONİ's checks at Ready for you, in the recipe - its roles fix it.
+FIX_IN_RECIPE = ("\n\nKOLONİ's checks send the recipe back, as Ask for changes would: {back} Its "
+                 "end runs them again before Ready for you.")
 NOT_TAKEN_KEPT = "not taken in: {why}"
 NOT_TAKEN = "Not taken in: {what} after rounds by {by}"
 NOT_TAKEN_PLAIN = "Not taken in: {why}"
@@ -183,9 +187,13 @@ class StrongerMixin:
         if held.left_failing and self._works_in(ctx) is not None:
             # (decision 18: failing work in a copy of the turn's own is never taken in - kept)
             self._held_back.setdefault(ctx.run_id, TESTS_FAILING)
-        elif not held.left_failing and held.handed and self._held_back.pop(ctx.run_id, None):
+        elif not held.left_failing and held.handed:
             held.passed_by_stronger = True  # (its recipe's row still says findings were left)
-            await self._ready_at_end(ctx)  # (it passes now: Ready for you, as it would have)
+            if self._held_back.pop(ctx.run_id, None):  # (held before, at the Lead's end: never
+                # inside Ready for you, which asks nothing while held - it asks now, these
+                # checks standing for it, k-sira-016)
+                self._mark_ready(ctx, held)
+                await self._ready_at_end(ctx)
         return None
 
     async def _hand_up(self: "AgentRunner", ctx: Ctx, held: "Proof") -> None:
@@ -560,6 +568,30 @@ class StrongerMixin:
     @staticmethod
     def _attempts(held: "Proof") -> str:
         return injection.noted("\n\n".join(held.attempts[-5:])[-4000:] or "(none kept)", "agent")
+
+    async def _not_yet_ready(self: "AgentRunner", ctx: Ctx, rows: list) -> str | None:
+        """k-sira-016: why Ready for you is not asked now - what the Lead is told instead; None:
+        it is. KOLONİ's end checks run first, on the work where it is (the recipe's copy): a fix
+        round goes to the Lead (its words, no card); work they left failing after the rounds
+        and the stronger models is never taken in nor carded (decision 18, S11). Asked: its
+        Checked section is said first, so the card comes after it. A fix round - one
+        `_round_left` granted, counted there alone (Fix rounds or until it passes; none once
+        `held.halted`) - sends the rows back to work, as a wordless Ask for changes: at their end
+        no role is opened, and the Lead may not write (delegates) - the recipe's own roles fix
+        it, in its copy."""
+        rounds = was.rounds if (was := self._proofs.get(ctx.run_id)) else 0
+        if (said := await self._proof_left(ctx)) is not None:
+            fixing = (was := self._proofs.get(ctx.run_id)) is not None and was.rounds > rounds
+            back = self._rows_to(ctx, "Ask for changes", "") if fixing else ""
+            return f"\n\n{said}" + (FIX_IN_RECIPE.format(back=back) if back else "")
+        if was := self._proofs.get(ctx.run_id):  # (not again at the Lead's end, `_proof_left`)
+            self._mark_ready(ctx, was)
+        if held := self._recipe_held(ctx, rows) or self._held_back.get(ctx.run_id):
+            self._held_back[ctx.run_id] = held
+            return NOT_TAKEN_TOLD.format(why=held)
+        if ctx.run_id in self._proofs:
+            self._say_checked(ctx.cid, ctx.run_id, ctx.root is not None)
+        return None
 
     def _recipe_held(self: "AgentRunner", ctx: Ctx, rows: list) -> str | None:
         """Why a recipe's work is held back at Ready for you (decision 18, CL-305): its test-to-

@@ -45,9 +45,10 @@ def test_a_recipe_with_tests_off_and_docs_on_runs_no_test_and_checks_its_docs(
         make_client, wait_run, project_dir):
     executor = ScriptedExecutor([])  # (a test run would start one: none may)
     client, model = make_client({
-        "Lead": [spawn("Docs writer", "write the guide", "d1"), text("done"),
-                 text("left it")],
-        "Docs writer": writer(),
+        # (k-sira-016: the round, at Ready for you, sends the recipe back - its Docs writer again)
+        "Lead": [spawn("Docs writer", "write the guide", "d1"),
+                 spawn("Docs writer", "fix the link", "d2"), text("done"), text("left it")],
+        "Docs writer": writer(), "Docs writer 2": [text("left the link as it is")],
     }, executor=executor)
     recipe = docs_recipe(client, fix_rounds=1)
     assert recipe["graph"]["checks"]["docs"] is True  # (kept with the recipe)

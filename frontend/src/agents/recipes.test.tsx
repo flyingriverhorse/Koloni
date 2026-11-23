@@ -3,9 +3,12 @@ import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { Provider, Recipe, RecipeDraft, RecipeGraph, Recipes, Role, RoleModel, Team } from '../api/types'
 import {
+  addEnd,
   addGroup,
   addRoom,
   addStep,
+  boardPlaces,
+  checkedEnds,
   CHECKS as CHECKS_STEP,
   changeStep,
   checksLine,
@@ -964,4 +967,66 @@ test('S5c: a ready recipe’s Checks step is shown, not changed', () => {
   expect(within(panel()).getByRole('radio', { name: 'Set for this recipe' })).toBeChecked()
   expect(within(panel()).getByRole('checkbox', { name: /^Tests/ })).toBeDisabled()
   expect(part(/^Checks 🔒/)).toHaveTextContent('Tests · Review · the project’s rounds')
+})
+
+// --- k-sira-016: KOLONİ's checks before Ready for you - the Checks step between the last step(s) and the end(s) ----------------------
+
+const above = (graph: RecipeGraph, top: string, below: string) => {
+  const places = boardPlaces(graph)
+  return places[top].y + places[top].h <= places[below].y
+}
+
+test('k-sira-016: a new recipe draws its Checks step between its step and its end', () => {
+  let [graph, first] = addStep(emptyGraph(), START)
+  let end
+  ;[graph, end] = addEnd(graph, first)
+  expect(above(graph, first, CHECKS_STEP) && above(graph, CHECKS_STEP, end)).toBe(true)
+  expect(lastParts(graph)).toEqual([first])
+  expect(checkedEnds(graph)).toEqual([end])
+})
+
+test('k-sira-016: a step added before the end - the Checks step moves with the end, after the new step', () => {
+  let [graph, first] = addStep(emptyGraph(), START)
+  let second, end
+  ;[graph, second] = addStep(graph, first)
+  ;[graph, end] = addEnd(graph, second)
+  expect(lastParts(graph)).toEqual([second])
+  expect(above(graph, first, second) && above(graph, second, CHECKS_STEP) && above(graph, CHECKS_STEP, end)).toBe(true)
+})
+
+test('k-sira-016: several ends - one Checks step, before them all, an arrow to each end joined', () => {
+  let [graph, a] = addStep(emptyGraph(), START)
+  let b, inEnd, tell
+  ;[graph, b] = addStep(graph, START)
+  ;[graph, inEnd] = addEnd(graph, a)
+  ;[graph, tell] = addEnd(graph, b)
+  expect(new Set(lastParts(graph))).toEqual(new Set([a, b]))
+  expect(new Set(checkedEnds(graph))).toEqual(new Set([inEnd, tell]))
+  for (const end of [inEnd, tell]) expect(above(graph, CHECKS_STEP, end)).toBe(true)
+  for (const step of [a, b]) expect(above(graph, step, CHECKS_STEP)).toBe(true)
+})
+
+test('k-sira-016: an end dragged where the user wants it keeps its place - the Checks step goes over it, nothing stored moved', () => {
+  let [graph, first] = addStep(emptyGraph(), START)
+  let end
+  ;[graph, end] = addEnd(graph, first)
+  graph = { ...graph, ends: graph.ends.map(one => ({ ...one, pos: { x: 400, y: 600 } })) }
+  const places = boardPlaces(graph)
+  expect(places[end]).toMatchObject({ x: 400, y: 600 })
+  expect(places[CHECKS_STEP].y + places[CHECKS_STEP].h).toBeLessThanOrEqual(600)
+})
+
+test('k-sira-016: a saved recipe is drawn the new way - its arrow to the end goes through the Checks step', async () => {
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(50)
+  onTestFinished(() => {
+    vi.restoreAllMocks()
+  })
+  draw(actions(), { ...list, recipes: [{ ...FEATURE, id: 'mine', ready: false }] })
+  const end = FEATURE.graph.ends[0].id
+  await waitFor(() => expect(document.querySelector(`.react-flow__edge[data-id="checks>${end}"]`)).not.toBeNull())
+  expect(document.querySelector('.react-flow__edge[data-id="checks-g"]')).not.toBeNull()
+  // (the saved arrow g → end is drawn through the Checks step, not as its own line)
+  expect(document.querySelector('.react-flow__edge[data-id="a2"]')).toBeNull()
+  expect(document.querySelector('.react-flow__edge[data-id="a1"]')).not.toBeNull()
 })

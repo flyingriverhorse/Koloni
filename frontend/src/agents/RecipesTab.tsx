@@ -41,7 +41,8 @@ import {
   roundsChosen,
   changeEnd,
   checksLine,
-  checksPlace,
+  boardPlaces,
+  checkedEnds,
   changeStep,
   connect,
   disconnect,
@@ -50,7 +51,6 @@ import {
   goesOn,
   kindOf,
   lastParts,
-  layout,
   loopBack,
   loopCurve,
   loopOf,
@@ -136,8 +136,11 @@ interface NodeData extends Record<string, unknown> {
   onPick: () => void
 }
 
-/** What no arrow leaves: an end, and the Checks step after it (S5c). */
-const LAST = new Set<NodeData['kind']>(['end', 'checks'])
+/** What no arrow leaves: an end. (The Checks step's way out to the end(s) is the board's own, never dragged from.) */
+const LAST = new Set<NodeData['kind']>(['end'])
+/** A group that goes on once its first branch is done says so on its way out - into the Checks step too, where it ends the recipe. */
+const firstDone = (graph: RecipeGraph, from: string) => graph.groups.some(group => group.id === from && group.wait === 'first')
+const FIRST_DONE = { label: 'first done', labelStyle: { fill: 'var(--text)', fontSize: 'var(--text-meta)' } }
 
 /** A part of the drawing: its name, who does it, and what the server said keeps it from running. One button to choose it. */
 function RecipeNode({ id, data, width, height }: NodeProps<Node<NodeData>>) {
@@ -151,7 +154,7 @@ function RecipeNode({ id, data, width, height }: NodeProps<Node<NodeData>>) {
       {/* An arrow is drawn from where it leaves only (B-85: one drawn from the right side's target went the wrong way); the
           loop's source over its target there, to be taken. */}
       {kind !== 'start' && <Handle type="target" position={Position.Top} id="in" isConnectableStart={false} />}
-      {!LAST.has(kind) && <Handle type="source" position={Position.Bottom} id="out" />}
+      {!LAST.has(kind) && <Handle type="source" position={Position.Bottom} id="out" isConnectable={kind !== 'checks'} />}
       {/* B-374: where its branches fork, under its name, and join, at its way out; the board's own, never dragged from. */}
       {kind === 'group' && (
         <>
@@ -218,9 +221,8 @@ interface BoardProps {
 function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoose, onChange }: BoardProps) {
   const { graph } = draft
   const flow = useReactFlow()
-  const laid = layout(graph)
-  // S5c: the Checks step, beside where the recipe ends - drawn by the board, never dragged.
-  const places = { ...laid, [CHECKS]: checksPlace(graph, laid) }
+  // S5c, k-sira-016: the Checks step between the last step(s) and the end(s) - drawn by the board, never dragged.
+  const places = boardPlaces(graph)
   // (A group comes before its steps: React Flow draws a child inside a parent it already has.)
   const order = [START, ...graph.steps.filter(step => !step.group).map(step => step.id), ...graph.groups.map(group => group.id), ...graph.ends.map(end => end.id), CHECKS]
   const width = useStore(state => state.width)
@@ -255,7 +257,7 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
     handle !== 'loop-out' ? connect(graph, from, to) : loopTargets(graph, from).includes(to) ? setLoop(graph, from, to) : graph
   const data = (id: string): NodeData => {
     if (id === CHECKS)
-      return { kind: 'checks', title: 'Checks 🔒', sub: `always the last step · ${checksLine(graph.checks)}`, inGroup: false, chosen: chosen === CHECKS, onPick: () => onChoose(CHECKS) }
+      return { kind: 'checks', title: 'Checks 🔒', sub: `always before the end · ${checksLine(graph.checks)}`, inGroup: false, chosen: chosen === CHECKS, onPick: () => onChoose(CHECKS) }
     const kind = kindOf(graph, id) ?? 'step'
     const step = graph.steps.find(one => one.id === id)
     const [chip, sub] = step ? whoLine(step.who, teams) : [undefined, undefined]
@@ -279,9 +281,11 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
     ...order.map(id => ({ id, ...sized(id) })),
     ...graph.steps.filter(step => step.group && places[step.group]).map(step => ({ id: step.id, parentId: step.group as string, extent: 'parent' as const, ...sized(step.id) })),
   ].map(node => ({ ...node, type: 'recipe', data: data(node.id), draggable: !readOnly && node.id !== START && node.id !== CHECKS, selectable: false }))
+  const ends = new Set(graph.ends.map(end => end.id))
   const edges: Edge[] = [
     // (By place in the list: two arrows alike, which the server refuses, are still two edges.)
-    ...graph.arrows.map((arrow, at) => ({
+    // (An arrow into an end is drawn through the Checks step: last step → Checks → end.)
+    ...graph.arrows.flatMap((arrow, at) => (ends.has(arrow.to) ? [] : [{
       id: `a${at}`,
       source: arrow.from,
       target: arrow.to,
@@ -289,8 +293,8 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
       targetHandle: 'in',
       markerEnd: { type: MarkerType.ArrowClosed },
       // (A group that goes on once its first branch is done says so on its way out.)
-      ...(graph.groups.some(group => group.id === arrow.from && group.wait === 'first') && { label: 'first done', labelStyle: { fill: 'var(--text)', fontSize: 'var(--text-meta)' } }),
-    })),
+      ...(firstDone(graph, arrow.from) && FIRST_DONE),
+    }])),
     // B-374: a group's branches fork from under its name and join at its way out, so they read as running side by side.
     ...graph.groups.flatMap(group =>
       branches(graph, group.id).flatMap(line => [
@@ -299,7 +303,17 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
       ]),
     ),
     // S5c: the Checks step joined to the recipe's last step(s) - it follows as a step is added after them.
-    ...lastParts(graph).map(from => ({ id: `checks-${from}`, source: from, target: CHECKS, sourceHandle: 'out', targetHandle: 'in', className: 'recipe-checks-edge', markerEnd: { type: MarkerType.ArrowClosed } })),
+    ...lastParts(graph).map(from => ({
+      id: `checks-${from}`,
+      source: from,
+      target: CHECKS,
+      sourceHandle: 'out',
+      targetHandle: 'in',
+      className: 'recipe-checks-edge',
+      markerEnd: { type: MarkerType.ArrowClosed },
+      ...(firstDone(graph, from) && FIRST_DONE),
+    })),
+    ...checkedEnds(graph).map(end => ({ id: `checks>${end}`, source: CHECKS, target: end, sourceHandle: 'out', targetHandle: 'in', className: 'recipe-checks-edge', markerEnd: { type: MarkerType.ArrowClosed } })),
     ...graph.loops.map((loop, at) => ({
       id: `l${at}`,
       source: loop.from,

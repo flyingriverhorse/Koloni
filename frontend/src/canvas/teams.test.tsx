@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { type Node, type NodeProps, ReactFlowProvider } from '@xyflow/react'
 import { expect, test, vi } from 'vitest'
 import type { Away, ChatTeamState, Merge, Room } from '../api/types'
-import { agent, command, conversation, convState, fileChange, note, question, run, toolCall } from '../test-fixtures'
+import { agent, assistantMessage, command, conversation, convState, fileChange, note, question, run, toolCall } from '../test-fixtures'
 import { waitingCards } from '../chat/chatLine'
 import { type ReadyData, type TeamData, deriveGraph } from './deriveGraph'
 import { copyLine } from '../changes/copies'
@@ -755,4 +755,17 @@ test('a step says what your choice left out of it, after its tick and round; its
   ])
   expect(container.querySelector('.team-frame')).toHaveClass('team-running')
   expect(container.querySelector('.team-frame')).not.toHaveClass('team-shut')
+})
+
+test('k-sira-016: KOLONİ checks before Ready for you - the Checks node is the recipe frame’s last part, the frame leads to Ready', () => {
+  const checked = {
+    ...assistantMessage('k', 'r', 'x'),
+    role: 'checked' as const,
+    agent_id: null,
+    checked: [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed', command: null, guessed: false, started_at: null, counts: null }],
+  }
+  const g = deriveGraph(team('ready', 'You', { messages: [checked] }))
+  // (The Checks node is the frame's last part; a line out of a frame is drawn from the frame, `framed`: Checks, then Ready.)
+  expect(g.nodes.find(node => node.id === 'checks:r')?.team).toBe('team:r:web')
+  expect(g.edges.filter(edge => edge.target === 'ready:r').map(edge => edge.source)).toEqual(['team:r:web'])
 })
