@@ -47,7 +47,7 @@ step ([The Checks step](../agents/recipes.md#the-checks-step)).
   command (`python -c "open(…).write(…)"`, `sed -i`, a heredoc to a file, a redirection into one
   - `cat a > b`, `git show HEAD:f > f`, not `2>&1` or `> /dev/null` -, a formatter,
   `black . && pytest -q`, a test run that writes - `jest -u`, `pytest --snapshot-update`,
-  `--junitxml=a.py` -, a line handed to a shell that does) is on no record, so KOLONİ runs the tests all the same and says "A
+  `--junitxml=a.py`, a coverage report that is a file, `--cov-report=html` -, a line handed to a shell that does) is on no record, so KOLONİ runs the tests all the same and says "A
   command of this turn may have changed files KOLONİ did not record: …", with "No review: changes
   made by a command are not recorded". In a git project such commands count only where git lists
   a file written since the first of them began, or one committed during the turn, and the line
@@ -566,7 +566,7 @@ also what does not fit in the diff the Reviewer is shown.
   REQUEST CHANGES, REJECT and BLOCK hold, unless a "not" or "no" stands just before it ("MERGE -
   no reason to hold this back", "I'd not block: MERGE" merge); a MERGE negated or said not to be
   ("do not MERGE", "MERGE is not possible yet", "MERGE? No - HOLD", "not ready to merge",
-  "MERGE is unsafe") holds, and so does a MERGE on a condition ("MERGE once the SQL injection is
+  "MERGE is unsafe", "MERGE - blocked", "MERGE (blocked)") holds, and so does a MERGE on a condition ("MERGE once the SQL injection is
   fixed", "MERGE only after the fix"); NEEDS CHANGES and FAIL hold, APPROVE and LGTM merge. A negation reaches no
   further than a comma, a full stop or a dash: "No. HOLD until the test is fixed" holds. A
   "Previous verdict" line is not this look's. Any HOLD wins; a report with no verdict is "Review

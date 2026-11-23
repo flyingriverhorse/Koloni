@@ -167,7 +167,10 @@ _KEYWORD = re.compile(
 )
 _MERGES = frozenset({"MERGE", "APPROVE", "APPROVED", "APPROVES", "LGTM"})
 _NEGATION = re.compile(r"^(?:not|no|never|cannot|unable)$|n't$", re.IGNORECASE)
+# (The spaces after MERGE taken once, `\s*+`: each `\s*` X? `\s*` below split a run of them every
+# way - 1.6 s for 8 000 spaces, CL-340's 16 KB bomb.)
 _MERGE_NOT = re.compile(
+    r"\s*+(?:"
     r"\s*(?:is|was|should|would|will)?\s*(?:not|never)\b|\s*isn't\b"
     r"|\s*\?\s*(?:no|not|never)\b"  # ("MERGE? No - HOLD")
     # (CL-329 E: "MERGE - no, HOLD"; "MERGE is unsafe"; a MERGE on a condition
@@ -175,10 +178,12 @@ _MERGE_NOT = re.compile(
     r"|\s*[-–—:]+\s*no\s*[,.;!-]"
     r"|\s*(?:is|would\s+be|seems)\s+(?:unsafe|premature|risky|blocked"
     r"|wrong|a\s+mistake)\b"
-    # (CL-336: "MERGE blocked by the failing test", "MERGE ✗")
-    r"|\s*blocked\b|\s*[✗✘❌]"
+    # (CL-336: "MERGE blocked by the failing test", "MERGE ✗"; CL-340: "MERGE - blocked",
+    # "MERGE (blocked)", "MERGE: blocked until the fix" - not "MERGE - not blocked")
+    r"|\s*blocked\b|\s*[-–—:(]+\s*blocked\b|\s*[✗✘❌]"
     r"|\s*[,–—-]?\s*(?:only\s+)?(?:once|if|when|after|pending|provided|unless"
-    r"|until|as\s+soon\s+as)\b",
+    r"|until|as\s+soon\s+as)\b"
+    r")",
     re.IGNORECASE,
 )
 # Where a negation's reach ends: "no, HOLD" and "No. HOLD until …" hold.

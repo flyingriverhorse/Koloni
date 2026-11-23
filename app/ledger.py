@@ -472,6 +472,9 @@ _GO_WRITES_TO = frozenset(
     {"-o", "-cpuprofile", "-memprofile", "-blockprofile", "-mutexprofile", "-trace", "-outputdir"}
 )
 _UPDATE_ENV = frozenset({"INSTA_UPDATE", "UPDATE_SNAPSHOTS", "SNAPSHOT_UPDATE"})
+# ...and (CL-340) pytest-cov's reports that are files (`--cov-report=html` writes htmlcov/, with or
+# without a path after `:`, `=` or a space) - not `term`, `term-missing`.
+_COV_WRITES = frozenset({"html", "xml", "json", "lcov", "annotate", "markdown", "markdown-append"})
 _NOT_ON = frozenset({"", "0", "no", "false", "off", "never"})
 _WRITES_TO = frozenset(
     {
@@ -508,13 +511,15 @@ def test_writes(command: str) -> bool:
                 return True
             if name.upper().endswith("ADDOPTS"):
                 args += value.split()
-    for word in args:
+    for at, word in enumerate(args):
         option = word.strip("'\"").casefold()
-        name, _set, value = option.partition("=")
+        name, given, value = option.partition("=")
+        if name == "--cov-report" and not given and at + 1 < len(args):
+            value = args[at + 1].strip("'\"").casefold()
         if (
             option in _WRITES
             or name in _WRITES_TO
-            or (name == "--cov-report" and ":" in value)
+            or (name == "--cov-report" and value.partition(":")[0] in _COV_WRITES)
             or (name == "--inline-snapshot" and _INLINE_WRITES & set(value.split(",")))
             or (found.tool == "go test" and name in _GO_WRITES_TO)
         ):

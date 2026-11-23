@@ -55,3 +55,31 @@ def test_the_fixed_regexes_still_read_what_they_read():
         ("Tests", "5"),
         ("Failures", "1"),
     ]
+
+
+def test_a_merge_said_blocked_reads_a_long_line_in_time():
+    # (CL-340's `_MERGE_NOT` alternative, 16 KB at most, in a child process: a pattern that
+    # backtracks holds up that process, never this test run)
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from tests.conftest import scaled
+
+    code = (
+        "import time\n"
+        "from app.agent import review_mixin as r\n"
+        "began = time.perf_counter()\n"
+        "for bad in (' ' * 16_000 + 'x', ' (' * 8_000 + 'x', ' -' * 8_000 + ' x'):\n"
+        "    r._MERGE_NOT.match(bad)\n"
+        "print(1000 * (time.perf_counter() - began))\n"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=scaled(60),
+        cwd=Path(__file__).resolve().parents[1],
+    )
+    assert done.returncode == 0, done.stderr
+    assert float(done.stdout) < BUDGET_MS, done.stdout

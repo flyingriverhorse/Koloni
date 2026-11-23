@@ -194,6 +194,8 @@ test('CL-329: a file changed while KOLONİ’s run went on - Put back is the use
   try {
     render(<CheckedSection message={checked([row('note', 'Changed while KOLONİ’s run of ruff check . went on: calc.py, b.py', { kind: 'changed_during' })])} over latest={false} />)
     expect(post).not.toHaveBeenCalled()
+    // (CL-340: an older turn's button too - it is its own run's, said on it)
+    expect(screen.getByRole('button', { name: 'Put back' })).toHaveAttribute('title', expect.stringContaining('this turn’s run'))
     await userEvent.click(screen.getByRole('button', { name: 'Put back' }))
     expect(post).toHaveBeenCalledWith('/runs/r/check/put-back')
     expect(await screen.findByRole('status')).toHaveTextContent('Put back: calc.py. Not put back: b.py changed again since KOLONİ’s run.')

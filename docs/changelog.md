@@ -23,6 +23,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Agents**: KOLONİ's Reviewer, Security reviewer and Tester look at a recipe's work where it is - the recipe's copy, as KOLONİ's own tests there - not in the project, which does not have it yet: no more "the file does not exist" and "the change was never applied" holds, nor a wasted fix round; what their commands write there is put back. Work a look still holds after its fix rounds is no longer taken in by itself at Full auto nor offered on a Ready for you card: Checked says "Not taken in: on hold" with **Take in anyway** and **Fix it** ([docs](use/checked.md#a-stronger-model)).
 - **Chat**: tests that were failing before the turn (said "Were failing before this turn", not sent back) no longer keep KOLONİ's review and live try off: a big or security-touching change is still looked over ([docs](use/checked.md)).
 - **Chat**: work a stronger model's rounds made pass is looked over by the Reviewer (a big or security-touching change) before it is taken in, instead of keeping the first pass's "No review: the tests still fail" ([docs](use/checked.md#a-stronger-model)).
+- **Chat**: a Reviewer's "Verdict: MERGE - blocked" (or "MERGE (blocked)", "MERGE: blocked until the fix") is read as a hold, and a test run that writes a coverage report file (`--cov-report=html`, `xml`, `json`) as one that may change files; a **Put back** button says it is its own turn's - an older turn's puts back only what is still as its run left it ([docs](use/checked.md)).
 
 ## [0.1.6] - 2026-11-23
 

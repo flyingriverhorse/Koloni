@@ -60,7 +60,9 @@ function CheckedRow({ row, runId }: { row: Row; runId: string | null }) {
   )
 }
 
-/** CL-329: files that changed while KOLONİ's own run went on - Put back is the user's click (never KOLONİ's by itself): each as it was before the run, where it is still as the run left it. */
+/** CL-329: files that changed while KOLONİ's own run went on - Put back is the user's click (never KOLONİ's by itself): each as it was before the run, where it is still as the run left it. Each turn's button is its own run's (CL-340: an older turn's too - a file changed since is refused, said). */
+const PUT_BACK_TITLE = 'Puts back the files this line names, as they were before this turn’s run - not one changed since'
+
 function PutBack({ runId }: { runId: string }) {
   const [said, setSaid] = useState<string | null>(null)
   const put = () =>
@@ -70,7 +72,7 @@ function PutBack({ runId }: { runId: string }) {
     )
   return (
     <span className="checked-fix">
-      <button type="button" className="btn btn-small" onClick={() => void put()}>
+      <button type="button" className="btn btn-small" title={PUT_BACK_TITLE} onClick={() => void put()}>
         Put back
       </button>
       {said && <span role="status">{said}</span>}
