@@ -267,6 +267,24 @@ for this project". Where the turn ended before the check, or changed such a file
 section says so instead of an old result. On the canvas, the Checks node shows each kind as one
 line: "documents · 2 ✓ · 1 ✗".
 
+### Pages
+
+A changed web page (`.html`) is opened in KOLONİ's own headless Chrome or Edge - the browser the
+agents' browser tools use, on this machine, never out on the internet - at 375, 768 and 1280 px
+(a phone, a tablet, a desktop). Console errors and a page wider than the screen (it scrolls
+sideways) are failed, and go back as a fix round with the first error: "index.html: 2 console
+errors at 375, 768, 1280 px - error: x is not defined", "index.html: wider than the screen at 375
+px". Where it passes: "index.html: no console errors at 375, 768, 1280 px". A page that loads a
+script or a font from outside this machine gets its errors as a note: KOLONİ's browser never goes
+out, so the page is not wrong for that. A changed component or style (`.tsx`, `.jsx`, `.vue`,
+`.svelte`, `.css`, `.scss`) is looked at on the chat's preview, where one runs that serves the
+work (started from the Preview, or by an agent, where the work is); with none: "Pages not
+checked: no preview running". At most three pages a turn, two minutes in all. With no Chrome or
+Edge here: "Pages not checked: no Chrome or Edge here". Each page's screenshots, one a width, are
+kept for you in the project's `.koloni/tmp/checked/<turn>/` - never shown to a model; what reaches
+the Orchestrator of a page is only these lines, as data. **Pages** is switched off with the other
+kinds.
+
 ## A test for the change
 
 A turn that changed source code (a script of a language: `.py`, `.ts`, `.go`, ...) and no test
@@ -509,6 +527,9 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ `file`: link to `target` not found · edge `id` points at nothing · rows 3, 7 have 2 fields, not 4 · slide 2 is empty | A problem in what the turn wrote: sent back as a fix round while Fix rounds are left. |
 | – `file`: … - so before this turn | A problem the file already had: said, not sent back. |
 | – Not checked: `kind` switched off for this project | Its kind is off in Check by kind of work. |
+| ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
+| ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |
+| – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | – Not checked: `kinds` - the turn ended before KOLONİ's check / Not checked on the last change: `kinds` | The turn ended before these checks, or changed such a file after them. |
 | – Coverage: 72% of the changed lines are run by tests (`tool`) | Of the turn's changed lines a test could run, the share the whole suite ran, by the project's own coverage tool. |
 | – Coverage: not measured (`why`) | The flags failed (the run went again without them; not tried again till the coverage settings change), or no report was written or it could not be read. |

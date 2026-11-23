@@ -11,10 +11,12 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import literal_column, select
 
-from app import injection, proof, proof_kinds
+from app import browser, injection, koloni, proof, proof_kinds
 from app.agent.ctx import Ctx
-from app.db.models import Agent, Conversation, Message, Run, ShownFile
+from app.db.models import Agent, Command, Conversation, Message, Run, ShownFile
 from app.proof import Change, Row
+from app.tools import ToolError
+from app.workspace import Workspace
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -34,7 +36,7 @@ def _written(changes: list[Change], made: Sequence[str] = ()) -> dict[str, list[
     for path, kind in [*((one.path, one.kind) for one in changes
                          if one.in_project and not one.deleted),
                        *((path, proof.kind_of(path)) for path in made)]:
-        if kind in proof_kinds.KINDS and path not in found.get(kind, []):
+        if kind in proof_kinds.WRITTEN and path not in found.get(kind, []):
             found.setdefault(kind, []).append(path)
     return found
 
@@ -47,7 +49,7 @@ class KindsMixin:
     async def _proof_kinds(self: "AgentRunner", ctx: Ctx, held: "Proof") -> str | None:
         """Each kind of work the turn wrote, checked where the work is (`_ws`) - its rows replace
         the last pass's; a failed one is a fix round while Fix rounds are left."""
-        held.rows = [one for one in held.rows if one["kind"] not in proof_kinds.KINDS]
+        held.rows = [one for one in held.rows if one["kind"] not in proof_kinds.WRITTEN]
         with self._factory() as session:
             made = list(session.scalars(select(ShownFile.path).join(
                 Agent, Agent.id == ShownFile.agent_id).where(Agent.run_id == ctx.run_id)))
@@ -69,6 +71,9 @@ class KindsMixin:
                 rows.append(proof.row(kind, "note", proof_kinds.NOT_CHECKED_KIND.format(
                     kind=proof_kinds.SHOWN[kind])))
                 continue
+            if kind == proof_kinds.UI:  # (S5b: in KOLONİ's own browser)
+                rows += await self._pages(ctx, ws, paths)
+                continue
             more = {"asked": asked} if kind == "docs" else {}
             rows += await asyncio.to_thread(proof_kinds.CHECKS[kind], ws, paths, before=before,
                                             **more)
@@ -82,6 +87,51 @@ class KindsMixin:
         more = f"\n+{len(failed) - MOST_TOLD} more" if len(failed) > MOST_TOLD else ""
         return proof_kinds.KINDS_TO_FIX.format(problems=injection.noted(
             "\n".join(f"- {one}" for one in failed[:MOST_TOLD]) + more, "agent"))
+
+    async def _pages(self: "AgentRunner", ctx: Ctx, ws: Workspace, paths: list[str]) -> list[Row]:
+        """S5b: the turn's pages in a browser of KOLONİ's own, fenced as an agent's is (this
+        machine's previews, the project's files), its profile and the screenshots in the
+        project's scratch (`.koloni/tmp/checked/<run>/`) - never where the agents' browsers are
+        swept (`browser.sweep`)."""
+        command = browser.find_browser()
+        try:
+            koloni.scratch(ctx.folder)
+            folder = self._scratch_folder(ctx, f"checked/{ctx.run_id}",
+                                          "the pages are not looked at there")
+        except ToolError as exc:
+            return [proof.row(proof_kinds.UI, "note", proof_kinds.PAGES_FAILED.format(
+                why=exc))]
+
+        async def start() -> browser.Browser:
+            one = browser.Browser(folder, "pages")
+            try:
+                await one.start(command or [], ws, self._closed_ports())
+            except BaseException:
+                await one.close()
+                raise
+            return one
+        return await proof_kinds.check_pages(start if command else None, ws, paths,
+                                             self._preview_of(ctx), folder)
+
+    def _preview_of(self: "AgentRunner", ctx: Ctx) -> str | None:
+        """The chat's newest preview still running that serves the turn's work: one an agent
+        started where the work is (its copy, or the project). shortcut: an earlier turn's agent
+        no longer at work counts only as its Lead (depth 0), in a turn whose work is in the
+        project - a sub-agent's preview served its own copy; ask the copy's root of the command
+        if that misses one."""
+        mine = self._works_in(ctx)
+        with self._factory() as session:
+            for url, agent_id, depth in session.execute(
+                    select(Command.preview_url, Command.agent_id, Agent.depth)
+                    .join(Run, Run.id == Command.run_id).join(Agent, Agent.id == Command.agent_id)
+                    .where(Run.conversation_id == ctx.cid, Command.keep_running.is_(True),
+                           Command.status == "running", Command.preview_url.is_not(None))
+                    .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
+                there = self._ctxs.get(agent_id)
+                if (self._works_in(there) if there is not None else None if depth == 0
+                        else "elsewhere") == mine:
+                    return url
+        return None
 
     def _kinds_left(self: "AgentRunner", session, run_id: str, cid: str, found: list[Change],
                     held: "Proof") -> list[Row]:

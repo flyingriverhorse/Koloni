@@ -398,6 +398,10 @@ _URL_JS = _tag("url") + "location.href"
 _TITLE_JS = _tag("title") + "document.title"
 _TEXT_JS = _tag("text") + "document.body ? document.body.innerText : ''"
 _SCROLL_JS = _tag("scrolly") + "String(window.scrollY)"
+# S5b: whether the page scrolls sideways - wider than its layout's width (a pixel of rounding
+# aside; at a phone's width the window zooms out to what is wider, so not the window's own).
+_WIDE_JS = _tag("wide") + (
+    "document.documentElement.scrollWidth > document.documentElement.clientWidth + 1")
 
 # K-tarayici-disari A2: on a site, what waits for the user's yes at every level - a form sent,
 # a password typed, a click on words like these (case aside).
@@ -986,6 +990,17 @@ class Browser:
         if len(text) > room:
             text = text[:room] + "\n[cut: the page's text goes on]"
         return f"{head}{text}\n\nOutline:\n{outline}" if outline else f"{head}{text}"
+
+    async def width(self, px: int) -> None:
+        """S5b (KOLONİ's look at a page): the window `px` wide - a phone's below 768 px, whose
+        page reads its viewport tag as a phone's does."""
+        await self._call("Emulation.setDeviceMetricsOverride", {
+            "width": px, "height": HEIGHT, "deviceScaleFactor": 1, "mobile": px < 768})
+
+    async def wider(self) -> bool:
+        """S5b: whether the page is wider than its window - it scrolls sideways - looked at in
+        KOLONİ's own world (`_world`): the page's scripts cannot change what it calls."""
+        return bool(await self._world(_WIDE_JS))
 
     def console(self) -> str:
         """The console's messages and the page's errors since the last call."""
