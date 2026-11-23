@@ -2304,10 +2304,11 @@ def names_secret(command: str) -> bool:
         return True
     members = sys.platform == "win32" and not _POSIX_SHELL.search(command)
     for part in _PARTS.split(command):
-        for word in _words(part.strip()):
+        # (both ways of splitting: a word's quoted pieces joined, `".e"nv`, and apart)
+        for word in {*_words(part.strip()), *_joined_words(part.strip())}:
             # (split at `:` too: a drive letter's path is left starting with `/`, out of it;
             # and at `,`: PowerShell's list of paths, `gc a,.env`)
-            if any(_secret_path(piece) for piece in re.split(r"[=:<>,]", word.strip("'\""))
+            if any(_secret_path(piece) for piece in re.split(r"[=:<>,]", _dequoted(word))
                    if piece and not (members and _MEMBER.fullmatch(piece))):
                 return True
     return False
@@ -3689,7 +3690,11 @@ def _named_here(command: str, root: Path, cwd: str) -> bool:
     through links and junctions, ends inside `root` and on no secret path - a link in the
     project that leads out of it (planted, or a repository's symlink) reads nothing outside
     unasked, as `read_file` refuses it. A name that is no file reads nothing: passed. A line
-    naming more than it is worth following (MOST_NAMED, a glob over MOST_MATCHED): False."""
+    naming more than it is worth following (MOST_NAMED, a glob over MOST_MATCHED): False.
+    shortcut: the paths are followed when the line is judged - a link made between this and
+    the run needs a second process at work at the same time; follow again at the run if that
+    is met. shortcut: a hard link to a secret file is one file of two names, which `resolve()`
+    does not see (as for `read_file`); compare file ids if that is met."""
     try:
         top = root.resolve()
         here = (root / cwd).resolve()
@@ -3697,10 +3702,8 @@ def _named_here(command: str, root: Path, cwd: str) -> bool:
         return False
     if not here.is_relative_to(top):
         return False
-    words = [word.strip("'\"") for word in _words(command.strip())][1:]
-    named = [re.sub(r"^-\w+:", "", word) for word in words]  # (`-Path:x` names x)
-    pieces = [piece for word in named if not word.startswith("-")
-              for piece in re.split(r"[=:,]", word) if piece]
+    pieces = [piece for word in _joined_words(command.strip())[1:] for name in _names_in(word)
+              for piece in re.split(r"[=:,]", name) if piece]
     if len(pieces) > MOST_NAMED:
         return False
     for piece in pieces:
@@ -3708,6 +3711,41 @@ def _named_here(command: str, root: Path, cwd: str) -> bool:
         if found is None or not all(_lands_here(one, top) for one in found):
             return False
     return True
+
+
+def _joined_words(command: str) -> list[str]:
+    """A line's words as a shell splits them: at whitespace outside quotes - a word's quoted
+    pieces stay one word (`".e"nv`, which `shlex`'s non-POSIX split cuts in two)."""
+    words: list[str] = []
+    word, quote = "", ""
+    for char in command:
+        if quote:
+            word += char
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            word, quote = word + char, char
+        elif char.isspace():
+            words, word = (words + [word]) if word else words, ""
+        else:
+            word += char
+    return [*words, word] if word else words
+
+
+def _dequoted(word: str) -> str:
+    """A word as the shell hands it on: pwsh and sh both join quoted pieces in one word
+    (`.e'nv'`, `".e"nv`, `out/'secret.txt'` are `.env`, `.env`, `out/secret.txt`)."""
+    return word.replace("'", "").replace('"', "")
+
+
+def _names_in(word: str) -> list[str]:
+    """What a read's word may name (review of k-okuma-yol): the word, unquoted - or, for an
+    option, its value (`-Path:x`, `--file=x`) and an attached short option's tail (`-fx`).
+    More candidates cost nothing: one that is no file passes."""
+    word = _dequoted(word)
+    if not word.startswith("-"):
+        return [word]
+    value = re.split(r"[=:]", word, maxsplit=1)
+    return [*value[1:], *([word[2:]] if not word.startswith("--") and len(word) > 2 else [])]
 
 
 def _named_paths(here: Path, piece: str) -> list[Path] | None:

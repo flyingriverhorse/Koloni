@@ -181,3 +181,29 @@ def test_every_quiet_read_of_the_gate_stays_quiet_in_a_plain_project(tmp_path, m
         if commands.only_reads(line) and not commands.reads_here(line, project, True):
             louder.append(line)
     assert not louder, "asked now, read unasked before:\n" + "\n".join(louder)
+
+
+def test_quotes_inside_a_word_and_option_values_are_followed_too(tmp_path):
+    # (Review of k-okuma-yol: pwsh and sh join quoted pieces of one word - `.e'nv'` is `.env` -
+    # and an option's value names a file - `--file=x`, `-Path:'x'` - yet both ran unasked.)
+    project, outside = tmp_path / "proj", tmp_path / "outside"
+    project.mkdir()
+    outside.mkdir()
+    (outside / "secret.txt").write_text("s", encoding="utf-8")
+    (project / "README.md").write_text("hi\n", encoding="utf-8")
+    (project / ".env").write_text("KEY=1\n", encoding="utf-8")
+    _link_out(project / "out", outside)
+    asked = ["Get-Content -Path:'out/secret.txt'", "Get-Content -LiteralPath:'out/secret.txt'",
+             "cat out/'secret.txt'", "grep --file=out/secret.txt README.md", "cat .e'nv'",
+             'cat ".e"nv', "grep -fout/secret.txt README.md"]
+    if sys.platform == "win32":
+        asked += ['Get-Content -Path:"out\secret.txt"', "type .\.e'nv'"]
+    for line in asked:
+        assert not commands.reads_here(line, project, True), line
+    # (the project's own .env by a quoted name is a secret's name: asked at every level)
+    for line in ["cat .e'nv'", 'cat ".e"nv', "type .\.e'nv'"]:
+        assert commands.names_secret(line), line
+    # (the plain forms that held still hold)
+    for line in ["cat README.md", "cat 'README.md'", "Get-Content -Path:'README.md'",
+                 "grep --file=README.md README.md", "head -n 5 README.md"]:
+        assert commands.reads_here(line, project, True), line
