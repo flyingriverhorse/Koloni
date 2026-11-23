@@ -30,13 +30,17 @@ from tests.test_take_in_scenarios import (
     LINES,
     LONG,
     ORIGIN,
+    OWN,
+    RUNS,
     card,
     edit,
     lines,
     needs_git,
     of,
+    own_test,
     repository,
     start,
+    tested,
 )
 
 pytestmark = needs_git
@@ -242,14 +246,17 @@ def test_at_full_auto_a_branch_whose_check_passes_is_merged_and_nothing_is_left(
     client, cid, run_id = on_branch(
         make_client,
         repo,
-        [step(edit("two", "TWO-agent")), text("A done")],
-        project={"check_command": "python check.py TWO-agent"},
+        [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
+        project=tested(),
     )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (merge,) = snap["merges"]
     assert merge["status"] == "applied" and merge["check"]["state"] == "passed"
-    assert [(f["path"], f["state"]) for f in merge["files"]] == [("lines.txt", "applied")]
+    assert [(f["path"], f["state"]) for f in merge["files"]] == [
+        ("lines.txt", "applied"),
+        (OWN, "applied"),
+    ]
     assert merge["branch"]["name"] == "koloni/fix" and merge["branch"]["into"] == "main"
     assert merge["commit"]["state"] == "committed" and merge["commit"]["sha"]
     assert lines(repo)[1] == "TWO-agent"
@@ -299,8 +306,8 @@ def test_asked_the_test_runs_on_the_users_click_and_the_merge_goes_in_on_their_y
     client, cid, run_id = on_branch(
         make_client,
         repo,
-        [step(edit("two", "TWO-agent")), text("A done")],
-        project={"check_command": "python check.py TWO-agent"},
+        [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
+        project=tested(f"{RUNS} -s"),  # (-s: what check.py prints is in its output)
         permission_mode="ask",
     )
     merge = card(client, cid)
@@ -594,9 +601,10 @@ def test_a_new_file_where_the_project_has_its_own_is_not_committed(make_client, 
         [
             step(write("local.cfg", "agent's\n")),
             step(edit("two", "TWO-agent", "e2")),
+            own_test("TWO-agent"),
             text("A done"),
         ],
-        project={"check_command": "python check.py TWO-agent"},
+        project=tested(),
     )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
@@ -1054,14 +1062,13 @@ def test_stop_while_the_check_of_a_card_blocked_by_a_secret_runs_deletes_the_bra
             step(
                 call("run_command", {"command": "git add token.txt && git commit -q -m mine"}, "c")
             ),
+            own_test(
+                body=f"import pathlib, time\np = pathlib.Path('{runs}')\nn = p.exists()\n"
+                "p.write_text('x')\ntime.sleep(60 * n)"
+            ),
             text("A done"),
         ],
-        project={
-            "check_command": (
-                f"python -c \"import pathlib,time;p=pathlib.Path('{runs}');"
-                "n=p.exists();p.write_text('x');time.sleep(60*n)\""
-            )
-        },
+        project=tested(),
     )
     merge = card(client, cid)
     assert "holds a secret given this turn" in merge["branch"]["note"]
@@ -1491,8 +1498,8 @@ def test_a_secret_given_this_turn_goes_into_no_commit_message(
     client, cid, run_id = on_branch(
         make_client,
         repo,
-        [step(edit("two", "TWO-agent")), text("A done")],
-        project={"check_command": "python check.py TWO-agent"},
+        [step(edit("two", "TWO-agent")), own_test("TWO-agent"), text("A done")],
+        project=tested(),
     )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert [m["status"] for m in snap["merges"]] == ["applied"]
@@ -1686,14 +1693,14 @@ def test_the_users_branch_is_merged_into_the_worktree_and_a_resolution_with_mark
     assert lines(repo)[1] == "TWO-both"
 
 
-def clashing(make_client, repo, resolve, **conversation):
-    """A Coder on `koloni/fix` changes line two while the user commits their own line two; then,
-    told to resolve, it takes the `resolve` steps."""
+def clashing(make_client, repo, resolve, tests=(), **conversation):
+    """A Coder on `koloni/fix` changes line two (and takes the `tests` steps) while the user
+    commits their own line two; then, told to resolve, it takes the `resolve` steps."""
     held = Gate()
     client, cid, run_id = on_branch(
         make_client,
         repo,
-        [step(edit("two", "TWO-agent")), held.step(text("A done")), *resolve],
+        [step(edit("two", "TWO-agent")), *tests, held.step(text("A done")), *resolve],
         **conversation,
     )
     held.wait_partial()
@@ -1763,7 +1770,7 @@ def test_at_full_auto_an_agent_resolves_the_conflicts_by_itself_and_the_user_see
     make_client, wait_run, repo
 ):
     client, cid, run_id = clashing(
-        make_client, repo, RESOLVING, project={"check_command": "python check.py TWO"}
+        make_client, repo, RESOLVING, tests=[own_test("TWO")], project=tested()
     )
     # (A resolution may drop lines of the user's own commit: a card, even where the check passed.)
     merge = until(
@@ -1982,9 +1989,9 @@ def pr_run(make_client, repo, meanwhile, wip=None, **conversation):
     client, cid, run_id = on_branch(
         make_client,
         repo,
-        [step(edit("two", "TWO-agent")), held.step(text("A done"))],
+        [step(edit("two", "TWO-agent")), own_test("TWO-agent"), held.step(text("A done"))],
         wip=wip,
-        project={"finish_way": "pull_request", "check_command": "python check.py TWO-agent"},
+        project=tested(finish_way="pull_request"),
         **conversation,
     )
     held.wait_partial()

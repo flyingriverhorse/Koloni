@@ -41,7 +41,19 @@ from tests.test_room_scenarios import (
     wait,
 )
 from tests.test_spawn import call, names, role_id, step
-from tests.test_take_in_scenarios import CHECK, LINES, card, lines, meanwhile, needs_git, of
+from tests.test_take_in_scenarios import (
+    CHECK,
+    CHECKED,
+    LINES,
+    OWN,
+    card,
+    lines,
+    meanwhile,
+    needs_git,
+    of,
+    own_test,
+    tested,
+)
 from tests.test_triggers import (  # noqa: F401 (cli_app: a fixture)
     NOT_SLOW,
     HeldClock,
@@ -1225,10 +1237,11 @@ def with_lines(project_dir):
     (project_dir / "check.py").write_bytes(CHECK.encode())
 
 
-def lines_coder(held, old="two", new="TWO-agent"):
+def lines_coder(held, old="two", new="TWO-agent", tests=(), paths=("lines.txt",)):
     return [
-        step(add("Change a line", ["lines.txt"], "a1"), take(1, "t1")),
+        step(add("Change a line", list(paths), "a1"), take(1, "t1")),
         step(edit(old, new, path="lines.txt")),
+        *tests,
         held.step(step(finish(1, "changed", "f1"))),
         text("Done."),
     ]
@@ -1283,10 +1296,13 @@ def test_the_projects_check_runs_on_the_rooms_copy_and_lines_of_both_go_together
         make_client,
         project_dir,
         {
-            "Coder": lines_coder(held),
+            # (its own test, under the item it holds: 0.1.7's check runs the tests it wrote)
+            "Coder": lines_coder(
+                held, tests=[own_test("TWO-agent", "SIX-user")], paths=["lines.txt", OWN]
+            ),
             "Reviewer": [text("Nothing to add."), text("Done.")],
         },
-        project={"check_command": "python check.py TWO-agent SIX-user"},
+        project=tested(),
     )
     held.wait_partial()
     meanwhile(project_dir, "six", "SIX-user")  # another line: no clash
@@ -1301,11 +1317,13 @@ def test_the_projects_check_runs_on_the_rooms_copy_and_lines_of_both_go_together
     )
     assert lines(project_dir)[1] == "TWO-agent" and lines(project_dir)[5] == "SIX-user"
     # the check is nobody's call: a command of the lead's, which holds the room's copy
-    (check,) = [c for c in snap["commands"] if c["command"].startswith("python check.py")]
+    (check,) = [c for c in snap["commands"] if c["command"] == CHECKED]
     assert check["tool_call_id"] is None and check["agent_id"] == agent(snap, "Lead")["id"]
     # the two sides went into the project as one change, which is nobody's call either
-    (joined,) = [f for f in snap["file_changes"] if f["status"] == "applied"]
-    assert joined["tool_call_id"] is None and joined["path"] == "lines.txt"
+    (joined,) = [
+        f for f in snap["file_changes"] if f["status"] == "applied" and f["path"] == "lines.txt"
+    ]
+    assert joined["tool_call_id"] is None
 
 
 def test_a_room_that_did_not_end_with_everybody_done_is_not_taken_unasked(

@@ -478,15 +478,28 @@ def test_a_kept_part_card_keeps_its_part_when_the_agent_goes_on_in_another_copy(
         assert Path(card["kept_in"]).is_dir()
 
 
+# 0.1.7: Take in's check runs the tests a Coder wrote - here core/'s own, its part's test command
+# narrowed to it, in core/ (`CORE_CHECKED`).
+CORE_TEST = "python -m pytest -q"
+CORE_CHECKED = f"{CORE_TEST} tests/test_b.py"
+OWN_TEST = step(write("core/tests/test_b.py", "def test_b():\n    pass\n", "wt"))
+
+
+def core_test(client, pid):
+    """core/'s test command, set on the project map."""
+    put = client.put(f"/api/projects/{pid}/map/test", json={"path": "core/", "command": CORE_TEST})
+    assert put.status_code == 200, put.text
+
+
 def check_turn(make_client, root, coder, ran):
-    """A Coder in core/ at Full auto, in a project whose check command passes (scripted)."""
+    """A Coder in core/ at Full auto, in a project whose check passes (scripted)."""
     client, model = make_client(
         {"Lead": [step(spawn("core")), text("done")], "Coder": coder},
         executor=ScriptedExecutor([Script(["ok\n"])] * ran),
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={"check_command": "check"}).status_code == 200
+    core_test(client, pid)
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(
         f"/api/conversations/{cid}",
@@ -500,14 +513,21 @@ def test_a_passing_check_does_not_take_a_root_file_in_unasked_from_a_part_copy(
     make_client, project
 ):
     client, cid = check_turn(
-        make_client, project, [step(write("pyproject.toml", "[tool.ruff]\n")), text("done")], ran=1
+        make_client,
+        project,
+        [step(write("pyproject.toml", "[tool.ruff]\n")), OWN_TEST, text("done")],
+        ran=1,
     )
     snap = until(
         client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"], timeout=15
     )
     (card,) = snap["merges"]
     assert card["check"]["state"] == "passed" and 'a copy of "core/" alone' in card["check"]["note"]
-    assert [f["state"] for f in card["files"]] == ["ready"]
+    assert card["check"]["command"] == CORE_CHECKED
+    assert {f["path"]: f["state"] for f in card["files"]} == {
+        "core/tests/test_b.py": "ready",
+        "pyproject.toml": "ready",
+    }
     assert (project / "pyproject.toml").read_text(encoding="utf-8").startswith("[tool.pytest")
 
 

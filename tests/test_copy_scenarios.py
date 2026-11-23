@@ -440,20 +440,21 @@ def test_agents_that_stop_unfinished_keep_their_work_and_do_not_hold_up_the_lead
 
 def test_a_stopped_agents_kept_card_says_its_check_did_not_run(make_client, wait_run, project_dir):
     """B-322: with a check command on the project, the card says no check ran on it."""
+    from tests.test_take_in_scenarios import own_test, tested  # (it imports this module)
+
     client, model = make_client(
         {
             "Lead": [
                 step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
                 text("done"),
             ],
-            "Coder": [step(write("a.txt", "A")), *looping("a")],
+            # (0.1.7: the check is the tests it wrote - none ran, as it stopped)
+            "Coder": [step(write("a.txt", "A")), own_test(body="pass"), *looping("a")],
         }
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert (
-        client.patch(f"/api/projects/{pid}", json={"check_command": "python -V"}).status_code == 200
-    )
+    assert client.patch(f"/api/projects/{pid}", json=tested()).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(
         f"/api/conversations/{cid}",

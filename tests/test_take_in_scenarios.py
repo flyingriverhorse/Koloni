@@ -12,9 +12,11 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 
 import pytest
 
+from app.commands import BASETEMP
 from tests.conftest import Gate  # noqa: E402
 from tests.test_chat_flow import text  # noqa: E402
 from tests.test_claim_scenarios import write  # noqa: E402
@@ -33,6 +35,29 @@ CHECK = (
 )
 needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 LONG = 20.0
+# 0.1.7 (Test before adding gone): Take in's check runs the tests the Coder wrote, the root part's
+# test command narrowed to them - the old check `python check.py WORDS` is the Coder's own test
+# (`own_test`), and the check's command is `RUNS` narrowed to it (`CHECKED`).
+RUNS = f"{sys.executable} -m pytest -q"
+OWN = "test_lines.py"
+CHECKED = f"{RUNS} {OWN}"
+
+
+def tested(runs=RUNS, **more):
+    """A project whose root part runs `runs`, and no end check: these are Take in's tests - the
+    end check would run the Coder's test again, in the project, and count among the commands."""
+    return {"check_command": runs, "after_change": "nothing", **more}
+
+
+def own_test(*words, id="own", path=OWN, body=None):
+    """The Coder's step writing its own test: `python check.py WORDS` exits 0 where it runs - or
+    `body`, the test's own lines."""
+    body = body or (
+        f"ran = subprocess.run([sys.executable, 'check.py', *{list(words)!r}])\n"
+        "assert ran.returncode == 0"
+    )
+    inside = "".join(f"    {line}\n" for line in body.splitlines())
+    return step(write(path, f"import os, subprocess, sys\n\n\ndef test_lines():\n{inside}", id))
 
 
 def edit(old, new, id="e", path="lines.txt"):
@@ -260,8 +285,12 @@ def test_the_check_runs_on_the_joined_state_in_the_copy_before_anything_is_taken
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(edit("two", "TWO-agent")), held.step(text("A done"))],
-        project={"check_command": "python check.py TWO-agent SIX-user"},
+        [
+            step(edit("two", "TWO-agent")),
+            own_test("TWO-agent", "SIX-user"),
+            held.step(text("A done")),
+        ],
+        project=tested(f"{RUNS} -s"),  # (-s: what check.py prints is in its output)
     )
     held.wait_partial()
     meanwhile(project_dir, "six", "SIX-user")
@@ -270,8 +299,8 @@ def test_the_check_runs_on_the_joined_state_in_the_copy_before_anything_is_taken
     (merge,) = snap["merges"]
     check = merge["check"]
     # it passed: it saw the agent's line and the user's together - that is the joined state
-    assert (check["state"], check["exit_code"]) == ("passed", 0)
-    assert check["command"] == "python check.py TWO-agent SIX-user"
+    assert (check["state"], check["exit_code"]) == ("passed", 0), check
+    assert check["command"] == f"{RUNS} -s {OWN}"
     where = next(line for line in check["output"].splitlines() if line.startswith("CWD="))[4:]
     assert not same(where.strip(), project_dir)  # in the copy, not the project
     assert merge["status"] == "applied"  # full auto: taken once it passed
@@ -321,8 +350,14 @@ def test_at_full_auto_a_failing_check_goes_back_to_the_lead_and_the_fix_is_taken
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done"), step(edit("two", "TWO")), text("fixed")],
-        project={"check_command": "python check.py TWO"},
+        [
+            step(write("a.txt", "A")),
+            own_test("TWO"),
+            text("A done"),
+            step(edit("two", "TWO")),
+            text("fixed"),
+        ],
+        project=tested(),
         lead=[
             step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
             GO_ON,
@@ -345,8 +380,14 @@ def test_at_full_auto_a_check_that_keeps_failing_is_the_users_after_two_rounds(
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done"), text("tried"), text("tried again")],
-        project={"check_command": "python check.py NEVER-THERE"},
+        [
+            step(write("a.txt", "A")),
+            own_test("NEVER-THERE"),
+            text("A done"),
+            text("tried"),
+            text("tried again"),
+        ],
+        project=tested(),
         lead=[
             step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
             GO_ON,
@@ -377,8 +418,8 @@ def test_where_commands_are_asked_about_the_check_runs_before_the_card_and_again
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done")],
-        project={"check_command": "python check.py one"},
+        [step(write("a.txt", "A")), own_test("one"), text("A done")],
+        project=tested(),
         permission_mode="ask",
     )
     merge = card(client, cid)
@@ -416,15 +457,14 @@ def test_in_a_turn_nobody_watches_a_failed_check_takes_nothing_and_keeps_the_cop
                 step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
                 text("done"),
             ],
-            "Coder": [step(write("a.txt", "A")), text("A done")],
+            "Coder": [step(write("a.txt", "A")), own_test("NEVER-THERE"), text("A done")],
         }
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    command = "python check.py NEVER-THERE"
-    assert client.patch(f"/api/projects/{pid}", json={"check_command": command}).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json=tested()).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    rules = [allow(client, cid, command)] if ticked else []
+    rules = [allow(client, cid, CHECKED)] if ticked else []
     made = trigger(client, pid, cid, permissions={"write": True, "commands": rules, "agents": 1})
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -440,8 +480,10 @@ def test_in_a_turn_nobody_watches_a_failed_check_takes_nothing_and_keeps_the_cop
 
 # --- K-evrim review: a check the gates ask about (it deletes) -----------------------------------
 
-# Exits 0; `rm -rf` is never reached - but it is what `harms` sees, as in `rm -rf dist && npm test`.
-HARMS = "python check.py one || rm -rf dist"
+# pytest empties its --basetemp folder first: what `harms` sees (0.1.7: a check is a pytest line
+# narrowed to the Coder's tests - `python check.py one || rm -rf dist` is no line it narrows).
+HARMS = f"{RUNS} --basetemp=dist"
+HARMS_CHECKED = f"{HARMS} {OWN}"
 
 
 def asked_command(client, cid):
@@ -460,21 +502,21 @@ def test_koloni_asks_before_its_own_check_that_deletes_and_the_users_click_runs_
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done")],
-        project={"check_command": HARMS},
+        [step(write("a.txt", "A")), own_test("one"), text("A done")],
+        project=tested(HARMS),
         permission_mode=mode,
     )
     # B-355's check by itself asks first, with why; declined, it did not run - no failure.
     one, why = asked_command(client, cid)
-    assert why == "Deletes files or disks."
+    assert why == BASETEMP
     assert client.post(f"/api/commands/{one['id']}/reject").status_code == 200
     merge = card(client, cid)
     assert merge["check"]["state"] == "not_run"
-    assert merge["check"]["note"] == "not run: declined on its card - Deletes files or disks."
+    assert merge["check"]["note"] == f"not run: declined on its card - {BASETEMP}"
     # The user's own click is its leave: it runs, unasked, as before.
     assert client.post(f"/api/merges/{merge['id']}/check").status_code == 200
     snap = until(client, cid, lambda s: s["merges"][0]["check"]["state"] == "passed", timeout=LONG)
-    assert [c["status"] for c in snap["commands"] if c["command"] == HARMS] == [
+    assert [c["status"] for c in snap["commands"] if c["command"] == HARMS_CHECKED] == [
         "rejected",
         "exited",
     ]
@@ -489,11 +531,11 @@ def test_at_full_auto_a_check_declined_on_its_card_sends_no_work_back(
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done")],
-        project={"check_command": HARMS},
+        [step(write("a.txt", "A")), own_test("one"), text("A done")],
+        project=tested(HARMS),
     )
     one, why = asked_command(client, cid)  # (once: no second card)
-    assert why == "Deletes files or disks."
+    assert why == BASETEMP
     assert client.post(f"/api/commands/{one['id']}/reject").status_code == 200
     merge = card(client, cid)  # (not taken unchecked: the user's card)
     assert merge["check"]["state"] == "not_run"
@@ -516,15 +558,18 @@ def test_a_triggers_leave_for_the_very_check_still_runs_it_nobody_watching(
                 step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
                 text("done"),
             ],
-            "Coder": [step(write("a.txt", "A")), text("A done")],
+            "Coder": [step(write("a.txt", "A")), own_test("one"), text("A done")],
         }
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    # (Nobody watching, harm is the trigger's to judge, `_night_asks`; one naming the project folder
-    # is asked at every level, `copy_reason` - a rule is one plain command.)
-    named = f"python {(project_dir / 'check.py').as_posix()} one"
-    assert client.patch(f"/api/projects/{pid}", json={"check_command": named}).status_code == 200
+    # (Nobody watching, harm is the trigger's to judge, `_night_asks`; one naming a place outside
+    # its copy - the project folder, `..` - is asked at every level, `copy_reason` - a rule is one
+    # plain command. 0.1.7: `..`, as a rule of the narrowed line naming the project's full path
+    # went past 200 characters.)
+    runs = f"{RUNS} --confcutdir=.."
+    named = f"{runs} {OWN}"
+    assert client.patch(f"/api/projects/{pid}", json=tested(runs)).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     made = trigger(
         client,
@@ -661,8 +706,14 @@ def test_a_commit_is_offered_only_where_the_user_said_so_and_the_project_is_the_
 def test_the_check_command_and_the_commit_setting_are_the_users_alone(make_client, project_dir):
     client, _model = make_client({"Lead": [text("x")]})
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    # (0.1.7, Test before adding gone: what the check narrows is the root part's test command, set
+    # on the project map)
+    test = f"/api/projects/{pid}/map/test"
+    for origin, status in ((None, 403), ("http://evil.example", 403), (ORIGIN, 200)):
+        headers = {"Origin": origin} if origin else {}
+        root = {"path": "./", "command": "python -m pytest -q"}
+        assert client.put(test, json=root, headers=headers).status_code == status
     for change in (
-        {"check_command": "python -c pass"},
         {"git_commit": True},
         {"measure_command": " python measure.py "},
     ):  # (K-evrim: it is run, too)
@@ -680,15 +731,17 @@ def test_the_check_command_and_the_commit_setting_are_the_users_alone(make_clien
             == 200
         )
     kept = client.get("/api/projects").json()[0]
-    assert (kept["check_command"], kept["git_commit"]) == ("python -c pass", True)
-    assert kept["measure_command"] == "python measure.py"
-    for name in ("check_command", "measure_command"):
-        assert (
-            client.patch(
-                f"/api/projects/{pid}", json={name: "x" * 501}, headers={"Origin": ORIGIN}
-            ).status_code
-            == 422
-        )
+    parts = client.get(f"/api/projects/{pid}/map").json()["parts"]
+    assert next(part["test"] for part in parts if part["path"] == "./") == "python -m pytest -q"
+    assert kept["git_commit"] is True and kept["measure_command"] == "python measure.py"
+    too_long = {"path": "./", "command": "x" * 501}
+    assert client.put(test, json=too_long, headers={"Origin": ORIGIN}).status_code == 422
+    assert (
+        client.patch(
+            f"/api/projects/{pid}", json={"measure_command": "x" * 501}, headers={"Origin": ORIGIN}
+        ).status_code
+        == 422
+    )
     assert (
         client.patch(
             f"/api/projects/{pid}", json={"measure_command": " "}, headers={"Origin": ORIGIN}
