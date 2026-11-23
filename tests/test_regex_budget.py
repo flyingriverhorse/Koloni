@@ -71,7 +71,8 @@ def test_a_merge_said_blocked_reads_a_long_line_in_time():
         "import time\n"
         "from app.agent import review_mixin as r\n"
         "began = time.perf_counter()\n"
-        "for bad in (' ' * 16_000 + 'x', ' (' * 8_000 + 'x', ' -' * 8_000 + ' x'):\n"
+        "for bad in (' ' * 16_000 + 'x', ' (' * 8_000 + 'x', ' -' * 8_000 + ' x',\n"
+        "            ' [' * 8_000 + 'x', ' /' * 8_000 + 'x', '; ' * 8_000 + 'x'):\n"
         "    r._MERGE_NOT.match(bad)\n"
         "print(1000 * (time.perf_counter() - began))\n"
     )

@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from sqlalchemy import literal_column, or_, select
 
 from app import away, injection, ledger, proof, proof_before, recipe_run
+from app.agent import merge
 from app.agent.before_mixin import NOT_YOURS
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
@@ -236,9 +237,14 @@ class ProofMixin:
             return None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
-            checks = proof.checks_of(
-                session, session.get_one(Conversation, ctx.cid), session.get(Run, ctx.run_id)
-            )
+            conversation = session.get_one(Conversation, ctx.cid)
+            checks = proof.checks_of(session, conversation, session.get(Run, ctx.run_id))
+            if self._kept_work(ctx) is not None and (was := self._resumed_from.get(ctx.run_id)):
+                # (Fix it on held work: the held turn's checks - never fewer than the tests and
+                # the review, whatever this chat's switch or the project's After a change say)
+                checks = proof.with_held(
+                    checks, proof.checks_of(session, conversation, session.get(Run, was))
+                )
             if project is None or not checks.on:  # (S5c: a recipe's Checks step may turn all off)
                 return None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
@@ -251,7 +257,7 @@ class ProofMixin:
         )
         if (copy := self._kept_work(ctx)) is not None:  # (Fix it: the whole kept work)
             found = [
-                one for one, _diff in await asyncio.to_thread(proof.kept_work, copy, ctx.agent_id)
+                one for one, _diff in await asyncio.to_thread(merge.kept_work, copy, ctx.agent_id)
             ]
         if not any(one.in_project for one in found) and unrecorded is None:
             return None
@@ -286,7 +292,7 @@ class ProofMixin:
     def _kept_work(self: "AgentRunner", ctx: Ctx) -> "copies.Copy | None":
         """Fix it on a "Not taken in" row: the kept copy this turn's Lead goes on in - its end check
         covers the whole of it as Take in would bring it, the held work and the fix
-        (`proof.kept_work`), never the fix alone; None: a turn of its own."""
+        (`merge.kept_work`), never the fix alone; None: a turn of its own."""
         owner = self._resumed.get(ctx.run_id)
         return self._copies.get(owner) if owner is not None and owner == ctx.agent_id else None
 
@@ -1082,6 +1088,9 @@ class ProofMixin:
         found = (
             []
             if lead is None or project is None
+            # (Fix it on held work: what its gate checked - the whole kept work, `_kept_work`)
+            else held.changes
+            if held is not None and run_id in self._resumed
             else proof.changes(session, run_id, lead.agent_id, self._sharing(lead))
         )
         # (Work that only waits in Ready for you: nothing was checked - the "landed" line says

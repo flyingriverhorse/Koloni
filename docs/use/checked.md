@@ -403,6 +403,12 @@ its fix rounds", with **Take in anyway** and **Fix it**. **Fix it** goes on in t
 copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
 change and the fix, by the same rule (a big or security-touching change gets the look), never
 the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
+That turn keeps the held turn's checks - never fewer than the tests and the review, whatever this
+chat's switch or the project's After a change say since; its old code, for "were failing before",
+is the project's, so the held work's own failure is never excused; and a room its Orchestrator
+opens takes nothing in when it ends. The Reviewer sees the kept work as Take in shows it: what
+Take in leaves out is not in it, and a secret file, one holding a secret you gave on a card, or
+one that is not text is named, never shown.
 **Take in anyway** is your word: the work goes in as it is, with no look first.
 
 The order is always the same: KOLONİ's checks first, on the work where it is (a recipe's copy), then

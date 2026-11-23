@@ -147,9 +147,12 @@ def test_work_a_look_still_holds_is_not_taken_in_at_any_level(
     assert "a look of KOLONİ's still held it" in said and "rename them" in said, said
 
 
-def held_then_fix_it(make_client, wait_run, project_dir, second_look):
+def held_then_fix_it(
+    make_client, wait_run, project_dir, second_look, lower=None, then=None, more=None
+):
     """A recipe's big change a look holds (Fix rounds 0: kept, "Not taken in: on hold"), then
-    Fix it: its turn's Lead changes one line of it in the kept copy; the next look as given."""
+    Fix it: its turn's Lead changes one line of it in the kept copy (or does `then`, the agents
+    of its turn `more`); the next look as given. `lower(client, pid, cid)`: done before Fix it."""
     from tests.test_proof_review_scenarios import hold
 
     executor = ScriptedExecutor([PASS for _ in range(10)])
@@ -185,11 +188,12 @@ def held_then_fix_it(make_client, wait_run, project_dir, second_look):
     )
     snap = wait_run(client, cid, run_id)
     (kept,) = [r for r in held_rows(snap, run_id) if r["kind"] == "not_taken"]
-    model.by_agent["Lead"] += [
-        step(write("calc.py", FIXED, "w9")),
-        text("renamed it"),
-        *DONE,
-    ]
+    if lower is not None:
+        lower(client, pid, cid)
+    model.by_agent["Lead"] += then or [step(write("calc.py", FIXED, "w9")), text("renamed it")]
+    model.by_agent["Lead"] += DONE
+    for name, steps in (more or {}).items():
+        model.by_agent.setdefault(name, []).extend(steps)
     client.patch(f"/api/conversations/{cid}", json={"lead_hands_code": False}, headers=OWN)
     went = client.post(
         f"/api/runs/{run_id}/held/fix",
@@ -254,3 +258,118 @@ def test_at_the_turns_end_a_hold_after_a_stronger_pass_keeps_the_copy_out(make_c
         for one in (runner._proofs, runner._resumed, runner._held_back):
             one.pop("r", None)
         runner._copies.pop("lead", None)
+
+
+def chat_off(client, _pid, cid):
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}", json={"after_change": "off"}, headers=OWN
+        ).status_code
+        == 200
+    )
+
+
+def no_teams(client, _pid, cid):
+    """(The chat's teams set aside: its Lead works as one with none - here, a room.)"""
+    said = client.patch(f"/api/conversations/{cid}", json={"teams": []}, headers=OWN)
+    assert said.status_code == 200, said.text
+
+
+def lowered_to_tests_only(client, pid, _cid):
+    assert (
+        client.patch(
+            f"/api/projects/{pid}", json={"after_change": "tests"}, headers=OWN
+        ).status_code
+        == 200
+    )
+
+
+@pytest.mark.parametrize("lower", [chat_off, lowered_to_tests_only], ids=["chat_off", "tests_only"])
+def test_fix_it_on_held_work_keeps_the_held_turns_checks(make_client, wait_run, project_dir, lower):
+    # (B2: the Fix it turn has no recipe - its checks would follow the chat's switch or the
+    # project's After a change, lowered since; the held work goes in by this gate alone)
+    from tests.test_proof_review_scenarios import hold
+
+    client, _model, cid, second, snap = held_then_fix_it(
+        make_client, wait_run, project_dir, hold("calc.py: still wrong"), lower=lower
+    )
+    rows = held_rows(snap, second)
+    assert any(r["kind"] == "review" and "HOLD" in r["text"] for r in rows), rows
+    assert any(r["kind"] == "not_taken" for r in rows), [r["text"] for r in rows]
+    assert not (project_dir / "calc.py").exists()
+
+
+def test_a_room_in_a_fix_it_turn_takes_none_of_the_held_work_in(make_client, wait_run, project_dir):
+    # (B4: a room the Fix it turn's Lead opens works in the kept copy - its end takes nothing in;
+    # the turn's end check does, or keeps it held)
+    from tests.test_proof_review_scenarios import hold
+    from tests.test_room_open_scenarios import open_room
+
+    client, _model, cid, second, snap = held_then_fix_it(
+        make_client,
+        wait_run,
+        project_dir,
+        hold("calc.py: still wrong"),
+        lower=no_teams,
+        then=[open_room(members=("Coder", "Tester")), text("the room is over")],
+        more={"Coder": [text("Nothing to add.")], "Tester": [text("Nothing to add.")]},
+    )
+    assert snap["rooms"], [
+        (t["name"], t["status"], (t["result"] or "")[:300])
+        for t in snap["tool_calls"]
+        if t["run_id"] == second
+    ]
+    assert not (project_dir / "calc.py").exists()
+    assert any(r["kind"] == "not_taken" for r in held_rows(snap, second)), [
+        r["text"] for r in held_rows(snap, second)
+    ]
+
+
+class _Unread:
+    """A copy KOLONİ cannot read (`changes` fails), or whose put back leaves a file."""
+
+    def __init__(self, left=()):
+        self.left = list(left)
+
+    def changes(self):
+        if not self.left:
+            raise OSError("the copy is gone")
+        return []
+
+    def snapshot(self, _keep):
+        return {"a.txt": "x"}, {}
+
+    def moved_since(self, _was):
+        return list(self.left)
+
+    def put_back(self, _paths, _was, _kept):
+        return list(self.left)
+
+    def save(self):
+        pass
+
+
+class _Runner:
+    def __init__(self, copy):
+        self._ctxs, self._copies = {"lead": object()}, {"lead": copy}
+
+    def _works_in(self, _ctx):
+        return "lead"
+
+
+def test_a_looks_command_runs_only_where_what_it_writes_can_be_put_back():
+    # (review: a copy that could not be read first never runs the command unkept; what the put
+    # back left is said with its output, never dropped)
+    import asyncio
+
+    from app.agent.ctx import Ctx
+    from app.agent.review_mixin import ReviewMixin
+    from app.tools import ToolError
+
+    look = Ctx("r", "c", "x", "look", "Reviewer", (), 1, parent_id="lead")
+    with pytest.raises(ToolError, match="could not read the copy"):
+        asyncio.run(ReviewMixin._look_trace(_Runner(_Unread()), look))
+    left = _Unread(["htmlcov/index.html"])
+    trace = asyncio.run(ReviewMixin._look_trace(_Runner(left), look))
+    said = asyncio.run(ReviewMixin._look_untrace(_Runner(left), look, trace))
+    assert "could not put back" in said and "htmlcov/index.html" in said, said

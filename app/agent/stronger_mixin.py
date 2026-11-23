@@ -7,7 +7,6 @@ approach-wrong), then fixes as that allows. Failing work is never taken in (`_no
 `StrongerMixin`."""
 
 import asyncio
-import contextlib
 import json
 import logging
 import re
@@ -329,7 +328,7 @@ class StrongerMixin:
         merge_id = self._resume_in.pop(ctx.run_id, None)
         if merge_id is None:
             return
-        why, copy, payload = None, None, None
+        why, copy, payload, held_run = None, None, None, None
         with self._factory() as session:
             merge = session.get(Merge, merge_id)
             if merge is None or not self._undecided(merge) or not merge.kept_in:
@@ -348,12 +347,14 @@ class StrongerMixin:
                     merge.status, merge.files, merge.kept_in = "discarded", [], None
                     merge.check, merge.decided_at = None, now()
                     session.commit()
-                    payload = merge_out(merge)
+                    payload, held_run = merge_out(merge), merge.run_id
         if copy is None:
             self._koloni_line(ctx.cid, ctx.run_id, RESUME_FAILED.format(why=why or DECIDED))
             return
         self._copies[ctx.agent_id] = copy
         self._resumed[ctx.run_id] = ctx.agent_id
+        if held_run is not None:
+            self._resumed_from[ctx.run_id] = held_run
         self.bus.emit(ctx.cid, ctx.run_id, "merge.updated", payload)
 
     def _first_model(self: "AgentRunner", session, ctx: Ctx) -> tuple[str, str, str, str | None]:
@@ -656,8 +657,7 @@ class StrongerMixin:
         going = asyncio.ensure_future(self._run_call(ctx, call_id, request))
         self._looks.setdefault(ctx.run_id, set()).add(going)
         try:
-            async with self._look_leaves_no_trace(ctx) if read_only else contextlib.nullcontext():
-                status, said = await going
+            status, said = await going
         except asyncio.CancelledError:
             if not going.cancelled() or self._turn_stopping() or _cancelled_outside():
                 raise

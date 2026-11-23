@@ -471,33 +471,6 @@ def cut(parts: list[tuple[str, str]], most: int) -> tuple[str, str, list[str]]:
     return shown, whole, left
 
 
-def kept_work(copy, lead_id: str) -> list[tuple[Change, str]]:
-    """k-bakis-yeri: a kept copy's work as Take in would bring it - each file it changed against
-    the project, as it stands - for the end check of the turn that goes on in it (Fix it on a
-    "Not taken in" row): each file's change, where the tests run, and its diff (a secret file
-    named, never shown). Blocking: it reads the copy and the project."""
-
-    def text_of(place: Path | None) -> str:
-        try:
-            return (
-                place.read_bytes().decode("utf-8", "replace") if place and place.is_file() else ""
-            )
-        except OSError:
-            return ""
-
-    found = []
-    for path, kind, _state in copy.changes():
-        after = "" if kind == "deleted" else text_of(copy.here(path))
-        diff, added, removed = unified_diff(text_of(copy.there(path)), after, path)
-        if secret_in_project(path):
-            diff = f"{path}: a secret file - changed, not shown"
-        made = Change(path, kind_of(path), added, removed, kind == "deleted", lead_id, True)
-        found.append(
-            (made._replace(existed=kind != "new"), diff.rstrip("\n") + "\n" if diff else "")
-        )
-    return found
-
-
 def unrecorded(
     session: Session, run_id: str, by: Collection[str], folder: str | None = None
 ) -> tuple[str, datetime | None] | None:
@@ -918,6 +891,14 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
         else:
             on, most = on | parts | theirs, _more(most, rounds, _asked(asked, rounds))
     return Checks(frozenset(on), most, setting, True)
+
+
+def with_held(turn: Checks, held: Checks) -> Checks:
+    """k-bakis-yeri: the checks of a turn Fix it started on held work (its kept copy) - the held
+    turn's own and never fewer than the tests and the review, whatever the chat's switch or the
+    project's After a change say now: the work goes in by this turn's end check alone. Its Fix
+    rounds are the turn's."""
+    return Checks(turn.on | held.on | {"tests", "review"}, turn.rounds, "check", False)
 
 
 def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> str | None:
