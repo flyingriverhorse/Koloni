@@ -852,6 +852,8 @@ chat, the Orchestrator's box says "not checked · off for this chat"; off in the
 step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
 **Nothing**, it says nothing of it - the Checked section does.
 
+![A recipe's turn: the Orchestrator's line reaches the Web app frame at its door; in the frame the recipe's Coder, then, right of it with an arrow from it, the Checks · KOLONİ box - its Reviewer, MERGE, and check.py 2 passed at its foot - the frame's last part; the frame's line on to Ready for you](../images/checks-recipe.png)
+
 ![A check at work: the Orchestrator's box says checking…, and the Checks node's ⋯ menu offers Stop this check, Off for this chat and Open its log](../images/checks-running.png)
 
 ![A reviewed turn on the canvas: right of the Orchestrator, an arrow into the plain Checks · KOLONİ box with the Reviewer KOLONİ opened in it - MERGE - and check.py 2 passed at its foot](../images/checks-reviewer.png)

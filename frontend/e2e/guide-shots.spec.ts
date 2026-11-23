@@ -452,6 +452,49 @@ test.describe('proven finish (0.1.6)', () => {
     }
   })
 
+  // tuval-kontrol-dongusu, the recipe case: a one-step recipe's turn - its Coder in the frame, KOLONİ's look in the Checks box,
+  // the frame's last part, right of the step.
+  // shortcut: one look that lets it stand (the plain box) - a recipe's turn KOLONİ sends back needs the fake model's recipe
+  // flow scripted for it (k-dongu's three Coders and its Security reviewer are the Orchestrator's, not a recipe's).
+  test('a recipe’s turn: the Checks box is its frame’s last part', async ({ page, request }) => {
+    test.setTimeout(180_000)
+    const conversation = await openFreshConversation(page)
+    const id = await e2eProject(page)
+    const { spawn_approval: spawns } = await (await page.request.get(`/api/projects/${id}`)).json()
+    const RECIPE = 'Write it (guide)'
+    const graph = {
+      version: 1,
+      steps: [{ id: 'write', name: 'Write it', who: { role: 'Coder' } }],
+      ends: [{ id: 'end', then: 'in' }],
+      arrows: [{ from: 'start', to: 'write' }, { from: 'write', to: 'end' }],
+    }
+    await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
+    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
+    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+    await setProject(page, { spawn_approval: 'never' })
+    try {
+      await checksOn(page, PASSING)
+      await level(page, 'full_auto')
+      const set = await request.patch(`/api/conversations/${conversation}`, {
+        headers: OWN,
+        data: { teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
+      })
+      expect(set.ok()).toBe(true)
+      await page.getByLabel('Message').fill('write the looped change, k-dongu')
+      await page.getByRole('button', { name: 'Send' }).click()
+      const box = page.locator('.react-flow__node-checks')
+      await expect(box).toContainText('MERGE', { timeout: 150_000 })
+      await expect(box).toContainText('✓ check.py', { timeout: 30_000 })
+      await page.getByRole('button', { name: 'Hide chat' }).click()
+      await settled(page)
+      for (let times = 0; times < 2; times++) await page.locator('.react-flow__controls-zoomin').click()
+      await settled(page)
+      await picture(page, 'checks-recipe')
+    } finally {
+      await setProject(page, { spawn_approval: spawns })
+    }
+  })
+
   test('your CI’s lines offered under the answer: Run these', async ({ page }) => {
     mkdirSync(path.join(PROJECT_DIR, '.github', 'workflows'), { recursive: true })
     writeFileSync(path.join(PROJECT_DIR, '.github', 'workflows', 'guide.yml'), WORKFLOW)
