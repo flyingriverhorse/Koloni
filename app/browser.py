@@ -756,12 +756,13 @@ _A11Y = r"""(o) => {
   const tabbed = 'button, a[href], input:not([type=hidden]), select, textarea, summary, ' +
     '[tabindex]';
   // (an inline svg is read as one element, never its shapes: two thousand <rect>s would spend
-  // the elements read on what has no text, name or control of the page's)
+  // the elements read on what has no text, name or control of the page's - passed over, not
+  // counted, but walked through: a foreignObject's page is read as any)
   const svg = 'http://www.w3.org/2000/svg';
-  const shape = (el) => { const up = parent(el); return !!up && nsOf(up) === svg; };
+  const shape = (el) => nsOf(el) === svg && tag(el) !== 'svg';
   const walk = walker(document, root, NodeFilter.SHOW_ELEMENT,
-    {acceptNode: (el) => skip.has(tag(el)) || shape(el) ? NodeFilter.FILTER_REJECT
-      : NodeFilter.FILTER_ACCEPT});
+    {acceptNode: (el) => skip.has(tag(el)) ? NodeFilter.FILTER_REJECT
+      : shape(el) ? NodeFilter.FILTER_SKIP : NodeFilter.FILTER_ACCEPT});
   const texts = [];
   let n = 0;
   for (let el = root; el; el = walk.nextNode()) {

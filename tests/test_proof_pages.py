@@ -1000,6 +1000,13 @@ FOURTH = {
         "<svg width='200' height='200'>" + "<rect/>" * 2000 + "</svg><button style='width:40px;"
         "height:20px'></button><img src='dot.png' width='20' height='20'>",
     ),
+    # (...and an svg's foreignObject: its page is read as any - the button and the image found)
+    "foreign": (
+        "",
+        "<svg width='200' height='100'><foreignObject width='200' height='100'><button "
+        "style='width:40px;height:20px'></button><img src='dot.png' width='20' height='20'>"
+        "</foreignObject></svg>",
+    ),
     "many_drawn": (
         "background:#fff",
         "<div>" + "<span style='background:#eee'>x</span> " * 250 + "</div>" + GREY,
@@ -1011,6 +1018,7 @@ FOURTH_KINDS = {
     "card4_d4": [],
     "card2_d8": [],
     "svg_illustration": ["alt", "name"],
+    "foreign": ["alt", "name"],
     "many_drawn": ["contrast"],
     "D04": [],
 }
