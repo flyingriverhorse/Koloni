@@ -322,16 +322,34 @@ def test_a_line_started_in_the_same_clock_tick_after_a_pass_unmakes_it(factory):
         assert proof.fresh(s, "r", "lead", RUN, proof.last_change(s, "r")) is None
 
 
-def test_unrecorded_names_the_newest_writer_from_the_oldest_ones_start(factory):
+def agent_ran(s, command, at, seq, cwd="."):
+    """A command an agent ran by its tool call (KOLONİ's own runs have none)."""
+    call = ToolCall(run_id="r", agent_id="lead", message_id="m", seq=seq,
+                    provider_call_id=f"call_{seq}", name="run_command",
+                    arguments=json.dumps({"command": command}))
+    s.add(call)
+    s.flush()
+    s.add(Command(run_id="r", agent_id="lead", tool_call_id=call.id, command=command, cwd=cwd,
+                  location="host", status="exited", exit_code=0, output="", timeout_seconds=60,
+                  started_at=at - timedelta(seconds=1), ended_at=at))
+    s.commit()
+
+
+def test_unrecorded_names_the_newest_writer_from_the_oldest_ones_start(factory, tmp_path):
     # (Re-check of D: `sed -i` wrote a.py, `python main.py` 30 s later wrote nothing - from the
     # newest's start a.py was left out, and the turn went unchecked.)
-    at = now()
+    at, project = now(), tmp_path / "project"
     with factory() as s:
-        ran(s, "cat a.py", 0, at - timedelta(seconds=40))  # (a read: not where it starts)
-        ran(s, "sed -i s/1/2/ a.py", 0, at - timedelta(seconds=30))
-        ran(s, "python -m pytest -q", 0, at - timedelta(seconds=20))
-        ran(s, "python main.py", 0, at)
-        assert proof.unrecorded(s, "r", {"lead"}) == ("python main.py", at - timedelta(seconds=31))
+        agent_ran(s, "cat a.py", at - timedelta(seconds=50), 0)  # (a read: not where it starts)
+        agent_ran(s, "rg KEY .", at - timedelta(seconds=45), 1)  # (a lone search reads too)
+        agent_ran(s, "sed -i s/1/2/ a.py", at - timedelta(seconds=30), 2)
+        agent_ran(s, "python -m pytest -q", at - timedelta(seconds=20), 3)
+        agent_ran(s, "python main.py", at - timedelta(seconds=10), 4, str(project))
+        # (CI on b16805f: KOLONİ's own check in a room's copy - no tool call - opened the gate.)
+        ran(s, "python check.py --merge", 0, at - timedelta(seconds=5))
+        agent_ran(s, "python gen.py", at, 5, str(tmp_path / "copies" / "web"))  # (a working copy's)
+        assert proof.unrecorded(s, "r", {"lead"}, str(project)) == (
+            "python main.py", at - timedelta(seconds=31))
 
 
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")

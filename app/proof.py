@@ -6,6 +6,7 @@ import contextlib
 import difflib
 import fnmatch
 import json
+import os
 import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
@@ -17,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app import finish_tests, git, ledger, project_map, test_found
 from app.code_map import PYTHON, SCRIPT, tested
-from app.commands import only_reads, plain
+from app.commands import only_reads, only_searches, plain
 from app.db.models import (
     Agent,
     Command,
@@ -322,21 +323,26 @@ def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
     return shown, whole, left
 
 
-def unrecorded(session: Session, run_id: str, by: Collection[str]
+def unrecorded(session: Session, run_id: str, by: Collection[str], folder: str | None = None
                ) -> tuple[str, datetime | None] | None:
     """CL-321 Bulgu D: the commands of `by` (the Lead and the agents working where it does) this
-    turn that may have changed files no change record holds - each with a part that is neither a
-    mere read (`only_reads`) nor a test run (`ledger.read_test`), not KOLONİ's own:
-    `python -c "open(…)"`, `sed -i`, a heredoc to a file, `black . && pytest -q`. The newest's
-    line, shortened, and when the oldest started (an earlier `sed -i` wrote too); None: none."""
+    turn, in `folder` (the project), that may have changed files no change record holds - each
+    with a part that is neither a mere read (`only_reads`), a lone search (`only_searches`) nor a
+    test run (`ledger.read_test`): `python -c "open(…)"`, `sed -i`, a heredoc to a file,
+    `black . && pytest -q`. Not KOLONİ's own: its end check's, nor one it ran with no tool call
+    (a merge's or a take-in's check, in a working copy or the project - as S7's
+    `_changed_by_command`); nor one in a working copy, whose changes are recorded as it is taken
+    in. The newest's line, shortened, and when the oldest started (an earlier `sed -i` wrote too);
+    None: none."""
     mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
     newest, oldest = None, None
-    for line, started in session.execute(select(Command.command, Command.started_at).where(
+    for line, started, cwd in session.execute(select(
+            Command.command, Command.started_at, Command.cwd).where(
             Command.run_id == run_id, Command.agent_id.in_(by),
             Command.status.in_(("exited", "timed_out")),
-            or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(mine)))
+            Command.tool_call_id.is_not(None), Command.tool_call_id.not_in(mine))
             .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
-        if may_write(line):
+        if _ran_in(cwd, folder) and may_write(line):
             if newest is None:
                 said = " ".join(line.split())
                 newest = said if len(said) <= MOST_COMMAND else said[:MOST_COMMAND - 1] + "…"
@@ -344,10 +350,21 @@ def unrecorded(session: Session, run_id: str, by: Collection[str]
     return None if newest is None else (newest, oldest)
 
 
+def _ran_in(cwd: str | None, folder: str | None) -> bool:
+    """Whether a command ran in the project `folder`: no folder said where it ran (a CLI's own
+    command), or one in it - not a working copy's."""
+    if not cwd or folder is None or not os.path.isabs(cwd):
+        return True
+    here = os.path.normcase(os.path.realpath(folder))
+    there = os.path.normcase(os.path.realpath(cwd))
+    return there == here or there.startswith(here.rstrip(os.sep) + os.sep)
+
+
 def may_write(line: str) -> bool:
     """Whether a command line may change files: a part of it (`ledger._split`) is neither a mere
-    read (`only_reads`) nor a test run (`ledger.read_test`) - `black . && pytest -q` may."""
-    return any(ledger.read_test(part) is None and not only_reads(part)
+    read (`only_reads`), a lone search (`only_searches`: `rg KEY .`) nor a test run
+    (`ledger.read_test`) - `black . && pytest -q` may."""
+    return any(ledger.read_test(part) is None and not only_reads(part) and not only_searches(part)
                for part in (" ".join(words) for words, _op in ledger._split(line) if words))
 
 
