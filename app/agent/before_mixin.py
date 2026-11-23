@@ -14,6 +14,7 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -23,7 +24,16 @@ from app import ci_commands, copies, ledger, memory, proof, proof_before, test_f
 from app.agent.ctx import Ctx
 from app.agent.stronger_mixin import steers_tests
 from app.commands import only_reads
-from app.db.models import Command, Memory, Message, Run, ToolCall, now
+from app.db.models import (
+    Command,
+    Conversation,
+    FileChange,
+    Memory,
+    Message,
+    Run,
+    ToolCall,
+    now,
+)
 from app.proof import TestRun
 
 if TYPE_CHECKING:
@@ -58,6 +68,17 @@ GREEN_LEAD = (
     "again."
 )
 _SEEN = re.compile(r"seen (\d+) times")
+
+
+def _text(path: Path) -> str | None:
+    """R: a test file's text as it is on disk where the tests ran; None where it is not read - gone,
+    not UTF-8, over what is counted (`proof_before.MOST_COUNTED`)."""
+    try:
+        with path.open("rb") as file:
+            data = file.read(proof_before.MOST_COUNTED + 1)
+        return data.decode("utf-8") if len(data) <= proof_before.MOST_COUNTED else None
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def _named(command: str):
@@ -243,8 +264,13 @@ class BeforeMixin:
             project = self._project(session, ctx.cid)
             if project is None:
                 return []
-            said = proof_before.green_said((project.tests_green or {}).get(key), ran, skipped)
-            fewer, skips = self._could_drop(session, ctx, held) if said else (True, True)
+            was = (project.tests_green or {}).get(key)
+            said = proof_before.green_said(was, ran, skipped)
+            fewer, skips = (
+                self._could_drop(session, ctx, held, run, was.get("at"))
+                if said and was
+                else (True, True)
+            )
             ours = [one for one in said if (skips if one.startswith("Skipped") else fewer)]
             for one in (one for one in said if one not in ours):  # (R: the green state moves)
                 self._said_once(
@@ -273,35 +299,107 @@ class BeforeMixin:
             session.commit()
         return []
 
-    @staticmethod
-    def _could_drop(session, ctx: Ctx, held: "Proof") -> tuple[bool, bool]:
-        """R (CL-345): whether the turn's own work could make fewer tests run, and more skipped -
-        a test file that was there before it with fewer test definitions now, or more skips
-        (`proof_before.tests_in`, its text before the turn against its text now; deleted: none
-        now), what says which tests run (a conftest, pytest.ini, pyproject.toml, setup.cfg,
-        tox.ini, package.json, a Vitest or Jest config: `steers_tests`), a test a command of its
-        deleted, a command whose change is on no record. A test file whose text is not counted
-        (no record of it, not UTF-8, too large) is the turn's: fail safe. A turn that only adds
-        tests takes none away: a drop then is not its own (deleted by hand, a pull, a branch)."""
-        if (
-            held.unrecorded
-            or held.gone_tests
-            or any(one.in_project and steers_tests(one.path) for one in held.changes)
+    def _could_drop(
+        self: "AgentRunner", session, ctx: Ctx, held: "Proof", run: TestRun, since: str | None
+    ) -> tuple[bool, bool]:
+        """R (CL-345; its second round, the main session's rule): whether a drop against the last
+        green run - fewer tests run, more skipped - may be the turn's. Outside it only where that
+        is shown, all of: no command of the turn's that may write ran, wherever it ran (a script
+        in a recipe's copy, `git rm … && git commit`: `_wrote_by_command`); no test file it
+        deleted or renamed, and each one of the project's it changed holds all its old lines,
+        added to only, with nothing that may skip, hide or rebind a test
+        (`proof_before.only_added` - read where the tests ran, never from another copy's record);
+        nothing that says which tests run changed (`steers_tests`, a file the test command names);
+        no change on KOLONİ's record since that green run (`since`) took lines out of a test file
+        (`_tests_cut_since`: another turn's, its suite ended after its answer). Else the turn's,
+        both - as before R. Shown outside: the tests counted in each file it added to
+        (`proof_before.tests_in`), a word more."""
+        turns = (True, True)
+        if held.unrecorded or held.gone_tests or self._wrote_by_command(session, ctx):
+            return turns
+        named = {
+            word.rsplit("/", 1)[-1]
+            for word in run.command.replace("\\", "/").split()
+            if "." in word
+        }
+        if any(
+            one.in_project and (steers_tests(one.path) or one.path.rsplit("/", 1)[-1] in named)
+            for one in held.changes
         ):
-            return True, True
-        kept, fewer, skips = proof._kept(session, ctx.run_id), False, False
+            return turns
+        if since is None or self._tests_cut_since(session, ctx, since):
+            return turns
+        root, kept = Path(self._ws(ctx).root), proof._kept(session, ctx.run_id)
+        fewer = skips = False
         for one in held.changes:
             if not (one.in_project and one.existed and proof.is_test(one.path)):
                 continue
             made = kept.get(one.path)
-            was = proof_before.tests_in(one.path, made[0].before_content if made else None)
-            now = proof_before.tests_in(
-                one.path, "" if one.deleted else made[-1].after_content if made else None
+            was = made[0].before_content if made else None
+            now = None if one.deleted else _text(root / one.path)
+            if not proof_before.only_added(one.path, was, now):
+                return turns
+            before, after = (
+                proof_before.tests_in(one.path, was),
+                proof_before.tests_in(one.path, now),
             )
-            if was is None or now is None:
-                return True, True
-            fewer, skips = fewer or now[0] < was[0], skips or now[1] > was[1]
+            if before is None or after is None:  # (`only_added` counted both: never here)
+                return turns
+            fewer, skips = fewer or after[0] < before[0], skips or after[1] > before[1]
         return fewer, skips
+
+    def _wrote_by_command(self: "AgentRunner", session, ctx: Ctx) -> bool:
+        """R: whether a command of the turn's agents that may write files ran (`proof.may_write`)
+        - in the project or in any copy of the turn, KOLONİ's own runs aside; Fix it's held turn's
+        too. One that may have started counts: only a card turned down did not."""
+        mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(proof.PROOF_CALL))
+        runs = [ctx.run_id, *filter(None, [self._resumed_from.get(ctx.run_id)])]
+        return any(
+            proof.may_write(line)
+            for line in session.scalars(
+                select(Command.command).where(
+                    Command.run_id.in_(runs),
+                    Command.tool_call_id.is_not(None),
+                    Command.tool_call_id.not_in(mine),
+                    Command.status.not_in(("proposed", "rejected")),
+                )
+            )
+        )
+
+    def _tests_cut_since(self: "AgentRunner", session, ctx: Ctx, since: str) -> bool:
+        """R: whether a change on KOLONİ's record in this project's turns since `since` (the green
+        run's time) but this turn's own took lines out of a test file, or deleted one."""
+        project = self._project(session, ctx.cid)
+        try:
+            at = datetime.fromisoformat(since)
+        except (TypeError, ValueError):
+            return True  # (not known: the turn's)
+        if project is None:
+            return True
+        rows = session.execute(
+            select(
+                FileChange.path,
+                FileChange.kind,
+                FileChange.before_content,
+                FileChange.after_content,
+            )
+            .join(Run, Run.id == FileChange.run_id)
+            .join(Conversation, Conversation.id == Run.conversation_id)
+            .where(
+                Conversation.project_id == project.id,
+                FileChange.run_id != ctx.run_id,
+                FileChange.created_at >= at,
+                FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
+            )
+        )
+        return any(
+            proof.is_test(path)
+            and (
+                kind == "delete"
+                or (before is not None and not proof_before.kept_lines(before, after))
+            )
+            for path, kind, before, after in rows
+        )
 
     @staticmethod
     def _passed_now(session, ctx: Ctx, run: TestRun) -> list[str] | None:

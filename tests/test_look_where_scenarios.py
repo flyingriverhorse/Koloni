@@ -527,3 +527,49 @@ def test_a_run_waiting_for_the_machine_holds_up_no_looks_command_in_its_copy(
             one.pop("lead", None)
         runner._recipe_copy.pop("r", None)
         copies.remove(runtime, "waits")
+
+
+def test_a_runs_window_waits_no_longer_than_its_wait_and_lets_go_of_the_lock_it_took(tmp_path):
+    # (review of k-onceki-017: a run that had the app-wide slot waited for its copy's window with
+    # no bound - every other run of KOLONİ's stood behind a look's long command; and its window was
+    # let go by the lock its key found then, which a junction's path could make another one)
+    import asyncio
+
+    from app import copies
+    from app.agent.proof_mixin import SLOT_BUSY, ProofMixin
+    from app.tools import ToolError
+
+    project, runtime = tmp_path / "proj", tmp_path / "rt"
+    project.mkdir()
+    runtime.mkdir()
+    (project / "calc.py").write_text("x = 1\n", encoding="utf-8")
+    copy = copies.make(project, runtime, "window")
+
+    class Runner:
+        _copy_locks: dict = {}
+        _copy_lock = ProofMixin._copy_lock
+        _window_open, _window_close = ProofMixin._window_open, ProofMixin._window_close
+
+        async def _tests_put_back(self, *_args):
+            return None
+
+    runner = Runner()
+
+    async def go():
+        held = runner._copy_lock(copy)
+        await held.acquire()  # (a look's command in the copy)
+        taken: list[bool] = []
+        with pytest.raises(ToolError, match=SLOT_BUSY):
+            await runner._window_open(copy, {}, 0.05, taken)
+        assert taken == [False] and held.locked()
+        held.release()
+        look: dict = {}
+        await runner._window_open(copy, look, 5, [])
+        runner._copy_locks.clear()  # (its path reads another way now: another key, another lock)
+        await runner._window_close(copy, look)
+        assert not held.locked()
+
+    try:
+        asyncio.run(go())
+    finally:
+        copies.remove(runtime, "window")

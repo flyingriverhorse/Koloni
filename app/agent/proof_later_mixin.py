@@ -400,18 +400,38 @@ class ProofLaterMixin:
                 saved = self._save_found(ctx, held, run, *done.result())
             except Exception as exc:  # (a save that broke saves nothing: the row is said)
                 log.warning("run %s: the guess gone on after it not saved: %r", check.run_id, exc)
+        try:
+            ended = self._later_row(check, made, done)
+            green = self._green_later(ctx, held, run, ended)
+        except Exception as exc:  # (a row of KOLONİ's fails nothing)
+            log.warning("run %s: the tests gone on after it not said: %r", check.run_id, exc)
+            return
 
         def said(more: list[Row]) -> None:
-            more = [*saved, *more, *check.after]
+            more = [*saved, *green, *more, *check.after]
             try:
                 held.rows.extend(more)  # (its Checked section not yet written: there)
-                self._checked_update(check, made, self._later_row(check, made, done), *more)
+                self._checked_update(check, made, ended, *more)
             except Exception as exc:  # (a row of KOLONİ's fails nothing)
                 log.warning("run %s: the tests gone on after it not said: %r", check.run_id, exc)
 
         # (S9: its coverage report, read as it ends - off the loop, said with it)
         if not self._coverage_later(ctx, held, run, said):
             said([])
+
+    def _green_later(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, ended: Row
+    ) -> list[Row]:
+        """R, second round: a whole suite gone on after the answer that passed is held to the
+        project's last green run as one in the turn is (`_green`) - what it says goes under it on
+        the turn's Checked (a drop of the turn's: failed, offering Fix it, the green state where
+        it was); a pass on what changed while it ran (a note) is held to nothing."""
+        if ended["state"] != "passed" or not ended.get("counts"):
+            return []
+        before = len(held.rows)
+        self._green(ctx, held, run, dict(ended["counts"] or {}))
+        said, held.rows[before:] = held.rows[before:], []
+        return said
 
     def _later_row(self: "AgentRunner", check: Check, made: Row, done: asyncio.Future) -> Row:
         if done.cancelled():

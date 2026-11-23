@@ -648,11 +648,12 @@ def test_a_test_file_a_command_deleted_is_counted_and_another_file_is_put_back(
     for name in ("a.py", "b.py", "test_b.py", "c.py"):
         (folder / name).write_text("1\n")
     repository(folder)
-    # (CL-329 G: a tracked test deleted - no time to read - is counted; another file is not)
+    # (CL-329 G: a tracked test deleted - no time to read - is counted; and, R's second round,
+    # any file that cannot be read is touched, never passed over - a committed deletion too)
     (folder / "test_b.py").unlink()
     (folder / "c.py").unlink()
-    assert proof.touched_since(folder, now(), set()) == ["test_b.py"]
-    assert proof.touched_since(folder, now(), {"test_b.py"}) == []
+    assert proof.touched_since(folder, now(), set()) == ["c.py", "test_b.py"]
+    assert proof.touched_since(folder, now(), {"test_b.py"}) == ["c.py"]
 
 
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")

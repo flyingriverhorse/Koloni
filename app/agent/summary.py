@@ -415,16 +415,20 @@ def _carried(
     """The blocking findings an agent of `role` is handed (`findings_from`), one line each,
     word for word: those for its role - and, the first role of a recipe's step (`step`, its
     roles casefolded in order), those for no role of it - or all of them where none is.
-    Suggestions stay the user's (B-192) - but `every`: those of a step of the turn's recipe,
-    its handoff to the next step (CL-345), all of them."""
-    findings = findings if every else _blocking(findings)
-    named = set(step) if step and step[0] == role.casefold() else None
-    mine = [
-        f
-        for f in findings
-        if (f["role"] or "").casefold() == role.casefold()
-        or (named is not None and (f["role"] or "").casefold() not in named)
-    ] or findings
+    Suggestions stay the user's (B-192) - but `every`: a step of the turn's recipe handing on
+    to the step its arrow goes to (CL-345), its findings for `role` or for no role, suggestions
+    too, and no others (none: "")."""
+    if every:
+        mine = [f for f in findings if (f["role"] or "").casefold() in ("", role.casefold())]
+    else:
+        findings = _blocking(findings)
+        named = set(step) if step and step[0] == role.casefold() else None
+        mine = [
+            f
+            for f in findings
+            if (f["role"] or "").casefold() == role.casefold()
+            or (named is not None and (f["role"] or "").casefold() not in named)
+        ] or findings
     return "\n".join(
         f"- {f['what']} | kind: {f['kind']} | role: {f['role'] or 'none'}" for f in mine
     )

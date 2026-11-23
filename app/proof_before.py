@@ -271,6 +271,69 @@ def tests_in(path: str, text: str | None) -> tuple[int, int] | None:
     return None
 
 
+# R, second round (the main session's rule: a drop is outside the turn only where that is shown):
+# what added lines may do to the tests around them - skip or xfail them (any spelling with "skip":
+# skipif, importorskip, skipTest, skipIf, `.skip`), mark the module (`pytestmark`, `__test__`,
+# `collect_ignore`), take them under a condition (`if`, runIf, `.only`, `.todo`), delete or rebind
+# one (`del`, `test_x = …` at the top), comment a test line out - and a string or comment opened
+# on a line and not closed there, which may swallow the lines after it. (Spaces as `[ \t]`: a
+# `\s` at a line's start would walk every blank line after it.)
+_WEAKENS = re.compile(
+    r"skip|xfail|pytestmark|__test__|collect_ignore|\bif\b|runIf|\.only\b|todo|\bdel\b"
+    r"|^(?:test|Test)\w*[ \t]*=(?!=)"
+    r"|^[ \t]*(?:#|//)[ \t]*"
+    r"(?:@|(?:async[ \t]+)?def[ \t]+test|class[ \t]+Test|(?:it|test|describe)\b)",
+    re.IGNORECASE | re.MULTILINE,
+)
+_DEFINED = re.compile(
+    r"^[ \t]*(?:(?:async[ \t]+)?def[ \t]+(test\w*)|class[ \t]+(Test\w*))", re.MULTILINE
+)
+
+
+def _open(line: str) -> bool:
+    """Whether a line opens a string or comment it does not close: three quotes, a backtick,
+    a block comment."""
+    return bool(
+        line.count('"""') % 2
+        or line.count("'''") % 2
+        or line.count("`") % 2
+        or line.count("/*") != line.count("*/")
+    )
+
+
+def _added(was: str, now: str) -> list[str] | None:
+    """The lines of `now` that are not `was`'s, where all of `was` is in it, in order (one walk:
+    linear); None where a line of `was` was taken out or changed."""
+    old, added, at = was.splitlines(), [], 0
+    for line in now.splitlines():
+        if at < len(old) and line == old[at]:
+            at += 1
+        else:
+            added.append(line)
+    return added if at == len(old) else None
+
+
+def kept_lines(was: str, now: str) -> bool:
+    """Whether `now` keeps every line of `was`, in order - lines added only."""
+    return _added(was, now) is not None
+
+
+def only_added(path: str, was: str | None, now: str | None) -> bool:
+    """R: whether a test file's text `now` is its text `was` with lines added only - none removed
+    or changed - and none of them may skip, hide or rebind a test (`_WEAKENS`, a string or comment
+    left open, a test of the same name defined again). False where either is not known (no text,
+    over MOST_COUNTED, a language `tests_in` does not count): not shown, the turn's."""
+    if was is None or now is None or tests_in(path, was) is None or tests_in(path, now) is None:
+        return False
+    added = _added(was, now)
+    if added is None:
+        return False
+    text = "\n".join(added)
+    known = {name for pair in _DEFINED.findall(was) for name in pair if name}
+    again = {name for pair in _DEFINED.findall(text) for name in pair if name} & known
+    return not (_WEAKENS.search(text) or again or any(_open(line) for line in added))
+
+
 def green_said(was: dict | None, ran: int, skipped: int) -> list[str]:
     """Decision 14b: what a whole suite that passed says against the project's last green run -
     fewer tests that ran, more skipped. [] where it holds or none is known yet."""

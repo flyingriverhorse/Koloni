@@ -302,28 +302,46 @@ class ProofMixin:
         key = os.path.normcase(os.path.realpath(copy.root))  # (one copy, however it is named)
         return self._copy_locks.setdefault(key, asyncio.Lock())
 
-    async def _window_open(self: "AgentRunner", copy: "copies.Copy | None", look: dict) -> None:
+    async def _window_open(
+        self: "AgentRunner",
+        copy: "copies.Copy | None",
+        look: dict,
+        wait: float | None,
+        taken: list[bool],
+    ) -> None:
         """A run's window in its copy (`_copy_lock`): the copy as it is, for `_window_close`.
-        Taken once the run has the machine - a run waiting for it holds up no look's command."""
+        Taken once the run has the machine - a run waiting for it holds up no look's command -
+        waiting `wait` seconds at most (MAX_TIMEOUT where the run has no wait of its own: never
+        for ever while it holds the app-wide slot), then SLOT_BUSY (`taken` says so: the run's row
+        is not run). The lock it took is kept in `look`: the one `_window_close` lets go, whatever
+        the copy's path reads as by then."""
         if copy is None:
             return
-        await self._copy_lock(copy).acquire()
+        lock = self._copy_lock(copy)
+        try:
+            await asyncio.wait_for(lock.acquire(), MAX_TIMEOUT if wait is None else wait)
+        except TimeoutError:
+            taken.append(False)
+            raise ToolError(SLOT_BUSY) from None
+        look["lock"] = lock
         try:
             look["was"], look["kept"] = await asyncio.to_thread(
                 lambda: copy.snapshot([path for path, _kind, _state in copy.changes()])
             )
         except BaseException:
-            self._copy_lock(copy).release()
+            del look["lock"]
+            lock.release()
             raise
 
     async def _window_close(self: "AgentRunner", copy: "copies.Copy | None", look: dict) -> None:
         """What the run wrote in the copy put back (`_tests_put_back`), then its window let go."""
-        if copy is None or "was" not in look:
+        lock = look.pop("lock", None)
+        if copy is None or lock is None:
             return
         try:
             await self._tests_put_back(copy, look["was"], look["kept"])
         finally:
-            self._copy_lock(copy).release()
+            lock.release()
 
     def _kept_work(self: "AgentRunner", ctx: Ctx) -> "copies.Copy | None":
         """Fix it on a "Not taken in" row: the kept copy this turn's Lead goes on in - its end check
@@ -834,7 +852,7 @@ class ProofMixin:
                 raise ToolError(SLOT_BUSY) from None
             taken.append(True)
             check.going.set_result(now())
-            await self._window_open(copy, look)  # (once it has the machine, never before)
+            await self._window_open(copy, look, left(), taken)  # (once it has the machine)
             look["at"] = await self._sources_now(ctx, held, copy)
             if (now_left := left()) is not None:
                 if now_left < 1:

@@ -64,11 +64,16 @@ TEST_UNREAD = "Not a pass: the Reviewer did not read {model}'s test change ({why
 NO_LOOK = "no look"
 # What steers which tests run, besides the tests: a test changed too, under the same leave.
 # (pytest's own, as S6 reads them: pytest.toml first in pytest 9)
-TEST_CONFIGS = frozenset({"conftest.py", *PYTEST_FILES, "noxfile.py", "package.json"})
-TEST_CONFIG = re.compile(
-    r"(?:vitest|vite|jest|playwright)\.config\.|vitest\.workspace\.|"
-    r"karma\.conf\.|\.mocharc\."
+TEST_CONFIGS = frozenset(
+    {"conftest.py", *PYTEST_FILES, "noxfile.py", "package.json", "Makefile", "makefile"}
 )
+TEST_CONFIG = re.compile(
+    r"(?:vitest|vite|jest|playwright|cypress)\.config\.|vitest\.(?:workspace|projects)\.|"
+    r"jest\.setup\.|karma\.conf\.|\.mocharc\.|GNUmakefile$"
+)
+# ...and a Python file in a tests folder not named as a test (`test_*.py`) - its `__init__.py`, a
+# plugin, a helper a conftest loads (pytest_collection_modifyitems, collect_ignore): conservative.
+_IN_TESTS = re.compile(r"(?:^|/)tests?/(?:[^/]+/)*[^/]+\.py$")
 NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
 # k-onceki-1 (K): its round's work failed Take in's own check - kept out (decision 18).
 FIX_KEPT_OUT = (
@@ -154,10 +159,16 @@ HELD_WHY_TESTS = "its tests still fail"
 
 
 def steers_tests(path: str) -> bool:
-    """Whether a file says which tests run, or how: a conftest anywhere, a test runner's config
-    (`TEST_CONFIGS`, `TEST_CONFIG`) - conservative: changed without leave, the work stays held."""
-    name = path.replace("\\", "/").rsplit("/", 1)[-1]
-    return name in TEST_CONFIGS or bool(TEST_CONFIG.match(name))
+    """Whether a file says which tests run, or how: a conftest anywhere, a test runner's config or
+    setup, a Makefile (`TEST_CONFIGS`, `TEST_CONFIG`), a Python file in a tests folder that is no
+    test (`_IN_TESTS`) - conservative: changed without leave, the work stays held."""
+    path = path.replace("\\", "/")
+    name = path.rsplit("/", 1)[-1]
+    return (
+        name in TEST_CONFIGS
+        or bool(TEST_CONFIG.match(name))
+        or bool(_IN_TESTS.search(path) and not proof_before.TEST_FILE.search(path))
+    )
 
 
 def _cancelled_outside() -> bool:
@@ -213,6 +224,15 @@ class StrongerMixin:
         """At the end check's end, no step sending work back: where the rounds are spent and the
         last pass's own failures stand, each stronger tier in turn - a diagnosis, then its rounds
         - until the tests pass. Said in Checked; the turn's answer is not held for it."""
+        if (
+            not held.left_failing
+            and proof.counts_only(held.rows)
+            and self._works_in(ctx) is not None
+        ):
+            # (R: no test fails, but fewer run or more are skipped, and no round is left to send
+            # it back for - work in a copy of the turn's own is not taken in, its reason said)
+            self._held_back.setdefault(ctx.run_id, TESTS_REMOVED)
+            return None
         # (k-canli-016: until it passes, also where the rounds stopped for no progress - never
         # for a limit, which a stronger model would only spend more of.)
         if (

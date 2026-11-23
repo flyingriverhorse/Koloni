@@ -2,7 +2,6 @@
 project's test command(s), the turn's changes on record, whether a test run on record stands for
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
-import contextlib
 import difflib
 import fnmatch
 import hashlib
@@ -551,7 +550,8 @@ def touched_since(
     off the event loop.
     shortcut: a tracked test file deleted before the turn is counted too (git says no when);
     read the deletions as the turn begins if that is seen.
-    shortcut: another tracked file deleted is not seen (no time to read); count those if missed.
+    A file that cannot be read (gone: deleted, a committed deletion) is touched - never passed
+    over (R's second round).
     shortcut: a write that keeps an old time (`cp -p`, `tar x`, `unzip`, `touch -d`), one into
     an ignored folder and a secret-named file (`git.changes` leaves it out) are not seen; ask
     git for them, or read the files' hashes as the turn begins, if a change slips by so."""
@@ -570,9 +570,11 @@ def touched_since(
     for path in dict.fromkeys(paths):
         if path in recorded or path in found:
             continue
-        with contextlib.suppress(OSError):
+        try:
             if (folder / path).stat().st_mtime >= edge:
                 found.append(path)
+        except OSError:  # (gone, or not read - a committed deletion: touched, never passed over)
+            found.append(path)
     return sorted(found)
 
 

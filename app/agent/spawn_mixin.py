@@ -2224,12 +2224,14 @@ class SpawnMixin:
                     f"{role.name} again without findings_from, and say in its task what "
                     f"{found.name} did"
                 )
-            # (CL-345: a step of the turn's recipe hands its report on to the next - its
-            # findings all, suggestions too: no step's brief carries them else, `_recipe_task`)
+            # (CL-345: a step of the turn's recipe hands its report on to the step its arrow goes
+            # to - its findings for that role or for none, suggestions too: no step's brief
+            # carries them else, `_recipe_task`. Another step's suggestions stay the user's.)
             step_of = any(
-                found.id in (state.get("agents") or [])
+                recipe_run.feeds(state, found.id)
                 for row, _t in self._runs(session, ctx)
                 if (state := self._live_state(row, ctx.run_id))
+                and state["status"] == recipe_run.RUNNING
             )
             if not step_of and not _blocking(found.findings):
                 raise ToolError(
@@ -2253,6 +2255,11 @@ class SpawnMixin:
                 else None
             )
             handed = found.id, _carried(found.findings, role.name, step, every=step_of)
+            if not handed[1]:
+                raise ToolError(
+                    f"findings_from: {found.name} has no findings for {role.name} or for no "
+                    f"role to hand on - open {role.name} again without findings_from"
+                )
             task += (
                 f"\n\n{FINDINGS_HANDED.format(name=found.name)}\n{handed[1]}\n\n{FINDINGS_ANSWERED}"
             )

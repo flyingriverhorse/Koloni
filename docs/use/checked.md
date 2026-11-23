@@ -321,21 +321,30 @@ dropped or skipped them and names the tests (test, tests, skip, xfail; for more 
 or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a
 failing test. Said why, it is still shown, as a note quoting that sentence - "Tests went from 4 to
 3 (1 removed) - the answer says why: “I removed the obsolete test of the old parser”" - and the
-new counts are the green state from then on. Only a turn whose own work could take tests away is
-held to it: a test file of the project's it changed now holds fewer tests (`def test_…`, `test(`,
-`it(` - counted in the file's text before and after the turn; a deleted file holds none) or more
-skips (`@pytest.mark.skip`, `pytest.skip(`, `.skip(`, `xit(`), or it changed what says which tests
-run (a `conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`, `tox.ini`, `package.json`, a
-Vitest or Jest config), or ran a command whose change is on no record. A turn that adds a test to
-a file takes none away. A test file whose text KOLONİ cannot count (not UTF-8, too large, another
-language) counts as the turn's; a parametrized test counts as one, whatever its cases. Tests
-gone otherwise - deleted by hand, a pull, another branch checked out - are said and not sent back,
-"Tests went from 48 to 45 (3 removed) - not this turn's change", and the new counts are the green
-state. Where the rounds end with no test failing but fewer run, or more skipped, the line says so:
-"Still fewer tests, or more skipped, after 2 fix rounds: you decide (Fix it)"; work kept for it
-says "Not taken in: fewer of its tests run, or more are skipped, after its fix rounds". Where the
+new counts are the green state from then on. A drop is put down to something outside the turn
+only where KOLONİ can show the turn took no tests away - all of these:
 
-green run listed its passes (pytest with `-v`, jest's and vitest's files), KOLONİ keeps those
+- no command of the turn that may write files ran, in the project or in a recipe's copy (a
+  script, `sed -i`, `git rm … && git commit`, `git mv` - a test run alone writes nothing);
+- it deleted or renamed no test file, and each test file of the project's it changed keeps all
+  its old lines, added to only - with nothing in the added lines that may skip, hide or rebind a
+  test (a skip or xfail of any kind, `pytestmark`, `.only`, `if`, `del`, a test defined again, a
+  test line commented out, a string or comment left open), read from the file where the tests ran;
+- it changed nothing that decides which tests run (a `conftest.py`, `pytest.ini`,
+  `pyproject.toml`, `setup.cfg`, `tox.ini`, `package.json`, a Makefile, a Vitest, Jest or Cypress
+  config or setup, a Python file in a tests folder not named as a test, the script the test
+  command runs);
+- no change on KOLONİ's record since that green run took lines out of a test file.
+
+Then it is said and not sent back, "Tests went from 48 to 45 (3 removed) - not this turn's
+change", and the new counts are the green state: tests deleted by hand, a pull, another branch
+checked out. Anything less sure is the turn's, as a turn's own removal always is. A whole suite
+that goes on after the answer is held to the green run too: a drop of the turn's is said on its
+Checked, offering Fix it, and the green state stays where it was. Where the rounds end with no
+test failing but fewer run, or more skipped, the line says so: "Still fewer tests, or more
+skipped, after 2 fix rounds: you decide (Fix it)"; work in a copy is then not taken in, "Not taken
+in: fewer of its tests run, or more are skipped, after its fix rounds". Where the green run listed
+its passes (pytest with `-v`, jest's and vitest's files), KOLONİ keeps those
 names too (at most 5 000): a test that passed then and fails now is named, "Regression: `test`
 passed at the last green run and fails now" - never one added since. Where it listed none, the
 counts are kept and a failing test in a file the turn did not add is named "… (by file)".
