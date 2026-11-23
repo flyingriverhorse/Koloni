@@ -2,6 +2,8 @@
 
 import contextlib
 import fnmatch
+import glob
+import itertools
 import ntpath
 import os
 import posixpath
@@ -2302,10 +2304,13 @@ def names_secret(command: str) -> bool:
         return True
     members = sys.platform == "win32" and not _POSIX_SHELL.search(command)
     for part in _PARTS.split(command):
-        for word in _words(part.strip()):
+        # (both ways of splitting: a word's quoted pieces joined, `".e"nv`, and apart)
+        for word in {*_words(part.strip()), *_joined_words(part.strip())}:
             # (split at `:` too: a drive letter's path is left starting with `/`, out of it;
             # and at `,`: PowerShell's list of paths, `gc a,.env`)
-            if any(_secret_path(piece) for piece in re.split(r"[=:<>,]", word.strip("'\""))
+            # (each spelling: sh's `.e\\nv` is `.env`, pwsh's is no such name)
+            if any(_secret_path(piece) for spelt in _read_spellings(word)
+                   for piece in re.split(r"[=:<>,]", spelt)
                    if piece and not (members and _MEMBER.fullmatch(piece))):
                 return True
     return False
@@ -3663,15 +3668,139 @@ def only_looks(command: str) -> bool:
         _program(words[0]) in _LOOKERS | _SEARCHERS)
 
 
-def reads_here(command: str, root: Path, at_root: bool) -> bool:
+def reads_here(command: str, root: Path, at_root: bool, cwd: str = ".") -> bool:
     """Whether a command runs unasked below Full auto (`only_reads`): git's only at the root
     of the folder it works in (a repository shaped in a folder below could set what git
     runs) and while that folder holds no secret file - its diff, log and show print a
-    committed one's lines without naming it. shortcut: a gitignored .env cards git too;
-    ask `git ls-files` if that is met. Blocking: call it off the event loop."""
-    if not only_reads(command):
+    committed one's lines without naming it. And (k-okuma-yol) every path it names, followed
+    through links and junctions as `read_file` follows them (`Workspace.resolve`), ends in the
+    folder and on no secret path (`_named_here`). `cwd`: where in `root` it runs. shortcut: a
+    gitignored .env cards git too; ask `git ls-files` if that is met. Blocking: call it off the
+    event loop."""
+    if not only_reads(command) or not _named_here(command, root, cwd):
         return False
     return _program(_words(command.strip())[0]) != "git" or at_root and secret_held(root) is None
+
+
+# What a read's paths are followed for, at most: a line naming more is asked.
+MOST_NAMED = 64
+MOST_MATCHED = 256
+
+
+def _named_here(command: str, root: Path, cwd: str) -> bool:
+    """Whether each path a plain read names (`only_reads`' words, a glob's matches), followed
+    through links and junctions, ends inside `root` and on no secret path - a link in the
+    project that leads out of it (planted, or a repository's symlink) reads nothing outside
+    unasked, as `read_file` refuses it. A name that is no file reads nothing: passed. A line
+    naming more than it is worth following (MOST_NAMED, a glob over MOST_MATCHED): False.
+    shortcut: the paths are followed when the line is judged - a link made between this and
+    the run needs a second process at work at the same time; follow again at the run if that
+    is met. shortcut: a hard link to a secret file is one file of two names, which `resolve()`
+    does not see (as for `read_file`); compare file ids if that is met."""
+    try:
+        top = root.resolve()
+        here = (root / cwd).resolve()
+    except (OSError, RuntimeError):
+        return False
+    if not here.is_relative_to(top):
+        return False
+    pieces = [piece for word in _joined_words(command.strip())[1:] for name in _names_in(word)
+              for piece in re.split(r"[=:,]", name) if piece]
+    if len(pieces) > MOST_NAMED:
+        return False
+    for piece in pieces:
+        found = _named_paths(here, piece)
+        if found is None or not all(_lands_here(one, top) for one in found):
+            return False
+    return True
+
+
+def _joined_words(command: str) -> list[str]:
+    """A line's words as a shell splits them: at whitespace outside quotes - a word's quoted
+    pieces stay one word (`".e"nv`, which `shlex`'s non-POSIX split cuts in two)."""
+    words: list[str] = []
+    word, quote = "", ""
+    for char in command:
+        if quote:
+            word += char
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            word, quote = word + char, char
+        elif char.isspace():
+            words, word = (words + [word]) if word else words, ""
+        else:
+            word += char
+    return [*words, word] if word else words
+
+
+def _dequoted(word: str) -> str:
+    """A word as the shell hands it on: pwsh and sh both join quoted pieces in one word
+    (`.e'nv'`, `".e"nv`, `out/'secret.txt'` are `.env`, `.env`, `out/secret.txt`)."""
+    return word.replace("'", "").replace('"', "")
+
+
+def _unescaped(word: str) -> str:
+    """A word as sh hands it on: its backslash escapes resolved - any outside quotes (`ou\\t`
+    is `out`, `.e\\nv` is `.env`), only `\\ " $ ` ` in double quotes, none in single ones -
+    and its quotes gone."""
+    out: list[str] = []
+    quote, at = "", 0
+    while at < len(word):
+        char = word[at]
+        if char == "\\" and quote != "'" and at + 1 < len(word) and (
+                not quote or word[at + 1] in '\\"$`'):
+            out.append(word[at + 1])
+            at += 2
+            continue
+        if char in "'\"" and quote in ("", char):
+            quote = "" if quote else char
+        else:
+            out.append(char)
+        at += 1
+    return "".join(out)
+
+
+def _read_spellings(word: str) -> list[str]:
+    """A word as each shell may hand it on: with its backslashes kept (pwsh, cmd: a separator)
+    and resolved as sh's escapes (Git Bash, a CLI's Bash tool) - followed both ways everywhere,
+    a spelling that names no file passing."""
+    return list(dict.fromkeys((_dequoted(word), _unescaped(word))))
+
+
+def _names_in(word: str) -> list[str]:
+    """What a read's word may name (review of k-okuma-yol): the word, unquoted - each spelling
+    (`_read_spellings`) - or, for an option, its value (`-Path:x`, `--file=x`) and an attached short
+    option's tail (`-fx`). More candidates cost nothing: one that is no file passes."""
+    return [name for spelt in _read_spellings(word) for name in _option_names(spelt)]
+
+
+def _option_names(word: str) -> list[str]:
+    if not word.startswith("-"):
+        return [word]
+    value = re.split(r"[=:]", word, maxsplit=1)
+    return [*value[1:], *([word[2:]] if not word.startswith("--") and len(word) > 2 else [])]
+
+
+def _named_paths(here: Path, piece: str) -> list[Path] | None:
+    """What a word of a read names in `here`: its glob's matches, or the path where something
+    is there (a dangling link too); None: a glob over MOST_MATCHED."""
+    if glob.has_magic(piece):
+        matched = list(itertools.islice(glob.iglob(str(here / piece)), MOST_MATCHED + 1))
+        return None if len(matched) > MOST_MATCHED else [Path(one) for one in matched]
+    path = here / piece
+    return [path] if os.path.lexists(path) else []
+
+
+def _lands_here(path: Path, top: Path) -> bool:
+    """Whether a named path, followed through every link, ends in the folder and on no secret
+    path."""
+    try:
+        real = path.resolve()
+    except (OSError, RuntimeError):  # (a loop of links: not followed, asked)
+        return False
+    if not (real == top or real.is_relative_to(top)):
+        return False
+    return real == top or not secret_in_project(real.relative_to(top).as_posix())
 
 
 # How long a folder's answer is kept: the commands of one turn do not each walk it.

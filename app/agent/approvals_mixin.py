@@ -427,7 +427,7 @@ class ApprovalsMixin:
             ctx.run_id, ctx.cid, ctx.agent_id, call_id, command, ask=refused is None,
             always=always or bool(reason), held=bool(searched), web_off=bool(web_off),
             reads=not given.get("not_read_only") and await asyncio.to_thread(
-                reads_here, command, root, where in ("", ".")),
+                reads_here, command, root, where in ("", "."), where or "."),
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
             # `unnamed` - "." for Claude Code's Bash tool, whose every call starts in the project
             # (`ClaudeNativeClient.cwd_from`, measured), and Copilot's in a new shell; None for
