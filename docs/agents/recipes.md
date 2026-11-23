@@ -27,7 +27,7 @@ The ready recipes include Feature, Bugfix, Review only, Integration, Quality che
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.
 
 Each recipe in the list, and in the chat's recipe picker, says how many agents a run of it opens,
-counted from its drawing: "Bugfix · 4–14 agents" - the fewest where no review finds a problem (a
+counted from its drawing: "Feature · 6–16 agents" - the fewest where no review finds a problem (a
 step that runs only on a problem left out), the most where every loop goes back all its rounds. A
 team's experts or stages count as one agent there, and the helpers a step's agents open are not
 counted.
@@ -63,7 +63,10 @@ never started its tests (the tool not found), one that runs none (`-h`, `--help`
 `--collect-only`, a list of the tests, no tests found, or a summary that counts 0 passed and 0 failed)
 and one whose exit is hidden (`; true`, `|| true`, a pipe after it) gives no verdict either way. In a step
 with the id `reproduce` (Bugfix's first) the failing test is the work: the agent's report says it "fails
-as it should".
+as it should". It is told to write and run that test itself and to open no other agent. In a recipe with no loop,
+**Ask for changes** - and a fix round of KOLONİ's checks - goes back to the step after such a step
+once it is done: the failing test it showed stays, and the fix goes again. Any other recipe with no
+loop goes back to its first step.
 
 A Tester at a review step, or any agent of a step with the id `test` or `tests`, passes only on a command
 it ran that checks something. Where the project has a test command (yours, one KOLONİ saved, or one its

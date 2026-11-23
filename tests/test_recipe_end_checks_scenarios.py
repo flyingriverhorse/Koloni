@@ -186,13 +186,17 @@ def begin_at(client, project_dir, project, chat, content="fix it"):
 def test_a_ready_bugfix_checks_its_tests_in_a_project_at_nothing(
     make_client, wait_run, project_dir, monkeypatch
 ):
-    # (Its own Checks step, not the project's After a change - as the chat's switch never did.)
+    # (Its own Checks step, not the project's After a change - as the chat's switch never did.
+    # T1: no Tester of its own - KOLONİ runs the tests.)
     from tests.test_proof_end_scenarios import guess
-    from tests.test_recipe_proof_scenarios import PASSED, PYTEST, REPRO, ran_tests, scripts
+    from tests.test_recipe_cost_scenarios import THIN, fixed
+    from tests.test_recipe_proof_scenarios import PASSED, PYTEST, REPRO, REPRODUCES
 
     guess(monkeypatch, PYTEST)
     executor = ScriptedExecutor([REPRO, PASSED])
-    client, _model = make_client(scripts(ran_tests()), executor=executor)
+    client, _model = make_client(
+        {"Lead": THIN, "Debugger": list(REPRODUCES), "Coder": fixed()}, executor=executor
+    )
     backend = teams_of(client)["Backend / API"]
     cid, run_id = begin_at(
         client,
@@ -208,7 +212,7 @@ def test_a_ready_bugfix_checks_its_tests_in_a_project_at_nothing(
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     rows = texts(snap)
-    assert f"Tests passed: {PYTEST} - run by Tester after the last change" in rows, rows
+    assert f"Tests passed: {PYTEST} (guessed) - 4 passed" in rows, rows
     assert proof.NOT_CHECKED not in rows
 
 

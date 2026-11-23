@@ -1057,16 +1057,20 @@ def advance(state: dict) -> str:
 
 def back_to(state: dict) -> str:
     """Where Ask for changes sends a run back to: the step its last loop goes back to, else
-    its first; its name. Its loops have their rounds again: the user's word is a new start -
-    and K-evrim's kept best too (B-370): work changed as asked is not measured against work
-    the user asked changes to. How many times it was sent back is kept (`asked`): its runner's
-    steps grow with it."""
-    graph = graph_of(state)
-    back = (
-        part_of(graph, graph.loops[-1].to)
-        if graph.loops
-        else _ahead(graph, state["slots"], START)[1]
-    )
+    its first - but past a first step with the id "reproduce" that is done (T1: the ready
+    Bugfix's; its failing test showed the bug and stays - the fix is what goes again), unless
+    only its end is after it; its name. Its loops have their rounds again: the user's word is
+    a new start - and K-evrim's kept best too (B-370): work changed as asked is not measured
+    against work the user asked changes to. How many times it was sent back is kept (`asked`):
+    its runner's steps grow with it. KOLONİ's own fix round sends a run back this way too."""
+    graph, slots = graph_of(state), state["slots"]
+    if graph.loops:
+        back = part_of(graph, graph.loops[-1].to)
+    else:
+        back = _ahead(graph, slots, START)[1]
+        if back == "reproduce" and back in state["done"]:
+            after = _ahead(graph, slots, back)[1]
+            back = back if any(end.id == after for end in graph.ends) else after
     if back in state["done"]:
         state["done"] = state["done"][: state["done"].index(back)]
     state.update(

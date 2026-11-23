@@ -9,10 +9,11 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 ### Added
 
 - **Settings**: **Config** joins Settings › This project › Checks and git › **Check by kind of work** (on in every project, new and existing): under **Test and review**, a JSON, YAML or TOML file a turn wrote must parse - else its line says the parser's first complaint and line ("package.json:3: does not parse - …") and it goes back as a fix round - and a `package.json`, `pyproject.toml`, GitHub workflow or Compose file must have the shape its tool reads; a secret file is never read, nor a file nested too deep or YAML with aliases. A recipe's **Checks** step offers it too ([docs](use/checked.md#documents-diagrams-data-and-slides)).
-- **Agents**: each recipe in the Recipes list, and in the chat's recipe picker, says how many agents a run of it opens, counted from its drawing - "Bugfix · 4–14 agents": the fewest where no review finds a problem, the most where every loop goes back all its rounds ([docs](agents/recipes.md#making-a-recipe)).
+- **Agents**: each recipe in the Recipes list, and in the chat's recipe picker, says how many agents a run of it opens, counted from its drawing - "Feature · 6–16 agents": the fewest where no review finds a problem, the most where every loop goes back all its rounds ([docs](agents/recipes.md#making-a-recipe)).
 
 ### Changed
 
+- **Agents**: the ready Bugfix is Reproduce it → Fix it → Checks: KOLONİ's own checks run the tests and, for a big or security-touching change, have it reviewed - two agents for a small fix instead of four, and no agent review of a small change; a failing test or **Ask for changes** goes back to Fix it, keeping the failing test Reproduce it showed, and the Debugger is told to reproduce the bug itself. A copy of Bugfix you changed keeps its steps ([docs](agents/recipe-cookbook.md)).
 - **Chat**: under **Orchestrator decides**, a small change - a few lines in one or two files - gets no team: the Orchestrator makes it with one agent (or itself, where the project lets it write) and says why in one line, and KOLONİ's checks run at the end all the same; picking a team, it sees how many agents each recipe opens ([docs](agents/teams.md#teams-for-a-chat)).
 
 ### Fixed

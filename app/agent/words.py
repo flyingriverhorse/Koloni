@@ -339,7 +339,7 @@ PROOF_LEAD = (
 REPRODUCE_FIRST = (
     "This step only shows the bug: write a test that fails because of it, run it, "
     "and report the failing output. Do not fix the bug in this step - the next step "
-    "does, and this test must pass after it."
+    "does, and this test must pass after it. Do it yourself: open no other agent."
 )
 
 # K-tarif-kol: what it changed in the recipe's copy stays there, taken in with the recipe's work.
