@@ -102,7 +102,7 @@ class Read(html.parser.HTMLParser):
         super().__init__(convert_charrefs=True)
         self.bounds, self.seen, self.styles = bounds, 0, {}
         self.out = {
-            "cut": False,
+            "cut": [],
             "images": [],
             "imagesN": 0,
             "controls": [],
@@ -137,8 +137,8 @@ class Read(html.parser.HTMLParser):
         attrs = {k: v or "" for k, v in pairs}
         # (Counted from the body on, as Chrome's walk is.)
         self.seen += tag == "body" or any(one["tag"] == "body" for one in self.open)
-        if self.seen > self.bounds["most"]:
-            self.out["cut"] = True
+        if self.seen > self.bounds["most"] and "elements" not in self.out["cut"]:
+            self.out["cut"].append("elements")
         style = {
             k.strip().lower(): v.strip()
             for k, _, v in (one.partition(":") for one in attrs.get("style", "").split(";"))
@@ -271,7 +271,7 @@ class Read(html.parser.HTMLParser):
         key = json.dumps([top["colour"], layers, image, top["px"], top["weight"]])
         if key not in self.styles:
             if len(self.styles) >= self.bounds["styles"]:
-                self.out["cut"] = True
+                self.out["cut"].append("styles")
                 return
             self.styles[key] = {
                 "words": words[:80],

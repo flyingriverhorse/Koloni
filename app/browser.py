@@ -505,12 +505,13 @@ _WIDE_JS = _tag("wide") + (
 )
 
 # Pages accessibility (0.1.7): what the page as it loaded says of itself, read in KOLONİ's own
-# world - from its root, its first MOST_A11Y elements, for A11Y_MS at most: each image shown with
-# no text for it (no alt, aria-label, aria-labelledby nor title; alt="" is a decorative one,
-# aria-hidden or role none one nobody is told of), each button, link or field shown with no name
-# (its words, aria-label, aria-labelledby, title, its label, a placeholder, a button's value, an
-# image's alt in it), a page hidden whole (aria-hidden on html or body), a control one tabs to
-# inside aria-hidden, and each text shown: its colour (-webkit-text-fill-color where set), the
+# world - from its root, its first MOST_A11Y elements (an inline svg one, never its shapes), for
+# A11Y_MS at most (`cut`: which bound a read met, as `proof_kinds.CUT_WHY` says it): each image
+# shown with no text for it (no alt, aria-label, aria-labelledby nor title; alt="" is a decorative
+# one, aria-hidden or role none one nobody is told of), each button, link or field shown with no
+# name (its words, aria-label, aria-labelledby, title, its label, a placeholder, a button's value,
+# an image's alt in it), a page hidden whole (aria-hidden on html or body), a control one tabs
+# to inside aria-hidden, and each text shown: its colour (-webkit-text-fill-color where set), the
 # backgrounds under it up to the first opaque one, its size and weight - `under`: null where
 # something is drawn under it (an image, a gradient, gradient text, more than A11Y_LAYERS
 # see-through layers, or a picture or a layer of another element over its words - drawn inside
@@ -524,7 +525,9 @@ _WIDE_JS = _tag("wide") + (
 # (`<input name="parentElement">`, `<img name="body">`): every one is read through its
 # prototype's own getter or method (`get`, `fn`). At most A11Y_LISTED images and controls named
 # (all counted), A11Y_STYLES texts of a colour, background, size and weight (each counted),
-# A11Y_PAINTED drawn elements looked at over a text's box.
+# A11Y_PAINTED drawn elements looked at, A11Y_COMPARED of them whose box meets a text's words'.
+# A name's words and a text's start at their first one: a pretty-printed page's indentation is
+# never part of the A11Y_TEXT characters read.
 # shortcut: a text's opacity (its own or an ancestor's), its shadow, an ancestor's ::before or
 # ::after layer, a closed shadow root and the text of a field's value are not looked at.
 MOST_A11Y = 2000
@@ -538,7 +541,7 @@ A11Y_PAIRS = 20000  # (...and line boxes compared with theirs, two by two)
 A11Y_DEPTH = 512  # (how far up a text's background is looked for)
 A11Y_NAMED_IDS, A11Y_TEXT = 20, 200  # (aria-labelledby's ids read, the characters of each text)
 _A11Y = r"""(o) => {
-  const out = {cut: false, images: [], imagesN: 0, controls: [], controlsN: 0, texts: [],
+  const out = {cut: [], images: [], imagesN: 0, controls: [], controlsN: 0, texts: [],
     hidden: false, focus: [], focusN: 0, scheme: '', frames: 0, nobody: false};
   const N = Node.prototype, E = Element.prototype, D = Document.prototype;
   const get = (proto, name) => {
@@ -594,12 +597,22 @@ _A11Y = r"""(o) => {
     return got;
   };
   const words = (s) => (s || '').replace(/\s+/g, ' ').trim();
-  // (its text, read no further than `most` characters - never a whole subtree's)
+  // (why a read is said in part: each cap once, in the order met)
+  const cut = (why) => { if (!out.cut.includes(why)) out.cut.push(why); };
+  // (a text node's words from its first one on, at most `most` of them: a pretty-printed page's
+  // indentation is no part of them)
+  const from = (s, most) => {
+    const at = s.search(/\S/);
+    return at < 0 ? '' : ' ' + s.slice(at, at + most);
+  };
+  // (its text, read no further than `most` characters and o.most text nodes - never a whole
+  // subtree's)
   const textOf = (el, most) => {
     let said = '';
     const w = walker(document, el, NodeFilter.SHOW_TEXT);
-    for (let t = w.nextNode(); t && said.length < most; t = w.nextNode()) said += data(t);
-    return said.slice(0, most);
+    for (let t = w.nextNode(), i = 0; t && said.length < most && i < o.most;
+      t = w.nextNode(), i++) said += from(data(t), most);
+    return words(said).slice(0, most);
   };
   const seen = (el) => {
     const r = box(el);
@@ -641,7 +654,7 @@ _A11Y = r"""(o) => {
     const path = [];
     let got = {layers: [], image: false, open: true, stop: null}, at = el, depth = 0;
     for (; at && depth < o.depth; at = parent(at), depth++) {
-      if (performance.now() > until) return null;
+      if (performance.now() > until) return 'time';
       const known = under.get(at);
       if (known) { got = known; break; }
       const s = getComputedStyle(at), c = rgba(s.backgroundColor);
@@ -657,7 +670,7 @@ _A11Y = r"""(o) => {
       }
       path.push([at, c]);
     }
-    if (at && depth >= o.depth) return null;
+    if (at && depth >= o.depth) return 'depth';
     for (let i = path.length - 1; i >= 0; i--) {
       const [one, c] = path[i];
       if (c[3] > 0 && !got.image) {
@@ -691,7 +704,8 @@ _A11Y = r"""(o) => {
   // (is another element's picture or layer over its words - a positioned overlay, a backdrop? -
   // drawn inside `within`, the opaque background it is over (none: the whole page). Its
   // ancestors' are under it already, what it holds its own. A fixed header or bar is compared
-  // where it is at the top of the page. More than `o.compare` to compare, or out of time: null)
+  // where it is at the top of the page. More than `o.compare` whose box meets its words' to
+  // compare, `o.pairs` line boxes, or out of time: which of them)
   // (its words' own boxes, line by line - an inline element's box spans the lines it wraps)
   const range = D.createRange.call(document);
   const lines = (el) => {
@@ -719,12 +733,13 @@ _A11Y = r"""(o) => {
     }
     let compared = 0, pairs = 0;
     for (const p of painted) {
+      if (!over(p.all, all, p.backdrop)) continue;
       if (p.el === el || contains(p.el, el) || contains(el, p.el)) continue;
       if (within && !contains(within, p.el)) continue;
-      if (++compared > o.compare || performance.now() > until) return null;
-      if (!over(p.all, all, p.backdrop)) continue;
+      if (++compared > o.compare) return 'compare';
+      if (performance.now() > until) return 'time';
       for (const q of p.rs) {
-        if ((pairs += mine.length) > o.pairs) return null;
+        if ((pairs += mine.length) > o.pairs) return 'pairs';
         for (const r of mine) if (over(q, r, p.backdrop)) return true;
       }
     }
@@ -740,16 +755,22 @@ _A11Y = r"""(o) => {
     '[role=button], [role=link]';
   const tabbed = 'button, a[href], input:not([type=hidden]), select, textarea, summary, ' +
     '[tabindex]';
+  // (an inline svg is read as one element, never its shapes: two thousand <rect>s would spend
+  // the elements read on what has no text, name or control of the page's)
+  const svg = 'http://www.w3.org/2000/svg';
+  const shape = (el) => { const up = parent(el); return !!up && nsOf(up) === svg; };
   const walk = walker(document, root, NodeFilter.SHOW_ELEMENT,
-    {acceptNode: (el) => skip.has(tag(el)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+    {acceptNode: (el) => skip.has(tag(el)) || shape(el) ? NodeFilter.FILTER_REJECT
+      : NodeFilter.FILTER_ACCEPT});
   const texts = [];
   let n = 0;
   for (let el = root; el; el = walk.nextNode()) {
-    if (++n > o.most || performance.now() > until) { out.cut = true; break; }
+    if (++n > o.most) { cut('elements'); break; }
+    if (performance.now() > until) { cut('time'); break; }
     const t = tag(el), html = nsOf(el) === 'http://www.w3.org/1999/xhtml';
     if (shadow(el) || t === 'IFRAME' || t === 'FRAME') out.frames++;
     if ((html || t === 'svg') && el !== root && el !== body && draws(el, t)) {
-      if (painted.length >= o.painted) out.cut = true;
+      if (painted.length >= o.painted) cut('painted');
       else painted.push({el, rs: [...rects(el)], all: box(el), backdrop: backdrop(el)});
     }
     if (!html) continue;
@@ -773,27 +794,27 @@ _A11Y = r"""(o) => {
       if (out.focus.length < o.listed) out.focus.push(called(el));
     }
     let text = '';
-    for (const node of kids(el)) if (kind(node) === 3) text += data(node).slice(0, o.text);
+    for (const node of kids(el)) if (kind(node) === 3) text += from(data(node), o.text);
     text = words(text);
     if (text && !closest(el, ':disabled, [aria-disabled="true"]') && seen(el)) {
       texts.push([el, text]);
     }
   }
   for (const [el, text] of out.scheme ? [] : texts) {
-    if (performance.now() > until) { out.cut = true; break; }
+    if (performance.now() > until) { cut('time'); break; }
     const s = getComputedStyle(el);
     const fg = rgba(s.getPropertyValue('-webkit-text-fill-color') || s.color);
     if (fg[3] === 0 && rgba(s.color)[3] === 0) continue;  // (no words drawn)
     const bg = below(el);
-    if (!bg) { out.cut = true; continue; }
+    if (typeof bg === 'string') { cut(bg); continue; }
     // (gradient text - its fill see-through, a background clipped to its words: drawn, said)
     const over = fg[3] === 0 || bg.image || drawn(el, bg.open ? null : bg.stop);
-    if (over === null) { out.cut = true; continue; }
+    if (typeof over === 'string') { cut(over); continue; }
     const px = parseFloat(s.fontSize) || 0, weight = parseInt(s.fontWeight, 10) || 400;
     const key = JSON.stringify([fg, over ? null : bg.layers, px, weight]);
     let one = styles.get(key);
     if (!one) {
-      if (styles.size >= o.styles) { out.cut = true; continue; }
+      if (styles.size >= o.styles) { cut('styles'); continue; }
       one = {words: text.slice(0, 80), color: fg, under: over ? null : bg.layers, px, weight,
         n: 0};
       styles.set(key, one);

@@ -489,8 +489,8 @@ async def test_the_read_is_bounded_and_one_not_answered_is_said(tmp_path, monkey
         (
             "ui",
             "note",
-            f"long.html: accessibility checked only in part at {ALL} px - at most 3 elements "
-            "and 3 s are read",
+            f"long.html: accessibility checked only in part at {ALL} px - only its first 3 "
+            "elements are read",
         ),
         ("ui", "passed", f"hung.html: no console errors at {ALL} px"),
         ("ui", "note", f"hung.html: accessibility not read at {ALL} px"),
@@ -668,8 +668,8 @@ async def test_the_real_chrome_reads_images_names_and_contrast(tmp_path, monkeyp
     assert said(rows)[-1] == (
         "ui",
         "note",
-        f"a11y.html: accessibility checked only in part at {ALL} px - at most 1 elements "
-        "and 3 s are read",
+        f"a11y.html: accessibility checked only in part at {ALL} px - only its first 1 "
+        "elements are read",
     )
 
 
@@ -899,11 +899,11 @@ THIRD_KINDS = {
 }
 
 
-async def kinds_read(tmp_path, command):
-    """Each THIRD page read by a browser at 1280 px, the scheme pinned first: its findings' kinds."""
+async def kinds_read(tmp_path, command, read=THIRD):
+    """Each page read by a browser at 1280 px, the scheme pinned first: its findings' kinds."""
     ws = Workspace(str(tmp_path))
     (tmp_path / "dot.png").write_bytes(PNG)
-    for name, (style, body) in THIRD.items():
+    for name, (style, body) in read.items():
         (tmp_path / f"{name}.html").write_text(
             f"<html><head><title>T</title></head><body style='{style}'>{body}</body></html>",
             encoding="utf-8",
@@ -914,7 +914,7 @@ async def kinds_read(tmp_path, command):
         await one.light()
         await one.width(1280)
         found = {}
-        for name in THIRD:
+        for name in read:
             await one.open(browser.allowed(f"{name}.html", ws, one.closed))
             found[name] = sorted(proof_kinds._findings(await one.access()))
         return found
@@ -972,6 +972,64 @@ async def test_the_real_chrome_reads_the_third_reviews_pages(tmp_path, monkeypat
     assert not any("not read" in line for _k, _s, line in rows), rows
 
 
+def _card(unit: str, depth: int) -> str:
+    """A pretty-printed card link: its one word after some 200 characters of indentation."""
+    at = lambda n: "\n" + unit * (depth + n)  # noqa: E731
+    return (
+        f"<a href='/p/1'>{at(1)}<div>{at(2)}<picture>{at(3)}<source srcset='dot.png'>{at(3)}"
+        f"<img src='dot.png' alt='' width='20' height='20'>{at(2)}</picture>{at(1)}</div>"
+        f"{at(1)}<div>{at(2)}<div>{at(3)}<span>{at(4)}New{at(3)}</span>{at(2)}</div>{at(1)}</div>"
+        f"{at(0)}</a>"
+    )
+
+
+SHAPES = "".join(f"\n        <path d='M{i} 0h1v1z'/>" for i in range(24))
+# The review's fourth pass: indentation before a control's words, an inline svg's shapes, many
+# drawn elements none of which is over the text compared.
+FOURTH = {
+    "icon_button": (
+        "",
+        f"<button type='button'>\n      <svg width='16' height='16' aria-hidden='true'>{SHAPES}"
+        "\n      </svg>\n      Save changes\n    </button>",
+    ),
+    "card4_d4": ("", _card("    ", 4)),
+    "card2_d8": ("", _card("  ", 8)),
+    # (2 000 shapes, then a button with no name and an image with no alt: both found)
+    "svg_illustration": (
+        "",
+        "<svg width='200' height='200'>" + "<rect/>" * 2000 + "</svg><button style='width:40px;"
+        "height:20px'></button><img src='dot.png' width='20' height='20'>",
+    ),
+    "many_drawn": (
+        "background:#fff",
+        "<div>" + "<span style='background:#eee'>x</span> " * 250 + "</div>" + GREY,
+    ),
+    "D04": ("", "<b style='background:#eee'>x</b><p>y</p>" * 200),
+}
+FOURTH_KINDS = {
+    "icon_button": [],
+    "card4_d4": [],
+    "card2_d8": [],
+    "svg_illustration": ["alt", "name"],
+    "many_drawn": ["contrast"],
+    "D04": [],
+}
+
+
+@pytest.mark.skipif(
+    browser.find_browser() is None or "KOLONI_BROWSER_FAKE" in os.environ,
+    reason="no Chrome or Edge on this machine",
+)
+@pytest.mark.anyio
+async def test_the_real_chrome_reads_the_fourth_reviews_pages(tmp_path, monkeypatch):
+    monkeypatch.setattr(browser, "START_WAIT", 120.0)
+    monkeypatch.setattr(browser, "LOAD_WAIT", 40.0)
+    assert all(len(body) <= 16 * 1024 for _style, body in FOURTH.values())
+    # (the indentation before a word: more than the 200 characters a name is read to)
+    assert len(_card("  ", 8).split("New")[0]) > 200
+    assert await kinds_read(tmp_path, browser.find_browser(), FOURTH) == FOURTH_KINDS
+
+
 # (The words of a text compared with a drawn element's, line box by line box: quadratic before -
 # 568 ms at 16 KB. In a child process with a time limit, pages of 16 KB at most.)
 TIMED = """
@@ -987,11 +1045,11 @@ async def main():
     took = {}
     try:
         await one.width(1280)
-        for name in ("columns", "many"):
+        for name in ("columns", "many", "gaps"):
             await one.open(browser.allowed(name + ".html", ws, one.closed))
             began = time.perf_counter()
             found = await one.access()
-            took[name] = [1000 * (time.perf_counter() - began), bool(found and found["cut"])]
+            took[name] = [1000 * (time.perf_counter() - began), found and found["cut"]]
     finally:
         await one.close()
     print(json.dumps(took))
@@ -1016,12 +1074,23 @@ def test_the_real_chromes_overlap_look_is_bounded(tmp_path):
         # (two narrow columns: a drawn element's 4 000 line boxes beside a text's 4 000)
         columns=f"{head}</head><body><div class='c'><b>{words}</b></div>"
         f"<div class='c'><p>{words}</p></div></body></html>",
-        # (many drawn elements, a text between each: past the compared ones, said in part)
+        # (many drawn elements, a text between each: none over another's words - all read)
         many=f"{head}</head><body>" + "<b>x</b><p>y</p>" * 900 + "</body></html>",
+        # (250 dots in the gaps between a text's tall lines: each meets its box, none its words -
+        # past the 200 compared, said in part, and why)
+        gaps="<html><head><style>i{position:absolute;width:4px;height:4px;background:#eee}"
+        "p{font-size:10px;line-height:60px;margin:0;width:200px}</style></head><body><div "
+        "style='position:relative'><p>"
+        + "words " * 300
+        + "</p>"
+        + "".join(
+            f"<i style='left:{8 * (k % 25)}px;top:{55 + 60 * (k // 25)}px'></i>" for k in range(250)
+        )
+        + "</div></body></html>",
     )
-    assert max(len((tmp_path / f"{one}.html").read_bytes()) for one in ("columns", "many")) <= (
-        16 * 1024
-    )
+    assert max(
+        len((tmp_path / f"{one}.html").read_bytes()) for one in ("columns", "many", "gaps")
+    ) <= (16 * 1024)
     done = subprocess.run(
         [sys.executable, "-c", TIMED, str(tmp_path)],
         cwd=Path(__file__).resolve().parent.parent,
@@ -1034,7 +1103,7 @@ def test_the_real_chromes_overlap_look_is_bounded(tmp_path):
     took = json.loads(done.stdout.strip().splitlines()[-1])
     limit = 2000 if os.environ.get("CI") else 500  # (before: 568 ms, 4 times that at 32 KB)
     assert all(ms < limit for ms, _cut in took.values()), took
-    assert took["many"][1] is True, took  # (said: checked only in part)
+    assert took["many"][1] == [] and took["gaps"][1] == ["compare"], took
 
 
 # --- the end check: a page the turn wrote ------------------------------------------------------

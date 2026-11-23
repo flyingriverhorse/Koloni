@@ -1114,10 +1114,17 @@ OVER_IMAGE = (
 )
 DARK_ONLY = "{path}: contrast not checked at {widths} px - the page's colour scheme is dark only"
 UNREAD_INSIDE = "{path}: accessibility not read inside {n} frames or shadow roots at {widths} px"
-A11Y_CUT = (
-    "{path}: accessibility checked only in part at {widths} px - at most {most} elements and "
-    "{s} s are read"
-)
+A11Y_CUT = "{path}: accessibility checked only in part at {widths} px - {named}"
+# Why, each cap the read met (`_A11Y`'s keys - KOLONİ's script's, never the page's words).
+CUT_WHY = {
+    "elements": "only its first {most} elements are read",
+    "time": "it is read for {s} s at most",
+    "painted": "only its first {painted} drawn elements are compared",
+    "compare": "a text has more than {compare} drawn elements over it",
+    "pairs": "a text's lines meet more than {pairs} line boxes of drawn elements",
+    "depth": "a text's background is more than {depth} elements up",
+    "styles": "more than {styles} kinds of text",
+}
 A11Y_UNREAD = "{path}: accessibility not read at {widths} px"
 NO_BODY = "{path}: accessibility not read at {widths} px - the page has no body"
 NEEDS, NEEDS_LARGE = 4.5, 3.0
@@ -1436,9 +1443,26 @@ def _findings(read: dict | None) -> dict[str, Found]:
         found["dark"] = _ONCE
     if (frames := int(_number(read.get("frames")) or 0)) > 0:
         found["inside"] = (frames, (), 0)
-    if read.get("cut") is True:
-        found["cut"] = _ONCE
+    if why := _cut_why(read.get("cut")):
+        found["cut"] = (1, why, 0)
     return found
+
+
+def _cut_why(cut: object) -> tuple[str, ...]:
+    """Why the read was cut, in words, each cap once - the bounds as they are now."""
+    if not isinstance(cut, list):
+        return ()
+    bounds = {
+        "most": browser.MOST_A11Y,
+        "s": f"{browser.A11Y_MS / 1000:g}",
+        "painted": browser.A11Y_PAINTED,
+        "compare": browser.A11Y_COMPARED,
+        "pairs": browser.A11Y_PAIRS,
+        "depth": browser.A11Y_DEPTH,
+        "styles": browser.A11Y_STYLES,
+    }
+    keys = dict.fromkeys(one for one in cut if isinstance(one, str) and one in CUT_WHY)
+    return tuple(CUT_WHY[one].format(**bounds) for one in keys)
 
 
 def _access_rows(name: str, read: dict[int, dict | None]) -> tuple[list[Row], list[Row]]:
@@ -1463,8 +1487,6 @@ def _access_rows(name: str, read: dict[int, dict | None]) -> tuple[list[Row], li
                             n=n,
                             widths=_widths(widths),
                             named=", ".join(named[:MOST_NAMED]) + more,
-                            most=browser.MOST_A11Y,
-                            s=f"{browser.A11Y_MS / 1000:g}",
                         ),
                     )
                 )

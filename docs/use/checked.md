@@ -490,8 +490,10 @@ guessed:
   roots"); a closed shadow root is not seen at all;
 - a page whose script took its body away: "accessibility not read … the page has no body". One
   that moved its content out of the body is read all the same: the read starts at the page's root;
-- a page's first 2,000 elements are read, for 3 seconds at most a width, and a text's words are
-  compared with 200 drawn elements at most; past that: "accessibility checked only in part".
+- a page's first 2,000 elements are read (an inline `<svg>` counts as one, not its shapes), for 3
+  seconds at most a width, and a text's words are compared with the 200 drawn elements over its
+  box at most; past that: "accessibility checked only in part", with which limit it met ("only its
+  first 2000 elements are read", "a text has more than 200 drawn elements over it" …).
 
 The read goes through the browser's own getters, so a field named after one of the page's
 properties (`<input name="parentElement">`) cannot steer it. Hidden and disabled elements are left
