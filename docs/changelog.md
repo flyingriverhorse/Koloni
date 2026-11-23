@@ -16,6 +16,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 - **Agents**: the ready Bugfix is Reproduce it → Fix it → Checks: KOLONİ's own checks run the tests and, for a big or security-touching change, have it reviewed - two agents for a small fix instead of four, and no agent review of a small change; a failing test or **Ask for changes** goes back to Fix it, keeping the failing test Reproduce it showed, and the Debugger is told to reproduce the bug itself. A copy of Bugfix you changed keeps its steps ([docs](agents/recipe-cookbook.md)).
 - **Chat**: under **Orchestrator decides**, a small change - a few lines in one or two files - gets no team: the Orchestrator makes it with one agent (or itself, where the project lets it write) and says why in one line, and KOLONİ's checks run at the end all the same; picking a team, it sees how many agents each recipe opens ([docs](agents/teams.md#teams-for-a-chat)).
+- **Settings**: **Test before adding** is gone, and a command set in it is dropped (migration 0174). Before a sub-agent's work is added, only the tests it wrote or changed run - each part's test command from the project map narrowed to them, in its working copy; one that wrote no test is added with no test before, and its card says "No tests of its own to run before it is added". KOLONİ's check at the turn's end still runs every test. The project map shows the whole project as a part where no project file makes the root one, so its test command can be set there ([docs](use/checked.md#which-tests)).
 
 ### Fixed
 

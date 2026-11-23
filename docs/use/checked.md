@@ -111,12 +111,11 @@ A project that had turned off the old **Finish only when the tests pass** switch
 
 ## Which tests
 
-1. The project's own **Test before adding** command, if it has one - and then only it: nothing is
-   guessed, found or saved beside it.
-2. Otherwise each part's test command from the project map (yours, or the map's guess), run in
-   that part's folder. A part you set to no test is never guessed.
-3. Otherwise the test command KOLONİ saved before (below).
-4. Otherwise a command KOLONİ guesses from each part's files, in any language: `python -m pytest
+1. Each part's test command from the project map (yours, or the map's guess), run in that part's
+   folder - the whole project's too, set on the map's first row where no project file makes the
+   root a part. A part you set to no test is never guessed.
+2. Otherwise the test command KOLONİ saved before (below).
+3. Otherwise a command KOLONİ guesses from each part's files, in any language: `python -m pytest
    -q` (a `pyproject.toml`, `pytest.ini` or `tests/`), `npm test` (a test script in
    `package.json`), `go test ./...` (`go.mod`), `cargo test` (`Cargo.toml`), `mvn test`
    (`pom.xml`), `./gradlew test` or `gradle test` (`build.gradle`), `dotnet test` (a `.sln` or
@@ -124,9 +123,9 @@ A project that had turned off the old **Finish only when the tests pass** switch
    `vendor/bin/phpunit` (`composer.json`), `mix test` (`mix.exs`), `swift test`
    (`Package.swift`), `ctest --test-dir build` (`CMakeLists.txt`), `make test` (a `test:` target
    in the `Makefile`).
-5. Otherwise a test command an agent ran in this turn that really ran tests, in a turn you are
+4. Otherwise a test command an agent ran in this turn that really ran tests, in a turn you are
    there for (not while you're away, not a trigger's).
-6. Otherwise KOLONİ asks the project's **Fast** tier's model once, in a turn you are there for,
+5. Otherwise KOLONİ asks the project's **Fast** tier's model once, in a turn you are there for,
    where its tests are. KOLONİ shows it the project's parts and languages, its test files and the
    start of its README, CONTRIBUTING and Makefile (never a secret file, nor one reached through a
    link), with no tool. It answers with command lines, which are read as data. The request shows
@@ -164,8 +163,7 @@ the lines that row shows.
 nothing is approved and they are offered again after the next change. From the next change on they are the turn's test run, one line each, said "(from
 CI)". Until you approve them they are not run - at **Full auto** and while you're away too. A
 change to a workflow file asks again; a workflow changed in the turn itself is not used ("CI
-commands not used: a workflow changed in this turn"). Your own **Test before adding** command wins
-over them. Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
+commands not used: a workflow changed in this turn"). Each still goes through KOLONİ's reading of commands: a harmful one is asked as your
 level says. An approved line runs as your own command does: `make test`, `npm test` or `tox` run
 the project's own Makefile, package scripts or tox file, whatever they hold. A trigger's turn runs
 one only with the trigger's own leave for that line.
@@ -202,9 +200,8 @@ test, or no test tool, is never saved, and a command of yours is never replaced.
 Settings › This project › Checks and git shows each saved command under **Found by KOLONİ** as
 soon as it is saved, where it came from and when. **Forget it** clears them; they are found again
 at the next change. A saved command runs as the project's for this check only, and below **Full
-auto** on a card until you say **Always** on it (see [Asking](#asking)). It is not your **Test before adding**:
-it does not check a sub-agent's work before it is taken in, and agents and triggers do not get to
-run it unasked. To make it yours, set it there.
+auto** on a card until you say **Always** on it (see [Asking](#asking)). Agents and triggers do
+not get to run it unasked. To make it yours, set it as a part's test command on the project map.
 
 Where KOLONİ reads a count from the runner's summary (pytest, jest, vitest, go, cargo, dotnet,
 Maven, Gradle, RSpec, PHPUnit), the line gives it. Any other runner is judged by its exit code
@@ -272,8 +269,11 @@ the end (a recipe's **Test it** back to **Fix it**), KOLONİ does not send the O
 again on top of them. A recipe's review loop that ran out leaves KOLONİ's own rounds. The section says "Still failing
 after the recipe's fix rounds: you decide (Fix it)".
 
-The check before a sub-agent's work is taken in (**Test before adding**) is a separate check with
-its own two rounds. A turn can have both.
+The check before a sub-agent's work is taken in is a separate check with its own two rounds: the
+tests that sub-agent wrote or changed, only those - each part's test command narrowed to them, in
+its working copy. A sub-agent that wrote no test is added with no test before (its card says "No
+tests of its own to run before it is added"), and a part whose test command cannot run just some
+files is not run then; the check at the turn's end runs every test. A turn can have both.
 
 ### Not this turn's: flaky tests and failures from before
 
