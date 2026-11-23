@@ -79,7 +79,7 @@ your settings. Each start makes a new key. An old tab or bookmark shows
 
 Stop KOLONİ with Ctrl+C in its window: it closes at once, the page open or not (a connection
 that does not end is given up to five seconds). A model server you started from the Models
-page stops with it.
+page and the agents' browsers stop with it - on Windows, Linux and macOS.
 
 If you skip the build step, KOLONİ serves only its API and there is no page to open.
 

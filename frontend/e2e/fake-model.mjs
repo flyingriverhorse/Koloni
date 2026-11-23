@@ -540,6 +540,10 @@ function nextStep(all, tools = [], model = '') {
     if (/make the tab file of slice 86d/i.test(last.content)) return toolCall('c86d', 'write_file', { path: 'tabs86d.py', content: "print('tabs')\n" })
     // Kanıtlı bitiş: a code change, whose turn KOLONİ checks at its end.
     if (/write the checked file, k-kanit/i.test(last.content)) return toolCall('ckanit', 'write_file', { path: 'kanit.py', content: 'x = 1\n' })
+    // The guide's pictures (0.1.6): a change of four files - big enough for KOLONİ's Reviewer to look it over at the turn's end.
+    if (/write the reviewed change, k-rehber/i.test(last.content)) {
+      return toolCalls(['a', 'b', 'c', 'd'].map(name => [`crb${name}`, 'write_file', { path: `rehber_${name}.py`, content: `${name} = 1\n` }]))
+    }
     // Slice 39: a page written to be seen beside the chat, written again; a picture shown.
     if (/make a view page/i.test(last.content)) return toolCall('c391', 'write_file', { path: 'view39.html', content: viewPage('one') })
     if (/change the view page/i.test(last.content)) return toolCall('c392', 'write_file', { path: 'view39.html', content: viewPage('two') })
@@ -760,6 +764,7 @@ function nextStep(all, tools = [], model = '') {
     return say(`Wrote the greeting as ${model}.`)
   }
   if (/write three files, k-dosya-grubu/i.test(String(messages.findLast(m => m.role === 'user')?.content))) return say('Wrote three files.')
+  if (/write the reviewed change, k-rehber/i.test(String(messages.findLast(m => m.role === 'user')?.content))) return say('Wrote the change.')
   if (/write the checked file, k-kanit/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
     return say(result.startsWith('applied') ? 'Wrote kanit.py.' : `kanit.py was not written: ${result}`)
   }
