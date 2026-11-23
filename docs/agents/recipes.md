@@ -102,9 +102,9 @@ documents and a review, **Evolve** its tests; the others follow the project. A r
 checks so even in a project at **Nothing** - set its Checks step to **Follow the project** to leave it
 to the project. Only a recipe you picked (**Teams for this chat**: Manual) can check less than the
 project does; one the Orchestrator picked (Orchestrator decides) only adds to the project's checks
-and takes the larger Fix rounds - it never turns them off. A recipe's turn follows its Checks step, never the chat's **Test and review
-changes** switch. Rounds never stack: where the
-recipe's own loop of test and fix ran out, the Checks step sends nothing back on top.
+and takes the larger Fix rounds - it never turns them off. A recipe's turn follows its Checks step,
+never the chat's **Test and review changes** switch. Rounds never stack: where the recipe's own
+loop of test and fix ran out, the Checks step sends nothing back on top.
 
 ## Where a recipe is kept
 

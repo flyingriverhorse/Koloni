@@ -7,7 +7,7 @@ writes it from its own records, not from the model's words, and no model is aske
 
 It works the same for every model and CLI.
 
-[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data and slides, a Reviewer's look, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
+[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides and pages, a Reviewer's look (long documents read against the request), a test for the change, the live try, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
 
 *What KOLONİ checks at a turn's end, and where you set each part. ([full size](../diagrams/proven-finish.svg))*
 
@@ -19,10 +19,16 @@ checked again:
    is not this turn's - a flaky test, one failing before - is told apart
    ([Not this turn's](#not-this-turns-flaky-tests-and-failures-from-before)).
 2. **What it wrote besides code** - documents, diagrams, data, slides
-   ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)).
-3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)).
+   ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and a changed
+   page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width
+   ([Pages](#pages)).
+3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)); long
+   documents are read once against your request
+   ([Documents read against your request](#documents-read-against-your-request)).
 4. **A test for the change**, asked once where code changed and no test did
    ([A test for the change](#a-test-for-the-change)).
+5. **The live try**, once a turn: a changed command-line tool is asked for its `--help`, and a big
+   change of screens is tried by a Tester on the chat's preview ([The live try](#the-live-try)).
 
 A failure goes back to the Orchestrator at most **Fix rounds** times
 ([When the tests fail](#when-the-tests-fail)); then a stronger model tries, and failing work is
@@ -464,8 +470,15 @@ also what does not fit in the diff the Reviewer is shown.
   the section says "Still on hold after round 1: not settled by the last look - you decide (Fix
   it)" ("nothing changed" where KOLONİ checked again and found no change).
 - A HOLD is a hold: one that marks no finding blocking, or writes its findings as prose, goes
-  back with its own words as the finding. The verdict is a line `Verdict: MERGE` or `Verdict:
-  HOLD` of its own (not one quoted or in a code block); any HOLD wins.
+  back with its own words as the finding. The verdict is a line of its own (not one quoted or in
+  a code block): `Verdict: MERGE`, `Final verdict: HOLD`, `1. Verdict: HOLD`, a `## Verdict`
+  heading or `Verdict:` with the word on the next line. Its first verdict word decides: HOLD,
+  REQUEST CHANGES, REJECT and BLOCK hold, unless a "not" or "no" stands just before it ("MERGE -
+  no reason to hold this back", "I'd not block: MERGE" merge); a MERGE negated or said not to be
+  ("do not MERGE", "MERGE is not possible yet", "MERGE? No - HOLD") holds. A negation reaches no
+  further than a comma, a full stop or a dash: "No. HOLD until the test is fixed" holds. A
+  "Previous verdict" line is not this look's. Any HOLD wins; a report with no verdict is "Review
+  gave no verdict: not counted".
 - **Stop this check** ends a look that runs now too: "Review stopped by you - not checked".
 - No look: a small change, **Tests only**, tests that still fail (they are fixed first), a turn
   over its token limit, or a recipe whose own Review step looked already - rounds never stack.
@@ -665,6 +678,10 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Review: Reviewer (`provider · model`) - HOLD, 2 findings, 1 blocking | It held the change; each finding follows as "Blocking: …" or "Suggestion: …". |
 | – Review: … in the part it saw (3000 of 15000 characters; not shown: …) | The diff was cut: what it said is of that part only, never a pass. |
 | – Review gave no findings section: not counted | Its report had no findings section: nothing was sent back. |
+| – Review gave no verdict: not counted (`role`, `provider · model`) | Its report had no verdict line KOLONİ could read: nothing was sent back. |
+| ✓ Documents read: Reviewer (`provider · model`) - MERGE, no findings · ✗ … - HOLD, 1 finding, 1 blocking | The turn's long documents, read once against your request; a blocking finding goes back as a fix round. |
+| – No review: changes made by a command are not recorded | The turn's only change was a command's: there is no diff for a Reviewer to read. |
+| – A command of this turn may have changed files KOLONİ did not record: `files` - `command` | A command (a `sed -i`, a formatter, a script) wrote files no record holds; in a git project the files git lists are named. The tests ran on them. |
 | – Review not run: `why` | It could not look: it failed, it was refused, or the turn's token limit was reached. |
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |
 | – No review: After a change is Tests only / the tests still fail / the recipe's own Review step looked it over | Why no Reviewer looked. |
@@ -676,6 +693,11 @@ the Orchestrator's window, whose record holds the runs.
 | ✓ `page`: no console errors at 375, 768, 1280 px | A page the turn changed, opened in KOLONİ's own browser at each width. |
 | ✗ `page`: 2 console errors at 375 px - `first` · `page`: wider than the screen at 375 px | A page that logs errors, or scrolls sideways: sent back as a fix round. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
+| ✓ Tried `python 'bin/tool.py' --help`: exit 0, 12 lines | A command-line tool the turn changed answered its `--help`. |
+| ✗ Tried `line`: exit 2 · Tried `line`: it did not end in 30 s | Its `--help` failed or ran on: sent back as a fix round. |
+| ✓ Tried: Tester (`provider · model`) on `address` - MERGE, no findings · ✗ … - HOLD, 2 findings, 1 blocking | The Tester went through the change on the chat's preview; a blocking finding goes back as a fix round. |
+| – Not tried: `why` | No live try: the tests still fail, nobody watches the turn, the tool does not answer `--help` or has an unusual name, no preview can run, the work waits in a working copy, KOLONİ's own runs fill the machine, or the Tester has no browser tools. |
+| – Try gave no verdict: not counted (Tester, `provider · model`) | The Tester's report had no verdict line: nothing was sent back. |
 | – Not checked: `kinds` - the turn ended before KOLONİ's check / Not checked on the last change: `kinds` | The turn ended before these checks, or changed such a file after them. |
 | – Coverage: 72% of the changed lines are run by tests (`tool`) | Of the turn's changed lines a test could run, the share the whole suite ran, by the project's own coverage tool. |
 | – Coverage: not measured (`why`) | The flags failed (the run went again without them; not tried again till the coverage settings change), or no report was written or it could not be read. |
