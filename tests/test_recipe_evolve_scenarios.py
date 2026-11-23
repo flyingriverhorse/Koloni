@@ -213,6 +213,31 @@ def test_the_ready_evolve_recipe_runs_to_its_end_once_one_reaches_its_target(
     assert len(measures(snap)) == 3 and leftover_copies(client) == []
 
 
+def test_the_ready_evolve_recipe_with_no_measure_command_runs_one_round_and_says_why(
+        make_client, wait_run, project_dir):
+    """K-evolve-tek: with no score nothing reaches the target of 80 and no later round beats the
+    first pick - its four rounds would open 12 Coders for nothing: one round, 3, and the card says
+    why."""
+    client, _model = make_client({
+        "Lead": [step(*(call("spawn_agent", {"role": "Coder", "task": "write a.py"}, f"c{n}")
+                        for n in (1, 2, 3))), text("done"), text("done")],
+        "Coder": [step(write("a.py", "x" * 50)), text("built")],
+        "Coder 2": [step(write("a.py", "y" * 85, id="w2")), text("built")],
+        "Coder 3": [step(write("a.py", "z" * 20, id="w3")), text("built")],
+    })
+    cid, run_id = started(client, project_dir, "auto_edit", measure=None, ready="Evolve")
+    snap = until(client, cid, lambda s: asked(s) and "Which candidate" in asked(s)["question"],
+                 timeout=60)
+    card = asked(snap)
+    assert recipe_run.ONE_ROUND in card["question"], card["question"]
+    answer(client, card, "Coder 2")
+    # (its end: Take in waits for the user at Auto-edit - no round again before it)
+    snap = until(client, cid, lambda s: row(s)["status"] != "running", timeout=60)
+    coders = [a for a in snap["agents"] if a["name"].startswith("Coder")]
+    assert len(coders) == 3, [a["name"] for a in snap["agents"]]
+    assert row(snap)["steps"][0]["round"] == 0 and measures(snap) == []
+
+
 def test_the_winners_work_never_writes_over_what_the_recipes_copy_changed_meanwhile(tmp_path):
     project, runtime = tmp_path / "p", tmp_path / "rt"
     project.mkdir()

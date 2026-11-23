@@ -23,7 +23,7 @@ from app import (
     views,
     web,
 )
-from app.agent import branch_held
+from app.agent import announce, branch_held
 from app.api.deps import get_session, keyed_if_read_by_the_app, require_origin, require_own_origin
 from app.api.teams import chat_rows
 from app.db.models import (
@@ -188,6 +188,8 @@ def _at_work(session: Session, project: Project, chats: list[str], runner) -> st
     if any(runner.commands.live_outputs(cid) for cid in chats):
         # (Kept running past its turn - a dev server - it would go on with no card to stop it.)
         return "a command it started is still running: stop it first"
+    if why := runner.checks_in(project.id):  # (S6: one waiting for the machine starts later)
+        return why
     if session.scalar(select(AwayRun.id).where(
             AwayRun.project_id == project.id, AwayRun.status == "running").limit(1)):
         return "its jobs are being worked on while you're away: stop them first"
@@ -569,11 +571,19 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
     for name in ("search_order", "search_agy", "notify_format", "notify_desktop", "auto_notes",
                  "observe_reports", "suggest_tasks", "suggest_tier", "hide_secrets", "canary",
                  "lead_work", "continue_steps", "when_away", "away_minutes", "full_auto_check",
-                 "disposable_deletes", *SPAWN):
+                 "disposable_deletes", "after_change", "stronger_model", *SPAWN):
         if getattr(body, name) is not None:
             setattr(project, name, getattr(body, name))
+    if "fix_rounds" in body.model_fields_set:  # (k-canli-016: null or "until" - until it passes)
+        project.fix_rounds = None if body.fix_rounds in (None, "until") else body.fix_rounds
     for name in spends:
         setattr(project, name, getattr(body, name))
+    if body.after_change is not None:  # (0162's note of the old switch is said no more: theirs now)
+        project.finish_tests = None
+    if body.forget_tests_found:  # (S1b: found again - looked at again - at the next change)
+        project.tests_found, project.tests_look = {}, None
+    if body.check_kinds is not None:  # (S5a: merged - a kind left out keeps its switch)
+        project.check_kinds = {**(project.check_kinds or {}), **body.check_kinds}
 
 
 def _change_memory(session: Session, project: Project, body: ProjectPatch,
@@ -640,7 +650,8 @@ async def patch_project(
                     "hide_secrets", "pass_env",
                     "canary", "lead_work", "continue_steps", "memory_links", "embedding_model",
                     "when_away", "away_minutes", "full_auto_check", "disposable_deletes",
-                    *SPAWN)
+                    "after_change", "fix_rounds", "stronger_model", "forget_tests_found",
+                    "check_kinds", *SPAWN)
     limited = "turn_token_limit" in body.model_fields_set  # null takes the limit away
     # tek-ev: what a discussion and a room may spend; null: no limit (and, B-414, no least).
     spends = {"discussion_budget", "room_posts", "room_tokens", "room_minutes",
@@ -648,9 +659,9 @@ async def patch_project(
     crowded = "max_agents" in body.model_fields_set  # the same: null takes it away
     noted = "day_note_at" in body.model_fields_set  # the same: null sends it no more
     budgeted = "monthly_budget" in body.model_fields_set  # the same
-    gated = "finish_tests" in body.model_fields_set  # the same: null is automatic again
     embedded = "embedding_provider_id" in body.model_fields_set  # the same: null is off
-    if limited or crowded or noted or budgeted or gated or embedded or spends or any(
+    rounds = "fix_rounds" in body.model_fields_set  # the same: null is Until it passes
+    if limited or crowded or noted or budgeted or embedded or rounds or spends or any(
         getattr(body, name) is not None for name in users_own
     ):
         # Where a search and a notification go, how much a turn or a month may spend, how many
@@ -663,14 +674,13 @@ async def patch_project(
         # its secrets its commands see: a command must not hand itself one, nor take away the
         # test key planted to catch one sent out (101). And whether a new
         # chat's Lead writes files itself, or answers for the user while they are away (a
-        # request of their plan, K-cli-vekil), or its agents finish only once KOLONİ ran the tests.
+        # request of their plan, K-cli-vekil), or what KOLONİ checks after a change (it runs the
+        # tests, and may ask a model).
         # And so are its chats' sub-agent settings and what their discussions and rooms spend,
         # and which deletes go without a card.
         require_own_origin(request)
     _change_teams_and_folders(session, request, project, body)
     await _change_commands(project, body)
-    if gated:
-        project.finish_tests = body.finish_tests
     if limited:
         project.turn_token_limit = body.turn_token_limit
     if crowded:
@@ -694,6 +704,9 @@ async def patch_project(
         request.app.state.runner.let_in()  # there may be room now for agents that wait
     if {*FOLLOWED, "lead_work"} & body.model_fields_set:
         tell_chats(session, request.app.state.bus, project.id)
+    if body.forget_tests_found:  # (as a save tells it, `FoundMixin._project_changed`)
+        announce(request.app.state.session_factory, request.app.state.bus, project.id,
+                 "project.changed")
     return project
 
 

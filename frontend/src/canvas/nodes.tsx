@@ -13,6 +13,8 @@ import { AwayReport } from '../backlog/Away'
 import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
 import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
+import { runClock } from '../chat/checked'
+import { type ChecksData, toolOf } from './checksNode'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
 type Tone = 'idle' | 'running' | 'approval'
@@ -233,6 +235,104 @@ export function PoNode({ data, selected }: NodeProps<Node<PoData & Record<string
   )
 }
 
+/** The Orchestrator's one line of what KOLONİ checked at its turn's end (plan decision 12); nothing before it. */
+function CheckedStrip({ line }: { line?: string | null }) {
+  if (!line) return null
+  return <div className={`node-strip${line.startsWith('✗') ? ' node-strip-bad' : ''}`}>{line}</div>
+}
+
+const MARK: Record<string, string> = { passed: '✓', failed: '✗', running: '●' }
+
+/**
+ * KOLONİ's Checks after the Orchestrator's work (plan decision 12): the test run at work now with how long it has run - no
+ * time made up before it starts -, then each line of what came of it; a whole suite running in the background (S6) with
+ * its clock from its own start. Its ⋯ menu (plan decision 17) stops a running check and opens its log - the Orchestrator's
+ * window, whose record holds the runs.
+ */
+export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
+  const now = useNow(1000)
+  const running = data.running
+  return (
+    <div className={`node node-checks${selected ? ' node-selected' : ''}`}>
+      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <div className="node-head">
+        <span className="node-icon">
+          <ListChecks size={13} />
+        </span>
+        <span className="node-title">Checks</span>
+        <span className="node-label mono">{data.recipe ? 'KOLONİ · end of the recipe' : 'KOLONİ'}</span>
+        <ChecksMenu runId={data.runId} leadId={data.leadId} stoppable={data.stoppable} />
+      </div>
+      <div className="node-body">
+        {running && (
+          <div className="node-line node-checks-running">
+            ● {[toolOf(running.command), ...liveFactList(now, running.since, null, null)].join(' · ')}
+          </div>
+        )}
+        {data.lines.map((line, index) => (
+          <div key={index} className="node-line" data-state={line.state}>
+            {MARK[line.state] ?? '–'} {line.text}
+            {line.since && ` · ${runClock(line.since, now)} …`}
+          </div>
+        ))}
+      </div>
+      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Ends />
+    </div>
+  )
+}
+
+/** The Checks node's ⋯: Stop this check while one runs (`POST /runs/{id}/check/stop`, at every level: what ran stays), and Open its log. */
+function ChecksMenu({ runId, leadId, stoppable }: { runId: string; leadId: string; stoppable: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // (Already off for this chat: nothing to turn off here - the level menu turns it back on.)
+  const chatOn = useApp(s => Boolean(s.conv) && s.conv?.conversation.after_change !== 'off')
+  const item = (label: string, act: () => void) => (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={event => {
+        event.stopPropagation()
+        setOpen(false)
+        act()
+      }}
+    >
+      {label}
+    </button>
+  )
+  return (
+    <span className="node-menu nodrag" onDoubleClick={event => event.stopPropagation()} onKeyDown={event => event.key === 'Escape' && setOpen(false)}>
+      <button
+        type="button"
+        className="node-open"
+        aria-label="Checks: more"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={event => {
+          event.stopPropagation()
+          setOpen(!open)
+        }}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div role="menu" aria-label="Checks: more" className="node-menu-panel">
+          {stoppable && item('Stop this check', () => void api.post(`/runs/${runId}/check/stop`).then(() => setError(null), err => setError(errorText(err))))}
+          {/* S10: the same switch as the level menu's Check after a change, for the open chat. */}
+          {chatOn && item('Off for this chat', () => void useApp.getState().setAfterChange('off').then(() => setError(null), err => setError(errorText(err))))}
+          {item('Open its log', () => useApp.getState().openAgentWindow(leadId.replace(/^agent:/, '')))}
+        </div>
+      )}
+      {error && (
+        <span role="alert" className="node-menu-error">
+          {error}
+        </span>
+      )}
+    </span>
+  )
+}
+
 type AgentProps = NodeProps<Node<AgentData & Record<string, unknown>>>
 
 /** A finished agent of a step's newest round, the step having had rounds before (the user's, 4 Nov): one line. */
@@ -380,6 +480,7 @@ function AgentCard({ id, data, selected }: AgentProps) {
             under the pointer. */}
         <StateLine id={id} data={data} said={said} />
         {(data.summary || data.spent) && <div className="node-meta mono">{[data.summary, data.spent].filter(Boolean).join(' · ')}</div>}
+        <CheckedStrip line={data.checked} />
       </div>
       <Handle type="source" position={Position.Right} isConnectable={false} />
       <Ends />

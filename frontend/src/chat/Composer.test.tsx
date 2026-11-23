@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
+import { ApiError } from '../api/client'
 import type { OwnCommand, Provider, Role } from '../api/types'
 import { ModelPicker } from '../models/ModelPicker'
 import { WorkTogether } from '../room/WorkTogether'
@@ -540,6 +541,15 @@ test('Plan first is set in the level’s menu only: the row has no button for it
   expect(screen.getAllByRole('button', { name: /Plan first/ })).toEqual([level])
 })
 
+test('the level in the row says " · no checks" where this chat’s changes are not checked (S10)', async () => {
+  const onChange = vi.fn()
+  render(<Composer {...props} checks={{ command: 'pytest', rounds: 2, chat: 'off', project: 'check', onChange }} />)
+  expect(screen.getByRole('button', { name: 'Permission level: Ask before changes, no checks' })).toHaveTextContent(/^Ask · no checks$/)
+  await userEvent.click(screen.getByRole('button', { name: /^Permission level:/ }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Permission level' })).getByRole('switch', { name: 'Test and review changes' }))
+  expect(onChange).toHaveBeenLastCalledWith(null)
+})
+
 test('/plan turns Plan first over, before a Planner role of the same start; without a conversation it is off', async () => {
   useApp.setState({ roles: roles('Planner') })
   const onPlanFirst = vi.fn()
@@ -860,4 +870,24 @@ test('/model opens the model’s window while a turn runs too', async () => {
   expect(document.querySelector('.composer-status-running')).not.toBeNull()
   await userEvent.type(screen.getByLabelText('Message'), '/model{Enter}')
   expect(screen.getByRole('form', { name: 'Model for this conversation' })).toBeInTheDocument()
+})
+
+test('the budget’s question takes the focus when it is asked, not each time its chat is shown again', async () => {
+  const over = () => new ApiError(409, "this project is over this month's budget")
+  const onSend = vi.fn().mockRejectedValueOnce(over())
+  const { rerender } = render(<Composer {...props} onSend={onSend} scope="c1" />)
+  await userEvent.type(screen.getByLabelText('Message'), 'more{Enter}')
+  expect(screen.getByRole('button', { name: 'Go on anyway' })).toHaveFocus()
+  // Away to another chat and back (the box is the same one): the focus stays where the user put it.
+  rerender(<Composer {...props} onSend={onSend} scope="c2" />)
+  expect(screen.queryByRole('button', { name: 'Go on anyway' })).toBeNull()
+  screen.getByLabelText('Message').focus()
+  rerender(<Composer {...props} onSend={onSend} scope="c1" />)
+  expect(screen.getByRole('button', { name: 'Go on anyway' })).not.toHaveFocus()
+  expect(screen.getByLabelText('Message')).toHaveFocus()
+  // Asked again, it takes it again.
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  onSend.mockRejectedValueOnce(over())
+  await userEvent.type(screen.getByLabelText('Message'), '{Enter}')
+  expect(screen.getByRole('button', { name: 'Go on anyway' })).toHaveFocus()
 })

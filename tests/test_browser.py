@@ -102,7 +102,9 @@ def test_the_tools_end_to_end_on_the_stand_in_and_the_screenshot_reaches_user_an
     assert made["browser_type"]["result"] == "typed into input#name"
     assert made["browser_key"]["result"].startswith("pressed Enter; now at ")
     assert made["browser_scroll"]["result"] == "scrolled +300; the page is at y=300.0"
-    assert made["browser_console"]["result"] == f"console.log: fake browser: loaded {served}"
+    # (the page's console.error('oops') too, as Chrome says it - S5b's stand-in says it)
+    assert made["browser_console"]["result"] == (
+        f"console.log: fake browser: loaded {served}\nconsole.error: oops")
     # No card at any level: the turn ran through at Ask without a question.
     assert next(r for r in snap["runs"] if r["id"] == run_id)["status"] == "completed"
 

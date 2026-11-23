@@ -240,7 +240,8 @@ def test_what_copilot_does_is_on_record_and_its_account_is_nowhere(
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert [m["content"] for m in snap["messages"][1:] if m["content"]] == [
+    # (Not what KOLONİ checked at the turn's end: in the turn's foot, `test_proof_end_scenarios`.)
+    assert [m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"] == [
         "I will fix it.", "Fixed.", "In the project: hello.py (+1 −1)."]  # (B-205: KOLONİ's line)
     assert [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]] == [
         ("copilot__view", "succeeded", "cli"), ("edit_file", "succeeded", "cli"),

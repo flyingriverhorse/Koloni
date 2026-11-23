@@ -63,6 +63,9 @@ def told(name: str, page: str) -> str | None:
         return str(state["scroll"])
     if name == "here":
         return f"{state['url']} {state['scroll']}"
+    if name == "wide":  # (S5b: a test's page says from which width it fits: data-fits-from)
+        fits = re.search(r'data-fits-from="(\d+)"', page)
+        return bool(fits) and state.get("width", 1280) < int(fits[1])
     return None
 
 
@@ -153,6 +156,8 @@ def answer(method: str, params: dict) -> dict:
             nodes.append({"role": {"value": "button" if tag == "button" else "link"},
                           "name": {"value": text_of(words)}})
         result = {"nodes": nodes}
+    elif method == "Emulation.setDeviceMetricsOverride":
+        state["width"] = params["width"]
     elif method == "Input.insertText":
         state["typed"]["last"] = params["text"]
     elif method == "Input.dispatchMouseEvent" and params["type"] == "mouseWheel":
@@ -180,6 +185,16 @@ async def navigate(url: str, event, paused, dialogs: list[asyncio.Future]) -> No
         await event("Runtime.consoleAPICalled", {
             "type": "log", "args": [{"type": "string",
                                      "value": f"fake browser: loaded {state['url']}"}]})
+        # S5b: a page's console.error('...') is said as Chrome says it; a script it loads is
+        # paused and judged as Chrome's are - one refused is a failed load in its log.
+        for said in re.findall(r"console\.error\('([^']*)'\)", state["html"]):
+            await event("Runtime.consoleAPICalled", {
+                "type": "error", "args": [{"type": "string", "value": said}]})
+        for src in re.findall(r'<script[^>]*src="([^"]+)"', state["html"]):
+            if not await paused(urllib.parse.urljoin(url, src), "Script"):
+                await event("Log.entryAdded", {"entry": {
+                    "source": "network", "level": "error", "url": src,
+                    "text": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT"}})
     await event("Page.loadEventFired", {"timestamp": 1.0})
 
 

@@ -1,20 +1,11 @@
-"""89m: "Finish only when the tests pass". A Claude Code agent that changed files is sent back
-to work while the project's tests fail (`AgentRunner._tests_at_stop`); here, which command
-those tests are and whether that is on when the user has not said."""
+"""The project's test command where the user named none - one its files show - and whether a
+test run that ended says its program was not there (89m; read by the end check, `app.proof`)."""
 
 import json
-import math
+import re
+from collections.abc import Callable
 from pathlib import Path
 
-from sqlalchemy import select
-
-from app.db.models import Command, Conversation, Project, Run
-
-# A previous run of the test command this quick, on record: on by default.
-FAST_SECONDS = 60
-NO_COMMAND = "no test command found - set a check command to use this"
-NOT_TIMED = "test time not known yet - turn it on if your tests are quick"
-NOT_STARTED = "the tests' command did not start last time - check it, then turn this on"
 # What a shell or Python says where the tests' program is not there; and their exit codes.
 # (Measured, both exit 1: Windows PowerShell 5.1 "The term 'x' is not recognized as the name of
 # a cmdlet, function, script file, or operable program" + CommandNotFoundException; PowerShell 7
@@ -26,60 +17,75 @@ NOT_FOUND_CODES = (127, 9009)
 
 
 def command_of(root: str, check_command: str | None) -> str | None:
-    """The project's check command, or one its files show: pytest, or `npm test`."""
+    """The project's check command, or one the files of a folder show (S1b, plan decision 11:
+    any language): pytest, `npm test`, then each marker of `MARKER_TESTS` in its order."""
     if check_command:
         return check_command
     folder = Path(root)
     if (folder / "pyproject.toml").is_file() or (folder / "pytest.ini").is_file():
         return "python -m pytest -q"
-    try:
-        test = json.loads((folder / "package.json").read_text(encoding="utf-8"))["scripts"]["test"]
-    except (OSError, ValueError, KeyError, TypeError):
-        test = None
+    test = _script(folder / "package.json")
     # (Not the line `npm init` writes, which only fails.)
     if isinstance(test, str) and test and "no test specified" not in test:
         return "npm test"
-    return "python -m pytest -q" if (folder / "tests").is_dir() else None
+    found = next((command(folder) for command in MARKER_TESTS if command(folder)), None)
+    return found or ("python -m pytest -q" if (folder / "tests").is_dir() else None)
+
+
+MOST_READ = 64 * 1024  # bytes of a manifest or a Makefile read
+
+
+def _head(place: Path) -> str | None:
+    """The first MOST_READ bytes of a file, as text; None: not read."""
+    try:
+        with place.open("rb") as handle:
+            return handle.read(MOST_READ).decode("utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def _script(manifest: Path) -> object:
+    """A package.json's or composer.json's own `test` script; None: none."""
+    try:
+        return json.loads(_head(manifest) or "")["scripts"]["test"]
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def _has(folder: Path, *patterns: str) -> bool:
+    return any(next(folder.glob(pattern), None) is not None for pattern in patterns)
+
+
+def _make_test(folder: Path) -> str | None:
+    text = _head(folder / "Makefile")
+    return "make test" if text and re.search(r"^test\s*:", text, re.MULTILINE) else None
+
+
+# Plan decision 11: a folder's marker files, and the command that runs its tests - the first that
+# fits. shortcut: none of these is measured here (no Go, Rust, Java, .NET, Ruby, PHP, Elixir,
+# Swift or CMake on this machine); each is the tool's documented default. `./gradlew` runs
+# gradlew.bat in PowerShell too (its PATHEXT) - measure it on Windows when a Gradle project is met.
+MARKER_TESTS: tuple[Callable[[Path], str | None], ...] = (
+    lambda folder: "go test ./..." if (folder / "go.mod").is_file() else None,
+    lambda folder: "cargo test" if (folder / "Cargo.toml").is_file() else None,
+    # (Not -q: it would hide surefire's "Tests run:" line - no count, never saved.)
+    lambda folder: "mvn test" if (folder / "pom.xml").is_file() else None,
+    lambda folder: ("./gradlew test" if (folder / "gradlew").is_file() else "gradle test")
+    if _has(folder, "build.gradle", "build.gradle.kts") else None,
+    lambda folder: "dotnet test" if _has(folder, "*.sln", "*.csproj", "*.fsproj") else None,
+    lambda folder: "bundle exec rspec" if (folder / "Gemfile").is_file() and (
+        folder / "spec").is_dir() else None,
+    lambda folder: ("composer test" if _script(folder / "composer.json") else
+                    "vendor/bin/phpunit" if _has(folder, "phpunit.xml", "phpunit.xml.dist")
+                    else None) if (folder / "composer.json").is_file() else None,
+    lambda folder: "mix test" if (folder / "mix.exs").is_file() else None,
+    lambda folder: "swift test" if (folder / "Package.swift").is_file() else None,
+    lambda folder: "ctest --test-dir build" if (folder / "CMakeLists.txt").is_file() else None,
+    _make_test,
+)
 
 
 def did_not_start(code: int | None, output: str) -> bool:
     """Whether a run that ended says its program was not found: nothing an agent can fix."""
     said = " ".join(output.split())  # (PowerShell wraps its words at the console's width)
     return code in NOT_FOUND_CODES or any(words in said for words in NOT_FOUND)
-
-
-def automatic(session, project: Project) -> dict:
-    """What it is when the user has not said: on where a run of the test command KOLONİ made
-    in this project took at most FAST_SECONDS; and why, in words."""
-    command = command_of(project.root_path, project.check_command)
-    if command is None:
-        return {"on": False, "command": None, "reason": NO_COMMAND}
-    took = session.execute(
-        select(Command.started_at, Command.ended_at, Command.status, Command.exit_code,
-               Command.output)
-        .join(Run, Run.id == Command.run_id)
-        .join(Conversation, Conversation.id == Run.conversation_id)
-        # (A CLI's own run counts too: its times are when KOLONİ saw it start and end - a wait
-        # for the user's yes in them makes it look slower.)
-        # shortcut: one first seen only at its end reads as ~0 s, quick; leave CLI rows out
-        # (origin "cli") if such a "fast" is ever wrong in use.
-        .where(Conversation.project_id == project.id, Command.command == command,
-               Command.status.in_(("exited", "failed_to_start")),
-               Command.ended_at.is_not(None))
-        .order_by(Command.ended_at.desc()).limit(1)
-    ).first() if session is not None else None
-    if took is None:
-        return {"on": False, "command": command, "reason": NOT_TIMED}
-    if took[2] != "exited" or took[0] is None or did_not_start(took[3], took[4] or ""):
-        return {"on": False, "command": command, "reason": NOT_STARTED}
-    seconds = (took[1] - took[0]).total_seconds()
-    if seconds <= FAST_SECONDS:
-        return {"on": True, "command": command,
-                "reason": f"the tests took {max(1, round(seconds))} s last time"}
-    return {"on": False, "command": command,
-            "reason": f"the tests took {math.ceil(seconds / 60)} min last time"}
-
-
-def is_on(session, project: Project) -> bool:
-    return project.finish_tests if project.finish_tests is not None \
-        else automatic(session, project)["on"]

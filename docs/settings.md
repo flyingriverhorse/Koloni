@@ -66,7 +66,6 @@ The sections are listed on the left, in this order.
 | Setting | What it does |
 |---|---|
 | **Who changes the files** | **Orchestrator delegates the work**: it plans, asks and checks; sub-agents change the files. **Orchestrator decides**: a small change (one or two files, a few lines) it makes itself, bigger work goes to a sub-agent. **Orchestrator does it itself**: it changes the files itself, and may still hand a part to a sub-agent. |
-| **Finish only when the tests pass** | An agent on Claude Code that changed files is sent back to work, at most twice, while the tests fail. KOLONİ runs the tests where this project's commands run, by itself only in Full auto or under an Always run rule. |
 | **Have a model look over each sub-agent's report** | The Observer role's model reads each sub-agent's report, the diffs and the test output, and says what the record shows. One more model request per report. The Orchestrator takes its words as an opinion, not a fact. |
 | **Suggest follow-up tasks after each turn** | On by default. After a turn that did something, the Assistant PO proposes at most three [follow-up tasks](automation/todo.md#follow-up-tasks) for the To-do list; they wait for your **Add**, **Edit** or **Reject**. One small model request per such turn, made once the turn is over, and at Full auto in a turn you started one more for the Orchestrator's decision. **Follow-up tasks from** picks the tier: **Fast tier** (the default), **Balanced tier** or **Strongest tier**. |
 
@@ -138,6 +137,18 @@ Heading: "Run commands on".
 See [Permission levels](use/permissions.md) for what a rule can and cannot cover.
 
 ### Checks and git
+
+![Settings, This project, Checks and git: After a change, Fix rounds, Then a stronger model and Check by kind of work](images/settings-checks.png)
+
+Heading: "After a turn that changed code".
+
+| Setting | What it does |
+|---|---|
+| **After a change** | **Test and review** (the default) or **Tests only**: after a turn that changed code, KOLONİ runs this project's tests once on the work as it now stands and says under the answer what was checked and what was not; under **Test and review**, a big or security-touching change is looked over by a read-only Reviewer too. Failing tests and its blocking findings go back to the Orchestrator until it passes, or as many times as **Fix rounds** says; then, with **Then a stronger model** on (the default), the next stronger tier on the Models page tries the fix, and failing work is never taken in ([A stronger model](use/checked.md#a-stronger-model)). In a turn you watch the answer waits for the tests related to the change (with none, at most 1 minute for the whole suite), and the whole suite goes on after it; where the work is in its own working copy it waits at most 2 minutes for them all ([How long it waits](use/checked.md#how-long-it-waits)). **Nothing** runs nothing, and the [Checked](use/checked.md) lines still say so. A project that had turned off the old **Finish only when the tests pass** switch is on Nothing, and says so here. One chat can differ: **Test and review changes** in its permission level's menu ([for one chat](use/checked.md#for-one-chat)). |
+| **Fix rounds** | **Until it passes** (the default), or 1 to 10: how often a turn's failing tests, a sure problem in what it wrote, and the Reviewer's blocking findings go back to the Orchestrator - one count for all of them. Until it passes goes on while each round makes progress, and stops where a round changed nothing, at the turn's token limit or the monthly budget, or after 20 rounds - saying why. Then you decide (**Fix it**), or a stronger model tries (below). A project still on the old default, 2, moved to Until it passes; a number you chose is kept. A recipe's Checks step may set its own ([The Checks step](agents/recipes.md#the-checks-step)). See [When the tests fail](use/checked.md#when-the-tests-fail). |
+| **Then a stronger model** | On unless you turn it off. The rounds spent with a test still failing, the next stronger tier on the Models page tries the fix - it says what is wrong first, and its model's use is said; failing work is never taken in, at any level: you decide (**Take in anyway** or **Fix it**). Off, the work waits after the first model's rounds. A Reviewer's hold is not handed on: you decide. See [A stronger model](use/checked.md#a-stronger-model). |
+| **Check by kind of work** | **Documents** · **Slides** · **Diagrams** · **Data** · **Pages**, all on: under **Test and review**, after a turn that wrote such files, KOLONİ checks them without a model - links and headings, whether a diagram parses and is connected, CSV rows and notebook cells, empty slides; a changed page (or the running preview, for a component) in its own browser at 375, 768 and 1280 px, for console errors and sideways scrolling - and a sure problem goes back as a fix round. Untick a kind to leave it unchecked; the answer then says "Not checked: slides switched off for this project". See [Checked](use/checked.md#documents-diagrams-data-and-slides) and [Pages](use/checked.md#pages). |
+| **Found by KOLONİ** | Shown only where KOLONİ saved a test command itself: each, by folder, with where it came from (the project's files, an agent's run, or its look at the code) and when. **Forget it** clears them, found again at the next change. Yours (Test before adding, or a part's test command) always wins. See [Checked](use/checked.md#saved-by-koloni). |
 
 Heading: "When a sub-agent's work is added".
 
@@ -212,6 +223,8 @@ jobs while you're away), while a command it started still runs (such as a dev se
 | **Summarise a long context at (%)** | Once an agent's context passes this much of its model's window, the older part is summarised before its next step. A whole number from 50 to 95. It does not apply to a CLI run step by step, nor to Claude Code run natively with its own sign-in for KOLONİ, which compacts its own session. Any other CLI starts each turn anew: KOLONİ compacts it, against its role's window or, with none set, the catalogue's for its model. See [Set up a CLI](models/setup-cli.md#going-on-from-the-last-turn).|
 | **Knowledge reads at most (files)** | Knowledge from a repository or a folder on this machine stops before it reads more files than this: 50,000 unless you change it, a whole number from 100 to 1,000,000. A learning keeps what it started with. See [Knowledge](knowledge.md#a-repository). |
 | **Knowledge reads at most (MB)** | The same, in MB: 300 unless you change it, from 1 to 10,240. |
+| **KOLONİ's test runs at once** | How many of the test runs KOLONİ makes at a turn's end go at the same time; the rest wait their turn. 1 unless you change it, a whole number from 1 to 4. More finishes sooner and loads the machine more. The agents' own commands are not counted. See [Checked](use/checked.md#how-many-run-at-once). |
+| **Test processes per run** | How many processes one of KOLONİ's test runs may start, where its runner reads it (pytest-xdist's `-n auto`). 2 unless you change it, a whole number from 1 to 16. The agents' own commands are not limited. |
 
 ### Voice
 

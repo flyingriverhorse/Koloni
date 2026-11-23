@@ -748,7 +748,6 @@ class CodexNativeClient(CliStepClient):
         skills: dict[str, str] | None = None,
         skills_told: str = "",
         on_live: OnLive | None = None,
-        tests_at_stop: bool = False,
         inside: dict[str, dict] | None = None,
         report_schema: dict | None = None,
         on_end: Callable[[Callable[[BaseException], None]], None] | None = None,
@@ -763,8 +762,7 @@ class CodexNativeClient(CliStepClient):
         permission `level`).
         `on_live`: given the run's `Steer` while its turn runs (Claude Code's and Codex's,
         89d), then None. `on_end`: given what ends its turn, with why (B-357: Stop on a command
-        of its own, whose process KOLONİ does not hold). `tests_at_stop`: Claude Code is given
-        a Stop hook (89m), answered by `call_tool("stop", <its input>)`.
+        of its own, whose process KOLONİ does not hold).
         `inside`: 89g, roles offered to Claude Code as sub-agents of its own, by the name each
         is offered by (`inside_name`): what `--agents` takes of each.
         `report_schema`: the shape its report is handed back in, for Claude Code (89p,
@@ -923,8 +921,7 @@ class CodexNativeClient(CliStepClient):
                             [*argv, self.resume_flag, str(resume)], shim,
                             await asyncio.to_thread(claude_content, told, new) if claude
                             else told, Path(root),
-                            server, on_text, on_item, env, call_tool, on_live, tests_at_stop,
-                            report_schema))
+                            server, on_text, on_item, env, call_tool, on_live, report_schema))
                     except (OwnStop, ModelUnavailable) as exc:
                         # It could not go on in that session (gone, another sign-in): anew, once.
                         # Never where it said or did anything (that would be done twice), was
@@ -948,7 +945,7 @@ class CodexNativeClient(CliStepClient):
                     if claude else prompt  # (no picture is sent to Qoder: IMAGE_CLIS)
                 return with_session(await self._control(
                     argv, shim, content, Path(root), server, on_text, on_item, env, call_tool,
-                    on_live, tests_at_stop, report_schema))
+                    on_live, report_schema))
             return await self._work(
                 argv, shim, prompt, Path(root), server, on_text, on_item, env
             )
@@ -1821,12 +1818,6 @@ CLAUDE_SHELLS = (*CLAUDE_RUNS, *CLAUDE_SHELL_OUTPUT, "REPL")
 CLAUDE_REACHES = ("WebFetch", "WebSearch")
 # The one hook KOLONİ registers with it, by the id its requests name (`_control`).
 HOOK = "koloni_pre_tool_use"
-# 89m: and where it changes files, one at its end, which KOLONİ answers with the tests' word
-# (`AgentRunner._tests_at_stop`); its wait, in seconds, longer than theirs (MAX_TIMEOUT).
-# shortcut: the matcher's "timeout" is the Agent SDK's field, not measured live - measure it
-# with tests over a minute before relying on it (else the CLI may stop waiting first).
-STOP_HOOK = "koloni_stop"
-STOP_WAIT = 660
 # The tool that starts one of its own sub-agents: Agent (measured on 2026-10-06), Task in
 # the init `tools` of 2.1.310.
 CLAUDE_AGENTS = ("Agent", "Task")
@@ -2185,7 +2176,6 @@ class ClaudeNativeClient(CodexNativeClient):
     async def _control(  # noqa: C901
         self, argv, shim, prompt, root: Path, server: ToolServer, on_text, on_item: OnItem,
         env: dict[str, str], call_tool: CallTool, on_live: OnLive | None = None,
-        tests_at_stop: bool = False,
         report_schema: dict | None = None,
     ) -> SessionResult:
         """Claude Code over its stream-json control protocol (slice 89b; the names are those
@@ -2436,9 +2426,7 @@ class ClaudeNativeClient(CodexNativeClient):
                 replies["init"] = loop.create_future()
                 await send({"type": "control_request", "request_id": "init", "request": {
                     "subtype": "initialize",
-                    "hooks": {"PreToolUse": [{"matcher": None, "hookCallbackIds": [HOOK]}],
-                              **({"Stop": [{"matcher": None, "hookCallbackIds": [STOP_HOOK],
-                                            "timeout": STOP_WAIT}]} if tests_at_stop else {})}}})
+                    "hooks": {"PreToolUse": [{"matcher": None, "hookCallbackIds": [HOOK]}]}}})
                 told = await replies["init"]
                 if told.get("subtype") != "success" or _dict(
                         told.get("response")).get("hooks_applied") is not True:
@@ -2560,12 +2548,7 @@ class ClaudeNativeClient(CodexNativeClient):
     ) -> dict | None:
         # `_control`'s answer to a control request of its own; None: one it does not answer.
         given = _dict(request.get("input"))
-        if request.get("subtype") == "hook_callback" \
-                and request.get("callback_id") == STOP_HOOK:
-            # Its end (89m): {} lets it finish, {"decision": "block", ...} sends it back.
-            _ok, said = await call_tool("stop", json.dumps(given))
-            reply = _dict(json.loads(said))
-        elif request.get("subtype") == "hook_callback":
+        if request.get("subtype") == "hook_callback":
             tool = str(given.get("tool_name") or "")
             # 89g: a role run inside it is held to its own tools by `_approve`, which
             # is asked about every one - KOLONİ's too, which would be its Lead's.

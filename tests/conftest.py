@@ -50,6 +50,8 @@ def _upgrade_or_copy(db_path: Path) -> None:
 
 
 app.main.upgrade_db = _upgrade_or_copy
+# (for a test that makes its own database: the run's migrated one, copied)
+migrated_copy = _upgrade_or_copy
 
 
 @pytest.fixture
@@ -178,6 +180,141 @@ def no_po_where_calls_are_counted(request):
     event.listen(Project, "init", off)
     yield
     event.remove(Project, "init", off)
+
+
+# Kanıtlı bitiş (S1): after a turn that changed code the app runs the project's tests and writes a
+# "checked" message under the answer - on by default, in every module's tests too. Off only where a
+# module counts the messages, commands or model steps of such turns in an order the end check
+# changes (END_CHECK_OFF); in NOTHING_AFTER a project starts on Nothing (its fake executor has no
+# run for the map's guesses).
+END_CHECK_OFF: set[str] = set()
+NOTHING_AFTER = {"test_copy_part"}
+# S1b: with no test command found, the end check asks the Fast tier's model once a project where
+# its tests are (`FoundMixin._look_for_tests`) - in a test, a step of the scripted model more in
+# every turn that changes code. On only where it is tested.
+LOOK_ON = {"test_found_scenarios"}
+# S3: a big or security-touching change is looked over at a turn's end by a Reviewer agent - in a
+# test, a scripted agent more (and its row) in every turn that writes much. On only where tested.
+REVIEW_ON = {"test_proof_review_scenarios", "test_recipe_end_checks_scenarios",
+             "test_proof_until_scenarios"}
+# S7: a failing run is run again alone and on the old code, and a pass is held to the last green
+# state - in a test, runs of the scripted executor more. On only where tested.
+BEFORE_ON = {"test_proof_before_scenarios"}
+# S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
+# the scripted Lead more in every such turn; its rows too. On only where tested.
+ASK_ON = {"test_proof_test_ask_scenarios", "test_proof_try_ask_scenarios"}
+# S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
+# their rows in every such turn, and a step of the scripted Lead more where one fails. On only
+# where tested.
+KINDS_ON = {"test_proof_kinds_scenarios", "test_recipe_end_checks_scenarios",
+            "test_proof_pages"}
+# S5b: a turn that wrote a page or a component is looked at in KOLONİ's own browser - in a test, a
+# browser started (a real one where no stand-in is named) and rows. On only where tested.
+PAGES_ON = {"test_proof_pages"}
+# S5b: the live try - a changed tool run with --help, a big change of screens tried by the Tester
+# on a preview - in a test, runs of the scripted executor and a scripted agent more. On only where
+# tested.
+TRY_ON = {"test_proof_try_scenarios", "test_proof_try_ask_scenarios"}
+
+
+async def _none(*_args, **_more):
+    return None
+
+
+async def _empty(*_args, **_more):
+    return []
+
+
+async def _as_it_was(_self, _ctx, _held, failed):
+    return failed
+
+
+def _no_look(monkeypatch):
+    from app.agent.found_mixin import FoundMixin
+    monkeypatch.setattr(FoundMixin, "_look_for_tests", _empty)
+
+
+def _no_before(monkeypatch):
+    from app.agent.before_mixin import BeforeMixin
+    monkeypatch.setattr(BeforeMixin, "_proof_before", _as_it_was)
+    monkeypatch.setattr(BeforeMixin, "_after_pass", _none)
+
+
+def _no_review(monkeypatch):
+    from app.agent.review_mixin import ReviewMixin
+    monkeypatch.setattr(ReviewMixin, "_proof_review", _none)
+
+
+def _no_ask(monkeypatch):
+    from app.agent.test_ask_mixin import TestAskMixin
+    monkeypatch.setattr(TestAskMixin, "_proof_test_ask", _none)
+    monkeypatch.setattr(TestAskMixin, "_test_rows", lambda *_args, **_more: [])
+
+
+def _no_kinds(monkeypatch):
+    from app.agent.kinds_mixin import KindsMixin
+    monkeypatch.setattr(KindsMixin, "_proof_kinds", _none)
+    monkeypatch.setattr(KindsMixin, "_kinds_left", lambda *_args, **_more: [])
+
+
+def _no_pages(monkeypatch):
+    from app.agent.kinds_mixin import KindsMixin
+
+    async def no_pages(*_args, **_more):
+        return []
+    monkeypatch.setattr(KindsMixin, "_pages", no_pages)
+
+
+def _no_try(monkeypatch):
+    from app.agent.try_mixin import TryMixin
+    monkeypatch.setattr(TryMixin, "_proof_try", _none)
+
+
+def _no_gate(monkeypatch):
+    from app.agent.proof_mixin import ProofMixin
+    monkeypatch.setattr(ProofMixin, "_proof_left", _none)
+    monkeypatch.setattr(ProofMixin, "_say_checked", lambda *_args, **_more: None)
+
+
+# Each switch of the end check: the modules it is on in, and what turns it off elsewhere.
+SWITCHES = ((LOOK_ON, _no_look), (BEFORE_ON, _no_before), (REVIEW_ON, _no_review),
+            (ASK_ON, _no_ask), (KINDS_ON, _no_kinds), (PAGES_ON, _no_pages),
+            (TRY_ON, _no_try))
+
+
+@pytest.fixture(autouse=True)
+def no_real_server(monkeypatch):
+    """A test never serves for real: `app.main.serve` unpatched fails it at once (two tests that
+    patched `uvicorn.run` after `run` moved to `serve` served forever - CI's part sat at 98%)."""
+    import app.main
+
+    def refused(*_args, **_more):
+        raise AssertionError("a test started a real server: patch app.main.serve")
+
+    monkeypatch.setattr(app.main, "serve", refused)
+
+
+@pytest.fixture(autouse=True)
+def end_check_where_it_fits(request, monkeypatch):
+    module = request.module.__name__.rpartition(".")[2]
+    for on, off in SWITCHES:
+        if module not in on:
+            off(monkeypatch)
+    if module in END_CHECK_OFF:
+        _no_gate(monkeypatch)
+    if module not in NOTHING_AFTER:
+        yield
+        return
+    from sqlalchemy import event
+
+    from app.db.models import Project
+
+    def nothing(_target, _args, kwargs):
+        kwargs.setdefault("after_change", "nothing")
+
+    event.listen(Project, "init", nothing)
+    yield
+    event.remove(Project, "init", nothing)
 
 
 @pytest.fixture(autouse=True)

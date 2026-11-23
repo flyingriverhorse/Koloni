@@ -2,6 +2,8 @@
 
 import contextlib
 import fnmatch
+import glob
+import itertools
 import ntpath
 import os
 import posixpath
@@ -9,7 +11,7 @@ import re
 import shlex
 import sys
 import time
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from pathlib import Path, PureWindowsPath
 from typing import Literal
 from urllib.parse import quote
@@ -82,7 +84,17 @@ def _program(word: str) -> str:
     return name.removesuffix(".exe").removesuffix(".cmd").removesuffix(".bat")
 
 
-def suggest_prefix(command: str) -> str:  # noqa: C901
+def suggest_prefix(command: str) -> str:
+    """The allow-list rule to offer for a command, or "" when none should be offered (`_offer`) -
+    nor where the command's words past it hold an option no rule covers (`_past_the_rule`: the
+    rule would not cover the very line it was offered for)."""
+    offered = _offer(command)
+    normal = " ".join(command.split())
+    extra = normal[len(offered):].split() if normal.startswith(offered) else normal.split()
+    return "" if offered and _past_the_rule(normal.split(), extra) else offered
+
+
+def _offer(command: str) -> str:  # noqa: C901
     """The allow-list rule to offer for a command, or "" when none should be offered.
 
     A rule names one program and one task. Nothing is offered where the shortest
@@ -165,7 +177,7 @@ _TAKES_VALUE = {program: frozenset(options.split()) for program, options in {
 }.items()}
 _TAKES_LINE = {program: frozenset(options.split()) for program, options in {
     "env": "-S --split-string", "flock": "-c --command", "su": "-c --command",
-    "sh": "-c", "bash": "-c", "zsh": "-c",
+    "sh": "-c", "bash": "-c", "zsh": "-c", "schtasks": "/tr /TR /Tr -tr",
 }.items()}
 _TAKES_NONE = {program: frozenset(options.split()) for program, options in {
     "timeout": "--preserve-status --foreground -v --verbose",
@@ -196,6 +208,73 @@ _ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")  # `A=1 cmd`, `env A=1 cmd`
 MAX_READINGS = 8
 MAX_OTHER_READINGS = 64  # (of a whole line, `_commands_in`)
 UNREAD = "koloni:unread"  # (the program a part is read as past either)
+# K-okuyucu-3 round 3: what runs a program it is given (`poetry run cmd /c rd /s /q src`, `uv run
+# rm -rf x`, `npx x`) - what it runs is read as a line of its own too (`_runner_lines`): its harm, a
+# shell, a wrapper. `cargo run` / `dotnet run` hand on only what follows their `--`.
+_RUNS_PROGRAM = frozenset({
+    ("poetry", "run"), ("uv", "run"), ("pipenv", "run"), ("pdm", "run"), ("hatch", "run"),
+    ("rye", "run"), ("conda", "run"), ("pnpm", "exec"), ("pnpm", "dlx"), ("yarn", "exec"),
+    ("yarn", "run"), ("yarn", "dlx"), ("bun", "x"), ("npm", "exec"), ("npm", "x"),
+})
+_RUNS_AFTER_DASHES = frozenset({("cargo", "run"), ("dotnet", "run")})
+
+
+def _runner_lines(words: list[str]) -> list[str]:
+    """What a runner runs (`_RUNS_PROGRAM`, `npx` and its kin, `cargo run --`), as lines: from its
+    first word that is no option - its own options' values skipped (`_RUNNER_VALUES`); after one
+    it does not know, with no `=`, from the word after that one too (fails closed: `uv run --x 1
+    rm -rf y`). What follows is the program's own (`uv run ruff format .`: ruff's words)."""
+    program = _program(words[0])
+    rest: list[str] = words[1:] if program in _RUNNER_PROGRAMS else []
+    for name, verb in [] if rest else _verbs(words):
+        pair, at = (name, verb.casefold()), words.index(verb) if verb in words else -1
+        if at > 0 and pair in _RUNS_AFTER_DASHES and "--" in words[at:]:
+            dashes = words.index("--", at)
+            return [" ".join(_quoted_word(word) for word in words[dashes + 1:])][
+                :1 if dashes + 1 < len(words) else 0]
+        if at > 0 and pair in _RUNS_PROGRAM:
+            rest, program = words[at + 1:], name
+            break
+    values, at, unknown = _RUNNER_VALUES.get(program, frozenset()), 0, False
+    while at < len(rest) and rest[at].startswith("-"):
+        unknown = rest[at] not in values and "=" not in rest[at] and rest[at] != "--"
+        at += 2 if rest[at] in values else 1
+    starts = [at, at + 1] if unknown and at + 1 < len(rest) and not rest[at + 1].startswith(
+        "-") else [at]
+    return [" ".join(_quoted_word(word) for word in rest[one:])
+            for one in starts if one < len(rest)]
+
+
+# uv's options of `uv run` and `uvx` that take a value: its index, resolver, build, cache and
+# global ones besides its own (`--color never --index-strategy x rm -rf .` hid the program: two
+# unknown ones in a row). Never a flag here - `--isolated rm` would hide rm as its value; one uv
+# does not know is refused by uv itself (`--python-preference`, `--preview-features`, `uv run`'s
+# `--from`: not in 0.10.4's help, kept). shortcut: as uv 0.10.4's `uv run --help` and `uv tool
+# run --help` list them (every `<value>` option in, no flag); a later uv's new value option, two
+# in a row, still hides the program - read each unknown option both ways if one is met.
+_UV_VALUES = (
+    "-p --python -w --with --with-editable --with-requirements --env-file --index -i --index-url "
+    "--extra-index-url --default-index -f --find-links --index-strategy --keyring-provider "
+    "--resolution --prerelease --fork-strategy --exclude-newer --exclude-newer-package -C "
+    "--config-setting --config-settings-package --no-build-isolation-package --no-build-package "
+    "--no-binary-package --no-sources-package --link-mode --refresh-package -P --upgrade-package "
+    "--reinstall-package --allow-insecure-host --cache-dir --color --config-file "
+    "--python-preference --preview-features --directory --project --python-platform")
+# The runners' own options that take the next word for their value (`conda run -n env python`).
+_RUNNER_VALUES = {program: frozenset(options.split()) for program, options in {
+    "uv": f"{_UV_VALUES} --package --extra --no-extra --group --no-group --only-group --from",
+    "conda": "-n --name -p --prefix", "poetry": "-C --directory -P --project",
+    "pdm": "-p --project", "hatch": "-e --env", "pnpm": "-C --dir --filter -F",
+    "yarn": "--cwd", "npm": "--package -w --workspace --prefix -C",
+    **dict.fromkeys(("npx", "pnpx", "bunx"), "-p --package -c --call -w --workspace --cache "
+                    "--registry --prefix --userconfig --node-options --loglevel"),
+    "uvx": f"{_UV_VALUES} --from -c --constraints -b --build-constraints --overrides "
+           "--torch-backend",
+}.items()}
+
+
+def _quoted_word(word: str) -> str:
+    return f'"{word}"' if re.search(r"\s", word) else word
 
 
 def _unwrapped(words: list[str]) -> list[list[str]]:  # noqa: C901
@@ -250,6 +329,8 @@ def _unwrapped(words: list[str]) -> list[list[str]]:  # noqa: C901
                 break
             program, at = _program(words[at]), at + 1
         found.append(words[at:])
+        if at < len(words):  # (what a runner it reaches runs: a line of its own too)
+            lines_handed += [[line] for line in _runner_lines(words[at:])]
     return [*found, *lines_handed, *([[UNREAD]] if unread else [])]
 
 
@@ -372,17 +453,110 @@ def _fetch_writes(command: str) -> bool:
 def matches(command: str, prefix: str) -> bool:
     """Whether an allow-list rule covers a command. Only a plain command can match, and never
     one that deletes or cannot be undone (`danger`), makes git run a program (`_git_runs`) or a
-    fetcher write a file (`_fetch_writes`)."""
+    fetcher write a file (`_fetch_writes`) - nor one whose words past the rule hold an option
+    that runs another program, fetches code or writes outside (`_past_the_rule`)."""
     if (not prefix or not is_plain(command) or is_wrapped(command) or _in_a_shell(command)
             or danger(command) or _git_runs(command) or _git_runs(prefix)
             or _fetch_writes(command)):
         return False
     if _hands_on(command):
-        offered = suggest_prefix(command)
+        offered = _offer(command)
         if not offered or len(prefix.split()) < len(offered.split()):
             return False
     normal = " ".join(command.split())
-    return normal == prefix or normal.startswith(prefix + " ")
+    return (normal == prefix or normal.startswith(prefix + " ")) and not _past_the_rule(
+        normal.split(), normal[len(prefix):].split())
+
+
+# K-okuyucu-3: options that make a program run another one, fetch code or write outside the
+# folder - a rule ("Always run") for the program does not cover a line that adds one past it
+# (`_past_the_rule`): asked as if no rule matched. The rule names the program; these change what
+# it runs. Past a rule that names a runner's package (`npx tsc`, `pnpm dlx x`, `bunx x`) the words
+# are the tool's own - those runners read their options before it - so theirs are not here; npm
+# exec reads `--package` anywhere (npm's row), and a hand-written `uv run` rule covers uv's own.
+_PAST_A_RULE = {
+    # emptied first (a delete: `_deletes_basetemp`); a plugin loaded by its name; which
+    # conftest.py and ini file run; settings of another's (its addopts: any of these again)
+    "pytest": ("--basetemp", "-p", "--rootdir", "--confcutdir", "-o", "--override-ini", "-c",
+               "--config-file"),
+    "go": ("-exec", "-toolexec", "-C"),  # (a program run on what it builds; another module)
+    "cargo": ("--config", "--manifest-path"),  # (any setting: a runner, a linker; another crate)
+    # code run before the build; another project's build
+    **dict.fromkeys(("gradle", "gradlew"), ("-I", "--init-script", "-p", "--project-dir", "-b",
+                                            "--build-file")),
+    # scripts run by another program; another folder's package.json or config; a package
+    # fetched; node given code to load
+    "npm": ("--script-shell", "--prefix", "-C", "--package", "--userconfig", "--node-options"),
+    "make": ("SHELL=", "-f", "--file"),  # (recipes run by another program; another makefile)
+    "tox": ("-c",),  # (another tox.ini: its commands)
+    "mvn": ("-Dmaven.ext",),  # (an extension's classes loaded into the build)
+    # a package fetched to run (`_fetches_to_run`): `uv run --with x`, `pipx run --spec x`
+    "uv": ("-w", "--with", "--from"), "uvx": ("-w", "--with", "--from"), "pipx": ("--spec",),
+}
+# ...these only where their value leads out of the folder (a report written there)...
+_PAST_A_RULE_OUT = {"pytest": ("--junitxml", "--junit-xml")}
+# ...the short options that take a value where a program bundles its short ones (`pytest -qo x`:
+# the bundle ends at one of these; elsewhere only the first letter counts, `-pfoo`)...
+_SHORT_VALUES = {"pytest": "kmnrW", "make": "CIjloW", "tox": "e", "uv": "p", "uvx": "p",
+                 "gradle": "DPx", "gradlew": "DPx"}
+# ...and what of pytest's `-p` / `-o` changes nothing of what runs: a plugin turned off
+# (`-p no:x`), how it logs.
+_HARMLESS_INI = frozenset({"log_cli", "log_cli_level", "log_level", "console_output_style"})
+# ...and a shell handed a line (`... bash -c "x"`, `cmd /c x`), anywhere past the rule.
+_SHELL_LINE = re.compile(r"(?i)(?:^|\s)['\"]?(?:\S*[\\/])?(?:sh|bash|zsh|dash|cmd|powershell|pwsh)"
+                         r"(?:\.exe)?['\"]?\s+[-/](?:c|command)\b")
+
+
+def _past_the_rule(words: list[str], extra: list[str]) -> bool:
+    """Whether a line's words past a rule (`extra`, up to a `--`: past it they are a script's)
+    give an option `_PAST_A_RULE` lists for a program the line names (`python -m pytest`, `uv run
+    pytest`: pytest's too) - by `_option_given`; `_PAST_A_RULE_OUT`'s one leading out - or hand a
+    shell a line (`_SHELL_LINE`)."""
+    named = {_program(word) for word in words}
+    given = [(option, _SHORT_VALUES.get(program)) for program in named
+             for option in _PAST_A_RULE.get(program, ())]
+    out = [(option, _SHORT_VALUES.get(program)) for program in named
+           for option in _PAST_A_RULE_OUT.get(program, ())]
+    own = extra[:extra.index("--")] if "--" in extra else extra
+    for at, word in enumerate(own):
+        after = own[at + 1] if at + 1 < len(own) else ""
+        for option, takes in given:
+            value = _option_given(word, after, option, takes)
+            if value is not None and not (option == "-p" and value.startswith("no:") or option in (
+                    "-o", "--override-ini") and value.split("=", 1)[0] in _HARMLESS_INI):
+                return True
+        if any((value := _option_given(word, after, option, takes)) is not None and (
+                _outside(value.strip("'\"")) or re.search(r"[$%~]", value))
+               for option, takes in out):
+            return True
+    return bool(_SHELL_LINE.search(" ".join(extra)))
+
+
+def _option_given(word: str, after: str, option: str, takes: str | None) -> str | None:
+    """The value `word` (and the word `after` it) gives `option`, "" for none; None where it is
+    not that option. A short one alone, glued to its value (`-pfoo`) or - `takes` its program's
+    value letters, None for one that bundles none - after flags in a bundle (`-qo x`); a long one
+    by any start of three letters or more (argparse and getopt take one cut short), `--x=v` too;
+    one dash and a long name (go's `-exec`, `--exec` too; maven's `-Dmaven.ext...`) as it starts;
+    a word of its own (`SHELL=`) as it starts."""
+    if not option.startswith("-"):
+        return word[len(option):] if word.startswith(option) else None
+    full = option.lstrip("-")
+    if len(full) == 1:
+        if not word.startswith("-") or word.startswith("--"):
+            return None
+        for at, letter in enumerate(word[1:], 1):
+            if letter == full:
+                return word[at + 1:] or after
+            if takes is None or not letter.isalpha() or letter in takes:
+                return None
+        return None
+    name, sep, glued = word.lstrip("-").partition("=")
+    if word.startswith("--") and option.startswith("--"):
+        hit = name == full or len(name) >= 3 and full.startswith(name)
+    else:
+        hit = word.startswith("-") and (name == full or word.startswith(option))
+    return (glued if sep else after) if hit else None
 
 
 MAX_RULE = 200
@@ -543,8 +717,15 @@ _HANDS_WORDS = re.compile(r"(?i)(?<![\w-])(?:xargs|parallel)(?![\w-])")
 # -e`; an awk program) is not read: a stop's name in it - a program's, a process object's own, a
 # signal - is a stop of what may be KOLONİ itself (review round 5).
 _AWK = re.compile(r"(?i)(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?[gmn]?awk(?:\.exe)?\s")
-_CODE_STOPS = re.compile(r"(?i)(?<![\w-])(?:taskkill|tskill|pkill|killall|kill|stop-process|spps)"
-                         r"(?![\w-])|\.(?:kill|terminate)\s*\(|\bsignal\.SIG")
+_CODE_STOPS = re.compile(r"(?i)(?<![\w-])(?:taskkill|tskill|pkill|killall|kill|killpg|posix_kill|"
+                         r"stop-process|spps|terminateprocess)(?![\w-])|\.(?:kill|terminate)\s*\("
+                         r"|\bsignal\.SIG")
+# ...and code an interpreter reads on stdin: piped into it, or a heredoc or a here-string on its
+# part (`echo "..." | python`, `python - <<'EOF'`, `tclsh <<< '...'` - k-okuyucu-2).
+_INTERPRETERS = (r"(?:python[\d.]*w?|py|node|ruby|perl|php|lua\w*|tclsh[\d.]*|wish|r|rscript|julia|"
+                 r"bun|deno|go)(?:\.exe)?")
+_STDIN_CODE = re.compile(rf"(?i)\|\s*(?:\S*[\\/])?{_INTERPRETERS}(?![\w.-])"
+                         rf"|(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?{_INTERPRETERS}(?![\w.-])[^|;&\n]*<<")
 # A line's words as its shell splits them - by its quotes, glued ones too (`--grep="x|kill"`) -
 # and what joins its commands (`_stands`).
 _SHELL_WORDS = re.compile(r"""(?:[^\s'";&|(){}]|"[^"]*"|'[^']*')+|[;&|(){}]+""")
@@ -852,10 +1033,14 @@ def _stop_kind(command: str) -> str:
     """`_part_stop` of a whole line, in any part a shell is handed too: "koloni" where a part may
     stop KOLONİ itself, "soft" where one stops by another name, "" for none. WMI's stops
     (`_WMI_STOPS`) are read in the line as written. A continued line is read joined too.
-    shortcut: a stop run out of the line's sight is not read - `find -exec kill {} ;`, the
-    command line `Start-Process cmd -ArgumentList '/c taskkill ...'` hands on, a name made an
-    alias first (`Set-Alias k Stop-Process; k -Name x`), a name in smart quotes PowerShell takes
-    for quotes; read them in 0.1.6 (review round 4)."""
+    shortcut: a command run out of the line's sight is not read (review rounds 4, k-okuyucu-2):
+    `find -exec kill {} ;`, `git submodule foreach '...'`, `script -q -c '...'`, `at`; a line
+    kept in a variable or an alias first (`c='B'; $c`, `eval "$c"`, `iex $c`, `alias i='B'; i`,
+    `Set-Alias k Stop-Process; k -Name x`); a program's own way to run one (`sed e`, ed's `!` -
+    in a script a heredoc hands them too: `sed -f - <<EOF`, `ed -s x <<EOF` -, `vim -c
+    ':!...'`, `gdb -ex 'shell ...'`, `sqlite3 '.shell ...'`, `psql -c '\\! ...'`, `git -c
+    core.pager=` / `alias.x='!...'`, `tar --checkpoint-action=exec=`); `ssh host '...'` (another
+    machine's); a name in smart quotes PowerShell takes for quotes. Read them when one is seen."""
     kinds = {_stop_kind_of(line) for line in _readings(command)}
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 
@@ -875,7 +1060,7 @@ def _stop_kind_of(command: str) -> str:
                for words in _parts(stage, _BLOCKS) if words)
     if _WMI_STOPS.search(command) or stands and _HANDS_WORDS.search(command) or ends and (
             _stands(command, _STOP_METHODS)) or _CODE_STOPS.search(command) and (
-            _INLINE.search(command) or _AWK.search(command)):
+            _INLINE.search(command) or _AWK.search(command) or _STDIN_CODE.search(command)):
         return "koloni"
     return "koloni" if "koloni" in kinds else "soft" if "soft" in kinds else ""
 
@@ -1009,10 +1194,15 @@ def _outside_here(path: str) -> bool:
 
 def switches_branch(command: str) -> bool:
     """K-dallar: whether a part of a command moves the project onto another branch - `git
-    switch`, `git checkout <branch>` (not `-- <path>`, nor `.`, which `danger` asks about).
+    switch`, `git checkout <branch>` (not `-- <path>`, nor `.`, which `danger` asks about) - in
+    any reading (`_readings`: `git `⏎`switch x` too, k-okuyucu).
     shortcut: `git checkout file.py` with no `--` reads as a switch too - git itself tells them
     apart by what the word names; it is asked about only while another's work is held."""
-    for words in _parts(command):
+    return any(map(_switches_branch, _readings(command)))
+
+
+def _switches_branch(command: str) -> bool:
+    for words in _commands_in(command):  # (behind a wrapper too: `time git switch x`)
         sub, rest = _git_sub(words)
         if not rest or {"-h", "--help"} & set(rest):
             continue
@@ -1063,8 +1253,10 @@ _OWN_FLAGS: dict[str, tuple[frozenset[str], frozenset[str], tuple[str, ...]]] = 
                         "--line-number", "--ignore-case", "--files-with-matches", "--count",
                         "--word-regexp", "--fixed-strings", "--extended-regexp"}),
              frozenset({"-e"}), ()),
-    "rev-parse": (frozenset({"--show-toplevel", "--abbrev-ref", "--short", "--verify",
-                             "--git-dir"}), frozenset(), ()),
+    # (not --git-dir, --git-common-dir, --absolute-git-dir, --git-path: the shared git's own path,
+    # from where a line writes another worktree's link, HEAD or a ref - k-okuyucu-3 review)
+    "rev-parse": (frozenset({"--show-toplevel", "--abbrev-ref", "--short", "--verify"}),
+                  frozenset(), ()),
     "ls-files": (frozenset({"--others", "--exclude-standard", "--cached", "--modified",
                             "--deleted", "-z"}), frozenset(), ()),
     "merge-base": (frozenset({"--is-ancestor", "--all"}), frozenset(), ()),
@@ -1164,14 +1356,18 @@ def reaches_shared_git(command: str, own: str | None = None) -> str:
     `GIT_CONFIG_*`); git as a word not read as a command's program (`(git)`, `xargs git`, `& $g`);
     a line too deep to read. Read in what a shell or a wrapper is handed too (`_commands_in`). An
     alias of the repository's own config is a name not on the list: asked. `own`: the worktree's
-    own branch, the one a checkout or switch may go onto (None: none yet - asked).
+    own branch, the one a checkout or switch may go onto (None: none yet - asked). And a write to a
+    place built at run time (`_writes_built`: `BUILT_TARGET`), in any reading of the line.
     shortcut: git run by a script, or a name spliced by the shell (`g`it`, `$(echo git)`), is not
     seen - as `danger` does not see those either."""
     if _GIT_ENV.search(command):
         return SHARED_GIT
+    if any(_writes_built(line) for line in _readings(command)):
+        return BUILT_TARGET
     read = 0
     for words in (words for words in _commands_in(command) if words):
-        if words == [UNREAD]:
+        if words == [UNREAD] or _program(words[0]) != "git" and _program(
+                words[0].strip("(){}")) == "git":  # (git glued to a bracket: `(git) stash pop`)
             return SHARED_GIT
         if _program(words[0]) == "git":
             read += 1
@@ -1179,6 +1375,272 @@ def reaches_shared_git(command: str, own: str | None = None) -> str:
                 return SHARED_GIT
     # (PowerShell drops a backtick before a letter: `g`it` is git.)
     return SHARED_GIT if len(_GIT_WORD.findall(command.replace("`", ""))) > read else ""
+
+
+# K-okuyucu-3 (the k-pr-wt review): in a branch's worktree `$(git rev-parse --git-dir)` leads into
+# the user's own repository - one unasked `echo "$PWD/x" > "$(dirname "$(git rev-parse
+# --git-dir)")/<id>/gitdir"` took the user's other worktree for KOLONİ's, a ref written under
+# refs/remotes/origin hid their commit, and their unpushed work went out in a pull request.
+BUILT_TARGET = ("it writes to a place built at run time ($(...), a variable, Join-Path, git "
+                "rev-parse), which may be the project's shared git - another worktree's link, HEAD "
+                "or history, the user's branches and remotes: asked at every level")
+# What builds a path at run time: a substitution or a variable (`$(`, `${`, `$x` - not `$null`), a
+# backtick, a bracket (PowerShell's `( ... )`), cmd's `%x%` and a `for` loop's `%i` / `%%i`, xargs'
+# and find's `{}`, Join-Path, Split-Path, git rev-parse.
+_BUILT = re.compile(r"(?i)\$(?!null\b)[\w({]|[`(]|%\w+%|(?<![%\w])%%?[a-z](?![\w%])|\{\}"
+                    r"|join-path|split-path|rev-parse")
+_NULL = re.compile(r"(?i)\$null|/dev/null|nul")  # (what is written there is thrown away)
+_IO_WRITE = re.compile(r"(?i)\[(?:system\.)?io\.file\]::(?:write|append)\w*\(")
+# What writes the place it is given last, or by `-t` / `--target-directory` / `-Destination`.
+_WRITES_TO_LAST = frozenset({"cp", "mv", "copy", "move", "copy-item", "cpi", "move-item", "mi",
+                             "install", "ln"})
+# PowerShell's writers: the parameters that name what they write, by any start of the name...
+_PS_TARGETS = {
+    **dict.fromkeys(("set-content", "sc", "add-content", "ac"),
+                    ("path", "literalpath", "pspath", "lp")),
+    "out-file": ("filepath", "path", "literalpath", "pspath", "lp"),
+    **dict.fromkeys(("new-item", "ni"), ("path", "name")),
+    "tee-object": ("filepath", "literalpath", "path"),
+}
+# ...those whose value is no path (another's value counts as one: it may name what is written),
+# and their switches.
+_PS_NOT_PATHS = ("value", "inputobject", "encoding", "itemtype", "type", "stream", "delimiter",
+                 "width", "filter", "include", "exclude", "credential", "target")
+_PS_SWITCHES = frozenset({"force", "nonewline", "append", "noclobber", "passthru", "whatif",
+                          "confirm", "asbytestream", "verbose", "debug"})
+_DEEPEST = 4  # (shells handed shells: deeper, asked)
+# Built, yet no place a line could aim at the shared git: cured narrowly (`_curing`) - the temp
+# folder by its variable (`$TMPDIR/f`, `$env:TEMP\a`), the folder the line runs in at the start of
+# the target (`$PWD/x`, `$(pwd)/x`, `(Join-Path $PWD x)`), a `$(date ...)` in the file's own name
+# (`build-$(date +%s).log`, no `/`, `.` or quote in its format), a `for` loop's variable over a
+# glob or names written out (`for f in *.py`: no `$`, bracket, backtick or `..` in its list, no
+# path from a root). Never where the target climbs (`..`), nor where the line gives that name a
+# value (`_assigned`: `TMPDIR=`, `read ... PWD`, `Set-Item env:TEMP`). Any other built place stays
+# asked.
+_TEMP_VAR = re.compile(r"(?i)^(['\"]?)\$(?:\{(?:tmpdir|tmp|temp)\}|(?:tmpdir|tmp|temp)\b|"
+                       r"env:(?:temp|tmp)\b)")
+_PWD_START = re.compile(r"(?i)^(['\"]?)(?:\$\{pwd\}|\$pwd\b|\$\(pwd(?:\s+-W)?\))(?=[\\/'\"]|$)")
+_JOIN_PWD = re.compile(r"(?i)\(\s*join-path\s+\$pwd\s+['\"]?[^()$`'\"\s]+['\"]?\s*\)")
+# (each repeat takes a character that is no space: `(?:\s+x*)*` tried every split of a run of
+# spaces - exponential, and the line is the model's)
+_DATE_NAME = re.compile(r"\$\(date(?:\s+[^()`$/.'\"\\\s]+)*\s*\)(?=[^\\/]*$)")
+_FOR_LIST = re.compile(r"(?:^|[\s;&|(])for\s+(\w+)\s+in\s+([^;\n]*)")
+
+
+_GIVES = frozenset({"read", "export", "declare", "typeset", "local", "readonly", "set",
+                    "set-variable", "new-variable", "sv", "nv", "set-item", "si", "new-item", "ni",
+                    "printf", "getopts"})
+_LOOPS = re.compile(r"(?i)(?:^|[\s;&|(])(for|select)\s+(\w+)\s+in\b")
+
+
+def _assigned(line: str) -> set[str]:
+    """The names a line gives a value, in lower case: `x=`, `x+=`, `$env:x =`; any name after
+    `read` / `export` / `declare` / `typeset` / `local` / `readonly` / `set` / `printf -v` /
+    `getopts` / `Set-Variable` / `New-Variable` / `Set-Item env:` / `New-Item env:` in its part;
+    `SetEnvironmentVariable('x'`; a `for` or `select` loop's name. Linear: each part read once."""
+    names = {found[1].casefold() for found in re.finditer(
+        r"(?<![\w$.-])(?:\$env:)?([A-Za-z_]\w*)\s*\+?=", line)}
+    names |= {found[1].casefold() for found in re.finditer(
+        r"(?i)setenvironmentvariable\(\s*['\"](\w+)", line)}
+    names |= {found[2].casefold() for found in _LOOPS.finditer(line)}
+    for part in re.split(r"[;&|\n]", line):
+        words = [re.sub(r"(?i)^(?:env:[\\/]?|-\w+:)", "", word.strip("'\"$")).split("=")[
+            0].casefold() for word in part.split()]
+        given = next((at for at, word in enumerate(words) if word in _GIVES), None)
+        names |= set(words[given + 1:]) if given is not None else set()
+    return names
+
+
+def _curing(line: str, outer: frozenset[str] = frozenset()) -> Callable[[str], str]:
+    """`_writes_built`'s cure for `line`, read once: a write's target as `_BUILT` judges it.
+    `outer`: the names the line that hands this one on gives a value (`TMPDIR=x sh -c '...'`)."""
+    assigned = _assigned(line) | outer
+    temp, here = not assigned & {"tmpdir", "tmp", "temp"}, "pwd" not in assigned
+    loops = [(found[1], found[2]) for found in _FOR_LIST.finditer(line)]
+    # (a loop's own name is no setter of it - but another loop, or any other setter, is)
+    others = _assigned(_FOR_LIST.sub(" ", line)) | outer
+    literal = {name: not re.search(r"[$`(]|\.\.", items) and not any(
+        _full(item.strip("'\"")) for item in items.split()) for name, items in loops}
+    names = {name for name, items in loops if literal[name] and name.casefold() not in others}
+    either = "|".join(sorted(names))
+    pattern = re.compile(rf"\$(?:\{{(?:{either})\}}|(?:{either})\b)") if names else None
+
+    def cured(target: str) -> str:
+        if ".." in target:
+            return target
+        target = _TEMP_VAR.sub(r"\1x", target) if temp else target
+        target = _JOIN_PWD.sub("x", _PWD_START.sub(r"\1x", target)) if here else target
+        target = _DATE_NAME.sub("x", target)
+        return pattern.sub("x", target) if pattern else target
+    return cured
+
+
+def _shell_words(line: str) -> list[str]:
+    """A line's words with what each holds kept whole - its quotes, a `$( ... )` and a `( ... )`
+    with the spaces and quotes inside (`"$(dirname "$(git rev-parse --git-dir)")/x"`, `((Split-Path
+    $p) + '/x')`) - and what joins or redirects commands (`;` `&` `|` `<` `>` `>&` `,` a line's
+    end) as words of their own. Linear; a quote or a bracket that does not close holds the rest.
+    shortcut: an escaped quote (`"a\\"b"`) closes its quotes here; read escapes if that is met."""
+    words: list[str] = []
+    word: list[str] = []
+    held: list[str] = []
+    for at, char in enumerate(line):
+        if _holding(char, line[at - 1:at], held) or not (char.isspace() or char in ";&|<>,"):
+            word.append(char)
+            continue
+        if word:
+            words.append("".join(word))
+            word = []
+        if char in "&|" and words and words[-1] == ">":  # (`2>&1`, `>& f`; `>|`: a write)
+            words[-1] = ">" + char
+        elif not char.isspace() or char == "\n":
+            words.append(char)
+    return [*words, "".join(word)] if word else words
+
+
+def _holding(char: str, before: str, held: list[str]) -> bool:
+    """`_shell_words`: whether `char` is in quotes or a bracket, or opens or closes one - `held`
+    the ones open, innermost last: in double quotes `$(` opens a bracket, in a bracket quotes open
+    anew."""
+    top = held[-1] if held else ""
+    if top in ("'", '"'):
+        if char == top:
+            held.pop()
+        elif top == '"' and char == "(" and before == "$":
+            held.append("(")
+        return True
+    if char in "'\"(":
+        held.append(char)
+        return True
+    if char == ")" and top == "(":
+        held.pop()
+        return True
+    return bool(held)
+
+
+def _writes_built(line: str, depth: int = 0, outer: frozenset[str] = frozenset()) -> bool:
+    """Whether a line writes to a place built at run time (`_BUILT`): a redirect's target (`>`,
+    `>>`, `2>`; not `2>&1`, nor `$null`, `/dev/null`, `NUL`), a copy's, move's, install's or link's
+    (`_WRITES_TO_LAST`), what `tee` writes, a PowerShell writer's path (`_ps_targets`),
+    `[IO.File]::Write*`'s first argument - or any write after a `cd` to such a place (`cd
+    "$(git rev-parse --git-dir)" && echo x > config`). In what a shell or a wrapper is handed too
+    (`_unwrapped`), `_DEEPEST` shells deep: deeper, asked. A data heredoc's body and a comment
+    write nothing.
+    shortcut: a write by a program's own way (`sed -i`, `find -exec`, `git config --file`, code in
+    `python -c`, a script) is not read, nor a redirect inside a substitution's quotes; list them
+    where an agent is seen to write the shared git so."""
+    if depth > _DEEPEST:
+        return True
+    line = _uncommented(_blanked(line, ((start, end) for start, end, _quoted in _data_bodies(
+        line))))
+    for found in _IO_WRITE.finditer(line):
+        first = _shell_words(line[found.end():])[:1]
+        if first and _BUILT.search(first[0]):
+            return True
+    given = outer | _assigned(line)  # (what a line it hands a shell is read with)
+    moved, part, cured = False, [], _curing(line, outer)
+    for word in [*_shell_words(line), ";"]:
+        if word not in (";", "&", "|", "\n"):
+            part.append(word)
+            continue
+        targets, went = _part_targets(part, depth, given) if part else ([], False)
+        if UNREAD in targets or any(_BUILT.search(cured(one)) for one in targets) or (
+                moved and targets):
+            return True
+        moved, part = moved or went, []
+    return False
+
+
+def _part_targets(words: list[str], depth: int, given: frozenset[str] = frozenset()
+                  ) -> tuple[list[str], bool]:
+    """What one part of a line writes (`_writes_built`) - UNREAD where a line it hands a shell
+    writes to a place built at run time, or is not read - and whether it is a `cd` to such a
+    place."""
+    targets: list[str] = []
+    rest: list[str] = []
+    at = 0
+    while at < len(words):
+        word = words[at]
+        at += 1
+        if word in (">", ">&", ">|", "<"):
+            if rest and re.fullmatch(r"[\d*]", rest[-1]):  # (`2>`, `*>`: the stream's number)
+                rest.pop()
+            while word == ">" and at < len(words) and words[at] in (">", ">|"):  # (`>>`)
+                at += 1
+            # (`>&1`, `>&-`: a stream joined or closed; `>& f`, bash's, writes f)
+            if word != "<" and at < len(words) and not _NULL.fullmatch(words[at].strip(
+                    "'\"")) and not (word == ">&" and re.fullmatch(r"\d+-?|-", words[at])):
+                targets.append(words[at])
+            at += 1  # (the place written, read or joined to)
+            continue
+        rest.append(word)
+    went = False
+    rest = _led(rest)  # (`if x then`, cmd's `for ... do copy x %%i`)
+    for one in _unwrapped(rest) if rest else []:
+        word = one[0] if len(one) == 1 else ""
+        handed = len(word) > 1 and word[0] in "'\"" and word[-1] == word[0] and any(
+            map(str.isspace, word))
+        if one == [UNREAD] or handed and _writes_built(word[1:-1], depth + 1, given):
+            return [*targets, UNREAD], False  # (a line handed a shell or a wrapper, quoted)
+        if one:
+            written, moved = _command_targets(one)
+            targets += written
+            went = went or moved
+    return targets, went
+
+
+def _command_targets(words: list[str]) -> tuple[list[str], bool]:
+    """The places a command's words name as what it writes (`_writes_built`), and whether it is a
+    `cd` to a place built at run time."""
+    program, rest = _program(words[0]), words[1:]
+    if program in _CD:
+        return [], any(_BUILT.search(word) for word in rest)
+    if program == "tee":  # (any file it is given; PowerShell's is Tee-Object)
+        return rest, False
+    # A link made, or what it leads to: a write there goes through it (`ln -s "$D" g`, `mklink /J
+    # g %D%`, `New-Item -ItemType Junction -Target $d`).
+    if program in ("ln", "mklink") or program in ("new-item", "ni") and any(
+            word.casefold().rsplit(":", 1)[-1] in ("junction", "symboliclink", "hardlink")
+            for word in rest):
+        return [word for word in rest if not word.startswith(
+            "/" if program == "mklink" else "-")], False
+    if program in _PS_TARGETS:
+        return _ps_targets(program, rest), False
+    if program not in _WRITES_TO_LAST:
+        return [], False
+    given = [value for at in range(len(rest))
+             if (value := _option_value(rest, at, _TARGET_OPTIONS)) is not None]
+    clustered = [found[1] or (rest[at + 1] if at + 1 < len(rest) else "")
+                 for at, word in enumerate(rest)
+                 if program in ("cp", "mv", "install", "ln") and (
+                     found := _CLUSTER_TARGET.fullmatch(word))]
+    return [*given, *clustered, *[word for word in rest if not word.startswith("-")][-1:]], False
+
+
+def _ps_targets(program: str, rest: list[str]) -> list[str]:
+    """What a PowerShell writer writes (`_PS_TARGETS`): the value of a path parameter, by any start
+    of its name - and of one not known to take what is no path (`_PS_NOT_PATHS`) - and its first
+    word given by position. A switch (`_PS_SWITCHES`) takes no value."""
+    names = _PS_TARGETS[program]
+    found: list[str] = []
+    placed: list[str] = []
+    at = 0
+    while at < len(rest):
+        word = rest[at]
+        at += 1
+        if not re.match(r"-[A-Za-z]", word):
+            placed.append(word)
+            continue
+        name, colon, value = word[1:].partition(":")
+        name = name.casefold()
+        if not colon:
+            if name in _PS_SWITCHES:
+                continue
+            value, at = (rest[at] if at < len(rest) else ""), at + 1
+        if any(full.startswith(name) for full in names) or not any(
+                full.startswith(name) for full in _PS_NOT_PATHS):
+            found.append(value)
+    return [*found, *placed[:1]]
 
 
 DELETES_THROUGH_LINKS = (
@@ -1348,7 +1810,8 @@ def _verbs(words: list[str], left: list[int] | None = None) -> list[tuple[str, s
             verbs += _verbs(["pip", *rest[at + 1:]], left)
         elif program in _RUNNERS_OF or verb in _RUNS_PACKAGE.get(program, ()) or (
                 verb in ("run", "tool") and program in _ENV_RUNNERS):
-            inner = rest[at:] if program in _RUNNERS_OF else rest[at + 1:]
+            # (a runner's own options too: `npx --call="npm ci"`, `npx -c "npm ci"`)
+            inner = rest if program in _RUNNERS_OF else rest[at + 1:]
             for start, word in enumerate(inner):
                 # (a command glued to its option, its quotes split by the line's words:
                 # `npm exec --call="npm ci"`, `-c='npm i x'`)
@@ -1843,10 +2306,13 @@ def names_secret(command: str) -> bool:
         return True
     members = sys.platform == "win32" and not _POSIX_SHELL.search(command)
     for part in _PARTS.split(command):
-        for word in _words(part.strip()):
+        # (both ways of splitting: a word's quoted pieces joined, `".e"nv`, and apart)
+        for word in {*_words(part.strip()), *_joined_words(part.strip())}:
             # (split at `:` too: a drive letter's path is left starting with `/`, out of it;
             # and at `,`: PowerShell's list of paths, `gc a,.env`)
-            if any(_secret_path(piece) for piece in re.split(r"[=:<>,]", word.strip("'\""))
+            # (each spelling: sh's `.e\\nv` is `.env`, pwsh's is no such name)
+            if any(_secret_path(piece) for spelt in _read_spellings(word)
+                   for piece in re.split(r"[=:<>,]", spelt)
                    if piece and not (members and _MEMBER.fullmatch(piece))):
                 return True
     return False
@@ -2115,7 +2581,7 @@ def _reads(part: str, sinks: bool = True) -> bool:
     (`sls -Pattern "a|b"`) splits the pipeline there, so such a one asks; split outside quotes
     if that is met with a standing name."""
     first, *stages = part.split("|")
-    return only_reads(part.strip()) or _only_searches(part) or sinks and bool(stages) and (
+    return only_reads(part.strip()) or only_searches(part) or sinks and bool(stages) and (
         only_reads(first.strip()) and all(map(_sink, stages)))
 
 
@@ -2129,7 +2595,7 @@ _SEARCH_DOES = re.compile(r"(?i)-exec|-execdir|-ok|-okdir|-delete|-fprint0?|-fpr
                           r"|--pre(?:=.*)?|--replace(?:=.*)?")
 
 
-def _only_searches(part: str) -> bool:
+def only_searches(part: str) -> bool:
     """B-198: a lone search that only reads - rg, ag, ack, a grep or find by its own name,
     nothing piped, redirected, substituted or wrapped (a shell's script: `_script`, B-307),
     none of `_SEARCH_DOES`. A file that
@@ -2217,13 +2683,65 @@ def _git_sub(words: list[str]) -> tuple[str | None, list[str]]:
 
 
 def _parts(command: str, at: re.Pattern = _PARTS) -> list[list[str]]:
+    """A line's parts, split `at`, each past what leads into it (`_led`) - and what its groups
+    hold, split so too (`_groups`: `(cd web && npm ci)`, `{ npm ci; }`, `if ($true) { npm ci }`);
+    a group that does not pair, or past MAX_OTHER_READINGS of them, is [UNREAD]: what runs
+    there is not read (an "always" harm, `_danger_of`)."""
     # (cmd's `for /f %a in ('del x') do y` runs its set's command too: a part of its own - in
     # any split, as `_BLOCKS` cuts at its brackets - as `_led` reads past the loop to `y`)
     sets = re.findall(r"(?i)(?:^|[\s;&|(@])for\s[^;&|]*?\bin\s*\(\s*(['`\"])(.*?)\1\s*\)",
                       command)
+    groups, paired = _groups(command)
+    # (and what a `$( ... )` runs, in double quotes too: `out=$(npm ci)` - k-okuyucu-2; `_BLOCKS`
+    # cuts at its brackets already; past MAX_OTHER_READINGS of them, not read: `_too_deep`)
+    deep = _too_deep(command)
+    subs = _substituted(_unliteral(command)) if at is _PARTS and not deep else []
     return [*([word.strip("'\"") for word in _words(inner)] for _quote, inner in sets),
             *([word.strip("'\"") for word in _led(_words(part.strip()))]
-              for part in at.split(command))]
+              for text in (command, *groups, *subs) for part in at.split(text)),
+            *([] if paired and not deep else [[UNREAD]])]
+
+
+def _groups(command: str, quotes: bool = True) -> tuple[list[str], bool]:
+    """What a line's brackets hold, outside its quotes - `( ... )`, `{ ... }`, `@( ... )`, a
+    script block, cmd's `if x ( ... ) else ( ... )` - but a `$( ... )` / `${...}`, read as a
+    substitution (`_substituted`, `_BLOCKS`); and whether they pair, within MAX_OTHER_READINGS
+    of them (k-okuyucu). Quotes that do not pair are no quotes."""
+    found: list[str] = []
+    opened: list[tuple[str, int]] = []
+    quote = ""
+    # (a data heredoc's body, a comment and a case pattern pair no bracket)
+    command = _uncommented(_uncased(_blanked(command, (
+        (start, end) for start, end, _quoted in _data_bodies(command)))))
+    for mark in re.finditer(r"""[(){}'"]""" if quotes else r"[(){}]", command):
+        char, at = mark[0], mark.start()
+        if quote:
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            quote = char
+        elif char in "({":
+            opened.append((char, at))
+        elif not opened or opened[-1][0] != ("(" if char == ")" else "{"):
+            return found, False
+        else:
+            start = opened.pop()[1]
+            if command[start - 1:start] == "$":
+                continue
+            if len(found) >= MAX_OTHER_READINGS:
+                return found, False
+            found.append(command[start + 1:at])
+    return _groups(command, quotes=False) if quote else (found, not opened)
+
+
+# A comment as each shell reads it (k-okuyucu-2): sh's and PowerShell's `#` at a word's start
+# outside quotes (not `${#x}`, `$#`), PowerShell's `<# ... #>`, cmd's `rem` / `::` at a command's
+# start - what precedes it is read; its brackets pair nothing (`echo done # 1) first`).
+_COMMENT = re.compile(r"""'[^']*'|"[^"]*"|<#.*?#>|(?:^|(?<=[\s;&|(]))#[^\n]*"""
+                      r"""|(?:^|(?<=[\n&|(]))[ \t]*(?:(?i:rem)(?=\s|$)|::)[^\n]*""", re.S)
+
+
+def _uncommented(command: str) -> str:
+    return _COMMENT.sub(lambda found: found[0] if found[0][:1] in "'\"" else " ", command)
 
 
 # What leads into a part's command without being it (review round 4), for every rule: sh's `!`,
@@ -2239,25 +2757,26 @@ def _led(words: list[str]) -> list[str]:
     """A part's command past what leads into it (`_LEADS`): `if pkill -f x` is pkill's, `if not
     exist x.pid taskkill /IM python.exe` taskkill's, `$p = Get-Process x` Get-Process's - but
     `$g = 'git'` sets a word, runs nothing (its quotes are read: `_parts` hands the words as
-    written).
-    shortcut: cmd's quoted comparison (`if "%a%"=="x" npm ci`), a group run as one (`(cd web &&
-    npm ci)`, `{ npm ci; }`, `if exist x (npm ci)`, `if ($true) { npm ci }`: the quote-blind
-    split reads its inside where it is a part of its own only) and `trap -- '...' EXIT` are not
-    read past; 0.1.6 (review round 5)."""
+    written). cmd's quoted comparison too, however its quotes split it (`if "%a%"=="x" npm ci`),
+    and trap's `--`; what a group holds is `_groups`'."""
     while words:
         first = words[0].casefold()
         if first in _LEADS:
             words = words[1:]
             while first == "if" and words and words[0].casefold() in ("/i", "not"):
                 words = words[1:]
-            if first == "if" and words:  # (cmd's test or comparison before its command)
+            if first == "if" and words:  # (cmd's test or comparison before its command -
+                # `"%a%"=="x"` splits at its quotes into `"%a%"` and `=="x"`)
                 words = words[2:] if words[0].casefold() in _CMD_TESTS else words[3:] if len(
-                    words) > 2 and words[1].casefold() in _CMD_COMPARES else words[
+                    words) > 2 and words[1].casefold() in _CMD_COMPARES else words[2:] if len(
+                    words) > 1 and words[1].startswith("==") else words[
                     1:] if "==" in words[0] else words
         elif first == "for" and "do" in (low := [word.casefold() for word in words]):
             words = words[low.index("do") + 1:]
-        elif first == "trap" and len(words) > 1:
-            return ["eval", words[1]]
+        elif first == "case" and "in" in words[2:3]:  # (its patterns out: `_uncased`)
+            words = words[3:]
+        elif first == "trap" and len(words) > 1 and len(words) > 1 + (words[1] == "--"):
+            return ["eval", words[1 + (words[1] == "--")]]  # (`trap -- 'x' EXIT`)
         elif first.startswith("@") and len(first) > 1:
             words = [words[0][1:], *words[1:]]
         elif len(words) > 2 and re.fullmatch(r"\$[\w:]+", words[0]) and words[1] == "=" and (
@@ -2305,7 +2824,13 @@ def _git_alone(command: str) -> list[tuple[str | None, list[str]]]:
 def writes_git_config(command: str) -> bool:
     """Whether a command is git's own alone (`_git_alone`) and one of its parts rewrites
     `.git/config` as it works (`git init`, `git remote add`, `git push -u`, `git checkout
-    --track`, `git config` not `--global`)."""
+    --track`, `git config` not `--global`) - in every reading (`_readings`, k-okuyucu): what
+    it lets stand is the least any reading lets (`git init # `⏎`rm .git/config` is not git's
+    own alone as written)."""
+    return all(map(_writes_git_config, _readings(command)))
+
+
+def _writes_git_config(command: str) -> bool:
     return any(sub in _CONFIG_WRITERS
                or sub == "push" and bool({"-u", "--set-upstream"} & set(rest))
                or sub == "config" and not {"--global", "--system"} & set(rest)
@@ -2320,8 +2845,13 @@ _ONLY_LOOKS = ("--check", "--stat", "--numstat", "--summary", "--dry-run",
 def applies_patch(command: str) -> bool:
     """Whether a part of a command applies a patch (`git apply`, `git am`, `patch`): it writes
     whatever files the patch names - `.github/workflows` too - without the line naming them.
-    Not one that only looks at it (`--check`, `--stat`, `--dry-run`)."""
-    for words in _parts(command):
+    Not one that only looks at it (`--check`, `--stat`, `--dry-run`). In any reading
+    (`_readings`, k-okuyucu)."""
+    return any(map(_applies_patch, _readings(command)))
+
+
+def _applies_patch(command: str) -> bool:
+    for words in _commands_in(command):  # (behind a wrapper too: `bash -c 'git apply x'`)
         sub, rest = _git_sub(words)
         applies = sub in ("apply", "am") or bool(words) and _program(words[0]) == "patch"
         if applies and not any(w.startswith(_ONLY_LOOKS) for w in (rest or words[1:])):
@@ -2331,40 +2861,185 @@ def applies_patch(command: str) -> bool:
 
 # A line's continuations: PowerShell's backtick right at a line's end, sh's backslash. A backtick
 # with a space after it does not continue (measured, pwsh 7: `Write-Output one ` ⏎ two` runs `two`).
-# shortcut: a lone CR, U+2028 / U+0085 and cmd's `^` at a line's end are not joined (each part is
-# read as written); join them in 0.1.6 if an agent is seen to write one (review round 4).
-_CONTINUED = re.compile(r"`\r?\n|\\\r?\n")
+# cmd's `^` at a line's end continues it too (k-okuyucu-2).
+# shortcut: a lone CR, U+2028 / U+0085 are not joined (each part is read as written); join them
+# if an agent is seen to write one (review round 4).
+_CONTINUED = re.compile(r"`\r?\n|\\\r?\n|\^\r?\n")
 
 
 def joined(line: str) -> str:
     """A command line with its continued lines joined as the shell reads it: PowerShell's backtick
-    at a line's very end as a space between words, sh's backslash as nothing (`gi\\⏎t` is `git`).
-    KOLONİ judges a line both so and as written (`_readings`): reading it joined may only add.
-    Joined alone it misses what a line's end that continues nothing hands on (`rm x # done `⏎`npm
-    publish`): a caller judges each of `readings(line)`, not this alone."""
+    at a line's very end as a space between words, sh's backslash and cmd's `^` as nothing
+    (`gi\\⏎t` is `git`). KOLONİ judges a line both so and as written (`_readings`): reading it
+    joined may only add. Joined alone it misses what a line's end that continues nothing hands
+    on (`rm x # done `⏎`npm publish`): a caller judges each of `readings(line)`, not this
+    alone."""
     return _CONTINUED.sub(lambda found: " " if found[0][0] == "`" else "", line)
 
 
 def readings(line: str) -> list[str]:
     """Every way KOLONİ reads a command line (`_readings`): joined, as written and what its
-    backtick pairs hold - a caller outside this module judges each (review round 4).
-    shortcut: `switches_branch`, `runs_inline`, `writes_git_config` and `applies_patch` read the
-    line as written only, not each reading; 0.1.6."""
+    backtick pairs hold - a caller outside this module judges each (review round 4)."""
     return _readings(line)
 
 
 def _readings(line: str) -> list[str]:
-    """A line as the shell reads it (`joined`) and as written: a backtick or a backslash at a
-    line's end continues nothing in a comment (`rm x # done `⏎`npm publish`), glued to a word
-    in `pwsh -Command` (`build`⏎`git push`), after a Windows path (`C:\\`⏎) or in bash, where a
-    backtick opens what it runs (`echo `⏎`rm -rf build`⏎``) - reading it both ways may only
-    add (review round 4). And what its backticks hold, each a line of its own: bash runs it, in
-    double quotes too, so a message holding a backtick pair is no message (`git commit -m
-    "`kill -9 $(pgrep x)`"`).
+    """A line as written - always one of them: every other reading may only add (k-okuyucu-2) -
+    and as the shell reads it (`joined`): a backtick or a backslash at a line's end continues
+    nothing in a comment (`rm x # done `⏎`npm publish`), glued to a word in `pwsh -Command`
+    (`build`⏎`git push`), after a Windows path (`C:\\`⏎) or in bash, where a backtick opens what
+    it runs (`echo `⏎`rm -rf build`⏎``) (review round 4). And what its backticks hold, each a line
+    of its own: bash runs it, in double quotes too, so a message holding a backtick pair is no
+    message (`git commit -m "`kill -9 $(pgrep x)`"`); its `case` branches past their patterns
+    (`_uncased`); what follows a PowerShell block comment (`<# c #> Stop-Process ...`); what a
+    launcher hands on (`_handed`).
     shortcut: pairs taken in order - nested substitutions (`` `a \\`b\\`` ``) and PowerShell's own
     escapes (`` `t ``) read as pairs are not parsed as bash does; do so in 0.1.6."""
     insides = re.findall(r"`([^`]*)`", line)
-    return list(dict.fromkeys((joined(line), line, *(["\n".join(insides)] if insides else []))))
+    return list(dict.fromkeys((
+        line, joined(line), _uncased(line), re.sub(r"(?s)<#.*?#>", " ", line),
+        *(["\n".join(insides)] if insides else []), *_handed(line))))
+
+
+# Lines a command hands on that its parts do not split out (k-okuyucu-2): Start-Process's
+# argument list (`Start-Process powershell -ArgumentList '-Command','taskkill ...'`, any program,
+# its path quoted with a space, `@(...)`, named after its arguments), a package runner's `-c` /
+# `--call` (`npx -c 'taskkill ...'`), `[scriptblock]::Create('...')`.
+_START_PROCESS = re.compile(r"""(?i)(?:^|(?<=[\s;&|(]))(?:start-process|saps|start)(?=\s)"""
+                            r"""((?:'[^']*'|"[^"]*"|[^\n|;'"])*)""")
+_RUNNER_CALL = re.compile(r"(?i)\b(?:npx|npm\s+(?:exec|x)|pnpm\s+(?:dlx|exec)|yarn\s+(?:dlx|exec))"
+                          r"\b[^;&|\n]*?\s(?:-c|--call)(?:=|\s+)(['\"])(.*?)\1")
+_SCRIPTBLOCK = re.compile(r"(?i)\[(?:system\.management\.automation\.)?scriptblock\]::create\("
+                          r"\s*(['\"])(.*?)\1\s*\)")
+# Start-Process's own parameters, by any prefix PowerShell takes: those with a value, its
+# switches; its argument list and its program.
+_SP_VALUES = ("-windowstyle", "-workingdirectory", "-verb", "-credential", "-environment",
+              "-redirectstandardoutput", "-redirectstandarderror", "-redirectstandardinput")
+_SP_SWITCHES = ("-wait", "-nonewwindow", "-passthru", "-usenewenvironment", "-loaduserprofile",
+                "-whatif", "-confirm")
+_SP_TOKENS = re.compile(r"""'[^']*'|"[^"]*"|,|@\(|[()]|[^\s,'"()]+""")
+# What reads the line it is handed as code or commands: a variable in its place is not read.
+_RUNS_LINES = re.compile(rf"(?i){_INTERPRETERS}|(?:powershell|pwsh|cmd|bash|sh|zsh|wsl|dash)"
+                         r"(?:\.exe)?")
+
+
+def _sp_param(word: str, names: Iterable[str]) -> bool:
+    name = word.casefold().partition(":")[0]
+    return len(name) > 2 and any(full.startswith(name) for full in names)
+
+
+def _started_line(rest: str) -> str:
+    """What `Start-Process ...` runs, as a line (`_handed`): its program - `-FilePath`'s, else
+    its first word - and its argument list; UNREAD where it hands a shell or an interpreter a
+    variable (`-ArgumentList $a`)."""
+    tokens, program, items, at, listing = _SP_TOKENS.findall(rest), None, [], 0, False
+    while at < len(tokens):
+        token = tokens[at]
+        at += 1
+        if token in (",", "@(", "(", ")"):
+            continue
+        if token.startswith("-") and _sp_param(token, ("-filepath", "-pspath", "-path")):
+            program = tokens[at] if at < len(tokens) and ":" not in token else token.partition(
+                ":")[2]
+            at, listing = at + (0 if ":" in token else 1), False
+        elif token.startswith("-") and _sp_param(token, _SP_VALUES):
+            at, listing = at + (0 if ":" in token else 1), False
+        elif token.startswith("-") and _sp_param(token, _SP_SWITCHES):
+            listing = False
+        elif token.startswith("-") and _sp_param(token, ("-argumentlist", "-args")):
+            listing = True
+        elif program is None and not listing:
+            program = token if token.strip("'\"") else None  # (cmd's `start "" x`: a title)
+        else:
+            items.append(token.strip("'\""))
+            # (the list goes on past a comma only: `-ArgumentList '/c x' cmd` names cmd after it)
+            listing = listing and at < len(tokens) and tokens[at] == ","
+    program = (program or "").strip("'\"")
+    if any(item.startswith("$") for item in items) and _RUNS_LINES.fullmatch(_program(program)):
+        return UNREAD
+    return " ".join([f'"{program}"' if " " in program else program, *(
+        items if len(items) < 2 else (f"'{item}'" if '"' in item else f'"{item}"' if re.search(
+            r"\s", item) else item for item in items))])
+
+
+def _handed(line: str) -> list[str]:
+    """The lines a line hands on as `_START_PROCESS`, `_RUNNER_CALL` and `_SCRIPTBLOCK` find them,
+    each as the program handed it reads it (`powershell -Command "taskkill ..."`)."""
+    found = [inner for _quote, inner in _RUNNER_CALL.findall(line)]
+    found += [inner for _quote, inner in _SCRIPTBLOCK.findall(line)]
+    return found + [_started_line(rest) for rest in _START_PROCESS.findall(line)]
+
+
+# A heredoc's body (`<<EOF`, `<<-'EOF'`, `<<"EOF"`, `<<\EOF`, `<<'E'OF`) is data to what only reads
+# it - a file it writes, a message, a count (k-okuyucu-2): its brackets pair nothing (`1) first`),
+# and where its delimiter is quoted its `$(...)` runs nothing either. Handed to anything else
+# (`bash <<EOF`, `python - <<'EOF'`, `make -f -`, a pipe or a chain on its line) it is code.
+_HEREDOC = re.compile(r"(?<!<)<<(-?)[ \t]*((?:'[^'\n]*'|\"[^\"\n]*\"|\\?[\w.@%+-])+)")
+_DATA_READERS = frozenset({
+    "cat", "tee", "git", "gh", "wc", "sort", "uniq", "head", "tail", "grep", "egrep", "fgrep",
+    "rg", "jq", "yq", "base64", "diff", "cmp", "less", "more", "nl", "tr", "cut", "column",
+    "fold", "iconv", "xxd", "od", "md5sum", "sha256sum", "shasum", "curl", "echo", "printf"})
+
+
+def _data_bodies(line: str) -> list[tuple[int, int, bool]]:
+    """Where each heredoc body handed to a data reader (`_DATA_READERS`, alone on its line: no
+    pipe, no chain) starts and ends in a line, and whether its delimiter is quoted. Two on one
+    line follow each other; one with no closing line runs to the line's end."""
+    bodies: list[tuple[int, int, bool]] = []
+    after: dict[int, int] = {}  # (a head line's next body: `cat <<A <<B`)
+    for found in _HEREDOC.finditer(line):
+        head_start = line.rfind("\n", 0, found.start()) + 1
+        head_end = line.find("\n", found.end())
+        if head_end < 0:
+            break
+        word = found[2]
+        delimiter = re.sub(r"['\"\\]", "", word)
+        start = after.get(head_start, head_end + 1)
+        tabs = r"\t*" if found[1] else ""
+        close = re.compile(rf"^{tabs}{re.escape(delimiter)}\r?$", re.M).search(line, start)
+        end = close.start() if close else len(line)
+        after[head_start] = close.end() + 1 if close else len(line)
+        head = line[head_start:head_end]
+        words = _words(head.strip())
+        if words and _program(words[0]) in _DATA_READERS and not re.search(
+                r"[|;&]", re.sub(r"\d?>&\d|&>", "", head)):
+            bodies.append((start, end, word != delimiter))
+    return bodies
+
+
+def _blanked(line: str, spans: Iterable[tuple[int, int]]) -> str:
+    """A line with these spans' characters but its line ends made spaces: what they hold is read
+    as nothing, and every other place stays where it was."""
+    chars = list(line)
+    for start, end in spans:
+        for at in range(start, end):
+            chars[at] = chars[at] if chars[at] in "\r\n" else " "
+    return "".join(chars)
+
+
+def _unliteral(line: str) -> str:
+    """A line with what no shell runs a `$( ... )` in made blank (`_substituted` reads the rest):
+    a single-quoted string, an escaped `\\$(`, a PowerShell literal here-string (`@'...'@`), a
+    quoted delimiter's heredoc body handed to a data reader (k-okuyucu-2).
+    shortcut: a single-quoted word inside an unquoted heredoc's body is blanked too, though the
+    shell expands what it holds there; read it so if an agent is seen to write one."""
+    line = _blanked(line, ((start, end) for start, end, quoted in _data_bodies(line) if quoted))
+    line = re.sub(r"""(?s)@'.*?'@|"(?:[^"\\`]|[\\`].)*"|'[^']*'""",
+                  lambda found: found[0] if found[0][:1] == '"' else " " * len(found[0]), line)
+    return line.replace("\\$(", "   ")  # (an escaped `\$(`, in double quotes too)
+
+
+# sh's `case x in a|b) cmd ;; esac`: its patterns are no command, only its branches are.
+# (possessive: the pattern's class holds spaces too - `\s*` and it split a run of them every way)
+_CASE_BRANCH = re.compile(r"(\bin\b|;;&?|;&)(\s*+\(?[^()\n;|&]+(?:\|[^()\n;|&]+)*\))")
+
+
+def _uncased(line: str) -> str:
+    """A line with the patterns of its `case ... esac` taken out (k-okuyucu-2): `start) npm ci`
+    is `npm ci`, and a pattern's `)` pairs nothing."""
+    if not (re.search(r"\bcase\b", line) and re.search(r"\besac\b", line)):
+        return line
+    return _CASE_BRANCH.sub(lambda found: f"{found[1]} ", line)
 
 
 def danger(command: str, instructions: bool = True) -> str:
@@ -2410,6 +3085,11 @@ def standing_asked(command: str, instructions: bool = True) -> str:
     return "" if standing in INSTRUCTION_FILES and not instructions else standing
 
 
+# PowerShell handed its command encoded (`-EncodedCommand`, `-enc`, `-ec`, `-e`).
+_ENCODED = re.compile(r"(?i)(?:^|(?<=[\s;&|(\"',]))(?:\S*[\\/])?(?:powershell|pwsh)(?:\.exe)?['\"]?"
+                      r"[\s,](?:[^;&|\n]*[\s,'\"])?[-/]e(?:c|n[a-z]*)?(?=[\s:'\",]|$)")
+
+
 def _harm(command: str) -> str:
     """`danger` but for a file that steers later turns: what `only_reads` cannot have. What a
     shell is handed is looked at too (`_commands_in`): B-339's `cmd /c mklink /J .koloni\\tmp\\x
@@ -2417,16 +3097,33 @@ def _harm(command: str) -> str:
     for words in _commands_in(command, at=_BLOCKS):
         if words and (said := _danger_of(words)):
             return said
+    if _ENCODED.search(command):  # (what it runs is not read: k-okuyucu-2)
+        return _danger_of([UNREAD])
     if _stops_by_name(command):  # (by a name, or an id the line does not know: `_stop_kind`)
         return KILLS_BY_NAME
     if _DOTNET_DELETE.search(command):
         return "Deletes files through .NET ([IO.File]::Delete)."
+    if _deletes_basetemp(command):
+        return BASETEMP
     if names_secret(command):
         return SECRET_FILE
     if not names_koloni(command):
         return ""
     climbs = _SCRATCH.search(command) and _climbs(command)
     return CLIMBS_OUT if climbs else KOLONI_FILES
+
+
+# K-okuyucu-3: pytest empties the folder it is given as --basetemp before it runs - on its line,
+# in `-o addopts=...` or PYTEST_ADDOPTS (sh's prefix, `$env:`) - but the agents' scratch
+# (`.koloni/tmp/...`, `_IN_SCRATCH`). shortcut: one a config file names (`-c x.ini`, an ini's
+# addopts) is not read; the rule check asks of `-c` (`_PAST_A_RULE`).
+BASETEMP = "Deletes the folder given to pytest's --basetemp: pytest empties it first."
+_BASETEMP = re.compile(r"--basetemp(?:=|\s+)['\"]?([^\s'\";&|()]+)")
+
+
+def _deletes_basetemp(command: str) -> bool:
+    return bool(re.search(r"(?i)pytest", command)) and any(
+        not _IN_SCRATCH.fullmatch(found[1]) for found in _BASETEMP.finditer(command))
 
 
 # B-336: the one card-free delete - a deleter alone on its line, by its bare name; plain forcing
@@ -2974,15 +3671,139 @@ def only_looks(command: str) -> bool:
         _program(words[0]) in _LOOKERS | _SEARCHERS)
 
 
-def reads_here(command: str, root: Path, at_root: bool) -> bool:
+def reads_here(command: str, root: Path, at_root: bool, cwd: str = ".") -> bool:
     """Whether a command runs unasked below Full auto (`only_reads`): git's only at the root
     of the folder it works in (a repository shaped in a folder below could set what git
     runs) and while that folder holds no secret file - its diff, log and show print a
-    committed one's lines without naming it. shortcut: a gitignored .env cards git too;
-    ask `git ls-files` if that is met. Blocking: call it off the event loop."""
-    if not only_reads(command):
+    committed one's lines without naming it. And (k-okuma-yol) every path it names, followed
+    through links and junctions as `read_file` follows them (`Workspace.resolve`), ends in the
+    folder and on no secret path (`_named_here`). `cwd`: where in `root` it runs. shortcut: a
+    gitignored .env cards git too; ask `git ls-files` if that is met. Blocking: call it off the
+    event loop."""
+    if not only_reads(command) or not _named_here(command, root, cwd):
         return False
     return _program(_words(command.strip())[0]) != "git" or at_root and secret_held(root) is None
+
+
+# What a read's paths are followed for, at most: a line naming more is asked.
+MOST_NAMED = 64
+MOST_MATCHED = 256
+
+
+def _named_here(command: str, root: Path, cwd: str) -> bool:
+    """Whether each path a plain read names (`only_reads`' words, a glob's matches), followed
+    through links and junctions, ends inside `root` and on no secret path - a link in the
+    project that leads out of it (planted, or a repository's symlink) reads nothing outside
+    unasked, as `read_file` refuses it. A name that is no file reads nothing: passed. A line
+    naming more than it is worth following (MOST_NAMED, a glob over MOST_MATCHED): False.
+    shortcut: the paths are followed when the line is judged - a link made between this and
+    the run needs a second process at work at the same time; follow again at the run if that
+    is met. shortcut: a hard link to a secret file is one file of two names, which `resolve()`
+    does not see (as for `read_file`); compare file ids if that is met."""
+    try:
+        top = root.resolve()
+        here = (root / cwd).resolve()
+    except (OSError, RuntimeError):
+        return False
+    if not here.is_relative_to(top):
+        return False
+    pieces = [piece for word in _joined_words(command.strip())[1:] for name in _names_in(word)
+              for piece in re.split(r"[=:,]", name) if piece]
+    if len(pieces) > MOST_NAMED:
+        return False
+    for piece in pieces:
+        found = _named_paths(here, piece)
+        if found is None or not all(_lands_here(one, top) for one in found):
+            return False
+    return True
+
+
+def _joined_words(command: str) -> list[str]:
+    """A line's words as a shell splits them: at whitespace outside quotes - a word's quoted
+    pieces stay one word (`".e"nv`, which `shlex`'s non-POSIX split cuts in two)."""
+    words: list[str] = []
+    word, quote = "", ""
+    for char in command:
+        if quote:
+            word += char
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            word, quote = word + char, char
+        elif char.isspace():
+            words, word = (words + [word]) if word else words, ""
+        else:
+            word += char
+    return [*words, word] if word else words
+
+
+def _dequoted(word: str) -> str:
+    """A word as the shell hands it on: pwsh and sh both join quoted pieces in one word
+    (`.e'nv'`, `".e"nv`, `out/'secret.txt'` are `.env`, `.env`, `out/secret.txt`)."""
+    return word.replace("'", "").replace('"', "")
+
+
+def _unescaped(word: str) -> str:
+    """A word as sh hands it on: its backslash escapes resolved - any outside quotes (`ou\\t`
+    is `out`, `.e\\nv` is `.env`), only `\\ " $ ` ` in double quotes, none in single ones -
+    and its quotes gone."""
+    out: list[str] = []
+    quote, at = "", 0
+    while at < len(word):
+        char = word[at]
+        if char == "\\" and quote != "'" and at + 1 < len(word) and (
+                not quote or word[at + 1] in '\\"$`'):
+            out.append(word[at + 1])
+            at += 2
+            continue
+        if char in "'\"" and quote in ("", char):
+            quote = "" if quote else char
+        else:
+            out.append(char)
+        at += 1
+    return "".join(out)
+
+
+def _read_spellings(word: str) -> list[str]:
+    """A word as each shell may hand it on: with its backslashes kept (pwsh, cmd: a separator)
+    and resolved as sh's escapes (Git Bash, a CLI's Bash tool) - followed both ways everywhere,
+    a spelling that names no file passing."""
+    return list(dict.fromkeys((_dequoted(word), _unescaped(word))))
+
+
+def _names_in(word: str) -> list[str]:
+    """What a read's word may name (review of k-okuma-yol): the word, unquoted - each spelling
+    (`_read_spellings`) - or, for an option, its value (`-Path:x`, `--file=x`) and an attached short
+    option's tail (`-fx`). More candidates cost nothing: one that is no file passes."""
+    return [name for spelt in _read_spellings(word) for name in _option_names(spelt)]
+
+
+def _option_names(word: str) -> list[str]:
+    if not word.startswith("-"):
+        return [word]
+    value = re.split(r"[=:]", word, maxsplit=1)
+    return [*value[1:], *([word[2:]] if not word.startswith("--") and len(word) > 2 else [])]
+
+
+def _named_paths(here: Path, piece: str) -> list[Path] | None:
+    """What a word of a read names in `here`: its glob's matches, or the path where something
+    is there (a dangling link too); None: a glob over MOST_MATCHED."""
+    if glob.has_magic(piece):
+        matched = list(itertools.islice(glob.iglob(str(here / piece)), MOST_MATCHED + 1))
+        return None if len(matched) > MOST_MATCHED else [Path(one) for one in matched]
+    path = here / piece
+    return [path] if os.path.lexists(path) else []
+
+
+def _lands_here(path: Path, top: Path) -> bool:
+    """Whether a named path, followed through every link, ends in the folder and on no secret
+    path."""
+    try:
+        real = path.resolve()
+    except (OSError, RuntimeError):  # (a loop of links: not followed, asked)
+        return False
+    if not (real == top or real.is_relative_to(top)):
+        return False
+    return real == top or not secret_in_project(real.relative_to(top).as_posix())
 
 
 # How long a folder's answer is kept: the commands of one turn do not each walk it.
@@ -3247,6 +4068,16 @@ class OutputMask:
 
 def is_allowed(command: str, prefixes: Iterable[str]) -> bool:
     return any(matches(command, prefix) for prefix in prefixes)
+
+
+# A terminal's colours, and its links (OSC 8: an address round an address).
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+
+
+def plain(output: str) -> str:
+    """A command's output as it reads on a screen: its colours and links' codes off (CL-316: a
+    coloured `1 passed` is no count where a code stands before its number)."""
+    return ANSI.sub("", output)
 
 
 # K-gecmis-zengin: said beside an output that was cut, or left out of a history to fit - its
@@ -3564,9 +4395,18 @@ def runs_another(command: str) -> str:
         first, *stages = part.split("|")
         if is_wrapped(first) or _in_a_shell(first) or stages and (
                 renames or not all(map(_filters, stages))) or any(  # (in a block: `(cmd /c x)`)
-                is_wrapped(piece) or _in_a_shell(piece) for piece in _BLOCKS.split(part)):
+                is_wrapped(piece) or _in_a_shell(piece) or _runs_a_shell(piece)
+                for piece in _BLOCKS.split(part)):
             return ANOTHER
     return ""
+
+
+def _runs_a_shell(piece: str) -> bool:
+    """Whether a runner hands a shell or a wrapper a line (`poetry run cmd /c x`, `uv run env x`:
+    `_runner_lines`)."""
+    words = _words(piece.strip())
+    return bool(words) and any(is_wrapped(line) or _in_a_shell(line)
+                               for line in _runner_lines([word.strip("'\"") for word in words]))
 
 
 # K-r135: an interpreter handed its code on the line, quoted or not (`python -c "..."`, `node
@@ -3575,15 +4415,16 @@ def runs_another(command: str) -> str:
 # `runs_another`'s. shortcut: a script the agent itself wrote runs unasked in a backlog turn;
 # card interpreters running a just-written file if that is seen live.
 _INLINE = re.compile(
-    r"""(?i)(?:^|(?<=[\s;&|(]))(?:\S*[\\/])?(?:(?:python|py|node|ruby|perl|php|bun)[\d.]*w?"""
-    r"""(?:\.exe)?\s+(?:-\w+\s+)*?(?:-c|-e|-p|--eval|--print)|deno(?:\.exe)?\s+eval)"""
-    r"""(?=\s|$)""")
+    r"""(?i)(?:^|(?<=[\s;&|('"]))(?:\S*[\\/])?(?:(?:python|py|node|ruby|perl|php|bun|lua\w*|r|"""
+    r"""rscript|julia)[\d.]*w?(?:\.exe)?\s+(?:-\w+\s+)*?(?:-c|-e|-p|--eval|--print)"""
+    r"""|php[\d.]*(?:\.exe)?\s+(?:-\w+\s+)*?-r|deno(?:\.exe)?\s+eval)(?=\s|$)""")
 
 
 def runs_inline(command: str) -> str:
-    """Why a command runs code written on its line (`_INLINE`), in one sentence; "" for none."""
+    """Why a command runs code written on its line (`_INLINE`), in one sentence; "" for none -
+    in any reading (`_readings`: `python `⏎`-c "x"` too, k-okuyucu)."""
     return ("It runs code written on the line: what it does is not seen."
-            if _INLINE.search(command) else "")
+            if any(map(_INLINE.search, _readings(command))) else "")
 
 
 def _module_run(words: list[str]) -> list[str]:
@@ -3604,19 +4445,93 @@ def installs(command: str) -> str:
     pipenv) or run as a module (`python -X utf8 -m pip install`, `py -m pip`), a bare `yarn` -
     and in what a shell or a wrapper is handed (`cmd /c "npm i x"`) or a runner (`uv run pip
     install x`, `npm exec --yes -- npm ci`). A script run by its name (`npm run install`) is
-    none; a dry run is one (review round 4: `pip install x # --dry-run` installs).
-    shortcut: `npx` and `dlx` run a package without installing it into the project, and are left;
-    `pip-sync` and `corepack` writing into node_modules / .venv are not seen, nor a verb a
-    `$(...)` gives (`npm $(echo ci)`) or an install word `_INSTALLERS` does not list (`pnpm
-    import`, `pnpm fetch`, `poetry sync`, `pdm add`, `conda install`); 0.1.6 (review round 4)."""
+    none; a dry run is one (review round 4: `pip install x # --dry-run` installs). A runner that
+    downloads a package to run it is one too (`_fetches_to_run`: K-okuyucu-3).
+    shortcut: `pip-sync` and `corepack` writing into node_modules / .venv are not seen, nor an
+    install word `_INSTALLERS` does not list (`pnpm import`, `pnpm fetch`, `poetry sync`, `pdm
+    add`, `conda install`); 0.1.6 (review round 4)."""
     for words in (words for line in _readings(command) for words in _commands_in(line) if words):
-        if words == ["yarn"] or any(
-                verb == UNREAD or verb.casefold() in (_INSTALLERS["pip"] if program.startswith(
-                    "pip") else _INSTALLERS.get(program, set()))
-                for program, verb in _verbs(words)):
+        if _installs_part(words):
             return ("It installs or removes packages: in a working copy its dependency folders "
                     "are the project's own, linked in.")
+        if _fetches_to_run(words):
+            return ("It downloads a package and runs it (npx -p, uvx, dlx): what runs comes from "
+                    "the internet, not from the project.")
     return ""
+
+
+def _installs_part(words: list[str]) -> bool:
+    """`installs` of one part's words."""
+    return words == ["yarn"] or any(
+        verb == UNREAD or verb.casefold() in (_INSTALLERS["pip"] if program.startswith(
+            "pip") else _INSTALLERS.get(program, set())) for program, verb in _verbs(words))
+
+
+# K-okuyucu-3: what downloads a package to run it - an install by another name, from the internet:
+# `uvx x`, `bunx x`, `pnpx x`; `pnpm dlx`, `yarn dlx`, `pipx run`, `bun x`, `uv tool run`; `npm`
+# / `yarn` / `pnpm` / `bun create x`, `npm init x` (create-x), `corepack pnpm dlx x`; `npx` given
+# `-p` / `--package` before what it runs, `npm exec` given `--package` anywhere before `--`, `uv
+# run` given `--with` / `-w`; `deno run npm:x` / `jsr:x`; `go run <module>@<version>`.
+# shortcut: a bare `npx <bin>` / `npx -y <bin>` / `npm exec <bin>` runs the project's own bin
+# where it has one, and is left as before - one not installed it downloads all the same; card it
+# if agents fetch so.
+_FETCH_RUNNERS = frozenset({"uvx", "bunx", "pnpx"})
+_FETCH_VERBS = frozenset({("pnpm", "dlx"), ("yarn", "dlx"), ("pipx", "run"), ("bun", "x"),
+                          ("npm", "create"), ("yarn", "create"), ("pnpm", "create"),
+                          ("bun", "create")})
+# npx's options that take a value (npm 11's): any other is a flag. It reads its own only before
+# what it runs - `npx tsc -p x` is tsc's `-p`.
+_NPX_VALUES = frozenset({"-p", "--package", "-c", "--call", "-w", "--workspace", "--cache",
+                         "--registry", "--prefix", "--userconfig", "--node-options", "--loglevel"})
+_MODULE_AT = re.compile(r"[\w.-]+(?:/[\w.~-]+)+@\S+")  # (`golang.org/x/tools/cmd/x@latest`)
+
+
+def _fetches_to_run(words: list[str]) -> bool:
+    """Whether one part's words download a package to run it (`_FETCH_RUNNERS`, `_FETCH_VERBS`)."""
+    words = _module_run(words) or words
+    program, said = _program(words[0]), [word.casefold() for word in words[1:]]
+    if program == "corepack" and said:  # (the package manager it runs, fetched first)
+        return _fetches_to_run(words[1:])
+    verbs = {(name, verb.casefold()) for name, verb in _verbs(words)}
+    after = {verb: said[said.index(verb) + 1:] for _name, verb in verbs if verb in said}
+    if (program in _FETCH_RUNNERS and said or verbs & _FETCH_VERBS
+            or ("uv", "tool") in verbs and "run" in said
+            or ("npm", "init") in verbs and any(not w.startswith("-") for w in after["init"])
+            or program == "deno" and any(w.startswith(("npm:", "jsr:")) for w in said)
+            or ("go", "run") in verbs and any(map(_MODULE_AT.fullmatch, after["run"]))):
+        return True
+    if program == "npx":
+        package = _npx_options(words[1:])
+    else:  # (npm exec reads `--package` anywhere before `--`: `npm exec x --package=y`; its `-p`
+        # is npm's --parseable, `npm exec tsc -p x` tsc's)
+        package = [w for verb in ("exec", "x") if ("npm", verb) in verbs
+                   for w in after[verb][:(after[verb] + ["--"]).index("--")] if w != "-p"]
+    with_ = _runner_options(words[said.index("run") + 2:]) if ("uv", "run") in verbs else []
+    return any(word in ("-p", "--package") or word.startswith("--package=")
+               for word in package) or any(word.startswith(("--with", "-w")) for word in with_)
+
+
+def _npx_options(rest: list[str]) -> list[str]:
+    """npx's own options: its words before what it runs, a value after one of `_NPX_VALUES`."""
+    found, at = [], 0
+    while at < len(rest) and rest[at].startswith("-") and rest[at] != "--":
+        found.append(rest[at])
+        at += 2 if rest[at] in _NPX_VALUES else 1
+    return found
+
+
+def _runner_options(rest: list[str]) -> list[str]:
+    """uv run's own options - its words before what it runs: a word after an option with no `=`
+    may be its value, so it reads on past it (fails closed); `--` ends them."""
+    found = []
+    for at, word in enumerate(rest):
+        if word == "--":
+            break
+        if word.startswith("-"):
+            found.append(word)
+        elif not (at and rest[at - 1].startswith("-") and "=" not in rest[at - 1]):
+            break
+    return found
 
 
 # What reaches the internet from a command (K-web-komut): `_SENDING_PROGRAMS` and these, as
@@ -3696,8 +4611,12 @@ def _reaches_of(command: str) -> str:
             return program
         if sub in _GIT_REACHES:
             return f"git {sub}"
-        if installs(" ".join(words)) or _reaches_by_word(words) or program in (
-                "pip", "pip3") and "download" in said:
+        # (an install of the part as a line - its quoted words kept: `git commit -m "run (npm
+        # ci) first"` - and of its words split at their spaces: `"pip install" x`)
+        quoted = " ".join(f'"{word}"' if re.search(r"\s", word) else word for word in words)
+        split = " ".join(words).split()
+        if installs(quoted) or split and _installs_part(split) or _reaches_by_word(
+                words) or program in ("pip", "pip3") and "download" in said:
             return "a package install"
         if (sending := _SENDING_WORDS & said) and sub != "stash":  # (`git stash push` stays)
             return f"{program} {sorted(sending)[0]}"

@@ -61,8 +61,9 @@ from app.model_client import (
     OwnStop,
     StepResult,
     ToolCallRequest,
+    provider_call_id,
 )
-from app.model_session import ClaudeSessionClient, CliSessionClient, SessionStop
+from app.model_session import CliSessionClient, SessionStop
 from app.providers import list_providers, mode_of
 from app.roles import LEARN, LOOKUP, find_role, shown_name
 from app.serialize import agent_out, message_out, run_out
@@ -292,8 +293,10 @@ class LoopMixin:
             effort = effort or (limits.effort if limits else None)
             # The MCP servers it may use: its role's, and like its tools never one the
             # agent that opens it has not (the lead, which nobody opens, has its role's).
+            # (None at all for S3's Reviewer: an MCP server's tools may change things.)
             mcp = [name for name in (limits.mcp if limits else [])
-                   if parent_id is None or (above is not None and name in above.mcp)]
+                   if parent_id is None or (above is not None and name in above.mcp)
+                   ] if call_id not in self._read_only_calls else []
             # A role from before names were checked: its agents are named, and told what
             # they are, without what does not print.
             role = shown_name(role)
@@ -727,8 +730,9 @@ class LoopMixin:
             # team is left: it is told which, and goes on (a CLI's session anew),
             # within the steps it had. Told, an answer with no call is its why: it stands.
             if status != "completed" or calls == self._calls_of(ctx):
+                await self._stronger_at_end(ctx, status)  # (S11: as at the gate's end)
                 return status, error
-            left = self._left_to_do(ctx)
+            left = await self._end_left(ctx)  # (and KOLONİ's end check, `_proof_left`)
             if left is None:
                 return status, error
             self._nudge(ctx, left)
@@ -1003,12 +1007,6 @@ class LoopMixin:
         # Its level, as a step's (`_model_step`); given only where there is one.
         effort = self._effort_sent(ctx, info)
         self._set_agent(ctx.cid, ctx.agent_id, effort=effort)
-        # 89m, B-303: a session has no Stop hook (its prompt goes on stdin, no control channel):
-        # once it ends KOLONİ runs the tests, and where they fail runs it again, told why.
-        # shortcut: sent back as a fresh run of its recorded history (its whole prompt paid
-        # again), not inside its turn; plug in the Stop hook once sessions take stream-json in.
-        gated = isinstance(ctx.model, ClaudeSessionClient) and "write_file" in ctx.tools \
-            and not (ctx.answering or ctx.discussion or self._member_of(ctx))
         # R130: a model queued past QUEUE_WAIT_SECONDS is given up only where its sub-agent could
         # move on (`_moved_on`); where `_moved_on` would say no at once it waits as long as
         # Qoder queues it: a lead, an opener's pick, a role held to its own provider, no other
@@ -1023,35 +1021,29 @@ class LoopMixin:
                 waits = not ctx.depth or role is None or bool(
                     role.provider_id and not role.models) or session.get_one(
                     Agent, ctx.agent_id).chosen or len(list_providers(session)) < 2
-        ended, before, sent_back = False, transcript.opened, 0
+        ended, before = False, transcript.opened
         try:
-            while True:
-                # shortcut: its pictures go once, with no retry without them as a step's
-                # (`_sent_with_files`): a refusal fails the run; add one if that is seen.
-                self._slow(ctx, arm=True)  # (K-yavas: not while its tests run after it)
-                usage = await cast(CliSessionClient, self._model_of(ctx)).run_session(
-                    info.model_id, self._history(ctx, offered), offered, call_tool,
-                    transcript.on_text, transcript.of, **({"effort": effort} if effort else {}),
-                    on_live=lambda item: self._show_live(ctx, item),
-                    **({"queue_wait": None} if waits else {}),
-                )
-                self._slow_off(ctx)
-                ended = True
-                self._count_tokens(
-                    ctx, usage.input_tokens, usage.output_tokens,
-                    # (A result that has no word of a cache: not known.)
-                    read=getattr(usage, "cache_read", None),
-                    written=getattr(usage, "cache_write", None),
-                    # (Copilot's: also when it speaks with `-p`, its talker)
-                    nano_aiu=getattr(usage, "nano_aiu", None),
-                    premium=getattr(usage, "premium_requests", None),
-                )
-                self._ran_on(ctx, usage.model, getattr(usage, "picked_why", None))
-                if not gated or not (told := await self._tests_at_stop(
-                        ctx, transcript, None, sent_back)):
-                    break
-                ended, sent_back = False, sent_back + 1
-                self._nudge(ctx, told["reason"])  # (what its next run reads, after its words)
+            # shortcut: its pictures go once, with no retry without them as a step's
+            # (`_sent_with_files`): a refusal fails the run; add one if that is seen.
+            self._slow(ctx, arm=True)  # (K-yavas)
+            usage = await cast(CliSessionClient, self._model_of(ctx)).run_session(
+                info.model_id, self._history(ctx, offered), offered, call_tool,
+                transcript.on_text, transcript.of, **({"effort": effort} if effort else {}),
+                on_live=lambda item: self._show_live(ctx, item),
+                **({"queue_wait": None} if waits else {}),
+            )
+            self._slow_off(ctx)
+            ended = True
+            self._count_tokens(
+                ctx, usage.input_tokens, usage.output_tokens,
+                # (A result that has no word of a cache: not known.)
+                read=getattr(usage, "cache_read", None),
+                written=getattr(usage, "cache_write", None),
+                # (Copilot's: also when it speaks with `-p`, its talker)
+                nano_aiu=getattr(usage, "nano_aiu", None),
+                premium=getattr(usage, "premium_requests", None),
+            )
+            self._ran_on(ctx, usage.model, getattr(usage, "picked_why", None))
         except (SessionStop, ModelUnavailable) as exc:
             # The CLI is gone, but a tool it asked for may still be on record as
             # running, or a change may still be waiting for a decision nobody can give.
@@ -1366,7 +1358,10 @@ class LoopMixin:
         requests: list[ToolCallRequest]
     ) -> None:
         """Record every requested call first, then run them in order. Sub-agents asked
-        for one after another are opened together and work at the same time."""
+        for one after another are opened together and work at the same time. A model's id named
+        as KOLONİ's own calls are (`koloni_...`, `cli_...`) is recorded as one of its own
+        (`provider_call_id`), whatever client gave it: KOLONİ trusts those by their names."""
+        requests = [replace(one, id=provider_call_id(one.id)) for one in requests]
         created = self._record_calls(ctx, message_id, requests)
         calls = [
             (made[0], request) for made, request in zip(created, requests, strict=True)

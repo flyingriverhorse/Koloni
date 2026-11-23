@@ -93,6 +93,7 @@ async def stop_everything(request: Request, session: Session = Depends(get_sessi
         session.add(Flag(name=backlog.HOLD, value=now().isoformat()))
         session.commit()
     runner = request.app.state.runner
+    runner.stop_later()  # (S6: test runs gone on after their turns too)
     for night in session.scalars(select(AwayRun).where(AwayRun.status == "running")).all():
         away.stop(session, night, NIGHT_STOPPED, runner, ends=False)
         _told(request, night.project_id)

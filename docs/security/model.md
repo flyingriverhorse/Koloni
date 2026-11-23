@@ -44,7 +44,11 @@ run** covers only a plain command. A rule never covers:
       `--upload-pack`, `--exec`, `--output`, `--config` and the like), even under a rule;
 - **downloads** (`curl`, `wget`, `Invoke-WebRequest`): a rule only fetches. It never covers writing a
   file (`-o`, `-O`, `-OutFile`), reading options from a file (`-K`, `--config`), sending data, or a
-  `file:` address.
+  `file:` address;
+- an option after the rule's words that runs another program, fetches code or writes outside the
+  folder (pytest's `--basetemp` or `-p`, go's `-exec`, cargo's `--config`, npm's `--prefix`, a
+  runner's `--with` or `--package`, `bash -c`): the line is asked as if no rule matched
+  ([the full list](../use/permissions.md#what-a-rule-never-covers)).
 
 [Disposable deletes](../use/permissions.md#disposable-deletes), off until you allow them, are no rule:
 KOLONİ checks each one as it is asked, and fails closed - git that does not answer, a link, a folder
@@ -155,17 +159,23 @@ What is not framed:
   ([Known limits](../reference/known-limits.md#clis)).
 - **Agents beside each other**: a sub-agent's command that names another agent's copy, a worktree or a
   place above its copy, writes in or installs into the linked dependency folders, or stops programs
-  by their name is asked at every level; KOLONİ's worktrees are locked while their agents work
+  by their name is asked at every level - inside a group too (`(cd web && npm ci)`, a script
+  block); KOLONİ's worktrees are locked while their agents work
   ([Working copies](../use/workspace.md#working-copies)).
 - **An agent's git on a branch** runs none of your repository's hooks (pre-commit, commit-msg, a
   `core.hooksPath` such as husky's), nor your fsmonitor, and signs nothing; a command that clears or
-  sets git's own environment is asked at every level. A pull request never pushes commits of yours that
-  origin does not have ([Branches](../use/workspace.md#branches)).
+  sets git's own environment, finds your repository's own path (`git rev-parse --git-dir`), or
+  writes to a place built when it runs (`$D/…`, a variable, `Join-Path`) or links to one - which may
+  be your repository's own `.git` - is asked at every level. A pull request never pushes commits of
+  yours that origin does not have, in any worktree of yours
+  ([Branches](../use/workspace.md#branches)).
 - **Commands in Docker** (Settings › This project › Commands and secrets): a fresh container for each command, with only
   the folder mounted and the network off unless you allow it.
 - **Turns nobody watches** (triggers) may do only what the trigger allows.
 - **Web searches and requests** reach only public addresses, never this machine or your local
   network. The agents' browser opens previews on this machine and the sites you allowed.
+- **KOLONİ's own calls**: a model's tool call never passes for one of KOLONİ's own - one named as
+  KOLONİ names its own (`koloni_…`, `cli_…`) gets an id of its own when it is recorded.
 - **MCP servers** you have not trusted ask before every call. But a server itself runs with your rights,
   outside KOLONİ's cards.
 

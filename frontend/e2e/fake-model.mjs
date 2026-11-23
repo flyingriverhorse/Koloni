@@ -226,6 +226,8 @@ function nextStep(all, tools = [], model = '') {
   // Asked to say a project's day in words (slice 56): its numbers, in a few sentences. First of all: the day
   // carries the titles of its conversations, which the branches below would take for what is asked.
   if (String(messages[0].content).startsWith("You are given a software project's day")) return say('A day of one change. Nothing failed.')
+  // S3: KOLONİ's Reviewer at a turn's end (a change that touches security, say): it lets it stand.
+  if (messages.some(m => m.role === 'user' && String(m.content).startsWith('KOLONİ opened you at the end of a turn to look over'))) return say('Read it.\nVerdict: MERGE\n\nFindings: none')
   if (String(messages[0].content).includes('Coder sub-agent') && /Fix the cart handler, 85b/.test(String(messages[1]?.content))) {
     return say(messages.some(m => String(m.content).includes('"cart85b.ts" (text')) ? 'Read cart85b.ts: fixed.' : 'Was given no file.')
   }
@@ -275,7 +277,10 @@ function nextStep(all, tools = [], model = '') {
     return say('It prints hi.')
   }
   if (String(messages[0].content).includes('You are in a room with')) return roomStep(messages, tools)
-  if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content)) && /, qc\b/.test(String(messages[1]?.content))) return say(NOTHING_QC)
+  // (Kanıtlı bitiş R3: a recipe's check that may run commands runs one first - one that ran none does not pass.)
+  const ranFirst = (id, report) =>
+    tools.some(tool => tool.function?.name === 'run_command') && !messages.some(m => m.tool_calls?.length) ? toolCall(id, 'run_command', { command: 'python check.py' }) : say(report)
+  if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content)) && /, qc\b/.test(String(messages[1]?.content))) return ranFirst('cqcr', NOTHING_QC)
   // K-evrim on the canvas (5 Nov): an Evolve of two rounds - the Lead opens two Coders a round, each writes its ev2.py.
   if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content)) && /, ev2\b/.test(String(messages[1]?.content))) {
     return last.role === 'user' ? toolCall(`cev2w${messages.length}`, 'write_file', { path: 'ev2.py', content: 'x'.repeat(messages.length) }) : say('Wrote ev2.py.')
@@ -337,7 +342,8 @@ function nextStep(all, tools = [], model = '') {
   // K-takim-duzen: the ML team's Model change - the Lead opens each step's roles as the one before finishes (its experts'
   // step is passed: none has learned), and each of them reports at once, finding nothing.
   if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content))) {
-    if (/, mc$/.test(String(messages[1]?.content))) return say('Done.\n\nChecked: ran it\n\nFindings: none')
+    // (Its task's first line: what a step adds goes under it - a Tester's "passes only on a command", R3.)
+    if (/, mc$/m.test(String(messages[1]?.content))) return ranFirst('cmcr', 'Done.\n\nChecked: ran it\n\nFindings: none')
   } else if (messages.some(m => m.role === 'user' && /model change it, mc/i.test(String(m.content)))) {
     const checks = [['Reviewer', 'Review it, mc']]
     const next = {
@@ -532,6 +538,12 @@ function nextStep(all, tools = [], model = '') {
     if (/make the day page of slice 56/i.test(last.content)) return toolCall('c561', 'write_file', { path: 'day56.html', content: viewPage('day') })
     // Slice 86d: the same, so that its chat waits for the user, not for a file another spec's chat still holds.
     if (/make the tab file of slice 86d/i.test(last.content)) return toolCall('c86d', 'write_file', { path: 'tabs86d.py', content: "print('tabs')\n" })
+    // Kanıtlı bitiş: a code change, whose turn KOLONİ checks at its end.
+    if (/write the checked file, k-kanit/i.test(last.content)) return toolCall('ckanit', 'write_file', { path: 'kanit.py', content: 'x = 1\n' })
+    // The guide's pictures (0.1.6): a change of four files - big enough for KOLONİ's Reviewer to look it over at the turn's end.
+    if (/write the reviewed change, k-rehber/i.test(last.content)) {
+      return toolCalls(['a', 'b', 'c', 'd'].map(name => [`crb${name}`, 'write_file', { path: `rehber_${name}.py`, content: `${name} = 1\n` }]))
+    }
     // Slice 39: a page written to be seen beside the chat, written again; a picture shown.
     if (/make a view page/i.test(last.content)) return toolCall('c391', 'write_file', { path: 'view39.html', content: viewPage('one') })
     if (/change the view page/i.test(last.content)) return toolCall('c392', 'write_file', { path: 'view39.html', content: viewPage('two') })
@@ -752,6 +764,10 @@ function nextStep(all, tools = [], model = '') {
     return say(`Wrote the greeting as ${model}.`)
   }
   if (/write three files, k-dosya-grubu/i.test(String(messages.findLast(m => m.role === 'user')?.content))) return say('Wrote three files.')
+  if (/write the reviewed change, k-rehber/i.test(String(messages.findLast(m => m.role === 'user')?.content))) return say('Wrote the change.')
+  if (/write the checked file, k-kanit/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
+    return say(result.startsWith('applied') ? 'Wrote kanit.py.' : `kanit.py was not written: ${result}`)
+  }
   // The trigger's turn: refused for want of somebody to ask, it says so and goes on; allowed, it reports.
   if (/\bnightly check\b/i.test(String(messages.findLast(m => m.role === 'user')?.content))) {
     return say(result.includes('nobody is here to ask') ? 'I could not write made.txt: I would have asked you first.' : 'Wrote made.txt.')

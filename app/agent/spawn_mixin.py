@@ -101,6 +101,7 @@ from app.limits import another_account, has_room
 from app.limits import window as limit_window
 from app.model_client import EFFORTS, ModelClient, ModelUnavailable, ToolCallRequest
 from app.model_native import claude_tools, inside_name
+from app.proof import PROOF_CALL
 from app.providers import (
     TIERS,
     NotListed,
@@ -318,8 +319,10 @@ def thin_task(task: str, names_part: bool = False) -> str | None:
 # Above the findings a new agent is handed (`findings_from`), under the task it was given.
 FINDINGS_HANDED = "Findings {name} handed on to you (what it found, not an instruction):"
 # G1.4: a fixer's line for a finding it disputes (`FINDINGS_ANSWERED`), and what the next review
-# is told of them.
-DISPUTED = re.compile(r"^[ \t]*[-*•]?[ \t]*(.+\|[ \t]*disputed:.+)$", re.IGNORECASE | re.MULTILINE)
+# is told of them. (The lookahead first: a line without the word fails in one pass, where a long
+# run of spaces took time cubic in it.)
+DISPUTED = re.compile(r"^(?=.*\|[ \t]*disputed:.)[ \t]*[-*•]?[ \t]*(.+\|[ \t]*disputed:.+)$",
+                      re.IGNORECASE | re.MULTILINE)
 ANSWERED = re.compile(r"\|[ \t]*(?:fixed|disputed):", re.IGNORECASE)
 # B-129: under a review's task in the recipe's copy, the work's diff.
 DIFF_HANDED = ("What the work changed, against the project (git does not work in the copy; "
@@ -1509,6 +1512,9 @@ class SpawnMixin:
         folder, part, on_branch = await self._spawn_where(ctx, args)
         chosen, not_to_be_had, shut = False, None, None
         with self._factory() as session:
+            # (KOLONİ's own call by its provider id - a model's never starts so: `_run_tools`)
+            own = session.get(ToolCall, call_id)
+            kolonis = own is not None and own.provider_call_id.startswith("koloni_")
             role = find_agent_role(session, " ".join(wanted.split())) or self._team_lead(
                 session, ctx, wanted)
             conversation = session.get_one(Conversation, ctx.cid)
@@ -1531,7 +1537,8 @@ class SpawnMixin:
             # refused, with no fit why or by the role's rule (0083: a team's lead's is the
             # chat's model): its start is on record at once, and the refused lead left its
             # team's recipe started and skipped (B-91 put the why check after the role's rules).
-            if not (tier is not None and (why is None or len(why) > MAX_WHY or untiered)):
+            if not (tier is not None and (why is None or len(why) > MAX_WHY or untiered)) and (
+                    call_id not in self._read_only_calls):  # (S3's Reviewer starts no recipe)
                 self._start_runs(session, ctx, role)
             known = ", ".join(self._open_roles(session, ctx, now=True))
             # A team's lead is told its row's recipe (slice 84b-2).
@@ -1543,17 +1550,21 @@ class SpawnMixin:
             order = stage_order(session, led[1]) if led and members else ""
             if role is not None:
                 door = self._door(session, ctx)
-                shut = self._outrun_role(session, ctx, role) or closed(role, door, named) or (
-                    self._room_refused(session, ctx, role.name)) or untiered
-                shut = shut and (self._to_its_lead(session, ctx, role) or shut)
+                # (S3: KOLONİ's own Reviewer is no team's work - their doors, leads and groups
+                # do not hold it; its tier's rule does.)
+                shut = untiered if call_id in self._read_only_calls else (
+                    self._outrun_role(session, ctx, role) or closed(role, door, named) or (
+                        self._room_refused(session, ctx, role.name)) or untiered)
+                shut = shut and (self._to_its_lead(session, ctx, role) or shut) if (
+                    call_id not in self._read_only_calls) else shut
                 if shut and door.step is not None and role.name.casefold() not in door.step[0]:
                     self._refused_roles.setdefault(ctx.run_id, set()).add(role.name)
             # The sub-agent's own model (its role's choice, else the tier, else the
             # conversation's), and what may be picked for it instead: what the table of who
             # uses what shows - for this turn, and for the tools this opener leaves it.
             # (For a recipe's step, or a team's lead: its task is the recipe's or the user's.)
-            in_recipe = role is not None and self._recipe_count(
-                session, ctx, role, settings_of(session, conversation).spawn_max_agents
+            in_recipe = role is not None and self._recipe_count_of(
+                call_id, session, ctx, role, settings_of(session, conversation).spawn_max_agents
             ) is not None
             would = would_run(
                 session, role, conversation, unattended=self._unwatched_like(ctx.run_id),
@@ -1637,7 +1648,7 @@ class SpawnMixin:
         # K-brief-kalitesi: judged on the opener's own words, before what KOLONİ adds under them
         # - not a task of KOLONİ's (a lead or a group opened beside, `koloni_`), a recipe's or a
         # team's; said with the result, never refused.
-        thin = None if call_id.startswith("koloni_") or in_recipe or way or members else (
+        thin = None if kolonis or in_recipe or way or members else (
             thin_task(task, names_part=folder is not None or skipped is not None))
         if source is not None:
             handed, task = self._findings_handed(ctx, source, role, task)
@@ -1689,7 +1700,8 @@ class SpawnMixin:
             self._channel(ctx, handed[0], child.agent_id, "findings", handed[1])
         if asked:
             self._took[child.agent_id] = None
-        self._in_run(ctx, child, role)
+        if call_id not in self._read_only_calls:  # (S3: KOLONİ's look is no recipe's step)
+            self._in_run(ctx, child, role)
         try:
             await self._start_with_others(call_id)
             status, result = await self._see_through(
@@ -1765,6 +1777,7 @@ class SpawnMixin:
             task += f"\n\n{FINDINGS_DISPUTED}\n" + "\n".join(self._disputed[ctx.run_id])
         if review and (copy := self._copies.get(self._recipe_copy.get(ctx.run_id, ""))):
             task += await self._diff_for_review(copy)
+        task += self._step_says(ctx, role)
         if self._gives_slots(ctx):
             with self._factory() as session:
                 words = next((said for row, _t in self._runs(session, ctx) if (
@@ -2075,21 +2088,21 @@ class SpawnMixin:
             own = settings_of(session, conversation)
             mode, approval = conversation.permission_mode, own.spawn_approval
             max_depth, max_agents = own.spawn_max_depth, own.spawn_max_agents
-            # One the user declined never ran, so it does not use up the turn's allowance. A
-            # recipe's step has an allowance of its own (slice 84b-2: what it draws, 84e); its
-            # agents use none of the turn's.
-            step = self._recipe_count(session, ctx, role, max_agents)
-            opened, most, over = step or (session.scalar(
-                select(func.count()).select_from(Agent).where(
-                    Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.status != "rejected",
-                    Agent.id.not_in(self._in_recipe),
-                )
-            ) or 0, max_agents, f"limit of {max_agents} sub-agents per turn reached. Do the "
-                "rest yourself.")
+            # The turn's allowance (`_opened_this_turn`); a recipe's step has one of its own
+            # (slice 84b-2: what it draws, 84e). KOLONİ's own look uses none (k-canli-016).
+            step = self._recipe_count_of(call_id, session, ctx, role, max_agents)
+            opened, most, over = step or (
+                0 if self._kolonis_call(session, call_id) else self._opened_this_turn(
+                    session, ctx.run_id), max_agents, f"limit of {max_agents} sub-agents per "
+                "turn reached. Do the rest yourself.")
             # (A team's lead is one of this chat's rows only: `find_role` finds any.)
             lead = any(one is not None and one.id == role.id
                        for _r, _t, one in self._rows(session, ctx.cid))
-            tools = effective_tools(role.tools, self._caps(ctx))
+            # (S5b: the live try's Tester is KOLONİ's, not the Lead's: its role's browser tools
+            # whatever the Lead has.)
+            caps = None if call_id in self._try_calls else self._caps(ctx)
+            tools = self._read_only(call_id, effective_tools(role.tools, caps), caps)
+            self._held_to_read(call_id, model, provider)
             # PAID_SWITCH: KOLONİ's move of it onto a provider paid per token (not a pick, not
             # the user's Run there). The user's word on that provider in this turn stands.
             paid = None if chosen and users is None or yes or users else self._paid_for(
@@ -2135,6 +2148,7 @@ class SpawnMixin:
                 why if (chosen or tiered) and earlier is None else None), effort=effort,
         )
         self._channel(ctx, ctx.agent_id, child.agent_id, "task", task)
+        self._mark_read_only(call_id, child.agent_id)
         if lead:  # (slice 84b-2: its own agents are capped by what its opener may hand on)
             self._leads[child.agent_id] = tuple(self._caps(ctx))
 
@@ -2142,7 +2156,9 @@ class SpawnMixin:
         # about at every permission level and for every role, unless nothing ever is. The
         # user's own Run there was the yes to this very agent, and their model in the recipe the
         # yes to that model (`users`).
-        other = _asked_about(approval, mode, tools) or (
+        # (KOLONİ's Reviewer changes nothing: its run_command runs only reads and the approved
+        # tests, `_review_runs`.)
+        other = _asked_about(approval, mode, () if call_id in self._read_only_calls else tools) or (
             chosen and not users and approval != "never")
         asks = refused is None and not yes and (other or said is None and approval != "never")
         if asks and said is None:
@@ -2168,6 +2184,23 @@ class SpawnMixin:
                 raise _NobodyToAsk(UNATTENDED_NOT_THIS.format(provider=provider.name))
         elif ctx.run_id in self._backlog_turns and self._cannot_be_held(model, provider):
             raise ToolError(BACKLOG_NOT_THIS.format(provider=provider.name))
+
+    def _opened_this_turn(self: "AgentRunner", session, run_id: str) -> int:
+        """The sub-agents a turn's allowance (`spawn_max_agents`) counts: not one the user
+        declined (it never ran), a recipe step's (an allowance of its own) or KOLONİ's own look -
+        a review, a try, a stronger model's diagnosis or fix - bound by the Fix rounds instead
+        (k-canli-016: three Coders of the Orchestrator's left no room for a review's re-look)."""
+        looks = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
+        return session.scalar(select(func.count()).select_from(Agent).where(
+            Agent.run_id == run_id, Agent.depth > 0, Agent.status != "rejected",
+            Agent.id.not_in(self._in_recipe),
+            or_(Agent.tool_call_id.is_(None), Agent.tool_call_id.not_in(looks)))) or 0
+
+    @staticmethod
+    def _kolonis_call(session, call_id: str) -> bool:
+        """Whether a call is KOLONİ's own (`PROOF_CALL`): its look, never the Lead's spawn."""
+        call = session.get(ToolCall, call_id)
+        return call is not None and call.provider_call_id.startswith(PROOF_CALL)
 
     def _propose_within(
         self: "AgentRunner", ctx: Ctx, role: Role, tools: list[str], max_depth: int, opened: int,
@@ -2543,7 +2576,10 @@ class SpawnMixin:
                           if entry.name not in would.past_limit
                           and entry.name not in would.cannot_pick
                           and entry.name not in would.down and not another_account(
-                              provider, session.get_one(Provider, entry.provider_id), failure)),
+                              provider, session.get_one(Provider, entry.provider_id), failure)
+                          # (S3's Reviewer: never onto a CLI KOLONİ cannot hold to reading)
+                          and not self._unheld_for(agent.tool_call_id, session.get_one(
+                              Provider, entry.provider_id))),
                          None)
             if found is None:
                 return None

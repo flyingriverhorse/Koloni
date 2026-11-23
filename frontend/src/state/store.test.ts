@@ -513,6 +513,21 @@ test('a note written on the shared notebook reaches the open conversation', asyn
   expect(useApp.getState().conv?.boardPosts).toEqual([written])
 })
 
+test('a project KOLONİ saved a test command for is read again, so Settings shows it at once (CL-316)', async () => {
+  const found = { '.': { command: 'python -m pytest -q', from: 'guess', at: 't' } }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url.endsWith('/projects/p')) return new Response(JSON.stringify({ id: 'p', name: 'demo', tests_found: found }), { status: 200 })
+      return new Response(JSON.stringify(snapshot('a')), { status: 200 })
+    }),
+  )
+  useApp.setState({ projectId: 'p', projects: [{ id: 'p', name: 'demo', tests_found: {} } as never] })
+  await useApp.getState().openConversation('a')
+  FakeEventSource.open()[0].emit('project.changed', { project_id: 'p' }, '9')
+  await vi.waitFor(() => expect(useApp.getState().projects[0].tests_found).toEqual(found))
+})
+
 test('the memory is read when asked for, and again when it changes - not before it was looked at', async () => {
   const asked: string[] = []
   let core: unknown[] = []
@@ -1131,5 +1146,27 @@ test('what an event of the open chat has the page read again, in the order it as
   expect(await on('agent.updated', { ...worker, id: 'z' })).toEqual([])
   useApp.setState({ memory: {} as never, backlog: [] })
   expect(await on('memory.changed')).toEqual(['GET /api/projects/p/memory'])
-  expect(await on('backlog.changed')).toEqual(['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/auto', ...rest])
+  expect(await on('backlog.changed')).toEqual(['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/auto?conversation_id=a', ...rest])
+})
+
+test('k-tarif-model: a draft - Or write it, the Product owner’s - names the chat the page is open on, whose model is asked too', async () => {
+  const asked: string[] = []
+  vi.mocked(fetch).mockImplementation(async (url, init) => {
+    asked.push(`${init?.method ?? 'GET'} ${String(url)}${init?.body ? ` ${String(init.body)}` : ''}`)
+    return new Response(JSON.stringify({ recipes: [], broken: [], writer: { why: null, asks: null }, tasks: [], by: 'x' }), { status: 200 })
+  })
+  useApp.setState({ projectId: 'p', conv: { conversation: { ...conversation, id: 'c1' } } as never })
+  await useApp.getState().draftRecipe('spec, then code')
+  await useApp.getState().recipes('p')
+  await useApp.getState().recipes(null)
+  await useApp.getState().draftTasks('a note')
+  useApp.setState({ conv: null })
+  await useApp.getState().draftRecipe('again')
+  expect(asked).toEqual([
+    `POST /api/recipes/draft ${JSON.stringify({ text: 'spec, then code', conversation_id: 'c1' })}`,
+    'GET /api/recipes?project_id=p&conversation_id=c1',
+    'GET /api/recipes?conversation_id=c1',
+    `POST /api/projects/p/backlog/draft ${JSON.stringify({ text: 'a note', conversation_id: 'c1' })}`,
+    `POST /api/recipes/draft ${JSON.stringify({ text: 'again', conversation_id: null })}`,
+  ])
 })

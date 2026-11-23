@@ -10,7 +10,7 @@ import time
 import pytest
 
 from app import copies, git
-from app.agent import BRANCH_ON_YOURS, BRANCH_OVER_YOURS, FROM_HEAD, TAKEN_IN_FIRST
+from app.agent import BRANCH_ON_YOURS, BRANCH_OVER_YOURS, FROM_HEAD, PR_SNAPSHOT, TAKEN_IN_FIRST
 from tests import test_dal_takim
 from tests.conftest import Gate
 from tests.test_backlog_auto import worked
@@ -406,6 +406,14 @@ MINE = {"notes.txt": "the user's own\n", "a.txt": "one\ntwo-mine\n"}
 ON_YOURS = {"a.txt": "one\ntwo-mine\n"}
 
 
+def said_yes(client, cid):
+    """A branch that began from uncommitted work: its pull request waits for the user's click
+    (`PR_SNAPSHOT`), at Full auto too - given here."""
+    merge = until(client, cid, lambda s: s["merges"] and (
+        s["merges"][0].get("branch") or {}).get("note") == PR_SNAPSHOT, timeout=LONG)["merges"][0]
+    assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
+
+
 def landed(repo):
     """The files the project's last commit changed."""
     return run(repo, "show", "--name-only", "--format=", "HEAD").split()
@@ -456,6 +464,7 @@ def test_the_agent_changed_your_uncommitted_file_so_nothing_is_merged_until_you_
 def test_a_pull_request_never_carries_your_uncommitted_files(make_client, wait_run, repo, github):
     bare, _log = github
     client, cid, run_id = pr_run(make_client, repo, lambda: pushed_main(repo), wip=MINE)
+    said_yes(client, cid)  # (a branch from uncommitted work: asked, at Full auto too)
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["commit"]["state"] == "pull_request", merge["branch"]
@@ -479,6 +488,7 @@ def test_a_pull_request_over_your_uncommitted_lines_pushes_nothing(
     held.wait_partial()
     pushed_main(repo)
     held.release()
+    said_yes(client, cid)
     merge = until(client, cid, lambda s: "no pull request" in (
         ((s["merges"] or [{}])[0].get("branch") or {}).get("note") or ""), timeout=LONG)[
         "merges"][0]

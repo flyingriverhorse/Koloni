@@ -538,6 +538,11 @@ def _change_switches(request: Request, conversation: Conversation,
             # user's from the app's own page, not an agent's command against its address.
             require_own_origin(request)
         conversation.plan_first = body.plan_first
+    if "after_change" in body.model_fields_set:
+        # S10: whether this chat's changes are checked - the user's word from the app's own
+        # page, not an agent's command against its address (off, nothing checks its work).
+        require_own_origin(request)
+        conversation.after_change = body.after_change
     if body.page_scripts is not None:
         if body.page_scripts:
             # K-39-betik: pages that run their scripts unasked - the user's leave, from the app's
@@ -683,8 +688,9 @@ async def patch_conversation(
         # What the user keeps in view is theirs to say, from the app's own page.
         require_own_origin(request)
         conversation.archived_at = (conversation.archived_at or now()) if body.archived else None
-        if body.archived:  # (put away: what it left serving stops)
+        if body.archived:  # (put away: what it left serving stops, and its tests gone on)
             request.app.state.runner.commands.stop_all(conversation_id)
+            request.app.state.runner.stop_later(conversation_id)
     apply_choice(session, conversation, body)
     # Putting it away, or back, is no activity of its: its place by last activity stays.
     if body.model_fields_set - {"archived"}:

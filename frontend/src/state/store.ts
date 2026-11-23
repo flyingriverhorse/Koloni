@@ -509,6 +509,8 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   setPermissionMode(mode: PermissionMode): Promise<void>
   /** Each new message starts with a plan to approve first, or not. */
   setPlanFirst(on: boolean): Promise<void>
+  /** S10: the open chat's Check after a change - "off", "on", or null for the project's. Throws ApiError. */
+  setAfterChange(value: Conversation['after_change']): Promise<void>
   /** K-39-betik: the open chat's pages run their scripts without asking (true), or ask each time. Throws ApiError. */
   setPageScripts(on: boolean): Promise<void>
   /** Approve a plan turn's plan (`text`: as the user edited it) or turn it down (`text`: why); `overBudget`: the user's word to start it over the month's budget. Throws ApiError. */
@@ -662,6 +664,11 @@ async function inUseNow(get: () => AppStore, health: Health | null): Promise<{ r
   }
 }
 
+/** k-tarif-model: the chat the page is open on - a draft asks its Orchestrator's model too (its model picker); null: none. */
+const openChatId = (state: AppStore) => state.conv?.conversation.id ?? null
+/** ...as a query: "?conversation_id=…", or "" with no chat open. */
+const inChat = (state: AppStore) => (openChatId(state) ? `?conversation_id=${encodeURIComponent(openChatId(state) ?? '')}` : '')
+
 export const useApp = create<AppStore>()((set, get) => {
   async function refreshConversations(): Promise<ListedConversation[]> {
     const asked = ++conversationsAsked
@@ -771,6 +778,16 @@ export const useApp = create<AppStore>()((set, get) => {
     if (type === 'notes.offered') void readNotesOffers().catch(() => {})
     // Renamed (its first message names it): its tab keeps the new name once it is left.
     if (type === 'conversation.updated') void refreshConversations().catch(() => {})
+  }
+
+  /** CL-316: what KOLONİ saved of a project (its test command) shows in Settings at once - the project is read again. */
+  function readProjectOn(type: string, payload: unknown) {
+    if (type !== 'project.changed') return
+    const id = (payload as { project_id: string }).project_id
+    void api.get<Project>(`/projects/${id}`).then(
+      project => set(s => ({ projects: s.projects.map(p => (p.id === project.id ? project : p)) })),
+      () => {},
+    )
   }
 
   /** (Before the event is folded into the conversation: an agent is compared with what it was.) */
@@ -1088,7 +1105,7 @@ export const useApp = create<AppStore>()((set, get) => {
       try {
         const [backlog, backlogAuto] = await Promise.all([
           api.get<BacklogTask[]>('/projects/' + projectId + '/backlog'),
-          api.get<BacklogAuto>('/projects/' + projectId + '/backlog/auto'),
+          api.get<BacklogAuto>('/projects/' + projectId + '/backlog/auto' + inChat(get())),
         ])
         if (mine === backlogReads) set({ backlog, backlogAuto, backlogError: null })
       } catch (err) {
@@ -1133,7 +1150,7 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadBacklog()
     },
 
-    draftTasks: text => api.post<BacklogDraft>('/projects/' + get().projectId + '/backlog/draft', { text }),
+    draftTasks: text => api.post<BacklogDraft>('/projects/' + get().projectId + '/backlog/draft', { text, conversation_id: openChatId(get()) }),
 
     async runBacklog() {
       await backlogChoice
@@ -1571,7 +1588,7 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadRoles()
     },
 
-    recipes: projectId => api.get<Recipes>(projectId ? `/recipes?project_id=${projectId}` : '/recipes'),
+    recipes: projectId => api.get<Recipes>(projectId ? `/recipes?project_id=${projectId}${inChat(get()).replace('?', '&')}` : `/recipes${inChat(get())}`),
 
     saveRecipe: (recipe, body, projectId) =>
       recipe === null
@@ -1584,7 +1601,7 @@ export const useApp = create<AppStore>()((set, get) => {
       await get().loadRoles()
     },
 
-    draftRecipe: text => api.post<RecipeDraft>('/recipes/draft', { text }),
+    draftRecipe: text => api.post<RecipeDraft>('/recipes/draft', { text, conversation_id: openChatId(get()) }),
 
     roleActivity: () => api.get<RolesActivity>('/roles/activity'),
     roleHistory: days => api.get<RolesHistory>(`/roles/history?days=${days}`),
@@ -1805,6 +1822,7 @@ export const useApp = create<AppStore>()((set, get) => {
         snapshot.last_event_id,
         (eventId, type, payload) => {
           readAgainOn(type)
+          readProjectOn(type, payload)
           readBoardOn(type, payload)
           openWindowOn(type, payload)
           set(s => {
@@ -1987,6 +2005,13 @@ export const useApp = create<AppStore>()((set, get) => {
       if (!get().conv) await get().newConversation()
       const conv = get().conv
       if (conv) await api.patch(`/conversations/${conv.conversation.id}`, { plan_first: on })
+    },
+
+    async setAfterChange(value) {
+      const conv = get().conv
+      if (!conv) return
+      const saved = await api.patch<Conversation>(`/conversations/${conv.conversation.id}`, { after_change: value })
+      set(s => (s.conv?.conversation.id === saved.id ? { conv: { ...s.conv, conversation: saved } } : s))
     },
 
     async setPageScripts(on) {

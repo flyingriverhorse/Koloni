@@ -26,6 +26,10 @@ It opens the Away panel:
 - **Until**, **spend at most** and **kept out**: none unless you set one. If the project has a
   monthly budget, the work spends at most what is left of it. Name a file or folder of the project
   to keep out (up to 20): a pattern such as `src/*` or a place outside the project is refused.
+- Where the project is not on **Test and review**: "While you're away, Test and review is suggested:
+  tests, and a review of big or security-touching changes." **Use Test and review** sets the project
+  to it (Settings › This project › Checks and git › **After a change**) - while you are away, nobody
+  but KOLONİ's checks looks at the work ([What KOLONİ checked](../use/checked.md)).
 - **Go away**, or **Cancel**. **How it works** says the rest.
 
 ![The Away panel over the message box: the two tasks this chat put on To-do ticked, what the Orchestrator decides for you and what always waits, Until 08:00, spend at most 2 USD, and Go away](../images/away-panel.png)

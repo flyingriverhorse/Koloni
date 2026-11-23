@@ -41,6 +41,10 @@ export const AT_ONCE_ROW = 3
 export const ROUND_W = 2 * NODE_W + ROW_GAP
 export const ROUND_H = 32
 export const CHIP_H = 32
+/** The Orchestrator's checked strip under its box's lines ("✓ checked · 1 round"; canvas: `.node-strip`), which makes it taller. */
+export const STRIP_H = 26
+/** An agent's box: a chip in a round, else a node - taller by its checked strip where it has one. */
+const agentH = (data: AgentData) => (data.chip ? CHIP_H : NODE_H + (data.checked ? STRIP_H : 0))
 
 // K-shared-bagli, batch-26 (the user's): what a team shared, noted and remembered is a small card at its frame's
 // top-right - its width, a line for whose it is, a row for each thing, its padding and border - joined by a very short
@@ -125,7 +129,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
   const box = (group: GraphNode): Size => {
     const held = inside.get(group.id) ?? []
     let size: Size
-    if (group.kind === 'agent') size = { width: NODE_W, height: (group.data as AgentData).chip ? CHIP_H : NODE_H }
+    if (group.kind === 'agent') size = { width: NODE_W, height: agentH(group.data as AgentData) }
     else if (group.kind === 'team') size = { width: TEAM_W, height: Math.max(TEAM_SHUT_H, cardRoom(group)) } // (only a folded one is placed as a box)
     else if (held.length === 0) size = { width: NODE_W, height: FILES_HEAD } // ("6 files", folded)
     else {
@@ -253,6 +257,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
 
     let used = 0
     for (const root of roots) used += place(root, NODE_W + COL_GAP, top + used) + ROW_GAP
+    used += checksInFrame(own, edges, positions, sizes)
     // An agent opened by one of a frame laid out by its work line, not in that frame (one the user declined): under the rest.
     for (const agent of agents.filter(a => !positions[a.id])) used += place(agent, NODE_W + COL_GAP, top + used) + ROW_GAP
     for (const node of own) {
@@ -283,6 +288,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // shortcut: a line that would still cross a box is not drawn (the card stays); route it round if that is met.
     used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, everyone, used)
     used = besideTurn(own, talks, lane, top, used, positions, sizes)
+    used += checksUnder(own, top + used, positions)
     used += poUnder(own, top + used, positions)
     const under = filesUnder(own, runId, top, positions, box)
     top += Math.max(under - top, used)
@@ -487,6 +493,35 @@ function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>
   const po = own.find(n => n.kind === 'po')
   if (!po) return 0
   positions[po.id] = { x: NODE_W + COL_GAP, y: top }
+  return NODE_H + ROW_GAP
+}
+
+/**
+ * KOLONİ's Checks node (`checks:`), under the turn's Orchestrator in its column, its line straight down from it - before the
+ * Assistant PO; returns the room it takes. (In a recipe's turn it is in the frame: `checksInFrame`.)
+ * shortcut: under the Orchestrator, not right of it as the sketch has it: placed as the PO is; move it once the canvas's
+ * columns make room.
+ */
+function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {
+  const checks = own.find(n => n.kind === 'checks')
+  if (!checks || positions[checks.id]) return 0
+  positions[checks.id] = { x: NODE_W + COL_GAP, y: top }
+  return NODE_H + ROW_GAP
+}
+
+/**
+ * S5c: in a recipe's turn its Checks node is the recipe's last step - inside its frame, under all of its agents, in the column of
+ * the agent its line comes from (the last pass's: straight down, crossing none), else the last column - before the frame is
+ * drawn round them; returns the room it adds under them.
+ */
+function checksInFrame(own: GraphNode[], edges: GraphEdge[], positions: Record<string, Point>, sizes: Record<string, Size>): number {
+  const checks = own.find(n => n.kind === 'checks' && n.team)
+  const members = checks ? own.filter(n => n.team === checks.team && n.id !== checks.id && positions[n.id]) : []
+  if (!checks || !members.length) return 0
+  const from = edges.find(e => e.target === checks.id && members.some(n => n.id === e.source))?.source
+  const x = from ? positions[from].x : Math.max(...members.map(n => positions[n.id].x))
+  const y = Math.max(...members.map(n => positions[n.id].y + (sizes[n.id]?.height ?? NODE_H))) + ROW_GAP
+  positions[checks.id] = { x, y }
   return NODE_H + ROW_GAP
 }
 

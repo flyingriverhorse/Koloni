@@ -90,6 +90,25 @@ test('B-205: where the turn’s work is stands under the Lead’s answer, as KOL
   expect(text.indexOf('Fixed, tests pass.')).toBeLessThan(text.indexOf('Not in the project yet'))
 })
 
+test('a checked message is not drawn as a KOLONİ line above the answer', () => {
+  const rows = [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null }]
+  const checked: Message = { ...assistantMessage('k', 'r', '✓ Tests passed: pytest -q - 4 passed'), role: 'checked', agent_id: null, checked: rows }
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('r', 'completed')],
+        agents: [agent('r', 'completed')],
+        messages: [userMessage('r', 'fix it'), assistantMessage('m', 'r', 'Fixed, tests pass.'), checked],
+      })}
+    />,
+  )
+  expect(screen.queryByRole('note')).toBeNull()
+  // (Once, in the turn's Checked section under the answer.)
+  expect(screen.getAllByText('Tests passed: pytest -q - 4 passed')).toHaveLength(1)
+  expect(screen.getByRole('region', { name: 'Checked' })).toBeInTheDocument()
+})
+
 test('a queued message is labelled and can be removed', async () => {
   const onRemoveQueued = vi.fn()
   render(

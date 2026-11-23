@@ -2,7 +2,34 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { Provider, Recipe, RecipeDraft, RecipeGraph, Recipes, Role, RoleModel, Team } from '../api/types'
-import { addGroup, addRoom, addStep, changeStep, connect, emptyGraph, layout, loopBack, loopCurve, loopTargets, place, remove, renameGroup, summary, START, targets, tidy, waitFor as waitOn } from './recipeGraph'
+import {
+  addEnd,
+  addGroup,
+  addRoom,
+  addStep,
+  boardPlaces,
+  checkedEnds,
+  CHECKS as CHECKS_STEP,
+  changeStep,
+  checksLine,
+  connect,
+  emptyGraph,
+  lastParts,
+  layout,
+  loopBack,
+  loopCurve,
+  loopTargets,
+  ownChecks,
+  place,
+  remove,
+  renameGroup,
+  roundsChosen,
+  summary,
+  START,
+  targets,
+  tidy,
+  waitFor as waitOn,
+} from './recipeGraph'
 import { type RecipeActions, RecipesTab } from './RecipesTab'
 
 beforeEach(() => {
@@ -778,7 +805,7 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
     saveRecipe: vi.fn(async (_recipe, body) => ({ id: 'f2', ready: false, project_id: 'p', file: 'copy.json', ...body })),
     draftRecipe: vi.fn(() => new Promise<RecipeDraft>(done => (answer = done))),
   })
-  render(<RecipesTab roles={roles} teams={teams} list={{ recipes: [FEATURE, mine, folder], broken: ['bad.json: not a recipe'], writer: { why: null } }} projectId="p" actions={given} reload={vi.fn()} />)
+  render(<RecipesTab roles={roles} teams={teams} list={{ recipes: [FEATURE, mine, folder], broken: ['bad.json: not a recipe'], writer: { why: null, asks: 'Balanced: Fast · deep' } }} projectId="p" actions={given} reload={vi.fn()} />)
   expect(screen.getByRole('alert')).toHaveTextContent(/^bad\.json: not a recipe$/)
   const item = (name: RegExp) => screen.getByRole('button', { name })
   expect(item(/^Feature/)).toHaveTextContent(/ · ready$/)
@@ -787,7 +814,8 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
   expect(item(/^Feature/).className).toBe('recipe-item recipe-item-chosen')
   expect(item(/^Mine/).className).toBe('recipe-item')
   expect(item(/^Mine/)).toHaveAttribute('aria-pressed', 'false')
-  expect(screen.getByText('The Orchestrator’s model draws it on the board; nothing is saved until you save it.')).toHaveClass('muted', 'recipe-note')
+  // (k-tarif-yaz: whom it asks, before the press - not Local's model whose server is not running)
+  expect(screen.getByText('Asks Balanced: Fast · deep. It draws the recipe on the board; nothing is saved until you save it.')).toHaveClass('muted', 'recipe-note')
   expect(screen.getByRole('status')).toHaveTextContent(/^A ready recipe: copy it to change it\.$/)
   expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
   expect(screen.queryByLabelText('Where it is kept')).toBeNull()
@@ -808,7 +836,7 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
   expect(screen.getByText(/^Delete Feature copy\? Its file in \.koloni\/recipes goes too\.$/)).toBeVisible()
   fireEvent.change(screen.getByLabelText('The recipe in words'), { target: { value: 'spec, then code' } })
   fireEvent.click(screen.getByRole('button', { name: 'Make it a recipe' }))
-  expect(screen.getByRole('button', { name: 'Asking the Orchestrator’s model…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Asking the model…' })).toBeDisabled()
   answer({ name: 'Spec first', graph: FEATURE.graph, provider_name: 'Local', model_id: null })
   await waitFor(() => expect(screen.getByLabelText('Recipe’s name')).toHaveValue('Spec first'))
   expect(screen.getByRole('status')).toHaveTextContent(/^Drawn by Local: change it as you like, then save it\. Nothing is saved yet\.$/)
@@ -881,4 +909,124 @@ test('a refused save is said in words: its parts counted, the request’s own ch
   // nothing the page can read at a part: the server's own words
   await refuse(undefined, 'the recipe could not be saved')
   await waitFor(() => expect(alerts()).toEqual(['the recipe could not be saved']))
+})
+
+// --- S5c: the recipe's locked Checks step --------------------------------------------------------------------------------------------
+
+test('S5c: the Checks step is joined to the last step(s) - each an arrow to an end leaves, else the tail - and follows a step added after', () => {
+  expect(lastParts(FEATURE.graph)).toEqual(['g'])
+  let [graph, first] = addStep(emptyGraph(), START)
+  expect(lastParts(emptyGraph())).toEqual([START])
+  expect(lastParts(graph)).toEqual([first])
+  let second
+  ;[graph, second] = addStep(graph, first)
+  expect(lastParts(graph)).toEqual([second])
+  expect(checksLine(undefined)).toBe('follows the project')
+  expect(checksLine({ ...ownChecks(), tests: false, docs: true, fix_rounds: 0 })).toBe('Review · Docs · check only')
+})
+
+test('S5c: the Checks step is drawn after the last step, never dragged nor removed; its panel sets it for the recipe, saved with it', async () => {
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(50)
+  onTestFinished(() => {
+    vi.restoreAllMocks()
+  })
+  const mine: Recipe = { ...FEATURE, id: 'mine', ready: false }
+  const given = draw(actions(), { ...list, recipes: [mine] })
+  const node = document.querySelector(`.react-flow__node[data-id="${CHECKS_STEP}"]`) as HTMLElement
+  expect(node).not.toBeNull()
+  expect(node).not.toHaveClass('draggable')
+  await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="checks-g"]')).not.toBeNull())
+  fireEvent.click(part(/^Checks 🔒/))
+  expect(within(panel()).getByRole('heading', { name: 'Checks - the end of this recipe' })).toBeVisible()
+  expect(within(panel()).queryByRole('button', { name: /^Remove/ })).toBeNull()
+  expect(within(panel()).getByRole('radio', { name: /^Follow the project/ })).toBeChecked()
+  fireEvent.click(within(panel()).getByRole('radio', { name: 'Set for this recipe' }))
+  fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Tests/ }))
+  fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Docs/ }))
+  // (S5b: Pages is a choice too - a changed page in KOLONİ's browser)
+  fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Pages/ }))
+  fireEvent.change(within(panel()).getByRole('combobox', { name: 'Fix rounds' }), { target: { value: '0' } })
+  expect(part(/^Checks 🔒/)).toHaveTextContent('Review · Docs · Pages · check only')
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
+  const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
+  expect(body.graph.checks).toEqual({ tests: false, review: true, docs: true, diagram: false, data: false, slides: false, ui: true, fix_rounds: 0 })
+})
+
+test('k-canli-016: a recipe’s Checks step may go on until it passes', async () => {
+  expect(checksLine({ ...ownChecks(), fix_rounds: 'until' })).toBe('Tests · Review · until it passes')
+  expect(roundsChosen('until')).toBe('until')
+  expect(roundsChosen('')).toBeNull()
+  expect(roundsChosen('7')).toBe(7)
+})
+
+test('S5c: a ready recipe’s Checks step is shown, not changed', () => {
+  draw(actions(), { ...list, recipes: [{ ...FEATURE, graph: { ...FEATURE.graph, checks: { ...ownChecks(), fix_rounds: null } } }] })
+  fireEvent.click(part(/^Checks 🔒/))
+  expect(within(panel()).getByRole('radio', { name: 'Set for this recipe' })).toBeChecked()
+  expect(within(panel()).getByRole('checkbox', { name: /^Tests/ })).toBeDisabled()
+  expect(part(/^Checks 🔒/)).toHaveTextContent('Tests · Review · the project’s rounds')
+})
+
+// --- k-sira-016: KOLONİ's checks before Ready for you - the Checks step between the last step(s) and the end(s) ----------------------
+
+const above = (graph: RecipeGraph, top: string, below: string) => {
+  const places = boardPlaces(graph)
+  return places[top].y + places[top].h <= places[below].y
+}
+
+test('k-sira-016: a new recipe draws its Checks step between its step and its end', () => {
+  let [graph, first] = addStep(emptyGraph(), START)
+  let end
+  ;[graph, end] = addEnd(graph, first)
+  expect(above(graph, first, CHECKS_STEP) && above(graph, CHECKS_STEP, end)).toBe(true)
+  expect(lastParts(graph)).toEqual([first])
+  expect(checkedEnds(graph)).toEqual([end])
+})
+
+test('k-sira-016: a step added before the end - the Checks step moves with the end, after the new step', () => {
+  let [graph, first] = addStep(emptyGraph(), START)
+  let second, end
+  ;[graph, second] = addStep(graph, first)
+  ;[graph, end] = addEnd(graph, second)
+  expect(lastParts(graph)).toEqual([second])
+  expect(above(graph, first, second) && above(graph, second, CHECKS_STEP) && above(graph, CHECKS_STEP, end)).toBe(true)
+})
+
+test('k-sira-016: several ends - one Checks step, before them all, an arrow to each end joined', () => {
+  let [graph, a] = addStep(emptyGraph(), START)
+  let b, inEnd, tell
+  ;[graph, b] = addStep(graph, START)
+  ;[graph, inEnd] = addEnd(graph, a)
+  ;[graph, tell] = addEnd(graph, b)
+  expect(new Set(lastParts(graph))).toEqual(new Set([a, b]))
+  expect(new Set(checkedEnds(graph))).toEqual(new Set([inEnd, tell]))
+  for (const end of [inEnd, tell]) expect(above(graph, CHECKS_STEP, end)).toBe(true)
+  for (const step of [a, b]) expect(above(graph, step, CHECKS_STEP)).toBe(true)
+})
+
+test('k-sira-016: an end dragged where the user wants it keeps its place - the Checks step goes over it, nothing stored moved', () => {
+  let [graph, first] = addStep(emptyGraph(), START)
+  let end
+  ;[graph, end] = addEnd(graph, first)
+  graph = { ...graph, ends: graph.ends.map(one => ({ ...one, pos: { x: 400, y: 600 } })) }
+  const places = boardPlaces(graph)
+  expect(places[end]).toMatchObject({ x: 400, y: 600 })
+  expect(places[CHECKS_STEP].y + places[CHECKS_STEP].h).toBeLessThanOrEqual(600)
+})
+
+test('k-sira-016: a saved recipe is drawn the new way - its arrow to the end goes through the Checks step', async () => {
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(50)
+  onTestFinished(() => {
+    vi.restoreAllMocks()
+  })
+  draw(actions(), { ...list, recipes: [{ ...FEATURE, id: 'mine', ready: false }] })
+  const end = FEATURE.graph.ends[0].id
+  await waitFor(() => expect(document.querySelector(`.react-flow__edge[data-id="checks>${end}"]`)).not.toBeNull())
+  expect(document.querySelector('.react-flow__edge[data-id="checks-g"]')).not.toBeNull()
+  // (the saved arrow g → end is drawn through the Checks step, not as its own line)
+  expect(document.querySelector('.react-flow__edge[data-id="a2"]')).toBeNull()
+  expect(document.querySelector('.react-flow__edge[data-id="a1"]')).not.toBeNull()
 })

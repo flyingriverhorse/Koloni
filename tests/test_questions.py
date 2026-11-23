@@ -379,7 +379,7 @@ def test_an_agent_that_cannot_ask_is_not_told_to(make_client, wait_run, project_
 def test_a_sub_agent_that_could_only_ask_is_not_opened(make_client, wait_run, project_dir):
     client, _ = make_client([spawn("Reviewer"), spawn("Runner", id="s2"), text("r"), text("l")])
     client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                 json={"tools": ["read_file", "spawn_agent", "ask_user"]})
+                 json={"tools": ["list_dir", "read_file", "search", "view_image", "spawn_agent", "ask_user"]})
     # (B-333: a sub-agent is capped by the Orchestrator's tools, not its opener's - a Runner with
     # run_command would be opened now; one that can only ask still is not)
     client.post("/api/roles", json={"name": "Runner", "tools": ["ask_user"]})

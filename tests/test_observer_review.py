@@ -3,6 +3,9 @@ error; anything that moved in the turn starts a count again; only KOLONİ's own 
 counted as such in the record; the record is made once a turn; a CLI that writes is not
 quiet; a middle value stands only where every agent has it."""
 
+import os
+import time
+
 from app import record as kept
 from app import signs
 from app.model_client import StepResult
@@ -23,6 +26,21 @@ def test_only_what_differs_every_time_is_left_out_of_an_error():
         ("exit code 1 (0.3s)\nboom", "exit code 2 (0.3s)\nboom"),
     ]:
         assert signs.same_error(one) != signs.same_error(other), (one, other)
+
+
+def test_a_long_run_of_digits_in_a_result_is_read_at_once():
+    # Every tool result goes through `same_error`, on the server's loop. Before (Sonar S8786) a
+    # run of digits held it: 10k digits 1.25 s, a read_file of 128 lines of 2000 digits 6.5 s
+    # (2.1 s and 22 s on a loaded machine). Now milliseconds.
+    digits = "7" * 10_000
+    read = "\n".join(f"{at:>6}\t{digits[:2000]} [line truncated: 1000000 characters]"
+                     for at in range(1, 129))
+    began = time.perf_counter()
+    said = [signs.same_error(digits), signs.same_error(read)]
+    took = time.perf_counter() - began
+    assert said == [digits, read]  # (no clock time, duration or pid in them)
+    limit = 2.0 if os.environ.get("CI") else 0.5
+    assert took < limit, took
 
 
 def test_a_sub_agent_at_work_in_between_starts_the_count_again_and_the_sign_is_earlier(

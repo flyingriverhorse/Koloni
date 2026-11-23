@@ -588,3 +588,21 @@ def test_the_anthropic_providers_with_a_key_are_the_ones_a_search_can_go_through
     (one,) = search_apis(client.app.state.session_factory)
     # ("Listed" runs only with a model on its list, and its own default is not on it.)
     assert (one._key, one._model_id, one._workspace) == (KEY, "claude-haiku-5-5", "w1")
+
+
+async def test_a_call_id_named_as_kolonis_own_gets_one_of_its_own():
+    """k-okuyucu-3, N8: KOLONİ trusts its own calls by their names (`koloni_...`, `cli_...`): a
+    model's id never is one - and its thinking's block carries the id the result is sent under."""
+    result, _, _ = await collect(stopped(
+        "tool_use",
+        {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking"}},
+        {"type": "content_block_delta", "index": 0,
+         "delta": {"type": "signature_delta", "signature": "sig"}},
+        *({"type": "content_block_start", "index": at,
+           "content_block": {"type": "tool_use", "id": name, "name": "read_file"}}
+          for at, name in enumerate(["koloni_proof_x", "KOLONI_x", "cli_x", "toolu_1"], 1)),
+    ), HISTORY, TOOL_SCHEMAS)
+    ids = [call.id for call in result.tool_calls]
+    assert ids[3] == "toolu_1" and len(set(ids)) == 4
+    assert not any(one.casefold().startswith(("koloni_", "cli_")) for one in ids)
+    assert [b["id"] for b in result.blocks["content"] if b["type"] == "tool_use"] == ids

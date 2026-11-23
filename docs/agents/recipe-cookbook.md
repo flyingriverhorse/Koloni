@@ -8,7 +8,7 @@ found.
 | Recipe | Steps | Loops back | Ends |
 |---|---|---|---|
 | **Feature** | Write the spec (Spec writer, asks you to approve) → Build it (Coder) → at once: Code review (Reviewer), Security review (Security reviewer), UI review (UI designer), Test it (Tester), all reviews | reviews → Build it, 2 rounds | in |
-| **Bugfix** | Reproduce it (Debugger) → Fix it (Coder) → Test it (Tester, review) → Review it (Reviewer, review) | review → Fix it, 2 rounds | in |
+| **Bugfix** | Reproduce it with a failing test (Debugger) → Fix it (Coder) → Test it (Tester, review) → Review it (Reviewer, review) | Test it → Fix it, 2 rounds; Review it → Fix it, 2 rounds | in |
 | **Review only** | at once: Reviewer, Security reviewer, UI designer, all reviews | — | report |
 | **Integration** | Learn (the team's experts) → Plan (Planner) → Experts check the plan (review) → Build (Coder) → Test (Tester, review) | check → Plan, 2 rounds | in |
 | **Quality check** | Run the tests (Tester, review) → Find and fix the cause (Debugger, only if a problem was found) → at once: Code review (Reviewer), Security review (Security reviewer) | fix → tests, 2 rounds | report |
@@ -28,6 +28,10 @@ Each ready team has a ready recipe as its default: Web app runs **Feature**, Bac
 Quality **Quality check**, Product **Spec**, Data **Analysis**, Maintenance **Upkeep**, ML **Model
 change**, DataOps **Pipeline change**, DevOps **Infra change**, and Docs and Research the recipes of their
 names. You can change a team's **Default recipe** on the Agents page.
+
+In Bugfix the Debugger only shows the bug: it writes a test that fails because of it, runs it and
+reports the failing output, and fixes nothing; the Coder's fix must make that test pass. A failing test
+at Test it goes back to Fix it, as a finding at Review it does.
 
 If you renamed or removed a ready recipe or team, yours may differ.
 

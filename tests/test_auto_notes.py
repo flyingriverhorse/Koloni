@@ -4,6 +4,7 @@ test_recall_scenarios)."""
 
 import asyncio
 import json
+import os
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -92,6 +93,31 @@ def test_the_list_alone_or_in_a_code_fence_is_read(noting, answer):
     note, factory = noting
     assert note(answer) == {"noted": 1, "skipped": 0, "note": None}
     assert [record.text for record in records(factory)] == ["The greeting is merhaba."]
+
+
+def test_a_run_of_blank_lines_after_the_fence_is_read_at_once():
+    # A small model looping on newlines: before (Sonar S8786) the fence was looked for in
+    # time cubic in them, 2k unclosed took 2.0 s on the server's loop. Now milliseconds.
+    began = time.perf_counter()
+    read = [kept.read_notes("```json" + "\n" * 2000 + "[1]"),
+            kept.read_notes("```json" + "\n" * 2000 + "[1]\n```")]
+    took = time.perf_counter() - began
+    assert read == [None, [1]]
+    limit = 2.0 if os.environ.get("CI") else 0.5
+    assert took < limit, took
+
+
+@pytest.mark.parametrize("head, space, tail, read", [
+    ("```a", " \n", "b", None), ("```[1]", "\n", "x", None), ("```json\n[1]", " \n", "```", [1]),
+    ("```", " ", "```", None)], ids=["unclosed", "after-list", "closed", "only-space"])
+def test_a_long_run_of_space_inside_a_fence_is_read_at_once(head, space, tail, read):
+    # CL-311: a fence's end looked for by a regex took time square in the space before it -
+    # 100 000 of it a minute (60.8 s) on the server's loop. Read in one pass: milliseconds.
+    answer = head + space * 100_000 + tail
+    began = time.perf_counter()
+    assert kept.read_notes(answer) == read
+    took = time.perf_counter() - began
+    assert took < (2.0 if os.environ.get("CI") else 0.5), took
 
 
 def test_an_empty_list_says_that_nothing_was_found(noting):

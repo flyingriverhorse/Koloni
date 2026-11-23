@@ -72,6 +72,18 @@ def test_its_target_reached_or_its_rounds_over_it_goes_on_and_says_so():
     assert [(s["best"], s["missed"]) for s in held.state["steps"]] == [(50.0, 90), (None, None)]
 
 
+@pytest.mark.parametrize("target", [90, None])
+def test_with_no_measure_command_one_round_goes_on_and_says_why(target):
+    """K-evolve-tek: with no score to compare nothing reaches a target and no later round beats
+    the first pick - its rounds would spend agents for nothing."""
+    state = run_of(rounds(target, most=3))
+    picked(state, None)
+    state["scores"]["a1"]["why"] = recipe_run.NO_MEASURE
+    said = recipe_run.advance(state)
+    assert recipe_run.ONE_ROUND in said and not said.startswith("Round")
+    assert (state["at"], state["rounds"]) == ("end", {})
+
+
 def test_only_a_step_of_candidates_may_loop_to_itself(make_client):
     client, _model = make_client({})
     role = graph([part("b", "Build it", {"role": "Coder"})], [("start", "b"), ("b", "end")],

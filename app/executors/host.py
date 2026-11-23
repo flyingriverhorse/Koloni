@@ -200,13 +200,14 @@ class HostExecutor:
     async def start(
         self, command_id: str, command: str, cwd: Path, copy: Path | None = None,
         links: dict[str, Path] | None = None, secrets: Mapping[str, str] | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> ProcessCommand:
         if not cwd.is_dir():
             raise StartError(f"{cwd} is not a folder")
         # Python programs would otherwise print in the ANSI code page - and leave __pycache__/
         # in the project (live). (What the user gave on a card goes in over what was held back.)
-        env = {**command_env(self._pass_env), **(secrets or {}), "PYTHONUTF8": "1",
-               "PYTHONDONTWRITEBYTECODE": "1"}
+        env = {**command_env(self._pass_env), **(secrets or {}), **(env or {}),
+               "PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"}
         # Its output is read as UTF-8: the user's own setting is kept only where it is UTF-8 too
         # (utf-8:surrogateescape, say).
         if not env.get("PYTHONIOENCODING", "").lower().startswith(("utf-8", "utf8")):

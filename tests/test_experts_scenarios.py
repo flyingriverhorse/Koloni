@@ -275,10 +275,11 @@ def test_an_expert_reads_only_and_only_a_role_of_your_own_is_one(client, project
         "tools": [*READS, "write_file"]}).json()
     refused = client.put(f"{use}/{writer['id']}", json={"mode": "full"}, headers=OWN)
     assert refused.status_code == 422 and "reads only" in refused.text
-    coder = next(r for r in client.get("/api/roles").json() if r["name"] == "Coder")
-    assert client.patch(f"/api/roles/{coder['id']}", json={"tools": READS},
+    # (A built-in one that may read only: Karar 5's core roles keep tools that write.)
+    researcher = next(r for r in client.get("/api/roles").json() if r["name"] == "Researcher")
+    assert client.patch(f"/api/roles/{researcher['id']}", json={"tools": READS},
                         headers=OWN).status_code == 200
-    assert client.put(f"{use}/{coder['id']}", json={"mode": "full"},
+    assert client.put(f"{use}/{researcher['id']}", json={"mode": "full"},
                       headers=OWN).status_code == 422
 
 

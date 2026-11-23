@@ -5,7 +5,7 @@ import contextlib
 import os
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app import project_map
+from app.commands import ANSI as _ANSI
 from app.commands import (
     MAX_STORED_OUTPUT,
     OutputMask,
@@ -159,8 +160,6 @@ SERVE_AT_MOST = 10.0
 MAX_SERVING = 3
 # How a command ended: its status, exit code, output, and why it failed to start if it did.
 Ended = tuple[str, int | None, str, str | None]
-# A terminal's colours, and its links (OSC 8: an address round an address).
-_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 # An address on this machine with its port, as a server prints it - up to the space after it,
 # so that one cut between two chunks of output is not taken half.
 _LOOPBACK = re.compile(
@@ -199,6 +198,9 @@ class CommandRunner:
         self._update_run = update_run
         # command id -> future resolved with "once", "always", "disposable" or "reject"
         self._decisions: dict[str, asyncio.Future[str]] = {}
+        # The commands whose own card the user answered "Always run" (the end check reads it:
+        # option A, a saved test command kept as the user's - `said_always`).
+        self._always: set[str] = set()
         # command id -> (conversation id, output so far) while the command runs
         self._live: dict[str, tuple[str, str]] = {}
         # command id -> what hides the secrets in its output, while it runs (slice 90)
@@ -237,6 +239,7 @@ class CommandRunner:
         ask: bool = True, where: Callable[[], Awaitable[Workspace]] | None = None,
         always: bool = False, web_off: bool = False, once: set[str] | None = None,
         judgement: dict | None = None, disposable: dict | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
         `ask` is False where the command has its leave already and nobody can be asked
@@ -253,12 +256,13 @@ class CommandRunner:
         it refused (`_refuses`) goes on record ended, "refused", and is neither asked nor run.
         `disposable`: what of it KOLONİ found disposable, {"what", "allowed"} (coordination §4):
         `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
-        deletes in this project" where it is asked."""
+        deletes in this project" where it is asked. `env`: what its environment gets besides
+        (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
         planned = plan_command(ws, args)
         searched = await asyncio.to_thread(
             search_reason, planned.command, ws.root, planned.cwd_rel)
         reads = await asyncio.to_thread(
-            reads_here, planned.command, ws.root, planned.cwd_rel == ".")
+            reads_here, planned.command, ws.root, planned.cwd_rel == ".", planned.cwd_rel)
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
@@ -269,7 +273,7 @@ class CommandRunner:
                                 lead=session.get_one(Agent, agent_id).depth == 0)
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
             # (Its id is said beside a cut output only where recall_output would give it.)
-            asked = session.get(ToolCall, call_id)
+            asked = session.get(ToolCall, call_id) if call_id else None  # (a check: none)
             recall = call_id if asked is not None and recallable(
                 asked.name, asked.outside_folder, None, planned.command) else None
             # One the user is not asked about runs on a yes given before - a rule, the
@@ -354,7 +358,7 @@ class CommandRunner:
             running = await self._executors(location, project).start(
                 command_id, planned.command, planned.cwd_path,
                 copy=ws.root if in_copy else None, links=ws.links if in_copy else None,
-                secrets=given,
+                secrets=given, env=env,
             )
         except StartError as exc:
             # The reason stays on the record, so the user sees it and not only the model.
@@ -685,6 +689,7 @@ class CommandRunner:
             # moment it is said, whether or not this command ever gets to run.
             if word == "always":
                 self._add_rule(cid, rule)
+                self._always.add(command_id)
             elif word == "disposable":
                 self._allow_disposable(cid, command_id)
             # A yes is on record the moment it is given - "approved", not the user's to
@@ -708,6 +713,14 @@ class CommandRunner:
             # Also when the wait is cut short: the turn no longer waits on this one.
             self._update_run(run_id, cid, status="running")
         return decision
+
+    def said_always(self, command_id: str) -> bool:
+        """Whether the user answered this command's own card "Always run" (asked once: forgotten
+        as it is read)."""
+        if command_id not in self._always:
+            return False
+        self._always.discard(command_id)
+        return True
 
     def _add_rule(self, cid: str, prefix: str) -> None:
         if not prefix:

@@ -48,7 +48,7 @@ import threading
 import time
 import uuid
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -65,6 +65,7 @@ from app import (
     disposable,
     evolve,
     git,
+    handoff,
     injection,
     knowledge,
     knows,
@@ -73,6 +74,7 @@ from app import (
     mcp_client,
     project_map,
     project_view,
+    proof_before,
     raw,
     recipe_run,
     signs,
@@ -92,6 +94,7 @@ from app.agent.approvals_mixin import ApprovalsMixin
 from app.agent.attachments_mixin import AttachmentsMixin
 from app.agent.away_mixin import AwayMixin
 from app.agent.away_mixin import branch_held as branch_held
+from app.agent.before_mixin import BeforeMixin
 from app.agent.browser_mixin import BrowserMixin
 from app.agent.cards import UNASKED_BY_CLI as UNASKED_BY_CLI
 from app.agent.cards import (
@@ -135,6 +138,7 @@ from app.agent.context_mixin import ContextMixin
 from app.agent.context_mixin import _taken_from as _taken_from
 from app.agent.context_mixin import git_prompt as git_prompt
 from app.agent.context_mixin import shell_note as shell_note
+from app.agent.coverage_mixin import CoverageMixin
 from app.agent.ctx import (
     NO_FOLDER,
     Ctx,
@@ -152,7 +156,9 @@ from app.agent.ctx import (
 from app.agent.ctx import TERMINAL as TERMINAL
 from app.agent.ctx import announce as announce
 from app.agent.discussions_mixin import DiscussionsMixin
+from app.agent.found_mixin import FoundMixin
 from app.agent.judge_mixin import JudgeMixin
+from app.agent.kinds_mixin import KindsMixin
 from app.agent.limits_mixin import BUDGET_NEAR as BUDGET_NEAR
 from app.agent.limits_mixin import OVER_LIMIT as OVER_LIMIT
 from app.agent.limits_mixin import LimitsMixin
@@ -214,8 +220,6 @@ from app.agent.merge import running_docker_commands as running_docker_commands
 from app.agent.merge import writes_nothing as writes_nothing
 from app.agent.native_mixin import COLLABORATION_TOOLS as COLLABORATION_TOOLS
 from app.agent.native_mixin import REPORT_SCHEMA as REPORT_SCHEMA
-from app.agent.native_mixin import TESTS_NO_START as TESTS_NO_START
-from app.agent.native_mixin import TESTS_STILL_FAIL as TESTS_STILL_FAIL
 from app.agent.native_mixin import NativeMixin
 from app.agent.observe_mixin import KEEP_CARDS as KEEP_CARDS
 from app.agent.observe_mixin import LEAD_COMMAND as LEAD_COMMAND
@@ -224,6 +228,8 @@ from app.agent.observe_mixin import ObserveMixin
 from app.agent.outside_mixin import OUTSIDE_REJECTED as OUTSIDE_REJECTED
 from app.agent.outside_mixin import OutsideMixin
 from app.agent.po_mixin import PoMixin, PoTurn
+from app.agent.proof_later_mixin import Check, ProofLaterMixin, Slots
+from app.agent.proof_mixin import Proof, ProofMixin
 from app.agent.questions_mixin import DELEGABLE as DELEGABLE
 from app.agent.questions_mixin import LEAD_ANSWERED as LEAD_ANSWERED
 from app.agent.questions_mixin import LEAD_TOLD as LEAD_TOLD
@@ -231,6 +237,7 @@ from app.agent.questions_mixin import USER_CHANGED as USER_CHANGED
 from app.agent.questions_mixin import USER_TOLD as USER_TOLD
 from app.agent.questions_mixin import QuestionsMixin
 from app.agent.record_mixin import RecordMixin
+from app.agent.review_mixin import ReviewMixin
 from app.agent.rooms_mixin import CODEX_NATIVE_NO_RECIPE as CODEX_NATIVE_NO_RECIPE
 from app.agent.rooms_mixin import RoomsMixin
 from app.agent.skills_mixin import SkillsMixin
@@ -241,6 +248,7 @@ from app.agent.spawn_mixin import SpawnMixin
 from app.agent.spawn_mixin import _relative as _relative
 from app.agent.spawn_mixin import _said_from_here as _said_from_here
 from app.agent.spawn_mixin import thin_task as thin_task
+from app.agent.stronger_mixin import NOT_TAKEN_KEPT, StrongerMixin
 from app.agent.summary import COMPACT_FLAG as COMPACT_FLAG
 from app.agent.summary import STATE as STATE
 from app.agent.summary import THEIRS as THEIRS
@@ -272,9 +280,11 @@ from app.agent.talk_mixin import MAX_MESSAGES_PER_TURN as MAX_MESSAGES_PER_TURN
 from app.agent.talk_mixin import SENT_WHILE_IT_WORKS as SENT_WHILE_IT_WORKS
 from app.agent.talk_mixin import TURN_ENDING as TURN_ENDING
 from app.agent.talk_mixin import TalkMixin
+from app.agent.test_ask_mixin import TestAskMixin
 from app.agent.tiers_mixin import HOW_HARD as HOW_HARD
 from app.agent.tiers_mixin import OUTSIDE_A_COPY as OUTSIDE_A_COPY
 from app.agent.tiers_mixin import TiersMixin
+from app.agent.try_mixin import TryMixin
 from app.agent.words import (
     AGENT_TERMINAL,
     ANSWER_PREFIX,
@@ -296,13 +306,18 @@ from app.agent.words import (
     NOT_HEARD,
     NOT_IN_A_COPY,
     NOT_IN_THE_PART,
+    NOT_ITS_TEST,
     NOT_ON_BRANCH_AGAIN,
+    NOT_REPRODUCED,
     NOT_WORK,
     OPEN,
     OUTRUN,
     OUTRUN_TOLD,
+    RAN_NOTHING,
     RECONNECT,
+    REPRODUCE_FIRST,
     RUN_THERE,
+    RUN_TO_PASS,
     SAME_MESSAGE,
     SECRET_IN_COPY,
     SHARED_WITH_PROJECT,
@@ -544,7 +559,7 @@ IN_A_CANDIDATE = ("it is yours alone: KOLONİ measures your work there when you 
 # still gets a card; put it in the candidate's task if that is seen.
 MEASURE_AS_IS = (". To measure it yourself, run the project's measure command exactly as "
                  "written, adding no flags: `{command}`")
-NO_MEASURE = "no measure command"
+NO_MEASURE = recipe_run.NO_MEASURE  # (and so one round only: `recipe_run.ONE_ROUND`)
 CANDIDATE_KEPT = "a candidate's work its turn ended before a pick"
 CANDIDATES_WATCHED = ("{step}: candidates need the user watching and the recipe's own copy - "
                       "not in a job while the user is away, a turn on a branch of its own, or a "
@@ -925,6 +940,19 @@ PR_NOTES = 4000
 PR_CONFIG = (".git/config changed during this turn - a push runs what it names (an address, a "
              "credential helper, an ssh command): look at it, then Open pull request")
 PR_NAMED_SECRET = "{files}: named as a secret - it goes to GitHub only on your click"
+# ... and where the user holds commits origin does not, or a stash: what an agent copied of them
+# into a commit of its own (a squash, a pick, an amend) its history does not show - always asked.
+PR_UNPUSHED = ("you have {commits} not on GitHub yet: before a pull request, check its files are "
+               "the agent's work")
+# ... said with its commits where another worktree of the user's holds one (`git.unpushed_places`):
+# by its folder, and one deleted by hand is still git's until it is pruned.
+PR_HELD_IN = "in your worktree {folder}"
+PR_HELD_GONE = ("in your worktree {folder}, a folder that is gone: `git worktree prune` lets git "
+                "drop it")
+# ... and where the branch began from the user's folder with work not committed (W-1's snapshot): an
+# agent's copy of a file of it, under another name, is its own work to git.
+PR_SNAPSHOT = ("it began from your folder with work not committed: before a pull request, check "
+               "its files are the agent's work")
 PR_OPENED = ("{name}'s changes on branch {branch} were pushed to origin and a pull request was "
              "opened: {url}. Nothing is merged into the project here: do not go on as if they "
              "were in it.")
@@ -984,10 +1012,26 @@ def _project_key(project: Path | str) -> str:
     return os.path.normcase(str(Path(project).resolve()))
 
 
+# R3 (kanıtlı bitiş, review of S4): the recipe steps whose job is running the tests - by the
+# ready recipes' ids. shortcut: a step of a user's own recipe is known by these ids alone (or by
+# its Tester); give steps a kind in the editor if users' own test steps are to be held so.
+TEST_STEPS = frozenset({"test", "tests"})
+
+
+def _held_to_run(role: Role | None, step: str, tools) -> bool:
+    """R3: whether a recipe's check passes only on a command it ran - one whose job is running
+    checks: the built-in Tester, or any role at a test step (`TEST_STEPS`), that may run commands.
+    A Data analyst or a Performance engineer reading a change is not (review of S4)."""
+    return "run_command" in tools and (step in TEST_STEPS or (
+        role is not None and role.builtin and role.name == "Tester"))
+
+
 class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin, OutsideMixin,
                   TalkMixin, ApprovalsMixin, NativeMixin, AttachmentsMixin, DiscussionsMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
-                  SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin):
+                  SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
+                  ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
+                  KindsMixin, BeforeMixin, CoverageMixin, StrongerMixin, TryMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1182,6 +1226,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._touched: dict[str, float] = {}
         # run id -> the record its lead is given (`app.record`): made at its first step
         self._measured: dict[str, str] = {}
+        # S2: whether a turn's agents are told what KOLONİ checks at its end (`_checks_told`).
+        self._checks_said: dict[str, bool] = {}
         # (run id, whose work: None for the whole turn) -> what a turn that is over did
         # (`ledger.of_turn`): made once, so every later step is given the same words; the
         # LEDGERS_KEPT newest made (one that went is made again, from the same rows).
@@ -1348,6 +1394,18 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._recipe_copy: dict[str, str] = {}
         # The agents opened for a step of a recipe, or to run one (a team's lead): in that copy.
         self._in_recipe: set[str] = set()
+        # S3: the spawn calls of KOLONİ's end-of-turn Reviewers - read tools only, no recipe
+        # started by them (`ReviewMixin._look`).
+        self._read_only_calls: set[str] = set()
+        # ...their agents (`_review_refuses`), a recipe step's Reviewers by run, and the looks
+        # running now (Stop this check ends them).
+        self._read_only_agents: set[str] = set()
+        # S5b: of those, KOLONİ's live try (the Tester): its calls and agents - browser tools
+        # too, on this machine's previews alone (`_review_refuses`, `_browser`).
+        self._try_calls: dict[str, str] = {}  # (call: the preview it tries)
+        self._try_agents: dict[str, str] = {}  # (agent: the same, until its run ends)
+        self._recipe_reviewers: dict[str, set[str]] = {}
+        self._looks: dict[str, set[asyncio.Future]] = {}
         # K-evrim: the agents opened as a step's candidates - each in a copy of its own until one
         # is picked (`_pick`); what its measure gave, till its step hears of its end; and, by run,
         # a pick card's candidates (name -> agent id) while it waits for its word.
@@ -1367,12 +1425,40 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # whose card is waiting for that word (`_measure`).
         self._measure_yes: dict[str, set[str]] = {}
         self._measure_asking: dict[str, asyncio.Future[str]] = {}
+        # Kanıtlı bitiş: by run, what its end gate found (`_proof_left`); and KOLONİ's own test
+        # runs, one at a time app-wide (this machine once failed under test load).
+        self._proofs: dict[str, Proof] = {}
+        self._test_slot = Slots()  # (S6: as many at once as Settings say)
+        # S6: each of KOLONİ's test runs while it runs - in its turn, or gone on after it.
+        self._checks: dict[asyncio.Future, Check] = {}
+        # S11 (decision 18, CL-305): the turns whose recipe work is not taken in - its tests still
+        # fail after its rounds, or its check ran nothing - and why: kept in its copy, no card.
+        self._held_back: dict[str, str] = {}
+        # ...and the spawn calls of KOLONİ's fixers, whose agents work in the turn's copy.
+        self._joins_copy: set[str] = set()
+        # S11: Fix it on a "Not taken in" row - the new turn's kept copy (by run: its Merge),
+        # and, once its Lead took it up, the run whose agents all work in that copy.
+        self._resume_in: dict[str, str] = {}
+        self._resumed: dict[str, str] = {}
+        # S9: where the coverage flags failed a whole suite - (project, folder, command) -> its
+        # coverage settings then (`coverage.config_mark`): not tried again till they change, or
+        # KOLONİ starts again (it was run twice each turn).
+        self._coverage_off: dict[tuple[str, str, str], str] = {}
+        # (project folder, path) -> when KOLONİ last wrote it there (`seen_in_project`, monotonic
+        # and wall clock), what it held then (None: no file) and whether that was read: a test
+        # run that started before does not take it back while it holds that, and puts it back
+        # there if the tests write over it (`_written_since`).
+        # shortcut: never dropped, one small file's bytes a path; prune old ones if it is felt.
+        self._seen_writes: dict[tuple[str, str], tuple[float, datetime, bytes | None, bool]] = {}
         # K-rol-cogul. a spawn call of a reply's several -> the reply's calls not opened yet, and
         # the event their agents start on (`_run_tools`, `_arrive`). (Not K-paralel's `_opening`.)
         self._at_once: dict[str, tuple[set[str], asyncio.Event]] = {}
-        # The agents opened for a review step (done when no findings): told the findings'
-        # format and read for them, whatever their role's kind of work.
-        self._reviews: set[str] = set()
+        # The agents opened for a review step (done when no findings), each with its step's id:
+        # told the findings' format and read for them, whatever their role's kind of work.
+        self._reviews: dict[str, str] = {}
+        # R3 (kanıtlı bitiş, review of S4): a check whose command the user declined - why its step
+        # stops at Ready for you, not checked (`_ran_held`, `_after_step`).
+        self._not_checked: dict[str, str] = {}
         # 89p: the report each agent last handed back in REPORT_SCHEMA, valid (`_found`).
         self._schema_reports: dict[str, dict] = {}
         # Those of them whose step goes on to one that runs only if a problem was found
@@ -1740,6 +1826,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self.bus.emit(cid, None, "conversation.updated", gone_out)
         if t.run_compare:
             self._sides[run_id] = ctx.agent_id
+        self._resume_held(ctx)  # (S11: Fix it - the kept work's copy is this turn's)
         return ctx, cid
 
     def _lead_tools(self, session: Session, run: Run, project: Project | None,
@@ -1770,6 +1857,15 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             lead_tools = [tool for tool in lead_tools if tool not in NOT_IN_A_SIDE]
         return lead, lead_tools, instructions, planning
 
+    async def _side_aside(self, ctx: Ctx, compare_id: str) -> None:
+        """A side of a comparison is over: its work set aside for the user's pick."""
+        found = await self._look_aside(ctx.agent_id)
+        # Not once both were thrown away meanwhile (nothing awaited since the look).
+        with self._factory() as session:
+            still = session.get_one(Compare, compare_id).status == "open"
+        if still:
+            self._set_aside(ctx.agent_id, found=found)
+
     async def _lead_taken(self, run_id: str, cid: str, t: _LeadTurn, ctx: Ctx, status: str,
                           error: str | None) -> tuple[str, str | None]:
         """`execute` once its lead is done: what it said and planned kept, its branch's work
@@ -1790,13 +1886,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 if said := self._teams_not_opened(ctx):
                     self._koloni_line(cid, run_id, said)
         if t.run_compare and status in ("completed", "failed"):
-            found = await self._look_aside(ctx.agent_id)
-            # Not once both were thrown away meanwhile (nothing awaited since the look).
-            with self._factory() as session:
-                still = session.get_one(Compare, t.run_compare).status == "open"
-            if still:
-                self._set_aside(ctx.agent_id, found=found)
-        if run_id in self._branch_runs and self._copies.get(ctx.agent_id) is not None:
+            await self._side_aside(ctx, t.run_compare)
+        own = run_id in self._branch_runs or run_id in self._resumed  # (the Lead's own copy)
+        if own and run_id in self._held_back:  # (S11: never merged, nor taken in)
+            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=self._held_back[run_id]))
+        elif own and self._copies.get(ctx.agent_id) is not None:
             # K-dal-takim: the turn's work, on its own branch, merges as an agent's does -
             # on a card that waits for the user where it is not merged by itself.
             try:
@@ -1810,7 +1904,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 error = f"{error or ''} {said}".strip()
         self._end_runs(ctx, status)  # (slice 84b-2: a recipe it left at work)
         if t.job:  # (however it ended: nothing of a job goes into the project unasked)
-            self._set_aside(ctx.agent_id, KEPT_AWAY, await self._look_aside(ctx.agent_id))
+            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=held) if (
+                held := self._held_back.get(run_id)) else KEPT_AWAY,
+                await self._look_aside(ctx.agent_id))
         return status, error
 
     async def _lead_after(self, run_id: str, cid: str, t: _LeadTurn, ctx: Ctx, status: str,
@@ -1838,6 +1934,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 log.warning("agent %s: no summary after its turn: %r", ctx.agent_id, exc)
             if full and t.idle is not None:
                 error = f"{error}{SUMMARISED_FOR_NEXT}"
+        # Kanıtlı bitiş: what was checked at its end, under the answer (a night's job's too).
+        self._say_checked(cid, run_id, bool(t.root) and not (t.planning or t.run_compare), status)
         # B-205: where its work is, under the answer - before the turn is over, its copies kept.
         # (Not of a plan, nor a side of a comparison or a night's job: their work waits aside.)
         self._say_landed(cid, run_id, bool(t.root) and not (t.planning or t.run_compare or t.job))
@@ -1922,7 +2020,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._candidates.discard(agent_id)
             self._scored.pop(agent_id, None)
             self._seeded.pop(agent_id, None)
-            self._reviews.discard(agent_id)
+            self._reviews.pop(agent_id, None)
             self._before_fix.discard(agent_id)
             self._leads.pop(agent_id, None)
             self._leads_gone.pop(agent_id, None)
@@ -1939,12 +2037,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._asked_leads.pop(agent_id, None)
             self._beside.pop(agent_id, None)
             self._paid_asked.pop(agent_id, None)
+            self._try_agents.pop(agent_id, None)  # (S5b: the live try's Tester)
         self._picked.discard(run_id)
         self._answered.discard(run_id)
         self._pick_names.pop(run_id, None)
         self._round_scores.pop(run_id, None)
         self._measure_yes.pop(run_id, None)
         self._measure_asking.pop(run_id, None)
+        self._proofs.pop(run_id, None)
         self._kept_word.pop(run_id, None)
         team_requests.ended(self, run_id)
         # (Cancelled here, waited for last: a second Stop skips none of what follows.)
@@ -1954,6 +2054,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._closed_not_opened(run_id, cid)
         self._slots.pop(run_id, None)
         self._measured.pop(run_id, None)
+        self._checks_said.pop(run_id, None)
         self._git_at.pop(run_id, None)
         self._maps.pop(run_id, None)
         for key in [key for key in self._budgeted if key[0] == run_id]:
@@ -1991,6 +2092,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._slow_dropped(run_id)
         self._worked_below.pop(run_id, None)
         self._recipe_copy.pop(run_id, None)
+        self._held_back.pop(run_id, None)
+        self._resume_in.pop(run_id, None)
+        self._resumed.pop(run_id, None)
         self._disputed.pop(run_id, None)
         # (After its copy is gone: until then its members' changes are that copy's.)
         room = self._rooms.pop(run_id, None)
@@ -2034,6 +2138,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return self._branch_runs[ctx.run_id]
         if ctx.run_id in self._away_jobs:  # (its recipe's copy is its lead's too)
             return self._away_jobs[ctx.run_id]
+        if ctx.run_id in self._resumed:  # (S11: Fix it goes on in the kept work's copy)
+            return self._resumed[ctx.run_id]
         if ctx.depth == 0 or only_in_project(ctx.model, ctx.tools):
             return None
         owner = ctx
@@ -3189,6 +3295,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                                 copy.project)["config"] if way == "pull_request" else None
             config_moved = config is not None and config != (
                 self._git_at_start.get(ctx.run_id) or {}).get("config")
+            # (A pull request while the user's branches hold commits origin does not: asked.)
+            pr_asks = await self._pr_asks(copy) if way == "pull_request" or ask_way else None
             async with lock:  # (looked at again right before: two teams finish at once)
                 look = await self._branch_look(copy)
                 # W-1: what is scanned and merged - of a branch that began from the user's folder,
@@ -3214,7 +3322,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 over = BRANCH_OVER_YOURS.format(files=_few(look["over"])) if (
                     look.get("over")) else None
                 state = {**{key: look[key] for key in ("name", "into", "conflicts", "dirty")},
-                         "note": failed or blocked or yours or look["drift"] or special or over,
+                         "note": failed or blocked or yours or look["drift"] or special or over
+                         or pr_asks,
                          "resolve": bool(look["conflicts"]) and way == "merge" and ctx.depth > 0,
                          "way": "pull_request" if way == "pull_request" else None,
                          "ask_way": ask_way, "pr_off": pr_off, **said_too}
@@ -3237,6 +3346,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         state["note"] = pr_blocked
                     elif named and merge_id is None:
                         state["note"] = PR_NAMED_SECRET.format(files=_few(named))
+                    elif pr_asks and merge_id is None:  # (pushed on a click with this said)
+                        state["note"] = pr_asks
                     elif config_moved and (merge_id is None or config != config_shown):
                         state["note"] = PR_CONFIG  # (pushed on a click with this said)
                     elif not asks:
@@ -3496,7 +3607,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 git.push_one, copy.project, await self._sent(copy, look), branch,
                 look["into"] or "", copy.start[1],
                 f"{title}\n\nKoloni-Agent: {ctx.name}", self.settings.runtime_root / "no-hooks",
-                look["tip"])
+                look["tip"], copy.snapshot_sha, under=copies.folders(self.settings.runtime_root))
             sent.update(tip=look["tip"], sha=sha)
         try:
             url = await asyncio.to_thread(
@@ -3506,6 +3617,30 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             raise git.Refused(f"{branch} was pushed to origin, but {exc}") from None
         return {"state": "pull_request", "message": title, "sha": sha, "url": url,
                 "pushed": f"origin/{branch}"}
+
+    async def _pr_asks(self, copy: copies.Copy) -> str | None:
+        """Why a pull request of this branch is asked about at every level, Full auto too - what an
+        agent copied of the user's work into a commit of its own its history does not show: the
+        user has commits origin does not, or a stash (`git.unpushed_count`: `PR_UNPUSHED`, with
+        the other worktree of theirs that holds one, `PR_HELD_IN`; where git does not say, one
+        commit) - not the agent's own commits a worktree of theirs holds as they look at its branch
+        -, or the branch began from their uncommitted work (`PR_SNAPSHOT`). None where neither."""
+        under = copies.folders(self.settings.runtime_root)
+        try:
+            commits, stashes = await asyncio.to_thread(
+                git.unpushed_count, copy.project, under, copy.branch)
+            places = await asyncio.to_thread(
+                git.unpushed_places, copy.project, under, copy.branch) if commits else []
+        except git.Refused:
+            commits, stashes, places = 1, 0, []
+        held = "; ".join((PR_HELD_IN if there else PR_HELD_GONE).format(folder=folder)
+                         for folder, there in places)
+        said = [f"{commits} commit" + ("s" if commits != 1 else "") + (
+            f" ({held})" if held else "")] if commits else []
+        said += ["a stash" if stashes == 1 else f"{stashes} stashes"] if stashes else []
+        if said:
+            return PR_UNPUSHED.format(commits=" and ".join(said))
+        return PR_SNAPSHOT if copy.snapshot_sha else None
 
     async def _sent(self, copy: copies.Copy, look: dict) -> str:
         """What a branch's pull request pushes (`git.push_one`): its tip - or, of a branch that
@@ -3990,7 +4125,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
     async def _run_in_copy(
         self, ctx: Ctx, ws: Workspace, command: str, call_id: str, ask: bool = False,
-        gated: str = "refuse", once: set[str] | None = None,
+        gated: str = "refuse", once: set[str] | None = None, cwd: str = ".",
+        seconds: int | None = None, where: Callable[[dict], Awaitable[Workspace]] | None = None,
+        env: Mapping[str, str] | None = None, over: Callable[[], bool] | None = None,
+        keep_running: bool = False,
     ) -> tuple[int | None, str, str, str | None]:
         """KOLONİ's own run of a project command where the agent's commands run (`ws`: its
         working copy, or the project), on record under `call_id`, with the check's time limit
@@ -4003,13 +4141,22 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         leave), "ask" (on a card of its own, the reason on it - KOLONİ's check in a turn the user
         watches), "refuse" (not run). Not run, or declined on that card: `_GateRefused`. And what
         it writes of the project's standing files unnamed is put back (`_own_command_looked`).
-        `once`: as `commands.run`'s (the measure's yes, for its run). Its exit code (None but
-        where it ran to its end), what it wrote, what the run said of it, and how its record
-        ended (None: no record - it never started). A ToolError, or Stop, reaches the caller."""
+        `once`: as `commands.run`'s (the measure's yes, for its run). `cwd`: the folder it runs
+        in, from the root (a part's tests, `ProofMixin`); `seconds`: its time limit (None: the
+        check's, CHECK_SECONDS); `where`: as `commands.run`'s, given the run's arguments, which it
+        may change (its time limit) - awaited once it may start; `env`: what its environment gets
+        besides (S6: KOLONİ's test runs, their processes). `over` (S6, KOLONİ's test runs):
+        whether its turn is over for it by its end (it went on after the answer) - what it wrote
+        of standing files is then taken back with no card, the finished turn untouched; and,
+        given at all, what recorded changes wrote there since it started stands
+        (`_written_since`): never theirs to take back. Its exit
+        code (None but where it ran to its end), what it wrote, what the run said of it, and how
+        its record ended (None: no record - it never started). A ToolError, or Stop, reaches the
+        caller."""
         if kept := self._keeps_out(ctx, command=command, what=f"run {command}"):
             raise _GateRefused(kept)
         in_copy = ws.root != Path(ctx.folder).resolve()
-        why = (self._in_copy_asks(ctx, command, bool(ws.links), ws.root, ".")
+        why = (self._in_copy_asks(ctx, command, bool(ws.links), ws.root, cwd)
                if in_copy else "") or self._branch_asks(ctx, command, in_copy) or (
             self._night_asks(ctx, command, None, str(ws.root)))
         asks = bool(why) and (ask or gated == "ask")
@@ -4026,18 +4173,23 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._set_call(ctx.cid, own, status="running", started_at=now())
         if asks:  # (on its card: why it is asked at every level)
             self._set_call(ctx.cid, own, why_asked=why)
+        since, at = time.monotonic(), now()  # (before the look: a write after it is not its)
         held = await asyncio.to_thread(standing_files, ctx.root) if ctx.root else None
-        since, ran = time.monotonic(), False
+        ran = False
+        args = {"command": command, "timeout_seconds": seconds or CHECK_SECONDS, "cwd": cwd,
+                **({"keep_running": True} if keep_running else {})}  # (S5b: a dev server)
         try:
             status, said = await self.commands.run(
-                ctx.run_id, ctx.cid, ctx.agent_id, ws, own,
-                {"command": command, "timeout_seconds": CHECK_SECONDS}, ask=ask or asks,
-                always=asks, once=once,
+                ctx.run_id, ctx.cid, ctx.agent_id, ws, own, args,
+                ask=ask or asks, always=asks, once=once,
+                where=(lambda: where(args)) if where else None, env=env,
             )
             ran = True
         finally:
             if held is not None:
-                await self._own_command_looked(ctx, own, command, held, since, ran, ask or asks)
+                stand = self._written_since(ctx, at, since) if over is not None else None
+                await self._own_command_looked(ctx, own, command, held, since, ran and not (
+                    over is not None and over()), ask or asks, stand)
         if own != call_id:
             self._set_call(ctx.cid, own, status=status, result=said, ended_at=now())
             if status == "denied":
@@ -4505,7 +4657,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         """What this agent's sub-agents are capped by: its tools - a team's lead's, those of
         the Lead that opened it (slice 84b-2), so its team's agents can do their work; any
         other sub-agent's, the Orchestrator's (B-333: an Architect, which cannot write, opens
-        Coders that can). One whose opener is gone is capped by its own, as before."""
+        Coders that can). One whose opener is gone is capped by its own, as before.
+        shortcut: a core role's locked tools (Karar 5, `roles.CORE`) lock its role, not its
+        agents - a Lead without run_command caps every Tester's, and R3 then holds none of them
+        (`_held_to_run`); lock the Lead's tools a core role needs too if that is met."""
         while ctx.agent_id not in self._leads and ctx.depth > 0 and (
                 above := self._ctxs.get(ctx.parent_id or "")) is not None:
             ctx = above
@@ -4860,9 +5015,11 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if request.name == "run_skill_script":
             args, unasked = self._skill_script(ctx, args)
         refused = None
+        # Decision 6: KOLONİ's Reviewer runs where it reads - no working copy made for it.
+        review = ctx.agent_id in self._read_only_agents
         # Where it runs in a working copy, why it is asked at every level there
         # (`_in_copy_asks`) - for one this command makes, with the links it will have.
-        owner = self._works_in(ctx)
+        owner = None if review else self._works_in(ctx)
         made = self._copies.get(owner) if owner else None
         linked = self._copy_linked(ctx, owner)
         planned = plan_command(ws, args)
@@ -4872,6 +5029,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 ctx, path=planned.cwd_rel if planned.cwd_rel != "." else None,
                 what=f"run {planned.command} in {planned.cwd_rel}"):
             raise ToolError(kept)
+        # (KOLONİ's Reviewer: only what reads, or the approved tests, unasked - else refused)
+        unasked = await self._review_runs(ctx, ws.root, planned) if review else unasked
         # (Web off first: its card offers no rule, which would not cover it.)
         web_off = web_off_reason(planned.command, self._off())
         # Coordination §4: a disposable delete the user allowed is asked neither for the copy's
@@ -4890,6 +5049,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         night, judged = (night, None) if unasked else await self._judged(
             ctx, planned.command, planned.cwd_rel, night)
         in_a_copy = in_a_copy or night
+        self._never_asked(review, planned.command, in_a_copy)
         if not self._watched(run_id) and not unasked:
             # Before anything is put on record as a command: it is not one that
             # waits for a decision, it is one that is not run.
@@ -4953,7 +5113,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # by the VM's clock); a server (keep_running) is looked at once it is up.
         # Snapshot per command if any of it is seen.
         made_in = self._copies.get(owner) if owner else None
-        if ran and status != "denied" and (made_in is not None or not owner):
+        if ran and status != "denied" and not review and (made_in is not None or not owner):
             root = made_in.root if made_in else ws.root
             await self._record_made(ctx, root, await asyncio.to_thread(
                 views.made_since, root, started_ns), made_in)
@@ -5090,6 +5250,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                 "it again, in smaller parts if it was long"
             )
         args = parse_arguments(request.arguments)
+        self._review_refuses(ctx, request.name)  # (S3: KOLONİ's Reviewer only reads)
         # 101: before anything is asked or run. (Its output is not looked at: reading the
         # environment is no sending out, and the key is hidden there as any secret is.)
         if (canary := self._canaries.get(run_id)) and (
@@ -6026,6 +6187,26 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         return f"the {at[0]} step is a room: open it with open_room, with {', '.join(at[1])}" if (
             at and role.casefold() in {one.casefold() for one in at[1]}) else None
 
+    def _step_says(self, ctx: Ctx, role: Role) -> str:
+        """Kanıtlı bitiş: what the step an agent of `role` is opened for tells it under its task -
+        `REPRODUCE_FIRST` at a step with the id "reproduce" (R4: the ready Bugfix's first);
+        `RUN_TO_PASS` at a review step it is held to run a check in (R3, `_held_to_run`); ""
+        anywhere else, and for a helper a step's agent opens.
+        shortcut: keyed by the ready recipes' step ids; give recipe steps a note field in the
+        editor if users' own recipes want the same."""
+        if not self._gives_slots(ctx):
+            return ""
+        with self._factory() as session:
+            for row, _team in self._runs(session, ctx):
+                state = self._live_state(row, ctx.run_id)
+                step = recipe_run.fills(state, role.name) if state else None
+                if step == "reproduce":
+                    return "\n\n" + REPRODUCE_FIRST
+                if state and step and recipe_run.fills_review(state, role.name) and _held_to_run(
+                        role, step, role.tools):
+                    return "\n\n" + RUN_TO_PASS
+        return ""
+
     def _tells_findings(self, session, ctx: Ctx) -> bool:
         """Whether a sub-agent is told to end its report with findings (`FINDINGS_PROMPT`; on
         Claude Code, to hand it back in REPORT_SCHEMA): of a check role or a recipe's review
@@ -6042,13 +6223,16 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             return None
         with self._factory() as session:
             kind_of = find_role(session, child.role)
-            if kind_of is not None and kind_of.kind == "check" or child.agent_id in self._reviews:
+            # (R4: a reproduce step's agent too, `_reproduce_held`)
+            if kind_of is not None and kind_of.kind == "check" or (
+                    child.agent_id in self._reviews) or self._in_step(session, child, "reproduce"):
                 roles = self._open_roles(session, child)
                 agents = {agent.name.casefold(): shown_name(agent.role_name) for agent in
                           session.scalars(select(Agent).where(Agent.run_id == child.run_id))}
                 found, checked, before = _handed_findings(given, roles, agents) if given \
                     is not None else (_findings(report or "", roles, agents),
                                       _checked(report or ""), _failing_before(report or ""))
+                held = self._on_record(session, child, found, before)
                 # G1.5: a recipe's review with nothing found (suggestions at most) and nothing
                 # checked is no pass.
                 if found is not None and not _blocking(found) and (
@@ -6063,8 +6247,101 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                         ran := ledger.failed_tests(session, child.agent_id)):
                     failing.append({"what": ledger.failed_line(ran), "kind": "test",
                                     "role": None, "blocking": True})
+                failing += held
                 return [*(found or []), *failing] if failing else found
         return None
+
+    def _on_record(self, session, child: Ctx, found: list | None, before: list[str]) -> list[dict]:
+        """`_found`, kanıtlı bitiş R2 / R3: what KOLONİ's record holds against a check whose
+        report gave no blocking finding (`_failing_held`, `_ran_held`)."""
+        if _blocking(found):
+            return []
+        return [*self._failing_held(session, child, before), *self._ran_held(session, child, found),
+                *self._reproduce_held(session, child)]
+
+    def _failing_held(self, session, child: Ctx, before: list[str]) -> list[dict]:
+        """R2: a test run of its own that failed (and no later pass of that line or whole run of
+        its tool cleared: `ledger.failed_tests`) is a blocking finding - unless every test it
+        names as failing is one the report says was failing before (`ledger.covered`) - and none
+        the run's reproduce step showed failing (`_reproduced`: that is the bug). Not before a
+        step that fixes, where every failing run is handed on already; nor in the step that
+        reproduces the bug, where the failing test is the work - said so, as no blocking
+        finding."""
+        ran = None if child.agent_id in self._before_fix else ledger.failed_tests(
+            session, child.agent_id)
+        if ran is None or ledger.covered(ran, before, self._reproduced(session, child)):
+            return []
+        if self._in_step(session, child, "reproduce"):
+            return [{"what": f"fails as it should: {ledger.failing_shown(ran)}", "kind": "test",
+                     "role": None, "blocking": False}]
+        return [{"what": ledger.failed_line(ran), "kind": "test", "role": None, "blocking": True}]
+
+    def _reproduce_held(self, session, child: Ctx) -> list[dict]:
+        """R4 (S7): the agent of a recipe's reproduce step must leave on record a test run that
+        failed (`ledger.failed_tests`: one that really ran tests) of a test file it wrote - any
+        failing run of its own only where it wrote none. Else it did not show the bug: held, its
+        run stopped at Ready for you as R3's declined check is (`_not_checked`). Not where its
+        CLI's work is not seen (`handoff.counted_on`)."""
+        if not self._in_step(session, child, "reproduce") or not handoff.counted_on(child.model):
+            return []
+        ran = ledger.failed_tests(session, child.agent_id)
+        texts = dict(session.execute(select(FileChange.path, FileChange.after_content).where(
+            FileChange.agent_id == child.agent_id).order_by(
+            FileChange.created_at, literal_column("file_changes.rowid"))).tuples().all())
+        wrote = proof_before.new_tests(texts)
+        # (Review of S7: a failing TEST of a file it wrote - not a failing command that names it.)
+        if ran is not None and (not wrote or proof_before.reproduces(
+                ran.output or "", {path: texts[path] or "" for path in wrote})):
+            return []  # (its own test failed - or, writing none, a run of its own did)
+        held = {**NOT_REPRODUCED, "what": NOT_ITS_TEST.format(files=", ".join(wrote))} if (
+            wrote) else NOT_REPRODUCED
+        self._not_checked[child.agent_id] = f"Not checked: {held['what']}"  # (stops, as R3's)
+        return [held]
+
+    def _ran_held(self, session, child: Ctx, found: list | None) -> list[dict]:
+        """R3: a recipe's check whose job is running checks (`_held_to_run`) that ran no command
+        on record that started and checks something - no mere read, no `echo` or `python -c
+        "pass"`; on code where the project's tests are known (`ledger.test_lines`), no command
+        but a test run that really ran tests (`ledger.ran_check`) - does not pass
+        (`RAN_NOTHING`) - not one whose report has no Findings section (no pass already), nor
+        where its CLI's work is not seen (`handoff.counted_on`: a command it ran may not be on
+        record). Where the user declined its command, it checked nothing for a fixer to act on:
+        its step stops at Ready for you, not checked (`_not_checked`, `_after_step`)."""
+        step = self._reviews.get(child.agent_id)
+        if found is None or step is None or not handoff.counted_on(child.model) or not (
+                _held_to_run(find_role(session, child.role), step, child.tools)) or (
+                ledger.ran_check(session, child.agent_id, ledger.test_lines(
+                    session, child.run_id, self._project(session, child.cid)))):
+            return []
+        if (command := ledger.declined(session, child.agent_id)) is None:
+            return [RAN_NOTHING]
+        self._not_checked[child.agent_id] = f"Not checked: you declined {command}"
+        return [{"what": f"not checked: you declined {command}", "kind": "test", "role": None,
+                 "blocking": True}]
+
+    def _reproduced(self, session, child: Ctx) -> set[str]:
+        """R2 (review of S4): the tests the agents of this run's step with the id "reproduce"
+        showed failing (`ledger.failing_of`) - the bug itself, never "already failing before"
+        later in the run.
+        shortcut: by its part's passes - a reproduce step drawn in a group counts the group's
+        other agents' failing tests too (R2 then holds more); keep each agent's step on the pass
+        if that is met."""
+        agents = [agent for row, _team, _lead in self._rows(session, child.cid)
+                  if (state := self._live_state(row, child.run_id)) and any(
+                      s.id == "reproduce" for s in recipe_run.graph_of(state).steps)
+                  for one in state.get("passes", []) if one["part"] == recipe_run.part_of(
+                      recipe_run.graph_of(state), "reproduce") for agent in one["agents"]]
+        return ledger.failing_of(session, agents)
+
+    def _in_step(self, session, child: Ctx, step_id: str) -> bool:
+        """Whether `child`, or an agent above it, is at work for a recipe step of this id."""
+        chain, at = set(), child
+        while at is not None:
+            chain.add(at.agent_id)
+            at = self._ctxs.get(at.parent_id) if at.parent_id else None
+        return any(e["step"] == step_id and e["agent"] in chain
+                   for row, _team, _lead in self._rows(session, child.cid)
+                   if (state := self._live_state(row, child.run_id)) for e in state["here"])
 
     def _level(self, ctx: Ctx) -> int:
         """How many levels below its Lead an agent is, for the chat's limit on them: in work of
@@ -6210,7 +6487,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     self._candidates.add(child.agent_id)
                 if any(s.id == step and s.done_when == "no_findings"
                        for s in recipe_run.graph_of(state).steps):
-                    self._reviews.add(child.agent_id)
+                    self._reviews[child.agent_id] = step
                     if recipe_run.fixed_next(state):
                         self._before_fix.add(child.agent_id)
             elif (mine and ctx.depth) or (
@@ -6220,6 +6497,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             else:
                 return False
             self._in_recipe.add(child.agent_id)
+            self._recipe_reviewer(ctx, child, role.name)
             return True
 
         def apart(row: ConversationTeam, team: Team, lead: Role,
@@ -6469,6 +6747,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             text += " " + BEST_SO_FAR.format(
                 score="no score" if top["score"] is None else f"{top['score']:g}",
                 name=top["name"])
+        if NO_MEASURE in why.values() and recipe_run.goes_round(state):  # (K-evolve-tek)
+            text += " " + recipe_run.ONE_ROUND
         return (text, scored[:1]) if full and scored else (text, [*(scored or ranked), "Stop"])
 
     async def _pick(self, ctx: Ctx, winner: str, candidates: list[str]) -> str:
@@ -7148,6 +7428,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                     if _blocking(agent.findings)), fixer)
         return fixer
 
+    @staticmethod
+    async def _changed_nothing(made: copies.Copy) -> bool:
+        """B-359: whether a recipe's copy holds no change (not read: it does, the card asks)."""
+        try:
+            return not await asyncio.to_thread(made.changes, dict(made.base), dict(made.names))
+        except OSError:
+            return False
+
     async def _ready_for_you(self, ctx: Ctx, child: Ctx) -> str:
         """The Lead hears back from an agent, every row of the turn's recipes has come to its
         end, stopped or failed, one of them at an "in" end, and no agent works in the recipe's
@@ -7155,7 +7443,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         Take in takes the copy into the project, the card being their yes (`_into_project`);
         Ask for changes, with their words, sends the rows back to work from their loop's
         step - their words are never a Take in."""
-        if ctx.run_id in self._readying:
+        if ctx.run_id in self._readying or ctx.run_id in self._held_back:
             return ""
         with self._factory() as session:
             rows = [(team, state) for row, team, _lead in self._rows(session, ctx.cid)
@@ -7216,6 +7504,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # in unasked at Full auto.
         failed = [team.name for team, state in rows if state["status"] == recipe_run.FAILED]
         also += "".join(f" {name} failed: its work is not finished." for name in failed)
+        # (k-sira-016: KOLONİ's checks first, on the work in the recipe's copy - Ready for you
+        # after them; never for work they left failing, S11)
+        if (not_yet := await self._not_yet_ready(ctx, rows)) is not None:
+            return not_yet
         self._readying.add(ctx.run_id)
         # K-fullauto-sorma: at Full auto the work is taken in by itself, as work outside a
         # recipe is - `_merge` still cards a clash, a root file or a failing check - unless a
@@ -7230,11 +7522,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             # to take in - no card asks for it.
             # shortcut: so such a recipe offers no Ask for changes either (the user writes a new
             # message); bring back a card without Take in if that is missed.
-            empty = False
-            if made is not None and not said and not beside and APART not in own.values():
-                with contextlib.suppress(OSError):  # (not read: the card asks, as before)
-                    empty = not await asyncio.to_thread(
-                        made.changes, dict(made.base), dict(made.names))
+            empty = made is not None and not said and not beside and (
+                APART not in own.values()) and await self._changed_nothing(made)
             # (A job while the user is away is done here: its copy waits for the morning.)
             word = None if ctx.run_id in self._away_jobs else "Take in" if full or empty else (
                 await self._ask_row(
@@ -7373,7 +7662,9 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         if status in KEEPS:
             # shortcut: these looks at the copies walk them on the event loop (`_end_runs` is
             # sync, called from async `_lead_taken`); pass `_look_aside`'s if it is felt.
-            self._set_aside(ctx.agent_id, "a recipe's work its turn ended before taking in")
+            self._set_aside(ctx.agent_id, NOT_TAKEN_KEPT.format(why=held) if (
+                held := self._held_back.get(ctx.run_id)) else (
+                "a recipe's work its turn ended before taking in"))
             # K-evrim: and so is each candidate's a pick never came to - the would-be winner's too.
             for one in [a for a in self._candidates if a in self._copies
                         and (known := self._ctxs.get(a)) and known.run_id == ctx.run_id]:
@@ -7463,12 +7754,14 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
 
         score = self._scored.pop(child.agent_id, None) or {
             "score": None, "why": CANDIDATE_STOPPED} if child.agent_id in self._candidates else None
+        declined = self._not_checked.pop(child.agent_id, None)  # (R3: `_ran_held`)
 
         def ended(state: dict, entry: dict) -> None:
             # (B-192: a suggestion sends no work back - it is the user's, on the card.)
             entry["ok"], entry["found"] = ok, found is None or bool(_blocking(found))
             entry["findings"] = bool(_blocking(found))  # (some to hand on with findings_from)
             entry["changed"] = changed
+            recipe_run.not_checked(state, declined)
             if score is not None:  # (K-evrim: with its end, so no pick is made without it)
                 # (K-evrim-model: its name, model and round, for the card and the strip.)
                 state.setdefault("scores", {})[child.agent_id] = {

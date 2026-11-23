@@ -1607,6 +1607,28 @@ fieldset.choice > label .choice-note,
   background: transparent;
 }
 
+/* S5c: the recipe's locked Checks step - always its last, joined to its last step(s) in the accent. */
+.recipe-checks {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.recipe-checks-edge path {
+  stroke: var(--accent);
+}
+
+.recipe-check {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  font-size: var(--text-note);
+}
+
+.recipe-check-part {
+  padding-left: 22px;
+}
+
 .recipe-node-chosen {
   border: 2px solid var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -4904,6 +4926,136 @@ fieldset.choice > label .choice-note,
 
 .landed-by {
   font-weight: 600;
+}
+
+/* Kanıtlı bitiş: under a turn's answer, what KOLONİ checked at its end - one quiet line a row, its mark coloured by how
+   it went (passed, failed; the rest muted). */
+.checked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 2px 0 4px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  overflow-wrap: anywhere; /* (a long command wraps, not past the chat's edge) */
+}
+
+.checked-head {
+  font-weight: 600;
+}
+
+.checked-rows {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checked-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.checked-mark {
+  flex: none;
+  width: 1em;
+  text-align: center;
+}
+
+.checked-row[data-state='passed'] .checked-mark {
+  color: var(--ok);
+}
+
+.checked-row[data-state='failed'] {
+  color: var(--text);
+}
+
+.checked-row[data-state='failed'] .checked-mark {
+  color: var(--del);
+}
+
+/* Plan decision 12: KOLONİ's Checks node on the canvas, and the Orchestrator's one line of it. */
+.node-checks {
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+}
+
+.node-checks .node-line[data-state='passed'] {
+  color: var(--ok);
+}
+
+.node-checks .node-line[data-state='failed'] {
+  color: var(--del);
+}
+
+.node-checks .node-line[data-state='running'],
+.node-checks-running {
+  color: var(--accent);
+}
+
+.node-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+.node-menu-panel {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 30%);
+}
+
+.node-menu-panel button {
+  padding: 3px 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.node-menu-panel button:hover,
+.node-menu-panel button:focus-visible {
+  background: var(--hover);
+}
+
+.node-menu-error {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  white-space: nowrap;
+  color: var(--del);
+  font-size: 11px;
+}
+
+.node-strip {
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px dashed var(--border);
+  color: var(--ok);
+  font-size: var(--text-meta);
+}
+
+.node-strip-bad {
+  color: var(--del);
+}
+
+.checked-fix {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 /* "Working copy: 3 files changed +40 −12 · See changes · Open folder". */

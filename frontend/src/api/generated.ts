@@ -4037,6 +4037,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/check/put-back": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put Back Check
+         * @description CL-329 Put back: the files that changed while KOLONİ's own run of this turn went on, as
+         *     they were when it started - each only where it is still as the run left it (the user's
+         *     click; KOLONİ never puts one back by itself). What was put back, and what not with why.
+         */
+        post: operations["put_back_check_api_runs__run_id__check_put_back_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/check/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Check
+         * @description "Stop this check" (kanıtlı bitiş S6): the turn's test run that runs now - its related
+         *     tests while the answer waits, or its whole suite gone on after the answer - is stopped; what
+         *     finished stays. The user's, from the app's own page, at every level.
+         */
+        post: operations["stop_check_api_runs__run_id__check_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/ci/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Ci
+         * @description S8 (decision 3) "Run these": the CI lines this turn's row showed are approved - exactly
+         *     those, the user's own approval from the app's page; the end check runs them from the next
+         *     change on. The offer goes by its name (`ci_commands.offer_id`, the row's `offer`): it must be
+         *     on this turn's row, be the project's offer still, and its workflow files be as they are now -
+         *     else 409, offered again after the next change (another turn may have offered other lines).
+         */
+        post: operations["approve_ci_api_runs__run_id__ci_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/held/fix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fix Held
+         * @description S11 (decision 18) Fix it on a "Not taken in" row: the user's answer to its question starts
+         *     a turn that goes on in the kept work's copy - the row's own kept copy, still undecided (409:
+         *     decided since - Take in anyway, then Fix it).
+         */
+        post: operations["fix_held_api_runs__run_id__held_fix_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/notes": {
         parameters: {
             query?: never;
@@ -4328,6 +4418,29 @@ export interface paths {
         head?: never;
         /** Change Stage */
         patch: operations["change_stage_api_teams__team_id__stages__stage_id__patch"];
+        trace?: never;
+    };
+    "/api/test-load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Test Load */
+        get: operations["read_test_load_api_test_load_get"];
+        /**
+         * Set Test Load
+         * @description Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+         *     processes each may start - the user's to say (the machine's load). A run already going keeps
+         *     what it had.
+         */
+        put: operations["set_test_load_api_test_load_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/tiers": {
@@ -4904,7 +5017,7 @@ export interface components {
          */
         AskedModel: {
             /** Model Id */
-            model_id: string;
+            model_id: string | null;
             /** Provider Name */
             provider_name: string;
         };
@@ -5210,6 +5323,8 @@ export interface components {
         };
         /** BacklogDraftIn */
         BacklogDraftIn: {
+            /** Conversation Id */
+            conversation_id?: string | null;
             /** Text */
             text: string;
         };
@@ -5797,6 +5912,50 @@ export interface components {
             /** Why */
             why?: string | null;
         };
+        /** CheckedCounts */
+        CheckedCounts: {
+            /** Failed */
+            failed: number;
+            /** Passed */
+            passed: number;
+            /** Skipped */
+            skipped: number;
+            /** Unit */
+            unit: string;
+        };
+        /**
+         * CheckedRow
+         * @description One line of a turn's Checked section (`app.proof.Row`).
+         */
+        CheckedRow: {
+            /** Command */
+            command: string | null;
+            counts?: components["schemas"]["CheckedCounts"] | null;
+            /** Guessed */
+            guessed: boolean;
+            /** Kind */
+            kind: string;
+            /** Merge Id */
+            merge_id?: string | null;
+            /** Offer */
+            offer?: string | null;
+            /** Question */
+            question?: string | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "passed" | "failed" | "running" | "not_run" | "timed_out" | "note";
+            /** Text */
+            text: string;
+        };
+        /** CiApproveIn */
+        CiApproveIn: {
+            /** Offer */
+            offer: string;
+        };
         /**
          * ClaimOut
          * @description A file of the project that an agent of a running turn holds until its work is
@@ -5983,6 +6142,8 @@ export interface components {
          * @description A conversation as the project's list shows it.
          */
         ConversationListed: {
+            /** After Change */
+            after_change: ("off" | "on") | null;
             /** Also In */
             also_in: string[];
             /** Archived At */
@@ -6074,6 +6235,8 @@ export interface components {
         };
         /** ConversationOut */
         ConversationOut: {
+            /** After Change */
+            after_change: ("off" | "on") | null;
             /** Also In */
             also_in: string[];
             /** Archived At */
@@ -6160,6 +6323,8 @@ export interface components {
         };
         /** ConversationPatch */
         ConversationPatch: {
+            /** After Change */
+            after_change?: ("off" | "on") | null;
             /** Also In */
             also_in?: string[] | null;
             /** Archived */
@@ -6666,18 +6831,6 @@ export interface components {
             /** What */
             what: string;
         };
-        /**
-         * FinishTestsAuto
-         * @description 89m: "Finish only when the tests pass" where the user has not said (`finish_tests`).
-         */
-        FinishTestsAuto: {
-            /** Command */
-            command: string | null;
-            /** On */
-            on: boolean;
-            /** Reason */
-            reason: string;
-        };
         /** FolderBrowseIn */
         FolderBrowseIn: {
             /** Path */
@@ -6940,6 +7093,13 @@ export interface components {
             shell_note: string | null;
             /** Tools Supported */
             tools_supported: boolean | null;
+        };
+        /** HeldFixIn */
+        HeldFixIn: {
+            /** Merge Id */
+            merge_id: string;
+            /** Reply */
+            reply: string;
         };
         /**
          * HistoryCount
@@ -8075,6 +8235,8 @@ export interface components {
             agent_id: string | null;
             /** Board Post Id */
             board_post_id: string | null;
+            /** Checked */
+            checked?: components["schemas"]["CheckedRow"][] | null;
             /** Content */
             content: string;
             /** Conversation Id */
@@ -8096,7 +8258,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "user" | "assistant" | "agent" | "memory" | "trigger" | "away" | "git" | "koloni" | "landed";
+            role: "user" | "assistant" | "agent" | "memory" | "trigger" | "away" | "git" | "koloni" | "landed" | "checked";
             /** Room Post Id */
             room_post_id: string | null;
             /** Run Id */
@@ -8756,6 +8918,13 @@ export interface components {
         };
         /** ProjectOut */
         ProjectOut: {
+            /**
+             * After Change
+             * @enum {string}
+             */
+            after_change: "check" | "tests" | "nothing";
+            /** After Change From Off */
+            after_change_from_off: boolean;
             /** Also In */
             also_in: string[];
             /** Auto Notes */
@@ -8766,6 +8935,13 @@ export interface components {
             canary: boolean;
             /** Check Command */
             check_command: string | null;
+            /**
+             * Check Kinds
+             * @default {}
+             */
+            check_kinds: {
+                [key: string]: boolean;
+            };
             /** Continue Steps */
             continue_steps: number;
             /**
@@ -8792,11 +8968,10 @@ export interface components {
              * @enum {string}
              */
             exec_location: "host" | "docker";
-            /** Finish Tests */
-            finish_tests: boolean | null;
-            finish_tests_auto: components["schemas"]["FinishTestsAuto"];
             /** Finish Way */
             finish_way: ("merge" | "pull_request") | null;
+            /** Fix Rounds */
+            fix_rounds: number | null;
             /**
              * Full Auto Check
              * @enum {string}
@@ -8846,6 +9021,16 @@ export interface components {
             pass_env: string | null;
             /** Read In */
             read_in: string[];
+            /**
+             * Review Files
+             * @default 3
+             */
+            review_files: number;
+            /**
+             * Review Lines
+             * @default 80
+             */
+            review_lines: number;
             /** Room Min Tokens */
             room_min_tokens: number | null;
             /** Room Minutes */
@@ -8876,6 +9061,8 @@ export interface components {
             spawn_max_depth: number;
             /** Spawn Max Parallel */
             spawn_max_parallel: number;
+            /** Stronger Model */
+            stronger_model: boolean;
             /** Suggest Tasks */
             suggest_tasks: boolean;
             /**
@@ -8890,6 +9077,20 @@ export interface components {
              * @enum {string}
              */
             teams_mode: "lead" | "manual" | "none";
+            /** Test Commands */
+            test_commands: {
+                [key: string]: string;
+            };
+            /** Tests Found */
+            tests_found: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Tests Look */
+            tests_look: {
+                [key: string]: unknown;
+            } | null;
             /** Turn Token Limit */
             turn_token_limit: number | null;
             /**
@@ -8922,6 +9123,8 @@ export interface components {
         };
         /** ProjectPatch */
         ProjectPatch: {
+            /** After Change */
+            after_change?: ("check" | "tests" | "nothing") | null;
             /** Also In */
             also_in?: string[] | null;
             /** Auto Notes */
@@ -8932,6 +9135,10 @@ export interface components {
             canary?: boolean | null;
             /** Check Command */
             check_command?: string | null;
+            /** Check Kinds */
+            check_kinds?: {
+                [key: string]: boolean;
+            } | null;
             /** Continue Steps */
             continue_steps?: number | null;
             /** Day Note At */
@@ -8950,10 +9157,12 @@ export interface components {
             embedding_provider_id?: string | null;
             /** Exec Location */
             exec_location?: ("host" | "docker") | null;
-            /** Finish Tests */
-            finish_tests?: boolean | null;
             /** Finish Way */
             finish_way?: ("merge" | "pull_request") | null;
+            /** Fix Rounds */
+            fix_rounds?: number | "until" | null;
+            /** Forget Tests Found */
+            forget_tests_found?: boolean | null;
             /** Full Auto Check */
             full_auto_check?: ("ask" | "judge") | null;
             /** Git Commit */
@@ -9004,6 +9213,8 @@ export interface components {
             spawn_max_depth?: number | null;
             /** Spawn Max Parallel */
             spawn_max_parallel?: number | null;
+            /** Stronger Model */
+            stronger_model?: boolean | null;
             /** Suggest Tasks */
             suggest_tasks?: boolean | null;
             /** Suggest Tier */
@@ -9315,8 +9526,54 @@ export interface components {
              */
             state: "done" | "now" | "next" | "stopped";
         };
+        /**
+         * RecipeChecks
+         * @description S5c (plan decision 16): what KOLONİ checks at the end of this recipe's turn, set for the
+         *     recipe - its Checks step's "Set for this recipe"; each part on or off.
+         */
+        RecipeChecks: {
+            /**
+             * Data
+             * @default false
+             */
+            data: boolean;
+            /**
+             * Diagram
+             * @default false
+             */
+            diagram: boolean;
+            /**
+             * Docs
+             * @default false
+             */
+            docs: boolean;
+            /** Fix Rounds */
+            fix_rounds?: number | "until" | null;
+            /**
+             * Review
+             * @default true
+             */
+            review: boolean;
+            /**
+             * Slides
+             * @default false
+             */
+            slides: boolean;
+            /**
+             * Tests
+             * @default true
+             */
+            tests: boolean;
+            /**
+             * Ui
+             * @default false
+             */
+            ui: boolean;
+        };
         /** RecipeDraftIn */
         RecipeDraftIn: {
+            /** Conversation Id */
+            conversation_id?: string | null;
             /** Text */
             text: string;
         };
@@ -9352,6 +9609,7 @@ export interface components {
              * @default []
              */
             arrows: components["schemas"]["RecipeArrow"][];
+            checks?: components["schemas"]["RecipeChecks"] | null;
             /**
              * Ends
              * @default []
@@ -9521,6 +9779,8 @@ export interface components {
         };
         /** RecipeWriter */
         RecipeWriter: {
+            /** Asks */
+            asks?: string | null;
             /** Why */
             why: string | null;
         };
@@ -9802,6 +10062,12 @@ export interface components {
             kind: string;
             /** Knows */
             knows: components["schemas"]["KnowsOut"][];
+            /**
+             * Locked Tools
+             * @description Karar 5: the tools it keeps whatever the user takes away, as `app.roles.locked_tools`
+             *     gives them (a core role's: never off either); [] for any other.
+             */
+            readonly locked_tools: string[];
             /** Max Effort */
             max_effort: ("off" | "low" | "medium" | "high" | "xhigh" | "max") | null;
             /** Max Steps */
@@ -10734,6 +11000,19 @@ export interface components {
         TellIn: {
             /** Words */
             words: string;
+        };
+        /**
+         * TestLoad
+         * @description Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+         *     processes each may start - settings of the whole app (`proof.load_of`). Their ranges are
+         *     `proof.TEST_RUNS_RANGE` and `TEST_WORKERS_RANGE`, written again here and in Settings.tsx.
+         *     Sent one at a time - the one not sent stays as it is.
+         */
+        TestLoad: {
+            /** Runs At Once */
+            runs_at_once?: number | null;
+            /** Workers */
+            workers?: number | null;
         };
         /**
          * TierModel
@@ -15921,7 +16200,9 @@ export interface operations {
     };
     read_auto_api_projects__project_id__backlog_auto_get: {
         parameters: {
-            query?: never;
+            query?: {
+                conversation_id?: string | null;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -18085,6 +18366,7 @@ export interface operations {
         parameters: {
             query?: {
                 project_id?: string | null;
+                conversation_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -18892,6 +19174,138 @@ export interface operations {
             };
         };
     };
+    put_back_check_api_runs__run_id__check_put_back_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_check_api_runs__run_id__check_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_ci_api_runs__run_id__ci_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CiApproveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fix_held_api_runs__run_id__held_fix_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeldFixIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     write_note_api_runs__run_id__notes_post: {
         parameters: {
             query?: never;
@@ -19595,6 +20009,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_test_load_api_test_load_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestLoad"];
+                };
+            };
+        };
+    };
+    set_test_load_api_test_load_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestLoad"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestLoad"];
                 };
             };
             /** @description Validation Error */

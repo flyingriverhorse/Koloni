@@ -2885,6 +2885,22 @@ button.turn-name:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The level gives way first, its marks ending in an ellipsis - its title and its name say them whole - so nothing leaves
+   the row (0.1.6: "Ask · plan · no checks" pushed Send past the edge of a 340px chat). */
+.composer-bar > .composer-level-menu {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.composer-level-plan {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .comb {
@@ -2925,6 +2941,17 @@ button.turn-name:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+/* k-adlar: a switch row with its ⓘ beside it (outside its label: a click on ⓘ does not flip it). */
+.level-row-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.level-row-hint > .level-row {
+  flex: 1;
 }
 
 .level-row {
@@ -2973,6 +3000,12 @@ button.turn-name:hover {
 .level-says {
   color: var(--muted);
   font-size: var(--text-meta);
+}
+
+/* S10: at Full auto with Check after a change off - said, not locked. */
+.level-warn {
+  margin: 0 0 4px 30px;
+  color: var(--warn);
 }
 
 .level-sep {

@@ -173,8 +173,9 @@ class TalkMixin:
             team = guide(list_providers(session), models_dev.load(
                 self.settings.runtime_root)) if "spawn_agent" in tools else []
             files = self._files_of(session, ctx)
-            between = [] if ctx.run_id in self._sides else team_requests.schemas(
-                self, session, ctx)
+            # (No team's tools for KOLONİ's Reviewer: it reads, `_review_refuses`.)
+            between = [] if ctx.run_id in self._sides or ctx.agent_id in (
+                self._read_only_agents) else team_requests.schemas(self, session, ctx)
         facts = self._who(ctx.run_id) if {"message_agent", "discuss"} & set(tools) else {}
         reachable = [
             who_line(other.name, other.role, *facts[other.agent_id], CAN[kind])
@@ -200,7 +201,8 @@ class TalkMixin:
         # instructions (`_skills_told`), not use_skill; measure the CLIs' own skill folders
         # with the real CLIs (slice 45 design, 3 and 7).
         known = [] if getattr(ctx.model, "native", False) else self._skills(ctx)
-        schemas = tool_schemas_for(tools, roles, reachable, always, team, others, earlier, show)
+        schemas = tool_schemas_for(tools, roles, reachable, always, team, others, earlier,
+                                   show and ctx.agent_id not in self._read_only_agents)
         # (with the To-do list's tools: the jobs go onto it)
         at = next((i + 1 for i, s in enumerate(schemas) if s["function"]["name"] == "assess_task"),
                   len(schemas))
@@ -227,7 +229,8 @@ class TalkMixin:
             schemas = [*schemas, RECALL_OUTPUT_SCHEMA]
         return schemas + between + [
             mcp_client.schema(server.name, tool) for server, tool in self._mcp(ctx).values()
-        ] + skill_schemas(known, "run_command" in tools) + pick
+        ] + skill_schemas(known, "run_command" in tools and ctx.agent_id not in (
+            self._read_only_agents)) + pick  # (a skill's script: not for KOLONİ's Reviewer)
 
     def _offered_step(self: "AgentRunner", ctx: Ctx, schemas: list[dict],
                       step: tuple[frozenset[str], str], running: bool) -> None:

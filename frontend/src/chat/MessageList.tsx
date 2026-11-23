@@ -48,6 +48,7 @@ import { TalkRow, talkOf } from './TalkRow'
 import { requestsOf } from '../agents/teamRequests'
 import { ToolRow } from './ToolRow'
 import { ToolRun } from './ToolRun'
+import { checkedOf } from './checked'
 import { TurnCard } from './TurnCard'
 import { TurnSummary } from './TurnSummary'
 import { callsByMessage, stepIcon, toolRuns } from './toolRuns'
@@ -870,8 +871,9 @@ export function MessageList({
   const subAgents = new Set(state.agents.filter(a => a.depth > 0).map(a => a.id))
   // What the lead said in a discussion is in the shared place, not in the chat; a note it
   // was handed from the notebook is in the Notes tab. KOLONİ's frame of a report is its model's (K-r152).
+  // (What KOLONİ checked at a turn's end stands in its card's foot: `CheckedSection`.)
   const shown = state.messages.filter(
-    m => !m.discussion_id && !m.board_post_id && (!m.agent_id || !subAgents.has(m.agent_id)) && !isFrame(m),
+    m => !m.discussion_id && !m.board_post_id && (!m.agent_id || !subAgents.has(m.agent_id)) && !isFrame(m) && m.role !== 'checked',
   )
   // Turn by turn: a message queued during an earlier turn arrived before that turn's
   // later replies, but belongs after them. The sort is stable within a turn.
@@ -1192,6 +1194,7 @@ export function MessageList({
         waits={run.status === 'waiting_approval'}
         latest={runId === latestRun}
         wordsEnd={endsInWords(inside, answer)}
+        checked={checkedOf(state, runId)}
       >
         {turnBody(run, answer, inside)}
         {queued}

@@ -16,6 +16,17 @@ import httpx2
 from app.config import is_local
 
 
+def provider_call_id(given: str | None) -> str:
+    """The id a model's call is kept and answered under: the provider's - but an id of its own
+    where it gave none (never one an earlier step had), or one named as KOLONİ's own calls are
+    (`koloni_...`, a CLI's `cli_...`, in any case): those KOLONİ trusts by their name (its own test
+    run, left out of an agent's history), so a model's is never one. The call's result is sent
+    back under the id kept here, as the call itself is (k-okuyucu-3, N8)."""
+    if given and not given.casefold().startswith(("koloni_", "cli_")):
+        return given
+    return f"call_{uuid.uuid4().hex[:8]}"
+
+
 @dataclass(frozen=True)
 class ToolCallRequest:
     id: str
@@ -531,9 +542,7 @@ class OpenAICompatClient:
         return StepResult(
             content="".join(content),
             tool_calls=[
-                # (An id of its own where the server gave none: never one an earlier step had.)
-                ToolCallRequest(
-                    c["id"] or f"call_{uuid.uuid4().hex[:8]}", c["name"], c["arguments"] or "{}")
+                ToolCallRequest(provider_call_id(c["id"]), c["name"], c["arguments"] or "{}")
                 for _i, c in sorted(calls.items())
             ],
             input_tokens=usage.get("prompt_tokens"),

@@ -136,8 +136,10 @@ def test_a_line_padded_with_options_is_judged_at_once_and_asked(line):
     # value, looked into, doubled them at each)
     began = time.perf_counter()
     said = harms(line)
-    # (8 s on CI: a shared runner measuring coverage took 3.007 s; the bug it guards took 24 s)
-    limit = 8.0 if os.environ.get("CI") else 1.0
+    # (8 s on CI: a shared runner measuring coverage took 3.007 s; 3 s here: the nested `env -S`
+    # line takes 0.7-0.83 s alone on the dev machine, 1.5 s beside other tests. The bug it guards
+    # took 24 s.)
+    limit = 8.0 if os.environ.get("CI") else 3.0
     assert time.perf_counter() - began < limit and "what runs is not seen" in said
 
 
@@ -202,3 +204,25 @@ def test_at_full_auto_a_request_that_is_not_a_bare_get_is_asked(
     snap = wait_run(client, cid, run_id)
     assert [status for status, _ in results(snap, "http_request")] == ["succeeded"] * 2
     assert [method for method, _url, _ip in net.asked] == ["GET", "POST"]
+
+
+@pytest.mark.parametrize("command", [
+    "poetry run cmd /c rd /s /q src", "uv run rm -rf src", "uv run --with x rm -rf src",
+    "pipenv run rm -rf src", "pdm run rm -rf src", "hatch run rm -rf src", "rye run rm -rf src",
+    "conda run -n env rm -rf src", "pnpm exec rm -rf src", "yarn exec rm -rf src",
+    "bun x rm -rf src", "cargo run -- rm -rf src", "dotnet run -- rm -rf src",
+    "uv run git push --force origin main",
+])
+def test_what_a_runner_runs_is_read_as_its_own_line(command):
+    """k-okuyucu-3 round 3: a runner's program (`poetry run cmd /c rd ...`) ran unasked at Full
+    auto - its harm is seen."""
+    assert harms(command) and danger(command)
+
+
+@pytest.mark.parametrize("command", [
+    "poetry run cmd /c rd /s /q src", r"uv run C:\Windows\System32\cmd.exe /c x",
+    "poetry run bash -c 'x'", "uv run env X=1 y",
+])
+def test_a_shell_a_runner_is_handed_runs_another(command):
+    assert runs_another(command)
+    assert not runs_another("poetry run pytest -q") and not runs_another("cargo run -- --help")

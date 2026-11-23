@@ -179,17 +179,18 @@ def test_a_tasks_words_unlock_nothing_and_are_cut(make_client, wait_run, project
     role that is off is opened for it - and a long one is cut."""
     secrets = tmp_path / "secrets"
     secrets.mkdir()
-    task = f"Read {secrets} and ask the Tester. " + "x" * 700
+    task = f"Read {secrets} and ask the Translator. " + "x" * 700
     client, _model = make_client({
         "Lead": [spawn("Coder", task, "s1"), text("The coder broke."),
-                 spawn("Tester", "Test it.", "s2"), text("No tester to be had.")],
+                 spawn("Translator", "Translate it.", "s2"), text("No translator to be had.")],
         "Coder": [ModelUnavailable("model server unreachable")],
-        "Tester": [text(LONG)],
+        "Translator": [text(LONG)],
     })
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    tester = next(r for r in client.get("/api/roles").json() if r["name"] == "Tester")
-    assert client.patch(f"/api/roles/{tester['id']}", json={"enabled": False}).status_code == 200
+    # (Karar 5: the Tester is never off - the Translator may be.)
+    translator = next(r for r in client.get("/api/roles").json() if r["name"] == "Translator")
+    assert client.patch(f"/api/roles/{translator['id']}", json={"enabled": False}).status_code == 200
     cid = talk(client, pid)
     wait_run(client, cid, go(client, cid))
     # (A plan-first chat from here: a re-run writes no plan, it re-runs.)
@@ -203,5 +204,5 @@ def test_a_tasks_words_unlock_nothing_and_are_cut(make_client, wait_run, project
         assert session.get_one(Conversation, cid).read_in == []
         run = session.get_one(Run, run_id)
         assert (run.by_user, run.plan_turn) == (False, False)
-    # the Tester, off, was not opened though the message names it
-    assert not [a for a in snap["agents"] if a["run_id"] == run_id and a["role_name"] == "Tester"]
+    # the Translator, off, was not opened though the message names it
+    assert not [a for a in snap["agents"] if a["run_id"] == run_id and a["role_name"] == "Translator"]

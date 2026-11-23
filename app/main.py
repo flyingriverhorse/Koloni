@@ -346,19 +346,23 @@ def create_app(
         refreshing = asyncio.create_task(
             models_dev.refresh(settings.runtime_root), name="catalogue",
         ) if settings.catalogue_refresh and (fresh is None or fresh.value != "0") else None
-        yield
-        indexing.cancel()
-        await asyncio.gather(indexing, return_exceptions=True)
-        if refreshing is not None:
-            refreshing.cancel()
-            await asyncio.gather(refreshing, return_exceptions=True)
-        if clock is not None:
-            clock.cancel()
-            await asyncio.gather(clock, return_exceptions=True)
-        await app.state.runner.shutdown()
-        # The model server the user started here ends with KOLONİ: none is left on the card.
-        await app.state.local_server.stop()
-        triggers.attach(None)
+        try:
+            yield
+        finally:
+            # (Also when the server is made to quit - a second Ctrl+C: this is cancelled at
+            # the yield, and what follows must still run.)
+            indexing.cancel()
+            await asyncio.gather(indexing, return_exceptions=True)
+            if refreshing is not None:
+                refreshing.cancel()
+                await asyncio.gather(refreshing, return_exceptions=True)
+            if clock is not None:
+                clock.cancel()
+                await asyncio.gather(clock, return_exceptions=True)
+            await app.state.runner.shutdown()
+            # The model server the user started here ends with KOLONİ: none is left on the card.
+            await app.state.local_server.stop()
+            triggers.attach(None)
 
     hide_webhook_keys()
     # A restore the user staged replaces the data before anything opens it (K-disa-aktar).
@@ -420,6 +424,8 @@ def create_app(
     raw.use(lambda: [*known_secrets(factory, settings), *app.state.runner.given_spellings(),
                      app.state.page_key])
     app.state.bus = EventBus(factory)
+    # Set by the server's exit signal (`ClosingServer`): the page's open streams end on it.
+    app.state.closing = asyncio.Event()
     app.state.runner = AgentRunner(
         settings, factory, app.state.bus, app.state.providers, executors
     )
@@ -614,9 +620,35 @@ def bind_allowed(host: str, environ: Mapping[str, str] = os.environ) -> bool:
     return host in LOOPBACK or environ.get("KOLONI_IN_CONTAINER") == "1"
 
 
-def run() -> None:
+def serve(app: FastAPI, **options) -> None:
+    """uvicorn's run of `app`, by a server whose exit signal also ends the page's open streams
+    (`closing_server`)."""
     import uvicorn
 
+    closing_server(uvicorn.Config(app, **options)).run()
+
+
+def closing_server(config):
+    """A uvicorn server whose exit signal (Ctrl+C, the stop of a service) also sets the app's
+    `closing`, where the page's /events stream ends (`app.api.events`): uvicorn waits for the
+    open connections before the lifespan's shutdown, and that stream never ended by itself -
+    every close took its whole graceful time, 5 s, and said "Cancel N running task(s)" (CL-311)."""
+    import uvicorn
+
+    class ClosingServer(uvicorn.Server):
+        def handle_exit(self, sig, frame) -> None:
+            closing = getattr(getattr(self.config.app, "state", None), "closing", None)
+            if closing is not None:
+                try:  # (a signal's handler: the loop wakes for it)
+                    asyncio.get_running_loop().call_soon_threadsafe(closing.set)
+                except RuntimeError:
+                    closing.set()
+            super().handle_exit(sig, frame)
+
+    return ClosingServer(config)
+
+
+def run() -> None:
     not_dumpable()  # (first: before any child is started)
     settings = load_settings()
     if not bind_allowed(settings.host):
@@ -633,7 +665,11 @@ def run() -> None:
         sys.stdout.reconfigure(errors="replace")
     show_link(settings.port, app.state.page_key,
               (lambda: open_code(app.state)) if opens_browser() else None)
-    uvicorn.run(app, host=settings.host, port=settings.port, log_config=None)  # (set up above)
+    # The page's /events stream ends on the exit signal (`closing_server`); the time limit stays
+    # for a connection that does not: without it the first Ctrl+C would wait on one, and the
+    # second skips the lifespan's shutdown.
+    serve(app, host=settings.host, port=settings.port, log_config=None,  # (set up above)
+          timeout_graceful_shutdown=5)
 
 
 if __name__ == "__main__":

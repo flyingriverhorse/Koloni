@@ -209,9 +209,38 @@ class Project(Base):
     # where it is lower); None: none.
     room_min_tokens: Mapped[int | None] = mapped_column(
         Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS))
-    # 89m: whether a Claude Code agent that changed files finishes only once the tests pass.
-    # None: automatic (`app.finish_tests.automatic`).
+    # 89m, "Finish only when the tests pass", as the user last set it (None: never said). Kept
+    # (0162), read only for `after_change_from_off`: `after_change` holds the setting now.
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    # Kanıtlı bitiş: after a turn that changed code, "check" (Test and review: the tests, and a
+    # look at a big or security-touching change), "tests" (Tests only) or "nothing" (`app.proof`).
+    after_change: Mapped[str] = mapped_column(String(7), default="check", server_default="check")
+    # S3 (0165, plan decisions 14a and 19): how often the end check sends work back - failing
+    # tests and a Reviewer's blocking findings, one count a turn - 1 to 10; None (0171, the
+    # default): until it passes, while each round makes progress (`app.proof.UNTIL_CEILING`).
+    fix_rounds: Mapped[int | None] = mapped_column(Integer, default=None, nullable=True)
+    # S11 (0169, decisions 18, 19): Then a stronger model - the fix rounds spent with a test
+    # still failing (or a blocking finding left), the next stronger tier tries; off: the work
+    # waits after the first model's rounds.
+    stronger_model: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # S7 (0166, decision 14b): the project's last green state, by "<folder> <command>": what its
+    # last whole suite KOLONİ ran that passed counted - {"ran", "skipped", "at"}.
+    tests_green: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # S8 (0168, decision 3): the CI commands KOLONİ found in the project's workflows -
+    # {"offered": {"hash", "commands": [{"command", "cwd", "step"}]}, "approved": the same, or
+    # absent}: the user's Run these approves the offer, exactly those lines; a change to a
+    # workflow file (its hash) asks again. None: none found yet.
+    ci_commands: Mapped[dict | None] = mapped_column(JSON, default=None)
+    # S5a (0167): which kinds of work KOLONİ checks after a turn wrote them - {kind: on} for
+    # "docs", "slides", "diagram", "data" (`app.proof_kinds.KINDS`); a kind left out is on.
+    check_kinds: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # S1b (0163): the test command KOLONİ saved itself, by folder ("." the root), once it really ran
+    # tests - {folder: {"command", "from": "guess" | "agent" | "look", "at"}}; the end check's only,
+    # never the user's own (their check command and part tests win, and keep their leave).
+    tests_found: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # ... and the one read-only look for one by the project's Fast-tier model ({"at", "map",
+    # "said"}); None: not yet. Looked again only where the project's marker files changed.
+    tests_look: Mapped[dict | None] = mapped_column(JSON, default=None)
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge", `JudgeMixin._judged`). The user's own setting.
     full_auto_check: Mapped[str] = mapped_column(String(5), default="ask", server_default="ask")
@@ -226,10 +255,10 @@ class Project(Base):
         return bool(self.notify_url)
 
     @property
-    def finish_tests_auto(self) -> dict:
-        from app.finish_tests import automatic  # (it reads this model's tables)
-
-        return automatic(object_session(self), self)
+    def after_change_from_off(self) -> bool:
+        """0162: Nothing because the user had turned "Finish only when the tests pass" off -
+        said in Settings, never silently."""
+        return self.finish_tests is False and self.after_change == "nothing"
 
 
 class Conversation(Base):
@@ -263,6 +292,10 @@ class Conversation(Base):
     # Each new message of the user's starts a plan turn first (slice 49): the Lead only reads,
     # and what it answers is a plan the user approves, edits or turns down.
     plan_first: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # Kanıtlı bitiş S10 (plan decision 17): Test and review changes, for this chat - None the
+    # project's After a change, "off" none, "on" checked (Test and review where the project's is
+    # Nothing). A recipe's turn follows the recipe (`proof.after_change_of`).
+    after_change: Mapped[str | None] = mapped_column(String(3), default=None)
     # K-39-betik: a page of this chat shown in the Workspace runs its scripts without asking -
     # the user's "Always run in this chat"; off, each page asks.
     page_scripts: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
@@ -448,7 +481,8 @@ class Message(Base):
     # "trigger": what started an unattended turn - the trigger's message, not the user's
     # words of that moment. Or "away": KOLONİ's one line at the end of a night while the
     # user was away (slice 106), which no agent is given. KOLONİ's lines in the chat:
-    # "git", "koloni", "landed" (where a turn's work is, B-205).
+    # "git", "koloni", "landed" (where a turn's work is, B-205), "checked" (what KOLONİ checked
+    # at the turn's end, its rows in `blocks`: `checked`).
     role: Mapped[str] = mapped_column(String(12))
     from_agent_id: Mapped[str | None] = mapped_column(String(32), default=None)
     # For a message from another agent: when its receiver was given it. A note left for
@@ -467,10 +501,15 @@ class Message(Base):
     # The line the lead wrote to be said aloud, off the end of `content` (slice 32a).
     spoken: Mapped[str | None] = mapped_column(Text, default=None)
     # An answer that thought, as its API gave it, to be sent back so (`StepResult.blocks`):
-    # never shown, never edited. None for every other message.
+    # never shown, never edited; a "checked" message's rows (`checked`). None for every other.
     blocks: Mapped[dict | None] = mapped_column(JSON, default=None)
     status: Mapped[str] = mapped_column(String(12), default="complete")
     created_at: Mapped[datetime] = mapped_column(default=now)
+
+    @property
+    def checked(self) -> list | None:
+        """A "checked" message's rows (`app.proof.Row`); None for every other message."""
+        return (self.blocks or {}).get("rows") if self.role == "checked" else None
 
 
 class Attachment(Base):

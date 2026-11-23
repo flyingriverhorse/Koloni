@@ -99,7 +99,8 @@ def test_what_codex_does_with_its_own_tools_is_recorded_as_its_own(
     snap = wait_run(client, cid, run_id)
 
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert [m["content"] for m in snap["messages"][1:] if m["content"]] == [
+    # (Not what KOLONİ checked at the turn's end: in the turn's foot, `test_proof_end_scenarios`.)
+    assert [m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"] == [
         "I will fix it.", "Fixed and checked.",
         "In the project: hello.py and notes/new.txt: +2 −1 in all."]  # (B-205: KOLONİ's line)
     agent = snap["agents"][0]

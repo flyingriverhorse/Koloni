@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, finish_tests: null, full_auto_check: 'ask', disposable_deletes: false, finish_tests_auto: { on: false, command: null, reason: 'test time not known yet' }, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -123,28 +123,53 @@ test('the measure command is set beside the test command, saying its last line i
   expect(onSave).toHaveBeenLastCalledWith({ measure_command: '' })
 })
 
-test('“Finish only when the tests pass” is on or off by itself, saying why; set as it would be by itself, it is automatic again', async () => {
+test('After a change saves after_change', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never)
-  const auto = { on: true, command: 'python -m pytest -q', reason: 'the tests took 12 s last time' }
-  const { unmount } = render(<ProjectSettings {...base} project={{ ...project, finish_tests_auto: auto }} onSave={onSave} />)
-  await choose(/^Agents/)
-  const box = screen.getByRole('checkbox', { name: /^Finish only when the tests pass/ })
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const box = screen.getByLabelText('After a change')
+  expect(box).toHaveValue('check')
+  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Test and review', 'Tests only', 'Nothing'])
+  // (One line, live: what it runs now, when the Reviewer reads, the Fix rounds.)
+  expect(box).toHaveAccessibleDescription(
+    'Runs the test command KOLONİ finds (it asks you once), related tests first, the whole suite in the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request). A turn you watch waits for the related tests (with none, at most 1 minute for the whole suite; in its own working copy, at most 2 minutes for them all). Failing work goes back up to 2 times, then to a stronger model.',
+  )
+  await userEvent.selectOptions(box, 'tests')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ after_change: 'tests' })
+})
+
+test('S11: Then a stronger model is on, and saves off', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const box = screen.getByRole('checkbox', { name: /Then a stronger model/ })
   expect(box).toBeChecked()
-  expect(box).toHaveAccessibleName(/An agent \(the Orchestrator or a sub-agent\) on Claude Code that changed files is sent back to work, at most twice, while python -m pytest -q fails/)
-  expect(screen.getByTestId('finish-tests-why')).toHaveTextContent(/^By default on: the tests took 12 s last time\.$/)
   await userEvent.click(box)
+  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(expect.stringMatching(/Failing work goes back up to 2 times\.$/))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ finish_tests: false })
-  unmount()
-  // The user's own choice says so; turned back to what it would be by itself, null goes: automatic.
-  render(<ProjectSettings {...base} project={{ ...project, finish_tests: false, finish_tests_auto: auto }} onSave={onSave} />)
+  expect(onSave).toHaveBeenLastCalledWith({ stronger_model: false })
+})
+
+test('the old Finish only when the tests pass switch is gone', async () => {
+  render(<ProjectSettings {...base} onSave={vi.fn()} />)
   await choose(/^Agents/)
-  expect(screen.getByRole('checkbox', { name: /^Finish only when the tests pass/ })).not.toBeChecked()
-  expect(screen.getByTestId('finish-tests-why')).toHaveTextContent(/^You set this; by default it would be on: the tests took 12 s last time\.$/)
-  await userEvent.click(screen.getByRole('checkbox', { name: /^Finish only when the tests pass/ }))
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ finish_tests: null })
+  expect(screen.queryByRole('checkbox', { name: /Finish only when the tests pass/ })).toBeNull()
+})
+
+test('a project moved from the old switch says so once', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  const moved = { ...project, after_change: 'nothing' as const, after_change_from_off: true }
+  render(<ProjectSettings {...base} project={moved} onSave={vi.fn()} />)
+  await choose(/^Checks/)
+  expect(screen.getByTestId('after-change-from-off')).toHaveTextContent(
+    'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.')
+  expect(screen.getAllByText(/You had turned off/)).toHaveLength(1)
+  // (Chosen otherwise, it says nothing of the old switch.)
+  await userEvent.selectOptions(screen.getByLabelText('After a change'), 'check')
+  expect(screen.queryByTestId('after-change-from-off')).toBeNull()
 })
 
 test('where a search and a notification go is set here, and only what was changed is sent', async () => {
@@ -421,10 +446,10 @@ test('a chosen section alone is shown, each field under its label as before', as
   render(<ProjectSettings {...base} desktopAvailable onSave={vi.fn()} />)
   const fields: [RegExp, (string | RegExp)[]][] = [
     [/^Commands/, [/This machine/, /Docker container/]],
-    [/^Agents/, ['Who changes the files', /^Finish only when the tests pass/]],
+    [/^Agents/, ['Who changes the files']],
     [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', 'A harmful-looking command at Full auto']],
     [/^New chats start with/, ['New chats’ teams', 'Posts, at most', 'Minutes, at most', 'Tokens, at most']],
-    [/^Checks/, ['Test before adding', /^Save each sub-agent’s work as a git commit/]],
+    [/^Checks/, ['After a change', 'Test before adding', /^Save each sub-agent’s work as a git commit/]],
     [/^Memory and web/, [/^Note what the work found, by itself/, 'Search by meaning with', 'Search address (SearXNG)', 'Otherwise search with', /^Let agy search too/]],
     [/^Notifications/, ['Notification address', 'Post it as', /^Show a desktop notification/]],
     [/^Limits and money/, ['At most this many agents at work in this project', 'Agents at the same time', 'Continue gives this many more steps', 'Stop the work on a message over this many tokens']],
@@ -858,4 +883,90 @@ test('what the folder’s settings ask for is said in words, each part only when
     expect(screen.getByRole('group', { name: 'This folder’s settings' })).toHaveTextContent(`This folder’s settings ask to ${said} — use them?`)
     unmount()
   }
+})
+
+test('the test command KOLONİ found is shown with where it came from, and can be forgotten', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  const found = { ...project, tests_found: { '.': { command: 'python -m pytest -q', from: 'look', at: '2026-11-22T16:00:00' }, web: { command: 'npm test', from: 'guess', at: '2026-11-22T16:01:00' } } }
+  render(<ProjectSettings {...base} project={found} onSave={onSave} />)
+  await choose(/^Checks/)
+  const shown = screen.getByTestId('tests-found')
+  expect(shown).toHaveTextContent('python -m pytest -q in ./ - its look at the code found it, 2026-11-22.')
+  expect(shown).toHaveTextContent('npm test in web/ - from the project’s files, 2026-11-22.')
+  await userEvent.click(screen.getByRole('checkbox', { name: /^Forget it/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ forget_tests_found: true })
+})
+
+test('After a change names the test command you set for a part, then what KOLONİ saved for another folder', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  const saved = (command: string) => ({ command, from: 'guess', at: '2026-11-22T16:00:00' })
+  // (the root part set to no test; web's save is not run - yours is; a dot folder keeps its dot)
+  const parts = { ...project, test_commands: { './': '', 'web/': 'npm test', '.tools/': 'make check' }, tests_found: { '.': saved('python -m pytest -q'), WEB: saved('npm run all') } }
+  render(<ProjectSettings {...base} project={parts} onSave={vi.fn()} />)
+  await choose(/^Checks/)
+  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(/^Runs npm test in web\/, make check in \.tools\/, python -m pytest -q in \.\/ \(found by KOLONİ\), related tests first/)
+})
+
+test('with nothing found, nothing of it is shown', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={vi.fn()} />)
+  await choose(/^Checks/)
+  expect(screen.queryByTestId('tests-found')).toBeNull()
+})
+
+test('Fix rounds: 1 to 10 beside After a change, saved as fix_rounds', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const box = screen.getByLabelText('Fix rounds')
+  expect(box).toHaveValue('2')
+  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Until it passes', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+  expect(box).toHaveAccessibleDescription(/failing tests or the Reviewer’s blocking findings go back/)
+  await userEvent.selectOptions(box, '10')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ fix_rounds: 10 })
+})
+
+test('k-canli-016: Fix rounds Until it passes - a project’s null - is chosen and saved as "until"', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  const { unmount } = render(<ProjectSettings {...base} project={{ ...base.project, fix_rounds: null }} onSave={onSave} />)
+  await choose(/^Checks/)
+  expect(screen.getByLabelText('Fix rounds')).toHaveValue('until')
+  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(expect.stringMatching(/Failing work goes back until it passes, while each round makes progress, then to a stronger model\.$/))
+  unmount()
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  await userEvent.selectOptions(screen.getByLabelText('Fix rounds'), 'until')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ fix_rounds: 'until' })
+})
+
+test('Check by kind of work: all on by default; unticking Slides saves check_kinds.slides false (S5a)', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const group = screen.getByRole('group', { name: 'Check by kind of work' })
+  expect(within(group).getAllByRole('checkbox').map(box => (box as HTMLInputElement).checked)).toEqual([true, true, true, true, true])
+  expect(within(group).getAllByRole('checkbox').map(box => box.closest('label')?.textContent?.trim())).toEqual(['Documents', 'Slides', 'Diagrams', 'Data', 'Pages'])
+  expect(group).toHaveAccessibleDescription(/without a model/)
+  await userEvent.click(within(group).getByRole('checkbox', { name: 'Slides' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { slides: false } })
+})
+
+test('Check by kind of work: unticking Pages saves check_kinds.ui false (S5b)', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  render(<ProjectSettings {...base} onSave={onSave} />)
+  await choose(/^Checks/)
+  const group = screen.getByRole('group', { name: 'Check by kind of work' })
+  expect(group).toHaveAccessibleDescription(/375, 768 and 1280 px/)
+  await userEvent.click(within(group).getByRole('checkbox', { name: 'Pages' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(onSave).toHaveBeenLastCalledWith({ check_kinds: { ui: false } })
 })

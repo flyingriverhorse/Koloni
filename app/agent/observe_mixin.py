@@ -8,7 +8,9 @@ import hashlib
 import json
 import os
 import re
+import time
 import uuid
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,7 +19,15 @@ from sqlalchemy import select
 from app import copies, koloni, mcp_client
 from app.agent.cards import _changes_nothing, _unasked_note
 from app.agent.ctx import Ctx, _NobodyToAsk, _Transcript, _Watch
-from app.agent.merge import Taken, _as_dict, _command_names, _is_on_disk, _put_back, _restore
+from app.agent.merge import (
+    Taken,
+    Written,
+    _as_dict,
+    _command_names,
+    _is_on_disk,
+    _put_back,
+    _restore,
+)
 from app.agent.words import AGENT_TERMINAL, ANSWER_PREFIX, IN_THE_PROJECT, STEERED, UNFINISHED
 from app.changes import DELETED_SHA
 from app.commands import (
@@ -30,6 +40,7 @@ from app.commands import (
 )
 from app.db.models import Agent, Command, FileChange, ToolCall, now
 from app.model_client import ToolCallRequest
+from app.proof import PROOF_CALL
 from app.serialize import command_event, command_out, file_change_out
 from app.team import quoted
 from app.workspace import secret_in_project, sha256_text, unified_diff
@@ -73,6 +84,8 @@ CHANGED_UNDER_YOU = (
 OBSERVED_RESULT_CHARS = 4000
 MAX_CHANGES_PER_LOOK = 200
 KEEP_CARDS = 10  # (K-yazma-denetimi: standing files taken back in one look, each on a card)
+# Who wrote a standing file, on its card, where KOLONİ's own test run did (CL-316: not "Lead").
+TESTS_WROTE = "KOLONİ's test run"
 
 
 class ObserveMixin:
@@ -119,7 +132,18 @@ class ObserveMixin:
         the user - are not the doing of a CLI at work in a copy of it: what the project
         holds now is what a change the CLI makes there (`_changed_in_project`) is told
         apart from. Nor are they of a native agent at work in the project, which is looked at
-        first for a standing file written unnamed (`_standing_look`): they stand."""
+        first for a standing file written unnamed (`_standing_look`): they stand. (Nor of a
+        test run of KOLONİ's already under way, S6: `_seen_writes`.)"""
+        when, at, folder = time.monotonic(), now(), Path(root).resolve()
+        for rel in paths:  # (with what it holds now: it stands only while it holds that)
+            held, known = None, True
+            try:
+                held = (folder / rel).read_bytes()
+            except FileNotFoundError:
+                pass  # (none there: that is what it left)
+            except OSError:
+                known = False
+            self._seen_writes[(str(folder), rel)] = (when, at, held, known)
         for watch in self._watches_in(root):
             if watch.ctx is not None and watch.transcript is not None:
                 await self._standing_look(watch.ctx, watch.transcript, watch, but=paths)
@@ -186,25 +210,32 @@ class ObserveMixin:
     async def _own_command_looked(
         self: "AgentRunner", ctx: Ctx, call_id: str, command: str, before: dict[str, bytes],
         since: float,
-        ended: bool, approved: bool,
+        ended: bool, approved: bool, stand: Mapping[str, Written] | None = None,
     ) -> None:
         """K-yazma-denetimi for a command KOLONİ ran itself (`run_command`): what it wrote of the
         project's standing files (`before`: as they were when it started, at `since`) is put
         back but for what it names where it was `approved` (`_command_names`: its card showed
         it; not a skill's script run unasked) - and the agent goes on once the user has said
-        whether to keep it. Not `ended` (stopped, or it did not start): put back all the same,
-        with no card and nothing waited for."""
+        whether to keep it. Not `ended` (stopped, or it did not start, or its turn is over):
+        put back all the same, with no card and nothing waited for. `stand`: what others wrote
+        meanwhile, on record, by path and the digests it left (S6: a test run that outlives its
+        turn) - not its to put back while it holds that (`_put_back`)."""
         paths, names = _command_names(
             command, approved, not self._watched(ctx.run_id) or self._full_auto(ctx))
         taken, let = await asyncio.shield(asyncio.to_thread(
-            _put_back, Path(ctx.folder), before, paths, names, since, self._taken_folder(ctx)))
+            _put_back, Path(ctx.folder), before, paths, names, since, self._taken_folder(ctx),
+            stand))
         kept = [rel for rel in let if "*.pth" in names and rel.endswith(".pth")]
         cards: list[asyncio.Task] = []
         if taken or kept:
             with self._factory() as session:
-                message_id = session.get_one(ToolCall, call_id).message_id
-            cards = self._taken_back(ctx, taken, message_id, command, ask=ended, kept=kept)
+                call = session.get_one(ToolCall, call_id)
+                # (CL-316: KOLONİ's own test run wrote it, not the agent it ran for.)
+                message_id, by = call.message_id, (
+                    TESTS_WROTE if call.provider_call_id.startswith(PROOF_CALL) else None)
+            cards = self._taken_back(ctx, taken, message_id, command, ask=ended, kept=kept, by=by)
         if cards:
+            self._on_file_card(call_id)
             try:
                 await self._keeps_answered(ctx, own=True)
             except asyncio.CancelledError:
@@ -245,13 +276,14 @@ class ObserveMixin:
     def _taken_back(
         self: "AgentRunner", ctx: Ctx, taken: "list[Taken]", message_id: str, command: str = "",
         ask: bool = True,
-        parent: str | None = None, kept: list[str] | None = None,
+        parent: str | None = None, kept: list[str] | None = None, by: str | None = None,
     ) -> list[asyncio.Task]:
         """Put on record what `_put_back` took back of an agent's (`taken`), and the `.pth`
         files its install added that were `kept` (nobody watching). With somebody watching,
         each file taken back is a card that offers to keep what the agent wrote
         (`_keep_or_not`, which it returns); with nobody - or `ask` False, its turn being
-        over - it stays taken back, refused. One that could not be put back is said."""
+        over - it stays taken back, refused. One that could not be put back is said. `by`: who
+        wrote it, where that is not the agent (KOLONİ's own test run)."""
         cards: list[asyncio.Task] = []
         held = self._keeps.setdefault(ctx.folder, {})
         for rel in kept or []:
@@ -259,7 +291,8 @@ class ObserveMixin:
                        f"{quoted(command[:200])} installed {rel}: let stand - whether the install "
                        "ran was its own approval's", message_id, parent)
         for rel, theirs, failed, said in taken:
-            wrote = f"{ctx.name} {'deleted' if theirs is None else 'wrote'} {rel} without naming it"
+            done = "deleted" if theirs is None else "wrote"
+            wrote = f"{by or ctx.name} {done} {rel} without naming it"
             if said:
                 wrote += f" ({said})"
             if failed:
@@ -282,13 +315,14 @@ class ObserveMixin:
                 continue
             call_id = self._note(ctx, None, "write_file", {"path": rel}, None, None,
                                  message_id, parent)
-            card = asyncio.ensure_future(self._keep_or_not(ctx, call_id, rel, command, said))
+            card = asyncio.ensure_future(self._keep_or_not(ctx, call_id, rel, command, said, by))
             held[rel] = [card, theirs, ctx.agent_id, ctx.run_id]
             cards.append(card)
         return cards
 
     async def _keep_or_not(
-        self: "AgentRunner", ctx: Ctx, call_id: str, rel: str, command: str, said: str | None
+        self: "AgentRunner", ctx: Ctx, call_id: str, rel: str, command: str, said: str | None,
+        by: str | None = None,
     ) -> None:
         """The card of a standing file `_taken_back` took back: Keep puts what the agent wrote
         there again, as its change. (`said`: where that is kept meanwhile, say.)"""
@@ -300,8 +334,8 @@ class ObserveMixin:
                             f"{'deleted' if theirs is None else 'added'} `{Path(rel).name}`: "
                             "keep or take back? (It is taken back until you say.)")
             else:
-                question = (f"{ctx.name} {'deleted' if theirs is None else 'wrote'} `{rel}` "
-                            "without naming it — taken back. Keep it?")
+                question = (f"{by or ctx.name} {'deleted' if theirs is None else 'wrote'} "
+                            f"`{rel}` without naming it — taken back. Keep it?")
             if said:
                 question += f" ({said[0].upper()}{said[1:]}.)"
             try:

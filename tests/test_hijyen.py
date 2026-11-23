@@ -142,8 +142,6 @@ def test_the_log_rotates_by_size_holds_what_the_start_said_and_hides_keys(
 ):
     import logging
 
-    import uvicorn
-
     from app import main
     from app.db import session as db
 
@@ -155,11 +153,14 @@ def test_the_log_rotates_by_size_holds_what_the_start_said_and_hides_keys(
 
     def serve(app, **kwargs):
         assert kwargs["log_config"] is None  # (set up before the app was made)
+        # (One Ctrl+C with the page open ends its stream - `closing_server` - and runs the
+        # lifespan's shutdown; the time limit is for a connection that does not end.)
+        assert kwargs["timeout_graceful_shutdown"] == 5
         logging.getLogger("uvicorn.access").info(
             '%s - "%s %s HTTP/%s" %d', "127.0.0.1:1", "GET", "/api/x?key=SECRET", "1.1", 200)
         logging.getLogger("httpx").info("HTTP Request: GET https://x/?key=SECRET")
 
-    monkeypatch.setattr(uvicorn, "run", serve)
+    monkeypatch.setattr(main, "serve", serve)
     names = ("", "uvicorn", "uvicorn.access", "uvicorn.error", "app")
     saved = {name: (lg.handlers[:], lg.level, lg.propagate, lg.disabled, lg.filters[:])
              for name in names for lg in [logging.getLogger(name)]}
@@ -229,3 +230,49 @@ def test_old_events_are_deleted_at_the_start_but_warnings_and_the_newest(tmp_pat
     with sqlite3.connect(path) as conn:
         left = [row[0] for row in conn.execute("SELECT id FROM events ORDER BY id")]
     assert left == [2, 3, 4]  # the old call gone; the newest stays, old as it is
+
+
+# --- closing with the page open (CL-311): its stream ends on the exit signal -------------------
+
+
+def test_the_exit_signal_sets_closing_and_still_stops_the_server(settings_env):
+    import signal
+
+    import uvicorn
+
+    from app.main import closing_server, create_app
+
+    app = create_app(load_settings(settings_env))
+    server = closing_server(uvicorn.Config(app))
+    assert isinstance(server, uvicorn.Server)
+    server.handle_exit(signal.SIGINT, None)
+    assert app.state.closing.is_set() and server.should_exit
+
+
+def test_the_pages_open_stream_ends_when_koloni_closes(make_client, project_dir):
+    """The second session measured 5.2 s for one stream: the server waited for it to the end of
+    its graceful time. It ends as `closing` is set - well before that time."""
+    import threading
+    import time
+
+    client, _model = make_client([])
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
+    app, said = client.app, {}
+
+    def read():
+        began = time.perf_counter()
+        said["status"] = client.get(f"/api/conversations/{cid}/events?after=0").status_code
+        said["took"] = time.perf_counter() - began
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    deadline = time.monotonic() + 10
+    while not app.state.bus._subs.get(cid) and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert app.state.bus._subs.get(cid), "the stream never opened"
+    began = time.perf_counter()
+    client.portal.call(app.state.closing.set)
+    reader.join(10)
+    assert not reader.is_alive() and said["status"] == 200
+    assert time.perf_counter() - began < 2.0  # (the graceful time is 5 s)

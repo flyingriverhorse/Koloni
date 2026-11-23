@@ -15,6 +15,12 @@ test('the closed chat’s line is the Lead’s answer, not KOLONİ’s line said
   expect(latestOf(convState({ runs: [run('r', 'completed')] }), [...said, landed])).toBe('All done.')
 })
 
+test('latestOf ignores checked', () => {
+  const said = [userMessage('r', 'do it'), assistantMessage('m', 'r', 'All done.')]
+  const checked = { ...assistantMessage('k', 'r', '✓ Tests passed: pytest -q'), role: 'checked' as const, agent_id: null }
+  expect(latestOf(convState({ runs: [run('r', 'completed')] }), [...said, checked])).toBe('All done.')
+})
+
 test('the closed chat’s line says what the Orchestrator asks while it asks, before who else is at work', () => {
   const asked = 'Should mean() of an empty list raise ZeroDivisionError, or return 0?'
   const conv = convState({

@@ -165,8 +165,8 @@ NATIVE_NEEDS_A_FOLDER = (
 # may be the CLI's, or the user's or another agent's (K-70-kimin; Undo this turn skips it).
 IN_THE_PROJECT = observer.IN_THE_PROJECT  # (which the Observer's record leaves out)
 
-# 89m, "Finish only when the tests pass" (`_tests_at_stop`): how often an agent is sent back,
-# how much of the end of the tests' output it is sent back with, and what is said.
+# How often failing tests send work back in a turn (the Take-in check's own, the end check's -
+# `ProofMixin`), and how much of the end of their output goes with it.
 MAX_SENT_BACK = 2
 TESTS_TAIL_LINES = 40
 
@@ -255,6 +255,46 @@ PAID_UNATTENDED = ("not opened on {to}: it is paid per token, and nobody is watc
 # record with, so Ready for you lists it as one left.
 UNCHECKED = {"what": "it said nothing was found, but not what it checked", "kind": "other",
              "role": None, "blocking": True}
+# Kanıtlı bitiş R3: the finding a recipe's check whose job is running checks (`_held_to_run`) is
+# held to where it ran no command on record that checks something - no mere read, no `echo` or
+# `python -c "pass"` (`AgentRunner._ran_held`) - and what it is told under its task of that
+# (`_step_says`).
+RAN_NOTHING = {"what": "it is a check that ran no test on record: nothing it says was run",
+               "kind": "test", "role": None, "blocking": True}
+# R4 (S7): a recipe's reproduce step that left on record no test run that failed - really ran
+# tests - showed no bug: held, as R3 holds a check that ran nothing.
+NOT_REPRODUCED = {"what": "Reproduce did not show a failing test: no test run of its own on record "
+                          "failed", "kind": "test", "role": None, "blocking": True}
+# ...one that wrote a test file: a failing run of that very test counts, none other.
+NOT_ITS_TEST = "Reproduce did not show a failing test: none of the tests it wrote failed ({files})"
+RUN_TO_PASS = ("This check passes only on a command you run yourself that KOLONİ records - the "
+               "tests, or the check itself; a report of what you read, or a listing, is no pass.")
+# Kanıtlı bitiş S2: the Orchestrator asked, once a turn, for the test its change lacks
+# (`TestAskMixin._proof_test_ask`; `files`: three named, then "+N more").
+TEST_ASKED = (
+    "Not the end yet: {files} changed and no test did. Have a test written for the change - by an "
+    "agent that writes code, or yourself; for a bug fix, first a test that fails without the fix. "
+    "Where no test can be written for it (documents, settings, a one-off script), say so in one "
+    "line instead.")
+# ...an agent that writes and runs code, told to run the tests near its change only; and the
+# Orchestrator, what KOLONİ checks at the end - where After a change is not Nothing for the turn
+# (`ContextMixin._checks_told`: decided once a turn, the same text at every step).
+NEAR_TESTS = (
+    "While you work, run only the tests near your change: its part's test command on the test "
+    "files of what you changed. KOLONİ runs the project's whole test command once, when the "
+    "turn's work is in.")
+PROOF_LEAD = (
+    "After a turn that changes code KOLONİ runs the project's tests once on the work as it is "
+    "then, asks for a test where none changed, and - under Test and review - has a big or "
+    "security-touching change read by a Reviewer. Do not run the whole test suite yourself at "
+    "the end; its result comes to you.")
+# R4: what the agent of a recipe's step with the id "reproduce" (the ready Bugfix's) is told
+# under its task (`AgentRunner._step_says`).
+# shortcut: told, not held - a step that wrote its test and ran none passes (CL-305); S7 holds it
+# to a failing run on record.
+REPRODUCE_FIRST = ("This step only shows the bug: write a test that fails because of it, run it, "
+                   "and report the failing output. Do not fix the bug in this step - the next step "
+                   "does, and this test must pass after it.")
 
 # K-tarif-kol: what it changed in the recipe's copy stays there, taken in with the recipe's work.
 OUTRUN = ("Stopped by KOLONİ: another branch of its group was done first (Wait for: the first one "

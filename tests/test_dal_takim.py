@@ -563,14 +563,15 @@ def test_git_in_a_copy_is_given_an_empty_hooks_folder_after_the_config_it_had(tm
     tree.mkdir(parents=True)
     empty = tree.parent / copies.NO_HOOKS
     ours = ("'core.hooksPath=" + str(empty).replace("'", "'\\''") + "' 'core.fsmonitor=false' "
-            "'commit.gpgsign=false'")
+            "'commit.gpgsign=false' 'core.logAllRefUpdates=true'")
     told = copies.git_env(tree, {"GIT_CONFIG_PARAMETERS": "'user.name=x'"})
     assert told == {"GIT_CEILING_DIRECTORIES": copies.ceiling(tree),
                     "GIT_CONFIG_PARAMETERS": f"'user.name=x' {ours}"}
     assert copies.git_env(tree, {})["GIT_CONFIG_PARAMETERS"] == ours and empty.is_dir()
     # git reads them back as written: the quote, and a Windows path's backslashes
     for key, value in (("core.hooksPath", str(empty)), ("user.name", "x"),
-                       ("core.fsmonitor", "false"), ("commit.gpgsign", "false")):
+                       ("core.fsmonitor", "false"), ("commit.gpgsign", "false"),
+                       ("core.logAllRefUpdates", "true")):
         done = subprocess.run(["git", "config", "--get", key], cwd=tree, capture_output=True,
                               text=True, env={**os.environ, **told})
         assert (done.returncode, done.stdout.strip()) == (0, value), done.stderr
@@ -702,6 +703,72 @@ def test_the_worktrees_own_git_is_not_asked(command):
     from app.commands import reaches_shared_git
 
     assert reaches_shared_git(command) == ""
+
+
+@pytest.mark.parametrize("command", [
+    'echo "$(pwd -W)/x" > "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+    "Set-Content ((Split-Path (git rev-parse --git-dir)) + '/users-wt/gitdir') \"$PWD/x\"",
+    'git rev-parse feat > "$(dirname "$(dirname "$(git rev-parse --git-dir)")")/refs/remotes/'
+    'origin/x"',
+    'cd "$(dirname "$(git rev-parse --git-dir)")" && echo x > users-wt/gitdir',
+    # (its review: a variable set before, `>|`, a link made to it, cmd's loop over the .git file,
+    # what the .git file says - CL-311: another worktree's HEAD and its history)
+    "echo x > $D/../users-wt/gitdir", 'echo x >| "$D/x"', 'ln -s "$D" g',
+    "New-Item -ItemType Junction -Path g -Target $d", "mklink /J g %D%",
+    'for /f "tokens=2" %%i in (.git) do copy x %%i\\..\\users-wt\\gitdir',
+    "echo x > \"$(cut -d' ' -f2 .git)/../users-wt/gitdir\"",
+    'git rev-parse HEAD > "$(git rev-parse --git-dir)/../users-wt/HEAD"',
+    ': > "$(git rev-parse --git-dir)/../users-wt/logs/HEAD"',
+])
+def test_in_a_worktree_a_write_to_a_place_built_at_run_time_is_asked(command):
+    """K-okuyucu-3 (the k-pr-wt review): in a branch's worktree the place may be the user's shared
+    git - another worktree's gitdir, a ref under refs/remotes/origin (the gate's `shared` has more)."""
+    from app.commands import BUILT_TARGET, reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == BUILT_TARGET
+
+
+@pytest.mark.parametrize("command", [
+    "git rev-parse --git-dir", "git rev-parse --absolute-git-dir", "git rev-parse --git-common-dir",
+    "git rev-parse --git-path hooks", 'ls "$(git rev-parse --git-dir)/.."',
+    'ls "$(dirname "$(git rev-parse --git-dir)")"', "export D=$(git rev-parse --git-dir)",
+    'sed -i "s#.*#$PWD/x#" "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
+    'tar -C "$(dirname "$(git rev-parse --git-dir)")" -xf evil.tar',
+    'robocopy . "$(git rev-parse --git-dir)" x',
+])
+def test_in_a_worktree_computing_the_shared_gits_path_is_asked(command):
+    """K-okuyucu-3 review (B1): whatever then writes there - `sed -i`, `tar -C`, `robocopy`, code -
+    finds the shared git by `git rev-parse --git-dir` and the like: a read asked in a worktree."""
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == SHARED_GIT
+
+
+@pytest.mark.parametrize("command", [
+    'echo "$(date)" > log.txt',
+    "echo $(git rev-parse HEAD) > head.txt", 'Add-Content log.txt "$x"', "Set-Content out.txt $c",
+    "Set-Content -Path out.txt -Value (Get-Date) -Encoding utf8 -NoNewline",
+    "New-Item -ItemType File -Path notes.txt -Value $text -Force", 'cp "$src" dst/',
+    "Copy-Item $src -Destination dst/", "python -m pytest 2>$null", "npm test > $null 2>&1",
+    "npm test *> $null", "npm test 2>/dev/null", "npm test > NUL",
+    "npm test 2>&1 | Select-Object -Last 5", "git log --oneline > log.txt",
+    "[IO.File]::WriteAllText('out.txt', $x)", "echo x | tee out.txt", 'git commit -m "a > $b"',
+    'cd "$(git rev-parse --show-toplevel)" && npm test',
+    "cat > notes.md <<'EOF'\necho x > $HOME/y\nEOF", "echo done > out.txt # then > $x",
+    # (N6: the temp folder by its variable, a date in a file's name, a loop over names written out)
+    'echo x > "$TMPDIR/f"', "echo x > $TMP/f", 'Copy-Item a "$env:TEMP\\a"',
+    'for f in *.py; do black -q "$f" > "$f.new"; done', 'npm test > "build-$(date +%s).log"',
+    "echo x > logs/run-$(date +%F).txt", 'for f in a.txt b.txt; do cp "$f" "$f.bak"; done',
+    # (round 3: the folder the line runs in, at the target's start, its name given no value)
+    'echo x > "$PWD/out.txt"', 'echo x > "${PWD}/out.txt"', 'echo x > "$(pwd)/out.txt"',
+    'echo x > "$(pwd -W)/out.txt"', 'Set-Content -Path "$PWD/x" -Value y',
+    'Set-Content "$PWD\\x" y', "Set-Content (Join-Path $PWD out.txt) y",
+    'cd src && echo x > "$PWD/out.txt"',
+])
+def test_in_a_worktree_a_read_or_a_write_to_a_place_written_out_is_not_asked(command):
+    from app.commands import reaches_shared_git
+
+    assert reaches_shared_git(command, "koloni/x") == ""
 
 
 def test_at_full_auto_a_stash_pop_in_a_branchs_worktree_waits_for_the_user(
@@ -1503,6 +1570,11 @@ def test_the_users_own_commits_not_on_origin_never_go_up_with_a_pull_request(
 ):
     bare, log = github
     client, cid, run_id = pr_run(make_client, repo, lambda: None)  # (main not pushed)
+    # (At Full auto too, asked first: the user's branches hold commits not on GitHub.)
+    merge = until(client, cid, lambda s: "not on GitHub yet" in (
+        (s["merges"] or [{}])[0].get("branch") or {}).get("note", "") or "", timeout=LONG)[
+        "merges"][0]
+    assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
     merge = until(client, cid, lambda s: "push main first" in (
         (s["merges"] or [{}])[0].get("branch") or {}).get("note", "") or "", timeout=LONG)[
         "merges"][0]
@@ -1568,7 +1640,7 @@ def test_a_push_carries_no_tag_nor_unpushed_commit_and_runs_gits_own_receive_pac
     (copy.root / "b.txt").write_text("agent\n")
     git.commit_branch(copy.root, copy.branch, ["b.txt"], "m", runtime / "no-hooks")
     sha = git.push_one(repo, tip(repo, copy), copy.branch, "main", copy.start[1], "m",
-                       runtime / "no-hooks")
+                       runtime / "no-hooks", under=copies.folders(runtime))
     assert not marker.exists() and run(bare, "tag") == ""
     assert run(bare, "rev-parse", "refs/heads/koloni/x") == sha
     # A commit of the user's not on origin yet: nothing goes up.
@@ -1580,7 +1652,7 @@ def test_a_push_carries_no_tag_nor_unpushed_commit_and_runs_gits_own_receive_pac
     git.commit_branch(other.root, other.branch, ["c.txt"], "m", runtime / "no-hooks")
     with pytest.raises(git.Refused, match="push main first"):
         git.push_one(repo, tip(repo, other), other.branch, "main", other.start[1], "m",
-                     runtime / "no-hooks")
+                     runtime / "no-hooks", under=copies.folders(runtime))
     assert run(bare, "branch", "--list", "koloni/y") == ""
 
 
@@ -1664,7 +1736,7 @@ def test_no_push_of_a_branch_made_from_a_local_branch_the_user_left(repo, runtim
     run(repo, "switch", "-q", "main")
     with pytest.raises(git.Refused, match="push main first"):
         git.push_one(repo, tip(repo, copy), copy.branch, "main", copy.start[1], "m",
-                     runtime / "no-hooks")
+                     runtime / "no-hooks", under=copies.folders(runtime))
     assert run(bare, "branch", "--list", "koloni/*") == ""
 
 

@@ -104,6 +104,22 @@ def find_browser() -> list[str] | None:
     return None
 
 
+def origin(url: object) -> tuple[str, str, int | None] | None:
+    """S5b: an http(s) address's scheme, host (loopback's names as one) and port - what KOLONİ's
+    Tester may open is its preview's alone; None for anything else."""
+    if not isinstance(url, str):
+        return None
+    try:
+        parts = urlsplit(url.strip())
+        port = parts.port or {"http": 80, "https": 443}.get(parts.scheme)
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https"):
+        return None
+    host = parts.hostname or ""
+    return parts.scheme, "loopback" if host in LOOPBACK else host, port
+
+
 def allowed(url: object, ws: Workspace, closed: set[int]) -> str:
     """The address as the browser is given it, if it is on this machine: http(s) on loopback
     on a port that is neither KOLONİ's own nor a model server's (`closed`), or a file of the
@@ -398,6 +414,10 @@ _URL_JS = _tag("url") + "location.href"
 _TITLE_JS = _tag("title") + "document.title"
 _TEXT_JS = _tag("text") + "document.body ? document.body.innerText : ''"
 _SCROLL_JS = _tag("scrolly") + "String(window.scrollY)"
+# S5b: whether the page scrolls sideways - wider than its layout's width (a pixel of rounding
+# aside; at a phone's width the window zooms out to what is wider, so not the window's own).
+_WIDE_JS = _tag("wide") + (
+    "document.documentElement.scrollWidth > document.documentElement.clientWidth + 1")
 
 # K-tarayici-disari A2: on a site, what waits for the user's yes at every level - a form sent,
 # a password typed, a click on words like these (case aside).
@@ -524,6 +544,8 @@ class Browser:
         self.marked: tuple[str, list[tuple[float, float]]] = ("", [])
         self._refused: list[str] = []
         self.gone = False
+        # S5b: the one preview a browser of KOLONİ's Tester may load from (`origin`); None: any.
+        self.only: tuple[str, str, int | None] | None = None
 
     async def start(self, command: list[str], project: Workspace | None, closed: set[int],
                     away: bool = False, resolver: str = "") -> None:
@@ -746,6 +768,8 @@ class Browser:
                     self.posting = 0.0
             elif not url.startswith(LOCAL):
                 allowed(url, cast(Workspace, self._project), self.closed)
+                if self.only is not None and origin(url) != self.only:
+                    raise BrowserError(f"{url}: not the preview this browser tries")
         except Exception as exc:
             why = str(exc) if isinstance(exc, BrowserError) else f"{url}: it could not be judged"
             self._note(f"refused: {why}")
@@ -986,6 +1010,17 @@ class Browser:
         if len(text) > room:
             text = text[:room] + "\n[cut: the page's text goes on]"
         return f"{head}{text}\n\nOutline:\n{outline}" if outline else f"{head}{text}"
+
+    async def width(self, px: int) -> None:
+        """S5b (KOLONİ's look at a page): the window `px` wide - a phone's below 768 px, whose
+        page reads its viewport tag as a phone's does."""
+        await self._call("Emulation.setDeviceMetricsOverride", {
+            "width": px, "height": HEIGHT, "deviceScaleFactor": 1, "mobile": px < 768})
+
+    async def wider(self) -> bool:
+        """S5b: whether the page is wider than its window - it scrolls sideways - looked at in
+        KOLONİ's own world (`_world`): the page's scripts cannot change what it calls."""
+        return bool(await self._world(_WIDE_JS))
 
     def console(self) -> str:
         """The console's messages and the page's errors since the last call."""

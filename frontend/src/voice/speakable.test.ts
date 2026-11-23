@@ -28,6 +28,14 @@ test('an answer still being written: an unclosed code block is not said, nor cou
 test('sentences are finished once something follows their end; what is still being written waits', () => {
   expect(sentences('It adds the tax. Twenty percent! And the rest')).toEqual({ done: ['It adds the tax.', 'Twenty percent!'], rest: 'And the rest' })
   expect(sentences('Is it 1.2 times? Yes.')).toEqual({ done: ['Is it 1.2 times?'], rest: 'Yes.' })
+  expect(sentences('Wait... what?! "Yes." (Fine.) Go…')).toEqual({ done: ['Wait...', 'what?!', '"Yes."', '(Fine.)'], rest: 'Go…' })
+})
+
+test('a model looping on dots is read at once, on each update while it streams', () => {
+  // Before (Sonar S8786), the time grew with the square of the dots: 10k took 116 ms, 100k ~11 s.
+  const began = performance.now()
+  expect(sentences(`${'.'.repeat(100_000)}x`)).toEqual({ done: [], rest: `${'.'.repeat(100_000)}x` })
+  expect(performance.now() - began).toBeLessThan(1000)
 })
 
 test('the first two sentences of an answer are of its prose: a code block before them is not one', () => {

@@ -5,7 +5,6 @@ import contextlib
 import hashlib
 import json
 import re
-import uuid
 
 import httpx2
 
@@ -21,6 +20,7 @@ from app.model_client import (
     _describe,
     count_of,
     files_of,
+    provider_call_id,
     unavailable,
 )
 
@@ -584,9 +584,7 @@ class AnthropicClient:
                 content.append(mark)
                 await on_delta(mark)
         made = [
-            ToolCallRequest(
-                c["id"] or f"call_{uuid.uuid4().hex[:8]}", c["name"], c["arguments"] or "{}",
-                i == cut)
+            ToolCallRequest(provider_call_id(c["id"]), c["name"], c["arguments"] or "{}", i == cut)
             for i, c in sorted(calls.items())
         ]
         for i, call in zip(sorted(calls), made, strict=True):

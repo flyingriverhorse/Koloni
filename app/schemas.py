@@ -16,6 +16,7 @@ from pydantic import (
 from app import copies
 from app.commands import held_back
 from app.raw import MIN_SECRET
+from app.roles import CORE
 from app.skills import GROUPS as SKILL_GROUPS
 from app.skills import MAX_ENCODED, MAX_FILES, MAX_ZIP_ENCODED
 from app.skills import front as skill_front
@@ -80,6 +81,12 @@ WhenAway = Literal["waits", "lead"]
 # K-yargic: at Full auto a harmful-looking command waits for the user, or is first checked
 # against what they wrote.
 FullAutoCheck = Literal["ask", "judge"]
+# Kanıtlı bitiş (`app.proof.AFTER_CHANGE`): shown as Test and review, Tests only, Nothing.
+AfterChange = Literal["check", "tests", "nothing"]
+# S10: Test and review changes, for one chat; None (not sent as such) the project's.
+ChatAfterChange = Literal["off", "on"]
+# S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`).
+CheckKind = Literal["docs", "slides", "diagram", "data", "ui"]
 # How a team's finished branch reaches the user's (K-dal-takim D2): merged here, or pushed as a
 # pull request on GitHub - which KOLONİ never merges.
 FinishWay = Literal["merge", "pull_request"]
@@ -180,15 +187,6 @@ class ChatTeamOut(Out):
     state: ChatTeamState | None = None
 
 
-class FinishTestsAuto(BaseModel):
-    """89m: "Finish only when the tests pass" where the user has not said (`finish_tests`)."""
-    on: bool
-    # The tests' command: the check command, or one the folder's files show; None: none.
-    command: str | None
-    # Why it is on or off, in words.
-    reason: str
-
-
 class ProjectOut(Out):
     id: str
     name: str
@@ -269,10 +267,29 @@ class ProjectOut(Out):
     room_minutes: int | None
     # B-414: the least tokens an agent's room is given (`room_tokens` wins where lower); None: none.
     room_min_tokens: int | None
-    # 89m: whether a Claude Code agent that changed files finishes only once the tests pass;
-    # None: as `finish_tests_auto` says.
-    finish_tests: bool | None
-    finish_tests_auto: FinishTestsAuto
+    # Kanıtlı bitiş: what KOLONİ checks after a turn that changed code (`app.proof`).
+    after_change: AfterChange
+    # S3: how often the end check sends work back a turn - tests and the Reviewer's findings;
+    # null: until it passes (k-canli-016, the default).
+    fix_rounds: int | None
+    # S11: then a stronger model tries, the rounds spent.
+    stronger_model: bool
+    # S5a: Check by kind of work - {kind: on}; a kind left out is on.
+    check_kinds: dict[str, bool] = {}
+    # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
+    # config and screens) - `proof.BIG_LINES` / `BIG_FILES` (app.proof imports what imports this
+    # module: the same numbers, held equal by a test), said where After a change is chosen.
+    review_lines: int = 80
+    review_files: int = 3
+    # 0162: Nothing because the user had turned "Finish only when the tests pass" off: said.
+    after_change_from_off: bool
+    # S1b: the test command(s) KOLONİ saved itself, by folder - {"command", "from", "at"}; and its
+    # one look for one (None: not yet).
+    tests_found: dict[str, dict]
+    tests_look: dict | None
+    # K-buyuk-proje: the user's own test command by part of the project map ("./" the root part,
+    # "sub/" another; "" their "no test" there) - run before what KOLONİ saved for that folder.
+    test_commands: dict[str, str]
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge").
     full_auto_check: FullAutoCheck
@@ -364,8 +381,14 @@ class ProjectPatch(BaseModel):
     room_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     room_minutes: int | None = Field(default=None, ge=1, le=MAX_ROOM_MINUTES, strict=True)
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
-    # Sent as null: automatic again (`ProjectOut.finish_tests_auto`). Left out: kept.
-    finish_tests: bool | None = None
+    after_change: AfterChange | None = None
+    # k-canli-016: 1 to 10, or "until" (null too) - until it passes; left out: kept.
+    fix_rounds: Annotated[int, Field(ge=1, le=10, strict=True)] | Literal["until"] | None = None
+    stronger_model: bool | None = None
+    # S5a: the kinds switched, merged into the project's (a kind left out keeps its switch).
+    check_kinds: dict[CheckKind, bool] | None = None
+    # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
+    forget_tests_found: bool | None = None
     full_auto_check: FullAutoCheck | None = None
     disposable_deletes: bool | None = None
 
@@ -480,6 +503,8 @@ class ConversationOut(Out):
     lead_auto: bool
     # Each new message starts with a plan turn the user approves first (slice 49).
     plan_first: bool
+    # S10: Test and review changes, for this chat; None: the project's After a change.
+    after_change: ChatAfterChange | None
     # K-39-betik: a page shown in the Workspace runs its scripts without asking ("Always run in
     # this chat"); off, each page asks.
     page_scripts: bool
@@ -585,6 +610,8 @@ class ConversationPatch(BaseModel):
     model_id: str | None = Field(default=None, max_length=200)
     lead_auto: bool | None = None
     plan_first: bool | None = None
+    # Left out: kept as it is. Null: the project's After a change (S10).
+    after_change: ChatAfterChange | None = None
     page_scripts: bool | None = None
     # Slice 48's switch: true is "delegates", false "itself". `lead_work` wins where both are.
     lead_hands_code: bool | None = None
@@ -711,6 +738,17 @@ class CompareChoice(BaseModel):
     run_id: str
 
 
+class CiApproveIn(BaseModel):
+    # S8: the offer Run these was shown, by its name (the row's `offer`): only it is approved.
+    offer: str = Field(min_length=64, max_length=64)
+
+
+class HeldFixIn(BaseModel):
+    # S11: the "Not taken in" row's kept copy, and the user's answer to its question.
+    merge_id: str = Field(min_length=1, max_length=64)
+    reply: str = Field(min_length=1, max_length=4000)
+
+
 class PlanApproveIn(BaseModel):
     # The plan as the user edited it; left out or empty: as it was proposed.
     text: str | None = Field(default=None, max_length=20_000)
@@ -829,6 +867,37 @@ class AttachmentTextOut(BaseModel):
     text: str | None
 
 
+class CheckedCounts(BaseModel):
+    passed: int
+    failed: int
+    skipped: int
+    # "tests", or "packages" (go's, without -v)
+    unit: str
+
+
+class CheckedRow(BaseModel):
+    """One line of a turn's Checked section (`app.proof.Row`)."""
+    # S1: "tests", "rounds", "waiting", "not_checked"; later slices add theirs.
+    kind: str
+    state: Literal["passed", "failed", "running", "not_run", "timed_out", "note"]
+    text: str
+    # The command it ran, or would have; None: none.
+    command: str | None
+    # A command KOLONİ guessed from the project's files, not the user's own.
+    guessed: bool
+    # When a running row's run started; None: not running.
+    started_at: str | None
+    # S1b: what its runner's summary counted ({"passed", "failed", "skipped", "unit"}); None: no
+    # count known, never made up.
+    counts: CheckedCounts | None = None
+    # S8: a "ci_offer" row's offer by its name - Run these sends it back: exactly these lines.
+    offer: str | None = None
+    # S11: a "not_taken" row's kept copy - Take in anyway takes it in - and the question Fix it
+    # sends the user's answer to.
+    merge_id: str | None = None
+    question: str | None = None
+
+
 class MessageOut(Out):
     id: str
     conversation_id: str
@@ -842,8 +911,9 @@ class MessageOut(Out):
     # "koloni": KOLONİ's own line - under a Lead's answer that named a role it never opened;
     # at Take in, a .venv or the like an agent made in its copy, which stays out (B-383).
     # "landed": KOLONİ's line under a turn's answer on where its work is, from the records (B-205).
+    # "checked": what KOLONİ checked at the turn's end (`checked`), drawn in the turn's foot.
     role: Literal["user", "assistant", "agent", "memory", "trigger", "away", "git", "koloni",
-                  "landed"]
+                  "landed", "checked"]
     from_agent_id: str | None
     delivered_at: datetime | None
     discussion_id: str | None
@@ -856,6 +926,8 @@ class MessageOut(Out):
     spoken: str | None = None
     status: Literal["streaming", "complete"]
     created_at: datetime
+    # A "checked" message's rows; None for every other message.
+    checked: list[CheckedRow] | None = None
 
 
 class ToolCallOut(Out):
@@ -1577,7 +1649,9 @@ class AskedModel(BaseModel):
     goes to, or the summariser that made a note of what a turn found."""
 
     provider_name: str
-    model_id: str
+    # None: KOLONİ itself, no model - its note of a flaky test (k-onceki-1, H: such a note made
+    # its project's memory list fail).
+    model_id: str | None
 
 
 class FindingOut(BaseModel):
@@ -1728,6 +1802,17 @@ class Unattended(BaseModel):
     model_config = ConfigDict(extra="forbid")
     stuck_minutes: int | None = Field(None, ge=5, le=1440, strict=True)
     turn_hours: int | None = Field(None, ge=1, le=72, strict=True)
+
+
+class TestLoad(BaseModel):
+    """Kanıtlı bitiş S6: how many of KOLONİ's own test runs go at once, and how many test
+    processes each may start - settings of the whole app (`proof.load_of`). Their ranges are
+    `proof.TEST_RUNS_RANGE` and `TEST_WORKERS_RANGE`, written again here and in Settings.tsx.
+    Sent one at a time - the one not sent stays as it is."""
+
+    model_config = ConfigDict(extra="forbid")
+    runs_at_once: int | None = Field(None, ge=1, le=4, strict=True)
+    workers: int | None = Field(None, ge=1, le=16, strict=True)
 
 
 class TreeLimits(BaseModel):
@@ -2667,6 +2752,13 @@ class RoleOut(Out):
     tools: list[str]
     builtin: bool
     created_by_agent: bool
+
+    @computed_field
+    @property
+    def locked_tools(self) -> list[str]:
+        """Karar 5: the tools it keeps whatever the user takes away, as `app.roles.locked_tools`
+        gives them (a core role's: never off either); [] for any other."""
+        return list(CORE.get(self.name, ())) if self.builtin else []
     provider_id: str | None
     model_id: str | None
     # K-rol-model-sirasi: the models its agents are tried on first, in this order - one not
@@ -2875,6 +2967,21 @@ class RecipeLoop(Shut):
     rounds: int | None = Field(None, ge=1, le=5)
 
 
+class RecipeChecks(Shut):
+    """S5c (plan decision 16): what KOLONİ checks at the end of this recipe's turn, set for the
+    recipe - its Checks step's "Set for this recipe"; each part on or off."""
+    tests: bool = True
+    review: bool = True
+    docs: bool = False
+    diagram: bool = False
+    data: bool = False
+    slides: bool = False
+    ui: bool = False  # (S5b: pages in KOLONİ's own browser - Settings calls them Pages)
+    # How often a problem goes back to fix; 0: check only; "until": until it passes
+    # (k-canli-016); None: the project's Fix rounds.
+    fix_rounds: Annotated[int, Field(ge=0, le=10)] | Literal["until"] | None = None
+
+
 class RecipeGraph(Shut):
     version: Literal[1] = 1
     steps: list[RecipeStep] = Field(max_length=60)
@@ -2882,6 +2989,9 @@ class RecipeGraph(Shut):
     ends: list[RecipeEnd] = Field([], max_length=10)
     arrows: list[RecipeArrow] = Field([], max_length=200)
     loops: list[RecipeLoop] = Field([], max_length=20)
+    # S5c: its locked Checks step's own choice; None: it follows the project's After a change.
+    # Left out of what is written when not set, so an old recipe's file reads as it did.
+    checks: Annotated[RecipeChecks | None, Field(None, exclude_if=lambda value: value is None)]
 
 
 class RecipeIn(BaseModel):
@@ -2900,8 +3010,10 @@ class RecipeOut(BaseModel):
 
 
 class RecipeWriter(BaseModel):
-    # Why "Or write it" cannot ask the Lead's model now; None: it can.
+    # Why "Or write it" cannot ask a model now; None: it can.
     why: str | None
+    # Whom it asks first ("Balanced: Local · qwen3"); None where it cannot ask.
+    asks: str | None = None
 
 
 class RecipesOut(BaseModel):
@@ -2913,6 +3025,8 @@ class RecipesOut(BaseModel):
 
 class RecipeDraftIn(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
+    # k-tarif-model: the chat the page is open on - its Orchestrator's model is asked too.
+    conversation_id: str | None = Field(default=None, max_length=32)
 
 
 class RecipeDraftOut(BaseModel):
@@ -4592,6 +4706,8 @@ class BacklogAutoOut(BaseModel):
 class BacklogDraftIn(BaseModel):
     # (The page's title and detail, a line apart.)
     text: str = Field(min_length=1, max_length=4201)
+    # k-tarif-model: the chat the page is open on - its Orchestrator's model is asked too.
+    conversation_id: str | None = Field(default=None, max_length=32)
 
 
 class BacklogDraftOut(BaseModel):

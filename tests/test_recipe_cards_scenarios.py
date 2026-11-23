@@ -307,7 +307,9 @@ def test_with_no_other_role_on_to_check_it_the_writer_checks_and_its_node_says_s
     })
     for role in client.get("/api/roles").json():
         if role["kind"] == "check" and role["name"] != "Observer":  # (always there, never opened)
-            assert client.patch(f"/api/roles/{role['id']}", json={"enabled": False}, headers=OWN).status_code == 200
+            # (Karar 5: a core role is never off - moved out of the checking roles instead.)
+            off = {"kind": "build"} if role["locked_tools"] else {"enabled": False}
+            assert client.patch(f"/api/roles/{role['id']}", json=off, headers=OWN).status_code == 200
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"], built_then_checked(client)))
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
     assert [q["question"] for q in snap["questions"]] == [asked(snap)["question"]]

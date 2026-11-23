@@ -5,7 +5,7 @@ import { type Category, type Colour, type KnowledgeItem, type Provider, type Rol
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { titleOf } from './agentStatus'
-import { canSwitch, kindColour, mayDo } from './chart'
+import { hasSwitch, kindColour, mayDo } from './chart'
 import { Avatar, CategoryForm } from './RoleLibrary'
 import { type KnowledgeActions, KnowledgeTab } from './KnowledgeTab'
 import { ModelAnswers } from './ModelCards'
@@ -149,7 +149,7 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
         <span className="muted">{role.description}</span>
         {role.created_by_agent && <span className="tag tag-accent">Created by an agent</span>}
       </div>
-      {canSwitch(role) && !teamLead && <input type="checkbox" role="switch" className="model-agents" aria-label={`${role.name} on`} checked={role.enabled} onChange={e => patch({ enabled: e.target.checked })} />}
+      {hasSwitch(role) && !teamLead && <input type="checkbox" role="switch" className="model-agents" aria-label={`${role.name} on`} checked={role.enabled} onChange={e => patch({ enabled: e.target.checked })} />}
       <button type="button" className="icon-btn" aria-label="Close the role" onClick={onClose}>
         <X size={14} />
       </button>
@@ -256,8 +256,10 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
               <div className="tool-tiles">
                 {all.map(tool => {
                   const on = has.includes(tool.name)
-                  // The server keeps a role with at least one tool: the last one stays on.
-                  const keep = on && has.length === 1
+                  // The server keeps a role with at least one tool: the last one stays on; and a core role's
+                  // locked tools (Karar 5).
+                  const locked = role.locked_tools?.includes(tool.name) ?? false
+                  const keep = on && (locked || has.length === 1)
                   return (
                     <button
                       key={tool.name}
@@ -267,7 +269,7 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
                       aria-label={tool.label}
                       aria-describedby={`tool-${tool.name}-line`}
                       disabled={keep}
-                      title={keep ? 'A role needs at least one tool: turn another on first' : `${tool.name}: ${tool.hint}`}
+                      title={locked ? "Kept: KOLONİ's checks and recipes need it" : keep ? 'A role needs at least one tool: turn another on first' : `${tool.name}: ${tool.hint}`}
                       onClick={() => flip(tool)}
                     >
                       <span className="tool-tile-name">

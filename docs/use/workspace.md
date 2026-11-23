@@ -91,9 +91,26 @@ push the branch; it never merges one. **Keep this branch after merging** keeps t
 
 Opening a pull request needs **gh** (GitHub's CLI) installed and signed in (`gh auth login`), and the
 project's `origin` must be the GitHub repository gh sees. Until then the card says why it cannot open one.
-A branch that took in commits of yours that origin does not have (your branch merged into it, or another
-of yours) is not pushed until you push them, also after you amended, rebased or dropped them; the card
-names them.
+A branch that holds commits of yours that origin does not have - your branch or another merged into it,
+fast-forwarded to, rebased onto or cherry-picked - is not pushed until you push them, also after you
+amended, rebased or dropped them; the card names them. What counts as the agent's own is what its branch's
+history says was committed on it. A commit not on origin that this history does not show and no branch of
+yours holds - an agent's cherry-pick of yours (a new commit), or the agent's own once that history is gone
+(`git reflog expire`, or git's cleanup of an old branch) - is not pushed either: the card says KOLONİ cannot
+attribute it, rather than calling it yours. Nor is a file that holds exactly what a commit of yours not
+pushed yet put there (an agent's squash, pick or amend of it, or a copy of a stashed file, of a commit on a
+detached HEAD - in this folder or in another worktree of yours -, or of a file you had not committed when
+the branch began). And while you have any commit or
+stash not on GitHub - on a branch, in a stash, on a detached HEAD, in any worktree of yours - or the
+branch began from your uncommitted work, a pull request waits for your click at every level, Full auto
+too: the card says why ("you have 2 commits not on GitHub yet", "you have a stash not on GitHub yet"), so
+you can check its files are the agent's work. Where such a commit is in another worktree of yours, the
+card names that worktree's folder; if you deleted that folder by hand, git still keeps the worktree and
+its commit, and `git worktree prune` lets git drop it. A worktree of yours where you look at the agent's
+branch (`git worktree add --detach <folder> koloni/…`) does not make its commits yours, nor does a
+worktree of another KOLONİ on its own `koloni/…` branch - but a commit you made there before it went
+onto such a branch, or one a branch, tag or other remote of yours holds too, stays yours; a worktree
+of yours whose branch you deleted still holds your commits.
 
 The Inspector and **Where the work is** label such an agent "works on branch koloni/*name*" (an agent
 in a plain copy: "works in its own copy").

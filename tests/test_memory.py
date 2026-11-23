@@ -28,6 +28,7 @@ from app.agent import (
     shell_note,
 )
 from app.agent.context_mixin import ASKED_IN_WORDS
+from app.agent.words import NEAR_TESTS, PROOF_LEAD
 from app.config import load_settings
 from app.db.models import Memory, Project
 from app.main import create_app
@@ -112,11 +113,13 @@ def plain(value, root: str):
         # the Lead's going-away rule (K-gece-dil); how it splits a job (K-rol-cogul); where a
         # sub-agent's question goes (B-182); the headings its report ends with (K-devir-1);
         # how much of a job gets a sub-agent (K-brief-kalitesi); a checker's "ran:" (K-kanit);
-        # the Lead's one report a turn (K-r152); the Lead's question never asked in words (B-204).
+        # the Lead's one report a turn (K-r152); the Lead's question never asked in words (B-204);
+        # what KOLONİ checks at a turn's end, and the tests near a change while one works (S2).
         for later in ("\n\n" + HAND_ON_PROMPT, " " + FINDINGS_PROMPT, "\n\n" + AWAY_PROMPT,
                       "\n\n" + BRIEF_PROMPT, "\n\n" + REPORT_ONCE, " " + RAN,
                       " " + WHO_SPLITS, " " + ASK_NOT_REPORT, " " + handoff.REPORT_PROMPT,
-                      "\n\n" + handoff.HEAD, " " + ASKED_IN_WORDS):
+                      "\n\n" + handoff.HEAD, " " + ASKED_IN_WORDS, "\n\n" + PROOF_LEAD,
+                      "\n\n" + NEAR_TESTS):
             # (the roles a finding may name, whatever they are, stand where {roles} is; a CLI's
             # JSON keeps its letters as they are)
             for told in (later, json.dumps(later)[1:-1],
@@ -723,6 +726,17 @@ def mem(client, project_dir):
         read=lambda: client.get(f"/api/projects/{pid}/memory").json(),
         row=lambda mid: _row(client, mid),
     )
+
+
+def test_a_flaky_test_koloni_noted_is_read_in_the_memory_list(mem):
+    # (k-onceki-1, H: KOLONİ's own note names no model - the list answered 500 from then on)
+    cid = mem.client.post(f"/api/projects/{mem.pid}/conversations").json()["id"]
+    mem.client.app.state.runner._note_flaky(SimpleNamespace(cid=cid, run_id="r1"), "test_a.py::test_x")
+    listed = mem.client.get(f"/api/projects/{mem.pid}/memory")
+    assert listed.status_code == 200, listed.text
+    (note,) = [one for one in listed.json()["journal"] if one["origin"] == "auto"]
+    assert note["noted_by"] == {"provider_name": "KOLONİ", "model_id": None}
+    assert kept.summariser(note["noted_by"]) == "KOLONİ"
 
 
 def _row(client, memory_id):

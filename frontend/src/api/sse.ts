@@ -77,6 +77,8 @@ export const EVENT_TYPES = [
   'view.shown',
   // A turn's "Add to Project notes?" offer was made or answered: the offers are read again.
   'notes.offered',
+  // What KOLONİ saved of a project changed (its test command, CL-316): the project is read again, for Settings.
+  'project.changed',
 ] as const
 
 /**

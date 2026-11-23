@@ -54,6 +54,12 @@ RESTARTED = "Interrupted by a server restart"
 # where the user skipped the check before it (Skip, on its failure card), that none was made.
 NO_PROBLEM = "no problem found"
 NOT_CHECKED = "nothing was checked"
+# K-evolve-tek: why a candidate has no score where the project has no measure command - and so a
+# step of candidates runs one round: nothing reaches a target, and no later round beats the first
+# pick with no score to compare (`advance`), up to its loop's rounds of agents spent for nothing.
+NO_MEASURE = "no measure command"
+ONE_ROUND = ("No measure command: one round only - set one in Settings › This project › Checks "
+             "and git to let the candidates try again until the target.")
 # Why the team's experts' step is passed, nobody there to fill it (`_ahead`): by which it takes.
 NO_EXPERT = {"learned": "no expert has learned yet", "stale": "no expert's guide is to be learned",
              "all": "the team has no expert"}
@@ -164,8 +170,8 @@ def _if_found(graph: RecipeGraph, part: str) -> bool:
     step is in no group: `conditions`).
     A problem is what the review's report says - its findings, `Already failing before:` lines,
     no Findings section, or "none" with nothing checked - or a test command whose last run
-    failed (`ledger.failed_tests`: its first real word a test tool, so a grep with no match is
-    none), whatever its report says (`AgentRunner._found`).
+    failed (`ledger.failed_tests`: a test tool's run as `ledger.read_test` reads the line, so a grep
+    with no match is none), whatever its report says (`AgentRunner._found`).
     shortcut: a test run not on record (a CLI's command KOLONİ does not see) counts by the report
     alone, and a `Checked:` line saying it failed under `Findings: none` is no problem; read that
     line too if a Tester is seen to pass failing tests so."""
@@ -202,6 +208,13 @@ def part_of(graph: RecipeGraph, at: str) -> str:
     part = step.group if step is not None and step.group else at
     return next((f"{fork}+" for fork, (lines, _join) in forks(graph).items()
                  if any(part in line for line in lines)), part)
+
+
+def goes_round(state: dict) -> bool:
+    """Whether the part at work loops back to itself (a step of candidates' rounds)."""
+    graph, at = graph_of(state), state["at"]
+    return any(part_of(graph, one.from_) == at and part_of(graph, one.to) == at
+               for one in graph.loops)
 
 
 def steps_of(graph: RecipeGraph, part: str) -> list[RecipeStep]:
@@ -581,13 +594,25 @@ def beside(state: dict, role: str) -> list[tuple[str, str]]:
             and _fits(off, [step, roles], roles[0])]
 
 
+def fills(state: dict, role: str) -> str | None:
+    """The step whose place an agent of `role` opened now takes (`opened`); None: none."""
+    if state["status"] != RUNNING:
+        return None
+    mine, free = _free(state, role)
+    return state["slots"][state["at"]][(free or mine)[0]][0] if mine else None
+
+
 def fills_review(state: dict, role: str) -> bool:
     """Whether an agent of `role` opened now takes a review's place (`opened`)."""
-    if state["status"] != RUNNING:
-        return False
-    mine, free = _free(state, role)
-    return bool(mine) and state["slots"][state["at"]][(free or mine)[0]][0] in _reviews(
-        graph_of(state), state["at"])
+    return fills(state, role) in _reviews(graph_of(state), state["at"])
+
+
+def not_checked(state: dict, why: str | None) -> None:
+    """Kanıtlı bitiş R3 (review of S4): a check whose command the user declined checked nothing,
+    and nothing a fixer could act on - given `why`, its run stops at Ready for you, the user's,
+    as a check that failed does at Full auto (`unchecked` keeps Full auto from taking it in)."""
+    if why and state["status"] == RUNNING:
+        state["status"], state["unchecked"], state["why"] = READY, True, why
 
 
 def opened(state: dict, agent_id: str, role: str) -> dict:
@@ -691,10 +716,13 @@ def advance(state: dict) -> str:
         state.setdefault("outrun", {})[at] = sorted(s for s in gone if not _done(state, graph, s))
     loop = next((one for one in graph.loops if part_of(graph, one.from_) == at), None)
     # K-evrim: a step of candidates goes round again from its pick (its loop to itself) while
-    # the picked one's score is below the step's target - every round its loop has, with none.
+    # the picked one's score is below the step's target - every round its loop has, with none;
+    # but one round where there is no measure command (`ONE_ROUND`, K-evolve-tek).
     who = next((s.who for s in steps_of(graph, at) if isinstance(s.who, WhoCandidates)), None)
-    won = (state.get("scores", {}).get(state.pop("picked", None) or "") or {}).get("score")
-    again = who is not None and loop is not None and part_of(graph, loop.to) == at and (
+    picked = state.get("scores", {}).get(state.pop("picked", None) or "") or {}
+    won, unmeasured = picked.get("score"), picked.get("why") == NO_MEASURE
+    rounds = who is not None and loop is not None and part_of(graph, loop.to) == at
+    again = rounds and not unmeasured and (
         who.target is None or won is None or won < who.target)
     wrote = state.setdefault("wrote", {})
     # (An expert changes nothing: having learned keeps it from no check of the work.)
@@ -763,7 +791,7 @@ def advance(state: dict) -> str:
         # (K-evrim: its rounds over, the target not reached - the picked one's work goes on.)
         f" Target {who.target} not reached ({won:g}): the picked one's work goes on."
         if who is not None and who.target is not None and won is not None and won < who.target
-        else "") + (
+        else "") + (f" {ONE_ROUND}" if rounds and unmeasured else "") + (
         f" Left out by the user's choice: {', '.join(out)}." if out else "") + "".join(
         f" Skipped, {why}: {', '.join(name_of(graph, p) for p in skipped if skipped[p] == why)}."
         for why in dict.fromkeys(skipped.values()))
