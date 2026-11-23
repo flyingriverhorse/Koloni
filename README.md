@@ -46,9 +46,6 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 <td width="50%"><img src="docs/images/checked-review.png" alt="The Checked section under an answer: Tests passed: python check.py - 2 passed; Review: Reviewer - MERGE, no findings"><br><sub><b>Checked.</b> Under the answer, what KOLONİ itself ran and found - from its records, never the model's word.</sub></td>
 <td width="50%"><img src="docs/images/checks-node.png" alt="The canvas: the Orchestrator's box says checked, and the Checks node under it lists each line"><br><sub><b>The Checks node.</b> The same lines on the canvas; its ⋯ menu stops a check or turns it off for the chat.</sub></td>
 </tr>
-<tr>
-<td colspan="2"><img src="docs/diagrams/proven-finish.svg" alt="Proven finish: the related tests, the whole suite after the answer, documents, slides and pages, a Reviewer's look, the live try, a test for the change; a failure goes back to be fixed, then a stronger model; and where Settings sets each part"><br><sub><b>Proven finish.</b> What KOLONİ checks before an answer ends a turn that changed your project, and where you set each part.</sub></td>
-</tr>
 </table>
 
 <sub>The recording above is a real run (Claude Code, haiku), sped up five times. The screenshots are from the app with a scripted test model, so their model names read "fake-qwen".</sub>
@@ -74,11 +71,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.
   [Chat and canvas](docs/use/chat-and-canvas.md) · [Working copies](docs/use/workspace.md)
-- **Proven finish**: after a turn that changed the project, KOLONİ checks the work itself before the
-  answer ends: your tests (the related ones first, the whole suite after the answer), the documents,
-  diagrams, data and slides it wrote, and a Reviewer's read of a big or security-touching change. A
-  failure goes back to be fixed, at most **Fix rounds** times; under the answer, **Checked** says what
-  passed, what failed and what was not checked. [What KOLONİ checked](docs/use/checked.md)
+- **Proven finish**: after a turn that changed the project, KOLONİ tests and checks the work itself;
+  **Checked** under the answer says what passed and what did not. [What KOLONİ checked](docs/use/checked.md)
 - **Control**: cards for changes, commands, web and HTTP; a delete or a send off the machine asks at
   every level, unless at Full auto **Check what I said first** finds a line of yours that allows it, or
   you let agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); secret
