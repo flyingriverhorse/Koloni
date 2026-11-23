@@ -16,8 +16,9 @@ Recipes are on the Agents page, tab **Recipes**.
 - **Or write it**: describe the recipe in a sentence and press **Make it a recipe**. The note
   under it says which model it asks - the first of the balanced tier ("Asks Balanced: Local ·
   qwen3"), passing over one whose server is not running, else the Orchestrator's own - and if
-  that one does not answer, the next is asked. The model draws the recipe on the board; nothing
-  is saved until you save it.
+  that one does not answer, the next is asked. Where none answers, it says so and names every
+  model it tried, each with why ("No model answered: Local · qwen3 (not running),
+  …"). The model draws the recipe on the board; nothing is saved until you save it.
 
 The ready recipes include Feature, Bugfix, Review only, Integration, Quality check, Model change,
 Pipeline change, Infra change, Docs, Research, Spec, Analysis, Upkeep and Evolve.

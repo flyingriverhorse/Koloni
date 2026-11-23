@@ -7,6 +7,30 @@ writes it from its own records, not from the model's words, and no model is aske
 
 It works the same for every model and CLI.
 
+[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data and slides, a Reviewer's look, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
+
+*What KOLONİ checks at a turn's end, and where you set each part. ([full size](../diagrams/proven-finish.svg))*
+
+In order, the first check that sends work back ends the pass, and the Orchestrator's next answer is
+checked again:
+
+1. **The tests** - the ones related to the change first, the whole suite after the answer
+   ([Which tests](#which-tests), [Asking](#asking), [How long it waits](#how-long-it-waits)). What
+   is not this turn's - a flaky test, one failing before - is told apart
+   ([Not this turn's](#not-this-turns-flaky-tests-and-failures-from-before)).
+2. **What it wrote besides code** - documents, diagrams, data, slides
+   ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)).
+3. **A Reviewer's look** at a big or security-touching change ([The review](#the-review)).
+4. **A test for the change**, asked once where code changed and no test did
+   ([A test for the change](#a-test-for-the-change)).
+
+A failure goes back to the Orchestrator at most **Fix rounds** times
+([When the tests fail](#when-the-tests-fail)); then a stronger model tries, and failing work is
+never taken in ([A stronger model](#a-stronger-model)). **Checked** under the answer says it all,
+line by line ([What each line means](#what-each-line-means)), and the canvas's **Checks** node
+shows it ([On the canvas](#on-the-canvas)). A recipe's turn follows the recipe's own **Checks**
+step ([The Checks step](../agents/recipes.md#the-checks-step)).
+
 ## When it runs
 
 - After a turn in a project folder that changed a file. A turn that changed nothing, a plain
@@ -54,6 +78,7 @@ on with the project's setting.
 It is free at every level. At **Full auto** with it off, the menu says so under it: "Full auto
 with no checks: nothing checks this chat's changes". A turn that runs a team's recipe follows
 the recipe's **Checks** step, not this switch: the project's setting, unless the recipe sets its own
+- a recipe you picked may check less, one the Orchestrator picked only adds checks
 ([The Checks step](../agents/recipes.md#the-checks-step)).
 
 A project that had turned off the old **Finish only when the tests pass** switch is on
@@ -133,7 +158,11 @@ run it unasked. To make it yours, set it there.
 
 Where KOLONİ reads a count from the runner's summary (pytest, jest, vitest, go, cargo, dotnet,
 Maven, Gradle, RSpec, PHPUnit), the line gives it. Any other runner is judged by its exit code
-alone, and the line says so: "Tests passed (by exit code, no count)".
+alone, and the line says so: "Tests passed (by exit code, no count)". Coloured output -
+`--color=yes` in the project's pytest settings, or `FORCE_COLOR` where KOLONİ was started - is
+read as plain: its counts still show, a run that only skipped tests is no pass, a failure it prints
+is one even where its exit is hidden, and a guessed command whose coloured run really ran tests is
+saved like any other.
 
 A turn whose changes are all documents, slides, diagrams or data runs no tests and says so.
 A change to a configuration file (`requirements.txt`, `package.json`, a CI workflow, a
@@ -243,9 +272,9 @@ run of its own on record failed".
 
 ## A stronger model
 
-When the **Fix rounds** are spent and a test still fails - or a blocking finding of the Reviewer
-stands - KOLONİ hands the fix to the next stronger tier on the Models page (fast, then balanced,
-then strongest), the same role on that tier's model, for the same number of rounds. Each tier
+When the **Fix rounds** are spent and a test still fails, KOLONİ hands the fix to the next
+stronger tier on the Models page (fast, then balanced, then strongest), the same role on that
+tier's model, for the same number of rounds. Each tier
 tries at most once a turn, and its model's use is always said: "Handed to `model` (Strongest)
 after 2 rounds by `model`". A tier whose provider is over its limit is skipped ("Strongest
 skipped: over its limit"), and none is tried where the project's month budget or the turn's
