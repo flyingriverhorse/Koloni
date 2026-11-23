@@ -7,6 +7,7 @@ machine has it."""
 
 import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -272,8 +273,10 @@ async def test_an_image_without_alt_text_is_failed_not_a_decorative_or_hidden_on
         alt='<p>Hi</p><img src="img/a.png?v=1"><img src="b.png" alt=""><img src="c.png" alt="C">'
         '<img src="d.png" aria-hidden="true"><img src="e.png" title="E"><img src="f.png">',
     )
+    # (no console error is said so all the same)
     assert rows == [
-        ("ui", "failed", f"alt.html: 2 images without alt text at {ALL} px - a.png, f.png")
+        ("ui", "passed", f"alt.html: no console errors at {ALL} px"),
+        ("ui", "failed", f"alt.html: 2 images without alt text at {ALL} px - a.png, f.png"),
     ]
 
 
@@ -289,12 +292,13 @@ async def test_a_button_link_or_field_with_no_name_is_failed(tmp_path):
         '<div style="display:none"><button></button></div><button id="go"> </button>',
     )
     assert rows == [
+        ("ui", "passed", f"named.html: no console errors at {ALL} px"),
         (
             "ui",
             "failed",
             f"named.html: 4 buttons, links or fields with no name at {ALL} px - "
             "button, a[href=/x], input[type=email]#e, button#go",
-        )
+        ),
     ]
 
 
@@ -311,13 +315,14 @@ async def test_text_below_its_contrast_is_failed_and_large_text_needs_less(tmp_p
     )
     # (each colour, background, size and weight named once - the lowest first - and counted)
     assert rows == [
+        ("ui", "passed", f"grey.html: no console errors at {ALL} px"),
         (
             "ui",
             "failed",
             f"grey.html: 5 texts below the contrast they need at {ALL} px - “Muted words” "
             "2.84:1 (needs 4.5:1), “Small grey” 3.54:1 (needs 4.5:1), “Not large” 3.54:1 "
             "(needs 4.5:1), “Just under” 4.47:1 (needs 4.5:1)",
-        )
+        ),
     ]
 
 
@@ -332,6 +337,7 @@ async def test_the_background_is_found_up_the_page_and_text_over_an_image_is_sai
         '<div style="background:linear-gradient(#000, #fff)"><p style="color:#777">Over</p></div>',
     )
     assert rows == [
+        ("ui", "passed", f"walk.html: no console errors at {ALL} px"),
         (
             "ui",
             "failed",
@@ -341,10 +347,133 @@ async def test_the_background_is_found_up_the_page_and_text_over_an_image_is_sai
         (
             "ui",
             "note",
-            f"walk.html: contrast not checked at {ALL} px on 1 texts over an image or a "
-            "gradient - “Over”",
+            f"walk.html: contrast not checked at {ALL} px on 1 texts with something drawn under "
+            "them (an image, a gradient, a layer) - “Over”",
         ),
     ]
+
+
+@pytest.mark.anyio
+async def test_text_over_a_positioned_layer_is_said_not_checked_never_judged_on_white(tmp_path):
+    # (review of k-pages-a11y: an absolute dark overlay, a hero image under a see-through layer,
+    # a fixed backdrop - no opaque background up the page; judged on the canvas's white they read
+    # ~1:1. Something drawn under their box: not checked, said)
+    rows = await looked(
+        tmp_path,
+        hero='<section style="position:relative;height:200px">'
+        '<div style="position:absolute;inset:0;background:#111"></div>'
+        '<h1 style="position:relative;color:#fff">Welcome home</h1></section>',
+        backdrop='<div style="position:fixed;inset:0;z-index:-1;background:#0f172a"></div>'
+        '<p style="color:#e2e8f0">On the backdrop</p>',
+    )
+    assert rows == [
+        ("ui", "passed", f"hero.html: no console errors at {ALL} px"),
+        (
+            "ui",
+            "note",
+            f"hero.html: contrast not checked at {ALL} px on 1 texts with something drawn "
+            "under them (an image, a gradient, a layer) - “Welcome home”",
+        ),
+        ("ui", "passed", f"backdrop.html: no console errors at {ALL} px"),
+        (
+            "ui",
+            "note",
+            f"backdrop.html: contrast not checked at {ALL} px on 1 texts with something drawn "
+            "under them (an image, a gradient, a layer) - “On the backdrop”",
+        ),
+    ]
+
+
+@pytest.mark.anyio
+async def test_a_page_hidden_whole_a_control_tabbed_to_in_aria_hidden_and_a_dark_scheme(
+    tmp_path,
+):
+    rows = await looked(
+        tmp_path,
+        hidden="<main aria-hidden='true'><p>Hi</p></main>",
+        tabbed="<div aria-hidden='true'><button>Go</button><a href='/x'>X</a>"
+        "<button disabled>Off</button><a href='/y' tabindex='-1'>Y</a></div>",
+        fill="<p style='color:#000;-webkit-text-fill-color:#f4f4f4'>Pale over black</p>",
+    )
+    assert rows == [
+        ("ui", "passed", f"hidden.html: no console errors at {ALL} px"),
+        ("ui", "passed", f"tabbed.html: no console errors at {ALL} px"),
+        (
+            "ui",
+            "failed",
+            f"tabbed.html: 2 controls one can tab to inside aria-hidden at {ALL} px - "
+            "button, a[href=/x]",
+        ),
+        ("ui", "passed", f"fill.html: no console errors at {ALL} px"),
+        (
+            "ui",
+            "failed",
+            f"fill.html: 1 texts below the contrast they need at {ALL} px - "
+            "“Pale over black” 1.09:1 (needs 4.5:1)",
+        ),
+    ]
+    ws = Workspace(str(tmp_path / "w"))
+    (tmp_path / "w").mkdir()
+    (tmp_path / "w" / "whole.html").write_text(
+        "<html aria-hidden='true'><head><title>A</title><meta name='color-scheme' "
+        "content='dark'></head><body><p style='color:#333'>Dim</p><iframe></iframe></body></html>",
+        encoding="utf-8",
+    )
+    (tmp_path / "w" / "gone.html").write_text(
+        "<html><head><title>A</title></head><body data-a11y-no-body><p>Hi</p></body></html>",
+        encoding="utf-8",
+    )
+    rows = said(
+        await proof_kinds.check_pages(
+            starter(tmp_path / "b2", ws), ws, ["whole.html", "gone.html"], None, tmp_path / "s"
+        )
+    )
+    assert rows == [
+        ("ui", "passed", f"whole.html: no console errors at {ALL} px"),
+        (
+            "ui",
+            "failed",
+            f"whole.html: the whole page is hidden from screen readers (aria-hidden) at {ALL} px",
+        ),
+        (
+            "ui",
+            "note",
+            f"whole.html: contrast not checked at {ALL} px - the page's colour scheme is dark only",
+        ),
+        (
+            "ui",
+            "note",
+            f"whole.html: accessibility not read inside 1 frames or shadow roots at {ALL} px",
+        ),
+        ("ui", "passed", f"gone.html: no console errors at {ALL} px"),
+        (
+            "ui",
+            "note",
+            f"gone.html: accessibility not read at {ALL} px - the page has no body",
+        ),
+    ]
+
+
+@pytest.mark.anyio
+async def test_the_read_pins_a_light_colour_scheme_first():
+    # (the colours contrast is judged in are a light page's, whatever this machine's are)
+    one, sent = browser.Browser(Path("."), "pages"), []
+
+    async def call(method, params=None):
+        sent.append((method, params))
+        return {}
+
+    async def world(expression):
+        sent.append(("world", expression.split("\n", 1)[0]))
+        return {"texts": []}
+
+    one._call, one._world = call, world
+    assert await one.access() == {"texts": []}
+    assert sent[0] == (
+        "Emulation.setEmulatedMedia",
+        {"features": [{"name": "prefers-color-scheme", "value": "light"}]},
+    )
+    assert sent[1][0] == "world" and sent[1][1].startswith("/*koloni:a11y")
 
 
 @pytest.mark.anyio
@@ -505,7 +634,8 @@ async def test_the_real_chrome_reads_images_names_and_contrast(tmp_path, monkeyp
         starter(tmp_path / "b", ws, command), ws, found, None, tmp_path / "shots"
     )
     lines = said(rows)
-    assert lines[:2] == [
+    assert lines[:3] == [
+        ("ui", "passed", f"a11y.html: no console errors at {ALL} px"),
         ("ui", "failed", f"a11y.html: 1 images without alt text at {ALL} px - dot.png"),
         (
             "ui",
@@ -515,17 +645,17 @@ async def test_the_real_chrome_reads_images_names_and_contrast(tmp_path, monkeyp
         ),
     ], lines
     # (an oklch colour read through a canvas - its exact figure is the browser's)
-    (kind, state, line) = lines[2]
+    (kind, state, line) = lines[3]
     assert (kind, state) == ("ui", "failed") and line.startswith(
         f"a11y.html: 3 texts below the contrast they need at {ALL} px - “Oklch grey” 2."
     ), lines
     assert line.endswith("“Muted words” 2.84:1 (needs 4.5:1), “Half” 3.97:1 (needs 4.5:1)"), line
-    assert lines[3:] == [
+    assert lines[4:] == [
         (
             "ui",
             "note",
-            f"a11y.html: contrast not checked at {ALL} px on 1 texts over an image or a "
-            "gradient - “Over”",
+            f"a11y.html: contrast not checked at {ALL} px on 1 texts with something drawn under "
+            "them (an image, a gradient, a layer) - “Over”",
         )
     ], lines
     # (bounded: at most so many elements are read)
@@ -539,6 +669,172 @@ async def test_the_real_chrome_reads_images_names_and_contrast(tmp_path, monkeyp
         f"a11y.html: accessibility checked only in part at {ALL} px - at most 1 elements "
         "and 3 s are read",
     )
+
+
+# The review's pages (k-pages-a11y): what a page's own markup or script does to the read - its
+# named fields shadowing a DOM property of their form or of the document, a positioned layer
+# under its text, a dark-only scheme, its body moved or gone, aria-hidden, frames.
+FAINT = (
+    "<img src='dot.png' width='20' height='20'><button style='width:40px;height:20px'></button>"
+    "<p style='color:#ccc'>Faint words</p>"
+)
+REVIEWED = {
+    "throws": f"<form><input name='matches' aria-label='q'></form>{FAINT}",
+    "lie": "<form><input name='parentElement' style='background:#000;width:40px' "
+    "aria-label='q'><p style='color:#fff'>White on white</p></form>",
+    "gebi": f"<img name='getElementById' src='dot.png' alt=''><span id='l'>x</span>"
+    f"<button aria-labelledby='l'>b</button>{FAINT}",
+    "formbody": f"<form name='body'></form>{FAINT}",
+    "overlay": "<section style='position:relative;height:200px'><div style='position:absolute;"
+    "inset:0;background:#111'></div><h1 style='position:relative;color:#fff'>Welcome home</h1>"
+    "</section>",
+    "hero": "<div style='position:relative;height:300px'><img src='dot.png' alt='Sky' "
+    "style='position:absolute;inset:0;width:100%;height:100%'><div style='position:absolute;"
+    "inset:0;background:rgba(0,0,0,.6)'></div><div style='position:relative;color:#fff'>"
+    "<p>Small white words</p></div></div>",
+    "backdrop": "<div style='position:fixed;inset:0;z-index:-1;background:#0f172a'></div>"
+    "<p style='color:#e2e8f0'>Text on fixed dark layer</p>",
+    "moved": "<script>addEventListener('DOMContentLoaded',()=>{const m=document.createElement"
+    "('main');m.innerHTML=document.body.innerHTML;document.body.innerHTML='';"
+    f"document.documentElement.append(m)}})</script>{FAINT}",
+    "gone": f"{FAINT}<script>addEventListener('DOMContentLoaded',()=>{{const b=document.body;"
+    "const m=document.createElement('div');while(b.firstChild)m.append(b.firstChild);b.remove();"
+    "document.documentElement.append(m)})</script>",
+    "focus": "<button aria-hidden='true' style='width:40px;height:20px'></button>",
+    "fill": "<p style='color:#000;-webkit-text-fill-color:#f4f4f4'>Invisible but black</p>",
+    "frame": "<iframe srcdoc='<p>in a frame</p>' width=300 height=200></iframe>",
+    "fine": "<span id='hl' hidden>Search the site</span><input type='search' "
+    "aria-labelledby='hl'><label><input type='checkbox'> Remember</label>"
+    "<a href='/'><svg width='16' height='16'><title>Home</title></svg></a>",
+}
+
+
+@pytest.mark.skipif(
+    browser.find_browser() is None or "KOLONI_BROWSER_FAKE" in os.environ,
+    reason="no Chrome or Edge on this machine",
+)
+@pytest.mark.anyio
+async def test_the_real_chrome_read_holds_against_what_a_page_does_to_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(browser, "START_WAIT", 120.0)
+    monkeypatch.setattr(browser, "LOAD_WAIT", 40.0)
+    ws, command = Workspace(str(tmp_path)), browser.find_browser()
+    (tmp_path / "dot.png").write_bytes(PNG)
+    (tmp_path / "dark.html").write_text(
+        "<html><head><meta name='color-scheme' content='dark'></head><body><p>Plain</p>"
+        "<a href='#x'>A link</a></body></html>",
+        encoding="utf-8",
+    )
+    (tmp_path / "hidden.html").write_text(
+        f"<html><head></head><body aria-hidden='true'>{FAINT}</body></html>", encoding="utf-8"
+    )
+    for name, body in REVIEWED.items():
+        (tmp_path / f"{name}.html").write_text(
+            f"<html><head><title>T</title></head><body>{body}</body></html>", encoding="utf-8"
+        )
+    words = "w " * 4096
+    (tmp_path / "labelled.html").write_text(
+        f"<html><body><p id='b'>{words}</p><button aria-labelledby='{'b ' * 2000}'></button>"
+        "</body></html>",
+        encoding="utf-8",
+    )
+    deep = 8192 // len("<div role='button'>x</div>")
+    (tmp_path / "nested.html").write_text(
+        "<html><body>"
+        + "<div role='button'>x" * deep
+        + words[:4096]
+        + "</div>" * deep
+        + "</body></html>",
+        encoding="utf-8",
+    )
+    assert max(len((tmp_path / f"{one}.html").read_bytes()) for one in ("labelled", "nested")) <= (
+        16 * 1024
+    )
+    one = browser.Browser(tmp_path / "b", "pages")
+    await one.start(command, ws, set())
+    read, took = {}, {}
+    try:
+        await one.width(1280)
+        for name in [*REVIEWED, "dark", "hidden"]:
+            await one.open(browser.allowed(f"{name}.html", ws, one.closed))
+            read[name] = proof_kinds._findings(await one.access())
+        # (one button labelled by one long text thousands of times; controls nested as deep as
+        # 16 KB holds: each name read no further than its cut - the read was ~quadratic, 1.4 s)
+        for name in ("labelled", "nested"):
+            await one.open(browser.allowed(f"{name}.html", ws, one.closed))
+            began = time.perf_counter()
+            found = await one.access()
+            took[name] = time.perf_counter() - began
+            assert isinstance(found, dict) and not found["cut"], (name, found)
+    finally:
+        await one.close()
+    # (before: 1.4 s at 12 KB, growing as its square)
+    assert max(took.values()) < (4.0 if os.environ.get("CI") else 1.0), took
+    kinds = {name: sorted(found) for name, found in read.items()}
+    # (a field named after a DOM property neither throws the read nor stands in for its form)
+    assert kinds["throws"] == kinds["formbody"] == ["alt", "contrast", "name"], kinds
+    assert read["lie"]["contrast"][1] == ("“White on white” 1.00:1 (needs 4.5:1)",), read["lie"]
+    assert kinds["gebi"] == ["alt", "contrast", "name"], kinds
+    # (something drawn under the text: said, never judged on white)
+    for name in ("overlay", "hero", "backdrop"):
+        assert kinds[name] == ["over"], (name, read[name])
+    assert kinds["dark"] == ["dark"] and kinds["moved"] == ["alt", "contrast", "name"], kinds
+    assert kinds["gone"] == ["nobody"] and kinds["hidden"] == ["contrast", "hidden"], kinds
+    assert read["focus"]["focus"][1] == ("button",), read["focus"]
+    assert read["fill"]["contrast"][1] == ("“Invisible but black” 1.09:1 (needs 4.5:1)",)
+    assert kinds["frame"] == ["inside"] and kinds["fine"] == [], kinds
+
+
+# (A form whose field is named parentElement made the form's parent its field and the field's
+# its form: the background walk went round for ever. In a child process with a time limit, a
+# page of a few hundred bytes - AGENTS.md, bombs.)
+ROUND = """
+import asyncio, json, sys
+from pathlib import Path
+from app import browser
+from app.workspace import Workspace
+browser.START_WAIT, browser.LOAD_WAIT = 120.0, 40.0
+root = Path(sys.argv[1])
+async def main():
+    ws, one = Workspace(str(root)), browser.Browser(root / "b", "pages")
+    await one.start(browser.find_browser(), ws, set())
+    try:
+        await one.width(1280)
+        await one.open(browser.allowed("round.html", ws, one.closed))
+        print(json.dumps(await one.access()))
+    finally:
+        await one.close()
+asyncio.run(main())
+"""
+
+
+@pytest.mark.skipif(
+    browser.find_browser() is None or "KOLONI_BROWSER_FAKE" in os.environ,
+    reason="no Chrome or Edge on this machine",
+)
+def test_a_field_named_parentelement_sends_the_real_chromes_read_round_no_more(tmp_path):
+    import json
+    import subprocess
+
+    from tests.conftest import scaled
+
+    page = (
+        "<html><head><title>T</title></head><body><form><input name='parentElement' "
+        "style='background:transparent' aria-label='q'><p style='color:#fff'>White on white</p>"
+        "</form></body></html>"
+    )
+    assert len(page) <= 16 * 1024
+    (tmp_path / "round.html").write_text(page, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, "-c", ROUND, str(tmp_path)],
+        cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=scaled(120),
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    read = json.loads(done.stdout.strip().splitlines()[-1])
+    assert proof_kinds._findings(read)["contrast"][1] == ("“White on white” 1.00:1 (needs 4.5:1)",)
 
 
 # --- the end check: a page the turn wrote ------------------------------------------------------

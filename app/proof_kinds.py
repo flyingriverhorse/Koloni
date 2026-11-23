@@ -1104,14 +1104,20 @@ WIDE = "{path}: wider than the screen at {widths} px"
 NO_ALT = "{path}: {n} images without alt text at {widths} px - {named}"
 NO_NAME = "{path}: {n} buttons, links or fields with no name at {widths} px - {named}"
 LOW_CONTRAST = "{path}: {n} texts below the contrast they need at {widths} px - {named}"
+HIDDEN_PAGE = "{path}: the whole page is hidden from screen readers (aria-hidden) at {widths} px"
+HIDDEN_FOCUS = "{path}: {n} controls one can tab to inside aria-hidden at {widths} px - {named}"
 OVER_IMAGE = (
-    "{path}: contrast not checked at {widths} px on {n} texts over an image or a gradient - {named}"
+    "{path}: contrast not checked at {widths} px on {n} texts with something drawn under them "
+    "(an image, a gradient, a layer) - {named}"
 )
+DARK_ONLY = "{path}: contrast not checked at {widths} px - the page's colour scheme is dark only"
+UNREAD_INSIDE = "{path}: accessibility not read inside {n} frames or shadow roots at {widths} px"
 A11Y_CUT = (
     "{path}: accessibility checked only in part at {widths} px - at most {most} elements and "
     "{s} s are read"
 )
 A11Y_UNREAD = "{path}: accessibility not read at {widths} px"
+NO_BODY = "{path}: accessibility not read at {widths} px - the page has no body"
 NEEDS, NEEDS_LARGE = 4.5, 3.0
 LARGE_PX, LARGE_BOLD_PX, BOLD = 24.0, 18.66, 700
 MOST_SNIPPET = 40
@@ -1234,8 +1240,9 @@ async def _look(
     if wide:
         rows.append(row(UI, "failed", WIDE.format(path=name, widths=_widths(wide))))
     failed, noted = _access_rows(name, read)
-    rows = [*rows, *failed] or [row(UI, "passed", CLEAN.format(path=name, widths=_widths(WIDTHS)))]
-    rows += noted
+    # (no console error is said so whatever the accessibility read finds)
+    rows = rows or [row(UI, "passed", CLEAN.format(path=name, widths=_widths(WIDTHS)))]
+    rows += [*failed, *noted]
     if away:  # (what it was checked without)
         rows.append(
             row(
@@ -1287,8 +1294,22 @@ def _by_count(errors: dict[int, list[str]]) -> list[tuple[list[str], list[int]]]
 
 # What one rule found at a width: how many, the first named, and of how many names those are.
 Found = tuple[int, tuple[str, ...], int]
-_FAILED = (("alt", NO_ALT), ("name", NO_NAME), ("contrast", LOW_CONTRAST))
-_NOTED = (("over", OVER_IMAGE), ("cut", A11Y_CUT), ("unread", A11Y_UNREAD))
+_FAILED = (
+    ("hidden", HIDDEN_PAGE),
+    ("alt", NO_ALT),
+    ("name", NO_NAME),
+    ("focus", HIDDEN_FOCUS),
+    ("contrast", LOW_CONTRAST),
+)
+_NOTED = (
+    ("over", OVER_IMAGE),
+    ("dark", DARK_ONLY),
+    ("inside", UNREAD_INSIDE),
+    ("cut", A11Y_CUT),
+    ("unread", A11Y_UNREAD),
+    ("nobody", NO_BODY),
+)
+_ONCE = (1, (), 0)  # (what a rule found that is said once, with no names)
 
 
 async def _accessed(one: "browser.Browser") -> dict | None:
@@ -1389,9 +1410,15 @@ def _texts(texts: object) -> dict[str, Found]:
 def _findings(read: dict | None) -> dict[str, Found]:
     """One width's read (`Browser.access`) as what each rule found."""
     if read is None:
-        return {"unread": (1, (), 0)}
-    found: dict[str, Found] = {}
-    for kind, listed, counted in (("alt", "images", "imagesN"), ("name", "controls", "controlsN")):
+        return {"unread": _ONCE}
+    if read.get("nobody") is True:
+        return {"nobody": _ONCE}
+    found: dict[str, Found] = {"hidden": _ONCE} if read.get("hidden") is True else {}
+    for kind, listed, counted in (
+        ("alt", "images", "imagesN"),
+        ("name", "controls", "controlsN"),
+        ("focus", "focus", "focusN"),
+    ):
         named = read.get(listed)
         named = (
             tuple(_snippet(one) for one in named[: browser.A11Y_LISTED] if isinstance(one, str))
@@ -1402,8 +1429,12 @@ def _findings(read: dict | None) -> dict[str, Found]:
         if n:
             found[kind] = (n, named, n)
     found.update(_texts(read.get("texts")))
+    if read.get("scheme") == "dark":
+        found["dark"] = _ONCE
+    if (frames := int(_number(read.get("frames")) or 0)) > 0:
+        found["inside"] = (frames, (), 0)
     if read.get("cut") is True:
-        found["cut"] = (1, (), 0)
+        found["cut"] = _ONCE
     return found
 
 

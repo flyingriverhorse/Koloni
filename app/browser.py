@@ -505,28 +505,70 @@ _WIDE_JS = _tag("wide") + (
 )
 
 # Pages accessibility (0.1.7): what the page as it loaded says of itself, read in KOLONİ's own
-# world - its first MOST_A11Y elements, for A11Y_MS at most: each image shown with no text for
-# it (no alt, aria-label, aria-labelledby nor title; alt="" is a decorative one, aria-hidden or
-# role none one nobody is told of), each button, link or field shown with no name (its words,
-# aria-label, aria-labelledby, title, its label, a placeholder, a button's value, an image's alt
-# in it), and each text shown: its colour, the backgrounds under it up to the first opaque one
-# (`under`: null - over an image or a gradient, or more than A11Y_LAYERS see-through ones), its
-# size and weight. The colours as numbers, [r, g, b, alpha] - any CSS colour, through a canvas
-# (Tailwind's are oklch). `proof_kinds` judges them. At most A11Y_LISTED images and controls
-# named (all counted), A11Y_STYLES texts of a colour, background, size and weight (each counted).
-# shortcut: a text's own opacity, its shadow, a picture under it set apart (an <img> behind it,
-# not a background) and the text of a field's value are not looked at.
+# world - from its root, its first MOST_A11Y elements, for A11Y_MS at most: each image shown with
+# no text for it (no alt, aria-label, aria-labelledby nor title; alt="" is a decorative one,
+# aria-hidden or role none one nobody is told of), each button, link or field shown with no name
+# (its words, aria-label, aria-labelledby, title, its label, a placeholder, a button's value, an
+# image's alt in it), a page hidden whole (aria-hidden on html or body), a control one tabs to
+# inside aria-hidden, and each text shown: its colour (-webkit-text-fill-color where set), the
+# backgrounds under it up to the first opaque one, its size and weight - `under`: null where
+# something is drawn under it (an image, a gradient, more than A11Y_LAYERS see-through layers,
+# or - no opaque one found - a picture or a layer of another element over its box, a positioned
+# overlay). The colours as numbers, [r, g, b, alpha] - any CSS colour, through a canvas
+# (Tailwind's are oklch). With prefers-color-scheme pinned to light (`Browser.access`), a page
+# whose colour scheme is dark only says so (`scheme`) and its texts are not judged; a page with
+# no body (`nobody`) is not read. Frames and shadow roots are counted, not read (`frames`).
+# The page's own named elements shadow a DOM property of their form or of the document
+# (`<input name="parentElement">`, `<img name="body">`): every one is read through its
+# prototype's own getter or method (`get`, `fn`). At most A11Y_LISTED images and controls named
+# (all counted), A11Y_STYLES texts of a colour, background, size and weight (each counted),
+# A11Y_PAINTED drawn elements looked at over a text's box.
+# shortcut: a text's opacity (its own or an ancestor's), its shadow, an ancestor's ::before or
+# ::after layer, a closed shadow root and the text of a field's value are not looked at.
 MOST_A11Y = 2000
 A11Y_MS = 3000
 A11Y_LISTED = 20
 A11Y_STYLES = 500
 A11Y_LAYERS = 16
+A11Y_PAINTED = 1000
+A11Y_DEPTH = 512  # (how far up a text's background is looked for)
+A11Y_NAMED_IDS, A11Y_TEXT = 20, 200  # (aria-labelledby's ids read, the characters of each text)
 _A11Y = r"""(o) => {
-  const out = {cut: false, images: [], imagesN: 0, controls: [], controlsN: 0, texts: []};
-  const body = document.body;
-  if (!body) return out;
+  const out = {cut: false, images: [], imagesN: 0, controls: [], controlsN: 0, texts: [],
+    hidden: false, focus: [], focusN: 0, scheme: '', frames: 0, nobody: false};
+  const N = Node.prototype, E = Element.prototype, D = Document.prototype;
+  const get = (proto, name) => {
+    const g = Object.getOwnPropertyDescriptor(proto, name).get;
+    return (el) => g.call(el);
+  };
+  const fn = (proto, name) => {
+    const f = proto[name];
+    return (el, ...args) => f.call(el, ...args);
+  };
+  const parent = get(N, 'parentElement'), kids = get(N, 'childNodes'), kind = get(N, 'nodeType');
+  const data = get(CharacterData.prototype, 'data'), tagOf = get(E, 'tagName');
+  const idOf = get(E, 'id'), nsOf = get(E, 'namespaceURI'), shadow = get(E, 'shadowRoot');
+  const attr = fn(E, 'getAttribute'), has = fn(E, 'hasAttribute'), matches = fn(E, 'matches');
+  const closest = fn(E, 'closest'), box = fn(E, 'getBoundingClientRect');
+  const visible = E.checkVisibility ? fn(E, 'checkVisibility') : null;
+  const contains = fn(N, 'contains'), walker = fn(D, 'createTreeWalker');
+  const rects = fn(E, 'getClientRects');
+  const byId = (id) => D.getElementById.call(document, id);
+  const typeOf = get(HTMLInputElement.prototype, 'type');
+  const valueOf = get(HTMLInputElement.prototype, 'value');
+  const labelled = {INPUT: HTMLInputElement, SELECT: HTMLSelectElement,
+    TEXTAREA: HTMLTextAreaElement, BUTTON: HTMLButtonElement, METER: HTMLMeterElement,
+    OUTPUT: HTMLOutputElement, PROGRESS: HTMLProgressElement};
+  const tag = (el) => tagOf(el) || '';
+  const labels = (el) => {
+    const on = labelled[tag(el)];
+    return on ? [...(get(on.prototype, 'labels')(el) || [])] : [];
+  };
+  const root = get(D, 'documentElement')(document), body = get(D, 'body')(document);
+  if (!root) return out;
+  if (!body) { out.nobody = true; return out; }
   const until = performance.now() + o.ms;
-  const pen = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
+  const pen = D.createElement.call(document, 'canvas').getContext('2d', {willReadFrequently: true});
   const colours = new Map(), under = new Map(), styles = new Map();
   const rgba = (c) => {
     let got = colours.get(c);
@@ -547,92 +589,173 @@ _A11Y = r"""(o) => {
     return got;
   };
   const words = (s) => (s || '').replace(/\s+/g, ' ').trim();
-  const seen = (el) => {
-    const r = el.getBoundingClientRect();
-    return r.width > 1 && r.height > 1 &&
-      (!el.checkVisibility || el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true}));
+  // (its text, read no further than `most` characters - never a whole subtree's)
+  const textOf = (el, most) => {
+    let said = '';
+    const w = walker(document, el, NodeFilter.SHOW_TEXT);
+    for (let t = w.nextNode(); t && said.length < most; t = w.nextNode()) said += data(t);
+    return said.slice(0, most);
   };
-  const told = (el) => !el.closest('[aria-hidden="true"]');
-  const by = (el) => (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
-    .map((id) => document.getElementById(id)).filter(Boolean).map((one) => one.textContent);
-  const content = (el) => [el.textContent, ...[...el.querySelectorAll('img[alt], [aria-label]')]
-    .slice(0, 20).map((one) => one.getAttribute('alt') || one.getAttribute('aria-label'))];
+  const seen = (el) => {
+    const r = box(el);
+    return r.width > 1 && r.height > 1 &&
+      (!visible || visible(el, {checkOpacity: true, checkVisibilityCSS: true}));
+  };
+  const told = (el) => !closest(el, '[aria-hidden="true"]');
+  const by = (el) => (attr(el, 'aria-labelledby') || '').split(/\s+/).filter(Boolean)
+    .slice(0, o.ids).map(byId).filter(Boolean).map((one) => textOf(one, o.text));
+  // (its words, and the alt or aria-label of what is in it - of its first 200 elements)
+  const content = (el) => {
+    const said = [textOf(el, o.text)];
+    const w = walker(document, el, NodeFilter.SHOW_ELEMENT);
+    for (let at = w.nextNode(), i = 0; at && i < 200 && said.length < 21; at = w.nextNode(), i++) {
+      const one = attr(at, 'alt') || attr(at, 'aria-label');
+      if (one) said.push(one.slice(0, o.text));
+    }
+    return said;
+  };
   const named = (el) => {
-    const input = el.tagName === 'INPUT' ? el.type : '';
+    const t = tag(el), input = t === 'INPUT' ? typeOf(el) : '';
     return words([
-      el.getAttribute('aria-label'), el.getAttribute('title'), el.getAttribute('placeholder'),
-      ...by(el), ...(el.labels ? [...el.labels].map((one) => one.textContent) : []),
-      /^(submit|reset)$/.test(input) ? el.value || input : input === 'button' ? el.value : '',
-      input === 'image' ? el.getAttribute('alt') : '',
-      ...(input || /^(SELECT|TEXTAREA)$/.test(el.tagName) ? [] : content(el)),
+      attr(el, 'aria-label'), attr(el, 'title'), attr(el, 'placeholder'), ...by(el),
+      ...labels(el).map((one) => textOf(one, o.text)),
+      /^(submit|reset)$/.test(input) ? valueOf(el) || input : input === 'button' ? valueOf(el) : '',
+      input === 'image' ? attr(el, 'alt') : '',
+      ...(input || /^(SELECT|TEXTAREA)$/.test(t) ? [] : content(el)),
     ].join(' '));
   };
   const called = (el) => {
-    const tag = el.tagName.toLowerCase();
-    const how = tag === 'input' ? '[type=' + el.type + ']'
-      : tag === 'a' ? '[href=' + el.getAttribute('href') + ']' : '';
-    return (tag + how + (el.id ? '#' + el.id : '')).slice(0, 80);
+    const t = tag(el).toLowerCase(), id = idOf(el);
+    const how = t === 'input' ? '[type=' + typeOf(el) + ']'
+      : t === 'a' ? '[href=' + attr(el, 'href') + ']' : '';
+    return (t + how + (id ? '#' + id : '')).slice(0, 80);
   };
+  // (the backgrounds under it up to the first opaque one; `open`: none opaque - the canvas;
+  // null: not known - too far up, or out of time)
   const below = (el) => {
     const path = [];
-    let got = {layers: [], image: false};
-    for (let at = el; at; at = at.parentElement) {
+    let got = {layers: [], image: false, open: true}, at = el, depth = 0;
+    for (; at && depth < o.depth; at = parent(at), depth++) {
+      if (performance.now() > until) return null;
       const known = under.get(at);
       if (known) { got = known; break; }
       const s = getComputedStyle(at), c = rgba(s.backgroundColor);
       if (s.backgroundImage !== 'none') {
-        got = {layers: [], image: true};
+        got = {layers: [], image: true, open: false};
         under.set(at, got);
         break;
       }
-      if (c[3] >= 1) { got = {layers: [c], image: false}; under.set(at, got); break; }
+      if (c[3] >= 1) { got = {layers: [c], image: false, open: false}; under.set(at, got); break; }
       path.push([at, c]);
     }
+    if (at && depth >= o.depth) return null;
     for (let i = path.length - 1; i >= 0; i--) {
-      const [at, c] = path[i];
+      const [one, c] = path[i];
       if (c[3] > 0 && !got.image) {
-        got = got.layers.length < o.layers ? {layers: [c, ...got.layers], image: false}
-          : {layers: [], image: true};
+        got = got.layers.length < o.layers
+          ? {layers: [c, ...got.layers], image: false, open: got.open}
+          : {layers: [], image: true, open: false};
       }
-      under.set(at, got);
+      under.set(one, got);
     }
     return got;
   };
-  const skip = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'OPTION', 'OPTGROUP']);
+  // (what draws: a picture, a gradient or image, a background of any colour)
+  const pictures = new Set(['IMG', 'VIDEO', 'CANVAS', 'IFRAME', 'EMBED', 'OBJECT', 'svg']);
+  const painted = [];
+  const draws = (el, t) => {
+    if (pictures.has(t)) return true;
+    const s = getComputedStyle(el);
+    return s.backgroundImage !== 'none' || rgba(s.backgroundColor)[3] > 0;
+  };
+  // (no opaque background found under it: is another element's picture or layer over its box -
+  // a positioned overlay, a backdrop? Its ancestors' are under it already, what it holds its own)
+  // (its words' own boxes, line by line - an inline element's box spans the lines it wraps)
+  const range = D.createRange.call(document);
+  const lines = (el) => {
+    const found = [];
+    for (const node of kids(el)) {
+      if (kind(node) !== 3 || !/\S/.test(data(node))) continue;
+      range.selectNodeContents(node);
+      for (const r of range.getClientRects()) if (r.width > 0 && r.height > 0) found.push(r);
+    }
+    return found;
+  };
+  // (a pixel's touch at an edge is no overlap)
+  const over = (q, r, fixed) => q.left < r.right - 1 && r.left < q.right - 1 &&
+    (fixed || q.top < r.bottom - 1 && r.top < q.bottom - 1);
+  const drawn = (el) => {
+    const mine = lines(el);
+    for (const p of painted) {
+      if (p.el === el || contains(p.el, el) || contains(el, p.el)) continue;
+      for (const q of p.rs) for (const r of mine) if (over(q, r, p.fixed)) return true;
+    }
+    return false;
+  };
+  const meta = D.querySelector.call(document, 'meta[name="color-scheme" i]');
+  const schemes = [...(getComputedStyle(root).colorScheme || '').split(/\s+/),
+    ...((meta && attr(meta, 'content')) || '').toLowerCase().split(/[\s,]+/)];
+  if (schemes.includes('dark') && !schemes.includes('light')) out.scheme = 'dark';
+  out.hidden = attr(root, 'aria-hidden') === 'true' || attr(body, 'aria-hidden') === 'true';
+  const skip = new Set(['HEAD', 'SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'OPTION', 'OPTGROUP']);
   const controls = 'button, a[href], input:not([type=hidden]), select, textarea, summary, ' +
     '[role=button], [role=link]';
-  const walk = document.createTreeWalker(body, NodeFilter.SHOW_ELEMENT);
+  const tabbed = 'button, a[href], input:not([type=hidden]), select, textarea, summary, ' +
+    '[tabindex]';
+  const walk = walker(document, root, NodeFilter.SHOW_ELEMENT,
+    {acceptNode: (el) => skip.has(tag(el)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});
+  const texts = [];
   let n = 0;
-  for (let el = body; el; el = walk.nextNode()) {
+  for (let el = root; el; el = walk.nextNode()) {
     if (++n > o.most || performance.now() > until) { out.cut = true; break; }
-    if (skip.has(el.tagName) || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
-    if (el.tagName === 'IMG' && !el.hasAttribute('alt') && told(el) && seen(el) &&
-        !/^(presentation|none)$/.test(el.getAttribute('role') || '') &&
-        !words([el.getAttribute('aria-label'), el.getAttribute('title'), ...by(el)].join(' '))) {
+    const t = tag(el), html = nsOf(el) === 'http://www.w3.org/1999/xhtml';
+    if (shadow(el) || t === 'IFRAME' || t === 'FRAME') out.frames++;
+    if ((html || t === 'svg') && el !== root && el !== body && draws(el, t)) {
+      if (painted.length >= o.painted) out.cut = true;
+      else painted.push({el, rs: [...rects(el)], fixed: getComputedStyle(el).position === 'fixed'});
+    }
+    if (!html) continue;
+    if (t === 'IMG' && !has(el, 'alt') && told(el) && seen(el) &&
+        !/^(presentation|none)$/.test(attr(el, 'role') || '') &&
+        !words([attr(el, 'aria-label'), attr(el, 'title'), ...by(el)].join(' '))) {
       out.imagesN++;
       if (out.images.length < o.listed) {
-        const src = (el.getAttribute('src') || '').split(/[?#]/)[0].split('/').pop();
+        const src = (attr(el, 'src') || '').split(/[?#]/)[0].split('/').pop();
         out.images.push(src.slice(0, 80) || 'img');
       }
     }
-    if (el.matches(controls) && !el.matches(':disabled') && told(el) && seen(el) && !named(el)) {
+    if (matches(el, controls) && !matches(el, ':disabled') && told(el) && seen(el) &&
+        !named(el)) {
       out.controlsN++;
       if (out.controls.length < o.listed) out.controls.push(called(el));
     }
+    if (!out.hidden && matches(el, tabbed) && !matches(el, ':disabled, [tabindex^="-"]') &&
+        !told(el) && seen(el)) {
+      out.focusN++;
+      if (out.focus.length < o.listed) out.focus.push(called(el));
+    }
     let text = '';
-    for (const node of el.childNodes) if (node.nodeType === 3) text += node.data;
+    for (const node of kids(el)) if (kind(node) === 3) text += data(node).slice(0, o.text);
     text = words(text);
-    if (!text || el.closest(':disabled, [aria-disabled="true"]') || !seen(el)) continue;
-    const s = getComputedStyle(el), fg = rgba(s.color);
+    if (text && !closest(el, ':disabled, [aria-disabled="true"]') && seen(el)) {
+      texts.push([el, text]);
+    }
+  }
+  for (const [el, text] of out.scheme ? [] : texts) {
+    if (performance.now() > until) { out.cut = true; break; }
+    const s = getComputedStyle(el);
+    const fg = rgba(s.getPropertyValue('-webkit-text-fill-color') || s.color);
     if (fg[3] === 0) continue;
-    const bg = below(el), px = parseFloat(s.fontSize) || 0;
-    const weight = parseInt(s.fontWeight, 10) || 400;
-    const key = JSON.stringify([fg, bg.layers, bg.image, px, weight]);
+    const bg = below(el);
+    if (!bg) { out.cut = true; continue; }
+    const over = bg.image || bg.open && drawn(el);
+    const px = parseFloat(s.fontSize) || 0, weight = parseInt(s.fontWeight, 10) || 400;
+    const key = JSON.stringify([fg, over ? null : bg.layers, px, weight]);
     let one = styles.get(key);
     if (!one) {
       if (styles.size >= o.styles) { out.cut = true; continue; }
-      one = {words: text.slice(0, 80), color: fg, under: bg.image ? null : bg.layers, px,
-        weight, n: 0};
+      one = {words: text.slice(0, 80), color: fg, under: over ? null : bg.layers, px, weight,
+        n: 0};
       styles.set(key, one);
       out.texts.push(one);
     }
@@ -651,6 +774,10 @@ def _a11y_js() -> str:
         "listed": A11Y_LISTED,
         "styles": A11Y_STYLES,
         "layers": A11Y_LAYERS,
+        "painted": A11Y_PAINTED,
+        "depth": A11Y_DEPTH,
+        "ids": A11Y_NAMED_IDS,
+        "text": A11Y_TEXT,
     }
     return _tag("a11y", bounds) + f"({_A11Y})({json.dumps(bounds)})"
 
@@ -1347,7 +1474,13 @@ class Browser:
 
     async def access(self) -> dict | None:
         """Pages accessibility (0.1.7): what the page as it loaded says of its images, controls
-        and texts (`_A11Y`), read in KOLONİ's own world (`_world`); None where the read threw."""
+        and texts (`_A11Y`), read in KOLONİ's own world (`_world`) with prefers-color-scheme
+        pinned to light - the colours its contrast is judged in, whatever this machine's are;
+        None where the read threw."""
+        await self._call(
+            "Emulation.setEmulatedMedia",
+            {"features": [{"name": "prefers-color-scheme", "value": "light"}]},
+        )
         found = await self._world(_a11y_js())
         return found if isinstance(found, dict) else None
 

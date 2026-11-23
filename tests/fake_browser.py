@@ -73,8 +73,12 @@ def told(name: str, page: str) -> str | None:
 
 # Pages accessibility (0.1.7): what `app.browser._A11Y` reads in a page, from a test page's own
 # inline styles alone - an image with no text for it, a control with no name, each text's colour
-# over the backgrounds of the elements it is in up to the first opaque one; a style that hides
-# (display: none) or aria-hidden as Chrome would see it. Only what the tests' pages use.
+# over the backgrounds of the elements it is in up to the first opaque one - none, with a
+# positioned layer drawn before it (an absolute or fixed one with a background, an absolute
+# image): something drawn under it, as Chrome's look over its box says; a style that hides
+# (display: none) or aria-hidden as Chrome would see it; a page hidden whole, a control one tabs
+# to inside aria-hidden, a colour scheme dark only, frames, a page with no body. Only what the
+# tests' pages use.
 _COLOURS = {"white": [255, 255, 255, 1.0], "black": [0, 0, 0, 1.0], "transparent": [0, 0, 0, 0.0]}
 _VOID = {"img", "input", "br", "hr", "meta", "link", "source", "wbr", "area", "col", "embed"}
 _UNREAD = {"script", "style", "title", "head", "noscript", "template", "option"}
@@ -104,7 +108,14 @@ class Read(html.parser.HTMLParser):
             "controls": [],
             "controlsN": 0,
             "texts": [],
+            "hidden": False,
+            "focus": [],
+            "focusN": 0,
+            "scheme": "",
+            "frames": 0,
+            "nobody": False,
         }
+        self.layer = False  # (a positioned layer is drawn: `handle_data`)
         self.open: list[dict] = []
         self.fields: list[tuple[int, dict, bool]] = []
         self.labelled: set[str] = set()
@@ -137,7 +148,9 @@ class Read(html.parser.HTMLParser):
             "tag": tag,
             "attrs": attrs,
             "style": style,
-            "colour": colour(style.get("color", "")) or up["colour"],
+            "colour": colour(style.get("-webkit-text-fill-color", ""))
+            or colour(style.get("color", ""))
+            or up["colour"],
             "px": float(style["font-size"].removesuffix("px"))
             if "font-size" in style
             else up["px"],
@@ -149,10 +162,41 @@ class Read(html.parser.HTMLParser):
         }
         if tag == "label" and attrs.get("for"):
             self.labelled.add(attrs["for"])
+        self._more(tag, attrs, style)
         if not self.out["cut"] and not self._hidden():
             self._start(tag, attrs)
         if tag not in _VOID:
             self.open.append(one)
+
+    def _more(self, tag: str, attrs: dict, style: dict) -> None:
+        """What `_A11Y` reads besides the rules of `_start`: the page hidden whole, a control one
+        tabs to inside aria-hidden, a dark-only scheme, frames, a positioned layer drawn."""
+        if tag in ("html", "body") and attrs.get("aria-hidden") == "true":
+            self.out["hidden"] = True
+        if tag == "meta" and attrs.get("name") == "color-scheme":
+            schemes = attrs.get("content", "").lower().split()
+            self.out["scheme"] = "dark" if "dark" in schemes and "light" not in schemes else ""
+        self.out["frames"] += tag in ("iframe", "frame")
+        position = style.get("position", "")
+        back = style.get("background-color") or style.get("background", "")
+        drawn = (under := colour(back)) is not None and under[3] > 0 or "url(" in back
+        if position in ("absolute", "fixed") and (drawn or tag == "img"):
+            self.layer = True
+        tabbed = tag in ("button", "select", "textarea") or tag == "a" and "href" in attrs
+        tabbed = tabbed or tag == "input" and attrs.get("type") != "hidden"
+        tabbed = tabbed or not attrs.get("tabindex", "-").startswith("-")
+        inside = attrs.get("aria-hidden") == "true" or any(
+            one["attrs"].get("aria-hidden") == "true" for one in self.open
+        )
+        if (
+            tabbed
+            and inside
+            and not self.out["hidden"]
+            and "disabled" not in attrs
+            and not attrs.get("tabindex", "").startswith("-")
+        ):
+            how = f"[href={attrs['href']}]" if tag == "a" else ""
+            self._listed("focus", tag + how + (f"#{attrs['id']}" if attrs.get("id") else ""))
 
     def _start(self, tag: str, attrs: dict) -> None:
         named = " ".join(attrs.get(k, "") for k in ("aria-label", "title", "aria-labelledby"))
@@ -203,6 +247,9 @@ class Read(html.parser.HTMLParser):
                 layers.append(under)
                 if under[3] >= 1:
                     break
+        image = image or self.layer and not any(one[3] >= 1 for one in layers)
+        if self.out["scheme"]:
+            return
         key = json.dumps([top["colour"], layers, image, top["px"], top["weight"]])
         if key not in self.styles:
             if len(self.styles) >= self.bounds["styles"]:
@@ -239,6 +286,8 @@ class Read(html.parser.HTMLParser):
 
 
 def accessed(page: str, bounds: dict) -> dict:
+    if "data-a11y-no-body" in page:  # (a test's page whose script takes its body away)
+        return {**Read(bounds).out, "nobody": True}
     read = Read(bounds)
     read.feed(page)
     read.close()
