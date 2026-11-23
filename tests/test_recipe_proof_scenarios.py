@@ -445,7 +445,8 @@ def test_a_tester_that_ran_nothing_does_not_pass(make_client, wait_run, project_
 
 
 def test_a_reviewer_without_run_command_is_not_held_to_r3(make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([REPRO, PASSED])
+    # (and Take in's check of the Debugger's own test - 0.1.7)
+    executor = ScriptedExecutor([REPRO, PASSED, PASSED])
     client, _model = make_client(scripts(ran_tests()), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)

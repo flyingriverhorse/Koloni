@@ -2,7 +2,8 @@
 fix is handed to the next stronger tier - fast, balanced, strongest - the same role on that
 tier's model, each once a turn; its diagnosis first, read by its own line; failing work never
 taken in. Scripted models by tier (`tiered`: Fast · quick is fast, Fast · deep balanced, Local ·
-big-model strongest) and a scripted executor."""
+big-model strongest) and a scripted executor - its runs the end check's: a Coder's Take in runs only
+the tests it wrote (0.1.7), and `python check.py` cannot be narrowed to them, so none runs there."""
 
 import pytest
 
@@ -59,9 +60,9 @@ FIRST = [step(spawn("Coder", "fast", WHY)), text("done"), text("done, as it is")
 
 
 def test_a_failing_turn_goes_up_the_tiers_until_it_passes(team, wait_run, project_dir):  # noqa: F811
-    # (Each Coder's copy is taken in at Full auto after the check passes there; then the end
-    # check fails on the project, twice, and passes after the strongest's round.)
-    executor = ScriptedExecutor([PASS, failing(), PASS, failing(), PASS, PASS])
+    # (Each Coder's copy is taken in at Full auto - no test of its own to run there, 0.1.7; then
+    # the end check fails on the project, twice, and passes after the strongest's round.)
+    executor = ScriptedExecutor([failing(), failing(), PASS])
     client, cid, run_id = started(
         team,
         project_dir,
@@ -133,7 +134,7 @@ def test_test_wrong_with_the_requests_words_may_change_the_test(
                 text("changed the test as the request asks"),
             ],
         },
-        [PASS, failing(), PASS, PASS],
+        [failing(), PASS],
     )
     assert s11.TEST_CHANGED.format(why=why) in texts, texts
     assert "Tests passed: python check.py - 4 passed in 0.1s" in texts, texts
@@ -152,7 +153,7 @@ def test_test_wrong_without_the_requests_words_is_fix_incomplete(
             "Coder 2": [said(s11.TEST_WRONG, "the test is too strict")],
             "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")],
         },
-        [PASS, failing(), PASS, PASS],
+        [failing(), PASS],
     )
     assert s11.NOT_QUOTED.format(model="big-model") in texts, texts
     assert not any(one.startswith("Test changed") for one in texts), texts
@@ -171,7 +172,7 @@ def test_approach_wrong_in_the_project_goes_on_from_the_work(
             "Coder 2": [said(s11.APPROACH_WRONG, "a cache cannot pass this")],
             "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("did it another way")],
         },
-        [PASS, failing(), PASS, failing()],
+        [failing(), failing()],
     )
     assert s11.IN_PROJECT in texts, texts
     # (nothing passed: the failing line names every model that had rounds)
@@ -184,7 +185,7 @@ def test_with_the_switch_off_no_stronger_model_is_handed_it(
     project_dir,
 ):
     texts, snap, _executor = one_tier(
-        team, wait_run, project_dir, {}, [PASS, failing()], stronger_model=False
+        team, wait_run, project_dir, {}, [failing()], stronger_model=False
     )
     assert not any(one.startswith("Handed to") for one in texts), texts
     assert [a["name"] for a in snap["agents"]] == ["Lead", "Coder"]
@@ -214,7 +215,7 @@ def test_flaky_or_failing_before_is_not_handed_on(
         return []
 
     monkeypatch.setattr(BeforeMixin, "_proof_before", none_new)
-    texts, snap, _executor = one_tier(team, wait_run, project_dir, {}, [PASS, failing()])
+    texts, snap, _executor = one_tier(team, wait_run, project_dir, {}, [failing()])
     assert not any(one.startswith("Handed to") for one in texts), texts
     assert [a["name"] for a in snap["agents"]] == ["Lead", "Coder"]
 
@@ -240,7 +241,7 @@ def test_with_the_default_spawn_approval_the_hand_off_asks_nothing(
     project_dir,
 ):
     # (KOLONİ's own hand-off is no pick of an agent's: no card at Full auto)
-    executor = ScriptedExecutor([PASS, failing(), PASS, PASS])
+    executor = ScriptedExecutor([failing(), PASS])
     client, cid, run_id = started(
         team,
         project_dir,
@@ -322,7 +323,7 @@ def test_a_tier_over_its_limit_is_skipped_and_said(
     monkeypatch.setattr(
         s11, "over_limit", lambda _session, provider: "over" if provider.name == "Local" else None
     )
-    executor = ScriptedExecutor([PASS, failing(), PASS, PASS])
+    executor = ScriptedExecutor([failing(), PASS])
     client, cid, run_id = started(
         team,
         project_dir,
@@ -358,7 +359,7 @@ def test_a_round_that_loosens_the_test_without_leave_is_no_pass(
                 text("fixed"),
             ],
         },
-        [PASS, failing(), PASS, PASS],
+        [failing(), PASS],
     )
     assert s11.TESTS_TOUCHED.format(model="big-model", paths="test_a.py") in texts, texts
     assert s11.STILL_HANDED.format(by="fast-model and big-model") in texts, texts
@@ -403,7 +404,7 @@ def test_a_test_wrong_round_is_read_by_the_reviewer(
                 text("changed the test as the request asks"),
             ],
         },
-        [PASS, failing(), PASS, PASS],
+        [failing(), PASS],
     )
     assert (1, True) in seen, (seen, texts)
     assert s11.TEST_HELD.format(model="big-model") in texts, texts
@@ -493,7 +494,7 @@ def test_a_test_wrong_round_the_reviewer_did_not_read_is_no_pass(
                 text("changed the test as the request asks"),
             ],
         },
-        [PASS, failing(), PASS, PASS],
+        [failing(), PASS],
     )
     assert any(
         one.startswith("Not a pass: the Reviewer did not read big-model") for one in texts
@@ -516,7 +517,7 @@ def test_a_conftest_that_deselects_the_test_is_a_test_change(
                 text("fixed"),
             ],
         },
-        [PASS, failing(), PASS, PASS],
+        [failing(), PASS],
     )
     assert s11.TESTS_TOUCHED.format(model="big-model", paths="conftest.py") in texts, texts
 
@@ -564,7 +565,7 @@ def test_until_it_passes_a_stronger_models_rounds_stop_where_they_make_no_progre
             "Coder 2": [said(s11.FIX_INCOMPLETE)],
             "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed")],
         },
-        [PASS, failing(), PASS, failing()],
+        [failing(), failing()],
         fix_rounds="until",
     )
     assert (
@@ -572,7 +573,7 @@ def test_until_it_passes_a_stronger_models_rounds_stop_where_they_make_no_progre
         in texts
     ), texts
     assert s11.STRONGER_HALTED.format(model="big-model", why=proof.NO_PROGRESS) in texts, texts
-    assert len(executor.started) == 4, executor.started  # (its copy's check, then the end's)
+    assert len(executor.started) == 2, executor.started  # (the end's: its copy wrote no test)
 
 
 def test_until_it_passes_one_ceiling_holds_the_turns_rounds_and_the_stronger_ones(
@@ -592,13 +593,13 @@ def test_until_it_passes_one_ceiling_holds_the_turns_rounds_and_the_stronger_one
             "Coder 2": [said(s11.FIX_INCOMPLETE)],
             "Coder 3": [step(write("a.py", "x = 2\n").tool_calls[0]), text("fixed one")],
         },
-        [PASS, fails(3), PASS, fails(2)],
+        [fails(3), fails(2)],
         fix_rounds="until",
     )
     assert s11.STRONGER_HALTED.format(model="big-model", why=proof.AT_CEILING.format(most=1)) in (
         texts
     ), texts
-    assert len(executor.started) == 4, executor.started
+    assert len(executor.started) == 2, executor.started
 
 
 # --- k-onceki-1: the second session's J and K ------------------------------------------------
@@ -607,8 +608,8 @@ PYTEST = "python -m pytest -q"
 
 
 class ByTheWork(ScriptedExecutor):
-    """The project's tests as they would run: they pass where `a.py` holds the fix, x = 3 - the
-    first run (the first Coder's Take in check) passes, as its suite did then."""
+    """The project's tests as they would run: they pass where `a.py` holds the fix, x = 3 - a
+    Take in's check of the tests a Coder wrote (0.1.7) as the end's."""
 
     def __init__(self):
         super().__init__([])
@@ -619,7 +620,7 @@ class ByTheWork(ScriptedExecutor):
 
         a = Path(cwd) / "a.py"
         fixed = a.exists() and "x = 3" in a.read_text(encoding="utf-8")
-        self.scripts = [PASS if fixed or not self.runs else failing()]
+        self.scripts = [PASS if fixed else failing()]
         self.runs += 1
         return await super().start(command_id, command, cwd, copy, links, secrets, env)
 
@@ -711,8 +712,14 @@ def test_a_fix_that_fails_take_ins_check_is_said_in_checked_and_stays_out(
 ):
     # (K: with the project's own check command, the fixer's work failed Take in's own check
     # and stayed in its copy - and no Checked section came at all: the newest record of a.py
-    # was that copy's, so nothing of the turn counted as in the project)
-    texts, snap = handed(team, wait_run, project_dir, [("a.py", "x = 2\n")])
+    # was that copy's, so nothing of the turn counted as in the project. 0.1.7: the check is
+    # the tests the fixer wrote - a new one here)
+    texts, snap = handed(
+        team,
+        wait_run,
+        project_dir,
+        [("a.py", "x = 2\n"), ("test_fix.py", "def test_fix(): pass\n")],
+    )
     assert (
         s11.HANDED.format(model="big-model", tier="Strongest", n="1 round", by="fast-model")
         in texts
@@ -742,9 +749,11 @@ def test_work_a_stronger_model_made_pass_is_looked_over_once(
 
     monkeypatch.setattr(ReviewMixin, "_review_look", merges)
     big = "".join(f"x{i} = {i}\n" for i in range(90))
-    executor = ScriptedExecutor([PASS, failing(), failing(), PASS, PASS])
-    # (its round's answer changes a file: the second pass fails with no round left - "No review:
-    # the tests still fail" - and the stronger model is handed it)
+    executor = ScriptedExecutor([failing(), PASS])
+    # (its round's answer - a write of its own, refused: the Orchestrator hands code on - leaves
+    # the failure standing with no round left - "No review: the tests still fail" - and the
+    # stronger model is handed it; 0.1.7: no Take in check of a copy with no test of its own, so
+    # the runs are the end check's two)
     lead = [*ONE[:2], step(write("c.py", "z = 1\n", "w9").tool_calls[0]), text("tried")]
     client, cid, run_id = started(
         team,
