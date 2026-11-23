@@ -58,6 +58,10 @@ _SUBCOMMAND_TOOLS = frozenset(
 # ...and those where the task is one word further on: `npm run build`, `uv run pytest`.
 _RUNNERS = frozenset({("npm", "run"), ("pnpm", "run"), ("yarn", "run"), ("uv", "run")})
 _RUNNER_PROGRAMS = frozenset({"npx", "pnpx", "uvx", "bunx"})
+# 0.1.7's Code style and types: the linters and type checkers KOLONİ runs on a turn's files. A
+# rule for one is its line's fixed part - the program and its options, up to the first file it is
+# given (`./x`) - never the bare program: what it reads and where it writes is in those options.
+_LINTERS = frozenset({"ruff", "mypy", "eslint", "tsc"})
 # ...and subcommands that do the same: a rule must name the package (`uv tool run x`: one
 # word further on).
 _EXECUTORS = {
@@ -137,6 +141,10 @@ def _offer(command: str) -> str:  # noqa: C901
     rest = words[1:]
     if program in _SHELLS:
         return ""
+    if program in _LINTERS:
+        return " ".join(
+            words[: next((at for at, w in enumerate(words) if at and w.startswith("./")), None)]
+        )
     if _INTERPRETER.fullmatch(program):
         if len(rest) >= 2 and rest[0] == "-m":
             return " ".join(words[:3])
@@ -725,9 +733,21 @@ _PAST_A_RULE = {
     "uv": ("-w", "--with", "--from"),
     "uvx": ("-w", "--with", "--from"),
     "pipx": ("--spec",),
+    # 0.1.7's Code style and types: another config (a plugin it loads is code), a rules folder or
+    # plugins found elsewhere, another Python run for it
+    "ruff": ("--config",),
+    "mypy": ("--config-file", "--python-executable"),
+    "eslint": ("-c", "--config", "--resolve-plugins-relative-to", "--rulesdir"),
 }
 # ...these only where their value leads out of the folder (a report written there)...
-_PAST_A_RULE_OUT = {"pytest": ("--junitxml", "--junit-xml")}
+_PAST_A_RULE_OUT = {
+    "pytest": ("--junitxml", "--junit-xml"),
+    # (0.1.7: a report, a cache or a build put elsewhere; tsc on another folder's config)
+    "ruff": ("--output-file", "-o", "--cache-dir"),
+    "mypy": ("--cache-dir", "--junit-xml"),
+    "eslint": ("--output-file", "-o", "--cache-location"),
+    "tsc": ("-p", "--project", "--outDir", "--outFile", "--tsBuildInfoFile", "--declarationDir"),
+}
 # ...the short options that take a value where a program bundles its short ones (`pytest -qo x`:
 # the bundle ends at one of these; elsewhere only the first letter counts, `-pfoo`)...
 _SHORT_VALUES = {

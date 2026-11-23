@@ -115,6 +115,11 @@ class Proof:
     # The commands said yes to on a card, by the folder they ran in: a yes covers that text in
     # that folder only - never another part's command of the same text.
     yes: dict[str, set[str]] = field(default_factory=dict)
+    # 0.1.7's Code style and types: each tool a card said no to this turn, (tool, folder) - its
+    # yes is the line's in `yes`, as a test command's; and whether a tool of it is set up for the
+    # turn's code (`KindsMixin._style_seen`, read once a pass off the event loop).
+    style: set[tuple[str, str]] = field(default_factory=set)
+    style_set_up: bool = False
     # Plan decision 13: a recipe of the turn ran its own fix loop to its end - rounds never stack.
     recipe_spent: bool = False
     # CL-321 Bulgu D: the turn's newest command that may have changed files off the record
@@ -267,6 +272,7 @@ class ProofMixin:
         held.changes, held.checks, held.most, held.until_passes = found, checks, most, until
         held.unrecorded, held.gone_tests = unrecorded, gone
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
+        held.style_set_up = await self._style_seen(ctx, found)
         for name in self.PROOF_STEPS:
             try:
                 said = await getattr(self, name)(ctx, held)

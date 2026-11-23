@@ -226,6 +226,7 @@ KINDS_ON = {
     "test_proof_pages",
     "test_proof_config",
     "test_proof_scripts",
+    "test_proof_style",
 }
 # S5b: a turn that wrote a page or a component is looked at in KOLONİ's own browser - in a test, a
 # browser started (a real one where no stand-in is named) and rows. On only where tested.

@@ -9696,6 +9696,11 @@ export interface components {
              */
             slides: boolean;
             /**
+             * Style
+             * @default true
+             */
+            style: boolean;
+            /**
              * Tests
              * @default true
              */

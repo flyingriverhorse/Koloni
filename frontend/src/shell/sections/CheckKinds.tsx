@@ -3,7 +3,7 @@ import type { Project } from '../../api/types'
 import { GUIDE } from '../guide'
 import { Row } from './part'
 
-/** S5a: the kinds of work KOLONİ checks after a turn wrote them, as Settings names them; S5b's Pages ("ui"); 0.1.7's Config and Scripts. */
+/** S5a: the kinds of work KOLONİ checks after a turn wrote them, as Settings names them; S5b's Pages ("ui"); 0.1.7's Config, Scripts and Code style and types. */
 export const CHECK_KINDS: [kind: string, label: string][] = [
   ['docs', 'Documents'],
   ['slides', 'Slides'],
@@ -12,10 +12,11 @@ export const CHECK_KINDS: [kind: string, label: string][] = [
   ['ui', 'Pages'],
   ['config', 'Config'],
   ['scripts', 'Scripts'],
+  ['style', 'Code style and types'],
 ]
 /** What they check, in sight under the boxes. */
 export const CHECK_KINDS_NOTE =
-  'Under Test and review, after a turn that wrote such files, KOLONİ checks them without a model: links and headings, whether a diagram parses and is connected, CSV rows and notebook cells, empty slides, JSON, YAML and TOML files that parse (a package.json, pyproject.toml, GitHub workflow or Compose file in its expected shape), shell and PowerShell scripts that parse (read by their own shell, never run); a changed page (or the running preview, for a component) in its own browser at 375, 768 and 1280 px for console errors and sideways scrolling. A sure problem goes back as a fix round.'
+  'Under Test and review, after a turn that wrote such files, KOLONİ checks them without a model: links and headings, whether a diagram parses and is connected, CSV rows and notebook cells, empty slides, JSON, YAML and TOML files that parse (a package.json, pyproject.toml, GitHub workflow or Compose file in its expected shape), shell and PowerShell scripts that parse (read by their own shell, never run), the project’s own ruff, eslint, tsc and mypy where it has them (each asks before it runs unasked, a yes for that line); a changed page (or the running preview, for a component) in its own browser at 375, 768 and 1280 px for console errors and sideways scrolling. A sure problem goes back as a fix round.'
 
 /** Settings › This project › Checks and git: Check by kind of work - all on unless switched off (a kind left out is on). */
 export function useCheckKinds(project: Project) {

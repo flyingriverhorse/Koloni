@@ -285,19 +285,33 @@ def added_lines(
             last.kind == "delete"
         ):
             continue
-        before = (made[0].before_content or "").splitlines()
-        after = (last.after_content or "").splitlines()
-        lines = [
-            number + 1
-            for tag, _a, _b, start, end in difflib.SequenceMatcher(
-                None, before, after, autojunk=False
-            ).get_opcodes()
-            if tag in ("replace", "insert")
-            for number in range(start, end)
-        ]
-        if lines:
+        if lines := changed_lines(made[0].before_content or "", last.after_content or ""):
             out[path] = lines
     return out
+
+
+def changed_lines(before: str, after: str) -> list[int]:
+    """The numbers of the lines `after` added or rewrote, counted as the tools count them
+    (`_lines`)."""
+    return [
+        number + 1
+        for tag, _a, _b, start, end in difflib.SequenceMatcher(
+            None, _lines(before), _lines(after), autojunk=False
+        ).get_opcodes()
+        if tag in ("replace", "insert")
+        for number in range(start, end)
+    ]
+
+
+def _lines(text: str) -> list[str]:
+    """A file's lines as its tools number them - split at `\\n`, `\\r\\n` and `\\r` only: a form
+    feed or a line separator inside a line is no line of its own to ruff, mypy, eslint or tsc
+    (`str.splitlines` would make it one, and blame the turn for a line it never wrote)."""
+    found = _LINE_END.split(text)
+    return found[:-1] if found[-1] == "" else found
+
+
+_LINE_END = re.compile(r"\r\n|[\r\n]")
 
 
 def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:
@@ -807,10 +821,11 @@ def after_change_of(session: Session, conversation: Conversation, run: Run | Non
 
 # S5c (plan decision 16): what the end gate checks, part by part - the project's tests, the
 # Reviewer's look, each kind of work a turn wrote (`app.proof_kinds.WRITTEN`: S5b's pages, "ui";
-# 0.1.7's config files and shell scripts, "config" and "scripts").
-PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config", "scripts")
+# 0.1.7's config files, shell scripts and code style and types, "config", "scripts" and
+# "style").
+PARTS = ("tests", "review", "docs", "diagram", "data", "slides", "ui", "config", "scripts", "style")
 # (On in a recipe's Checks step unless unticked: a row's graph from before has no such key.)
-ON_UNLESS_UNTICKED = ("config", "scripts")
+ON_UNLESS_UNTICKED = ("config", "scripts", "style")
 
 
 class Checks(NamedTuple):

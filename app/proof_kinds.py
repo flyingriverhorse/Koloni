@@ -49,7 +49,7 @@ from app.workspace import Outside, Workspace, WorkspaceError, secret_in_project,
 
 # The kinds a project switches (`Project.check_kinds`) checked with no browser, each as Settings
 # says it; and S5b's pages (`check_pages`, "ui"), which need KOLONİ's own browser.
-KINDS = ("docs", "slides", "diagram", "data", "config", "scripts")
+KINDS = ("docs", "slides", "diagram", "data", "config", "scripts", "style")
 UI = "ui"
 WRITTEN = (*KINDS, UI)
 SHOWN = {
@@ -59,6 +59,7 @@ SHOWN = {
     "data": "data",
     "config": "config files",
     "scripts": "scripts",
+    "style": "code style and types",
     UI: "pages",
 }
 KINDS_TO_FIX = (
