@@ -1248,9 +1248,11 @@ def test_what_koloni_wrote_for_another_agent_is_no_native_change_however_the_loo
     assert not runner._still_wrote_for(here, ("gone.txt", "again\n", None))
 
 
-def test_a_native_agents_look_never_reads_a_file_take_in_is_half_way_through(tmp_path):
+@pytest.mark.parametrize("last", [False, True], ids=["at work", "at its last look"])
+def test_a_native_agents_look_never_reads_a_file_take_in_is_half_way_through(tmp_path, last):
     # (A macOS runner, 23 Nov: the Lead's last look read made.txt while its Coder's copy was
-    # taken in - there, not yet written - and put it down to the Lead.)
+    # taken in - there, not yet written - and put it down to the Lead. At its last look its
+    # watch is out of `_watches` already: `_native_work`'s end.)
     import asyncio
     import threading
 
@@ -1270,7 +1272,9 @@ def test_a_native_agents_look_never_reads_a_file_take_in_is_half_way_through(tmp
     async def take_in_beside_a_look():
         watch = _Watch(ProjectView(tmp_path))
         watch.looking, watch.ctx = Looking(), SimpleNamespace(root=str(tmp_path))
-        runner = SimpleNamespace(_watches={"chat": [watch]})
+        runner = SimpleNamespace(
+            _watches={"chat": [] if last else [watch]}, _last_looks=[watch] if last else []
+        )
         read = threading.Event()
 
         def changes():

@@ -1385,6 +1385,8 @@ class AgentRunner(
         # its first step - its task does not change, and its brief stays the same for the cache
         self._about: dict[str, str] = {}
         self._watches: dict[str, list[_Watch]] = {}
+        # ...and those taken out of it, still at their last look (`_native_work_last_look`).
+        self._last_looks: list[_Watch] = []
         # K-yazma-denetimi: project folder -> path -> the open card "keep it?" of a standing file
         # taken back there, with what the agent wrote (`_taken_back`); while one is open no
         # approval there is answered (`_approve`).

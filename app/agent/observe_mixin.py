@@ -322,10 +322,13 @@ class ObserveMixin:
         still half written put it down to its CLI (a macOS runner, 23 Nov: the Lead's last look
         and its Coder's made.txt). A look waits for the last file written; let go with no await
         before `_seen_by_watchers`, which marks those files as KOLONİ's before any look goes on.
-        (By the folder as it resolves: a copy's `project` does, an agent's root may not.)"""
+        (By the folder as it resolves: a copy's `project` does, an agent's root may not.) Its
+        last looks too, once its watch is out of `_watches` (`_last_looks`)."""
         here = project.resolve()
+        at_work = [one for watches in list(self._watches.values()) for one in watches]
         async with contextlib.AsyncExitStack() as held:
-            for watch in [one for watches in list(self._watches.values()) for one in watches]:
+            # (Each once: a lock taken twice would wait for itself.)
+            for watch in {id(one): one for one in [*at_work, *self._last_looks]}.values():
                 if (
                     watch.ctx is not None
                     and watch.ctx.root
