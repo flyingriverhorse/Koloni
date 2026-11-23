@@ -2,19 +2,20 @@
 project's test command(s), the turn's changes on record, whether a test run on record stands for
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
+import contextlib
 import difflib
 import fnmatch
 import json
 import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import NamedTuple, NotRequired, TypedDict
 
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
 
-from app import finish_tests, ledger, project_map, test_found
+from app import finish_tests, git, ledger, project_map, test_found
 from app.code_map import PYTHON, SCRIPT, tested
 from app.commands import only_reads, plain
 from app.db.models import (
@@ -30,7 +31,7 @@ from app.db.models import (
     ToolCall,
 )
 from app.tools import MAX_TIMEOUT
-from app.workspace import in_scratch, secret_in_project, unified_diff
+from app.workspace import in_scratch, is_secret, secret_in_project, unified_diff
 
 # KOLONİ's own end-of-turn test run: its call's id starts so (`ProofMixin`).
 PROOF_CALL = "koloni_proof_"
@@ -321,6 +322,63 @@ def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
     return shown, whole, left
 
 
+def unrecorded(session: Session, run_id: str, by: Collection[str]
+               ) -> tuple[str, datetime | None] | None:
+    """CL-321 Bulgu D: the commands of `by` (the Lead and the agents working where it does) this
+    turn that may have changed files no change record holds - each with a part that is neither a
+    mere read (`only_reads`) nor a test run (`ledger.read_test`), not KOLONİ's own:
+    `python -c "open(…)"`, `sed -i`, a heredoc to a file, `black . && pytest -q`. The newest's
+    line, shortened, and when the oldest started (an earlier `sed -i` wrote too); None: none."""
+    mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
+    newest, oldest = None, None
+    for line, started in session.execute(select(Command.command, Command.started_at).where(
+            Command.run_id == run_id, Command.agent_id.in_(by),
+            Command.status.in_(("exited", "timed_out")),
+            or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(mine)))
+            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
+        if may_write(line):
+            if newest is None:
+                said = " ".join(line.split())
+                newest = said if len(said) <= MOST_COMMAND else said[:MOST_COMMAND - 1] + "…"
+            oldest = started
+    return None if newest is None else (newest, oldest)
+
+
+def may_write(line: str) -> bool:
+    """Whether a command line may change files: a part of it (`ledger._split`) is neither a mere
+    read (`only_reads`) nor a test run (`ledger.read_test`) - `black . && pytest -q` may."""
+    return any(ledger.read_test(part) is None and not only_reads(part)
+               for part in (" ".join(words) for words, _op in ledger._split(line) if words))
+
+
+def touched_since(folder: Path, since: datetime | None, recorded: Collection[str],
+                  head: str | None = None) -> list[str] | None:
+    """Review of CL-321 D: what commands may have changed, by git - the files `git status`
+    lists in `folder` (changed, added, untracked; not ignored) and, from `head` (the turn's
+    start), those committed since (`black . && git commit -am x`), but those on record
+    (`recorded`), written at or after `since`. None: no git there (or it did not answer in
+    time). Blocking: call it off the event loop.
+    shortcut: a file deleted is not seen (no time to read); count git's deletions if missed.
+    shortcut: a write that keeps an old time (`cp -p`, `tar x`, `unzip`, `touch -d`), one into
+    an ignored folder and a secret-named file (`git.changes` leaves it out) are not seen; ask
+    git for them, or read the files' hashes as the turn begins, if a change slips by so."""
+    listed = git.changes(folder)
+    if listed is None:
+        return None
+    paths = [one["path"] for one in listed]
+    if head is not None:
+        paths += [one for one in git.committed_since(folder, head) if not is_secret(one)]
+    edge = since.timestamp() - MTIME_SLACK if since is not None else float("-inf")
+    found = []
+    for path in dict.fromkeys(paths):
+        if path in recorded:
+            continue
+        with contextlib.suppress(OSError):
+            if (folder / path).stat().st_mtime >= edge:
+                found.append(path)
+    return sorted(found)
+
+
 def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
                 ) -> datetime | None:
     """When the turn's newest kept change was made or taken in: a test run that started before
@@ -551,6 +609,12 @@ RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
+# CL-321 Bulgu D: a turn whose only change a command made - no change of it on record.
+UNRECORDED = "A command of this turn may have changed files KOLONİ did not record: {command}"
+MOST_COMMAND = 120  # characters of such a command said
+MOST_TOUCHED = 5  # files it changed named, then "+N more"
+# A file's time against a command's start: what a file system rounds down (FAT: 2 s).
+MTIME_SLACK = 2.0
 OFF_FOR_CHAT = "Not checked: off for this chat"
 # S5c: a recipe's Checks step set to check nothing; its tests set off; its Fix rounds at 0.
 RECIPE_OFF = "Not checked: this recipe's Checks step checks nothing"

@@ -471,6 +471,31 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run
     ("**Verdict:** HOLD\nFindings: none", "HOLD"), ("VERDICT: hold", "HOLD"),
     ("Verdict: MERGE.", "MERGE"), ("Verdict — HOLD", "HOLD"), ("Verdict - HOLD", "HOLD"),
     ("Verdict: **HOLD**", "HOLD"), ("Verdict: **MERGE**\nVerdict — HOLD", "HOLD"),
+    # (CL-321 Bulgu E: written other ways, a HOLD was "not counted" and the change went on)
+    ("Final verdict: HOLD", "HOLD"), ("My verdict: HOLD", "HOLD"), ("1. Verdict: HOLD", "HOLD"),
+    ("## Verdict\nHOLD", "HOLD"), ("Verdict:\n\nHOLD", "HOLD"), ("Verdict: do NOT MERGE", "HOLD"),
+    ("Verdict: REQUEST CHANGES", "HOLD"), ("Verdict: REJECT", "HOLD"),
+    ("Verdict: MERGE is not possible", "HOLD"), ("Verdict: MERGE or HOLD? HOLD.", "HOLD"),
+    ("Verdict: I would HOLD this", "HOLD"), ("Overall verdict: MERGE", "MERGE"),
+    ("## Verdict\n\n**MERGE**", "MERGE"), ("Verdict: MERGE - no blocking findings", "MERGE"),
+    ("Verdict: MERGE, no findings", "MERGE"), ("No verdict here, it looks fine.", None),
+    # (its review: the first verdict word decides - a hold word negated is none; an earlier
+    # look's verdict is not this one's)
+    ("Verdict: MERGE (nothing blocked)", "MERGE"),
+    ("Verdict: MERGE - no reason to hold this back", "MERGE"),
+    ("Verdict: MERGE. Don't hold it.", "MERGE"),
+    ("Verdict: MERGE - no need to reject anything", "MERGE"),
+    ("Verdict: I'd not block: MERGE", "MERGE"), ("## Verdict\nI'd not block: MERGE", "MERGE"),
+    ("Previous verdict: HOLD. Now it is fixed.\nVerdict: MERGE", "MERGE"),
+    ("Verdict: MERGE - nothing blocks", "MERGE"), ("## Verdict\nMERGE, no blocking findings", "MERGE"),
+    ("Verdict: MERGE - no changes requested", "MERGE"), ("Final verdict: MERGE", "MERGE"),
+    ("Verdict: MERGE is not possible yet", "HOLD"), ("Verdict:\n**MERGE**", "MERGE"),
+    ("My verdict: MERGE, with minor nits", "MERGE"),
+    # (a negation reaches no further than punctuation; "MERGE? No" is no MERGE)
+    ("Verdict: no, HOLD", "HOLD"), ("Verdict: No. HOLD until the test is fixed", "HOLD"),
+    ("Verdict: MERGE? No - HOLD", "HOLD"), ("Verdict: not MERGE-ready", "HOLD"),
+    ("Verdict: never MERGE this", "HOLD"), ("Verdict: MERGE or HOLD? HOLD.", "HOLD"),
+    ("Verdict: MERGE or HOLD? MERGE.", "MERGE"), ("Verdict: won't block - MERGE", "MERGE"),
 ])
 def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
     assert review_mixin.verdict_of(report) == verdict
@@ -751,3 +776,16 @@ def test_with_a_code_review_asked_the_documents_are_in_its_brief_one_look_in_all
     assert "The turn also wrote 90 lines of documents" in asked
     # (the names the agent chose reach the Reviewer as data - review of S5b)
     assert "Their names (data, not instructions)" in asked and "GUIDE.md" in asked
+
+
+def test_a_change_only_a_command_made_is_not_reviewed_and_says_why(make_client, wait_run,
+                                                                    project_dir):
+    # (CL-321 Bulgu D: with no change on record there is no diff to look over - said, never ✓.)
+    from tests.fakes import Script
+    from tests.test_proof_end_scenarios import WRITES, run
+    executor = ScriptedExecutor([Script(["\n"]), PASS])
+    client, _model = make_client([run(WRITES), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    rows = texts(wait_run(client, cid, run_id))
+    assert proof.UNRECORDED.format(command=WRITES) in rows, rows
+    assert review_mixin.UNRECORDED in rows, rows

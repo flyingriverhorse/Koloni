@@ -113,11 +113,29 @@ TESTS_ONLY = "No review: After a change is Tests only"
 TESTS_FAIL = "No review: the tests still fail"
 RECIPE_DID = "No review: the recipe's own Review step looked it over"
 REVIEW_OFF = "No review: off in this recipe's Checks step"
+# CL-321 Bulgu D: a turn whose only change a command made - its diff is on no record.
+UNRECORDED = "No review: changes made by a command are not recorded"
 OVER_LIMIT = "the turn's token limit is reached"
 CAPPED = "Still on hold after {most} fix rounds: you decide (Fix it)"
 FINDING = "{mark}: {what}"
-# ("Verdict: HOLD", "### Verdict - HOLD", "- Verdict — MERGE", "Verdict: **HOLD**")
-VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?\**\s*Verdict\W*(MERGE|HOLD)\b", re.IGNORECASE)
+# A verdict's line ("Verdict: HOLD", "### Verdict - HOLD", "- Verdict — MERGE", "Verdict: **HOLD**";
+# CL-321 Bulgu E: numbered, "1. Verdict: HOLD", and up to two words before it, "Final verdict:",
+# "My verdict:"); what it says is read from the rest of it (`_verdict_said`).
+VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?(?:\d{1,3}[.)]\s+)?\**\s*(?:[A-Za-z]+\s+){0,2}"
+                     r"Verdict\b(?P<rest>.*)$", re.IGNORECASE)
+# A verdict's words (review of CL-321 E): the first of MERGE and what holds - HOLD, a change asked
+# for, a rejection, a block - decides; a hold word negated ("I'd not block", "no need to reject")
+# is none, a MERGE negated ("do not MERGE") or said not to be ("MERGE is not possible") holds.
+_KEYWORD = re.compile(r"\b(MERGE|HOLD|REQUEST(?:ED|ING)?\s+CHANGES|REJECT(?:ED)?|BLOCK(?:ED)?)\b",
+                      re.IGNORECASE)
+_NEGATION = re.compile(r"^(?:not|no|never|cannot)$|n't$", re.IGNORECASE)
+_MERGE_NOT = re.compile(r"\s*(?:is|was|should|would|will)?\s*(?:not|never)\b|\s*isn't\b"
+                        r"|\s*\?\s*(?:no|not|never)\b", re.IGNORECASE)  # ("MERGE? No - HOLD")
+# Where a negation's reach ends: "no, HOLD" and "No. HOLD until …" hold.
+_STOP = re.compile(r"[,.;:!?–—…]|\s-+\s")
+_CHOICE = re.compile(r"\b(?:MERGE|HOLD)\s+or\s+(?:MERGE|HOLD)\b", re.IGNORECASE)  # (a question)
+# A verdict not this look's: "Previous verdict: HOLD. Now it is fixed."
+_EARLIER = re.compile(r"\b(?:previous|last|earlier|old)\s+verdict\b", re.IGNORECASE)
 NO_VERDICT = "Review gave no verdict: not counted ({role}, {sign})"
 # A change a user sees: a screen's file, or a command's option added.
 USER_FACING = re.compile(r"add_argument\(|click\.option\(|\.option\(|process\.argv|argparse")
@@ -135,16 +153,38 @@ def verdict_of(report: str) -> str | None:
     """A look's verdict: a line `Verdict: MERGE` or `Verdict: HOLD` of its own (a heading's or a
     list item's too) - not one in a fenced block, a quote (`>`) or a diff line (`+`, `-` with no
     space after). Any HOLD wins. None: none said."""
-    found, fenced = set(), False
-    for line in report.splitlines():
+    found, fenced, lines = set(), False, report.splitlines()
+    for at, line in enumerate(lines):
         bare = line.lstrip()
         if bare.startswith("```"):
             fenced = not fenced
         elif not fenced and not bare.startswith((">", "+")) and not (
                 bare.startswith("-") and not bare.startswith("- ")) and (
-                said := VERDICT.match(line)):
-            found.add(said.group(1).upper())
+                head := VERDICT.match(line)) and not _EARLIER.search(line[:head.start("rest")]):
+            # (A heading, or "Verdict:" alone: what it says is on the next line with words.)
+            rest = head["rest"] if re.search(r"[A-Za-z]", head["rest"]) else next(
+                (one for one in lines[at + 1:] if one.strip()), "")
+            if said := _verdict_said(rest):
+                found.add(said)
     return "HOLD" if "HOLD" in found else "MERGE" if found else None
+
+
+def _verdict_said(words: str) -> str | None:
+    """What a verdict's words say, by the first that is one (`_KEYWORD`): a hold word not
+    negated in the three words before it holds; MERGE merges unless a negation is among the two
+    words before it or it is said not to be (`MERGE is not possible`, `MERGE? No`). A negation
+    reaches no further than punctuation (`_STOP`). None: neither."""
+    words, since = _CHOICE.sub(" ", words), 0
+    for found in _KEYWORD.finditer(words):
+        # (only the words since the last keyword: "I'd not block: MERGE" negates no MERGE)
+        before = [one.strip("*()") for one in _STOP.split(words[since:found.start()])[-1].split()]
+        since = found.end()
+        if found[1].upper() == "MERGE":
+            near = any(_NEGATION.search(one) for one in before[-2:])
+            return "HOLD" if near or _MERGE_NOT.match(words[found.end():]) else "MERGE"
+        if not any(_NEGATION.search(one) for one in before[-3:]):
+            return "HOLD"
+    return None
 
 
 def _held_in_words(report: str, findings: list[dict] | None) -> list[dict] | None:
@@ -223,6 +263,9 @@ class ReviewMixin:
                 # decides, Fix it; below the cap.)
                 held.rows.append(proof.row("review", "failed", NOTHING_CHANGED.format(
                     n=held.review_rounds)))
+            return None
+        if held.unrecorded and not any(one.in_project for one in held.changes):
+            held.rows.append(proof.row("review", "note", UNRECORDED))
             return None
         # (B3: every line of the change - not the part of it the Reviewer is shown.)
         reasons = proof.review_reasons(held.changes, whole)
