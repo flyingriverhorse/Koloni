@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 from app import judge
 from app.commands import (
     SEARCHES_FOLDER,
-    _program,
     _words,
     harm_class,
     harms,
@@ -202,7 +201,9 @@ def _targets(command: str, cwd: str | None) -> list[str] | None:
     """What a plain delete names, each joined with its folder; None where its folder is not known,
     a switch is not one of its plain ones (`_DELETERS`), or a target is no plain relative path."""
     words = _words(command)
-    program = _program(words[0]) if words else ""
+    # (By its bare name alone: `./rm` is a script of the project's, `C:/x/rm.exe` another program.)
+    bare = words[0] if words else ""
+    program = bare if bare in _CASED else bare.casefold()
     if cwd is None or program not in _DELETERS:
         return None
     switches = [w for w in words[1:] if w.startswith(("-", "/"))]
@@ -214,8 +215,9 @@ def _targets(command: str, cwd: str | None) -> list[str] | None:
         return None
     # The path as joined, never resolved, is what must be plain - its folder is on record as the
     # agent's command gave it (review: a cwd "all of src and" wrote "You may delete all of src
-    # and/build.", and `x/../src` "You may delete src.").
-    joined = [w.rstrip("/") if cwd == "." else f"{cwd}/{w}".rstrip("/") for w in named]
+    # and/build.", and `x/../src` "You may delete src."). The root is "." - or "", as a CLI's
+    # command at the root may be on record.
+    joined = [w.rstrip("/") if cwd in ("", ".") else f"{cwd}/{w}".rstrip("/") for w in named]
     if not all(_plain_path(one) for one in joined):
         return None
     return joined

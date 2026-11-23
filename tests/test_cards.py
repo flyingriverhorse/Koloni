@@ -238,6 +238,11 @@ def test_five_unchanged_approvals_suggest_a_rule_in_koloni_s_words(db):
         # a command too long to be a plain delete)
         ({"command": "rm -rf build\nsrc"}, None),
         ({"command": "rm -rf build\r\nsrc"}, None),
+        ({"command": "rm -rf build\x0csrc"}, None),
+        ({"command": "rm -rf build\u2028src"}, None),
+        ({"command": "./rm -rf build"}, None),  # (a script of the project's named rm)
+        ({"command": "C:/x/rm.exe -rf build"}, None),
+        ({"cwd": ""}, "You may delete ./build."),  # (the root, as a CLI's may be on record)
         ({"cwd": "all of src and"}, None),
         ({"cwd": "s\u0455rc"}, None),
         ({"cwd": "sub/.."}, None),
