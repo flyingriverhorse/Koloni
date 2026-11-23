@@ -46,7 +46,7 @@ test('the button says the mode; the window switches it at once', async () => {
   expect(within(panel()).getByRole('radio', { name: /No teams/ })).toBeChecked()
   // (Tarif maliyeti T2: a small change needs no team - and is checked all the same.)
   expect(within(panel()).getByRole('radio', { name: /^Orchestrator decides/ })).toHaveAccessibleName(
-    'Orchestrator decidesIt picks the teams and a recipe for each, and says why. A small change (a few lines in one or two files) needs no team: it makes it itself or with one agent, and KOLONİ checks it all the same.',
+    'Orchestrator decidesIt picks the teams and a recipe for each, and says why. A small change (a few lines in one or two files) needs no team: it makes it with one agent (or itself, where the project lets it write), and KOLONİ checks it all the same.',
   )
   await userEvent.click(within(panel()).getByRole('radio', { name: /Manual/ }))
   expect(onChange).toHaveBeenCalledWith({ teams_mode: 'manual' })
