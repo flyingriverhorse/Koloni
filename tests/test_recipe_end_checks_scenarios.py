@@ -177,3 +177,60 @@ def test_fix_rounds_0_with_failing_tests_says_check_only(make_client, wait_run, 
     assert proof.CHECK_ONLY in rows and not any(one.startswith("Sent back") for one in rows), rows
     assert [one for one, _cwd in executor.started] == [pytest_q]  # (once: nothing went back)
     assert "1 failed" not in str(model.calls[-1])
+
+
+def test_a_recipe_the_orchestrator_picks_never_turns_the_projects_checks_off(make_client,
+                                                                              wait_run,
+                                                                              project_dir):
+    # (Review of S5c: picked by the Orchestrator, a recipe with tests off left its own code
+    # untested. Its Checks step only adds to the project's then; only your own pick lowers them.)
+    from tests.test_chat_teams_scenarios import pick
+    from tests.test_proof_end_scenarios import PASS
+    executor = ScriptedExecutor([PASS, PASS])
+    client, _model = make_client({
+        "Lead": [pick({"team": "Web app", "recipe": "Write the docs", "why": "a quick change"}),
+                 spawn("Docs writer", "change the code", "d1"), text("done")],
+        "Docs writer": [step(write("app.py", "def f():\n    return 2\n")), text("changed")],
+    }, executor=executor)
+    docs_recipe(client, fix_rounds=0)
+    cid, run_id = begin_at(client, project_dir, {"check_command": "python check.py"}, {
+        "permission_mode": "full_auto", "spawn_approval": "never", "teams_mode": "lead"})
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    rows = texts(snap)
+    # (Its tests ran at the end - besides Test before adding's run before Take in.)
+    assert "Tests passed: python check.py - 4 passed in 0.1s" in rows, (executor.started, rows)
+    assert proof.TESTS_OFF not in rows and review_mixin.REVIEW_OFF not in rows, rows
+
+
+def test_the_orchestrators_pick_adds_and_the_users_lowers(make_client, wait_run, project_dir):
+    # (The rule, by the turn's rows: a Lead's pick of a recipe with tests off and docs on checks
+    # the project's parts and docs too, the more rounds; the user's own pick checks what it says.)
+    from app.db.models import Conversation, ConversationTeam, Run
+    client, _model = make_client([text("hi")])
+    cid, run_id = begin_at(client, project_dir, {"fix_rounds": 3}, {})
+    wait_run(client, cid, run_id)
+    own = {"tests": False, "review": False, "docs": True, "diagram": False, "data": False,
+           "slides": False, "fix_rounds": 0}
+    with client.app.state.session_factory() as session:
+        run = session.get_one(Run, run_id)
+        team = session.scalars(select_team()).first()
+        run.teams = [{"team_id": team}]
+        row = ConversationTeam(conversation_id=cid, team_id=team, picked_by="lead", position=0,
+                               state={"run_id": run_id, "graph": {"checks": own}})
+        session.add(row)
+        session.commit()
+        conversation = session.get_one(Conversation, cid)
+        by_lead = proof.checks_of(session, conversation, run)
+        row.picked_by = "user"
+        session.commit()
+        by_user = proof.checks_of(session, conversation, run)
+    assert by_lead.on >= {"tests", "review", "docs"} and by_lead.rounds == 3, by_lead
+    assert by_user.on == {"docs"} and by_user.rounds == 0, by_user
+
+
+def select_team():
+    from sqlalchemy import select
+
+    from app.db.models import Team
+    return select(Team.id)

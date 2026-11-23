@@ -97,7 +97,9 @@ recipe's Checks step checks nothing". The choice is kept with the recipe - in a 
 The ready recipes come set: **Bugfix** and **Feature** check their tests and a review, **Docs** its
 documents and a review, **Evolve** its tests; the others follow the project. A recipe set for itself
 checks so even in a project at **Nothing** - set its Checks step to **Follow the project** to leave it
-to the project. A recipe's turn follows its Checks step, never the chat's **Test and review
+to the project. Only a recipe you picked (**Teams for this chat**: Manual) can check less than the
+project does; one the Orchestrator picked (Orchestrator decides) only adds to the project's checks
+and takes the larger Fix rounds - it never turns them off. A recipe's turn follows its Checks step, never the chat's **Test and review
 changes** switch. Rounds never stack: where the
 recipe's own loop of test and fix ran out, the Checks step sends nothing back on top.
 

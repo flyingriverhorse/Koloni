@@ -433,14 +433,15 @@ class Checks(NamedTuple):
     own: bool
 
 
-def recipe_checks(session: Session, run: Run | None) -> list[dict | None]:
+def recipe_checks(session: Session, run: Run | None) -> list[tuple[dict | None, str]]:
     """The Checks step of each recipe run in this turn, as its row's copy of the graph has it
-    (`RecipeGraph.checks`; None: it follows the project)."""
+    (`RecipeGraph.checks`; None: it follows the project), and who picked the row ("user" in
+    Manual, "lead" where the Orchestrator decides)."""
     if run is None or not run.teams:
         return []
-    rows = session.scalars(select(ConversationTeam.state).where(
+    rows = session.execute(select(ConversationTeam.state, ConversationTeam.picked_by).where(
         ConversationTeam.conversation_id == run.conversation_id))
-    return [state["graph"].get("checks") for state in rows if state and state.get(
+    return [(state["graph"].get("checks"), picked) for state, picked in rows if state and state.get(
         "run_id") == run.id and isinstance(state.get("graph"), dict)]
 
 
@@ -448,7 +449,8 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     """What the end gate checks in this turn: the project's After a change (Test and review: the
     tests, the review and each kind its Check by kind of work leaves on; Tests only: the tests;
     Nothing / off for the chat: nothing) and Fix rounds - or, in a recipe's turn whose Checks
-    step is set for the recipe, what it sets (decisions 16, 17: never the chat's switch). Two
+    step is set for the recipe, what it sets (decisions 16, 17: never the chat's switch) - where
+    the user picked the recipe; one the Orchestrator picked only adds to the project's. Two
     recipes in one turn: what either checks, the more rounds of the two.
     shortcut: a turn's recipe is known once it has started - the words its agents get before
     that (`_checks_told`) follow the project; tell them again if a recipe's own is missed."""
@@ -461,14 +463,19 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
             ["review", *(kind for kind in PARTS[2:] if kinds.get(kind, True))]
             if setting == "check" else []))
     recipes = recipe_checks(session, run)
-    if all(one is None for one in recipes):
+    if all(one is None for one, _who in recipes):
         return Checks(theirs, rounds, setting, False)
     on: set[str] = set()
     most = 0
-    for one in recipes:
-        on |= theirs if one is None else {part for part in PARTS if one.get(part)}
-        own = None if one is None else one.get("fix_rounds")
-        most = max(most, rounds if own is None else own)
+    for one, who in recipes:
+        parts = set() if one is None else {part for part in PARTS if one.get(part)}
+        asked = None if one is None else one.get("fix_rounds")
+        # (Review of S5c: only a recipe the user picked may lower the project's checks - one the
+        # Orchestrator picked only adds to them, or it would switch its own checks off.)
+        if one is not None and who == "user":
+            on, most = on | parts, max(most, rounds if asked is None else asked)
+        else:
+            on, most = on | parts | theirs, max(most, rounds, asked or 0)
     return Checks(frozenset(on), most, setting, True)
 
 
