@@ -147,6 +147,8 @@ def test_what_powershell_would_look_up_never_reaches_its_parser(tmp_path, stand_
         "'a’ + 'Import-DscResource'\n",
         "'unended using it\n",
         "$x = 1 # using it\n",  # (a comment after code: read, not taken out)
+        # (the stop-parsing token: what follows it on its line is no string - nor its quote's end)
+        "Configuration C {\n cmd --% '\n Import-DscResource -ModuleName //h/s/m #'\n Node x { } }\n",
         # (a statement whose taking out would change the rest: a comment's end, a quote)
         "<#\nusing module x #>\n$y = 1\n",
         "using assembly 'a;b.dll'\n'x'\n",
@@ -506,6 +508,8 @@ TOKENS = [
     "Write-Output 'a<#b'; ZZZ #> \n",
     "[string]'x' # ZZZ\n",
     "Write-Host @'\nx\n'@ ; ZZZ\n",
+    "cmd --% '\nZZZ #'\n",
+    "cmd --% <#\nZZZ #>\n",
 ]
 _SPANS = r"""
 $text = [Console]::In.ReadToEnd()

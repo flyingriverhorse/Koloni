@@ -1323,7 +1323,8 @@ def _gone(folder: str) -> None:
 # script's code alone (`_code_of`): whole-line `#` comments, `<# … #>` blocks, '…' and "…" strings
 # and here-strings blanked, the lines kept. Where a boundary is not sure, the whole text is looked
 # at, as before: an unended string or comment, a "…" or @"…"@ with a `$(…)` in it (code), a `#`
-# inside a word (`a#b`), a `#>` opening a line, PowerShell's other quote marks (‘ ’ ‚ ‛ “ ” „).
+# inside a word (`a#b`), a `#>` opening a line, PowerShell's other quote marks (‘ ’ ‚ ‛ “ ” „),
+# the stop-parsing token `--%` (what follows it on its line is no string nor comment).
 # A comment after code (`$x = 1 # …`) is read, never blanked.
 _PS_QUOTES = "\u2018\u2019\u201a\u201b\u201c\u201d\u201e"
 _LINE_END = ("\u2028", "\u2029", "\u0085", "\x0b", "\x0c")
@@ -1404,7 +1405,9 @@ def _part_end(text: str, i: int) -> tuple[int, bool] | None:
 def _code_of(text: str) -> str | None:
     """U3: a PowerShell script's code alone, its comments and strings blanked (`_part_end`), each
     line where it was; None where a boundary is not sure."""
-    if any(one in text for one in _PS_QUOTES):
+    if "--%" in text or any(
+        one in text for one in _PS_QUOTES
+    ):  # (`--%`: the rest of a line verbatim)
         return None
     out, i = [], 0
     while i < len(text):
