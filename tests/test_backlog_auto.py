@@ -1,7 +1,7 @@
 """Slice 52's backlog working itself (the user, 22 Oct: "if a task list is created, the product
 owner could start by itself"): the page's switch, the next task started when one's turn ends,
 what stops it and says why, two tasks at work at a time (K-symphony; one here where a test is
-about what holds a place), and the Assistant product owner's view written when a task's turn
+about what holds a place), and the Scout's view written when a task's turn
 ends."""
 
 import time

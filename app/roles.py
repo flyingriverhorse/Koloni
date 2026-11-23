@@ -112,6 +112,13 @@ EXPERT_MAY = (*READ, "ask_user", "message_agent", "discuss", *NOTEBOOK, *MEMORY)
 # Asked by KOLONİ itself, with no tools, about a sub-agent's report (slice 33b): never
 # opened as an agent, so no agent is offered it.
 OBSERVER = "Observer"
+# K-rol-adlari (the user, 23 Nov: the old title was company jargon): the To-do list's two roles,
+# named for KOLONİ's hive - by these constants, never by words written out, so a later rename
+# reaches every place. A role of the user's own that had one of these names keeps it; the built-in
+# then bears BUILT_IN after its name (migration 0174) - `builtin_name` reads it back.
+HIVE_KEEPER = "Hive keeper"
+SCOUT = "Scout"
+BUILT_IN = " (built-in)"
 # K-kanit: a checking role's "verified" stands on a run of its own (migration 0131 for installs).
 RAN = (
     'Say "verified" or "works" only of what you ran yourself in this turn, and list each '
@@ -178,7 +185,7 @@ READY_TEAMS = {
     "DevOps": ("DevOps", "Security reviewer", "Dependency keeper", "Performance engineer"),
     "Quality": ("Tester", "Reviewer", "Security reviewer", "Debugger"),
     "Research": ("Researcher", "Summarizer", "Spec writer"),
-    "Product": ("Product owner", "Assistant product owner", "Spec writer"),
+    "Product": (HIVE_KEEPER, SCOUT, "Spec writer"),
     "Maintenance": ("Refactorer", "Dependency keeper", "Debugger", "Tester"),
     # K-takim-duzen, made by migration 0103 (with the MLflow and Databricks experts in ML).
     "ML": ("Data scientist", "ML engineer", "Model evaluator", "MLOps engineer", "Tester"),
@@ -457,9 +464,9 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         (*READ, *WRITE, "message_agent", *NOTEBOOK, *MEMORY),
         "write",
     ),
-    "Product owner": RoleSpec(
-        "Keeps the project's To-do list: breaks a goal into tasks, each with what makes it "
-        "done, and puts them in order.",
+    HIVE_KEEPER: RoleSpec(
+        "Keeps the To-do list: turns a goal into tasks, each with what makes it done, and puts "
+        "them in order.",
         "Read enough of the project to know what is there. Break the goal into tasks small "
         "enough for one conversation each; say for every task, in plain words, what makes "
         "it done (it can be checked), and a priority. What you add or change waits for the "
@@ -469,9 +476,9 @@ BUILTIN_ROLES: dict[str, RoleSpec] = {
         (*READ, "spawn_agent", "ask_user", "message_agent", *BACKLOG, *NOTEBOOK, *MEMORY),
         "plan",
     ),
-    "Assistant product owner": RoleSpec(
-        "Helps keep the To-do list: splits vague tasks, asks what is missing, flags problems "
-        "and assesses finished work against what makes it done.",
+    SCOUT: RoleSpec(
+        "After each turn, looks for what is left and suggests follow-up tasks; checks finished "
+        "tasks against what makes them done.",
         "Split a vague task into smaller ones and ask the user what a task leaves open. Flag "
         "tasks written twice, tasks waiting a long time and tasks blocked by unfinished "
         "work. When a task's conversation has ended, compare what was done with what makes it "
@@ -722,7 +729,13 @@ def list_roles(session: Session) -> list[Role]:
         .where(Role.id.not_in(LEADS))
         .order_by(Role.created_at, literal_column("roles.rowid"))
     ).all()
-    return sorted(roles, key=lambda r: (not r.builtin, order.get(r.name, 0)))
+    return sorted(roles, key=lambda r: (not r.builtin, order.get(builtin_name(r), 0)))
+
+
+def builtin_name(role: Role) -> str:
+    """A role's name as KOLONİ's own list knows it (`BUILTIN_ROLES`): a built-in's without the
+    BUILT_IN it bears where a role of the user's own has its name (migration 0174)."""
+    return role.name.removesuffix(BUILT_IN) if role.builtin else role.name
 
 
 def is_observer(role: Role) -> bool:
@@ -897,7 +910,11 @@ def seed_builtin_roles(session: Session) -> None:
     also a role of the user's own that has a built-in one's name, whatever its case (a
     role is opened by its name: `find_role`). One that is added joins the ready teams that
     hold it, where they are still there - never a team of the user's own by such a name."""
-    existing = {name.casefold() for name in session.scalars(select(Role.name))}
+    # (a built-in that bears BUILT_IN is there too: never added again beside it)
+    existing = {
+        (name.removesuffix(BUILT_IN) if builtin else name).casefold()
+        for name, builtin in session.execute(select(Role.name, Role.builtin))
+    }
     # (Migration 0093's rule: the ready teams are the first ever made, 0103's given their time.)
     first = select(func.min(Team.created_at)).scalar_subquery()
     teams = {

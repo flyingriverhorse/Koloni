@@ -1,9 +1,9 @@
-"""Slice 52's acceptance set: a project's backlog, kept like a product owner would. Written before
+"""Slice 52's acceptance set: a project's backlog, kept like a hive keeper would. Written before
 the code.
 
 The user writes tasks (title, detail, acceptance criteria, priority) and orders them. Two new
-built-in roles help: the Product owner (strongest) breaks a goal into tasks; the Assistant product
-owner (balanced) splits, asks, flags and assesses a finished task against its criteria. Whatever an
+built-in roles help: the Hive keeper (strongest) breaks a goal into tasks; the Scout
+(balanced) splits, asks, flags and assesses a finished task against its criteria. Whatever an
 agent adds or changes waits on a card for the user's word; an assessment is an opinion and is
 written at once - "done" is always the user's. "Work the backlog" starts the next task in a new
 conversation; when its turn ends the task waits for review.
@@ -29,7 +29,7 @@ Contract:
   never worked on starts when none is doing - at once, and when a task's turn ends. A failed or
   stopped turn, or the month's budget spent, turns it off with `halt` saying why (22 Oct).
 - When a task's turn ends, the first fast model that can be asked with no tools writes the
-  Assistant product owner's `assessment`; with none, it stays null (22 Oct).
+  Scout's `assessment`; with none, it stays null (22 Oct).
 """
 
 import time
@@ -93,21 +93,21 @@ def test_the_product_owners_are_roles_of_their_own(make_client):
     built(client)
     roles = {r["name"]: r for r in client.get("/api/roles").json()}
     # (Their tiers, strongest and balanced, went in slice 81b: the Lead picks one for each job.)
-    assert roles["Product owner"]["kind"] == roles["Assistant product owner"]["kind"] == "plan"
-    for name in ("Product owner", "Assistant product owner"):
+    assert roles["Hive keeper"]["kind"] == roles["Scout"]["kind"] == "plan"
+    for name in ("Hive keeper", "Scout"):
         assert {"add_task", "change_task"} <= set(roles[name]["tools"])
-    assert "assess_task" in roles["Assistant product owner"]["tools"]
+    assert "assess_task" in roles["Scout"]["tools"]
 
 
 def owner_works(make_client, project_dir, wait_run, *calls, before=None):
-    """The Lead hands a goal to a Product owner, which calls the tools given (made by `before`
+    """The Lead hands a goal to a Hive keeper, which calls the tools given (made by `before`
     once the project exists, when they name a task of it)."""
     client, model = make_client(
-        {"Lead": [spawn("Product owner", "plan the login work"), text("done")], "Product owner": []}
+        {"Lead": [spawn("Hive keeper", "plan the login work"), text("done")], "Hive keeper": []}
     )
     client.headers.update(ORIGIN)
     pid = project(client, project_dir)
-    model.by_agent["Product owner"] += [
+    model.by_agent["Hive keeper"] += [
         step(*(before(client, pid) if before else calls)),
         text("tasks proposed"),
     ]
@@ -129,7 +129,7 @@ def test_a_role_of_the_users_given_add_task_is_offered_it_and_its_task_waits(
     # The role panel's Backlog tiles (25 Oct): a role made by the user, then given add_task.
     client, model = make_client(
         [
-            spawn("Scout", "find work"),
+            spawn("Forager", "find work"),
             step(call("add_task", {"title": "dark mode"}, "a1")),
             text("proposed"),
             text("done"),
@@ -137,7 +137,7 @@ def test_a_role_of_the_users_given_add_task_is_offered_it_and_its_task_waits(
     )
     client.headers.update(ORIGIN)
     pid = project(client, project_dir)
-    made = client.post("/api/roles", json={"name": "Scout", "tools": ["read_file"]})
+    made = client.post("/api/roles", json={"name": "Forager", "tools": ["read_file"]})
     assert made.status_code == 201, made.text
     given = client.patch(
         f"/api/roles/{made.json()['id']}", json={"tools": ["read_file", "add_task"]}

@@ -612,7 +612,7 @@ test('follow-up tasks after each turn are on by default, say what they cost, and
   await choose(/^Agents/)
   const box = screen.getByRole('checkbox', { name: /^Suggest follow-up tasks after each turn/ })
   expect(box).toBeChecked()
-  expect(box.closest('label')).toHaveTextContent('One small model request after each turn that did something')
+  expect(box.closest('label')).toHaveTextContent('The Scout looks for what is left after each turn that did something')
   await userEvent.selectOptions(screen.getByLabelText('Follow-up tasks from'), 'balanced')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ suggest_tier: 'balanced' })

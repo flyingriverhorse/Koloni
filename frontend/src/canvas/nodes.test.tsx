@@ -211,7 +211,7 @@ test('a card shows only the dots a line uses (21 Nov): every dot kept, the unuse
   const room: RoomData = { goal: 'Ship it', line: 'round 2', members: ['Coder'], watched: '', items: '', last: [], running: false, attention: false }
   const po: PoData = { provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 2900, output_tokens: 200, proposed: 2, dropped: [], dropped_more: 0 }
   const cards: [ReactNode, string[]][] = [
-    // (Nothing comes into a message or a file; every line to a discussion or a room goes into it; a plan and the PO have
+    // (Nothing comes into a message or a file; every line to a discussion or a room goes into it; a plan and the Scout have
     // their straight line.)
     [<RequestNode key="request" {...props('request:a', asked)} />, ['right']],
     [<AttachmentNode key="file" {...props('attachment:f', { name: 'a.ts', label: 'TS', colour: '--file-code', meta: '1 line' })} />, ['right']],
@@ -229,7 +229,7 @@ test('a card shows only the dots a line uses (21 Nov): every dot kept, the unuse
   }
 })
 
-test('the user’s (7 Nov): the Assistant PO’s node says the model, what came of it and what it spent, and opens the To-do page', async () => {
+test('the user’s (7 Nov): the Scout’s node says the model, what came of it and what it spent, and opens the To-do page', async () => {
   const po: PoData = { provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 2900, output_tokens: 200, proposed: 2, dropped: [], dropped_more: 0 }
   const openTodo = vi.fn()
   render(
@@ -239,7 +239,7 @@ test('the user’s (7 Nov): the Assistant PO’s node says the model, what came 
       </NodeActions.Provider>
     </ReactFlowProvider>,
   )
-  expect(lines()).toEqual(['Assistant POgpt-6-luna', '2 proposed', '3k tokens To-do →'])
+  expect(lines()).toEqual(['Scoutgpt-6-luna', '2 proposed', '3k tokens To-do →'])
   await userEvent.click(screen.getByRole('button', { name: 'To-do →' }))
   expect(openTodo).toHaveBeenCalledOnce()
   cleanup()
@@ -248,6 +248,6 @@ test('the user’s (7 Nov): the Assistant PO’s node says the model, what came 
   expect(lines()[1]).toBe('2 proposed · 1 dropped')
   cleanup()
   draw(<PoNode {...props('po:r', { ...po, heard: false, model_id: null, input_tokens: null, output_tokens: null, proposed: 0 })} />)
-  expect(lines()).toEqual(['Assistant POmodel not known', 'Sent, not heard out', '– tokens To-do →'])
+  expect(lines()).toEqual(['Scoutmodel not known', 'Sent, not heard out', '– tokens To-do →'])
   expect(screen.getByText('Sent, not heard out').style.color).toBe('var(--warn)')
 })

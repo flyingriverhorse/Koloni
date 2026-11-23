@@ -42,12 +42,12 @@ export type NodeKind =
   | 'away'
   // The user's (4 Nov): an earlier round of a step in a team's frame, as one line - its agents under it once opened.
   | 'round'
-  // The Assistant PO, asked once the turn ended (the user's, 7 Nov): under its Lead, only where it was asked.
+  // The Scout, asked once the turn ended (the user's, 7 Nov): under its Lead, only where it was asked.
   | 'po'
   // Kanıtlı bitiş (plan decision 12): KOLONİ's own checks after the Orchestrator's work (`checksNode`).
   | 'checks'
 
-/** The Assistant PO's request after a turn, as it was recorded (`Run.po`). */
+/** The Scout's request after a turn, as it was recorded (`Run.po`). */
 export type PoData = NonNullable<Run['po']>
 
 /** More files than these on a message are one box, "N files", folded until the user opens it. */
@@ -302,7 +302,7 @@ export interface GraphEdge {
    * to its plan: not a flow - one short straight dashed line.
    */
   plan?: boolean
-  /** With `plan`: from the Lead down to the Assistant PO asked as its turn ended - the same line, dashed its own way. */
+  /** With `plan`: from the Lead down to the Scout asked as its turn ended - the same line, dashed its own way. */
   po?: boolean
   /** Kanıtlı bitiş: from the Checks node back to the Orchestrator, a fix round - its words ("round 1 of 2: tests fail"). */
   round?: string
@@ -890,7 +890,7 @@ function approvedPlan(state: ConvState, run: Run, nodes: GraphNode[], edges: Gra
   if (lead) edges.push({ id: `${id}>agent:${lead.id}`, source: id, target: `agent:${lead.id}`, active: false, plan: true })
 }
 
-/** The Assistant PO asked once the turn ended (`Run.po`): small, under the turn's Lead, on a dashed line down from it. None where it was not asked. */
+/** The Scout asked once the turn ended (`Run.po`): small, under the turn's Lead, on a dashed line down from it. None where it was not asked. */
 function assistantPo(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[]) {
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
   if (!run.po || !lead) return
@@ -899,7 +899,10 @@ function assistantPo(state: ConvState, run: Run, nodes: GraphNode[], edges: Grap
   edges.push({ id: `agent:${lead.id}>${id}`, source: `agent:${lead.id}`, target: id, active: false, plan: true, po: true })
 }
 
-/** What came of the Assistant PO's request, counted - "2 proposed · 1 dropped · Orchestrator added 1" - or that it was not heard out. */
+/** What came of the Scout's request, counted - "2 proposed · 1 dropped · Orchestrator added 1" - or that it was not heard out. */
+/** What the Scout is, where it shows (its box's hover, its panel): its name does not say it. */
+export const SCOUT_DOES = 'The Scout looks for what is left after each turn and suggests follow-up tasks for the To-do list.'
+
 export function poSaid(po: PoData): string {
   if (!po.heard) return 'Sent, not heard out'
   const dropped = po.dropped.length + po.dropped_more

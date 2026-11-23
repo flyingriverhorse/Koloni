@@ -58,8 +58,8 @@ def test_built_in_roles_match_the_design():
         "Translator",
         "Summarizer",
         # slice 52
-        "Product owner",
-        "Assistant product owner",
+        "Hive keeper",
+        "Scout",
         # slice 33b: asked by KOLONİ itself, with no tools
         "Observer",
         # K-takim-duzen
@@ -148,7 +148,7 @@ def test_built_in_roles_match_the_design():
     assert tools["Summarizer"] == READ + write + ["message_agent", *NOTEBOOK, *MEMORY]
     # slice 52: they keep the backlog, and change nothing in the project
     backlog = ["read_backlog", "add_task", "change_task", "assess_task"]
-    assert tools["Product owner"] == READ + [
+    assert tools["Hive keeper"] == READ + [
         "spawn_agent",
         "ask_user",
         "message_agent",
@@ -156,7 +156,7 @@ def test_built_in_roles_match_the_design():
         *NOTEBOOK,
         *MEMORY,
     ]
-    assert tools["Assistant product owner"] == READ + [
+    assert tools["Scout"] == READ + [
         "ask_user",
         "message_agent",
         *backlog,
@@ -200,8 +200,8 @@ def test_built_in_roles_match_the_design():
         "Dependency keeper": "ops",
         "Translator": "write",
         "Summarizer": "write",
-        "Product owner": "plan",
-        "Assistant product owner": "plan",
+        "Hive keeper": "plan",
+        "Scout": "plan",
         "Observer": "check",
         # K-takim-duzen: the Data, ML and Ops categories; the Model evaluator checks
         "Data engineer": "data",

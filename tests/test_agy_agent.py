@@ -1550,10 +1550,10 @@ def test_a_read_only_product_owner_on_native_agy_reads_the_backlog_through_the_w
     client, provider, default = agy_app(
         [{"koloni": "read_backlog", "args": {}, "wrapped": True}, {"say": "The list is empty."}],
         mode="native",
-        default_steps=[spawn("Product owner", "plan the work"), text("done")],
+        default_steps=[spawn("Hive keeper", "plan the work"), text("done")],
     )
     client.patch(
-        f"/api/roles/{role_id(client, 'Product owner')}", json={"provider_id": provider["id"]}
+        f"/api/roles/{role_id(client, 'Hive keeper')}", json={"provider_id": provider["id"]}
     )
     cid, run_id = start(client, project_dir, None, mode="full_auto")
     snap = wait_run(client, cid, run_id)

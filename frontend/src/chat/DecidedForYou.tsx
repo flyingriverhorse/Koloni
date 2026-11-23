@@ -116,7 +116,7 @@ function Decided({ question, state, onSent }: { question: Question; state: ConvS
   )
 }
 
-/** A follow-up task the Assistant PO proposed at a turn's end, and the Orchestrator's word on it at Full auto (6 Nov). OK keeps
+/** A follow-up task the Scout proposed at a turn's end, and the Orchestrator's word on it at Full auto (6 Nov). OK keeps
  *  that word; Change undoes it - one added is taken off the To-do list while it is still todo, one said no to is added. */
 function DecidedTask({ task }: { task: BacklogTask }) {
   const { busy, error, ask } = useAsk()
@@ -125,7 +125,7 @@ function DecidedTask({ task }: { task: BacklogTask }) {
   const cant = added && task.status !== 'todo' ? 'it has started' : null
   return (
     <div className="decided-item">
-      <div className="decided-q">The Assistant PO proposed a To-do task: {task.title}</div>
+      <div className="decided-q">The Scout proposed a To-do task: {task.title}</div>
       <div>
         Orchestrator chose <b className="decided-a">{added ? 'Add' : 'Reject'}</b>
       </div>

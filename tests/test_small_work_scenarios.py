@@ -75,7 +75,7 @@ def said(calls):
     return [str(one[-1]["content"])[:100] for one in calls]
 
 
-@pytest.mark.no_po  # (the Assistant PO's request would be one more call)
+@pytest.mark.no_po  # (the Scout's request would be one more call)
 def test_a_small_change_under_orchestrator_decides_picks_no_team_and_is_checked(
     make_client, wait_run, project_dir, monkeypatch
 ):

@@ -147,7 +147,7 @@ test('a follow-up task the Orchestrator decided at Full auto: OK keeps its word,
   const section = screen.getByRole('region', { name: /Decided for you/ })
   expect(within(section).getByText('3')).toBeInTheDocument() // (this chat's only; no times)
   const [tests, help, docs] = within(section).getAllByRole('button', { name: 'OK' }).map(button => button.closest('.decided-item') as HTMLElement)
-  expect(tests).toHaveTextContent('The Assistant PO proposed a To-do task: tests')
+  expect(tests).toHaveTextContent('The Scout proposed a To-do task: tests')
   expect(tests).toHaveTextContent('Orchestrator chose Add')
   expect(tests).toHaveTextContent('“It said add.”')
   await userEvent.click(within(tests).getByRole('button', { name: 'OK' }))
