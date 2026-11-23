@@ -34,6 +34,7 @@ How to write an entry (every release looks the same):
 - **Chat**: KOLONİ's checks run at the end of a turn whose Orchestrator, told "Not the end yet: say in one line why no team", answered without doing more - the answer said "Tests not run: the turn ended before KOLONİ's check" ([docs](docs/use/checked.md)).
 - **Chat**: **Fix it** after a stronger model's rounds that were no pass says why in KOLONİ's own words, chosen by KOLONİ - never by text a model wrote in the Checked row
 - **CLIs**: a file a sub-agent's work brought into the project is no longer, now and then, put down to the Orchestrator working with its own CLI beside it - also at its last look as its turn ends: KOLONİ's looks at the project wait while Take in writes files
+- **Agents**: a recipe with no Review step of its own, at Test and review, no longer opens KOLONİ's Reviewer again and again on a big or security-touching change; one look, as the rule says.
 
 ## [0.1.6] - 2026-11-23
 
