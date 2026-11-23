@@ -452,9 +452,17 @@ A script is code too: the turn's tests run and the review reads it as before - *
 adds whether it parses. KOLONİ reads it as its shell would and runs nothing of it: a `.sh` or
 `.bash` file with `bash -n` (on Windows Git's bash, never WSL's), a `.ps1` or `.psm1` file with
 PowerShell's own parser - the script's text given on its input, never in a command line, the
-shell started with none of your variables, 10 s (bash) or 20 s (PowerShell) at most. A `using
-assembly`, `using module` or `#requires` line that names modules or assemblies is left out before
-PowerShell reads it, so nothing is looked up or loaded. Where this machine has no bash or no
+shell started with none of your variables in an empty folder of its own, 10 s (bash) or 20 s
+(PowerShell) at most, then stopped with all it started. bash reads with `extglob` on. A `using
+assembly`, `using module` or `#requires` statement that names modules or assemblies is left out
+before PowerShell reads it, so nothing is looked up or loaded; a script that would still make
+its parser look one up - a `using` it cannot take out (a comment between its words, a line
+continued with a backtick, any `using` but `using namespace`, an English "using" in a comment
+too), an `Import-DscResource` - is not read: "not checked: it loads a module or an assembly".
+A type of a module left out is said, not failed. With Windows PowerShell 5.1 alone (no
+PowerShell 7 here), a `Configuration` or PowerShell 7's own syntax (`??`, `&&`) is "not checked:
+it needs PowerShell 7". A `.sh` with Windows line endings (CR LF) is read as Git's bash reads it,
+and said: bash on Linux will not run it as it is. Where this machine has no bash or no
 PowerShell, its scripts are said as not checked.
 
 ### Pages

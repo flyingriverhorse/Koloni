@@ -5,11 +5,14 @@ that their reading runs nothing a script says (a flag file is never made)."""
 
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
 from app import proof, proof_kinds
 from app.proof_kinds import check_scripts
+from app.workspace import WorkspaceError
+from tests.conftest import scaled
 from tests.fakes import ScriptedExecutor
 from tests.test_agent_writes import write
 from tests.test_chat_flow import text
@@ -17,14 +20,22 @@ from tests.test_proof_end_scenarios import PASS, begin, texts
 
 BROKEN = "if true; then\n  echo hi\nfi\nfi\n"
 # A stand-in bash -n: a stray `fi` is its syntax error, at its line; a script that asks it to
-# hang hangs; what it was started with (its variables) it says where the script asks.
+# hang hangs - or leaves a child behind holding its pipes; what it was started with (its
+# variables, its folder) it says where the script asks.
 FAKE_BASH = r"""
-import os, sys, time
+import os, subprocess, sys, time
 text = sys.stdin.read()
+if "grandchild" in text:
+    subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    if "hang" not in text:
+        sys.exit(0)
 if "hang" in text:
     time.sleep(30)
 if "BASH_ENV" in text and "BASH_ENV" in os.environ:
     sys.stderr.write("fake: line 1: BASH_ENV was passed\n")
+    sys.exit(2)
+if "where?" in text:
+    sys.stderr.write(f"fake: line 1: in {os.getcwd()}\n")
     sys.exit(2)
 lines = text.split("\n")
 if "exit 127" in text:
@@ -35,8 +46,9 @@ for n, line in enumerate(lines, 1):
         sys.stderr.write(f"fake: line {n}: `fi'\n")
         sys.exit(2)
 """
-# A stand-in PowerShell parser: what it is given on stdin, judged as KOLONİ's script would
-# answer - a `using assembly` that reached it is "Cannot load assembly".
+# A stand-in PowerShell parser: what it is given on stdin, judged as its parser would answer -
+# whatever would make it look something up that reached it says so ("Cannot load assembly",
+# "Could not find the module"), a class on a type of a module it was not given is TypeNotFound.
 FAKE_PS = r"""
 import json, re, sys
 text = sys.stdin.read()
@@ -44,11 +56,15 @@ if "garbage" in text:
     print("not json")
     sys.exit(0)
 errors = []
-if re.search(r"(?im)(^|;)\s*using\s+assembly", text):
-    errors.append({"line": 1, "message": "Cannot load assembly './x.dll'."})
+if re.search(r"(?i)\busing\b(?!\s+namespace)", text):
+    errors.append({"line": 1, "message": "Cannot load assembly './x.dll'.", "id": "x"})
+if re.search(r"(?i)import-dscresource", text):
+    errors.append({"line": 1, "message": "Could not find the module 'x'.", "id": "x"})
 for n, line in enumerate(text.split("\n"), 1):
     if line.strip() == "if ( {":
-        errors.append({"line": n, "message": "Missing closing '}' in statement block."})
+        errors.append({"line": n, "message": "Missing closing '}' in statement block.", "id": "x"})
+    if line.startswith("class Q : R"):
+        errors.append({"line": n, "message": "Unable to find type [R].", "id": "TypeNotFound"})
 print(json.dumps(errors[:1]))
 """
 
@@ -56,7 +72,7 @@ print(json.dumps(errors[:1]))
 def said(root, files: dict[str, str], **more) -> list[tuple[str, str]]:
     for rel, body in files.items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
-        (root / rel).write_text(body, encoding="utf-8")
+        (root / rel).write_bytes(body.encode("utf-8"))  # (as written: no CR LF of Windows')
     return [(one["state"], one["text"]) for one in check_scripts(root, list(files), **more)]
 
 
@@ -88,23 +104,87 @@ def test_a_script_that_does_not_parse_fails_with_its_shells_line(tmp_path, stand
 
 
 def test_what_powershell_would_look_up_never_reaches_its_parser(tmp_path, stand_in):
-    # (Its parser looks a `using assembly` up as it reads it: each such line, `using module` and
-    # a #requires that names modules or assemblies, is taken out first - the lines kept.)
+    # (Its parser looks a `using assembly` up as it reads it: each such statement, `using module`
+    # and a #requires that names modules or assemblies, is taken out first - the lines kept.)
     body = (
-        "using assembly ./x.dll\n  USING Module ./m.psm1\n$a = 1; using assembly y.dll\n"
-        "#Requires -Modules Az\n#requires -Version 5\n'using assembly is just words'\nif ( {\n"
+        "using assembly ./x.dll\n  USING Module ./m.psm1\n$a = 1; using assembly y.dll; $b = 2\n"
+        "#Requires -Modules Az\n#requires -Version 5\nusing namespace System.IO\nif ( {\n"
     )
     assert said(tmp_path, {"a.ps1": body}) == [
         ("failed", "a.ps1:7: does not parse - Missing closing '}' in statement block.")
     ]
-    assert proof_kinds._RESOLVED.sub("", body).split("\n")[:6] == [
+    kept, blanked = proof_kinds._unresolved(body)
+    assert blanked and kept.split("\n")[:6] == [
         "",
         "",
-        "$a = 1;",
+        "$a = 1;; $b = 2",
         "",
         "#requires -Version 5",
-        "'using assembly is just words'",
+        "using namespace System.IO",
     ]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # (review of k-scripts, B1: pwsh 7 reads an Import-DscResource module's files at any path)
+        "Configuration C { Import-DscResource -ModuleName '//host/share/m'\n Node x { } }\n",
+        # (B2: each a `using` the blanking does not take out - so never given to the parser)
+        "<# c #>using assembly ./x.dll\n'x'\n",
+        "using <# c #> assembly ./x.dll\n'x'\n",
+        "\u00a0using assembly ./x.dll\n'x'\n",
+        "using\u00a0assembly ./x.dll\n'x'\n",
+        "\x0cusing assembly ./x.dll\n'x'\n",
+        "\x0busing module ./x\n'x'\n",
+        "using `\nassembly ./x.dll\n'x'\n",
+        "'we are using this'\n",  # (fail closed: an English "using" too)
+        # (a statement whose taking out would change the rest: a comment's end, a quote)
+        "<#\nusing module x #>\n$y = 1\n",
+        "using assembly 'a;b.dll'\n'x'\n",
+    ],
+)
+def test_a_script_that_would_have_its_parser_look_something_up_is_not_read(
+    tmp_path, stand_in, body
+):
+    ((state, line),) = said(tmp_path, {"a.ps1": body})
+    assert (state, line) == ("note", "a.ps1: not checked: it loads a module or an assembly")
+
+
+@pytest.mark.parametrize(
+    ("body", "row"),
+    [
+        # (a lone CR ends a line as PowerShell reads it: what follows it is a statement)
+        ("# a\rusing module ./x\r'x'\r", ("passed", "a.ps1: parses")),
+        ("using module Foo\r$x = 1\rif ( {\r", ("failed", "a.ps1:3: does not parse - Missing")),
+        # (a type of a module taken out: not the script's fault)
+        (
+            "using module ./m\nclass Q : R { }\n",
+            ("note", "a.ps1: not checked: it uses a type of a module KOLONİ does not load"),
+        ),
+    ],
+)
+def test_lines_end_as_powershell_ends_them_and_a_type_left_unread_is_said(
+    tmp_path, stand_in, body, row
+):
+    ((state, line),) = said(tmp_path, {"a.ps1": body})
+    assert (state, line[: len(row[1])]) == row, line
+
+
+def test_windows_powershell_alone_leaves_powershell_7s_scripts_unread(monkeypatch):
+    # (5.1, where no PowerShell 7 is: a Configuration loads DSC's module; `??`, `&&` are 7's)
+    told = {}
+
+    def read_by(_argv, text, _seconds):
+        told["text"] = text
+        message = "Unexpected token '??' in expression or statement."
+        return 0, json.dumps([{"line": 1, "message": message, "id": "UnexpectedToken"}]), ""
+
+    monkeypatch.setattr(proof_kinds, "_read_by", read_by)
+    shell = [r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"]
+    for script in ("Configuration C { Node x { } }\n", "$a = $b ?? 1\n"):
+        with pytest.raises(WorkspaceError, match="it needs PowerShell 7"):
+            proof_kinds._powershell_said(shell, script)
+    assert told["text"] == "$a = $b ?? 1\n"  # (a Configuration was never given to it)
 
 
 def test_a_problem_the_script_had_before_the_turn_is_a_note(tmp_path, stand_in):
@@ -305,3 +385,54 @@ def test_a_recipes_checks_step_has_scripts_on_unless_unticked():
     assert RecipeChecks().scripts is True
     assert RecipeChecks.model_validate({"scripts": False}).scripts is False
     assert json.loads(RecipeChecks().model_dump_json())["scripts"] is True
+
+
+def test_an_old_problem_a_line_above_moved_is_still_the_scripts_own(tmp_path, stand_in):
+    # (Config's rule: its words and its line's text - an inserted line above does not make it new)
+    rows = said(tmp_path, {"a.sh": "# a new line\n" + BROKEN}, before={"a.sh": BROKEN})
+    assert [state for state, _line in rows] == ["note"], rows
+
+
+def test_a_shell_runs_in_an_empty_folder_of_its_own_gone_after(tmp_path, stand_in):
+    ((state, line),) = said(tmp_path, {"where.sh": "where?\n"})
+    folder = line.split("in ", 1)[1]
+    assert state == "failed" and "koloni-script-" in folder, line
+    assert not Path(folder).exists() and Path(folder).resolve() != tmp_path.resolve()
+
+
+def test_past_its_time_the_whole_tree_is_killed_and_a_held_pipe_waits_not(
+    tmp_path, stand_in, monkeypatch
+):
+    # (Review: a child the shell left behind, holding its pipes, kept a 2 s read for 25 s.)
+    import time
+
+    monkeypatch.setattr(proof_kinds, "BASH_SECONDS", 1)
+    started = time.monotonic()
+    rows = said(tmp_path, {"hung.sh": "grandchild hang\n", "left.sh": "grandchild\n"})
+    assert rows == [
+        ("note", "hung.sh: not checked: reading it took over 1 s"),
+        ("passed", "left.sh: parses"),
+    ]
+    assert time.monotonic() - started < scaled(15)
+
+
+def test_a_cr_lf_shell_script_is_read_and_said(tmp_path, stand_in):
+    rows = said(tmp_path, {"w.sh": BROKEN.replace("\n", "\r\n"), "ok.sh": "echo hi\r\n"})
+    assert rows == [
+        ("failed", "w.sh:4: does not parse - syntax error near unexpected token `fi'"),
+        ("note", "w.sh: Windows line endings (CR LF) - bash on Linux will not run it as it is"),
+        ("passed", "ok.sh: parses"),
+        ("note", "ok.sh: Windows line endings (CR LF) - bash on Linux will not run it as it is"),
+    ]
+
+
+@needs_bash
+def test_bash_reads_with_extglob_on(tmp_path):
+    rows = said(
+        tmp_path,
+        {
+            "glob.sh": "shopt -s extglob\ncase $1 in @(a|b)) echo y ;; esac\nls !(foo)\n",
+            "bad.sh": "echo !(\n",
+        },
+    )
+    assert rows[0] == ("passed", "glob.sh: parses") and rows[1][0] == "failed", rows
