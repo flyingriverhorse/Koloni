@@ -292,11 +292,13 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
 - **A lint, format or type check failing before.** A line such as `ruff format --check .`,
   `ruff check .`, `eslint .`, `mypy app` or `tsc --noEmit` - from your CI or your own - that fails
   only on files the turn did not change (by the file each finding names: `old.py:1:3`, "Would
-  reformat: old.py") runs once on the old code too. Where each finding is there as well: "Were
+  reformat: old.py") runs once on the old code too. Where each finding - every line that reads
+  like a problem, an error or a code such as `TS5023`, as many times - is there as well: "Were
   failing before this turn: old.py (from CI: ruff format --check .)" - not sent back, and no
-  stronger model is called for it. A finding in a file the turn changed, one the old code does
-  not have (a type error the turn caused in a file it did not touch), output that names no file,
-  or a name that is no file of the project: the turn's, as before.
+  stronger model is called for it. A file the turn changed named anywhere in the output, a
+  finding the old code does not have (a type error the turn caused in a file it did not touch, a
+  config option it broke), output that names no file, or a name that is no file of the project:
+  the turn's, as before.
 - Where a command of the turn may have changed the project (one that is not a test run and not a
   mere read), what it changed is not on record: "Not checked against the old code: a command
   changed the project this turn …", and every failure counts as new.

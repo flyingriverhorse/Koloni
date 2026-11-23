@@ -5,7 +5,8 @@ counts of a whole suite that passed, against which a drop in tests or a rise in 
 said. The runner's part: `BeforeMixin`."""
 
 import re
-from collections.abc import Iterable
+from collections import Counter
+from collections.abc import Collection, Iterable
 from pathlib import Path
 
 from app import ledger
@@ -50,6 +51,14 @@ _AT = re.compile(r"^\s*(?:-->\s*)?([^\s:()\"'<>\[\]`]+\.[A-Za-z0-9]{1,8})(?::\d+
 _BARE = re.compile(r"^\s*(?:would reformat:?\s+|\[warn\]\s+)?([^\s:]+\.[A-Za-z0-9]{1,8})\s*$",
                    re.IGNORECASE)
 _UNDER = re.compile(r"^\s+\d+:\d+\s")
+# (review of CL-336 M) ...and every other line that reads like a problem - an error, a warning, a
+# failure, a code (`E501`, `TS5023`) - or names a file of the project anywhere (`mypy.ini: [mypy]:
+# Unrecognized option`); not a summary line, whose counts move with what was checked.
+_PROBLEM = re.compile(r"(?i:\b(?:error|errors|warning|failed|fatal)\b)|\b[A-Z]{1,6}\d{3,5}\b")
+_SUMMARY = re.compile(r"^(?:found\s+)?\d+\s+(?:source\s+)?"
+                      r"(?:files?|errors?|problems?|warnings?|fixable)\b|^\[\*\]\s+\d+\s+fixable|^[✖✗]\s+\d+\s+problems?|^success:"
+                      r"|^all checks passed", re.IGNORECASE)
+_TOKEN = re.compile(r"[^\s:()\"'<>\[\]`,;=]+\.[A-Za-z0-9]{1,8}")
 MOST_LINT_CHARS = 100_000  # (of the output's end, its colours off)
 
 
@@ -114,34 +123,50 @@ def alone(command: str, ids: list[str]) -> str | None:
     return f"{command} -- {named}" if read[0] in _FILE_TOOLS else None
 
 
-def lint_findings(output: str, root: Path,
-                  cwd: str) -> tuple[frozenset[str], frozenset[str]] | None:
+def lint_findings(output: str, root: Path, cwd: str,
+                  mine: Collection[str] = ()) -> tuple[frozenset[str], Counter[str]] | None:
     """CL-336 M: a failed lint, format or type check's (`ci_commands.checks_files`) files - each
-    project-relative - and findings: each line that names a file, its folder's path taken off
-    (one copy's output reads as another's). None: none named, or a name that is no file of the
-    project (gone, outside it, a word that only looks like one) - not to be told apart."""
+    project-relative, named where a finding starts - and findings, counted: each line that names
+    a file there, or reads like a problem anywhere (`_PROBLEM`, a project file in it), its
+    folder's path taken off (one copy's output reads as another's). None - not to be told
+    apart: none named, a name there that is no file of the project (gone, outside it, a word
+    that only looks like one), or a file of `mine` (the turn's) anywhere in it."""
     folder = (root / cwd).resolve()
     text = ledger.tail(output, MOST_LINT_CHARS)
     for prefix in {str(folder), folder.as_posix()}:
         text = text.replace(prefix + "\\", "").replace(prefix + "/", "")
+    if _names_any(text.replace("\\", "/").casefold(), mine, cwd):
+        return None
     files: set[str] = set()
-    found: set[str] = set()
+    found: Counter[str] = Counter()
     header, last = None, ""
     for line in text.splitlines():
+        said = line.strip().replace("\\", "/")
         bare = _BARE.match(line)
-        named = [bare[1]] if bare else [at[1]] if (at := _AT.match(line)) else []
+        named = bare[1] if bare else at[1] if (at := _AT.match(line)) else None
         if named:
-            rels = [_project_file(one, folder, root) for one in named]
-            if None in rels:
+            rel = _project_file(named, folder, root)
+            if rel is None:
                 return None
-            files.update(one for one in rels if one)
-            header = rels[-1] if bare else header
-            said = line.strip().replace("\\", "/")
-            found.add(f"{last} {said}" if said.startswith("-->") else said)
+            files.add(rel)
+            header = rel if bare else header
+            found[f"{last} {said}" if said.startswith("-->") else said] += 1
         elif header and _UNDER.match(line):
-            found.add(f"{header} {line.strip()}")
-        last = line.strip() or last
-    return (frozenset(files), frozenset(found)) if files else None
+            found[f"{header} {said}"] += 1
+        elif said and not _SUMMARY.match(said) and (_PROBLEM.search(said) or any(
+                _project_file(one, folder, root) for one in _TOKEN.findall(said))):
+            found[said] += 1
+        last = said or last
+    return (frozenset(files), found) if files else None
+
+
+def _names_any(text: str, mine: Collection[str], cwd: str) -> bool:
+    """Whether `text` (casefolded, `/`) names any of `mine` (project-relative): as it is, or from
+    the run's folder `cwd`."""
+    at = "" if cwd in ("", ".") else cwd.casefold().strip("/") + "/"
+    forms = {form for one in mine for form in (one.casefold(), one.casefold().removeprefix(at))
+             if form}
+    return any(re.search(rf"(?<![\w.-]){re.escape(form)}(?!\w)", text) for form in forms)
 
 
 def _project_file(said: str, folder: Path, root: Path) -> str | None:

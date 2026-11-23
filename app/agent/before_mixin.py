@@ -92,13 +92,14 @@ class BeforeMixin:
     async def _lint_before(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
                            output: str) -> bool:
         """CL-336 M: whether a failed lint, format or type check was failing before - said, not
-        sent back: each file its findings name is one the turn did not change, and each finding
-        is there on the old code too (a type error in a file the turn did not touch may be the
-        turn's). Not where none is named, nor without the old code: the turn's."""
+        sent back: no file the turn changed is in its output, and each finding is there on the
+        old code too, as often (a type error in a file the turn did not touch may be the turn's;
+        a config error of the turn's names no file). Not where none is named, nor without the
+        old code: the turn's."""
         root = self._ws(ctx).root
-        now_found = proof_before.lint_findings(output, root, run.cwd)
-        mine = {one.path.casefold() for one in held.changes}
-        if now_found is None or any(one.casefold() in mine for one in now_found[0]):
+        now_found = proof_before.lint_findings(output, root, run.cwd,
+                                               [one.path for one in held.changes])
+        if now_found is None:
             return False
         why = CHANGED_BY_COMMAND if self._changed_by_command(ctx) else None if (
             self._may_rerun(ctx, held, run)) else ASKS_AGAIN

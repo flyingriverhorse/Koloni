@@ -1,6 +1,8 @@
 """Kanıtlı bitiş S7, what needs no model: the tests a failing run names, the line that runs them
 alone, a bug-fix turn's words, new test files, and the last green state's words."""
 
+from collections import Counter
+
 import pytest
 
 from app import proof_before
@@ -138,8 +140,9 @@ def test_lint_findings_name_the_project_files_each_tool_says(tmp_path):
         (tmp_path / rel).write_text("x\n", encoding="utf-8")
     ruff = ("F401 [*] `os` imported but unused\n --> old.py:1:8\n  |\n1 | import os\n  |\n"
             "Found 1 error.\n")
-    assert proof_before.lint_findings(ruff, tmp_path, ".") == (
-        frozenset({"old.py"}), frozenset({"F401 [*] `os` imported but unused --> old.py:1:8"}))
+    assert proof_before.lint_findings(ruff, tmp_path, ".") == (frozenset({"old.py"}), Counter({
+        "F401 [*] `os` imported but unused --> old.py:1:8": 1,
+        "F401 [*] `os` imported but unused": 1}))
     said = {
         "Would reformat: old.py\n1 file would be reformatted\n": "old.py",  # (ruff format)
         "would reformat old.py\nOh no!\n": "old.py",  # (black --check)
@@ -209,7 +212,52 @@ Found 2 errors.
 def test_lint_findings_read_ruffs_own_output(tmp_path):
     (tmp_path / "old.py").write_text("import os\n", encoding="utf-8")
     assert proof_before.lint_findings(RUFF_FORMAT, tmp_path, ".") == (frozenset({"old.py"}),
-        frozenset({"unformatted: File would be reformatted --> old.py:2:1"}))
+        Counter({"unformatted: File would be reformatted --> old.py:2:1": 1}))
     assert proof_before.lint_findings(RUFF_CHECK, tmp_path, ".") == (frozenset({"old.py"}),
-        frozenset({"F401 [*] `os` imported but unused --> old.py:1:8",
-                   "F821 Undefined name `np` --> old.py:3:5"}))
+        Counter({"F401 [*] `os` imported but unused --> old.py:1:8": 1,
+                 "F401 [*] `os` imported but unused": 1,
+                 "F821 Undefined name `np` --> old.py:3:5": 1, "F821 Undefined name `np`": 1}))
+
+
+OLD_TS = "old.ts(3,5): error TS2345: Argument of type 'number' is not assignable.\n"
+
+
+@pytest.mark.parametrize("now, then", [
+    # (review of CL-336 M: the turn's own failure beside an old one was excused with it - a
+    # tsconfig option it broke, a config error of mypy's, ruff's parse error naming a file
+    # mid-line; and one old finding that came twice)
+    ("error TS5023: Unknown compiler option 'strictt'.\n" + OLD_TS + "Found 2 errors in 1 file.\n",
+     OLD_TS + "Found 1 error in 1 file.\n"),
+    ("mypy.ini: [mypy]: Unrecognized option: strictt = True\n"
+     "old.py:3: error: Name 'y' is not defined  [name-defined]\nFound 1 error\n",
+     "old.py:3: error: Name 'y' is not defined  [name-defined]\nFound 1 error\n"),
+    ("error: Failed to parse src/a.py:1:1: Expected an expression\n"
+     "old.py:3:1: F821 Undefined name `y`\nFound 1 error.\n",
+     "old.py:3:1: F821 Undefined name `y`\nFound 1 error.\n"),
+    ("old.py:3: error: X\nold.py:3: error: X\n", "old.py:3: error: X\n"),
+])
+def test_a_finding_the_old_code_has_not_is_the_turns(tmp_path, now, then):
+    for name in ("old.ts", "tsconfig.json", "old.py", "src/a.py", "mypy.ini"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("x\n", encoding="utf-8")
+    found, was = (proof_before.lint_findings(one, tmp_path, ".") for one in (now, then))
+    assert found is not None and was is not None and not found[1] <= was[1], (found, was)
+    # (the same old findings with their summary's counts moved: failing before)
+    same = proof_before.lint_findings(OLD_TS + "Found 3 errors in 2 files.\n", tmp_path, ".")
+    old = proof_before.lint_findings(OLD_TS + "Found 1 error in 1 file.\n", tmp_path, ".")
+    assert same is not None and old is not None and same[1] <= old[1]
+
+
+def test_a_file_the_turn_changed_anywhere_in_the_output_makes_it_the_turns(tmp_path):
+    for name in ("old.py", "src/a.py"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("x\n", encoding="utf-8")
+    said = ("error: Failed to parse src/a.py:1:1: Expected an expression\n"
+            "old.py:3:1: F821 Undefined name `y`\n")
+    assert proof_before.lint_findings(said, tmp_path, ".", ["src/a.py"]) is None
+    assert proof_before.lint_findings(said.replace("src/a.py", "src\\a.py"), tmp_path, ".",
+                                      ["SRC/A.py"]) is None  # (its slashes, its case)
+    assert proof_before.lint_findings("a.py:1:1: E1\n", tmp_path, "src", ["src/a.py"]) is None
+    # (not a name that only ends like it)
+    assert proof_before.lint_findings("old.py:3:1: F821 `y`\n", tmp_path, ".",
+                                      ["d.py"]) is not None
