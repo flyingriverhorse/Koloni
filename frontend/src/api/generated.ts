@@ -5941,6 +5941,8 @@ export interface components {
             offer?: string | null;
             /** Question */
             question?: string | null;
+            /** Reason */
+            reason?: ("touched" | "held" | "unread" | "no_verdict" | "still") | null;
             /** Started At */
             started_at: string | null;
             /**

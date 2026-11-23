@@ -12,7 +12,7 @@ import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import NamedTuple, NotRequired, TypedDict
+from typing import Literal, NamedTuple, NotRequired, TypedDict
 
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
@@ -921,6 +921,11 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
     return None
 
 
+# S11: why a stronger model's rounds were no pass - a test changed without leave, the Reviewer
+# held or did not read the test change, the tests gave no verdict, or they still fail.
+Reason = Literal["touched", "held", "unread", "no_verdict", "still"]
+
+
 class Row(TypedDict):
     kind: str
     state: str
@@ -937,6 +942,9 @@ class Row(TypedDict):
     question: NotRequired[str]
     # S8: a "ci_offer" row's offer, by its name (`ci_commands.offer_id`): Run these approves it.
     offer: NotRequired[str]
+    # S11: why a stronger model's rounds were no pass (`Reason`): Fix it's fixed sentence goes by
+    # it, never by the row's text, which names what a model chose.
+    reason: NotRequired[Reason]
 
 
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
@@ -1007,8 +1015,15 @@ NO_NEW_TEST = "No new test: the Orchestrator said “{line}”"
 TEST_REMOVED = "Test removed: {path}"
 
 
-def row(kind: str, state: str, text: str, command: str | None = None, guessed: bool = False) -> Row:
-    return {
+def row(
+    kind: str,
+    state: str,
+    text: str,
+    command: str | None = None,
+    guessed: bool = False,
+    reason: "Reason | None" = None,
+) -> Row:
+    made: Row = {
         "kind": kind,
         "state": state,
         "text": text,
@@ -1017,6 +1032,9 @@ def row(kind: str, state: str, text: str, command: str | None = None, guessed: b
         "started_at": None,
         "counts": None,
     }
+    if reason is not None:
+        made["reason"] = reason
+    return made
 
 
 def clock(seconds: int) -> str:

@@ -678,9 +678,10 @@ class StrongerMixin:
                 "failed",
                 TESTS_TOUCHED.format(model=model, paths=", ".join(touched[:5])),
                 command,
+                reason="touched",
             )
         if not self._handed_passed(held, wanted):
-            return proof.row("stronger", "failed", NO_VERDICT, command)
+            return proof.row("stronger", "failed", NO_VERDICT, command, reason="no_verdict")
         if kind != TEST_WRONG:
             return None
         held.verdict, held.looked_at, held.review_forced = None, None, True  # (a fresh look)
@@ -689,7 +690,9 @@ class StrongerMixin:
         finally:
             held.review_forced = False
         if held.verdict == "HOLD":
-            return proof.row("stronger", "failed", TEST_HELD.format(model=model), command)
+            return proof.row(
+                "stronger", "failed", TEST_HELD.format(model=model), command, reason="held"
+            )
         if held.verdict != "MERGE":
             said = [one["text"] for one in held.rows if one["kind"] == "review"]
             return proof.row(
@@ -697,6 +700,7 @@ class StrongerMixin:
                 "failed",
                 TEST_UNREAD.format(model=model, why=said[-1] if said else NO_LOOK),
                 command,
+                reason="unread",
             )
         return None
 
@@ -865,5 +869,6 @@ class StrongerMixin:
                 "failed",
                 STILL_HANDED.format(by=" and ".join([held.first_by, *held.handed])),
                 held.left_failing[0][0].command,
+                reason="still",
             )
         ]  # (Fix it's command, as a failing tests row's)
