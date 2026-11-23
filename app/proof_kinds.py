@@ -803,6 +803,12 @@ _TOML_SKIP = re.compile(
 # JSON with comments (tsconfig.json, VS Code's): its comments and trailing commas left out, its
 # lines kept where they were, its strings as they are.
 _JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)|,(?=\s*[}}\]])")
+# The JSON files their tools read with comments and trailing commas (TypeScript's, VS Code's, a dev
+# container's, ESLint's) - every other .json is strict: its reader breaks on them.
+# shortcut: by name; add one here when its tool is seen to read comments.
+_COMMENTED = re.compile(
+    r"/(tsconfig[^/]*|jsconfig[^/]*|\.eslintrc|\.?devcontainer)\.json$|/\.vscode/[^/]+\.json$"
+)
 _TOML_AT = re.compile(r"\s*\(at line (\d+), column \d+\)$")
 _COMPOSE = re.compile(r"(docker-)?compose([.-][\w.-]*)?\.ya?ml")
 
@@ -868,14 +874,14 @@ def _yaml(text: str, rel: str) -> tuple[object, str | None]:
 
 
 def _json(text: str, rel: str) -> tuple[object, str | None]:
-    """Strict JSON - or JSON with comments where that is how the file reads (never a
-    package.json: npm reads none)."""
+    """Strict JSON - or, for a file its tool reads with comments and trailing commas
+    (`_COMMENTED`), JSON with them."""
     if _deep(text, _JSON_STRING):
         raise WorkspaceError(TOO_DEEP)
     try:
         return json.loads(text), None
     except json.JSONDecodeError as strict:
-        if rel.replace("\\", "/").casefold().rsplit("/", 1)[-1] == "package.json":
+        if not _COMMENTED.search("/" + rel.replace("\\", "/").casefold()):
             return None, f"{rel}:{strict.lineno}: {NO_PARSE}{strict.msg}"
         bare = _JSONC.sub(lambda m: m.group(1) or "\n" * m.group(0).count("\n"), text)
         try:
@@ -894,8 +900,13 @@ def _package(value: object) -> list[str]:
     if not isinstance(scripts, dict):
         return [*found, "scripts is not an object"]
     return found + [
-        f"scripts.{_said(str(key))} is not a string" for key in scripts if not _string(scripts, key)
+        f"scripts.{_key(key)} is not a string" for key in scripts if not _string(scripts, key)
     ]
+
+
+def _key(key: object) -> str:
+    """A key of the file, said on one line (a JSON key may hold a newline)."""
+    return _said(" ".join(str(key).split()))
 
 
 def _string(value: dict, key: str) -> bool:
@@ -914,7 +925,7 @@ def _pyproject(value: object) -> list[str]:
         found.append("tool is not a table")
     elif isinstance(tools, dict):
         found += [
-            f"tool.{_said(str(key))} is not a table"
+            f"tool.{_key(key)} is not a table"
             for key, one in tools.items()
             if not isinstance(one, dict)
         ]
@@ -930,7 +941,7 @@ def _workflow(value: object) -> list[str]:
     if not isinstance(jobs, dict) or not jobs:
         return [*found, "has no jobs" if jobs is None else "jobs is not a mapping of jobs"]
     for name, job in jobs.items():
-        said = _said(str(name))
+        said = _key(name)
         if not isinstance(job, dict):
             found.append(f"job {said} is not a mapping")
         elif "uses" not in job and "runs-on" not in job:
@@ -943,10 +954,8 @@ def _workflow(value: object) -> list[str]:
 def _compose(value: object) -> list[str]:
     if not isinstance(value, dict):
         return ["not a mapping"]
-    services = value.get("services")
-    if services is None:
-        return [] if "include" in value else ["has no services"]
-    return [] if isinstance(services, dict) else ["services is not a mapping"]
+    # (An override file may hold only volumes or networks.)
+    return [] if isinstance(value.get("services", {}), dict) else ["services is not a mapping"]
 
 
 def _shape(rel: str) -> tuple[str, Callable[[object], list[str]]] | None:

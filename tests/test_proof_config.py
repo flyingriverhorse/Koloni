@@ -32,8 +32,10 @@ def said(root, files: dict[str, str]) -> list[tuple[str, str]]:
         ("a.json", '{\n  "a": 1,\n  "b": \n}\n', "a.json:4: does not parse - Expecting value"),
         ("a.yaml", "a: 1\nb: [1, 2\nc: 3\n", "a.yaml:3: does not parse - expected ',' or ']'"),
         ("a.toml", 'name = "x"\nversion = \n', "a.toml:2: does not parse - Invalid value"),
-        # (npm reads no comments: a package.json with one does not parse)
+        # (npm reads no comments: a package.json with one does not parse - nor any JSON with a
+        # trailing comma whose tool is not one that reads them)
         ("package.json", '{\n  // the app\n  "name": "x"\n}\n', "package.json:2: does not parse"),
+        ("data.json", '{\n  "a": 1,\n}\n', "data.json:3: does not parse - Expecting property"),
     ],
 )
 def test_a_file_that_does_not_parse_fails_with_its_parsers_line(tmp_path, rel, body, line):
@@ -47,12 +49,14 @@ def test_files_that_parse_pass_and_json_with_comments_where_its_tool_reads_them(
         {
             "settings.json": '{"a": [1, 2]}',
             "tsconfig.json": '{\n  // strict\n  "compilerOptions": {"strict": true,},\n}\n',
+            ".vscode/settings.json": '{\n  /* mine */ "editor.tabSize": 2,\n}\n',
             "k8s.yaml": "kind: A\n---\nkind: B\n",
             "ruff.toml": "line-length = 100\n",
         },
     ) == [
         ("passed", "settings.json: parses"),
         ("passed", "tsconfig.json: parses"),
+        ("passed", ".vscode/settings.json: parses"),
         ("passed", "k8s.yaml: parses"),
         ("passed", "ruff.toml: parses"),
     ]
@@ -70,6 +74,10 @@ def test_a_package_json_keeps_npms_shape(tmp_path):
     ]
     assert said(tmp_path, {"web/package.json": '{"scripts": "vitest"}'}) == [
         ("failed", "web/package.json: scripts is not an object")
+    ]
+    # (a key is said on one line, whatever it holds)
+    assert said(tmp_path, {"package.json": json.dumps({"scripts": {"a\nb": 1}})}) == [
+        ("failed", "package.json: scripts.a b is not a string")
     ]
     assert said(tmp_path, {"package.json": "[]"}) == [("failed", "package.json: not a JSON object")]
 
@@ -113,8 +121,9 @@ def test_a_compose_file_has_a_mapping_of_services(tmp_path):
     assert said(tmp_path, {"docker-compose.yml": "services:\n  - web\n"}) == [
         ("failed", "docker-compose.yml: services is not a mapping")
     ]
-    assert said(tmp_path, {"docker-compose.dev.yml": "version: '3'\n"}) == [
-        ("failed", "docker-compose.dev.yml: has no services")
+    # (An override file may hold only volumes or networks.)
+    assert said(tmp_path, {"docker-compose.dev.yml": "volumes:\n  data: {}\n"}) == [
+        ("passed", "docker-compose.dev.yml: parses, as a Compose file should")
     ]
 
 
@@ -206,8 +215,8 @@ def test_config_switched_off_checks_none_and_says_so(make_client, wait_run, proj
 
 
 def test_unended_strings_and_comments_are_read_in_one_pass(tmp_path):
-    # (Each unended one read again from every later quote took time squared: a 600 KB file
-    # held the check for minutes - now well under a second.)
+    # (Each unended one read again from every later one took time squared: measured, 60 KB of
+    # "/*a" took 21 s, so these 600 KB about half an hour - now well under a second.)
     from tests.conftest import scaled
 
     hostile = {
