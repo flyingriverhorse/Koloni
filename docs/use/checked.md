@@ -241,6 +241,49 @@ not even load (a syntax error, collecting) shows no bug. One that did not is hel
 you: "Reproduce did not show a failing test: none of the tests it wrote failed (…)", or "… no test
 run of its own on record failed".
 
+## A stronger model
+
+When the **Fix rounds** are spent and a test still fails - or a blocking finding of the Reviewer
+stands - KOLONİ hands the fix to the next stronger tier on the Models page (fast, then balanced,
+then strongest), the same role on that tier's model, for the same number of rounds. Each tier
+tries at most once a turn, and its model's use is always said: "Handed to `model` (Strongest)
+after 2 rounds by `model`". A tier whose provider is over its limit is skipped ("Strongest
+skipped: over its limit"), and none is tried where the project's month budget or the turn's
+token limit is spent. Switch it off in **Settings › This project › Checks and git › Then a
+stronger model**; then the work waits after the first model's rounds.
+
+Before the stronger model's rounds, KOLONİ looks at what is not this turn's: a flaky test and one
+that was failing before the turn are said, not handed on (see Not this turn's above). Then the
+stronger model first says what is wrong, in one line of its own, before it changes anything:
+
+- **fix-incomplete** - the fix is not finished: it goes on from the work as it is.
+- **test-wrong** - the test asks for something the request does not: it may change the test, only
+  with its reason in the request's words - never deleting or loosening one silently. The section
+  says "Test changed: `why`", and the Reviewer reads that change too.
+- **approach-wrong** - the way the work went cannot pass: where the work is in its own working
+  copy, what it changed there is dropped and the work starts again from the start state in a
+  fresh copy, the stronger model told only what was tried and why it failed - "Started over in a
+  fresh copy: `why`". Work already in the project (which KOLONİ never reverts), or on a branch of
+  its own, goes on from the work as it is, and the section says so.
+
+A line that only looks like a verdict - in the work itself, in a quote or a code block of its
+answer - is not one; with none, or two different ones, it goes on as fix-incomplete. A test-wrong
+without the request's own words in quotation marks goes on as fix-incomplete too.
+
+Failing work is never taken in, at any level - Full auto and while you're away too. Where nothing
+passes after the strongest tier (or none is set, or the switch is off), the work stays in its
+copy and the section says "Not taken in: 2 tests still fail after rounds by `A` and `B`", with
+what the stronger model found as one question to you, and two buttons on that line: **Take in
+anyway** and **Fix it**: your answer to the question starts a turn that goes on in the kept
+work's copy - what was done there holds - and it goes into the project at that turn's end when
+its tests pass. Where the kept work was decided since, Fix it says so and Take in anyway is left.
+An Away job ends
+there, and its report lists it. Work that is already in the project (no copy) gets the stronger
+model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
+own check ran nothing still waits on its Ready for you card, as before - never taken in unasked.
+A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model yet: the user
+decides, as before (Fix it).
+
 ## Documents, diagrams, data and slides
 
 Under **Test and review**, a turn that wrote documents, diagrams, data or slides gets KOLONİ's
@@ -529,6 +572,16 @@ the Orchestrator's window, whose record holds the runs.
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
 | – Not checked: off for this chat | This chat's **Test and review changes** is off. |
+| – Handed to `model` (Strongest) after 2 rounds by `model` | The Fix rounds were spent with a test still failing: the next stronger tier tries. Its model's use counts. |
+| – `model` says fix-incomplete: `why` | The stronger model's diagnosis, before it changed anything (fix-incomplete, test-wrong, approach-wrong). |
+| – Test changed: `why` | The stronger model changed a test, with its reason in the request's words. The Reviewer reads it, whatever the change's size. |
+| ✗ Not a pass: `model` changed a test without leave (`files`) | Its diagnosis was not test-wrong, yet it changed or deleted a test - or what says which tests run: a `conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, `pyproject.toml`, `package.json`, a Vitest, Vite, Jest, Karma, Mocha or Playwright config: the tests passing then is no pass, and the work stays as failing. **Fix it** asks for the fix, saying why in KOLONİ's own words (never the file names or output a model chose). `pytest.toml` and `.pytest.ini` count, and a Vitest workspace. |
+| ✗ Not a pass: the Reviewer held `model`'s test change | Its test-wrong change did not get the Reviewer's MERGE: the work stays as failing. |
+| ✗ Not a pass: the Reviewer did not read `model`'s test change (`why`) | Its test-wrong change needs a fresh MERGE from the Reviewer; the Reviewer could not look, gave no verdict, or the turn's token limit was reached: the work stays as failing. |
+| – Started over in a fresh copy: `why` | The stronger model said approach-wrong: the copy's changes were dropped and the work began again from the start state. |
+| – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
+| ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
+| ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |
 | ✗ Checked only: this recipe's Checks step sends nothing back to fix - you decide (Fix it) | The recipe's Fix rounds are 0: the tests failed and nothing went back. |

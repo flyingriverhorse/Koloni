@@ -4083,6 +4083,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/held/fix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fix Held
+         * @description S11 (decision 18) Fix it on a "Not taken in" row: the user's answer to its question starts
+         *     a turn that goes on in the kept work's copy - the row's own kept copy, still undecided (409:
+         *     decided since - Take in anyway, then Fix it).
+         */
+        post: operations["fix_held_api_runs__run_id__held_fix_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/notes": {
         parameters: {
             query?: never;
@@ -5889,8 +5911,12 @@ export interface components {
             guessed: boolean;
             /** Kind */
             kind: string;
+            /** Merge Id */
+            merge_id?: string | null;
             /** Offer */
             offer?: string | null;
+            /** Question */
+            question?: string | null;
             /** Started At */
             started_at: string | null;
             /**
@@ -7043,6 +7069,13 @@ export interface components {
             shell_note: string | null;
             /** Tools Supported */
             tools_supported: boolean | null;
+        };
+        /** HeldFixIn */
+        HeldFixIn: {
+            /** Merge Id */
+            merge_id: string;
+            /** Reply */
+            reply: string;
         };
         /**
          * HistoryCount
@@ -9004,6 +9037,8 @@ export interface components {
             spawn_max_depth: number;
             /** Spawn Max Parallel */
             spawn_max_parallel: number;
+            /** Stronger Model */
+            stronger_model: boolean;
             /** Suggest Tasks */
             suggest_tasks: boolean;
             /**
@@ -9154,6 +9189,8 @@ export interface components {
             spawn_max_depth?: number | null;
             /** Spawn Max Parallel */
             spawn_max_parallel?: number | null;
+            /** Stronger Model */
+            stronger_model?: boolean | null;
             /** Suggest Tasks */
             suggest_tasks?: boolean | null;
             /** Suggest Tier */
@@ -19151,6 +19188,41 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fix_held_api_runs__run_id__held_fix_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeldFixIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

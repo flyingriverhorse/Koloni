@@ -127,6 +127,22 @@ class Proof:
     always: set[tuple[str, str]] = field(default_factory=set)
     looked_none: bool = False
     no_look: bool = False
+    # S11 (`StrongerMixin`): the last pass's own failures (S7's flaky and failing-before out),
+    # each failing pass's output for the stronger model, and what it did: the tiers tried, the
+    # models handed to after the first one's rounds, its diagnosis and question.
+    left_failing: list[tuple[TestRun, str]] = field(default_factory=list)
+    attempts: list[str] = field(default_factory=list)
+    escalated: bool = False
+    tiers_tried: list[str] = field(default_factory=list)
+    handed: list[str] = field(default_factory=list)
+    first_by: str = ""
+    diagnosis: tuple[str, str] | None = None
+    question: str = ""
+    passed_by_stronger: bool = False
+    # ...no tier more (a round that touched a test without leave, a held test change, no verdict),
+    # and S3's look asked for whatever the change's size (a stronger model's test change).
+    no_more: bool = False
+    review_forced: bool = False
 
 
 class ProofMixin:
@@ -167,6 +183,10 @@ class ProofMixin:
                 said = None
             if said is not None:
                 return said
+        try:  # (S11: the rounds spent, a stronger model next - nothing sent to the Orchestrator)
+            await self._stronger(ctx, held)
+        except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
+            log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
         return None
 
     def _recipe_spent(self: "AgentRunner", ctx: Ctx) -> bool:
@@ -220,6 +240,10 @@ class ProofMixin:
             return None
         failed = await self._all_tests(ctx, held, runs)  # (S6: related first, the rest later)
         failed = await self._proof_before(ctx, held, failed) if failed else failed  # (S7)
+        held.left_failing = list(failed)  # (S11: the pass's own failures)
+        if failed:
+            held.attempts.append("\n".join("\n".join(output.rstrip().splitlines()[-12:])
+                                           for _run, output in failed)[-1500:])
         if not failed:
             return await self._after_pass(ctx, held, runs)  # (S7: green state, a bug fix)
         if held.rounds >= held.most or held.recipe_spent:
@@ -488,10 +512,12 @@ class ProofMixin:
             said = proof.row("recipe_off", "note", proof.RECIPE_OFF) if checks.own else (
                 proof.row("chat_off", "note", proof.OFF_FOR_CHAT) if checks.setting == "off" else (
                     proof.row("not_checked", "note", proof.NOT_CHECKED)))
-            return [said, *self._last_run_rows(session, run_id), *waiting]
+            return [said, *self._last_run_rows(session, run_id), *waiting,
+                    *self._not_taken_row(session, run_id, held)]
         if held is None or not held.rows:
             return [proof.row("tests", "not_run", proof.NOT_RUN.format(
-                why=NOT_REACHED.get(status, ENDED_FIRST))), *waiting]
+                why=NOT_REACHED.get(status, ENDED_FIRST))), *waiting,
+                    *self._not_taken_row(session, run_id, held)]
         rounds = []
         if held.rounds:
             # (Why each went back, where a review's findings did: the canvas's round lines.)
@@ -499,7 +525,9 @@ class ProofMixin:
             rounds.append(proof.row("rounds", "note", proof.SENT_BACK.format(
                 n=held.rounds, most=held.most) + why))
         failing = any(one["state"] == "failed" for one in held.rows if one["kind"] == "tests")
-        if failing and (held.rounds >= held.most or held.recipe_spent):
+        if held.handed and held.left_failing:  # (S11: still held - a pass that was none too)
+            rounds += self._stronger_left(held)  # (S11: after the stronger models' rounds too)
+        elif failing and (held.rounds >= held.most or held.recipe_spent):
             rounds.append(proof.row("rounds", "failed", proof.RECIPE_SPENT if held.recipe_spent
                                     and held.rounds < held.most else proof.CHECK_ONLY if (
                                         not held.most) else proof.STILL_FAILING.format(
@@ -511,6 +539,7 @@ class ProofMixin:
                 why=NOT_REACHED.get(status, ENDED_FIRST))))
         tested = [*self._test_rows(session, run_id, lead.agent_id if lead else None, found, held),
                   *self._kinds_left(session, run_id, cid, found, held)]  # (S5a)
+        rounds += self._not_taken_row(session, run_id, held)  # (S11: held back, in its copy)
         return [*held.rows, *tested, *rounds, *waiting]  # (S2's rows: `TestAskMixin`)
 
     @staticmethod

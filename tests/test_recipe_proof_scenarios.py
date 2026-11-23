@@ -4,6 +4,7 @@ record failed is blocked (R2) - a later help, list or narrower run of the tool h
 Tester that ran no command but reads or ones that check nothing (`python -c "pass"`) does not pass
 (R3); Reproduce it writes a failing test and fixes nothing (R4)."""
 
+from app.agent import stronger_mixin
 from app.agent.words import RAN_NOTHING, REPRODUCE_FIRST, RUN_TO_PASS
 from tests.fakes import Script, ScriptedExecutor
 from tests.test_agent_commands import cmd
@@ -318,11 +319,23 @@ def test_bugfix_failing_test_goes_back_to_fix_twice_then_stops(make_client, wait
     snap = wait_run(client, cid, run_id)
     assert opened(snap) == ["Debugger", "Coder", "Tester", "Coder", "Tester", "Coder", "Tester"], by_call(snap)
     state = row(snap)
-    # (At Ready for you: at Full auto nobody is asked - it is taken in with the findings said.)
-    assert (state["status"], state["why"]) == ("in", "findings are left after 2 rounds of Test it"), state
+    # (S11, decision 18 - CL-305: at Full auto its tests still failing, the work is NOT taken in -
+    # no card either: it stays in its copy, kept, and Checked says so with Take in anyway.)
+    assert (state["status"], state["why"]) == (
+        "stopped", "findings are left after 2 rounds of Test it"), state
     told = [said for _status, said in by_call(snap)]
     assert "round 1 of 2" in told[2] and "round 2 of 2" in told[4]
     assert "The recipe stops here: findings are left after 2 rounds of Test it" in told[6]
+    assert stronger_mixin.NOT_TAKEN_TOLD.format(why=stronger_mixin.RECIPE_FAILING) in told[6]
+    assert not (project_dir / "calc.py").exists()  # (nothing of it in the project)
+    (held,) = [r for m in snap["messages"] if m["role"] == "checked" for r in m["checked"]
+               if r["kind"] == "not_taken"]
+    assert held["state"] == "failed" and held["merge_id"] and held["question"], held
+    # Take in anyway: the user's word, from the row - the kept copy goes in.
+    taken = client.post(f"/api/merges/{held['merge_id']}/approve",
+                        headers={"Origin": "http://127.0.0.1:8790"})
+    assert taken.status_code == 200, taken.text
+    assert (project_dir / "calc.py").exists()
 
 
 def test_the_reproduce_step_is_told_to_write_a_failing_test_only(make_client, wait_run, project_dir):
@@ -398,3 +411,30 @@ def test_a_reproduce_step_whose_own_test_failed_is_not_held(make_client, wait_ru
     held = [f["what"] for f in agent(snap, "Debugger")["findings"] or []]
     assert NOT_REPRODUCED["what"] not in held and not any(
         one.startswith(NOT_ITS_TEST.split("(")[0]) for one in held), held
+
+
+def test_fix_it_on_work_not_taken_in_goes_on_in_its_kept_copy(make_client, wait_run, project_dir):
+    # (S11: the user's answer starts a turn that works in the kept work's copy - what was done
+    # there holds - and goes in at its end when its tests pass)
+    executor = ScriptedExecutor([REPRO, FAILED, FAILED, FAILED, PASSED, PASSED, PASSED])
+    shown = scripts(ran_tests(), ran_tests(id="k2"), ran_tests(id="k3"), review=False)
+    shown["Lead"] = [*shown["Lead"], step(write("fixed.py", "y = 1\n", "wf")),
+                     text("fixed it in the kept work")]
+    client, _model = make_client(shown, executor=executor)
+    cid, run_id = bugfix_run(client, project_dir)
+    snap = wait_run(client, cid, run_id)
+    (held,) = [r for m in snap["messages"] if m["role"] == "checked" for r in m["checked"]
+               if r["kind"] == "not_taken"]
+    assert client.post(f"/api/runs/{run_id}/held/fix", json={"merge_id": "nope", "reply": "y"},
+                       headers=OWN).status_code == 409
+    client.patch(f"/api/conversations/{cid}", json={"lead_hands_code": False}, headers=OWN)
+    went = client.post(f"/api/runs/{run_id}/held/fix",
+                       json={"merge_id": held["merge_id"], "reply": "zero is fine"}, headers=OWN)
+    assert went.status_code == 202, went.text
+    second = went.json()["run_id"]
+    snap = wait_run(client, cid, second)
+    assert snap["runs"][-1]["status"] == "completed", snap["runs"][-1]
+    assert (project_dir / "calc.py").exists() and (project_dir / "fixed.py").exists(), (
+        [(c["name"], c["status"], (c.get("result") or "")[:200]) for c in snap["tool_calls"]
+         if c["run_id"] == second], [(f["path"], f["status"]) for f in snap["file_changes"]
+                                     if f["run_id"] == second])

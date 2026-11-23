@@ -271,6 +271,8 @@ class ProjectOut(Out):
     after_change: AfterChange
     # S3: how often the end check sends work back a turn - tests and the Reviewer's findings.
     fix_rounds: int
+    # S11: then a stronger model tries, the rounds spent.
+    stronger_model: bool
     # S5a: Check by kind of work - {kind: on}; a kind left out is on.
     check_kinds: dict[str, bool] = {}
     # S3: a change this big is read by the Reviewer (lines added and removed, files: of code,
@@ -380,6 +382,7 @@ class ProjectPatch(BaseModel):
     room_min_tokens: int | None = Field(default=None, ge=1, le=MAX_ROOM_TOKENS, strict=True)
     after_change: AfterChange | None = None
     fix_rounds: int | None = Field(default=None, ge=1, le=5, strict=True)
+    stronger_model: bool | None = None
     # S5a: the kinds switched, merged into the project's (a kind left out keeps its switch).
     check_kinds: dict[CheckKind, bool] | None = None
     # S1b: true forgets what KOLONİ found and saved as the project's test command, and its look.
@@ -738,6 +741,12 @@ class CiApproveIn(BaseModel):
     offer: str = Field(min_length=64, max_length=64)
 
 
+class HeldFixIn(BaseModel):
+    # S11: the "Not taken in" row's kept copy, and the user's answer to its question.
+    merge_id: str = Field(min_length=1, max_length=64)
+    reply: str = Field(min_length=1, max_length=4000)
+
+
 class PlanApproveIn(BaseModel):
     # The plan as the user edited it; left out or empty: as it was proposed.
     text: str | None = Field(default=None, max_length=20_000)
@@ -881,6 +890,10 @@ class CheckedRow(BaseModel):
     counts: CheckedCounts | None = None
     # S8: a "ci_offer" row's offer by its name - Run these sends it back: exactly these lines.
     offer: str | None = None
+    # S11: a "not_taken" row's kept copy - Take in anyway takes it in - and the question Fix it
+    # sends the user's answer to.
+    merge_id: str | None = None
+    question: str | None = None
 
 
 class MessageOut(Out):

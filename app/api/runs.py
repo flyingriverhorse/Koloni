@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import away, backlog, ci_commands
 from app.agent import TERMINAL
+from app.agent.stronger_mixin import FIX_HELD
 from app.api.conversations import new_turn, queue_or_start
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.api.usage import over_budget
@@ -14,6 +15,7 @@ from app.schemas import (
     BoardPostIn,
     BoardPostOut,
     CiApproveIn,
+    HeldFixIn,
     PlanApproveIn,
     PlanRejectIn,
     PostMessageOut,
@@ -204,6 +206,41 @@ async def approve_plan(
     bus.emit(run.conversation_id, None, "conversation.updated", conversation_out(conversation))
     if work.status == "running":
         request.app.state.runner.start(work.id)
+    return {"run_id": work.id}
+
+
+@router.post("/{run_id}/held/fix", status_code=202, dependencies=[Depends(require_own_origin)])
+async def fix_held(run_id: str, body: HeldFixIn, request: Request,
+                   session: Session = Depends(get_session)):
+    """S11 (decision 18) Fix it on a "Not taken in" row: the user's answer to its question starts
+    a turn that goes on in the kept work's copy - the row's own kept copy, still undecided (409:
+    decided since - Take in anyway, then Fix it)."""
+    run = session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(404, "run not found")
+    note = session.scalar(select(Message).where(Message.run_id == run_id,
+                                                Message.role == "checked"))
+    row = next((one for one in ((note.blocks or {}).get("rows") or [] if note else [])
+                if one.get("kind") == "not_taken" and one.get("merge_id") == body.merge_id),
+               None)
+    runner = request.app.state.runner
+    why = "that work is not this turn's held work" if row is None else runner.held_fix(
+        run_id, body.merge_id)
+    if why:
+        raise HTTPException(409, f"Fix it cannot go on in the kept work: {why}. Take it in "
+                                 "(Take in anyway), then ask for the fix.")
+    conversation = session.get_one(Conversation, run.conversation_id)
+    work, message = new_turn(session, run.conversation_id, run.topic_id, FIX_HELD.format(
+        question=(row or {}).get("question") or "", reply=" ".join(body.reply.split())))
+    runner.resume_on(work.id, body.merge_id)
+    conversation.updated_at = now()
+    session.commit()
+    bus = request.app.state.bus
+    bus.emit(run.conversation_id, work.id, "run.started", run_out(work))
+    bus.emit(run.conversation_id, work.id, "message.created", message_out(message))
+    bus.emit(run.conversation_id, None, "conversation.updated", conversation_out(conversation))
+    if work.status == "running":
+        runner.start(work.id)
     return {"run_id": work.id}
 
 

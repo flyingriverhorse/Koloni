@@ -830,6 +830,12 @@ def checks(session: Session, cid: str) -> list[str]:
         parts = ([f"{counted(left, 'finding')} left"] if left else []) + (
             [counted(len(found) - left, "suggestion")] if len(found) > left else [])
         lines.append(f"{role}: {', '.join(parts) or 'no findings'}")
+    # S11 (decision 18): a job whose tests still fail is not taken in - its Checked line says so.
+    note = session.scalar(select(Message.blocks).where(
+        Message.conversation_id == cid, Message.role == "checked").order_by(
+        Message.created_at.desc()).limit(1))
+    lines += [row["text"] for row in (note or {}).get("rows") or []
+              if row.get("kind") == "not_taken"]
     return lines
 
 

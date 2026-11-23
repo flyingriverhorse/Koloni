@@ -571,7 +571,7 @@ def _change_switches(project: Project, body: ProjectPatch, spends: set[str]) -> 
     for name in ("search_order", "search_agy", "notify_format", "notify_desktop", "auto_notes",
                  "observe_reports", "suggest_tasks", "suggest_tier", "hide_secrets", "canary",
                  "lead_work", "continue_steps", "when_away", "away_minutes", "full_auto_check",
-                 "disposable_deletes", "after_change", "fix_rounds", *SPAWN):
+                 "disposable_deletes", "after_change", "fix_rounds", "stronger_model", *SPAWN):
         if getattr(body, name) is not None:
             setattr(project, name, getattr(body, name))
     for name in spends:
@@ -648,7 +648,8 @@ async def patch_project(
                     "hide_secrets", "pass_env",
                     "canary", "lead_work", "continue_steps", "memory_links", "embedding_model",
                     "when_away", "away_minutes", "full_auto_check", "disposable_deletes",
-                    "after_change", "fix_rounds", "forget_tests_found", "check_kinds", *SPAWN)
+                    "after_change", "fix_rounds", "stronger_model", "forget_tests_found",
+                    "check_kinds", *SPAWN)
     limited = "turn_token_limit" in body.model_fields_set  # null takes the limit away
     # tek-ev: what a discussion and a room may spend; null: no limit (and, B-414, no least).
     spends = {"discussion_budget", "room_posts", "room_tokens", "room_minutes",

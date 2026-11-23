@@ -6,12 +6,30 @@ export const FIX_IT = (command: string) => `The tests KOLONİ ran at the end of 
 /** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds: words of the user's own - the findings reach the Orchestrator as data (`review_held`), never as theirs. */
 export const FIX_REVIEW = 'The Reviewer KOLONİ opened at the end of the last turn still held its change. Fix its blocking findings.'
 
+/** S11 (decision 18): what Fix it sends on a "Not taken in" row - the user's answer to the stronger model's question, their own words. */
+export const FIX_HELD = (question: string, reply: string) => `The last turn's work was not taken in: its tests still fail. ${question} My answer: ${reply.trim()} Fix it.`
+
 type Row = NonNullable<Message['checked']>[number]
 
-/** What Fix it asks for under a turn's Checked section: a failing test run first, else a Reviewer's hold; null: nothing to fix. */
+/**
+ * S11: where a stronger model's rounds ended as no pass (its tests may pass), Fix it's words - the command and a fixed sentence by the row's
+ * kind. Never the row's own text: it names files and a look's output a model chose, which are no words of the user's (as FIX_REVIEW).
+ */
+const NOT_DONE: [RegExp, string][] = [
+  [/changed a test without leave/, 'a test, or what says which tests run, was changed without leave'],
+  [/the Reviewer held/, 'the Reviewer held the test change'],
+  [/the Reviewer did not read/, 'the Reviewer did not pass the test change'],
+  [/gave no verdict/, 'the tests gave no verdict after a round'],
+]
+export const FIX_NOT_DONE = (command: string, rowText: string) =>
+  `${FIX_IT(command)} The stronger model's rounds were no pass: ${NOT_DONE.find(([kind]) => kind.test(rowText))?.[1] ?? 'it still fails after the rounds'}.`
+
+/** What Fix it asks for under a turn's Checked section: a failing test run first, else a stronger model's rounds that were no pass, else a Reviewer's hold; null: nothing to fix. */
 export function fixOf(rows: Row[]): string | null {
   const failed = rows.find(row => row.kind === 'tests' && row.state === 'failed' && row.command)
   if (failed?.command) return FIX_IT(failed.command)
+  const notDone = rows.find(row => (row.kind === 'stronger' || row.kind === 'rounds') && row.state === 'failed' && row.command)
+  if (notDone?.command) return FIX_NOT_DONE(notDone.command, notDone.text)
   const held = rows.some(row => row.kind === 'review' && row.text.startsWith('Still on hold'))
   return held && rows.some(row => row.kind === 'finding' && row.text.startsWith('Blocking: ')) ? FIX_REVIEW : null
 }

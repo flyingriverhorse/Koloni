@@ -186,14 +186,16 @@ class ReviewMixin:
                                                 MAX_REVIEW_DIFF, self._sharing(ctx))
             reviewed = self._recipe_reviewed(session, ctx.run_id, seen)
             root = project.root_path if project is not None else None
+        forced = held.review_forced  # (S11: a stronger model changed a test - always read)
         off = REVIEW_OFF if held.checks.own else TESTS_ONLY  # (S5c: the recipe's, or Tests only)
         failing = any(one["kind"] == "tests" and one["state"] == "failed" for one in held.rows)
-        why = (off if "review" not in held.checks.on else RECIPE_DID if reviewed
-               else TESTS_FAIL if failing else None)
+        why = None if forced else (off if "review" not in held.checks.on else RECIPE_DID if reviewed
+                                   else TESTS_FAIL if failing else None)
         if why is not None:  # (a HOLD's findings still stand under it)
             held.rows += [*held.looked, proof.row("review", "note", why)]
             return None
-        if held.verdict == "MERGE" or (held.looked_at is not None and held.looked_at == seen):
+        if held.verdict == "MERGE" and not forced or (
+                held.looked_at is not None and held.looked_at == seen):
             held.rows += held.looked  # (nothing new since its last look)
             if held.verdict == "HOLD" and not any(
                     one["text"].startswith("Still on hold ") for one in held.looked):
@@ -204,7 +206,7 @@ class ReviewMixin:
             return None
         # (B3: every line of the change - not the part of it the Reviewer is shown.)
         reasons = proof.review_reasons(held.changes, whole)
-        if held.verdict is None and not (reasons.big or reasons.security or (
+        if held.verdict is None and not (forced or reasons.big or reasons.security or (
                 proof.removed_tests(held.changes))):  # (S2: a deleted test is looked at)
             held.rows.append(proof.row("review", "note", SMALL.format(lines=reasons.lines,
                                                                        files=reasons.files)))
@@ -288,7 +290,7 @@ class ReviewMixin:
         cut = (f"{CUT_SHORT} (shown {len(diff)} of {total} characters; not shown: "
                f"{', '.join(left)})") if left else ""
         tests = proof.checked_text([one for one in held.rows if one["kind"] in (
-            "tests", "coverage")]) or (
+            "tests", "coverage", "stronger")]) or (
             "no test was run")
         facing = [one.path for one in held.changes if one.in_project and one.kind == "ui"] or (
             ["a command's option"] if any(USER_FACING.search(line) for line in diff.splitlines()
@@ -388,6 +390,7 @@ class ReviewMixin:
         (`_review_refuses`), no team's tools offered it."""
         if call_id in self._read_only_calls:
             self._read_only_agents.add(agent_id)
+        self._join_copy(call_id, agent_id)  # (S11's fixer: where the turn's work is)
 
     def _review_refuses(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
         """B2: KOLONİ's Reviewer calls only what reads (REVIEW_ALLOWED) - whatever it was offered
