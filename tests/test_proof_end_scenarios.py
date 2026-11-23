@@ -511,9 +511,14 @@ def test_claude_code_lead_is_checked_once_by_the_end_gate(claude_app, wait_run, 
     assert texts(snap) == ["Tests passed: python check.py - 3 passed"]
 
 
-def test_a_trigger_turn_runs_only_what_its_trigger_allows(make_client, wait_run, project_dir):
+def test_a_trigger_turn_runs_only_what_its_trigger_allows(
+    make_client, wait_run, project_dir, monkeypatch
+):
     from tests.test_triggers import allow, leave, run_now, setup, trigger
 
+    # (KOLONİ's guess: the user's own test of a part counts as ticked - `project_map.own_test` -
+    # and the old Test before adding, which did not, is gone: 0.1.7)
+    guess(monkeypatch)
     executor = ScriptedExecutor([PASS])
     client, _model, pid, cid = setup(
         make_client,
@@ -521,9 +526,7 @@ def test_a_trigger_turn_runs_only_what_its_trigger_allows(make_client, wait_run,
         [write("a.py", "x = 1\n"), text("done"), write("a.py", "x = 2\n", "w2"), text("done")],
         executor=executor,
     )
-    client.patch(
-        f"/api/projects/{pid}", json={"check_command": "python check.py", "lead_work": "itself"}
-    )
+    client.patch(f"/api/projects/{pid}", json={"lead_work": "itself"})
     made = trigger(client, pid, cid, permissions=leave(write=True))
     first = run_now(client, made["id"])
     snap = wait_run(client, cid, first)
@@ -1069,12 +1072,12 @@ def test_a_bugfix_that_passes_is_not_run_again_at_the_end(
     )
 
     guess(monkeypatch, PYTEST)
-    executor = ScriptedExecutor([REPRO, PASSED])  # (R4: its reproduction first)
+    executor = ScriptedExecutor([REPRO, PASSED, PASSED])  # (R4: its reproduction first)
     client, _model = make_client(scripts(ran_tests()), executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert row(snap)["status"] == "in" and len(executor.started) == 2
+    assert row(snap)["status"] == "in" and len(executor.started) == 3, executor.started
     assert proof_calls(snap) == []
     assert texts(snap) == [f"Tests passed: {PYTEST} - run by Tester after the last change", SAVED]
 
@@ -1127,7 +1130,8 @@ def test_a_command_after_a_bugfix_testers_pass_runs_the_tests_again(
     guess(monkeypatch, PYTEST)
     steps = scripts(ran_tests())
     steps["Lead"] = [*steps["Lead"][:-1], cmd("python fmt.py", "kf"), text("done")]
-    executor = ScriptedExecutor([REPRO, PASSED, Script(["formatted\n"]), PASSED])
+    # (and the Tester's new test at its Take in: its own tests only - 0.1.7)
+    executor = ScriptedExecutor([REPRO, PASSED, PASSED, Script(["formatted\n"]), PASSED])
     client, _model = make_client(steps, executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -1135,7 +1139,7 @@ def test_a_command_after_a_bugfix_testers_pass_runs_the_tests_again(
     # (the Debugger's reproduction, the Tester's run, the formatter, KOLONİ's run - k-sira-016:
     # Ready for you's checks saved the guess the Tester's run stood for; the end's pass, after the
     # formatter, runs it as the project's - said in that order, as two passes are)
-    assert len(executor.started) == 4 and len(proof_calls(snap)) == 1
+    assert len(executor.started) == 5 and len(proof_calls(snap)) == 1, executor.started
     assert texts(snap) == [SAVED, f"Tests passed: {PYTEST} - 4 passed"]
 
 

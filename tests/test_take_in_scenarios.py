@@ -15,11 +15,6 @@ import subprocess
 
 import pytest
 
-from app.db.models import Project
-
-if not hasattr(Project, "check_command"):  # written before the code: skipped until it exists
-    pytest.skip("slice 30 is not built yet", allow_module_level=True)
-
 from tests.conftest import Gate  # noqa: E402
 from tests.test_chat_flow import text  # noqa: E402
 from tests.test_claim_scenarios import write  # noqa: E402

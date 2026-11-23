@@ -6,6 +6,7 @@ import re
 from fastapi import testclient
 
 CHAT = re.compile(r"^(?:https?://[^/]+)?/api/conversations/([0-9a-f]+)$")
+PROJECT = re.compile(r"^(?:https?://[^/]+)?/api/projects/([0-9a-f]+)$")
 # What a chat of a project does not set itself (`app.api.conversations.PROJECT_WIDE`).
 PROJECT_WIDE = {
     "spawn_approval",
@@ -59,7 +60,18 @@ class TestClient(testclient.TestClient):
         """A chat's PATCH, its sub-agent settings sent to its project's PATCH, as Settings ›
         Project does (tek-ev: a project's chat is refused them, 422).
         shortcut: so the tests of before tek-ev set a chat's turn up as they did; a test of
-        that refusal itself sends `request("PATCH", ...)`. Move them over if this misleads."""
+        that refusal itself sends `request("PATCH", ...)`. Move them over if this misleads.
+        And a project's old `check_command` (0.1.7: Test before adding gone) is set as its root
+        part's own test command, as the project map sets it - the tests of before set their test
+        command up so; "" takes it off again."""
+        project = PROJECT.match(str(url))
+        if project and isinstance(json, dict) and "check_command" in json:
+            json = dict(json)
+            command = (json.pop("check_command") or "").strip()
+            if command:
+                root_test(self, project[1], command)
+            else:
+                self.delete(f"/api/projects/{project[1]}/map/test?path=./", headers=OWN)
         chat = CHAT.match(str(url))
         moved = (
             {key: json[key] for key in PROJECT_WIDE & set(json)}
@@ -77,3 +89,13 @@ class TestClient(testclient.TestClient):
                 return done
             json = {key: value for key, value in json.items() if key not in PROJECT_WIDE}
         return super().patch(url, *args, json=json, **kwargs)
+
+
+def root_test(client, pid: str, command: str) -> None:
+    """The project's own test command at its root, as Settings' project map sets it - for a test
+    that named the old Test before adding (0.1.7: gone - the end gate runs each part's tests; the
+    root is a part the user may set one for, marker or not)."""
+    put = client.put(
+        f"/api/projects/{pid}/map/test", json={"path": "./", "command": command}, headers=OWN
+    )
+    assert put.status_code == 200, put.text
