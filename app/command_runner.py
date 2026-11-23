@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app import project_map
+from app.cards import card_reason
 from app.commands import ANSI as _ANSI
 from app.commands import (
     MAX_STORED_OUTPUT,
@@ -373,6 +374,17 @@ class CommandRunner:
                 # such checks are seen often.
                 judged=_kept(judgement, asks, gate),
                 disposable=_noted(disposable, free and not asks),
+                # (Cards measured: why it is asked, as the gate sees it now - KOLONİ's words.)
+                asked_reason=card_reason(
+                    judged,
+                    conversation.permission_mode != "full_auto",
+                    (asked.why_asked or "") if asked is not None else "",
+                    searched=bool(searched),
+                    web_off=web_off,
+                    keep_running=planned.keep_running,
+                )
+                if asks and not forbidden
+                else None,
             )
             session.add(command)
             session.commit()
@@ -713,6 +725,17 @@ class CommandRunner:
                 # (as `run`'s: what the check said holds only while its gate is open)
                 judged=_kept(judgement, asks, gate),
                 disposable=_noted(disposable, free and not asks),
+                asked_reason=card_reason(
+                    judged,
+                    mode != "full_auto",
+                    (call.why_asked or "")
+                    if (call := session.get(ToolCall, call_id)) is not None
+                    else "",
+                    searched=held,
+                    web_off=web_off,
+                )
+                if asks and not forbidden
+                else None,
             )
             session.add(row)
             session.commit()

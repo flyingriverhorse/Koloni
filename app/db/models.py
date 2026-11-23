@@ -657,6 +657,12 @@ class Command(Base):
     # Coordination §4: what of it KOLONİ found disposable, {"what", "unasked"} (`schemas.
     # DisposableOut`); None: nothing. Set by KOLONİ, never from a CLI's own words.
     disposable: Mapped[dict | None] = mapped_column(JSON, default=None)
+    # 0173 (cards measured): the family of why its card was asked, as the gate saw it then
+    # (`app.cards.card_reason`); None: no card. Set by KOLONİ, never from an agent's words.
+    asked_reason: Mapped[str | None] = mapped_column(String(16), default=None)
+    # When the user answered its card from the app's own page; None: no answer (none asked, or the
+    # turn ended with it open).
+    decided_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(default=now)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     ended_at: Mapped[datetime | None] = mapped_column(default=None)

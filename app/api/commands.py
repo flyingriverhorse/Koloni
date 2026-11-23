@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app import triggers
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.commands import MAX_RULE, rules_here, tidy_rule
-from app.db.models import AllowedCommand, Command, Conversation, Run
+from app.db.models import AllowedCommand, Command, Conversation, Run, now
 from app.schemas import AllowedCommandOut, CommandOut, FrameOut
 from app.serialize import allowed_command_out, command_event, command_out
 
@@ -42,6 +42,10 @@ async def _decide(command_id: str, decision: str, request: Request, session: Ses
     runner = request.app.state.runner
     if not runner.commands.decide(command_id, decision):
         raise HTTPException(409, "this command is no longer waiting for a decision")
+    # (Cards measured: the user's answer from the app's own page - a turn that ends with the card
+    # open, or KOLONİ's own no, is none.)
+    command.decided_at = now()
+    session.commit()
     # The agent task acts on the decision; answer once it has.
     deadline = asyncio.get_running_loop().time() + DECISION_TIMEOUT
     while True:

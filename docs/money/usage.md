@@ -25,6 +25,28 @@ AI credits (or premium requests, its older unit). They show on the agent's conte
 counted from that checkpoint as in **Native**: measured with `copilot -p` (CLI 1.0.103), not yet seen in a
 live session.
 
+## Cards
+
+Under the tables, **Cards** counts the command cards asked in the period - counted from 0.1.7: "7
+asked: 4 approved, 1 rejected, 2 not answered · 12 s to answer, on average" - and, by why KOLONİ
+asked each one (**Deletes or overwrites**, **Sends off this machine**, **Installs packages**, **Runs a
+command through a shell**, **A secret file**, **A file that steers later turns**, **Stops programs by
+name**, **Out of its working copy**, **The web, with web tools off**, **Starts a server**, **No rule
+covers it**), how many were approved and rejected. The reason is the one KOLONİ's gate gave as the card
+opened - a rule you change later does not rewrite it - and an answer is yours from the app's own page:
+a card still open when its turn ended is "not answered". Where [Check what I said
+first](../use/permissions.md#check-what-i-said-first) was asked: "3 ran on a line of yours · 1 not
+run · 2 still asked".
+
+With **This project**, a delete you approved unchanged 5 times in 30 days - the same command, in the
+same folder - is suggested as a rule: "You approved `rm -rf build` 5 times - add “You may delete
+build.” to this project's rules?" **Add to rules** puts that line at the end of the project's rules
+on the [Memory](../memory.md) page, as if you wrote it there; nothing is ever added by itself. The
+line is KOLONİ's words with the paths of the command you approved - only for a plain delete of plain
+relative paths in the project (`rm -rf build`, `Remove-Item -Recurse build`), never a glob, a
+variable, `..` or a command chained to another. It spares the card only at Full auto with Check what
+I said first on.
+
 ## Where the money comes from
 
 KOLONİ shows money only from prices:

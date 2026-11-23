@@ -6,7 +6,7 @@ that changes something takes only a request that says it comes from the app's ow
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
-from app import earlier, koloni
+from app import cards, earlier, koloni
 from app import memory as kept
 from app.agent import announce_memory
 from app.api.deps import get_session, require_own_origin
@@ -126,6 +126,42 @@ async def set_rules(
         if (tidy := kept.check_rules(body.rules)) != kept.rules_in_effect(project):
             koloni.save_rules(project.root_path, tidy)
         kept.change_rules(project, body.rules)
+    except (kept.Refused, koloni.Refused) as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+    session.commit()
+    announce_memory(request.app.state.session_factory, request.app.state.bus, project.id)
+    return {"rules": kept.rules_in_effect(project)}
+
+
+@router.post(
+    "/projects/{project_id}/card-suggestions/{key}",
+    response_model=RulesOut,
+    dependencies=[Depends(require_own_origin)],
+)
+async def add_suggested_rule(
+    project_id: str, key: str, request: Request, session: Session = Depends(get_session)
+):
+    """Cards measured (0.1.7): the user's click on a rule the Usage page suggests - by its key
+    alone, never text: its line, KOLONİ's, found again among what this project's approvals
+    suggest (`cards.suggestions`), at the end of the project's rules, saved as `set_rules` saves
+    them. Once there, the same click changes nothing."""
+    project = _project(session, project_id)
+    rules = kept.rules_in_effect(project)
+    found = next(
+        (
+            one
+            for one in cards.suggestions(session, project, rules or "", True)
+            if one["key"] == key
+        ),
+        None,
+    )
+    if found is None:
+        raise HTTPException(404, "no such suggestion: the approvals no longer suggest it")
+    text = cards.with_rule(rules, found["rule"])
+    try:
+        if (tidy := kept.check_rules(text)) != rules:
+            koloni.save_rules(project.root_path, tidy)
+        kept.change_rules(project, text)
     except (kept.Refused, koloni.Refused) as exc:
         raise HTTPException(exc.status, str(exc)) from None
     session.commit()
