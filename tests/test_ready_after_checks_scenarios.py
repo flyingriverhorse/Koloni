@@ -23,12 +23,12 @@ CODERS = {"Coder": [step(write("greet.py", "print('Hello')\n")), text("built")],
           "Coder 2": [step(write("greet.py", "print('Hello!')\n", "w2")), text("fixed")]}
 
 
-def started(make_client, project_dir, mode, scripts, lead=ONCE):
+def started(make_client, project_dir, mode, scripts, lead=ONCE, rounds=1):
     executor = ScriptedExecutor(scripts)
     client, model = make_client({"Lead": list(lead), **CODERS}, executor=executor)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={
-        "check_command": "python check.py", "fix_rounds": 1}, headers=OWN).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py", **(
+        {"fix_rounds": rounds} if rounds else {})}, headers=OWN).status_code == 200
     web, recipe = teams_of(client)["Web app"], one_step(client, "Build", "Coder")
     cid, run_id = begin(client, project_dir, mode=mode, spawn_approval="never",
                         teams_mode="manual", teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}])
@@ -95,4 +95,20 @@ def test_at_full_auto_failing_work_is_never_taken_in_nor_carded(make_client, wai
     assert any(kind == "not_taken" for kind, _s, _t in rows(snap, run_id)), rows(snap, run_id)
     assert not any(READY in q["question"] for q in snap["questions"]), snap["questions"]
     assert in_copy(executor, project_dir), executor.started
+    assert not (project_dir / "greet.py").exists()
+
+
+def test_until_it_passes_a_round_that_made_no_progress_stops_the_recipe_short(make_client, wait_run,
+                                                                             project_dir):
+    # (k-canli-016's default: the send-back is `_round_left`'s - the same failing set again is no
+    # progress, `held.halted`, and no round more is sent into the recipe)
+    client, executor, cid, run_id = started(make_client, project_dir, "full_auto",
+                                            [failing() for _ in range(4)], lead=TWICE, rounds=None)
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    spawns = [c["result"] for c in snap["tool_calls"] if c["name"] == "spawn_agent"]
+    assert [FIX_IN_RECIPE.split("{back}")[0] in one for one in spawns] == [True, False], spawns
+    said = [one for _k, _s, one in rows(snap, run_id)]
+    assert "Stopped after round 1: no progress in two rounds - you decide (Fix it)" in said, said
+    assert any(kind == "not_taken" for kind, _s, _t in rows(snap, run_id)), said
     assert not (project_dir / "greet.py").exists()

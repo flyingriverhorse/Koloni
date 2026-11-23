@@ -574,9 +574,11 @@ class StrongerMixin:
         it is. KOLONİ's end checks run first, on the work where it is (the recipe's copy): a fix
         round goes to the Lead (its words, no card); work they left failing after the rounds
         and the stronger models is never taken in nor carded (decision 18, S11). Asked: its
-        Checked section is said first, so the card comes after it. A fix round sends the rows
-        back to work, as a wordless Ask for changes: at their end no role is opened, and the
-        Lead may not write (delegates) - the recipe's own roles fix it, in its copy."""
+        Checked section is said first, so the card comes after it. A fix round - one
+        `_round_left` granted, counted there alone (Fix rounds or until it passes; none once
+        `held.halted`) - sends the rows back to work, as a wordless Ask for changes: at their end
+        no role is opened, and the Lead may not write (delegates) - the recipe's own roles fix
+        it, in its copy."""
         rounds = was.rounds if (was := self._proofs.get(ctx.run_id)) else 0
         if (said := await self._proof_left(ctx)) is not None:
             fixing = (was := self._proofs.get(ctx.run_id)) is not None and was.rounds > rounds
