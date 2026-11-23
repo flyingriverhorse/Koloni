@@ -26,6 +26,7 @@ from app.agent.words import (
     NOT_IN_THE_PART,
     SHARED_WITH_PROJECT,
 )
+from app.cards import CLI_ASKED
 from app.command_runner import CARRY_ON, refused_by_rule, rejected
 from app.commands import reads_here, search_reason, sends_canary, web_off_reason
 from app.db.models import Command, Conversation, FileChange, now
@@ -439,8 +440,10 @@ class ApprovalsMixin:
         command = given["command"]
         # Why it asks (Codex: to leave its sandbox, say) and where it says the command
         # runs are shown with it; either makes it a card at every level, and nothing a
-        # trigger allows. (Out of a working copy is out of the folder it works in.)
-        reason, cwd = given.get("reason"), given.get("cwd")
+        # trigger allows. (Out of a working copy is out of the folder it works in.) Its
+        # words are shown, never read for the family its card is counted in (`cards`).
+        asked, cwd = given.get("reason"), given.get("cwd")
+        reason = None
         # What it says the command touches (Copilot: possiblePaths, slice 89c): each path
         # judged as a read or a write of it would be, and a hit is its reason.
         # shortcut: a path in a folder the project also works in is a card too, where a
@@ -516,7 +519,7 @@ class ApprovalsMixin:
             disposable.cli_shell(cli, tool),
         )
         free = bool(found and found["allowed"])
-        before = (
+        ours = (  # (KOLONİ's own reason, where it has one)
             web_off
             or reason
             or searched
@@ -528,6 +531,7 @@ class ApprovalsMixin:
             or self._branch_asks(ctx, command, copy is not None)
             or (self._shared_install(ctx, command, copy is not None and bool(copy.links)))
         )
+        before = web_off or asked or ours
         # K-yargic: harm alone may first be checked against the user's own words (`_judged`) -
         # not for a role that runs no command (it is refused below whatever the check says), nor
         # where it runs is not known: no folder (`at` None), or one its model wrote (`claimed`).
@@ -544,6 +548,7 @@ class ApprovalsMixin:
         reason = before or night
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
+        why = (ours or night or CLI_ASKED) if asked else reason
         noted = {
             "command": command,
             **({"reason": reason} if reason else {}),
@@ -609,6 +614,7 @@ class ApprovalsMixin:
             cwd=(where if where is not None else cwd) if isinstance(cwd, str) and cwd else unnamed,
             judgement=judged,
             disposable=found,
+            why=why or "",
         )
         if not allowed:
             said = (

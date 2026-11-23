@@ -1,11 +1,12 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { errorText } from '../api/client'
-import type { Budget, CataloguePrice, Limits, Price, Project, Provider, Usage } from '../api/types'
+import type { Budget, CataloguePrice, Cards, Limits, Price, Project, Provider, Usage } from '../api/types'
 import { modelName } from '../shell/modelName'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { cached } from '../shell/tokens'
 import { BudgetSection } from './Budget'
+import { CardsSection } from './CardsSection'
 import { day, money, totalCost } from './cost'
 import { Fold } from './Fold'
 import { type Period, PERIODS, since } from './period'
@@ -52,6 +53,10 @@ interface Props {
   onSettings?: () => void
   /** The open project's day (tek-ev §3): shown with "This project" in the Today period. */
   today?: ReactNode
+  /** Cards measured (0.1.7): reads the command cards of the period - with it, the page has its "Cards". Throws ApiError. */
+  onCards?: (projectId: string | null, since: string | null) => Promise<Cards>
+  /** The user's click on a rule "Cards" suggests (its key alone). Throws ApiError. */
+  onAddCardRule?: (projectId: string, key: string) => Promise<void>
 }
 
 /** A number a model reported, or "–" (its row says why) - never a made-up zero. */
@@ -215,7 +220,7 @@ function Totals({ usage, prices, onPrices }: { usage: Usage; prices: Price[]; on
  * model reported is counted; what none reported is "unknown", and money is shown only from
  * prices the user wrote.
  */
-export function UsagePage({ project, projects, onLoad, onOpen, providers = [], onLimits, prices = [], cataloguePrices = [], onPrice, onRemovePrice, budget, onModels, onSettings, today }: Props) {
+export function UsagePage({ project, projects, onLoad, onOpen, providers = [], onLimits, prices = [], cataloguePrices = [], onPrice, onRemovePrice, budget, onModels, onSettings, today, onCards, onAddCardRule }: Props) {
   const [all, setAll] = useState(false)
   // A plain chat has no folder of its own: every one's is shown.
   const everywhere = all || !project
@@ -268,6 +273,9 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
       {!everywhere && budget && <BudgetSection budget={budget} onSettings={onSettings} />}
     </div>
   )
+
+  /** Cards measured (0.1.7): where the page is given how to read them. */
+  const cardsSection = () => onCards && <CardsSection projectId={scope} period={period} onLoad={onCards} onAdd={onAddCardRule} />
 
   /** The tables by provider and model, by conversation and by who started it: where some agent reported. */
   const tables = () =>
@@ -378,6 +386,7 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
       {period === 'today' && !everywhere && today}
       {plansAndBudget()}
       {tables()}
+      {cardsSection()}
       {onPrice && onRemovePrice && (
         <Prices
           providers={providers}

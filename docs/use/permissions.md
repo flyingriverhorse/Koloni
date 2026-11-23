@@ -262,6 +262,11 @@ a git remote's branch, Docker's prune or volumes, a file that steers agents and 
 another through a shell or a wrapper keep their card. The
 same holds in the chat you went away from, while you're away. A plain chat has no such switch.
 
+How often each of these happened - and the cards asked, by why - is on the Usage page under
+[Cards](../money/usage.md#cards). There a delete you approved unchanged 5 times is suggested as a line
+for this project's rules ("You may delete ./build."); it is added only when you press **Add to
+rules**.
+
 ## Plan first
 
 With **Plan first** on, each new message first gets a plan to approve. While it plans, an agent

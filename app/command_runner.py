@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app import project_map
+from app.cards import card_reason
 from app.commands import ANSI as _ANSI
 from app.commands import (
     MAX_STORED_OUTPUT,
@@ -373,6 +374,17 @@ class CommandRunner:
                 # such checks are seen often.
                 judged=_kept(judgement, asks, gate),
                 disposable=_noted(disposable, free and not asks),
+                # (Cards measured: why it is asked, as the gate sees it now - KOLONİ's words.)
+                asked_reason=card_reason(
+                    judged,
+                    conversation.permission_mode != "full_auto",
+                    (asked.why_asked or "") if asked is not None else "",
+                    searched=bool(searched),
+                    web_off=web_off,
+                    keep_running=planned.keep_running,
+                )
+                if asks and not forbidden
+                else None,
             )
             session.add(command)
             session.commit()
@@ -658,6 +670,7 @@ class CommandRunner:
         cwd: str | None = None,
         judgement: dict | None = None,
         disposable: dict | None = None,
+        why: str = "",
     ) -> tuple[bool, str]:
         """A command a CLI is about to run with a tool of its own: put it on record,
         get it decided the way KOLONİ's own commands are, and say whether it may run.
@@ -669,7 +682,9 @@ class CommandRunner:
         the root), so that the card is judged the same when it is read again. What it
         prints comes from the CLI, hidden there (`AgentRunner._observe_command`) for the
         screen and the record - the CLI's own model has read it already. `judgement`: as
-        `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too."""
+        `run`'s (one it refused: (False, its id), as for the user's no); `disposable` too.
+        `why`: KOLONİ's own reason for its card, for the family it is counted in (`card_reason`)
+        - never the reason the CLI gave in words of its own, shown on its card all the same."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
@@ -713,6 +728,11 @@ class CommandRunner:
                 # (as `run`'s: what the check said holds only while its gate is open)
                 judged=_kept(judgement, asks, gate),
                 disposable=_noted(disposable, free and not asks),
+                asked_reason=card_reason(
+                    judged, mode != "full_auto", why, searched=held, web_off=web_off
+                )
+                if asks and not forbidden
+                else None,
             )
             session.add(row)
             session.commit()

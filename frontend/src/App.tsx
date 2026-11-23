@@ -761,6 +761,8 @@ export function App() {
       project={project}
       projects={projects}
       onLoad={useApp.getState().usage}
+      onCards={useApp.getState().cards}
+      onAddCardRule={useApp.getState().addCardRule}
       budget={budget}
       providers={providers}
       onLimits={useApp.getState().limits}

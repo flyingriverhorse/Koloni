@@ -97,7 +97,7 @@ removed or dragged. KOLONİ runs its checks first, on the work in the recipe's c
 **Ready for you**: a fix round sends the recipe back to work, and work whose tests still fail after
 the rounds is never offered nor taken in.
 
-![The Bugfix recipe in the editor: the locked Checks step between its last step and the end, and its panel offering Follow the project or Set for this recipe with Tests, Review, Docs, Diagrams, Data, Slides and Pages, and Fix rounds - the project's, Until it passes, 0 - check only, or 1 to 10](../images/recipe-checks-step.png)
+![The ready Bugfix in the editor - Reproduce it with a failing test, then Fix it - its locked Checks step between its last step and the end, and its panel set for the recipe with Tests, Review and Config ticked of Tests, Review, Docs, Diagrams, Data, Slides, Pages and Config](../images/recipe-checks-step.png)
 
 Click it to choose:
 
