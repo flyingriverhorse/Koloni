@@ -230,9 +230,9 @@ def _findings(
     """What a check role's report says in its Findings section (`FINDINGS_PROMPT`), each
     finding as {"what", "kind", "role", "blocking"}: [] where it says nothing was found
     (NO_FINDINGS), None where it has no such section or no line of it is in the format. The
-    section is the last one outside a fenced block; it ends at the next heading or fence, and a line
-    on the heading itself is read like the rest. It is a model's text: each line is cut
-    before it is read, a kind not of FINDING_KINDS is "other", and a role is one of
+    sections are those outside a fenced block (`_findings_section`); each ends at the next heading
+    or fence, and a line on the heading itself is read like the rest. It is a model's text: each
+    line is cut before it is read, a kind not of FINDING_KINDS is "other", and a role is one of
     `roles` (those that may be opened here), as spelled there, else None (`_role_named`: an
     agent of `agents` names its role)."""
     lines, failing = _findings_section(report)
@@ -243,15 +243,18 @@ def _findings(
     said, failing = kept, failing or len(kept) < len(said)
     if not said and failing:
         return []  # (only what was failing before: nothing found)
-    if len(said) == 1 and said[0].rstrip(".!").casefold() in NO_FINDINGS:
+    if said and all(one.rstrip(".!").casefold() in NO_FINDINGS for one in said):
         return []
     return _findings_read(said, roles, agents)
 
 
 def _findings_section(report: str) -> tuple[list[str] | None, bool]:
-    """`_findings`: the lines of a report's last Findings section outside a fenced block
-    (None: there is none), and whether it says what was failing before."""
-    lines: list[str] | None = None
+    """`_findings`: the lines of a report's Findings sections outside a fenced block (None: there
+    is none), and whether it says what was failing before. T: a section with a heading of its own
+    - "## Findings", or a "Findings:" line with its rows under it - outweighs a one-line mention
+    ("Findings: see above, nothing blocking." closing the report): every such section is read, its
+    rows together; with none, the last one-liner is, as it says ("Findings: none")."""
+    sections: list[tuple[bool, list[str]]] = []
     under = fenced = failing = False
     for line in report.splitlines():
         bare = line.strip()[: 2 * MAX_WHAT]
@@ -264,12 +267,16 @@ def _findings_section(report: str) -> tuple[list[str] | None, bool]:
         if name.strip(" *-•").casefold() == FAILING_BEFORE:
             failing = True  # (no finding, wherever it is: B-117)
         elif name.strip(" *").casefold() == "findings":
-            lines, under = [rest.strip(" *")], True
+            rest = rest.strip(" *")
+            sections.append((bare.startswith("#") or not rest, [rest]))
+            under = True
         elif bare.startswith("#") or name.strip(" *-•").casefold() == "checked":
             under = False
-        elif under and lines is not None:
-            lines.append(bare)
-    return lines, failing
+        elif under and sections:
+            sections[-1][1].append(bare)
+    if heads := [lines for heading, lines in sections if heading]:
+        return [line for lines in heads for line in lines], failing
+    return (sections[-1][1] if sections else None), failing
 
 
 def _findings_read(

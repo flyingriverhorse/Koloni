@@ -47,7 +47,9 @@ project's root (`rm -rf build dist` in `web`: “You may delete ./web/build and 
 for a plain delete of plain relative paths in the project (`rm -rf build`, `Remove-Item -Recurse
 build`), never a glob, a variable, `.`, `..`, a dot file or a command chained to another, nor one
 whose folder or command reads as anything else. It spares the card only at Full auto with Check what
-I said first on.
+I said first on. A delete your own words forbid - a line of your preferences or of the project's
+rules that names its path and says no ("Never delete ./build."), or one under a heading that does
+("Never delete these:") - is never suggested, and **Add to rules** refuses it, naming that line.
 
 ## Where the money comes from
 

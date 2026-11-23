@@ -354,3 +354,51 @@ def test_findings_from_an_agent_of_an_earlier_turn_is_refused(make_client, wait_
         and "no agent of this turn is named Reviewer" in refused["content"]
     )
     assert "Coder" not in [a["role_name"] for a in snap["agents"]]
+
+
+# --- T: a closing "Findings: see above" line after the section ------------------------------
+
+# (the live reports' shape - Claude Code · haiku, both looks of a turn)
+SECTION = (
+    "Verdict: {verdict}\n\nI read shellrun.py and tests/test_shellrun.py.\n\n## Findings\n"
+    "- tests/test_shellrun.py:32-37: the env case asserts one key only | kind: test | "
+    "role: Orchestrator | {mark}\n"
+    "- shellrun.py:12: env is passed on unchecked | kind: code | role: Orchestrator | suggestion\n"
+    "\nFindings: see the suggestions above; {closing}."
+)
+
+
+def test_a_closing_findings_line_leaves_the_section_counted():
+    # (it said "Review gave no findings section: not counted", its suggestions lost)
+    found = _findings(
+        SECTION.format(verdict="MERGE", mark="suggestion", closing="nothing blocking"),
+        ["Orchestrator"],
+    )
+    assert [(f["what"][:22], f["blocking"]) for f in found] == [
+        ("tests/test_shellrun.py", False),
+        ("shellrun.py:12: env is", False),
+    ]
+    # (a one-liner alone is read as before; two sections with headings are read together)
+    assert _findings("Findings: none", []) == []
+    both = "## Findings\n- a | kind: code\n\n## Notes\nx\n\n### Findings\n- b | kind: ui\nFindings: see above"
+    assert [f["what"] for f in _findings(both, [])] == ["a", "b"]
+    assert _findings("## Findings\nNone.\n\nFindings: see above, nothing.", []) == []
+
+
+def test_a_closing_findings_line_never_loses_a_blocking_finding():
+    from app.agent.review_mixin import FIXER, _held_in_words, verdict_of
+
+    def look(report):  # (as `ReviewMixin._look` reads a look's report)
+        verdict, found = verdict_of(report), _findings(report, [FIXER])
+        return verdict, _held_in_words(report, found) if verdict == "HOLD" else found
+
+    # (a MERGE whose section marks one blocking: counted, and that finding holds the work)
+    verdict, found = look(SECTION.format(verdict="MERGE", mark="blocking", closing="1 blocking"))
+    assert verdict == "MERGE" and [f["blocking"] for f in found] == [True, False]
+    # (a HOLD: its own blocking row - never the whole report's text as one finding)
+    verdict, found = look(SECTION.format(verdict="HOLD", mark="blocking", closing="1 blocking"))
+    assert (
+        verdict == "HOLD"
+        and len(found) == 2
+        and found[0]["what"].startswith("tests/test_shellrun.py:32-37")
+    )

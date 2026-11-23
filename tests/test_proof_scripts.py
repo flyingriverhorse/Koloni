@@ -137,7 +137,16 @@ def test_what_powershell_would_look_up_never_reaches_its_parser(tmp_path, stand_
         "\x0cusing assembly ./x.dll\n'x'\n",
         "\x0busing module ./x\n'x'\n",
         "using `\nassembly ./x.dll\n'x'\n",
-        "'we are using this'\n",  # (fail closed: an English "using" too)
+        # (U3: "using" in a comment or a string is read - but where a boundary is not sure, the
+        # whole text is looked at, as before: `<#` or a quote inside a word, a line a backtick
+        # goes on, a "…" with code in it, PowerShell's other quote marks, an unended string)
+        "Write-Output a<#; Import-DscResource -ModuleName x #>\n",
+        "Write-Output don't stop'\nImport-DscResource\n",
+        "x`\n# Import-DscResource -ModuleName x\n",
+        'Write-Output "$(1) using it"\n',
+        "'a’ + 'Import-DscResource'\n",
+        "'unended using it\n",
+        "$x = 1 # using it\n",  # (a comment after code: read, not taken out)
         # (a statement whose taking out would change the rest: a comment's end, a quote)
         "<#\nusing module x #>\n$y = 1\n",
         "using assembly 'a;b.dll'\n'x'\n",
@@ -446,3 +455,152 @@ def test_a_using_variable_is_no_statement_and_is_read(tmp_path, stand_in):
     assert said(tmp_path, {"a.ps1": "$x = 1\n1..2 | ForEach-Object -Parallel { $using:x }\n"}) == [
         ("passed", "a.ps1: parses")
     ]
+
+
+def test_no_folder_of_a_read_is_left_behind_whatever_its_shell_left_running(
+    tmp_path, stand_in, monkeypatch
+):
+    # (Six empty koloni-script-* folders stayed in %TEMP%: a process the shell left behind held
+    # its folder as its own, and the folder's removal failed unsaid. Now what the shell started
+    # ends with the read - its job on Windows, its group elsewhere - and the folder goes.)
+    import tempfile
+
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp))
+    monkeypatch.setattr(proof_kinds, "BASH_SECONDS", 2)
+    rows = said(tmp_path / "p", {"left.sh": "grandchild\n", "hung.sh": "grandchild hang\n"})
+    assert [state for state, _text in rows] == ["passed", "note"], rows
+    assert list(temp.iterdir()) == []
+
+
+@needs_powershell
+def test_using_in_a_comment_or_a_string_is_read(tmp_path):
+    # (U3: each of these was "not checked: it loads a module or an assembly")
+    files = {
+        "a.ps1": "# Build using dotnet\n$x = 1\n",
+        "b.ps1": "# Using the default path\nWrite-Output 'we are using it'\n",
+        "c.ps1": "<#\n.SYNOPSIS\nDeploys using az.\n#>\nparam($a)\n",
+        "d.ps1": "$s = @'\nusing module ./evil.psm1\nImport-DscResource\n'@\n$s\n",
+    }
+    assert said(tmp_path, files) == [("passed", f"{rel}: parses") for rel in files]
+
+
+# (each kind of part U3 blanks, and the boundaries it is not sure of - ZZZ for any keyword: no lookup)
+TOKENS = [
+    "# Build ZZZ dotnet\n$x = 1\n",
+    "<#\n.SYNOPSIS\nDeploys ZZZ az.\n#>\nparam($a)\n",
+    "$x = 1 # ZZZ it\n",
+    'Write-Output "ZZZ $x"\n',
+    "$s = @'\nZZZ module x\n'@\n",
+    '$s = @"\nZZZ $x\n"@\n',
+    "Write-Output a<#c#>b\n",
+    "Write-Output don't stop'\nZZZ\n",
+    "${a'b} = 1\nZZZ\n",
+    "$x = 'a''b'; ZZZ\n",
+    '$x = "a""b`"c"; ZZZ\n',
+    "x`\n# ZZZ\n",
+    "$a = @'\n  '@\nZZZ\n'@\n",
+    "<# a #> <# b #>ZZZ\n",
+    "$h = @{ 'k' = \"v\" } # c\n",
+    "Write-Output 'a<#b'; ZZZ #> \n",
+    "[string]'x' # ZZZ\n",
+    "Write-Host @'\nx\n'@ ; ZZZ\n",
+]
+_SPANS = r"""
+$text = [Console]::In.ReadToEnd()
+$tokens = $null; $errors = $null
+$null = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
+ConvertTo-Json -Compress @($tokens | Where-Object { $_.Kind -in 'Comment', 'StringLiteral',
+  'StringExpandable', 'HereStringLiteral', 'HereStringExpandable' } |
+  ForEach-Object { @{ s = $_.Extent.StartOffset; e = $_.Extent.EndOffset } })
+"""
+
+
+@needs_powershell
+@pytest.mark.parametrize("text", TOKENS)
+def test_what_u3_takes_for_a_comment_or_a_string_powershell_does_too(text):
+    # (never weaker than before: a character blanked for the look is one of a comment or a string
+    # to PowerShell's own tokenizer - else code with a lookup in it could hide there)
+    import base64
+    import json
+    import subprocess
+
+    code = proof_kinds._code_of(text)
+    if code is None:
+        return  # (not sure: the whole text is looked at, as before)
+    done = subprocess.run(  # noqa: S603 (PowerShell, its own script encoded; the text on stdin)
+        [
+            *proof_kinds._powershell(),
+            "-NoProfile",
+            "-NonInteractive",
+            "-EncodedCommand",
+            base64.b64encode(_SPANS.encode("utf-16-le")).decode("ascii"),
+        ],
+        input=text,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=scaled(60),
+    )
+    spans = json.loads(done.stdout or "[]")
+    inside = {
+        at
+        for one in ([spans] if isinstance(spans, dict) else spans)
+        for at in range(one["s"], one["e"])
+    }
+    assert {at for at, (a, b) in enumerate(zip(text, code, strict=True)) if a != b} <= inside
+
+
+@pytest.mark.parametrize(
+    ("first", "row"),
+    [
+        ("#!/bin/zsh", ("note", "s.sh: not checked: its first line says it is a zsh script")),
+        (
+            "#!/usr/bin/env fish",
+            ("note", "s.sh: not checked: its first line says it is a fish script"),
+        ),
+        (
+            "#!/usr/bin/env -S python3 -u",
+            ("note", "s.sh: not checked: its first line says it is a python3 script"),
+        ),
+        ("#!/bin/ksh", ("note", "s.sh: not checked: its first line says it is a ksh script")),
+        # (bash reads these: no first line of that kind, sh, bash, dash, through env too)
+        (
+            "#!/bin/sh",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "#!/usr/bin/env bash",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "#! /bin/dash -e",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+        (
+            "# a comment",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
+    ],
+)
+def test_a_script_whose_first_line_names_another_shell_is_not_read_by_bash(
+    tmp_path, stand_in, first, row
+):
+    # (U1: a valid zsh script was "does not parse" and sent back to fix)
+    assert said(tmp_path, {"s.sh": f"{first}\n{BROKEN}"}) == [row]
+
+
+@needs_bash
+def test_what_bash_warns_of_with_exit_0_is_a_note(tmp_path):
+    # (U2: a here-document ended by the file's end - bash -n exits 0 and warns: not "does not parse")
+    rows = said(
+        tmp_path, {"heredoc.sh": "cat <<EOF\nline\n", "zsh.sh": "#!/bin/zsh\nprint -l **/*(.)\n"}
+    )
+    assert rows[0] == ("passed", "heredoc.sh: parses"), rows
+    assert rows[-1] == ("note", "zsh.sh: not checked: its first line says it is a zsh script")
+    # (its warning, where this bash gives one - Git's 5.2 does: a note of its own)
+    assert all(
+        state == "note" and line.startswith("heredoc.sh:") and "bash warns - " in line
+        for state, line in rows[1:-1]
+    ), rows

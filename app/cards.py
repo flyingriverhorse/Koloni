@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
-from app import judge
+from app import judge, memory
 from app.commands import (
     SEARCHES_FOLDER,
     _words,
@@ -250,6 +250,39 @@ def _stands(rules: str, line: str) -> bool:
     return (judge.verdict(answer, said) or {}).get("verdict") == "run"
 
 
+def forbidden(texts: list[str | None], command: str, cwd: str | None) -> str | None:
+    """S: a line of the user's words - their preferences, the project's rules - that names a
+    target of this delete and says no, in itself or by the heading above it ("Never delete
+    these:"), as `judge` reads a no; None: none does. Such a delete is never suggested, nor
+    added: a "You may" beside it would only set the two against each other."""
+    targets = _targets(command, cwd) or []
+    if not targets:
+        return None
+    named = re.compile(
+        # (a path of its own: no part of a longer one - a sentence's full stop after it is none)
+        r"(?<![\w./\\-])(?:\./)?(?:" + "|".join(map(re.escape, targets)) + r")/?"
+        r"(?![\w/\\-]|\.[\w/\\-])",
+        re.IGNORECASE,
+    )
+    for text in texts:
+        # (the line above that ends in ":" - in its block, or for a list's item across blank lines
+        # and other items - as `judge._units` reads a heading; a backtick's sentence counts here)
+        head = listed = ""
+        for line in judge._prose(text or ""):
+            if line is None or not line.strip():
+                head = "" if line is not None else head
+                continue
+            item = bool(judge.LIST_MARK.match(line.strip()))
+            above = head or (listed if item else "")
+            if named.search(line) and judge._says_no(judge._plain(f"{line}\n{above}")):
+                return line.strip()
+            if line.rstrip().endswith(":"):
+                head = listed = line
+            elif not item:
+                listed = ""
+    return None
+
+
 def _has(rules: str, line: str) -> bool:
     """Whether the rules hold `line` as a line of their own (a list item too)."""
     return any(judge.LIST_MARK.sub("", one.strip()) == line for one in rules.splitlines())
@@ -265,7 +298,8 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
     its card at Full auto with Check what I said first on; one the rules hold already is left out
     (`added` False). Each command as it was approved, to the character: one with a line break
     in it is two commands, and never plain (review: `rm -rf build⏎src`, its spaces made one,
-    suggested "You may delete build and src.")."""
+    suggested "You may delete build and src."). One the user's words forbid (`forbidden`) is
+    not suggested - `added`: kept, with the line that forbids it, for Add to rules to refuse."""
     times = func.count()
     approved = (
         select(Command.command, Command.cwd, times)
@@ -286,9 +320,13 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
         .limit(MOST_SUGGESTED)
     )
     found = []
+    preferences = memory.preferences(session)
     for command, cwd, n in session.execute(approved):
         line = rule_line(command, cwd)
-        if line is not None and (added or not _has(rules, line)) and _stands(rules, line):
+        if line is None or not (added or not _has(rules, line)) or not _stands(rules, line):
+            continue
+        why = forbidden([preferences, rules], command, cwd)
+        if why is None or added:
             found.append(
                 {
                     "key": key_of(project.id, command, cwd),
@@ -296,6 +334,7 @@ def suggestions(session: Session, project: Project, rules: str, added: bool = Fa
                     "cwd": cwd,
                     "times": n,
                     "rule": line,
+                    **({"forbidden": why} if why is not None else {}),
                 }
             )
     return found

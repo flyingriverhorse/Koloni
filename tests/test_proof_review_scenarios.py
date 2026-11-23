@@ -1203,3 +1203,35 @@ def test_a_refusals_words_to_the_model_are_no_rows():
     )
     assert review_mixin._why(review_mixin.STOPPED_LOOK) == "stopped by you"
     assert review_mixin._why(review_mixin.OVER_LIMIT) == review_mixin.OVER_LIMIT
+
+
+def test_a_closing_findings_line_never_lets_a_blocking_finding_through(
+    make_client, wait_run, project_dir
+):
+    # (T, live with haiku: "## Findings" and its rows, then "Findings: see above …" closing the
+    # report - the last "Findings" read alone, "Review gave no findings section: not counted",
+    # and a MERGE with a blocking row went in. Now the section counts: the blocking row holds.)
+    said = text(
+        "Verdict: MERGE\n\n## Findings\n- a.py:3 divides by zero | kind: code | role: "
+        "Orchestrator | blocking\n- a.py:9 naming | kind: code | role: Orchestrator | "
+        "suggestion\n\nFindings: see above (1 blocking)."
+    )
+    client, _model = make_client(
+        {
+            "Lead": [
+                write("a.py", BIG),
+                text("done"),
+                write("a.py", BIG + "y = 1\n", "w2"),
+                text("fixed"),
+            ],
+            "Reviewer": [said],
+            "Reviewer 2": [MERGE],
+        },
+        executor=ScriptedExecutor([PASS, PASS]),
+    )
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    rows = texts(wait_run(client, cid, run_id))
+    assert not any("no findings section" in one for one in rows), rows
+    assert any(
+        one.startswith("Sent back to fix: 1 of 2 rounds (1 blocking finding)") for one in rows
+    ), rows
