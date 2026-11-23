@@ -20,7 +20,8 @@ from app.db.models import (
     ToolCall,
     now,
 )
-from app.db.session import make_engine, make_session_factory, upgrade_db
+from app.db.session import make_engine, make_session_factory
+from tests.conftest import migrated_copy
 
 
 @pytest.mark.parametrize(("path", "kind"), [
@@ -153,7 +154,7 @@ def test_checked_text_one_line_a_row():
 @pytest.fixture
 def factory(tmp_path):
     db = tmp_path / "p.db"
-    upgrade_db(db)
+    migrated_copy(db)  # (one migration a run: 30 s a test on Windows CI)
     factory = make_session_factory(make_engine(db))
     with factory() as s:
         s.add(Project(id="p", name="p", root_path=str(tmp_path)))
